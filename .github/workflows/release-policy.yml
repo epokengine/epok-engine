@@ -46,4 +46,4 @@ jobs:
           fi
 
       - name: Run the Rust test suite
-        run: cargo test --locked
+        run: cargo test --locked -- --test-threads=1
