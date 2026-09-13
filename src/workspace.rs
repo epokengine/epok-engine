@@ -575,7 +575,7 @@ pub(crate) mod tests {
             )
             .unwrap();
         }
-        assert_eq!(crate::scripts::catalog(&a).unwrap().len(), 1);
+        assert_eq!(crate::scripts::catalog(&a).unwrap().len(), 2);
         assert_eq!(crate::scripts::catalog(&b).unwrap().len(), 2);
         assert!(!b.join("assets/scripts/Behaviour002.cpp").exists());
         assert_eq!(fs::read(startup_scene(&b).unwrap()).unwrap(), original);

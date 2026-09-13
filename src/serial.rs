@@ -534,11 +534,8 @@ mod tests {
         ] {
             let (tx, events) = mpsc::channel();
             let (_stop, rx) = mpsc::channel();
-            assert_eq!(
-                execute(fake(script), Mode::Setup, &tx, &rx).is_ok(),
-                success,
-                "{script}"
-            );
+            let result = execute(fake(script), Mode::Setup, &tx, &rx);
+            assert_eq!(result.is_ok(), success, "{script}: {result:?}");
             assert!(
                 !events
                     .try_iter()
@@ -684,9 +681,10 @@ mod tests {
             }
         }
         let _ = controls.send(Control::Stop);
+        let result = worker.join().unwrap();
         assert!(
-            worker.join().unwrap().is_ok(),
-            "Reset must receive OKAY before ending the session"
+            result.is_ok(),
+            "Reset must receive OKAY before ending the session: {result:?}"
         );
         assert!(connected && in_flight);
         assert_eq!(states, [true, false]);
