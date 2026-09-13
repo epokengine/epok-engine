@@ -281,12 +281,7 @@ mod tests {
         assert_eq!(package.meta.id, id);
         assert!(settings.dependencies().is_empty());
         assert!(settings.programs.is_empty());
-        assert!(
-            settings
-                .validate_playback()
-                .unwrap_err()
-                .contains("not available yet")
-        );
+        assert_eq!(settings.validate_playback().unwrap_err(), PLAYBACK_BLOCKER);
 
         let record = fixture.record();
         let stale = prepare(
