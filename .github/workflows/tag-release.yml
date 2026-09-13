@@ -1,4 +1,4 @@
-name: Tag release
+name: Publish release
 
 on:
   push:
@@ -8,36 +8,91 @@ permissions:
   contents: write
 
 jobs:
-  tag-release:
-    name: tag-release
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+  windows-portable:
+    name: windows-portable
+    # Creating the release branch establishes its baseline; only later merges publish.
+    if: github.event.created == false
+    runs-on: windows-latest
+    timeout-minutes: 60
     steps:
-      - name: Check out the release history
+      - name: Check out the release commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Read and verify the version
-        id: version
-        shell: bash
-        run: echo "version=$(python tools/versioning.py current)" >> "$GITHUB_OUTPUT"
+      - name: Build and test the release
+        shell: pwsh
+        run: |
+          cargo test --locked
+          cargo build --locked --release
+
+      - name: Build the portable archive
+        id: package
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $archiveBase = "Epok-Engine-v$version-Windows-x64-Portable"
+          $packageRoot = Join-Path "dist" $archiveBase
+          New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
+
+          Copy-Item "target/release/epok-editor.exe" (Join-Path $packageRoot "Epok Engine.exe")
+          if (Test-Path "target/release/epok-header-tool.exe") {
+            Copy-Item "target/release/epok-header-tool.exe" $packageRoot
+          }
+          foreach ($directory in "examples", "resources", "runtime", "templates") {
+            Copy-Item $directory (Join-Path $packageRoot $directory) -Recurse
+          }
+          Copy-Item "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md" $packageRoot
+
+          @"
+          Epok Engine Windows x64 Portable
+
+          Extract this archive to a writable folder and run Epok Engine.exe.
+          This archive does not install files or modify the system. PSX builds still
+          require the project-owned setup tools described in README.md.
+          "@ | Set-Content (Join-Path $packageRoot "PORTABLE.txt") -NoNewline
+
+          $archive = Join-Path "dist" "$archiveBase.zip"
+          Compress-Archive -Path $packageRoot -DestinationPath $archive -Force
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "archive=$archive" >> $env:GITHUB_OUTPUT
+
+      - name: Upload the portable archive to this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: Epok-Engine-Windows-x64-Portable
+          path: ${{ steps.package.outputs.archive }}
+          if-no-files-found: error
 
       - name: Create the annotated version tag
+        shell: pwsh
         env:
-          VERSION: ${{ steps.version.outputs.version }}
-        shell: bash
+          VERSION: ${{ steps.package.outputs.version }}
         run: |
-          tag="v$VERSION"
-          if git rev-parse "$tag" >/dev/null 2>&1; then
-            if [ "$(git rev-list -n 1 "$tag")" = "$GITHUB_SHA" ]; then
-              echo "$tag already points to this release commit."
+          $tag = "v$env:VERSION"
+          $existing = git rev-parse -q --verify "refs/tags/$tag^{}"
+          if ($LASTEXITCODE -eq 0) {
+            if ($existing -eq $env:GITHUB_SHA) {
+              Write-Output "$tag already points to this release commit."
               exit 0
-            fi
-            echo "$tag already exists on another commit."
-            exit 1
-          fi
+            }
+            throw "$tag already points to another commit."
+          }
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$tag" -m "Epok Engine $VERSION"
-          git push origin "$tag"
+          git tag -a $tag -m "Epok Engine $env:VERSION"
+          git push origin $tag
+
+      - name: Create the GitHub release and attach the archive
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.package.outputs.version }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+        run: |
+          $tag = "v$env:VERSION"
+          if (gh release view $tag 2>$null) {
+            gh release upload $tag $env:ARCHIVE --clobber
+          } else {
+            gh release create $tag $env:ARCHIVE --title "Epok Engine $tag" --generate-notes
+          }

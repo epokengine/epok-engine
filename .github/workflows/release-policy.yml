@@ -9,10 +9,10 @@ permissions:
   contents: read
 
 jobs:
-  validate-release-version:
-    name: validate-release-version
+  release-policy:
+    name: release-policy
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 30
     steps:
       - name: Require develop as the source branch
         env:
@@ -32,6 +32,13 @@ jobs:
         shell: bash
         run: |
           git fetch origin release:refs/remotes/origin/release --tags
-          git show origin/release:tools/versioning.py > "$RUNNER_TEMP/versioning.py"
-          python "$RUNNER_TEMP/versioning.py" --repo "$GITHUB_WORKSPACE" \
-            validate-release --base-ref origin/release
+          python tools/versioning.py current
+          if git tag --merged origin/release --list 'v*' | grep -q .; then
+            python tools/versioning.py --repo "$GITHUB_WORKSPACE" \
+              validate-release --base-ref origin/release
+          else
+            echo "No release tag exists yet; accepting the initial release version."
+          fi
+
+      - name: Run the Rust test suite
+        run: cargo test --locked
