@@ -1,0 +1,32 @@
+* text=auto eol=lf
+*.rs text eol=lf
+*.wgsl text eol=lf
+*.cpp text eol=lf
+*.hpp text eol=lf
+*.lua text eol=lf
+*.py text eol=lf
+*.ps1 text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+Makefile text eol=lf
+LICENSE text eol=lf
+*.png binary
+*.ttf binary
+*.bin binary
+
+# Epok authoring documents use YAML; resource packages remain binary.
+*.epokproject text eol=lf
+*.epokmap text eol=lf
+*.epokbp text eol=lf
+*.epokscript text eol=lf
+*.epoksettings text eol=lf
+*.epokconfig text eol=lf
+*.epokprefs text eol=lf
+*.epokcache text eol=lf
+*.epokrequest text eol=lf
+*.epokmanifest text eol=lf
+*.epokdebug text eol=lf
+*.epokasset binary
+*.ico binary

@@ -1,0 +1,107 @@
+entities:
+- active: true
+  camera_fov: 90.0
+  id: fd49d305-23e7-4776-b633-951223d4498a
+  kind: Camera
+  lighting:
+    cast_shadows: true
+    receive: Realtime
+    static_geometry: false
+    subdivisions: 1
+  material:
+    blend: Cutout
+    color:
+    - 1.0
+    - 1.0
+    - 1.0
+    depth_bias: 0
+    texture: null
+    unlit: false
+    uv_scroll:
+    - 0.0
+    - 0.0
+  name: Caster
+  position:
+  - 0
+  - 1.5
+  - -7
+  rotation:
+  - 0.0
+  - 0.0
+  - 0.0
+  scale:
+  - 1.0
+  - 1.0
+  - 1.0
+  script:
+    backend:
+      id: native
+      version: 1
+    class_id: 2c740650-fce4-4f2e-9f04-d72fcf58a751
+    name: SpellPresentation
+    properties: {}
+    provider:
+      id: cpp
+      version: 1
+  timeline:
+    asset: 81c5b022-c034-43c0-87ec-861cb71c455a
+    bindings:
+      e601ab2a-cce3-42db-9047-7392d0b20a0a: fd49d305-23e7-4776-b633-951223d4498a
+    enabled: true
+    play_on_start: true
+    version: 1
+- active: true
+  id: 25261624-aa41-551a-933b-9a2d39a8e982
+  kind: Empty
+  name: Fireball Showcase
+  particle_effect:
+    asset: eedb2855-bbab-564e-b08f-6fd0db327aea
+    enabled: true
+    play_on_start: true
+    seed: 0
+    version: 2
+  position:
+  - 0
+  - 0
+  - 0
+  rotation:
+  - 0
+  - 0
+  - 0
+  scale:
+  - 1
+  - 1
+  - 1
+  script:
+    backend:
+      id: native
+      version: 1
+    class_id: 07991ca7-4517-52b6-9dc0-7df8df729a23
+    name: FireballShowcase
+    properties: {}
+    provider:
+      id: cpp
+      version: 1
+environment:
+  ambient:
+  - 0.30000001192092896
+  - 0.30000001192092896
+  - 0.30000001192092896
+  ao_distance: 1.0
+  ao_strength: 0.0
+  point_lights: true
+fog:
+  color:
+  - 0.25
+  - 0.30000001192092896
+  - 0.4000000059604645
+  enabled: false
+  end: 40.0
+  start: 12.0
+hud_budget:
+  glyphs: 1024
+  layouts: 128
+  rectangles: 256
+  texts: 64
+name: Main
+version: 4

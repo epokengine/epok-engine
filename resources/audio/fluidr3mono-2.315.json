@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "fluidr3mono-gm",
+  "version": "2.315",
+  "name": "FluidR3Mono GM",
+  "filename": "FluidR3Mono_GM.sf3",
+  "bytes": 23614353,
+  "sha256": "cda013d8c370a48ae8dad271e761078d2e77455488dabdedbfbe5fc76a38c682",
+  "license": "MIT",
+  "license_file": "LICENSE-fluidr3mono.txt",
+  "distribution": "Debian fluidr3mono-gm-soundfont 2.315-7",
+  "source_url": "https://packages.debian.org/bookworm/fluidr3mono-gm-soundfont",
+  "status": "Selected reference library; binary installation is a separate explicit editor action",
+  "percussion_bank": 128,
+  "instrument_profile": "sf2-hydra-v1",
+  "notes": "Complete authoritative library. Per-song sample selection is a cook derivative, never a destructive rewrite of this source. The default library does not imply that a preset fits PSX RAM."
+}

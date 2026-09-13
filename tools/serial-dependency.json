@@ -1,0 +1,37 @@
+{
+  "revision": "7c6afdd911281485f05a8e56ff9e2165599544f0",
+  "source": "https://github.com/JonathanDotCel/NOTPSXSerial/tree/7c6afdd911281485f05a8e56ff9e2165599544f0",
+  "base_url": "https://raw.githubusercontent.com/JonathanDotCel/NOTPSXSerial/7c6afdd911281485f05a8e56ff9e2165599544f0/",
+  "files": [
+    {
+      "name": "nops.exe",
+      "sha256": "8a28557743d41406141eca18f27731eabeb83c66bd0bf37c062f614c84f39930",
+      "size": 117248
+    },
+    {
+      "name": "nops.exe.config",
+      "sha256": "6862b25736259f7bfd344e43eea10a703885be381eee2a745ceb12916b01a158",
+      "size": 163
+    },
+    {
+      "name": "ELFSharp.dll",
+      "sha256": "f5ac7824b03ccc9fc838df7a994241eb1b6c9fdbb303158f04953085e0d86e6d",
+      "size": 60928
+    },
+    {
+      "name": "LICENSE",
+      "sha256": "c76f740d1521b9bed9ca7a04ad526c310493c62621b1341d623b431736533b30",
+      "size": 16725
+    },
+    {
+      "name": "THIRD_PARTY_NOTICES.txt",
+      "sha256": "4ce166e56e75943884b1297674677dd0f7191e9fa822c771dea9786845827f6c",
+      "size": 103
+    },
+    {
+      "name": "elfsharp_license.txt",
+      "sha256": "400ace8cc308aa845fac30456a3560d4699675ab39c3cd7ff945de12430d8886",
+      "size": 3186
+    }
+  ]
+}

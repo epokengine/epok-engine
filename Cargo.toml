@@ -1,0 +1,62 @@
+[package]
+name = "epok-editor"
+version = "0.1.0"
+edition = "2024"
+description = "Epok Engine visual editor for original PlayStation games"
+license = "MIT"
+repository = "https://github.com/franadoriv/epok-engine"
+readme = "README.md"
+publish = false
+default-run = "epok-editor"
+
+[dependencies]
+cc = "=1.4.5"
+imgui = { version = "0.12", features = ["docking", "tables-api"] }
+imgui-winit-support = "0.13"
+imgui-wgpu = "0.25"
+wgpu = "25"
+pollster = "0.4"
+winit = "0.30"
+raw-window-handle = "0.6"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+notify = "=8.2.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml_ng = "=0.10.0"
+png = "0.17"
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4", "serde"] }
+symphonia = { version = "0.5.5", default-features = false, features = ["mp3", "pcm", "wav", "flac", "ogg", "vorbis"] }
+ufbx = "=0.11.3"
+rmcp = { version = "=3.2.0", default-features = false, features = ["server", "client", "transport-streamable-http-server", "transport-streamable-http-client-reqwest", "transport-io"] }
+tokio = { version = "1", features = ["rt", "net", "time", "sync"] }
+tokio-util = "0.7"
+axum = { version = "0.8", default-features = false, features = ["tokio", "http1"] }
+base64 = "0.22"
+serde_ignored = "0.1"
+arboard = { version = "3", default-features = false }
+clang = { version = "=2.0.0", features = ["runtime", "clang_10_0"] }
+serialport = { version = "=4.10.1", default-features = false }
+portable-pty = "=0.9.0"
+reqwest = { version = "=0.13.4", default-features = false, features = ["blocking", "rustls"] }
+
+[[bin]]
+name = "epok-header-tool"
+path = "src/header_tool.rs"
+
+[build-dependencies]
+cc = "=1.4.5"
+winresource = "0.1.31"
+
+# Keep the editor itself fully debuggable. Bulk checksums and document parsers
+# are production workloads even in Debug (including the live source watcher).
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.digest]
+opt-level = 3
+[profile.dev.package.serde_json]
+opt-level = 3
+[profile.dev.package.serde_yaml_ng]
+opt-level = 3
+[profile.dev.package.unsafe-libyaml]
+opt-level = 3

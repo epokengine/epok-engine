@@ -1,0 +1,17 @@
+# Fog, water and texture animation
+
+The Lighting window contains **Distance Fog** with enabled, start/end distance and tint controls. Fog linearly depth-cues world mesh vertex colors and sprite tint between the two distances. Distances use camera-space world units, with a maximum far distance of 128. This is PSX vertex color modulation before texture sampling; black texels remain black even at full fog. It is a bounded atmosphere effect, not a full-screen postprocess. HUD elements remain unaffected. Scene transitions restore each scene's fog settings.
+
+Texture materials expose **UV scroll / second**, in normalized texture cycles per second per axis, from −4 to +4. Runtime uses the stable simulation clock, so pause stops scrolling. At texture-wrap boundaries, the renderer splits each triangle before converting UVs to page pixels; an entire 0–1 tile continues to cover the surface instead of collapsing when its endpoints wrap. Colors and positions interpolate across the split and the resulting triangles use the existing near/far clipping and ordering table. Split triangles consume the scene triangle budget; dropped primitives remain observable in renderer counters. The editor uses the same seam subdivision for preview.
+
+A reusable water surface is an ordinary thin mesh with a blue imported texture, **Average** or **Add** blending, and a small UV scroll such as `(0.12,0.04)`. It needs no game-specific water component or rigid-body simulation. The demo project's Water mesh includes scrolling, semitransparency and a palette animator. Its Night scene enables distance fog.
+
+The **Palette Animator** component cycles a selected imported texture's quantized palette entries. It affects all uses of that texture, including world meshes, sprites and HUD images. Configure the first/last visible color indices, step rate and reverse direction; index zero remains transparent. One enabled animator owns each texture's palette. Disabling the component or replacing a scene restores the base colors. Palette uploads are bounded and synchronized with GPU work.
+
+Runtime helpers are available to Behaviours through `entity().palette_animator`; fog is `epok::fog_environment`, and mesh scroll rates are the Q12 `material.uv_scroll[2]` fields. Simulation owns progression; game code owns transitions and direction changes. Host tests verify wrapped UV coverage and fog interpolation, while the demo exercises all effects in the exported PSX build.
+
+## Screen fade
+
+Scripts can set `epok::screen_fade` from 0 (clear) to 255 (opaque black). The native renderer applies a subtractive full-screen rectangle **after the world and HUD**, using fixed double-buffered packets; 255 uses opaque black to guarantee complete coverage. At zero no overlay is submitted. The pass restores normal average blending afterward and does not invalidate the HUD cache or change scene materials. Intermediate intensities follow PSX color precision and subtractive blending, rather than a modern alpha-compositing curve.
+
+The value deliberately survives scene-bank activation. A game can animate it using fixed simulation time, render black before `request_scene()`, and fade back from black in the incoming scene. The game owns timing and resetting the value to zero. No editor-authored fade track is required. A music fade can run alongside it by interpolating `AudioSource.volume`; wait for XA playback to start before advancing the envelope when synchronization is needed.

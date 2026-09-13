@@ -1,0 +1,430 @@
+use crate::{
+    assets::{self, Kind, Record},
+    editor::Editor,
+    skeletal::{self, Component, Model},
+};
+use imgui::{Condition, Ui};
+use std::{sync::Arc, time::Instant};
+#[derive(Default)]
+pub struct State {
+    pub open: bool,
+    record: Option<Record>,
+    preview: Option<Component>,
+    pub error: Option<String>,
+    playing: bool,
+    pub animate_scene: bool,
+    show_bones: bool,
+    yaw: f32,
+    last: Option<Instant>,
+    scene_accumulator: f32,
+}
+pub fn open(e: &mut Editor, record: Record) {
+    let mesh_id = if record.meta.kind == Kind::SkeletalMesh {
+        Some(record.meta.id)
+    } else if record.meta.kind == Kind::ModelSource {
+        if let crate::import_settings::Settings::Fbx(s) = &record.meta.settings {
+            s.outputs.get("SkeletalMesh/main").map(|o| o.id)
+        } else {
+            None
+        }
+    } else {
+        e.assets
+            .index
+            .usable()
+            .filter(|r| r.meta.kind == Kind::SkeletalMesh)
+            .find_map(|r| {
+                Model::load(&e.assets.index, r.meta.id)
+                    .ok()
+                    .filter(|m| {
+                        m.mesh.skeleton == record.meta.id
+                            || m.mesh.clips.contains(&record.meta.id)
+                            || m.mesh.materials.contains(&record.meta.id)
+                    })
+                    .map(|_| r.meta.id)
+            })
+    };
+    let mut state = State {
+        open: true,
+        record: Some(record.clone()),
+        playing: false,
+        show_bones: true,
+        yaw: -0.4,
+        ..Default::default()
+    };
+    match mesh_id
+        .ok_or("No skeletal mesh references this asset".into())
+        .and_then(|id| Model::load(&e.assets.index, id).map(|model| (id, model)))
+    {
+        Ok((id, model)) => {
+            let mut c = Component::new(id);
+            c.clip = if model.mesh.clips.contains(&record.meta.id) {
+                Some(record.meta.id)
+            } else {
+                model.mesh.clips.first().copied()
+            };
+            c.model = Some(Arc::new(model));
+            state.preview = Some(c);
+        }
+        Err(err) => state.error = Some(err),
+    }
+    e.skeletal_ui = state;
+}
+pub fn tick(e: &mut Editor) {
+    let now = Instant::now();
+    let s = &mut e.skeletal_ui;
+    let dt = s
+        .last
+        .replace(now)
+        .map_or(0., |t| now.duration_since(t).as_secs_f32().min(0.1));
+    if s.open
+        && s.playing
+        && let Some(c) = &mut s.preview
+    {
+        c.time += dt;
+    }
+    s.scene_accumulator += dt;
+    let steps = (s.scene_accumulator * 30.).floor();
+    if steps > 0. {
+        s.scene_accumulator -= steps / 30.;
+    }
+    if s.animate_scene && steps > 0. {
+        for entity in &mut e.scene.entities {
+            if let Some(c) = &mut entity.skeletal_mesh {
+                c.time = ((c.time * 30.).round() + steps) / 30.;
+                e.view_dirty = true;
+            }
+        }
+    }
+}
+pub fn synchronize(e: &mut Editor) {
+    let s = &mut e.skeletal_ui;
+    if let Some(record) = &s.record {
+        match e.assets.index.resolve(record.meta.id) {
+            Ok(record) => s.record = Some(record.clone()),
+            Err(error) => {
+                s.error = Some(error);
+                return;
+            }
+        }
+    }
+    if let Some(c) = &mut s.preview {
+        match Model::load(&e.assets.index, c.asset) {
+            Ok(model) => {
+                c.model = Some(Arc::new(model));
+                s.error = None;
+            }
+            Err(error) => {
+                c.model = None;
+                s.error = Some(error);
+            }
+        }
+    }
+}
+pub fn sample(e: &mut Editor) -> Result<(), String> {
+    let source = "assets/EpokMannequin.fbx";
+    let path = assets::inside(&e.root, source)?;
+    if !path.exists() {
+        assets::atomic_write(
+            &path,
+            include_bytes!("../resources/models/EpokMannequin.fbx"),
+            None,
+        )?;
+    }
+    let destination = crate::model_import::destination(source);
+    let model_path = assets::inside(&e.root, &destination)?;
+    if model_path.exists() {
+        let package = assets::Package::load(&model_path)?;
+        e.assets.index = assets::scan(&e.root, &mut Default::default());
+        let record = e.assets.index.resolve(package.meta.id)?.clone();
+        open(e, record);
+    } else {
+        let item = crate::asset_manager::Pending {
+            source: source.into(),
+            hash: assets::hash(&assets::read_bounded(&path)?),
+            existing: None,
+            status: Default::default(),
+        };
+        e.assets.begin_pending(&item);
+    }
+    Ok(())
+}
+fn playback(ui: &Ui, c: &mut Component) {
+    let Some(model) = &c.model else {
+        return;
+    };
+    let label = c
+        .clip
+        .and_then(|id| model.clips.iter().find(|(key, _)| *key == id))
+        .map_or("Bind pose", |(_, clip)| clip.name.as_str());
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Animation clip"), label) {
+        if ui.selectable("Bind pose") {
+            c.clip = None;
+            c.time = 0.;
+            c.error = None;
+        }
+        for (id, clip) in &model.clips {
+            if ui
+                .selectable_config(&clip.name)
+                .selected(c.clip == Some(*id))
+                .build()
+            {
+                c.clip = Some(*id);
+                c.time = 0.;
+                c.error = None;
+            }
+        }
+    }
+    if let Some((_, clip)) = model.clips.iter().find(|(id, _)| Some(*id) == c.clip) {
+        let duration = (clip.frames - 1) as f32 / 30.;
+        let mut t = if c.looping && duration > 0. {
+            c.time % duration
+        } else {
+            c.time.min(duration)
+        };
+        if ui.slider(
+            crate::gui::field(ui, "Time (s)"),
+            0.,
+            duration.max(0.001),
+            &mut t,
+        ) {
+            c.time = t;
+        }
+    }
+    ui.checkbox("Loop", &mut c.looping);
+}
+pub fn window(ui: &Ui, e: &mut Editor) {
+    if !e.skeletal_ui.open {
+        return;
+    }
+    let mut s = std::mem::take(&mut e.skeletal_ui);
+    let mut open = s.open;
+    ui.window("Skeletal Model")
+        .opened(&mut open)
+        .position(
+            [ui.io().display_size[0] * 0.5, ui.io().display_size[1] * 0.5],
+            Condition::Appearing,
+        )
+        .position_pivot([0.5, 0.5])
+        .size(
+            [940., (ui.io().display_size[1] - 90.).min(780.)],
+            Condition::FirstUseEver,
+        )
+        .size_constraints([600., 540.], [2000., 1600.])
+        .build(|| {
+            if let Some(record) = &s.record {
+                ui.text_wrapped(assets::path_string(&e.root, &record.path));
+                if record.meta.kind == Kind::ModelSource {
+                    if ui.button("Reimport FBX...") {
+                        e.assets.begin_reimport(record, false);
+                    }
+                    crate::gui::inline(ui, "Rebuild from stored FBX...");
+                    if ui.button("Rebuild from stored FBX...") {
+                        e.assets.begin_reimport(record, true);
+                    }
+                    if let crate::import_settings::Settings::Fbx(options) = &record.meta.settings {
+                        for warning in &options.warnings {
+                            ui.text_colored([1., 0.72, 0.38, 1.], warning);
+                        }
+                    }
+                }
+            }
+            if let Some(error) = &s.error {
+                ui.text_wrapped(error);
+            }
+            let Some(c) = &mut s.preview else {
+                return;
+            };
+            let Some(m) = c.model.clone() else {
+                return;
+            };
+            crate::gui::muted(
+                ui,
+                format!(
+                    "{} vertices   {} triangles   {} bones/helpers   {} clips",
+                    m.mesh.vertices.len(),
+                    m.mesh.triangles.len(),
+                    m.skeleton.bones.len(),
+                    m.clips.len()
+                ),
+            );
+            crate::gui::muted(
+                ui,
+                "PSX preview: rigid weights, quantized poses, 30 Hz samples, flat colors",
+            );
+            if ui.button(if s.playing {
+                "Pause preview"
+            } else {
+                "Play preview"
+            }) {
+                s.playing = !s.playing;
+            }
+            crate::gui::inline(ui, "Restart");
+            if ui.button("Restart") {
+                c.time = 0.;
+            }
+            crate::gui::inline(ui, "Show skeleton");
+            ui.checkbox("Show skeleton", &mut s.show_bones);
+            playback(ui, c);
+            if ui.button("Add character to scene") {
+                let mut entity = crate::scene::Entity::cube("Character".into());
+                entity.position = [0.; 3];
+                let mut component = c.clone();
+                component.time = 0.;
+                entity.skeletal_mesh = Some(component);
+                e.scene.entities.push(entity);
+                e.selected = Some(e.scene.entities.len() - 1);
+                e.changed();
+            }
+            ui.same_line();
+            crate::gui::muted(ui, "Drag preview to orbit");
+            let origin = ui.cursor_screen_pos();
+            let size = [
+                ui.content_region_avail()[0].max(1.),
+                (ui.content_region_avail()[1] - 70.).max(160.),
+            ];
+            ui.invisible_button("model-preview", size);
+            if ui.is_item_active() {
+                s.yaw += ui.io().mouse_delta[0] * 0.01;
+            }
+            let dl = ui.get_window_draw_list();
+            dl.add_rect(
+                origin,
+                [origin[0] + size[0], origin[1] + size[1]],
+                [0.07, 0.08, 0.10, 1.],
+            )
+            .filled(true)
+            .build();
+            let points = m.points(c.clip, c.time, c.looping);
+            let bind = m.points(None, 0., false);
+            let lo: [f32; 3] =
+                std::array::from_fn(|a| bind.iter().map(|p| p[a]).fold(f32::INFINITY, f32::min));
+            let hi: [f32; 3] = std::array::from_fn(|a| {
+                bind.iter().map(|p| p[a]).fold(f32::NEG_INFINITY, f32::max)
+            });
+            let center = std::array::from_fn::<_, 3, _>(|a| (lo[a] + hi[a]) * 0.5);
+            let extent = (0..3).map(|a| hi[a] - lo[a]).fold(0.1_f32, f32::max);
+            let scale = size[1].min(size[0]) * 0.72 / extent;
+            let project = |p: [f32; 3]| {
+                let p = crate::lighting::sub(p, center);
+                let (sin, cos) = s.yaw.sin_cos();
+                let x = p[0] * cos - p[2] * sin;
+                let z = p[0] * sin + p[2] * cos;
+                (
+                    [
+                        origin[0] + size[0] * 0.5 + x * scale,
+                        origin[1] + size[1] * 0.52 - (p[1] * 0.96 - z * 0.28) * scale,
+                    ],
+                    z,
+                )
+            };
+            dl.with_clip_rect(origin, [origin[0] + size[0], origin[1] + size[1]], || {
+                let mut faces = m
+                    .mesh
+                    .triangles
+                    .iter()
+                    .map(|t| {
+                        let p = t.indices.map(|v| project(points[v as usize]));
+                        (p.iter().map(|v| v.1).sum::<f32>(), t, p)
+                    })
+                    .collect::<Vec<_>>();
+                faces.sort_by(|a, b| b.0.total_cmp(&a.0));
+                for (_, t, p) in faces {
+                    let mat = &m.materials[t.material as usize];
+                    let color = [mat.color[0], mat.color[1], mat.color[2], 1.];
+                    dl.add_triangle(p[0].0, p[1].0, p[2].0, color)
+                        .filled(true)
+                        .build();
+                    dl.add_triangle(p[0].0, p[1].0, p[2].0, [0.1, 0.12, 0.15, 0.5])
+                        .build();
+                }
+                if s.show_bones {
+                    let bones = m.bones(c.clip, c.time, c.looping);
+                    for (i, b) in m.skeleton.bones.iter().enumerate() {
+                        let a = project(bones[i].point([0.; 3])).0;
+                        if b.parent >= 0 {
+                            let parent = project(bones[b.parent as usize].point([0.; 3])).0;
+                            dl.add_line(a, parent, [0.3, 0.85, 1., 1.])
+                                .thickness(2.)
+                                .build();
+                        }
+                        dl.add_circle(a, 3., [1., 0.8, 0.2, 1.])
+                            .filled(true)
+                            .build();
+                    }
+                }
+            });
+            if let Some(_tree) = ui.tree_node("Bones and parents") {
+                for (i, b) in m.skeleton.bones.iter().enumerate() {
+                    ui.text(format!("{i}: {}  (parent {})", b.name, b.parent));
+                }
+            }
+            if let Some(_tree) = ui.tree_node("Material colors") {
+                for (slot, id) in m.mesh.materials.iter().enumerate() {
+                    let mut color = m.materials[slot].color;
+                    if ui.color_edit3(format!("Color {slot}"), &mut color)
+                        && let Ok(record) = e.assets.index.resolve(*id).cloned()
+                    {
+                        let result = (|| {
+                            let mut p = assets::Package::load(&record.path)?;
+                            p.source = serde_json::to_vec(&skeletal::Data::Material(
+                                crate::scene::Material {
+                                    color,
+                                    unlit: true,
+                                    ..Default::default()
+                                },
+                            ))
+                            .map_err(|e| e.to_string())?;
+                            p.meta.source_hash = assets::hash(&p.source);
+                            let bytes = p.bytes()?;
+                            assets::atomic_write(&record.path, &bytes, Some(&record.revision))?;
+                            Ok::<_, String>((p.meta, assets::hash(&bytes)))
+                        })();
+                        match result {
+                            Ok((meta, revision)) => {
+                                if let Some(records) = e.assets.index.assets.get_mut(id) {
+                                    for r in records {
+                                        if r.path == record.path {
+                                            r.meta = meta.clone();
+                                            r.revision = revision.clone();
+                                        }
+                                    }
+                                }
+                                e.assets.refresh();
+                                s.error = None;
+                                let mut updated = (*m).clone();
+                                updated.materials[slot].color = color;
+                                c.model = Some(Arc::new(updated));
+                            }
+                            Err(error) => s.error = Some(error),
+                        }
+                    }
+                }
+            }
+        });
+    s.open = open;
+    e.skeletal_ui = s;
+}
+pub fn component(ui: &Ui, e: &mut Editor, entity: &mut crate::scene::Entity) {
+    let Some(c) = &mut entity.skeletal_mesh else {
+        return;
+    };
+    ui.separator();
+    if !crate::gui::heading(ui, "Skeletal Mesh / Animator") {
+        return;
+    }
+    if let Some(error) = &c.error {
+        ui.text_wrapped(error);
+    }
+    playback(ui, c);
+    ui.checkbox("Play on start (PSX)", &mut c.play_on_start);
+    ui.checkbox("Animate scene preview", &mut e.skeletal_ui.animate_scene);
+    if ui.button("Open model preview")
+        && let Ok(record) = e.assets.index.resolve(c.asset).cloned()
+    {
+        open(e, record);
+    }
+    if ui.button("Remove Skeletal Mesh") {
+        entity.skeletal_mesh = None;
+        entity.kind = "Empty".into();
+    }
+}

@@ -1,0 +1,13 @@
+# Cameras and resource counters
+
+Camera entities expose a field of view from 25 to 120 degrees in the Inspector. The default 90 degrees preserves the original projection. The runtime applies the same focal scale to meshes, sprites, particles and projected shadows. The Scene editor shows the selected camera's frustum; its independent orbit camera remains an authoring view.
+
+`set_active_camera(entity)` selects a live, active camera and returns whether selection succeeded. `set_active_camera(nullptr)` restores automatic selection. `active_camera()` returns a generation-checked handle. If the selected entity is destroyed or disabled, selection falls back to the first active camera. With no camera, rendering uses the default view. Scene changes clear the override.
+
+`CameraSettings::field_of_view` can change at runtime. Values are clamped to the Inspector range. `camera_project(world, screen_xy)` projects a three-component `Fixed` world point into two `Fixed` framebuffer pixel coordinates. It returns false for null pointers or a point outside the near/far limits or viewport. Use it for world markers and other screen-space overlays.
+
+`resource_usage` is a snapshot published after each rendered frame. It includes live and active entity slots, capacity, scene-bank count, active texture count, texture and palette VRAM words, active texture bytes, and unique resident texture source bytes. One VRAM word is two bytes. The source byte count includes all shared scene-bank texture pixels and palettes, while active byte counts describe only the current bank. It excludes mesh data, runtime object storage and executable code.
+
+The snapshot also includes current/peak/dropped particles, mesh and sprite triangle counts, dropped primitives, scanline time, and estimated sprite pixel coverage. Coverage sums submitted triangle areas before transparent texel rejection, including particle sprites. `sprite_overdraw_per_mille` divides that estimate by framebuffer area and multiplies by 1000; 1000 therefore represents one screen's worth of submitted sprite area. This is a fill-cost estimate, not a GPU timing measurement or a count of unique visible pixels. Particle drops accumulate until the pool resets; render primitive counters describe the latest frame.
+
+The native acceptance test `tests/integration/verify_rpg.py` builds an isolated fixture and checks actual PSX VRAM. It verifies the 60-degree versus 90-degree footprint, active-camera fallback after destruction, projected pixel coordinates, exact texture/palette byte counters, cutout/depth/blend rendering, repeated scene changes, bounded particle load, and target-compiled input/time edge cases.

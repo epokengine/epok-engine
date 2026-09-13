@@ -1,0 +1,266 @@
+version: 1
+name: SampleScene
+entities:
+- name: Main Camera
+  kind: Camera
+  material:
+    color:
+    - 1.0
+    - 1.0
+    - 1.0
+    unlit: false
+  position:
+  - 0.0
+  - 3.0
+  - -6.0
+  rotation:
+  - 18.0
+  - 0.0
+  - 0.0
+  scale:
+  - 1.0
+  - 1.0
+  - 1.0
+  lighting:
+    receive: Realtime
+    static_geometry: false
+    cast_shadows: true
+    subdivisions: 1
+- name: Cube
+  kind: Mesh
+  material:
+    color:
+    - 0.36065567
+    - 1.0
+    - 0.0
+    unlit: false
+  position:
+  - 0.0
+  - 0.3318879
+  - 0.0
+  rotation:
+  - 0.0
+  - 0.0
+  - 0.0
+  scale:
+  - 1.0
+  - 1.0
+  - 1.0
+  script:
+    name: Spinner
+    properties:
+      speed: 90.0
+  lighting:
+    receive: Realtime
+    static_geometry: false
+    cast_shadows: true
+    subdivisions: 1
+- name: Cube.001
+  kind: Mesh
+  parent: 1
+  material:
+    color:
+    - 0.9945355
+    - 0.06521542
+    - 0.06521542
+    unlit: false
+  position:
+  - 2.0
+  - 0.1681121
+  - 1.0
+  rotation:
+  - 0.0
+  - -0.0
+  - 0.0
+  scale:
+  - 1.0
+  - 1.0
+  - 1.0
+  lighting:
+    receive: Realtime
+    static_geometry: false
+    cast_shadows: true
+    subdivisions: 1
+- name: Ground
+  kind: Mesh
+  material:
+    color:
+    - 1.0
+    - 1.0
+    - 1.0
+    unlit: false
+  position:
+  - 0.0
+  - -0.15
+  - 0.0
+  rotation:
+  - 0.0
+  - 0.0
+  - 0.0
+  scale:
+  - 7.0
+  - 0.2
+  - 7.0
+  lighting:
+    receive: Realtime
+    static_geometry: false
+    cast_shadows: true
+    subdivisions: 1
+- name: GameObject
+  kind: Empty
+  parent: 2
+  material:
+    color:
+    - 1.0
+    - 1.0
+    - 1.0
+    unlit: false
+  position:
+  - 0.0
+  - 0.0
+  - 0.0
+  rotation:
+  - 0.0
+  - 0.0
+  - 0.0
+  scale:
+  - 1.0
+  - 1.0
+  - 1.0
+  lighting:
+    receive: Realtime
+    static_geometry: false
+    cast_shadows: true
+    subdivisions: 1
+- name: Canvas
+  kind: Empty
+  material:
+    color:
+    - 1.0
+    - 1.0
+    - 1.0
+    unlit: false
+  position:
+  - 0.0
+  - 0.0
+  - 0.0
+  rotation:
+  - 0.0
+  - 0.0
+  - 0.0
+  scale:
+  - 1.0
+  - 1.0
+  - 1.0
+  canvas:
+    enabled: true
+  lighting:
+    receive: Realtime
+    static_geometry: false
+    cast_shadows: true
+    subdivisions: 1
+- name: Text
+  kind: Empty
+  parent: 5
+  material:
+    color:
+    - 1.0
+    - 1.0
+    - 1.0
+    unlit: false
+  position:
+  - 0.0
+  - 0.0
+  - 0.0
+  rotation:
+  - 0.0
+  - 0.0
+  - 0.0
+  scale:
+  - 1.0
+  - 1.0
+  - 1.0
+  rect:
+    anchor_min:
+    - 0.5
+    - 0.5
+    anchor_max:
+    - 0.5
+    - 0.5
+    pivot:
+    - 0.5
+    - 0.5
+    position:
+    - -58.4615
+    - 94.50545
+    size:
+    - 160.0
+    - 16.0
+  text:
+    text: OMG
+    color:
+    - 1.0
+    - 1.0
+    - 1.0
+    enabled: true
+  lighting:
+    receive: Realtime
+    static_geometry: false
+    cast_shadows: true
+    subdivisions: 1
+- name: Point Light
+  kind: Empty
+  material:
+    color:
+    - 1.0
+    - 1.0
+    - 1.0
+    unlit: false
+  position:
+  - 0.0
+  - 3.0
+  - 0.0
+  rotation:
+  - 0.0
+  - 0.0
+  - 0.0
+  scale:
+  - 1.0
+  - 1.0
+  - 1.0
+  lighting:
+    receive: Realtime
+    static_geometry: false
+    cast_shadows: true
+    subdivisions: 1
+  light:
+    enabled: true
+    kind: Point
+    mode: Realtime
+    color:
+    - 1.0
+    - 1.0
+    - 1.0
+    intensity: 0.8
+    range: 8.0
+    priority: 0
+    shadows: true
+environment:
+  ambient:
+  - 0.3
+  - 0.3
+  - 0.3
+  ao_strength: 0.0
+  ao_distance: 1.0
+  point_lights: true
+bake:
+  fingerprint: 8262419889874856612
+  colors:
+  - []
+  - []
+  - []
+  - []
+  - []
+  - []
+  - []
+  - []

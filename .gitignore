@@ -1,0 +1,15 @@
+/target/
+/exports/
+*.tmp
+*.log
+/.tools/
+/.epok/
+/artifacts/
+/output/
+/third_party/*
+!/third_party/nugget/
+/Local.epokconfig
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db

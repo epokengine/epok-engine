@@ -1,0 +1,9 @@
+make: .tools/mips/bin/make.exe
+toolchain_bin: .tools/mips/bin
+nugget: third_party/nugget
+emulator: .tools/redux/pcsx-redux.exe
+psxavenc: .tools/psxavenc/bin/psxavenc.exe
+mkpsxiso: .tools/mkpsxiso/mkpsxiso-2.30-win64/mkpsxiso.exe
+code: ''
+web_port: 8077
+auto_build: false

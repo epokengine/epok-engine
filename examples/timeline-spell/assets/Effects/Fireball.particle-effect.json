@@ -1,0 +1,905 @@
+{
+  "version": 1,
+  "id": "eedb2855-bbab-564e-b08f-6fd0db327aea",
+  "name": "Fireball",
+  "seed": 87123,
+  "layers": [
+    {
+      "id": "2a7a5d30-2083-563d-8b42-5ab95dca0aed",
+      "slot": "bf270acb-aece-5f2f-831b-1905e5621ee4",
+      "name": "Cast sigil",
+      "enabled": true,
+      "position": [
+        -2,
+        0.5,
+        0
+      ],
+      "content": {
+        "kind": "sprite",
+        "sprite": {
+          "enabled": true,
+          "texture": "ff7585e7-44f2-44aa-a22d-022fa83fdb11",
+          "region": [
+            0,
+            32,
+            16,
+            16
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "orientation": "Spherical",
+          "color": [
+            1,
+            0.45,
+            0.08
+          ],
+          "unlit": true,
+          "blend": "Add",
+          "depth_bias": 0
+        },
+        "frames": 1,
+        "columns": 1,
+        "frame_ticks": 410
+      }
+    },
+    {
+      "id": "06a8cf10-bb8f-5958-95ae-c46102cd0cd6",
+      "slot": "3d27f688-9b95-5619-84ab-3d3a3de6a189",
+      "name": "Projectile core",
+      "enabled": true,
+      "position": [
+        -2,
+        1,
+        0
+      ],
+      "content": {
+        "kind": "sprite",
+        "sprite": {
+          "enabled": true,
+          "texture": "ff7585e7-44f2-44aa-a22d-022fa83fdb11",
+          "region": [
+            0,
+            32,
+            16,
+            16
+          ],
+          "size": [
+            0.7,
+            0.7
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "orientation": "Spherical",
+          "color": [
+            1,
+            0.8,
+            0.3
+          ],
+          "unlit": true,
+          "blend": "Add",
+          "depth_bias": 0
+        },
+        "frames": 1,
+        "columns": 1,
+        "frame_ticks": 410
+      }
+    },
+    {
+      "id": "14bff9d3-ed33-5409-bdea-b93a920cc81d",
+      "slot": "61cf7ea6-aa31-570a-8154-9bbd9b00a263",
+      "name": "Travel embers",
+      "enabled": true,
+      "position": [
+        -2,
+        1,
+        0
+      ],
+      "content": {
+        "kind": "emitter",
+        "emitter": {
+          "enabled": true,
+          "play_on_start": false,
+          "continuous": true,
+          "rate": 32,
+          "burst": 0,
+          "max_particles": 48,
+          "lifetime": 0.6,
+          "velocity": [
+            -0.5,
+            0.1,
+            0
+          ],
+          "spread": [
+            0.3,
+            0.3,
+            0.3
+          ],
+          "gravity": [
+            0,
+            -0.2,
+            0
+          ],
+          "start_size": 0.25,
+          "end_size": 0.02,
+          "start_color": [
+            1,
+            0.6,
+            0.15
+          ],
+          "end_color": [
+            0.2,
+            0.03,
+            0
+          ],
+          "local_space": false,
+          "seed": 1,
+          "sprite": {
+            "enabled": true,
+            "texture": "ff7585e7-44f2-44aa-a22d-022fa83fdb11",
+            "region": [
+              0,
+              32,
+              16,
+              16
+            ],
+            "size": [
+              1,
+              1
+            ],
+            "pivot": [
+              0.5,
+              0.5
+            ],
+            "flip_x": false,
+            "flip_y": false,
+            "orientation": "Spherical",
+            "color": [
+              1,
+              1,
+              1
+            ],
+            "unlit": true,
+            "blend": "Add",
+            "depth_bias": 0
+          },
+          "frames": 4,
+          "frame_columns": 4,
+          "frame_duration": 0.1
+        }
+      }
+    },
+    {
+      "id": "4a63f710-94f9-59e6-ae0f-9d788cf492a5",
+      "slot": "6ee2bce7-1fd2-588c-ab06-61ae8c165e3d",
+      "name": "Impact flash",
+      "enabled": true,
+      "position": [
+        2,
+        1,
+        0
+      ],
+      "content": {
+        "kind": "sprite",
+        "sprite": {
+          "enabled": true,
+          "texture": "ff7585e7-44f2-44aa-a22d-022fa83fdb11",
+          "region": [
+            0,
+            32,
+            16,
+            16
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "orientation": "Spherical",
+          "color": [
+            1,
+            0.75,
+            0.35
+          ],
+          "unlit": true,
+          "blend": "Add",
+          "depth_bias": 0
+        },
+        "frames": 1,
+        "columns": 1,
+        "frame_ticks": 410
+      }
+    },
+    {
+      "id": "91b03e98-bc95-5f5e-9a80-4ea5f8172e8c",
+      "slot": "f409a5d2-8aa1-5878-9ad5-bdca71e5bca4",
+      "name": "Impact sparks",
+      "enabled": true,
+      "position": [
+        2,
+        1,
+        0
+      ],
+      "content": {
+        "kind": "emitter",
+        "emitter": {
+          "enabled": true,
+          "play_on_start": false,
+          "continuous": false,
+          "rate": 24,
+          "burst": 0,
+          "max_particles": 64,
+          "lifetime": 0.7,
+          "velocity": [
+            0,
+            1.5,
+            0
+          ],
+          "spread": [
+            2,
+            2,
+            2
+          ],
+          "gravity": [
+            0,
+            -3,
+            0
+          ],
+          "start_size": 0.15,
+          "end_size": 0.01,
+          "start_color": [
+            1,
+            0.6,
+            0.15
+          ],
+          "end_color": [
+            0.2,
+            0.03,
+            0
+          ],
+          "local_space": false,
+          "seed": 1,
+          "sprite": {
+            "enabled": true,
+            "texture": "ff7585e7-44f2-44aa-a22d-022fa83fdb11",
+            "region": [
+              0,
+              32,
+              16,
+              16
+            ],
+            "size": [
+              1,
+              1
+            ],
+            "pivot": [
+              0.5,
+              0.5
+            ],
+            "flip_x": false,
+            "flip_y": false,
+            "orientation": "Spherical",
+            "color": [
+              1,
+              1,
+              1
+            ],
+            "unlit": true,
+            "blend": "Add",
+            "depth_bias": 0
+          },
+          "frames": 4,
+          "frame_columns": 4,
+          "frame_duration": 0.1
+        }
+      }
+    },
+    {
+      "id": "870178a5-9380-524d-826b-4a5d16171017",
+      "slot": "b524afcd-5743-5953-aab2-22cb8b98c6d0",
+      "name": "Aftermath smoke",
+      "enabled": true,
+      "position": [
+        2,
+        0.5,
+        0
+      ],
+      "content": {
+        "kind": "emitter",
+        "emitter": {
+          "enabled": true,
+          "play_on_start": false,
+          "continuous": false,
+          "rate": 24,
+          "burst": 0,
+          "max_particles": 32,
+          "lifetime": 1.5,
+          "velocity": [
+            0,
+            0.7,
+            0
+          ],
+          "spread": [
+            0.4,
+            0.2,
+            0.4
+          ],
+          "gravity": [
+            0,
+            0,
+            0
+          ],
+          "start_size": 0.3,
+          "end_size": 1.2,
+          "start_color": [
+            0.4,
+            0.3,
+            0.25
+          ],
+          "end_color": [
+            0.02,
+            0.02,
+            0.02
+          ],
+          "local_space": false,
+          "seed": 1,
+          "sprite": {
+            "enabled": true,
+            "texture": "ff7585e7-44f2-44aa-a22d-022fa83fdb11",
+            "region": [
+              0,
+              32,
+              16,
+              16
+            ],
+            "size": [
+              1,
+              1
+            ],
+            "pivot": [
+              0.5,
+              0.5
+            ],
+            "flip_x": false,
+            "flip_y": false,
+            "orientation": "Spherical",
+            "color": [
+              1,
+              1,
+              1
+            ],
+            "unlit": true,
+            "blend": "Average",
+            "depth_bias": 0
+          },
+          "frames": 4,
+          "frame_columns": 4,
+          "frame_duration": 0.1
+        }
+      }
+    },
+    {
+      "id": "723a0346-befc-5d38-a339-e88deeea7afd",
+      "slot": "1e82879c-04b8-5232-b123-8283ea90ce85",
+      "name": "Residual glow",
+      "enabled": true,
+      "position": [
+        2,
+        0.1,
+        0
+      ],
+      "content": {
+        "kind": "sprite",
+        "sprite": {
+          "enabled": true,
+          "texture": "ff7585e7-44f2-44aa-a22d-022fa83fdb11",
+          "region": [
+            0,
+            32,
+            16,
+            16
+          ],
+          "size": [
+            1.8,
+            0.6
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "orientation": "Spherical",
+          "color": [
+            1,
+            0.2,
+            0.04
+          ],
+          "unlit": true,
+          "blend": "Add",
+          "depth_bias": 0
+        },
+        "frames": 1,
+        "columns": 1,
+        "frame_ticks": 410
+      }
+    }
+  ],
+  "timeline": {
+    "version": 2,
+    "id": "7b436c58-24a5-59be-a7da-e16f4d7bd49b",
+    "name": "Fireball: cast, travel, impact, aftermath",
+    "duration_ticks": 16384,
+    "timebase": "q12_seconds",
+    "loop_mode": "once",
+    "slots": [
+      {
+        "id": "bf270acb-aece-5f2f-831b-1905e5621ee4",
+        "name": "Cast sigil",
+        "required": true,
+        "target": {
+          "kind": "effect_layer_ref",
+          "class": "27550d6d-5bba-4618-9d9e-33b9605bfb6c"
+        }
+      },
+      {
+        "id": "3d27f688-9b95-5619-84ab-3d3a3de6a189",
+        "name": "Projectile core",
+        "required": true,
+        "target": {
+          "kind": "effect_layer_ref",
+          "class": "27550d6d-5bba-4618-9d9e-33b9605bfb6c"
+        }
+      },
+      {
+        "id": "61cf7ea6-aa31-570a-8154-9bbd9b00a263",
+        "name": "Travel embers",
+        "required": true,
+        "target": {
+          "kind": "effect_layer_ref",
+          "class": "27550d6d-5bba-4618-9d9e-33b9605bfb6c"
+        }
+      },
+      {
+        "id": "6ee2bce7-1fd2-588c-ab06-61ae8c165e3d",
+        "name": "Impact flash",
+        "required": true,
+        "target": {
+          "kind": "effect_layer_ref",
+          "class": "27550d6d-5bba-4618-9d9e-33b9605bfb6c"
+        }
+      },
+      {
+        "id": "f409a5d2-8aa1-5878-9ad5-bdca71e5bca4",
+        "name": "Impact sparks",
+        "required": true,
+        "target": {
+          "kind": "effect_layer_ref",
+          "class": "27550d6d-5bba-4618-9d9e-33b9605bfb6c"
+        }
+      },
+      {
+        "id": "b524afcd-5743-5953-aab2-22cb8b98c6d0",
+        "name": "Aftermath smoke",
+        "required": true,
+        "target": {
+          "kind": "effect_layer_ref",
+          "class": "27550d6d-5bba-4618-9d9e-33b9605bfb6c"
+        }
+      },
+      {
+        "id": "1e82879c-04b8-5232-b123-8283ea90ce85",
+        "name": "Residual glow",
+        "required": true,
+        "target": {
+          "kind": "effect_layer_ref",
+          "class": "27550d6d-5bba-4618-9d9e-33b9605bfb6c"
+        }
+      }
+    ],
+    "tracks": [
+      {
+        "id": "858174dd-72b5-5948-babd-5567238fb59b",
+        "name": "Cast sigil/opacity",
+        "slot": "bf270acb-aece-5f2f-831b-1905e5621ee4",
+        "property": "775f36b0-2b5b-4920-aa9f-981b166507ef",
+        "value_type": {
+          "kind": "fixed"
+        },
+        "priority": 0,
+        "blend": "absolute",
+        "restore": "leave_final",
+        "interpolation": "linear",
+        "keys": [
+          {
+            "id": "3b3e2479-3e42-5f76-ada2-8cef5e090d34",
+            "tick": 0,
+            "value": 0
+          },
+          {
+            "id": "72f56eb1-368f-5a81-a5a8-c30d5edf8cef",
+            "tick": 256,
+            "value": 1
+          },
+          {
+            "id": "44809c31-b630-5bd7-9d53-a204069996a4",
+            "tick": 1792,
+            "value": 1
+          },
+          {
+            "id": "1bd4459b-3117-51f9-8ee9-8af40b124c76",
+            "tick": 2048,
+            "value": 0
+          }
+        ]
+      },
+      {
+        "id": "40352df5-d66c-5e1b-a747-0c84f1508bf4",
+        "name": "Cast sigil/size",
+        "slot": "bf270acb-aece-5f2f-831b-1905e5621ee4",
+        "property": "dbd149e3-2164-4bd8-87bc-92f53bdc0f74",
+        "value_type": {
+          "kind": "fixed"
+        },
+        "priority": 0,
+        "blend": "absolute",
+        "restore": "leave_final",
+        "interpolation": "smoothstep",
+        "keys": [
+          {
+            "id": "e645e48a-9377-5f0e-a858-332682655a1f",
+            "tick": 0,
+            "value": 0.2
+          },
+          {
+            "id": "d183c54d-a602-5baf-85d3-f199a08387d2",
+            "tick": 2048,
+            "value": 1.8
+          }
+        ]
+      },
+      {
+        "id": "ae6f701d-a9ed-5218-9c96-e0d16fd5baa4",
+        "name": "Projectile core/opacity",
+        "slot": "3d27f688-9b95-5619-84ab-3d3a3de6a189",
+        "property": "775f36b0-2b5b-4920-aa9f-981b166507ef",
+        "value_type": {
+          "kind": "fixed"
+        },
+        "priority": 0,
+        "blend": "absolute",
+        "restore": "leave_final",
+        "interpolation": "step",
+        "keys": [
+          {
+            "id": "3ad835ae-3e18-50ea-b4c2-5d6f52cfb37c",
+            "tick": 0,
+            "value": 0
+          },
+          {
+            "id": "84838b82-b9c5-501c-b861-92d7865aa7ad",
+            "tick": 2048,
+            "value": 1
+          },
+          {
+            "id": "ec57321e-bd83-5f08-ba90-8d9177a4ca49",
+            "tick": 6144,
+            "value": 0
+          }
+        ]
+      },
+      {
+        "id": "039b43b1-907d-582e-a911-242254436d24",
+        "name": "Projectile core/position",
+        "slot": "3d27f688-9b95-5619-84ab-3d3a3de6a189",
+        "property": "a8ab3325-89dd-416f-a946-082292c297c6",
+        "value_type": {
+          "kind": "vector",
+          "length": 3
+        },
+        "priority": 0,
+        "blend": "absolute",
+        "restore": "leave_final",
+        "interpolation": "linear",
+        "keys": [
+          {
+            "id": "bea44855-8b77-54fd-9095-4473db999b21",
+            "tick": 0,
+            "value": [
+              -2,
+              1,
+              0
+            ]
+          },
+          {
+            "id": "6f2c6d81-8ffb-5543-9698-2ea25a336581",
+            "tick": 2048,
+            "value": [
+              -2,
+              1,
+              0
+            ]
+          },
+          {
+            "id": "398e182f-26e0-5e7c-bff0-4c6d16679838",
+            "tick": 6144,
+            "value": [
+              2,
+              1,
+              0
+            ]
+          },
+          {
+            "id": "bc530bbd-64b1-5820-89c9-fca6dec23242",
+            "tick": 16384,
+            "value": [
+              2,
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "id": "251ea4f0-d0c3-5955-8da2-af4b3f932b2c",
+        "name": "Travel embers/position",
+        "slot": "61cf7ea6-aa31-570a-8154-9bbd9b00a263",
+        "property": "a8ab3325-89dd-416f-a946-082292c297c6",
+        "value_type": {
+          "kind": "vector",
+          "length": 3
+        },
+        "priority": 0,
+        "blend": "absolute",
+        "restore": "leave_final",
+        "interpolation": "linear",
+        "keys": [
+          {
+            "id": "9d5d5f41-bccd-5469-b3f5-09c0f6dff167",
+            "tick": 0,
+            "value": [
+              -2,
+              1,
+              0
+            ]
+          },
+          {
+            "id": "f9d1a9f9-0b79-53f8-a794-edf598aacb23",
+            "tick": 2048,
+            "value": [
+              -2,
+              1,
+              0
+            ]
+          },
+          {
+            "id": "9e8e538a-ef7e-5be6-b938-483310f18da9",
+            "tick": 6144,
+            "value": [
+              2,
+              1,
+              0
+            ]
+          },
+          {
+            "id": "6d8f07f5-011c-55f4-937a-8244df0df073",
+            "tick": 16384,
+            "value": [
+              2,
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "id": "726ff005-15bc-562a-9881-82727e12e2c0",
+        "name": "Travel embers/playing",
+        "slot": "61cf7ea6-aa31-570a-8154-9bbd9b00a263",
+        "property": "37e43711-dba0-4bca-8499-952a73450d44",
+        "value_type": {
+          "kind": "bool"
+        },
+        "priority": 0,
+        "blend": "absolute",
+        "restore": "leave_final",
+        "interpolation": "step",
+        "keys": [
+          {
+            "id": "11577e3c-378a-5f8e-9b82-959f304ea3e2",
+            "tick": 0,
+            "value": false
+          },
+          {
+            "id": "75d0fe7d-617e-560e-82d8-1643dabcad49",
+            "tick": 2048,
+            "value": true
+          },
+          {
+            "id": "ee0b1421-5ca8-5e08-b72b-15ec89c5a0f9",
+            "tick": 6144,
+            "value": false
+          }
+        ]
+      },
+      {
+        "id": "1b4f9e8e-29d3-5469-96d1-e7ef1518bb96",
+        "name": "Impact flash/opacity",
+        "slot": "6ee2bce7-1fd2-588c-ab06-61ae8c165e3d",
+        "property": "775f36b0-2b5b-4920-aa9f-981b166507ef",
+        "value_type": {
+          "kind": "fixed"
+        },
+        "priority": 0,
+        "blend": "absolute",
+        "restore": "leave_final",
+        "interpolation": "linear",
+        "keys": [
+          {
+            "id": "d91a7b79-00e0-52b2-a2cf-7817bd7136c9",
+            "tick": 0,
+            "value": 0
+          },
+          {
+            "id": "0648e60b-d7af-5d40-a820-82de8092acfe",
+            "tick": 6143,
+            "value": 0
+          },
+          {
+            "id": "a410d0e6-9db1-5651-8c78-d390dfdf2a85",
+            "tick": 6144,
+            "value": 1
+          },
+          {
+            "id": "e603cc35-b611-5cf3-9485-f3905ec859ed",
+            "tick": 7600,
+            "value": 0
+          }
+        ]
+      },
+      {
+        "id": "c3c494b9-b3a0-5ca6-95b2-6527ea49d264",
+        "name": "Impact flash/size",
+        "slot": "6ee2bce7-1fd2-588c-ab06-61ae8c165e3d",
+        "property": "dbd149e3-2164-4bd8-87bc-92f53bdc0f74",
+        "value_type": {
+          "kind": "fixed"
+        },
+        "priority": 0,
+        "blend": "absolute",
+        "restore": "leave_final",
+        "interpolation": "ease_out",
+        "keys": [
+          {
+            "id": "874eb1ff-6eb2-5481-8c3c-0742ddcefbdb",
+            "tick": 6144,
+            "value": 0.3
+          },
+          {
+            "id": "bf925708-47eb-508a-ab67-a7a9ad6786bb",
+            "tick": 7600,
+            "value": 3
+          }
+        ]
+      },
+      {
+        "id": "6a14bbd3-2c70-5c4c-8e22-f23276145892",
+        "name": "Residual glow/opacity",
+        "slot": "1e82879c-04b8-5232-b123-8283ea90ce85",
+        "property": "775f36b0-2b5b-4920-aa9f-981b166507ef",
+        "value_type": {
+          "kind": "fixed"
+        },
+        "priority": 0,
+        "blend": "absolute",
+        "restore": "leave_final",
+        "interpolation": "linear",
+        "keys": [
+          {
+            "id": "0845463c-5f99-56f2-9d9f-f98111308d3e",
+            "tick": 0,
+            "value": 0
+          },
+          {
+            "id": "ad88e783-2fdd-5657-8f83-f7de6002d3de",
+            "tick": 8191,
+            "value": 0
+          },
+          {
+            "id": "30ab9659-1ab7-5659-b161-891de2851741",
+            "tick": 8192,
+            "value": 0.7
+          },
+          {
+            "id": "0302ae8a-5f6c-593a-a37e-1aadac48f552",
+            "tick": 16384,
+            "value": 0
+          }
+        ]
+      }
+    ],
+    "events": [
+      {
+        "id": "650ca81c-9784-52a4-88f1-516b74db91e5",
+        "name": "Impact sparks burst",
+        "slot": "f409a5d2-8aa1-5878-9ad5-bdca71e5bca4",
+        "function": "c2650304-c940-408c-a8a8-05641c2a0489",
+        "keys": [
+          {
+            "id": "02e7d8d0-0926-5e3e-9ca9-47c651f4d643",
+            "tick": 6144,
+            "arguments": {
+              "count": {
+                "kind": "literal",
+                "value_type": {
+                  "kind": "uint32"
+                },
+                "value": 32
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "f78c9fc9-a04b-58f3-b5aa-fe188fed3ae6",
+        "name": "Aftermath smoke burst",
+        "slot": "b524afcd-5743-5953-aab2-22cb8b98c6d0",
+        "function": "c2650304-c940-408c-a8a8-05641c2a0489",
+        "keys": [
+          {
+            "id": "b8e6694e-6b7d-50bf-9a2d-f048d5d9ffb2",
+            "tick": 8192,
+            "arguments": {
+              "count": {
+                "kind": "literal",
+                "value_type": {
+                  "kind": "uint32"
+                },
+                "value": 12
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "markers": [
+      {
+        "id": "7ad7e829-bde6-5437-a28a-ecc9ed609992",
+        "name": "Cast",
+        "tick": 0
+      },
+      {
+        "id": "ce733754-8b50-5acc-b632-27333cb9d901",
+        "name": "Launch",
+        "tick": 2048
+      },
+      {
+        "id": "92245dda-6322-5b8b-bdba-95fc08408fda",
+        "name": "Impact",
+        "tick": 6144
+      },
+      {
+        "id": "8a517f56-77ee-5e27-b0f6-0cc1b92d24b3",
+        "name": "Aftermath",
+        "tick": 8192
+      }
+    ],
+    "layout": {}
+  }
+}

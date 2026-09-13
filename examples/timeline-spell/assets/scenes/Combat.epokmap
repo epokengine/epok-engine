@@ -1,0 +1,304 @@
+entities:
+- active: true
+  camera_fov: 90.0
+  id: b5919f0d-e6a0-505b-aaac-90de67cff670
+  kind: Camera
+  lighting:
+    cast_shadows: true
+    receive: Realtime
+    static_geometry: false
+    subdivisions: 1
+  material:
+    blend: Cutout
+    color:
+    - 1.0
+    - 1.0
+    - 1.0
+    depth_bias: 0
+    texture: null
+    unlit: false
+    uv_scroll:
+    - 0.0
+    - 0.0
+  name: Combat Camera
+  position:
+  - 0
+  - 1.5
+  - -7
+  rotation:
+  - 0.0
+  - 0.0
+  - 0.0
+  scale:
+  - 1.0
+  - 1.0
+  - 1.0
+- active: true
+  id: e559d733-8efa-5091-9d4c-4cb9856efa72
+  kind: Empty
+  name: Fireball Caster
+  position:
+  - 0
+  - 0
+  - 0
+  rotation:
+  - 0
+  - 0
+  - 0
+  scale:
+  - 1
+  - 1
+  - 1
+  script:
+    backend:
+      id: native
+      version: 1
+    class_id: 0396f8d7-dc13-5493-a5ec-dd3ad23f3672
+    member_ids:
+      status: d1a4152e-7a2a-5a33-987f-5c7aad636277
+      target: 717934b9-1edc-5070-bf56-86aa159207f6
+    name: BP_Fireball
+    properties:
+      status: 80f80401-aac2-51f0-b553-1eeca4382c11
+      target: 25280ba1-0ec0-5335-981b-f8a542d1ffc3
+    provider:
+      id: blueprint
+      version: 1
+- active: true
+  id: 4be70dd5-d5af-5433-afe2-f2d521061aea
+  kind: Empty
+  name: Mage
+  position:
+  - -2
+  - 0
+  - 0
+  rotation:
+  - 0
+  - 0
+  - 0
+  scale:
+  - 1
+  - 1
+  - 1
+  sprite:
+    color:
+    - 1
+    - 1
+    - 1
+    enabled: true
+    orientation: Upright
+    pivot:
+    - 0.5
+    - 0
+    region:
+    - 0
+    - 0
+    - 16
+    - 32
+    size:
+    - 0.8
+    - 1.6
+    texture: ff7585e7-44f2-44aa-a22d-022fa83fdb11
+    unlit: true
+- active: true
+  id: 25280ba1-0ec0-5335-981b-f8a542d1ffc3
+  kind: Empty
+  name: Target
+  position:
+  - 2
+  - 0
+  - 0
+  rotation:
+  - 0
+  - 0
+  - 0
+  scale:
+  - 1
+  - 1
+  - 1
+  script:
+    backend:
+      id: native
+      version: 1
+    class_id: 2f9ae3a6-9a31-5fd8-b4be-d8b576c04a6e
+    member_ids:
+      status: 0975dbca-57ee-5f7c-98b7-3eb28f65da32
+    name: SpellTarget
+    properties:
+      status: d1718bde-d61c-58b8-9ff4-6a55b1d01a53
+    provider:
+      id: cpp
+      version: 1
+  sprite:
+    color:
+    - 1
+    - 0.7
+    - 0.5
+    enabled: true
+    flip_x: true
+    orientation: Upright
+    pivot:
+    - 0.5
+    - 0
+    region:
+    - 0
+    - 0
+    - 16
+    - 32
+    size:
+    - 0.8
+    - 1.6
+    texture: ff7585e7-44f2-44aa-a22d-022fa83fdb11
+    unlit: true
+- active: true
+  canvas:
+    enabled: true
+  id: e12bb427-5be8-5165-87a8-e5d2f6126e09
+  kind: Empty
+  name: Combat HUD
+  position:
+  - 0
+  - 0
+  - 0
+  rotation:
+  - 0
+  - 0
+  - 0
+  scale:
+  - 1
+  - 1
+  - 1
+- active: true
+  id: 0c276004-0362-5930-81d7-98476c1bf144
+  kind: Empty
+  name: Controls
+  parent: 4
+  position:
+  - 0
+  - 0
+  - 0
+  rect:
+    anchor_max:
+    - 0
+    - 1
+    anchor_min:
+    - 0
+    - 1
+    pivot:
+    - 0
+    - 1
+    position:
+    - 20
+    - -20
+    size:
+    - 600
+    - 28
+  rotation:
+  - 0
+  - 0
+  - 0
+  scale:
+  - 1
+  - 1
+  - 1
+  text:
+    enabled: true
+    text: 'FIREBALL   X: cast   O: cancel   Square: reset   Start: pause'
+    wrap: true
+- active: true
+  id: d1718bde-d61c-58b8-9ff4-6a55b1d01a53
+  kind: Empty
+  name: Target Status
+  parent: 4
+  position:
+  - 0
+  - 0
+  - 0
+  rect:
+    anchor_max:
+    - 0
+    - 1
+    anchor_min:
+    - 0
+    - 1
+    pivot:
+    - 0
+    - 1
+    position:
+    - 20
+    - -55
+    size:
+    - 600
+    - 28
+  rotation:
+  - 0
+  - 0
+  - 0
+  scale:
+  - 1
+  - 1
+  - 1
+  text:
+    enabled: true
+    text: 'Target HP: 100 / 100    Impact hits: 0'
+    wrap: true
+- active: true
+  id: 80f80401-aac2-51f0-b553-1eeca4382c11
+  kind: Empty
+  name: Spell Status
+  parent: 4
+  position:
+  - 0
+  - 0
+  - 0
+  rect:
+    anchor_max:
+    - 0
+    - 1
+    anchor_min:
+    - 0
+    - 1
+    pivot:
+    - 0
+    - 1
+    position:
+    - 20
+    - -420
+    size:
+    - 600
+    - 28
+  rotation:
+  - 0
+  - 0
+  - 0
+  scale:
+  - 1
+  - 1
+  - 1
+  text:
+    enabled: true
+    text: Ready. Fireball casts automatically once.
+    wrap: true
+environment:
+  ambient:
+  - 0.30000001192092896
+  - 0.30000001192092896
+  - 0.30000001192092896
+  ao_distance: 1.0
+  ao_strength: 0.0
+  point_lights: true
+fog:
+  color:
+  - 0.25
+  - 0.30000001192092896
+  - 0.4000000059604645
+  enabled: false
+  end: 40.0
+  start: 12.0
+hud_budget:
+  glyphs: 1024
+  layouts: 128
+  rectangles: 256
+  texts: 64
+name: Combat
+version: 4

@@ -1,0 +1,14 @@
+psx-font.bin contains the mig68000 bitmap font by Zingot Games.
+
+Author: https://www.zingot.com/
+FontPack: https://zingot.itch.io/fontpack
+Author-listed license: Creative Commons Attribution 4.0 International
+https://creativecommons.org/licenses/by/4.0/
+
+Decoded from PsyQo's src/system-font.inc in Nugget revision
+6186b131aacc5853a9161fb076ed34ffe504552d. That source describes the font as
+available for free with attribution to Zingot Games.
+
+The compressed representation was decoded into a 96-glyph, 8 x 16 bitmap
+for the editor to match PsyQo's native HUD. Glyph authorship remains with
+Zingot Games. The original attribution is retained.

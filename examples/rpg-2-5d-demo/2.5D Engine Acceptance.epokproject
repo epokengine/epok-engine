@@ -1,0 +1,8 @@
+format_version: 1
+editor_version: 0.1.0
+name: 2.5D Engine Acceptance
+startup_scene: assets/scenes/Courtyard.epokmap
+auto_build: true
+rendering:
+  width: 640
+  height: 480

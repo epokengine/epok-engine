@@ -1,0 +1,43 @@
+name: Tag release
+
+on:
+  push:
+    branches: [release]
+
+permissions:
+  contents: write
+
+jobs:
+  tag-release:
+    name: tag-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the release history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read and verify the version
+        id: version
+        shell: bash
+        run: echo "version=$(python tools/versioning.py current)" >> "$GITHUB_OUTPUT"
+
+      - name: Create the annotated version tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          tag="v$VERSION"
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            if [ "$(git rev-list -n 1 "$tag")" = "$GITHUB_SHA" ]; then
+              echo "$tag already points to this release commit."
+              exit 0
+            fi
+            echo "$tag already exists on another commit."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "Epok Engine $VERSION"
+          git push origin "$tag"

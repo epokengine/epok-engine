@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "nugget": {
+    "url": "https://github.com/pcsx-redux/nugget.git",
+    "path": "third_party/nugget",
+    "revision": "6186b131aacc5853a9161fb076ed34ffe504552d"
+  },
+  "archives": [
+    {
+      "name": "libclang (host reflection only)",
+      "version": "18.1.1",
+      "url": "https://files.pythonhosted.org/packages/0b/2d/3f480b1e1d31eb3d6de5e3ef641954e5c67430d5ac93b7fa7e07589576c7/libclang-18.1.1-py2.py3-none-win_amd64.whl",
+      "archive": "libclang-18.1.1.zip",
+      "directory": "libclang",
+      "sha256": "4dd2d3b82fab35e2bf9ca717d7b63ac990a3519c7e312f19fa8e86dcc712f7fb"
+    },
+    {
+      "name": "GCC MIPS",
+      "version": "16.2.0",
+      "url": "https://static.grumpycoder.net/pixel/mips/g++-mipsel-none-elf-16.2.0.zip",
+      "archive": "mips.zip",
+      "directory": "mips",
+      "sha256": "cf84960f5624829d44b866c5f194094c21c63b30f7cbb8cf3030f1abebd52b75"
+    },
+    {
+      "name": "PCSX-Redux",
+      "version": "25270.20260904.6.x64",
+      "url": "https://distrib.app/storage/assets/ca0/d88/257/83cd3178c9c3b926faf02589aae9cfa3339054bf5e43a640e38a60e/pcsx-redux-nightly-25270.20260904.6-x64.zip",
+      "archive": "redux.zip",
+      "directory": "redux",
+      "sha256": "4d7876197e2e154523b8eb67544a6ce036f8ef0cd02de3b4e94c1c862cc96e8d"
+    },
+    {
+      "name": "psxavenc",
+      "version": "0.3.1",
+      "url": "https://github.com/WonderfulToolchain/psxavenc/releases/download/v0.3.1/psxavenc-windows.zip",
+      "archive": "psxavenc.zip",
+      "directory": "psxavenc",
+      "sha256": "b44a4cf5a8c293a27182cddcca513428b26f0e143189ad53e29e6729b3d9a7a5"
+    },
+    {
+      "name": "mkpsxiso",
+      "version": "2.30",
+      "url": "https://github.com/Lameguy64/mkpsxiso/releases/download/v2.30/mkpsxiso-2.30-win64.zip",
+      "archive": "mkpsxiso.zip",
+      "directory": "mkpsxiso",
+      "sha256": "7d3963cd322df365766cee1dbc3e405ea103bbe4e11c0db86c9688b32f5a1017"
+    }
+  ]
+}

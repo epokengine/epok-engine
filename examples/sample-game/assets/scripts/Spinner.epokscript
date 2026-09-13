@@ -1,0 +1,4 @@
+name: Spinner
+properties:
+- name: speed
+  default: 90.0

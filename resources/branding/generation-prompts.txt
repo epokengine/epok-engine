@@ -1,0 +1,11 @@
+Tool: built-in ImageGen
+Final transparent lockup edit:
+Background removal / transparent image edit. Return this exact EPOK ENGINE horizontal logo as an RGBA PNG with a truly transparent alpha background. Remove every pixel of the near-black backdrop outside the silver/graphite emblem and letters, including interior counters of P/O and the spaces between the E emblem pieces. Preserve the emblem, typography, proportions, composition and all metallic material detail, with clean antialiased alpha edges. NO checkerboard painted into the image, NO replacement background, NO rectangular tile, NO shadows outside the artwork, NO additional content. The deliverable is a cutout logo asset with actual alpha=0 outside its silhouette, ready to composite on any UI background.
+
+Final transparent icon edit:
+Background removal / transparent PNG edit. Cut out only the geometric E emblem from this image. Preserve its current exact shape and brushed platinum / dark graphite material. Return a square RGBA PNG app-icon master with actual transparent alpha=0 outside the symbol and inside its negative-space cutouts, with 15 percent safe margin. Clean antialiased edges, no background rectangle, no checkerboard, no wordmark, no text. Remove the black backdrop completely. Keep all solid dark graphite parts of the actual emblem, remove only background.
+
+Reference: user-provided geometric E identity, adapted into the square epok-master.png icon.
+
+Final lockup prompt:
+Use case: logo-brand. Create a finished dark elegant horizontal brand lockup for EPOK game engine using the attached geometric E emblem as the authoritative symbol reference. Preserve the E silhouette and detached diamond bar, brushed silver faces and graphite sides with a restrained inner glint. Place the symbol at the left and exact text "EPOK" to its right, with smaller widely spaced "ENGINE" underneath EPOK. Precise modern uppercase geometric sans-serif typography, excellent kerning, matching platinum finish with much subtler depth than symbol. Uniform near-black background #101113, ample negative space, crisp straight edges. Minimal premium software identity. No slogan, no console symbols, no extra words, no checkerboard or mockup. Wide landscape composition, usable as README and website hero brand artwork.

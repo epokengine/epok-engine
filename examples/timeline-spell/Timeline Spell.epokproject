@@ -1,0 +1,14 @@
+auto_build: true
+editor_version: 0.1.0
+format_version: 1
+name: Timeline Spell
+rendering:
+  height: 480
+  precomputed_visibility: false
+  retained_geometry: true
+  streaming_geometry: false
+  streaming_pool_pages: 4
+  streaming_prefetch: true
+  streaming_triangle_budget: 4096
+  width: 640
+startup_scene: assets/scenes/Combat.epokmap

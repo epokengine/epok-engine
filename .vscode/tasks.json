@@ -1,0 +1,17 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Epok: Build PSX",
+      "type": "process",
+      "command": "cargo",
+      "args": ["run", "--locked", "--", "--build-psx"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": {
+        "base": "$gcc",
+        "fileLocation": ["relative", "${workspaceFolder}/.epok/build"]
+      }
+    }
+  ]
+}

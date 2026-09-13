@@ -1,0 +1,5 @@
+format_version: 1
+editor_version: 0.1.0
+name: Epok Sample
+startup_scene: assets/scenes/SampleScene.epokmap
+auto_build: true

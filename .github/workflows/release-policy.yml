@@ -1,0 +1,37 @@
+name: Release policy
+
+on:
+  pull_request:
+    branches: [release]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-release-version:
+    name: validate-release-version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require develop as the source branch
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_BRANCH" != "develop" ]; then
+            echo "Only develop may open a pull request into release."
+            exit 1
+          fi
+
+      - name: Check out the candidate with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate the release version
+        shell: bash
+        run: |
+          git fetch origin release:refs/remotes/origin/release --tags
+          git show origin/release:tools/versioning.py > "$RUNNER_TEMP/versioning.py"
+          python "$RUNNER_TEMP/versioning.py" --repo "$GITHUB_WORKSPACE" \
+            validate-release --base-ref origin/release
