@@ -17,6 +17,7 @@ jobs:
       - name: Require develop as the source branch
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
+        shell: bash
         run: |
           if [ "$HEAD_BRANCH" != "develop" ]; then
             echo "Only develop may open a pull request into release."
