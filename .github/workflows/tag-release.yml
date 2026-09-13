@@ -20,9 +20,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Initialize pinned editor headers
+      - name: Set up the repository dependencies
         shell: pwsh
-        run: ./tools/setup.ps1 -Dependency nugget
+        run: ./tools/setup.ps1
 
       - name: Build and test the release
         shell: pwsh
