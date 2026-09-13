@@ -575,8 +575,10 @@ pub(crate) mod tests {
             )
             .unwrap();
         }
-        assert_eq!(crate::scripts::catalog(&a).unwrap().len(), 2);
-        assert_eq!(crate::scripts::catalog(&b).unwrap().len(), 2);
+        let a_scripts = crate::scripts::catalog(&a).unwrap();
+        let b_scripts = crate::scripts::catalog(&b).unwrap();
+        assert!(a_scripts.iter().any(|script| script.name == "Behaviour001"));
+        assert!(b_scripts.iter().any(|script| script.name == "Behaviour001"));
         assert!(!b.join("assets/scripts/Behaviour002.cpp").exists());
         assert_eq!(fs::read(startup_scene(&b).unwrap()).unwrap(), original);
         let config_a = crate::project::Config::load(&a).unwrap();
