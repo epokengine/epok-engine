@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 0
 
       - name: Initialize pinned editor headers
-        run: ./tools/setup-linux.sh --dependency nugget
+        run: bash ./tools/setup-linux.sh --dependency nugget
 
       - name: Validate the release version
         shell: bash
