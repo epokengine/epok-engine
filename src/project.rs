@@ -789,6 +789,12 @@ fn stage_with_playback(
     } else {
         blueprint_registry.clone()
     };
+    // The headless path refreshes the same catalog the editor does, so it keeps
+    // the generated Lua definitions current. They are editor tooling: a failed
+    // write is reported and the build continues.
+    if let Err(error) = crate::lua_api_stub::write(root, &effect_registry) {
+        eprintln!("Lua API definitions: {error}");
+    }
     let effects = crate::particle_effect_scene::prepare(
         root,
         &timeline_scenes,

@@ -1866,6 +1866,11 @@ impl Editor {
                 self.reset_instance_baseline();
             }
         }
+        // Editor tooling only. A definition file that cannot be written costs a
+        // Lua author completion, never a catalog: the refresh continues.
+        if let Err(error) = crate::lua_api_stub::write(&self.root, &self.class_registry) {
+            self.log(format!("Lua API definitions: {error}"));
+        }
     }
     pub fn attach(&mut self, name: &str) {
         if self.playing {
@@ -3831,6 +3836,35 @@ mod tests {
                 std::thread::sleep(Duration::from_millis(10));
             }
         }
+    }
+    #[test]
+    fn a_catalog_refresh_publishes_the_generated_lua_definitions() {
+        let root = crate::workspace::tests::temp("lua-definitions");
+        let project =
+            crate::workspace::create(&root, "Definitions", crate::workspace::Template::Basic)
+                .unwrap();
+        let mut editor = Editor::open(project).unwrap();
+        editor.refresh_scripts();
+        let stub = std::fs::read_to_string(root.join(crate::lua_api_stub::STUB_PATH))
+            .expect("the refresh writes the Lua definitions");
+        assert!(stub.starts_with("---@meta\n"), "{stub}");
+        assert!(
+            stub.contains("function epok.input.held(button, port) end"),
+            "{stub}"
+        );
+        // Every class the refresh published is in the file, named as Lua sees it.
+        let class = editor
+            .class_registry
+            .classes
+            .values()
+            .map(|class| class.cpp_name.replace("::", "."))
+            .min()
+            .expect("the project publishes at least one class");
+        assert!(
+            stub.contains(&format!("---@class {class}")),
+            "{class}\n{stub}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
     #[test]
     fn applying_debug_settings_preserves_scene_and_does_not_auto_build_or_refresh_scripts() {

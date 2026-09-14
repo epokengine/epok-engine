@@ -70,6 +70,7 @@ mod lighting;
 mod lighting_editor;
 mod loading;
 mod lua_aot;
+mod lua_api_stub;
 mod lua_asset;
 mod lua_bytecode;
 mod lua_compile;

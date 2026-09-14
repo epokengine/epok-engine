@@ -663,6 +663,53 @@ Current to this revision:
   stepping or breakpoint support for Lua bodies.
 - **No per-script mode mixing.** The mode is a project-wide setting.
 
+## Editor tooling: generated API definitions
+
+Every time the editor publishes a fresh script catalog — a C++ reflection pass, a
+Blueprint change or a `.lua` change — it writes `.epok/lua/epok.d.lua`, a Lua
+Language Server (EmmyLua/LuaLS) definition file describing the project's whole
+authoring surface:
+
+- every reflected class, from all three providers, with its parent, its own
+  properties and its callable and overridable members;
+- the intrinsic places a class actually has — `position`, `rotation` and `scale`
+  on a World3D or World2D class, `rect_position` and `rect_size` on a UI class —
+  and `ref`, the object's own typed reference;
+- the `epok` namespace: `epok.class`, `epok.super`, the conversions and every
+  adapter builtin of profile v1, with the same arities and types the compiler
+  enforces;
+- the value vocabulary, as `Fixed`, `Int32`, `UInt32`, `Bool`, `Vector2`,
+  `Vector3` and the reference and handle types.
+
+A C++ class name becomes a Lua type name by writing `.` where C++ writes `::`,
+so `epok::Actor3D` is the type `epok.Actor3D`. Methods are declared on a
+file-local table, so the file introduces no global but `epok`.
+
+The file is generated, never authored: it is rewritten from the registry on
+every refresh, is regenerated from scratch if deleted, and nothing in the engine,
+the compiler or the cooked build ever reads it. `.epok/` is already ignored by
+a new project's `.gitignore`, so it is never committed.
+
+### Pointing an editor at it
+
+Alongside the definitions the editor writes a `.luarc.json` at the project root,
+but **only when the project has none** — an existing one is never overwritten:
+
+```json
+{
+  "runtime.version": "Lua 5.2",
+  "workspace.library": [".epok/lua"],
+  "diagnostics.globals": ["epok"]
+}
+```
+
+Any LuaLS client reads it: in VS Code install the Lua extension (sumneko) and
+open the project folder; in Neovim, point `lua_ls` at the same workspace. To
+configure a client by hand instead, add `.epok/lua` to `workspace.library`.
+
+Completion is tooling only. The compiler is the authority on the profile: a file
+the language server accepts can still be rejected, with the diagnostics above.
+
 ## Standalone exports
 
 An exported project rebuilds with Make, the pinned Nugget SDK and a MIPS
