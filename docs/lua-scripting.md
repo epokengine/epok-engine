@@ -167,12 +167,11 @@ These five reflected events may be overridden without a `functions` entry:
 
 Their signature comes from the reflected parent, and the Lua parameter names
 must match the reflected parameter names exactly. C++ declares
-`virtual void tick(Fixed)` with an unnamed parameter, so reflection names it
-`arg0` and the override is written:
+`virtual void tick(Fixed delta_seconds)`, so the override is written:
 
 ```lua
-function Guard:tick(arg0)
-    self.health = self.health - self.alert_speed * arg0
+function Guard:tick(delta_seconds)
+    self.health = self.health - self.alert_speed * delta_seconds
 end
 ```
 
@@ -243,6 +242,59 @@ fields — there is exactly one authoritative representation, not a copy.
 The **Edit Lua Class** source action opens the authored `.lua`, never the
 generated C++.
 
+### Transform access
+
+Every spatial class also has `self.position`, `self.rotation` and `self.scale`
+without declaring anything. They are not properties: they address the actor's
+root component through the same runtime functions as the Blueprint **Get/Set
+Position**, **Get/Set Rotation** and **Get/Set Scale** nodes, so a Lua body and
+a Blueprint graph move one transform.
+
+| Class | `position` | `rotation` | `scale` |
+| --- | --- | --- | --- |
+| `Actor` with Domain=World3D (`epok::Actor3D` and below) | `Vector{3}` | `Vector{3}` | `Vector{3}` |
+| `Actor` with Domain=World2D (`epok::Actor2D` and below) | `Vector{2}` | scalar `Fixed` | `Vector{2}` |
+| `ActorComponent` whose `Owners` admit World3D | `Vector{3}` | `Vector{3}` | `Vector{3}` |
+| `ActorComponent` whose `Owners` admit only World2D | `Vector{2}` | scalar `Fixed` | `Vector{2}` |
+
+A component has no transform of its own: it addresses the transform of the
+actor that owns it.
+
+Only components are readable and writable, exactly as for a `Vector` property —
+`self.rotation.y`, and `.x`/`.y` only in World2D. A whole vector
+(`self.position = ...`, or reading `self.scale` into a local) is rejected with
+the profile's `Whole vector values are not supported` diagnostic. The World2D
+`rotation` is the one exception: it is a single `Fixed` angle, so it is read and
+written whole and has no components.
+
+```lua
+function Spinner:tick(delta_seconds)
+    self.rotation.y = self.rotation.y + self.speed * delta_seconds
+    self.position.x = self.position.x + 0.5 * delta_seconds
+end
+```
+
+Two rules follow from the names being intrinsic:
+
+- `position`, `rotation` and `scale` are **reserved**. Declaring a property with
+  one of those names is rejected at the declaration, in any class.
+- Using them on a class that is not spatial — a `Domain=None` class such as
+  `epok::SceneScriptActor`, or a UI class — is a profile diagnostic naming the
+  class's family and domain, not a silent no-op.
+
+A **UI** class has its own pair of intrinsic places instead: `self.rect_position`
+and `self.rect_size`, each a `Vector{2}` addressed by `.x` and `.y`. They go
+through the same runtime functions as the Blueprint **Get/Set Rect Position** and
+**Get/Set Rect Size** nodes, and they follow every rule above — reserved names,
+components only, and a diagnostic when named outside the UI domain.
+
+```lua
+function Panel:tick(delta_seconds)
+    self.rect_position.x = self.rect_position.x + 1.0
+    self.rect_size.y = 64.0
+end
+```
+
 ## The `epok-lua` v1 profile
 
 The profile is identical in all three execution modes, and its diagnostics never
@@ -252,7 +304,9 @@ name a mode.
 
 - Types: `Bool`, `Int32`, `UInt32`, `Fixed` (Q12), `Enum`, `Vector2`/`Vector3`
   components (the `.x`, `.y` and `.z` scalars — never a whole vector value),
-  `ObjectRef`, `ActorRef`, `ComponentRef`.
+  `ObjectRef`, `ActorRef`, `ComponentRef`. `AssetRef` and `ClassRef` are
+  declarable and Inspector-editable but are never values in a body; they are
+  named only as the operand of a builtin that takes one.
 - Locals with a single inferred type, checked for definite assignment before
   use.
 - `if` / `elseif` / `else`, `do ... end` blocks.
@@ -260,12 +314,24 @@ name a mode.
   loop variable is `Int32`.
 - `return` — at most one value, and only as the last statement of a block.
 - Single assignment to a local, a property, or a vector component.
-- Calls to `self:` methods, `epok.super(Class, self):` parent methods, and the
-  two conversion builtins.
+- Calls to `self:` methods (including every inherited reflected callable, such
+  as `Actor::set_active` and `Actor::destroy`), `epok.super(Class, self):`
+  parent methods, and the builtins listed below.
 - Comparisons `== ~= < <= > >=`, `and`, `or`, `not`, unary `-`.
 - Arithmetic `+ - * /`, and `%` on integers.
 
 ### Builtins
+
+Every builtin is a statically resolved call with a fixed arity and fixed operand
+types. A mismatch is one diagnostic, with the same text in all three modes.
+
+Each entry lowers to the very `epok::bp::api` entry point the Blueprint node
+beside it calls — the AOT backend emits that call directly, and the two VM modes
+reach it through a generated per-class dispatch case, never through a Lua-side
+reimplementation. The two authoring surfaces are therefore equivalent by
+construction rather than by agreement.
+
+#### Language
 
 | Builtin | Signature |
 | --- | --- |
@@ -273,8 +339,84 @@ name a mode.
 | `epok.to_int(value)` | `Fixed` → `Int32` |
 | `epok.super(Class, self)` | Qualified parent receiver (must be called on) |
 
+#### Adapters
+
+| Builtin | Returns | Blueprint node |
+| --- | --- | --- |
+| `epok.input.held(button, port)` | `Bool` | Input Held |
+| `epok.input.pressed(button, port)` | `Bool` | Input Pressed |
+| `epok.input.released(button, port)` | `Bool` | Input Released |
+| `epok.request_scene(index)` | `Bool` | Request Scene |
+| `epok.is_valid(ref)` | `Bool` | Is Valid |
+| `epok.is_a(ref, "Class")` | `Bool` | Is A |
+| `epok.cast(ref, "Class")` | typed ref, null when incompatible | Cast |
+| `epok.spawn("Class")`, `epok.spawn("Class", parent)` | `ActorRef<Class>` | Spawn |
+| `epok.spawn_class(self.<ClassRef property>)`, with an optional `parent` | `ActorRef<base>` | Spawn Class |
+| `epok.owner()` | `ActorRef` | Get Owner (Component classes only) |
+| `epok.play_audio(ref)`, `epok.stop_audio(ref)` | `void` | Play Audio, Stop Audio |
+| `epok.set_texture(ref, self.<AssetRef property>)` | `void` | Set Texture |
+| `epok.set_audio_clip(ref, self.<AssetRef property>)` | `void` | Set Audio Clip |
+| `epok.play_sequence(ref)`, `epok.play_effect(ref)` | statement only | Play Sequence, Play Effect |
+| `self.ref` | the object's own typed reference | Self |
+| `self.rect_position.x` / `.y`, `self.rect_size.x` / `.y` | `Fixed` places | Get/Set Rect Position, Get/Set Rect Size |
+
+`button` and `port` are `UInt32`; `port` is 0 or 1 and a button index of 16 or
+more always reads `false`, exactly as the Blueprint node does.
+
+`epok.is_a`, `epok.cast`, `epok.spawn` name their class by an authored name
+resolved through the class registry at compile time, so a misspelling is a
+compile error rather than a silent null. `epok.spawn` additionally applies the
+Blueprint Spawn rule: the class must be a concrete, spawnable Actor. The spawned
+instance's logical parent is the actor running the body, as it is for the node.
+
+A spawn made from inside an event or a tick is **queued** and runs when the
+current batch finishes, so the reference it returns is not live yet — again
+exactly as the Blueprint node behaves. Drive an actor's lifetime from that
+actor's own body (`self:destroy()`), not from a stored reference to it.
+
+#### Asset and class operands never cross the boundary
+
+`AssetRef` and `ClassRef` are 64-bit native fields, and profile v1 has no
+64-bit value. The builtins that take one therefore accept exactly one spelling:
+a direct read of a declared property of this class.
+
+```lua
+epok.set_texture(self.ref, self.skin)   -- self.skin is an AssetRef property
+```
+
+Anything else is `Asset and class reference arguments must be a direct read of a
+declared property of this class, such as epok.set_texture(self.ref, self.skin)`.
+In the native mode the generated body reads the field directly; in the two VM
+modes the whole call is one generated binding case that reads the same field, so
+the id is never packed into a Lua number and never truncated.
+
+#### Not in profile v1
+
+| Spelling | Diagnostic |
+| --- | --- |
+| `epok.stop_sequence`, `epok.pause_sequence`, `epok.resume_sequence`, `epok.stop_effect`, `epok.pause_effect`, `epok.resume_effect`, `epok.burst_effect`, `epok.effect_sequence`, `epok.play_timeline`, `epok.spawn_particle_effect` | `Sequence and effect handles are not values in the epok-lua profile; play a component sequence or effect as a statement and control it from a Blueprint` |
+| `epok.get_transform`, `epok.make_transform`, `epok.transform` | `Whole transforms are not supported by the epok-lua profile; use the components, such as self.position.x and self.scale.z` |
+
+A playback handle is wider than the profile's 32-bit value ABI, so it is never a
+value: `epok.play_sequence(ref)` and `epok.play_effect(ref)` are accepted only as
+statements, and the handle stays native. Nothing is silently truncated.
+
 There are no other callable globals. Anything else produces
 `Unknown global function <name>`.
+
+### The Lua-only workflow
+
+Everything above means a Lua author needs **no C++ and no Blueprint** for the
+builtin surface. A `.lua` file alone can read input, change scene, create actors
+by class name, ask what an object is, address the transform or the UI rect,
+drive audio and textures, and end an actor's run — because `Actor::set_active`,
+`Actor::destroy`, `Actor::wants_tick` and `Actor::set_wants_tick` are reflected
+and reached through the ordinary `self:` call syntax, like any other inherited
+callable.
+
+`examples/lua-scripting/Spawner.lua` and `Spinner.lua` are that workflow end to
+end: one class spawns the other in `begin_play`, both end their own run from
+`tick`, and neither file has a C++ helper or a graph behind it.
 
 ### Rejected constructs
 
@@ -435,9 +577,31 @@ Current to this revision:
   epok-lua profile; use the .x, .y and .z components`. This is a profile rule,
   not a VM-backend restriction: it does not change when the project switches
   mode, and the diagnostic never names a mode. `Vector2` and `Vector3`
-  properties remain declarable and Inspector-editable.
+  properties remain declarable and Inspector-editable. The intrinsic
+  `position`, `rotation` and `scale` follow the same rule.
+- **No transform on non-spatial classes.** `position`, `rotation` and `scale`
+  exist only for World3D and World2D classes, and `rect_position` and
+  `rect_size` only for UI classes. They address the root component of the owning
+  actor — never a component's own local transform, and never a parent-relative
+  one beyond what the Blueprint nodes already address. Naming one outside its
+  domain gives `position, rotation and scale are only available on World3D and
+  World2D classes, rect_position and rect_size on UI classes`.
 - **`AssetRef` and `ClassRef` in bodies.** They are 64-bit native fields and
-  stay Inspector-editable, but no profile v1 body reads or writes one.
+  stay Inspector-editable. No profile v1 body reads or writes one as a value;
+  the only place one may be named is as the operand of a builtin that takes it
+  (`epok.set_texture`, `epok.set_audio_clip`, `epok.spawn_class`), where both
+  backends read the native field and the id never crosses the boundary.
+- **Sequence and effect handles.** A playback handle is wider than the profile's
+  32-bit value ABI, so it is never a value. `epok.play_sequence` and
+  `epok.play_effect` are accepted as statements; the builtins that take a handle
+  are rejected with a named diagnostic rather than truncating one.
+- **Whole transform records.** `GetTransform` and `MakeTransform` have no Lua
+  spelling: a `epok::Transform` is not a value in the profile. Address the
+  components instead.
+- **A spawned reference is not live yet.** `epok.spawn` inside an event or tick
+  queues the spawn, exactly as the Blueprint Spawn node does, so the reference
+  it returns only becomes valid after the current batch. Drive lifetime from the
+  spawned actor's own body.
 - **Lua extending Blueprint.** Not supported. A Lua class may pick a C++ or a
   Lua parent only; a Blueprint parent is rejected. The reverse direction
   (Blueprint extending Lua) is supported in the editor — but the CLI

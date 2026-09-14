@@ -82,6 +82,41 @@ pub enum Conversion {
     FixedToInt,
 }
 
+/// Transform place every spatial class owns without declaring it. It is not a
+/// reflected property: it addresses the owning actor's root component through
+/// the same `epok::bp::api` entry points the Blueprint Get/Set nodes use.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Intrinsic {
+    Position,
+    Rotation,
+    Scale,
+    /// UI-domain rect places, addressing the same `RectTransformComponent` the
+    /// Blueprint Get/Set Rect Position and Rect Size nodes address.
+    RectPosition,
+    RectSize,
+}
+impl Intrinsic {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Position => "position",
+            Self::Rotation => "rotation",
+            Self::Scale => "scale",
+            Self::RectPosition => "rect_position",
+            Self::RectSize => "rect_size",
+        }
+    }
+    pub const ALL: [Self; 5] = [
+        Self::Position,
+        Self::Rotation,
+        Self::Scale,
+        Self::RectPosition,
+        Self::RectSize,
+    ];
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|k| k.name() == name)
+    }
+}
+
 /// A writable storage location. Property places keep the reflected member id so
 /// an emitter binds to the native field without consulting the registry again.
 #[derive(Clone, Debug)]
@@ -96,12 +131,19 @@ pub enum Place {
         base: Box<Place>,
         index: usize,
     },
+    /// One scalar of an intrinsic transform. `component` indexes the vector and
+    /// is 0 for the scalar World2D rotation; `value_type` is always `Fixed`.
+    Intrinsic {
+        kind: Intrinsic,
+        component: usize,
+        value_type: Type,
+    },
 }
 impl Place {
     pub fn root_local(&self) -> Option<LocalId> {
         match self {
             Self::Local(id) => Some(*id),
-            Self::Property { .. } => None,
+            Self::Property { .. } | Self::Intrinsic { .. } => None,
             Self::VectorComponent { base, .. } => base.root_local(),
         }
     }
@@ -111,7 +153,9 @@ impl Place {
                 .iter()
                 .find(|l| l.id == *id)
                 .map(|l| l.value_type.clone()),
-            Self::Property { value_type, .. } => Some(value_type.clone()),
+            Self::Property { value_type, .. } | Self::Intrinsic { value_type, .. } => {
+                Some(value_type.clone())
+            }
             Self::VectorComponent { base, index } => match base.value_type(locals)? {
                 Type::Vector { length } if *index < length => Some(Type::Fixed),
                 _ => None,
@@ -162,6 +206,44 @@ pub enum Expr {
         length: usize,
         value_type: Type,
     },
+    /// A Blueprint builtin node invoked from a script body. The operation is the
+    /// Blueprint node itself, not a copy of it, so both authoring surfaces reach
+    /// the same `epok::bp::api` entry point by construction.
+    ///
+    /// `site` is a class-wide dense index assigned by the frontend. VM backends
+    /// dispatch on it through the generated per-class `builtin_call` switch, so
+    /// the 64-bit operands a builtin may take (asset ids, class ids) are read
+    /// natively and never cross the 32-bit boundary of contract section 10.1.
+    CallBuiltin {
+        site: u32,
+        operation: crate::blueprint_asset::Builtin,
+        args: Vec<BuiltinArg>,
+        returns: Type,
+        pure: bool,
+    },
+}
+
+/// One operand of a builtin call.
+#[derive(Clone, Debug)]
+pub enum BuiltinArg {
+    /// An ordinary value; it crosses the VM boundary as an `int32_t`.
+    Value(Expr),
+    /// A direct read of a declared 64-bit `AssetRef`/`ClassRef` property. It is
+    /// never a value in a body: the generated binding case reads the native
+    /// field, so the id never enters Lua.
+    Property {
+        member_id: String,
+        name: String,
+        value_type: Type,
+    },
+}
+impl BuiltinArg {
+    pub fn value(&self) -> Option<&Expr> {
+        match self {
+            Self::Value(expr) => Some(expr),
+            Self::Property { .. } => None,
+        }
+    }
 }
 impl Expr {
     pub fn value_type(&self) -> &Type {
@@ -175,7 +257,9 @@ impl Expr {
                 Conversion::IntToFixed => &FIXED,
                 Conversion::FixedToInt => &INT32,
             },
-            Self::CallSelf { returns, .. } | Self::CallParent { returns, .. } => returns,
+            Self::CallSelf { returns, .. }
+            | Self::CallParent { returns, .. }
+            | Self::CallBuiltin { returns, .. } => returns,
         }
     }
     /// Calls are hoisted into temporaries by the frontend, so a well-formed
@@ -183,6 +267,15 @@ impl Expr {
     pub fn has_call(&self) -> bool {
         match self {
             Self::CallSelf { .. } | Self::CallParent { .. } => true,
+            // A pure builtin has no effect to order and no reentrancy to guard,
+            // so it may stay nested inside a larger expression.
+            Self::CallBuiltin { pure, args, .. } => {
+                !*pure
+                    || args
+                        .iter()
+                        .filter_map(BuiltinArg::value)
+                        .any(Self::has_call)
+            }
             Self::Literal { .. } | Self::Read { .. } => false,
             Self::Unary { operand, .. } | Self::Convert { operand, .. } => operand.has_call(),
             Self::Binary { left, right, .. } => left.has_call() || right.has_call(),
@@ -258,6 +351,23 @@ pub struct ClassIr {
     pub methods: Vec<MethodIr>,
 }
 
+/// Assignment compatibility for the structural check. A reference may widen to
+/// a less specific reference of the same family: both are exactly one
+/// `ObjectId`, and the frontend already checked the class relation against the
+/// registry, which this pass deliberately does not consult.
+fn compatible(declared: &Type, value: &Type) -> bool {
+    declared == value
+        || matches!(
+            (declared, value),
+            (Type::ActorRef { .. }, Type::ActorRef { .. })
+                | (Type::ComponentRef { .. }, Type::ComponentRef { .. })
+                | (
+                    Type::ObjectRef { .. },
+                    Type::ObjectRef { .. } | Type::ActorRef { .. } | Type::ComponentRef { .. }
+                )
+        )
+}
+
 /// Q12 raw encoding, identical to `blueprint_ir::literal` and the runtime.
 pub fn fixed_raw(value: f64) -> i32 {
     (value * 4096.).round() as i32
@@ -302,6 +412,21 @@ fn validate_method(class: &ClassIr, method: &MethodIr) -> Result<(), String> {
     }
     validate_block(&method.body, &locals, &method.function.returns).map_err(where_)
 }
+/// Structural check for the one place shape that carries no reflected member to
+/// cross-check against: an intrinsic addresses at most three Fixed components.
+fn validate_place(place: &Place) -> Result<(), String> {
+    match place {
+        Place::Intrinsic {
+            component,
+            value_type,
+            ..
+        } if *component > 2 || value_type != &FIXED => {
+            Err("Intrinsic transform place is not a Fixed component".into())
+        }
+        Place::VectorComponent { base, .. } => validate_place(base),
+        _ => Ok(()),
+    }
+}
 fn validate_block(block: &Block, locals: &[Local], returns: &Type) -> Result<(), String> {
     for statement in block {
         let at = |m: String| format!("{} {m}", statement.span);
@@ -311,22 +436,26 @@ fn validate_block(block: &Block, locals: &[Local], returns: &Type) -> Result<(),
                     .value_type(locals)
                     .ok_or_else(|| at(format!("Undeclared local {}", target.0)))?;
                 validate_expr(value, locals).map_err(&at)?;
-                if &declared != value.value_type() {
+                if !compatible(&declared, value.value_type()) {
                     return Err(at("Local initializer type differs from the local".into()));
                 }
             }
             StatementKind::Assign { target, value } => {
+                validate_place(target).map_err(&at)?;
                 let declared = target
                     .value_type(locals)
                     .ok_or_else(|| at("Assignment target is not a valid place".into()))?;
                 validate_expr(value, locals).map_err(&at)?;
-                if &declared != value.value_type() {
+                if !compatible(&declared, value.value_type()) {
                     return Err(at("Assigned value type differs from the target".into()));
                 }
             }
             StatementKind::Evaluate(value) => {
                 validate_expr(value, locals).map_err(&at)?;
-                if !matches!(value, Expr::CallSelf { .. } | Expr::CallParent { .. }) {
+                if !matches!(
+                    value,
+                    Expr::CallSelf { .. } | Expr::CallParent { .. } | Expr::CallBuiltin { .. }
+                ) {
                     return Err(at("Only calls may be evaluated for effect".into()));
                 }
             }
@@ -367,7 +496,7 @@ fn validate_block(block: &Block, locals: &[Local], returns: &Type) -> Result<(),
                 (None, Type::Void) => {}
                 (Some(value), expected) if expected != &Type::Void => {
                     validate_expr(value, locals).map_err(&at)?;
-                    if value.value_type() != expected {
+                    if !compatible(expected, value.value_type()) {
                         return Err(at("Returned value differs from the declared return".into()));
                     }
                 }
@@ -385,6 +514,7 @@ fn validate_expr(expr: &Expr, locals: &[Local]) -> Result<(), String> {
             }
         }
         Expr::Read { place, value_type } => {
+            validate_place(place)?;
             let actual = place
                 .value_type(locals)
                 .ok_or_else(|| "Read from an unresolved place".to_owned())?;
@@ -474,6 +604,56 @@ fn validate_expr(expr: &Expr, locals: &[Local]) -> Result<(), String> {
                     return Err(format!("{name}: nested call was not hoisted"));
                 }
             }
+        }
+        Expr::CallBuiltin {
+            operation,
+            args,
+            returns,
+            ..
+        } => {
+            let (parameters, output, pure) = crate::blueprint_ir::builtin_signature(operation);
+            if args.len() != parameters.len() {
+                return Err(format!(
+                    "{operation:?}: {} operand(s) for a {}-operand builtin",
+                    args.len(),
+                    parameters.len()
+                ));
+            }
+            for (arg, (name, expected)) in args.iter().zip(&parameters) {
+                match arg {
+                    BuiltinArg::Value(value) => {
+                        validate_expr(value, locals)?;
+                        if value.has_call() {
+                            return Err(format!("{name}: nested call was not hoisted"));
+                        }
+                    }
+                    // The 64-bit operands never become values; only their own
+                    // reference types may be spelled this way.
+                    BuiltinArg::Property { value_type, .. } => {
+                        if !matches!(value_type, Type::AssetRef { .. } | Type::ClassRef { .. })
+                            || value_type != expected
+                        {
+                            return Err(format!(
+                                "{name}: property operand is not {}",
+                                expected.label()
+                            ));
+                        }
+                    }
+                }
+            }
+            // `Cast` and the spawn family narrow the declared output to the
+            // resolved class; everything else keeps the node's own return.
+            if *returns != output
+                && !matches!(
+                    returns,
+                    Type::ActorRef { .. } | Type::ComponentRef { .. } | Type::ObjectRef { .. }
+                )
+            {
+                return Err(format!(
+                    "{operation:?}: return type differs from the builtin"
+                ));
+            }
+            let _ = pure;
         }
         Expr::MakeVector {
             components,

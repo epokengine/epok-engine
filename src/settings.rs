@@ -90,14 +90,15 @@ impl LuaExecution {
         text
     }
     /// Static VM arena. Parsing source on the target allocates transiently
-    /// during initialization, so the source packaging reserves more than the
-    /// bytecode packaging; measured peaks were 14 KiB and 94 KiB for the same
-    /// two-class fixture. Native builds have no arena at all.
+    /// while each chunk loads (a full collection runs between chunks), so the
+    /// source packaging reserves more than the bytecode packaging; the
+    /// three-class conformance fixture peaks at 18 KiB and 21 KiB respectively.
+    /// Native builds have no arena at all.
     pub fn arena_bytes(self) -> Option<u32> {
         match self {
             Self::NativeCpp => None,
             Self::VmBytecode => Some(96 * 1024),
-            Self::VmSource => Some(192 * 1024),
+            Self::VmSource => Some(128 * 1024),
         }
     }
     /// Appended to the generated `sources.mk`; the runtime Makefile defines

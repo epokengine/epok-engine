@@ -596,8 +596,9 @@ function Sentinel:absorb(amount)
     return self.health
 end
 
-function Sentinel:tick(arg0)
-    self.health = self.health + arg0
+function Sentinel:tick(delta_seconds)
+    self.health = self.health + delta_seconds
+    self.rotation.y = self.rotation.y + delta_seconds
 end
 
 function Sentinel:begin_play()

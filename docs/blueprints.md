@@ -124,6 +124,8 @@ A Blueprint inherits its parent's family: **Actor** or **ActorComponent**. Actor
 
 Both families support **Begin Play**, **Tick**, **End Play**, inherited properties and event overrides. `Self` refers to the current instance. A component uses **Get Owner** to access its Actor; selecting one compatible owner domain gives that reference a specific Actor type. Transform operations require the corresponding domain.
 
+The engine's own Actor and ActorComponent operations are reflected members, not nodes of one provider: **Set Active**, **Destroy**, **Active**, **Wants Tick**, **Set Wants Tick**, the identity and hierarchy readers (**Level Id**, **Root Id**, **Logical Parent**, **Component Id**, **Component Count**) and the component's **Owner Id** appear under `Functions / Self` in the action menu and compile to a direct call on the instance. The same members are available to C++ and Lua classes, so no provider needs a hand-written helper for them. The legacy **Actor / Set active**, **Actor / Destroy** and **Get Owner** builtin nodes remain unchanged for graphs that already use them; both spellings therefore appear in the action menu and produce equivalent behavior.
+
 The parent picker requires a Blueprintable class that is not final. Abstract classes can be parents. C++ classes derive from native classes; Blueprint classes may derive from native or Blueprint classes. Reparenting validates family, domain and inheritance cycles before accepting a change.
 
 ### Typed references and spawning

@@ -13,7 +13,10 @@ local Guard = epok.class {
         count   = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f13", type = "Int32",  default = 0,    editable = true },
         armed   = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f14", type = "Bool",   default = true, editable = true },
         stamina = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f15", type = "UInt32", default = 7,    editable = true },
-        ticks   = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f16", type = "Int32",  default = 0,    editable = true }
+        ticks   = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f16", type = "Int32",  default = 0,    editable = true },
+        -- Holds the actor this class spawns at runtime, so a later tick can ask
+        -- whether it is still alive.
+        target  = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f19", type = "ActorRef", editable = false }
     },
     functions = {
         report = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f17", callable = true,
@@ -48,11 +51,11 @@ function Guard:on_disable()
     self:probe(self.slot + 12, 1)
 end
 
-function Guard:end_play(arg0)
+function Guard:end_play(end_play_reason)
     self:probe(self.slot + 13, 1)
 end
 
-function Guard:tick(arg0)
+function Guard:tick(delta_seconds)
     self:mark_begin()
     local base = self.slot
     local n = self.ticks + 1
@@ -66,6 +69,64 @@ function Guard:tick(arg0)
         self:probe(base + 9, self.hits)
         self:probe_f(base + 10, self.health)
         self:probe_f(base + 11, self:report())
+    end
+    -- Intrinsic transform access: no C++ helper, no declared property. The
+    -- step is a constant rather than `delta_seconds` so the final value is a tick count
+    -- and cannot drift between modes with the frame rate.
+    self.rotation.y = self.rotation.y + 0.25
+    self.position.x = self.position.x + 0.5
+    if base == 0 then
+        self:probe_f(64, self.rotation.y)
+        self:probe_f(65, self.position.x)
+    else
+        self:probe_f(66, self.rotation.y)
+        self:probe_f(67, self.position.x)
+    end
+    -- The builtin surface. Everything below is authored in Lua alone: no C++
+    -- helper, no Blueprint node, no reflected function of the fixture base. Each
+    -- call lowers to the `epok::bp::api` entry point the matching Blueprint node
+    -- uses, so the three modes must agree with each other and with a graph.
+    if n == 2 and base == 0 then
+        local made = epok.spawn("Sentinel")
+        self.target = made
+        -- A spawn is queued and runs when the current batch finishes, exactly
+        -- as the Blueprint Spawn node behaves: the reference is not live yet.
+        self:probe_b(84, epok.is_valid(made))
+        -- No pad is connected under the harness, so every button reads false in
+        -- every mode.
+        self:probe_b(75, epok.input.held(0, 0))
+        self:probe_b(76, epok.input.pressed(0, 0))
+        self:probe_b(77, epok.input.released(0, 0))
+        -- The project has a single scene, so the request is rejected: the Bool
+        -- result is the whole observation and nothing changes.
+        self:probe_b(78, epok.request_scene(9))
+        self:probe_b(79, epok.is_valid(self.ref))
+    end
+    -- The class predicates, asked about a reference that is certainly live: the
+    -- actor running the body. `self.ref` is the value the Blueprint Self node
+    -- produces, and the answers are the runtime's own class graph.
+    if n == 10 and base == 0 then
+        self:probe_b(70, epok.is_valid(self.ref))
+        self:probe_b(71, epok.is_a(self.ref, "Guard"))
+        self:probe_b(72, epok.is_a(self.ref, "Patrol"))
+        local wrong = epok.cast(self.ref, "Patrol")
+        self:probe_b(73, epok.is_valid(wrong))
+        local widened = epok.cast(self.ref, "EnemyBase")
+        self:probe_b(74, epok.is_valid(widened))
+    end
+    if n == 10 and base > 0 then
+        -- The same expressions reached from the derived class, which inherits
+        -- this very body: a Patrol is a Guard and casts to itself.
+        self:probe_b(85, epok.is_a(self.ref, "Guard"))
+        self:probe_b(86, epok.is_a(self.ref, "Patrol"))
+        local narrowed = epok.cast(self.ref, "Patrol")
+        self:probe_b(87, epok.is_valid(narrowed))
+    end
+    if n == 40 and base == 0 then
+        -- The spawned actor destroyed itself from its own Lua tick, through the
+        -- inherited reflected Actor::destroy, so the stored reference is stale.
+        self:probe_b(82, epok.is_valid(self.target))
+        self:probe(83, n)
     end
     if n == 1 and base == 0 then
         -- Int32 edges.

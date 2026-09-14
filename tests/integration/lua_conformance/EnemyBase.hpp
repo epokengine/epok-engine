@@ -8,7 +8,7 @@
 #include "epok.hpp"
 
 extern "C" {
-extern volatile int32_t epok_lua_probe[64];
+extern volatile int32_t epok_lua_probe[96];
 void epok_lua_probe_begin();
 void epok_lua_probe_end();
 }

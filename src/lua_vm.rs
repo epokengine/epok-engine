@@ -33,45 +33,191 @@ pub const GENERATED_DIR: &str = "scripts/generated/lua";
 /// Native source carrying every class's chunk payload.
 pub const CHUNKS_SOURCE: &str = "scripts/generated/lua/lua_chunks.cpp";
 
-/// One entry of a class's dense field-slot table. `component` is the index
-/// inside a `Vector` property and 0 for every scalar; `value_type` is the type
+/// Identity of a field slot, and the key both emitters look a `Place` up by.
+/// `component` is the index inside a `Vector` and 0 for every scalar.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SlotKey {
+    /// `component` is `None` for a scalar property and the index inside a
+    /// `Vector` property otherwise, so a scalar never collides with a x-component.
+    Property {
+        member_id: String,
+        component: Option<usize>,
+    },
+    Intrinsic {
+        kind: script_ir::Intrinsic,
+        component: usize,
+    },
+}
+
+/// One entry of a class's dense field-slot table. `value_type` is the type
 /// actually crossing the boundary, so a vector component reports `Fixed`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldSlot {
-    pub member_id: String,
+    pub key: SlotKey,
+    /// Authored name: a property's, or the intrinsic's.
     pub name: String,
-    pub component: usize,
     pub value_type: schema::Type,
 }
 
-/// Dense field slots for a class, in `Registry::properties` order with vector
-/// properties expanded into consecutive components.
+/// Dense field slots for a class: every reflected property in
+/// `Registry::properties` order with vector properties expanded into
+/// consecutive components, then the intrinsic transform components of a spatial
+/// class (World3D: position.xyz, rotation.xyz, scale.xyz; World2D: position.xy,
+/// the scalar rotation, scale.xy). Intrinsics come last so a property never
+/// lands on an intrinsic slot.
 ///
 /// `lua_aot::emit_bindings` and the emitter below must agree slot for slot;
 /// this is the single definition both call.
 pub fn field_slots(class_cpp_name: &str, registry: &crate::blueprint::Registry) -> Vec<FieldSlot> {
     let mut slots = Vec::new();
     for property in registry.properties(class_cpp_name) {
+        let (name, member_id) = (property.name.clone(), property.id.clone());
         match &property.value_type {
+            // 64-bit handles are Inspector-editable native fields that profile
+            // v1 never reads or writes from a body, so they get no slot: the
+            // builtins that take one read the field through their own binding
+            // case instead (contract section 10.1).
+            schema::Type::AssetRef { .. } | schema::Type::ClassRef { .. } => {}
             schema::Type::Vector { length } => {
                 for component in 0..*length {
                     slots.push(FieldSlot {
-                        member_id: property.id.clone(),
-                        name: property.name.clone(),
-                        component,
+                        key: SlotKey::Property {
+                            member_id: member_id.clone(),
+                            component: Some(component),
+                        },
+                        name: name.clone(),
                         value_type: schema::Type::Fixed,
                     });
                 }
             }
             value_type => slots.push(FieldSlot {
-                member_id: property.id.clone(),
-                name: property.name.clone(),
-                component: 0,
+                key: SlotKey::Property {
+                    member_id,
+                    component: None,
+                },
+                name,
                 value_type: value_type.clone(),
             }),
         }
     }
+    if let Some(access) = intrinsic_access(registry, class_cpp_name) {
+        for kind in script_ir::Intrinsic::ALL {
+            for component in 0..intrinsic_components(access.domain, kind) {
+                slots.push(FieldSlot {
+                    key: SlotKey::Intrinsic { kind, component },
+                    name: kind.name().into(),
+                    value_type: schema::Type::Fixed,
+                });
+            }
+        }
+    }
     slots
+}
+
+/// The intrinsic namespace a class exposes. A World3D or World2D class exposes
+/// the root transform; a UI class exposes the rect of its `RectTransform`. Both
+/// lower to the `epok::bp::api` entry points the matching Blueprint Get/Set
+/// nodes call, so the two authoring surfaces address one storage.
+pub fn intrinsic_access(
+    registry: &crate::blueprint::Registry,
+    class_cpp_name: &str,
+) -> Option<crate::object_model::TransformAccess> {
+    if let Some(access) = crate::object_model::transform_access(registry, class_cpp_name) {
+        return Some(access);
+    }
+    let (family, domain, owners) = crate::object_model::resolved_shape(registry, class_cpp_name);
+    let through_owner = match family {
+        schema::ClassFamily::Actor if domain == schema::Domain::UI => false,
+        schema::ClassFamily::Component if owners.contains(&schema::Domain::UI) => true,
+        _ => return None,
+    };
+    Some(crate::object_model::TransformAccess {
+        domain: schema::Domain::UI,
+        through_owner,
+    })
+}
+
+/// Scalars an intrinsic occupies in a domain: the World2D rotation is a single
+/// `Fixed` angle, the rect places belong to the UI domain alone, and every
+/// other intrinsic is a vector. Zero means the domain does not expose the kind.
+pub fn intrinsic_components(domain: schema::Domain, kind: script_ir::Intrinsic) -> usize {
+    use script_ir::Intrinsic as Kind;
+    let rect = matches!(kind, Kind::RectPosition | Kind::RectSize);
+    match (domain, rect) {
+        (schema::Domain::UI, true) => 2,
+        (schema::Domain::UI, false) | (_, true) => 0,
+        (schema::Domain::World2D, false) if kind == Kind::Rotation => 1,
+        (schema::Domain::World2D, false) => 2,
+        _ => 3,
+    }
+}
+
+/// Every builtin call site of a class, in the dense order the frontend assigned.
+/// `lua_aot::emit_bindings` generates one switch case per entry and the chunk
+/// emitter below dispatches on the same index, so this is the single ordering
+/// both backends see.
+pub fn builtin_sites(ir: &script_ir::ClassIr) -> Result<Vec<Expr>, String> {
+    fn walk(block: &[Statement], out: &mut BTreeMap<u32, Expr>) {
+        fn expr(value: &Expr, out: &mut BTreeMap<u32, Expr>) {
+            match value {
+                Expr::CallBuiltin { site, args, .. } => {
+                    out.insert(*site, value.clone());
+                    for arg in args.iter().filter_map(script_ir::BuiltinArg::value) {
+                        expr(arg, out);
+                    }
+                }
+                Expr::Unary { operand, .. } | Expr::Convert { operand, .. } => expr(operand, out),
+                Expr::Binary { left, right, .. } => {
+                    expr(left, out);
+                    expr(right, out);
+                }
+                Expr::MakeVector { components, .. } => {
+                    for component in components {
+                        expr(component, out);
+                    }
+                }
+                Expr::CallSelf { args, .. } | Expr::CallParent { args, .. } => {
+                    for arg in args {
+                        expr(arg, out);
+                    }
+                }
+                Expr::Literal { .. } | Expr::Read { .. } => {}
+            }
+        }
+        for statement in block {
+            match &statement.kind {
+                StatementKind::Local { value, .. }
+                | StatementKind::Assign { value, .. }
+                | StatementKind::Evaluate(value) => expr(value, out),
+                StatementKind::Return(Some(value)) => expr(value, out),
+                StatementKind::Return(None) => {}
+                StatementKind::If {
+                    cond,
+                    then,
+                    otherwise,
+                } => {
+                    expr(cond, out);
+                    walk(then, out);
+                    walk(otherwise, out);
+                }
+                StatementKind::For { body, .. } => walk(body, out),
+            }
+        }
+    }
+    let mut sites = BTreeMap::new();
+    for method in &ir.methods {
+        walk(&method.body, &mut sites);
+    }
+    // A gap would silently shift every later case of the generated switch.
+    for (index, site) in sites.keys().enumerate() {
+        if index as u32 != *site {
+            return Err(format!(
+                "{}: builtin site {site} is not dense; the generated dispatch would misalign",
+                ir.cpp_name
+            ));
+        }
+    }
+    Ok(sites.into_values().collect())
 }
 
 /// Dense method slots for a class. The first `ClassIr::methods.len()` slots are
@@ -154,7 +300,7 @@ struct Emitter<'a> {
     /// Local id -> emitted Lua name. Parameters are `epok_p<index>`, body
     /// locals `epok_l<id>`, matching the trampoline signatures in §10.3.
     names: BTreeMap<script_ir::LocalId, String>,
-    fields: &'a BTreeMap<(String, usize), usize>,
+    fields: &'a BTreeMap<SlotKey, usize>,
     methods: &'a BTreeMap<String, usize>,
     class: &'a script_ir::ClassIr,
     method: &'a str,
@@ -175,7 +321,7 @@ impl Emitter<'_> {
 
     /// Slot of a property place, resolving a vector component to its own slot.
     fn field_slot(&mut self, place: &Place, span: script_ir::Span) -> usize {
-        let (member_id, component) = match place {
+        let key = match place {
             // The frontend rejects whole-vector values in every mode, so a
             // vector Place here would be a lowering bug, never user source.
             // Narrowing it to component 0 would silently change the program.
@@ -193,9 +339,21 @@ impl Emitter<'_> {
                 let _ = member_id;
                 return 0;
             }
-            Place::Property { member_id, .. } => (member_id.clone(), 0),
+            Place::Property { member_id, .. } => SlotKey::Property {
+                member_id: member_id.clone(),
+                component: None,
+            },
+            Place::Intrinsic {
+                kind, component, ..
+            } => SlotKey::Intrinsic {
+                kind: *kind,
+                component: *component,
+            },
             Place::VectorComponent { base, index } => match &**base {
-                Place::Property { member_id, .. } => (member_id.clone(), *index),
+                Place::Property { member_id, .. } => SlotKey::Property {
+                    member_id: member_id.clone(),
+                    component: Some(*index),
+                },
                 _ => {
                     self.fail(
                         span,
@@ -209,13 +367,13 @@ impl Emitter<'_> {
                 return 0;
             }
         };
-        match self.fields.get(&(member_id.clone(), component)) {
+        match self.fields.get(&key) {
             Some(slot) => *slot,
             None => {
                 self.fail(
                     span,
                     format!(
-                        "Property {member_id} is not a reflected field of {}; the VM binding has no slot for it.",
+                        "{key:?} is not a bound field of {}; the VM binding has no slot for it.",
                         self.class.cpp_name
                     ),
                 );
@@ -356,6 +514,24 @@ impl Emitter<'_> {
                 args,
                 returns,
             } => self.call("__epok_super", function_id, name, args, returns, span),
+            Expr::CallBuiltin {
+                site,
+                args,
+                returns,
+                ..
+            } => {
+                // Only the wire operands travel. A 64-bit asset or class id is
+                // read by the generated binding case from the native field, so
+                // it never enters Lua at all (contract section 10.1).
+                let mut text = format!("__epok_builtin(self, {site}");
+                for arg in args.iter().filter_map(script_ir::BuiltinArg::value) {
+                    let value_type = arg.value_type().clone();
+                    let rendered = self.expr(arg, span);
+                    let _ = write!(text, ", {}", self.boundary_in(rendered, &value_type));
+                }
+                text.push(')');
+                self.boundary_out(text, returns)
+            }
             Expr::MakeVector { .. } => {
                 self.fail(
                     span,
@@ -548,6 +724,22 @@ impl Emitter<'_> {
                         args,
                         ..
                     } => self.call_raw("__epok_super", function_id, name, args, span),
+                    Expr::CallBuiltin {
+                        site,
+                        args,
+                        returns,
+                        ..
+                    } => {
+                        let mut text = format!("__epok_builtin(self, {site}");
+                        for arg in args.iter().filter_map(script_ir::BuiltinArg::value) {
+                            let value_type = arg.value_type().clone();
+                            let rendered = self.expr(arg, span);
+                            let _ = write!(text, ", {}", self.boundary_in(rendered, &value_type));
+                        }
+                        text.push(')');
+                        let _ = returns;
+                        text
+                    }
                     other => self.expr(other, span),
                 };
                 self.indent(depth);
@@ -619,10 +811,10 @@ pub fn emit_chunk(
     methods: &[schema::Function],
     file: &Path,
 ) -> Result<String, lua_asset::Diagnostic> {
-    let field_index: BTreeMap<(String, usize), usize> = fields
+    let field_index: BTreeMap<SlotKey, usize> = fields
         .iter()
         .enumerate()
-        .map(|(slot, field)| ((field.member_id.clone(), field.component), slot))
+        .map(|(slot, field)| (field.key.clone(), slot))
         .collect();
     let method_index = method_index(methods);
 
@@ -848,18 +1040,57 @@ mod tests {
     fn slots() -> Vec<FieldSlot> {
         vec![
             FieldSlot {
-                member_id: "health-id".into(),
+                key: SlotKey::Property {
+                    member_id: "health-id".into(),
+                    component: None,
+                },
                 name: "health".into(),
-                component: 0,
                 value_type: schema::Type::Fixed,
             },
             FieldSlot {
-                member_id: "alive-id".into(),
+                key: SlotKey::Property {
+                    member_id: "alive-id".into(),
+                    component: None,
+                },
                 name: "alive".into(),
-                component: 0,
                 value_type: schema::Type::Bool,
             },
         ]
+    }
+
+    #[test]
+    fn lua_vm_dispatches_builtins_through_the_generated_binding_site() {
+        let registry = crate::lua_frontend::tests::builtin_registry();
+        let source = format!(
+            "{}\n{}\nreturn EnemyLogic\n",
+            lua_asset::tests::HEADER.trim_start(),
+            crate::lua_aot::tests::BUILTIN_BODY
+        );
+        let (registry, ir) =
+            crate::lua_aot::tests::lower("assets/scripts/EnemyLogic.lua", &source, &registry);
+        let fields = field_slots(&ir.cpp_name, &registry);
+        let methods = method_slots(&ir, &registry);
+        let chunk = emit_chunk(
+            &ir,
+            &fields,
+            &methods,
+            Path::new("assets/scripts/EnemyLogic.lua"),
+        )
+        .unwrap();
+        for expected in [
+            // Every builtin is one dispatch on its own site; the adapter itself
+            // runs natively, so the chunk carries no `epok::bp::api` knowledge.
+            "epok_l1 = __epok_builtin(self, 1, __epok_builtin(self, 0))",
+            "if (__epok_builtin(self, 2, epok_l1) ~= 0) then",
+            "__epok_builtin(self, 4, __epok_builtin(self, 3))",
+            "__epok_builtin(self, 5, epok_l1)",
+            "if (__epok_builtin(self, 6, 4, 0) ~= 0) then",
+        ] {
+            assert!(chunk.contains(expected), "missing {expected:?} in\n{chunk}");
+        }
+        // The 64-bit asset id is read by the binding case, so it never appears
+        // in the chunk in any form.
+        assert!(!chunk.contains("skin"), "{chunk}");
     }
 
     #[test]
@@ -1064,7 +1295,7 @@ mod tests {
     fn lua_vm_field_slots_expand_vectors_and_report_unbound_members() {
         let vector = schema::Property {
             id: "pos-id".into(),
-            name: "position".into(),
+            name: "offset".into(),
             value_type: schema::Type::Vector { length: 3 },
             default: json!([0.0, 0.0, 0.0]),
             editable: true,
@@ -1105,7 +1336,13 @@ mod tests {
         );
         let slots = field_slots("Guard", &registry);
         assert_eq!(slots.len(), 3);
-        assert_eq!(slots[2].component, 2);
+        assert_eq!(
+            slots[2].key,
+            SlotKey::Property {
+                member_id: "pos-id".into(),
+                component: Some(2)
+            }
+        );
         assert!(slots.iter().all(|s| s.value_type == schema::Type::Fixed));
 
         // A property the binding has no slot for is a named diagnostic, not a

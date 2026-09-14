@@ -104,6 +104,131 @@ pub struct Context<'a> {
     pub playback_timelines: &'a [(std::path::PathBuf, crate::timeline::TimelineAsset)],
     pub playback_effects: &'a [(std::path::PathBuf, crate::particle_effect::ParticleEffect)],
 }
+
+/// The `epok::bp::api` entry point a builtin adapts to, for the operations whose
+/// lowering is a plain call. `None` for the operations that need more than their
+/// operands (the spawn family, the class predicates and `SelfObject`).
+///
+/// The receiver expressions a builtin lowering may need besides its operands.
+/// A Blueprint body, a native Lua body and a generated VM binding case name the
+/// same object differently; everything else about the lowering is shared.
+pub struct SelfReceiver<'a> {
+    /// `ObjectId` of the object running the body.
+    pub id: &'a str,
+    /// Pointer to the object running the body, for the component adapters.
+    pub object: &'a str,
+    /// The actor the object belongs to.
+    pub actor: &'a str,
+}
+impl<'a> SelfReceiver<'a> {
+    /// A body compiled into the class itself, where the object is `this`.
+    pub fn this(actor: &'a str) -> Self {
+        Self {
+            id: "this->id()",
+            object: "this",
+            actor,
+        }
+    }
+}
+pub fn builtin_api(operation: &Builtin) -> Option<&'static str> {
+    Some(match operation {
+        Builtin::IsValid => "valid",
+        Builtin::GetPosition => "position",
+        Builtin::GetPosition2D => "position_2d",
+        Builtin::SetPosition2D => "set_position_2d",
+        Builtin::GetRotation2D => "rotation_2d",
+        Builtin::SetRotation2D => "set_rotation_2d",
+        Builtin::GetScale2D => "scale_2d",
+        Builtin::SetScale2D => "set_scale_2d",
+        Builtin::GetRectPosition => "rect_position",
+        Builtin::SetRectPosition => "set_rect_position",
+        Builtin::GetRectSize => "rect_size",
+        Builtin::SetRectSize => "set_rect_size",
+        Builtin::GetRotation => "rotation",
+        Builtin::GetScale => "scale",
+        Builtin::SetPosition => "set_position",
+        Builtin::SetRotation => "set_rotation",
+        Builtin::SetScale => "set_scale",
+        Builtin::InputHeld => "held",
+        Builtin::InputPressed => "pressed",
+        Builtin::InputReleased => "released",
+        Builtin::RequestScene => "request_scene",
+        Builtin::SetActive => "set_active",
+        Builtin::DestroyActor => "destroy",
+        Builtin::PlayAudio => "play_audio",
+        Builtin::StopAudio => "stop_audio",
+        Builtin::SetTexture => "set_texture",
+        Builtin::SetAudioClip => "set_audio_clip",
+        Builtin::PlaySequenceComponent => "play_sequence_component",
+        Builtin::StopSequence => "stop_sequence",
+        Builtin::PauseSequence => "pause_sequence",
+        Builtin::ResumeSequence => "resume_sequence",
+        Builtin::PlayEffectComponent => "play_effect_component",
+        Builtin::StopEffect => "stop_effect",
+        Builtin::BurstEffect => "burst_effect",
+        Builtin::PauseEffect => "pause_effect",
+        Builtin::ResumeEffect => "resume_effect",
+        Builtin::EffectSequence => "effect_sequence",
+        Builtin::GetTransform => "transform",
+        Builtin::MakeTransform => "make_transform",
+        _ => return None,
+    })
+}
+
+/// The C++ expression a builtin lowers to, from already-lowered operands.
+///
+/// Both the Blueprint compiler and the Lua backends call this, so a builtin node
+/// and its Lua spelling are the same generated call by construction rather than
+/// by two implementations agreeing. `self_actor` is the expression naming the
+/// actor the caller belongs to (`this`, or the component's owner).
+pub fn builtin_cpp(
+    operation: &Builtin,
+    args: &[String],
+    receiver: &SelfReceiver<'_>,
+) -> Result<String, String> {
+    let self_actor = receiver.actor;
+    let arg = |index: usize| -> Result<&String, String> {
+        args.get(index)
+            .ok_or_else(|| format!("{operation:?} is missing operand {index}"))
+    };
+    Ok(match operation {
+        Builtin::SelfObject => receiver.id.into(),
+        Builtin::GetOwner => format!("epok::bp::component_owner_id({})", receiver.object),
+        Builtin::SpawnActor { .. } => format!(
+            "epok::bp::spawn_actor({self_actor},{},{})",
+            arg(0)?,
+            arg(1)?
+        ),
+        Builtin::Spawn { class } => format!(
+            "epok::bp::spawn_actor({self_actor},{}ULL,{})",
+            crate::blueprint_refs::compact_id(class),
+            arg(0)?
+        ),
+        Builtin::IsA { class } => format!(
+            "epok::bp::is_a({},{}ULL)",
+            arg(0)?,
+            crate::blueprint_refs::compact_id(class)
+        ),
+        Builtin::Cast { class } => format!(
+            "epok::bp::api::cast({}ULL,{})",
+            crate::blueprint_refs::compact_id(class),
+            arg(0)?
+        ),
+        Builtin::SpawnClass { base } => format!(
+            "(epok::bp::class_is_a({}, {base}ULL)?epok::bp::spawn_actor({self_actor},{},{}):epok::ObjectId{{}})",
+            arg(0)?,
+            arg(0)?,
+            arg(1)?,
+            base = crate::blueprint_refs::compact_id(base)
+        ),
+        other => {
+            let name = builtin_api(other)
+                .ok_or_else(|| format!("{other:?} has no adapter entry point"))?;
+            format!("epok::bp::api::{name}({})", args.join(","))
+        }
+    })
+}
+
 pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, bool) {
     let entity = Type::ObjectRef { class: None };
     let spatial = Type::ActorRef {
@@ -725,152 +850,108 @@ impl Lower<'_, '_> {
         } else {
             returns
         };
-        let cpp = match operation {
-            Builtin::SelfObject => "this->id()".into(),
-            Builtin::GetOwner => {
-                if self.context.self_kind != SelfKind::Component {
-                    return Err(err(
-                        &node.id,
-                        "Get Owner is only available inside a Component Blueprint",
-                    ));
+        let cpp =
+            match operation {
+                Builtin::SelfObject => builtin_cpp(operation, &args, &SelfReceiver::this("this"))
+                    .map_err(|m| err(&node.id, m))?,
+                Builtin::GetOwner => {
+                    if self.context.self_kind != SelfKind::Component {
+                        return Err(err(
+                            &node.id,
+                            "Get Owner is only available inside a Component Blueprint",
+                        ));
+                    }
+                    builtin_cpp(operation, &args, &SelfReceiver::this("this"))
+                        .map_err(|m| err(&node.id, m))?
                 }
-                "epok::bp::component_owner_id(this)".into()
-            }
-            Builtin::SpawnActor { base } => {
-                let metadata = self
-                    .context
-                    .registry
-                    .classes
-                    .get(base)
-                    .ok_or_else(|| err(&node.id, "Unknown spawn base class"))?;
-                let family = self
-                    .context
-                    .model
-                    .and_then(|model| model.class(base))
-                    .map(|class| class.family)
-                    .unwrap_or_default();
-                if family != schema::ClassFamily::Actor {
-                    return Err(err(
-                        &node.id,
-                        format!(
-                            "Spawn Actor requires an Actor class; {} belongs to the {} family",
-                            metadata.cpp_name,
-                            family.label()
-                        ),
-                    ));
-                }
-                format!(
-                    "epok::bp::spawn_actor({},{},{})",
-                    self.context.self_kind.actor(),
-                    args[0],
-                    args[1]
-                )
-            }
-            Builtin::Spawn { class } | Builtin::IsA { class } | Builtin::Cast { class } => {
-                let metadata = self
-                    .context
-                    .registry
-                    .classes
-                    .get(class)
-                    .ok_or_else(|| err(&node.id, format!("Unknown class reference {class}")))?;
-                if matches!(operation, Builtin::Spawn { .. }) && metadata.abstract_class {
-                    return Err(err(&node.id, "Cannot spawn an abstract class"));
-                }
-                let id = crate::blueprint_refs::compact_id(class);
-                if matches!(operation, Builtin::Spawn { .. }) {
-                    if self
+                Builtin::SpawnActor { base } => {
+                    let metadata = self
+                        .context
+                        .registry
+                        .classes
+                        .get(base)
+                        .ok_or_else(|| err(&node.id, "Unknown spawn base class"))?;
+                    let family = self
                         .context
                         .model
-                        .and_then(|m| m.class(class))
-                        .is_none_or(|c| {
-                            c.family != schema::ClassFamily::Actor || !c.placement.spawnable
-                        })
+                        .and_then(|model| model.class(base))
+                        .map(|class| class.family)
+                        .unwrap_or_default();
+                    if family != schema::ClassFamily::Actor {
+                        return Err(err(
+                            &node.id,
+                            format!(
+                                "Spawn Actor requires an Actor class; {} belongs to the {} family",
+                                metadata.cpp_name,
+                                family.label()
+                            ),
+                        ));
+                    }
+                    builtin_cpp(
+                        operation,
+                        &args,
+                        &SelfReceiver::this(self.context.self_kind.actor()),
+                    )
+                    .map_err(|m| err(&node.id, m))?
+                }
+                Builtin::Spawn { class } | Builtin::IsA { class } | Builtin::Cast { class } => {
+                    let metadata =
+                        self.context.registry.classes.get(class).ok_or_else(|| {
+                            err(&node.id, format!("Unknown class reference {class}"))
+                        })?;
+                    if matches!(operation, Builtin::Spawn { .. }) && metadata.abstract_class {
+                        return Err(err(&node.id, "Cannot spawn an abstract class"));
+                    }
+                    let id = crate::blueprint_refs::compact_id(class);
+                    let _ = id;
+                    if matches!(operation, Builtin::Spawn { .. })
+                        && self
+                            .context
+                            .model
+                            .and_then(|m| m.class(class))
+                            .is_none_or(|c| {
+                                c.family != schema::ClassFamily::Actor || !c.placement.spawnable
+                            })
                     {
                         return Err(err(&node.id, "Spawn requires a spawnable Actor class"));
                     }
-                    format!(
-                        "epok::bp::spawn_actor({},{id}ULL,{})",
-                        self.context.self_kind.actor(),
-                        args[0]
+                    builtin_cpp(
+                        operation,
+                        &args,
+                        &SelfReceiver::this(self.context.self_kind.actor()),
                     )
-                } else if matches!(operation, Builtin::Cast { .. }) {
-                    format!("epok::bp::api::cast({id}ULL,{})", args[0])
-                } else {
-                    format!("epok::bp::is_a({},{id}ULL)", args[0])
+                    .map_err(|m| err(&node.id, m))?
                 }
-            }
-            Builtin::SpawnClass { base } => {
-                let metadata = self
-                    .context
-                    .registry
-                    .classes
-                    .get(base)
-                    .ok_or_else(|| err(&node.id, "Unknown spawn base class"))?;
-                if metadata.backend != schema::native_backend()
-                    || metadata.provider.version != 1
-                    || !matches!(metadata.provider.id.as_str(), "cpp" | "blueprint")
-                {
-                    return Err(err(
-                        &node.id,
-                        "Spawn base requires a supported native class representation",
-                    ));
+                Builtin::SpawnClass { base } => {
+                    let metadata = self
+                        .context
+                        .registry
+                        .classes
+                        .get(base)
+                        .ok_or_else(|| err(&node.id, "Unknown spawn base class"))?;
+                    if metadata.backend != schema::native_backend()
+                        || metadata.provider.version != 1
+                        || !matches!(metadata.provider.id.as_str(), "cpp" | "blueprint")
+                    {
+                        return Err(err(
+                            &node.id,
+                            "Spawn base requires a supported native class representation",
+                        ));
+                    }
+                    builtin_cpp(
+                        operation,
+                        &args,
+                        &SelfReceiver::this(self.context.self_kind.actor()),
+                    )
+                    .map_err(|m| err(&node.id, m))?
                 }
-                let base = crate::blueprint_refs::compact_id(base);
-                format!(
-                    "(epok::bp::class_is_a({}, {base}ULL)?epok::bp::spawn_actor({},{},{}):epok::ObjectId{{}})",
-                    args[0],
-                    self.context.self_kind.actor(),
-                    args[0],
-                    args[1]
+                _ => builtin_cpp(
+                    operation,
+                    &args,
+                    &SelfReceiver::this(self.context.self_kind.actor()),
                 )
-            }
-            _ => {
-                let name = match operation {
-                    Builtin::IsValid => "valid",
-                    Builtin::GetPosition => "position",
-                    Builtin::GetPosition2D => "position_2d",
-                    Builtin::SetPosition2D => "set_position_2d",
-                    Builtin::GetRotation2D => "rotation_2d",
-                    Builtin::SetRotation2D => "set_rotation_2d",
-                    Builtin::GetScale2D => "scale_2d",
-                    Builtin::SetScale2D => "set_scale_2d",
-                    Builtin::GetRectPosition => "rect_position",
-                    Builtin::SetRectPosition => "set_rect_position",
-                    Builtin::GetRectSize => "rect_size",
-                    Builtin::SetRectSize => "set_rect_size",
-
-                    Builtin::GetRotation => "rotation",
-                    Builtin::GetScale => "scale",
-                    Builtin::SetPosition => "set_position",
-                    Builtin::SetRotation => "set_rotation",
-                    Builtin::SetScale => "set_scale",
-                    Builtin::InputHeld => "held",
-                    Builtin::InputPressed => "pressed",
-                    Builtin::InputReleased => "released",
-                    Builtin::RequestScene => "request_scene",
-                    Builtin::SetActive => "set_active",
-                    Builtin::DestroyActor => "destroy",
-                    Builtin::PlayAudio => "play_audio",
-                    Builtin::StopAudio => "stop_audio",
-                    Builtin::SetTexture => "set_texture",
-                    Builtin::SetAudioClip => "set_audio_clip",
-                    Builtin::PlaySequenceComponent => "play_sequence_component",
-                    Builtin::StopSequence => "stop_sequence",
-                    Builtin::PauseSequence => "pause_sequence",
-                    Builtin::ResumeSequence => "resume_sequence",
-                    Builtin::PlayEffectComponent => "play_effect_component",
-                    Builtin::StopEffect => "stop_effect",
-                    Builtin::BurstEffect => "burst_effect",
-                    Builtin::PauseEffect => "pause_effect",
-                    Builtin::ResumeEffect => "resume_effect",
-                    Builtin::EffectSequence => "effect_sequence",
-                    Builtin::GetTransform => "transform",
-                    Builtin::MakeTransform => "make_transform",
-                    _ => unreachable!(),
-                };
-                format!("epok::bp::api::{name}({})", args.join(","))
-            }
-        };
+                .map_err(|m| err(&node.id, m))?,
+            };
         Ok(Expression {
             value_type: returns,
             cpp,

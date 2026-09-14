@@ -4,9 +4,11 @@
 #![allow(dead_code)] // M2 (`lua_compile`) drives this frontend; M1 only builds and tests it.
 use crate::{
     blueprint::Registry,
+    blueprint_asset as bp,
     lua_asset::{Declaration, Diagnostic, LuaFile},
-    reflection_schema::{self as schema, Type},
-    script_ir::{self as ir, Span},
+    object_model::{self, TransformAccess},
+    reflection_schema::{self as schema, Domain, Type},
+    script_ir::{self as ir, Intrinsic, Span},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -50,9 +52,19 @@ pub mod profile {
     pub const DEPTH: &str = "Nesting depth exceeds the 32 level limit";
     pub const REFERENCE_VALUE: &str = "Asset and class references are not readable or writable from a body in the epok-lua profile";
     pub const VECTOR_VALUE: &str = "Whole vector values are not supported by the epok-lua profile; use the .x, .y and .z components";
+    pub const TRANSFORM_UNAVAILABLE: &str = "position, rotation and scale are only available on World3D and World2D classes, rect_position and rect_size on UI classes";
+    pub const TRANSFORM_RESERVED: &str =
+        "position, rotation and scale are reserved intrinsic names in the epok-lua profile";
+    pub const HANDLE_VALUE: &str = "Sequence and effect handles are not values in the epok-lua profile; play a component sequence or effect as a statement and control it from a Blueprint";
+    pub const TRANSFORM_RECORD: &str = "Whole transforms are not supported by the epok-lua profile; use the components, such as self.position.x and self.scale.z";
+    pub const ASSET_ARGUMENT: &str = "Asset and class reference arguments must be a direct read of a declared property of this class, such as epok.set_texture(self.ref, self.skin)";
+    pub const UNKNOWN_CLASS: &str =
+        "Unknown class name; a builtin resolves its class statically through the registry";
     pub const AMBIGUOUS_LITERAL: &str =
         "Numeric literal has no contextual type; annotate the target or use an explicit conversion";
 }
+/// The reserved member naming the object's own typed reference.
+pub const SELF_REFERENCE: &str = "ref";
 pub const MAX_DEPTH: usize = 32;
 pub const MAX_ITERATIONS: i64 = 65536;
 
@@ -1047,7 +1059,19 @@ impl<'a> Parser<'a> {
         let mut args = vec![];
         if !self.at_sym(")") {
             loop {
-                args.push(self.expression(0)?);
+                // A whole argument may be a string literal: the builtins that
+                // resolve a class statically name it that way, exactly as a
+                // Blueprint node carries the class it was created for. Any
+                // other use is rejected by the semantic pass, so a string is
+                // still never a value in the profile.
+                match self.peek().clone() {
+                    Tok::Str(value) => {
+                        let span = self.span();
+                        self.advance();
+                        args.push(ast::Expr::Str { value, span });
+                    }
+                    _ => args.push(self.expression(0)?),
+                }
                 if !self.eat_sym(",") {
                     break;
                 }
@@ -1089,6 +1113,18 @@ struct Lower<'a> {
     methods: BTreeMap<String, schema::Function>,
     /// Every parent method reachable through `epok.super`, by name.
     parent_methods: BTreeMap<String, schema::Function>,
+    /// Intrinsic transform shape, or `None` for a non-spatial class.
+    transform: Option<TransformAccess>,
+    /// The class this one derives from, which carries its resolved shape.
+    parent_cpp_name: String,
+    /// Dense builtin call-site counter for the whole class; the VM binding
+    /// dispatches on it, so it must be assigned exactly once per site.
+    site: u32,
+    /// Set while lowering a call statement, whose result is thrown away. It is
+    /// the only position a builtin returning a playback handle may appear in.
+    discarding: bool,
+    /// `Family=... Domain=...`, quoted by the unavailable-transform diagnostic.
+    shape: String,
     /// Method names declared by this chunk; edges between them detect recursion.
     own: BTreeSet<String>,
     diagnostics: Vec<Diagnostic>,
@@ -1184,9 +1220,10 @@ impl<'a> Lower<'a> {
             ast::Expr::Bool(..) => Some(Type::Bool),
             ast::Expr::Number { integer, .. } => (!integer).then_some(Type::Fixed),
             ast::Expr::Name { name, .. } => self.slot(name).and_then(|id| self.state(id).0),
-            ast::Expr::Field { base, name, .. } => self
-                .place_property(base, name)
-                .map(|p| p.value_type.clone()),
+            ast::Expr::Field { base, name, .. } => self.intrinsic_type(base, name).or_else(|| {
+                self.place_property(base, name)
+                    .map(|p| p.value_type.clone())
+            }),
             ast::Expr::Unary { op, operand, .. } => match op {
                 UnOp::Not => Some(Type::Bool),
                 UnOp::Neg => self.hint(operand),
@@ -1211,10 +1248,16 @@ impl<'a> Lower<'a> {
                     self.parent_methods.get(name).map(|f| f.returns.clone())
                 }
             }
-            ast::Expr::Call { base, .. } => match builtin(base) {
+            ast::Expr::Call { base, args, span } => match builtin(base).as_deref() {
                 Some("to_fixed") => Some(Type::Fixed),
                 Some("to_int") => Some(Type::Int32),
-                _ => None,
+                // A builtin's return is fixed by its signature, so it can type a
+                // bare literal on the other side of an operator.
+                Some(name) => adapter(name).map(|(operation, _, _)| {
+                    let _ = (args, span);
+                    crate::blueprint_ir::builtin_signature(&operation).1
+                }),
+                None => None,
             },
             _ => None,
         }
@@ -1224,6 +1267,87 @@ impl<'a> Lower<'a> {
         match base {
             ast::Expr::Name { name: base, .. } if base == "self" => self.properties.get(name),
             _ => None,
+        }
+    }
+    /// Intrinsic kind named by `self.<kind>` or by the base of `self.<kind>.<c>`.
+    fn intrinsic_kind(base: &ast::Expr, name: &str) -> Option<(Intrinsic, bool)> {
+        let on_self = |e: &ast::Expr| matches!(e, ast::Expr::Name { name, .. } if name == "self");
+        match base {
+            _ if on_self(base) => Intrinsic::from_name(name).map(|k| (k, false)),
+            ast::Expr::Field { base, name, .. } if on_self(base) => {
+                Intrinsic::from_name(name).map(|k| (k, true))
+            }
+            _ => None,
+        }
+    }
+    /// Silent type of an intrinsic read, for literal typing only.
+    fn intrinsic_type(&self, base: &ast::Expr, name: &str) -> Option<Type> {
+        self.transform?;
+        Self::intrinsic_kind(base, name).map(|_| Type::Fixed)
+    }
+    /// `self.position`, `self.rotation` and `self.scale`, plus their components.
+    /// The outer `None` means the expression is not an intrinsic form at all, so
+    /// the caller falls through to ordinary property resolution.
+    fn intrinsic(&mut self, base: &ast::Expr, name: &str, span: Span) -> Option<Option<ir::Place>> {
+        let (kind, indexed) = Self::intrinsic_kind(base, name)?;
+        let Some(access) = self.transform else {
+            self.report(
+                span,
+                format!(
+                    "{}: {} is {}",
+                    profile::TRANSFORM_UNAVAILABLE,
+                    self.class.cpp_name,
+                    self.shape
+                ),
+            );
+            return Some(None);
+        };
+        // A domain exposes exactly its own intrinsics: the World places on a
+        // spatial class, the rect places on a UI one.
+        let length = crate::lua_vm::intrinsic_components(access.domain, kind);
+        if length == 0 {
+            self.report(
+                span,
+                format!(
+                    "{}: {} is {}",
+                    profile::TRANSFORM_UNAVAILABLE,
+                    self.class.cpp_name,
+                    self.shape
+                ),
+            );
+            return Some(None);
+        }
+        // The World2D rotation is one Fixed angle, so the whole value is a
+        // scalar place and it has no components to name.
+        let scalar = length == 1;
+        let place = |component| {
+            Some(Some(ir::Place::Intrinsic {
+                kind,
+                component,
+                value_type: Type::Fixed,
+            }))
+        };
+        match (indexed, scalar) {
+            (false, true) => place(0),
+            (false, false) => {
+                self.report(span, profile::VECTOR_VALUE);
+                Some(None)
+            }
+            (true, _) => {
+                // A scalar intrinsic is the whole value: it has no components
+                // to name, so `.x` on it is not a member.
+                let length = if scalar { 0 } else { length };
+                match "xyz".find(name).filter(|i| name.len() == 1 && *i < length) {
+                    Some(index) => place(index),
+                    None => {
+                        self.report(
+                            span,
+                            format!("Unknown member {name} on the intrinsic {}", kind.name()),
+                        );
+                        Some(None)
+                    }
+                }
+            }
         }
     }
 
@@ -1286,6 +1410,12 @@ impl<'a> Lower<'a> {
                     value_type,
                 })
             }
+            // `self.ref` is the object's own typed reference, the value the
+            // Blueprint Self node produces. It is a reserved name, not a
+            // property, so it is resolved before property lookup.
+            ast::Expr::Field { base, name, span } if on_self(base) && name == SELF_REFERENCE => {
+                self.self_reference(*span)
+            }
             ast::Expr::Field { .. } => {
                 let place = self.place(expr)?;
                 let value_type = place.value_type(&self.locals)?;
@@ -1328,7 +1458,9 @@ impl<'a> Lower<'a> {
                 right,
                 span,
             } => self.binary(*op, left, right, *span, expected, pending),
-            ast::Expr::Call { base, args, span } => self.builtin_call(base, args, *span, pending),
+            ast::Expr::Call { base, args, span } => {
+                self.builtin_call(base, args, *span, pending, root)
+            }
             ast::Expr::MethodCall {
                 base,
                 name,
@@ -1537,23 +1669,31 @@ impl<'a> Lower<'a> {
         args: &[ast::Expr],
         span: Span,
         pending: &mut ir::Block,
+        root: bool,
     ) -> Option<ir::Expr> {
-        let name = builtin(base);
-        let (kind, operand_type) = match name {
-            Some("to_fixed") => (ir::Conversion::IntToFixed, Type::Int32),
-            Some("to_int") => (ir::Conversion::FixedToInt, Type::Fixed),
-            Some("super") => {
+        let name = builtin(base).unwrap_or_default();
+        let (kind, operand_type) = match name.as_str() {
+            "to_fixed" => (ir::Conversion::IntToFixed, Type::Int32),
+            "to_int" => (ir::Conversion::FixedToInt, Type::Fixed),
+            "super" => {
                 self.report(
                     span,
                     "`epok.super(Class, self)` must be followed by a method call",
                 );
                 return None;
             }
-            _ => {
-                self.report(
-                    span,
-                    format!("Unknown global function {}", global_name(base)),
-                );
+            other if adapter(other).is_some() => {
+                return self.adapter_call(other, args, span, pending, root);
+            }
+            other => {
+                if let Some(reason) = unsupported(other) {
+                    self.report(span, format!("epok.{other}: {reason}"));
+                } else {
+                    self.report(
+                        span,
+                        format!("Unknown global function {}", global_name(base)),
+                    );
+                }
                 return None;
             }
         };
@@ -1572,6 +1712,317 @@ impl<'a> Lower<'a> {
         })
     }
 
+    /// Lowers one builtin call. Arity, operand types and the class name are all
+    /// resolved here, so the diagnostics are the profile's and every backend
+    /// receives a fully typed node.
+    fn adapter_call(
+        &mut self,
+        name: &str,
+        args: &[ast::Expr],
+        span: Span,
+        pending: &mut ir::Block,
+        root: bool,
+    ) -> Option<ir::Expr> {
+        let (mut operation, operands, class_argument) = adapter(name)?;
+        // Only this call may discard a result; its operands are ordinary values.
+        let discarded = std::mem::take(&mut self.discarding);
+        // The class name is written as a string in exactly one position and is
+        // never a value: it selects the node, as it does in a Blueprint.
+        let (class_name, mut written) = match class_argument {
+            ClassArgument::None => (None, args.to_vec()),
+            ClassArgument::Leading => (
+                Some(self.class_name(args.first(), span)?),
+                args[1..].to_vec(),
+            ),
+            ClassArgument::Trailing => {
+                let Some(last) = args.last() else {
+                    self.report(span, format!("epok.{name} expects a class name"));
+                    return None;
+                };
+                (
+                    Some(self.class_name(Some(last), span)?),
+                    args[..args.len() - 1].to_vec(),
+                )
+            }
+        };
+        let class = match class_name.as_deref() {
+            Some(cpp_name) => Some(self.resolve_class(cpp_name, span)?),
+            None => None,
+        };
+
+        // Every operand the node declares, minus the trailing implicit ones the
+        // call site may omit.
+        let explicit = operands
+            .iter()
+            .filter(|o| **o != Operand::ImplicitSelf)
+            .count();
+        if written.len() < explicit || written.len() > operands.len() {
+            self.report(span, format!("epok.{name} expects {explicit} argument(s)"));
+            return None;
+        }
+        if let Some((id, cpp_name)) = &class {
+            match &mut operation {
+                bp::Builtin::Spawn { class }
+                | bp::Builtin::IsA { class }
+                | bp::Builtin::Cast { class } => {
+                    *class = id.clone();
+                }
+                _ => {}
+            }
+            if matches!(operation, bp::Builtin::Spawn { .. }) && !self.spawnable(cpp_name, span) {
+                return None;
+            }
+        }
+
+        let (parameters, returns, pure) = crate::blueprint_ir::builtin_signature(&operation);
+        let mut lowered = Vec::new();
+        let mut source = written.drain(..);
+        let mut base_class = None;
+        for (operand, (parameter, expected)) in operands.iter().zip(&parameters) {
+            match operand {
+                Operand::ImplicitSelf => match source.next() {
+                    Some(written) => lowered.push(ir::BuiltinArg::Value(
+                        self.typed_argument(&written, parameter, expected, pending)?,
+                    )),
+                    None => lowered.push(ir::BuiltinArg::Value(self.self_reference(span)?)),
+                },
+                Operand::Value => {
+                    let written = source.next()?;
+                    lowered.push(ir::BuiltinArg::Value(
+                        self.typed_argument(&written, parameter, expected, pending)?,
+                    ));
+                }
+                Operand::Handle => {
+                    let written = source.next()?;
+                    let property = self.handle_property(&written, expected)?;
+                    if let Type::ClassRef { base } = &property.value_type {
+                        base_class = Some(base.clone());
+                    }
+                    lowered.push(ir::BuiltinArg::Property {
+                        member_id: property.id.clone(),
+                        name: property.name.clone(),
+                        value_type: property.value_type.clone(),
+                    });
+                }
+            }
+        }
+        // `SpawnClass` takes its base from the declared property, so the node is
+        // only complete once the operand has been resolved.
+        if let bp::Builtin::SpawnClass { base } = &mut operation {
+            let Some(resolved) = base_class else {
+                self.report(span, format!("epok.{name} expects a ClassRef property"));
+                return None;
+            };
+            *base = resolved;
+        }
+        let (_, returns, _) = match &operation {
+            bp::Builtin::SpawnClass { .. } => crate::blueprint_ir::builtin_signature(&operation),
+            _ => (vec![], returns, pure),
+        };
+        let returns = self.builtin_returns(&operation, returns, class.as_ref(), span);
+
+        // A handle cannot be a value in profile v1, so a builtin that returns
+        // one is only usable as a statement, where the result is thrown away.
+        if !discarded && matches!(returns, Type::SequenceHandle | Type::EffectHandle) {
+            self.report(span, format!("epok.{name}: {}", profile::HANDLE_VALUE));
+            return None;
+        }
+        let site = self.site;
+        self.site += 1;
+        let call = ir::Expr::CallBuiltin {
+            site,
+            operation,
+            args: lowered,
+            returns: returns.clone(),
+            pure,
+        };
+        if root || pure || returns == Type::Void {
+            return Some(call);
+        }
+        // An impure builtin may spawn or destroy, so it is materialised before
+        // anything to its right runs, exactly like a self call.
+        let temporary = self.temporary(&returns);
+        pending.push(ir::Statement::new(
+            ir::StatementKind::Local {
+                target: temporary,
+                value: call,
+            },
+            span,
+        ));
+        Some(ir::Expr::Read {
+            place: ir::Place::Local(temporary),
+            value_type: returns,
+        })
+    }
+
+    /// The reference type a builtin produces: the declared return, narrowed to
+    /// the statically resolved class, and to the owner's family for `GetOwner`.
+    fn builtin_returns(
+        &mut self,
+        operation: &bp::Builtin,
+        declared: Type,
+        class: Option<&(String, String)>,
+        span: Span,
+    ) -> Type {
+        if let Some((id, cpp_name)) = class
+            && matches!(
+                operation,
+                bp::Builtin::Spawn { .. } | bp::Builtin::Cast { .. }
+            )
+        {
+            return reference_type(self.registry, id, cpp_name);
+        }
+        if matches!(operation, bp::Builtin::GetOwner) {
+            let (family, _, owners) =
+                object_model::resolved_shape(self.registry, &self.parent_cpp_name);
+            if family != schema::ClassFamily::Component {
+                self.report(
+                    span,
+                    "epok.owner() is only available inside a Component class",
+                );
+                return declared;
+            }
+            let class = (owners.len() == 1)
+                .then(|| owners.iter().next().copied())
+                .flatten()
+                .and_then(|domain| match domain {
+                    Domain::World3D => Some(object_model::ACTOR3D_ID.to_owned()),
+                    Domain::World2D => Some(object_model::ACTOR2D_ID.to_owned()),
+                    Domain::UI => Some(object_model::UI_ACTOR_ID.to_owned()),
+                    _ => None,
+                });
+            return Type::ActorRef { class };
+        }
+        declared
+    }
+
+    /// `self.ref`: the typed reference of the object running the body.
+    fn self_reference(&mut self, span: Span) -> Option<ir::Expr> {
+        let site = self.site;
+        self.site += 1;
+        let _ = span;
+        Some(ir::Expr::CallBuiltin {
+            site,
+            operation: bp::Builtin::SelfObject,
+            args: vec![],
+            // A Lua class declares neither family nor domain: its shape is the
+            // one it inherits, so the parent resolves it.
+            returns: reference_type(self.registry, &self.class.id, &self.parent_cpp_name),
+            pure: true,
+        })
+    }
+
+    /// The string naming a class at a builtin call site.
+    fn class_name(&mut self, written: Option<&ast::Expr>, span: Span) -> Option<String> {
+        match written {
+            Some(ast::Expr::Str { value, .. }) => Some(value.clone()),
+            Some(other) => {
+                self.report(other.span(), profile::UNKNOWN_CLASS);
+                None
+            }
+            None => {
+                self.report(span, profile::UNKNOWN_CLASS);
+                None
+            }
+        }
+    }
+    /// Class uuid and `cpp_name` for an authored class name.
+    fn resolve_class(&mut self, cpp_name: &str, span: Span) -> Option<(String, String)> {
+        match self.registry.named(cpp_name) {
+            Some(class) => Some((class.id.clone(), class.cpp_name.clone())),
+            None => {
+                self.report(span, format!("{}: {cpp_name}", profile::UNKNOWN_CLASS));
+                None
+            }
+        }
+    }
+    /// The Blueprint Spawn rule: a spawnable, concrete Actor class.
+    fn spawnable(&mut self, cpp_name: &str, span: Span) -> bool {
+        let (family, _, _) = object_model::resolved_shape(self.registry, cpp_name);
+        let class = self.registry.named(cpp_name).cloned();
+        if class.as_ref().is_some_and(|c| c.abstract_class) {
+            self.report(
+                span,
+                format!("{cpp_name} is abstract and cannot be spawned"),
+            );
+            return false;
+        }
+        if family != schema::ClassFamily::Actor
+            || !resolved_placement(self.registry, cpp_name).spawnable
+        {
+            self.report(
+                span,
+                format!("epok.spawn requires a spawnable Actor class; {cpp_name} is not one"),
+            );
+            return false;
+        }
+        true
+    }
+
+    /// One ordinary builtin operand, lowered and checked against its type.
+    fn typed_argument(
+        &mut self,
+        written: &ast::Expr,
+        parameter: &str,
+        expected: &Type,
+        pending: &mut ir::Block,
+    ) -> Option<ir::Expr> {
+        let value = self.expr(written, Some(expected), pending, false)?;
+        if !crate::blueprint_ir::assignable(value.value_type(), expected, self.registry) {
+            self.report(
+                written.span(),
+                format!("Argument {parameter} is not {}", expected.label()),
+            );
+            return None;
+        }
+        Some(value)
+    }
+
+    /// The declared property a 64-bit operand must be spelled as. Profile v1
+    /// forbids asset and class references as values, so the only accepted form
+    /// is a direct read of a property of this class.
+    fn handle_property(
+        &mut self,
+        written: &ast::Expr,
+        expected: &Type,
+    ) -> Option<schema::Property> {
+        let ast::Expr::Field { base, name, span } = written else {
+            self.report(written.span(), profile::ASSET_ARGUMENT);
+            return None;
+        };
+        if !on_self(base) {
+            self.report(*span, profile::ASSET_ARGUMENT);
+            return None;
+        }
+        let Some(property) = self.properties.get(name).cloned() else {
+            self.report(*span, format!("Unknown property {name} on this class"));
+            return None;
+        };
+        // `SpawnClass` takes its base FROM the property, so the expected type is
+        // still open at this point; every other operand has a declared kind.
+        let open_base = matches!(expected, Type::ClassRef { base } if base.is_empty());
+        let matched = if open_base {
+            matches!(property.value_type, Type::ClassRef { .. })
+        } else {
+            crate::blueprint_ir::assignable(&property.value_type, expected, self.registry)
+        };
+        if !matched {
+            self.report(
+                *span,
+                format!(
+                    "Property {name} is not {}",
+                    if open_base {
+                        "a ClassRef".to_owned()
+                    } else {
+                        expected.label()
+                    }
+                ),
+            );
+            return None;
+        }
+        Some(property)
+    }
+
     fn method_call(
         &mut self,
         base: &ast::Expr,
@@ -1585,7 +2036,7 @@ impl<'a> Lower<'a> {
             ast::Expr::Name { name: base, .. } if base == "self" => false,
             ast::Expr::Call {
                 base: callee, args, ..
-            } if builtin(callee) == Some("super") => {
+            } if builtin(callee).as_deref() == Some("super") => {
                 if args.len() != 2
                     || !matches!(&args[1], ast::Expr::Name { name, .. } if name == "self")
                 {
@@ -1730,7 +2181,14 @@ impl<'a> Lower<'a> {
                     None
                 }
             },
+            ast::Expr::Field { base, name, span } if on_self(base) && name == SELF_REFERENCE => {
+                self.report(*span, "`self.ref` is read-only");
+                None
+            }
             ast::Expr::Field { base, name, span } => {
+                if let Some(place) = self.intrinsic(base, name, *span) {
+                    return place;
+                }
                 if let Some(property) = self.place_property(base, name) {
                     let (id, value_type) = (property.id.clone(), property.value_type.clone());
                     // Asset and class handles are 64-bit native fields. They stay
@@ -1865,7 +2323,10 @@ impl<'a> Lower<'a> {
                         return;
                     }
                     (_, Some(declared)) => {
-                        if declared != actual {
+                        // A reference may narrow: a spawned `ActorRef<Spinner>`
+                        // stores into an `ActorRef` field, exactly as it wires
+                        // into the matching Blueprint pin.
+                        if !crate::blueprint_ir::assignable(&actual, &declared, self.registry) {
                             self.report(
                                 *span,
                                 format!(
@@ -1892,7 +2353,10 @@ impl<'a> Lower<'a> {
             }
             ast::Stat::Call { call, span } => {
                 let mut pending = vec![];
-                let Some(lowered) = self.expr(call, None, &mut pending, true) else {
+                self.discarding = true;
+                let lowered = self.expr(call, None, &mut pending, true);
+                self.discarding = false;
+                let Some(lowered) = lowered else {
                     return;
                 };
                 out.extend(pending);
@@ -2090,14 +2554,153 @@ fn global_name(expr: &ast::Expr) -> String {
         _ => "<expression>".into(),
     }
 }
-/// `epok.<name>` builtins. Nothing else is a callable global.
-fn builtin(expr: &ast::Expr) -> Option<&str> {
+/// `epok.<name>` and `epok.<group>.<name>` builtins, as the dotted path under
+/// `epok`. Nothing else is a callable global.
+fn builtin(expr: &ast::Expr) -> Option<String> {
     match expr {
-        ast::Expr::Field { base, name, .. } if matches!(&**base, ast::Expr::Name { name, .. } if name == "epok") => {
-            Some(name)
-        }
+        ast::Expr::Field { .. } => global_name(expr)
+            .strip_prefix("epok.")
+            .filter(|rest| !rest.contains('<'))
+            .map(str::to_owned),
         _ => None,
     }
+}
+
+/// `true` when the expression is the receiver `self`.
+fn on_self(expr: &ast::Expr) -> bool {
+    matches!(expr, ast::Expr::Name { name, .. } if name == "self")
+}
+
+/// Placement a class resolves to, inherited along the ancestry exactly as
+/// `object_model` folds it, so a Lua `epok.spawn` applies the very rule the
+/// Blueprint Spawn node applies.
+fn resolved_placement(registry: &Registry, cpp_name: &str) -> schema::Placement {
+    let mut placement = schema::Placement::default();
+    for class in registry.ancestry(cpp_name) {
+        placement.placeable |= class.placement.placeable;
+        placement.spawnable |= class.placement.spawnable;
+        placement.scene_managed |= class.placement.scene_managed;
+    }
+    if placement.scene_managed {
+        return schema::Placement {
+            placeable: false,
+            spawnable: false,
+            scene_managed: true,
+        };
+    }
+    placement
+}
+
+/// The reference type naming an instance of `class_id`, by the family
+/// `shape_of` resolves. It is the same narrowing `blueprint_ir` applies to the
+/// Blueprint Spawn and Cast results.
+fn reference_type(registry: &Registry, class_id: &str, shape_of: &str) -> Type {
+    match object_model::resolved_shape(registry, shape_of).0 {
+        schema::ClassFamily::Actor => Type::ActorRef {
+            class: Some(class_id.to_owned()),
+        },
+        schema::ClassFamily::Component => Type::ComponentRef {
+            class: Some(class_id.to_owned()),
+        },
+        _ => Type::ObjectRef {
+            class: Some(class_id.to_owned()),
+        },
+    }
+}
+
+/// How a builtin operand is written in Lua source.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Operand {
+    /// An ordinary expression, checked against the builtin's declared type.
+    Value,
+    /// A direct read of a declared `AssetRef`/`ClassRef` property. The 64-bit id
+    /// never becomes a value: both backends read the native field.
+    Handle,
+    /// Not written at the call site: the object running the body, so a spawn
+    /// parents its instance exactly as the Blueprint node does.
+    ImplicitSelf,
+}
+
+/// The Lua spelling of every Blueprint builtin the profile exposes: the node it
+/// is, how each of the node's operands is written, and how many of them the Lua
+/// call site supplies (a trailing implicit operand may be omitted).
+///
+/// `blueprint_asset::Builtin` is the parity checklist, and the entries below are
+/// the subset `epok-lua` v1 can type and move across a 32-bit value ABI.
+fn adapter(name: &str) -> Option<(bp::Builtin, Vec<Operand>, ClassArgument)> {
+    use Operand::{Handle, ImplicitSelf, Value};
+    let simple =
+        |operation, operands: &[Operand]| Some((operation, operands.to_vec(), ClassArgument::None));
+    match name {
+        "input.held" => simple(bp::Builtin::InputHeld, &[Value, Value]),
+        "input.pressed" => simple(bp::Builtin::InputPressed, &[Value, Value]),
+        "input.released" => simple(bp::Builtin::InputReleased, &[Value, Value]),
+        "request_scene" => simple(bp::Builtin::RequestScene, &[Value]),
+        "is_valid" => simple(bp::Builtin::IsValid, &[Value]),
+        "owner" => simple(bp::Builtin::GetOwner, &[]),
+        "play_audio" => simple(bp::Builtin::PlayAudio, &[Value]),
+        "stop_audio" => simple(bp::Builtin::StopAudio, &[Value]),
+        "play_sequence" => simple(bp::Builtin::PlaySequenceComponent, &[Value]),
+        "play_effect" => simple(bp::Builtin::PlayEffectComponent, &[Value]),
+        "set_texture" => simple(bp::Builtin::SetTexture, &[Value, Handle]),
+        "set_audio_clip" => simple(bp::Builtin::SetAudioClip, &[Value, Handle]),
+        // The class is named by a string argument and resolved statically; the
+        // node carries its uuid, exactly as a Blueprint node does.
+        "is_a" => Some((
+            bp::Builtin::IsA {
+                class: String::new(),
+            },
+            vec![Value],
+            ClassArgument::Trailing,
+        )),
+        "cast" => Some((
+            bp::Builtin::Cast {
+                class: String::new(),
+            },
+            vec![Value],
+            ClassArgument::Trailing,
+        )),
+        "spawn" => Some((
+            bp::Builtin::Spawn {
+                class: String::new(),
+            },
+            vec![ImplicitSelf],
+            ClassArgument::Leading,
+        )),
+        // The base comes from the declared property, so the operand is the very
+        // `ClassRef` field the Inspector edits.
+        "spawn_class" => Some((
+            bp::Builtin::SpawnClass {
+                base: String::new(),
+            },
+            vec![Handle, ImplicitSelf],
+            ClassArgument::None,
+        )),
+        _ => None,
+    }
+}
+
+/// Where a builtin takes its statically resolved class name in Lua source.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ClassArgument {
+    None,
+    /// `epok.spawn("Class")`.
+    Leading,
+    /// `epok.is_a(target, "Class")`.
+    Trailing,
+}
+
+/// Builtins the profile names but cannot support in v1, with the reason. The
+/// text is the same in every execution mode: it describes the profile, never a
+/// backend.
+fn unsupported(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "stop_sequence" | "pause_sequence" | "resume_sequence" | "stop_effect" | "pause_effect"
+        | "resume_effect" | "burst_effect" | "effect_sequence" => profile::HANDLE_VALUE,
+        "play_timeline" | "spawn_particle_effect" => profile::HANDLE_VALUE,
+        "transform" | "get_transform" | "make_transform" => profile::TRANSFORM_RECORD,
+        _ => return None,
+    })
 }
 
 /// Detects a cycle in the call graph restricted to methods this chunk declares.
@@ -2155,6 +2758,11 @@ pub fn lower_class(
         properties.insert(property.name.clone(), property.clone());
     }
     let parent_methods = inherited_by_name(registry, &parent_cpp_name);
+    // Resolved from the parent chain: a Lua class declares neither family nor
+    // domain, so its intrinsic shape is exactly the one it inherits.
+    let transform = crate::lua_vm::intrinsic_access(registry, &parent_cpp_name);
+    let (family, domain, _) = object_model::resolved_shape(registry, &parent_cpp_name);
+    let shape = format!("a {} class with Domain={}", family.label(), domain.label());
     let mut methods = parent_methods
         .iter()
         .filter(|(_, f)| f.callable && f.access == "public")
@@ -2175,6 +2783,11 @@ pub fn lower_class(
         properties,
         methods,
         parent_methods,
+        transform,
+        parent_cpp_name: parent_cpp_name.clone(),
+        site: 0,
+        discarding: false,
+        shape,
         own,
         diagnostics: vec![],
         locals: vec![],
@@ -2307,7 +2920,7 @@ pub fn lower_class(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::lua_asset;
 
@@ -2323,13 +2936,262 @@ mod tests {
             lua_asset::tests::HEADER
         ))
     }
-    fn lower(source: &str) -> Result<ir::ClassIr, Vec<Diagnostic>> {
+    fn lower_in(registry: &Registry, source: &str) -> Result<ir::ClassIr, Vec<Diagnostic>> {
         let file = body(source);
-        let registry = lua_asset::tests::registry();
         let chunk = parse(&file).map_err(|e| vec![e])?;
         let decl = lua_asset::extract(&file).map_err(|e| vec![e])?;
-        let class = lua_asset::declarations(&decl, &file, &registry).map_err(|e| vec![e])?;
-        lower_class(&decl, &chunk, &class, &registry)
+        let class = lua_asset::declarations(&decl, &file, registry).map_err(|e| vec![e])?;
+        lower_class(&decl, &chunk, &class, registry)
+    }
+    fn lower(source: &str) -> Result<ir::ClassIr, Vec<Diagnostic>> {
+        lower_in(&lua_asset::tests::registry(), source)
+    }
+    /// The shared fixture with `epok::ActorComponent` — the parent every test
+    /// chunk extends — restated as a spatial class, so one header exercises an
+    /// actor and a component in both world domains.
+    fn spatial(family: schema::ClassFamily, domain: Domain) -> Registry {
+        let mut registry = lua_asset::tests::registry();
+        let parent = registry
+            .classes
+            .get_mut(crate::object_model::ACTOR_COMPONENT_ID)
+            .unwrap();
+        parent.family = Some(family);
+        if family == schema::ClassFamily::Component {
+            parent.component = Some(schema::ComponentContract {
+                owners: [domain].into_iter().collect(),
+                ..Default::default()
+            });
+        } else {
+            parent.domain = Some(domain);
+        }
+        registry
+    }
+    pub(crate) const SPINNER_ID: &str = "0b1c2d3e-4f50-4617-8829-9a0b1c2d3e4f";
+
+    fn reflected(name: &str, value_type: Type) -> schema::Property {
+        schema::Property {
+            id: format!("aaaaaaaa-0000-4000-8000-0000000000{:02x}", name.len()),
+            name: name.into(),
+            value_type,
+            default: serde_json::Value::Null,
+            editable: true,
+            timeline: None,
+            source: schema::Location {
+                file: "object_model.hpp".into(),
+                line: 1,
+                column: 1,
+            },
+        }
+    }
+    /// The shared fixture restated as a spawnable World3D actor, with the
+    /// reflected 64-bit properties a handle operand must be spelled as and a
+    /// second class for the spawn and cast builtins to name.
+    pub(crate) fn builtin_registry() -> Registry {
+        let mut registry = spatial(schema::ClassFamily::Actor, Domain::World3D);
+        let parent = registry
+            .classes
+            .get_mut(crate::object_model::ACTOR_COMPONENT_ID)
+            .unwrap();
+        parent.placement.spawnable = true;
+        parent.abstract_class = true;
+        parent.properties.push(reflected(
+            "skin",
+            Type::AssetRef {
+                kind: "Texture".into(),
+            },
+        ));
+        parent.properties.push(reflected(
+            "clip",
+            Type::AssetRef {
+                kind: "AudioClip".into(),
+            },
+        ));
+        parent.properties.push(reflected(
+            "kind",
+            Type::ClassRef {
+                base: crate::object_model::ACTOR3D_ID.into(),
+            },
+        ));
+        let mut spinner = registry.classes[crate::object_model::ACTOR_COMPONENT_ID].clone();
+        spinner.id = SPINNER_ID.into();
+        spinner.cpp_name = "Spinner".into();
+        spinner.abstract_class = false;
+        spinner.functions.clear();
+        spinner.properties.clear();
+        registry.classes.insert(SPINNER_ID.into(), spinner);
+        registry.normalize_functions();
+        registry
+    }
+    /// Every builtin call in a lowered body, by site.
+    fn sites(ir: &ir::ClassIr) -> Vec<ir::Expr> {
+        crate::lua_vm::builtin_sites(ir).expect("dense builtin sites")
+    }
+
+    #[test]
+    fn lua_frontend_types_every_builtin_against_its_blueprint_node() {
+        let registry = builtin_registry();
+        let ir = lower_in(
+            &registry,
+            r#"
+    local held = epok.input.held(4, 0)
+    local switched = epok.request_scene(1)
+    local spawned = epok.spawn("Spinner")
+    local alive = epok.is_valid(spawned)
+    local matching = epok.is_a(spawned, "Spinner")
+    local narrowed = epok.cast(spawned, "Spinner")
+    epok.play_audio(self.ref)
+    epok.set_texture(self.ref, self.skin)
+    epok.set_audio_clip(self.ref, self.clip)
+"#,
+        )
+        .expect("lowered body");
+        let operations: Vec<String> = sites(&ir)
+            .iter()
+            .map(|site| match site {
+                ir::Expr::CallBuiltin {
+                    operation, returns, ..
+                } => format!("{operation:?} -> {}", returns.label()),
+                other => panic!("not a builtin: {other:?}"),
+            })
+            .collect();
+        let text = operations.join("\n");
+        for expected in [
+            "InputHeld -> bool",
+            "RequestScene -> bool",
+            "SelfObject -> ActorRef<956f4946",
+            "Spawn { class: \"0b1c2d3e-4f50-4617-8829-9a0b1c2d3e4f\" } -> ActorRef",
+            "IsValid -> bool",
+            "IsA { class: \"0b1c2d3e-4f50-4617-8829-9a0b1c2d3e4f\" } -> bool",
+            "Cast { class: \"0b1c2d3e-4f50-4617-8829-9a0b1c2d3e4f\" } -> ActorRef",
+            "PlayAudio -> void",
+            "SetTexture -> void",
+            "SetAudioClip -> void",
+        ] {
+            assert!(text.contains(expected), "missing {expected:?} in\n{text}");
+        }
+        // An asset operand is a property read, never a value crossing the ABI.
+        let texture = sites(&ir)
+            .into_iter()
+            .find(|site| matches!(site, ir::Expr::CallBuiltin { operation, .. } if matches!(operation, bp::Builtin::SetTexture)))
+            .unwrap();
+        let ir::Expr::CallBuiltin { args, .. } = texture else {
+            unreachable!()
+        };
+        assert!(matches!(&args[1], ir::BuiltinArg::Property { name, .. } if name == "skin"));
+    }
+
+    #[test]
+    fn lua_frontend_checks_builtin_arity_types_and_class_resolution() {
+        let registry = builtin_registry();
+        for (source, expected) in [
+            ("    local a = epok.input.held(4)", "expects 2 argument(s)"),
+            (
+                "    local a = epok.input.held(self.ready, 0)",
+                "Argument button is not uint32",
+            ),
+            (
+                "    local a = epok.spawn(\"Ghost\")",
+                profile::UNKNOWN_CLASS,
+            ),
+            (
+                "    local a = epok.spawn(\"epok::ActorComponent\")",
+                "is abstract and cannot be spawned",
+            ),
+            (
+                "    local a = epok.is_a(self.ref, 3)",
+                profile::UNKNOWN_CLASS,
+            ),
+            (
+                "    epok.set_texture(self.ref, self.clip)",
+                "Property clip is not AssetRef<Texture>",
+            ),
+            ("    epok.set_texture(self.ref, 1)", profile::ASSET_ARGUMENT),
+            ("    local a = epok.stop_sequence(1)", profile::HANDLE_VALUE),
+            (
+                "    local a = epok.make_transform(1, 2, 3)",
+                profile::TRANSFORM_RECORD,
+            ),
+            ("    self.ref = self.ref", "`self.ref` is read-only"),
+        ] {
+            let message = diagnostics(&registry, source);
+            assert!(message.contains(expected), "{source}\n{message}");
+        }
+    }
+
+    #[test]
+    fn lua_frontend_resolves_spawn_class_owner_and_statement_only_builtins() {
+        let registry = builtin_registry();
+        // `spawn_class` takes its base from the declared ClassRef property, so
+        // the resolved node names that base and the result is typed by it.
+        let ir = lower_in(&registry, "    local made = epok.spawn_class(self.kind)")
+            .expect("spawn_class from a ClassRef property");
+        let text = sites(&ir)
+            .iter()
+            .map(|site| format!("{site:?}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            text.contains(&format!(
+                "SpawnClass {{ base: \"{}\" }}",
+                crate::object_model::ACTOR3D_ID
+            )),
+            "{text}"
+        );
+        assert!(text.contains("Property { member_id"), "{text}");
+
+        // A playback builtin returns a handle, which is never a value.
+        lower_in(&registry, "    epok.play_sequence(self.ref)").expect("statement form");
+        let message = diagnostics(&registry, "    local h = epok.play_effect(self.ref)");
+        assert!(message.contains(profile::HANDLE_VALUE), "{message}");
+
+        // `owner` belongs to the Component family alone.
+        let message = diagnostics(&registry, "    local a = epok.is_valid(epok.owner())");
+        assert!(
+            message.contains("only available inside a Component class"),
+            "{message}"
+        );
+        let components = spatial(schema::ClassFamily::Component, Domain::World3D);
+        lower_in(&components, "    local a = epok.is_valid(epok.owner())")
+            .expect("owner inside a component");
+    }
+
+    #[test]
+    fn lua_frontend_resolves_rect_intrinsics_on_ui_classes_only() {
+        let mut registry = builtin_registry();
+        registry
+            .classes
+            .get_mut(crate::object_model::ACTOR_COMPONENT_ID)
+            .unwrap()
+            .domain = Some(Domain::UI);
+        lower_in(
+            &registry,
+            "    self.rect_position.x = self.rect_position.x + 1.0\n    self.rect_size.y = 2.0",
+        )
+        .expect("rect places on a UI class");
+        // The World places belong to the world domains, and the rect places do
+        // not exist outside the UI domain.
+        let message = diagnostics(&registry, "    self.position.x = 1.0");
+        assert!(
+            message.contains(profile::TRANSFORM_UNAVAILABLE),
+            "{message}"
+        );
+        let world = builtin_registry();
+        let message = diagnostics(&world, "    self.rect_size.x = 1.0");
+        assert!(
+            message.contains(profile::TRANSFORM_UNAVAILABLE),
+            "{message}"
+        );
+    }
+
+    fn diagnostics(registry: &Registry, source: &str) -> String {
+        match lower_in(registry, source) {
+            Ok(_) => panic!("expected a diagnostic for:\n{source}"),
+            Err(errors) => errors
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n"),
+        }
     }
     fn message(source: &str) -> String {
         match lower(source) {
@@ -2418,6 +3280,97 @@ mod tests {
             target,
             ir::Place::VectorComponent { index: 1, .. }
         ));
+    }
+
+    /// The intrinsic transform is not a reflected property: it resolves from the
+    /// class's family and domain, and both world domains expose their own shape.
+    #[test]
+    fn lua_frontend_resolves_intrinsic_transform_places_by_family_and_domain() {
+        use schema::ClassFamily::{Actor, Component};
+        let intrinsic = |place: &ir::Place| match place {
+            ir::Place::Intrinsic {
+                kind,
+                component,
+                value_type,
+            } => {
+                assert_eq!(value_type, &Type::Fixed);
+                (*kind, *component)
+            }
+            other => panic!("expected an intrinsic place, got {other:?}"),
+        };
+        // The first read in the right-hand side, whether or not it is inside an
+        // operator: both spellings must resolve the same intrinsic.
+        fn first_read(expr: &ir::Expr) -> &ir::Place {
+            match expr {
+                ir::Expr::Read { place, .. } => place,
+                ir::Expr::Binary { left, .. } => first_read(left),
+                other => panic!("expected a read, got {other:?}"),
+            }
+        }
+        let target = |ir: &ir::ClassIr| match &ir.methods[0].body[0].kind {
+            ir::StatementKind::Assign { target, value } => {
+                (intrinsic(target), intrinsic(first_read(value)))
+            }
+            other => panic!("expected an assignment, got {other:?}"),
+        };
+
+        // A World3D actor and a component that may be attached to one address
+        // the same three-component transform, through different handles.
+        for family in [Actor, Component] {
+            let registry = spatial(family, Domain::World3D);
+            let lowered = lower_in(&registry, "self.rotation.y = self.rotation.y + 1.0").unwrap();
+            assert_eq!(
+                target(&lowered),
+                ((ir::Intrinsic::Rotation, 1), (ir::Intrinsic::Rotation, 1))
+            );
+            let lowered = lower_in(&registry, "self.position.z = self.scale.x").unwrap();
+            assert_eq!(
+                target(&lowered),
+                ((ir::Intrinsic::Position, 2), (ir::Intrinsic::Scale, 0))
+            );
+        }
+
+        // World2D: position and scale are two components, and rotation is one
+        // Fixed angle that is written whole and has no components at all.
+        let registry = spatial(Actor, Domain::World2D);
+        let lowered = lower_in(&registry, "self.rotation = self.position.y").unwrap();
+        assert_eq!(
+            target(&lowered),
+            ((ir::Intrinsic::Rotation, 0), (ir::Intrinsic::Position, 1))
+        );
+        assert!(
+            diagnostics(&registry, "self.position.z = 1.0").contains("Unknown member z"),
+            "World2D has no z"
+        );
+        assert!(
+            diagnostics(&registry, "self.rotation.x = 1.0").contains("Unknown member x"),
+            "the World2D rotation is a scalar"
+        );
+    }
+
+    /// Whole vectors do not cross the boundary in any mode, and a non-spatial
+    /// class has no transform to name in the first place.
+    #[test]
+    fn lua_frontend_rejects_whole_intrinsic_vectors_and_non_spatial_transforms() {
+        let registry = spatial(schema::ClassFamily::Actor, Domain::World3D);
+        for source in [
+            "self.position = self.position",
+            "self.health = self.scale",
+            "local v = self.rotation",
+        ] {
+            assert!(
+                diagnostics(&registry, source).contains(profile::VECTOR_VALUE),
+                "{source}: {}",
+                diagnostics(&registry, source)
+            );
+        }
+        // The stock fixture parent is a plain Object-family class.
+        let message = message("self.rotation.y = 1.0");
+        assert!(
+            message.contains(profile::TRANSFORM_UNAVAILABLE),
+            "{message}"
+        );
+        assert!(message.contains("Domain=None"), "{message}");
     }
 
     #[test]

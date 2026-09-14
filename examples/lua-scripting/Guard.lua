@@ -45,11 +45,11 @@ end
 
 -- `tick` takes the reflected parameter name. `epok::Actor` declares
 -- `virtual void tick(Fixed)` with no parameter name, so reflection calls it
--- `arg0` and the Lua override must use that exact name.
-function Guard:tick(arg0)
+-- `delta_seconds` and the Lua override must use that exact name.
+function Guard:tick(delta_seconds)
     if self.awake then
         -- Fixed (Q12) arithmetic. `2.5` above was stored as raw 10240.
-        self.health = self.health - self.alert_speed * arg0
+        self.health = self.health - self.alert_speed * delta_seconds
     end
 end
 

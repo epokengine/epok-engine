@@ -122,6 +122,8 @@ mod psx_music_settings;
 mod psx_sequence;
 mod reflection;
 mod reflection_schema;
+#[cfg(test)]
+mod runtime_api_tests;
 mod scene;
 mod scene_bank;
 mod scene_dependencies;

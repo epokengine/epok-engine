@@ -59,6 +59,11 @@ struct ClassBinding {
     void (*set_field)(Object&, uint32_t slot, int32_t value);
     int32_t (*self_call)(Object&, uint32_t slot, const int32_t* args, uint32_t argc);
     int32_t (*super_call)(Object&, uint32_t slot, const int32_t* args, uint32_t argc);
+    // One case per builtin call site of the class. The case body is the very
+    // `epok::bp::api` call the native backend compiles for the same site, so a
+    // 64-bit asset or class id is read from the native field here and never
+    // crosses the 32-bit value ABI.
+    int32_t (*builtin_call)(Object&, uint32_t site, const int32_t* args, uint32_t argc);
 };
 // Defined by the generated `scripts/generated/lua/lua_bindings.cpp`.
 extern const ClassBinding class_bindings[];
@@ -180,15 +185,18 @@ inline void* arena_realloc(void* payload, size_t bytes) {
     for (auto* after = next_block(block); after && after->free && block->size < want;
          after = next_block(block))
         block->size += kHeader + after->size;
-    stats.live += block->size - before;
-    if (stats.live > stats.peak) stats.peak = stats.live;
     if (block->size >= want) {
-        const uint32_t grown = block->size;
+        // Return the surplus before accounting, so the peak reflects bytes the
+        // allocation actually keeps rather than the free space it scanned.
         split(block, want);
-        stats.live -= grown - block->size;
+        stats.live += block->size - before;
+        if (stats.live > stats.peak) stats.peak = stats.live;
         ++stats.reallocs;
         return payload;
     }
+    // The absorbed blocks stay with this allocation until it is released.
+    stats.live += block->size - before;
+    if (stats.live > stats.peak) stats.peak = stats.live;
     // Still short: the absorbed blocks stay with this allocation until it is
     // released, and the copy below is bounded by the (smaller) current size.
     void* fresh = arena_alloc(bytes);
@@ -377,7 +385,9 @@ inline int h_setf(lua_State* L) {
     return 0;
 }
 
-inline int dispatch(lua_State* L, bool super) {
+enum class Dispatch { SelfCall, SuperCall, Builtin };
+
+inline int dispatch(lua_State* L, Dispatch kind) {
     Object* object = current_self(L, 1);
     const ClassBinding* binding = binding_for(object);
     if (!binding) return luaL_error(L, "epok: no class binding");
@@ -387,13 +397,18 @@ inline int dispatch(lua_State* L, bool super) {
         return luaL_error(L, "epok: call arity %d is outside the profile", count);
     int32_t args[EPOK_LUA_MAX_ARGS];
     for (int i = 0; i < count; ++i) args[i] = argument(L, 3 + i);
-    auto* entry = super ? binding->super_call : binding->self_call;
+    auto* entry = kind == Dispatch::SuperCall  ? binding->super_call
+                  : kind == Dispatch::Builtin  ? binding->builtin_call
+                                               : binding->self_call;
     if (!entry) return luaL_error(L, "epok: no dispatch binding");
     push_int(L, entry(*object, slot, args, uint32_t(count)));
     return 1;
 }
-inline int h_call(lua_State* L) { return dispatch(L, false); }
-inline int h_super(lua_State* L) { return dispatch(L, true); }
+inline int h_call(lua_State* L) { return dispatch(L, Dispatch::SelfCall); }
+inline int h_super(lua_State* L) { return dispatch(L, Dispatch::SuperCall); }
+// The builtin adapters. A site index, not a name: the whole call was resolved
+// and typed by the frontend, so the VM only chooses a generated case.
+inline int h_builtin(lua_State* L) { return dispatch(L, Dispatch::Builtin); }
 
 inline void register_helper(lua_State* L, const char* name, lua_CFunction fn) {
     lua_pushcfunction(L, fn);
@@ -459,6 +474,7 @@ inline void initialize() {
     register_helper(L, "__epok_setf", h_setf);
     register_helper(L, "__epok_call", h_call);
     register_helper(L, "__epok_super", h_super);
+    register_helper(L, "__epok_builtin", h_builtin);
 
     // Mode 1 loads bytecode only; the no-parser core rejects text with its own
     // message, which is propagated rather than replaced.
@@ -499,6 +515,12 @@ inline void initialize() {
         }
         bound_masks[index] = mask;
         lua_pop(L, 1);  // the class table itself is not retained
+        // Parsing and running a chunk leaves lexer buffers, prototypes and
+        // interned strings behind; collecting here keeps the arena peak at the
+        // largest single chunk instead of the sum of every class.
+        lua_gc(L, LUA_GCCOLLECT, 0);
+        ramsyscall_printf("EPOK: Lua chunk %s: %u bytes, arena peak %u, live %u\n", binding.name,
+                          unsigned(binding.chunk_size), unsigned(stats.peak), unsigned(stats.live));
     }
     ramsyscall_printf("EPOK: Lua VM ready, %u classes, %u/%u arena bytes live\n",
                       unsigned(class_binding_count), unsigned(stats.live),

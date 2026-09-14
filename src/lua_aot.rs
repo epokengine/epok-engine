@@ -5,10 +5,12 @@
 use crate::{
     blueprint::Registry,
     blueprint_ir as bir,
-    reflection_schema::{self as schema, Type},
+    lua_vm::SlotKey,
+    object_model::TransformAccess,
+    reflection_schema::{self as schema, Domain, Type},
     script_ir::{
-        BinaryOp, Block, ClassIr, Conversion, Expr, LocalId, MethodIr, Place, Statement,
-        StatementKind, UnaryOp,
+        BinaryOp, Block, BuiltinArg, ClassIr, Conversion, Expr, Intrinsic, LocalId, MethodIr,
+        Place, Statement, StatementKind, UnaryOp,
     },
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -129,12 +131,96 @@ pub fn unpack(expression: &str, ty: &Type) -> Result<String, String> {
     })
 }
 
+// ------------------------------------------------------ intrinsic access ----
+
+/// Getter and setter an intrinsic transform place lowers to. They are the very
+/// entry points the Blueprint Get/Set Position, Rotation and Scale nodes call,
+/// so a Lua body and a Blueprint graph address the same transform.
+fn intrinsic_api(domain: Domain, kind: Intrinsic) -> (String, String) {
+    // The rect places carry their own entry points; the World places take the
+    // `_2d` suffix in the two-dimensional domain.
+    let name = match kind {
+        Intrinsic::RectPosition | Intrinsic::RectSize => kind.name().to_owned(),
+        _ if domain == Domain::World2D => format!("{}_2d", kind.name()),
+        _ => kind.name().to_owned(),
+    };
+    (
+        format!("epok::bp::api::{name}"),
+        format!("epok::bp::api::set_{name}"),
+    )
+}
+/// `true` when the intrinsic is a single `Fixed`, which only the World2D
+/// rotation is; every other intrinsic is indexed.
+fn intrinsic_scalar(domain: Domain, kind: Intrinsic) -> bool {
+    crate::lua_vm::intrinsic_components(domain, kind) == 1
+}
+/// Reads one intrinsic component of `handle`.
+fn intrinsic_read(
+    access: TransformAccess,
+    kind: Intrinsic,
+    component: usize,
+    handle: &str,
+) -> String {
+    let (get, _) = intrinsic_api(access.domain, kind);
+    if intrinsic_scalar(access.domain, kind) {
+        format!("{get}({handle})")
+    } else {
+        format!("{get}({handle})[{component}]")
+    }
+}
+/// Writes one intrinsic component of `handle`. A vector is read back, patched
+/// and stored whole because the runtime exposes no component setter.
+fn intrinsic_write(
+    access: TransformAccess,
+    kind: Intrinsic,
+    component: usize,
+    handle: &str,
+    value: &str,
+) -> String {
+    let (get, set) = intrinsic_api(access.domain, kind);
+    if intrinsic_scalar(access.domain, kind) {
+        return format!("{set}({handle}, {value});\n");
+    }
+    format!(
+        "{{ auto epok_v = {get}({handle}); epok_v[{component}] = {value}; {set}({handle}, epok_v); }}\n"
+    )
+}
+/// The `ObjectId` an instance addresses: an actor is its own target, a
+/// component targets the actor that owns it.
+fn intrinsic_handle(access: TransformAccess, receiver: &str) -> String {
+    let accessor = if access.through_owner {
+        "owner_id()"
+    } else {
+        "id()"
+    };
+    format!("{receiver}{accessor}")
+}
+
+/// The actor a class's bodies address: an actor is its own, a component's is its
+/// owner. It is the very expression `blueprint_ir::SelfKind::actor` produces, so
+/// a spawn from Lua parents its instance exactly as the Blueprint node does.
+fn self_actor(registry: &Registry, cpp_name: &str) -> &'static str {
+    match crate::object_model::resolved_shape(registry, cpp_name).0 {
+        schema::ClassFamily::Component => "this->get_owner()",
+        _ => "this",
+    }
+}
+
 // ---------------------------------------------------------- native bodies ----
 
 struct Emitter<'a> {
     names: BTreeMap<LocalId, String>,
     parent: &'a str,
     source: String,
+    transform: Option<TransformAccess>,
+    /// The actor this class belongs to, for the builtins that spawn.
+    self_actor: &'a str,
+}
+impl Emitter<'_> {
+    fn access(&self) -> Result<TransformAccess, String> {
+        self.transform
+            .ok_or_else(|| "Intrinsic transform place on a non-spatial class".to_owned())
+    }
 }
 impl Emitter<'_> {
     fn local(&self, id: LocalId) -> Result<String, String> {
@@ -149,6 +235,17 @@ impl Emitter<'_> {
             Place::Property { name, .. } => format!("this->{name}"),
             Place::VectorComponent { base, index } => {
                 format!("{}[{index}]", self.place(base)?)
+            }
+            Place::Intrinsic {
+                kind, component, ..
+            } => {
+                let access = self.access()?;
+                intrinsic_read(
+                    access,
+                    *kind,
+                    *component,
+                    &intrinsic_handle(access, "this->"),
+                )
             }
         })
     }
@@ -219,6 +316,26 @@ impl Emitter<'_> {
             Expr::CallParent { name, args, .. } => {
                 format!("{}::{name}({})", self.parent, self.arguments(args)?)
             }
+            // The very call the matching Blueprint node lowers to: both surfaces
+            // go through `blueprint_ir::builtin_cpp`, so they cannot diverge.
+            Expr::CallBuiltin {
+                operation, args, ..
+            } => {
+                let lowered = args
+                    .iter()
+                    .map(|arg| match arg {
+                        BuiltinArg::Value(value) => self.expr(value),
+                        // A 64-bit asset or class handle is read straight out of
+                        // its native field; it is never a value in a body.
+                        BuiltinArg::Property { name, .. } => Ok(format!("this->{name}")),
+                    })
+                    .collect::<Result<Vec<_>, String>>()?;
+                bir::builtin_cpp(
+                    operation,
+                    &lowered,
+                    &bir::SelfReceiver::this(self.self_actor),
+                )?
+            }
             Expr::MakeVector {
                 components, length, ..
             } => format!(
@@ -242,6 +359,19 @@ impl Emitter<'_> {
     /// component by component through one bound temporary.
     fn assign(&self, target: &Place, value: &Expr) -> Result<String, String> {
         let cpp = self.expr(value)?;
+        if let Place::Intrinsic {
+            kind, component, ..
+        } = target
+        {
+            let access = self.access()?;
+            return Ok(intrinsic_write(
+                access,
+                *kind,
+                *component,
+                &intrinsic_handle(access, "this->"),
+                &cpp,
+            ));
+        }
         if let Type::Vector { length } = value.value_type() {
             let target = self.place(target)?;
             let mut text = format!("{{ const auto& epok_value = {cpp};");
@@ -332,7 +462,13 @@ impl Emitter<'_> {
     }
 }
 
-fn native_body(method: &MethodIr, parent: &str, source: &str) -> Result<String, String> {
+fn native_body(
+    method: &MethodIr,
+    parent: &str,
+    source: &str,
+    transform: Option<TransformAccess>,
+    self_actor: &'static str,
+) -> Result<String, String> {
     let mut names = BTreeMap::new();
     for (i, parameter) in method.parameters.iter().enumerate() {
         names.insert(parameter.id, format!("epok_p{i}"));
@@ -344,6 +480,8 @@ fn native_body(method: &MethodIr, parent: &str, source: &str) -> Result<String, 
         names,
         parent,
         source: source.into(),
+        transform,
+        self_actor,
     };
     let mut out = String::from("const auto epok_owner=this->id();(void)epok_owner;\n");
     for local in &method.locals {
@@ -401,7 +539,7 @@ pub fn emit_class(
         .ok_or_else(|| format!("Unknown parent {}", ir.parent_cpp_name))?;
     let source = project_relative(&class.source.file);
     let mut text = format!(
-        "// Generated from Lua class {} ({source}). Do not edit.\n#pragma once\n#include \"{}\"\n#include \"blueprint_runtime.hpp\"\n",
+        "// Generated from Lua class {} ({source}). Do not edit.\n#pragma once\n#include \"{}\"\n#include \"blueprint_runtime.hpp\"\n#include \"blueprint_api.hpp\"\n",
         class.id,
         parent_include(parent)?
     );
@@ -447,7 +585,13 @@ pub fn emit_class(
             text.push_str(&format!("(void)epok_p{i};\n"));
         }
         text.push_str(&match mode {
-            BodyMode::Native => native_body(method, &parent.cpp_name, &source)?,
+            BodyMode::Native => native_body(
+                method,
+                &parent.cpp_name,
+                &source,
+                crate::lua_vm::intrinsic_access(registry, &ir.parent_cpp_name),
+                self_actor(registry, &class.cpp_name),
+            )?,
             BodyMode::Vm { class_index } => vm_body(method, class_index, slot)?,
         });
         text.push_str("}\n");
@@ -456,24 +600,25 @@ pub fn emit_class(
     Ok(text)
 }
 
-// -------------------------------------------------------------- bindings ----
-
-/// Field slots are the whole reflected hierarchy in registry order; a vector
-/// property occupies one slot per component so the Lua side stays scalar.
-fn field_slots(class: &schema::Class, registry: &Registry) -> Vec<(String, Type, Option<usize>)> {
-    let mut slots = vec![];
-    for property in registry.properties(&class.cpp_name) {
-        match property.value_type {
-            Type::Vector { length } => {
-                for i in 0..length {
-                    slots.push((property.name.clone(), Type::Fixed, Some(i)));
-                }
-            }
-            ref ty => slots.push((property.name.clone(), ty.clone(), None)),
-        }
+/// One switch case of a generated dispatch. The call is bound to a temporary
+/// before packing, because a wire form may mention its operand more than once
+/// and a builtin that spawns must run exactly once.
+fn dispatch_case(slot: usize, call: &str, returns: &Type) -> Result<String, String> {
+    // A playback handle is wider than the value ABI, so it stays native: the
+    // frontend only accepts such a builtin as a statement.
+    if matches!(
+        returns,
+        Type::Void | Type::SequenceHandle | Type::EffectHandle
+    ) {
+        return Ok(format!("case {slot}: {call}; return 0;\n"));
     }
-    slots
+    Ok(format!(
+        "case {slot}: {{ const auto epok_result = {call}; return {}; }}\n",
+        pack("epok_result", returns)?
+    ))
 }
+
+// -------------------------------------------------------------- bindings ----
 
 pub fn emit_bindings(
     classes: &[(schema::Class, ClassIr)],
@@ -481,7 +626,7 @@ pub fn emit_bindings(
     chunk_symbols: &BTreeMap<String, String>,
 ) -> Result<String, String> {
     let mut text = String::from(
-        "// Generated Lua class bindings. Do not edit.\n#include \"scene.hh\"\n#include \"lua_runtime.hpp\"\n",
+        "// Generated Lua class bindings. Do not edit.\n#include \"scene.hh\"\n#include \"lua_runtime.hpp\"\n#include \"blueprint_api.hpp\"\n",
     );
     let mut rows = String::new();
     for (index, (class, ir)) in classes.iter().enumerate() {
@@ -495,18 +640,53 @@ pub fn emit_bindings(
             "extern const unsigned char {symbol}[];\nextern const unsigned long {symbol}_size;\n"
         ));
         let name = &class.cpp_name;
-        let slots = field_slots(class, registry);
+        // `lua_vm::field_slots` is the single slot numbering both emitters use;
+        // an intrinsic slot lowers to the same `epok::bp::api` call the native
+        // bodies emit, so the two execution paths address one transform.
+        let slots = crate::lua_vm::field_slots(&class.cpp_name, registry);
+        let transform = crate::lua_vm::intrinsic_access(registry, &class.cpp_name);
         let (mut get, mut set) = (String::new(), String::new());
-        for (slot, (field, ty, component)) in slots.iter().enumerate() {
-            let access = match component {
-                Some(i) => format!("self.{field}[{i}]"),
-                None => format!("self.{field}"),
+        for (slot, field) in slots.iter().enumerate() {
+            let (read, write) = match &field.key {
+                SlotKey::Property { component, .. } => {
+                    let access = match component {
+                        Some(i) => format!("self.{}[{i}]", field.name),
+                        None => format!("self.{}", field.name),
+                    };
+                    (
+                        pack(&access, &field.value_type)?,
+                        format!(
+                            "{access} = {}; return;\n",
+                            unpack("value", &field.value_type)?
+                        ),
+                    )
+                }
+                SlotKey::Intrinsic { kind, component } => {
+                    let access = transform.ok_or_else(|| {
+                        format!("{name} has an intrinsic slot but no transform access")
+                    })?;
+                    let handle = intrinsic_handle(access, "self.");
+                    (
+                        pack(
+                            &intrinsic_read(access, *kind, *component, &handle),
+                            &Type::Fixed,
+                        )?,
+                        format!(
+                            "{} return;\n",
+                            intrinsic_write(
+                                access,
+                                *kind,
+                                *component,
+                                &handle,
+                                &unpack("value", &Type::Fixed)?
+                            )
+                            .trim_end()
+                        ),
+                    )
+                }
             };
-            get.push_str(&format!("case {slot}: return {};\n", pack(&access, ty)?));
-            set.push_str(&format!(
-                "case {slot}: {access} = {}; return;\n",
-                unpack("value", ty)?
-            ));
+            get.push_str(&format!("case {slot}: return {read};\n"));
+            set.push_str(&format!("case {slot}: {write}"));
         }
         text.push_str(&format!(
             "static int32_t epok_lua_get_{index}(epok::Object& o, uint32_t slot) {{\nauto& self=static_cast<{name}&>(o);(void)self;\nswitch(slot) {{\n{get}default: return 0;\n}}\n}}\n"
@@ -543,14 +723,11 @@ pub fn emit_bindings(
                 ));
             }
             for (cases, receiver) in targets {
-                if function.returns == Type::Void {
-                    cases.push_str(&format!("case {slot}: {receiver}({args}); return 0;\n"));
-                } else {
-                    cases.push_str(&format!(
-                        "case {slot}: return {};\n",
-                        pack(&format!("{receiver}({args})"), &function.returns)?
-                    ));
-                }
+                cases.push_str(&dispatch_case(
+                    slot,
+                    &format!("{receiver}({args})"),
+                    &function.returns,
+                )?);
             }
         }
         let dispatch = |suffix: &str, receiver: &str, cases: &str| {
@@ -564,6 +741,50 @@ pub fn emit_bindings(
             "qualified parent dispatch",
             &super_cases,
         ));
+        // Builtin call sites. The case body is the same `builtin_cpp` lowering
+        // the native backend emits, so a VM build reaches the identical
+        // `epok::bp::api` entry point with the identical operands. A 64-bit
+        // asset or class id is read here, from the native field, and never
+        // crosses the boundary.
+        let sites = crate::lua_vm::builtin_sites(ir)?;
+        let actor = match crate::object_model::resolved_shape(registry, &class.cpp_name).0 {
+            schema::ClassFamily::Component => "self.get_owner()",
+            _ => "&self",
+        };
+        let receiver = bir::SelfReceiver {
+            id: "self.id()",
+            object: "&self",
+            actor,
+        };
+        let mut builtin_cases = String::new();
+        for (site, expr) in sites.iter().enumerate() {
+            let Expr::CallBuiltin {
+                operation,
+                args,
+                returns,
+                ..
+            } = expr
+            else {
+                return Err(format!("{name}: builtin site {site} is not a builtin call"));
+            };
+            let mut lowered = Vec::new();
+            let mut wire = 0usize;
+            for arg in args {
+                lowered.push(match arg {
+                    BuiltinArg::Value(value) => {
+                        let text = unpack(&format!("args[{wire}]"), value.value_type())?;
+                        wire += 1;
+                        text
+                    }
+                    BuiltinArg::Property { name, .. } => format!("self.{name}"),
+                });
+            }
+            let call = bir::builtin_cpp(operation, &lowered, &receiver)?;
+            builtin_cases.push_str(&dispatch_case(site, &call, returns)?);
+        }
+        text.push_str(&format!(
+            "static int32_t epok_lua_builtin_{index}(epok::Object& o, uint32_t site, const int32_t* args, uint32_t argc) {{\nauto& self=static_cast<{name}&>(o);(void)self;(void)args;(void)argc;\nswitch(site) {{\n{builtin_cases}default: return 0;\n}}\n}}\n"
+        ));
         let names = methods
             .iter()
             .map(|f| format!("\"{}\"", f.name))
@@ -573,7 +794,7 @@ pub fn emit_bindings(
             "static const char* const epok_lua_methods_{index}[] = {{{names}}};\n"
         ));
         rows.push_str(&format!(
-            "{{UINT64_C({}), \"{name}\", {symbol}, size_t({symbol}_size), epok_lua_methods_{index}, {}, epok_lua_get_{index}, epok_lua_set_{index}, epok_lua_self_call_{index}, epok_lua_super_call_{index}}},\n",
+            "{{UINT64_C({}), \"{name}\", {symbol}, size_t({symbol}_size), epok_lua_methods_{index}, {}, epok_lua_get_{index}, epok_lua_set_{index}, epok_lua_self_call_{index}, epok_lua_super_call_{index}, epok_lua_builtin_{index}}},\n",
             crate::blueprint_refs::compact_id(&class.id),
             methods.len()
         ));
@@ -601,7 +822,7 @@ impl MethodIr {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::lua_asset::{self, LuaFile};
 
@@ -656,6 +877,73 @@ mod tests {
         assert!(!text.contains("lua_runtime.hpp") && !text.contains("kEpokLuaClass_"));
     }
 
+    /// The body both backends must lower identically: one builtin of every
+    /// shape the profile exposes.
+    pub(crate) const BUILTIN_BODY: &str = r#"function EnemyLogic:damage(amount)
+    local other = epok.spawn("Spinner")
+    if epok.is_valid(other) then
+        epok.set_texture(self.ref, self.skin)
+        epok.play_audio(other)
+    end
+    if epok.input.held(4, 0) then
+        self.health = amount
+    end
+end
+"#;
+
+    fn builtin_class() -> (Registry, schema::Class, ClassIr) {
+        let registry = crate::lua_frontend::tests::builtin_registry();
+        let source = enemy_logic(BUILTIN_BODY);
+        let (registry, ir) = lower("assets/scripts/EnemyLogic.lua", &source, &registry);
+        let class = registry.classes["956f4946-0c61-42f8-899e-2db063b42420"].clone();
+        (registry, class, ir)
+    }
+
+    #[test]
+    fn lua_aot_lowers_builtins_to_the_blueprint_adapter_entry_points() {
+        let (registry, class, ir) = builtin_class();
+        let text = emit_class(&class, &ir, &registry, BodyMode::Native, None).unwrap();
+        let spinner = crate::blueprint_refs::compact_id(crate::lua_frontend::tests::SPINNER_ID);
+        for expected in [
+            // The spawn parents its instance on this actor, exactly as the
+            // Blueprint Spawn node does, and names the class by its uuid.
+            format!("epok::bp::spawn_actor(this,{spinner}ULL,this->id())"),
+            "epok::bp::api::valid(epok_l1)".into(),
+            // The 64-bit asset id is read from the native field, never boxed.
+            "epok::bp::api::set_texture(this->id(),this->skin)".into(),
+            "epok::bp::api::play_audio(epok_l1)".into(),
+            "epok::bp::api::held(4u,0u)".into(),
+        ] {
+            assert!(text.contains(&expected), "missing {expected:?} in\n{text}");
+        }
+        // An impure builtin may destroy this object, so the owner is rechecked.
+        assert!(text.contains("if(!epok_owner.get())return;"));
+    }
+
+    #[test]
+    fn lua_aot_emits_one_binding_case_per_builtin_site() {
+        let (registry, class, ir) = builtin_class();
+        let symbols = BTreeMap::from([(class.id.clone(), crate::lua_vm::chunk_symbol(&class.id))]);
+        let text = emit_bindings(&[(class, ir)], &registry, &symbols).unwrap();
+        let spinner = crate::blueprint_refs::compact_id(crate::lua_frontend::tests::SPINNER_ID);
+        for expected in [
+            // The identical adapter calls, with the wire operands unpacked from
+            // the argument array and the asset id still read natively.
+            // The call is bound once: a spawn must never run twice because its
+            // wire form mentions the value more than one time.
+            format!(
+                "case 1: {{ const auto epok_result = epok::bp::spawn_actor(&self,{spinner}ULL,epok::ObjectId"
+            ),
+            "case 2: { const auto epok_result = epok::bp::api::valid(epok::ObjectId".into(),
+            "case 4: epok::bp::api::set_texture(epok::ObjectId{uint16_t(uint32_t(args[0])&0xffffu),uint16_t(uint32_t(args[0])>>16)},self.skin); return 0;".into(),
+            "case 6: { const auto epok_result = epok::bp::api::held(uint32_t(args[0]),uint32_t(args[1])); return ((epok_result)?1:0); }".into(),
+            "epok_lua_builtin_0(epok::Object& o, uint32_t site".into(),
+            "epok_lua_super_call_0, epok_lua_builtin_0}".into(),
+        ] {
+            assert!(text.contains(&expected), "missing {expected:?} in\n{text}");
+        }
+    }
+
     #[test]
     fn lua_aot_calls_the_lexical_parent_not_the_virtual_override() {
         let mut registry = lua_asset::tests::registry();
@@ -686,6 +974,105 @@ mod tests {
         assert!(text.contains("virtual void begin_play() override {"));
         assert!(text.contains("EnemyBase::begin_play();"), "{text}");
         assert!(!text.contains("this->begin_play()"));
+    }
+
+    /// The shared fixture parent, restated as a spatial class so the chunk in
+    /// `HEADER` becomes a World3D actor or a component attached to one.
+    fn spatial(family: schema::ClassFamily) -> Registry {
+        let mut registry = lua_asset::tests::registry();
+        let parent = registry
+            .classes
+            .get_mut(crate::object_model::ACTOR_COMPONENT_ID)
+            .unwrap();
+        parent.family = Some(family);
+        if family == schema::ClassFamily::Component {
+            parent.component = Some(schema::ComponentContract {
+                owners: [schema::Domain::World3D].into_iter().collect(),
+                ..Default::default()
+            });
+        } else {
+            parent.domain = Some(schema::Domain::World3D);
+        }
+        registry
+    }
+
+    /// Intrinsic places lower to the very `epok::bp::api` calls the Blueprint
+    /// Get/Set Rotation nodes emit, in both execution modes and through the
+    /// handle the class's family dictates.
+    #[test]
+    fn lua_aot_lowers_intrinsic_transform_places_to_the_blueprint_api() {
+        let source = enemy_logic(
+            "function EnemyLogic:damage(amount)\n    self.rotation.y = self.rotation.y + amount\nend\n",
+        );
+        for (family, handle) in [
+            (schema::ClassFamily::Actor, "this->id()"),
+            (schema::ClassFamily::Component, "this->owner_id()"),
+        ] {
+            let (registry, ir) = lower("assets/scripts/EnemyLogic.lua", &source, &spatial(family));
+            let class = registry.classes["956f4946-0c61-42f8-899e-2db063b42420"].clone();
+            let text = emit_class(&class, &ir, &registry, BodyMode::Native, None).unwrap();
+            assert!(text.contains("#include \"blueprint_api.hpp\"\n"), "{text}");
+            assert!(
+                text.contains(&format!(
+                    "{{ auto epok_v = epok::bp::api::rotation({handle}); epok_v[1] = epok::bp::add(epok::bp::api::rotation({handle})[1], epok_p0); epok::bp::api::set_rotation({handle}, epok_v); }}\n"
+                )),
+                "{text}"
+            );
+        }
+
+        // Slots: the reflected hierarchy first, then position.xyz, rotation.xyz
+        // and scale.xyz, so a new property can never land on an intrinsic slot.
+        let (registry, ir) = lower(
+            "assets/scripts/EnemyLogic.lua",
+            &source,
+            &spatial(schema::ClassFamily::Actor),
+        );
+        let class = registry.classes["956f4946-0c61-42f8-899e-2db063b42420"].clone();
+        let names = crate::lua_vm::field_slots(&class.cpp_name, &registry)
+            .into_iter()
+            .map(|s| s.name)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            names,
+            [
+                "armour", "charges", "health", "offset", "offset", "offset", "ready", "position",
+                "position", "position", "rotation", "rotation", "rotation", "scale", "scale",
+                "scale"
+            ]
+        );
+        // The normalized Lua reaches the same slot through the ordinary field
+        // helpers, so nothing in a chunk names a transform function at all.
+        let chunk = crate::lua_vm::emit_chunk(
+            &ir,
+            &crate::lua_vm::field_slots(&class.cpp_name, &registry),
+            &crate::lua_vm::method_slots(&ir, &registry),
+            std::path::Path::new("assets/scripts/EnemyLogic.lua"),
+        )
+        .unwrap();
+        assert!(
+            chunk.contains("__epok_setf(self, 11, __epok_fadd(__epok_getf(self, 11), epok_p0))"),
+            "{chunk}"
+        );
+        let symbols = BTreeMap::from([(class.id.clone(), "epok_lua_chunk_0".to_string())]);
+        let bindings = emit_bindings(&[(class, ir)], &registry, &symbols).unwrap();
+        assert!(
+            bindings.contains("case 11: return (epok::bp::api::rotation(self.id())[1]).raw();\n"),
+            "{bindings}"
+        );
+        assert!(
+            bindings.contains(
+                "case 11: { auto epok_v = epok::bp::api::rotation(self.id()); epok_v[1] = epok::Fixed(value,epok::Fixed::RAW); epok::bp::api::set_rotation(self.id(), epok_v); } return;\n"
+            ),
+            "{bindings}"
+        );
+        assert!(
+            bindings.contains("case 7: return (epok::bp::api::position(self.id())[0]).raw();\n"),
+            "{bindings}"
+        );
+        assert!(
+            bindings.contains("case 15: return (epok::bp::api::scale(self.id())[2]).raw();\n"),
+            "{bindings}"
+        );
     }
 
     #[test]
@@ -754,9 +1141,9 @@ mod tests {
         // Slots follow `registry.properties` order: armour (inherited), charges,
         // health, offset.{x,y,z}, ready. Inherited fields get slots exactly like
         // own fields, and a vector occupies one slot per component.
-        let slots = field_slots(&class, &registry)
+        let slots = crate::lua_vm::field_slots(&class.cpp_name, &registry)
             .into_iter()
-            .map(|(name, _, _)| name)
+            .map(|s| s.name)
             .collect::<Vec<_>>();
         assert_eq!(
             slots,
@@ -785,7 +1172,7 @@ mod tests {
             "case {tick}: self.tick(epok::Fixed(args[0],epok::Fixed::RAW)); return 0;\n"
         )));
         assert!(bindings.contains(&format!(
-            "case {absorb}: return (self.absorb(epok::Fixed(args[0],epok::Fixed::RAW))).raw();\n"
+            "case {absorb}: {{ const auto epok_result = self.absorb(epok::Fixed(args[0],epok::Fixed::RAW)); return (epok_result).raw(); }}\n"
         )));
         assert!(bindings.contains(&format!(
             "case {tick}: self.epok::ActorComponent::tick(epok::Fixed(args[0],epok::Fixed::RAW)); return 0;\n"

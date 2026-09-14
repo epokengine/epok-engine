@@ -1,13 +1,14 @@
 // Fixture for tests/integration/verify_lua_modes.py. See EnemyBase.hpp.
 #include "EnemyBase.hpp"
 #include "blueprint_runtime.hpp"
+#include "blueprint_api.hpp"
 #include "lua-config.hh"
 #if EPOK_LUA_MODE != EPOK_LUA_MODE_NATIVE
 #include "lua_runtime.hpp"
 #endif
 
 extern "C" {
-volatile int32_t epok_lua_probe[64] = {};
+volatile int32_t epok_lua_probe[96] = {};
 __attribute__((noinline, used)) void epok_lua_probe_begin() { asm volatile("nop" ::: "memory"); }
 __attribute__((noinline, used)) void epok_lua_probe_end() { asm volatile("nop\nnop" ::: "memory"); }
 __attribute__((noinline, used)) void epok_lua_probe_done() { asm volatile("nop\nnop\nnop" ::: "memory"); }
@@ -18,11 +19,15 @@ __attribute__((noinline, used)) void epok_lua_probe_done() { asm volatile("nop\n
 // 16..31  Guard1 only: the numeric edge battery
 // 32..47  Patrol1 (slot 32): the same lifecycle probes through Lua->Lua
 // 48..63  native and global observations
+// 64..69  the intrinsic transform, written from Lua and read back natively
+// 70..83  the builtin surface, exercised from Lua with no C++ helper at all
 enum : int32_t {
     P_MAGIC = 48, P_NATIVE_BEGIN = 49, P_NATIVE_DAMAGE = 50, P_BUMPS = 51,
     P_EVAL_ORDER = 52, P_FOR_SUM = 53, P_PAUSE_DELTA = 54, P_DEACTIVATE_DELTA = 55,
     P_DESTROY_DELTA = 56, P_DIRECTOR_TICKS = 57, P_ARENA_PEAK = 58, P_ARENA_LIVE = 59,
     P_ARENA_ALLOCS = 60, P_ARENA_FAILURES = 61, P_LUA_MODE = 62, P_DONE = 63,
+    P_GUARD_ROT_Y = 64, P_GUARD_POS_X = 65, P_PATROL_ROT_Y = 66, P_PATROL_POS_X = 67,
+    P_NATIVE_ROT_Y = 68, P_NATIVE_POS_X = 69,
 };
 static constexpr int32_t MAGIC = 0x4C4D4F31;   // 'LMO1'
 static constexpr int32_t DONE = 0x0000D09E;
@@ -40,16 +45,16 @@ void EnemyBase::damage(epok::Fixed amount) {
 }
 
 void EnemyBase::probe(int32_t index, int32_t value) {
-    if (index >= 0 && index < 64) epok_lua_probe[index] = value;
+    if (index >= 0 && index < 96) epok_lua_probe[index] = value;
 }
 void EnemyBase::probe_u(int32_t index, uint32_t value) {
-    if (index >= 0 && index < 64) epok_lua_probe[index] = int32_t(value);
+    if (index >= 0 && index < 96) epok_lua_probe[index] = int32_t(value);
 }
 void EnemyBase::probe_f(int32_t index, epok::Fixed value) {
-    if (index >= 0 && index < 64) epok_lua_probe[index] = value.raw();
+    if (index >= 0 && index < 96) epok_lua_probe[index] = value.raw();
 }
 void EnemyBase::probe_b(int32_t index, bool value) {
-    if (index >= 0 && index < 64) epok_lua_probe[index] = value ? 1 : 0;
+    if (index >= 0 && index < 96) epok_lua_probe[index] = value ? 1 : 0;
 }
 bool EnemyBase::bump() {
     epok_lua_probe[P_BUMPS] = epok_lua_probe[P_BUMPS] + 1;
@@ -114,6 +119,14 @@ void Director::tick(epok::Fixed) {
         g_before_destroy = guard_ticks();
         if (level && g_enemy_count > 0) level->destroy_actor(g_enemies[0]->id());
     } else if (g_ticks == FINAL_TICK) {
+        // The transform Patrol1 drove from Lua, read back through the very
+        // functions the Blueprint Get Rotation/Position nodes call: the
+        // intrinsic places have to land in the real root component.
+        if (g_enemy_count > 1) {
+            const epok::ObjectId patrol = g_enemies[1]->id();
+            epok_lua_probe[P_NATIVE_ROT_Y] = epok::bp::api::rotation(patrol)[1].raw();
+            epok_lua_probe[P_NATIVE_POS_X] = epok::bp::api::position(patrol)[0].raw();
+        }
         epok_lua_probe[P_DESTROY_DELTA] = guard_ticks() - g_before_destroy;
         epok_lua_probe[P_DIRECTOR_TICKS] = int32_t(g_ticks);
 #if EPOK_LUA_MODE != EPOK_LUA_MODE_NATIVE

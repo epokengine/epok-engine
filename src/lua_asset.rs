@@ -598,6 +598,16 @@ pub fn declarations(
                 ),
             ));
         }
+        if crate::script_ir::Intrinsic::from_name(&property.name).is_some() {
+            return Err(fail(
+                property.span,
+                format!(
+                    "{}: {} cannot be declared as a property",
+                    crate::lua_frontend::profile::TRANSFORM_RESERVED,
+                    property.name
+                ),
+            ));
+        }
         if !crate::scripts::identifier(&property.name)
             || property.name.starts_with("epok_")
             || !names.insert(property.name.clone())
@@ -1207,6 +1217,12 @@ local EnemyLogic = epok.class {
         check(
             HEADER.replace("health =", "armour =") + tail,
             "shadows an inherited member",
+        );
+        // The intrinsic transform names are reserved in every class, spatial or
+        // not: a property called `rotation` would shadow `self.rotation`.
+        check(
+            HEADER.replace("health =", "rotation =") + tail,
+            crate::lua_frontend::profile::TRANSFORM_RESERVED,
         );
         // A default that is not valid for the declared type.
         check(

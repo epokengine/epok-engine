@@ -60,6 +60,13 @@ with temporary archives: selected-package isolation, companion-file repair,
 checksum rejection, and archive path containment. Capture the settings page with
 `--project <folder> --screenshot-dependencies --screenshot <file.png>`.
 
+Changing the reflected surface of a runtime header (`runtime/object_model.hpp` in
+particular) also changes the generated API reference. Regenerate it with
+`python3 tools/generate-api-reference.py` on a host that has the libclang Python
+bindings installed, and commit the regenerated `docs/api/` output; the committed
+files record declaration line numbers, so even a pure insertion above an existing
+member makes `--check` fail until they are regenerated. Never hand-edit them.
+
 After SDK setup, `python tools/extract_hud_font.py --check` verifies that the committed editor HUD font matches the pinned PsyQo font. Omit `--check` to regenerate the bitmap when intentionally updating that resource.
 
 ## MCP integration
@@ -340,7 +347,7 @@ python3 tests/integration/verify_lua_feasibility.py --emulator --output report.j
 **`verify_lua_modes.py`** is the cross-mode acceptance script and the slowest of
 the three: it creates one real project through the production CLI, builds the
 same `.lua` sources in `native_cpp`, `vm_bytecode` and `vm_source`
-(`--build-psx`), runs each under PCSX-Redux, and reads a 64-slot probe array out
+(`--build-psx`), runs each under PCSX-Redux, and reads a 72-slot probe array out
 of guest RAM. The probe values must be identical across the three modes *and*
 equal to constants the script derives by reimplementing the numeric contract in
 Python — it never compares a run against a previous run. It records **21

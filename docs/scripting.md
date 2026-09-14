@@ -58,6 +58,8 @@ Properties are assigned before `start`. Measured elapsed time drives fixed 60 Hz
 
 A script on an Empty entity can animate a hierarchy. Scripts must preserve valid transforms and parent relationships. Zero or negative scales, cycles and manually edited runtime parent indices are unsupported.
 
+`epok::Actor` and `epok::ActorComponent` reflect their own operations, so every authoring provider inherits them: `set_active`, `destroy`, `active`, `wants_tick`, `set_wants_tick`, `level_id`, `root_id`, `logical_parent`, `component_id`, `component_count` and the component's `owner_id`. C++ calls the member directly, a Blueprint places the matching `Functions / Self` node and a Lua class writes `self:set_active(false)`; none of them needs a C++ helper for behavior the engine bases already provide. The legacy Blueprint builtin nodes for Set Active, Destroy and Get Owner keep working for existing graphs.
+
 Activation, destruction, safe handles, scene transitions, tweens and event helpers are documented in [runtime services](runtime-services.md). Additional APIs are documented under [sprites and particles](sprites-particles.md), [cameras](camera-resources.md), [HUD](hud.md) and [Memory Card](memory-card.md).
 
 `entity()` returns a Behaviour's owning entity. `get<T>()` returns null for a disabled component, `add<T>()` enables it and `remove<T>()` disables it. Transform is always available. `find_entity(name)` returns the first match. See [HUD](hud.md) and [Lighting](lighting.md) for component APIs.

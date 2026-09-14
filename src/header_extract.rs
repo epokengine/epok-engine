@@ -390,6 +390,19 @@ fn value_type_at_depth(
     }
 }
 
+/// A reflected `epok::ObjectId` is an authoring object reference, not a plain struct.
+/// Properties have always been read this way; reflected function returns and parameters
+/// use the same rule so `Actor::level_id()` or `ActorComponent::owner_id()` produce the
+/// same pin/value type a reflected `ObjectId` field does.
+fn object_reference(value: schema::Type) -> schema::Type {
+    match value {
+        schema::Type::Record { ref cpp_name, .. } if cpp_name == "epok::ObjectId" => {
+            schema::Type::ObjectRef { class: None }
+        }
+        other => other,
+    }
+}
+
 fn parameter_name(method: Actor<'_>, index: usize) -> Option<String> {
     // An implementation can omit or abbreviate a C++ argument without changing
     // the public Blueprint pin contract inherited from its declaration.
@@ -438,7 +451,7 @@ fn parameter(
             "Reflected parameter {} requires a descriptive name in its C++ declaration; anonymous or numbered placeholder pins are not supported",
             index + 1
         )))?,
-        value_type: value_type(value, entity)?,
+        value_type: object_reference(value_type(value, entity)?),
         direction,
     })
 }
@@ -514,12 +527,7 @@ fn property(entity: Actor<'_>) -> Result<schema::Property, String> {
             "Reflected properties must be public, non-const, non-volatile instance fields (no bitfields)",
         ));
     }
-    let value_type = match value_type(ty, entity)? {
-        schema::Type::Record { cpp_name, .. } if cpp_name == "epok::ObjectId" => {
-            schema::Type::ObjectRef { class: None }
-        }
-        other => other,
-    };
+    let value_type = object_reference(value_type(ty, entity)?);
     let expressions = entity
         .get_children()
         .into_iter()
@@ -670,7 +678,7 @@ fn function(entity: Actor<'_>) -> Result<schema::Function, String> {
             .enumerate()
             .map(|(i, e)| parameter(entity, e, i))
             .collect::<Result<_, _>>()?,
-        returns: value_type(entity.get_result_type().unwrap(), entity)?,
+        returns: object_reference(value_type(entity.get_result_type().unwrap(), entity)?),
         callable: access == Some(Accessibility::Public)
             && options.iter().any(|v| {
                 ["Callable", "BlueprintCallable", "Pure", "BlueprintPure"].contains(&v.as_str())
@@ -1095,6 +1103,53 @@ mod tests {
             let error = super::extract(&unit, &path).unwrap_err();
             assert!(error.contains("requires a descriptive name"), "{error}");
         }
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// A reflected `epok::ObjectId` is an authoring object reference wherever it appears:
+    /// as a property, as a reflected return, and as a reflected parameter.
+    #[test]
+    #[ignore = "Requires pinned libclang; run with LIBCLANG_PATH configured"]
+    fn reflected_object_id_signatures_are_object_references() {
+        let clang = clang::Clang::new().unwrap();
+        let index = clang::Index::new(&clang, false, false);
+        let path =
+            std::env::temp_dir().join(format!("epok-object-ref-{}.hpp", uuid::Uuid::new_v4()));
+        let source = concat!(
+            "#define EPOK_CLASS __attribute__((annotate(\"EPOK_CLASS:Blueprintable\")))\n",
+            "#define PURE __attribute__((annotate(\"EPOK_FUNCTION:BlueprintPure\")))\n",
+            "#define CALLABLE __attribute__((annotate(\"EPOK_FUNCTION:BlueprintCallable\")))\n",
+            "#define PROPERTY __attribute__((annotate(\"EPOK_PROPERTY:\")))\n",
+            "namespace epok { struct ObjectId { unsigned short index; unsigned short generation; }; }\n",
+            "class EPOK_CLASS Holder { public:\n",
+            "  PROPERTY epok::ObjectId target = {};\n",
+            "  PURE epok::ObjectId owner_id() const { return {}; }\n",
+            "  CALLABLE void adopt(epok::ObjectId new_owner) { (void)new_owner; }\n",
+            "};\n"
+        );
+        std::fs::write(&path, source).unwrap();
+        let unit = index
+            .parser(&path)
+            .arguments(&["-x", "c++", "-std=c++20"])
+            .parse()
+            .unwrap();
+        let manifest = super::extract(&unit, &path).unwrap();
+        let class = &manifest.classes[0];
+        let reference = schema::Type::ObjectRef { class: None };
+        assert_eq!(class.properties[0].value_type, reference);
+        let owner = class
+            .functions
+            .iter()
+            .find(|f| f.name == "owner_id")
+            .expect("owner_id");
+        assert_eq!(owner.returns, reference);
+        assert!(owner.pure && owner.callable);
+        let adopt = class
+            .functions
+            .iter()
+            .find(|f| f.name == "adopt")
+            .expect("adopt");
+        assert_eq!(adopt.parameters[0].value_type, reference);
         std::fs::remove_file(path).unwrap();
     }
 }

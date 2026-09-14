@@ -28,12 +28,12 @@ local Patrol = epok.class {
     }
 }
 
-function Patrol:tick(arg0)
+function Patrol:tick(delta_seconds)
     -- Reaches Guard::tick, which is the Lua body in Guard.lua.
-    epok.super(Patrol, self):tick(arg0)
+    epok.super(Patrol, self):tick(delta_seconds)
     if self.steps_remaining > 0 then
         self.steps_remaining = self.steps_remaining - 1
-        self.travelled = self.travelled + self.stride * arg0
+        self.travelled = self.travelled + self.stride * delta_seconds
     end
 end
 

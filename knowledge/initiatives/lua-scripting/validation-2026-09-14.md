@@ -176,15 +176,19 @@ window includes the probe writes and any interrupt taken inside it.
 
 | Mode | Peak live | Retained after init | Allocations | Budget | Headroom |
 | --- | --- | --- | --- | --- | --- |
-| `vm_bytecode` | **14 264** | 14 032 | 195 | 98 304 (96 KiB) | 6.9× |
-| `vm_source` | **96 592** | 17 560 | 342 | 196 608 (192 KiB) | 2.0× |
+| `vm_bytecode` | **18 368** | 17 592 | 301 | 98 304 (96 KiB) | 5.4× |
+| `vm_source` | **21 376** | 17 024 | 478 | 131 072 (128 KiB) | 6.1× |
 
 This is the entire justification for the per-mode budget in
-`settings::LuaExecution::arena_bytes`. The source mode's transient parse peak is
-~6.8× its own retained footprint and **exceeds the bytecode mode's whole budget**;
-after initialization the two differ by only ~3.5 KiB. A single shared budget
-would have had to be the larger one, so the bytecode mode would have carried
-96 KiB of `.bss` it never touches.
+`settings::LuaExecution::arena_bytes`. The peak happens while one chunk is parsed and run; a full
+collection after each chunk keeps it at the largest chunk rather than the sum.
+The source mode's transient parse footprint grows with chunk text, so it gets
+the larger budget; after initialization the two modes retain within ~600 B of
+each other. An earlier measurement of ~194 KiB for the source mode was a
+bookkeeping error in the arena's grow-in-place realloc path (free space scanned
+was counted as live before being returned); it was fixed and re-measured with a
+rebuilt release editor, since the staged runtime header is embedded in the
+editor binary.
 
 **[estimated]** Scaling is with the number and size of chunks, not with instance
 count. A project with many classes must re-measure; these figures must not be

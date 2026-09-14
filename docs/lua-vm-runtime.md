@@ -57,7 +57,7 @@ editor, not by the project:**
 | --- | --- | --- |
 | Native C++ | *(none — no arena is linked)* | There is no VM. |
 | Lua VM — bytecode | **98 304** (96 KiB) | `luaU_undump` allocates the chunk's structures and little else. |
-| Lua VM — source | **196 608** (192 KiB) | Parsing on target allocates transiently during initialization, far above steady state. |
+| Lua VM — source | **131 072** (128 KiB) | Parsing on target allocates transiently during initialization, far above steady state. |
 
 `src/settings.rs` (`LuaExecution::arena_bytes`) picks the value and writes it
 into the generated `lua-config.hh` in the build directory, wrapped in
@@ -73,20 +73,23 @@ build the durable route is `LuaExecution::arena_bytes`). Exhaustion aborts with
 `Lua arena exhausted: ... Raise EPOK_LUA_ARENA_BYTES.`; it never degrades
 silently.
 
-Sizing this is not guesswork — measured peak live bytes on the two-class
-conformance fixture (`tests/integration/lua_conformance/`, `Guard.lua` plus
-`Patrol.lua`, read out of guest RAM by `verify_lua_modes.py`):
+Sizing this is measured, not guessed — peak live bytes on the three-class
+conformance fixture (`tests/integration/lua_conformance/`: `Guard.lua`,
+`Patrol.lua`, `Sentinel.lua`, read out of guest RAM by `verify_lua_modes.py`):
 
 | Mode | Peak live | Retained after init | Allocations | Headroom against the budget |
 | --- | --- | --- | --- | --- |
-| Lua VM — bytecode | **14 264 B** | 14 032 B | 195 | 6.9× |
-| Lua VM — source | **96 592 B** | 17 560 B | 342 | 2.0× |
+| Lua VM — bytecode | **18 368 B** | 17 592 B | 301 | 5.4× |
+| Lua VM — source | **21 376 B** | 17 024 B | 478 | 6.1× |
 
-The source figure is the whole reason the source mode reserves 192 KiB: the
-parser's transient peak is roughly **6.8×** its own retained footprint, and it
-alone exceeds the bytecode mode's entire 96 KiB budget. After initialization the
-two modes differ by only about 3.5 KiB of retained memory — the 192 KiB buys
-initialization, not steady state.
+The peak occurs while a single chunk is parsed and run; `initialize()` performs a
+full collection after each chunk, so the peak follows the largest chunk rather
+than the sum of every class, and the two modes retain almost the same memory
+afterwards. The source mode reserves more because its transient parse footprint
+grows with chunk text size, which a project cannot see from bytecode sizes.
+An earlier revision reported a source peak near the whole budget; that was a
+bookkeeping error in the arena's grow-in-place path, which counted the free
+space it scanned as live before returning it, and it has been corrected.
 
 These are one fixture's numbers. Scale with the number and size of chunks, not
 with instance count; a project with many classes must re-measure rather than

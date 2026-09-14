@@ -5,7 +5,7 @@ ONE real project is created through the production CLI, the SAME `.lua` files
 are compiled by every `LuaExecution` mode (`native_cpp`, `vm_bytecode`,
 `vm_source`, written into the `<Name>.epokproject` manifest field
 `lua_execution`), each mode is built with `--build-psx` and run in PCSX-Redux,
-and a 64-slot probe array is read out of guest RAM. The probe values must be
+and a 96-slot probe array is read out of guest RAM. The probe values must be
 IDENTICAL across the three modes and equal to constants computed here by
 reimplementing the numeric contract (`knowledge/initiatives/lua-scripting/
 contract.md` §3) in Python.
@@ -40,7 +40,7 @@ FIXTURES = ROOT / "tests/integration/lua_conformance"
 NUGGET = ROOT / "third_party/nugget"
 PREFIX = "mipsel-none-elf"
 MODES = ("native_cpp", "vm_bytecode", "vm_source")
-PROBE_SLOTS = 64
+PROBE_SLOTS = 96
 # `EnemyBase::slot`: the probe base each actor writes through.
 GUARD_BASE, PATROL_BASE = 0, 32
 
@@ -49,6 +49,7 @@ ENEMY_BASE_ID = "6a3c1f20-77d1-4b9e-8f42-9c0e1a5b7d10"
 DIRECTOR_ID = "6a3c1f20-77d1-4b9e-8f42-9c0e1a5b7d20"
 GUARD_ID = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f11"
 PATROL_ID = "2a8b5c41-3d5e-4f69-8b82-4c6d8e0f1a22"
+SENTINEL_ID = "3b9c6d52-4e6f-4a7b-9c93-5d7e9f0a1b33"
 SCENE_ROOT_ID = "ed73d249-b6cb-4a3c-a0e8-696de55e286f"
 
 RESULTS = []
@@ -222,6 +223,46 @@ def expected_probe():
     probe[15] = 2                              # the elseif branch ran
     probe[53] = iadd(imul(for_sum, 10), 2)
 
+    # Intrinsic transform access, driven from Lua on every tick with constant
+    # steps: the final value is the tick count times the step, and the native
+    # read-back proves the writes landed in the actor's root component.
+    guard_rotation, guard_position = fixed(0.0), fixed(0.0)
+    for _ in range(140):
+        guard_rotation = saturate(guard_rotation + fixed(0.25))
+        guard_position = saturate(guard_position + fixed(0.5))
+    patrol_rotation, patrol_position = guard_rotation, guard_position
+    for _ in range(160 - 140):
+        patrol_rotation = saturate(patrol_rotation + fixed(0.25))
+        patrol_position = saturate(patrol_position + fixed(0.5))
+    probe[64] = guard_rotation
+    probe[65] = guard_position
+    probe[66] = patrol_rotation
+    probe[67] = patrol_position
+    probe[68] = patrol_rotation
+    probe[69] = patrol_position
+
+    # The builtin surface, driven from Lua with no C++ helper and no Blueprint.
+    probe[70] = 1                              # is_valid(self.ref)
+    probe[71] = 1                              # is_a(self.ref, "Guard") on a Guard
+    probe[72] = 0                              # is_a(self.ref, "Patrol") on a Guard
+    probe[73] = 0                              # cast to an unrelated class is null
+    probe[74] = 1                              # cast to the shared base succeeds
+    probe[75] = 0                              # input.held, no pad connected
+    probe[76] = 0                              # input.pressed
+    probe[77] = 0                              # input.released
+    probe[78] = 0                              # request_scene(9): one scene only
+    probe[79] = 1                              # is_valid(self.ref) at the spawn site
+    probe[80] = 1                              # the spawned Lua actor began play
+    probe[81] = 20                             # its own ticks before self-destruct
+    probe[82] = 0                              # the stored reference is stale now
+    probe[83] = 40                             # the tick the check ran on
+    probe[84] = 0                              # the spawn is queued, not immediate
+    probe[85] = 1                              # a Patrol is a Guard
+    probe[86] = 1                              # and is a Patrol
+    probe[87] = 1                              # so it casts to itself
+    probe[88] = 1                              # the spawned actor is a Sentinel
+    probe[89] = 1                              # and its own reference is valid
+
     probe[48] = 0x4C4D4F31                     # magic
     probe[49] = 2                              # EnemyBase::begin_play, twice
     probe[50] = 4                              # EnemyBase::damage body, 4 times
@@ -255,6 +296,16 @@ SLOT_NAMES = {
     55: "deactivate.tick_delta", 56: "destroy.tick_delta", 57: "director.ticks",
     58: "lua.arena_peak", 59: "lua.arena_live", 60: "lua.arena_allocations",
     61: "lua.arena_failures", 62: "lua.mode", 63: "done",
+    64: "guard.rotation.y", 65: "guard.position.x",
+    66: "patrol.rotation.y", 67: "patrol.position.x",
+    68: "native.rotation.y", 69: "native.position.x",
+    70: "builtin.spawn.valid", 71: "builtin.is_a.match", 72: "builtin.is_a.mismatch",
+    73: "builtin.cast.incompatible", 74: "builtin.cast.base", 75: "builtin.input.held",
+    76: "builtin.input.pressed", 77: "builtin.input.released", 78: "builtin.request_scene",
+    79: "builtin.self.ref", 80: "spawned.begin_play", 81: "spawned.ticks",
+    82: "spawned.destroyed", 83: "builtin.checkpoint", 84: "builtin.spawn.deferred",
+    85: "patrol.is_a.base", 86: "patrol.is_a.self", 87: "patrol.cast.self",
+    88: "spawned.is_a.self", 89: "spawned.ref.valid",
 }
 
 
@@ -317,7 +368,7 @@ def create_project(directory):
     root = directory / "LuaModes"
     cli("--create-project", root, "--name", "Lua Modes")
     scripts = root / "assets/scripts"
-    for name in ("EnemyBase.hpp", "Probe.cpp", "Guard.lua", "Patrol.lua"):
+    for name in ("EnemyBase.hpp", "Probe.cpp", "Guard.lua", "Patrol.lua", "Sentinel.lua"):
         shutil.copy2(FIXTURES / name, scripts / name)
 
     path = root / "assets/scenes/Main.epokmap"

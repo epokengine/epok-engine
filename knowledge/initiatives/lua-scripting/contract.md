@@ -35,8 +35,58 @@ Supported (initial profile):
 - Conditions are `Bool` only. `and`/`or` accept `Bool` operands only, short-circuit.
 - Statically resolved calls with fixed return arity.
 - Fields of known shape backed by native storage.
+- Intrinsic transform places on spatial classes: `self.position`, `self.rotation`
+  and `self.scale`, reserved names that are not reflected properties. World3D
+  exposes three `Vector{3}` places; World2D exposes `Vector{2}` position and
+  scale plus a scalar `Fixed` rotation. A component addresses its owner's
+  transform. Component access only, exactly as for a `Vector` property (the
+  World2D rotation being a scalar is the sole whole-value case). Both backends
+  lower them to the `epok::bp::api` position/rotation/scale entry points the
+  Blueprint Get/Set nodes call, so the two authoring surfaces are equivalent by
+  construction. Non-spatial classes get a profile diagnostic.
 - Constant-bounded numeric `for`.
 - Explicit parent call: `epok.super(Class, self):method(...)`.
+- Intrinsic UI places on UI-domain classes: `self.rect_position` and
+  `self.rect_size`, `Vector{2}` addressed by component, lowering to the
+  `epok::bp::api` rect entry points the Blueprint Get/Set Rect nodes call.
+- **Builtins.** Statically resolved calls with fixed arity and operand types,
+  each one a `blueprint_asset::Builtin` node. Both backends lower a builtin
+  through the single shared `blueprint_ir::builtin_cpp`, so a Lua call and the
+  matching Blueprint node are the same generated `epok::bp::api` call by
+  construction: the AOT backend emits it inline, and the VM modes reach it
+  through a generated per-class `builtin_call` switch indexed by a dense,
+  frontend-assigned call-site index. Nothing of a builtin is reimplemented in
+  Lua, and no adapter-specific C function is registered per operation.
+
+  | Lua surface | Blueprint builtin |
+  | --- | --- |
+  | `epok.input.held/pressed/released(button, port)` | InputHeld/InputPressed/InputReleased |
+  | `epok.request_scene(index)` | RequestScene |
+  | `epok.is_valid(ref)` | IsValid |
+  | `epok.is_a(ref, "Class")`, `epok.cast(ref, "Class")` | IsA, Cast |
+  | `epok.spawn("Class"[, parent])` | Spawn |
+  | `epok.spawn_class(self.<ClassRef property>[, parent])` | SpawnClass |
+  | `epok.owner()` | GetOwner |
+  | `epok.play_audio(ref)`, `epok.stop_audio(ref)` | PlayAudio, StopAudio |
+  | `epok.set_texture(ref, self.<AssetRef property>)` | SetTexture |
+  | `epok.set_audio_clip(ref, self.<AssetRef property>)` | SetAudioClip |
+  | `epok.play_sequence(ref)`, `epok.play_effect(ref)` (statement only) | PlaySequenceComponent, PlayEffectComponent |
+  | `self.ref` | SelfObject |
+  | `self.rect_position.x/.y`, `self.rect_size.x/.y` | Get/SetRectPosition, Get/SetRectSize |
+
+  An `AssetRef`/`ClassRef` operand is accepted in exactly one spelling, a direct
+  read of a declared property of the class. The native backend reads the field
+  inline; the VM backends read it inside the binding case, so the 64-bit id
+  never enters Lua. Impure builtins take the same `CheckOwner`-style guard after
+  the statement as a self call, because they may spawn or destroy.
+
+  Not in v1, each with a named diagnostic and never a silent truncation:
+  the handle-taking sequence and effect builtins plus `PlayTimelineAsset` and
+  `SpawnParticleEffect` (a `timeline::Handle`/`effects::Handle` is a 16-bit
+  index plus a 32-bit generation and does not fit the §10.1 32-bit value ABI),
+  and `GetTransform`/`MakeTransform` (whole-record rule). `SetActive` and
+  `DestroyActor` have no builtin: `Actor::set_active` and `Actor::destroy` are
+  reflected, so Lua reaches them as ordinary inherited callables on `self`.
 
 Rejected by the common frontend in all three modes, with one source diagnostic:
 dynamic tables, metatables, `load`/`loadstring`/`dofile`, closures, varargs, general
@@ -151,7 +201,8 @@ Every value crossing between generated C++ and Lua is an `int32_t`:
 `Enum` as its integer value, `ObjectRef/ActorRef/ComponentRef` as
 `int32_t((generation << 16) | index)` of `epok::ObjectId`. `AssetRef`/`ClassRef` (64-bit)
 are Inspector-editable native fields but are not readable/writable from Lua bodies in
-profile v1 (frontend diagnostic). `self` is a light userdata pointing at the native
+profile v1 (frontend diagnostic); they carry no field slot at all, and the builtins that
+take one read the native field inside the generated `builtin_call` case. `self` is a light userdata pointing at the native
 `epok::Object`; it is only valid inside the current call (the profile has no storage
 that could retain it).
 
@@ -171,7 +222,9 @@ runtime's `epok::bp::*` functions:
 C++ for Int32/Fixed/Enum), field access `__epok_getf(self, slot)` /
 `__epok_setf(self, slot, v)`, self dispatch `__epok_call(self, method_slot, ...)` (goes
 through the C++ virtual so overrides in derived classes are honored exactly like AOT),
-and parent dispatch `__epok_super(self, method_slot, ...)` (qualified `Parent::m`).
+parent dispatch `__epok_super(self, method_slot, ...)` (qualified `Parent::m`), and
+builtin dispatch `__epok_builtin(self, site, ...)` (the generated `epok::bp::api` case
+for that call site).
 Field slots and method slots are per-class dense indices published in the generated
 `ClassBinding`; inherited reflected properties get slots too.
 
@@ -212,6 +265,7 @@ struct ClassBinding {
     void (*set_field)(Object&, uint32_t slot, int32_t value);
     int32_t (*self_call)(Object&, uint32_t slot, const int32_t* args, uint32_t argc);
     int32_t (*super_call)(Object&, uint32_t slot, const int32_t* args, uint32_t argc);
+    int32_t (*builtin_call)(Object&, uint32_t site, const int32_t* args, uint32_t argc);
 };
 extern const ClassBinding class_bindings[]; extern const uint32_t class_binding_count;
 void initialize();   // static arena, lua_newstate, register helpers, load every chunk once,
