@@ -166,6 +166,14 @@ pub struct Editor {
     pub script_folder: String,
     pub script_search: String,
     pub script_error: Option<String>,
+    /// Lua authoring mirrors the C++ dialog: one pending creation at a time.
+    pub lua_creation: bool,
+    pub lua_creation_context: crate::actor_scripts::CreationContext,
+    pub lua_name: String,
+    pub lua_parent: String,
+    pub lua_folder: String,
+    pub lua_search: String,
+    pub lua_error: Option<String>,
     pub script_undo: Vec<(Scene, Scene)>,
     pub script_redo: Vec<(Scene, Scene)>,
     pub job: Option<pipeline::Job>,
@@ -612,6 +620,13 @@ impl Editor {
             script_folder: String::new(),
             script_search: String::new(),
             script_error: None,
+            lua_creation: false,
+            lua_creation_context: Default::default(),
+            lua_name: String::new(),
+            lua_parent: "epok::ActorComponent".into(),
+            lua_folder: String::new(),
+            lua_search: String::new(),
+            lua_error: None,
             script_undo: vec![],
             script_redo: vec![],
             job: None,
@@ -2340,6 +2355,7 @@ impl Editor {
                 "delete",
                 "reload",
                 "new-script",
+                "new-lua",
             ]
             .contains(&action)
         {
@@ -2508,6 +2524,15 @@ impl Editor {
                 self.script_folder.clear();
                 self.script_search.clear();
                 self.script_error = None;
+            }
+            "new-lua" => {
+                self.lua_creation = true;
+                self.lua_creation_context = Default::default();
+                self.lua_name.clear();
+                self.lua_parent = "epok::ActorComponent".into();
+                self.lua_folder.clear();
+                self.lua_search.clear();
+                self.lua_error = None;
             }
             "edit-script" => {
                 self.open_code(&self.root.join("assets/scripts"), None);

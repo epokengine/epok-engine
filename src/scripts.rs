@@ -68,6 +68,12 @@ pub fn catalog(root: &Path) -> Result<Vec<Script>, String> {
 }
 fn catalog_inner(root: &Path) -> Result<Vec<Script>, String> {
     let mut scripts = native_catalog(root)?;
+    // Lua compiles before Blueprint so a Blueprint may derive from a Lua class:
+    // the Lua types are already published when the Blueprint registry is built.
+    if let Some(compiled) = compile_lua(root, &scripts)? {
+        scripts.extend(compiled.scripts);
+        scripts.sort_by(|a, b| a.name.cmp(&b.name));
+    }
     if let Some(compiled) = compile_blueprints(root, &scripts)? {
         scripts.extend(compiled.scripts);
         scripts.sort_by(|a, b| a.name.cmp(&b.name));
@@ -80,10 +86,18 @@ fn catalog_inner(root: &Path) -> Result<Vec<Script>, String> {
 pub fn declaration_registry(root: &Path) -> Result<crate::blueprint::Registry, String> {
     let scripts = native_catalog(root)?;
     let files = crate::blueprint_asset::load_all(root)?;
-    if files.is_empty() {
+    let lua = crate::lua_asset::load_all(root)?;
+    if files.is_empty() && lua.is_empty() {
         return Ok(crate::blueprint::registry_from_catalog(root, &scripts));
     }
-    let native = crate::blueprint::native_registry(root, &scripts)?;
+    let mut native = crate::blueprint::native_registry(root, &scripts)?;
+    if !lua.is_empty() {
+        native = crate::lua_compile::declaration_registry(&native, &lua)
+            .map_err(|errors| crate::lua_compile::report(&errors))?;
+    }
+    if files.is_empty() {
+        return Ok(native);
+    }
     crate::blueprint_compile::declaration_registry(&native, &files).map_err(|errors| {
         errors
             .iter()
@@ -91,6 +105,45 @@ pub fn declaration_registry(root: &Path) -> Result<crate::blueprint::Registry, S
             .collect::<Vec<_>>()
             .join("\n")
     })
+}
+
+/// Compile every `.lua` class in the selected execution mode. A VM packaging
+/// failure is this call's failure: nothing silently falls back to the AOT path.
+pub fn compile_lua(
+    root: &Path,
+    native: &[Script],
+) -> Result<Option<crate::lua_compile::Compilation>, String> {
+    let files = crate::lua_asset::load_all(root).inspect_err(|error| {
+        let _ = crate::lua_dependencies::invalidate_all(root, error);
+    })?;
+    if files.is_empty() {
+        crate::lua_dependencies::observe_sources(root, &files)?;
+        return Ok(None);
+    }
+    crate::lua_dependencies::observe_sources(root, &files)?;
+    let mode = crate::settings::lua_execution(root).inspect_err(|error| {
+        let _ = crate::lua_dependencies::invalidate(root, &files, error);
+    })?;
+    let registry = crate::blueprint::native_registry(root, native).inspect_err(|error| {
+        let _ = crate::lua_dependencies::invalidate(root, &files, error);
+    })?;
+    let compiled =
+        crate::lua_compile::compile(root, &registry, &files, mode).map_err(|errors| {
+            let message = crate::lua_compile::report(&errors);
+            let affected = files
+                .iter()
+                .filter(|file| errors.iter().any(|error| error.file == file.path))
+                .cloned()
+                .collect::<Vec<_>>();
+            let _ = if affected.is_empty() {
+                crate::lua_dependencies::invalidate_all(root, &message)
+            } else {
+                crate::lua_dependencies::invalidate(root, &affected, &message)
+            };
+            message
+        })?;
+    crate::lua_dependencies::record(root, &compiled)?;
+    Ok(Some(compiled))
 }
 
 pub fn compile_blueprints(

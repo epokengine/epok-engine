@@ -195,6 +195,7 @@ pub fn apply_settings(
             crate::assets::hash(manifest.rendering.header()?.as_bytes()),
         ),
         ("scene-debug-settings", hash(manifest.debug)),
+        ("scene-lua-settings", manifest.lua_execution.signature()),
         ("scene-transition-settings", hash(&manifest.transition)),
         (
             "scene-play-settings",

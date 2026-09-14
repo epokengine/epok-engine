@@ -48,7 +48,7 @@ properties:
     default: 90.0
 ```
 
-Unavailable providers/backends remain serialized and diagnose their missing capability. Lua creation, a VM, and Lua dependencies are not enabled.
+Unavailable providers/backends remain serialized and diagnose their missing capability. Classes can also be authored in Lua against the same registry and Inspector; see [Lua scripting](lua-scripting.md).
 
 ## Runtime semantics
 
@@ -74,3 +74,9 @@ Only the Epok runtime is covered by the included Epok MIT license. User-authored
 
 For visual class assets, graph authoring, entity templates, references, timelines,
 and instrumented node debugging, see [Blueprints](blueprints.md).
+
+## Lua classes
+
+For classes authored in Lua that subclass these reflected C++ types, the
+`epok-lua` v1 profile and the project-wide execution modes, see
+[Lua scripting](lua-scripting.md).

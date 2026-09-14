@@ -148,6 +148,27 @@ foreach ($file in @('psyqo/psyqo.mk', 'common.mk', 'third_party/EASTL/include/EA
     if (-not (Test-Path -LiteralPath (Join-Path $sdkPath $file))) { throw "Incomplete Nugget checkout: $file" }
 }
 Write-Host "Verified Nugget $actual"
+
+# The Lua VM execution modes build their interpreter from psxlua, a nested
+# submodule of the pinned Nugget mirror. Only this one is initialized: the
+# mirror carries other nested submodules whose paths are not all valid after
+# mirroring, which is why the SDK itself is never initialized recursively.
+$psxluaRevision = 'abed030e686b4e34987851bd0a028c93b1f73967'
+$psxluaPath = Join-Path $sdkPath 'third_party/psxlua'
+if (-not (Test-Path -LiteralPath (Join-Path $psxluaPath 'src/lparser.c'))) {
+    & git -C $sdkPath -c submodule.recurse=false submodule update --init -- third_party/psxlua
+    if ($LASTEXITCODE -ne 0) { throw 'psxlua submodule initialization failed.' }
+}
+if (-not (Test-Path -LiteralPath (Join-Path $psxluaPath 'src/lparser.c'))) {
+    throw 'psxlua is missing; initialize third_party/nugget/third_party/psxlua first.'
+}
+if (Test-Path -LiteralPath (Join-Path $psxluaPath '.git')) {
+    $psxluaActual = & git -C $psxluaPath rev-parse HEAD
+    if ($LASTEXITCODE -ne 0 -or $psxluaActual -ne $psxluaRevision) {
+        throw "psxlua must be at $psxluaRevision. Preserve local work before updating the submodule."
+    }
+}
+Write-Host "Verified psxlua $psxluaRevision"
 }
 foreach ($package in $manifest.archives) {
     if (-not $Dependency -or $package.directory -eq $Dependency) { Install-Archive $package }

@@ -631,6 +631,9 @@ fn stage_with_playback(
         crate::scene_dependencies::hash(debug),
     )?;
     write_changed(&build.join("debug-hud.hh"), debug.header().as_bytes())?;
+    let lua = crate::settings::lua_execution(root)?;
+    playback.scene_input("scene-lua-settings".into(), lua.signature())?;
+    write_changed(&build.join("lua-config.hh"), lua.header().as_bytes())?;
     let profile = input.and_then(|i| i.play.as_ref());
     if let Some(signature) = input.and_then(|i| i.play_settings_signature.as_ref()) {
         playback.scene_input("scene-play-settings".into(), signature.clone())?;
@@ -683,7 +686,11 @@ fn stage_with_playback(
         &crate::assets::scan(root, &mut Default::default()),
     )?;
     let scene = &resolved;
-    let catalog = scripts::catalog(root)?;
+    // A failed script compilation must never leave generated code from the
+    // previous mode or revision behind in the staged build.
+    let catalog = scripts::catalog(root).inspect_err(|_| {
+        let _ = fs::remove_dir_all(build.join("scripts/generated/lua"));
+    })?;
     let blueprint_registry = crate::blueprint::registry_from_catalog(root, &catalog);
     // Template refresh can replace resource defaults. Observe the submitted
     // document with the same types used to select the actual cooked resources.
@@ -709,6 +716,12 @@ fn stage_with_playback(
     let mut banks = loaded.scenes;
     let asset_index = crate::assets::scan(root, &mut Default::default());
     playback.resources(vec![transition.stage_image(root, build, &asset_index)?])?;
+    let lua_files = crate::lua_asset::load_all(root)?;
+    playback.scene_input(
+        "lua-sources".into(),
+        crate::lua_dependencies::source_set(&lua_files),
+    )?;
+    playback.scene_input("lua-mode".into(), lua.signature())?;
     let blueprint_files = crate::blueprint_asset::load_all(root)?;
     playback.scene_input(
         "blueprint-sources".into(),
@@ -945,6 +958,21 @@ fn stage_with_playback(
         artifacts.files.insert(path.clone(), source.into_bytes());
         artifacts.native_sources.push(path);
     }
+    // Generated Lua output is mode-scoped. A class that was removed, renamed or
+    // rebuilt in another execution mode must not leave its previous artifact
+    // behind: an AOT header or a VM bindings source has to disappear with it.
+    let generated_lua = build.join("scripts/generated/lua");
+    if generated_lua.is_dir() {
+        for entry in fs::read_dir(&generated_lua).map_err(|e| e.to_string())? {
+            let path = entry.map_err(|e| e.to_string())?.path();
+            let stale = path
+                .strip_prefix(build)
+                .is_ok_and(|relative| !artifacts.files.contains_key(relative));
+            if stale && path.is_file() {
+                fs::remove_file(&path).map_err(|e| e.to_string())?;
+            }
+        }
+    }
     artifacts.stage(root, build)?;
     playback.scripts(&artifacts)?;
     for (key, signature) in written.inputs() {
@@ -971,8 +999,10 @@ fn stage_with_playback(
         ""
     };
     let sources = format!(
-        "SCRIPT_SRCS := {}\n{blueprint_flags}{playback_flags}",
-        native_sources.join(" ")
+        "SCRIPT_SRCS := {}\n{blueprint_flags}{playback_flags}{}{}",
+        native_sources.join(" "),
+        lua.cppflags(),
+        lua.libraries()
     );
     write_changed(&build.join("sources.mk"), sources.as_bytes())?;
     write_changed(&build.join("scene.hh"), generated.as_bytes())?;
@@ -1285,6 +1315,11 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             "shadows.hpp",
             include_bytes!("../runtime/shadows.hpp").as_slice(),
         ),
+        (
+            "lua_runtime.hpp",
+            include_bytes!("../runtime/lua_runtime.hpp").as_slice(),
+        ),
+        ("lua.mk", include_bytes!("../runtime/lua.mk").as_slice()),
         ("Makefile", include_bytes!("../runtime/Makefile").as_slice()),
         (
             "build-inputs.mk",
@@ -1760,6 +1795,68 @@ fn property_setters(
 mod tests {
     use super::*;
     use crate::scene::ClassDefaults;
+    #[test]
+    fn lua_execution_mode_rewrites_sources_and_restores_on_return() {
+        use crate::settings::LuaExecution;
+        let root = crate::workspace::tests::temp("lua-execution-sources");
+        let project =
+            crate::workspace::create(&root, "Lua Modes", crate::workspace::Template::Basic)
+                .unwrap();
+        let mut manifest = project.manifest.clone();
+        drop(project);
+        let scene =
+            crate::scene::Scene::load(&crate::workspace::startup_scene(&root).unwrap()).unwrap();
+        let build = root.join(".epok/build");
+        let mut emitted = Vec::new();
+        for mode in [
+            LuaExecution::NativeCpp,
+            LuaExecution::VmBytecode,
+            LuaExecution::VmSource,
+            LuaExecution::NativeCpp,
+        ] {
+            manifest.lua_execution = mode;
+            crate::workspace::save_manifest(&root, &manifest).unwrap();
+            stage_into(&root, &scene, &build).unwrap();
+            let sources = std::fs::read_to_string(build.join("sources.mk")).unwrap();
+            assert!(sources.contains(mode.cppflags()), "{mode:?}: {sources}");
+            assert_eq!(
+                std::fs::read_to_string(build.join("lua-config.hh")).unwrap(),
+                mode.header()
+            );
+            // Only the selected mode's runtime is linked; an AOT build links no
+            // interpreter and the two VM packagings never share an archive.
+            for other in LuaExecution::ALL.into_iter().filter(|o| *o != mode) {
+                for line in other
+                    .libraries()
+                    .lines()
+                    .filter(|l| l.starts_with("LIBRARIES +="))
+                {
+                    assert!(!sources.contains(line), "{mode:?} leaked {line}");
+                }
+            }
+            assert_eq!(sources.contains("EPOK_LUA_VM"), mode.is_vm());
+            let linked = sources
+                .lines()
+                .filter(|l| l.starts_with("LIBRARIES +="))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                linked.iter().any(|l| l.contains("lua/liblua-epok")),
+                mode.is_vm(),
+                "{mode:?}: {sources}"
+            );
+            assert!(
+                linked.iter().all(|l| !l.contains("libpsyqo-lua")),
+                "{mode:?} must not link the wrapper library: {sources}"
+            );
+            emitted.push(sources);
+        }
+        // Returning to the original mode restores the original recipe byte for
+        // byte, so a round trip cannot leave a stale relink pending.
+        assert_eq!(emitted[0], emitted[3]);
+        assert_ne!(emitted[0], emitted[1]);
+        assert_ne!(emitted[1], emitted[2]);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
     #[test]
     #[ignore = "requires the configured pinned host extractor and PSX SDK; does not launch the emulator"]
     fn linked_refresh_precedes_obsolete_asset_resolution_and_preserves_overrides() {

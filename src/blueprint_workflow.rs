@@ -513,8 +513,7 @@ pub fn edit_binding(editor: &mut crate::editor::Editor, binding: &crate::scene::
         }
     } else {
         let source = class.and_then(|class| {
-            crate::scripts::editable_class_source(&editor.root, class)
-                .map(|path| (path, class.source.line as usize))
+            class_source(&editor.root, class).map(|path| (path, class.source.line as usize))
         });
         if let Some((path, line)) = source {
             editor.open_code(&path, Some(line.max(1)));
@@ -522,6 +521,13 @@ pub fn edit_binding(editor: &mut crate::editor::Editor, binding: &crate::scene::
             editor.log("Engine classes are read-only. Create a derived class in the project to customize their behavior.");
         }
     }
+}
+
+/// The project-owned declaration behind a textual class: the `.hpp` for C++ and
+/// the authored `.lua` for a Lua class. Engine classes have none.
+pub fn class_source(root: &std::path::Path, class: &schema::Class) -> Option<std::path::PathBuf> {
+    crate::scripts::editable_class_source(root, class)
+        .or_else(|| crate::lua_asset::editable_class_source(root, class))
 }
 
 fn binding(class: &schema::Class) -> crate::scene::ClassDefaults {
@@ -799,4 +805,41 @@ pub fn instance_inspector(ui: &imgui::Ui, editor: &mut crate::editor::Editor, in
     }
     ui.text_wrapped("Unchanged members follow the class template. User edits create explicit overrides; Reset restores inheritance. Unlink keeps the current scene objects.");
     ui.separator();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One "open source" action serves every textual provider: a Lua class opens
+    /// its authored `.lua`, a C++ class its project header, an engine class none.
+    #[test]
+    fn class_source_opens_the_authored_lua_asset_and_never_an_engine_declaration() {
+        let root = crate::workspace::tests::temp("lua-class-source");
+        let folder = root.join("assets/scripts/Enemies");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("Guard.lua"), "-- authored\n").unwrap();
+        std::fs::create_dir_all(root.join(".epok/reflection/runtime")).unwrap();
+        let engine = root.join(".epok/reflection/runtime/object_model.hpp");
+        std::fs::write(&engine, "// Engine source\n").unwrap();
+
+        let mut class = crate::actor_document::tests::class("guard-id", "Guard", None);
+        class.provider = crate::lua_asset::provider();
+        class.source.file = PathBuf::from("assets/scripts/Enemies/Guard.lua");
+        let expected = std::fs::canonicalize(folder.join("Guard.lua")).unwrap();
+        assert_eq!(
+            crate::lua_asset::editable_class_source(&root, &class),
+            Some(expected.clone())
+        );
+        assert_eq!(class_source(&root, &class), Some(expected));
+        // A C++ class never resolves through the Lua provider, and a Lua class
+        // pointed at an engine declaration resolves to nothing at all.
+        assert!(crate::scripts::editable_class_source(&root, &class).is_none());
+        class.source.file = engine;
+        assert!(class_source(&root, &class).is_none());
+        class.provider = schema::native_provider();
+        class.source.file = PathBuf::from("assets/scripts/Enemies/Guard.lua");
+        assert!(crate::lua_asset::editable_class_source(&root, &class).is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

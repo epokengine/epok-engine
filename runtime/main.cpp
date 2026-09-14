@@ -38,6 +38,7 @@
 #include "loading_renderer.hpp"
 #include "debug_hud.hpp"
 #include "serial_debug.hpp"
+#include "lua_runtime.hpp"
 #include "common/syscalls/syscalls.h"
 #include "lighting.hpp"
 #include "shadows.hpp"
@@ -379,6 +380,11 @@ class GameScene final : public psyqo::Scene {
     // before the first bank load, so no component-owned AudioSource can be recycled
     // while the XA consumer still points at it.
     epok::install_actor_service_hooks();
+#if defined(EPOK_LUA_MODE) && EPOK_LUA_MODE != 0
+    // The VM opens its arena, loads every class chunk and caches the method
+    // functions before any script can be constructed.
+    epok::lua::initialize();
+#endif
     // GPU DMA completion needs interrupts, which Application::prepare disables.
     hud.initialize(gpu());
     epok::debug_hud::initialize(gpu());

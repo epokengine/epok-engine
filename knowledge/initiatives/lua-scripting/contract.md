@@ -1,0 +1,244 @@
+# Epok Lua scripting — implementation contract
+
+Status: implementation contract for the Lua scripting initiative (three selectable
+execution modes over one shared authoring profile). Baseline: `develop` @ 32fc510.
+Feasibility evidence: `tests/integration/lua_feasibility/README.md`.
+
+This file is the shared contract. Every milestone builds against it.
+
+## 1. Product contract
+
+Exactly one Lua execution mode per project/build, selected in Project Settings:
+
+| Setting value | Enum | Implementation |
+| --- | --- | --- |
+| Native C++ | `LuaExecution::NativeCpp` | AOT: typed IR lowered to C++, compiled to MIPS |
+| Lua VM — bytecode | `LuaExecution::VmBytecode` | PsyQo Lua, `liblua-epok-noparser.a`, cooked bytecode |
+| Lua VM — source | `LuaExecution::VmSource` | PsyQo Lua, `liblua-epok-parser.a`, packaged normalized source |
+
+The selection is an exclusive enum on the project-owned `workspace::Manifest`, never
+three booleans. Play, Build and export all resolve the same field. Only the libraries
+and runtime support of the selected mode are linked.
+
+## 2. Language profile: `epok-lua` v1
+
+One versioned profile, identical in all three modes. A valid program for the profile is
+valid in every mode; there is no backend-specific user API and no way for a script to
+observe which mode is active.
+
+Supported (initial profile):
+- Types: `Bool`, `Int32`, `UInt32`, `Fixed` (Q12), `Enum`, `Vector{2,3}`, `AssetRef`,
+  `ClassRef`, `ObjectRef`, `ActorRef`, `ComponentRef` — the existing `schema::Type` set.
+- Declarations: `epok.class { ... }` metadata table, read statically from the AST. It is
+  never executed to discover classes.
+- Locals with inferred, fixed, single types; definite assignment checked.
+- Conditions are `Bool` only. `and`/`or` accept `Bool` operands only, short-circuit.
+- Statically resolved calls with fixed return arity.
+- Fields of known shape backed by native storage.
+- Constant-bounded numeric `for`.
+- Explicit parent call: `epok.super(Class, self):method(...)`.
+
+Rejected by the common frontend in all three modes, with one source diagnostic:
+dynamic tables, metatables, `load`/`loadstring`/`dofile`, closures, varargs, general
+multiple returns, unbounded recursion or loops, string concatenation, coroutines,
+`require`. Unsupported source produces the same message regardless of the selected mode.
+Mode-specific failures (toolchain, bytecode ABI, capacity) report their real cause and
+must never be presented as a request to rewrite a valid script.
+
+## 3. Numeric contract
+
+Identical in all three modes, taken from `runtime/blueprint_runtime.hpp`:
+`saturate`, `iadd/isub/imul/idiv/imod/ineg`, `uadd/usub/umul/udiv/umod`,
+`add/sub/mul/div/neg`, `from_int/to_int`. Q12 raw `int32_t`, 4096 = 1.0. Saturating.
+Division and modulo by zero yield 0. Division truncates toward zero.
+`ineg(INT32_MIN) == INT32_MAX`. Comparisons are raw integer comparisons.
+
+VM parity is achieved by **calling the same C++ functions**: the normalized Lua emitted
+for VM modes performs every arithmetic operation through C functions registered into the
+VM that forward directly to `epok::bp::*`. The original user source is never executed
+under stock fork arithmetic.
+
+## 4. Provider and registry identity
+
+- Authoring provider: `Extension { id: "lua", version: 1 }` — stable across all modes.
+- Execution backend: always `schema::native_backend()` (`native` v1). The physical type
+  is a real C++ subclass in every mode; only method bodies differ.
+- Class ids are the asset's UUID; member ids are authored UUIDs. Neither depends on the
+  mode. Serialized defaults, overrides and references are mode-independent.
+- Lua classes are published into the same `blueprint::Registry` as C++ and Blueprint
+  classes, before body checking, so all three can call each other.
+
+## 5. Inheritance from reflected C++
+
+A Lua class selects its parent through the same registry and the same eligibility rule
+as a Blueprint, `script_backend::can_derive`: `blueprintable && !final_class && backend
+== native`, plus a provider rule that depends on who is authoring. No second C++
+annotation is required.
+
+The provider rule as implemented: a C++ or Lua parent is eligible for every author; a
+**Blueprint** parent is eligible only when the author is itself a Blueprint. So a Lua
+class derives from C++ or Lua only, while a Blueprint may derive from a C++, Lua or
+Blueprint parent.
+
+**Lua → Blueprint parents are deferred.** They are not a missing check but an unresolved
+declaration-order question (Lua compiles before Blueprints), and are out of scope for
+profile v1. The reverse direction — a Blueprint deriving from a Lua class — is supported
+in the registry, but the CLI `epok-editor --new-blueprint --parent <Name>` resolves its
+parent from the reflected C++ registry plus compiled Blueprints only, so a Blueprint with
+a Lua parent cannot currently be authored from the command line; use the editor.
+
+The generated physical type is always `class Guard : public EnemyBase`.
+- `NativeCpp`: Lua bodies compiled to native method bodies.
+- `VmBytecode` / `VmSource`: typed trampolines that enter the VM.
+
+Inherited exposed properties occupy their native base fields; there is exactly one
+authoritative native representation. Only reflected virtual events may be overridden;
+inherited signature, visibility, `final` and abstract-completion rules are enforced.
+Native calls through a base reference reach Lua overrides in all three modes because the
+override is a real C++ virtual override in every mode.
+
+`epok.super(Guard, self):begin_play()` lowers to qualified `EnemyBase::begin_play()` in
+AOT, and in VM modes to a generated per-class super-dispatcher that performs the same
+qualified native call. Resolution is lexical, never the most-derived runtime type.
+
+## 6. Module layout (Rust)
+
+| Module | Responsibility |
+| --- | --- |
+| `src/lua_asset.rs` | `.lua` discovery, `epok.class` declaration extraction, ids, asset file model |
+| `src/lua_frontend.rs` | lexer, parser, scopes, type inference, profile enforcement, diagnostics |
+| `src/script_ir.rs` | shared typed body IR (language-neutral), reused by both backends |
+| `src/lua_compile.rs` | orchestration: declarations, registry publication, backend dispatch |
+| `src/lua_aot.rs` | IR -> C++ subclass with native bodies |
+| `src/lua_vm.rs` | IR -> normalized Lua + C++ facade with trampolines; source/bytecode packaging |
+| `src/lua_bytecode.rs` | bytecode cooking and ABI verification |
+
+## 7. Runtime (C++)
+
+`runtime/lua_runtime.hpp` — compiled only when a VM mode is selected:
+- A statically sized arena allocator. **The runtime has no heap**; `psyqo_realloc` /
+  `psyqo_free` are bound by `psyqo-lua.mk`, and the VM arena must be a static budget.
+- VM bootstrap before `epok::initialize_scripts()` in `GameScene::start`.
+- Registration of Epok arithmetic C functions forwarding to `epok::bp::*`.
+- Generated per-class method tables; event bitmask so absent handlers cost nothing.
+- Field access through generated typed accessors into the native object's fields.
+- Every entry into Lua wraps `epok::ObjectDispatchScope` and validates `ObjectId`.
+
+## 8. Build integration
+
+- `Manifest::lua_execution` participates in `project::fingerprint` automatically
+  (the manifest is byte-hashed), and explicitly in `scene_dependencies::apply_settings`
+  as `scene-lua-settings`, consumed by `project::stage_with_playback`.
+- `sources.mk` gains the mode define and, for VM modes, the extra sources and
+  `LIBRARIES` entry. Library paths are hashed as build inputs automatically.
+- A mode change invalidates execution artifacts; staging keys are mode-scoped so an AOT
+  object cannot survive into a VM build. Compilation failure must not leave a stale
+  artifact runnable and must not fall back silently.
+- Exports stage through the same path and must rebuild standalone.
+
+## 9. Acceptance
+
+The same `.lua` files must produce equivalent results in all three modes for properties,
+inheritance, calls, events, references, pause, destruction and save/load; plus numeric
+edge cases, unsupported-feature diagnostics, mode changes in both directions, cache
+invalidation and clean exports.
+
+## 10. Backend interface (fixed for M3/M4, implemented concurrently)
+
+### 10.1 Value ABI shared by every VM boundary
+Every value crossing between generated C++ and Lua is an `int32_t`:
+`Bool` 0/1, `Int32` as-is, `UInt32` as its bit pattern, `Fixed` as Q12 raw,
+`Enum` as its integer value, `ObjectRef/ActorRef/ComponentRef` as
+`int32_t((generation << 16) | index)` of `epok::ObjectId`. `AssetRef`/`ClassRef` (64-bit)
+are Inspector-editable native fields but are not readable/writable from Lua bodies in
+profile v1 (frontend diagnostic). `self` is a light userdata pointing at the native
+`epok::Object`; it is only valid inside the current call (the profile has no storage
+that could retain it).
+
+### 10.2 Normalized Lua chunk (emitted by `lua_vm.rs`, one per class)
+```lua
+local C = {}
+function C.<method>(self, p0, p1) ... end   -- one per MethodIr, name = schema::Function.name
+return C
+```
+Bodies use only: locals, `if/elseif/else`, numeric `for` with literal bounds, `return`,
+Lua booleans for `Bool`, and calls to the registered globals below. No raw `+ - * / %`
+on user values ever appears — every arithmetic op is a helper call so semantics are the
+runtime's `epok::bp::*` functions:
+`__epok_iadd/isub/imul/idiv/imod/ineg`, `__epok_uadd/usub/umul/udiv/umod`,
+`__epok_fadd/fsub/fmul/fdiv/fneg`, `__epok_from_int/__epok_to_int`,
+`__epok_ult/ule` (unsigned ordering; signed ordering uses Lua `<` on int32 which matches
+C++ for Int32/Fixed/Enum), field access `__epok_getf(self, slot)` /
+`__epok_setf(self, slot, v)`, self dispatch `__epok_call(self, method_slot, ...)` (goes
+through the C++ virtual so overrides in derived classes are honored exactly like AOT),
+and parent dispatch `__epok_super(self, method_slot, ...)` (qualified `Parent::m`).
+Field slots and method slots are per-class dense indices published in the generated
+`ClassBinding`; inherited reflected properties get slots too.
+
+### 10.3 Generated C++ per Lua class (emitted by `lua_aot.rs` for BOTH modes)
+Same shell in every mode: `class Name : public Parent { static_class_id; class_id()
+override; fields for own properties; ctor applying defaults; ... }` written to
+`scripts/generated/lua/<class-uuid>.hpp`. Method bodies:
+- Native mode: lowered IR (`epok::bp::*` helpers, `Parent::m(...)` for CallParent,
+  `this->m(...)` for CallSelf, `#line` directives back to the `.lua` source).
+- VM modes: trampolines against `runtime/lua_runtime.hpp`:
+```cpp
+void tick(epok::Fixed dt) override {
+    epok::lua::Frame f(*this, kEpokLuaClass_<index>, /*slot*/ 2);
+    if (!f.bound()) return;             // absent handler: never enters Lua
+    f.arg(dt.raw()); f.call(0);
+}
+epok::Fixed damage(epok::Fixed amount) override {
+    epok::lua::Frame f(*this, kEpokLuaClass_<index>, 3);
+    if (!f.bound()) return {};
+    f.arg(amount.raw()); if (!f.call(1)) return {};
+    return epok::Fixed(f.ret(), epok::Fixed::RAW);
+}
+```
+plus, in VM modes, one `epok::lua::ClassBinding` per class emitted into
+`scripts/generated/lua/lua_bindings.cpp` (a native source): field get/set switch over
+slots (own + inherited reflected fields, vector components as separate slots), a
+`self_call` switch (C++ virtual call by slot) and a `super_call` switch (qualified
+parent call by slot), the method-name table, and a pointer to the chunk payload
+(`lua_vm.rs` supplies the payload bytes and its symbol name).
+
+### 10.4 Runtime API (`runtime/lua_runtime.hpp`, namespace `epok::lua`, VM modes only)
+```cpp
+struct ClassBinding {
+    uint64_t class_id; const char* name;
+    const unsigned char* chunk; size_t chunk_size;        // source (mode 2) or bytecode (mode 1)
+    const char* const* methods; uint32_t method_count;    // slot -> Lua function name
+    int32_t (*get_field)(Object&, uint32_t slot);
+    void (*set_field)(Object&, uint32_t slot, int32_t value);
+    int32_t (*self_call)(Object&, uint32_t slot, const int32_t* args, uint32_t argc);
+    int32_t (*super_call)(Object&, uint32_t slot, const int32_t* args, uint32_t argc);
+};
+extern const ClassBinding class_bindings[]; extern const uint32_t class_binding_count;
+void initialize();   // static arena, lua_newstate, register helpers, load every chunk once,
+                     // cache method functions in the registry, build per-class bound bitmask
+class Frame {        // one Lua call; wraps ObjectDispatchScope; validates the object
+public:
+    Frame(Object& self, uint32_t class_index, uint32_t slot);
+    bool bound() const;            // false when the class has no Lua body for this slot
+    void arg(int32_t value);
+    bool call(unsigned results);   // pcall; on error: report once, return false
+    int32_t ret() const;
+};
+}
+```
+`initialize()` runs in `GameScene::start` after `install_actor_service_hooks()` and
+before `epok::initialize_scripts()`, guarded by `#if EPOK_LUA_MODE != 0`. The arena is a
+static `EPOK_LUA_ARENA_BYTES` buffer (default 96 KiB); exhaustion aborts with a clear
+message, never silently. `luaI_sprintf/luaI_realloc/luaI_free` are provided by the
+runtime itself; `libpsyqo-lua.a` is NOT linked. Only the registered `__epok_*` helpers
+exist as globals — no `load`, `dofile`, `require`, or standard libraries.
+
+### 10.5 Packaging
+- Mode 2 (source): chunk = normalized Lua text.
+- Mode 1 (bytecode): chunk = `lua_bytecode::cook(text)` — pinned psxlua parser compiled on
+  the host by `build.rs` with a 32-bit-ABI dumper (`native/lua/epok_ldump32.c`) whose
+  header is asserted byte-for-byte equal to `1B 4C 75 61 52 00 01 04 04 04 04 01 19 93 0D
+  0A 1A 0A`; an emulator test compares host-cooked bytes with a target `luaU_dump`.
+- Archives: `runtime/lua.mk` builds `liblua-epok-parser.a` (parser) or `liblua-epok-noparser.a`
+  from `$(NUGGET_DIR)/third_party/psxlua/src` into the build directory with the
+  upstream PSX flags, so the two variants never share object files.

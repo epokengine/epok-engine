@@ -217,6 +217,8 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
     }
     if entry.path.ends_with(".epokbp") {
         "Blueprint"
+    } else if entry.path.ends_with(".lua") {
+        "Lua Class"
     } else if entry.path.ends_with(".epokmap") {
         "Scene"
     } else if entry.path.ends_with(".timeline.json") {
@@ -280,6 +282,7 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
     match kind {
         "Folder" => ("\u{f07b}", GOLD),
         "Blueprint" => ("\u{f0e8}", [0.24, 0.64, 0.90, 1.]),
+        "Lua Class" => ("\u{f121}", [0.36, 0.44, 0.86, 1.]),
         "Scene" => ("\u{f279}", [0.40, 0.68, 0.86, 1.]),
         "Texture" => ("\u{f03e}", [0.46, 0.73, 0.39, 1.]),
         "Mesh" => ("\u{f1b2}", [0.46, 0.72, 0.80, 1.]),
@@ -294,10 +297,11 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         _ => ("\u{f15b}", [0.66, 0.68, 0.71, 1.]),
     }
 }
-const FILTERS: [&str; 15] = [
+const FILTERS: [&str; 16] = [
     "All assets",
     "Folder",
     "Blueprint",
+    "Lua Class",
     "Scene",
     "Texture",
     "Mesh",
@@ -687,6 +691,9 @@ fn creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
     }
     if ui.menu_item("Blueprint Class...") {
         e.action("new-blueprint");
+    }
+    if ui.menu_item("Lua Class...") {
+        e.action("new-lua");
     }
     if ui.menu_item("Timeline") {
         if let Err(error) = e.timeline_editor.create(&e.root) {
@@ -2125,7 +2132,7 @@ fn copy_paths(root: &Path, copies: &[(String, String)]) -> Result<(), String> {
                     if !matches!(package.meta.kind, assets::Kind::AudioClip | assets::Kind::MusicSequence | assets::Kind::SoundBank | assets::Kind::Texture | assets::Kind::EditableMesh) { return Err("Reimport the FBX to create an independent copy of a composite model.".into()); }
                     package.meta.id = uuid::Uuid::new_v4(); package.bytes()?
                 }
-                "epokbp" | "cpp" | "hpp" | "h" | "hh" | "cc" => return Err("Use Add > C++ Class / Blueprint Class to create an independent class; class identities cannot be copied as files.".into()),
+                "epokbp" | "lua" | "cpp" | "hpp" | "h" | "hh" | "cc" => return Err("Use Add > C++ Class / Blueprint Class / Lua Class to create an independent class; class identities cannot be copied as files.".into()),
                 // A map carries persistent identities: entity, actor and component
                 // UUIDs and, when it has one, the class identity of its own
                 // Blueprint. A byte copy would give two maps the same class, so a

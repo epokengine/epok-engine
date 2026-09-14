@@ -66,6 +66,31 @@ pub fn prepare_native(root: &Path) -> Result<Artifacts, String> {
 pub fn prepare_all(root: &Path, native: &[Script]) -> Result<Artifacts, String> {
     let mut artifacts = prepare_native(root)?;
     artifacts.blueprint_set = Some(crate::blueprint_dependencies::source_set(&[]));
+    // Lua first: its generated classes are ordinary catalog entries, so the
+    // Blueprint compiler sees them as eligible parents.
+    let mut catalog = native.to_vec();
+    if let Some(compiled) = crate::scripts::compile_lua(root, native)? {
+        for (path, bytes) in compiled.artifacts.files {
+            if artifacts.files.insert(path.clone(), bytes).is_some() {
+                return Err(format!(
+                    "Lua artifact collides with native source: {}",
+                    path.display()
+                ));
+            }
+        }
+        artifacts
+            .native_sources
+            .extend(compiled.artifacts.native_sources);
+        artifacts
+            .dependencies
+            .extend(compiled.artifacts.dependencies);
+        artifacts
+            .runtime_capabilities
+            .extend(compiled.artifacts.runtime_capabilities);
+        catalog.extend(compiled.scripts);
+        catalog.sort_by(|a, b| a.name.cmp(&b.name));
+    }
+    let native = &catalog;
     if let Some(compiled) = crate::scripts::compile_blueprints(root, native)? {
         artifacts.blueprint_set = compiled.artifacts.blueprint_set;
         artifacts.blueprint_footprints = compiled.footprints;
@@ -93,6 +118,12 @@ pub fn prepare_all(root: &Path, native: &[Script]) -> Result<Artifacts, String> 
 pub fn blueprint_provider() -> schema::Extension {
     schema::Extension {
         id: "blueprint".into(),
+        version: 1,
+    }
+}
+pub fn lua_provider() -> schema::Extension {
+    schema::Extension {
+        id: "lua".into(),
         version: 1,
     }
 }
@@ -163,7 +194,7 @@ impl Artifacts {
 
 pub fn capabilities(provider: &schema::Extension) -> Result<Capabilities, String> {
     match (provider.id.as_str(), provider.version) {
-        ("cpp" | "blueprint", 1) => Ok(Capabilities {
+        ("cpp" | "blueprint" | "lua", 1) => Ok(Capabilities {
             create: true,
             derive_backends: BTreeSet::from(["native".into()]),
             attach: true,
@@ -176,14 +207,18 @@ pub fn capabilities(provider: &schema::Extension) -> Result<Capabilities, String
             invoke: false,
         }),
         _ => Err(format!(
-            "Authoring provider {} v{} is unavailable. Its serialized values are preserved; enable a compatible provider or explicitly migrate the component. Lua is not implemented.",
+            "Authoring provider {} v{} is unavailable. Its serialized values are preserved; enable a compatible provider or explicitly migrate the component.",
             provider.id, provider.version
         )),
     }
 }
 pub fn can_derive(author: &schema::Extension, parent: &schema::Class) -> bool {
     capabilities(author).is_ok_and(|c| c.create && c.derive_backends.contains(&parent.backend.id))
+        // A Lua class is a real native subclass in every execution mode, so it
+        // is an eligible parent for every author. Lua itself derives from C++
+        // or Lua only; Blueprint parents wait for a joint declaration order.
         && (parent.provider == schema::native_provider()
+            || parent.provider == lua_provider()
             || (*author == blueprint_provider() && parent.provider == blueprint_provider()))
         && parent.backend == schema::native_backend()
         && parent.blueprintable
@@ -525,5 +560,84 @@ mod tests {
                 .unwrap_err()
                 .contains("unavailable")
         );
+    }
+
+    fn parent(
+        provider: schema::Extension,
+        blueprintable: bool,
+        final_class: bool,
+    ) -> schema::Class {
+        schema::Class {
+            family: None,
+            domain: None,
+            placement: Default::default(),
+            component: None,
+            default_components: vec![],
+            explicit_abstract: false,
+            id: "lua-test:parent".into(),
+            provider,
+            backend: schema::native_backend(),
+            cpp_name: "EnemyBase".into(),
+            parent: None,
+            abstract_class: false,
+            final_class,
+            timeline_component: None,
+            blueprintable,
+            properties: vec![],
+            functions: vec![],
+            source: schema::Location {
+                file: "EnemyBase.hpp".into(),
+                line: 1,
+                column: 1,
+            },
+        }
+    }
+    #[test]
+    fn lua_provider_creates_classes_and_derives_across_authoring_providers() {
+        let lua = lua_provider();
+        let lua_capabilities = capabilities(&lua).unwrap();
+        assert!(lua_capabilities.create && lua_capabilities.attach && lua_capabilities.invoke);
+        assert!(lua_capabilities.derive_backends.contains("native"));
+        // A Lua class is a native subclass in every execution mode, so it is an
+        // eligible parent everywhere; Lua itself derives from C++ or Lua only.
+        assert!(can_derive(
+            &lua,
+            &parent(schema::native_provider(), true, false)
+        ));
+        assert!(!can_derive(
+            &lua,
+            &parent(blueprint_provider(), true, false)
+        ));
+        assert!(can_derive(&lua, &parent(lua_provider(), true, false)));
+        assert!(can_derive(
+            &blueprint_provider(),
+            &parent(lua_provider(), true, false)
+        ));
+        assert!(can_derive(
+            &schema::native_provider(),
+            &parent(lua_provider(), true, false)
+        ));
+        assert!(!can_derive(
+            &lua,
+            &parent(schema::native_provider(), true, true)
+        ));
+        assert!(!can_derive(
+            &lua,
+            &parent(schema::native_provider(), false, false)
+        ));
+        let binding = crate::scene::ClassDefaults {
+            provider: lua,
+            backend: schema::native_backend(),
+            ..Default::default()
+        };
+        validate_binding(&binding).unwrap();
+        // The unavailable-provider diagnostic no longer claims Lua is missing.
+        let message = capabilities(&schema::Extension {
+            id: "unknown".into(),
+            version: 9,
+        })
+        .unwrap_err();
+        assert!(!message.contains("Lua"));
+        assert!(message.contains("unavailable"));
     }
 }

@@ -69,6 +69,13 @@ mod library_preview;
 mod lighting;
 mod lighting_editor;
 mod loading;
+mod lua_aot;
+mod lua_asset;
+mod lua_bytecode;
+mod lua_compile;
+mod lua_dependencies;
+mod lua_frontend;
+mod lua_vm;
 mod mcp;
 mod mcp_stdio;
 #[cfg(test)]
@@ -122,6 +129,7 @@ mod scene_gpu;
 mod scene_loading;
 mod scene_view_mode;
 mod script_backend;
+mod script_ir;
 mod script_values;
 mod scripts;
 mod sequence;
@@ -281,6 +289,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--reflect",
             "--new-script",
             "--new-blueprint",
+            "--new-lua-class",
             "--compile-blueprints",
             "--new-timeline",
             "--install-timeline-adapters",
@@ -439,6 +448,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             scripts::create_named(&root, &pair[1], parent)?;
         }
         println!("Created {} : {parent}", pair[1]);
+        return Ok(());
+    }
+    if let Some(pair) = args.windows(2).find(|v| v[0] == "--new-lua-class") {
+        let parent = args
+            .windows(2)
+            .find(|v| v[0] == "--parent")
+            .map(|v| v[1].as_str())
+            .unwrap_or("epok::ActorComponent");
+        let folder = args
+            .windows(2)
+            .find(|v| v[0] == "--folder")
+            .map(|v| v[1].as_str())
+            .unwrap_or("");
+        let path = lua_asset::create_in(&root, &pair[1], folder, parent)?;
+        println!("{}", path.display());
         return Ok(());
     }
     if args.iter().any(|a| a == "--export-psx") {

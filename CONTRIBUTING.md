@@ -10,7 +10,7 @@ Use `develop` for ongoing integration. Published versions reach `release` only
 through a pull request from `develop`; see the [release process](docs/release-process.md)
 for version validation, tags, and the local build counter.
 
-Keep original sources separate from generated output. Game scripts and scenes live in each project's `assets/`; the bundled sample is `examples/sample-game/`. Editor resources belong in `resources/editor/`. Never edit staged copies under a game's `.epok/build/` as the source of a change.
+Keep original sources separate from generated output. Game scripts and scenes live in each project's `assets/`; Lua classes (`.lua`) live in `assets/scripts/` beside C++ sources; the bundled sample is `examples/sample-game/`. Editor resources belong in `resources/editor/`. Never edit staged copies under a game's `.epok/build/` as the source of a change.
 
 Preserve scene compatibility when changing serialization. Update the editor, generator and C++ runtime together when their shared representation changes.
 

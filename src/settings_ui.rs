@@ -219,7 +219,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
             let height=(available[1]-60.).max(200.);
             ui.child_window(format!("nav-{title}")).size([215.,height]).build(||{
                 ui.text_disabled(if preferences{"GENERAL"}else{"PROJECT"});
-                let pages: &[(&str,&str)]=if preferences{&[("Viewports","grid camera speed navigation"),("Play","game integer scale filter emulator serial NOTPSXSerial nops COM fast"),("AI / MCP","server ai mcp connection port key"),("Dependencies","tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")]}else{&[("Description","name project"),("Maps & Build","startup scene build compilation asset report generate play target content data transition fade loading text image"),("Rendering","resolution display video NTSC interlaced progressive pixels retained packets visibility geometry static movement position interpolation smoothing camera experimental FPS performance"),("Streaming","geometry pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance"),("Debug","HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime performance") ]};
+                let pages: &[(&str,&str)]=if preferences{&[("Viewports","grid camera speed navigation"),("Play","game integer scale filter emulator serial NOTPSXSerial nops COM fast"),("AI / MCP","server ai mcp connection port key"),("Dependencies","tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")]}else{&[("Description","name project scripting lua execution native VM bytecode source interpreter"),("Maps & Build","startup scene build compilation asset report generate play target content data transition fade loading text image"),("Rendering","resolution display video NTSC interlaced progressive pixels retained packets visibility geometry static movement position interpolation smoothing camera experimental FPS performance"),("Streaming","geometry pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance"),("Debug","HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime performance") ]};
                 let page=if preferences{&mut state.preferences_page}else{&mut state.project_page};
                 let query=if preferences{&state.preferences_search}else{&state.project_search};
                 for (i,(label,keywords)) in pages.iter().enumerate(){
@@ -236,7 +236,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                 ui.set_next_item_width(-1.);ui.input_text("##search",query).hint("Search settings...").build();
                 ui.spacing();
                 let q=query.clone();
-                let keywords=if preferences{"Viewports grid camera speed navigation Play game integer scale filter emulator serial NOTPSXSerial nops COM fast AI MCP server connection port key Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang"}else{"Description name project Maps Build startup scene build compilation asset report generate play target content data transition fade loading text image Rendering resolution display video NTSC interlaced progressive pixels retained packets visibility geometry static movement position interpolation smoothing camera Streaming pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance Debug HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime"};
+                let keywords=if preferences{"Viewports grid camera speed navigation Play game integer scale filter emulator serial NOTPSXSerial nops COM fast AI MCP server connection port key Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang"}else{"Description name project scripting lua execution native VM bytecode source interpreter Maps Build startup scene build compilation asset report generate play target content data transition fade loading text image Rendering resolution display video NTSC interlaced progressive pixels retained packets visibility geometry static movement position interpolation smoothing camera Streaming pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance Debug HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime"};
                 if !matches(&q,keywords){ui.text_disabled("No settings match your search.");}
                 if preferences {
                     if (state.preferences_page==3 && q.is_empty()) || (!q.is_empty() && matches(&q,"Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")) { e.dependencies.page(ui, e.job.is_some() || e.assets.busy || e.bake_job.is_some()); }
@@ -265,7 +265,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                     }
                 } else {
                     let m=state.project.as_mut().unwrap();
-                    if (state.project_page==0 && q.is_empty()) || (!q.is_empty() && matches(&q,"Description name project")) {
+                    if (state.project_page==0 && q.is_empty()) || (!q.is_empty() && matches(&q,"Description name project scripting lua execution native VM bytecode source interpreter")) {
                         ui.text("Project  >  Description");
                         section(ui,"About",||{row(ui,"Project Name","Name shown in the Hub.",||{ui.input_text("##name",&mut m.name).build();});});
                         section(ui,"Audio",||{row(ui,"Project Default SoundBank","Used by raw MIDI preview and MusicSequences without an explicit bank. No OS instruments are substituted.",||{
@@ -282,7 +282,18 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                                 }
                             }
                             if parents.is_empty(){ui.text_disabled("No SceneScriptActor class is available in this project.");}
-                        });});
+                        });
+                        row(ui,"Lua Execution","How this project's Lua scripts run. One mode per build; the same scripts are valid in all of them. Changing it rebuilds script artifacts and relinks.",||{
+                            ui.set_next_item_width(-1.);
+                            if let Some(_combo)=ui.begin_combo("##lua-execution",m.lua_execution.label()){
+                                for mode in crate::settings::LuaExecution::ALL {
+                                    if ui.selectable_config(mode.label()).selected(m.lua_execution==mode).build(){m.lua_execution=mode;}
+                                    if ui.is_item_hovered(){ui.tooltip_text(mode.describe());}
+                                }
+                            }
+                        });
+                        ui.text_wrapped(if m.lua_execution.is_vm(){"The same scripts run through the PsyQo Lua interpreter, which is linked into the game and reserves a static memory budget."}else{m.lua_execution.describe()});
+                        });
                     }
                     if (state.project_page==1 && q.is_empty()) || (!q.is_empty() && matches(&q,"Maps Build startup scene build compilation asset report generate play target content data transition fade loading text image")) {
                         ui.text("Project  >  Maps & Build");

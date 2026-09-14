@@ -198,6 +198,75 @@ fn script_creation_dialog(ui: &imgui::Ui, editor: &mut Editor) {
         }
     });
 }
+/// Lua authoring, presented exactly like the Blueprint creation dialog: one flat
+/// list of eligible parents from the shared registry, then `lua_asset::create_in`.
+fn lua_creation_dialog(ui: &imgui::Ui, editor: &mut Editor) {
+    if editor.lua_creation {
+        ui.open_popup("Create Lua class");
+        editor.lua_creation = false;
+    }
+    ui.modal_popup_config("Create Lua class").always_auto_resize(true).build(|| {
+        let model = editor.object_model();
+        ui.text_wrapped("A Lua class is a real subclass of its parent: it inherits properties and overrides only the events it declares.");
+        ui.input_text("Asset name", &mut editor.lua_name).hint("Guard").build();
+        ui.input_text("Folder", &mut editor.lua_folder).hint("Enemies/Bosses (under assets/scripts)").build();
+        ui.input_text("Search parent classes", &mut editor.lua_search).build();
+        let query = editor.lua_search.to_lowercase();
+        let mut parent = std::mem::take(&mut editor.lua_parent);
+        ui.child_window("lua-parent-tree").size([540.,210.]).border(true).build(|| {
+            for class in editor.class_registry.lua_parents() {
+                if !editor.lua_creation_context.allows_parent(&editor.scene, model.as_deref(), class) {continue;}
+                if !query.is_empty() && !class.cpp_name.to_lowercase().contains(&query) {continue;}
+                let depth = editor.class_registry.ancestry(&class.cpp_name).len().saturating_sub(1);
+                if ui.selectable_config(format!("{}{}{}", "  ".repeat(depth), class.cpp_name, if class.abstract_class {" (abstract)"} else {""})).selected(parent==class.cpp_name).build() {parent=class.cpp_name.clone();}
+                #[cfg(test)]
+                record_script_control(ui, &class.cpp_name);
+            }
+        });
+        editor.lua_parent = parent;
+        ui.text(format!("Parent: {}",editor.lua_parent));
+        ui.child_window("lua-inherited").size([540.,120.]).border(true).build(|| {
+            for property in editor.class_registry.properties(&editor.lua_parent) {ui.bullet_text(format!("{}: {} = {}",property.name,property.value_type.label(),property.default));}
+            for class in editor.class_registry.ancestry(&editor.lua_parent) {for function in &class.functions {if function.event {ui.bullet_text(format!("Event {}({})", function.name,function.parameters.iter().map(|p|p.value_type.label()).collect::<Vec<_>>().join(", ")));}}}
+        });
+        if let Some(error)=&editor.lua_error {ui.text_colored([1.,0.5,0.4,1.],error);}
+        if script_button(ui,"Cancel") {ui.close_current_popup();}
+        ui.same_line();
+        let parent_allowed = editor.class_registry.lua_parents().any(|class| class.cpp_name==editor.lua_parent
+            && editor.lua_creation_context.allows_parent(&editor.scene, model.as_deref(), class));
+        let create = {let _disabled=ui.begin_disabled(!parent_allowed); script_button(ui,"Create")};
+        ui.same_line();
+        let mut attach=false;
+        let attachment_index = editor.lua_creation_context.actor_index(&editor.scene, editor.selected);
+        let attachment_error = attachment_index.ok_or_else(|| "Select an Actor to enable Create and Attach.".to_owned())
+            .and_then(|index| {
+                let parent=editor.class_registry.named(&editor.lua_parent).ok_or("Select an ActorComponent parent.")?;
+                crate::actor_scripts::validate_parent(&editor.scene,index,&parent.id,&editor.class_registry)
+            }).err();
+        ui.disabled(!parent_allowed || attachment_error.is_some() || editor.playing, || {attach=script_button(ui,"Create and Attach");});
+        if let Some(error)=&attachment_error {ui.text_wrapped(error);}
+        if create || attach {
+            let parent = editor.lua_parent.clone();
+            match crate::lua_asset::create_in(&editor.root, editor.lua_name.trim(), editor.lua_folder.trim(), &parent) {
+                Ok(path) => {
+                    let name = editor.lua_name.trim().to_owned();
+                    editor.refresh_scripts();
+                    editor.assets.refresh();
+                    if attach {
+                        editor.select_actor(attachment_index.map(|index| editor.scene.actors[index].id));
+                        editor.attach(&name);
+                    }
+                    #[cfg(not(test))]
+                    editor.open_code(&path, None);
+                    #[cfg(test)]
+                    let _ = path;
+                    ui.close_current_popup();
+                }
+                Err(error) => {editor.log(&error); editor.lua_error=Some(error);}
+            }
+        }
+    });
+}
 fn parent_class_tree(
     ui: &imgui::Ui,
     registry: &crate::blueprint::Registry,
@@ -298,6 +367,12 @@ fn add_component_menu(ui: &imgui::Ui, editor: &mut Editor, actor: uuid::Uuid) ->
         }
         #[cfg(test)]
         record_script_control(ui, "Create Blueprint ActorComponent...");
+        if ui.menu_item("Create Lua ActorComponent...") {
+            editor.action("new-lua");
+            editor.lua_creation_context = crate::actor_scripts::CreationContext::Component(actor);
+        }
+        #[cfg(test)]
+        record_script_control(ui, "Create Lua ActorComponent...");
     });
     added
 }
@@ -572,6 +647,9 @@ fn draw_workspace(
             }
             if ui.menu_item("Create > C++ Script") {
                 e.action("new-script");
+            }
+            if ui.menu_item("Create > Lua Class") {
+                e.action("new-lua");
             }
             if ui.menu_item("Open C++ Project") {
                 e.open_code(&e.root.join("assets"), None);
@@ -908,6 +986,7 @@ fn draw_workspace(
     }
     crate::export_ui::window(ui, e);
     script_creation_dialog(ui, e);
+    lua_creation_dialog(ui, e);
     crate::blueprint_workflow::draw(ui, e);
     crate::actor_workflow::draw(ui, e);
     e.timeline_editor
@@ -1798,15 +1877,15 @@ fn edit_class_button(
         .cloned();
     if let Some(class) = class {
         if class.provider.id != "blueprint"
-            && crate::scripts::editable_class_source(&e.root, &class).is_none()
+            && crate::blueprint_workflow::class_source(&e.root, &class).is_none()
         {
             ui.text_disabled("Engine class (read-only)");
             return;
         }
-        let label = if class.provider.id == "blueprint" {
-            "Open Blueprint"
-        } else {
-            "Edit C++ Class"
+        let label = match class.provider.id.as_str() {
+            "blueprint" => "Open Blueprint",
+            "lua" => "Edit Lua Class",
+            _ => "Edit C++ Class",
         };
         if script_button(ui, label) {
             crate::blueprint_workflow::edit_binding(
@@ -3406,6 +3485,205 @@ mod interaction_tests {
         editor.blueprint_creation.context = crate::actor_scripts::CreationContext::Project;
         frame(&mut context, &mut editor);
         SCRIPT_BUTTONS.with(|buttons| assert!(buttons.borrow().contains_key("epok::Actor3D")));
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    /// The Lua dialog offers exactly the registry's Lua parents and honours the
+    /// component context, like its C++ and Blueprint siblings.
+    #[test]
+    fn lua_creation_dialog_lists_lua_parents_and_respects_the_component_context() {
+        let mut context = crate::gui::tests::imgui_context();
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1600., 2000.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        let root = crate::workspace::tests::temp("lua-parent-dialog");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.class_registry = crate::actor_document::tests::registry();
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        fn frame(context: &mut imgui::Context, editor: &mut Editor) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            lua_creation_dialog(context.frame(), editor);
+            context.render();
+        }
+        editor.action("new-lua");
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        SCRIPT_BUTTONS.with(|buttons| {
+            let buttons = buttons.borrow();
+            for expected in [
+                "epok::Actor3D",
+                "epok::ActorComponent",
+                "epok::AudioComponent",
+            ] {
+                assert!(buttons.contains_key(expected), "missing parent {expected}");
+            }
+            // `epok::Object` is not blueprintable, so no provider may derive from it.
+            assert!(!buttons.contains_key("epok::Object"));
+        });
+        editor.action("new-lua");
+        editor.lua_creation_context =
+            crate::actor_scripts::CreationContext::Component(editor.selected_actor.unwrap());
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        SCRIPT_BUTTONS.with(|buttons| {
+            let buttons = buttons.borrow();
+            assert!(buttons.contains_key("epok::ActorComponent"));
+            for hidden in ["epok::Actor3D", "epok::Actor2D", "epok::UIActor"] {
+                assert!(!buttons.contains_key(hidden), "unexpected parent {hidden}");
+            }
+        });
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    /// The authoring round trip: the dialog writes the `.lua` asset, the catalog
+    /// republishes it as a Lua class, the Inspector sees the declared defaults and
+    /// the source action opens the authored file rather than generated C++.
+    #[test]
+    #[ignore = "Requires pinned libclang/MIPS SDK and built epok-header-tool; run explicitly after cargo build --bins"]
+    fn lua_creation_dialog_creates_attaches_and_reports_rejections() {
+        let mut context = crate::gui::tests::imgui_context();
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1280., 720.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        let root = crate::workspace::tests::temp("lua-creation-ui");
+        let project =
+            crate::workspace::create(&root, "Lua acceptance", crate::workspace::Template::Basic)
+                .unwrap();
+        let mut editor = Editor::open(project).unwrap();
+        editor.auto_build = false;
+        editor.selected = Some(0);
+        let frame = |context: &mut imgui::Context, editor: &mut Editor| {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            lua_creation_dialog(context.frame(), editor);
+            context.render();
+        };
+        let click = |context: &mut imgui::Context, editor: &mut Editor, label: &str| {
+            let point = SCRIPT_BUTTONS.with(|buttons| buttons.borrow()[label]);
+            context.io_mut().add_mouse_pos_event(point);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, true);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, false);
+            frame(context, editor);
+        };
+        editor.action("new-lua");
+        editor.lua_name = "Guard".into();
+        editor.lua_folder = "Enemies".into();
+        editor.lua_parent = "epok::ActorComponent".into();
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        click(&mut context, &mut editor, "Create and Attach");
+        let created = root.join("assets/scripts/Enemies/Guard.lua");
+        assert!(created.is_file(), "{:?}", editor.lua_error);
+        let declared = std::fs::read_to_string(&created).unwrap().replace(
+            "properties = {}",
+            "properties = {\n        health = { id = \"0f1d2c3b-4a59-4687-9b0c-1d2e3f405162\",\n            type = \"Fixed\", default = 100, editable = true }\n    }",
+        );
+        std::fs::write(&created, declared).unwrap();
+        editor.refresh_scripts();
+        let script = editor
+            .catalog
+            .iter()
+            .find(|s| s.name == "Guard")
+            .expect("the catalog publishes the Lua class");
+        assert_eq!(script.classes[0].provider, crate::lua_asset::provider());
+        assert!(script.attachable(), "a component parent stays attachable");
+        let properties = editor.class_registry.properties("Guard");
+        let health = properties
+            .iter()
+            .find(|p| p.name == "health")
+            .expect("declared property");
+        assert_eq!(health.value_type, crate::reflection_schema::Type::Fixed);
+        assert_eq!(health.default, serde_json::json!(100.0));
+        // The source action opens the authored `.lua`, never the generated C++.
+        let class = editor.class_registry.named("Guard").unwrap().clone();
+        assert_eq!(
+            crate::blueprint_workflow::class_source(&editor.root, &class),
+            Some(std::fs::canonicalize(&created).unwrap())
+        );
+        assert!(crate::scripts::editable_class_source(&editor.root, &class).is_none());
+        let engine = editor.class_registry.named("epok::ActorComponent").unwrap();
+        assert!(crate::lua_asset::editable_class_source(&editor.root, engine).is_none());
+        assert_eq!(editor.scene.actors[0].class.name, "epok::Actor3D");
+        assert!(
+            editor.scene.actors[0]
+                .components
+                .iter()
+                .any(|c| c.class.name == "Guard"),
+            "Create and Attach must attach the new component"
+        );
+        // A Lua diagnostic reaches the console with its source position, the way
+        // a Blueprint compilation failure reports its own diagnostics.
+        let valid = std::fs::read_to_string(&created).unwrap();
+        std::fs::write(
+            &created,
+            valid.replace(
+                "function Guard:begin_play()\nend",
+                "function Guard:begin_play()\n    local t = {}\nend",
+            ),
+        )
+        .unwrap();
+        editor.refresh_scripts();
+        let reported = editor
+            .logs
+            .iter()
+            .rev()
+            .find(|line| line.contains("Guard.lua:"))
+            .expect("the Lua diagnostic reaches the console");
+        let position = reported.split("Guard.lua:").nth(1).unwrap();
+        let (line, rest) = position.split_once(':').unwrap();
+        let (column, message) = rest.split_once(':').unwrap();
+        assert!(line.parse::<u32>().unwrap() >= 1, "{reported}");
+        assert!(column.parse::<u32>().unwrap() >= 1, "{reported}");
+        assert!(!message.trim().is_empty(), "{reported}");
+        std::fs::write(&created, &valid).unwrap();
+        editor.refresh_scripts();
+        assert!(editor.catalog.iter().any(|s| s.name == "Guard"));
+
+        // A duplicate name and an ineligible parent are refused with the same
+        // style of message the Blueprint and C++ flows produce.
+        editor.action("new-lua");
+        editor.lua_name = "Guard".into();
+        editor.lua_folder = "ShouldNotExist".into();
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        click(&mut context, &mut editor, "Create");
+        assert!(
+            editor
+                .lua_error
+                .as_ref()
+                .unwrap()
+                .contains("already exists"),
+            "{:?}",
+            editor.lua_error
+        );
+        assert!(!root.join("assets/scripts/ShouldNotExist").exists());
+        assert_eq!(
+            crate::lua_asset::create_in(&root, "Orphan", "", "epok::Object"),
+            Err("epok::Object is not an eligible parent".into())
+        );
+        assert!(!root.join("assets/scripts/Orphan.lua").exists());
         drop(editor);
         if root.exists() {
             std::fs::remove_dir_all(root).unwrap();

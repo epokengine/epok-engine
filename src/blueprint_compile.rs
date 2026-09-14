@@ -498,11 +498,9 @@ fn ordered<'a>(
 fn declarations(file: &AssetFile, registry: &Registry) -> Result<schema::Class, Diagnostic> {
     let a = &file.asset;
     let parent = &registry.classes[&a.parent];
-    if !parent.blueprintable
-        || parent.final_class
-        || parent.backend != schema::native_backend()
-        || !matches!(parent.provider.id.as_str(), "cpp" | "blueprint")
-    {
+    // A Lua class is a real native subclass in every execution mode, so it is an
+    // eligible Blueprint parent; `can_derive` is the single eligibility rule.
+    if !crate::script_backend::can_derive(&crate::script_backend::blueprint_provider(), parent) {
         return Err(diagnostic(
             file,
             "Parent does not support native Blueprint inheritance",

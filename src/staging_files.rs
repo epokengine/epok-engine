@@ -631,6 +631,7 @@ mod tests {
             editor_version: env!("CARGO_PKG_VERSION").into(),
             name: "Certification".into(),
             debug: Default::default(),
+            lua_execution: Default::default(),
             play: Default::default(),
             transition: Default::default(),
             startup_scene: "assets/scenes/Main.epokmap".into(),

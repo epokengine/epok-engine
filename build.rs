@@ -46,6 +46,7 @@ fn main() {
         .file("native/instrument_preview.cpp")
         .file("native/instrument_source_preview.cpp")
         .compile("epok_sequence_preview");
+    lua_cooker();
     println!("cargo:rerun-if-changed=resources/branding/epok.ico");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         winresource::WindowsResource::new()
@@ -55,4 +56,47 @@ fn main() {
             .compile()
             .expect("Failed to compile Epok's Windows icon resource");
     }
+}
+
+/// Builds the host bytecode cooker from the pinned `psxlua` submodule.
+///
+/// The parser, lexer and code generator are the submodule's own sources built
+/// for this host; only the dumper is ours, because psxlua's `lua_Number` is
+/// `long` and its `size_t` is 32-bit on the PlayStation but 64-bit here.
+/// `cargo:rustc-cfg=epok_luac` gates `lua_bytecode::cook`: without the
+/// submodule the editor still builds, and the VM bytecode mode reports the
+/// missing sources as its real cause instead of silently shipping source.
+fn lua_cooker() {
+    let src = std::path::Path::new("third_party/nugget/third_party/psxlua/src");
+    println!("cargo:rustc-check-cfg=cfg(epok_luac)");
+    println!("cargo:rerun-if-changed=native/lua/epok_luac.c");
+    println!("cargo:rerun-if-changed=native/lua/epok_ldump32.c");
+    println!("cargo:rerun-if-changed=native/lua/epok_luac.h");
+    println!("cargo:rerun-if-changed={}/lparser.c", src.display());
+    if !src.join("lparser.c").is_file() {
+        return;
+    }
+    // The core plus the parser half of psxlua's `psx` object list. The standard
+    // libraries are deliberately absent: nothing here executes a chunk.
+    // `ldump.c` is included only because `lapi.c` references `luaU_dump`.
+    const UNITS: [&str; 22] = [
+        "lapi", "lauxlib", "lcode", "lctype", "ldebug", "ldo", "ldump", "lfunc", "lgc", "llex",
+        "llibc", "lmem", "lobject", "lopcodes", "lparser", "lstate", "lstring", "ltable", "ltm",
+        "lundump", "lvm", "lzio",
+    ];
+    let mut build = cc::Build::new();
+    build
+        .warnings(false)
+        .define("LUA_COMPAT_ALL", None)
+        .include(src)
+        .include("native/lua")
+        .file("native/lua/epok_luac.c")
+        .file("native/lua/epok_ldump32.c");
+    // No LUA_TARGET_PSX: the host build uses its own libc, which is what makes
+    // the parser usable here at all.
+    for unit in UNITS {
+        build.file(src.join(format!("{unit}.c")));
+    }
+    build.compile("epok_lua_cooker");
+    println!("cargo:rustc-cfg=epok_luac");
 }
