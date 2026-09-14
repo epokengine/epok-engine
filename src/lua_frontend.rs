@@ -121,9 +121,17 @@ struct Lexer<'a> {
 }
 impl<'a> Lexer<'a> {
     fn new(file: &'a Path, source: &'a str) -> Self {
+        // Editors on some hosts prefix UTF-8 text with a byte order mark; it
+        // carries no content and must not become the first character.
+        let bytes = source.as_bytes();
+        let index = if bytes.starts_with(b"\xEF\xBB\xBF") {
+            3
+        } else {
+            0
+        };
         Self {
-            bytes: source.as_bytes(),
-            index: 0,
+            bytes,
+            index,
             line: 1,
             column: 1,
             file,

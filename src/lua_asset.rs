@@ -666,6 +666,11 @@ pub fn extract(file: &LuaFile) -> Result<Declaration, Diagnostic> {
     }
     let binding = local.name.clone();
     let span = local.span;
+    if let ast::Expr::Call { base, .. } = &local.value
+        && dotted_name(base).as_deref() == Some("epok::class")
+    {
+        return Err(Diagnostic::new(path, span, RETIRED_TABLE));
+    }
     let ast::Expr::MethodCall {
         base,
         name: method,
@@ -821,6 +826,9 @@ pub const RESERVED_MEMBERS: &str =
 /// The one declaration head a `.lua` class file may open with.
 pub const DECLARATION: &str =
     "A Lua class opens with `local <Class> = <Parent>:extend()`, where <Class> is the file name";
+/// Files written by an earlier editor open with a metadata table; the class
+/// they describe is recoverable, so the message says what to write instead.
+pub const RETIRED_TABLE: &str = "This file opens with the retired `epok.class { ... }` metadata table. Rewrite it as `local <Class> = <Parent>:extend()` with properties as `<Class>.<name> = <default>` assignments; the editor keeps the class id in ProjectSettings/LuaClasses.epoksettings";
 /// Written when the parent is not a name at all; an unknown but well-formed
 /// name is resolved, and reported, against the registry.
 pub const PARENT: &str =
@@ -2266,5 +2274,29 @@ return Drone
             extract(&annotated).unwrap().properties[0].id,
             "7b2f9031-5d4e-4c6f-8a81-2b3c4d5e6f70"
         );
+    }
+
+    #[test]
+    fn retired_metadata_table_and_byte_order_mark_are_reported_usefully() {
+        let message = |source: &str| extract(&file(source)).unwrap_err().message;
+        let retired = message(
+            "local Cube = epok.class {\n    profile = 1,\n    name = \"Cube\",\n    extends = \"epok::ActorComponent\",\n    properties = {},\n    functions = {}\n}\n\nfunction Cube:begin_play()\nend\n\nreturn Cube\n",
+        );
+        assert!(retired.contains("retired `epok.class"), "{retired}");
+        assert!(retired.contains(":extend()"), "{retired}");
+        // A UTF-8 byte order mark is not content; the same source with and
+        // without it extracts identically.
+        let plain = "---@class Cube : epok.Actor3D\nlocal Cube = epok.Actor3D:extend()\nCube.speed = 1.0\nreturn Cube\n";
+        let with_bom = format!("\u{feff}{plain}");
+        let cube = |source: &str| LuaFile {
+            path: PathBuf::from("assets/scripts/Cube.lua"),
+            source: source.into(),
+            id: None,
+        };
+        let a = extract(&cube(plain)).unwrap();
+        let b = extract(&cube(&with_bom)).unwrap();
+        assert_eq!(a.extends, b.extends);
+        assert_eq!(a.properties.len(), 1);
+        assert_eq!(b.properties.len(), 1);
     }
 }
