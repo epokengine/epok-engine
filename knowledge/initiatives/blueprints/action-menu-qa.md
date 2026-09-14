@@ -6,20 +6,15 @@ keyboard selection. Right-click creation retains the graph-space click position.
 
 ## Reference and measured implementation
 
-The user's visual reference is
-`C:/Users/Adolfo/AppData/Local/Temp/codex-clipboard-d47610ca-89df-46fd-82ef-d6c757caf2d8.png`.
-It is a compressed, scaled 672 × 504 image. The menu occupies approximately
-334 × 334 image pixels. The original layout, rather than that image's scale,
-is established by Epic's source:
+The user's visual reference was a compressed, scaled 672 × 504 screenshot of a
+conventional node-graph action picker in which the menu occupies approximately
+334 × 334 image pixels. The layout figures below were taken from the measured
+reference rather than from that image's scale:
 
-- [SBlueprintActionMenu.cpp](https://github.com/EpicGames/UnrealEngine/blob/release/Engine/Source/Editor/Kismet/Private/SBlueprintActionMenu.cpp):
-  400 × 400 content with 5 units of surrounding padding; context header and search.
-- [SGraphActionMenu.cpp](https://github.com/EpicGames/UnrealEngine/blob/release/Engine/Source/Editor/GraphEditor/Private/SGraphActionMenu.cpp):
-  categorized actions, search expansion and bold 9-point category text.
-- [StarshipStyle.cpp](https://github.com/EpicGames/UnrealEngine/blob/release/Engine/Source/Editor/EditorStyle/Private/StarshipStyle.cpp):
-  regular 12-point context title and 16-unit function icons.
-- [SBlueprintPalette.cpp](https://github.com/EpicGames/UnrealEngine/blob/release/Engine/Source/Editor/Kismet/Private/SBlueprintPalette.cpp):
-  icon plus label rows, semantic tint and vertical padding.
+- 400 × 400 content with 5 units of surrounding padding; context header and search.
+- Categorized actions, search expansion and bold 9-point category text.
+- Regular 12-point context title and 16-unit function icons.
+- Icon plus label rows, semantic tint and vertical padding.
 
 Epok uses 410 × 410 outer units, Roboto 16px title, Roboto 12px labels,
 Roboto Bold 12px categories, 18-unit category rows, 24-unit action rows,
@@ -50,9 +45,10 @@ spacing, search/icon alignment, header shade, clear-button chrome and icon tint.
 ## Fidelity boundary
 
 This implements the source layout and sampled palette in Epok's native ImGui
-renderer. Pixel identity with Slate is not established: the supplied screenshot
-is scaled/compressed, and the icon artwork is licensed Codicons/MDI rather than
-Epic's original assets. Font antialiasing also differs between renderers.
+renderer. Pixel identity with the reference is not established: the supplied
+screenshot is scaled/compressed, and the icon artwork is licensed Codicons/MDI
+rather than the reference's own assets. Font antialiasing also differs between
+renderers.
 The MDI function outline is used for the green/blue function symbol; license
 and font regeneration provenance are in THIRD_PARTY_NOTICES.md and the resource
 maintenance notes. No external source or artwork was copied into the implementation.
