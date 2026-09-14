@@ -222,13 +222,14 @@ fn default_lifecycle_events_preserve_parent_dispatch_and_are_idempotent() {
         ["begin_play", "tick", "end_play"]
     );
     assert_eq!(file.asset.functions[1].nodes.len(), 1);
-    for graph in [&file.asset.functions[0], &file.asset.functions[2]] {
-        assert!(matches!(graph.nodes[1].kind, NodeKind::CallParent));
-        assert_eq!(graph.nodes[1].inputs.len(), graph.parameters.len());
+    for graph in &file.asset.functions {
+        assert_eq!(graph.nodes.len(), 1);
+        assert!(graph.inherits_event());
     }
     let source = generated(&compile(Path::new(""), &registry, &[file.clone()]).unwrap());
-    assert!(source.contains("LifecycleActor::begin_play("));
-    assert!(source.contains("LifecycleActor::end_play("));
+    assert!(!source.contains("void begin_play("));
+    assert!(!source.contains("void tick("));
+    assert!(!source.contains("void end_play("));
     let before = crate::document::to_vec(&file.asset).unwrap();
     assert!(!crate::blueprint_workflow::ensure_default_events(
         &mut file.asset,

@@ -390,7 +390,35 @@ fn value_type_at_depth(
     }
 }
 
-fn parameter(entity: Actor<'_>, index: usize) -> Result<schema::Parameter, String> {
+fn parameter_name(method: Actor<'_>, index: usize) -> Option<String> {
+    // An implementation can omit or abbreviate a C++ argument without changing
+    // the public Blueprint pin contract inherited from its declaration.
+    for parent in method.get_overridden_methods().unwrap_or_default() {
+        if let Some(name) = parameter_name(parent, index) {
+            return Some(name);
+        }
+    }
+    method
+        .get_arguments()?
+        .get(index)?
+        .get_name()
+        .filter(|name| {
+            !name.is_empty()
+                && !["arg", "param", "parameter"].iter().any(|prefix| {
+                    name.to_ascii_lowercase()
+                        .strip_prefix(prefix)
+                        .is_some_and(|suffix| {
+                            !suffix.is_empty() && suffix.bytes().all(|b| b.is_ascii_digit())
+                        })
+                })
+        })
+}
+
+fn parameter(
+    method: Actor<'_>,
+    entity: Actor<'_>,
+    index: usize,
+) -> Result<schema::Parameter, String> {
     let ty = entity.get_type().unwrap();
     let (value, direction) = if ty.get_kind() == TypeKind::LValueReference {
         let pointee = ty.get_pointee_type().unwrap();
@@ -406,7 +434,10 @@ fn parameter(entity: Actor<'_>, index: usize) -> Result<schema::Parameter, Strin
         (ty, schema::Direction::Value)
     };
     Ok(schema::Parameter {
-        name: entity.get_name().unwrap_or_else(|| format!("arg{index}")),
+        name: parameter_name(method, index).ok_or_else(|| error(method, &format!(
+            "Reflected parameter {} requires a descriptive name in its C++ declaration; anonymous or numbered placeholder pins are not supported",
+            index + 1
+        )))?,
         value_type: value_type(value, entity)?,
         direction,
     })
@@ -637,7 +668,7 @@ fn function(entity: Actor<'_>) -> Result<schema::Function, String> {
             .unwrap_or_default()
             .into_iter()
             .enumerate()
-            .map(|(i, e)| parameter(e, i))
+            .map(|(i, e)| parameter(entity, e, i))
             .collect::<Result<_, _>>()?,
         returns: value_type(entity.get_result_type().unwrap(), entity)?,
         callable: access == Some(Accessibility::Public)
@@ -1031,5 +1062,39 @@ mod tests {
         assert!(component_options(&tokens("Name=")).is_err());
         assert!(component_options(&tokens("AttachTo=")).is_err());
         assert!(component_options(&tokens("Root, AttachTo=body")).is_err());
+    }
+
+    #[test]
+    #[ignore = "Requires pinned libclang; run with LIBCLANG_PATH configured"]
+    fn reflected_parameter_names_are_descriptive_and_inherited() {
+        let clang = clang::Clang::new().unwrap();
+        let index = clang::Index::new(&clang, false, false);
+        let path =
+            std::env::temp_dir().join(format!("epok-pin-contract-{}.hpp", uuid::Uuid::new_v4()));
+        let prefix = "#define EPOK_CLASS __attribute__((annotate(\"EPOK_CLASS:Blueprintable\")))\n#define EVENT __attribute__((annotate(\"EPOK_FUNCTION:BlueprintEvent\")))\n";
+        let valid = format!(
+            "{prefix}class EPOK_CLASS Base {{ public: EVENT virtual void tick(int delta_seconds) {{}} EVENT virtual void end_play(int end_play_reason) {{}} }};\nclass EPOK_CLASS Child : public Base {{ public: void tick(int) override {{}} void end_play(int r) override {{}} }};"
+        );
+        std::fs::write(&path, &valid).unwrap();
+        let parse = || {
+            index
+                .parser(&path)
+                .arguments(&["-x", "c++", "-std=c++20"])
+                .parse()
+                .unwrap()
+        };
+        let unit = parse();
+        let manifest = super::extract(&unit, &path).unwrap();
+        for class in &manifest.classes {
+            assert_eq!(class.functions[0].parameters[0].name, "delta_seconds");
+            assert_eq!(class.functions[1].parameters[0].name, "end_play_reason");
+        }
+        for parameter in ["int", "int arg0", "int param1"] {
+            std::fs::write(&path, format!("{prefix}class EPOK_CLASS Bad {{ public: EVENT virtual void tick({parameter}) {{}} }};")).unwrap();
+            let unit = parse();
+            let error = super::extract(&unit, &path).unwrap_err();
+            assert!(error.contains("requires a descriptive name"), "{error}");
+        }
+        std::fs::remove_file(path).unwrap();
     }
 }

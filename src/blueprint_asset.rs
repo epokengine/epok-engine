@@ -106,6 +106,30 @@ pub struct Graph {
 }
 
 impl Graph {
+    /// An unwired event is an authoring placeholder, not an empty override.
+    /// Connecting execution opts into overriding the inherited implementation.
+    pub fn inherits_event(&self) -> bool {
+        self.override_id.is_some()
+            && self.returns == Type::Void
+            && self
+                .nodes
+                .iter()
+                .find(|n| n.id == self.entry)
+                .is_some_and(|n| {
+                    matches!(n.kind, NodeKind::Entry)
+                        && n.inputs.is_empty()
+                        && n.outputs
+                            .iter()
+                            .all(|(pin, links)| pin == "next" && links.is_empty())
+                })
+            && self
+                .nodes
+                .iter()
+                .filter(|n| matches!(n.kind, NodeKind::Entry))
+                .count()
+                == 1
+    }
+
     /// Execution starts at the event/function entry. Data dependencies are
     /// included backwards, without making their outgoing execution paths live.
     /// The authored graph is retained intact for editing and undo.

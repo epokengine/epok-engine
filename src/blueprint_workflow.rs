@@ -50,7 +50,7 @@ fn default_event_names(family: schema::ClassFamily) -> &'static [&'static str] {
 }
 
 /// Supply the lifecycle entry points supported by the PSX runtime for this family.
-/// Implemented parent events keep their qualified parent dispatch.
+/// Disconnected placeholders inherit the parent until execution is connected.
 pub(crate) fn ensure_default_events(
     draft: &mut asset::BlueprintAsset,
     registry: &crate::blueprint::Registry,
@@ -93,36 +93,12 @@ pub(crate) fn ensure_default_events(
             continue;
         }
         let entry = uuid::Uuid::new_v4().to_string();
-        let mut nodes = vec![asset::Node {
+        let nodes = vec![asset::Node {
             id: entry.clone(),
             kind: asset::NodeKind::Entry,
             inputs: BTreeMap::new(),
             outputs: BTreeMap::new(),
         }];
-        // Even an apparently empty native default may be overridden by an
-        // intermediate parent. Never replace inherited behavior with a no-op.
-        if !function.abstract_method {
-            let call = uuid::Uuid::new_v4().to_string();
-            nodes[0].outputs.insert("next".into(), vec![call.clone()]);
-            nodes.push(asset::Node {
-                id: call.clone(),
-                kind: asset::NodeKind::CallParent,
-                inputs: function
-                    .parameters
-                    .iter()
-                    .map(|p| {
-                        (
-                            p.name.clone(),
-                            asset::Input::Parameter {
-                                name: p.name.clone(),
-                            },
-                        )
-                    })
-                    .collect(),
-                outputs: BTreeMap::new(),
-            });
-            draft.layout.positions.insert(call, [340., y]);
-        }
         draft.functions.push(asset::Graph {
             id: uuid::Uuid::new_v4().to_string(),
             name: name.into(),

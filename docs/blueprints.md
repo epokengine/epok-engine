@@ -43,7 +43,11 @@ Comments and reroutes are authoring-only. **Compile** checks the current draft,
 shows diagnostics with node navigation, and can show generated native code.
 Save before building; unsaved drafts are never silently replaced by disk code.
 
-Actor and ActorComponent Blueprints start with **Begin Play**, **Tick**, and **End Play** in one event canvas. These correspond to `begin_play`, `tick`, and `end_play`. Event entries have no input pins; event parameters appear as outputs. Implemented parent events receive a **Call Parent** node so inherited logic keeps running.
+Actor and ActorComponent Blueprints start with **Begin Play**, **Tick**, and **End Play** in one event canvas. These correspond to `begin_play`, `tick`, and `end_play`. Event entries have no input pins. Tick outputs **Delta Seconds**; End Play outputs **End Play Reason**.
+
+New events are disconnected and dimmed, with an **Inherited from** label. They leave the parent's implementation in effect. Connecting the execution output implements the event in this Blueprint and gives it full opacity. Disconnecting it restores inheritance. To run the parent as part of an override, right-click that event and choose **Add Call to Parent Function**, then connect the resulting **Parent: Tick**, **Parent: Begin Play**, or **Parent: End Play** node where it should execute. Its target label names the parent class. The editor does not insert parent calls automatically.
+
+Reflected C++ parameters require descriptive names. Overrides inherit their base declaration's pin names even if the implementation omits or abbreviates an argument. Anonymous parameters and numbered placeholders such as `arg0` produce an actionable reflection diagnostic instead of becoming Blueprint pins. Existing graph connections retain their saved identities when the SDK improves a parameter name.
 
 Each execution output connects to one destination. Reconnecting it replaces its previous wire and can be undone. Use **Sequence** to run several paths in explicit order, or a branching node for separate outcomes. Data outputs may be reused by several inputs.
 

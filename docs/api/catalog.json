@@ -10499,7 +10499,7 @@
       "qualified": "epok::Actor::end_play",
       "kind": "CXX_METHOD",
       "line": 401,
-      "signature": "virtual void end_play(EndPlayReason)",
+      "signature": "virtual void end_play(EndPlayReason end_play_reason)",
       "result": "void",
       "brief": "Ends play as part of the object model module.",
       "details": "",
@@ -10507,7 +10507,7 @@
       "warnings": [],
       "parameters": [
         {
-          "name": "arg1",
+          "name": "end_play_reason",
           "type": "EndPlayReason",
           "description": ""
         }
@@ -10518,7 +10518,7 @@
       "const": false,
       "template": false,
       "virtual": true,
-      "example": "#include \"object_model.hpp\"\n\n// Assume these named values have been initialized with valid data:\n// EndPlayReason arg1\n\nepok::Actor& object = /* obtain a valid instance */;\n\nobject.end_play(arg1);",
+      "example": "#include \"object_model.hpp\"\n\n// Assume these named values have been initialized with valid data:\n// EndPlayReason end_play_reason\n\nepok::Actor& object = /* obtain a valid instance */;\n\nobject.end_play(end_play_reason);",
       "benefits": "It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.",
       "cautions": "Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use."
     },
@@ -10778,7 +10778,7 @@
       "qualified": "epok::Actor::tick",
       "kind": "CXX_METHOD",
       "line": 400,
-      "signature": "virtual void tick(Fixed)",
+      "signature": "virtual void tick(Fixed delta_seconds)",
       "result": "void",
       "brief": "Performs `tick` as part of the object model module.",
       "details": "",
@@ -10786,7 +10786,7 @@
       "warnings": [],
       "parameters": [
         {
-          "name": "arg1",
+          "name": "delta_seconds",
           "type": "Fixed",
           "description": ""
         }
@@ -10797,7 +10797,7 @@
       "const": false,
       "template": false,
       "virtual": true,
-      "example": "#include \"object_model.hpp\"\n\n// Assume these named values have been initialized with valid data:\n// Fixed arg1\n\nepok::Actor& object = /* obtain a valid instance */;\n\nobject.tick(arg1);",
+      "example": "#include \"object_model.hpp\"\n\n// Assume these named values have been initialized with valid data:\n// Fixed delta_seconds\n\nepok::Actor& object = /* obtain a valid instance */;\n\nobject.tick(delta_seconds);",
       "benefits": "It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.",
       "cautions": "Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use."
     },
@@ -10993,7 +10993,7 @@
       "qualified": "epok::ActorComponent::end_play",
       "kind": "CXX_METHOD",
       "line": 442,
-      "signature": "virtual void end_play(EndPlayReason)",
+      "signature": "virtual void end_play(EndPlayReason end_play_reason)",
       "result": "void",
       "brief": "Ends play as part of the object model module.",
       "details": "",
@@ -11001,7 +11001,7 @@
       "warnings": [],
       "parameters": [
         {
-          "name": "arg1",
+          "name": "end_play_reason",
           "type": "EndPlayReason",
           "description": ""
         }
@@ -11012,7 +11012,7 @@
       "const": false,
       "template": false,
       "virtual": true,
-      "example": "#include \"object_model.hpp\"\n\n// Assume these named values have been initialized with valid data:\n// EndPlayReason arg1\n\nepok::ActorComponent& object = /* obtain a valid instance */;\n\nobject.end_play(arg1);",
+      "example": "#include \"object_model.hpp\"\n\n// Assume these named values have been initialized with valid data:\n// EndPlayReason end_play_reason\n\nepok::ActorComponent& object = /* obtain a valid instance */;\n\nobject.end_play(end_play_reason);",
       "benefits": "It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.",
       "cautions": "Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use."
     },
@@ -11312,7 +11312,7 @@
       "qualified": "epok::ActorComponent::tick",
       "kind": "CXX_METHOD",
       "line": 441,
-      "signature": "virtual void tick(Fixed)",
+      "signature": "virtual void tick(Fixed delta_seconds)",
       "result": "void",
       "brief": "Performs `tick` as part of the object model module.",
       "details": "",
@@ -11320,7 +11320,7 @@
       "warnings": [],
       "parameters": [
         {
-          "name": "arg1",
+          "name": "delta_seconds",
           "type": "Fixed",
           "description": ""
         }
@@ -11331,7 +11331,7 @@
       "const": false,
       "template": false,
       "virtual": true,
-      "example": "#include \"object_model.hpp\"\n\n// Assume these named values have been initialized with valid data:\n// Fixed arg1\n\nepok::ActorComponent& object = /* obtain a valid instance */;\n\nobject.tick(arg1);",
+      "example": "#include \"object_model.hpp\"\n\n// Assume these named values have been initialized with valid data:\n// Fixed delta_seconds\n\nepok::ActorComponent& object = /* obtain a valid instance */;\n\nobject.tick(delta_seconds);",
       "benefits": "It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.",
       "cautions": "Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use."
     },

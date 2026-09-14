@@ -397,8 +397,8 @@ public:
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     EPOK_FUNCTION(BlueprintEvent) virtual void begin_play() {}
     virtual void blueprint_observe() {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void tick(Fixed) {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void end_play(EndPlayReason) {}
+    EPOK_FUNCTION(BlueprintEvent) virtual void tick(Fixed delta_seconds) { (void)delta_seconds; }
+    EPOK_FUNCTION(BlueprintEvent) virtual void end_play(EndPlayReason end_play_reason) { (void)end_play_reason; }
     EPOK_FUNCTION(BlueprintEvent) virtual void on_enable() {}
     EPOK_FUNCTION(BlueprintEvent) virtual void on_disable() {}
     // Runtime hook, not reflected: the declarative root component embedded in the actor.
@@ -438,8 +438,8 @@ public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("2e5021ee-d14d-4d77-9112-455f29d639d2");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     EPOK_FUNCTION(BlueprintEvent) virtual void begin_play() {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void tick(Fixed) {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void end_play(EndPlayReason) {}
+    EPOK_FUNCTION(BlueprintEvent) virtual void tick(Fixed delta_seconds) { (void)delta_seconds; }
+    EPOK_FUNCTION(BlueprintEvent) virtual void end_play(EndPlayReason end_play_reason) { (void)end_play_reason; }
     EPOK_FUNCTION(BlueprintEvent) virtual void on_enable() {}
     EPOK_FUNCTION(BlueprintEvent) virtual void on_disable() {}
     // Runtime hooks, not reflected. frame_update runs once per rendered frame even while
