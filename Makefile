@@ -65,11 +65,13 @@ app:
 # Make stops immediately if any command fails.
 check:
 	$(CARGO) fmt --all -- --check
+	$(CARGO) build --locked --bin epok-header-tool
 	$(CARGO) test --locked
 	$(CARGO) clippy --locked --all-targets -- -D warnings
 	$(PYTHON) tools/build_state.py record --base develop -- $(CARGO) build --locked
 
 test:
+	$(CARGO) build --locked --bin epok-header-tool
 	$(CARGO) test --locked
 
 lint:

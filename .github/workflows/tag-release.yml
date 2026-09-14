@@ -24,11 +24,14 @@ jobs:
         shell: pwsh
         run: ./tools/setup.ps1
 
-      - name: Build and test the release
-        shell: pwsh
-        run: |
-          cargo test --locked -- --test-threads=1
-          cargo build --locked --release
+      - name: Build the reflection extractor required by tests
+        run: cargo build --locked --bin epok-header-tool
+
+      - name: Run the Rust test suite
+        run: cargo test --locked -- --test-threads=1
+
+      - name: Build the release binaries
+        run: cargo build --locked --release --bins
 
       - name: Build the portable archive
         id: package
