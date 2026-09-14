@@ -75,8 +75,9 @@ static void DumpChar(int y, Dump32 *D) {
  * keeps the output independent of the host's byte order all the same. */
 static void DumpInt(int x, Dump32 *D) { DumpU32((unsigned long)(unsigned int)x, D); }
 
-/* psxlua's `lua_Number` is `long`: 64-bit here, 32-bit on target. A constant
- * the target cannot represent is an error, never a silent truncation. */
+/* psxlua's `lua_Number` is `long`: 64-bit on LP64 hosts and 32-bit on
+ * Windows and the target. When the host is wider, reject values that cannot be
+ * represented by the target rather than silently truncating them. */
 static void DumpNumber(lua_Number x, Dump32 *D) {
     if (x > 2147483647L || x < (-2147483647L - 1L))
         fail(D, "numeric constant does not fit the target's 32-bit lua_Number");

@@ -72,6 +72,7 @@ fn lua_cooker() {
     println!("cargo:rerun-if-changed=native/lua/epok_luac.c");
     println!("cargo:rerun-if-changed=native/lua/epok_ldump32.c");
     println!("cargo:rerun-if-changed=native/lua/epok_luac.h");
+    println!("cargo:rerun-if-changed=native/lua/epok_luac_host.h");
     println!("cargo:rerun-if-changed={}/lparser.c", src.display());
     if !src.join("lparser.c").is_file() {
         return;
@@ -88,6 +89,7 @@ fn lua_cooker() {
     build
         .warnings(false)
         .define("LUA_COMPAT_ALL", None)
+        .define("LUA_USER_H", Some("\"epok_luac_host.h\""))
         .include(src)
         .include("native/lua")
         .file("native/lua/epok_luac.c")

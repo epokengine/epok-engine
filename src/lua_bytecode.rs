@@ -2,9 +2,10 @@
 //!
 //! `build.rs` compiles the submodule's own parser for this host together with
 //! `native/lua/epok_ldump32.c`, a dumper that writes the two host-width
-//! quantities (`size_t` and psxlua's `long` `lua_Number`) at the target's
-//! 32-bit width. The output therefore has to be byte-identical to an on-target
-//! `luaU_dump`, which `tests/integration/verify_lua_vm_abi.py` checks.
+//! quantities (`size_t` and, on LP64 hosts, psxlua's `long` `lua_Number`)
+//! at the target's 32-bit width. The output therefore has to be byte-identical
+//! to an on-target `luaU_dump`, which
+//! `tests/integration/verify_lua_vm_abi.py` checks.
 #![allow(dead_code)] // Consumed by lua_vm once M4 lands.
 
 /// `"\x1bLua"`, version 5.2, format 0, little endian, `sizeof(int)`,
@@ -140,10 +141,17 @@ mod tests {
         }
         let error = super::cook("@t.lua", "local C = {}\nfunction C.\nreturn C\n").unwrap_err();
         assert!(error.contains("t.lua"), "{error}");
-        // psxlua's lua_Number is 32-bit on target and 64-bit here; a constant
-        // the target cannot hold is an error, never a silent truncation.
-        let error = super::cook("@t.lua", "return 4294967296\n").unwrap_err();
-        assert!(error.contains("32-bit lua_Number"), "{error}");
+        // LP64 hosts parse through a wider `long`, so the target dumper must
+        // reject a value it cannot encode. Windows already uses the target's
+        // 32-bit `long`; authored values are range-checked by `lua_frontend`
+        // before this internal cooker receives normalized source.
+        if std::mem::size_of::<std::os::raw::c_long>() > 4 {
+            let error = super::cook("@t.lua", "return 4294967296\n").unwrap_err();
+            assert!(error.contains("32-bit lua_Number"), "{error}");
+        } else {
+            let cooked = super::cook("@t.lua", "return 2147483647\n").unwrap();
+            assert!(super::is_pinned_bytecode(&cooked));
+        }
     }
 
     /// The no-parser runtime hands a payload straight to `luaU_undump`, which
