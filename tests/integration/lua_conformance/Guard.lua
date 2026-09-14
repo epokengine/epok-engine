@@ -4,24 +4,23 @@
 -- observe which mode is active; every probe below therefore has to come out
 -- byte-identical in Native C++, VM bytecode and VM source.
 local Guard = epok.class {
-    profile = 1,
     id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f11",
     name = "Guard",
     extends = "EnemyBase",
     properties = {
-        speed   = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f12", type = "Fixed",  default = 1.5,  editable = true },
-        count   = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f13", type = "Int32",  default = 0,    editable = true },
-        armed   = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f14", type = "Bool",   default = true, editable = true },
-        stamina = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f15", type = "UInt32", default = 7,    editable = true },
-        ticks   = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f16", type = "Int32",  default = 0,    editable = true },
+        speed   = { type = "Fixed",  default = 1.5,  editable = true },
+        count   = { type = "Int32",  default = 0,    editable = true },
+        armed   = { type = "Bool",   default = true, editable = true },
+        stamina = { type = "UInt32", default = 7,    editable = true },
+        ticks   = { type = "Int32",  default = 0,    editable = true },
         -- Holds the actor this class spawns at runtime, so a later tick can ask
         -- whether it is still alive.
-        target  = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f19", type = "ActorRef", editable = false }
+        target  = { type = "ActorRef", editable = false }
     },
     functions = {
-        report = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f17", callable = true,
+        report = { callable = true,
             parameters = {}, returns = "Fixed" },
-        on_alert = { id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f18", overrides = "on_alert",
+        on_alert = { overrides = "on_alert",
             parameters = {}, returns = "void" }
     }
 }

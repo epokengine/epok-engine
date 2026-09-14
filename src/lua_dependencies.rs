@@ -209,7 +209,10 @@ pub fn capture(
                 inputs.insert(format!("lua:{}", ancestor.id), semantic(parent));
             }
         }
-        let path = format!("scripts/generated/lua/{id}.hpp");
+        let path = format!(
+            "scripts/generated/lua/{}.hpp",
+            crate::lua_asset::artifact_stem(id)
+        );
         let mut outputs = BTreeMap::from([(
             path.clone(),
             artifacts

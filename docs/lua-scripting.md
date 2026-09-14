@@ -39,7 +39,6 @@ The generated template is:
 
 ```lua
 local Guard = epok.class {
-    profile = 1,
     id = "7bb2a7b2-3a7c-4285-b11e-d6252ac5b7d2",
     name = "Guard",
     extends = "epok::ActorComponent",
@@ -66,21 +65,37 @@ every build.
 The file must contain exactly one `local <Name> = epok.class { ... }` statement
 and must end with `return <Name>`. Methods must be declared on that same local.
 
+Only `name` and `extends` have to be written. The engine assigns everything
+else: `profile` defaults to the profile this editor supports, and an omitted
+`id` — on the class or on any member — is derived from the declaration.
+
 | Key | Required | Meaning |
 | --- | --- | --- |
-| `profile` | yes | Language profile version. Must be `1`; any other value is rejected. |
-| `id` | yes | Canonical UUID of the class. |
 | `name` | yes | Generated C++ class name. Must be a valid identifier and must not start with `epok_`. |
 | `extends` | yes | `cpp_name` of the parent class. |
+| `profile` | no | Language profile version. Defaults to the supported profile; if written it must be `1`, and any other value is rejected. |
+| `id` | no | Canonical UUID of the class. Omitted, the identity is derived (see [Identity](#identity)). |
 | `properties` | no | Table of `<name> = { ... }` property declarations. |
 | `functions` | no | Table of `<name> = { ... }` function declarations. |
+
+Write `profile` only to pin a script to one profile version on purpose:
+
+```lua
+local Guard = epok.class {
+    profile = 1, -- pinned: this script is rejected by a later profile
+    name = "Guard",
+    extends = "EnemyBase",
+    properties = {},
+    functions = {}
+}
+```
 
 ### Property entries
 
 | Key | Required | Meaning |
 | --- | --- | --- |
-| `id` | yes | Canonical UUID of the property. |
 | `type` | yes | One of the type names below. |
+| `id` | no | Canonical UUID of the property. Omitted, the identity is derived. |
 | `default` | no | A literal value. Defaults to the type's zero value. |
 | `editable` | no | `true` exposes the property in the Inspector. Defaults to `false`. |
 
@@ -91,7 +106,7 @@ a vector. An expression is rejected with `Default is not a literal value`.
 
 | Key | Required | Meaning |
 | --- | --- | --- |
-| `id` | yes | Canonical UUID of the function. |
+| `id` | no | Canonical UUID of the function. Omitted, the identity is derived. |
 | `parameters` | no | Ordered list of `{ name = "...", type = "..." }`. |
 | `returns` | no | A type name, or `"void"`. Defaults to `"void"`. |
 | `callable` | no | Declares the method callable from other classes. |
@@ -115,15 +130,45 @@ The vocabulary is closed: an unknown name is a diagnostic
 
 ### Identity
 
-`id` values are UUIDs that belong to the **source file**, exactly as for C++ and
-Blueprint members. Moving or renaming the `.lua` file does not change them, so
-serialized instance overrides and references survive. A UUID that is not
-canonical, is nil, or collides with any reflected, Blueprint or other Lua
-identity is rejected.
+Every class, property and function has a persistent identity, and the author
+never has to type one. The rule is the same as for reflected C++, where `Id=` is
+optional and an unannotated declaration is identified by `cpp:<USR>`.
 
-A lifecycle event written as a bare method with no `functions` entry gets a
-derived id, computed from the class id and the method name, so it is also stable
-across moves and renames.
+- **Explicit.** An `id` written in the metadata table must be a canonical,
+  non-nil UUID. It belongs to the declaration and nothing derives it, so it
+  **survives a rename**: renaming the class, a property or a function keeps every
+  serialized override and reference bound.
+- **Derived.** With no `id`, the engine assigns one deterministically from the
+  declaration: `lua:<Name>` for the class, and `lua:<class identity>:<member>`
+  for a property or a function, where the class identity is the explicit UUID
+  when there is one (`lua:<uuid>:<member>`) and the class name otherwise
+  (`lua:<Name>:<member>`). A derived id is **stable across machines and across
+  moves** — it does not depend on the file path, the checkout or the build — but
+  it is computed from the *name*, so **renaming a declaration with a derived id
+  changes its identity** and orphans what referenced it. Renaming such a
+  declaration requires an explicit id or a migration.
+
+The consequences follow directly:
+
+| Rename | Explicit id | Derived id |
+| --- | --- | --- |
+| Class renamed | placed instances stay bound | instances orphaned; class members derived from the class name change too |
+| Property or function renamed | overrides and callers stay bound | that member's overrides and references are orphaned |
+| File moved or renamed | unaffected | unaffected |
+
+`epok lua new` therefore writes an explicit class UUID into the new file — the
+editor assigns it, not the author — so a class rename never orphans placed
+instances. Members are left derived, which is safe until a member is renamed;
+pin a member with an explicit `id` before renaming it.
+
+A derived id cannot collide with a UUID or with a reflected `cpp:` identity by
+construction. Any id — explicit or derived — that collides with another
+reflected, Blueprint or Lua identity is still rejected, and an explicit id that
+is not a canonical UUID is rejected with `<what> id must be a canonical UUID`.
+
+A lifecycle event written as a bare method with no `functions` entry is
+identified by the same member scheme, so moving it into `functions` without an
+`id` does not change its identity.
 
 ### Parent eligibility
 

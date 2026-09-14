@@ -84,7 +84,7 @@ reserves a 128 KiB arena instead of 96 KiB — see
 [The Lua VM runtime](../../docs/lua-vm-runtime.md#arena-budget).
 
 Each mode emits one generated header per Lua class under
-`.epok/build/scripts/generated/lua/`, named by the class UUID, containing the
+`.epok/build/scripts/generated/lua/`, named by the class identity, containing the
 native C++ subclass with `#line` directives back into the `.lua` source. In
 `native_cpp` the method bodies are lowered C++; in the two VM modes the same
 headers carry typed trampolines and the build additionally emits

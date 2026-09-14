@@ -4,13 +4,13 @@
 -- no C++ code spawns it. `Guard` creates it with `epok.spawn("Sentinel")`, and
 -- it destroys itself through the inherited reflected `Actor::destroy`. The
 -- whole lifecycle is therefore authored in Lua alone.
+-- No `id`: nothing places this class in a scene, so the engine-derived
+-- `lua:Sentinel` identity is enough and the acceptance run exercises it.
 local Sentinel = epok.class {
-    profile = 1,
-    id = "3b9c6d52-4e6f-4a7b-9c93-5d7e9f0a1b33",
     name = "Sentinel",
     extends = "EnemyBase",
     properties = {
-        seen = { id = "3b9c6d52-4e6f-4a7b-9c93-5d7e9f0a1b34", type = "Int32", default = 0, editable = true }
+        seen = { type = "Int32", default = 0, editable = true }
     },
     functions = {}
 }

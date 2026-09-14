@@ -40,7 +40,7 @@ pub fn project_relative(path: &std::path::Path) -> String {
 fn parent_include(parent: &schema::Class) -> Result<String, String> {
     let include = match parent.provider.id.as_str() {
         "blueprint" => format!("../{}.hpp", parent.id),
-        "lua" => format!("{}.hpp", parent.id),
+        "lua" => format!("{}.hpp", crate::lua_asset::artifact_stem(&parent.id)),
         _ if parent.cpp_name.starts_with("epok::") => "epok.hpp".into(),
         _ => {
             let relative = project_relative(&parent.source.file);

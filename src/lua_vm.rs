@@ -266,7 +266,13 @@ pub fn chunk_symbol(class_id: &str) -> String {
         .filter(char::is_ascii_alphanumeric)
         .flat_map(char::to_lowercase)
         .collect();
-    format!("epok_lua_chunk_{hex}")
+    // A derived identity carries separators the filter above folds away, so
+    // `lua:my_class` and `lua:myclass` would share a symbol. The hash of the
+    // whole id keeps one symbol per identity whatever the spelling.
+    format!(
+        "epok_lua_chunk_{hex}_{:016x}",
+        crate::blueprint_refs::compact_id(class_id)
+    )
 }
 
 /// Lua chunk name; it is what a runtime error message quotes, so it names the
@@ -969,7 +975,7 @@ pub fn package(
             _ => {
                 let path = PathBuf::from(GENERATED_DIR)
                     .join("chunks")
-                    .join(format!("{}.lua", class.id));
+                    .join(format!("{}.lua", lua_asset::artifact_stem(&class.id)));
                 package.files.insert(path.clone(), chunk.clone().into());
                 package.dependencies.insert(path);
                 chunk.clone().into_bytes()
@@ -1428,9 +1434,14 @@ mod tests {
 
     #[test]
     fn lua_vm_chunk_symbols_are_stable_c_identifiers() {
-        assert_eq!(
-            chunk_symbol("3F1C0B6E-0000-4000-8000-000000000001"),
-            "epok_lua_chunk_3f1c0b6e000040008000000000000001"
+        let uuid = chunk_symbol("3F1C0B6E-0000-4000-8000-000000000001");
+        assert!(
+            uuid.starts_with("epok_lua_chunk_3f1c0b6e000040008000000000000001_"),
+            "{uuid}"
         );
+        assert!(uuid.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'));
+        // Derived identities that the alphanumeric filter folds together stay
+        // distinct: the symbol also carries a hash of the whole id.
+        assert_ne!(chunk_symbol("lua:my_class"), chunk_symbol("lua:myclass"));
     }
 }

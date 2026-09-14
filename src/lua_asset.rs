@@ -298,19 +298,62 @@ fn number(value: f64, ty: &Type) -> Value {
     }
 }
 
-/// Stable id for an event override that is written as a bare method definition
-/// without a `functions` entry. Derived, so moving the file never changes it.
-fn derived_id(class_id: &str, name: &str) -> String {
-    use sha2::{Digest, Sha256};
-    let digest = Sha256::digest(format!("epok-lua-override\0{class_id}\0{name}").as_bytes());
-    let mut bytes = [0u8; 16];
-    bytes.copy_from_slice(&digest[..16]);
-    bytes[6] = (bytes[6] & 0x0f) | 0x50;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    uuid::Uuid::from_bytes(bytes).to_string()
-}
 fn canonical(id: &str) -> bool {
     uuid::Uuid::parse_str(id).is_ok_and(|value| !value.is_nil() && value.to_string() == id)
+}
+/// Engine-derived identity. The editor assigns it when the author writes no
+/// `id`, exactly as a C++ declaration without `Id=` is identified by
+/// `cpp:<USR>`. The `lua:` marker cannot collide with a UUID or a `cpp:`
+/// identity by construction.
+pub fn derived(id: &str) -> bool {
+    id.starts_with(DERIVED)
+}
+const DERIVED: &str = "lua:";
+
+/// Class identity when the metadata table declares no `id`. An explicit id
+/// survives a rename; a derived id is stable across machines and moves, but
+/// renaming the class changes it, so a renamed class needs an explicit id or a
+/// migration.
+fn derived_class_id(name: &str) -> String {
+    format!("{DERIVED}{name}")
+}
+/// Member identity when the entry declares no `id`, and the identity of a
+/// lifecycle event written as a bare method with no `functions` entry at all.
+/// It is derived from the class *identity*, so a class pinned to an explicit
+/// UUID keeps its members stable across a class rename too.
+fn derived_member_id(class_id: &str, member: &str) -> String {
+    let stem = class_id.strip_prefix(DERIVED).unwrap_or(class_id);
+    format!("{DERIVED}{stem}:{member}")
+}
+/// A persistent Lua id: an explicit canonical UUID, or a derived identity.
+pub fn identity(id: &str) -> bool {
+    canonical(id) || derived(id)
+}
+/// Filesystem-safe stem for the artifacts generated for a class. An explicit id
+/// is a canonical UUID and already safe; a derived `lua:<Name>` identity becomes
+/// `lua_<Name>`, unique because generated class names are unique.
+pub fn artifact_stem(class_id: &str) -> String {
+    match class_id.strip_prefix(DERIVED) {
+        Some(name) => format!("lua_{name}"),
+        None => class_id.to_owned(),
+    }
+}
+/// An authored `id`, which is optional everywhere. When present it must be a
+/// canonical UUID: the derived form is assigned by the engine, never typed.
+fn explicit_id(
+    fields: &[ast::Field],
+    file: &Path,
+    what: &str,
+) -> Result<Option<String>, Diagnostic> {
+    match entry(fields, "id").map(|f| &f.value) {
+        None => Ok(None),
+        Some(ast::Expr::Str { value, .. }) if canonical(value) => Ok(Some(value.clone())),
+        Some(other) => Err(Diagnostic::new(
+            file,
+            other.span(),
+            format!("{what} id must be a canonical UUID"),
+        )),
+    }
 }
 
 pub fn extract(file: &LuaFile) -> Result<Declaration, Diagnostic> {
@@ -367,9 +410,18 @@ pub fn extract(file: &LuaFile) -> Result<Declaration, Diagnostic> {
         }
     }
 
+    // `profile` is optional: absent means the profile this editor supports. It
+    // is written only to pin a script to one profile version on purpose.
     let profile = match entry(table, "profile").map(|f| &f.value) {
+        None => PROFILE_VERSION,
         Some(ast::Expr::Number { value, .. }) => *value as u32,
-        _ => return Err(Diagnostic::new(path, span, "Missing profile version")),
+        Some(other) => {
+            return Err(Diagnostic::new(
+                path,
+                other.span(),
+                "profile must be a version number",
+            ));
+        }
     };
     if profile != PROFILE_VERSION {
         return Err(Diagnostic::new(
@@ -378,8 +430,8 @@ pub fn extract(file: &LuaFile) -> Result<Declaration, Diagnostic> {
             format!("Profile {profile} is not epok-lua v{PROFILE_VERSION}"),
         ));
     }
-    let id = text(table, "id", path, span)?;
     let name = text(table, "name", path, span)?;
+    let id = explicit_id(table, path, "Class")?.unwrap_or_else(|| derived_class_id(&name));
     let extends = text(table, "extends", path, span)?;
 
     let mut properties = vec![];
@@ -395,7 +447,8 @@ pub fn extract(file: &LuaFile) -> Result<Declaration, Diagnostic> {
             let body = fields(&property.value, path, "A property")?;
             let value_type = declared_type(body, "type", path, property.span)?;
             properties.push(DeclaredProperty {
-                id: text(body, "id", path, property.span)?,
+                id: explicit_id(body, path, &format!("Property {key}"))?
+                    .unwrap_or_else(|| derived_member_id(&id, &key)),
                 name: key,
                 default: default_value(entry(body, "default"), &value_type, path, property.span)?,
                 value_type,
@@ -445,7 +498,8 @@ pub fn extract(file: &LuaFile) -> Result<Declaration, Diagnostic> {
                 }
             };
             functions.push(DeclaredFunction {
-                id: text(body, "id", path, function.span)?,
+                id: explicit_id(body, path, &format!("Function {key}"))?
+                    .unwrap_or_else(|| derived_member_id(&id, &key)),
                 name: key,
                 parameters,
                 returns: match entry(body, "returns") {
@@ -482,7 +536,7 @@ pub fn extract(file: &LuaFile) -> Result<Declaration, Diagnostic> {
             ));
         }
         functions.push(DeclaredFunction {
-            id: derived_id(&id, &method.name),
+            id: derived_member_id(&id, &method.name),
             name: method.name.clone(),
             parameters: vec![],
             returns: Type::Void,
@@ -548,8 +602,11 @@ pub fn declarations(
 ) -> Result<schema::Class, Diagnostic> {
     let path = file.path.as_path();
     let fail = |span: Span, message: String| Diagnostic::new(path, span, message);
-    if !canonical(&decl.id) {
-        return Err(fail(decl.span, "Class UUID is not canonical".into()));
+    if !identity(&decl.id) {
+        return Err(fail(
+            decl.span,
+            "Class id is neither a canonical UUID nor a derived identity".into(),
+        ));
     }
     if !crate::scripts::class_identifier(&decl.name) || decl.name.starts_with("epok_") {
         return Err(fail(
@@ -589,13 +646,10 @@ pub fn declarations(
 
     let mut properties = vec![];
     for property in &decl.properties {
-        if !canonical(&property.id) || !ids.insert(property.id.clone()) {
+        if !identity(&property.id) || !ids.insert(property.id.clone()) {
             return Err(fail(
                 property.span,
-                format!(
-                    "Property {} has an invalid or duplicated UUID",
-                    property.name
-                ),
+                format!("Property {} has an invalid or duplicated id", property.name),
             ));
         }
         if crate::script_ir::Intrinsic::from_name(&property.name).is_some() {
@@ -652,13 +706,10 @@ pub fn declarations(
     let mut declared = vec![];
     let mut overridden = BTreeSet::new();
     for function in &decl.functions {
-        if !canonical(&function.id) || !ids.insert(function.id.clone()) {
+        if !identity(&function.id) || !ids.insert(function.id.clone()) {
             return Err(fail(
                 function.span,
-                format!(
-                    "Function {} has an invalid or duplicated UUID",
-                    function.name
-                ),
+                format!("Function {} has an invalid or duplicated id", function.name),
             ));
         }
         let mut resolved = if let Some(parent_name) = &function.overrides {
@@ -816,15 +867,14 @@ pub fn template(name: &str, id: &str, parent_cpp_name: &str) -> String {
         "-- Class metadata. The editor reads this table from the source text; it is\n\
 -- never executed to discover the class.\n\
 local {name} = epok.class {{\n\
-    profile = {PROFILE_VERSION}, -- epok-lua profile version\n\
-    id = \"{id}\", -- class UUID: keep it stable across renames and moves\n\
+    id = \"{id}\", -- assigned by the editor; keeps placed instances bound if the class is renamed\n\
     name = \"{name}\", -- generated C++ class name\n\
     extends = \"{parent_cpp_name}\", -- any Blueprintable reflected parent\n\
-    -- Inspector-editable fields with their own UUIDs, for example:\n\
-    -- speed = {{ id = \"<uuid>\", type = \"Fixed\", default = 1.0, editable = true }},\n\
+    -- Inspector-editable fields, for example:\n\
+    -- speed = {{ type = \"Fixed\", default = 1.0, editable = true }},\n\
     properties = {{}},\n\
     -- Methods other classes and Blueprints may call, for example:\n\
-    -- reset = {{ id = \"<uuid>\", callable = true, parameters = {{}}, returns = \"void\" }},\n\
+    -- reset = {{ callable = true, parameters = {{}}, returns = \"void\" }},\n\
     functions = {{}}\n\
 }}\n\
 \n\
@@ -1169,7 +1219,12 @@ local EnemyLogic = epok.class {
             .find(|f| f.name == "begin_play")
             .unwrap();
         assert_eq!(begin.overrides.as_deref(), Some("begin_play"));
-        assert!(canonical(&begin.id) && begin.inferred);
+        // The synthesized id follows the same scheme as an omitted member id.
+        assert_eq!(
+            begin.id,
+            "lua:956f4946-0c61-42f8-899e-2db063b42420:begin_play"
+        );
+        assert!(begin.inferred);
         let class = declarations(&decl, &lifecycle, &registry()).unwrap();
         let begin = class
             .functions
@@ -1211,7 +1266,7 @@ local EnemyLogic = epok.class {
         );
         check(
             HEADER.replace("956f4946-0c61-42f8-899e-2db063b42420", "not-a-uuid") + tail,
-            "Class UUID is not canonical",
+            "Class id must be a canonical UUID",
         );
         // Shadowing an inherited property name.
         check(
@@ -1339,6 +1394,7 @@ local EnemyLogic = epok.class {
         assert!(source.contains("properties = {},"));
         assert!(source.contains("function Spinner:begin_play()\nend"));
         assert!(!source.contains("PSX"));
+        assert!(!source.contains("profile ="));
         let file = LuaFile {
             path: PathBuf::from("assets/scripts/Spinner.lua"),
             source,
@@ -1356,6 +1412,149 @@ local EnemyLogic = epok.class {
                 .map(|f| f.name.as_str())
                 .collect::<Vec<_>>(),
             ["begin_play"]
+        );
+        // The engine assigns the identity and the profile: the author is never
+        // asked to type either one.
+        assert_eq!(declaration.id, "1f4d9c8e-2b3a-4c5d-8e6f-7a8b9c0d1e2f");
+        assert_eq!(declaration.profile, PROFILE_VERSION);
+    }
+
+    /// The identity a script does not spell out is assigned by the engine,
+    /// deterministically, exactly as a C++ declaration without `Id=` is
+    /// identified by its USR.
+    #[test]
+    fn lua_identities_are_derived_when_the_script_declares_none() {
+        let source = r#"
+local Drone = epok.class {
+    name = "Drone",
+    extends = "epok::ActorComponent",
+    properties = {
+        speed = { type = "Fixed", default = 1.0, editable = true },
+        armed = { type = "Bool", default = false, editable = true }
+    },
+    functions = {
+        reset = { callable = true, parameters = {}, returns = "void" }
+    }
+}
+function Drone:reset()
+end
+function Drone:begin_play()
+end
+return Drone
+"#;
+        let file = file(source);
+        let decl = extract(&file).unwrap();
+        // Missing `profile` means the profile this editor supports.
+        assert_eq!(decl.profile, PROFILE_VERSION);
+        assert_eq!(decl.id, "lua:Drone");
+        assert!(derived(&decl.id) && identity(&decl.id) && !canonical(&decl.id));
+        let member = |name: &str| {
+            decl.properties
+                .iter()
+                .map(|p| (&p.name, &p.id))
+                .chain(decl.functions.iter().map(|f| (&f.name, &f.id)))
+                .find(|(member, _)| *member == name)
+                .map(|(_, id)| id.clone())
+                .unwrap()
+        };
+        assert_eq!(member("speed"), "lua:Drone:speed");
+        assert_eq!(member("armed"), "lua:Drone:armed");
+        assert_eq!(member("reset"), "lua:Drone:reset");
+        // A bare lifecycle method is identified by the same scheme, so
+        // promoting it into `functions` does not change its identity.
+        assert_eq!(member("begin_play"), "lua:Drone:begin_play");
+        // Distinct per member, and reproducible across extractions.
+        let again = extract(&file).unwrap();
+        assert_eq!(decl.id, again.id);
+        let ids = decl
+            .properties
+            .iter()
+            .map(|p| p.id.clone())
+            .chain(decl.functions.iter().map(|f| f.id.clone()))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(ids.len(), decl.properties.len() + decl.functions.len());
+        assert!(ids.iter().all(|id| identity(id)));
+        // Derived identities never reach the filesystem with their separator.
+        assert_eq!(artifact_stem(&decl.id), "lua_Drone");
+        assert_eq!(
+            artifact_stem("1f4d9c8e-2b3a-4c5d-8e6f-7a8b9c0d1e2f"),
+            "1f4d9c8e-2b3a-4c5d-8e6f-7a8b9c0d1e2f"
+        );
+        declarations(&decl, &file, &registry()).unwrap();
+    }
+
+    /// An explicit id still wins, and it must still be a canonical UUID. A
+    /// class pinned to a UUID passes that stability on to its members.
+    #[test]
+    fn lua_explicit_identities_win_and_must_be_canonical_uuids() {
+        let pinned = file(
+            r#"
+local Drone = epok.class {
+    profile = 1,
+    id = "6a1e8f20-4c3d-4b5e-9f70-1a2b3c4d5e6f",
+    name = "Drone",
+    extends = "epok::ActorComponent",
+    properties = {
+        speed = { id = "7b2f9031-5d4e-4c6f-8a81-2b3c4d5e6f70",
+            type = "Fixed", default = 1.0, editable = true },
+        armed = { type = "Bool", default = false, editable = true }
+    },
+    functions = {}
+}
+return Drone
+"#,
+        );
+        let decl = extract(&pinned).unwrap();
+        assert_eq!(decl.id, "6a1e8f20-4c3d-4b5e-9f70-1a2b3c4d5e6f");
+        assert_eq!(
+            decl.properties[0].id,
+            "7b2f9031-5d4e-4c6f-8a81-2b3c4d5e6f70"
+        );
+        assert_eq!(
+            decl.properties[1].id,
+            "lua:6a1e8f20-4c3d-4b5e-9f70-1a2b3c4d5e6f:armed"
+        );
+        declarations(&decl, &pinned, &registry()).unwrap();
+
+        let message = |source: String| extract(&file(&source)).unwrap_err().message;
+        assert!(
+            message(
+                HEADER.replace(
+                    "3d352b2b-c2d7-4b99-9ba1-a003d648e897",
+                    "lua:EnemyLogic:health"
+                ) + "
+return EnemyLogic
+"
+            )
+            .contains("Property health id must be a canonical UUID")
+        );
+        assert!(
+            message(
+                HEADER.replace("224e6b46-e4b4-475c-9744-8b9fb4c0baaa", "not-a-uuid")
+                    + "
+return EnemyLogic
+"
+            )
+            .contains("Function damage id must be a canonical UUID")
+        );
+        // A `profile` that is present must still name the supported profile.
+        assert!(
+            message(
+                HEADER.replace("profile = 1", "profile = 2")
+                    + "
+return EnemyLogic
+"
+            )
+            .contains("Profile 2 is not epok-lua v1")
+        );
+        assert!(
+            message(
+                HEADER.replace("profile = 1", "profile = \"v1\"")
+                    + "
+return EnemyLogic
+"
+            )
+            .contains("profile must be a version number")
         );
     }
 }

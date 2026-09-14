@@ -108,7 +108,7 @@ fn declaration_order<'a>(
             ));
         }
         if !ids.insert(d.id.clone()) {
-            errors.push(Diagnostic::new(&d.file, d.span, "Duplicate class UUID"));
+            errors.push(Diagnostic::new(&d.file, d.span, "Duplicate class id"));
         }
         if blueprints.contains(&d.extends)
             || native.named(&d.extends).is_some_and(|parent| {
@@ -174,13 +174,14 @@ fn register(
             .chain(d.properties.iter().map(|p| &p.id))
             .chain(d.functions.iter().map(|f| &f.id))
         {
-            if !uuid::Uuid::parse_str(id).is_ok_and(|u| !u.is_nil() && u.to_string() == *id)
-                || !seen.insert(id.clone())
-            {
+            // An explicit id is a canonical UUID; an engine-derived id carries
+            // the `lua:` marker and cannot collide with a UUID or a reflected
+            // `cpp:` identity by construction. Both must still be unique.
+            if !lua_asset::identity(id) || !seen.insert(id.clone()) {
                 return Err(fail(
                     &d.file,
                     d.span,
-                    format!("Duplicate, nil, or noncanonical persistent UUID {id}"),
+                    format!("Duplicate, nil, or invalid persistent id {id}"),
                 ));
             }
         }
@@ -277,7 +278,10 @@ pub fn compile(
         let text = lua_aot::emit_class(class, ir, &registry, body, symbol.map(String::as_str))
             .map_err(|e| fail(&class.source.file, top, e))?;
         artifacts.files.insert(
-            PathBuf::from(format!("scripts/generated/lua/{}.hpp", class.id)),
+            PathBuf::from(format!(
+                "scripts/generated/lua/{}.hpp",
+                lua_asset::artifact_stem(&class.id)
+            )),
             text.into_bytes(),
         );
         let parent = registry
@@ -299,7 +303,10 @@ pub fn compile(
                     id: p.id.clone(),
                 })
                 .collect(),
-            header: PathBuf::from(format!("generated/lua/{}.hpp", class.id)),
+            header: PathBuf::from(format!(
+                "generated/lua/{}.hpp",
+                lua_asset::artifact_stem(&class.id)
+            )),
             classes: chain,
         });
     }

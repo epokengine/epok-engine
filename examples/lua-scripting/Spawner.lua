@@ -12,22 +12,18 @@
 -- own body -- `Spinner` expires on its own `lifetime` -- rather than by holding
 -- a reference to it here.
 local Spawner = epok.class {
-    profile = 1,
     id = "5c8e1a37-9b42-4d6f-8e15-7a3b9c2d4e60",
     name = "Spawner",
     extends = "epok::Actor3D",
     properties = {
         -- Seconds this actor stays alive before destroying itself.
         lifetime = {
-            id = "5c8e1a37-9b42-4d6f-8e15-7a3b9c2d4e61",
             type = "Fixed", default = 5.0, editable = true
         },
         elapsed = {
-            id = "5c8e1a37-9b42-4d6f-8e15-7a3b9c2d4e62",
             type = "Fixed", default = 0.0, editable = false
         },
         spawned = {
-            id = "5c8e1a37-9b42-4d6f-8e15-7a3b9c2d4e63",
             type = "Int32", default = 0, editable = false
         }
     },

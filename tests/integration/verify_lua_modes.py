@@ -49,7 +49,6 @@ ENEMY_BASE_ID = "6a3c1f20-77d1-4b9e-8f42-9c0e1a5b7d10"
 DIRECTOR_ID = "6a3c1f20-77d1-4b9e-8f42-9c0e1a5b7d20"
 GUARD_ID = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f11"
 PATROL_ID = "2a8b5c41-3d5e-4f69-8b82-4c6d8e0f1a22"
-SENTINEL_ID = "3b9c6d52-4e6f-4a7b-9c93-5d7e9f0a1b33"
 SCENE_ROOT_ID = "ed73d249-b6cb-4a3c-a0e8-696de55e286f"
 
 RESULTS = []
@@ -594,7 +593,6 @@ def check_unsupported_diagnostics(project, report):
     path = project / "assets/scripts/Broken.lua"
     template = (
         'local Broken = epok.class {\n'
-        '    profile = 1,\n'
         '    id = "3b7d6e52-4e6f-4a7b-9c93-5d7e9f0a2b33",\n'
         '    name = "Broken",\n'
         '    extends = "EnemyBase",\n'

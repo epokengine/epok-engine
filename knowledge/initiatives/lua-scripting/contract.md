@@ -30,7 +30,10 @@ Supported (initial profile):
 - Types: `Bool`, `Int32`, `UInt32`, `Fixed` (Q12), `Enum`, `Vector{2,3}`, `AssetRef`,
   `ClassRef`, `ObjectRef`, `ActorRef`, `ComponentRef` — the existing `schema::Type` set.
 - Declarations: `epok.class { ... }` metadata table, read statically from the AST. It is
-  never executed to discover classes.
+  never executed to discover classes. Only `name` and `extends` are required: the engine
+  assigns the identity and the profile (see §4), so `profile`, the class `id` and every
+  member `id` are optional. A written `profile` pins the script and must equal the
+  supported profile; a written `id` must be a canonical, non-nil UUID.
 - Locals with inferred, fixed, single types; definite assignment checked.
 - Conditions are `Bool` only. `and`/`or` accept `Bool` operands only, short-circuit.
 - Statically resolved calls with fixed return arity.
@@ -113,8 +116,21 @@ under stock fork arithmetic.
 - Authoring provider: `Extension { id: "lua", version: 1 }` — stable across all modes.
 - Execution backend: always `schema::native_backend()` (`native` v1). The physical type
   is a real C++ subclass in every mode; only method bodies differ.
-- Class ids are the asset's UUID; member ids are authored UUIDs. Neither depends on the
-  mode. Serialized defaults, overrides and references are mode-independent.
+- Identity mirrors reflected C++, where `EPOK_*(Id=...)` is optional and an unannotated
+  declaration is identified by `cpp:<USR>`. An explicit `id` is a canonical, non-nil UUID
+  and survives a rename. With no `id` the engine derives one deterministically from the
+  declaration: `lua:<Name>` for a class, `lua:<class identity>:<member>` for a property or
+  a function, where the class identity is the explicit UUID if there is one and the class
+  name otherwise. A bare lifecycle method with no `functions` entry uses the same member
+  scheme. A derived id is stable across machines and across moves but changes when the
+  declaration is renamed, so a rename needs an explicit id or a migration; `epok lua new`
+  therefore writes an explicit class UUID into every new file.
+- A derived id cannot collide with a UUID or a reflected `cpp:` identity by construction.
+  The compiler still rejects any collision across the project, and rejects an explicit id
+  that is not a canonical, non-nil UUID.
+- Identities never depend on the mode. Serialized defaults, overrides and references are
+  mode-independent. Generated artifacts are named by a filesystem-safe stem of the class
+  identity: the UUID itself, or `lua_<Name>` for a derived identity.
 - Lua classes are published into the same `blueprint::Registry` as C++ and Blueprint
   classes, before body checking, so all three can call each other.
 
@@ -231,7 +247,8 @@ Field slots and method slots are per-class dense indices published in the genera
 ### 10.3 Generated C++ per Lua class (emitted by `lua_aot.rs` for BOTH modes)
 Same shell in every mode: `class Name : public Parent { static_class_id; class_id()
 override; fields for own properties; ctor applying defaults; ... }` written to
-`scripts/generated/lua/<class-uuid>.hpp`. Method bodies:
+`scripts/generated/lua/<class-stem>.hpp`, the class UUID or `lua_<Name>` (§4). Method
+bodies:
 - Native mode: lowered IR (`epok::bp::*` helpers, `Parent::m(...)` for CallParent,
   `this->m(...)` for CallSelf, `#line` directives back to the `.lua` source).
 - VM modes: trampolines against `runtime/lua_runtime.hpp`:
