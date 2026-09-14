@@ -798,6 +798,37 @@ pub fn editable_class_source(root: &Path, class: &schema::Class) -> Option<PathB
 
 /// Publish a new `.lua` class with `create_new` and roll back only the files
 /// and directories this call owns, then prove the whole project still compiles.
+/// Source of a freshly created class. The metadata table is read statically;
+/// the comments explain each key without adding declarations the author has
+/// to delete. Tests patch `properties = {}` and the empty `begin_play` body.
+pub fn template(name: &str, id: &str, parent_cpp_name: &str) -> String {
+    format!(
+        "-- Class metadata. The editor reads this table from the source text; it is\n\
+-- never executed to discover the class.\n\
+local {name} = epok.class {{\n\
+    profile = {PROFILE_VERSION}, -- epok-lua profile version\n\
+    id = \"{id}\", -- class UUID: keep it stable across renames and moves\n\
+    name = \"{name}\", -- generated C++ class name\n\
+    extends = \"{parent_cpp_name}\", -- any Blueprintable reflected parent\n\
+    -- Inspector-editable fields with their own UUIDs, for example:\n\
+    -- speed = {{ id = \"<uuid>\", type = \"Fixed\", default = 1.0, editable = true }},\n\
+    properties = {{}},\n\
+    -- Methods other classes and Blueprints may call, for example:\n\
+    -- reset = {{ id = \"<uuid>\", callable = true, parameters = {{}}, returns = \"void\" }},\n\
+    functions = {{}}\n\
+}}\n\
+\n\
+-- Lifecycle events need no `functions` entry: begin_play, tick, end_play,\n\
+-- on_enable and on_disable take their signature from the parent.\n\
+function {name}:begin_play()\nend\n\
+\n\
+-- function {name}:tick(arg0) -- arg0: elapsed seconds (Fixed, Q12)\n\
+-- end\n\
+\n\
+return {name}\n"
+    )
+}
+
 pub fn create_in(
     root: &Path,
     name: &str,
@@ -855,10 +886,7 @@ pub fn create_in(
             return Err("Script folder links must remain inside assets/scripts.".into());
         }
     }
-    let id = uuid::Uuid::new_v4();
-    let source = format!(
-        "local {name} = epok.class {{\n    profile = {PROFILE_VERSION},\n    id = \"{id}\",\n    name = \"{name}\",\n    extends = \"{parent_cpp_name}\",\n    properties = {{}},\n    functions = {{}}\n}}\n\nfunction {name}:begin_play()\nend\n\nreturn {name}\n"
-    );
+    let source = template(name, &uuid::Uuid::new_v4().to_string(), parent_cpp_name);
     let path = dir.join(format!("{name}.lua"));
     let result = (|| {
         let mut file = fs::OpenOptions::new()
@@ -1283,5 +1311,35 @@ local EnemyLogic = epok.class {
         );
         assert_eq!(value_type("void"), Some(Type::Void));
         assert_eq!(value_type("String"), None);
+    }
+
+    #[test]
+    fn creation_template_extracts_and_keeps_the_patched_anchors() {
+        let source = template(
+            "Spinner",
+            "1f4d9c8e-2b3a-4c5d-8e6f-7a8b9c0d1e2f",
+            "epok::ActorComponent",
+        );
+        assert!(source.contains("properties = {},"));
+        assert!(source.contains("function Spinner:begin_play()\nend"));
+        assert!(!source.contains("PSX"));
+        let file = LuaFile {
+            path: PathBuf::from("assets/scripts/Spinner.lua"),
+            source,
+        };
+        let declaration = extract(&file).unwrap();
+        assert_eq!(declaration.name, "Spinner");
+        assert_eq!(declaration.extends, "epok::ActorComponent");
+        assert!(declaration.properties.is_empty());
+        // The empty lifecycle body is the only declared member: a synthesized
+        // override of the parent's begin_play, nothing from the comments.
+        assert_eq!(
+            declaration
+                .functions
+                .iter()
+                .map(|f| f.name.as_str())
+                .collect::<Vec<_>>(),
+            ["begin_play"]
+        );
     }
 }
