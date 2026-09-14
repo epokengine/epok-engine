@@ -2397,17 +2397,25 @@ fn import(e: &mut Editor, s: &mut State, source: &Path) -> bool {
             .to_lowercase();
         if ![
             "png", "wav", "mp3", "flac", "ogg", "mid", "midi", "seq", "sep", "vab", "vh", "vb",
-            "sf2", "sf3", "fbx",
+            "sf2", "sf3", "fbx", "obj",
         ]
         .contains(&ext.as_str())
         {
-            return Err("Supported import sources: PNG, WAV, MP3, FLAC, OGG and FBX.".into());
+            return Err("Supported import sources: PNG, WAV, MP3, FLAC, OGG, MIDI, Sony audio, SoundFont, FBX and OBJ.".into());
         }
         let name = source
             .file_name()
             .ok_or("Missing filename")?
             .to_string_lossy();
         let dest = assets::inside(&e.root, &format!("{}/{name}", e.assets.folder))?;
+        if ext == "obj" {
+            let destination = assets::path_string(&e.root, &dest.with_extension("epokasset"));
+            let id = crate::obj_import::import_file(&e.root, source, &destination, 1.)?;
+            s.refresh(e);
+            e.assets.selected = Some(id);
+            s.message = format!("Imported {name} as a mesh asset");
+            return Ok(());
+        }
         if fs::canonicalize(source).ok() != fs::canonicalize(&dest).ok() {
             let mut input = fs::File::open(source).map_err(|e| e.to_string())?;
             let mut output = fs::OpenOptions::new()
@@ -2627,7 +2635,7 @@ fn pick_files() -> Result<Vec<PathBuf>, String> {
     {
         use std::os::windows::process::CommandExt;
         let output = std::process::Command::new("powershell.exe").creation_flags(0x08000000)
-            .args(["-NoProfile", "-STA", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Import Content'; $d.Multiselect=$true; $d.Filter='Supported content|*.png;*.wav;*.mp3;*.flac;*.ogg;*.mid;*.midi;*.seq;*.sep;*.vab;*.vh;*.vb;*.sf2;*.sf3;*.fbx'; if($d.ShowDialog() -eq 'OK'){$d.FileNames | ForEach-Object {[Console]::WriteLine($_)}}; $d.Dispose()"])
+            .args(["-NoProfile", "-STA", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Import Content'; $d.Multiselect=$true; $d.Filter='Supported content|*.png;*.wav;*.mp3;*.flac;*.ogg;*.mid;*.midi;*.seq;*.sep;*.vab;*.vh;*.vb;*.sf2;*.sf3;*.fbx;*.obj'; if($d.ShowDialog() -eq 'OK'){$d.FileNames | ForEach-Object {[Console]::WriteLine($_)}}; $d.Dispose()"])
             .output().map_err(|e| e.to_string())?;
         if !output.status.success() {
             return Err("Could not open the file picker. Enter a source path instead.".into());
@@ -3414,6 +3422,38 @@ mod tests {
             fs::read(f.0.join("assets/B/external.wav")).unwrap(),
             b"changed source"
         );
+    }
+
+    #[test]
+    fn inspector_obj_import_moves_to_project_browser_without_assigning_the_selection() {
+        let f = Fixture::new();
+        fs::create_dir(f.0.join("external")).unwrap();
+        let source = f.0.join("external/Triangle.obj");
+        let obj = "mtllib Triangle.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl Red\nf 1 2 3\n";
+        fs::write(&source, obj).unwrap();
+        fs::write(f.0.join("external/Triangle.mtl"), "newmtl Red\nKd 1 0 0\n").unwrap();
+        let mut e = Editor::new(f.0.clone());
+        e.auto_build = false;
+        e.selected = Some(0);
+        e.assets.folder = "assets/A".into();
+        let before = e.scene.clone();
+        let mut state = State::default();
+        assert!(import(&mut e, &mut state, &source), "{:?}", state.error);
+        assert_eq!(e.scene, before);
+        let path = f.0.join("assets/A/Triangle.epokasset");
+        let bytes = fs::read(&path).unwrap();
+        let index = assets::scan(&f.0, &mut Default::default());
+        let record = index.usable().find(|r| r.path == path).unwrap();
+        let mesh = crate::mesh::document(record).unwrap();
+        assert_eq!(mesh.faces.len(), 1);
+        assert!(
+            mesh.materials
+                .iter()
+                .any(|m| m.name == "Red" && m.material.color == [1., 0., 0.])
+        );
+        assert!(!import(&mut e, &mut state, &source));
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+        assert_eq!(fs::read_to_string(source).unwrap(), obj);
     }
     #[test]
     fn scene_drop_places_audio_and_rolls_back_an_invalid_batch() {

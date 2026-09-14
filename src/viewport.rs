@@ -33,6 +33,16 @@ impl Default for View {
 
 impl View {
     pub fn dolly(&mut self, steps: f32) {
+        // Move the eye and its orbit pivot together, so the wheel can travel
+        // past the old pivot without changing the lens or hitting a zoom limit.
+        let forward = self.basis()[2];
+        let travel = steps * self.fly_speed * 0.2;
+        for (center, direction) in self.center.iter_mut().zip(forward) {
+            *center += direction * travel;
+        }
+    }
+    /// Zoom a framed asset around its pivot; Scene navigation uses free dolly.
+    pub fn zoom_orbit(&mut self, steps: f32) {
         self.distance = (self.distance * 1.2_f32.powf(-steps)).clamp(1.05, 10000.);
     }
     /// Snap the authoring camera to look along one signed world axis.
@@ -292,8 +302,7 @@ pub fn render(
             [71, 102, 139],
         );
     }
-    let lighting = crate::lighting::Lighting::new(scene);
-    let baked_valid = crate::lighting::valid_bake(scene);
+    let lighting = crate::lighting::Lighting::unshadowed(scene);
     let mut polygons = Vec::new();
     for (index, entity) in scene
         .actors
@@ -303,7 +312,12 @@ pub fn render(
     {
         let world = scene.world_matrix(index);
         let offline = crate::lighting::baked(entity);
-        for (qi, q) in crate::lighting::quads(entity).iter().enumerate() {
+        let quads = crate::lighting::quads(entity);
+        let cached = scene
+            .bake
+            .as_ref()
+            .and_then(|b| b.preview_colors(entity.id, quads.len() * 4));
+        for (qi, q) in quads.iter().enumerate() {
             let world_points = q.points.map(|p| world.point(p));
             let p = world_points.map(project);
             if p.iter().any(|v| v[2] <= 1.) {
@@ -313,20 +327,12 @@ pub fn render(
             let colors: [[u8; 3]; 4] = std::array::from_fn(|v| {
                 let light = if q.material.unlit {
                     [255; 3]
-                } else if offline && baked_valid {
-                    scene.bake.as_ref().unwrap().colors[index][qi * 4 + v]
+                } else if offline && let Some(colors) = cached {
+                    colors[qi * 4 + v]
+                } else if offline {
+                    lighting.sample(world_points[v], n, index, true, false)
                 } else {
-                    lighting.sample(
-                        if offline {
-                            world_points[v]
-                        } else {
-                            world.point([0.; 3])
-                        },
-                        n,
-                        index,
-                        offline,
-                        false,
-                    )
+                    lighting.sample(world.point([0.; 3]), n, index, false, false)
                 };
                 crate::lighting::modulate(light, q.material.color)
             });
@@ -383,27 +389,62 @@ pub fn render(
 mod tests {
     use super::*;
     #[test]
-    fn dolly_preserves_pivot_and_lens_and_free_look_preserves_eye() {
+    fn dolly_moves_along_the_view_past_the_pivot_without_changing_the_lens() {
         let mut view = View {
             center: [3., 2., -1.],
             ..Default::default()
         };
-        let pivot = view.center;
         let lens = view.zoom;
-        for distance in [2., 8., 30.] {
+        for distance in [1.05, 8., 30.] {
             view.distance = distance;
+            let pivot = view.center;
             let before = view.unproject([480., 342.], 0.);
             let forward = view.basis()[2];
-            view.dolly(1.);
+            // Travel beyond the old pivot, including a camera previously saved
+            // at the old zoom limit. The selected object's distance is irrelevant.
+            view.dolly(40.);
             let eye = view.unproject([480., 342.], 0.);
-            assert_eq!(view.center, pivot);
             assert_eq!(view.zoom, lens);
-            assert!(view.distance < distance);
+            assert_eq!(view.distance, distance);
             for i in 0..3 {
-                assert!(
-                    (eye[i] - before[i] - forward[i] * (distance - view.distance)).abs() < 0.0001
-                );
+                assert!((eye[i] - before[i] - forward[i] * 40.).abs() < 0.0001);
             }
+            assert!(
+                project(&view, pivot)[2] < 0.,
+                "Wheel must pass the old pivot"
+            );
+            view.dolly(-40.);
+            for i in 0..3 {
+                assert!((view.center[i] - pivot[i]).abs() < 0.0001);
+            }
+        }
+        let legacy: View = serde_json::from_value(serde_json::json!({"zoom": 1.5})).unwrap();
+        assert_eq!(legacy.distance, 12.);
+    }
+
+    #[test]
+    fn dolly_respects_speed_and_fractional_wheel_input() {
+        let mut view = View {
+            yaw: 0.,
+            pitch: 0.,
+            ..Default::default()
+        };
+        view.dolly(0.25);
+        assert_eq!(view.center, [0., 0., 0.25]);
+        view.fly_speed = 20.;
+        view.dolly(0.25);
+        assert_eq!(view.center, [0., 0., 1.25]);
+        view.dolly(-0.25);
+        assert_eq!(view.center, [0., 0., 0.25]);
+    }
+
+    #[test]
+    fn orbit_preserves_the_pivot_and_free_look_preserves_the_eye_after_dolly() {
+        let mut view = View::default();
+        for distance in [1.05, 8., 30.] {
+            view.distance = distance;
+            view.dolly(10.);
+            let pivot = view.center;
             view.look([80., -25.], true);
             assert_eq!(view.center, pivot);
             let p = project(&view, pivot);
@@ -413,14 +454,7 @@ mod tests {
             for (a, b) in eye.into_iter().zip(view.unproject([480., 342.], 0.)) {
                 assert!((a - b).abs() < 0.0001);
             }
-            view.center = pivot;
-            view.dolly(-1.);
-            assert!((view.distance - distance).abs() < 0.0001);
         }
-        view.dolly(1000.);
-        assert!(view.distance > 1.);
-        let legacy: View = serde_json::from_value(serde_json::json!({"zoom": 1.5})).unwrap();
-        assert_eq!(legacy.distance, 12.);
     }
 
     #[test]

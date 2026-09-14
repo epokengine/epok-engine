@@ -283,6 +283,20 @@ fn runtime_base(parent: &str) -> Option<String> {
         "UIComponent",
         "RectTransformComponent",
         "AudioComponent",
+        "Mesh3DComponent",
+        "Sprite3DComponent",
+        "Camera3DComponent",
+        "Light3DComponent",
+        "Collider3DComponent",
+        "CanvasComponent",
+        "ImageComponent",
+        "TextComponent",
+        "ProgressBarComponent",
+        "ParticleEmitterComponent",
+        "TimelineComponent",
+        "ParticleEffectComponent",
+        "PaletteAnimatorComponent",
+        "BlobShadowComponent",
     ];
     let short = parent.strip_prefix("epok::").unwrap_or(parent);
     BASES.contains(&short).then(|| format!("epok::{short}"))
@@ -418,9 +432,62 @@ pub fn source(root: &Path, name: &str) -> PathBuf {
         })
         .unwrap_or_else(|| root.join("assets/scripts").join(format!("{name}.cpp")))
 }
+
+/// Open the declaration actually owned by this project, never an SDK header or
+/// a guessed source filename. Classes can share a header or use namespaces.
+pub fn editable_class_source(root: &Path, class: &schema::Class) -> Option<PathBuf> {
+    if class.provider.id != "cpp" {
+        return None;
+    }
+    let root = root.canonicalize().ok()?;
+    let source = if class.source.file.is_absolute() {
+        class.source.file.clone()
+    } else {
+        root.join(&class.source.file)
+    }
+    .canonicalize()
+    .ok()?;
+    (source.is_file() && source.starts_with(root.join("assets/scripts"))).then_some(source)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn inspector_class_source_opens_project_declarations_and_excludes_engine_headers() {
+        let root = std::env::temp_dir().join(format!("epok-class-source-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(root.join("assets/scripts/Gameplay")).unwrap();
+        fs::create_dir_all(root.join(".epok/reflection/runtime")).unwrap();
+        let header = root.join("assets/scripts/Gameplay/Actors.hpp");
+        fs::write(
+            &header,
+            "// Two project classes share this declaration file.\n",
+        )
+        .unwrap();
+        let mut class = crate::actor_document::tests::class(
+            "custom-actor",
+            "game::Enemy",
+            Some(crate::object_model::ACTOR3D_ID),
+        );
+        class.source.file = header.clone();
+        assert_eq!(
+            editable_class_source(&root, &class),
+            Some(header.canonicalize().unwrap())
+        );
+        class.cpp_name = "game::Boss".into();
+        class.source.file = PathBuf::from("assets/scripts/Gameplay/Actors.hpp");
+        assert_eq!(
+            editable_class_source(&root, &class),
+            Some(header.canonicalize().unwrap())
+        );
+        let engine = root.join(".epok/reflection/runtime/object_model.hpp");
+        fs::write(&engine, "// Engine source\n").unwrap();
+        class.cpp_name = "epok::Actor3D".into();
+        class.source.file = engine;
+        assert!(editable_class_source(&root, &class).is_none());
+        class.source.file = root.join("assets/scripts/Missing.hpp");
+        assert!(editable_class_source(&root, &class).is_none());
+        fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     #[ignore = "Requires pinned libclang/MIPS SDK and cargo build --bins"]
     fn reflected_catalog_keeps_legacy_and_actor_scripts_without_sdk_entries() {

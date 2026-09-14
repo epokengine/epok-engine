@@ -455,12 +455,14 @@ impl SceneGpu {
                     || self.cached_fog_distance != view.distance))
             || self.cached_mesh_revision != input.mesh.revision
         {
-            let (mesh, edges, ranges) = match input.effect {
-                Some(quads) => {
-                    geometry_with_effects(scene, selected, preview_time, input.mesh, view, quads)
-                }
-                None => geometry(scene, selected, preview_time, input.mesh, view),
-            };
+            let (mesh, edges, ranges) = geometry_with_effects(
+                scene,
+                selected,
+                preview_time,
+                input.mesh,
+                view,
+                input.effect.unwrap_or_default(),
+            );
             self.cached_fog_center = view.center;
             self.cached_fog_distance = view.distance;
             self.draw_ranges = ranges;
@@ -613,6 +615,7 @@ fn line(out: &mut Vec<u8>, a: [f32; 3], b: [f32; 3], color: [u8; 3]) {
     vertex(out, b, color);
 }
 type GeometryBuffers = (Vec<u8>, Vec<u8>, Vec<(u32, u32, usize)>);
+#[cfg(test)]
 fn geometry(
     scene: &Scene,
     selected: Option<usize>,
@@ -640,8 +643,7 @@ fn geometry_with_effects(
     }
     let mut draws = Vec::<Draw>::new();
     let mut edges = Vec::new();
-    let lighting = crate::lighting::Lighting::new(scene);
-    let valid = crate::lighting::valid_bake(scene);
+    let lighting = crate::lighting::Lighting::unshadowed(scene);
     for (index, e) in scene
         .actors
         .iter()
@@ -660,14 +662,19 @@ fn geometry_with_effects(
                 false,
             )
         });
-        for (qi, q) in crate::lighting::quads(e).iter().enumerate() {
+        let quads = crate::lighting::quads(e);
+        let cached = scene
+            .bake
+            .as_ref()
+            .and_then(|b| b.preview_colors(e.id, quads.len() * 4));
+        for (qi, q) in quads.iter().enumerate() {
             let p = q.points.map(|v| world.point(v));
             let n = crate::lighting::transform_normal(world, q.normal);
             let colors: [[u8; 3]; 4] = std::array::from_fn(|v| {
                 let rgb = if q.material.unlit {
                     [255; 3]
-                } else if offline && valid {
-                    scene.bake.as_ref().unwrap().colors[index][qi * 4 + v]
+                } else if offline && let Some(colors) = cached {
+                    colors[qi * 4 + v]
                 } else if offline {
                     lighting.sample(p[v], n, index, true, false)
                 } else {
@@ -1005,6 +1012,42 @@ pub fn profile(project: crate::workspace::Project) -> Result<(), Box<dyn std::er
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn static_toggle_keeps_last_baked_shadows_in_both_renderers() {
+        let mut scene = crate::lighting::tests::shadow_scene();
+        scene.actors[1].lighting.static_geometry = false;
+        scene.actors[1].lighting.receive = crate::lighting::Receive::Realtime;
+        assert!(!crate::lighting::valid_bake(&scene));
+        let mut expected = scene.clone();
+        let cache = expected.bake.as_mut().unwrap();
+        cache.colors[1].clear();
+        cache.fingerprint = crate::lighting::fingerprint(&scene);
+        assert!(crate::lighting::valid_bake(&expected));
+        let view = crate::viewport::View::default();
+        let state = crate::mesh_editor::State::default();
+        assert_eq!(
+            super::geometry(&scene, Some(1), 0., &state, &view),
+            super::geometry(&expected, Some(1), 0., &state, &view),
+            "GPU preview must retain the last saved colors even when outdated"
+        );
+        assert_eq!(
+            crate::viewport::render(&scene, Some(1), &view, false, false, false).pixels,
+            crate::viewport::render(&expected, Some(1), &view, false, false, false).pixels,
+            "CPU preview must retain the same saved lighting"
+        );
+        let saved = scene.bake.clone();
+        let before = super::geometry(&scene, Some(1), 0., &state, &view);
+        scene.bake = Some(crate::lighting::bake(&scene).unwrap());
+        assert_ne!(before, super::geometry(&scene, Some(1), 0., &state, &view));
+        // An incompatible cache must fall back safely without tracing shadows.
+        scene.bake = saved;
+        scene.bake.as_mut().unwrap().colors[3].clear();
+        super::geometry(&scene, Some(1), 0., &state, &view);
+        scene.bake = None;
+        super::geometry(&scene, Some(1), 0., &state, &view);
+        assert!(scene.bake.is_none());
+    }
+
     #[test]
     #[ignore = "requires a graphics adapter"]
     fn profile_gpu_scene() {

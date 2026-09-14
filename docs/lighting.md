@@ -8,7 +8,15 @@ The editor, exported C++ project and PSX executable now support a bounded lighti
 2. Open **Window > Lighting** for ambient color, baked ambient occlusion, the realtime point-light budget, bake status and geometry/color-storage counts.
 3. In Mesh Renderer, choose **Unlit**, **Baked Vertex**, or **Realtime (GTE)**. Baked Vertex enables Static. Static receivers and shadow casters must remain fixed in the game, including their parents. Unchecking Static switches a baked receiver back to Realtime.
 4. Use **Subdivisions** to provide enough vertices for local illumination and shadows. The existing flat Ground primitive retains its 10×10 top grid. Keep subdivisions low elsewhere; the exporter rejects scenes above 7,000 mesh triangles.
-5. Click **Bake Lighting**. This runs on a worker thread. Continue editing while it runs; results for changed bake inputs are discarded. Save Scene to persist the cache. Play, Build and Export automatically regenerate outdated lighting. Play/Build return that cache to the editor when the authored inputs still match.
+5. Choose **Build > Build Lighting** (also available in the Lighting window). This runs on a worker thread. Continue editing while it runs; results for changed bake inputs are discarded. Save Scene to persist the cache. Play, Build Project and Export automatically regenerate outdated lighting. Play/Build return that cache to the editor when the authored inputs still match.
+
+The Scene view keeps the last baked shadows and AO while editing, including after
+toggling Static. An amber **Lighting needs rebuilding** warning appears when the
+bake is outdated or missing. Editing and camera movement never trace new shadows.
+Rebuild lighting explicitly to update them. Actors without usable cached vertex
+colors show direct lighting until the next build. Cached colors follow actor
+identities, so adding, removing or reordering actors does not transfer shadows
+to a different object.
 
 Without any lights, lit materials show the environment's ambient color. The old artificial six-face shading is no longer used in the renderer. Existing scene files remain readable and existing user assets are not overwritten during migration.
 

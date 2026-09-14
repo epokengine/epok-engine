@@ -1,7 +1,28 @@
 use crate::{editor::Editor, lighting::*, scene::Actor};
 
+pub fn can_start_bake(e: &Editor) -> bool {
+    !e.playing && !e.critical_busy() && !e.assets.busy && e.bake_job.is_none()
+}
+pub fn needs_rebuild(e: &Editor) -> bool {
+    !e.bake_current && (e.scene.bake.is_some() || e.scene.actors.iter().any(baked))
+}
+pub fn preview_status(ui: &imgui::Ui, e: &Editor) {
+    if e.bake_job.is_some() {
+        ui.text_disabled("Building lighting in background...");
+    } else if needs_rebuild(e) {
+        let _color = ui.push_style_color(imgui::StyleColor::Text, [1., 0.75, 0.3, 1.]);
+        ui.text_wrapped("Lighting needs rebuilding. Build > Build Lighting");
+        #[cfg(test)]
+        crate::gui::record_script_control(ui, "Lighting needs rebuilding");
+        if ui.is_item_hovered() {
+            ui.tooltip_text(
+                "The Scene view keeps the last baked shadows until lighting is rebuilt.",
+            );
+        }
+    }
+}
 pub fn start_bake(e: &mut Editor) {
-    if e.playing || e.bake_job.is_some() {
+    if !can_start_bake(e) {
         return;
     }
     let scene = e.scene.clone();
@@ -187,9 +208,8 @@ pub fn window(ui: &imgui::Ui, e: &mut Editor) {
         if old_fog!=e.scene.fog{e.changed();}
         ui.separator();
         let needs=e.scene.actors.iter().any(baked);
-        let status=if e.bake_job.is_some(){"Baking in background..."}else if !needs{"No baked receivers"}else if e.bake_current{"Bake up to date"}else{"Bake outdated - preview has no baked shadows"};
-        ui.text_wrapped(status);
-        ui.disabled(e.playing || e.bake_job.is_some(),||{if ui.button("Bake Lighting"){start_bake(e);}});
+        if needs_rebuild(e) || e.bake_job.is_some() {preview_status(ui,e);}else{ui.text_wrapped(if needs{"Bake up to date"}else{"No baked receivers"});}
+        ui.disabled(!can_start_bake(e),||{if ui.button("Build Lighting"){start_bake(e);}});
         ui.text_wrapped("Play / Build automatically bake outdated lighting. Save Scene after a manual bake to keep the cache.");
         ui.separator();
         let count:usize=e.scene.actors.iter().map(quad_count).sum();

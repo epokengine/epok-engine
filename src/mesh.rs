@@ -533,7 +533,7 @@ pub fn pick(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     pub fn shape(shape: &str) -> Document {
         let mut doc = Document::default();

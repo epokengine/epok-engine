@@ -22,6 +22,10 @@ Choose **Instantiate Actor** in the Hierarchy or Scene view. The class selection
 
 Use **Add Component** in the Inspector to attach a compatible native or Blueprint ActorComponent. Components may declare allowed owner domains, required or excluded components, and whether multiple instances are allowed. A general logic component supports all three domains; a component that accesses a specific spatial root should restrict its owners.
 
+The menu lists only components that can be added to the selected Actor. **Create C++ ActorComponent...** and **Create Blueprint ActorComponent...** restrict the parent picker to ActorComponent classes compatible with that Actor's domain. To create an Actor class, use the Project browser's class creation commands.
+
+Engine classes are read-only. **Edit C++ Class** is available for project classes and opens their actual declaration in VS Code; changing shared class code affects every instance using that class. The Inspector header keeps **A** (Active), **S** (Static) and the instance name on one row, with tooltips on both toggles.
+
 A placed Actor belongs to its map. **Convert to Actor Blueprint** captures its component composition, property values and child Actors in `assets/Blueprints`, and links the selected placement to that class. The reusable class can then be instantiated again. Each placement has independent Actor and component identities and preserves explicitly edited values when the Blueprint changes. References inside the captured subtree are remapped; references outside it must be cleared or replaced before capture.
 
 ## Blueprint execution

@@ -436,35 +436,123 @@ pub fn extract(e: &mut Editor) -> Result<(), String> {
     e.mesh_editor.selected.clear();
     Ok(())
 }
+/// Switch this instance's mesh reference without modifying a shared mesh asset.
+/// No asset reference denotes the immutable cube supplied by the engine.
+pub(crate) fn assign_mesh(
+    entity: &mut Actor,
+    index: &assets::Index,
+    asset: Option<Uuid>,
+) -> Result<(), String> {
+    let (editable, skeletal) = match asset {
+        None => (None, None),
+        Some(id) => {
+            let record = index.resolve(id)?;
+            match record.meta.kind {
+                assets::Kind::EditableMesh => {
+                    let mut component = mesh::Component::new(id);
+                    component.document = Some(Arc::new(mesh::document(record)?));
+                    (Some(component), None)
+                }
+                assets::Kind::SkeletalMesh => {
+                    let mut component = crate::skeletal::Component::new(id);
+                    component.model = Some(Arc::new(crate::skeletal::Model::load(index, id)?));
+                    (None, Some(component))
+                }
+                _ => return Err("Select a mesh asset from the Project browser.".into()),
+            }
+        }
+    };
+    entity.kind = "Mesh".into();
+    entity.editable_mesh = editable;
+    entity.skeletal_mesh = skeletal;
+    if entity.skeletal_mesh.is_some() {
+        entity.lighting.static_geometry = false;
+        entity.lighting.receive = crate::lighting::Receive::Realtime;
+    }
+    Ok(())
+}
+
+pub fn filter(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
+    if !crate::gui::heading(ui, "Mesh Filter") {
+        return;
+    }
+    let current = entity
+        .editable_mesh
+        .as_ref()
+        .map(|mesh| mesh.asset)
+        .or(entity.skeletal_mesh.as_ref().map(|mesh| mesh.asset));
+    let label = current
+        .map(|id| {
+            e.assets
+                .index
+                .resolve(id)
+                .map(|record| assets::path_string(&e.root, &record.path))
+                .unwrap_or_else(|_| format!("Missing / conflicting {id}"))
+        })
+        .unwrap_or_else(|| "Engine / Cube".into());
+    let mut chosen = None;
+    let combo = ui.begin_combo(crate::gui::field(ui, "Mesh"), &label);
+    #[cfg(test)]
+    crate::gui::record_script_control(ui, "Mesh");
+    if let Some(_combo) = combo {
+        ui.text_disabled("Engine");
+        if ui
+            .selectable_config("Cube (read-only)")
+            .selected(current.is_none())
+            .build()
+        {
+            chosen = Some(None);
+        }
+        #[cfg(test)]
+        crate::gui::record_script_control(ui, "Engine / Cube");
+        ui.separator();
+        ui.text_disabled("Project");
+        let mut records: Vec<_> = e
+            .assets
+            .index
+            .usable()
+            .filter(|record| {
+                matches!(
+                    record.meta.kind,
+                    assets::Kind::EditableMesh | assets::Kind::SkeletalMesh
+                )
+            })
+            .collect();
+        records.sort_by_key(|record| &record.path);
+        for record in records {
+            let path = assets::path_string(&e.root, &record.path);
+            if ui
+                .selectable_config(&path)
+                .selected(current == Some(record.meta.id))
+                .build()
+            {
+                chosen = Some(Some(record.meta.id));
+            }
+            #[cfg(test)]
+            crate::gui::record_script_control(ui, &path);
+        }
+    }
+    if let Some(chosen) = chosen
+        && chosen != current
+    {
+        match assign_mesh(entity, &e.assets.index, chosen) {
+            Ok(()) => e.mesh_editor.open = false,
+            Err(error) => e.log(error),
+        }
+    }
+    if entity.editable_mesh.is_none() && entity.skeletal_mesh.is_none() {
+        ui.text_disabled("Engine mesh (read-only)");
+    }
+    ui.separator();
+}
+
 pub fn component(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
     let Some(m) = &mut entity.editable_mesh else {
         return;
     };
     ui.separator();
-    if !crate::gui::heading(ui, "Editable Mesh") {
+    if !crate::gui::heading(ui, "Mesh Renderer") {
         return;
-    }
-    let label = e
-        .assets
-        .index
-        .resolve(m.asset)
-        .map(|r| assets::path_string(&e.root, &r.path))
-        .unwrap_or_else(|_| format!("Missing / conflicting {}", m.asset));
-    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Mesh asset"), label) {
-        for r in e
-            .assets
-            .index
-            .usable()
-            .filter(|r| r.meta.kind == assets::Kind::EditableMesh)
-        {
-            if ui.selectable(assets::path_string(&e.root, &r.path)) {
-                m.asset = r.meta.id;
-                m.materials.clear();
-                m.document = mesh::document(r).ok().map(Arc::new);
-                m.error = None;
-                e.mesh_editor.open = false;
-            }
-        }
     }
     if let Some(error) = &m.error {
         ui.text_wrapped(error);
@@ -1538,6 +1626,49 @@ pub fn verify_interactions(context: &mut imgui::Context) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn inspector_mesh_selection_preserves_shared_assets_and_instance_identity() {
+        let root = std::env::temp_dir().join(format!("epok-mesh-picker-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(root.join("assets/Meshes")).unwrap();
+        let path = root.join("assets/Meshes/Ramp.epokasset");
+        let asset = mesh::create(
+            &root,
+            "assets/Meshes/Ramp.epokasset",
+            &mesh::tests::shape("Ramp"),
+        )
+        .unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        let index = assets::scan(&root, &mut Default::default());
+        let mut first = Actor::cube("First".into());
+        let mut second = Actor::cube("Second".into());
+        let identity = (first.id, first.class.clone());
+        assign_mesh(&mut first, &index, Some(asset)).unwrap();
+        assign_mesh(&mut second, &index, Some(asset)).unwrap();
+        assert_eq!((first.id, first.class.clone()), identity);
+        let before = first.clone();
+        assert!(assign_mesh(&mut first, &index, Some(Uuid::new_v4())).is_err());
+        assert_eq!(first, before);
+        let shared = second.clone();
+        assign_mesh(&mut first, &index, None).unwrap();
+        assert_eq!(first.kind, "Mesh");
+        assert!(first.editable_mesh.is_none() && first.skeletal_mesh.is_none());
+        assert_eq!(second, shared);
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            bytes,
+            "Selecting a mesh must never edit its asset"
+        );
+        let mut scene = Scene::default();
+        scene.actors = vec![first, second];
+        let restored: Scene =
+            serde_json::from_str(&serde_json::to_string(&scene).unwrap()).unwrap();
+        assert!(restored.actors[0].editable_mesh.is_none());
+        assert_eq!(
+            restored.actors[1].editable_mesh.as_ref().unwrap().asset,
+            asset
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn autosave_undo_shared_edit_extraction_and_guard() {
         let root = std::env::temp_dir().join(format!("epok-blockout-{}", Uuid::new_v4()));

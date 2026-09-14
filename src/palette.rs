@@ -132,16 +132,6 @@ pub fn cpp_setup(scene: &Scene) -> String {
 }
 pub fn inspector(ui: &imgui::Ui, editor: &crate::editor::Editor, entity: &mut crate::scene::Actor) {
     if entity.palette_animator.is_none() {
-        if ui.small_button("Add Palette Animator") {
-            entity.palette_animator = Some(Animator {
-                texture: entity
-                    .material
-                    .texture
-                    .or(entity.sprite.as_ref().and_then(|s| s.texture))
-                    .or(entity.image.as_ref().and_then(|i| i.texture)),
-                ..Default::default()
-            });
-        }
         return;
     }
     if !crate::gui::heading(ui, "Palette Animator") {
