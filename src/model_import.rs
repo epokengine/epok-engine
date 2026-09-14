@@ -2,7 +2,7 @@
 use crate::{
     assets::{self, Kind, Metadata, Package, Record},
     import_settings,
-    skeletal::{self, Bone, Clip, Data, Mesh, Pose, Skeleton, Triangle, Vertex},
+    skeletal::{self, AnimationStorage, Bone, Clip, Data, Mesh, Pose, Skeleton, Triangle, Vertex},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -24,6 +24,8 @@ pub struct Settings {
     pub version: u32,
     pub outputs: BTreeMap<String, Output>,
     pub warnings: Vec<String>,
+    #[serde(default)]
+    pub animation_storage: AnimationStorage,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -31,6 +33,7 @@ impl Default for Settings {
             version: 1,
             outputs: BTreeMap::new(),
             warnings: vec![],
+            animation_storage: AnimationStorage::RigidGte,
         }
     }
 }
@@ -301,6 +304,7 @@ pub fn decode(bytes: &[u8], settings: &mut Settings) -> Result<Imported, String>
         triangles: vec![],
         materials: vec![],
         clips: vec![],
+        animation_storage: settings.animation_storage,
     };
     let mut material_keys = BTreeMap::<u32, usize>::new();
     let mut names = BTreeSet::new();
@@ -543,6 +547,7 @@ pub fn prepare(
     destination: &str,
     existing: Option<&Record>,
     snapshot: bool,
+    animation_storage: Option<AnimationStorage>,
 ) -> Result<Candidate, String> {
     let path = assets::inside(root, destination)?;
     if path.file_name().is_none_or(|v| v != "Model.epokasset")
@@ -561,6 +566,9 @@ pub fn prepare(
         },
         None => Settings::default(),
     };
+    if let Some(storage) = animation_storage {
+        settings.animation_storage = storage;
+    }
     if let Some(r) = existing
         && r.path != path
     {

@@ -181,7 +181,7 @@ Try **Assets → Import sample character (FBX)…**, select the imported **Model
 
 ![Epok skeletal preview with the original mannequin, animation controls and bone overlay](docs/images/skeletal-preview.png)
 
-The included mannequin has 96 vertices, 144 triangles and Idle/Walk clips. The PSX skeletal profile uses one bone per vertex, quantized 30 Hz animation samples and flat material colors. See [Skeletal characters](docs/skeletal.md) for the workflow and limits.
+The included mannequin has 96 vertices, 144 triangles and Idle/Walk clips. The PSX skeletal profile uses one bone per vertex and can compile the same quantized 30 Hz clips as direct rigid GTE skinning or compressed baked vertex frames. See [Skeletal characters](docs/skeletal.md) for the workflow and limits.
 
 </details>
 
@@ -222,7 +222,7 @@ Browse the **[Epok documentation](docs/getting-started.md)** for guides, workflo
 
 Epok targets the original hardware's constraints. Keep these boundaries in mind when planning a project:
 
-- **Animation:** rigid skeletal deformation is supported; skeletal textures, blended skin weights and animation blending remain future work.
+- **Animation:** rigid GTE skinning and compressed baked vertex clips are selectable per imported model; skeletal textures, blended skin weights and animation blending remain future work.
 - **Editing:** the open map's last 32 scene edits, Blueprint graphs/templates, Blockout geometry and MCP scene batches have Undo/Redo. Entity multiselection remains future work.
 - **Actors:** actor and component classes, per-map scene Blueprints and the 3D/2D/UI modes are host-validated; PSX build and emulator validation of actor content is pending on an SDK machine. There are no Pawn/Character archetypes, no positional audio and no 2D rigid-body physics.
 - **Rendering:** frustum clipping and ordering tables are used; intersecting polygons can still produce sorting artifacts. Capacity limits are not frame-rate guarantees.

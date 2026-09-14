@@ -179,6 +179,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+fn parse_animation_storage(value: &str) -> Result<skeletal::AnimationStorage, String> {
+    match value {
+        "rigid-gte" | "RigidGte" => Ok(skeletal::AnimationStorage::RigidGte),
+        "baked-vertices" | "BakedVertices" => Ok(skeletal::AnimationStorage::BakedVertices),
+        _ => Err("Animation storage must be rigid-gte or baked-vertices".into()),
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = std::env::args().collect::<Vec<_>>();
     if args.iter().any(|a| a == "--mcp-stdio") {
@@ -572,7 +580,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let destination = value("--asset")
             .map(str::to_owned)
             .unwrap_or_else(|| model_import::destination(source));
-        let candidate = model_import::prepare(&root, source, &destination, None, false)?;
+        let storage = value("--animation-storage")
+            .map(parse_animation_storage)
+            .transpose()?;
+        let candidate = model_import::prepare(&root, source, &destination, None, false, storage)?;
         println!("Imported FBX: {}", model_import::commit(candidate)?);
         return Ok(());
     }
@@ -622,6 +633,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &assets::path_string(&root, &path),
                 Some(r),
                 args.iter().any(|a| a == "--snapshot"),
+                value("--animation-storage")
+                    .map(parse_animation_storage)
+                    .transpose()?,
             )?;
             println!("Reimported FBX: {}", model_import::commit(candidate)?);
             return Ok(());

@@ -12,6 +12,20 @@ pub const MAX_VERTICES: usize = 512;
 pub const MAX_TRIANGLES: usize = 1024;
 pub const MAX_CLIP_BYTES: usize = 512 * 1024;
 
+/// Target-side representation selected per imported model. Both modes retain
+/// the editable skeleton and clips in host assets; only the generated PSX
+/// tables differ.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum AnimationStorage {
+    /// Keep compact bone tracks and transform rigid vertex groups directly with
+    /// the GTE. Lit materials may use the compatible CPU fallback.
+    #[default]
+    RigidGte,
+    /// Bake quantized model-space vertices and store independent compressed
+    /// frames. This trades executable size for a predictable, bone-free target path.
+    BakedVertices,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Pose {
     pub translation: [i16; 3],
@@ -82,6 +96,8 @@ pub struct Mesh {
     pub triangles: Vec<Triangle>,
     pub materials: Vec<Uuid>,
     pub clips: Vec<Uuid>,
+    #[serde(default)]
+    pub animation_storage: AnimationStorage,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Clip {

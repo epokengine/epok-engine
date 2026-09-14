@@ -228,7 +228,9 @@ emulator validation are pending on an SDK machine. See
 - **FBX skeletal import.** Import a mesh, armature and clips as a UUID-linked
   ModelSource package, inspect the skeleton, preview clips and place a character.
   The PSX profile supports up to 64 bones, 512 vertices and 1,024 triangles with
-  one rigid bone per vertex and quantized 30 Hz clips. See
+  one rigid bone per vertex and quantized 30 Hz clips. Each model can compile to
+  bone-grouped direct GTE skinning or compressed baked vertex frames; conservative
+  animation envelopes cull characters before pose/decode work. See
   [Skeletal characters](skeletal.md).
 
 ## Timelines and sequenced effects
@@ -528,8 +530,9 @@ features:
 - Console builds and PCSX-Redux execution are validated. Physical-console timing,
   controllers, serial paths on every host and real Memory Card media still need
   hardware validation.
-- Skeletal animation is rigid: one bone per vertex. Textured skeletal materials,
-  blended weights and animation blending are not implemented.
+- Skeletal source skinning is rigid: one bone per vertex. Target playback selects
+  direct GTE bone ranges or compressed baked vertex frames. Textured skeletal
+  materials, blended weights and animation blending are not implemented.
 - Collision is conservative AABB overlap/sweep with triggers, not a rigid-body
   physics engine.
 - Entity multiselection is not implemented, and Undo/Redo is not editor-wide. It is

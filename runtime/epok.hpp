@@ -79,7 +79,10 @@ struct PerformanceStats {
            camera_scanlines=0,sprite_scanlines=0,hud_scanlines=0,
            // Retained packets: triangles drawn from retained slots and rebuilds this frame.
            retained_triangles=0,retained_rebuilds=0,
-           visibility_skipped_chunks=0,streamed_chunks=0,stream_failed_chunks=0;
+           visibility_skipped_chunks=0,streamed_chunks=0,stream_failed_chunks=0,
+           // Skeletal work occurs only after the animation envelope is visible.
+           skeletal_scanlines=0,skeletal_bone_matrices=0,
+           skeletal_cpu_vertices=0,skeletal_decoded_vertices=0;
 };
 extern PerformanceStats performance_stats;
 struct Canvas { bool enabled=false; };
@@ -126,8 +129,10 @@ extern MeshStats mesh_stats;
 struct BonePose {int16_t translation[3],rotation[4],scale[3];};
 struct Bone {int16_t parent;BonePose bind;};
 struct BoneTrack {const BonePose* poses;bool constant;};
-struct AnimationClip {const BoneTrack* tracks;uint16_t frames;const char* name;};
-struct SkeletalMesh {const MeshGeometry* geometry;const uint8_t* vertex_bones;const Bone* bones;size_t bone_count;const AnimationClip* clips;size_t clip_count;};
+struct VertexFrame {uint32_t offset;bool raw;};
+struct AnimationClip {const BoneTrack* tracks;const VertexFrame* vertex_frames;const uint8_t* vertex_data;uint16_t frames;const char* name;};
+enum class SkeletalStorage:uint8_t {CpuRigid,RigidGte,BakedVertices};
+struct SkeletalMesh {const MeshGeometry* geometry;const uint8_t* vertex_bones;const uint16_t* bone_vertices;const Bone* bones;size_t bone_count;const AnimationClip* clips;size_t clip_count;SkeletalStorage storage;};
 struct Animator {
     bool enabled=false;const SkeletalMesh* model=nullptr;int clip=-1;uint32_t ticks=0;bool playing=true,looping=true;
     bool play(int index,bool loop=true){if(!model||index<0||size_t(index)>=model->clip_count)return false;clip=index;ticks=0;playing=true;looping=loop;return true;}

@@ -606,12 +606,15 @@ void GameScene::frame() {
     bool shaded = false, local_normals = false;
     epok::lighting_detail::MeshNormalTransform normal_transform;
     const bool skeletal=object.animator.enabled && object.animator.model;
-    if(skeletal)epok::skeletal_detail::scratch.pose(*object.animator.model,object.animator);
+    const auto skeletal_storage=skeletal?object.animator.model->storage:epok::SkeletalStorage::CpuRigid;
+    const bool rigid_gte=skeletal_storage==epok::SkeletalStorage::RigidGte;
+    const bool baked_vertices=skeletal_storage==epok::SkeletalStorage::BakedVertices;
+    const bool cpu_rigid=skeletal&&!rigid_gte&&!baked_vertices;
     auto object_view=view.compose(render_world[index]);
     for(int r=0;r<2;++r)for(int c=0;c<4;++c)object_view.values[r][c]*=row_scale[r];
     MaterialState material_state;
     const bool object_lit = !object.material.unlit && object.lighting.enabled;
-    const epok::MeshGeometry* const geometry_root = skeletal ? &epok::skeletal_detail::scratch.geometry : (object.geometry ? object.geometry : &default_cube);
+    const epok::MeshGeometry* const geometry_root = skeletal ? object.animator.model->geometry : (object.geometry ? object.geometry : &default_cube);
     if constexpr (epok::stream_archive_fits) if (!skeletal &&
         !epok::streaming_bind_object(geometry_root, stream_bindings[index], gpu())) {
       // Binding is atomic at object granularity: never draw a partial chain.
@@ -693,7 +696,8 @@ void GameScene::frame() {
           const int16_t* normal = quad.normal;
           int16_t skeletal_normal[3];
           if (skeletal) {
-            int32_t a[3],b[3];for(int c=0;c<3;++c){a[c]=int32_t(mesh.vertices[indices[1]][c])-mesh.vertices[indices[0]][c];b[c]=int32_t(mesh.vertices[indices[2]][c])-mesh.vertices[indices[0]][c];}
+            const auto* normal_vertices=epok::skeletal_detail::scratch.geometry.vertices;
+            int32_t a[3],b[3];for(int c=0;c<3;++c){a[c]=int32_t(normal_vertices[indices[1]][c])-normal_vertices[indices[0]][c];b[c]=int32_t(normal_vertices[indices[2]][c])-normal_vertices[indices[0]][c];}
             epok::lighting_detail::Vector n;for(int c=0;c<3;++c)n.v[c]=int32_t((int64_t(a[(c+1)%3])*b[(c+2)%3]-int64_t(a[(c+2)%3])*b[(c+1)%3])/4096);
             n=epok::lighting_detail::normalize(n);for(int c=0;c<3;++c)skeletal_normal[c]=int16_t(n.v[c]);
             normal = skeletal_normal;
@@ -759,7 +763,7 @@ void GameScene::frame() {
     };
     // One GTE matrix per object: chunks add their origin to the vertices, so a
     // vertex shared by two chunks produces identical GTE inputs and no seam.
-    const bool object_gte = epok::load_projection_matrix(object_view);
+    const bool object_gte = !rigid_gte&&epok::load_projection_matrix(object_view);
     bool object_matrix_loaded = object_gte;
     // Raw view coefficients for the per-chunk bounds test: widening multiplies
     // and shifts only, no Fixed arithmetic or matrix copies per chunk.
@@ -796,7 +800,8 @@ void GameScene::frame() {
     const bool basis_cache_active = visibility.basis_cache_active();
     size_t chunk_ordinal = 0;
     uint32_t prefetch_source = 0xffffffffu;
-    for (auto *mesh_ptr = skeletal ? &epok::skeletal_detail::scratch.geometry : (object.geometry ? object.geometry : &default_cube);
+    bool skeletal_pose_ready=false,baked_vertices_ready=false;
+    for (auto *mesh_ptr = geometry_root;
          mesh_ptr; mesh_ptr = mesh_ptr->next, ++chunk_ordinal) {
       const auto &bounds_mesh = *mesh_ptr;
       const uint32_t chunk_quad_base = quad_base;
@@ -879,7 +884,9 @@ void GameScene::frame() {
         continue;
       }
       const auto& mesh = bounds_mesh;
-      const auto* mesh_vertices = mesh_view.vertices;
+      if(baked_vertices&&!baked_vertices_ready){const uint16_t begin=COUNTERS[1].value;epok::skeletal_detail::scratch.decode_vertices(*object.animator.model,object.animator);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);performance_work.skeletal_decoded_vertices+=mesh.vertex_count;baked_vertices_ready=true;}
+      if(cpu_rigid&&!skeletal_pose_ready){const uint16_t begin=COUNTERS[1].value;epok::skeletal_detail::scratch.pose(*object.animator.model,object.animator);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);performance_work.skeletal_bone_matrices+=object.animator.model->bone_count;performance_work.skeletal_cpu_vertices+=mesh.vertex_count;skeletal_pose_ready=true;}
+      const auto* mesh_vertices = (baked_vertices||cpu_rigid)?epok::skeletal_detail::scratch.geometry.vertices:mesh_view.vertices;
       const auto* mesh_quads = mesh_view.quads;
       if constexpr (epok::stream_page_count > 0) {
 #ifdef EPOK_PROFILE_DETAIL
@@ -953,49 +960,80 @@ void GameScene::frame() {
       }
       EPOK_DETAIL_END(setup, setup_scanlines);
       const uint16_t vertex_begin=COUNTERS[1].value;
-      int32_t origin8[3] = {mesh.origin[0] >> 4, mesh.origin[1] >> 4, mesh.origin[2] >> 4};
-      bool shared_matrix = object_gte;
-      for (int c = 0; c < 3; ++c)
-        if (origin8[c] > epok::gte_shared_origin_limit || origin8[c] < -epok::gte_shared_origin_limit) shared_matrix = false;
-      // The chunk matrix is only needed by the fallbacks and the validation build.
-      Matrix model_view;
-#ifdef EPOK_VALIDATE_GTE
-      const bool need_chunk_matrix = true;
-#else
-      const bool need_chunk_matrix = !shared_matrix;
-#endif
-      if (need_chunk_matrix) {
-        model_view = object_view;
-        for (int r = 0; r < 3; ++r)
-          for (int c = 0; c < 3; ++c)
-            model_view.values[r][3] += model_view.values[r][c] * Fixed(mesh.origin[c], Fixed::RAW);
-      }
-      bool gte_geometry;
-      if (shared_matrix) {
-        if (!object_matrix_loaded) object_matrix_loaded = epok::load_projection_matrix(object_view);
-        gte_geometry = true;
-      } else {
-        // Distant chunk of a very large object: fall back to a chunk matrix.
-        origin8[0] = origin8[1] = origin8[2] = 0;
-        gte_geometry = epok::load_projection_matrix(model_view);
-        object_matrix_loaded = false;
-      }
       ProjectedVertex* const projected_vertices =
           mesh.vertex_count <= scratch_vertex_capacity ? scratch_vertices : projected_vertices_ram;
-      for (size_t v = 0; v < mesh.vertex_count; ++v) {
-        auto &out = projected_vertices[v];
-        uint32_t flags = epok::gte_projection_flags;
-        if (gte_geometry) {
-          epok::project_geometry_vertex(mesh_vertices[v], origin8, out.camera, out.screen.packed, flags);
-        } else {
-          // Coefficients outside the GTE range: full Q12 transform, then the same
-          // Q8 truncation and a CPU perspective division.
-          Fixed local[3],p[3];for(int c=0;c<3;++c)local[c]=Fixed(mesh_vertices[v][c],Fixed::RAW);
-          model_view.point(local,p);
-          for(int c=0;c<3;++c)out.camera[c]=p[c].raw()>>4;
-        }
+      auto finish_projection=[&](ProjectedVertex& out,uint32_t flags){
+        const int32_t z = out.camera[2];
+        out.outcode = epok::frustum_outcode32<Units::near, Units::far>(out.camera[0], out.camera[1], z);
+        out.fog = fog_enabled ? epok::fog_amount(z, fog_start, fog_end) : 0;
+        out.visible = z >= Units::near && z < Units::far;
+        if (out.visible && (flags & epok::gte_projection_flags))
+          epok::project_cpu<Units, epok::display_width, epok::display_height>(out);
+      };
+      bool gte_geometry=true;
+      if(rigid_gte){
+        if(!skeletal_pose_ready){const uint16_t begin=COUNTERS[1].value;epok::skeletal_detail::scratch.pose_bones(*object.animator.model,object.animator);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);performance_work.skeletal_bone_matrices+=object.animator.model->bone_count;skeletal_pose_ready=true;}
+        const int32_t origin8[3]={0,0,0};
+        size_t gte_count=0,software_count=0;
+        for(size_t bone=0;bone<object.animator.model->bone_count;++bone){
+          const size_t first=object.animator.model->bone_vertices[bone];
+          const size_t last=object.animator.model->bone_vertices[bone+1];
+          if(first==last)continue;
+          Matrix bone_view=object_view.compose(epok::skeletal_detail::scratch.bones[bone]);
+          const bool bone_gte=epok::load_projection_matrix(bone_view);
+          for(size_t v=first;v<last;++v){
+            auto& out=projected_vertices[v];uint32_t flags=epok::gte_projection_flags;
+            if(bone_gte)epok::project_geometry_vertex(mesh_vertices[v],origin8,out.camera,out.screen.packed,flags);
+            else{Fixed local[3],p[3];for(int c=0;c<3;++c)local[c]=Fixed(mesh_vertices[v][c],Fixed::RAW);bone_view.point(local,p);for(int c=0;c<3;++c)out.camera[c]=p[c].raw()>>4;}
 #ifdef EPOK_VALIDATE_GTE
-        if (gte_geometry) {
+            if(bone_gte){
+              Fixed local[3],p[3];for(int c=0;c<3;++c)local[c]=Fixed(mesh_vertices[v][c],Fixed::RAW);bone_view.point(local,p);
+              for(int c=0;c<3;++c){const int64_t difference=int64_t(out.camera[c])*16-p[c].raw();const uint32_t delta=uint32_t(difference<0?-difference:difference);if(delta>performance_work.gte_max_delta)performance_work.gte_max_delta=delta;if(delta>128)++performance_work.gte_validation_errors;}
+            }
+#endif
+            finish_projection(out,flags);
+          }
+          if(bone_gte)gte_count+=last-first;else software_count+=last-first;
+        }
+        performance_work.gte_vertices+=gte_count;performance_work.software_vertices+=software_count;
+        gte_geometry=software_count==0;object_matrix_loaded=false;
+      }else{
+        int32_t origin8[3] = {mesh.origin[0] >> 4, mesh.origin[1] >> 4, mesh.origin[2] >> 4};
+        bool shared_matrix = object_gte;
+        for (int c = 0; c < 3; ++c)
+          if (origin8[c] > epok::gte_shared_origin_limit || origin8[c] < -epok::gte_shared_origin_limit) shared_matrix = false;
+        Matrix model_view;
+#ifdef EPOK_VALIDATE_GTE
+        const bool need_chunk_matrix = true;
+#else
+        const bool need_chunk_matrix = !shared_matrix;
+#endif
+        if (need_chunk_matrix) {
+          model_view = object_view;
+          for (int r = 0; r < 3; ++r)
+            for (int c = 0; c < 3; ++c)
+              model_view.values[r][3] += model_view.values[r][c] * Fixed(mesh.origin[c], Fixed::RAW);
+        }
+        if (shared_matrix) {
+          if (!object_matrix_loaded) object_matrix_loaded = epok::load_projection_matrix(object_view);
+          gte_geometry = true;
+        } else {
+          origin8[0] = origin8[1] = origin8[2] = 0;
+          gte_geometry = epok::load_projection_matrix(model_view);
+          object_matrix_loaded = false;
+        }
+        for (size_t v = 0; v < mesh.vertex_count; ++v) {
+          auto &out = projected_vertices[v];
+          uint32_t flags = epok::gte_projection_flags;
+          if (gte_geometry) {
+            epok::project_geometry_vertex(mesh_vertices[v], origin8, out.camera, out.screen.packed, flags);
+          } else {
+            Fixed local[3],p[3];for(int c=0;c<3;++c)local[c]=Fixed(mesh_vertices[v][c],Fixed::RAW);
+            model_view.point(local,p);
+            for(int c=0;c<3;++c)out.camera[c]=p[c].raw()>>4;
+          }
+#ifdef EPOK_VALIDATE_GTE
+          if (gte_geometry) {
           Fixed local[3],p[3];for(int c=0;c<3;++c)local[c]=Fixed(mesh_vertices[v][c],Fixed::RAW);
           model_view.point(local,p);
           for(int c=0;c<3;++c){
@@ -1017,18 +1055,12 @@ void GameScene::frame() {
             if (delta > performance_work.gte_screen_max_delta) performance_work.gte_screen_max_delta = delta;
             if (delta > 2 || !reference.visible) ++performance_work.gte_validation_errors;
           }
-        }
+          }
 #endif
-        const int32_t z = out.camera[2];
-        out.outcode = epok::frustum_outcode32<Units::near, Units::far>(out.camera[0], out.camera[1], z);
-        out.fog = fog_enabled ? epok::fog_amount(z, fog_start, fog_end) : 0;
-        out.visible = z >= Units::near && z < Units::far;
-        // Saturated IR/SXY or a divide overflow near the eye: keep the exact
-        // camera coordinates and project on the CPU instead.
-        if (out.visible && (flags & epok::gte_projection_flags))
-          epok::project_cpu<Units, epok::display_width, epok::display_height>(out);
+          finish_projection(out,flags);
+        }
+        if(gte_geometry)performance_work.gte_vertices+=mesh.vertex_count;else performance_work.software_vertices+=mesh.vertex_count;
       }
-      if(gte_geometry)performance_work.gte_vertices+=mesh.vertex_count;else performance_work.software_vertices+=mesh.vertex_count;
       epok::mesh_stats.transformed_vertices += mesh.vertex_count;
       performance_work.vertex_scanlines+=uint16_t(COUNTERS[1].value-vertex_begin);
       epok::debug_hud::geometry(vertex_begin, gte_geometry);

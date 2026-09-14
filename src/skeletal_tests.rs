@@ -174,7 +174,7 @@ fn model_reimport_is_portable_preserves_ids_materials_and_rejects_stale_edits() 
     let f = Fixture::new();
     let dest = model_import::destination("assets/Hero.fbx");
     let id = model_import::commit(
-        model_import::prepare(&f.0, "assets/Hero.fbx", &dest, None, false).unwrap(),
+        model_import::prepare(&f.0, "assets/Hero.fbx", &dest, None, false, None).unwrap(),
     )
     .unwrap();
     let before = f.index();
@@ -200,7 +200,7 @@ fn model_reimport_is_portable_preserves_ids_materials_and_rejects_stale_edits() 
     .unwrap();
     let material_bytes = fs::read(&material.path).unwrap();
     let prepared =
-        model_import::prepare(&f.0, "assets/Hero.fbx", &dest, Some(source), false).unwrap();
+        model_import::prepare(&f.0, "assets/Hero.fbx", &dest, Some(source), false, None).unwrap();
     // A stale edit to any subasset aborts the entire replacement.
     fs::write(&material.path, b"changed during import").unwrap();
     assert!(model_import::commit(prepared).is_err());
@@ -211,7 +211,7 @@ fn model_reimport_is_portable_preserves_ids_materials_and_rejects_stale_edits() 
     fs::write(&material.path, &material_bytes).unwrap();
     fs::remove_file(f.0.join("assets/Hero.fbx")).unwrap();
     model_import::commit(
-        model_import::prepare(&f.0, "assets/Hero.fbx", &dest, Some(source), true).unwrap(),
+        model_import::prepare(&f.0, "assets/Hero.fbx", &dest, Some(source), true, None).unwrap(),
     )
     .unwrap();
     let after = f.index();
@@ -242,6 +242,8 @@ fn model_reimport_is_portable_preserves_ids_materials_and_rejects_stale_edits() 
     crate::actor_document::remap_actor(actor, &ids);
     let header = crate::project::scene_header(&scene, &[]).unwrap();
     assert!(header.contains("inline constexpr SkeletalMesh"));
+    assert!(header.contains("skin_bone_vertices_"));
+    assert!(header.contains("SkeletalStorage::RigidGte"));
     assert_eq!(
         header.matches("inline constexpr SkeletalMesh").count(),
         1,
@@ -258,6 +260,25 @@ fn model_reimport_is_portable_preserves_ids_materials_and_rejects_stale_edits() 
         !header.contains(&mesh.meta.id.to_string()),
         "UUID leaked to target tables"
     );
+    std::sync::Arc::make_mut(
+        scene
+            .actors
+            .last_mut()
+            .unwrap()
+            .skeletal_mesh
+            .as_mut()
+            .unwrap()
+            .model
+            .as_mut()
+            .unwrap(),
+    )
+    .mesh
+    .animation_storage = skeletal::AnimationStorage::BakedVertices;
+    let baked = crate::skeletal_compile::header(scene.actors.last().unwrap(), 99).unwrap();
+    assert!(baked.contains("skin_vertex_frames_99_"));
+    assert!(baked.contains("skin_vertex_data_99_"));
+    assert!(baked.contains("SkeletalStorage::BakedVertices"));
+    assert!(!baked.contains("skin_pose_99_"));
     // Runtime state is not persisted into scenes.
     let serialized = serde_json::to_vec(&scene).unwrap();
     scene
@@ -274,6 +295,13 @@ fn model_reimport_is_portable_preserves_ids_materials_and_rejects_stale_edits() 
 fn malformed_and_incompatible_skeletal_assets_fail_before_publication() {
     assert!(model_import::decode(b"not an fbx", &mut Default::default()).is_err());
     let m = decoded();
+    let mut legacy = serde_json::to_value(&m.mesh).unwrap();
+    legacy.as_object_mut().unwrap().remove("animation_storage");
+    let legacy: skeletal::Mesh = serde_json::from_value(legacy).unwrap();
+    assert_eq!(
+        legacy.animation_storage,
+        skeletal::AnimationStorage::RigidGte
+    );
     let mut bad = m.skeleton.clone();
     bad.bones[0].parent = 0;
     assert!(Data::parse(&serde_json::to_vec(&Data::Skeleton(bad)).unwrap()).is_err());

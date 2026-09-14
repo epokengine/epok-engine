@@ -2,7 +2,8 @@
 #include "epok.hpp"
 #include "affine.hpp"
 namespace epok {
-// Shared scratch, reused between characters. No allocation and no per-frame vertex cache on disc.
+// Shared scratch, reused between visible characters. RigidGte never writes vertices;
+// BakedVertices decodes a single frame here, and CpuRigid is the lit-material fallback.
 namespace skeletal_detail {
 inline Affine<Fixed> pose_matrix(const BonePose& p) {
     Fixed x(p.rotation[0],Fixed::RAW),y(p.rotation[1],Fixed::RAW),z(p.rotation[2],Fixed::RAW),w(p.rotation[3],Fixed::RAW);
@@ -18,23 +19,50 @@ struct Scratch {
     Affine<Fixed> bones[64];
     int16_t vertices[512][3];
     MeshGeometry geometry{};
-    void pose(const SkeletalMesh& model, const Animator& animator) {
-        const AnimationClip* clip=animator.clip>=0 && size_t(animator.clip)<model.clip_count?&model.clips[animator.clip]:nullptr;
+    static uint32_t frame_index(const AnimationClip* clip,const Animator& animator) {
+        if(!clip)return 0;
         uint32_t frame=animator.ticks/2;
-        if(clip){uint32_t length=clip->frames>1?clip->frames-1:1;if(animator.looping)frame%=length;else if(frame>=clip->frames)frame=clip->frames-1;}
+        uint32_t length=clip->frames>1?clip->frames-1:1;
+        if(animator.looping)frame%=length;
+        else if(frame>=clip->frames)frame=clip->frames-1;
+        return frame;
+    }
+    void pose_bones(const SkeletalMesh& model,const Animator& animator) {
+        const AnimationClip* clip=animator.clip>=0 && size_t(animator.clip)<model.clip_count?&model.clips[animator.clip]:nullptr;
+        uint32_t frame=frame_index(clip,animator);
         for(size_t i=0;i<model.bone_count;++i){
             const auto& bone=model.bones[i];const BonePose* p=&bone.bind;
-            if(clip){const auto& track=clip->tracks[i];p=&track.poses[track.constant?0:frame];}
+            if(clip&&clip->tracks){const auto& track=clip->tracks[i];p=&track.poses[track.constant?0:frame];}
             auto local=pose_matrix(*p);bones[i]=bone.parent<0?local:bones[bone.parent].compose(local);
         }
-        int32_t lo[3]={32767,32767,32767},hi[3]={-32768,-32768,-32768};
+    }
+    void skin_vertices(const SkeletalMesh& model) {
         for(size_t i=0;i<model.geometry->vertex_count;++i){
             Fixed local[3],out[3];for(int c=0;c<3;++c)local[c]=Fixed(model.geometry->vertices[i][c],Fixed::RAW);
             bones[model.vertex_bones[i]].point(local,out);
-            for(int c=0;c<3;++c){int32_t v=out[c].raw();if(v< -32768)v=-32768;if(v>32767)v=32767;vertices[i][c]=int16_t(v);if(v<lo[c])lo[c]=v;if(v>hi[c])hi[c]=v;}
+            for(int c=0;c<3;++c){int32_t v=out[c].raw();if(v< -32768)v=-32768;if(v>32767)v=32767;vertices[i][c]=int16_t(v);}
         }
         geometry=*model.geometry;geometry.vertices=vertices;
-        for(int c=0;c<3;++c){geometry.center[c]=(lo[c]+hi[c])/2;geometry.extent[c]=(hi[c]-lo[c]+1)/2+2;}
+    }
+    void decode_vertices(const SkeletalMesh& model,const Animator& animator) {
+        geometry=*model.geometry;
+        const AnimationClip* clip=animator.clip>=0 && size_t(animator.clip)<model.clip_count?&model.clips[animator.clip]:nullptr;
+        if(!clip||!clip->vertex_frames||!clip->vertex_data){return;}
+        const auto& encoded=clip->vertex_frames[frame_index(clip,animator)];
+        const uint8_t* source=clip->vertex_data+encoded.offset;
+        for(size_t i=0;i<model.geometry->vertex_count;++i){
+            for(int c=0;c<3;++c){
+                if(encoded.raw){vertices[i][c]=int16_t(uint16_t(source[0])|(uint16_t(source[1])<<8));source+=2;continue;}
+                int8_t delta=int8_t(*source++);
+                if(delta==-128){vertices[i][c]=int16_t(uint16_t(source[0])|(uint16_t(source[1])<<8));source+=2;}
+                else vertices[i][c]=int16_t(int32_t(model.geometry->vertices[i][c])+int32_t(delta)*16);
+            }
+        }
+        geometry.vertices=vertices;
+    }
+    void pose(const SkeletalMesh& model,const Animator& animator) {
+        if(model.storage==SkeletalStorage::BakedVertices){decode_vertices(model,animator);return;}
+        pose_bones(model,animator);skin_vertices(model);
     }
 };
 inline Scratch scratch;
