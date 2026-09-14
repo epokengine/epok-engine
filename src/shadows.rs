@@ -1,4 +1,4 @@
-//! Cheap moving shadows on horizontal, axis-aligned floor entities.
+//! Cheap moving shadows on horizontal, axis-aligned floor actors.
 use crate::{lighting, scene::Scene};
 use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -25,7 +25,7 @@ pub struct Blob {
 }
 pub fn blobs(scene: &Scene) -> Vec<Blob> {
     let mut out = Vec::new();
-    for (i, e) in scene.entities.iter().enumerate() {
+    for (i, e) in scene.actors.iter().enumerate() {
         let Some(b) = e.blob_shadow.as_ref().filter(|b| b.enabled) else {
             continue;
         };
@@ -35,7 +35,7 @@ pub fn blobs(scene: &Scene) -> Vec<Blob> {
         let center = scene.world_matrix(i).point([0.; 3]);
         let mut floor = None;
         let mut highest = f32::NEG_INFINITY;
-        for (j, f) in scene.entities.iter().enumerate() {
+        for (j, f) in scene.actors.iter().enumerate() {
             if i == j || !lighting::tiled(f) {
                 continue;
             }
@@ -82,7 +82,7 @@ pub fn blobs(scene: &Scene) -> Vec<Blob> {
     }
     out
 }
-pub fn inspector(ui: &imgui::Ui, e: &mut crate::scene::Entity) {
+pub fn inspector(ui: &imgui::Ui, e: &mut crate::scene::Actor) {
     if let Some(b) = &mut e.blob_shadow
         && crate::gui::heading(ui, "Blob Shadow")
     {

@@ -126,7 +126,8 @@ impl Loading {
                     )
                     .err();
                     let opened = crate::scene_loading::Message::new(format!(
-                        "Opening project: {:.1} ms", opening.elapsed().as_secs_f64() * 1000.
+                        "Opening project: {:.1} ms",
+                        opening.elapsed().as_secs_f64() * 1000.
                     ));
                     let mut project = PreparedProject::load(project, |stage| {
                         let _ = tx.send(Event::Stage(stage));

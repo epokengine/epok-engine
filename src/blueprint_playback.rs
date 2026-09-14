@@ -61,7 +61,12 @@ pub fn slots<'a>(
 pub fn external(slots: &[Slot]) -> Vec<&Slot> {
     let mut result = slots
         .iter()
-        .filter(|slot| matches!(slot.target, Type::EntityRef { .. }))
+        .filter(|slot| {
+            matches!(
+                slot.target,
+                Type::ObjectRef { .. } | Type::ActorRef { .. } | Type::ComponentRef { .. }
+            )
+        })
         .collect::<Vec<_>>();
     result.sort_by_key(|slot| slot.id);
     result
@@ -84,15 +89,15 @@ pub fn parameters(slots: &[Slot], effect: bool) -> String {
         vec![
             "const epok::Transform& transform".into(),
             "uint32_t seed".into(),
-            "epok::EntityHandle owner".into(),
+            "epok::ObjectId owner".into(),
         ]
     } else {
-        vec!["epok::EntityHandle owner".into()]
+        vec!["epok::ObjectId owner".into()]
     };
     parameters.extend(
         external(slots)
             .into_iter()
-            .map(|slot| format!("epok::EntityHandle slot_{}", slot.id.simple())),
+            .map(|slot| format!("epok::ObjectId slot_{}", slot.id.simple())),
     );
     parameters.join(",")
 }
@@ -132,7 +137,10 @@ pub fn definitions(
             .slots
             .iter()
             .map(|slot| {
-                if matches!(slot.target, Type::EntityRef { .. }) {
+                if matches!(
+                    slot.target,
+                    Type::ObjectRef { .. } | Type::ActorRef { .. } | Type::ComponentRef { .. }
+                ) {
                     format!("epok::timeline::BoundTarget(slot_{})", slot.id.simple())
                 } else {
                     "epok::timeline::BoundTarget{}".into()
@@ -155,7 +163,7 @@ pub fn definitions(
         let service = if effect { "effects" } else { "timeline" };
         let invoke = if effect {
             format!(
-                "epok::effects::spawn(epok::effects::cooked::asset_{}::asset,transform,seed,owner,{pointer})",
+                "epok::effects::spawn(epok::effects::cooked::asset_{}::asset,transform,seed,epok::bp::data_handle(owner),{pointer})",
                 id.simple()
             )
         } else {

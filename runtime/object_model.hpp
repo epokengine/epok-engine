@@ -22,11 +22,20 @@
 #endif
 
 namespace epok {
+class Object;
+struct NativeComponentDefault {
+    Object* component=nullptr;
+    const char* name=nullptr;
+    bool root=false;
+    int16_t attach_parent=-1;
+    uint64_t class_id=0;
+};
 // Compact runtime identity. Index 0xffff is null. Generations never revive a reused slot.
 struct ObjectId {
     uint16_t index = 0xffff;
     uint16_t generation = 0;
     constexpr bool valid() const { return index != 0xffff && generation != 0; }
+    Object* get() const;
     constexpr bool operator==(const ObjectId& other) const {
         return index == other.index && generation == other.generation;
     }
@@ -135,6 +144,8 @@ struct ClassDescriptor {
     size_t align = 0;
     Object* (*acquire)() = nullptr;
     void (*release)(Object* instance) = nullptr;
+    size_t default_component_count=0;
+    NativeComponentDefault (*default_component)(Object&,size_t)=nullptr;
 };
 // Emitted by the Rust cook next to the scene banks. Host tests provide their own table.
 extern const ClassDescriptor object_classes[];
@@ -161,7 +172,8 @@ public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("26a54c0d-ca81-41ca-aecc-d0346a6357d2");
     virtual ~Object() = default;
     // Runtime-owned identity hooks; not an authoring API.
-    virtual uint64_t class_id() const { return static_class_id; }
+    virtual uint64_t class_id() const { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    virtual void timeline_sync(uint64_t, bool) {}
     ObjectId id() const { return m_id; }
     ObjectState state() const { return m_state; }
     bool is_a(uint64_t parent) const { return object_class_is_a(class_id(), parent); }
@@ -170,6 +182,7 @@ protected:
     friend class Level;
     ObjectId m_id;
     ObjectState m_state = ObjectState::Unused;
+    uint64_t m_runtime_class_id = 0;
 };
 
 // Placement-new into caller storage; destroy runs the virtual destructor of the concrete
@@ -225,7 +238,7 @@ struct ObjectStats { uint32_t alive = 0, peak = 0, rejected = 0, spawned = 0, de
 // callbacks. The XA music service is the one that exists today: `music_active` and
 // `music_requested` (runtime/music.hpp) keep an AudioSource* while the CD driver's
 // lookup/stop completions are still in flight, which is exactly why
-// `create_entity` refuses to reuse a legacy slot whose `audio` is one of them.
+// `allocate_actor_data` refuses to reuse a legacy slot whose `audio` is one of them.
 // Component-owned storage needs the same rule, so the registry asks this predicate
 // before handing released storage back to its pool.
 //
@@ -238,15 +251,6 @@ inline bool (*audio_source_retained)(const AudioSource*) = nullptr;
 inline bool object_storage_quarantined(Object* instance);
 
 // ---- trigger delivery filter -------------------------------------------------------
-// A migrated entity is reachable from both sides: the scene bank's legacy `bindings`
-// table still notifies its Behaviour directly, and the actor half may own a
-// LegacyBehaviourComponent wrapping the very same Behaviour. The rule (p11) is that the
-// legacy table wins, so `dispatch_trigger` skips any component this predicate claims.
-// The predicate is installed rather than hard-wired because `bindings` lives in the
-// generated scene bank, which is compiled after this header. With no hook installed
-// nothing is filtered.
-class ActorComponent;
-inline bool (*component_trigger_filtered)(const ActorComponent*) = nullptr;
 
 // Slot table over a fixed capacity. The table itself is a view so the capacity can come
 // from a template default here or from the cook later without changing call sites.
@@ -356,6 +360,7 @@ private:
         record.owns_storage = owned;
         instance->m_id = ObjectId{index, record.generation};
         instance->m_state = ObjectState::Reserved;
+        instance->m_runtime_class_id = type.id;
         ++stats.alive;
         ++stats.spawned;
         if (stats.alive > stats.peak) stats.peak = stats.alive;
@@ -378,6 +383,7 @@ struct ObjectDispatchScope {
 };
 // Registry bound by the active Level. World ownership arrives with the World wiring phase.
 inline ObjectRegistry* active_object_registry = nullptr;
+inline Object* ObjectId::get() const {return active_object_registry ? active_object_registry->get(*this) : nullptr;}
 
 class ActorComponent;
 inline constexpr size_t actor_component_capacity = 8;
@@ -388,8 +394,9 @@ inline constexpr size_t object_hierarchy_depth = 16;
 class EPOK_CLASS(Abstract, Blueprintable, Family=Actor, Domain=None, Id="6e6efc67-66c4-4dae-90f8-7c8c4e612dea") Actor : public Object {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("6e6efc67-66c4-4dae-90f8-7c8c4e612dea");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     EPOK_FUNCTION(BlueprintEvent) virtual void begin_play() {}
+    virtual void blueprint_observe() {}
     EPOK_FUNCTION(BlueprintEvent) virtual void tick(Fixed) {}
     EPOK_FUNCTION(BlueprintEvent) virtual void end_play(EndPlayReason) {}
     EPOK_FUNCTION(BlueprintEvent) virtual void on_enable() {}
@@ -397,7 +404,8 @@ public:
     // Runtime hook, not reflected: the declarative root component embedded in the actor.
     virtual ActorComponent* default_root() { return nullptr; }
     // Legacy adapter: the canonical slot behind the root scene component, or nullptr.
-    Entity* entity();
+    ActorData* data() const { return m_data; }
+    void bind_data(ActorData& value) { m_data=&value; value.owner=this; }
     const char* name() const { return m_name; }
     void set_name(const char* value) {
         size_t i = 0;
@@ -416,6 +424,7 @@ public:
 protected:
     friend class Level;
     char m_name[33] = {};
+    ActorData* m_data=nullptr;
     ObjectId m_level, m_root, m_logical_parent;
     ObjectId m_components[actor_component_capacity] = {};
     uint8_t m_component_count = 0;
@@ -424,10 +433,10 @@ protected:
     bool m_begun = false, m_ended = false, m_doomed = false;
 };
 
-class EPOK_CLASS(Abstract, Blueprintable, Family=Component, Domain=None, Id="2e5021ee-d14d-4d77-9112-455f29d639d2") ActorComponent : public Object {
+class EPOK_CLASS(Abstract, Blueprintable, Family=Component, Domain=None, Owners=World3D|World2D|UI, Id="2e5021ee-d14d-4d77-9112-455f29d639d2") ActorComponent : public Object {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("2e5021ee-d14d-4d77-9112-455f29d639d2");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     EPOK_FUNCTION(BlueprintEvent) virtual void begin_play() {}
     EPOK_FUNCTION(BlueprintEvent) virtual void tick(Fixed) {}
     EPOK_FUNCTION(BlueprintEvent) virtual void end_play(EndPlayReason) {}
@@ -435,12 +444,14 @@ public:
     EPOK_FUNCTION(BlueprintEvent) virtual void on_disable() {}
     // Runtime hooks, not reflected. frame_update runs once per rendered frame even while
     // paused; attach_slot exposes the spatial parent of components that have one.
+    virtual void timeline_sync(uint64_t, bool) {}
+    virtual void blueprint_observe() {}
     virtual void frame_update(uint32_t) {}
     virtual ObjectId* attach_slot() { return nullptr; }
     // Forward-only collision hook. The Level does not own collision; the collision
     // service calls dispatch_trigger(Level&, ...) which fans the event out to the
     // owner's components. Nothing in the object model generates trigger events.
-    virtual void on_trigger(EntityHandle, TriggerPhase) {}
+    virtual void on_trigger(DataHandle, TriggerPhase) {}
     // False while a service still holds this component's storage; the registry then
     // keeps the (already dead) slot quarantined instead of returning it to the pool.
     virtual bool releasable() const { return true; }
@@ -462,25 +473,25 @@ protected:
 class EPOK_CLASS(Blueprintable, Root, Domain=World3D, Owners=World3D, Id="ed73d249-b6cb-4a3c-a0e8-696de55e286f") SceneComponent3D : public ActorComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("ed73d249-b6cb-4a3c-a0e8-696de55e286f");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     ObjectId* attach_slot() override { return &attach_parent; }
     // View over the canonical slot transform when the owner is backed by a legacy entity.
     Transform* transform = nullptr;
     ObjectId attach_parent;
     // Canonical storage: the legacy entity slot owns the transform and everything that
     // already reads it (collision, rendering, motion interpolation) keeps working.
-    void bind_slot(Entity& value) { slot = &value; transform = &value.transform; }
+    void bind_slot(ActorData& value) { slot = &value; transform = &value.transform; }
     // No legacy slot: the component owns the transform.
     void bind_local() { slot = nullptr; transform = &local; }
-    Entity* entity_slot() const { return slot; }
+    ActorData* entity_slot() const { return slot; }
     Transform local = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}};
 protected:
-    Entity* slot = nullptr;
+    ActorData* slot = nullptr;
 };
 class EPOK_CLASS(Blueprintable, Root, Domain=World2D, Owners=World2D, Id="27887770-a779-4a16-863c-5abd32786cfa") SceneComponent2D : public ActorComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("27887770-a779-4a16-863c-5abd32786cfa");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     ObjectId* attach_slot() override { return &attach_parent; }
     // 2D actors own their transform: no legacy slot carries a Transform2D, and no
     // fictitious 3D transform is created for them.
@@ -490,35 +501,35 @@ public:
 class EPOK_CLASS(Abstract, Blueprintable, Domain=UI, Owners=UI, Id="83bffb60-2c33-4be1-9041-8c8f4c395b86") UIComponent : public ActorComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("83bffb60-2c33-4be1-9041-8c8f4c395b86");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
 };
 class EPOK_CLASS(Blueprintable, Root, Domain=UI, Owners=UI, Id="dc805165-6c65-48dc-8ff8-4a638a5d21df") RectTransformComponent : public UIComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("dc805165-6c65-48dc-8ff8-4a638a5d21df");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     ObjectId* attach_slot() override { return &attach_parent; }
     RectTransform* rect = nullptr;
     ObjectId attach_parent;
-    void bind_slot(Entity& value) { slot = &value; rect = &value.rect; }
+    void bind_slot(ActorData& value) { slot = &value; rect = &value.rect; }
     void bind_local() { slot = nullptr; rect = &local; }
-    Entity* entity_slot() const { return slot; }
+    ActorData* entity_slot() const { return slot; }
     RectTransform local;
 protected:
-    Entity* slot = nullptr;
+    ActorData* slot = nullptr;
 };
 // Shared audio without a transform. Forwards to the existing audio service.
 class EPOK_CLASS(Blueprintable, Domain=None, Owners=World3D|World2D|UI, Cardinality=Multiple, Capability=audio, Id="7f0eb028-5301-4ac7-b93b-5665fab12b20") AudioComponent : public ActorComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("7f0eb028-5301-4ac7-b93b-5665fab12b20");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     AudioSource* source = nullptr;
     EPOK_FUNCTION(Callable) void play() { if (source) source->play(); }
     EPOK_FUNCTION(Callable) void stop() { if (source) source->stop(); }
     EPOK_FUNCTION(Pure) bool is_playing() const { return source && source->is_playing(); }
     // Bind to the legacy slot's AudioSource, or to component-owned storage.
-    void bind_slot(Entity& value) { source = &value.audio; m_slot = &value; }
+    void bind_slot(ActorData& value) { source = &value.audio; m_slot = &value; }
     void bind_local() { source = &local; m_slot = nullptr; }
-    Entity* entity_slot() const { return m_slot; }
+    ActorData* entity_slot() const { return m_slot; }
     // True only for component-owned storage. A slot-backed component is a *view* over a
     // legacy AudioSource that the scene bank and lifecycle.hpp already drive.
     bool owns_source() const { return source && source == &local; }
@@ -531,7 +542,7 @@ public:
     //   * component-owned: no legacy path knows about `local`, so begin_play starts it
     //     when play_on_start is set, the source is enabled and the owner is active.
     void begin_play() override {
-        if (!owns_source() || !source->enabled || !source->play_on_start) return;
+        if (!source || !source->enabled || !source->play_on_start) return;
         if (!owner_active()) return;
         if (!source->is_playing()) source->play();
     }
@@ -541,7 +552,7 @@ public:
     void on_disable() override { if (source && source->is_playing()) source->stop(); }
     void end_play(EndPlayReason) override { if (source && source->is_playing()) source->stop(); }
     // Component-owned storage stays quarantined while an asynchronous consumer (the XA
-    // music service) still points at it, mirroring create_entity's legacy-slot rule.
+    // music service) still points at it, mirroring allocate_actor_data's legacy-slot rule.
     // Slot storage belongs to the scene bank, so this component never holds it back.
     bool releasable() const override {
         if (!owns_source() || !audio_source_retained) return true;
@@ -549,77 +560,98 @@ public:
     }
 private:
     bool owner_active() const;
-    Entity* m_slot = nullptr;
+    ActorData* m_slot = nullptr;
 };
-// Compatibility component wrapping an entity-bound Behaviour during migration.
-class EPOK_CLASS(Domain=None, Owners=World3D|World2D|UI, Cardinality=Multiple, Id="430cb0ca-21c3-420c-96a3-da2f7b99781a") LegacyBehaviourComponent : public ActorComponent {
+// Native components register their ownership with the Actor lifecycle.
+class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=mesh, Id="580f99b1-c905-4f96-b34f-807c51335ba0") Mesh3DComponent : public ActorComponent {
 public:
-    static constexpr uint64_t static_class_id = detail::compact_class_id("430cb0ca-21c3-420c-96a3-da2f7b99781a");
-    uint64_t class_id() const override { return static_class_id; }
-    Behaviour* behaviour = nullptr;
-    // The bound entity must NOT also appear in the scene bank's Binding table: the actor
-    // events below are the only source of start/update/frame_update/enable/disable/destroy
-    // for this Behaviour, so a migrated entity never receives an event twice.
-    void bind(Behaviour& value, Entity& owner_slot) {
-        behaviour = &value;
-        slot = &owner_slot;
-        value.bind(owner_slot);
-    }
-    // Resolve the slot from the owner's root scene component (Actor3D only).
-    bool bind(Behaviour& value);
-    Entity* entity_slot() const { return slot; }
-    // start() runs once, on the first event after the Behaviour is bound, and always
-    // before update(); binding after add_component therefore never loses the event.
-    bool ensure_started() {
-        if (!ready()) return false;
-        if (!m_started) { m_started = true; behaviour->start(slot->transform); }
-        return true;
-    }
-    void begin_play() override { ensure_started(); }
-    void tick(Fixed delta) override { if (ensure_started()) behaviour->update(slot->transform, delta); }
-    // Legacy contract, preserved: frame_update runs once per rendered frame even while
-    // the simulation clock is paused, and tick()/update() does not. main.cpp drives the
-    // two from separate places (Level::frame_update every frame, Level::tick only for
-    // the fixed steps the Time service schedules), so a pause menu keeps receiving it.
-    void frame_update(uint32_t elapsed) override { if (ensure_started()) behaviour->frame_update(slot->transform, elapsed); }
-    // Forwarded by dispatch_trigger(); the object model never generates the event.
-    void on_trigger(EntityHandle other, TriggerPhase phase) override {
-        if (ensure_started()) behaviour->on_trigger(other, phase);
-    }
-    void on_enable() override { if (ensure_started()) behaviour->on_enable(); }
-    void on_disable() override { if (m_started) behaviour->on_disable(); }
-    void end_play(EndPlayReason) override {
-        if (!ready() || !m_started) return;
-#ifdef EPOK_BLUEPRINTS
-        behaviour->blueprint_cancel();
-#endif
-        m_started = false;
-        behaviour->on_destroy();
-    }
-protected:
-    bool ready() const { return behaviour && slot; }
-    Entity* slot = nullptr;
-    bool m_started = false;
+    static constexpr uint64_t static_class_id = detail::compact_class_id("580f99b1-c905-4f96-b34f-807c51335ba0");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=sprite, Id="0b68656b-364b-441f-ad86-ddc0408e80a0") Sprite3DComponent : public ActorComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("0b68656b-364b-441f-ad86-ddc0408e80a0");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=camera, Id="9fe2abff-f285-435d-976d-825c5db5420a") Camera3DComponent : public ActorComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("9fe2abff-f285-435d-976d-825c5db5420a");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=light, Id="e18d296c-5820-4557-9386-8b12b9ca37a2") Light3DComponent : public ActorComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("e18d296c-5820-4557-9386-8b12b9ca37a2");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=collider, Id="e8431f94-e526-4d7d-aace-8c8fae7955e6") Collider3DComponent : public ActorComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("e8431f94-e526-4d7d-aace-8c8fae7955e6");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=canvas, Id="f2cfb26b-af53-4a46-9d91-1debea72e01b") CanvasComponent : public UIComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("f2cfb26b-af53-4a46-9d91-1debea72e01b");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=image, Id="d04c78d6-23bd-40d7-88f1-b1afc1b05b5b") ImageComponent : public UIComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("d04c78d6-23bd-40d7-88f1-b1afc1b05b5b");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=text, Id="fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34") TextComponent : public UIComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=progress, Id="28bf5245-5d80-4cba-a77d-1d74479ac276") ProgressBarComponent : public UIComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("28bf5245-5d80-4cba-a77d-1d74479ac276");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=particles, Id="1d067605-c408-40b8-b2c2-718b8cf0c601") ParticleEmitterComponent : public ActorComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("1d067605-c408-40b8-b2c2-718b8cf0c601");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=None, Owners=World3D|World2D|UI, Capability=timeline, Id="1d067605-c408-40b8-b2c2-718b8cf0c602") TimelineComponent : public ActorComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("1d067605-c408-40b8-b2c2-718b8cf0c602");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=effect, Id="1d067605-c408-40b8-b2c2-718b8cf0c603") ParticleEffectComponent : public ActorComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("1d067605-c408-40b8-b2c2-718b8cf0c603");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=palette, Id="1d067605-c408-40b8-b2c2-718b8cf0c604") PaletteAnimatorComponent : public ActorComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("1d067605-c408-40b8-b2c2-718b8cf0c604");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+};
+class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=shadow, Id="1d067605-c408-40b8-b2c2-718b8cf0c605") BlobShadowComponent : public ActorComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("1d067605-c408-40b8-b2c2-718b8cf0c605");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
 };
 
 class EPOK_CLASS(Blueprintable, Placeable, Spawnable, Domain=World3D, Id="fc24ce9b-558c-49de-bc35-e040f350e486") Actor3D : public Actor {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("fc24ce9b-558c-49de-bc35-e040f350e486");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     EPOK_COMPONENT(Root, Name="Root") SceneComponent3D root;
     ActorComponent* default_root() override { return &root; }
 };
 class EPOK_CLASS(Blueprintable, Placeable, Spawnable, Domain=World2D, Id="5308054e-0aaa-4d53-963b-440cf0c71916") Actor2D : public Actor {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("5308054e-0aaa-4d53-963b-440cf0c71916");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     EPOK_COMPONENT(Root, Name="Root") SceneComponent2D root;
     ActorComponent* default_root() override { return &root; }
 };
 class EPOK_CLASS(Blueprintable, Placeable, Spawnable, Domain=UI, Id="b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f") UIActor : public Actor {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("b09bd2fa-8b09-4c0f-a33a-c3ca08b21d8f");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     EPOK_COMPONENT(Root, Name="Root") RectTransformComponent root;
     ActorComponent* default_root() override { return &root; }
 };
@@ -627,7 +659,7 @@ public:
 class EPOK_CLASS(Blueprintable, SceneManaged, Id="b4c08aa0-fa85-4abf-8f45-7501e1c8a040") SceneScriptActor : public Actor {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("b4c08aa0-fa85-4abf-8f45-7501e1c8a040");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
 };
 
 // One spawn request. The name must outlive the call; a deferred request keeps the pointer
@@ -650,7 +682,7 @@ struct LevelPendingOp {
 class EPOK_CLASS(Abstract, Family=Level, Id="b4683321-83e2-4b90-bd87-bb314f9eda2e") Level : public Object {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("b4683321-83e2-4b90-bd87-bb314f9eda2e");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
 
     // Binds the slot table and registers the Level itself. Also publishes the registry as
     // the process-wide one used by Actor::entity()/ActorComponent::get_owner().
@@ -666,6 +698,18 @@ public:
     size_t actor_count() const { return m_actor_count; }
     ObjectId actor_at(size_t index) const { return index < m_actor_count ? m_actors[index] : ObjectId{}; }
     ObjectId scene_script() const { return m_scene_script; }
+    bool set_logical_parent(ObjectId child,ObjectId parent) {
+        auto* actor=m_registry?m_registry->resolve<Actor>(child):nullptr;
+        if(!actor)return false;
+        ObjectId current=parent;
+        for(size_t depth=0;current.valid();++depth) {
+            if(current==child || depth>=level_actor_capacity)return false;
+            const auto* ancestor=m_registry->resolve<Actor>(current);
+            if(!ancestor || ancestor->level_id()!=actor->level_id())return false;
+            current=ancestor->logical_parent();
+        }
+        actor->m_logical_parent=parent;return true;
+    }
 
     // ---- spawning ------------------------------------------------------------------
     // Preparation hook, run once per reserved actor after its defaults, root, owner and
@@ -678,18 +722,13 @@ public:
     // A function pointer rather than a virtual: a nested batch (a spawn deferred out of
     // a callback and flushed at the end of this one) passes no hook and is therefore
     // never mistaken for a row of the cooked table being loaded.
-    using ActorPrepareFn = void (*)(Level&, Actor&, size_t batch_index);
+    using ActorPrepareFn = bool (*)(Level&, Actor&, size_t batch_index);
 
     // All or nothing. On any failure every reservation of this batch is released, so a
     // half-built actor never keeps orphan components.
     size_t spawn_batch(const ActorSpawnRequest* requests, size_t count, ObjectId* out,
                        ActorPrepareFn prepare = nullptr) {
         if (!m_registry || !requests || !count) return 0;
-        if (m_registry->dispatch) {
-            for (size_t i = 0; i < count; ++i) defer_spawn(requests[i]);
-            if (out) for (size_t i = 0; i < count; ++i) out[i] = ObjectId{};
-            return 0;
-        }
         ObjectId reserved[level_actor_capacity] = {};
         if (count > level_actor_capacity || m_actor_count + count > level_actor_capacity) {
             ++m_registry->stats.rejected;
@@ -730,9 +769,13 @@ public:
         //     persistent reference resolution and property overrides. Everything below
         //     -- begin_play, on_enable, tick, the scene script -- therefore observes a
         //     fully configured actor.
-        if (prepare)
-            for (size_t i = 0; i < count; ++i)
-                if (auto* actor = m_registry->resolve<Actor>(reserved[i])) prepare(*this, *actor, i);
+        if (prepare) {
+            for(size_t i=0;i<count && ok;++i) {
+                auto* actor=m_registry->resolve<Actor>(reserved[i]);
+                ok=actor && prepare(*this,*actor,i);
+            }
+            if(!ok) {for(size_t i=0;i<count;++i){forget_actor(reserved[i]);release_actor_storage(reserved[i]);if(out)out[i]={};}return 0;}
+        }
         // 5. begin_play: components first, then the owning actor, in batch order.
         for (size_t i = 0; i < count; ++i) begin_play_actor(reserved[i]);
         // 6. the scene script begins after the initial level actors.
@@ -740,11 +783,12 @@ public:
         flush_pending();
         return count;
     }
-    ObjectId spawn_actor(const ClassDescriptor& type, const char* name, ObjectId logical_parent = {}) {
+    virtual ObjectId spawn_actor(const ClassDescriptor& type, const char* name, ObjectId logical_parent = {}) {
         ActorSpawnRequest request;
         request.type = &type;
         request.name = name;
         request.logical_parent = logical_parent;
+        if(m_registry && m_registry->dispatch) {defer_spawn(request);return {};}
         ObjectId result;
         return spawn_batch(&request, 1, &result) ? result : ObjectId{};
     }
@@ -837,6 +881,7 @@ public:
             before[i] = other && actor_active(*other);
         }
         instance->m_active = active;
+        if(instance->m_data)instance->m_data->active=active;
         for (size_t i = 0; i < m_actor_count; ++i) {
             auto* other = m_registry->resolve<Actor>(m_actors[i]);
             if (!other || !other->m_begun) continue;
@@ -935,6 +980,32 @@ protected:
         }
     }
     bool install_default_root(Actor& actor) {
+        const auto* actor_type=find_object_class(actor.class_id());
+        if(actor_type && actor_type->default_component && actor_type->default_component_count) {
+            if(actor_type->default_component_count>actor_component_capacity)return false;
+            for(size_t c=0;c<actor_type->default_component_count;++c) {
+                const auto entry=actor_type->default_component(actor,c);
+                const auto* type=entry.component?find_object_class(entry.class_id?entry.class_id:entry.component->class_id()):nullptr;
+                if(!type || !accepts_component(actor,*actor_type,*type))return false;
+                auto id=m_registry->adopt(*entry.component,*type);
+                auto* component=m_registry->resolve<ActorComponent>(id);
+                if(!component)return false;
+                attach_component_record(actor,*component,entry.name);
+                if(entry.root) {if(actor.m_root.valid())return false;actor.m_root=id;}
+                if(auto* root=m_registry->resolve<SceneComponent3D>(id))root->bind_local();
+                if(auto* rect=m_registry->resolve<RectTransformComponent>(id))rect->bind_local();
+                if(auto* audio=m_registry->resolve<AudioComponent>(id))audio->bind_local();
+            }
+            for(size_t c=0;c<actor_type->default_component_count;++c) {
+                const auto entry=actor_type->default_component(actor,c);
+                if(entry.attach_parent<0)continue;
+                if(size_t(entry.attach_parent)>=actor.m_component_count)return false;
+                auto* component=m_registry->resolve<ActorComponent>(actor.m_components[c]);
+                if(!component || !component->attach_slot())return false;
+                *component->attach_slot()=actor.m_components[size_t(entry.attach_parent)];
+            }
+            return actor_type->domain==ObjectDomain::None || actor.m_root.valid();
+        }
         auto* root = actor.default_root();
         if (!root) return true;
         const auto* type = find_object_class(root->class_id());
@@ -970,6 +1041,16 @@ protected:
         component.set_name(name);
         owner.m_components[owner.m_component_count++] = component.id();
     }
+    bool order_components(Actor& actor,const ObjectId* ids,size_t count) {
+        if(count!=actor.m_component_count)return false;
+        for(size_t i=0;i<count;++i) {
+            auto* component=m_registry->resolve<ActorComponent>(ids[i]);
+            if(!component || component->owner_id()!=actor.id())return false;
+            for(size_t j=0;j<i;++j)if(ids[j]==ids[i])return false;
+        }
+        for(size_t i=0;i<count;++i)actor.m_components[i]=ids[i];
+        return true;
+    }
     void begin_play_component(ActorComponent& component) {
         if (component.m_begun) return;
         component.m_begun = true;
@@ -1004,14 +1085,14 @@ protected:
     }
     void tick_actor(ObjectId id, Fixed delta) {
         auto* actor = m_registry->resolve<Actor>(id);
-        if (!actor || actor->m_doomed || !actor->m_begun || !actor->m_wants_tick) return;
+        if (!actor || actor->m_doomed || !actor->m_begun) return;
         if (!actor_active(*actor)) return;
         ObjectDispatchScope scope(*m_registry);
         for (size_t c = 0; c < actor->m_component_count; ++c) {
             if (actor->m_doomed) return;
             if (auto* component = m_registry->resolve<ActorComponent>(actor->m_components[c])) component->tick(delta);
         }
-        if (!actor->m_doomed) actor->tick(delta);
+        if (!actor->m_doomed && actor->m_wants_tick) actor->tick(delta);
     }
     void frame_update_actor(ObjectId id, uint32_t elapsed) {
         auto* actor = m_registry->resolve<Actor>(id);
@@ -1027,6 +1108,11 @@ protected:
     void release_actor_storage(ObjectId id) {
         auto* actor = m_registry->resolve<Actor>(id);
         if (actor) for (size_t c = 0; c < actor->m_component_count; ++c) m_registry->release(actor->m_components[c]);
+        if(actor && actor->data()) {
+            auto* data=actor->data();
+            data->alive=false;data->active=false;data->owner=nullptr;
+            ++data->generation;if(!data->generation)data->generation=1;
+        }
         m_registry->release(id);
     }
     // Deactivate, component end_play, actor end_play, then storage.
@@ -1034,6 +1120,14 @@ protected:
         auto* actor = m_registry->resolve<Actor>(id);
         if (!actor) { forget_actor(id); return; }
         actor->m_doomed = true;
+        // Logical children belong to the placement; remove them before releasing
+        // their parent so no child retains a dead parent or spatial root.
+        ObjectId children[level_actor_capacity]={};size_t child_count=0;
+        for(size_t i=0;i<m_actor_count;++i) {
+            auto* child=m_registry->resolve<Actor>(m_actors[i]);
+            if(child&&child->logical_parent()==id)children[child_count++]=child->id();
+        }
+        for(size_t i=0;i<child_count;++i)tear_down_actor(children[i],reason);
         if (actor->m_begun && !actor->m_ended) {
             ObjectDispatchScope scope(*m_registry);
             if (actor->m_active) {
@@ -1049,6 +1143,10 @@ protected:
         }
         for (size_t c = 0; c < actor->m_component_count; ++c) m_registry->release(actor->m_components[c]);
         actor->m_component_count = 0;
+        if (auto* data=actor->data()) {
+            data->audio.stop(); data->alive=false; data->active=false; data->owner=nullptr;
+            ++data->generation; if (!data->generation) data->generation=1;
+        }
         m_registry->release(id);
         forget_actor(id);
     }
@@ -1082,7 +1180,7 @@ protected:
                 else if (queue[i].request.type) {
                     ObjectId created;
                     const ActorSpawnRequest request = queue[i].request;
-                    spawn_batch(&request, 1, &created);
+                    created=spawn_actor(*request.type,request.name,request.logical_parent);
                 }
             }
         }
@@ -1093,7 +1191,7 @@ protected:
 class EPOK_CLASS(Abstract, Family=World, Id="ab2d72b4-fcf6-4b30-8494-43fc0a7cf46c") World : public Object {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("ab2d72b4-fcf6-4b30-8494-43fc0a7cf46c");
-    uint64_t class_id() const override { return static_class_id; }
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     // Service context. Level/World wiring into main.cpp and the scene banks is a later phase.
     Level* level = nullptr;
     ObjectRegistry* registry = nullptr;
@@ -1101,11 +1199,6 @@ public:
 };
 
 // ---- out-of-line definitions -------------------------------------------------------
-inline Entity* Actor::entity() {
-    if (!active_object_registry) return nullptr;
-    auto* root = active_object_registry->resolve<SceneComponent3D>(m_root);
-    return root ? root->entity_slot() : nullptr;
-}
 inline Actor* ActorComponent::get_owner() {
     return active_object_registry ? active_object_registry->resolve<Actor>(m_owner) : nullptr;
 }
@@ -1126,7 +1219,7 @@ inline bool AudioComponent::owner_active() const {
 // Collision is owned by the spatial services, not by the Level: they resolve the legacy
 // slot to its actor and call this, which fans the event out to the owner's components in
 // registration order. Inactive, unstarted and doomed actors receive nothing.
-inline size_t dispatch_trigger(Level& level, ObjectId actor, EntityHandle other, TriggerPhase phase) {
+inline size_t dispatch_trigger(Level& level, ObjectId actor, DataHandle other, TriggerPhase phase) {
     auto* registry = level.registry();
     if (!registry) return 0;
     auto* owner = registry->resolve<Actor>(actor);
@@ -1137,18 +1230,18 @@ inline size_t dispatch_trigger(Level& level, ObjectId actor, EntityHandle other,
         if (auto* component = registry->resolve<ActorComponent>(owner->component_id(i))) {
             // The legacy bindings table wins: a component wrapping a Behaviour that
             // table already notified is skipped, so nothing is delivered twice.
-            if (component_trigger_filtered && component_trigger_filtered(component)) continue;
             component->on_trigger(other, phase);
             ++delivered;
         }
     return delivered;
 }
-inline bool LegacyBehaviourComponent::bind(Behaviour& value) {
-    auto* owner = get_owner();
-    Entity* owner_slot = owner ? owner->entity() : nullptr;
-    if (!owner_slot) return false;
-    bind(value, *owner_slot);
-    return true;
+inline bool is_active(Object* value) {
+    if(!value || !active_object_registry)return false;
+    Actor* actor=active_object_registry->resolve<Actor>(value->id());
+    if(!actor) {auto* component=active_object_registry->resolve<ActorComponent>(value->id());actor=component?component->get_owner():nullptr;}
+    if(!actor)return false;
+    auto* level=active_object_registry->resolve<Level>(actor->level_id());
+    return level ? level->actor_active(*actor) : actor->active();
 }
 // Spatial attachment between components of the same domain. Logical actor parenting never
 // inherits matrices; only this attachment does.

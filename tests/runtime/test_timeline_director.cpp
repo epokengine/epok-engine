@@ -2,19 +2,7 @@
 #include <array>
 #include <cassert>
 #include <cstdio>
-namespace epok {
-static std::array<Entity,4> entities;
-Entity* EntityHandle::get()const{return index<entities.size()&&entities[index].alive&&entities[index].generation==generation?&entities[index]:nullptr;}
-bool is_active(const Entity* entity){
-    for(size_t depth=0;entity&&depth<=entities.size();++depth){
-        if(!entity->alive||!entity->active)return false;
-        if(entity->parent<0)return true;
-        if(size_t(entity->parent)>=entities.size())return false;
-        entity=&entities[entity->parent];
-    }
-    return false;
-}
-}
+#include "actor_scene_fixture.hpp"
 using namespace epok;
 using namespace epok::timeline;
 static bool compatible=true;
@@ -22,11 +10,11 @@ static int32_t observed[16];static size_t calls;
 static Director<2>* current=nullptr;static Handle current_handle;
 static int action=0;
 static bool accepts(BoundTarget target){return compatible&&target.get();}
-static bool read(BoundTarget target,Value& value){if(!accepts(target))return false;value.lanes[0]=target.get()->transform.position[0].raw();return true;}
-static bool write(BoundTarget target,const Value& value){if(!accepts(target))return false;target.get()->transform.position[0]=Fixed(value.lanes[0],Fixed::RAW);return true;}
+static bool read(BoundTarget target,Value& value){if(!accepts(target))return false;value.lanes[0]=target.data()->transform.position[0].raw();return true;}
+static bool write(BoundTarget target,const Value& value){if(!accepts(target))return false;target.data()->transform.position[0]=Fixed(value.lanes[0],Fixed::RAW);return true;}
 static bool event(BoundTarget target,const BoundTarget*,const Argument*){
-    assert(target.get());assert(calls<16);observed[calls++]=target.get()->transform.position[0].raw();
-    if(action==1){entities[0].alive=false;++entities[0].generation;}
+    assert(target.get());assert(calls<16);observed[calls++]=target.data()->transform.position[0].raw();
+    if(action==1){test_invalidate(0);}
     if(action==2)current->stop(current_handle);
     if(action==3)current->advance(Fixed(100,Fixed::RAW),1); // Reentrant advance is ignored.
     return true;
@@ -39,10 +27,10 @@ static const Event events[]={{0,0,false,nullptr,event}};
 static const uint64_t marker_ids[]={11,12};
 static const Signal signals[]={{0,0,false},{50,0,true},{50,1,false},{100,0,true}};
 static const Asset asset={1,100,false,1,1,1,2,4,targets,properties,events,marker_ids,signals};
-static const EntityHandle owner{0,1},binding[]={EntityHandle{1,1}};
+static const DataHandle owner{0,1},binding[]={DataHandle{1,1}};
 static Fixed dt(int32_t value){return Fixed(value,Fixed::RAW);}
 static int32_t value(){return entities[1].transform.position[0].raw();}
-static void reset(){entities={};for(auto& entity:entities)entity.parent=-1;entities[1].transform.position[0]=dt(42);compatible=true;calls=0;action=0;}
+static void reset(){test_reset_scene();for(auto& entity:entities)entity.parent=-1;entities[1].transform.position[0]=dt(42);compatible=true;calls=0;action=0;}
 static EffectLayer layer;static uint32_t layer_generation=1;
 static EffectLayer* resolve_layer(EffectLayerHandle handle){return handle.index==1&&handle.generation==layer_generation?&layer:nullptr;}
 static bool accepts_layer(BoundTarget target){return target.effect_layer()!=nullptr;}
@@ -61,17 +49,17 @@ int main(){
     director.advance(dt(25),1);assert(calls==2&&observed[1]==100&&value()==42);
     assert(director.state(h)==State::Completed&&director.stats.completed==1&&director.stats.active==0);
     auto next=director.play(asset,owner,binding,1);assert(next.generation!=h.generation&&director.state(h)==State::Invalid);
-    director.advance(dt(20),1);entities[0].active=false;
+    director.advance(dt(20),1);test_set_active(0,false);
     director.advance(dt(30),1);assert(director.tick(next)==20);
-    entities[0].active=true;director.pause(next,true);director.advance(dt(30),1);assert(director.tick(next)==20);
+    test_set_active(0,true);director.pause(next,true);director.advance(dt(30),1);assert(director.tick(next)==20);
     director.pause(next,false);director.advance(dt(30),2);assert(director.state(next)==State::Cancelled&&value()==42);
 
     // Optional target destruction/reuse never writes into the replacement slot.
     reset();auto optional=asset;const Target optional_targets[]={{false,accepts}};optional.targets=optional_targets;
-    h=director.play(optional,owner,binding,2);director.advance(dt(10),2);entities[1].generation=2;entities[1].transform.position[0]=dt(777);
+    h=director.play(optional,owner,binding,2);director.advance(dt(10),2);test_invalidate(1);entities[1].transform.position[0]=dt(777);
     director.advance(dt(90),2);assert(value()==777&&director.stats.skipped_targets>0&&director.stats.skipped_events>0);
     assert(director.state(director.play(asset,owner,binding,2))==State::Invalid);
-    compatible=false;const EntityHandle replacement[]={EntityHandle{1,2}};
+    compatible=false;const DataHandle replacement[]={DataHandle{1,2}};
     assert(director.state(director.play(asset,owner,replacement,2))==State::Invalid);
 
     // A callback can destroy its owner or cancel playback; later signals stop.
@@ -108,7 +96,7 @@ int main(){
     auto empty=asset;empty.property_count=0;empty.signal_count=0;auto second=director.play(empty,owner,binding,1);
     assert(director.state(second)==State::Playing);assert(director.state(director.play(empty,owner,binding,1))==State::Invalid);
     director.cancel_all();assert(director.stats.active==0);
-    reset();optional.repeat=true;const EntityHandle missing[]={{}};
+    reset();optional.repeat=true;const DataHandle missing[]={{}};
     h=director.play(optional,owner,missing,1);
     for(int i=0;i<40;++i)director.advance(dt(1),1);
     assert(director.stats.diagnostics_dropped>0);

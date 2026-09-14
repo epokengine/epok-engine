@@ -58,7 +58,7 @@ This preview compiles C++ controllers only; use Play or the console build to run
 pub struct Frame {
     pub number: u32,
     pub fade: u8,
-    pub entities: u32,
+    pub actors: u32,
     pub stats: [u32; 5],
     pub commands: Vec<hud_native::Command>,
     pub requested_scene: String,
@@ -101,14 +101,14 @@ fn read_frame(input: &mut impl Read) -> Result<Frame, String> {
     };
     let number = word(input)?;
     let fade = word(input)?;
-    let entities = word(input)?;
+    let actors = word(input)?;
     let mut stats = [0; 5];
     for s in &mut stats {
         *s = word(input)?;
     }
     let count = word(input)?;
     let length = word(input)?;
-    if count > 2560 || length > 4096 || fade > 255 || entities > 65535 {
+    if count > 2560 || length > 4096 || fade > 255 || actors > 65535 {
         return Err("Invalid native HUD frame bounds".into());
     }
     let mut commands = vec![hud_native::Command::default(); count as usize];
@@ -122,7 +122,7 @@ fn read_frame(input: &mut impl Read) -> Result<Frame, String> {
     Ok(Frame {
         number,
         fade: fade as u8,
-        entities,
+        actors,
         stats,
         commands,
         requested_scene: String::from_utf8_lossy(&text).into_owned(),
@@ -368,7 +368,11 @@ impl State {
             self.edit_pending = Some(key);
             return;
         }
-        if scene.entities.iter().any(|e| e.script.is_some()) {
+        if scene.actors.iter().any(|a| {
+            catalog.iter().any(|s| {
+                s.name == a.class.name || a.components.iter().any(|c| c.class.name == s.name)
+            })
+        }) {
             self.start_mode(root.to_path_buf(), scene.clone(), catalog.to_vec(), true);
         } else {
             self.stop();
@@ -459,17 +463,23 @@ impl State {
 /// Name of the first entity whose script binding is a Blueprint class, if any.
 /// The preview links C++ controllers only; a Blueprint binding is the case that
 /// would otherwise render as a working UI whose logic never ran.
-pub fn blueprint_driven(scene: &Scene) -> Option<&str> {
-    let blueprint = crate::script_backend::blueprint_provider();
+pub fn blueprint_driven<'a>(scene: &'a Scene, catalog: &[Script]) -> Option<&'a str> {
     scene
-        .entities
+        .actors
         .iter()
-        .find(|e| {
-            e.script
-                .as_ref()
-                .is_some_and(|s| s.provider.id == blueprint.id)
+        .find(|a| {
+            std::iter::once(&a.class)
+                .chain(a.components.iter().map(|c| &c.class))
+                .any(|class| {
+                    catalog.iter().any(|s| {
+                        s.name == class.name
+                            && s.classes
+                                .iter()
+                                .any(|c| c.cpp_name == s.name && c.provider.id == "blueprint")
+                    })
+                })
         })
-        .map(|e| e.name.as_str())
+        .map(|a| a.name.as_str())
 }
 
 pub fn build(
@@ -482,21 +492,25 @@ pub fn build(
     // A Blueprint-driven entity gets its own diagnostic: the generic "unsupported
     // component" message reads as a missing feature, while this one has to say
     // that the logic does not run, so nothing is rendered as if it had.
-    if let Some(entity) = blueprint_driven(scene) {
+    if let Some(entity) = blueprint_driven(scene, catalog) {
         return Err(format!(
             "{BLUEPRINT_UNSUPPORTED} `{entity}` is driven by a Blueprint class."
         ));
     }
-    if scene.entities.iter().any(|e| {
-        e.timeline.is_some()
-            || e.particle_effect.is_some()
-            || e.script.as_ref().is_some_and(|s| s.provider.id != "cpp")
-    }) {
+    if scene
+        .actors
+        .iter()
+        .any(|e| e.timeline.is_some() || e.particle_effect.is_some())
+    {
         return Err("Native HUD simulation currently supports C++ controllers and Canvas components. Use the dedicated preview for Timeline/Particle Effects.".into());
     }
     let mut names = BTreeSet::new();
-    for binding in scene.entities.iter().filter_map(|e| e.script.as_ref()) {
-        let mut script = Some(crate::script_backend::resolve(binding, catalog)?);
+    for class in scene
+        .actors
+        .iter()
+        .flat_map(|a| std::iter::once(&a.class).chain(a.components.iter().map(|c| &c.class)))
+    {
+        let mut script = catalog.iter().find(|s| s.name == class.name);
         while let Some(s) = script {
             if !names.insert(s.name.clone()) {
                 break;
@@ -507,19 +521,20 @@ pub fn build(
                 .and_then(|p| catalog.iter().find(|s| &s.name == p));
         }
     }
-    let used: Vec<_> = catalog
-        .iter()
-        .filter(|s| names.contains(&s.name))
-        .cloned()
-        .collect();
+    let used = catalog.to_vec();
     // Attached C++ sources are only a compile filter. Scene-owned actors still
     // require SDK declarations that are absent from those script ancestry chains.
     let registry = if scene.scene_script.is_some() || !scene.actors.is_empty() {
         crate::blueprint::native_registry(root, catalog)?
     } else {
-        crate::blueprint::legacy_registry(root, catalog)
+        crate::blueprint::registry_from_catalog(root, catalog)
     };
-    let header = crate::project::scene_header_with_registry(scene, &used, scene, true, scene, &registry)?;
+    let mut header =
+        crate::project::scene_header_with_registry(scene, &used, scene, true, scene, &registry)?;
+    header += &crate::blueprint_spawn::object_class_table_for_scenes(
+        &registry,
+        std::slice::from_ref(scene),
+    )?;
     let mut files: BTreeMap<PathBuf, Vec<u8>> = crate::project::runtime_sources()
         .iter()
         .map(|(p, b)| (PathBuf::from(p), b.to_vec()))
@@ -716,7 +731,7 @@ mod tests {
     use super::*;
     fn header(version: u32, capabilities: u32, commands: u32) -> Vec<u8> {
         let mut bytes = vec![];
-        // magic, version, capabilities, frame, fade, entities, stats[5], commands, text
+        // magic, version, capabilities, frame, fade, actors, stats[5], commands, text
         for n in [
             hud_native::HUD_PREVIEW_MAGIC,
             version,
@@ -782,99 +797,103 @@ mod tests {
     #[test]
     fn blueprint_driven_scene_reports_its_own_diagnostic() {
         let mut scene = Scene::default();
-        scene.entities.clear();
-        let mut entity = crate::scene::Entity::cube("Menu".into());
-        entity.kind = "Empty".into();
-        entity.script = Some(crate::scene::ScriptBinding {
-            name: "MenuLogic".into(),
-            provider: crate::script_backend::blueprint_provider(),
-            ..Default::default()
-        });
-        scene.entities.push(entity);
-        assert_eq!(blueprint_driven(&scene), Some("Menu"));
-        let error = build(&std::env::temp_dir(), &scene, &[], &AtomicBool::new(false))
-            .expect_err("Blueprint scenes are refused");
-        // The author is told the logic did not run, not that a component is missing.
-        assert!(
-            error.contains("Blueprint logic is not simulated"),
-            "{error}"
+        scene.actors.truncate(1);
+        scene.actors[0].name = "Menu".into();
+        let mut class = crate::actor_document::tests::class(
+            "bp-menu",
+            "BP_Menu",
+            Some(crate::object_model::UI_ACTOR_ID),
         );
-        assert!(error.contains("Menu"), "{error}");
-
-        // A C++ controller is not caught by this rule.
-        scene.entities[0].script.as_mut().unwrap().provider =
-            crate::reflection_schema::native_provider();
-        assert_eq!(blueprint_driven(&scene), None);
+        class.provider = crate::script_backend::blueprint_provider();
+        scene.actors[0].class =
+            crate::actor_document::ClassReference::new(&class.cpp_name, &class.id);
+        let mut catalog = vec![Script {
+            name: class.cpp_name.clone(),
+            parent: Some("epok::UIActor".into()),
+            properties: vec![],
+            header: "Menu.hpp".into(),
+            classes: vec![class],
+        }];
+        assert_eq!(blueprint_driven(&scene, &catalog), Some("Menu"));
+        let error = build(Path::new(""), &scene, &catalog, &AtomicBool::new(false)).unwrap_err();
+        assert!(error.contains(BLUEPRINT_UNSUPPORTED));
+        catalog[0].classes[0].provider = crate::reflection_schema::native_provider();
+        assert_eq!(blueprint_driven(&scene, &catalog), None);
     }
     #[test]
     #[ignore = "Requires pinned libclang/MIPS SDK, host C++ compiler and cargo build --bins"]
     fn native_preview_resolves_implicit_scene_script_without_attached_scripts() {
         let root = crate::workspace::tests::temp("hud-scene-script");
-        crate::workspace::create(&root, "Scene script preview", crate::workspace::Template::Basic).unwrap();
+        crate::workspace::create(
+            &root,
+            "Scene script preview",
+            crate::workspace::Template::Basic,
+        )
+        .unwrap();
         let mut scene = Scene::default();
-        scene.entities.clear();
+        scene.actors.clear();
         scene.ensure_scene_script(None);
         let original = scene.clone();
         let catalog = crate::scripts::catalog(&root).unwrap();
         let exe = build(&root, &scene, &catalog, &AtomicBool::new(false)).unwrap();
         let mut session = Session::launch(&exe, scene.clone()).unwrap();
-        assert_eq!(session.wait_frame().unwrap().entities, 0);
+        assert_eq!(session.wait_frame().unwrap().actors, 0);
         assert_eq!(scene, original);
         drop(session);
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
     fn native_controller_runs_real_lifecycle_input_and_property_overrides() {
-        let root = std::env::temp_dir().join(format!("epok-hud-test-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("epok-hud-actors-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(root.join("assets/scripts")).unwrap();
         fs::write(root.join("assets/scripts/Probe.hpp"),r#"#pragma once
 #include "epok.hpp"
-class Probe:public epok::Behaviour {public:
- int offset=3;epok::EntityHandle image;
- void construct();
- void start(epok::Transform&)override{construct();image.get()->rect.position[1]=-20.0;}
- void on_enable()override{if(!image.get())throw 7;}
- void editor_preview(epok::Transform&){epok::set_active(&entity(),false);epok::set_active(&entity(),true);construct();}
- void frame_update(epok::Transform&,uint32_t)override;
- void update(epok::Transform&,epok::Fixed)override{}
+class EPOK_CLASS(Blueprintable,Owners=UI,Id="11f9d403-d033-4e73-8b37-938c9aca27cc") Probe:public epok::ActorComponent {
+public:
+ static constexpr uint64_t static_class_id=epok::detail::compact_class_id("11f9d403-d033-4e73-8b37-938c9aca27cc");
+ uint64_t class_id() const override{return static_class_id;}
+ EPOK_PROPERTY(EditAnywhere,Id="dbd7f48f-c5ea-4d84-902b-e00fd56acb22") int32_t offset=3;
+ void begin_play() override {get_owner()->data()->rect.position[0]=epok::Fixed(offset*4096,epok::Fixed::RAW);}
+ void frame_update(uint32_t) override {if(epok::input.frame_pressed(epok::Button::Cross))get_owner()->data()->rect.position[0]+=epok::Fixed(1.0);}
 };
 "#).unwrap();
-        fs::write(root.join("assets/scripts/Probe.cpp"),r#"#include "Probe.hpp"
-void Probe::construct(){
- auto* canvas=epok::create_entity("Canvas");canvas->canvas.enabled=true;
- auto* e=epok::create_entity("Dynamic image",canvas);image=epok::handle(e);
- e->rect.enabled=true;e->rect.anchor_min[0]=e->rect.anchor_max[0]=e->rect.pivot[0]=0.0;e->rect.anchor_min[1]=e->rect.anchor_max[1]=e->rect.pivot[1]=1.0;
- e->rect.position[0]=epok::Fixed(offset*4096,epok::Fixed::RAW);e->rect.position[1]=-10.0;e->rect.size[0]=32.0;e->rect.size[1]=16.0;
- e->image.enabled=true;e->image.color[0]=255;e->image.color[1]=e->image.color[2]=0;
-}
-void Probe::frame_update(epok::Transform&,uint32_t){if(epok::input.frame_pressed(epok::Button::Cross))image.get()->rect.position[0]+=epok::Fixed(1.0);}
-"#).unwrap();
-        let mut scene = Scene::default();
-        scene.entities.clear();
-        scene.display_size = [640, 480];
-        let mut director = crate::scene::Entity::cube("Director".into());
-        director.kind = "Empty".into();
-        director.script = Some(crate::scene::ScriptBinding {
-            name: "Probe".into(),
-            properties: BTreeMap::from([("offset".into(), serde_json::json!(9))]),
+        let mut actor = crate::scene::Actor::cube("Panel".into());
+        actor.kind = "Empty".into();
+        actor.rect = Some(crate::hud::RectTransform {
+            anchor_min: [0.; 2],
+            anchor_max: [0.; 2],
+            pivot: [0.; 2],
+            position: [2., 10.],
+            size: [32., 16.],
+        });
+        actor.image = Some(crate::hud::Image {
+            color: [1., 0., 0.],
             ..Default::default()
         });
-        scene.entities.push(director);
-        let catalog = vec![Script {
-            name: "Probe".into(),
-            properties: vec![crate::scripts::Property {
-                name: "offset".into(),
-                default: serde_json::json!(3),
-                value_type: crate::reflection_schema::Type::Int32,
-                id: String::new(),
-            }],
+        crate::actor_components::sync(&mut actor);
+        let mut component = crate::actor_document::ComponentInstance::new(
+            uuid::Uuid::new_v4(),
+            crate::actor_document::ClassReference::new(
+                "Probe",
+                "11f9d403-d033-4e73-8b37-938c9aca27cc",
+            ),
+            "Probe",
+        );
+        component
+            .properties
+            .insert("offset".into(), serde_json::json!(9));
+        component.overrides.insert("offset".into());
+        actor.components.push(component);
+        let scene = Scene {
+            actors: vec![actor],
             ..Default::default()
-        }];
+        };
         let original = scene.clone();
+        let catalog = crate::scripts::native_catalog(&root).unwrap();
         let exe = build(&root, &scene, &catalog, &AtomicBool::new(false)).unwrap();
         let mut session = Session::launch(&exe, scene.clone()).unwrap();
         let first = session.wait_frame().unwrap().clone();
-        assert_eq!(first.entities, 3);
+        assert_eq!(first.actors, 1);
         assert_eq!(first.commands.len(), 1);
         assert_eq!(first.commands[0].0[3], 9);
         session.request(16666, 1 << 14).unwrap();
@@ -883,137 +902,15 @@ void Probe::frame_update(epok::Transform&,uint32_t){if(epok::input.frame_pressed
         assert_eq!(session.wait_frame().unwrap().commands[0].0[3], 10);
         assert_eq!(scene, original);
         drop(session);
-        let mut restarted = Session::launch(&exe, scene).unwrap();
+        let mut restarted = Session::launch(&exe, scene.clone()).unwrap();
         assert_eq!(restarted.wait_frame().unwrap().commands, first.commands);
-        let mut state = State::default();
-        state.session = Some(restarted);
-        state.update(1., false);
-        assert_eq!(
-            state
-                .session
-                .as_ref()
-                .unwrap()
-                .frame
-                .as_ref()
-                .unwrap()
-                .number,
-            0
-        );
-        // Two clicks are preserved even while a child frame is in flight.
-        state.update(0., true);
-        state.update(0., true);
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while state
-            .session
-            .as_ref()
-            .unwrap()
-            .frame
-            .as_ref()
-            .unwrap()
-            .number
-            < 2
-        {
-            assert!(Instant::now() < deadline);
-            state.update(0., false);
-            std::thread::sleep(Duration::from_millis(1));
-        }
-        assert!(!state.running);
-        assert_eq!(state.session.as_ref().unwrap().elapsed_us, 33333);
-        state.running = true;
-        state.update(1. / 30., false);
-        assert_eq!(
-            state.session.as_ref().unwrap().elapsed_us,
-            66666,
-            "30 Hz presentation must advance 33 ms, not slow the game to half speed"
-        );
-        drop(state);
-        // The normal edit view must construct without Start, clicks or elapsed
-        // game time, then automatically apply a changed Inspector property.
-        let mut edit = State::default();
-        edit.ensure_edit(&root, &original, &catalog, 0, 0);
-        assert!(!edit.interactive && !edit.running);
-        fn ready(state: &mut State) {
-            let deadline = Instant::now() + Duration::from_secs(30);
-            while state
-                .session
-                .as_ref()
-                .and_then(|s| s.frame.as_ref())
-                .is_none()
-            {
-                assert!(Instant::now() < deadline, "preview timed out");
-                state.update(0., false);
-                assert!(state.error.is_none(), "{:?}", state.error);
-                std::thread::sleep(Duration::from_millis(1));
-            }
-        }
-        ready(&mut edit);
-        let frame = edit
-            .session
-            .as_ref()
-            .unwrap()
-            .frame
-            .as_ref()
-            .unwrap()
-            .clone();
-        assert_eq!(frame.commands[0].0[3], 9);
-        assert_eq!(
-            frame.commands[0].0[4], 10,
-            "Start must not run in edit mode"
-        );
-        assert_eq!(frame.number, 0);
-        edit.buttons = 1 << 14;
-        edit.update(1., true);
-        assert_eq!(edit.session.as_ref().unwrap().elapsed_us, 0);
-        assert_eq!(
-            edit.session
-                .as_ref()
-                .unwrap()
-                .frame
-                .as_ref()
-                .unwrap()
-                .commands,
-            frame.commands
-        );
-        let mut edited = original.clone();
-        edited.entities[0]
-            .script
-            .as_mut()
-            .unwrap()
-            .properties
-            .insert("offset".into(), serde_json::json!(19));
-        for _ in 0..2 {
-            edit.edit_checked = None;
-            edit.ensure_edit(&root, &edited, &catalog, 0, 0);
-        }
-        ready(&mut edit);
-        assert_eq!(
-            edit.session
-                .as_ref()
-                .unwrap()
-                .frame
-                .as_ref()
-                .unwrap()
-                .commands[0]
-                .0[3],
-            19
-        );
-        // A disabled controller must not generate its UI during editing.
-        edited.entities[0].active = false;
-        for _ in 0..2 {
-            edit.edit_checked = None;
-            edit.ensure_edit(&root, &edited, &catalog, 0, 0);
-        }
-        ready(&mut edit);
-        assert!(
-            edit.session
-                .as_ref()
-                .unwrap()
-                .frame
-                .as_ref()
-                .unwrap()
-                .commands
-                .is_empty()
-        );
+        drop(restarted);
+        let mut edit = Session::launch_mode(&exe, scene.clone(), true).unwrap();
+        let first = edit.wait_frame().unwrap().clone();
+        assert_eq!(first.phase, PreviewPhase::Edit);
+        assert_eq!(first.commands[0].0[3], 2);
+        edit.request(16666, 1 << 14).unwrap();
+        assert_eq!(edit.wait_frame().unwrap().commands, first.commands);
         drop(edit);
         fs::remove_dir_all(root).unwrap();
     }

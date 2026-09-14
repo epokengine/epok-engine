@@ -64,9 +64,14 @@ pub(crate) fn text_input_active(ui: &imgui::Ui) -> bool {
         }
 }
 
-fn script_button(ui: &imgui::Ui, label: &str) -> bool {
+pub(crate) fn script_button(ui: &imgui::Ui, label: &str) -> bool {
     let pressed = ui.button(label);
     #[cfg(test)]
+    record_script_control(ui, label);
+    pressed
+}
+#[cfg(test)]
+fn record_script_control(ui: &imgui::Ui, label: &str) {
     SCRIPT_BUTTONS.with(|buttons| {
         let a = ui.item_rect_min();
         let b = ui.item_rect_max();
@@ -74,7 +79,6 @@ fn script_button(ui: &imgui::Ui, label: &str) -> bool {
             .borrow_mut()
             .insert(label.into(), [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5]);
     });
-    pressed
 }
 #[cfg(test)]
 thread_local! {static SCRIPT_BUTTONS:std::cell::RefCell<std::collections::BTreeMap<String,[f32;2]>>=const{std::cell::RefCell::new(std::collections::BTreeMap::new())};}
@@ -90,16 +94,18 @@ fn script_creation_dialog(ui: &imgui::Ui, editor: &mut Editor) {
         ui.input_text("Search parents", &mut editor.script_search).build();
         let query=editor.script_search.to_lowercase();
         ui.child_window("parent-tree").size([520.,180.]).border(true).build(|| {
-            if let Some(_node)=ui.tree_node_config("Behaviour").default_open(true).build(|| {
-                if ui.selectable_config("Use Behaviour").selected(editor.script_parent=="Behaviour").build() {editor.script_parent="Behaviour".into();}
-                parent_class_tree(ui,&editor.class_registry,"epok::Behaviour",&query,&mut editor.script_parent);
-            }) {}
+            for parent in ["epok::Actor3D","epok::Actor2D","epok::UIActor","epok::ActorComponent"] {
+                if let Some(_node)=ui.tree_node_config(parent).default_open(true).push() {
+                    if ui.selectable_config(format!("Use {parent}")).selected(editor.script_parent==parent).build() {editor.script_parent=parent.into();}
+                    parent_class_tree(ui,&editor.class_registry,parent,&query,&mut editor.script_parent);
+                }
+            }
         });
         ui.text(format!("Parent: {}",editor.script_parent));
         ui.child_window("inherited-members").size([520.,140.]).border(true).build(|| {
-            let name=if editor.script_parent=="Behaviour" {"epok::Behaviour"} else {&editor.script_parent};
+            let name=&editor.script_parent;
             let mut chain=editor.class_registry.ancestry(name); chain.reverse();
-            if chain.is_empty() {ui.text_disabled("Behaviour: update(Transform&, Fixed) is required.");}
+            if chain.is_empty() {ui.text_disabled("Reload the reflected class catalog.");}
             for class in chain {
                 ui.text_disabled(format!("{}{}",class.cpp_name,if class.abstract_class {" (abstract)"} else {""}));
                 for p in &class.properties {ui.bullet_text(format!("{}: {} = {}",p.name,p.value_type.label(),p.default));}
@@ -141,14 +147,14 @@ fn parent_class_tree(
 ) {
     for class in registry
         .eligible_parents()
-        .filter(|c| c.cpp_name != "epok::Behaviour")
+        .filter(|c| c.id != crate::object_model::OBJECT_ID)
     {
         let direct = class
             .parent
             .as_ref()
             .and_then(|id| registry.classes.get(id))
             .map(|p| p.cpp_name.as_str())
-            .unwrap_or("epok::Behaviour");
+            .unwrap_or("epok::Object");
         if direct != parent {
             continue;
         }
@@ -589,14 +595,11 @@ fn draw_workspace(
                 }
             });
             ui.same_line_with_spacing(0., 3.);
-            ui.disabled(
-                !e.playing || e.serial_ui.command_pending,
-                || {
-                    if icon(ui, PAUSE, "pause", "Pause / Resume", e.paused) {
-                        e.action("pause");
-                    }
-                },
-            );
+            ui.disabled(!e.playing || e.serial_ui.command_pending, || {
+                if icon(ui, PAUSE, "pause", "Pause / Resume", e.paused) {
+                    e.action("pause");
+                }
+            });
             ui.same_line_with_spacing(0., 1.);
             if e.active_play_target == crate::play::Target::Serial && e.job.is_some() {
                 ui.disabled(!e.playing || e.serial_ui.command_pending, || {
@@ -765,15 +768,31 @@ fn draw_workspace(
             } else {
                 format!("{}{}", e.scene.name, if e.dirty { " *" } else { "" })
             };
-            let build_sizes = e.memory.summary.as_ref().filter(|_| e.memory.status_current && !e.memory.stale
-                && e.memory.profile == e.play_profile && e.memory.debug == e.blueprint_debug_enabled
-                && !e.pending_build && (e.job.is_none() || e.playing)).map(|summary| summary.status());
+            let build_sizes = e
+                .memory
+                .summary
+                .as_ref()
+                .filter(|_| {
+                    e.memory.status_current
+                        && !e.memory.stale
+                        && e.memory.profile == e.play_profile
+                        && e.memory.debug == e.blueprint_debug_enabled
+                        && !e.pending_build
+                        && (e.job.is_none() || e.playing)
+                })
+                .map(|summary| summary.status());
             let right = build_sizes.as_deref().unwrap_or("PSX  |  C++20  |  PsyQo");
             let width = (ui.calc_text_size(right)[0] + 12.).min(size[0] * 0.7);
-            clipped(ui, &format!("\u{ea71}  {text}"), (size[0] - width - 28.).max(1.));
+            clipped(
+                ui,
+                &format!("\u{ea71}  {text}"),
+                (size[0] - width - 28.).max(1.),
+            );
             ui.same_line_with_pos(size[0] - width - 10.);
             clipped(ui, right, width);
-            if ui.is_item_hovered() { ui.tooltip_text(right); }
+            if ui.is_item_hovered() {
+                ui.tooltip_text(right);
+            }
         });
     crate::asset_ui::windows(ui, e);
     crate::play_ui::warning(ui, e);
@@ -790,6 +809,7 @@ fn draw_workspace(
     crate::export_ui::window(ui, e);
     script_creation_dialog(ui, e);
     crate::blueprint_workflow::draw(ui, e);
+    crate::actor_workflow::draw(ui, e);
     e.timeline_editor
         .draw(ui, &e.root, &e.class_registry, &e.scene, &e.assets.index);
     if e.close_requested {
@@ -861,17 +881,17 @@ fn parent_menu(
     let mut requested = None;
     if ui
         .menu_item_config("None (Scene root)")
-        .selected(e.scene.entities[index].parent.is_none())
+        .selected(e.scene.actors[index].parent.is_none())
         .build()
     {
         requested = Some(None);
     }
-    for (p, entity) in e.scene.entities.iter().enumerate() {
+    for (p, entity) in e.scene.actors.iter().enumerate() {
         if !e.scene.is_descendant(p, index) {
             let _id = ui.push_id_usize(p);
             if ui
                 .menu_item_config(&entity.name)
-                .selected(e.scene.entities[index].parent == Some(p))
+                .selected(e.scene.actors[index].parent == Some(p))
                 .build()
             {
                 requested = Some(Some(p));
@@ -915,7 +935,7 @@ fn placeable_actor_classes(e: &Editor) -> Vec<ActorClass> {
 /// The domain of a legacy entity. UI and 3D authoring data claim their
 /// respective spatial domain; a bare Empty with only shared components such as
 /// scripts or audio is domain-neutral and remains available in every view.
-fn entity_domain(entity: &crate::scene::Entity) -> crate::reflection_schema::Domain {
+fn entity_domain(entity: &crate::scene::Actor) -> crate::reflection_schema::Domain {
     use crate::reflection_schema::Domain;
     if entity.canvas.is_some() || entity.rect.is_some() {
         Domain::UI
@@ -948,9 +968,9 @@ mod hierarchy_domain_tests {
 
     #[test]
     fn procedural_ui_controllers_and_resources_remain_visible_in_every_view() {
-        let mut entity = crate::scene::Entity::cube("Menu Director".into());
+        let mut entity = crate::scene::Actor::cube("Menu Director".into());
         entity.kind = "Empty".into();
-        entity.script = Some(Default::default());
+        entity.set_class_defaults(&(Default::default()));
         entity.audio = Some(Default::default());
         entity.material.texture = Some(uuid::Uuid::new_v4());
 
@@ -963,12 +983,12 @@ mod hierarchy_domain_tests {
 
     #[test]
     fn spatial_legacy_entities_still_follow_their_authoring_view() {
-        let mesh = crate::scene::Entity::cube("Mesh".into());
+        let mesh = crate::scene::Actor::cube("Mesh".into());
         assert_eq!(entity_domain(&mesh), Domain::World3D);
         assert!(domain_visible(Domain::World3D, Domain::World3D));
         assert!(!domain_visible(Domain::World3D, Domain::UI));
 
-        let mut canvas = crate::scene::Entity::cube("Canvas".into());
+        let mut canvas = crate::scene::Actor::cube("Canvas".into());
         canvas.kind = "Empty".into();
         canvas.canvas = Some(Default::default());
         assert_eq!(entity_domain(&canvas), Domain::UI);
@@ -988,82 +1008,19 @@ fn actor_domain(
 fn creation_menu(
     ui: &imgui::Ui,
     child: bool,
-    actors: &[ActorClass],
-    actor: &mut Option<String>,
+    _actors: &[ActorClass],
+    _actor: &mut Option<String>,
 ) -> Option<&'static str> {
-    let mut action = None;
-    if ui.menu_item(if child {
-        "Create Empty Child"
+    ui.menu_item(if child {
+        "Instantiate Child Actor..."
     } else {
-        "Create Empty"
-    }) {
-        action = Some(if child { "child" } else { "empty" });
-    }
-    if let Some(_menu) = ui.begin_menu("3D Object") {
-        if ui.menu_item("Cube") {
-            action = Some(if child { "add-child" } else { "add" });
-        }
-        if !child && ui.menu_item("Blockout Mesh...") {
-            action = Some("blockout-mesh");
-        }
-    }
-    if let Some(_menu) = ui.begin_menu("Light") {
-        if ui.menu_item("Directional Light") {
-            action = Some(if child {
-                "light-directional-child"
-            } else {
-                "light-directional"
-            });
-        }
-        if ui.menu_item("Point Light") {
-            action = Some(if child {
-                "light-point-child"
-            } else {
-                "light-point"
-            });
-        }
-    }
-    if let Some(_menu) = ui.begin_menu("UI") {
-        for (label, command) in [
-            ("Canvas", "ui-canvas"),
-            ("Panel", "ui-panel"),
-            ("Image", "ui-image"),
-            ("Text", "ui-text"),
-            ("Progress Bar", "ui-progress"),
-        ] {
-            if ui.menu_item(label) {
-                action = Some(command);
-            }
-        }
-    }
-    if let Some(_menu) = ui.begin_menu("Actor") {
-        if actors.is_empty() {
-            ui.text_disabled("No placeable classes");
-            muted(ui, "Reflection data for this project did not resolve.");
-        } else {
-            use crate::reflection_schema::Domain;
-            for (group, domain) in [
-                ("3D", Domain::World3D),
-                ("2D", Domain::World2D),
-                ("UI", Domain::UI),
-                ("Logic", Domain::None),
-            ] {
-                if !actors.iter().any(|c| c.domain == domain) {
-                    continue;
-                }
-                if let Some(_group) = ui.begin_menu(group) {
-                    for class in actors.iter().filter(|c| c.domain == domain) {
-                        if ui.menu_item(&class.label) {
-                            *actor = Some(class.class.clone());
-                        }
-                    }
-                }
-            }
-            ui.separator();
-            ui.text_disabled("Actors are created at the map root");
-        }
-    }
-    action
+        "Instantiate Actor..."
+    })
+    .then_some(if child {
+        "instantiate-child-actor"
+    } else {
+        "instantiate-actor"
+    })
 }
 /// Everything the Hierarchy computes once per frame and every node reads.
 struct HierarchyContext<'a> {
@@ -1095,7 +1052,7 @@ fn hierarchy_node(
     if !cx.visible[index] || (!cx.in_domain[index] && !cx.passthrough[index]) {
         return;
     }
-    let entity = &e.scene.entities[index];
+    let entity = &e.scene.actors[index];
     let label = format!(
         "{} {}###entity{}",
         if entity.kind == "Camera" {
@@ -1124,7 +1081,7 @@ fn hierarchy_node(
         if ui.is_item_hovered() {
             ui.tooltip_text(format!(
                 "{} is not part of the {} view; shown so its children keep their place.",
-                e.scene.entities[index].name,
+                e.scene.actors[index].name,
                 e.scene_view_mode.label()
             ));
         }
@@ -1149,7 +1106,7 @@ fn hierarchy_node(
         ui.set_scroll_here_y();
     }
     if ui.is_item_hovered() {
-        ui.tooltip_text(&e.scene.entities[index].name);
+        ui.tooltip_text(&e.scene.actors[index].name);
     }
     if ui.is_item_hovered()
         && !ui.is_item_toggled_open()
@@ -1168,7 +1125,7 @@ fn hierarchy_node(
             .drag_drop_source_config("EPOK_ENTITY")
             .begin_payload(index)
         {
-            ui.text(&e.scene.entities[index].name);
+            ui.text(&e.scene.actors[index].name);
             ui.text_disabled("Drop on parent; drop on scene to unparent");
         }
         if let Some(target) = ui.drag_drop_target()
@@ -1245,7 +1202,7 @@ fn hierarchy_node(
         }
     }
 }
-/// Domain-filtered document actors, drawn under the legacy entities.
+/// Domain-filtered document actors, drawn under the legacy actors.
 struct ActorContext {
     children: Vec<Vec<usize>>,
     visible: Vec<bool>,
@@ -1416,16 +1373,11 @@ fn actor_node(
             }
             ui.text_disabled("Parent by dragging an actor onto another");
             ui.separator();
-            // Changing an Actor3D into a UIActor rewrites the root component and
-            // every domain-scoped component with it. That is a conversion an
-            // author asks for explicitly, never something a drag may imply.
-            let _disabled = ui.begin_disabled(true);
-            ui.menu_item("Convert class...");
-            drop(_disabled);
-            if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
-                ui.tooltip_text(
-                    "Changing an actor's domain (Actor3D to UIActor, say) replaces its root and its domain components. It is an explicit conversion, not a move, and is not offered yet.",
-                );
+            if ui.menu_item("Instantiate Child Actor...") {
+                e.action("instantiate-child-actor");
+            }
+            if ui.menu_item("Convert to Actor Blueprint...") {
+                crate::actor_workflow::begin_convert(e, id);
             }
         });
     }
@@ -1483,39 +1435,6 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
             .hint(format!("{SEARCH} All"))
             .build();
         ui.separator();
-        let count = e.scene.entities.len();
-        let mut children = vec![Vec::new(); count];
-        let mut roots = Vec::new();
-        let mut visible = vec![false; count];
-        let mut in_domain = vec![false; count];
-        let mut passthrough = vec![false; count];
-        let mode = e.scene_view_mode.domain();
-        let query = e.search.to_lowercase();
-        for (i, entity) in e.scene.entities.iter().enumerate() {
-            if let Some(p) = entity.parent {
-                children[p].push(i);
-            } else {
-                roots.push(i);
-            }
-            in_domain[i] = domain_visible(entity_domain(entity), mode);
-            if entity.name.to_lowercase().contains(&query) {
-                let mut current = Some(i);
-                while let Some(p) = current {
-                    visible[p] = true;
-                    current = e.scene.entities[p].parent;
-                }
-            }
-        }
-        for (i, inside) in in_domain.iter().enumerate() {
-            if !inside {
-                continue;
-            }
-            let mut current = e.scene.entities[i].parent;
-            while let Some(p) = current {
-                passthrough[p] = true;
-                current = e.scene.entities[p].parent;
-            }
-        }
         let mut scene_config = ui
             .tree_node_config(format!(
                 "{CUBE} {}{}###scene-root",
@@ -1551,16 +1470,6 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
             });
         }
         if let Some(_scene) = scene_node {
-            let cx = HierarchyContext {
-                children: &children,
-                visible: &visible,
-                in_domain: &in_domain,
-                passthrough: &passthrough,
-                actors: &actors,
-            };
-            for root in roots {
-                hierarchy_node(ui, e, root, &cx, &mut out);
-            }
             let actor_cx = actor_context(e);
             if !actor_cx.roots.is_empty() {
                 for root in actor_cx.roots.clone() {
@@ -1684,7 +1593,7 @@ enum PropertyAction {
 }
 
 /// The reflected properties of one class chain, edited with the same value
-/// editors the ScriptBinding inspector uses.
+/// editors the ClassDefaults inspector uses.
 ///
 /// `class_name` is a class id or `cpp_name`; the properties come from
 /// `Registry::properties`, which already flattens the chain. Values the class
@@ -1775,6 +1684,109 @@ fn apply_property_action(
     }
 }
 
+fn edit_class_button(
+    ui: &imgui::Ui,
+    e: &mut Editor,
+    reference: &crate::actor_document::ClassReference,
+) {
+    let key = reference.class_id.as_deref().unwrap_or(&reference.name);
+    let class = e
+        .class_registry
+        .classes
+        .get(key)
+        .or_else(|| e.class_registry.named(key))
+        .cloned();
+    if let Some(class) = class {
+        let label = if class.provider.id == "blueprint" {
+            "Open Blueprint"
+        } else {
+            "Edit C++ Class"
+        };
+        if script_button(ui, label) {
+            crate::blueprint_workflow::edit_binding(
+                e,
+                &crate::scene::ClassDefaults {
+                    name: class.cpp_name,
+                    class_id: Some(class.id),
+                    provider: class.provider,
+                    backend: class.backend,
+                    ..Default::default()
+                },
+            );
+        }
+    }
+}
+
+/// The actor class and component scripts associated with an existing mesh/entity
+/// must be visible when that object is selected in the viewport.
+fn entity_actor_inspector(ui: &imgui::Ui, e: &mut Editor, entity: usize) {
+    let Some(actor) = crate::actor_scripts::owner(&e.scene, entity).cloned() else {
+        return;
+    };
+    let index = e.scene.actor_index(actor.id).unwrap();
+    let _id = ui.push_id("entity-actor");
+    if heading(ui, &format!("{CODE} {} (Actor Class)", actor.class.name)) {
+        muted(
+            ui,
+            "Defines this object's actor type. Components add reusable behavior below.",
+        );
+        edit_class_button(ui, e, &actor.class);
+        if let Some(action) = reflected_property_table(
+            ui,
+            e,
+            "entity-actor",
+            actor.class.class_id.as_deref().unwrap_or(&actor.class.name),
+            &actor.properties,
+            &actor.overrides,
+        ) {
+            let target = &mut e.scene.actors[index];
+            apply_property_action(action, &mut target.properties, &mut target.overrides);
+            e.changed();
+        }
+    }
+    for component in &actor.components {
+        if component.root
+            || component
+                .class
+                .class_id
+                .as_deref()
+                .is_some_and(crate::actor_components::native)
+        {
+            continue;
+        }
+        let _id = ui.push_id(component.id.to_string());
+        if heading(ui, &format!("{CODE} {} (Actor Component)", component.name)) {
+            ui.text_disabled(&component.class.name);
+            edit_class_button(ui, e, &component.class);
+            if let Some(action) = reflected_property_table(
+                ui,
+                e,
+                "entity-component",
+                component
+                    .class
+                    .class_id
+                    .as_deref()
+                    .unwrap_or(&component.class.name),
+                &component.properties,
+                &component.overrides,
+            ) {
+                let target = e.scene.actors[index]
+                    .components
+                    .iter_mut()
+                    .find(|c| c.id == component.id)
+                    .unwrap();
+                apply_property_action(action, &mut target.properties, &mut target.overrides);
+                e.changed();
+            }
+            let _disabled = ui.begin_disabled(component.inherited);
+            if script_button(ui, "Remove Component") {
+                e.remove_actor_component(actor.id, component.id);
+            }
+        }
+    }
+    ui.separator();
+}
+
 /// The Inspector for a selected P4 document actor: identity, the editable
 /// component set and the reflected properties of the actor and each component.
 fn actor_inspector(ui: &imgui::Ui, e: &mut Editor) {
@@ -1810,6 +1822,8 @@ fn actor_inspector(ui: &imgui::Ui, e: &mut Editor) {
         }
         ui.separator();
         if heading(ui, "\u{eb5b} Actor") {
+            let class = e.scene.actors[index].class.clone();
+            edit_class_button(ui, e, &class);
             let _ = field(ui, "Class");
             match &resolved {
                 Some((cpp_name, domain)) => {
@@ -1875,6 +1889,7 @@ fn actor_inspector(ui: &imgui::Ui, e: &mut Editor) {
                     ui.text_disabled("(class default)");
                 }
                 if let Some(_node) = open {
+                    edit_class_button(ui, e, class);
                     let _ = field(ui, "Identity");
                     ui.text_disabled(id.to_string());
                     if let Some(action) = reflected_property_table(
@@ -2011,8 +2026,6 @@ pub(crate) fn map_settings(ui: &imgui::Ui, e: &mut Editor) {
             ui.text(&e.scene.name);
             let _ = field(ui, "Document Version");
             ui.text(e.scene.version.to_string());
-            let _ = field(ui, "Entities");
-            ui.text(e.scene.entities.len().to_string());
             let _ = field(ui, "Actors");
             ui.text(e.scene.actors.len().to_string());
             ui.separator();
@@ -2194,7 +2207,9 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             return;
         }
         crate::project_browser::inspector_drop(ui, e);
-        if e.selected_actor.is_some() {
+        if e.selected_actor.is_some()
+            && e.scene_view_mode == crate::scene_view_mode::SceneViewMode::TwoD
+        {
             actor_inspector(ui, e);
             return;
         }
@@ -2203,7 +2218,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             return;
         };
         crate::blueprint_workflow::instance_inspector(ui, e, index);
-        let mut entity = e.scene.entities[index].clone();
+        let mut entity = e.scene.actors[index].clone();
         let original = entity.clone();
         let mut requested_parent = None;
         ui.disabled(e.playing, || {
@@ -2229,6 +2244,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             }
             drop(_dynamic_only);
             ui.separator();
+            entity_actor_inspector(ui, e, index);
             crate::hud_editor::inspector(ui, &mut entity);
             if entity.rect.is_none()
                 && entity.canvas.is_none()
@@ -2238,7 +2254,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                 ui.set_next_item_width(-1.);
                 let parent_name = entity
                     .parent
-                    .map_or("None (Scene root)", |p| e.scene.entities[p].name.as_str());
+                    .map_or("None (Scene root)", |p| e.scene.actors[p].name.as_str());
                 if let Some(_combo) = ui.begin_combo("##parent", parent_name) {
                     requested_parent = parent_menu(ui, e, index, true);
                 }
@@ -2304,120 +2320,47 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                 ));
                 ui.separator();
             }
-            if let Some(binding) = &mut entity.script {
-                if heading(ui, &format!("{CODE} {} (Script)", binding.name)) {
-                    ui.align_text_to_frame_padding();
-                    let _ = field(ui, "Script");
-                    if ui.button_with_size(format!("{CODE} {}", binding.name), [-1., 19.]) {
-                        crate::blueprint_workflow::edit_binding(e, binding);
-                    }
-                    if let Err(error) = crate::script_backend::validate_binding(binding) {
-                        ui.text_wrapped(error);
-                    }
-                    if let Some(class) = e.class_registry.bound(binding) {
-                        for prop in e.class_registry.properties(&class.cpp_name) {
-                            if !prop.editable {
-                                continue;
-                            }
-                            let mut value = binding
-                                .properties
-                                .get(&prop.name)
-                                .cloned()
-                                .unwrap_or_else(|| prop.default.clone());
-                            let mut chars = prop.name.chars();
-                            let label = chars
-                                .next()
-                                .map(|c| c.to_uppercase().to_string())
-                                .unwrap_or_default()
-                                + chars.as_str();
-                            ui.align_text_to_frame_padding();
-                            let _ = field(ui, &label);
-                            ui.set_next_item_width(-1.);
-                            if crate::blueprint_refs::inspector(
-                                ui,
-                                &format!("##prop{}", prop.name),
-                                &mut value,
-                                &prop.value_type,
-                                &e.scene,
-                                &e.class_registry,
-                                &e.assets.index,
-                            ) {
-                                binding.properties.insert(prop.name.clone(), value);
-                                binding.overrides.insert(prop.name.clone());
-                                binding
-                                    .member_ids
-                                    .insert(prop.name.clone(), prop.id.clone());
-                            }
-                            if binding.overrides.contains(&prop.name)
-                                && ui.small_button(format!("Reset to Inherited##{}", prop.name))
-                            {
-                                binding.properties.remove(&prop.name);
-                                binding.overrides.remove(&prop.name);
-                                binding.member_ids.remove(&prop.name);
-                            }
-                        }
-                    }
-                    let orphaned = binding
-                        .properties
-                        .keys()
-                        .filter(|name| {
-                            e.class_registry.bound(binding).is_none_or(|c| {
-                                !e.class_registry
-                                    .properties(&c.cpp_name)
-                                    .iter()
-                                    .any(|p| p.name == **name)
-                            })
-                        })
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    for name in orphaned {
-                        ui.text_wrapped(format!(
-                            "Preserved orphan: {name} = {}",
-                            binding.properties[&name]
-                        ));
-                        if ui.small_button(format!("Discard orphan override##{name}")) {
-                            binding.properties.remove(&name);
-                            binding.overrides.remove(&name);
-                            binding.member_ids.remove(&name);
-                        }
-                    }
-                    if ui.small_button("Edit Script") {
-                        crate::blueprint_workflow::edit_binding(e, binding);
-                    }
-                    inline(ui, "Edit Fields");
-                    if ui.small_button("Edit Fields") {
-                        if binding.provider.id == "blueprint" {
-                            crate::blueprint_workflow::edit_binding(e, binding);
-                        } else {
-                            e.open_code(
-                                &e.catalog
-                                    .iter()
-                                    .find(|s| s.name == binding.name)
-                                    .map(|s| {
-                                        let header =
-                                            e.root.join("assets/scripts").join(s.header_path());
-                                        if s.classes.is_empty() {
-                                            header.with_extension("epokscript")
-                                        } else {
-                                            header
-                                        }
-                                    })
-                                    .unwrap_or_else(|| e.root.join("assets/scripts")),
-                                None,
-                            );
-                        }
-                    }
-                    inline(ui, "Remove");
-                    if ui.small_button("Remove") {
-                        entity.script = None;
-                    }
-                }
-                ui.separator();
-            }
             crate::skeletal_ui::component(ui, e, &mut entity);
             crate::timeline_scene::inspector(ui, e, &mut entity);
             crate::particle_effect_scene::inspector(ui, e, &mut entity);
             crate::asset_ui::component(ui, e, &mut entity);
+            let extra_audio = entity
+                .components
+                .iter()
+                .filter(|c| {
+                    c.class.class_id.as_deref() == Some(crate::object_model::AUDIO_COMPONENT_ID)
+                })
+                .skip(1)
+                .cloned()
+                .collect::<Vec<_>>();
+            for component in extra_audio {
+                let _id = ui.push_id(component.id.to_string());
+                ui.text(&component.name);
+                let mut preview = entity.clone();
+                preview.audio = Some(
+                    component
+                        .properties
+                        .get("audio")
+                        .and_then(|v| serde_json::from_value(v.clone()).ok())
+                        .unwrap_or_default(),
+                );
+                let before = preview.audio.clone();
+                crate::asset_ui::component(ui, e, &mut preview);
+                if before != preview.audio {
+                    if let Some(audio) = &preview.audio {
+                        if let Some(target) =
+                            entity.components.iter_mut().find(|c| c.id == component.id)
+                        {
+                            target
+                                .properties
+                                .insert("audio".into(), serde_json::json!(audio));
+                            target.overrides.insert("audio".into());
+                        }
+                    } else if !component.inherited {
+                        entity.components.retain(|c| c.id != component.id);
+                    }
+                }
+            }
             crate::mesh_editor::component(ui, e, &mut entity);
             if entity.skeletal_mesh.is_none()
                 && entity.rect.is_none()
@@ -2435,6 +2378,8 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             if ui.button_with_size("Add Component", [210_f32.min(width), 23.]) {
                 ui.open_popup("add-component");
             }
+            #[cfg(test)]
+            record_script_control(ui, "Add Component");
             ui.popup("add-component", || {
                 if entity.timeline.is_none() && ui.menu_item("Timeline Component") {
                     entity.timeline = Some(Default::default());
@@ -2501,7 +2446,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                         e.set_scene_2d(true);
                     }
                     if entity.parent.is_some_and(|p| {
-                        e.scene.entities[p].canvas.is_some() || e.scene.entities[p].rect.is_some()
+                        e.scene.actors[p].canvas.is_some() || e.scene.actors[p].rect.is_some()
                     }) && ui.menu_item("UI RectTransform")
                     {
                         entity.rect = Some(Default::default());
@@ -2518,36 +2463,72 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                 if entity.audio.is_none() && ui.menu_item("Audio Source") {
                     entity.audio = Some(Default::default());
                 }
-                for name in e
+                if entity.audio.is_some() && ui.menu_item("Additional Audio Component") {
+                    e.add_actor_component(entity.id, "epok::AudioComponent");
+                    entity = e.scene.actors[index].clone();
+                }
+                let model = e.object_model();
+                let scripts: Vec<_> = e
                     .catalog
                     .iter()
                     .filter(|s| s.instantiable())
-                    .map(|s| s.name.clone())
-                    .collect::<Vec<_>>()
-                {
-                    if ui.menu_item(format!("{CODE} {name}")) {
-                        e.attach(&name);
-                        entity = e.scene.entities[index].clone();
+                    .filter_map(|script| {
+                        let class = model.as_deref().and_then(|model| model.class(&script.name));
+                        let family = if let (Some(model), Some(class)) = (model.as_deref(), class) {
+                            crate::actor_scripts::validate_target(&e.scene, index, class, model)
+                                .ok()?;
+                            class.family
+                        } else {
+                            return None;
+                        };
+                        Some((script.name.clone(), family))
+                    })
+                    .collect();
+                for (group, family) in [(
+                    "Actor Components",
+                    crate::reflection_schema::ClassFamily::Component,
+                )] {
+                    if !scripts.iter().any(|(_, f)| *f == family) {
+                        continue;
+                    }
+                    ui.separator();
+                    ui.text_disabled(group);
+                    for (name, _) in scripts.iter().filter(|(_, f)| *f == family) {
+                        let assigned = family == crate::reflection_schema::ClassFamily::Actor
+                            && crate::actor_scripts::owner(&e.scene, index)
+                                .is_some_and(|a| a.class.name == *name);
+                        if ui
+                            .menu_item_config(format!("{CODE} {name}"))
+                            .selected(assigned)
+                            .enabled(!assigned)
+                            .build()
+                        {
+                            e.attach(&name);
+                            entity = e.scene.actors[index].clone();
+                        }
+                        #[cfg(test)]
+                        record_script_control(ui, name);
                     }
                 }
                 ui.separator();
                 if ui.menu_item("New C++ Script...") {
                     e.action("new-script");
-                    entity = e.scene.entities[index].clone();
+                    entity = e.scene.actors[index].clone();
                 }
                 if ui.menu_item("New Blueprint...") {
-                    crate::blueprint_workflow::begin(e, None);
-                    entity = e.scene.entities[index].clone();
+                    let parent = Some(crate::object_model::ACTOR_COMPONENT_ID.to_owned());
+                    crate::blueprint_workflow::begin(e, parent);
+                    entity = e.scene.actors[index].clone();
                 }
             });
         });
         if entity != original {
-            let previous = e.scene.entities[index].clone();
-            e.scene.entities[index] = entity;
+            let previous = e.scene.actors[index].clone();
+            e.scene.actors[index] = entity;
             if e.scene.validate().is_ok() {
                 e.changed();
             } else {
-                e.scene.entities[index] = previous;
+                e.scene.actors[index] = previous;
             }
         }
         if let Some(parent) = requested_parent {
@@ -2712,6 +2693,7 @@ fn world2d_view(ui: &imgui::Ui, e: &mut Editor) {
         );
         component.properties = properties;
         component.overrides = overrides;
+        e.scene.actors[index].refresh_components();
         e.changed_coalesced("actor-2d-drag");
     }
 
@@ -3184,6 +3166,137 @@ fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) 
 mod interaction_tests {
     use super::*;
     #[test]
+    #[ignore = "Requires pinned reflection toolchain; exercises the real ImGui Inspector and Blueprint creation dialog"]
+    fn actor_blueprint_create_attach_and_add_component_show_the_assignment() {
+        let mut context = crate::gui::tests::imgui_context();
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1600., 2000.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][Inspector]\nPos=0,0\nSize=1000,1800\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("actor-blueprint-inspector");
+        let project =
+            crate::workspace::create(&root, "Actor Inspector", crate::workspace::Template::Basic)
+                .unwrap();
+        let mut editor = Editor::open(project).unwrap();
+        editor.auto_build = false;
+        editor
+            .scene
+            .actors
+            .push(crate::scene::Actor::cube("Blue Cube".into()));
+        editor.scene.sync_actor_components();
+        editor.select_actor(Some(editor.scene.actors[1].id));
+        let original = editor.scene.actors[1].clone();
+        fn frame(context: &mut imgui::Context, editor: &mut Editor, wizard: bool) {
+            let ui = context.frame();
+            if wizard {
+                crate::blueprint_workflow::draw(ui, editor);
+            } else {
+                unsafe {
+                    imgui::sys::igSetNextWindowSize(
+                        imgui::sys::ImVec2 { x: 1000., y: 1800. },
+                        imgui::sys::ImGuiCond_Always as i32,
+                    );
+                }
+                inspector(ui, editor);
+            }
+            context.render();
+        }
+        fn click(context: &mut imgui::Context, editor: &mut Editor, label: &str, wizard: bool) {
+            frame(context, editor, wizard);
+            frame(context, editor, wizard);
+            let point = SCRIPT_BUTTONS.with(|buttons| {
+                *buttons
+                    .borrow()
+                    .get(label)
+                    .unwrap_or_else(|| panic!("Missing control {label}"))
+            });
+            context.io_mut().add_mouse_pos_event(point);
+            frame(context, editor, wizard);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, true);
+            frame(context, editor, wizard);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, false);
+            frame(context, editor, wizard);
+        }
+        crate::blueprint_workflow::begin(
+            &mut editor,
+            Some(crate::object_model::ACTOR_COMPONENT_ID.into()),
+        );
+        editor.blueprint_creation.name = "BP_Box".into();
+        editor.blueprint_creation.owner_domain = 1;
+        click(&mut context, &mut editor, "Create and Attach", true);
+        assert!(
+            editor.blueprint_creation.error.is_none(),
+            "{:?}",
+            editor.blueprint_creation.error
+        );
+        let actor = editor.scene.actors[1].clone();
+        let added = actor
+            .components
+            .iter()
+            .find(|c| c.class.name == "BP_Box")
+            .expect("Created Blueprint must be attached");
+        assert_eq!(actor.id, original.id);
+        assert_eq!(actor.class, original.class);
+        assert_eq!(actor.components.len(), original.components.len() + 1);
+        let first_id = added.id;
+        editor.undo_attachment(false).unwrap();
+        assert_eq!(editor.scene.actors[1], original);
+        editor.undo_attachment(true).unwrap();
+        assert_eq!(editor.scene.actors[1], actor);
+        editor.blueprint_editor = Default::default();
+        click(&mut context, &mut editor, "Open Blueprint", false);
+        assert_eq!(
+            editor.blueprint_editor.asset.as_ref().unwrap().name,
+            "BP_Box"
+        );
+        click(&mut context, &mut editor, "Remove Component", false);
+        assert!(
+            !editor.scene.actors[1]
+                .components
+                .iter()
+                .any(|c| c.id == first_id)
+        );
+        click(&mut context, &mut editor, "Add Component", false);
+        click(&mut context, &mut editor, "BP_Box", false);
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        assert!(
+            editor.scene.actors[1]
+                .components
+                .iter()
+                .any(|c| c.class.name == "BP_Box" && c.id != first_id)
+        );
+        crate::blueprint_workflow::begin(
+            &mut editor,
+            Some(crate::object_model::ACTOR_COMPONENT_ID.into()),
+        );
+        editor.blueprint_creation.name = "BP_Rotate".into();
+        click(&mut context, &mut editor, "Create and Attach", true);
+        assert!(
+            editor.blueprint_creation.error.is_none(),
+            "{:?}",
+            editor.blueprint_creation.error
+        );
+        assert!(
+            editor.scene.actors[1]
+                .components
+                .iter()
+                .any(|c| c.class.name == "BP_Rotate")
+        );
+        assert_eq!(editor.scene.actors[1].id, original.id);
+        assert!(editor.save());
+        let restored = crate::scene::Scene::load(&editor.scene_path()).unwrap();
+        assert_eq!(restored.actors, editor.scene.actors);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     #[ignore = "Requires pinned libclang/MIPS SDK and built epok-header-tool; run explicitly after cargo build --bins"]
     fn blueprint_creation_dialog_reflects_inherits_attaches_and_undoes() {
         let mut context = crate::gui::tests::imgui_context();
@@ -3246,18 +3359,8 @@ mod interaction_tests {
             "{:?}",
             editor.script_error
         );
-        assert_eq!(
-            editor.scene.entities[0].script.as_ref().unwrap().name,
-            "Boss"
-        );
-        assert!(
-            editor.scene.entities[0]
-                .script
-                .as_ref()
-                .unwrap()
-                .class_id
-                .is_some()
-        );
+        assert_eq!(editor.scene.actors[0].class.name, "Boss");
+        assert!(editor.scene.actors[0].class.class_id.is_some());
         assert_eq!(editor.class_registry.properties("Boss")[0].name, "health");
         assert!(editor.class_registry.ancestry("Boss").iter().any(|c| {
             c.functions
@@ -3270,15 +3373,20 @@ mod interaction_tests {
                 .contains("override")
         );
         editor.undo_attachment(false).unwrap();
-        assert!(editor.scene.entities[0].script.is_none());
+        assert!(editor.scene.actors[0].components.iter().all(|c| {
+            c.class
+                .class_id
+                .as_deref()
+                .is_some_and(crate::actor_components::native)
+        }));
         editor.undo_attachment(true).unwrap();
         assert!(editor.save());
         assert_eq!(
             crate::scene::Scene::load(&editor.scene_path())
                 .unwrap()
-                .entities[0]
-                .script,
-            editor.scene.entities[0].script
+                .actors[0]
+                .components,
+            editor.scene.actors[0].components
         );
         // Rejected transactions leave neither half-created files nor new folders.
         editor.action("new-script");
@@ -3349,35 +3457,54 @@ mod interaction_tests {
         {
             let mut game = Editor::new(crate::workspace::tests::temp("game-scale-ui"));
             game.game_frame = Some(std::sync::Arc::new(crate::bridge::Frame {
-                width:640,height:480,sequence:1,buttons:0,cycles:0,vsyncs:0,rgba:vec![],
+                width: 640,
+                height: 480,
+                sequence: 1,
+                buttons: 0,
+                cycles: 0,
+                vsyncs: 0,
+                rgba: vec![],
             }));
             let texture = imgui::TextureId::new(913);
-            context.load_ini_settings("[Window][###Game]\nPos=10,10\nSize=1000,760\nCollapsed=0\n\n");
-            let mut sizes=vec![];
+            context
+                .load_ini_settings("[Window][###Game]\nPos=10,10\nSize=1000,760\nCollapsed=0\n\n");
+            let mut sizes = vec![];
             for mode in crate::settings::GameScale::ALL {
-                game.preferences.game_scale=mode;
-                for _ in 0..2 { game_view(context.frame(),&mut game,Some(texture));context.render(); }
-                game_view(context.frame(),&mut game,Some(texture));
-                let data=context.render();
-                let mut min=[f32::MAX;2];let mut max=[f32::MIN;2];
+                game.preferences.game_scale = mode;
+                for _ in 0..2 {
+                    game_view(context.frame(), &mut game, Some(texture));
+                    context.render();
+                }
+                game_view(context.frame(), &mut game, Some(texture));
+                let data = context.render();
+                let mut min = [f32::MAX; 2];
+                let mut max = [f32::MIN; 2];
                 for list in data.draw_lists() {
                     for command in list.commands() {
-                        if let imgui::DrawCmd::Elements{count,cmd_params}=command && cmd_params.texture_id==texture {
-                            for &index in &list.idx_buffer()[cmd_params.idx_offset..cmd_params.idx_offset+count] {
-                                let p=list.vtx_buffer()[index as usize+cmd_params.vtx_offset].pos;
-                                for axis in 0..2 {min[axis]=min[axis].min(p[axis]);max[axis]=max[axis].max(p[axis]);}
+                        if let imgui::DrawCmd::Elements { count, cmd_params } = command
+                            && cmd_params.texture_id == texture
+                        {
+                            for &index in &list.idx_buffer()
+                                [cmd_params.idx_offset..cmd_params.idx_offset + count]
+                            {
+                                let p =
+                                    list.vtx_buffer()[index as usize + cmd_params.vtx_offset].pos;
+                                for axis in 0..2 {
+                                    min[axis] = min[axis].min(p[axis]);
+                                    max[axis] = max[axis].max(p[axis]);
+                                }
                             }
                         }
                     }
                 }
-                assert!(min[0].is_finite() && max[0]>min[0],"Game image missing");
-                sizes.push([max[0]-min[0],max[1]-min[1]]);
+                assert!(min[0].is_finite() && max[0] > min[0], "Game image missing");
+                sizes.push([max[0] - min[0], max[1] - min[1]]);
             }
-            let (fit,stretch,integer)=(sizes[0],sizes[1],sizes[2]);
-            assert!((fit[0]/fit[1]-4./3.).abs()<0.001);
-            assert!((fit[0]-stretch[0]).abs()<0.01 || (fit[1]-stretch[1]).abs()<0.01);
-            assert!(stretch[0]>=fit[0]-0.01 && stretch[1]>=fit[1]-0.01);
-            assert_eq!(integer,[640.,480.]);
+            let (fit, stretch, integer) = (sizes[0], sizes[1], sizes[2]);
+            assert!((fit[0] / fit[1] - 4. / 3.).abs() < 0.001);
+            assert!((fit[0] - stretch[0]).abs() < 0.01 || (fit[1] - stretch[1]).abs() < 0.01);
+            assert!(stretch[0] >= fit[0] - 0.01 && stretch[1] >= fit[1] - 0.01);
+            assert_eq!(integer, [640., 480.]);
         }
         crate::asset_inspector::verify_interactions(&mut context);
         verify_numeric_entry(&mut context);
@@ -3388,6 +3515,10 @@ mod interaction_tests {
         editor.auto_build = false;
         editor.selected = None;
         editor.dirty = false;
+        editor.catalog = crate::mcp_tests::actor_catalog();
+        editor.class_registry =
+            crate::blueprint::registry_from_catalog(&editor.root, &editor.catalog);
+        editor.registry_revision += 1;
         let mut initial = true;
         let frame = |ctx: &mut imgui::Context, e: &mut Editor, initial: &mut bool| {
             draw(
@@ -3453,12 +3584,17 @@ mod interaction_tests {
         editor.game_capture = true;
         editor.focus_game = true;
         editor.action("play");
-        assert!(matches!(controls.try_recv(), Ok(crate::pipeline::Control::Stop)));
+        assert!(matches!(
+            controls.try_recv(),
+            Ok(crate::pipeline::Control::Stop)
+        ));
         frame(&mut context, &mut editor, &mut initial);
         let (stopped, _) = frame(&mut context, &mut editor, &mut initial);
         assert!(stopped[0].is_finite(), "Stop must select the Scene tab");
         assert!(!editor.game_capture && !editor.focus_game);
-        events.send(crate::pipeline::Event::Finished(Ok(()))).unwrap();
+        events
+            .send(crate::pipeline::Event::Finished(Ok(())))
+            .unwrap();
         editor.tick();
         frame(&mut context, &mut editor, &mut initial);
         frame(&mut context, &mut editor, &mut initial);
@@ -3466,8 +3602,11 @@ mod interaction_tests {
         frame(&mut context, &mut editor, &mut initial);
         frame(&mut context, &mut editor, &mut initial);
         unsafe {
-            assert!((*imgui::sys::igFindWindowByName(c"\u{ec17} Game###Game".as_ptr())).DockTabIsVisible(),
-                "Stop focus must not override later manual tab selection");
+            assert!(
+                (*imgui::sys::igFindWindowByName(c"\u{ec17} Game###Game".as_ptr()))
+                    .DockTabIsVisible(),
+                "Stop focus must not override later manual tab selection"
+            );
         }
         editor.focus_scene = true;
         frame(&mut context, &mut editor, &mut initial);
@@ -3478,7 +3617,10 @@ mod interaction_tests {
         let selected = || unsafe {
             let window = (*imgui::sys::igGetCurrentContext()).NavWindow;
             assert!(!window.is_null(), "A panel must always keep focus");
-            assert!((*window).DockTabIsVisible(), "The focused panel must be the selected tab");
+            assert!(
+                (*window).DockTabIsVisible(),
+                "The focused panel must be the selected tab"
+            );
             std::ffi::CStr::from_ptr((*window).Name)
                 .to_string_lossy()
                 .into_owned()
@@ -3564,7 +3706,7 @@ mod interaction_tests {
             .add_mouse_button_event(imgui::MouseButton::Right, false);
         frame(&mut context, &mut editor, &mut initial);
         frame(&mut context, &mut editor, &mut initial);
-        let count = editor.scene.entities.len();
+        let count = editor.scene.actors.len();
         context.io_mut().add_mouse_pos_event([110., 410.]);
         frame(&mut context, &mut editor, &mut initial);
         context
@@ -3575,12 +3717,31 @@ mod interaction_tests {
             .io_mut()
             .add_mouse_button_event(imgui::MouseButton::Left, false);
         frame(&mut context, &mut editor, &mut initial);
+        frame(&mut context, &mut editor, &mut initial);
+        let instantiate = SCRIPT_BUTTONS
+            .with(|b| b.borrow().get("Instantiate").copied())
+            .expect("Actor class selection modal");
         assert_eq!(
-            editor.scene.entities.len(),
+            editor.scene.actors.len(),
+            count,
+            "Opening the chooser does not place an Actor"
+        );
+        context.io_mut().add_mouse_pos_event(instantiate);
+        frame(&mut context, &mut editor, &mut initial);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, true);
+        frame(&mut context, &mut editor, &mut initial);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, false);
+        frame(&mut context, &mut editor, &mut initial);
+        assert_eq!(
+            editor.scene.actors.len(),
             count + 1,
             "Context menu should create an entity"
         );
-        let created = &editor.scene.entities[editor.selected.unwrap()];
+        let created = &editor.scene.actors[editor.selected.unwrap()];
         assert_eq!(created.kind, "Empty");
         assert_eq!(created.parent, None);
         // F2 editing goes through the actual text input, including keyboard focus.
@@ -3599,7 +3760,7 @@ mod interaction_tests {
             }
         };
         assert!(
-            editor.rename.is_some(),
+            editor.actor_rename.is_some(),
             "F2 should start rename; focus={focus}, text={}",
             context.io().want_text_input
         );
@@ -3615,7 +3776,7 @@ mod interaction_tests {
         context.io_mut().add_key_event(imgui::Key::Enter, false);
         frame(&mut context, &mut editor, &mut initial);
         assert_eq!(
-            editor.scene.entities[editor.selected.unwrap()].name,
+            editor.scene.actors[editor.selected.unwrap()].name,
             "Player HUD"
         );
         // Middle-button pan and right-button WASD move the camera, not the entity.
@@ -3641,7 +3802,7 @@ mod interaction_tests {
         let center = editor.view.center;
         let tool = editor.tool;
         // Navigation must take keyboard ownership even if a rename field is active.
-        editor.begin_rename(editor.selected.unwrap());
+        editor.begin_actor_rename(editor.scene.actors[editor.selected.unwrap()].id);
         unsafe {
             imgui::sys::igSetWindowFocus_Str(c"\u{eb86} Hierarchy###Hierarchy".as_ptr());
         }
@@ -3651,8 +3812,8 @@ mod interaction_tests {
         assert!(
             context.io().want_text_input,
             "rename={:?}, focus={}",
-            editor.rename,
-            editor.rename_focus
+            editor.actor_rename,
+            editor.actor_rename_focus
         );
         context
             .io_mut()
@@ -3677,7 +3838,7 @@ mod interaction_tests {
         frame(&mut context, &mut editor, &mut initial);
         let (a, b) = frame(&mut context, &mut editor, &mut initial);
         let p = [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5];
-        let original = editor.scene.entities[panel].rect.clone();
+        let original = editor.scene.actors[panel].rect.clone();
         context.io_mut().add_mouse_pos_event(p);
         frame(&mut context, &mut editor, &mut initial);
         context
@@ -3693,7 +3854,7 @@ mod interaction_tests {
             .add_mouse_button_event(imgui::MouseButton::Left, false);
         frame(&mut context, &mut editor, &mut initial);
         assert_eq!(editor.selected, Some(panel));
-        assert_ne!(original, editor.scene.entities[panel].rect);
+        assert_ne!(original, editor.scene.actors[panel].rect);
         crate::hub::verify_interactions(&mut context);
         crate::asset_ui::interaction::verify(&mut context);
         crate::project_browser::verify_interactions(&mut context, font);
@@ -3883,7 +4044,7 @@ mod interaction_tests {
             origin[0] + (projected[0] - (1. - uv[0]) * 480.) * factor,
             origin[1] + (projected[1] - (1. - uv[1]) * 300.) * factor,
         ];
-        let original = editor.scene.entities[1].position;
+        let original = editor.scene.actors[1].position;
         context.io_mut().add_mouse_pos_event(mouse);
         frame(context, &mut editor, false);
         context
@@ -3900,7 +4061,7 @@ mod interaction_tests {
             .add_mouse_button_event(imgui::MouseButton::Left, false);
         let (after, _) = frame(context, &mut editor, false);
         assert_ne!(
-            editor.scene.entities[1].position, original,
+            editor.scene.actors[1].position, original,
             "The gizmo must move the cube"
         );
         assert_eq!(
@@ -4016,7 +4177,9 @@ pub mod tests {
     pub fn imgui_context() -> ImguiContext {
         // A test that panicked while holding the guard poisons the lock; the
         // context it owned was already destroyed while unwinding.
-        let active = ACTIVE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let active = ACTIVE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut context = imgui::Context::create();
         context.set_ini_filename(None);
         context.io_mut().config_mac_os_behaviors = false;

@@ -57,14 +57,14 @@ impl Registry {
     pub fn named(&self, name: &str) -> Option<&schema::Class> {
         self.classes.values().find(|c| c.cpp_name == name)
     }
-    pub fn bound(&self, binding: &crate::scene::ScriptBinding) -> Option<&schema::Class> {
+    pub fn bound(&self, binding: &crate::scene::ClassDefaults) -> Option<&schema::Class> {
         if let Some(id) = &binding.class_id {
             self.classes.get(id)
         } else {
             self.named(&binding.name)
         }
     }
-    pub fn upgrade_binding(&self, binding: &mut crate::scene::ScriptBinding) {
+    pub fn upgrade_binding(&self, binding: &mut crate::scene::ClassDefaults) {
         if crate::script_backend::validate_binding(binding).is_err() {
             return;
         }
@@ -120,7 +120,7 @@ impl Registry {
 }
 /// Obtain the actual root signatures even in a project with no user C++ class.
 pub fn native_registry(root: &Path, scripts: &[Script]) -> Result<Registry, String> {
-    let mut registry = legacy_registry(root, scripts);
+    let mut registry = registry_from_catalog(root, scripts);
     // Native script chains omit non-behaviour SDK targets such as EffectLayer.
     // Merge the same authoritative Clang manifest, including those declarations.
     for class in crate::reflection::discover(root)?.classes {
@@ -131,58 +131,12 @@ pub fn native_registry(root: &Path, scripts: &[Script]) -> Result<Registry, Stri
 }
 /// Legacy sidecars remain a compatibility provider. They have no fabricated function
 /// signatures; annotated native classes retain the declarations extracted by Clang.
-pub fn legacy_registry(root: &Path, scripts: &[Script]) -> Registry {
+pub fn registry_from_catalog(root: &Path, scripts: &[Script]) -> Registry {
     let mut registry = Registry::new();
+    let _ = root;
     for script in scripts {
-        if script.classes.is_empty() {
-            let class = schema::Class {
-                family: None,
-                domain: None,
-                placement: Default::default(),
-                component: None,
-                default_components: vec![],
-                explicit_abstract: false,
-                provider: schema::Extension {
-                    id: "legacy-cpp".into(),
-                    version: 1,
-                },
-                backend: schema::native_backend(),
-                id: format!("legacy:{}", script.name),
-                cpp_name: script.name.clone(),
-                parent: script.parent.as_ref().map(|p| format!("legacy:{p}")),
-                abstract_class: false,
-                final_class: false,
-                timeline_component: None,
-                blueprintable: false,
-                properties: script
-                    .properties
-                    .iter()
-                    .map(|p| schema::Property {
-                        id: format!("legacy:{}:{}", script.name, p.name),
-                        name: p.name.clone(),
-                        value_type: p.value_type.clone(),
-                        default: p.default.clone(),
-                        editable: true,
-                        timeline: None,
-                        source: schema::Location {
-                            file: root.join("assets/scripts").join(script.header_path()),
-                            line: 0,
-                            column: 0,
-                        },
-                    })
-                    .collect(),
-                functions: vec![],
-                source: schema::Location {
-                    file: root.join("assets/scripts").join(script.header_path()),
-                    line: 0,
-                    column: 0,
-                },
-            };
-            registry.classes.insert(class.id.clone(), class);
-        } else {
-            for class in &script.classes {
-                registry.classes.insert(class.id.clone(), class.clone());
-            }
+        for class in &script.classes {
+            registry.classes.insert(class.id.clone(), class.clone());
         }
     }
     registry.normalize_functions();

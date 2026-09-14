@@ -21,24 +21,41 @@ impl Default for AudioSource {
     }
 }
 pub fn validate(scene: &crate::scene::Scene) -> Result<(), String> {
-    for entity in &scene.entities {
-        if let Some(source) = &entity.audio
-            && (!source.volume.is_finite()
+    for entity in &scene.actors {
+        for source in sources(entity) {
+            if !source.volume.is_finite()
                 || !(0. ..=1.).contains(&source.volume)
                 || !source.pitch.is_finite()
                 || !(0.25..=4.).contains(&source.pitch)
-                || source.clip.is_some_and(|id| id.is_nil()))
-        {
-            return Err(format!("{}: invalid AudioSource settings", entity.name));
+                || source.clip.is_some_and(|id| id.is_nil())
+            {
+                return Err(format!("{}: invalid AudioSource settings", entity.name));
+            }
         }
     }
     Ok(())
 }
+pub fn sources(actor: &crate::scene::Actor) -> Vec<AudioSource> {
+    let mut actor = actor.clone();
+    crate::actor_components::sync(&mut actor);
+    actor
+        .components
+        .iter()
+        .filter(|c| c.class.class_id.as_deref() == Some(crate::object_model::AUDIO_COMPONENT_ID))
+        .map(|c| {
+            c.properties
+                .get("audio")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default()
+        })
+        .collect()
+}
 pub fn clip_ids(scene: &crate::scene::Scene) -> Vec<Uuid> {
     scene
-        .entities
+        .actors
         .iter()
-        .filter_map(|e| e.audio.as_ref().and_then(|a| a.clip))
+        .flat_map(sources)
+        .filter_map(|source| source.clip)
         .collect::<std::collections::BTreeSet<_>>()
         .into_iter()
         .collect()
@@ -52,40 +69,44 @@ pub fn selection_signature(
     registry: Option<&crate::blueprint::Registry>,
 ) -> String {
     let bindings = scene
-        .entities
+        .actors
         .iter()
-        .filter(|entity| entity.script.is_some() || entity.blueprint_instance.is_some())
-        .map(|entity| {
-            (
-                entity.id,
-                (
-                    entity.script.as_ref().map(|binding| {
-                        let mut selected = binding.clone();
-                        if let Some(registry) = registry
-                            && let Some(class) = registry.bound(binding)
-                        {
-                            let properties = registry.properties(&class.cpp_name);
-                            let keep = |name: &str| {
-                                properties
-                                    .iter()
-                                    .find(|property| property.name == name)
-                                    .is_none_or(|property| is_clip_type(&property.value_type))
-                            };
-                            selected.properties.retain(|name, _| keep(name));
-                            selected.member_ids.retain(|name, _| keep(name));
-                            selected.overrides.retain(|name| keep(name));
+        .filter_map(|actor| {
+            let values = std::iter::once((&actor.class, &actor.properties))
+                .chain(actor.components.iter().map(|c| (&c.class, &c.properties)))
+                .filter(|(class, _)| {
+                    !class
+                        .class_id
+                        .as_deref()
+                        .is_some_and(crate::actor_components::native)
+                })
+                .filter_map(|(class, values)| {
+                    let properties = registry.and_then(|r| {
+                        match &class.class_id {
+                            Some(id) => r.classes.get(id),
+                            None => r.named(&class.name),
                         }
-                        selected
-                    }),
-                    entity.blueprint_instance.as_ref().map(|instance| {
-                        crate::blueprint_templates::instance_audio_signature(instance, registry)
-                    }),
-                ),
-            )
+                        .map(|c| r.properties(&c.cpp_name))
+                    });
+                    let selected = values
+                        .iter()
+                        .filter(|(key, _)| {
+                            properties.as_ref().is_none_or(|props| {
+                                props
+                                    .iter()
+                                    .find(|p| p.name == **key)
+                                    .is_none_or(|p| is_clip_type(&p.value_type))
+                            })
+                        })
+                        .collect::<std::collections::BTreeMap<_, _>>();
+                    (!selected.is_empty()).then_some((class, selected))
+                })
+                .collect::<Vec<_>>();
+            (!values.is_empty()).then_some((actor.id, values))
         })
         .collect::<std::collections::BTreeMap<_, _>>();
     let timelines = scene
-        .entities
+        .actors
         .iter()
         .filter_map(|entity| {
             entity
@@ -95,7 +116,7 @@ pub fn selection_signature(
         })
         .collect::<std::collections::BTreeSet<_>>();
     let effects = scene
-        .entities
+        .actors
         .iter()
         .filter_map(|entity| {
             entity
@@ -168,7 +189,7 @@ pub fn catalog_selection_signature(
     root: &std::path::Path,
     catalog: &[crate::scripts::Script],
 ) -> String {
-    let registry = crate::blueprint::legacy_registry(root, catalog);
+    let registry = crate::blueprint::registry_from_catalog(root, catalog);
     registry_selection_signature(&registry)
 }
 pub fn registry_selection_signature(registry: &crate::blueprint::Registry) -> String {
@@ -205,9 +226,10 @@ fn validate_music_sources(
     music: &std::collections::BTreeSet<Uuid>,
 ) -> Result<(), String> {
     let mut autoplay = 0;
-    for entity in &scene.entities {
-        if let Some(source) = &entity.audio
-            && source.clip.is_some_and(|id| music.contains(&id))
+    for entity in &scene.actors {
+        for source in sources(entity)
+            .into_iter()
+            .filter(|source| source.clip.is_some_and(|id| music.contains(&id)))
         {
             if source.pitch != 1. {
                 return Err(format!("{}: XA music requires pitch 1.0", entity.name));
@@ -241,10 +263,18 @@ pub fn validate_assets_with_music(
     let mut music = std::collections::BTreeSet::new();
     for id in clip_ids(scene) {
         let record = index.resolve(id)?;
-        if !matches!(record.meta.kind, crate::assets::Kind::AudioClip | crate::assets::Kind::MusicSequence) {
-            return Err("AudioSource must reference playable audio (AudioClip or MusicSequence)".into());
+        if !matches!(
+            record.meta.kind,
+            crate::assets::Kind::AudioClip | crate::assets::Kind::MusicSequence
+        ) {
+            return Err(
+                "AudioSource must reference playable audio (AudioClip or MusicSequence)".into(),
+            );
         }
-        if include_music && record.meta.kind == crate::assets::Kind::AudioClip && record.meta.settings.audio()?.is_streamed() {
+        if include_music
+            && record.meta.kind == crate::assets::Kind::AudioClip
+            && record.meta.settings.audio()?.is_streamed()
+        {
             music.insert(id);
         }
     }
@@ -272,7 +302,9 @@ pub fn stage_with_music(
     );
     let mut descriptors = Vec::new();
     if !sequences.descriptors.is_empty() {
-        bank = String::from("// Generated from UUID asset references.\n#pragma once\n#define EPOK_HAS_SEQUENCES 1\n#include \"sequence_data.hpp\"\n#include \"audio.hpp\"\nnamespace epok {\n");
+        bank = String::from(
+            "// Generated from UUID asset references.\n#pragma once\n#define EPOK_HAS_SEQUENCES 1\n#include \"sequence_data.hpp\"\n#include \"audio.hpp\"\nnamespace epok {\n",
+        );
         bank.push_str(&sequences.declarations);
     }
     let mut size = sequences.spu_bytes;
@@ -395,18 +427,46 @@ fn payload(
 #[cfg(test)]
 mod bank_tests {
     use super::*;
+    fn reflected(mut catalog: Vec<crate::scripts::Script>) -> Vec<crate::scripts::Script> {
+        for script in &mut catalog {
+            let mut class = crate::actor_document::tests::class(
+                &format!("test:{}", script.name),
+                &script.name,
+                script
+                    .parent
+                    .as_ref()
+                    .map(|p| format!("test:{p}"))
+                    .as_deref(),
+            );
+            class.properties = script
+                .properties
+                .iter()
+                .map(|p| crate::reflection_schema::Property {
+                    id: p.id.clone(),
+                    name: p.name.clone(),
+                    value_type: p.value_type.clone(),
+                    default: p.default.clone(),
+                    editable: true,
+                    timeline: None,
+                    source: class.source.clone(),
+                })
+                .collect();
+            script.classes = vec![class];
+        }
+        catalog
+    }
     #[test]
     fn audio_script_selection_is_typed_for_scenes_templates_and_instance_overrides() {
         use crate::{
             blueprint_templates as templates,
-            scene::{Entity, Scene, ScriptBinding},
+            scene::{Actor, ClassDefaults, Scene},
             scripts::{Property, Script},
         };
         use serde_json::json;
         let root = crate::workspace::tests::temp("script-audio-selection");
-        let registry = crate::blueprint::legacy_registry(
+        let registry = crate::blueprint::registry_from_catalog(
             &root,
-            &[
+            &reflected(vec![
                 Script {
                     name: "Base".into(),
                     properties: vec![
@@ -432,15 +492,15 @@ mod bank_tests {
                     parent: Some("Base".into()),
                     ..Default::default()
                 },
-            ],
+            ]),
         );
-        let mut binding = ScriptBinding {
+        let mut binding = ClassDefaults {
             name: "Child".into(),
-            class_id: Some("legacy:Child".into()),
+            class_id: Some("test:Child".into()),
             properties: [("health".into(), json!(50)), ("sound".into(), json!(null))].into(),
             member_ids: [
-                ("health".into(), "legacy:Base:health".into()),
-                ("sound".into(), "legacy:Base:sound".into()),
+                ("health".into(), "test:Base:health".into()),
+                ("sound".into(), "test:Base:sound".into()),
             ]
             .into(),
             overrides: ["health".into(), "sound".into()].into(),
@@ -448,27 +508,32 @@ mod bank_tests {
         };
         let entity_id = Uuid::new_v4();
         // Exercise all three authoring paths with the same resolved property set.
-        let signature = |binding: &ScriptBinding, registry| {
-            let mut entity = Entity::cube("Target".into());
+        let signature = |binding: &ClassDefaults, registry| {
+            let mut entity = Actor::cube("Target".into());
             entity.id = entity_id;
-            entity.script = Some(binding.clone());
+            entity.set_class_defaults(&(binding.clone()));
             let scene = Scene {
-                entities: vec![entity.clone()],
+                actors: vec![entity.clone()],
                 ..Default::default()
             };
             let template = templates::Template {
-                entities: vec![templates::TemplateEntity {
+                actors: vec![templates::TemplateEntity {
                     entity,
                     parent: None,
                 }],
                 ..Default::default()
             };
             let instance = templates::Instance {
-                class: "legacy:Child".into(),
+                class: "test:Child".into(),
                 parent: None,
+                component_ids: Default::default(),
                 template_entity: entity_id,
                 instance: entity_id,
-                overrides: [("uq.component.script.v1".into(), json!(binding))].into(),
+                overrides: binding
+                    .properties
+                    .iter()
+                    .map(|(name, value)| (format!("/properties/{name}"), value.clone()))
+                    .collect(),
             };
             (
                 selection_signature(&scene, registry),
@@ -530,8 +595,8 @@ mod bank_tests {
                 ..Default::default()
             },
         ];
-        let signature = catalog_selection_signature(&root, &catalog);
-        crate::scene_dependencies::observe_catalog(&root, Ok(&catalog)).unwrap();
+        let signature = catalog_selection_signature(&root, &reflected(catalog.clone()));
+        crate::scene_dependencies::observe_catalog(&root, Ok(&reflected(catalog.clone()))).unwrap();
         crate::artifact_dependencies::transaction(&root, |graph| {
             graph.publish(
                 "test-audio-bank",
@@ -542,7 +607,10 @@ mod bank_tests {
         .unwrap();
         // Inherited null fields matter: an instance may supply the actual clip.
         catalog[1].parent = None;
-        assert_ne!(signature, catalog_selection_signature(&root, &catalog));
+        assert_ne!(
+            signature,
+            catalog_selection_signature(&root, &reflected(catalog.clone()))
+        );
         catalog[1].parent = Some("Base".into());
         catalog[0].properties.push(Property {
             name: "health".into(),
@@ -551,8 +619,11 @@ mod bank_tests {
             id: "health".into(),
         });
         catalog.reverse();
-        assert_eq!(signature, catalog_selection_signature(&root, &catalog));
-        crate::scene_dependencies::observe_catalog(&root, Ok(&catalog)).unwrap();
+        assert_eq!(
+            signature,
+            catalog_selection_signature(&root, &reflected(catalog.clone()))
+        );
+        crate::scene_dependencies::observe_catalog(&root, Ok(&reflected(catalog.clone()))).unwrap();
         assert!(
             Graph::load(&root).unwrap().nodes["test-audio-bank"]
                 .stale
@@ -567,7 +638,7 @@ mod bank_tests {
                 .stale
                 .contains_key("audio-catalog")
         );
-        crate::scene_dependencies::observe_catalog(&root, Ok(&catalog)).unwrap();
+        crate::scene_dependencies::observe_catalog(&root, Ok(&reflected(catalog.clone()))).unwrap();
         let repaired = Graph::load(&root).unwrap();
         assert!(repaired.nodes["audio-catalog"].stale.is_empty());
         assert!(!repaired.nodes["test-audio-bank"].stale.is_empty());
@@ -578,12 +649,12 @@ mod bank_tests {
         let second = Uuid::new_v4();
         let music = [first, second].into_iter().collect();
         let mut scene = crate::scene::Scene::default();
-        scene.entities[0].audio = Some(AudioSource {
+        scene.actors[0].audio = Some(AudioSource {
             clip: Some(first),
             ..Default::default()
         });
         validate_music_sources(&scene, &music).unwrap();
-        scene.entities[1].audio = Some(AudioSource {
+        scene.actors[1].audio = Some(AudioSource {
             clip: Some(second),
             ..Default::default()
         });
@@ -592,9 +663,9 @@ mod bank_tests {
                 .unwrap_err()
                 .contains("only one BGM")
         );
-        scene.entities[1].audio.as_mut().unwrap().play_on_start = false;
+        scene.actors[1].audio.as_mut().unwrap().play_on_start = false;
         validate_music_sources(&scene, &music).unwrap();
-        scene.entities[1].audio.as_mut().unwrap().pitch = 2.;
+        scene.actors[1].audio.as_mut().unwrap().pitch = 2.;
         assert!(
             validate_music_sources(&scene, &music)
                 .unwrap_err()

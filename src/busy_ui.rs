@@ -312,9 +312,9 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     e.tick();
     assert!(!e.critical_busy());
     assert_eq!(crate::mcp_tools::revision(&e.scene), before);
-    let count = e.scene.entities.len();
+    let count = e.scene.actors.len();
     e.action("duplicate");
-    assert_eq!(e.scene.entities.len(), count + 1);
+    assert_eq!(e.scene.actors.len(), count + 1);
     frame(context, &mut e, &mut initial);
     assert_eq!(
         dock_id(),

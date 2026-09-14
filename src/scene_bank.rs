@@ -188,13 +188,13 @@ pub fn load_selected(
 }
 pub fn resources(scenes: &[Scene]) -> Scene {
     let mut out = scenes[0].clone();
-    out.entities.clear();
+    out.actors.clear();
     out.textures.clear();
     for s in scenes {
-        out.entities.extend(s.entities.clone());
+        out.actors.extend(s.actors.clone());
         out.textures.extend(s.textures.clone());
     }
-    for e in &mut out.entities {
+    for e in &mut out.actors {
         if let Some(a) = &mut e.audio {
             a.play_on_start = false;
         }
@@ -223,17 +223,11 @@ pub fn header_with_streaming(
     catalog: &[Script],
     streaming: Option<&crate::streaming::Bundle>,
 ) -> Result<String, String> {
-    let registry = crate::blueprint::legacy_registry(Path::new(""), catalog);
-    header_with_templates(
-        scenes,
-        catalog,
-        streaming,
-        &[],
-        None,
-        &[],
-        &[],
-        &registry,
-    )
+    let mut registry = crate::actor_document::tests::registry();
+    registry
+        .classes
+        .extend(crate::blueprint::registry_from_catalog(Path::new(""), catalog).classes);
+    header_with_templates(scenes, catalog, streaming, &[], None, &[], &[], &registry)
 }
 pub fn header_with_templates(
     scenes: &[Scene],
@@ -253,7 +247,7 @@ pub fn header_with_templates(
     all_resources.extend(referenced.cloned());
     let shared = resources(&all_resources);
     let global_layout =
-        !templates.is_empty() || referenced.is_some_and(|scene| !scene.entities.is_empty());
+        !templates.is_empty() || referenced.is_some_and(|scene| !scene.actors.is_empty());
     let ids = crate::texture::ids(&shared);
     let mut textures = String::new();
     for (i, id) in ids.iter().enumerate() {
@@ -327,7 +321,7 @@ pub fn header_with_templates(
             }
         );
     }
-    let capacity = scenes.iter().map(|s| s.entities.len() + 32).max().unwrap();
+    let capacity = scenes.iter().map(|s| s.actors.len() + 32).max().unwrap();
     let mut headers = Vec::new();
     let mut render_capacity = 0;
     for (bank, s) in scenes.iter().enumerate() {
@@ -348,7 +342,7 @@ pub fn header_with_templates(
     }
     let dynamic_quads = templates
         .iter()
-        .flat_map(|template| template.scene.entities.iter())
+        .flat_map(|template| template.scene.actors.iter())
         .map(crate::lighting::quad_count)
         .max()
         .unwrap_or(6)
@@ -363,7 +357,7 @@ pub fn header_with_templates(
             .iter()
             .map(|scene| {
                 scene
-                    .entities
+                    .actors
                     .iter()
                     .map(crate::lighting::quad_count)
                     .sum::<usize>()
@@ -427,11 +421,10 @@ pub fn header_with_templates(
     for s in catalog {
         out += &format!("#include \"scripts/{}\"\n", s.header_path());
     }
-    out += &crate::blueprint_spawn::header_with_templates(
-        catalog,
-        templates,
-        !timelines.is_empty() || !effects.is_empty(),
+    out += &crate::blueprint_spawn::object_class_table_for_scenes_and_templates(
         class_registry,
+        scenes,
+        templates,
     )?;
     if !timelines.is_empty() {
         out += "#include \"timeline_service.hpp\"\n";
@@ -453,9 +446,16 @@ pub fn header_with_templates(
     );
     out += "}\n";
     out += &format!(
-        "namespace epok {{\ntemplate<class T> struct TableView {{T* data=nullptr;size_t count=0;T* begin() const{{return data;}}T* end() const{{return data+count;}}size_t size() const{{return count;}}}};\ninline std::array<Entity,{capacity}> objects;\ninline size_t object_count=0,authored_count=0;\ninline constexpr size_t render_capacity={render_capacity};\ninline TableView<Binding> bindings;\ninline TableView<const size_t> transform_order;\n{textures}\n}}\n"
+        "namespace epok {{\ntemplate<class T> struct TableView {{T* data=nullptr;size_t count=0;T* begin() const{{return data;}}T* end() const{{return data+count;}}size_t size() const{{return count;}}}};\ninline std::array<ActorData,{capacity}> objects;\ninline size_t object_count=0,authored_count=0;\ninline constexpr size_t render_capacity={render_capacity};\ninline TableView<const size_t> transform_order;\n{textures}\n}}\n"
     );
-    out += &crate::blueprint_spawn::prototypes(catalog, templates, &shared, timelines, effects)?;
+    out += &crate::blueprint_spawn::prototypes(
+        catalog,
+        templates,
+        &shared,
+        timelines,
+        effects,
+        class_registry,
+    )?;
     if !timelines.is_empty()
         || !effects.is_empty()
         || catalog.iter().any(|script| {
@@ -476,12 +476,12 @@ pub fn header_with_templates(
         h = h.replace("namespace epok {", &format!("namespace epok::scene_{i} {{"));
         h = h.replace(
             &format!(
-                "inline std::array<Entity, {}> objects",
-                s.entities.len() + 32
+                "inline std::array<ActorData, {}> objects",
+                s.actors.len() + 32
             ),
             &format!(
-                "inline const std::array<Entity, {}> initial_objects",
-                s.entities.len()
+                "inline const std::array<ActorData, {}> initial_objects",
+                s.actors.len()
             ),
         );
         // Scene-local capacities are metadata; all actual component writes target
@@ -490,34 +490,27 @@ pub fn header_with_templates(
         out += &h;
         out.push('\n');
         out += &format!(
-            "namespace epok {{inline void load_bank_{i}(){{\nobject_count=authored_count=scene_{i}::authored_count;\nfor(size_t j=0;j<objects.size();++j){{auto generation=objects[j].generation+1;if(!generation)generation=1;objects[j]=j<object_count?scene_{i}::initial_objects[j]:Entity{{}};objects[j].generation=generation;objects[j].alive=j<object_count;}}\nbindings={{scene_{i}::bindings.data(),scene_{i}::bindings.size()}};transform_order={{scene_{i}::transform_order.data(),scene_{i}::transform_order.size()}};\n"
+            "namespace epok {{inline void load_bank_{i}(){{\nobject_count=authored_count=scene_{i}::authored_count;\nfor(size_t j=0;j<objects.size();++j){{auto generation=objects[j].generation+1;if(!generation)generation=1;objects[j]=j<object_count?scene_{i}::initial_objects[j]:ActorData{{}};objects[j].generation=generation;objects[j].alive=j<object_count;}}\ntransform_order={{scene_{i}::transform_order.data(),scene_{i}::transform_order.size()}};\n"
         );
-        for (entity, e) in s.entities.iter().enumerate() {
-            if let Some(b) = &e.script {
-                let class = crate::script_backend::resolve(b, catalog)?;
-                out += &crate::script_backend::backend(&b.backend)?
-                    .reset(&class.name, &format!("scene_{i}::behaviour_{entity}"));
-            }
-        }
         if !timelines.is_empty() {
             out += &crate::timeline_scene::setup(
                 s,
                 timelines,
-                &crate::blueprint::legacy_registry(std::path::Path::new(""), catalog),
+                &crate::blueprint::registry_from_catalog(std::path::Path::new(""), catalog),
             )?;
         }
         if !effects.is_empty() {
             out += &crate::particle_effect_scene::setup(
                 s,
                 effects,
-                &crate::blueprint::legacy_registry(std::path::Path::new(""), catalog),
+                &crate::blueprint::registry_from_catalog(std::path::Path::new(""), catalog),
                 false,
             )?;
         }
         // Actors, their components and the bank's single SceneScriptActor come up
         // before the legacy Behaviour bindings, so a scene script observes both halves.
         out += &format!(
-            "load_actor_bank(scene_{i}::actor_table,objects.data(),object_count);\nactivate_texture_bank(bank_textures_{i});\nscene_{i}::initialize_scripts();\n"
+            "actor_template_lookup=&find_cooked_actor_template;\nactivate_texture_bank(bank_textures_{i});\nscene_{i}::initialize_components();\nload_actor_bank(scene_{i}::actor_table,objects.data(),object_count);\n"
         );
         if !timelines.is_empty() {
             out += "epok::timeline::start_components();\n";
@@ -575,7 +568,7 @@ mod tests {
         let disk = fs::read(&path).unwrap();
         let registry = fs::read(root.join(REGISTRY)).unwrap();
         let mut scene = Scene::load_unresolved(&path).unwrap();
-        scene.entities[0].position[0] += 7.;
+        scene.actors[0].position[0] += 7.;
         let input = Input::editor(path.clone(), scene);
         let loaded = load(&root, &input.scene, &input.origin).unwrap();
         assert_eq!(
@@ -684,9 +677,9 @@ mod tests {
         let a = Scene::default();
         let mut b = a.clone();
         b.name = "Second".into();
-        b.entities.pop();
+        b.actors.pop();
         let h = header(&[a, b], &[]).unwrap();
-        assert_eq!(h.matches("std::array<Entity,36> objects;").count(), 1);
+        assert_eq!(h.matches("std::array<ActorData,36> objects;").count(), 1);
         assert!(h.contains("scene_1::initial_objects[j]"));
         assert_eq!(
             h.matches("inline constexpr size_t texture_count=").count(),
@@ -727,7 +720,7 @@ mod tests {
                 },
             }
         }
-        let mut actor = class(om::ACTOR_ID, "epok::Actor", None);
+        let mut actor = class(om::ACTOR_ID, "epok::Actor", Some(om::OBJECT_ID));
         actor.family = Some(schema::ClassFamily::Actor);
         actor.abstract_class = true;
         let mut actor3d = class(om::ACTOR3D_ID, "epok::Actor3D", Some(om::ACTOR_ID));
@@ -747,7 +740,11 @@ mod tests {
             spawnable: false,
             scene_managed: true,
         };
-        let mut component = class(om::ACTOR_COMPONENT_ID, "epok::ActorComponent", None);
+        let mut component = class(
+            om::ACTOR_COMPONENT_ID,
+            "epok::ActorComponent",
+            Some(om::OBJECT_ID),
+        );
         component.family = Some(schema::ClassFamily::Component);
         component.abstract_class = true;
         let mut root = class(
@@ -820,7 +817,6 @@ mod tests {
         let child_root = uuid::Uuid::parse_str("1a2b3c4d-0000-4000-8000-000000000003").unwrap();
 
         let mut hero = ActorInstance::new(hero_id, ClassReference::new("BP_Hero", HERO_ID), "Hero");
-        hero.legacy_entity = Some(scene.entities[0].id);
         hero.components = vec![
             {
                 let mut c = ComponentInstance::new(
@@ -890,7 +886,7 @@ mod tests {
         // Component records: the root carries the legacy entity slot behind it, the
         // audio component does not; attach_parent is a component index of the same actor.
         assert!(text.contains(&format!(
-            "inline constexpr ActorComponentRecord actor_components_0[]={{{{UINT64_C({}),\"Root\",true,-1,0}},{{UINT64_C({}),\"Footsteps\",false,-1,-1}}}};",
+            "inline constexpr ActorComponentRecord actor_components_0[]={{{{UINT64_C({}),\"Root\",true,-1,0,-1}},{{UINT64_C({}),\"Footsteps\",false,-1,0,-1}}}};",
             compact(crate::object_model::SCENE_COMPONENT3D_ID),
             compact(crate::object_model::AUDIO_COMPONENT_ID)
         )));
@@ -907,7 +903,7 @@ mod tests {
             text.contains("inline constexpr ActorTable actor_table={actor_records,2,UINT64_C(")
         );
         // Overrides go through the reflected assignment generator, not ad-hoc text.
-        assert!(text.contains("inline void actor_apply_0(ObjectRegistry& registry,Actor& actor,const ObjectId* components){"));
+        assert!(text.contains("inline void actor_apply_0(ObjectRegistry& registry,Actor& actor,const ObjectId* components,const ObjectId* actors){"));
         assert!(text.contains("if(auto* self=registry.resolve<BP_Hero>(actor.id())){"));
         assert!(text.contains("self->speed = Fixed(10240, Fixed::RAW);"));
         // The scene script class is cooked per bank and reachable from epok.
@@ -918,98 +914,50 @@ mod tests {
         assert!(text.contains(
             "inline constexpr uint64_t scene_script_class_0=scene_0::scene_script_class;"
         ));
-        // The bank loader brings the actor half up before the legacy bindings.
+        let initialize = text.find("scene_0::initialize_components();").unwrap();
         let load = text
-            .split("load_actor_bank(scene_0::actor_table,objects.data(),object_count);")
-            .nth(1)
+            .find("load_actor_bank(scene_0::actor_table,objects.data(),object_count);")
             .unwrap();
-        assert!(load.contains("scene_0::initialize_scripts();"));
+        assert!(
+            initialize < load,
+            "native data is bound before lifecycle callbacks"
+        );
         // Deterministic: re-cooking the same document is byte identical.
         assert_eq!(text, header(&[scene], &catalog).unwrap());
     }
 
     #[test]
-    fn a_scene_without_actors_emits_the_empty_table_and_unchanged_legacy_text() {
-        let a = Scene::default();
-        let mut b = a.clone();
-        b.name = "Second".into();
-        b.entities.pop();
+    fn empty_scene_banks_emit_empty_actor_tables() {
+        let a = Scene {
+            actors: vec![],
+            ..Default::default()
+        };
+        let b = Scene {
+            name: "Second".into(),
+            ..a.clone()
+        };
         let text = header(&[a, b], &[]).unwrap();
-        // Legacy byte shape is untouched.
-        assert_eq!(text.matches("std::array<Entity,36> objects;").count(), 1);
-        assert!(text.contains("scene_1::initial_objects[j]"));
-        // Empty tables, still one per bank, so main.cpp always links.
         assert_eq!(
             text.matches("inline constexpr ActorTable actor_table={nullptr,0,UINT64_C(0)};")
                 .count(),
             2
         );
-        assert_eq!(text.matches("actor_registry_slots=0;").count(), 2);
-        assert!(text.contains("#define EPOK_OBJECT_REGISTRY_CAPACITY 32\n"));
-        assert!(!text.contains("actor_records"));
-        // The object class table exists even with no reflected object-model class.
-        assert!(text.contains("inline const size_t object_class_count=0;"));
-
-        // Byte neutrality: a project with no actors, no scene script and no object-model
-        // class differs from the pre-initiative shape by exactly these additive lines.
-        // Removing them must leave nothing of the initiative behind, so a future phase
-        // cannot quietly add a line to every existing project's generated header.
-        let mut rest = text.clone();
-        let additive = [
-            "#define EPOK_OBJECT_REGISTRY_CAPACITY 32\n",
-            "#include \"actor_tables.hpp\"\n",
-            "inline const ClassDescriptor object_classes[] = {\n{},\n};\n",
-            "inline const size_t object_class_count=0;\n",
-            "inline constexpr ActorTable actor_table={nullptr,0,UINT64_C(0)};\n",
-            "inline constexpr ActorTable actor_table={nullptr,0,UINT64_C(0)};\n",
-            "inline constexpr uint64_t scene_script_class=UINT64_C(0);\n",
-            "inline constexpr uint64_t scene_script_class=UINT64_C(0);\n",
-            "inline constexpr size_t actor_registry_slots=0;\n",
-            "inline constexpr size_t actor_registry_slots=0;\n",
-            "inline constexpr uint64_t scene_script_class_0=scene_0::scene_script_class;\n",
-            "inline constexpr uint64_t scene_script_class_1=scene_1::scene_script_class;\n",
-            "load_actor_bank(scene_0::actor_table,objects.data(),object_count);\n",
-            "load_actor_bank(scene_1::actor_table,objects.data(),object_count);\n",
-        ];
-        for line in additive {
-            let at = rest
-                .find(line)
-                .unwrap_or_else(|| panic!("additive line missing: {line:?}"));
-            rest.replace_range(at..at + line.len(), "");
-        }
-        for token in [
-            "actor_tables",
-            "ActorTable",
-            "ActorRecord",
-            "ActorComponentRecord",
-            "SceneReference",
-            "scene_reference",
-            "scene_script",
-            "actor_registry_slots",
-            "object_class",
-            "ClassDescriptor",
-            "EPOK_OBJECT_REGISTRY_CAPACITY",
-            "load_actor_bank",
-            "ObjectPool",
-        ] {
-            assert!(
-                !rest.contains(token),
-                "the actor initiative leaked {token} into a project that has no actors"
-            );
-        }
+        assert!(!text.contains("inline constexpr ActorRecord actor_records"));
+        assert!(text.contains("#define EPOK_OBJECT_REGISTRY_CAPACITY 32"));
+        assert!(text.contains("load_actor_bank(scene_1::actor_table"));
     }
 
     const MAP_SCRIPT_ID: &str = "6b9dfe10-3f2d-4a41-9f7e-2b0f8c5a1d02";
     const HERO_REF_ID: &str = "6b9dfe10-3f2d-4a41-9f7e-2b0f8c5a1d03";
     const SLOT_REF_ID: &str = "6b9dfe10-3f2d-4a41-9f7e-2b0f8c5a1d04";
 
-    /// The map's own Blueprint, with one `ActorRef` and one `EntityRef` typed in. P6
+    /// The map's own Blueprint, with one `ActorRef` and one `ObjectRef` typed in. P6
     /// lowers both defaults to the null identity; the resolution is what P10/P11 cook.
     fn scene_with_map_scoped_references() -> (Scene, Vec<Script>) {
         use crate::{blueprint_asset as asset, reflection_schema as schema};
         let mut scene = actor_scene();
         let hero = scene.actors[0].id;
-        let entity = scene.entities[0].id;
+        let entity = scene.actors[0].id;
         let script = scene.scene_script.as_mut().unwrap();
         script.blueprint.id = MAP_SCRIPT_ID.into();
         let variable = |id: &str, name: &str, value_type, default| asset::Variable {
@@ -1030,7 +978,7 @@ mod tests {
             variable(
                 SLOT_REF_ID,
                 "marker_slot",
-                schema::Type::EntityRef { class: None },
+                schema::Type::ObjectRef { class: None },
                 serde_json::json!(entity.to_string()),
             ),
         ];
@@ -1058,20 +1006,20 @@ mod tests {
         let text = header(std::slice::from_ref(&scene), &catalog).unwrap();
         let compact = crate::blueprint_refs::compact_id;
         assert!(text.contains(&format!(
-            "inline constexpr SceneReferenceRecord scene_references[]={{{{UINT64_C({}),UINT64_C({}),SceneRefKind::Actor,0,-1,-1}},{{UINT64_C({}),UINT64_C({}),SceneRefKind::Entity,-1,-1,0}}}};",
+            "inline constexpr SceneReferenceRecord scene_references[]={{{{UINT64_C({}),UINT64_C({}),SceneRefKind::Actor,0,-1}},{{UINT64_C({}),UINT64_C({}),SceneRefKind::Actor,0,-1}}}};",
             compact(MAP_SCRIPT_ID),
             compact(HERO_REF_ID),
             compact(MAP_SCRIPT_ID),
             compact(SLOT_REF_ID)
         )));
-        assert!(text.contains("inline void scene_reference_bind(ObjectRegistry& registry,Actor& owner,uint64_t member,ObjectId target,EntityHandle entity){"));
+        assert!(text.contains("inline void scene_reference_bind(ObjectRegistry& registry,Actor& owner,uint64_t member,ObjectId target){"));
         assert!(text.contains("if(auto* self=registry.resolve<Actors_SceneScript>(owner.id())){"));
         assert!(text.contains(&format!(
             "if(member==UINT64_C({})){{self->hero = target;}}",
             compact(HERO_REF_ID)
         )));
         assert!(text.contains(&format!(
-            "if(member==UINT64_C({})){{self->marker_slot = entity;}}",
+            "if(member==UINT64_C({})){{self->marker_slot = target;}}",
             compact(SLOT_REF_ID)
         )));
         // The ActorTable points at the rows; no UUID reaches the generated text.
@@ -1116,7 +1064,10 @@ mod tests {
             .collect();
         let error = header(&[scene], &catalog).unwrap_err();
         assert!(error.contains("9 components"), "{error}");
-        assert!(error.contains(&ACTOR_COMPONENT_CAPACITY.to_string()), "{error}");
+        assert!(
+            error.contains(&ACTOR_COMPONENT_CAPACITY.to_string()),
+            "{error}"
+        );
 
         // Inside the bounds the capacity is emitted, never rounded up.
         let mut scene = actor_scene();
@@ -1134,14 +1085,15 @@ mod tests {
     #[test]
     fn object_pools_carry_the_sixty_four_kibibyte_cook_assert() {
         let text = header(&[actor_scene()], &object_model_catalog()).unwrap();
+        let assertion = text
+            .lines()
+            .find(|s| s.contains("Object pools exceed the 64 KiB cook limit"))
+            .expect("pool budget assertion");
+        assert!(assertion.starts_with("static_assert(("));
+        assert!(assertion.contains("<= 65536"));
         assert!(
-            text.contains(
-                "static_assert((epok::ObjectPool<BP_Hero,4>::storage_bytes+epok::ObjectPool<epok::Actor3D,4>::storage_bytes+epok::ObjectPool<epok::AudioComponent,4>::storage_bytes+epok::ObjectPool<epok::SceneComponent3D,4>::storage_bytes+epok::ObjectPool<epok::SceneScriptActor,4>::storage_bytes) <= 65536, \"Object pools exceed the 64 KiB cook limit\");"
-            ),
-            "{}",
-            text.lines()
-                .find(|line| line.contains("64 KiB"))
-                .unwrap_or_default()
+            assertion.contains("epok::ObjectPool<BP_Hero,5>::storage_bytes"),
+            "{assertion}"
         );
     }
 
@@ -1205,7 +1157,7 @@ mod tests {
 
         // An unrelated legacy edit leaves the actor half byte identical.
         let mut unrelated = base.clone();
-        unrelated.entities[0].material.color = [0.1, 0.2, 0.3];
+        unrelated.actors[0].material.color = [0.1, 0.2, 0.3];
         assert_eq!(table(&unrelated), before);
         assert_ne!(
             header(&[unrelated], &catalog).unwrap(),

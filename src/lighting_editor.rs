@@ -1,4 +1,4 @@
-use crate::{editor::Editor, lighting::*, scene::Entity};
+use crate::{editor::Editor, lighting::*, scene::Actor};
 
 pub fn start_bake(e: &mut Editor) {
     if e.playing || e.bake_job.is_some() {
@@ -38,7 +38,7 @@ pub fn poll(e: &mut Editor) {
     }
 }
 pub fn create(e: &mut Editor, kind: LightType, child: bool) {
-    if e.playing || e.scene.entities.len() >= 512 {
+    if e.playing || e.scene.actors.len() >= 512 {
         return;
     }
     let base = if kind == LightType::Directional {
@@ -46,7 +46,7 @@ pub fn create(e: &mut Editor, kind: LightType, child: bool) {
     } else {
         "Point Light"
     };
-    let mut entity = Entity::cube(base.into());
+    let mut entity = Actor::cube(base.into());
     entity.kind = "Empty".into();
     entity.position = [0., 3., 0.];
     entity.light = Some(Light {
@@ -61,23 +61,23 @@ pub fn create(e: &mut Editor, kind: LightType, child: bool) {
         entity.position = [0.; 3];
     }
     let mut n = 1;
-    while e.scene.entities.iter().any(|v| v.name == entity.name) {
+    while e.scene.actors.iter().any(|v| v.name == entity.name) {
         entity.name = format!("{base}.{n:03}");
         n += 1;
     }
-    e.scene.entities.push(entity);
+    e.scene.actors.push(entity);
     if let Err(error) = e.scene.validate() {
-        e.scene.entities.pop();
+        e.scene.actors.pop();
         e.log(error);
         return;
     }
-    e.selected = Some(e.scene.entities.len() - 1);
+    e.selected = Some(e.scene.actors.len() - 1);
     e.reveal_selected = true;
     e.search.clear();
     e.set_scene_2d(false);
     e.changed();
 }
-pub fn inspector(ui: &imgui::Ui, entity: &mut Entity) {
+pub fn inspector(ui: &imgui::Ui, entity: &mut Actor) {
     if let Some(light) = &mut entity.light {
         if crate::gui::heading(ui, "Light") {
             ui.checkbox("Enabled##light", &mut light.enabled);
@@ -135,7 +135,7 @@ pub fn inspector(ui: &imgui::Ui, entity: &mut Entity) {
         ui.separator();
     }
 }
-pub fn mesh(ui: &imgui::Ui, entity: &mut Entity) {
+pub fn mesh(ui: &imgui::Ui, entity: &mut Actor) {
     let mut mode = if entity.material.unlit {
         0
     } else if entity.lighting.receive == Receive::Baked {
@@ -186,14 +186,14 @@ pub fn window(ui: &imgui::Ui, e: &mut Editor) {
         if old!=e.scene.environment{e.changed();}
         if old_fog!=e.scene.fog{e.changed();}
         ui.separator();
-        let needs=e.scene.entities.iter().any(baked);
+        let needs=e.scene.actors.iter().any(baked);
         let status=if e.bake_job.is_some(){"Baking in background..."}else if !needs{"No baked receivers"}else if e.bake_current{"Bake up to date"}else{"Bake outdated - preview has no baked shadows"};
         ui.text_wrapped(status);
         ui.disabled(e.playing || e.bake_job.is_some(),||{if ui.button("Bake Lighting"){start_bake(e);}});
         ui.text_wrapped("Play / Build automatically bake outdated lighting. Save Scene after a manual bake to keep the cache.");
         ui.separator();
-        let count:usize=e.scene.entities.iter().map(quad_count).sum();
-        let vertices:usize=e.scene.entities.iter().filter(|e|baked(e)).map(|e|quad_count(e)*4).sum();
+        let count:usize=e.scene.actors.iter().map(quad_count).sum();
+        let vertices:usize=e.scene.actors.iter().filter(|e|baked(e)).map(|e|quad_count(e)*4).sum();
         ui.text(format!("Geometry: {} / 7000 triangles",count*2));
         ui.text(format!("Baked colors: {} bytes",vertices*3));
         ui.text_wrapped("Dynamic budget: 1 directional + 1 point per object; 32 active lights. Static objects must stay fixed, including their parents.");

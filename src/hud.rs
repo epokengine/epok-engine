@@ -150,7 +150,7 @@ pub fn resolve(parent: Rect, r: &RectTransform) -> Rect {
     crate::hud_native::resolve(parent, r)
 }
 pub fn layout(scene: &Scene, index: usize) -> Option<Rect> {
-    let e = scene.entities.get(index)?;
+    let e = scene.actors.get(index)?;
     if e.canvas.is_some() {
         return Some([
             0.,
@@ -159,7 +159,16 @@ pub fn layout(scene: &Scene, index: usize) -> Option<Rect> {
             scene.display_size[1] as f32,
         ]);
     }
-    Some(resolve(layout(scene, e.parent?)?, e.rect.as_ref()?))
+    let parent = scene
+        .spatial_parent(index)
+        .and_then(|p| layout(scene, p))
+        .unwrap_or([
+            0.,
+            0.,
+            scene.display_size[0] as f32,
+            scene.display_size[1] as f32,
+        ]);
+    Some(resolve(parent, e.rect.as_ref()?))
 }
 pub fn order(scene: &Scene) -> Vec<usize> {
     fn visit(s: &Scene, i: usize, out: &mut Vec<usize>) {
@@ -167,15 +176,17 @@ pub fn order(scene: &Scene) -> Vec<usize> {
             return;
         }
         out.push(i);
-        for (child, e) in s.entities.iter().enumerate() {
-            if e.parent == Some(i) && e.rect.is_some() {
+        for (child, e) in s.actors.iter().enumerate() {
+            if s.spatial_parent(child) == Some(i) && e.rect.is_some() {
                 visit(s, child, out);
             }
         }
     }
     let mut out = Vec::new();
-    for (i, e) in scene.entities.iter().enumerate() {
-        if e.canvas.as_ref().is_some_and(|c| c.enabled) {
+    for (i, e) in scene.actors.iter().enumerate() {
+        if e.canvas.as_ref().is_some_and(|c| c.enabled)
+            || (e.rect.is_some() && scene.spatial_parent(i).is_none())
+        {
             visit(scene, i, &mut out);
         }
     }
@@ -184,7 +195,7 @@ pub fn order(scene: &Scene) -> Vec<usize> {
 pub fn validate(scene: &Scene) -> Result<(), String> {
     scene.hud_budget.validate()?;
     let mut texts = 0;
-    for e in &scene.entities {
+    for e in &scene.actors {
         if let Some(image) = &e.image {
             let dimensions = image
                 .texture
@@ -206,15 +217,11 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
                 return Err("Image nine-slice borders exceed the source atlas region".into());
             }
         }
-        if e.canvas.is_some() && (e.parent.is_some() || e.rect.is_some() || e.kind != "Empty") {
-            return Err("Canvas must be a root entity without a mesh or RectTransform".into());
+        if e.canvas.is_some() && e.kind != "Empty" {
+            return Err("Canvas belongs to a UIActor without a 3D mesh".into());
         }
         if let Some(r) = &e.rect {
-            if e.kind != "Empty"
-                || !e.parent.is_some_and(|p| {
-                    scene.entities[p].canvas.is_some() || scene.entities[p].rect.is_some()
-                })
-            {
+            if e.kind != "Empty" {
                 return Err(
                     "RectTransform needs a Canvas or RectTransform parent and no 3D mesh".into(),
                 );
@@ -262,14 +269,14 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
         }
     }
     let glyphs: usize = scene
-        .entities
+        .actors
         .iter()
         .filter_map(|e| e.text.as_ref())
         .filter(|t| t.enabled)
         .map(|t| t.text.chars().filter(|c| *c != '\n').count())
         .sum();
     let rectangles: usize = scene
-        .entities
+        .actors
         .iter()
         .map(|e| {
             e.image.as_ref().filter(|v| v.enabled).map_or(0, |v| {
@@ -282,7 +289,7 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
         })
         .sum();
     if texts > scene.hud_budget.texts
-        || scene.entities.iter().filter(|e| e.rect.is_some()).count() > scene.hud_budget.layouts
+        || scene.actors.iter().filter(|e| e.rect.is_some()).count() > scene.hud_budget.layouts
         || glyphs > scene.hud_budget.glyphs
         || rectangles > scene.hud_budget.rectangles
     {
@@ -301,34 +308,48 @@ pub fn render_at(scene: &Scene, seconds: f32) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scene::Entity;
+    use crate::scene::Actor;
     #[test]
     fn nine_slice_preserves_borders_and_checks_budget() {
         let mut scene = fixture();
-        scene.entities[1].image.as_mut().unwrap().borders = [4; 4];
+        scene.actors[1].image.as_mut().unwrap().borders = [4; 4];
         scene.hud_budget.rectangles = 8;
         assert!(scene.validate().unwrap_err().contains("budget"));
         scene.hud_budget.rectangles = 9;
         scene.validate().unwrap();
-        scene.entities[1].image.as_mut().unwrap().borders = [200; 4];
+        scene.actors[1].image.as_mut().unwrap().borders = [200; 4];
         assert!(scene.validate().unwrap_err().contains("borders"));
     }
     #[test]
     fn native_nine_slice_keeps_corner_pixels_and_shrinks_borders() {
-        let mut scene=fixture();let id=uuid::Uuid::new_v4();
-        scene.textures.insert(id,std::sync::Arc::new(crate::texture::Data {width:16,height:16,words:vec![0;128],palette:vec![0;256],rgba:vec![255;16*16*4]}));
-        let image=scene.entities[1].image.as_mut().unwrap();image.texture=Some(id);image.borders=[4;4];
-        let (commands,stats)=crate::hud_native::compile(&scene);
-        assert_eq!(stats[3],9);assert_eq!(&commands[0].0[3..11],&[12,12,16,16,0,0,3,3]);
-        scene.entities[1].rect.as_mut().unwrap().size=[4.,4.];
-        let (commands,stats)=crate::hud_native::compile(&scene);
-        assert_eq!(stats[3],4);assert_eq!(&commands[0].0[3..11],&[12,12,14,14,0,0,3,3]);
+        let mut scene = fixture();
+        let id = uuid::Uuid::new_v4();
+        scene.textures.insert(
+            id,
+            std::sync::Arc::new(crate::texture::Data {
+                width: 16,
+                height: 16,
+                words: vec![0; 128],
+                palette: vec![0; 256],
+                rgba: vec![255; 16 * 16 * 4],
+            }),
+        );
+        let image = scene.actors[1].image.as_mut().unwrap();
+        image.texture = Some(id);
+        image.borders = [4; 4];
+        let (commands, stats) = crate::hud_native::compile(&scene);
+        assert_eq!(stats[3], 9);
+        assert_eq!(&commands[0].0[3..11], &[12, 12, 16, 16, 0, 0, 3, 3]);
+        scene.actors[1].rect.as_mut().unwrap().size = [4., 4.];
+        let (commands, stats) = crate::hud_native::compile(&scene);
+        assert_eq!(stats[3], 4);
+        assert_eq!(&commands[0].0[3..11], &[12, 12, 14, 14, 0, 0, 3, 3]);
     }
     fn fixture() -> Scene {
-        let mut c = Entity::cube("Canvas".into());
+        let mut c = Actor::cube("Canvas".into());
         c.kind = "Empty".into();
         c.canvas = Some(Default::default());
-        let mut p = Entity::cube("Panel".into());
+        let mut p = Actor::cube("Panel".into());
         p.kind = "Empty".into();
         p.parent = Some(0);
         p.rect = Some(RectTransform {
@@ -343,20 +364,25 @@ mod tests {
             enabled: true,
             ..Default::default()
         });
-        Scene {
-            version: 1,
+        let mut scene = Scene {
+            version: crate::actor_document::SCENE_VERSION,
             name: "HUD".into(),
-            entities: vec![c, p],
+            actors: vec![c, p],
             ..Scene::default()
-        }
+        };
+        scene.sync_actor_components();
+        scene
     }
     #[test]
     fn anchors_pivots_nested_layout_and_reparent_preserve_screen_rect() {
         let mut s = fixture();
         s.validate().unwrap();
         assert_eq!(layout(&s, 1), Some([12., 164., 180., 64.]));
-        let mut child = s.entities[1].clone();
-        child.id = uuid::Uuid::new_v4();
+        let mut child = s.actors[1].clone();
+        let ids = crate::actor_document::fresh_identities(std::slice::from_ref(&child));
+        crate::actor_document::remap_actor(&mut child, &ids);
+        child.logical_parent = None;
+        child.attach = None;
         child.parent = Some(1);
         child.rect = Some(RectTransform {
             anchor_min: [0.; 2],
@@ -365,7 +391,8 @@ mod tests {
             position: [0.; 2],
             size: [-16., -16.],
         });
-        s.entities.push(child);
+        s.actors.push(child);
+        s.sync_actor_components();
         assert_eq!(layout(&s, 2), Some([20., 172., 164., 48.]));
         let before = layout(&s, 2);
         s.reparent(2, Some(0), true).unwrap();
@@ -376,38 +403,38 @@ mod tests {
     #[test]
     fn invalid_hud_dependencies_text_and_cycles_are_rejected() {
         let mut s = fixture();
-        s.entities[1].parent = None;
-        assert!(s.validate().is_err());
-        s.entities[1].parent = Some(0);
-        s.entities[1].text = Some(Text {
+        s.reparent(1, None, true).unwrap();
+        s.validate().unwrap();
+        s.reparent(1, Some(0), true).unwrap();
+        s.actors[1].text = Some(Text {
             text: "漢".into(),
             ..Default::default()
         });
         assert!(s.validate().is_err());
-        s.entities[1].text.as_mut().unwrap().text = "HP 075".into();
+        s.actors[1].text.as_mut().unwrap().text = "HP 075".into();
         s.validate().unwrap();
         assert!(s.reparent(0, Some(1), false).is_err());
-        s.entities[1].rect.as_mut().unwrap().anchor_min = [1., 1.];
-        s.entities[1].rect.as_mut().unwrap().anchor_max = [0., 0.];
+        s.actors[1].rect.as_mut().unwrap().anchor_min = [1., 1.];
+        s.actors[1].rect.as_mut().unwrap().anchor_max = [0., 0.];
         assert!(s.validate().is_err());
     }
     #[test]
     fn animated_palette_matches_texture_indices_and_preserves_cutout() {
         let mut s = fixture();
         let id = uuid::Uuid::new_v4();
-        s.entities[1].rect = Some(RectTransform {
+        s.actors[1].rect = Some(RectTransform {
             anchor_min: [0., 1.],
             anchor_max: [0., 1.],
             pivot: [0., 1.],
             position: [0.; 2],
             size: [3., 1.],
         });
-        s.entities[1].image = Some(Image {
+        s.actors[1].image = Some(Image {
             texture: Some(id),
             color: [1.; 3],
             ..Default::default()
         });
-        s.entities[1].palette_animator = Some(crate::palette::Animator {
+        s.actors[1].palette_animator = Some(crate::palette::Animator {
             texture: Some(id),
             speed: 1.,
             ..Default::default()
@@ -433,20 +460,20 @@ mod tests {
             &render_at(&s, 1.)[..12],
             &[33, 40, 52, 255, 0, 255, 0, 255, 255, 0, 0, 255]
         );
-        s.entities[1].palette_animator.as_mut().unwrap().enabled = false;
+        s.actors[1].palette_animator.as_mut().unwrap().enabled = false;
         assert_eq!(render_at(&s, 1.), render(&s));
     }
     #[test]
     fn disabled_canvas_hides_all_graphics_and_text_uses_psx_bitmap() {
         let mut s = fixture();
-        s.entities[1].text = Some(Text {
+        s.actors[1].text = Some(Text {
             text: "HUD".into(),
             ..Default::default()
         });
         let rendered = render(&s);
         assert!(rendered.chunks_exact(4).any(|p| p == [0, 0, 255, 255]));
         assert!(rendered.chunks_exact(4).any(|p| p == [255; 4]));
-        s.entities[0].canvas.as_mut().unwrap().enabled = false;
+        s.actors[0].canvas.as_mut().unwrap().enabled = false;
         assert!(render(&s).chunks_exact(4).all(|p| p == [33, 40, 52, 255]));
     }
 }

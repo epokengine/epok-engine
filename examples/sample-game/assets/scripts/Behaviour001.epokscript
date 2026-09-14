@@ -1,4 +1,0 @@
-name: Behaviour001
-properties:
-- name: speed
-  default: 90.0

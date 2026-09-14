@@ -97,19 +97,6 @@ struct ProbeUI : UIActor {
     static constexpr uint64_t static_class_id = 0x1003;
     uint64_t class_id() const override { return static_class_id; }
 };
-struct LegacyActor : Actor3D {
-    static constexpr uint64_t static_class_id = 0x1005;
-    uint64_t class_id() const override { return static_class_id; }
-};
-struct Watcher : Behaviour {
-    unsigned starts = 0, updates = 0, frames = 0, enables = 0, disables = 0, destroys = 0;
-    void start(Transform&) override { ++starts; note("behaviour.start"); }
-    void update(Transform&, Fixed) override { ++updates; note("behaviour.update"); }
-    void frame_update(Transform&, uint32_t) override { ++frames; note("behaviour.frame"); }
-    void on_enable() override { ++enables; note("behaviour.enable"); }
-    void on_disable() override { ++disables; note("behaviour.disable"); }
-    void on_destroy() override { ++destroys; note("behaviour.destroy"); }
-};
 }  // namespace
 
 // ---- cooked class table ------------------------------------------------------------
@@ -129,9 +116,6 @@ const ClassDescriptor object_classes[] = {
     {AudioComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None,
      uint8_t(object_domain_bit(ObjectDomain::World3D) | object_domain_bit(ObjectDomain::World2D) | object_domain_bit(ObjectDomain::UI)),
      ObjectClassMultiple, &object_construct<AudioComponent>, &object_destruct, sizeof(AudioComponent), alignof(AudioComponent), &ObjectPool<AudioComponent, 4>::acquire, &ObjectPool<AudioComponent, 4>::release},
-    {LegacyBehaviourComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None,
-     uint8_t(object_domain_bit(ObjectDomain::World3D) | object_domain_bit(ObjectDomain::World2D) | object_domain_bit(ObjectDomain::UI)),
-     ObjectClassMultiple, &object_construct<LegacyBehaviourComponent>, &object_destruct, sizeof(LegacyBehaviourComponent), alignof(LegacyBehaviourComponent), &ObjectPool<LegacyBehaviourComponent, 2>::acquire, &ObjectPool<LegacyBehaviourComponent, 2>::release},
     {Level::static_class_id, Object::static_class_id, ObjectFamily::Level, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Level), alignof(Level), nullptr, nullptr},
     {World::static_class_id, Object::static_class_id, ObjectFamily::World, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(World), alignof(World), nullptr, nullptr},
     // Test content classes, as the cook would emit them for Blueprint subclasses.
@@ -139,7 +123,6 @@ const ClassDescriptor object_classes[] = {
     {Probe2D::static_class_id, Actor2D::static_class_id, ObjectFamily::Actor, ObjectDomain::World2D, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<Probe2D>, &object_destruct, sizeof(Probe2D), alignof(Probe2D), &ObjectPool<Probe2D, 2>::acquire, &ObjectPool<Probe2D, 2>::release},
     {ProbeUI::static_class_id, UIActor::static_class_id, ObjectFamily::Actor, ObjectDomain::UI, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<ProbeUI>, &object_destruct, sizeof(ProbeUI), alignof(ProbeUI), &ObjectPool<ProbeUI, 2>::acquire, &ObjectPool<ProbeUI, 2>::release},
     {ProbeScript::static_class_id, SceneScriptActor::static_class_id, ObjectFamily::Actor, ObjectDomain::None, 0, ObjectClassSceneManaged, &object_construct<ProbeScript>, &object_destruct, sizeof(ProbeScript), alignof(ProbeScript), &ObjectPool<ProbeScript, 1>::acquire, &ObjectPool<ProbeScript, 1>::release},
-    {LegacyActor::static_class_id, Actor3D::static_class_id, ObjectFamily::Actor, ObjectDomain::World3D, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<LegacyActor>, &object_destruct, sizeof(LegacyActor), alignof(LegacyActor), &ObjectPool<LegacyActor, 2>::acquire, &ObjectPool<LegacyActor, 2>::release},
     {ProbeRoot::static_class_id, SceneComponent3D::static_class_id, ObjectFamily::Component, ObjectDomain::World3D, object_domain_bit(ObjectDomain::World3D), ObjectClassRoot, &object_construct<ProbeRoot>, &object_destruct, sizeof(ProbeRoot), alignof(ProbeRoot), &ObjectPool<ProbeRoot, 4>::acquire, &ObjectPool<ProbeRoot, 4>::release},
     {ProbeComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None,
      uint8_t(object_domain_bit(ObjectDomain::World3D) | object_domain_bit(ObjectDomain::World2D) | object_domain_bit(ObjectDomain::UI)),
@@ -348,7 +331,7 @@ void component_rules() {
     assert(registry_storage.resolve<SceneComponent2D>(flat->root_id()) == &flat->root);
     assert(registry_storage.resolve<RectTransformComponent>(panel->root_id()) == &panel->root);
     // UI/2D actors have no fictitious 3D transform.
-    assert(!flat->entity() && !panel->entity() && !actor->entity());
+    assert(!flat->data() && !panel->data() && !actor->data());
     assert(actor->probe_root.transform == &actor->probe_root.local);
     assert(panel->root.rect == &panel->root.local);
 
@@ -432,34 +415,6 @@ void attachment_rules() {
     assert(!registry_storage.resolve<SceneComponent3D>(root_b)->attach_parent.valid());
 }
 
-// 9. The legacy Behaviour adapter forwards each event exactly once.
-void legacy_adapter() {
-    reset();
-    static Entity slot;
-    slot = Entity{};
-    Watcher watcher;
-    const ObjectId id = spawn(LegacyActor::static_class_id, "Legacy");
-    auto* actor = registry_storage.resolve<LegacyActor>(id);
-    assert(actor);
-    actor->root.bind_slot(slot);
-    assert(actor->entity() == &slot && actor->root.transform == &slot.transform);
-    auto* adapter = game_level.add_component<LegacyBehaviourComponent>(*actor, "Script");
-    assert(adapter && adapter->bind(watcher));
-    assert(&watcher.entity() == &slot);
-    trace_reset();
-    game_level.tick(0.25);
-    assert(trace_is("behaviour.start;behaviour.update;"));
-    game_level.frame_update(1000);
-    assert(game_level.set_active(id, false));
-    assert(game_level.set_active(id, true));
-    assert(game_level.destroy_actor(id));
-    assert(watcher.starts == 1 && watcher.updates == 1 && watcher.frames == 1);
-    // Teardown of an active actor disables before destroying, exactly like the legacy
-    // destroy_entity path, so the second disable is the deactivation of the doomed actor.
-    assert(watcher.enables == 1 && watcher.disables == 2 && watcher.destroys == 1);
-}
-
-// 10. Compact identities must match crate::blueprint_refs::compact_id for the same UUID.
 void compact_identities() {
     assert(Object::static_class_id == UINT64_C(14343360524917884802));
     assert(Actor::static_class_id == UINT64_C(3359541496846185808));
@@ -473,7 +428,6 @@ void compact_identities() {
     assert(UIComponent::static_class_id == UINT64_C(5886126345564491135));
     assert(RectTransformComponent::static_class_id == UINT64_C(6389541649464623131));
     assert(AudioComponent::static_class_id == UINT64_C(5821298606789721782));
-    assert(LegacyBehaviourComponent::static_class_id == UINT64_C(10159919575986080393));
     assert(Level::static_class_id == UINT64_C(12599419720711463237));
     assert(World::static_class_id == UINT64_C(6971179517075037215));
 }
@@ -484,8 +438,8 @@ void size_report() {
                 sizeof(Object), sizeof(Actor), sizeof(Actor3D), sizeof(Actor2D), sizeof(UIActor), sizeof(SceneScriptActor));
     std::printf("  ActorComponent %zu  SceneComponent3D %zu  SceneComponent2D %zu  UIComponent %zu  RectTransformComponent %zu\n",
                 sizeof(ActorComponent), sizeof(SceneComponent3D), sizeof(SceneComponent2D), sizeof(UIComponent), sizeof(RectTransformComponent));
-    std::printf("  AudioComponent %zu  LegacyBehaviourComponent %zu  Level %zu  World %zu\n",
-                sizeof(AudioComponent), sizeof(LegacyBehaviourComponent), sizeof(Level), sizeof(World));
+    std::printf("  AudioComponent %zu  Level %zu  World %zu\n",
+                sizeof(AudioComponent), sizeof(Level), sizeof(World));
     std::printf("  ObjectId %zu  ObjectSlot %zu  ClassDescriptor %zu  ObjectRegistryStorage<32> %zu\n",
                 sizeof(ObjectId), sizeof(ObjectSlot), sizeof(ClassDescriptor), sizeof(ObjectRegistryStorage<32>));
     std::printf("  pool storage_bytes: Actor3D x4 %zu  SceneComponent3D x4 %zu  AudioComponent x4 %zu\n",
@@ -508,9 +462,8 @@ int main() {
     component_rules();
     activation_propagation();
     attachment_rules();
-    legacy_adapter();
     reset();
     size_report();
-    std::puts("Object model identity, pools, lifecycle order, deferral, components, attachment and legacy adapter tests passed.");
+    std::puts("Object model identity, pools, lifecycle order, deferral, components, attachment tests passed.");
     return 0;
 }

@@ -1,6 +1,37 @@
 use super::*;
 
 #[test]
+fn execution_fanout_requires_sequence_and_entry_rejects_incoming_flow() {
+    let mut file=asset();
+    let mut entry=node(10,NodeKind::Entry);
+    entry.outputs.insert("next".into(),vec![id(11),id(12)]);
+    file.asset.functions.push(event(vec![entry,node(11,NodeKind::Return),node(12,NodeKind::Return)]));
+    assert!(error(file.clone()).contains("more than one connection"));
+    file.asset.functions[0].nodes[0].outputs.insert("next".into(),vec![id(11)]);
+    file.asset.functions[0].nodes[1].kind=NodeKind::Sequence;
+    file.asset.functions[0].nodes[1].outputs.insert("then_0".into(),vec![id(10)]);
+    assert!(error(file).contains("do not accept incoming execution"));
+}
+
+#[test]
+fn sequence_executes_distinct_outputs_in_numeric_order() {
+    let mut file=asset();let mut entry=node(10,NodeKind::Entry);
+    entry.outputs.insert("next".into(),vec![id(11)]);
+    let mut sequence=node(11,NodeKind::Sequence);
+    sequence.outputs.insert("then_0".into(),vec![id(12)]);
+    sequence.outputs.insert("then_1".into(),vec![id(13)]);
+    let mut first=node(12,NodeKind::SetVariable{member:id(2)});
+    first.inputs.insert("value".into(),Input::Literal{value_type:schema::Type::Fixed,value:json!(80)});
+    let mut second=first.clone();second.id=id(13);second.inputs.insert("value".into(),Input::Literal{value_type:schema::Type::Fixed,value:json!(42)});
+    file.asset.functions.push(event(vec![entry,sequence,first,second]));
+    let result=compile(Path::new(""),&registry(),&[file]).unwrap();
+    let text=generated(&result);
+    assert_eq!(text.matches("this->health =").count(),2);
+    assert!(text.find(&format!("/{}/",id(5))).is_some());
+    assert!(text.find(&format!("/{}\"",id(12))).unwrap()<text.find(&format!("/{}\"",id(13))).unwrap());
+}
+
+#[test]
 fn disconnected_islands_are_preserved_but_not_validated_or_cooked() {
     let mut file = asset();
     let mut entry = node(10, NodeKind::Entry);
@@ -141,7 +172,7 @@ fn data_reachability_does_not_execute_a_disconnected_impure_producer() {
     let mut producer = node(
         12,
         NodeKind::Builtin {
-            operation: asset::Builtin::DestroyEntity,
+            operation: asset::Builtin::DestroyActor,
         },
     );
     producer.outputs.insert("next".into(), vec![id(13)]);
@@ -164,16 +195,16 @@ fn data_reachability_does_not_execute_a_disconnected_impure_producer() {
 fn default_lifecycle_events_preserve_parent_dispatch_and_are_idempotent() {
     let mut registry = registry();
     let class = registry.classes.get_mut(&id(1)).unwrap();
-    class.cpp_name = "epok::Behaviour".into();
+    class.cpp_name = "LifecycleActor".into();
     let template = class.functions[0].clone();
-    class.functions = ["start", "update", "on_trigger"]
+    class.functions = ["begin_play", "tick", "end_play"]
         .into_iter()
         .enumerate()
         .map(|(index, name)| {
             let mut function = template.clone();
             function.name = name.into();
             function.id = id(50 + index as u128);
-            function.abstract_method = name == "update";
+            function.abstract_method = name == "tick";
             function
         })
         .collect();
@@ -188,7 +219,7 @@ fn default_lifecycle_events_preserve_parent_dispatch_and_are_idempotent() {
             .iter()
             .map(|g| g.name.as_str())
             .collect::<Vec<_>>(),
-        ["start", "update", "on_trigger"]
+        ["begin_play", "tick", "end_play"]
     );
     assert_eq!(file.asset.functions[1].nodes.len(), 1);
     for graph in [&file.asset.functions[0], &file.asset.functions[2]] {
@@ -196,8 +227,8 @@ fn default_lifecycle_events_preserve_parent_dispatch_and_are_idempotent() {
         assert_eq!(graph.nodes[1].inputs.len(), graph.parameters.len());
     }
     let source = generated(&compile(Path::new(""), &registry, &[file.clone()]).unwrap());
-    assert!(source.contains("epok::Behaviour::start("));
-    assert!(source.contains("epok::Behaviour::on_trigger("));
+    assert!(source.contains("LifecycleActor::begin_play("));
+    assert!(source.contains("LifecycleActor::end_play("));
     let before = crate::document::to_vec(&file.asset).unwrap();
     assert!(!crate::blueprint_workflow::ensure_default_events(
         &mut file.asset,

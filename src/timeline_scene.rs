@@ -57,7 +57,7 @@ pub struct Inspector {
 pub fn inspector(
     ui: &imgui::Ui,
     editor: &mut crate::editor::Editor,
-    entity: &mut crate::scene::Entity,
+    entity: &mut crate::scene::Actor,
 ) {
     let Some(component) = &mut entity.timeline else {
         return;
@@ -178,7 +178,7 @@ pub fn prepare(
     let mut required = direct.clone();
     for scene in scenes {
         let mut count = 0;
-        for entity in &scene.entities {
+        for entity in &scene.actors {
             let Some(component) = &entity.timeline else {
                 continue;
             };
@@ -223,7 +223,7 @@ pub fn prepare(
                 .join("\n"));
         }
         for scene in scenes {
-            for entity in &scene.entities {
+            for entity in &scene.actors {
                 if let Some(component) = &entity.timeline
                     && component.asset == Some(source.id)
                 {
@@ -264,7 +264,7 @@ pub fn prepare(
 }
 pub fn setup(scene: &Scene, timelines: &[Prepared], registry: &Registry) -> Result<String, String> {
     let mut out = String::from("epok::timeline::component_count=0;\n");
-    for (owner, entity) in scene.entities.iter().enumerate() {
+    for (owner, entity) in scene.actors.iter().enumerate() {
         let Some(component) = &entity.timeline else {
             continue;
         };
@@ -307,7 +307,7 @@ pub fn setup_template(
     registry: &Registry,
 ) -> Result<String, String> {
     let mut out = String::new();
-    for (owner, entity) in scene.entities.iter().enumerate() {
+    for (owner, entity) in scene.actors.iter().enumerate() {
         let Some(component) = &entity.timeline else {
             continue;
         };
@@ -339,7 +339,7 @@ pub fn setup_template(
                 Err(error) if slot.required => return Err(error),
                 Err(_) => format!("component->targets[{i}]={{}};\n"),
             };
-            for index in 0..scene.entities.len() {
+            for index in 0..scene.actors.len() {
                 assignment = assignment.replace(
                     &format!("epok::handle(&objects[{index}])"),
                     &format!("handles[{index}]"),
@@ -358,24 +358,27 @@ mod tests {
     #[test]
     fn scene_component_roundtrip_preserves_authoring_ids_and_migrates_only_when_used() {
         let mut scene = Scene::default();
-        let entity = scene.entities[1].id;
+        let entity = scene.actors[1].id;
         let slot = Uuid::new_v4();
         let asset = Uuid::new_v4();
-        scene.entities[0].timeline = Some(Component {
+        scene.actors[0].timeline = Some(Component {
             asset: Some(asset),
             bindings: BTreeMap::from([(slot, Some(entity))]),
             ..Default::default()
         });
         scene.upgrade_entity_ids();
-        assert_eq!(scene.version, 4);
+        assert_eq!(scene.version, crate::actor_document::SCENE_VERSION);
         let bytes = serde_json::to_vec(&scene).unwrap();
         let mut loaded: Scene = serde_json::from_slice(&bytes).unwrap();
-        loaded.entities.swap(1, 2);
-        let component = loaded.entities[0].timeline.as_ref().unwrap();
+        loaded.actors.swap(1, 2);
+        let component = loaded.actors[0].timeline.as_ref().unwrap();
         assert_eq!(component.asset, Some(asset));
         assert_eq!(component.bindings[&slot], Some(entity));
         let data = serde_json::to_string(component).unwrap();
         assert!(!data.contains("generation") && !data.contains("index"));
-        assert_eq!(Scene::default().version, 3);
+        assert_eq!(
+            Scene::default().version,
+            crate::actor_document::SCENE_VERSION
+        );
     }
 }

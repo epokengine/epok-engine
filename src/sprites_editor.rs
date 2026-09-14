@@ -1,7 +1,7 @@
 //! Inspector editing for reusable sprite clips and bounded particle emitters.
 use crate::{
     editor::Editor,
-    scene::Entity,
+    scene::Actor,
     sprites::{Orientation, Sprite},
     texture::BlendMode,
 };
@@ -78,7 +78,7 @@ pub fn sprite(ui: &imgui::Ui, index: &crate::assets::Index, s: &mut Sprite) {
         .build(ui, &mut s.depth_bias);
     ui.text_disabled("Positive bias draws farther away (1 step = 0.25 world units).");
 }
-pub fn inspector(ui: &imgui::Ui, editor: &Editor, e: &mut Entity) {
+pub fn inspector(ui: &imgui::Ui, editor: &Editor, e: &mut Actor) {
     if let Some(s) = &mut e.sprite
         && crate::gui::heading(ui, "Sprite")
     {
@@ -89,7 +89,7 @@ pub fn inspector(ui: &imgui::Ui, editor: &Editor, e: &mut Entity) {
             e.sprite_animator = None;
         }
     }
-    if let Some(a) = &mut e.sprite_animator
+    if let Some(a) = &mut e.data.sprite_animator
         && crate::gui::heading(ui, "Sprite Animator")
     {
         let _id = ui.push_id("sprite animator");
@@ -124,6 +124,7 @@ pub fn inspector(ui: &imgui::Ui, editor: &Editor, e: &mut Entity) {
             ui.same_line();
             if ui.small_button("Slice horizontal row") {
                 let base = e
+                    .data
                     .sprite
                     .as_ref()
                     .map(|s| s.region)

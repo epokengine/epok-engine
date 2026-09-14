@@ -3,7 +3,7 @@
 //
 // Generated Blueprint classes whose family is Actor or Component need a handful of
 // null-safe adapters: the legacy entity slot behind an actor's root scene component,
-// the EntityHandle the Blueprint node ABI speaks, the owner of a component and a
+// the DataHandle the Blueprint node ABI speaks, the owner of a component and a
 // bounded actor spawn. Keeping them here (instead of in the generated text) means the
 // null checks exist once, are compiled for MIPS with the rest of the runtime and can be
 // unit-tested by the host harness.
@@ -14,15 +14,27 @@
 
 namespace epok::bp {
 
+inline Actor* owner_actor(ObjectId id) {
+    if(!active_object_registry)return nullptr;
+    if(auto* actor=active_object_registry->resolve<Actor>(id))return actor;
+    if(auto* component=active_object_registry->resolve<ActorComponent>(id))return component->get_owner();
+    return nullptr;
+}
+inline ActorData* object_data(ObjectId id) {auto* actor=owner_actor(id);return actor ? actor->data() : nullptr;}
+inline DataHandle data_handle(ObjectId id) {auto* data=object_data(id);return data ? handle(data) : DataHandle{};}
+template<class Root> Root* root_component(ObjectId id) {
+    auto* actor=owner_actor(id);
+    return actor && active_object_registry ? active_object_registry->resolve<Root>(actor->root_id()) : nullptr;
+}
 // Legacy slot behind the actor's root scene component. Null for Actor2D/UIActor, whose
 // roots carry their own transform storage, and for an actor that has no root yet.
-inline Entity* actor_entity(Actor* actor) { return actor ? actor->entity() : nullptr; }
+inline ActorData* actor_entity(Actor* actor) { return actor ? actor->data() : nullptr; }
 
 // Blueprint node ABI handle for the actor's legacy slot. A null slot yields a null
 // handle, which every epok::bp::api entry point already treats as "do nothing".
-inline EntityHandle actor_handle(Actor* actor) {
-    Entity* slot = actor_entity(actor);
-    return slot ? epok::handle(slot) : EntityHandle{};
+inline DataHandle actor_handle(Actor* actor) {
+    ActorData* slot = actor_entity(actor);
+    return slot ? epok::handle(slot) : DataHandle{};
 }
 
 // Owning actor of a component, and its handle/slot, for Component-family Blueprints.
@@ -33,10 +45,10 @@ inline ObjectId component_owner_id(ActorComponent* component) {
     Actor* owner = component_owner(component);
     return owner ? owner->id() : ObjectId{};
 }
-inline Entity* component_entity(ActorComponent* component) {
+inline ActorData* component_entity(ActorComponent* component) {
     return actor_entity(component_owner(component));
 }
-inline EntityHandle component_handle(ActorComponent* component) {
+inline DataHandle component_handle(ActorComponent* component) {
     return actor_handle(component_owner(component));
 }
 
@@ -48,7 +60,7 @@ inline Transform& object_transform_fallback() {
     return fallback;
 }
 inline Transform& actor_transform(Actor* actor) {
-    Entity* slot = actor_entity(actor);
+    ActorData* slot = actor_entity(actor);
     return slot ? slot->transform : object_transform_fallback();
 }
 inline Transform& component_transform(ActorComponent* component) {

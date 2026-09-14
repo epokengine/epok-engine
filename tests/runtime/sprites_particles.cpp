@@ -2,11 +2,11 @@
 #include <cstdio>
 #include "../../runtime/particles.hpp"
 namespace epok {
-bool is_active(const Entity* e){return e&&e->alive&&e->active;}
+bool is_active(const ActorData* e){return e&&e->alive&&e->active;}
 // Host stand-in for the runtime slot table: each section registers its array.
-inline const Entity* slot_objects=nullptr;
+inline const ActorData* slot_objects=nullptr;
 inline size_t slot_count=0;
-Entity* EntityHandle::get()const{return slot_objects&&index<slot_count&&slot_objects[index].alive&&slot_objects[index].generation==generation?const_cast<Entity*>(&slot_objects[index]):nullptr;}
+ActorData* DataHandle::get()const{return slot_objects&&index<slot_count&&slot_objects[index].alive&&slot_objects[index].generation==generation?const_cast<ActorData*>(&slot_objects[index]):nullptr;}
 bool is_active_slot(size_t i){return slot_objects&&is_active(&slot_objects[i]);}
 }
 using namespace epok;
@@ -24,7 +24,7 @@ static void animator_events(){
     a.play(1);for(int i=0;i<30;++i)a.advance(0.1,sprite);assert(a.event_count==16&&a.dropped_events>0);
 }
 static void particle_limits_and_reuse(){
-    std::array<Entity,4> objects{};slot_objects=objects.data();slot_count=objects.size();std::array<Affine<Fixed>,4> world{};
+    std::array<ActorData,4> objects{};slot_objects=objects.data();slot_count=objects.size();std::array<Affine<Fixed>,4> world{};
     for(size_t i=0;i<objects.size();++i){world[i]=Affine<Fixed>::identity();auto& e=objects[i].particle_emitter;e.enabled=true;e.continuous=false;e.max_particles=128;e.burst_count=128;e.seed=17;e.lifetime=0.2;e.spread[0]=e.spread[1]=e.spread[2]=0.0;}
     ParticlePool pool;pool.clear();pool.advance(objects,world,4,0.05);assert(particle_stats.alive==256);assert(particle_stats.dropped==256);
     auto velocity=pool.particles[0].velocity[1].raw();assert(velocity==4096);
@@ -34,7 +34,7 @@ static void particle_limits_and_reuse(){
     objects[0].active=false;objects[0].particle_emitter.burst(7);pool.advance(objects,world,4,0.05);assert(particle_stats.alive==0);
 }
 static void world_local_and_interpolation(){
-    std::array<Entity,2> objects{};slot_objects=objects.data();slot_count=objects.size();std::array<Affine<Fixed>,2> world{};
+    std::array<ActorData,2> objects{};slot_objects=objects.data();slot_count=objects.size();std::array<Affine<Fixed>,2> world{};
     for(int i=0;i<2;++i){world[i]=Affine<Fixed>::identity();world[i].values[0][3]=5.0;auto& e=objects[i].particle_emitter;e.enabled=true;e.continuous=false;e.burst_count=1;e.lifetime=1.0;e.local_space=i==1;e.start_size=1.0;e.end_size=0.0;e.sprite.size[0]=e.sprite.size[1]=1.0;e.spread[0]=e.spread[1]=e.spread[2]=0.0;}
     ParticlePool pool;pool.clear();pool.advance(objects,world,2,0.05);assert(pool.particles[0].position[0].raw()==5*4096);assert(pool.particles[1].position[0].raw()==0);
     world[0].values[0][3]=world[1].values[0][3]=10.0;
@@ -55,7 +55,7 @@ static void translated_basis_preserves_q12_composition(){
     }
 }
 static void manual_bursts_honor_seed(){
-    std::array<Entity,2> objects{};slot_objects=objects.data();slot_count=objects.size();std::array<Affine<Fixed>,2> world{};
+    std::array<ActorData,2> objects{};slot_objects=objects.data();slot_count=objects.size();std::array<Affine<Fixed>,2> world{};
     for(int i=0;i<2;++i){world[i]=Affine<Fixed>::identity();auto& e=objects[i].particle_emitter;e.enabled=true;e.playing=false;e.seed=uint32_t(17+i);e.spread[0]=1.0;e.burst(1);}
     ParticlePool pool;pool.clear();pool.advance(objects,world,2,0.05);assert(pool.particles[0].velocity[0].raw()!=pool.particles[1].velocity[0].raw());
     assert(objects[0].particle_emitter.seeded&&objects[1].particle_emitter.seeded);

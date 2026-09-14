@@ -80,7 +80,10 @@ fn mcp_page(ui: &imgui::Ui, p: &mut Preferences, e: &Editor) {
             "Apply to restart the connection on a different port.",
             || {
                 let mut port = i32::from(p.mcp.port);
-                if crate::gui::Drag::new("##mcp-port").speed(1.).build(ui, &mut port) {
+                if crate::gui::Drag::new("##mcp-port")
+                    .speed(1.)
+                    .build(ui, &mut port)
+                {
                     p.mcp.port = port.clamp(1024, 65535) as u16;
                 }
             },

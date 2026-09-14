@@ -74,11 +74,20 @@ pub fn inspect(source: &[u8]) -> Result<Vec<(String, String)>, String> {
         ("Target cost scope".into(), "Reachable regions are selected per MusicSequence. Source file size is not PSX RAM usage; sample, layer and SFX costs require the conversion report.".into()),
     ];
     for preset in &library.presets {
-        fields.push((format!("Library bank {} / program {}", preset.bank, preset.program),
-            format!("{} · {} regions; all matching layers retained", preset.name, preset.regions.len())));
+        fields.push((
+            format!("Library bank {} / program {}", preset.bank, preset.program),
+            format!(
+                "{} · {} regions; all matching layers retained",
+                preset.name,
+                preset.regions.len()
+            ),
+        ));
     }
     for note in library.diagnostics.iter().chain(&library.blockers).take(32) {
-        fields.push((format!("Library report: {}", note.code), note.message.clone()));
+        fields.push((
+            format!("Library report: {}", note.code),
+            note.message.clone(),
+        ));
     }
     if library.diagnostics.len() + library.blockers.len() > 32 {
         fields.push(("Library report".into(), "Showing the first 32 catalog notes. Conversion reports assess the regions used by the selected song.".into()));
@@ -115,10 +124,25 @@ pub fn prepare(
         .as_ref()
         .and_then(|package| package.meta.settings.sound_bank().ok())
         .and_then(|settings| settings.library.clone());
-    if let Some(previous) = old.as_ref().and_then(|package| package.meta.settings.sound_bank().ok()) {
-        for (key, value) in &previous.extra { settings.extra.entry(key.clone()).or_insert_with(|| value.clone()); }
-        for (key, value) in &previous.envelope_extra { settings.envelope_extra.entry(key.clone()).or_insert_with(|| value.clone()); }
-        if settings.provenance.is_empty() { settings.provenance = previous.provenance.clone(); }
+    if let Some(previous) = old
+        .as_ref()
+        .and_then(|package| package.meta.settings.sound_bank().ok())
+    {
+        for (key, value) in &previous.extra {
+            settings
+                .extra
+                .entry(key.clone())
+                .or_insert_with(|| value.clone());
+        }
+        for (key, value) in &previous.envelope_extra {
+            settings
+                .envelope_extra
+                .entry(key.clone())
+                .or_insert_with(|| value.clone());
+        }
+        if settings.provenance.is_empty() {
+            settings.provenance = previous.provenance.clone();
+        }
     }
     let (bytes, source_path, primary) = if snapshot {
         let old = old
@@ -149,10 +173,13 @@ pub fn prepare(
     if source_hash == REFERENCE_HASH {
         // Identification requires the complete checksum, never a name or GM label.
         // Keep the complete redistributable notice in the authoritative asset.
-        definition.extra.insert("reference_library".into(), serde_json::json!({
-            "id": "fluidr3mono-gm", "version": "2.315", "sha256": REFERENCE_HASH,
-            "license": "MIT", "notice": REFERENCE_LICENSE,
-        }));
+        definition.extra.insert(
+            "reference_library".into(),
+            serde_json::json!({
+                "id": "fluidr3mono-gm", "version": "2.315", "sha256": REFERENCE_HASH,
+                "license": "MIT", "notice": REFERENCE_LICENSE,
+            }),
+        );
         if settings.provenance.is_empty() {
             settings.provenance = "FluidR3Mono GM 2.315 (Debian 2.315-7), MIT. Full copyright/permission notice is preserved in the library source definition. Reference: https://packages.debian.org/bookworm/fluidr3mono-gm-soundfont".into();
         }
@@ -226,14 +253,18 @@ mod tests {
         let data_start = smpl + 8;
         let previous = u32::from_le_bytes(source[smpl + 4..smpl + 8].try_into().unwrap()) as usize;
         let sample_bytes = 33 * 1024 * 1024;
-        let sdta = source.windows(4).position(|bytes| bytes == b"sdta").unwrap();
+        let sdta = source
+            .windows(4)
+            .position(|bytes| bytes == b"sdta")
+            .unwrap();
         let old_list_size = u32::from_le_bytes(source[sdta - 4..sdta].try_into().unwrap()) as usize;
         source.splice(
             data_start + previous..data_start + previous,
             std::iter::repeat(0).take(sample_bytes - previous),
         );
         source[smpl + 4..smpl + 8].copy_from_slice(&(sample_bytes as u32).to_le_bytes());
-        source[sdta - 4..sdta].copy_from_slice(&((old_list_size + sample_bytes - previous) as u32).to_le_bytes());
+        source[sdta - 4..sdta]
+            .copy_from_slice(&((old_list_size + sample_bytes - previous) as u32).to_le_bytes());
         let shdr = source
             .windows(4)
             .position(|bytes| bytes == b"shdr")
@@ -251,7 +282,9 @@ mod tests {
     fn reimport_preserves_authoritative_source_uuid_and_unknown_fields() {
         let fixture = Fixture::new();
         let mut settings = sound_bank::Settings::default();
-        settings.extra.insert("futureBankFlag".into(), serde_json::json!(42));
+        settings
+            .extra
+            .insert("futureBankFlag".into(), serde_json::json!(42));
         let mut definition = Definition::detected(crate::sf2::SourceFormat::Sf2Pcm16);
         definition
             .extra
@@ -294,7 +327,10 @@ mod tests {
         )
         .unwrap();
         let mut changed_source = original.clone();
-        let smpl = changed_source.windows(4).position(|bytes| bytes == b"smpl").unwrap();
+        let smpl = changed_source
+            .windows(4)
+            .position(|bytes| bytes == b"smpl")
+            .unwrap();
         changed_source[smpl + 8] ^= 1;
         fs::write(fixture.0.join("assets/library.sf2"), changed_source).unwrap();
         assert!(
@@ -320,7 +356,10 @@ mod tests {
         assets::commit(reimport).unwrap();
         let package = assets::Package::load(&record.path).unwrap();
         assert_eq!(package.meta.id, id);
-        assert_eq!(package.meta.settings.sound_bank().unwrap().extra["futureBankFlag"], serde_json::json!(42));
+        assert_eq!(
+            package.meta.settings.sound_bank().unwrap().extra["futureBankFlag"],
+            serde_json::json!(42)
+        );
         assert_eq!(
             package.meta.extra.get("futurePackageFlag"),
             Some(&serde_json::json!("kept"))

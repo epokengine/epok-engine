@@ -350,7 +350,7 @@ pub fn import(root: &Path, source: &str, destination: &str, scale: f32) -> Resul
 pub fn inspector(
     ui: &imgui::Ui,
     editor: &mut crate::editor::Editor,
-    entity: &mut crate::scene::Entity,
+    entity: &mut crate::scene::Actor,
 ) {
     #[derive(Default)]
     struct Form {
@@ -426,7 +426,7 @@ mod tests {
         let index = assets::scan(&root, &mut Default::default());
         let doc = crate::mesh::document(index.resolve(id).unwrap()).unwrap();
         assert_eq!(doc.faces.len(), 2);
-        let mut e = crate::scene::Entity::cube("Imported".into());
+        let mut e = crate::scene::Actor::cube("Imported".into());
         e.editable_mesh = Some(crate::mesh::Component {
             asset: id,
             materials: Default::default(),

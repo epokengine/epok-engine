@@ -48,7 +48,7 @@ pub struct ImportForm {
     pub sequence: Option<crate::sequence::Settings>,
     pub bank: Option<crate::sound_bank::Settings>,
     pub bank_companion: String,
-    pub sequence_catalog: Option<Result<crate::sequence::SourceCatalog,String>>,
+    pub sequence_catalog: Option<Result<crate::sequence::SourceCatalog, String>>,
     pub existing: Option<Record>,
     pub snapshot: bool,
     pub queue_key: Option<String>,
@@ -194,7 +194,9 @@ impl Manager {
                             }
                             self.save_decisions();
                             if reference {
-                                if let Some(settings) = self.form.as_mut().and_then(|f| f.sequence.as_mut()) {
+                                if let Some(settings) =
+                                    self.form.as_mut().and_then(|f| f.sequence.as_mut())
+                                {
                                     settings.sound_bank = Some(id);
                                 }
                             } else {
@@ -283,7 +285,10 @@ impl Manager {
             if now.duration_since(observed.1) < Duration::from_millis(750) {
                 continue;
             }
-            if self.index.usable().any(|r| crate::bank_compat::parts(r).is_some_and(|p| p.iter().any(|p|p.path == source.path))) {
+            if self.index.usable().any(|r| {
+                crate::bank_compat::parts(r)
+                    .is_some_and(|p| p.iter().any(|p| p.path == source.path))
+            }) {
                 continue;
             }
             let linked = self
@@ -320,12 +325,37 @@ impl Manager {
             }
         }
         for record in self.index.usable() {
-            let Some(parts) = crate::bank_compat::parts(record) else { continue; };
-            let changed = parts.iter().any(|p|self.index.sources.get(&p.path).is_some_and(|s|s.hash != p.sha256));
-            let stable = parts.iter().all(|p|self.observed.get(&p.path).is_some_and(|(_,time)|now.duration_since(*time)>=Duration::from_millis(750)));
+            let Some(parts) = crate::bank_compat::parts(record) else {
+                continue;
+            };
+            let changed = parts.iter().any(|p| {
+                self.index
+                    .sources
+                    .get(&p.path)
+                    .is_some_and(|s| s.hash != p.sha256)
+            });
+            let stable = parts.iter().all(|p| {
+                self.observed.get(&p.path).is_some_and(|(_, time)| {
+                    now.duration_since(*time) >= Duration::from_millis(750)
+                })
+            });
             if changed && stable {
-                let revision = parts.iter().map(|p|self.index.sources.get(&p.path).map_or("missing",|s|s.hash.as_str())).collect::<Vec<_>>().join(":");
-                pending.push(Pending { source:record.meta.source.clone(), hash:assets::hash(revision.as_bytes()),existing:Some(record.meta.id),status:Status::Pending });
+                let revision = parts
+                    .iter()
+                    .map(|p| {
+                        self.index
+                            .sources
+                            .get(&p.path)
+                            .map_or("missing", |s| s.hash.as_str())
+                    })
+                    .collect::<Vec<_>>()
+                    .join(":");
+                pending.push(Pending {
+                    source: record.meta.source.clone(),
+                    hash: assets::hash(revision.as_bytes()),
+                    existing: Some(record.meta.id),
+                    status: Status::Pending,
+                });
             }
         }
         self.observed
@@ -384,7 +414,7 @@ impl Manager {
             None => None,
         };
         let model = item.source.to_ascii_lowercase().ends_with(".fbx");
-        let detected=assets::audio_source_kind(&self.root,&item.source);
+        let detected = assets::audio_source_kind(&self.root, &item.source);
         let soundfont = crate::soundfont_asset::has_source_header(&self.root.join(&item.source));
         let destination = existing
             .as_ref()
@@ -407,25 +437,54 @@ impl Manager {
                 .as_ref()
                 .map(|r| r.meta.settings.audio().cloned().unwrap_or_default())
                 .unwrap_or_default(),
-            sequence: (detected==Some(assets::Kind::MusicSequence) || (detected.is_none() && std::path::Path::new(&item.source)
-                .extension()
-                .is_some_and(|e| matches!(e.to_ascii_lowercase().to_str(),Some("mid"|"midi"|"seq"|"sep")))))
-                .then(|| {
-                    existing
-                        .as_ref()
-                        .and_then(|r| r.meta.settings.sequence().ok())
-                        .cloned()
-                        .unwrap_or_default()
-                }),
+            sequence: (detected == Some(assets::Kind::MusicSequence)
+                || (detected.is_none()
+                    && std::path::Path::new(&item.source)
+                        .extension()
+                        .is_some_and(|e| {
+                            matches!(
+                                e.to_ascii_lowercase().to_str(),
+                                Some("mid" | "midi" | "seq" | "sep")
+                            )
+                        })))
+            .then(|| {
+                existing
+                    .as_ref()
+                    .and_then(|r| r.meta.settings.sequence().ok())
+                    .cloned()
+                    .unwrap_or_default()
+            }),
             bank: existing
                 .as_ref()
                 .and_then(|r| r.meta.settings.sound_bank().ok())
-                .cloned().or_else(|| if soundfont {
-                    Some(crate::sound_bank::Settings { schema_version: 2,
-                        library: Some(crate::soundfont_asset::Definition::detected(crate::sf2::SourceFormat::Sf2Pcm16)),
-                        ..Default::default() })
-                } else { (detected==Some(assets::Kind::SoundBank) || (detected.is_none() && crate::bank_compat::source_candidate(std::path::Path::new(&item.source)))).then(||crate::sound_bank::Settings { imported:Some(Default::default()),..Default::default() }) }),
-            bank_companion: existing.as_ref().and_then(crate::bank_compat::parts).and_then(|p|p.get(1)).map(|p|p.path.clone()).unwrap_or_default(),
+                .cloned()
+                .or_else(|| {
+                    if soundfont {
+                        Some(crate::sound_bank::Settings {
+                            schema_version: 2,
+                            library: Some(crate::soundfont_asset::Definition::detected(
+                                crate::sf2::SourceFormat::Sf2Pcm16,
+                            )),
+                            ..Default::default()
+                        })
+                    } else {
+                        (detected == Some(assets::Kind::SoundBank)
+                            || (detected.is_none()
+                                && crate::bank_compat::source_candidate(std::path::Path::new(
+                                    &item.source,
+                                ))))
+                        .then(|| crate::sound_bank::Settings {
+                            imported: Some(Default::default()),
+                            ..Default::default()
+                        })
+                    }
+                }),
+            bank_companion: existing
+                .as_ref()
+                .and_then(crate::bank_compat::parts)
+                .and_then(|p| p.get(1))
+                .map(|p| p.path.clone())
+                .unwrap_or_default(),
             sequence_catalog: None,
             existing,
             snapshot: false,
@@ -450,7 +509,10 @@ impl Manager {
             settings: record.meta.settings.audio().cloned().unwrap_or_default(),
             sequence: record.meta.settings.sequence().ok().cloned(),
             bank: record.meta.settings.sound_bank().ok().cloned(),
-            bank_companion: crate::bank_compat::parts(record).and_then(|p|p.get(1)).map(|p|p.path.clone()).unwrap_or_default(),
+            bank_companion: crate::bank_compat::parts(record)
+                .and_then(|p| p.get(1))
+                .map(|p| p.path.clone())
+                .unwrap_or_default(),
             sequence_catalog: None,
             existing: Some(record.clone()),
             snapshot,
@@ -501,10 +563,15 @@ impl Manager {
         self.window = true;
     }
     pub fn start_reference_bank(&mut self) {
-        if self.busy { return; }
+        if self.busy {
+            return;
+        }
         if let Some(record) = self.index.usable().find(|r| {
             r.meta.source_hash == crate::soundfont_asset::REFERENCE_HASH
-                && r.meta.settings.sound_bank().is_ok_and(|s| s.library.is_some())
+                && r.meta
+                    .settings
+                    .sound_bank()
+                    .is_ok_and(|s| s.library.is_some())
         }) {
             if let Some(settings) = self.form.as_mut().and_then(|f| f.sequence.as_mut()) {
                 settings.sound_bank = Some(record.meta.id);
@@ -514,7 +581,9 @@ impl Manager {
         let root = self.root.clone();
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
-            let _ = tx.send(crate::music_conversion_ui::reference_candidate(&root).map(Prepared::ReferenceBank));
+            let _ = tx.send(
+                crate::music_conversion_ui::reference_candidate(&root).map(Prepared::ReferenceBank),
+            );
         });
         self.worker = Some(rx);
         self.worker_key = None;
@@ -574,10 +643,29 @@ impl Manager {
                 )
                 .map(Prepared::Audio)
             } else if let Some(settings) = bank {
-                if settings.library.is_some() || crate::soundfont_asset::has_source_header(&root.join(&source)) {
-                    crate::soundfont_asset::prepare(&root, &source, &destination, settings, existing.as_ref(), snapshot).map(Prepared::Audio)
+                if settings.library.is_some()
+                    || crate::soundfont_asset::has_source_header(&root.join(&source))
+                {
+                    crate::soundfont_asset::prepare(
+                        &root,
+                        &source,
+                        &destination,
+                        settings,
+                        existing.as_ref(),
+                        snapshot,
+                    )
+                    .map(Prepared::Audio)
                 } else if settings.imported.is_some() {
-                    crate::bank_compat::prepare(&root,&source,Some(&bank_companion),&destination,settings,existing.as_ref(),snapshot).map(Prepared::SonyBank)
+                    crate::bank_compat::prepare(
+                        &root,
+                        &source,
+                        Some(&bank_companion),
+                        &destination,
+                        settings,
+                        existing.as_ref(),
+                        snapshot,
+                    )
+                    .map(Prepared::SonyBank)
                 } else if existing.is_none() && source.is_empty() {
                     crate::sound_bank::prepare_new(&root, &destination, settings)
                         .map(Prepared::Audio)
@@ -625,29 +713,82 @@ mod tests {
     use super::*;
     #[test]
     fn sony_pair_watcher_groups_vb_changes_and_preserves_unknown_metadata() {
-        let root=crate::workspace::tests::temp("sony-pair-watcher");
+        let root = crate::workspace::tests::temp("sony-pair-watcher");
         std::fs::create_dir_all(root.join("assets")).unwrap();
-        let bytes=crate::bank_compat::tests::fixture();
-        std::fs::write(root.join("assets/source.vh"),&bytes[..0xc20]).unwrap();
-        std::fs::write(root.join("assets/source.vb"),&bytes[0xc20..]).unwrap();
-        let id=crate::bank_compat::commit(crate::bank_compat::prepare(&root,"assets/source.vh",Some("assets/source.vb"),"assets/bank.epokasset",Default::default(),None,false).unwrap()).unwrap();
-        let mut manager=Manager::new(root.clone());
-        manager.index=assets::scan(&root,&mut Default::default());
-        for source in manager.index.sources.values() { manager.observed.insert(source.path.clone(),(source.hash.clone(),Instant::now()-Duration::from_secs(1))); }
-        manager.update_pending();assert!(manager.pending.is_empty());
-        let mut changed=bytes[0xc20..].to_vec();changed[2]^=1;
-        std::fs::write(root.join("assets/source.vb"),changed).unwrap();
-        manager.index=assets::scan(&root,&mut Default::default());
-        for source in manager.index.sources.values() { manager.observed.insert(source.path.clone(),(source.hash.clone(),Instant::now()-Duration::from_secs(1))); }
-        manager.update_pending();assert_eq!(manager.pending.len(),1);assert_eq!(manager.pending[0].existing,Some(id));assert_eq!(manager.pending[0].source,"assets/source.vh");
-        let record=manager.index.resolve(id).unwrap();
-        let mut settings=record.meta.settings.sound_bank().unwrap().clone();
-        let definition=settings.imported.as_mut().unwrap();definition.extra.insert("future".into(),42.into());definition.parts[1].extra.insert("future_part".into(),17.into());
-        crate::bank_compat::commit(crate::bank_compat::prepare(&root,"assets/source.vh",Some("assets/source.vb"),"assets/bank.epokasset",settings,Some(record),false).unwrap()).unwrap();
-        let package=assets::Package::load(&record.path).unwrap();let definition=package.meta.settings.sound_bank().unwrap().imported.as_ref().unwrap();
-        assert_eq!(definition.extra["future"],42);assert_eq!(definition.parts[1].extra["future_part"],17);
-        assert!(assets::source_relinks(&root,&manager.index).is_empty());
-        drop(manager);std::fs::remove_dir_all(root).unwrap();
+        let bytes = crate::bank_compat::tests::fixture();
+        std::fs::write(root.join("assets/source.vh"), &bytes[..0xc20]).unwrap();
+        std::fs::write(root.join("assets/source.vb"), &bytes[0xc20..]).unwrap();
+        let id = crate::bank_compat::commit(
+            crate::bank_compat::prepare(
+                &root,
+                "assets/source.vh",
+                Some("assets/source.vb"),
+                "assets/bank.epokasset",
+                Default::default(),
+                None,
+                false,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let mut manager = Manager::new(root.clone());
+        manager.index = assets::scan(&root, &mut Default::default());
+        for source in manager.index.sources.values() {
+            manager.observed.insert(
+                source.path.clone(),
+                (source.hash.clone(), Instant::now() - Duration::from_secs(1)),
+            );
+        }
+        manager.update_pending();
+        assert!(manager.pending.is_empty());
+        let mut changed = bytes[0xc20..].to_vec();
+        changed[2] ^= 1;
+        std::fs::write(root.join("assets/source.vb"), changed).unwrap();
+        manager.index = assets::scan(&root, &mut Default::default());
+        for source in manager.index.sources.values() {
+            manager.observed.insert(
+                source.path.clone(),
+                (source.hash.clone(), Instant::now() - Duration::from_secs(1)),
+            );
+        }
+        manager.update_pending();
+        assert_eq!(manager.pending.len(), 1);
+        assert_eq!(manager.pending[0].existing, Some(id));
+        assert_eq!(manager.pending[0].source, "assets/source.vh");
+        let record = manager.index.resolve(id).unwrap();
+        let mut settings = record.meta.settings.sound_bank().unwrap().clone();
+        let definition = settings.imported.as_mut().unwrap();
+        definition.extra.insert("future".into(), 42.into());
+        definition.parts[1]
+            .extra
+            .insert("future_part".into(), 17.into());
+        crate::bank_compat::commit(
+            crate::bank_compat::prepare(
+                &root,
+                "assets/source.vh",
+                Some("assets/source.vb"),
+                "assets/bank.epokasset",
+                settings,
+                Some(record),
+                false,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let package = assets::Package::load(&record.path).unwrap();
+        let definition = package
+            .meta
+            .settings
+            .sound_bank()
+            .unwrap()
+            .imported
+            .as_ref()
+            .unwrap();
+        assert_eq!(definition.extra["future"], 42);
+        assert_eq!(definition.parts[1].extra["future_part"], 17);
+        assert!(assets::source_relinks(&root, &manager.index).is_empty());
+        drop(manager);
+        std::fs::remove_dir_all(root).unwrap();
     }
     #[test]
     fn detection_omission_reopen_and_worker_publication() {

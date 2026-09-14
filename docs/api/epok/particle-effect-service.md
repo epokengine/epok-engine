@@ -74,7 +74,7 @@ auto result = epok::effect_matrix(arg1);
 **Exact declaration**
 
 ```cpp
-Affine<Fixed> effect_world(EntityHandle)
+Affine<Fixed> effect_world(DataHandle)
 ```
 
 - **Declared at:** [line 5](../../../runtime/particle_effect_service.hpp#L5)
@@ -84,7 +84,7 @@ Affine<Fixed> effect_world(EntityHandle)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `EntityHandle` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+| `arg1` | `DataHandle` | Input | Value supplied for `arg1`. See the exact type and module contract. |
 
 **Returns.** Returns `Affine<Fixed>`. Check the purpose and failure notes before using the value.
 
@@ -96,7 +96,7 @@ Affine<Fixed> effect_world(EntityHandle)
 #include "particle_effect_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle arg1
+// DataHandle arg1
 
 auto result = epok::effect_world(arg1);
 ```
@@ -185,7 +185,7 @@ epok::effects::after_timeline();
 **Exact declaration**
 
 ```cpp
-inline Component* component(EntityHandle owner)
+inline Component* component(DataHandle owner)
 ```
 
 - **Declared at:** [line 23](../../../runtime/particle_effect_service.hpp#L23)
@@ -195,7 +195,7 @@ inline Component* component(EntityHandle owner)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 
 **Returns.** Returns `Component *`. Check the purpose and failure notes before using the value.
 
@@ -207,7 +207,7 @@ inline Component* component(EntityHandle owner)
 #include "particle_effect_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle owner
+// DataHandle owner
 
 auto result = epok::effects::component(owner);
 ```
@@ -225,7 +225,7 @@ auto result = epok::effects::component(owner);
 **Exact declaration**
 
 ```cpp
-inline Component* configure(EntityHandle owner,const Asset& asset,bool enabled,bool automatic,uint32_t seed)
+inline Component* configure(DataHandle owner,const Asset& asset,bool enabled,bool automatic,uint32_t seed)
 ```
 
 - **Declared at:** [line 28](../../../runtime/particle_effect_service.hpp#L28)
@@ -235,7 +235,7 @@ inline Component* configure(EntityHandle owner,const Asset& asset,bool enabled,b
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 | `asset` | `const Asset &` | Input | Value supplied for `asset`. See the exact type and module contract. |
 | `enabled` | `bool` | Input | Value supplied for `enabled`. See the exact type and module contract. |
 | `automatic` | `bool` | Input | Value supplied for `automatic`. See the exact type and module contract. |
@@ -251,7 +251,7 @@ inline Component* configure(EntityHandle owner,const Asset& asset,bool enabled,b
 #include "particle_effect_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle owner
+// DataHandle owner
 // const Asset & asset
 // bool enabled
 // bool automatic
@@ -273,7 +273,7 @@ auto result = epok::effects::configure(owner, asset, enabled, automatic, seed);
 **Exact declaration**
 
 ```cpp
-inline Handle play(EntityHandle owner)
+inline Handle play(DataHandle owner)
 ```
 
 - **Declared at:** [line 38](../../../runtime/particle_effect_service.hpp#L38)
@@ -283,7 +283,7 @@ inline Handle play(EntityHandle owner)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 
 **Returns.** Returns `Handle`. Check the purpose and failure notes before using the value.
 
@@ -295,7 +295,7 @@ inline Handle play(EntityHandle owner)
 #include "particle_effect_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle owner
+// DataHandle owner
 
 auto result = epok::effects::play(owner);
 ```
@@ -375,7 +375,7 @@ epok::effects::publish_stats();
 **Exact declaration**
 
 ```cpp
-inline void remove_owner(EntityHandle owner)
+inline void remove_owner(DataHandle owner)
 ```
 
 - **Declared at:** [line 62](../../../runtime/particle_effect_service.hpp#L62)
@@ -385,7 +385,7 @@ inline void remove_owner(EntityHandle owner)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -397,7 +397,7 @@ inline void remove_owner(EntityHandle owner)
 #include "particle_effect_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle owner
+// DataHandle owner
 
 epok::effects::remove_owner(owner);
 ```
@@ -446,7 +446,7 @@ epok::effects::reset_scene();
 **Exact declaration**
 
 ```cpp
-inline Handle spawn(const Asset& asset,const Transform& transform,uint32_t seed=0,EntityHandle owner={},const timeline::BoundTarget* bindings=nullptr)
+inline Handle spawn(const Asset& asset,const Transform& transform,uint32_t seed=0,DataHandle owner={},const timeline::BoundTarget* bindings=nullptr)
 ```
 
 - **Declared at:** [line 44](../../../runtime/particle_effect_service.hpp#L44)
@@ -459,7 +459,7 @@ inline Handle spawn(const Asset& asset,const Transform& transform,uint32_t seed=
 | `asset` | `const Asset &` | Input | Value supplied for `asset`. See the exact type and module contract. |
 | `transform` | `const Transform &` | Input | Value supplied for `transform`. See the exact type and module contract. |
 | `seed` | `uint32_t` | Input | Value supplied for `seed`. See the exact type and module contract. |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 | `bindings` | `const timeline::BoundTarget *` | Input | Value supplied for `bindings`. See the exact type and module contract. |
 
 **Returns.** Returns `Handle`. Check the purpose and failure notes before using the value.
@@ -475,7 +475,7 @@ inline Handle spawn(const Asset& asset,const Transform& transform,uint32_t seed=
 // const Asset & asset
 // const Transform & transform
 // uint32_t seed
-// EntityHandle owner
+// DataHandle owner
 // const timeline::BoundTarget * bindings
 
 auto result = epok::effects::spawn(asset, transform, seed, owner, bindings);

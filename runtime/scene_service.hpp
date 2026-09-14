@@ -15,28 +15,15 @@ inline TransitionState pending_transition;
 // before the generated scene bank declares the legacy `bindings` table.
 
 // Component-owned AudioSource storage stays quarantined while the XA consumer still
-// points at it -- exactly the rule create_entity (runtime/lifecycle.hpp) applies to a
+// points at it -- exactly the rule allocate_actor_data (runtime/lifecycle.hpp) applies to a
 // legacy slot's `audio`. `music_lookup` means a CD lookup for `music_active` is still in
 // flight, so that source is retained even between requests.
 inline bool music_retains_audio_source(const AudioSource* source){
     if(!source)return false;
     return music_active==source||music_requested==source||(music_lookup&&music_active==source);
 }
-// Trigger delivery rule: the legacy `bindings` table wins. A LegacyBehaviourComponent
-// wrapping a Behaviour that table already notifies is skipped by dispatch_trigger, so a
-// migrated entity never receives on_trigger twice.
-inline bool legacy_bindings_notify(const ActorComponent* component){
-    if(!component||!object_class_is_a(component->class_id(),LegacyBehaviourComponent::static_class_id))return false;
-    const Behaviour* behaviour=static_cast<const LegacyBehaviourComponent*>(component)->behaviour;
-    if(!behaviour)return false;
-    for(auto& binding:bindings)if(binding.behaviour==behaviour)return true;
-    return false;
-}
-// Idempotent; main.cpp installs at startup and scene_tick keeps it installed across a
-// transition that replaced the bindings table.
 inline void install_actor_service_hooks(){
     audio_source_retained=&music_retains_audio_source;
-    component_trigger_filtered=&legacy_bindings_notify;
 }
 #endif
 size_t current_scene(){return scene_stats.active;}
@@ -110,21 +97,11 @@ inline bool scene_tick(psyqo::GPU& gpu){
         objects[i].alive=objects[i].active=false;
         objects[i].generation=next_generation(objects[i].generation);
     }
-#ifdef EPOK_BLUEPRINTS
-    bp::retire(alive,active,object_count);
-#endif
-    for(auto& b:bindings)if(b.entity<object_count&&alive[b.entity]){
-#ifdef EPOK_BLUEPRINTS
-        b.behaviour->blueprint_cancel();
-#endif
-        if(active[b.entity])b.behaviour->on_disable();
-        b.behaviour->on_destroy();
-    }
     reset_runtime_services();
     lifecycle_tearing_down=false;scene_stopping=false;
     scene_stats.active=next;++scene_stats.transitions;
     scene_banks[next].load();
-    for(size_t i=0;i<object_count;++i)if(is_active(&objects[i])&&objects[i].audio.enabled&&objects[i].audio.play_on_start)objects[i].audio.play();
+    for(size_t i=0;i<object_count;++i)if(is_active(&objects[i])&&objects[i].audio.enabled&&objects[i].audio.play_on_start&&!objects[i].audio.is_playing())objects[i].audio.play();
     scene_transitioning=false;scene_stats.waiting=scene_loading();
     return true;
 }

@@ -15,7 +15,7 @@ The current reflection/Blueprint toolchain is provisioned on Windows x64 and
 Linux x86_64. It requires the pinned libclang and a built `epok-header-tool`
 beside the editor. General macOS editor support does not yet provision that
 Blueprint extractor runtime; Blueprint authoring is not currently supported
-there. Existing legacy-script workflows are separate from this requirement.
+there.
 
 ## Create and edit
 
@@ -43,22 +43,11 @@ Comments and reroutes are authoring-only. **Compile** checks the current draft,
 shows diagnostics with node navigation, and can show generated native code.
 Save before building; unsaved drafts are never silently replaced by disk code.
 
-Behaviour Blueprints start with **On Start**, **On Update**, and **On Trigger**
-in one event canvas. Actor and Component Blueprints start with **Begin Play**,
-**Tick** and **End Play** instead; see [Class families](#class-families).
-These map to the PSX runtime's `start`, `update`, and
-`on_trigger`; Trigger provides the other entity and Enter/Stay/Exit phase.
-The corresponding collider must be configured as a trigger to receive overlaps.
-Opening an older Blueprint adds missing supported events as an undoable draft
-edit; save to retain them. Existing event graphs are preserved. Implemented
-parent events receive a **Call Parent** node so inherited logic keeps running.
-Other lifecycle events remain available through **Add > Override event**.
+Actor and ActorComponent Blueprints start with **Begin Play**, **Tick**, and **End Play** in one event canvas. These correspond to `begin_play`, `tick`, and `end_play`. Event entries have no input pins; event parameters appear as outputs. Implemented parent events receive a **Call Parent** node so inherited logic keeps running.
 
-Double-click a data or execution wire to insert a **Reroute** point. Drag its
-center to organize the wire, or connect to its sides to add branches. The point
-retains the wire's type and has no runtime operation. Splitting a wire and
-moving its point are separate undo steps. **Layout > Reroute** also adds one
-from the action menu.
+Each execution output connects to one destination. Reconnecting it replaces its previous wire and can be undone. Use **Sequence** to run several paths in explicit order, or a branching node for separate outcomes. Data outputs may be reused by several inputs.
+
+Double-click a data or execution wire to insert a **Reroute** point. Reroutes preserve the same connection rules and add no runtime operation. Moving a point and splitting a wire are separate undo steps.
 
 ## Split and recombine pins
 
@@ -127,62 +116,17 @@ the same override. Ordinary non-overridden behavior remains inherited.
 
 ## Class families
 
-A Blueprint joins the family of its parent, and a class never changes family. The
-three families you can author in are **Behaviour** (the original one), **Actor** and
-**Component**. [Actors and components](actors.md) is the reference for the model
-itself; this section is what the Blueprint editor does with it.
+A Blueprint inherits its parent's family: **Actor** or **ActorComponent**. Actor classes can be placed through **Instantiate Actor** in the Hierarchy, filtered by the active 3D, 2D or UI view. ActorComponents attach through **Add Component** in the Inspector. See [Actors and components](actors.md).
 
-| | Behaviour | Actor | Component |
-| --- | --- | --- | --- |
-| Parent picker | yes | yes | yes |
-| Events the new graph starts with | On Start, On Update, On Trigger | Begin Play, Tick, End Play | Begin Play, Tick, End Play |
-| `Self` is | the script bound to an entity | the actor | the component |
-| Owner access | `entity()` | the actor's own root, when its domain has one | **Get Owner**, returning a typed actor reference |
+Both families support **Begin Play**, **Tick**, **End Play**, inherited properties and event overrides. `Self` refers to the current instance. A component uses **Get Owner** to access its Actor; selecting one compatible owner domain gives that reference a specific Actor type. Transform operations require the corresponding domain.
 
-**Parent eligibility.** The parent picker lists the classes you may actually derive
-from: same family, compatible domain, Blueprintable, not final, and no cycle.
-Abstract parents remain valid authoring parents. A C++ class may derive from a C++
-class and a Blueprint from either, but a C++ class may never derive from a
-Blueprint-generated class.
+The parent picker requires a Blueprintable class that is not final. Abstract classes can be parents. C++ classes derive from native classes; Blueprint classes may derive from native or Blueprint classes. Reparenting validates family, domain and inheritance cycles before accepting a change.
 
-**Reparenting** is checked against those rules *before* anything is compiled, so a
-refusal tells you which rule it broke — crossing families, an incompatible domain, a
-parent you cannot derive from, or a cycle — instead of surfacing as a compile error.
-The previous parent and the whole graph are restored on refusal, exactly as they
-already were for Behaviour Blueprints.
+### Typed references and spawning
 
-An actor with no spatial domain — a scene script, or a domain-less logic actor — has
-no transform at all. Graph nodes that need one do nothing rather than dereferencing a
-missing owner, so a 2D or UI actor never faults on a node that expects a 3D slot.
+`ActorRef<Class>` identifies an Actor, `ComponentRef<Class>` identifies a component, and `ObjectRef` can hold either. `ClassRef<Base>` identifies a class. References are generation-checked identities; deleting an instance invalidates its references. Serialized references use authoring UUIDs, which the scene loader resolves before gameplay begins.
 
-### Typed object references
-
-Three reference value types join entity and class references:
-
-| Type | Names | Assignable to |
-| --- | --- | --- |
-| `ActorRef<Class>` | one actor | a less derived `ActorRef`, or `ObjectRef` |
-| `ComponentRef<Class>` | one component | a less derived `ComponentRef`, or `ObjectRef` |
-| `ObjectRef` | either of the above | `ObjectRef` |
-
-They are identities, not pointers: a reference to something that has been destroyed
-fails its validity check and the node does nothing, the same guarantee entity handles
-give. A reference is never written into a saved document as a live value — persisted
-defaults carry the null identity — except for the map-scoped identities a scene
-Blueprint may name, described below. `EntityRef` keeps its existing meaning for
-legacy content.
-
-### Spawn Actor and Spawn Class
-
-**Spawn Actor** takes a class reference plus an optional logical parent and returns
-an `ActorRef` of that base. It is refused at compile time when the class does not
-resolve to the Actor family, naming the family it found, and it is not available in
-a Behaviour Blueprint. At run time it re-checks the class before constructing
-anything, so a stale class reference spawns nothing rather than the wrong type.
-
-**Spawn** and **Spawn Class** are unchanged. They still spawn Behaviour-bound
-entities from a fixed class or a typed `ClassRef<Base>`, including Behaviour bases,
-and existing graphs keep compiling to the same code.
+**Spawn Actor**, **Spawn** and **Spawn Class** accept concrete spawnable Actor classes. They use the same component composition and property initialization as scene placements. Components are attached to an existing owner. Capacity failures return a null reference and roll back partial allocations.
 
 ## Scene Blueprint
 
@@ -211,7 +155,7 @@ opened on a host that has the toolchain.
   is the map's, not a `.epokbp` file: edits mark the *map* dirty, Undo and Redo
   are the map's, and the editor's **Save** saves the map. The Blueprint editor's
   Revert is unavailable for it; undo the map instead.
-- A scene Blueprint compiles even when no entity in the map carries a Behaviour,
+- A scene Blueprint compiles even when no placed Actor has a custom class,
   and two maps may share one C++ `SceneScriptActor` base.
 
 Inside a scene Blueprint — and only there — a variable of an actor or entity
@@ -283,8 +227,7 @@ Sequence and Effect nodes also play the shared [TimelineAsset system](timelines.
 Their typed playback handles are runtime values with null defaults, never saved
 slots or generations. Marker/completion waits share the existing eight latent
 slots, preserve results across pause and playback-slot reuse, and use explicit
-Completed/Cancelled outcomes. Blueprint source v3 adds these nodes; opening v1/v2
-documents migrates in memory and preserves their original bytes until Save.
+Completed/Cancelled outcomes. Blueprint source version 5 requires the current Actor document model. Earlier documents must be recreated.
 Direct asset Play/Spawn nodes select a persistent asset UUID and expose its typed
 external binding slots. Slot renames/reordering retain connections; removed slots
 remain visible as stale connections until repaired. Subscribe to marker delivers
@@ -293,10 +236,10 @@ backlog while the reached branch suspends. See [Timeline playback](timelines.md)
 for owner, pause, completion and cancellation rules, and open the
 `timeline-spell` example's `BP_Fireball` for an authored combat graph.
 
-## Entity templates and construction
+## Actor templates and construction
 
 The class's template defines a stable-ID root and component/child hierarchy.
-Use the template editor to add entities and edit inherited component members,
+Use the template editor to add Actors and edit inherited component members,
 or capture a selected scene subtree into the class. Captured internal references
 are remapped; references outside the subtree must be removed or represented by
 an explicit instance input. Place a class to create a linked scene instance.
@@ -304,7 +247,7 @@ an explicit instance input. Place a class to create a linked scene instance.
 Unchanged members follow future template edits. Instance edits record explicit
 member overrides; reset restores inheritance. New inherited children receive
 fresh scene IDs. Removed/replaced template identities are reported for explicit
-repair, preserving the existing scene data. Unlink retains the current entities
+repair, preserving the existing scene data. Unlink retains the current Actors
 as ordinary scene objects. Placement, reset and unlink support scene undo.
 
 Construction uses a closed host backend: bounded transform, activity, color and

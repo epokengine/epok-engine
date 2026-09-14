@@ -1,22 +1,4 @@
-//! Scene document representation of the Object / Actor / Component model.
-//!
-//! This module owns three things and nothing else:
-//!
-//! 1. the persisted shapes of `Scene::actors` / `Scene::scene_script`
-//!    (design.md section 7, scene document version 5);
-//! 2. `validate`, the document-side rules, which delegate every compatibility
-//!    question to [`crate::object_model::Model`] and never re-implement it;
-//! 3. `actor_view`, the read-only migration that derives actors from legacy
-//!    entities in memory so the editor can show the actor model before any
-//!    document is rewritten.
-//!
-//! Nothing here ever writes to a scene: loading a legacy document must leave its
-//! bytes untouched, and the version only rises to 5 once actor content is
-//! actually authored (`Scene::upgrade_entity_ids`).
-//!
-//! P4 lands the document and the view ahead of their consumers: the editor UI is
-//! P7 and cooking actors into the C++ tables is P10, so most of the public
-//! surface is currently only exercised by the tests in this module.
+//! Persistent Actor and ActorComponent documents and structural validation.
 #![allow(dead_code)]
 
 use crate::{
@@ -26,16 +8,11 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
 /// Highest scene document version this editor writes and accepts.
-pub const SCENE_VERSION: u32 = 5;
-
-/// Salt of the deterministic actor-view derivation. It is part of the algorithm:
-/// changing it renumbers every derived actor, so it never changes.
-const VIEW_SALT: &[u8] = b"epok actor view identity v1";
+pub const SCENE_VERSION: u32 = 6;
 
 fn is_false(value: &bool) -> bool {
     !*value
@@ -61,12 +38,13 @@ impl ClassReference {
             class_id: Some(class_id.to_owned()),
         }
     }
-    /// Resolves through the model by identity first, then by readable name.
+    /// A recorded identity is authoritative; a missing class must not bind to a
+    /// different class that later reuses its display name.
     pub fn resolve<'a>(&self, model: &'a Model) -> Option<&'a object_model::ClassModel> {
-        self.class_id
-            .as_deref()
-            .and_then(|id| model.class(id))
-            .or_else(|| model.class(&self.name))
+        match self.class_id.as_deref() {
+            Some(id) => model.class(id),
+            None => model.class(&self.name),
+        }
     }
 }
 
@@ -82,9 +60,8 @@ pub struct Attachment {
 
 /// One component on an actor instance.
 ///
-/// Like [`crate::scene::ScriptBinding`] this type deliberately does not deny
-/// unknown members: authored values live in `properties` and orphan values from
-/// a class that changed shape are retained there instead of being dropped.
+/// Authored and orphan class values live in `properties`; unknown structural
+/// fields are rejected so retired document shapes cannot silently lose data.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct ComponentInstance {
     pub id: Uuid,
@@ -104,6 +81,8 @@ pub struct ComponentInstance {
     /// on this instance. Inherited components may be overridden, never removed.
     #[serde(default, skip_serializing_if = "is_false")]
     pub inherited: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_id: Option<String>,
 }
 impl ComponentInstance {
     pub fn new(id: Uuid, class: ClassReference, name: &str) -> Self {
@@ -116,6 +95,7 @@ impl ComponentInstance {
             properties: BTreeMap::new(),
             overrides: BTreeSet::new(),
             inherited: false,
+            default_id: None,
         }
     }
     fn with(mut self, key: &str, value: Value) -> Self {
@@ -131,6 +111,7 @@ impl ComponentInstance {
 impl<'de> Deserialize<'de> for ComponentInstance {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Raw {
             id: Uuid,
             class: ClassReference,
@@ -145,28 +126,34 @@ impl<'de> Deserialize<'de> for ComponentInstance {
             overrides: Option<BTreeSet<String>>,
             #[serde(default)]
             inherited: bool,
+            #[serde(default)]
+            default_id: Option<String>,
         }
         let raw = Raw::deserialize(deserializer)?;
         // Documents without an explicitness set retain every persisted value as
-        // an override, exactly like a legacy `ScriptBinding`.
+        // an override, exactly like a legacy `ClassDefaults`.
         let mut overrides = raw.overrides.unwrap_or_default();
         overrides.extend(raw.properties.keys().cloned());
-        Ok(Self {
+        let component = Self {
             id: raw.id,
             class: raw.class,
-            name: raw.name,
+            name: raw.name.clone(),
             root: raw.root,
             attach_parent: raw.attach_parent,
             properties: raw.properties,
             overrides,
             inherited: raw.inherited,
-        })
+            default_id: raw.default_id,
+        };
+        crate::actor_components::validate(&component).map_err(serde::de::Error::custom)?;
+        Ok(component)
     }
 }
 
 /// One placed actor. `logical_parent` is the hierarchy the author sees; `attach`
 /// is the spatial relationship and only exists between actors of one domain.
-#[derive(Clone, Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Serialize)]
+#[serde(into = "ActorDocument")]
 pub struct ActorInstance {
     pub id: Uuid,
     pub class: ClassReference,
@@ -183,12 +170,71 @@ pub struct ActorInstance {
     pub properties: BTreeMap<String, Value>,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub overrides: BTreeSet<String>,
-    /// Migration provenance: the legacy entity this actor was derived from.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub legacy_entity: Option<Uuid>,
+    /// Editable projection of built-in component data. It has no independent
+    /// identity or lifecycle and is never a second collection in a scene.
+    #[serde(skip)]
+    pub data: crate::scene::BuiltinData,
+    #[serde(skip)]
+    pub(crate) projection_baseline: Value,
+}
+impl PartialEq for ActorInstance {
+    fn eq(&self, other: &Self) -> bool {
+        self.data.parent == other.data.parent
+            && serde_json::to_value(self).ok() == serde_json::to_value(other).ok()
+    }
+}
+
+#[derive(Serialize)]
+struct ActorDocument {
+    id: Uuid,
+    class: ClassReference,
+    name: String,
+    active: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    logical_parent: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    attach: Option<Attachment>,
+    components: Vec<ComponentInstance>,
+    properties: BTreeMap<String, Value>,
+    overrides: BTreeSet<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    blueprint_instance: Option<crate::blueprint_templates::Instance>,
+}
+impl From<ActorInstance> for ActorDocument {
+    fn from(mut actor: ActorInstance) -> Self {
+        crate::actor_components::sync(&mut actor);
+        Self {
+            id: actor.id,
+            class: actor.class,
+            name: actor.name,
+            active: actor.active,
+            logical_parent: actor.logical_parent,
+            attach: actor.attach,
+            components: actor.components,
+            properties: actor.properties,
+            overrides: actor.overrides,
+            blueprint_instance: actor.data.blueprint_instance,
+        }
+    }
+}
+impl std::ops::Deref for ActorInstance {
+    type Target = crate::scene::BuiltinData;
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+impl std::ops::DerefMut for ActorInstance {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
 }
 impl ActorInstance {
     pub fn new(id: Uuid, class: ClassReference, name: &str) -> Self {
+        let mut data = crate::scene::BuiltinData::cube(name.to_owned());
+        data.id = id;
+        data.kind = "Empty".into();
+        data.position = [0.; 3];
+        let projection_baseline = serde_json::to_value(&data).expect("built-in defaults");
         Self {
             id,
             class,
@@ -199,8 +245,31 @@ impl ActorInstance {
             components: Vec::new(),
             properties: BTreeMap::new(),
             overrides: BTreeSet::new(),
-            legacy_entity: None,
+            data,
+            projection_baseline,
         }
+    }
+    pub fn cube(name: String) -> Self {
+        let data = crate::scene::BuiltinData::cube(name.clone());
+        let mut actor = Self::new(
+            data.id,
+            ClassReference::new("epok::Actor3D", object_model::ACTOR3D_ID),
+            &name,
+        );
+        actor.data = data;
+        crate::actor_components::sync(&mut actor);
+        actor
+    }
+    pub fn set_class_defaults(&mut self, defaults: &crate::scene::ClassDefaults) {
+        self.class = ClassReference {
+            name: defaults.name.clone(),
+            class_id: defaults.class_id.clone(),
+        };
+        self.properties = defaults.properties.clone();
+        self.overrides = defaults.overrides.clone();
+    }
+    pub fn refresh_components(&mut self) {
+        crate::actor_components::read(self);
     }
     pub fn root(&self) -> Option<&ComponentInstance> {
         self.components.iter().find(|c| c.root)
@@ -209,6 +278,7 @@ impl ActorInstance {
 impl<'de> Deserialize<'de> for ActorInstance {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Raw {
             id: Uuid,
             class: ClassReference,
@@ -226,23 +296,27 @@ impl<'de> Deserialize<'de> for ActorInstance {
             #[serde(default)]
             overrides: Option<BTreeSet<String>>,
             #[serde(default)]
-            legacy_entity: Option<Uuid>,
+            blueprint_instance: Option<crate::blueprint_templates::Instance>,
         }
         let raw = Raw::deserialize(deserializer)?;
         let mut overrides = raw.overrides.unwrap_or_default();
         overrides.extend(raw.properties.keys().cloned());
-        Ok(Self {
+        let mut actor = Self {
             id: raw.id,
             class: raw.class,
-            name: raw.name,
+            name: raw.name.clone(),
             active: raw.active,
             logical_parent: raw.logical_parent,
             attach: raw.attach,
             components: raw.components,
             properties: raw.properties,
             overrides,
-            legacy_entity: raw.legacy_entity,
-        })
+            data: crate::scene::BuiltinData::cube(raw.name.clone()),
+            projection_baseline: Value::Null,
+        };
+        actor.data.blueprint_instance = raw.blueprint_instance;
+        actor.refresh_components();
+        Ok(actor)
     }
 }
 
@@ -297,6 +371,8 @@ pub type IdentityMap = BTreeMap<Uuid, Uuid>;
 pub fn fresh_identities(actors: &[ActorInstance]) -> IdentityMap {
     let mut map = IdentityMap::new();
     for actor in actors {
+        let mut actor = actor.clone();
+        crate::actor_components::sync(&mut actor);
         map.insert(actor.id, Uuid::new_v4());
         for component in &actor.components {
             map.insert(component.id, Uuid::new_v4());
@@ -309,6 +385,7 @@ pub fn fresh_identities(actors: &[ActorInstance]) -> IdentityMap {
 /// identities outside the table (another actor that was not copied, an asset
 /// UUID inside `properties`) are left exactly as they are.
 pub fn remap_actor(actor: &mut ActorInstance, map: &IdentityMap) {
+    crate::actor_components::sync(actor);
     if let Some(id) = map.get(&actor.id) {
         actor.id = *id;
     }
@@ -336,7 +413,49 @@ pub fn remap_actor(actor: &mut ActorInstance, map: &IdentityMap) {
         {
             *parent = *id;
         }
+        for value in component.properties.values_mut() {
+            remap_json(value, map);
+        }
     }
+    for value in actor.properties.values_mut() {
+        remap_json(value, map);
+    }
+    if let Some(instance) = &mut actor.data.blueprint_instance {
+        if let Some(id) = map.get(&instance.instance) {
+            instance.instance = *id;
+        }
+        for id in instance.component_ids.values_mut() {
+            if let Some(new) = map.get(id) {
+                *id = *new;
+            }
+        }
+        let mut edits = BTreeMap::new();
+        for (path, mut value) in std::mem::take(&mut instance.overrides) {
+            let path = path
+                .split('/')
+                .map(|key| {
+                    Uuid::parse_str(key)
+                        .ok()
+                        .and_then(|id| map.get(&id))
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| key.to_string())
+                })
+                .collect::<Vec<_>>()
+                .join("/");
+            remap_json(&mut value, map);
+            edits.insert(path, value);
+        }
+        instance.overrides = edits;
+        if let Some(crate::blueprint_templates::ParentOverride::Actor { entity }) =
+            &mut instance.parent
+        {
+            if let Some(id) = map.get(entity) {
+                *entity = *id;
+            }
+        }
+    }
+    actor.data.id = actor.id;
+    actor.refresh_components();
 }
 
 /// Rewrites the scene Blueprint: a fresh asset id plus every UUID literal that
@@ -388,13 +507,7 @@ pub fn validate(scene: &Scene, model: Option<&Model>) -> Result<(), Vec<Diagnost
     if scene.actors.is_empty() && scene.scene_script.is_none() {
         return Ok(());
     }
-    let mut identities: BTreeSet<Uuid> = scene
-        .entities
-        .iter()
-        .filter(|e| !e.id.is_nil())
-        .map(|e| e.id)
-        .collect();
-    let entity_ids = identities.clone();
+    let mut identities = BTreeSet::new();
     let mut actors: BTreeMap<Uuid, &ActorInstance> = BTreeMap::new();
     let mut components: BTreeMap<Uuid, Uuid> = BTreeMap::new(); // component -> owning actor
 
@@ -424,20 +537,6 @@ pub fn validate(scene: &Scene, model: Option<&Model>) -> Result<(), Vec<Diagnost
             &actor.name,
             &mut diagnostics,
         );
-        if actor
-            .legacy_entity
-            .is_some_and(|id| !entity_ids.contains(&id))
-        {
-            diagnostics.push(Diagnostic {
-                code: "dangling-legacy-entity",
-                message: format!(
-                    "Actor `{}` records provenance from entity {} which no longer exists",
-                    actor.name,
-                    actor.legacy_entity.expect("checked")
-                ),
-                class: Some(actor.class.name.clone()),
-            });
-        }
         let mut roots = 0;
         for component in &actor.components {
             if component.id.is_nil() || !identities.insert(component.id) {
@@ -712,403 +811,20 @@ fn validate_against_model(scene: &Scene, model: &Model, diagnostics: &mut Vec<Di
 }
 
 // ---------------------------------------------------------------------------
-// Legacy view
-// ---------------------------------------------------------------------------
-
-/// The actor model of a scene that still stores legacy entities, plus whatever
-/// could not be represented faithfully.
-#[derive(Clone, Debug, Default)]
-pub struct ActorView {
-    pub actors: Vec<ActorInstance>,
-    pub diagnostics: Vec<Diagnostic>,
-}
-impl ActorView {
-    pub fn actor(&self, legacy_entity: Uuid) -> Option<&ActorInstance> {
-        self.actors
-            .iter()
-            .find(|a| a.legacy_entity == Some(legacy_entity))
-    }
-    pub fn codes(&self) -> Vec<&'static str> {
-        self.diagnostics.iter().map(|d| d.code).collect()
-    }
-}
-
-/// Deterministic derived identity for one role of one legacy entity.
-///
-/// The same derivation style as `Scene::upgrade_entity_ids`: a SHA-256 over a
-/// fixed salt and the stable inputs, truncated to 16 bytes. Two reads of the
-/// same document therefore produce the same actor UUIDs, on any machine and
-/// after the folder has been moved.
-pub fn derived_id(entity: Uuid, role: &str) -> Uuid {
-    let mut digest = Sha256::new();
-    digest.update(VIEW_SALT);
-    digest.update(entity.as_bytes());
-    digest.update([0u8]);
-    digest.update(role.as_bytes());
-    let bytes: [u8; 16] = digest.finalize()[..16].try_into().expect("16 bytes");
-    Uuid::from_bytes(bytes)
-}
-
-/// `true` when the entity carries UI authoring data.
-fn has_ui(entity: &crate::scene::Entity) -> bool {
-    entity.canvas.is_some()
-        || entity.rect.is_some()
-        || entity.image.is_some()
-        || entity.text.is_some()
-        || entity.progress.is_some()
-}
-
-/// `true` when the entity carries 3D authoring data. `Empty` with nothing on it
-/// is not 3D data by itself; it becomes a bare `Actor3D` only when no UI data
-/// claims it.
-fn has_3d(entity: &crate::scene::Entity) -> bool {
-    entity.kind != "Empty"
-        || entity.sprite.is_some()
-        || entity.light.is_some()
-        || entity.collider.is_some()
-        || entity.editable_mesh.is_some()
-        || entity.skeletal_mesh.is_some()
-        || entity.particle_emitter.is_some()
-        || entity.particle_effect.is_some()
-        || entity.blob_shadow.is_some()
-}
-
-/// Derives the actor model of a legacy scene, in memory and without touching the
-/// document (design.md section 7). Already-authored `scene.actors` are returned
-/// unchanged and no entity is derived twice into them.
-///
-/// `model`, when present, is used to name Blueprint classes and to report the
-/// component sets that the derived actors would not satisfy.
-pub fn actor_view(scene: &Scene, model: Option<&Model>) -> ActorView {
-    let mut view = ActorView {
-        actors: scene.actors.clone(),
-        ..Default::default()
-    };
-    let already: BTreeSet<Uuid> = scene
-        .actors
-        .iter()
-        .filter_map(|a| a.legacy_entity)
-        .collect();
-    let derived: Vec<Option<(Uuid, Domain)>> = scene
-        .entities
-        .iter()
-        .map(|entity| {
-            (!entity.id.is_nil() && !already.contains(&entity.id))
-                .then(|| (derived_id(entity.id, ""), domain_of(entity)))
-        })
-        .collect();
-
-    for (index, entity) in scene.entities.iter().enumerate() {
-        let Some((actor_id, domain)) = derived[index] else {
-            continue;
-        };
-        let mut actor = derive_actor(entity, actor_id, domain, model, &mut view.diagnostics);
-        if let Some(parent) = entity.parent
-            && let Some((parent_actor, parent_domain)) = derived.get(parent).copied().flatten()
-        {
-            actor.logical_parent = Some(parent_actor);
-            if parent_domain == domain {
-                actor.attach = Some(Attachment {
-                    actor: parent_actor,
-                    component: Some(derived_id(scene.entities[parent].id, "root")),
-                });
-            }
-        }
-        view.actors.push(actor);
-    }
-    if let Some(model) = model {
-        for actor in &view.actors {
-            let Some(class) = actor.class.resolve(model) else {
-                continue;
-            };
-            let specs = actor
-                .components
-                .iter()
-                .map(|c| object_model::ComponentSpec {
-                    id: c.id,
-                    class: c
-                        .class
-                        .class_id
-                        .clone()
-                        .unwrap_or_else(|| c.class.name.clone()),
-                    root: c.root,
-                })
-                .collect::<Vec<_>>();
-            if let Err(found) = model.validate_component_set(&class.id, &specs) {
-                view.diagnostics.extend(found);
-            }
-        }
-    }
-    view
-}
-
-fn domain_of(entity: &crate::scene::Entity) -> Domain {
-    if has_ui(entity) && !has_3d(entity) {
-        Domain::UI
-    } else {
-        Domain::World3D
-    }
-}
-
-fn derive_actor(
-    entity: &crate::scene::Entity,
-    id: Uuid,
-    domain: Domain,
-    model: Option<&Model>,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> ActorInstance {
-    let class = actor_class(entity, domain, model, diagnostics);
-    let mut actor = ActorInstance::new(id, class, &entity.name);
-    actor.active = entity.active;
-    actor.legacy_entity = Some(entity.id);
-    let component = |role: &str, name: &str, class: (&str, &str)| {
-        ComponentInstance::new(
-            derived_id(entity.id, role),
-            ClassReference::new(class.0, class.1),
-            name,
-        )
-    };
-    if domain == Domain::UI {
-        // The root is always the RectTransform: a Canvas is an additional
-        // component on the same actor, never a second root.
-        let mut root = component(
-            "root",
-            "RectTransform",
-            (
-                "epok::RectTransformComponent",
-                object_model::RECT_TRANSFORM_COMPONENT_ID,
-            ),
-        )
-        .rooted();
-        if let Some(rect) = &entity.rect {
-            root = root.with("rect", json(rect));
-        }
-        actor.components.push(root);
-        if let Some(canvas) = &entity.canvas {
-            actor.components.push(
-                component(
-                    "canvas",
-                    "Canvas",
-                    ("epok::CanvasComponent", object_model::CANVAS_COMPONENT_ID),
-                )
-                .with("canvas", json(canvas)),
-            );
-        }
-        if let Some(image) = &entity.image {
-            actor.components.push(
-                component(
-                    "image",
-                    "Image",
-                    ("epok::ImageComponent", object_model::IMAGE_COMPONENT_ID),
-                )
-                .with("image", json(image)),
-            );
-        }
-        if let Some(text) = &entity.text {
-            actor.components.push(
-                component(
-                    "text",
-                    "Text",
-                    ("epok::TextComponent", object_model::TEXT_COMPONENT_ID),
-                )
-                .with("text", json(text)),
-            );
-        }
-        if let Some(progress) = &entity.progress {
-            actor.components.push(
-                component(
-                    "progress",
-                    "ProgressBar",
-                    (
-                        "epok::ProgressBarComponent",
-                        object_model::PROGRESS_BAR_COMPONENT_ID,
-                    ),
-                )
-                .with("progress", json(progress)),
-            );
-        }
-    } else {
-        if has_ui(entity) {
-            // Splitting the identity would break every persisted reference to
-            // this entity, so the hybrid keeps its 3D actor and P7 asks the
-            // author what the UI half should become.
-            diagnostics.push(Diagnostic {
-                code: "hybrid-entity-pending-conversion",
-                message: format!(
-                    "`{}` carries both 3D and UI data. It is shown as a 3D actor; its UI components need an explicit conversion.",
-                    entity.name
-                ),
-                class: Some(entity.name.clone()),
-            });
-        }
-        let root = component(
-            "root",
-            "Transform",
-            ("epok::SceneComponent3D", object_model::SCENE_COMPONENT3D_ID),
-        )
-        .rooted()
-        .with("position", json(&entity.position))
-        .with("rotation", json(&entity.rotation))
-        .with("scale", json(&entity.scale));
-        actor.components.push(root);
-        match entity.kind.as_str() {
-            "Camera" => actor.components.push(
-                component(
-                    "camera",
-                    "Camera",
-                    (
-                        "epok::Camera3DComponent",
-                        object_model::CAMERA3D_COMPONENT_ID,
-                    ),
-                )
-                .with("camera_fov", json(&entity.camera_fov)),
-            ),
-            "Mesh" => actor.components.push(
-                component(
-                    "mesh",
-                    "Mesh",
-                    ("epok::Mesh3DComponent", object_model::MESH3D_COMPONENT_ID),
-                )
-                .with("material", json(&entity.material))
-                .with("lighting", json(&entity.lighting)),
-            ),
-            _ => {}
-        }
-        if let Some(sprite) = &entity.sprite {
-            // depth_bias and the ordering-relevant fields are carried verbatim;
-            // the sprite's own serialization is the contract.
-            let mut sprite_component = component(
-                "sprite",
-                "Sprite",
-                (
-                    "epok::Sprite3DComponent",
-                    object_model::SPRITE3D_COMPONENT_ID,
-                ),
-            )
-            .with("sprite", json(sprite))
-            .with("depth_bias", json(&sprite.depth_bias))
-            .with("orientation", json(&sprite.orientation));
-            if let Some(animator) = &entity.sprite_animator {
-                sprite_component = sprite_component.with("animator", json(animator));
-            }
-            actor.components.push(sprite_component);
-        }
-        if let Some(light) = &entity.light {
-            actor.components.push(
-                component(
-                    "light",
-                    "Light",
-                    ("epok::Light3DComponent", object_model::LIGHT3D_COMPONENT_ID),
-                )
-                .with("light", json(light)),
-            );
-        }
-        if let Some(collider) = &entity.collider {
-            actor.components.push(
-                component(
-                    "collider",
-                    "Collider",
-                    (
-                        "epok::Collider3DComponent",
-                        object_model::COLLIDER3D_COMPONENT_ID,
-                    ),
-                )
-                .with("collider", json(collider)),
-            );
-        }
-    }
-    if let Some(audio) = &entity.audio {
-        actor.components.push(
-            ComponentInstance::new(
-                derived_id(entity.id, "audio"),
-                ClassReference::new("epok::AudioComponent", object_model::AUDIO_COMPONENT_ID),
-                "Audio",
-            )
-            .with("audio", json(audio)),
-        );
-    }
-    if let Some(script) = &entity.script {
-        let mut behaviour = ComponentInstance::new(
-            derived_id(entity.id, "behaviour"),
-            ClassReference::new(
-                "epok::LegacyBehaviourComponent",
-                object_model::LEGACY_BEHAVIOUR_COMPONENT_ID,
-            ),
-            &script.name,
-        );
-        behaviour.properties = script.properties.clone();
-        behaviour.overrides = script.overrides.clone();
-        behaviour
-            .properties
-            .insert("behaviour".into(), Value::String(script.name.clone()));
-        behaviour.overrides.insert("behaviour".into());
-        if let Some(class_id) = &script.class_id {
-            behaviour
-                .properties
-                .insert("behaviour_class".into(), Value::String(class_id.clone()));
-            behaviour.overrides.insert("behaviour_class".into());
-        }
-        actor.components.push(behaviour);
-    }
-    actor
-}
-
-/// The class reference of a derived actor. A Blueprint instance keeps its class
-/// identity so the compiler can find it again; everything else is one of the
-/// two minimal placeable bases.
-fn actor_class(
-    entity: &crate::scene::Entity,
-    domain: Domain,
-    model: Option<&Model>,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> ClassReference {
-    let base = if domain == Domain::UI {
-        ClassReference::new("epok::UIActor", object_model::UI_ACTOR_ID)
-    } else {
-        ClassReference::new("epok::Actor3D", object_model::ACTOR3D_ID)
-    };
-    let Some(instance) = &entity.blueprint_instance else {
-        return base;
-    };
-    match model.and_then(|model| model.class(&instance.class)) {
-        Some(class) => ClassReference::new(&class.cpp_name, &class.id),
-        None => {
-            diagnostics.push(Diagnostic {
-                code: "unknown-blueprint-class",
-                message: format!(
-                    "`{}` is an instance of Blueprint class {}, which is not in the current registry; the derived actor falls back to `{}`",
-                    entity.name, instance.class, base.name
-                ),
-                class: Some(base.name.clone()),
-            });
-            // The identity is retained even when the class is missing, so the
-            // redirect table can repair it later without losing the link.
-            ClassReference {
-                name: base.name.clone(),
-                class_id: Some(instance.class.clone()),
-            }
-        }
-    }
-}
-
-fn json<T: Serialize>(value: &T) -> Value {
-    serde_json::to_value(value).unwrap_or(Value::Null)
-}
-
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::reflection_schema::{
         self as schema, Cardinality, ComponentContract, Extension, Location, Placement,
     };
-    use crate::scene::Entity;
+    use crate::scene::Actor;
     use serde_json::json as j;
     use std::fs;
 
     // ---- model fixtures -------------------------------------------------
     // Hand-built declarations, like the tests in `object_model.rs`: libclang
     // extraction needs the MIPS include paths and cannot run on a host.
-    fn class(id: &str, name: &str, parent: Option<&str>) -> schema::Class {
+    pub(crate) fn class(id: &str, name: &str, parent: Option<&str>) -> schema::Class {
         schema::Class {
             id: id.into(),
             provider: schema::native_provider(),
@@ -1161,6 +877,45 @@ mod tests {
     }
     /// The native bases plus the P3/P8 adapters the migration names.
     fn model() -> Model {
+        Model::from_registry(&registry()).unwrap()
+    }
+    fn lifecycle_events() -> Vec<schema::Function> {
+        ["begin_play", "tick", "end_play", "on_enable", "on_disable"]
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| schema::Function {
+                id: Uuid::from_u128(900 + i as u128).to_string(),
+                name: name.into(),
+                parameters: match name {
+                    "tick" => vec![schema::Parameter {
+                        name: "dt".into(),
+                        value_type: schema::Type::Fixed,
+                        direction: schema::Direction::Value,
+                    }],
+                    "end_play" => vec![schema::Parameter {
+                        name: "reason".into(),
+                        value_type: schema::Type::Enum {
+                            cpp_name: "epok::EndPlayReason".into(),
+                            variants: Default::default(),
+                        },
+                        direction: schema::Direction::Value,
+                    }],
+                    _ => vec![],
+                },
+                returns: schema::Type::Void,
+                callable: false,
+                timeline: None,
+                event: true,
+                pure: false,
+                abstract_method: false,
+                final_method: false,
+                access: "public".into(),
+                overrides: vec![],
+                source: class("", "", None).source,
+            })
+            .collect()
+    }
+    pub(crate) fn registry() -> crate::blueprint::Registry {
         let all = [Domain::World3D, Domain::World2D, Domain::UI];
         let mut classes = vec![];
         let mut object = class(object_model::OBJECT_ID, "epok::Object", None);
@@ -1176,7 +931,14 @@ mod tests {
         actor.family = Some(ClassFamily::Actor);
         actor.domain = Some(Domain::None);
         actor.explicit_abstract = true;
+        actor.functions = lifecycle_events();
         classes.push(actor);
+        classes.push(actor_class_decl(
+            object_model::ACTOR2D_ID,
+            "epok::Actor2D",
+            Domain::World2D,
+            true,
+        ));
         classes.push(actor_class_decl(
             object_model::ACTOR3D_ID,
             "epok::Actor3D",
@@ -1205,7 +967,20 @@ mod tests {
         component.family = Some(ClassFamily::Component);
         component.domain = Some(Domain::None);
         component.explicit_abstract = true;
+        component.functions = lifecycle_events();
+        component.component = Some(ComponentContract {
+            owners: all.into_iter().collect(),
+            ..Default::default()
+        });
         classes.push(component);
+        classes.push(component_decl(
+            object_model::SCENE_COMPONENT2D_ID,
+            "epok::SceneComponent2D",
+            object_model::ACTOR_COMPONENT_ID,
+            Domain::World2D,
+            &[Domain::World2D],
+            true,
+        ));
         classes.push(component_decl(
             object_model::SCENE_COMPONENT3D_ID,
             "epok::SceneComponent3D",
@@ -1288,24 +1063,11 @@ mod tests {
             ..Default::default()
         });
         classes.push(audio);
-        let mut legacy = class(
-            object_model::LEGACY_BEHAVIOUR_COMPONENT_ID,
-            "epok::LegacyBehaviourComponent",
-            Some(object_model::ACTOR_COMPONENT_ID),
-        );
-        legacy.domain = Some(Domain::None);
-        legacy.blueprintable = false;
-        legacy.component = Some(ComponentContract {
-            owners: all.into_iter().collect(),
-            cardinality: Cardinality::Multiple,
-            ..Default::default()
-        });
-        classes.push(legacy);
         let mut registry = crate::blueprint::Registry::new();
         for c in classes {
             registry.classes.insert(c.id.clone(), c);
         }
-        Model::from_registry(&registry).expect("fixture model resolves")
+        registry
     }
     fn _unused(_: Extension) {}
 
@@ -1369,7 +1131,7 @@ mod tests {
     // ---- round trip ------------------------------------------------------
 
     #[test]
-    fn version_five_scene_round_trips_actors_components_attachments_and_scene_script() {
+    fn current_scene_round_trips_actors_components_attachments_and_scene_script() {
         let mut scene = Scene::default();
         let mut first = actor3d("Hero");
         first.properties.insert("speed".into(), j!(2.5));
@@ -1388,7 +1150,7 @@ mod tests {
         hud.components.push(audio_component());
         scene.actors = vec![first, second, hud];
         scene.scene_script = Some(scene_script());
-        scene.version = 5;
+        scene.version = SCENE_VERSION;
         scene.validate().unwrap();
         scene.validate_with_model(Some(&model())).unwrap();
 
@@ -1407,34 +1169,34 @@ mod tests {
     }
 
     #[test]
-    fn version_six_is_rejected_as_written_by_a_newer_editor() {
+    fn next_version_is_rejected_as_written_by_a_newer_editor() {
         let scene = Scene {
-            version: 6,
+            version: SCENE_VERSION + 1,
             ..Scene::default()
         };
         let error = scene.validate().unwrap_err();
         assert!(error.contains("newer editor"), "{error}");
         // And never silently read as an empty document.
-        assert_eq!(scene.entities.len(), 4);
+        assert_eq!(scene.actors.len(), 4);
     }
 
     #[test]
-    fn saving_actor_content_raises_the_version_and_classic_scenes_stay_at_three() {
+    fn all_authored_scenes_use_the_actor_document_version() {
         let mut scene = Scene::default();
         scene.upgrade_entity_ids();
-        assert_eq!(scene.version, 3);
+        assert_eq!(scene.version, SCENE_VERSION);
         scene.actors.push(actor3d("Hero"));
         scene.upgrade_entity_ids();
-        assert_eq!(scene.version, 5);
+        assert_eq!(scene.version, SCENE_VERSION);
         scene.actors.clear();
-        scene.version = 3;
+        scene.version = SCENE_VERSION;
         scene.scene_script = Some(scene_script());
         scene.upgrade_entity_ids();
-        assert_eq!(scene.version, 5);
+        assert_eq!(scene.version, SCENE_VERSION);
     }
 
     #[test]
-    fn two_save_cycles_are_idempotent_for_legacy_and_version_five_documents() {
+    fn two_save_cycles_are_idempotent_and_retired_documents_are_preserved() {
         let root = crate::workspace::tests::temp("actor-document-idempotent");
         fs::create_dir_all(&root).unwrap();
 
@@ -1443,23 +1205,13 @@ mod tests {
         let legacy_path = root.join("Legacy.epokmap");
         let mut legacy = serde_json::to_value(Scene::default()).unwrap();
         legacy["version"] = j!(2);
-        for entity in legacy["entities"].as_array_mut().unwrap() {
+        for entity in legacy["actors"].as_array_mut().unwrap() {
             entity.as_object_mut().unwrap().remove("id");
         }
         let original = serde_json::to_vec(&legacy).unwrap();
         fs::write(&legacy_path, &original).unwrap();
-        let loaded = Scene::load(&legacy_path).unwrap();
-        assert_eq!(
-            fs::read(&legacy_path).unwrap(),
-            original,
-            "load must not rewrite the document"
-        );
-        loaded.save(&legacy_path).unwrap();
-        let first = fs::read(&legacy_path).unwrap();
-        let reloaded = Scene::load(&legacy_path).unwrap();
-        assert_eq!(reloaded, loaded);
-        reloaded.save(&legacy_path).unwrap();
-        assert_eq!(fs::read(&legacy_path).unwrap(), first);
+        assert!(Scene::load(&legacy_path).unwrap_err().contains("recreate"));
+        assert_eq!(fs::read(&legacy_path).unwrap(), original);
 
         // Version 5 with actors, components and a scene script.
         let path = root.join("Actors.epokmap");
@@ -1473,7 +1225,7 @@ mod tests {
         scene.save(&path).unwrap();
         let first = fs::read(&path).unwrap();
         let loaded = Scene::load(&path).unwrap();
-        assert_eq!(loaded.version, 5);
+        assert_eq!(loaded.version, SCENE_VERSION);
         assert_eq!(loaded.actors.len(), 2);
         loaded.save(&path).unwrap();
         assert_eq!(fs::read(&path).unwrap(), first);
@@ -1491,9 +1243,9 @@ mod tests {
         scene.actors = vec![a.clone(), b.clone()];
         scene.validate().unwrap();
         scene.actors[1].id = scene.actors[0].id;
-        assert!(scene.validate().unwrap_err().contains("already used"));
+        assert!(scene.validate().unwrap_err().contains("Duplicate"));
         // A component may not reuse an entity identity either.
-        a.components[0].id = scene.entities[0].id;
+        a.components[0].id = scene.actors[0].id;
         scene.actors = vec![a, b];
         assert!(scene.validate().unwrap_err().contains("already used"));
     }
@@ -1575,11 +1327,6 @@ mod tests {
         });
         scene.actors = vec![a.clone()];
         assert!(scene.validate().unwrap_err().contains("not in this scene"));
-
-        a.attach = None;
-        a.legacy_entity = Some(Uuid::new_v4());
-        scene.actors = vec![a];
-        assert!(scene.validate().unwrap_err().contains("no longer exists"));
     }
 
     #[test]
@@ -1604,7 +1351,6 @@ mod tests {
         let mut scene = Scene::default();
         let asset = Uuid::new_v4();
         let mut hero = actor3d("Hero");
-        hero.legacy_entity = Some(scene.entities[1].id);
         hero.properties.insert("mesh".into(), j!(asset.to_string()));
         hero.overrides.insert("mesh".into());
         let mut hud = ui_actor("Health");
@@ -1639,8 +1385,7 @@ mod tests {
             Some(copy.actors[0].components[0].id)
         );
         assert_eq!(copy.actors[0].properties["mesh"], j!(asset.to_string()));
-        assert_eq!(copy.actors[0].legacy_entity, Some(copy.entities[1].id));
-        assert_ne!(copy.entities[1].id, scene.entities[1].id);
+        assert_ne!(copy.actors[1].id, scene.actors[1].id);
         let blueprint = &copy.scene_script.as_ref().unwrap().blueprint;
         assert_ne!(blueprint.id, old_blueprint);
         assert_eq!(
@@ -1654,9 +1399,7 @@ mod tests {
     fn duplicate_and_delete_branch_carry_and_drop_the_actors_of_the_branch() {
         let mut scene = Scene::default();
         let mut hero = actor3d("Hero");
-        hero.legacy_entity = Some(scene.entities[1].id);
         let mut child = actor3d("Child");
-        child.legacy_entity = Some(scene.entities[2].id);
         child.logical_parent = Some(hero.id);
         child.attach = Some(Attachment {
             actor: hero.id,
@@ -1664,194 +1407,34 @@ mod tests {
         });
         let outside = actor3d("Outside");
         let outside_id = outside.id;
-        scene.entities[2].parent = Some(1);
         scene.actors = vec![hero, child, outside];
         scene.validate().unwrap();
 
-        let copy = scene.duplicate_branch(1).unwrap();
+        scene.refresh_actor_hierarchy();
+        let copy = scene.duplicate_branch(0).unwrap();
         scene.validate().unwrap();
         assert_eq!(scene.actors.len(), 5);
-        let copied_hero = scene
-            .actors
-            .iter()
-            .find(|a| a.legacy_entity == Some(scene.entities[copy].id))
-            .expect("the copied root carries the copied entity");
-        let copied_child = scene
-            .actors
-            .iter()
-            .find(|a| a.legacy_entity == Some(scene.entities[copy + 1].id))
-            .expect("the copied child");
+        let copied_hero = &scene.actors[copy];
+        let copied_child = &scene.actors[copy + 1];
         assert_eq!(copied_child.logical_parent, Some(copied_hero.id));
         assert_ne!(copied_hero.id, scene.actors[0].id);
 
-        scene.delete_branch(1);
+        scene.delete_branch(0);
         scene.validate().unwrap();
         // The originals are gone; the copies and the unrelated actor survive.
         assert!(scene.actors.iter().any(|a| a.id == outside_id));
         assert_eq!(scene.actors.len(), 3);
     }
 
-    // ---- legacy view -----------------------------------------------------
-
-    fn legacy_scene() -> Scene {
-        let mut scene = Scene {
-            version: 4,
-            entities: vec![],
-            ..Scene::default()
-        };
-        let mut camera = Entity::cube("Main Camera".into());
-        camera.kind = "Camera".into();
-        let mesh = Entity::cube("Cube".into());
-        let mut empty = Entity::cube("Pivot".into());
-        empty.kind = "Empty".into();
-        empty.parent = Some(1);
-        let mut sprite = Entity::cube("Coin".into());
-        sprite.kind = "Empty".into();
-        sprite.sprite = Some(crate::sprites::Sprite {
-            depth_bias: -7,
-            ..Default::default()
-        });
-        let mut canvas = Entity::cube("Canvas".into());
-        canvas.kind = "Empty".into();
-        canvas.canvas = Some(crate::hud::Canvas::default());
-        canvas.rect = Some(crate::hud::RectTransform::default());
-        let mut image = Entity::cube("Bar".into());
-        image.kind = "Empty".into();
-        image.parent = Some(4);
-        image.rect = Some(crate::hud::RectTransform::default());
-        image.image = Some(crate::hud::Image::default());
-        let mut hybrid = Entity::cube("Hybrid".into());
-        hybrid.rect = Some(crate::hud::RectTransform::default());
-        let mut scripted = Entity::cube("Scripted".into());
-        scripted.kind = "Empty".into();
-        scripted.script = Some(crate::scene::ScriptBinding {
-            name: "Spinner".into(),
-            class_id: Some("11111111-2222-3333-4444-555555555555".into()),
-            properties: [("speed".to_owned(), j!(90.0))].into_iter().collect(),
-            overrides: ["speed".to_owned()].into_iter().collect(),
-            ..Default::default()
-        });
-        scripted.audio = Some(Default::default());
-        scene.entities = vec![camera, mesh, empty, sprite, canvas, image, hybrid, scripted];
-        for (index, entity) in scene.entities.iter_mut().enumerate() {
-            entity.id = Uuid::from_u128(0xA000 + index as u128);
-        }
-        scene
-    }
-
     #[test]
-    fn legacy_entities_map_to_actors_deterministically_without_touching_the_scene() {
-        let scene = legacy_scene();
-        let before = scene.clone();
-        let view = actor_view(&scene, None);
-        assert_eq!(scene, before, "actor_view never writes to the scene");
-        assert_eq!(actor_view(&scene, None).actors, view.actors);
-        assert_eq!(view.actors.len(), scene.entities.len());
-
-        let classes = |name: &str| -> Vec<String> {
-            view.actors
-                .iter()
-                .find(|a| a.name == name)
-                .unwrap()
-                .components
-                .iter()
-                .map(|c| c.class.name.clone())
-                .collect()
-        };
-        let actor = |name: &str| view.actors.iter().find(|a| a.name == name).unwrap();
-
-        assert_eq!(actor("Main Camera").class.name, "epok::Actor3D");
-        assert_eq!(
-            classes("Main Camera"),
-            ["epok::SceneComponent3D", "epok::Camera3DComponent"]
-        );
-        assert_eq!(
-            classes("Cube"),
-            ["epok::SceneComponent3D", "epok::Mesh3DComponent"]
-        );
-        assert_eq!(classes("Pivot"), ["epok::SceneComponent3D"]);
-        assert_eq!(
-            classes("Coin"),
-            ["epok::SceneComponent3D", "epok::Sprite3DComponent"]
-        );
-        let coin = actor("Coin");
-        assert_eq!(coin.components[1].properties["depth_bias"], j!(-7));
-
-        assert_eq!(actor("Canvas").class.name, "epok::UIActor");
-        assert_eq!(
-            classes("Canvas"),
-            ["epok::RectTransformComponent", "epok::CanvasComponent"]
-        );
-        assert_eq!(
-            classes("Bar"),
-            ["epok::RectTransformComponent", "epok::ImageComponent"]
-        );
-        // UI parenting stays inside the UI domain.
-        let bar = actor("Bar");
-        assert_eq!(bar.logical_parent, Some(actor("Canvas").id));
-        assert_eq!(bar.attach.as_ref().unwrap().actor, actor("Canvas").id);
-
-        // Hybrid: 3D identity kept, conversion reported.
-        assert_eq!(actor("Hybrid").class.name, "epok::Actor3D");
-        assert!(view.codes().contains(&"hybrid-entity-pending-conversion"));
-
-        // Script + audio.
-        assert_eq!(
-            classes("Scripted"),
-            [
-                "epok::SceneComponent3D",
-                "epok::AudioComponent",
-                "epok::LegacyBehaviourComponent"
-            ]
-        );
-        let behaviour = actor("Scripted").components.last().unwrap();
-        assert_eq!(behaviour.name, "Spinner");
-        assert_eq!(behaviour.properties["speed"], j!(90.0));
-        assert!(behaviour.overrides.contains("speed"));
-        assert_eq!(
-            behaviour.properties["behaviour_class"],
-            j!("11111111-2222-3333-4444-555555555555")
-        );
-
-        // A 3D child of a 3D parent attaches spatially; a 3D actor never
-        // attaches to a UI one.
-        let pivot = actor("Pivot");
-        assert_eq!(pivot.logical_parent, Some(actor("Cube").id));
-        assert!(pivot.attach.is_some());
-
-        // Provenance points back at the entity it came from.
-        for (entity, actor) in scene.entities.iter().zip(&view.actors) {
-            assert_eq!(actor.legacy_entity, Some(entity.id));
-            assert_eq!(actor.id, derived_id(entity.id, ""));
+    fn actor_document_has_one_identity_and_no_flat_script_or_transform() {
+        let actor = ActorInstance::cube("Cube".into());
+        let value = serde_json::to_value(&actor).unwrap();
+        for retired in ["script", "position", "rotation", "scale", "legacy_entity"] {
+            assert!(value.get(retired).is_none());
         }
-    }
-
-    #[test]
-    fn the_derived_view_satisfies_the_model_and_reuses_authored_actors() {
-        let mut scene = legacy_scene();
-        let model = model();
-        let view = actor_view(&scene, Some(&model));
-        assert_eq!(
-            view.codes()
-                .into_iter()
-                .filter(|c| *c != "hybrid-entity-pending-conversion")
-                .collect::<Vec<_>>(),
-            Vec::<&str>::new(),
-            "{:?}",
-            view.diagnostics
-        );
-        // An entity that already has an authored actor is not derived twice.
-        let mut authored = actor3d("Authored Cube");
-        authored.legacy_entity = Some(scene.entities[1].id);
-        scene.actors = vec![authored];
-        let view = actor_view(&scene, Some(&model));
-        assert_eq!(view.actors.len(), scene.entities.len());
-        assert_eq!(
-            view.actors
-                .iter()
-                .filter(|a| a.legacy_entity == Some(scene.entities[1].id))
-                .count(),
-            1
-        );
+        let restored: ActorInstance = serde_json::from_value(value).unwrap();
+        assert_eq!(restored.id, actor.id);
+        assert_eq!(restored.components, actor.components);
     }
 }

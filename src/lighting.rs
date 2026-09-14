@@ -1,6 +1,6 @@
 //! Offline vertex lighting and the bounded lighting model used by the PSX runtime.
 use crate::{
-    scene::{Entity, Scene},
+    scene::{Actor, Scene},
     transform::Matrix,
 };
 use serde::{Deserialize, Serialize};
@@ -118,7 +118,7 @@ pub const NORMALS: [[f32; 3]; 6] = [
     [0., 1., 0.],
     [0., -1., 0.],
 ];
-pub fn tiled(e: &Entity) -> bool {
+pub fn tiled(e: &Actor) -> bool {
     e.skeletal_mesh.is_none()
         && e.editable_mesh.is_none()
         && e.kind == "Mesh"
@@ -126,7 +126,7 @@ pub fn tiled(e: &Entity) -> bool {
         && e.scale[0] >= 2.
         && e.scale[2] >= 2.
 }
-pub fn face_steps(e: &Entity, f: usize) -> usize {
+pub fn face_steps(e: &Actor, f: usize) -> usize {
     if tiled(e) {
         if f == 5 {
             0
@@ -139,7 +139,7 @@ pub fn face_steps(e: &Entity, f: usize) -> usize {
         e.lighting.subdivisions as usize
     }
 }
-pub fn quad_count(e: &Entity) -> usize {
+pub fn quad_count(e: &Actor) -> usize {
     if e.kind != "Mesh" {
         return 0;
     }
@@ -157,7 +157,7 @@ pub struct Quad {
     pub material: crate::scene::Material,
     pub id: Option<uuid::Uuid>,
 }
-pub fn quads(e: &Entity) -> Vec<Quad> {
+pub fn quads(e: &Actor) -> Vec<Quad> {
     if e.kind != "Mesh" {
         return vec![];
     }
@@ -233,7 +233,7 @@ pub fn fingerprint(scene: &Scene) -> u64 {
         }
     }
     let meshes: Vec<_> = scene
-        .entities
+        .actors
         .iter()
         .enumerate()
         .filter(|(_, e)| e.kind == "Mesh")
@@ -249,7 +249,7 @@ pub fn fingerprint(scene: &Scene) -> u64 {
         })
         .collect();
     let lights: Vec<_> = scene
-        .entities
+        .actors
         .iter()
         .enumerate()
         .filter_map(|(i, e)| {
@@ -260,7 +260,7 @@ pub fn fingerprint(scene: &Scene) -> u64 {
         })
         .collect();
     let mut hash = Fnv(14695981039346656037);
-    serde_json::to_vec(&(2, &scene.environment, scene.entities.len(), meshes, lights))
+    serde_json::to_vec(&(2, &scene.environment, scene.actors.len(), meshes, lights))
         .unwrap_or_default()
         .hash(&mut hash);
     hash.finish()
@@ -268,14 +268,14 @@ pub fn fingerprint(scene: &Scene) -> u64 {
 pub fn valid_bake(scene: &Scene) -> bool {
     scene.bake.as_ref().is_some_and(|b| {
         b.fingerprint == fingerprint(scene)
-            && b.colors.len() == scene.entities.len()
+            && b.colors.len() == scene.actors.len()
             && b.colors
                 .iter()
-                .zip(&scene.entities)
+                .zip(&scene.actors)
                 .all(|(c, e)| c.len() == if baked(e) { quad_count(e) * 4 } else { 0 })
     })
 }
-pub fn baked(e: &Entity) -> bool {
+pub fn baked(e: &Actor) -> bool {
     e.kind == "Mesh"
         && (e.editable_mesh.is_some() || !e.material.unlit)
         && e.lighting.receive == Receive::Baked
@@ -295,12 +295,9 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
     // Editable meshes can form a world larger than the per-frame GPU budget:
     // their immutable payload may live on CD. Keep each compiled mesh bounded
     // and retain the existing aggregate limit for resources that stay resident.
-    if scene
-        .entities
-        .iter()
-        .any(|entity| quad_count(entity) > 3500)
+    if scene.actors.iter().any(|entity| quad_count(entity) > 3500)
         || scene
-            .entities
+            .actors
             .iter()
             .filter(|entity| entity.editable_mesh.is_none())
             .map(quad_count)
@@ -309,10 +306,10 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
     {
         return Err("Lighting geometry budget: at most 7000 triangles per mesh and across resident primitive/skeletal meshes; reduce subdivisions".into());
     }
-    if scene.entities.iter().filter(|e| e.light.is_some()).count() > 32 {
+    if scene.actors.iter().filter(|e| e.light.is_some()).count() > 32 {
         return Err("Lighting budget: at most 32 authored lights".into());
     }
-    for e in &scene.entities {
+    for e in &scene.actors {
         if !(1..=8).contains(&e.lighting.subdivisions) {
             return Err("Mesh subdivisions must be 1–8".into());
         }
@@ -354,7 +351,7 @@ impl Lighting {
     pub fn new(scene: &Scene) -> Self {
         Self {
             sources: scene
-                .entities
+                .actors
                 .iter()
                 .enumerate()
                 .filter_map(|(i, e)| {
@@ -369,7 +366,7 @@ impl Lighting {
                 })
                 .collect(),
             casters: scene
-                .entities
+                .actors
                 .iter()
                 .enumerate()
                 .filter(|(_, e)| {
@@ -527,8 +524,8 @@ impl Lighting {
 pub fn bake(scene: &Scene) -> Result<Bake, String> {
     scene.validate()?;
     let lighting = Lighting::new(scene);
-    let mut colors = vec![Vec::new(); scene.entities.len()];
-    for (i, e) in scene.entities.iter().enumerate().filter(|(_, e)| baked(e)) {
+    let mut colors = vec![Vec::new(); scene.actors.len()];
+    for (i, e) in scene.actors.iter().enumerate().filter(|(_, e)| baked(e)) {
         let world = scene.world_matrix(i);
         for q in quads(e) {
             let n = transform_normal(world, q.normal);
@@ -554,29 +551,29 @@ mod tests {
     #[test]
     fn baked_point_gradient_and_parent_invalidation() {
         let mut s = Scene::default();
-        s.entities[1].lighting = MeshLighting {
+        s.actors[1].lighting = MeshLighting {
             receive: Receive::Baked,
             static_geometry: true,
             subdivisions: 4,
             ..Default::default()
         };
-        s.entities[2].kind = "Empty".into();
-        s.entities[3].kind = "Empty".into();
-        s.entities[2].light = Some(Light {
+        s.actors[2].kind = "Empty".into();
+        s.actors[3].kind = "Empty".into();
+        s.actors[2].light = Some(Light {
             kind: LightType::Point,
             mode: LightMode::Baked,
             intensity: 1.,
             range: 3.,
             ..Default::default()
         });
-        s.entities[2].position = [0.5, 1., -1.];
-        s.entities[2].parent = Some(3);
-        s.entities[3].position = [0.; 3];
-        s.entities[3].scale = [1.; 3];
+        s.actors[2].position = [0.5, 1., -1.];
+        s.reparent(2, Some(3), false).unwrap();
+        s.actors[3].position = [0.; 3];
+        s.actors[3].scale = [1.; 3];
         s.bake = Some(bake(&s).unwrap());
         let colors = &s.bake.as_ref().unwrap().colors[1];
         assert!(colors.iter().map(|c| c[0]).max() > colors.iter().map(|c| c[0]).min());
-        s.entities[3].position[0] += 1.;
+        s.actors[3].position[0] += 1.;
         assert!(!valid_bake(&s));
         s.bake = Some(bake(&s).unwrap());
         assert!(valid_bake(&s));
@@ -587,18 +584,18 @@ mod tests {
     fn bake_shadows_invalidation_and_serialization() {
         let mut s = Scene::default();
         s.environment.ambient = [0.1; 3];
-        s.entities[3].lighting.static_geometry = true;
-        s.entities[3].lighting.receive = Receive::Baked;
-        s.entities[1].lighting.static_geometry = true;
-        s.entities[2].kind = "Empty".into();
-        let mut l = Entity::cube("Sun".into());
+        s.actors[3].lighting.static_geometry = true;
+        s.actors[3].lighting.receive = Receive::Baked;
+        s.actors[1].lighting.static_geometry = true;
+        s.actors[2].kind = "Empty".into();
+        let mut l = Actor::cube("Sun".into());
         l.kind = "Empty".into();
         l.rotation = [90., 0., 0.];
         l.light = Some(Light {
             mode: LightMode::Mixed,
             ..Light::default()
         });
-        s.entities.push(l);
+        s.actors.push(l);
         s.bake = Some(bake(&s).unwrap());
         assert!(valid_bake(&s));
         let colors = &s.bake.as_ref().unwrap().colors[3];
@@ -606,9 +603,9 @@ mod tests {
         assert!(colors.iter().any(|c| c[0] < 40));
         let copy: Scene = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert!(valid_bake(&copy));
-        s.entities[0].position[0] += 1.;
+        s.actors[0].position[0] += 1.;
         assert!(valid_bake(&s));
-        s.entities[1].position[0] += 1.;
+        s.actors[1].position[0] += 1.;
         assert!(!valid_bake(&s));
     }
     #[test]
@@ -616,27 +613,27 @@ mod tests {
         let mut s = Scene::default();
         s.environment.ambient = [0.; 3];
         for _ in 0..4 {
-            let mut l = Entity::cube("Light".into());
+            let mut l = Actor::cube("Light".into());
             l.kind = "Empty".into();
             l.light = Some(Light {
                 intensity: 0.25,
                 ..Light::default()
             });
-            s.entities.push(l);
+            s.actors.push(l);
         }
         let rgb = Lighting::new(&s).sample([0.; 3], [0., 0., -1.], 1, false, false);
         assert_eq!(rgb, [64; 3]);
         let m = Matrix::trs([0.; 3], [10., 30., 20.], [2., 1., 3.]);
         let n = normal(m, 4);
         assert!(dot(n, m.vector([1., 0., 0.])).abs() < 0.0001);
-        s.entities[1].lighting.subdivisions = 9;
+        s.actors[1].lighting.subdivisions = 9;
         assert!(s.validate().is_err());
     }
 }
 #[test]
 fn blockout_walls_shadow_floors_in_the_same_entity() {
     let mut scene = Scene::default();
-    scene.entities.truncate(2);
+    scene.actors.truncate(2);
     let mut doc = crate::mesh::Document::default();
     let g = doc.groups[0].id;
     let m = doc.materials[0].id;
@@ -644,9 +641,9 @@ fn blockout_walls_shadow_floors_in_the_same_entity() {
     doc.primitive("Plane", [0., 2., 0.], [4., 1., 4.], 1, g, m);
     let mut component = crate::mesh::Component::new(uuid::Uuid::new_v4());
     component.document = Some(std::sync::Arc::new(doc));
-    scene.entities[1].position = [0.; 3];
-    scene.entities[1].editable_mesh = Some(component);
-    scene.entities[1].lighting.static_geometry = true;
+    scene.actors[1].position = [0.; 3];
+    scene.actors[1].editable_mesh = Some(component);
+    scene.actors[1].lighting.static_geometry = true;
     let lighting = Lighting::new(&scene);
     assert!(lighting.blocked([0., 0.003, 0.], [0., 1., 0.], 10., 1));
     assert!(!lighting.blocked([0., 2.003, 0.], [0., 1., 0.], 10., 1));

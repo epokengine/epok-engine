@@ -217,7 +217,8 @@ mod tests {
             squared_error: 0,
             encoded_input_frames: 0,
             maximum_loop_step: 0.,
-            accounting: Default::default(), loops: vec![],
+            accounting: Default::default(),
+            loops: vec![],
         }
     }
 
@@ -248,10 +249,12 @@ mod tests {
         assert_eq!(proposed.preset, Preset::Custom);
         assert_eq!(proposed.max_sample_rate, 12_000);
         assert!(proposal.candidates.len() <= MAX_CANDIDATES);
-        assert!(proposal
-            .candidates
-            .windows(2)
-            .all(|pair| pair[0].ordinal + 1 == pair[1].ordinal));
+        assert!(
+            proposal
+                .candidates
+                .windows(2)
+                .all(|pair| pair[0].ordinal + 1 == pair[1].ordinal)
+        );
     }
 
     #[test]

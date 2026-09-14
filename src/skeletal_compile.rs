@@ -1,6 +1,6 @@
 //! Compile portable UUID-linked assets into immutable PSX tables.
 use crate::{
-    scene::Entity,
+    scene::Actor,
     skeletal::{Model, Pose},
 };
 use std::fmt::Write;
@@ -45,7 +45,7 @@ pub fn validate_bounds(m: &Model) -> Result<(), String> {
     }
     Ok(())
 }
-pub fn header(e: &Entity, id: usize) -> Result<String, String> {
+pub fn header(e: &Actor, id: usize) -> Result<String, String> {
     let c = e.skeletal_mesh.as_ref().ok_or("No skeletal component")?;
     let m = c.model.as_ref().ok_or_else(|| {
         c.error

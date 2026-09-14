@@ -2,20 +2,30 @@
 
 > **Header:** `"sequence_service.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/sequence_service.hpp)
 
-This module covers the sequence service module. It documents 18 public callables declared directly in this header.
+This module covers the sequence service module. It documents 28 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::psx_audio::Instance`, `epok::psx_audio::Parameters`, `epok::psx_audio::Phase`, `epok::psx_audio::Physical`, `epok::SequenceStats`
+`epok::psx_audio::Instance`, `epok::psx_audio::Parameters`, `epok::psx_audio::Phase`, `epok::psx_audio::Physical`, `epok::SequenceStats`, `epok::SequenceTimingStats`
 
 ## Callable index
 
+- [`epok::psx_audio::counter_ticks`](#epok-psx-audio-counter-ticks-1) — Performs `counter ticks` as part of the sequence service module.
+- [`epok::psx_audio::first_voice`](#epok-psx-audio-first-voice-1) — Performs `first voice` as part of the sequence service module.
+- [`epok::psx_audio::Instance::advance_library`](#epok-psx-audio-instance-advance-library-1) — Performs `advance library` as part of the sequence service module.
 - [`epok::psx_audio::Instance::cut`](#epok-psx-audio-instance-cut-1) — Performs `cut` as part of the sequence service module.
+- [`epok::psx_audio::Instance::defer_note`](#epok-psx-audio-instance-defer-note-1) — Performs `defer note` as part of the sequence service module.
+- [`epok::psx_audio::Instance::finish_layer`](#epok-psx-audio-instance-finish-layer-1) — Performs `finish layer` as part of the sequence service module.
+- [`epok::psx_audio::Instance::owns`](#epok-psx-audio-instance-owns-1) — Performs `owns` as part of the sequence service module.
 - [`epok::psx_audio::Instance::release`](#epok-psx-audio-instance-release-1) — Performs `release` as part of the sequence service module.
+- [`epok::psx_audio::Instance::release_library`](#epok-psx-audio-instance-release-library-1) — Performs `release library` as part of the sequence service module.
 - [`epok::psx_audio::Instance::start`](#epok-psx-audio-instance-start-1) — Starts start as part of the sequence service module.
+- [`epok::psx_audio::Instance::start_library`](#epok-psx-audio-instance-start-library-1) — Starts library as part of the sequence service module.
 - [`epok::psx_audio::Instance::update`](#epok-psx-audio-instance-update-1) — Updates update as part of the sequence service module.
+- [`epok::psx_audio::Instance::update_library`](#epok-psx-audio-instance-update-library-1) — Updates library as part of the sequence service module.
 - [`epok::psx_audio::Instance::voice`](#epok-psx-audio-instance-voice-1) — Performs `voice` as part of the sequence service module.
 - [`epok::psx_audio::next_envelope`](#epok-psx-audio-next-envelope-1) — Performs `next envelope` as part of the sequence service module.
+- [`epok::psx_audio::Physical::reset_metadata`](#epok-psx-audio-physical-reset-metadata-1) — Resets metadata as part of the sequence service module.
 - [`epok::psx_audio::retire`](#epok-psx-audio-retire-1) — Performs `retire` as part of the sequence service module.
 - [`epok::psx_audio::stolen`](#epok-psx-audio-stolen-1) — Performs `stolen` as part of the sequence service module.
 - [`epok::sequence_clock_fault`](#epok-sequence-clock-fault-1) — Performs `sequence clock fault` as part of the sequence service module.
@@ -29,6 +39,119 @@ This module covers the sequence service module. It documents 18 public callables
 - [`epok::sequence_update_sources`](#epok-sequence-update-sources-1) — Performs `sequence update sources` as part of the sequence service module.
 - [`epok::sequence_voice_stolen`](#epok-sequence-voice-stolen-1) — Performs `sequence voice stolen` as part of the sequence service module.
 
+<a id="epok-psx-audio-counter-ticks-1"></a>
+
+## `epok::psx_audio::counter_ticks`
+
+**Purpose.** Performs `counter ticks` as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+inline uint16_t counter_ticks()
+```
+
+- **Declared at:** [line 56](../../../runtime/sequence_service.hpp#L56)
+- **Kind:** `function decl`
+
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+auto result = epok::psx_audio::counter_ticks();
+```
+
+**Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+
+<a id="epok-psx-audio-first-voice-1"></a>
+
+## `epok::psx_audio::first_voice`
+
+**Purpose.** Performs `first voice` as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+inline int first_voice(uint32_t mask)
+```
+
+- **Declared at:** [line 64](../../../runtime/sequence_service.hpp#L64)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
+
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// uint32_t mask
+
+auto result = epok::psx_audio::first_voice(mask);
+```
+
+**Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+
+<a id="epok-psx-audio-instance-advance-library-1"></a>
+
+## `epok::psx_audio::Instance::advance_library`
+
+**Purpose.** Performs `advance library` as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+bool advance_library(int number)
+```
+
+- **Declared at:** [line 114](../../../runtime/sequence_service.hpp#L114)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `number` | `int` | Input | Value supplied for `number`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int number
+
+epok::psx_audio::Instance& object = /* obtain a valid instance */;
+
+auto result = object.advance_library(number);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions. The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+
 <a id="epok-psx-audio-instance-cut-1"></a>
 
 ## `epok::psx_audio::Instance::cut`
@@ -41,7 +164,7 @@ This module covers the sequence service module. It documents 18 public callables
 void cut(uint16_t note)
 ```
 
-- **Declared at:** [line 41](../../../runtime/sequence_service.hpp#L41)
+- **Declared at:** [line 99](../../../runtime/sequence_service.hpp#L99)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -71,6 +194,136 @@ object.cut(note);
 
 **Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
 
+<a id="epok-psx-audio-instance-defer-note-1"></a>
+
+## `epok::psx_audio::Instance::defer_note`
+
+**Purpose.** Performs `defer note` as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+bool defer_note(const sequence::Event&,uint32_t cursor)
+```
+
+- **Declared at:** [line 83](../../../runtime/sequence_service.hpp#L83)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `arg1` | `const sequence::Event &` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+| `cursor` | `uint32_t` | Input | Value supplied for `cursor`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// const sequence::Event & arg1
+// uint32_t cursor
+
+epok::psx_audio::Instance& object = /* obtain a valid instance */;
+
+auto result = object.defer_note(arg1, cursor);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions. The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-psx-audio-instance-finish-layer-1"></a>
+
+## `epok::psx_audio::Instance::finish_layer`
+
+**Purpose.** Performs `finish layer` as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+void finish_layer(int i)
+```
+
+- **Declared at:** [line 107](../../../runtime/sequence_service.hpp#L107)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `i` | `int` | Input | Value supplied for `i`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int i
+
+epok::psx_audio::Instance& object = /* obtain a valid instance */;
+
+object.finish_layer(i);
+```
+
+**Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+
+<a id="epok-psx-audio-instance-owns-1"></a>
+
+## `epok::psx_audio::Instance::owns`
+
+**Purpose.** Performs `owns` as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+bool owns(int voice,uint16_t note)const
+```
+
+- **Declared at:** [line 92](../../../runtime/sequence_service.hpp#L92)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `voice` | `int` | Input | Value supplied for `voice`. See the exact type and module contract. |
+| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int voice
+// uint16_t note
+
+epok::psx_audio::Instance& object = /* obtain a valid instance */;
+
+auto result = object.owns(voice, note);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions. The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+
 <a id="epok-psx-audio-instance-release-1"></a>
 
 ## `epok::psx_audio::Instance::release`
@@ -83,7 +336,7 @@ object.cut(note);
 void release(uint16_t note)
 ```
 
-- **Declared at:** [line 45](../../../runtime/sequence_service.hpp#L45)
+- **Declared at:** [line 117](../../../runtime/sequence_service.hpp#L117)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -113,6 +366,48 @@ object.release(note);
 
 **Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
 
+<a id="epok-psx-audio-instance-release-library-1"></a>
+
+## `epok::psx_audio::Instance::release_library`
+
+**Purpose.** Performs `release library` as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+void release_library(uint16_t note)
+```
+
+- **Declared at:** [line 115](../../../runtime/sequence_service.hpp#L115)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// uint16_t note
+
+epok::psx_audio::Instance& object = /* obtain a valid instance */;
+
+object.release_library(note);
+```
+
+**Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+
 <a id="epok-psx-audio-instance-start-1"></a>
 
 ## `epok::psx_audio::Instance::start`
@@ -125,7 +420,7 @@ object.release(note);
 bool start(uint16_t note,const sequence::Note& n,const sequence::Channel& channel)
 ```
 
-- **Declared at:** [line 77](../../../runtime/sequence_service.hpp#L77)
+- **Declared at:** [line 164](../../../runtime/sequence_service.hpp#L164)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -159,6 +454,52 @@ auto result = object.start(note, n, channel);
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-psx-audio-instance-start-library-1"></a>
+
+## `epok::psx_audio::Instance::start_library`
+
+**Purpose.** Starts library as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+bool start_library(uint16_t note,const sequence::Note& n,const sequence::Channel& channel)
+```
+
+- **Declared at:** [line 165](../../../runtime/sequence_service.hpp#L165)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `n` | `const sequence::Note &` | Input | Value supplied for `n`. See the exact type and module contract. |
+| `channel` | `const sequence::Channel &` | Input | Value supplied for `channel`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// uint16_t note
+// const sequence::Note & n
+// const sequence::Channel & channel
+
+epok::psx_audio::Instance& object = /* obtain a valid instance */;
+
+auto result = object.start_library(note, n, channel);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions. The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-psx-audio-instance-update-1"></a>
 
 ## `epok::psx_audio::Instance::update`
@@ -171,7 +512,7 @@ auto result = object.start(note, n, channel);
 void update(uint16_t note,const sequence::Channel& channel)
 ```
 
-- **Declared at:** [line 52](../../../runtime/sequence_service.hpp#L52)
+- **Declared at:** [line 125](../../../runtime/sequence_service.hpp#L125)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -203,6 +544,52 @@ object.update(note, channel);
 
 **Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-psx-audio-instance-update-library-1"></a>
+
+## `epok::psx_audio::Instance::update_library`
+
+**Purpose.** Updates library as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+void update_library(int physical_voice,const sequence::Channel& channel,bool controls_changed)
+```
+
+- **Declared at:** [line 116](../../../runtime/sequence_service.hpp#L116)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `physical_voice` | `int` | Input | Value supplied for `physical_voice`. See the exact type and module contract. |
+| `channel` | `const sequence::Channel &` | Input | Value supplied for `channel`. See the exact type and module contract. |
+| `controls_changed` | `bool` | Input | Value supplied for `controls_changed`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int physical_voice
+// const sequence::Channel & channel
+// bool controls_changed
+
+epok::psx_audio::Instance& object = /* obtain a valid instance */;
+
+object.update_library(physical_voice, channel, controls_changed);
+```
+
+**Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-psx-audio-instance-voice-1"></a>
 
 ## `epok::psx_audio::Instance::voice`
@@ -215,7 +602,7 @@ object.update(note, channel);
 int voice(uint16_t note) const
 ```
 
-- **Declared at:** [line 37](../../../runtime/sequence_service.hpp#L37)
+- **Declared at:** [line 95](../../../runtime/sequence_service.hpp#L95)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -257,7 +644,7 @@ auto result = object.voice(note);
 inline void next_envelope(Physical& v)
 ```
 
-- **Declared at:** [line 92](../../../runtime/sequence_service.hpp#L92)
+- **Declared at:** [line 182](../../../runtime/sequence_service.hpp#L182)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -285,6 +672,39 @@ epok::psx_audio::next_envelope(v);
 
 **Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-psx-audio-physical-reset-metadata-1"></a>
+
+## `epok::psx_audio::Physical::reset_metadata`
+
+**Purpose.** Resets metadata as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+void reset_metadata()
+```
+
+- **Declared at:** [line 41](../../../runtime/sequence_service.hpp#L41)
+- **Kind:** `cxx method`
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+epok::psx_audio::Physical& object = /* obtain a valid instance */;
+
+object.reset_metadata();
+```
+
+**Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+
 <a id="epok-psx-audio-retire-1"></a>
 
 ## `epok::psx_audio::retire`
@@ -297,7 +717,7 @@ epok::psx_audio::next_envelope(v);
 inline void retire(Instance& instance)
 ```
 
-- **Declared at:** [line 81](../../../runtime/sequence_service.hpp#L81)
+- **Declared at:** [line 169](../../../runtime/sequence_service.hpp#L169)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -337,7 +757,7 @@ epok::psx_audio::retire(instance);
 inline void stolen(int i)
 ```
 
-- **Declared at:** [line 85](../../../runtime/sequence_service.hpp#L85)
+- **Declared at:** [line 175](../../../runtime/sequence_service.hpp#L175)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -377,7 +797,7 @@ epok::psx_audio::stolen(i);
 inline void sequence_clock_fault()
 ```
 
-- **Declared at:** [line 230](../../../runtime/sequence_service.hpp#L230)
+- **Declared at:** [line 347](../../../runtime/sequence_service.hpp#L347)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -408,7 +828,7 @@ epok::sequence_clock_fault();
 inline bool sequence_is_playing(const AudioSource* source)
 ```
 
-- **Declared at:** [line 131](../../../runtime/sequence_service.hpp#L131)
+- **Declared at:** [line 231](../../../runtime/sequence_service.hpp#L231)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -448,7 +868,7 @@ auto result = epok::sequence_is_playing(source);
 inline psx_audio::Parameters sequence_parameters(const AudioSource* source)
 ```
 
-- **Declared at:** [line 143](../../../runtime/sequence_service.hpp#L143)
+- **Declared at:** [line 243](../../../runtime/sequence_service.hpp#L243)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -488,7 +908,7 @@ auto result = epok::sequence_parameters(source);
 inline void sequence_play(AudioSource* source)
 ```
 
-- **Declared at:** [line 149](../../../runtime/sequence_service.hpp#L149)
+- **Declared at:** [line 249](../../../runtime/sequence_service.hpp#L249)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -528,7 +948,7 @@ epok::sequence_play(source);
 inline bool sequence_prepare()
 ```
 
-- **Declared at:** [line 234](../../../runtime/sequence_service.hpp#L234)
+- **Declared at:** [line 351](../../../runtime/sequence_service.hpp#L351)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -559,7 +979,7 @@ auto result = epok::sequence_prepare();
 inline bool sequence_retiring()
 ```
 
-- **Declared at:** [line 138](../../../runtime/sequence_service.hpp#L138)
+- **Declared at:** [line 238](../../../runtime/sequence_service.hpp#L238)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -590,7 +1010,7 @@ auto result = epok::sequence_retiring();
 inline void sequence_service(uint32_t elapsed_us)
 ```
 
-- **Declared at:** [line 169](../../../runtime/sequence_service.hpp#L169)
+- **Declared at:** [line 283](../../../runtime/sequence_service.hpp#L283)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -630,7 +1050,7 @@ epok::sequence_service(elapsed_us);
 inline void sequence_stop(AudioSource* source)
 ```
 
-- **Declared at:** [line 135](../../../runtime/sequence_service.hpp#L135)
+- **Declared at:** [line 235](../../../runtime/sequence_service.hpp#L235)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -670,7 +1090,7 @@ epok::sequence_stop(source);
 inline void sequence_update_sources()
 ```
 
-- **Declared at:** [line 159](../../../runtime/sequence_service.hpp#L159)
+- **Declared at:** [line 266](../../../runtime/sequence_service.hpp#L266)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -701,7 +1121,7 @@ epok::sequence_update_sources();
 inline void sequence_voice_stolen(int voice)
 ```
 
-- **Declared at:** [line 130](../../../runtime/sequence_service.hpp#L130)
+- **Declared at:** [line 230](../../../runtime/sequence_service.hpp#L230)
 - **Kind:** `function decl`
 
 **Parameters**

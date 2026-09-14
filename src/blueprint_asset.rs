@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub const VERSION: u32 = 4;
+pub const VERSION: u32 = 5;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlueprintAsset {
     pub version: u32,
@@ -22,6 +22,8 @@ pub struct BlueprintAsset {
     /// and its semantic hash.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub family: Option<crate::reflection_schema::ClassFamily>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component: Option<crate::reflection_schema::ComponentContract>,
     #[serde(default)]
     pub defaults: BTreeMap<String, Value>,
     #[serde(default)]
@@ -43,6 +45,7 @@ impl BlueprintAsset {
             name,
             parent,
             family: None,
+            component: None,
             defaults: BTreeMap::new(),
             variables: vec![],
             functions: vec![],
@@ -147,6 +150,19 @@ pub struct Node {
     #[serde(default)]
     pub outputs: BTreeMap<String, Vec<String>>,
 }
+/// Sequence has ordered, individually wired outputs and one spare pin (up to 32).
+pub fn sequence_outputs(node: &Node) -> Vec<String> {
+    let last = node
+        .outputs
+        .keys()
+        .filter_map(|pin| {
+            pin.strip_prefix("then_")
+                .and_then(|n| n.parse::<usize>().ok())
+        })
+        .max();
+    let count = last.map_or(2, |n| (n + 2).clamp(2, 32));
+    (0..count).map(|i| format!("then_{i}")).collect()
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Input {
@@ -238,9 +254,20 @@ pub enum BinaryOp {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Builtin {
-    SelfEntity,
+    SelfObject,
     IsValid,
     GetPosition,
+    GetPosition2D,
+    SetPosition2D,
+    GetRotation2D,
+    SetRotation2D,
+    GetScale2D,
+    SetScale2D,
+    GetRectPosition,
+    SetRectPosition,
+    GetRectSize,
+    SetRectSize,
+
     GetRotation,
     GetScale,
     SetPosition,
@@ -251,7 +278,7 @@ pub enum Builtin {
     InputReleased,
     RequestScene,
     SetActive,
-    DestroyEntity,
+    DestroyActor,
     Spawn { class: String },
     SpawnClass { base: String },
     IsA { class: String },
@@ -286,13 +313,12 @@ pub enum PlaybackCondition {
     SubscribeMarker { timeline: String, marker: String },
 }
 /// The identities an embedded scene Blueprint may name by UUID. Map-scoped
-/// `ActorRef`/`EntityRef` literals are resolved against this set at compile time,
+/// `ActorRef`/`ObjectRef` literals are resolved against this set at compile time,
 /// never by a name lookup at Tick.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MapScope {
     pub actors: std::collections::BTreeSet<uuid::Uuid>,
     pub components: std::collections::BTreeSet<uuid::Uuid>,
-    pub entities: std::collections::BTreeSet<uuid::Uuid>,
 }
 /// Where a compiler input came from. Everything that existed before this phase is
 /// a `File`, so the variant is the default and existing constructors keep working.
@@ -351,7 +377,6 @@ pub fn embedded(map: &Path, scene: &crate::scene::Scene) -> Option<AssetFile> {
             .iter()
             .flat_map(|actor| actor.components.iter().map(|c| c.id))
             .collect(),
-        entities: scene.entities.iter().map(|entity| entity.id).collect(),
     };
     Some(AssetFile {
         path: map.to_path_buf(),
@@ -363,7 +388,7 @@ pub fn load(path: &Path) -> Result<BlueprintAsset, String> {
     let mut asset: BlueprintAsset =
         crate::document::from_slice(&fs::read(path).map_err(|e| e.to_string())?)
             .map_err(|e| format!("{}: {e}", path.display()))?;
-    if ![1, 2, 3, VERSION].contains(&asset.version) {
+    if asset.version != VERSION {
         return Err(format!(
             "{}: unsupported Blueprint version {}; original data preserved",
             path.display(),
@@ -479,32 +504,23 @@ mod tests {
     /// must still load, must resolve `family` to `None`, and must hash to exactly the
     /// value it hashed to under version 3 - otherwise every existing Blueprint in every
     /// project would look stale after upgrading the editor.
-    const V3_FIXTURE: &str = r#"{"version":3,"id":"11111111-2222-3333-4444-555555555555","name":"Boss","parent":"66666666-7777-8888-9999-000000000000","defaults":{},"variables":[],"functions":[],"layout":{"positions":{},"comments":{}},"template":{"entities":[]}}"#;
+    const V3_FIXTURE: &str = r#"{"version":3,"id":"11111111-2222-3333-4444-555555555555","name":"Boss","parent":"66666666-7777-8888-9999-000000000000","defaults":{},"variables":[],"functions":[],"layout":{"positions":{},"comments":{}},"template":{"actors":[]}}"#;
     /// The exact bytes `semantic_hash` digests for that fixture, and their SHA-256.
     /// Both were computed independently of this code path (the digest with Python's
     /// `hashlib` over the string below), so a regression here is a real ABI change.
-    const V3_SEMANTIC_JSON: &str = r#"{"version":3,"id":"11111111-2222-3333-4444-555555555555","name":"Boss","parent":"66666666-7777-8888-9999-000000000000","defaults":{},"variables":[],"functions":[],"layout":{"positions":{},"comments":{}},"template":{"entities":[],"overrides":{},"references":[],"construction":[]}}"#;
+    const V3_SEMANTIC_JSON: &str = r#"{"version":3,"id":"11111111-2222-3333-4444-555555555555","name":"Boss","parent":"66666666-7777-8888-9999-000000000000","defaults":{},"variables":[],"functions":[],"layout":{"positions":{},"comments":{}},"template":{"actors":[],"overrides":{},"references":[],"construction":[]}}"#;
     const V3_SEMANTIC_HASH: &str =
         "9aaee305fc982599d4609bcceb6d0c87aeddaa1b8c4f0b5189fff1625a0385d1";
 
     #[test]
-    fn version_three_assets_keep_their_semantic_hash_under_the_family_hint() {
-        let asset: BlueprintAsset = crate::document::from_slice(V3_FIXTURE.as_bytes()).unwrap();
-        assert_eq!(asset.version, 3);
-        assert!(asset.family.is_none());
-        assert_eq!(asset.semantic_hash(), V3_SEMANTIC_HASH);
-        // The hint is skipped when absent, so the hashed bytes are exactly the version-3
-        // bytes: no new key, no reordering, nothing for the constant above to drift from.
-        let mut semantic = asset.clone();
-        semantic.layout = Layout::default();
-        assert_eq!(
-            String::from_utf8(serde_json::to_vec(&semantic).unwrap()).unwrap(),
-            V3_SEMANTIC_JSON
-        );
-        // Declaring a hint is a semantic change and must invalidate the class.
-        let mut hinted = asset;
-        hinted.family = Some(crate::reflection_schema::ClassFamily::Actor);
-        assert_ne!(hinted.semantic_hash(), V3_SEMANTIC_HASH);
+    fn family_hint_is_a_semantic_change_in_current_assets() {
+        let mut asset = BlueprintAsset::new("Test".into(), crate::object_model::ACTOR3D_ID.into());
+        let original = asset.semantic_hash();
+        asset.family = Some(crate::reflection_schema::ClassFamily::Actor);
+        assert_ne!(asset.semantic_hash(), original);
+        let restored: BlueprintAsset =
+            crate::document::from_slice(&serde_json::to_vec(&asset).unwrap()).unwrap();
+        assert_eq!(restored.semantic_hash(), asset.semantic_hash());
     }
 
     #[test]
@@ -516,11 +532,11 @@ mod tests {
         assert_eq!(a.extra, b.extra);
     }
     #[test]
-    fn earlier_versions_migrate_in_memory_without_writing_source() {
+    fn earlier_versions_are_rejected_without_writing_source() {
         let root = crate::workspace::tests::temp("blueprint-playback-migration");
         std::fs::create_dir_all(&root).unwrap();
         let path = root.join("Earlier.epokbp");
-        for version in [1, 2, 3] {
+        for version in 1..VERSION {
             let mut original =
                 BlueprintAsset::new("Earlier".into(), uuid::Uuid::new_v4().to_string());
             original.version = version;
@@ -529,9 +545,11 @@ mod tests {
                 .insert("future".into(), serde_json::json!({"preserved":true}));
             let bytes = serde_json::to_vec(&original).unwrap();
             std::fs::write(&path, &bytes).unwrap();
-            let migrated = load(&path).unwrap();
-            assert_eq!(migrated.version, VERSION);
-            assert_eq!(migrated.extra, original.extra);
+            assert!(
+                load(&path)
+                    .unwrap_err()
+                    .contains("unsupported Blueprint version")
+            );
             assert_eq!(std::fs::read(&path).unwrap(), bytes);
         }
     }

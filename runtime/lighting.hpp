@@ -125,13 +125,13 @@ public:
         count=0;
         for(size_t i=0;i<N;++i)reset_owner(i);
     }
-    void prepare(const std::array<Entity,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t object_count){
+    void prepare(const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t object_count){
         count=0;lighting_work={};
         for(size_t i=0;i<object_count && count<sources.size();++i){const auto& l=objects[i].light;if(!l.enabled || l.mode==LightMode::Baked || !is_active_slot(i))continue;
             auto& s=sources[count++];s.entity=i;s.direction=lighting_detail::direction(world[i]);for(int c=0;c<3;++c)s.position[c]=world[i].values[c][3].raw();
         }lighting_work.active_lights=count;
     }
-    std::array<psyqo::Color,6> shade(size_t object,const std::array<Entity,N>& objects,const std::array<Affine<Fixed>,N>& world,bool generic=false){
+    std::array<psyqo::Color,6> shade(size_t object,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,bool generic=false){
         using namespace lighting_detail;using namespace psyqo::GTE;
         const auto& material=objects[object].material;std::array<psyqo::Color,6> output;
         if(material.unlit || !objects[object].lighting.enabled){for(auto& c:output)c=psyqo::Color{{.r=material.color[0],.g=material.color[1],.b=material.color[2]}};return output;}

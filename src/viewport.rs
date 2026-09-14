@@ -296,7 +296,7 @@ pub fn render(
     let baked_valid = crate::lighting::valid_bake(scene);
     let mut polygons = Vec::new();
     for (index, entity) in scene
-        .entities
+        .actors
         .iter()
         .enumerate()
         .filter(|(_, e)| e.kind == "Mesh")
@@ -355,7 +355,7 @@ pub fn render(
     }
     if !game
         && let Some(index) = selected
-        && let Some(entity) = scene.entities.get(index)
+        && let Some(entity) = scene.actors.get(index)
         && let Some(collider) = &entity.collider
         && collider.enabled
     {

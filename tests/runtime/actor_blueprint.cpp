@@ -28,12 +28,12 @@ void AudioSource::stop() {}
 bool AudioSource::is_playing() const { return false; }
 
 // Scene slot service. A cooked game supplies these from its scene bank; the host suite
-// resolves handles against the component-owned Entity storage of the actors below, which
+// resolves handles against the component-owned ActorData storage of the actors below, which
 // is all `epok::bp::actor_handle` needs to be exercised.
-static Entity* slots[8] = {};
+static ActorData* slots[8] = {};
 static uint16_t slot_count = 0;
-EntityHandle handle(const Entity* entity) {
-    EntityHandle result;
+DataHandle handle(const ActorData* entity) {
+    DataHandle result;
     if (!entity) return result;
     for (uint16_t i = 0; i < slot_count; ++i)
         if (slots[i] == entity) {
@@ -42,18 +42,18 @@ EntityHandle handle(const Entity* entity) {
             return result;
         }
     if (slot_count < 8) {
-        slots[slot_count] = const_cast<Entity*>(entity);
+        slots[slot_count] = const_cast<ActorData*>(entity);
         result.index = slot_count++;
         result.generation = entity->generation;
     }
     return result;
 }
-Entity* EntityHandle::get() const {
+ActorData* DataHandle::get() const {
     return index < slot_count && slots[index]->alive && slots[index]->generation == generation
                ? slots[index]
                : nullptr;
 }
-bool is_active(const Entity* entity) { return entity && entity->alive && entity->active; }
+bool is_active(const ActorData* entity) { return entity && entity->alive && entity->active; }
 }  // namespace epok
 
 using namespace epok;
@@ -68,18 +68,18 @@ public:
     unsigned begins = 0, ticks = 0, ends = 0;
 
     virtual void begin_play() override {
-        epok::Entity* epok_self = epok::bp::actor_entity(this);
+        epok::ActorData* epok_self = epok::bp::actor_entity(this);
         (void)epok_self;
-        const auto epok_owner = epok_self ? epok::handle(epok_self) : epok::EntityHandle{};
+        const auto epok_owner = epok_self ? epok::handle(epok_self) : epok::DataHandle{};
         (void)epok_owner;
         ++begins;
         epok::Actor3D::begin_play();
     }
     epok::bp::Continuations<8> epok_tasks;
     void tick(epok::Fixed dt) override {
-        epok::Entity* epok_self = epok::bp::actor_entity(this);
+        epok::ActorData* epok_self = epok::bp::actor_entity(this);
         (void)epok_self;
-        const auto epok_owner = epok_self ? epok::handle(epok_self) : epok::EntityHandle{};
+        const auto epok_owner = epok_self ? epok::handle(epok_self) : epok::DataHandle{};
         (void)epok_owner;
         epok_tasks.advance(dt, epok::blueprint_scene_generation);
         epok::Actor3D::tick(dt);
@@ -176,12 +176,13 @@ int main() {
     assert(epok::bp::actor_entity(goblin) == nullptr);
     assert(epok::bp::actor_handle(goblin).get() == nullptr);
 
-    static Entity legacy_slot;
+    static ActorData legacy_slot;
     legacy_slot.alive = true;
     legacy_slot.active = true;
     auto* root = registry.resolve<SceneComponent3D>(goblin->root_id());
     assert(root != nullptr);
     root->bind_slot(legacy_slot);
+    goblin->bind_data(legacy_slot);
     assert(epok::bp::actor_entity(goblin) == &legacy_slot);
     assert(epok::bp::actor_handle(goblin).get() == &legacy_slot);
     assert(&epok::bp::actor_transform(goblin) == &legacy_slot.transform);

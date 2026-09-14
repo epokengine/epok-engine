@@ -23,23 +23,77 @@ fn serial_controls_report_pending_and_guard_reset_target() {
     let (job, events, controls) = crate::pipeline::Job::test_channels();
     e.job = Some(job);
     e.playing = true;
-    assert!(mcp_tools::execute(&mut e, &mut state, "editor_control", json!({"action":"reset_psx"})).is_err());
+    assert!(
+        mcp_tools::execute(
+            &mut e,
+            &mut state,
+            "editor_control",
+            json!({"action":"reset_psx"})
+        )
+        .is_err()
+    );
     assert!(controls.try_recv().is_err());
     e.active_play_target = crate::play::Target::Serial;
-    let reply = mcp_tools::execute(&mut e, &mut state, "editor_control", json!({"action":"pause"})).unwrap();
+    let reply = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "editor_control",
+        json!({"action":"pause"}),
+    )
+    .unwrap();
     assert_eq!(reply["state"]["serial"]["command_pending"], true);
-    assert!(matches!(controls.try_recv(), Ok(crate::pipeline::Control::Pause)));
-    assert!(mcp_tools::execute(&mut e, &mut state, "editor_control", json!({"action":"resume"})).is_err());
-    events.send(crate::pipeline::Event::SerialCommandPending(false)).unwrap();
+    assert!(matches!(
+        controls.try_recv(),
+        Ok(crate::pipeline::Control::Pause)
+    ));
+    assert!(
+        mcp_tools::execute(
+            &mut e,
+            &mut state,
+            "editor_control",
+            json!({"action":"resume"})
+        )
+        .is_err()
+    );
+    events
+        .send(crate::pipeline::Event::SerialCommandPending(false))
+        .unwrap();
     events.send(crate::pipeline::Event::Paused(true)).unwrap();
     e.tick();
-    mcp_tools::execute(&mut e, &mut state, "editor_control", json!({"action":"resume"})).unwrap();
-    assert!(matches!(controls.try_recv(), Ok(crate::pipeline::Control::Resume)));
+    mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "editor_control",
+        json!({"action":"resume"}),
+    )
+    .unwrap();
+    assert!(matches!(
+        controls.try_recv(),
+        Ok(crate::pipeline::Control::Resume)
+    ));
     e.serial_ui.command_pending = false;
-    mcp_tools::execute(&mut e, &mut state, "editor_control", json!({"action":"reset_psx"})).unwrap();
-    assert!(matches!(controls.try_recv(), Ok(crate::pipeline::Control::Reset)));
-    mcp_tools::execute(&mut e, &mut state, "editor_control", json!({"action":"stop"})).unwrap();
-    assert!(matches!(controls.try_recv(), Ok(crate::pipeline::Control::Stop)));
+    mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "editor_control",
+        json!({"action":"reset_psx"}),
+    )
+    .unwrap();
+    assert!(matches!(
+        controls.try_recv(),
+        Ok(crate::pipeline::Control::Reset)
+    ));
+    mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "editor_control",
+        json!({"action":"stop"}),
+    )
+    .unwrap();
+    assert!(matches!(
+        controls.try_recv(),
+        Ok(crate::pipeline::Control::Stop)
+    ));
     let root = e.root.clone();
     drop(e);
     fs::remove_dir_all(root).unwrap();
@@ -60,18 +114,18 @@ fn scene_batches_are_atomic_versioned_and_reversible() {
             json!({"revision":mcp_tools::revision(&e.scene),"operations":ops}),
         )
     };
-    assert!(run(&mut e,&mut state,json!([{"op":"create","entity":{"name":"Temporary"}},{"op":"update","index":999,"patch":{"name":"Bad"}}])).is_err());
+    assert!(run(&mut e,&mut state,json!([{"op":"create","actor":{"name":"Temporary"}},{"op":"update","index":999,"patch":{"name":"Bad"}}])).is_err());
     assert_eq!(e.scene, original);
     assert!(state.undo.is_empty());
     assert!(
         run(
             &mut e,
             &mut state,
-            json!([{"op":"create","entity":{"name":"Bad","material":{"typo":1}}}])
+            json!([{"op":"create","actor":{"name":"Bad","material":{"typo":1}}}])
         )
         .is_err()
     );
-    run(&mut e,&mut state,json!([{"op":"create","entity":{"name":"AI Mesh","position":[1,2,3]}},{"op":"update","index":0,"patch":{"material":{"color":[0.2,0.5,1.0]}}}])).unwrap();
+    run(&mut e,&mut state,json!([{"op":"create","actor":{"name":"AI Mesh","position":[1,2,3]}},{"op":"update","index":0,"patch":{"material":{"color":[0.2,0.5,1.0]}}}])).unwrap();
     let updated = mcp_tools::revision(&e.scene);
     assert!(e.rename.is_none() && e.hud_drag.is_none());
     assert_ne!(initial, updated);
@@ -99,7 +153,7 @@ fn scene_batches_are_atomic_versioned_and_reversible() {
         json!({"revision":initial,"action":"redo"}),
     )
     .unwrap();
-    e.scene.entities[0].name = "Human edit".into();
+    e.scene.actors[0].name = "Human edit".into();
     let hash = mcp_tools::revision(&e.scene);
     assert!(
         mcp_tools::execute(
@@ -110,7 +164,7 @@ fn scene_batches_are_atomic_versioned_and_reversible() {
         )
         .is_err()
     );
-    assert_eq!(e.scene.entities[0].name, "Human edit");
+    assert_eq!(e.scene.actors[0].name, "Human edit");
 }
 #[test]
 fn files_preserve_conflicts_backups_and_project_boundary() {
@@ -172,10 +226,10 @@ fn mesh_assets_can_be_created_attached_and_edited() {
     )
     .unwrap();
     let hash = mcp_tools::revision(&e.scene);
-    mcp_tools::execute(&mut e,&mut state,"scene_apply",json!({"revision":hash,"operations":[{"op":"create","entity":{"name":"AI Stairs","editable_mesh":asset["component"]}}]})).unwrap();
+    mcp_tools::execute(&mut e,&mut state,"scene_apply",json!({"revision":hash,"operations":[{"op":"create","actor":{"name":"AI Stairs","editable_mesh":asset["component"]}}]})).unwrap();
     assert!(
         e.scene
-            .entities
+            .actors
             .last()
             .unwrap()
             .editable_mesh
@@ -205,7 +259,7 @@ fn mesh_assets_can_be_created_attached_and_edited() {
     .unwrap();
     assert_eq!(
         e.scene
-            .entities
+            .actors
             .last()
             .unwrap()
             .editable_mesh
@@ -235,7 +289,7 @@ fn mesh_assets_can_be_created_attached_and_edited() {
     mcp_tools::execute(&mut e,&mut state,"asset_manage",json!({"action":"move","path":asset["path"],"revision":record.revision,"destination":"assets/meshes/Moved.epokasset"})).unwrap();
     assert!(
         e.scene
-            .entities
+            .actors
             .last()
             .unwrap()
             .editable_mesh
@@ -293,7 +347,7 @@ fn real_mcp_client_can_negotiate_call_tools_and_read_resources() {
                 assert_ne!(result.is_error, Some(true));
                 let data: serde_json::Value =
                     serde_json::from_str(&result.content[0].as_text().unwrap().text).unwrap();
-                assert!(data["scene"]["entities"].is_array());
+                assert!(data["scene"]["actors"].is_array());
                 let result = client
                     .read_resource(ReadResourceRequestParams::new("epok://editor/state"))
                     .await
@@ -421,143 +475,30 @@ fn at_revision(
 /// Native bases in the shape `Model::from_registry` resolves. Reflection needs the MIPS
 /// include paths, so every object-model test in the tree builds its classes by hand.
 pub(crate) fn actor_catalog() -> Vec<crate::scripts::Script> {
-    use crate::{object_model as om, reflection_schema as schema};
-    fn class(id: &str, cpp_name: &str, parent: Option<&str>) -> schema::Class {
-        schema::Class {
-            family: None,
-            domain: None,
-            placement: Default::default(),
-            component: None,
-            default_components: vec![],
-            explicit_abstract: false,
-            id: id.into(),
-            provider: schema::native_provider(),
-            backend: schema::native_backend(),
-            cpp_name: cpp_name.into(),
-            parent: parent.map(str::to_owned),
-            abstract_class: false,
-            final_class: false,
-            timeline_component: None,
-            blueprintable: true,
-            properties: vec![],
-            functions: vec![],
-            source: schema::Location {
-                file: std::path::PathBuf::from("runtime/object_model.hpp"),
-                line: 0,
-                column: 0,
-            },
-        }
-    }
-    let mut actor = class(om::ACTOR_ID, "epok::Actor", None);
-    actor.family = Some(schema::ClassFamily::Actor);
-    actor.abstract_class = true;
-    let mut actor3d = class(om::ACTOR3D_ID, "epok::Actor3D", Some(om::ACTOR_ID));
-    actor3d.domain = Some(schema::Domain::World3D);
-    actor3d.placement = schema::Placement {
-        placeable: true,
-        spawnable: true,
-        scene_managed: false,
-    };
-    let mut script_actor = class(
-        om::SCENE_SCRIPT_ACTOR_ID,
-        "epok::SceneScriptActor",
-        Some(om::ACTOR_ID),
-    );
-    script_actor.placement = schema::Placement {
-        placeable: false,
-        spawnable: false,
-        scene_managed: true,
-    };
-    let mut component = class(om::ACTOR_COMPONENT_ID, "epok::ActorComponent", None);
-    component.family = Some(schema::ClassFamily::Component);
-    component.abstract_class = true;
-    let mut root = class(
-        om::SCENE_COMPONENT3D_ID,
-        "epok::SceneComponent3D",
-        Some(om::ACTOR_COMPONENT_ID),
-    );
-    root.domain = Some(schema::Domain::World3D);
-    root.component = Some(schema::ComponentContract {
-        owners: [schema::Domain::World3D].into_iter().collect(),
-        requires: vec![],
-        excludes: vec![],
-        cardinality: schema::Cardinality::Single,
-        can_root: true,
-        capabilities: Default::default(),
-    });
-    // A second domain, so the attachment rule of a cross-domain reparent is
-    // exercised rather than assumed.
-    let mut actor2d = class(om::ACTOR2D_ID, "epok::Actor2D", Some(om::ACTOR_ID));
-    actor2d.domain = Some(schema::Domain::World2D);
-    actor2d.placement = schema::Placement {
-        placeable: true,
-        spawnable: true,
-        scene_managed: false,
-    };
-    let mut root2d = class(
-        om::SCENE_COMPONENT2D_ID,
-        "epok::SceneComponent2D",
-        Some(om::ACTOR_COMPONENT_ID),
-    );
-    root2d.domain = Some(schema::Domain::World2D);
-    root2d.component = Some(schema::ComponentContract {
-        owners: [schema::Domain::World2D].into_iter().collect(),
-        requires: vec![],
-        excludes: vec![],
-        cardinality: schema::Cardinality::Single,
-        can_root: true,
-        capabilities: Default::default(),
-    });
-    // A domain-less component every spatial actor may own, several times over.
-    let mut audio = class(
-        om::AUDIO_COMPONENT_ID,
-        "epok::AudioComponent",
-        Some(om::ACTOR_COMPONENT_ID),
-    );
-    audio.component = Some(schema::ComponentContract {
-        owners: [
-            schema::Domain::World3D,
-            schema::Domain::World2D,
-            schema::Domain::UI,
-        ]
-        .into_iter()
-        .collect(),
-        requires: vec![],
-        excludes: vec![],
-        cardinality: schema::Cardinality::Multiple,
-        can_root: false,
-        capabilities: Default::default(),
-    });
     vec![crate::scripts::Script {
         name: "epok::Actor".into(),
-        parent: None,
-        properties: vec![],
-        header: std::path::PathBuf::from("object_model.hpp"),
-        classes: vec![
-            actor,
-            actor3d,
-            actor2d,
-            script_actor,
-            component,
-            root,
-            root2d,
-            audio,
-        ],
+        header: "object_model.hpp".into(),
+        classes: crate::actor_document::tests::registry()
+            .classes
+            .into_values()
+            .collect(),
+        ..Default::default()
     }]
 }
 
 #[test]
 fn actor_tools_place_validate_edit_and_undo_through_the_class_model() {
     let mut e = editor();
+    e.scene.actors.clear();
     e.auto_build = false;
     e.catalog = actor_catalog();
     let mut state = mcp::State::default();
 
-    // Reading is class-aware and shows the derived view of the legacy entities.
+    // Reading is class-aware and shows the derived view of the legacy actors.
     let listed = mcp_tools::execute(&mut e, &mut state, "scene_actors", json!({})).unwrap();
     assert_eq!(listed["model_available"], true);
     assert!(listed["actors"].as_array().unwrap().is_empty());
-    assert!(!listed["derived"].as_array().unwrap().is_empty());
+    assert!(listed.get("derived").is_none());
     assert!(
         listed["placeable"]
             .as_array()
@@ -862,12 +803,16 @@ fn scene_set_actor_reparents_and_edits_the_component_set_like_the_inspector_does
     )
     .unwrap();
     let music = e.scene.actors[hero_index].components[1].id;
-    e.scene.actors[hero_index].components[1]
-        .properties
-        .insert("volume".into(), json!(0.5));
+    e.scene.actors[hero_index].components[1].properties.insert(
+        "audio".into(),
+        json!(crate::audio::AudioSource {
+            volume: 0.5,
+            ..Default::default()
+        }),
+    );
     e.scene.actors[hero_index].components[1]
         .overrides
-        .insert("volume".into());
+        .insert("audio".into());
     let listed = mcp_tools::execute(&mut e, &mut state, "scene_actors", json!({})).unwrap();
     let reported = listed["actors"]
         .as_array()
@@ -882,8 +827,8 @@ fn scene_set_actor_reparents_and_edits_the_component_set_like_the_inspector_does
         .iter()
         .find(|c| c["id"] == json!(music))
         .unwrap();
-    assert_eq!(component["properties"]["volume"], json!(0.5));
-    assert_eq!(component["overrides"], json!(["volume"]));
+    assert_eq!(component["properties"]["audio"]["volume"], json!(0.5));
+    assert_eq!(component["overrides"], json!(["audio"]));
     assert_eq!(component["removable"], json!(true));
     assert_eq!(reported["components"][0]["removable"], json!(false));
     assert_eq!(reported["components"][0]["root"], json!(true));
@@ -919,19 +864,33 @@ fn soundfont_mcp_import_detects_library_and_accepts_partial_bank_settings() {
     let mut state = crate::mcp::State::default();
     for (filename, partial) in [("default", false), ("partial", true)] {
         let mut args = serde_json::json!({"source": "assets/library.sf2", "destination": format!("assets/{filename}.epokasset")});
-        if partial { args["bank_settings"] = serde_json::json!({"provenance": "Original synthetic test instrument"}); }
-        assert_eq!(crate::mcp_tools::execute(&mut editor, &mut state, "asset_import", args).unwrap()["accepted"], true);
+        if partial {
+            args["bank_settings"] =
+                serde_json::json!({"provenance": "Original synthetic test instrument"});
+        }
+        assert_eq!(
+            crate::mcp_tools::execute(&mut editor, &mut state, "asset_import", args).unwrap()["accepted"],
+            true
+        );
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         while editor.assets.busy {
             editor.assets.tick();
-            assert!(std::time::Instant::now() < deadline, "{:?}", editor.assets.error);
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{:?}",
+                editor.assets.error
+            );
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         assert!(editor.assets.form.is_none(), "{:?}", editor.assets.error);
-        let package = crate::assets::Package::load(&root.join(format!("assets/{filename}.epokasset"))).unwrap();
+        let package =
+            crate::assets::Package::load(&root.join(format!("assets/{filename}.epokasset")))
+                .unwrap();
         let bank = package.meta.settings.sound_bank().unwrap();
         assert!(bank.library.is_some() && bank.imported.is_none());
         assert_eq!(package.source, crate::sf2::fixture());
-        if partial { assert_eq!(bank.provenance, "Original synthetic test instrument"); }
+        if partial {
+            assert_eq!(bank.provenance, "Original synthetic test instrument");
+        }
     }
 }

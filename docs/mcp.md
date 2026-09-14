@@ -59,7 +59,7 @@ Tools publish their argument schemas and descriptions through `tools/list`.
 | `scene_apply` | Atomically create, update, duplicate, delete, reparent or replace entities; edit transforms, scripts, HUD, audio, lighting, mesh and skeletal components; change the environment. |
 | `scene_history` | Undo/redo up to 32 MCP scene batches. |
 | `scene_save`, `scene_open` | Save or switch scenes. New scenes can be written under `assets/` before opening them. |
-| `entity_select`, `editor_view` | Change selection, frame an entity, orbit or reposition the Scene camera, toggle grid/wireframe or switch the authoring mode. |
+| `actor_select`, `editor_view` | Change selection, frame an Actor, orbit or reposition the Scene camera, toggle grid/wireframe or switch the authoring mode. |
 | `viewer_screenshot` | Return PNG image content for `scene`, `hud`, `game` or the entire `editor`. |
 | `editor_control` | Build, Play, Stop, Pause, Resume, Step, bake lighting, export a standalone project, reset layout or open settings/imports. |
 | `game_input` | Send a PSX controller bitmask for a bounded duration, with automatic release. |
@@ -88,7 +88,7 @@ Ask an assistant to inspect the project, create a blue cube next to the player, 
    ```json
    {
      "op": "create",
-     "entity": {
+     "actor": {
        "name": "Blue Cube",
        "kind": "Mesh",
        "position": [0, 0.5, 0],
@@ -97,7 +97,7 @@ Ask an assistant to inspect the project, create a blue cube next to the player, 
    }
    ```
 
-3. `entity_select` uses the returned index and revision, with `frame: true`.
+3. `actor_select` uses the Actor UUID and current revision, with `frame: true`.
 4. `viewer_screenshot` with `target: "scene"` returns the rendered image.
 5. `scene_save` saves the accepted scene, or `scene_history` with `action: "undo"` restores the previous scene.
 
@@ -139,24 +139,22 @@ Rules:
 - `class` is validated against `object_model::Model::placeable()`, so an abstract class,
   a component class or a `SceneScriptActor` subclass is refused with the list of classes
   that are accepted. The whole scene is then checked with `Scene::validate_with_model`.
-- Every mutation runs through the same transaction the entity tools use, so it goes
+- Every mutation runs through the same scene transaction, so it goes
   through `Editor::changed()`: the build is marked stale and the edit is reversible with
-  `scene_history` (`undo`/`redo`), together with entity edits, in one history.
-- Only authored actors can be edited. A *derived* actor is the in-memory view of a legacy
-  entity (`Scene::actor_view`); migrating it into the document is an explicit editor
-  action, not something an MCP call does implicitly.
+  `scene_history` (`undo`/`redo`), together with other Actor edits, in one history.
+- `scene_actors` lists the map's single collection of authored Actors. There is no derived Entity view or implicit migration.
 - `model_available` is `false` in a project that has never compiled. `scene_actors` still
   lists the document; the mutating tools refuse until the class model exists.
 
-### Legacy command translation
+### Choosing a scene operation
 
-| Legacy entity operation | Actor equivalent |
+| Batch operation | Class-aware operation |
 | --- | --- |
-| `scene_apply` `create` | `scene_add_actor` (a class rather than a `kind`) |
-| `scene_apply` `update` on `name`/`script` properties | `scene_set_actor` (`name`, `properties`) |
+| `scene_apply` `create(actor)` | `scene_add_actor` (a class rather than a `kind`) |
+| `scene_apply` `update` on projected built-in fields | `scene_set_actor` (`name`, `properties`) |
 | `scene_apply` `delete` | `scene_remove_actor` |
-| `scene_apply` `reparent` | `scene_add_actor`/`scene_set_actor` `parent` is a *logical* parent; spatial attachment is authored in the editor, not over MCP yet |
-| `entity_select` | no actor equivalent yet; selection is still entity-indexed |
+| `scene_apply` `reparent` | `scene_set_actor` `parent` controls the logical parent and also spatial attachment when both Actor domains match |
+| `actor_select` | selects an Actor UUID, or null to clear selection |
 
 The command-line equivalent of `scene_add_actor` is
 `--project <folder> --add-actor <class>:<name> [--scene assets/scenes/Map.epokmap]`,

@@ -24,7 +24,7 @@ class HudRenderer {
     static uint32_t mix(uint32_t h,uint32_t v){return (h^v)*16777619u;}
     // Every input the fragment build reads: hierarchy, canvas/rect layout,
     // image, progress and text state, plus the texture bank.
-    template<size_t N>static uint32_t layout_key(const std::array<Entity,N>& entities,size_t count){
+    template<size_t N>static uint32_t layout_key(const std::array<ActorData,N>& entities,size_t count){
         uint32_t h=2166136261u;h=mix(h,uint32_t(count));h=mix(h,uint32_t(reinterpret_cast<uintptr_t>(texture_assets)));
         for(size_t i=0;i<count;++i){
             const auto& e=entities[i];
@@ -68,7 +68,7 @@ public:
         p.setColor({{.r=uint8_t((unsigned(color[0])+1)/2),.g=uint8_t((unsigned(color[1])+1)/2),.b=uint8_t((unsigned(color[2])+1)/2)}}).setOpaque();output->chain(f);
     }
     void initialize(psyqo::GPU& gpu){gpu.uploadToVRAM(hud_font_pixels,{{{.x=960,.y=448}},{{.w=64,.h=64}}});}
-    template<size_t N>void draw(psyqo::GPU& gpu,std::array<Entity,N>& entities,size_t count) {
+    template<size_t N>void draw(psyqo::GPU& gpu,std::array<ActorData,N>& entities,size_t count) {
         const unsigned parity=gpu.getParity();
         const uint32_t key=layout_key(entities,count);
         if(retained[parity]&&retained_key[parity]==key){

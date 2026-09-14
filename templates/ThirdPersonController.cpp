@@ -62,7 +62,7 @@ void ThirdPersonController::start(Transform& transform) {
     facing = transform.rotation[1];
     camera_yaw = facing;
     for (auto& component : velocity) component = 0.0;
-    if (auto* camera = find_entity("Follow Camera")) set_active_camera(camera);
+    if (auto* camera = find_actor_data("Follow Camera")) set_active_camera(camera);
 }
 
 void ThirdPersonController::update(Transform& transform, Fixed dt) {
@@ -133,7 +133,7 @@ void ThirdPersonController::update(Transform& transform, Fixed dt) {
     if (grounded && !jumping) fall = stick_to_ground;
 
     const Fixed movement[3] = {velocity[0] * dt, fall, velocity[2] * dt};
-    const auto result = move_and_slide(entity(), movement);
+    const auto result = move_and_slide(*get_owner()->data(), movement);
     grounded = result.grounded;
 
     // Step up. Collision resolves boxes only, so a ramp is authored as steps and
@@ -144,10 +144,10 @@ void ThirdPersonController::update(Transform& transform, Fixed dt) {
                                     movement[2] - result.displacement[2]};
         if (remaining[0].raw() != 0 || remaining[2].raw() != 0) {
             const Fixed lift[3] = {0.0, step_height, 0.0};
-            move_and_slide(entity(), lift);
-            move_and_slide(entity(), remaining);
+            move_and_slide(*get_owner()->data(), lift);
+            move_and_slide(*get_owner()->data(), remaining);
             const Fixed settle[3] = {0.0, -step_height + stick_to_ground, 0.0};
-            grounded = move_and_slide(entity(), settle).grounded;
+            grounded = move_and_slide(*get_owner()->data(), settle).grounded;
         }
     }
     transform.rotation[1] = facing;
@@ -162,7 +162,7 @@ void ThirdPersonController::update(Transform& transform, Fixed dt) {
     }
 
     // ---- place the boom ----------------------------------------------------
-    if (auto* camera = find_entity("Follow Camera")) {
+    if (auto* camera = find_actor_data("Follow Camera")) {
         const Fixed reach = boom_length * cos_degrees(camera_pitch);
         const Fixed lift = boom_length * sin_degrees(camera_pitch);
         camera->transform.position[0] = transform.position[0] - yaw_sin * reach;

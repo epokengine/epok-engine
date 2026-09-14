@@ -3,7 +3,7 @@ use crate::{
     assets::{self, Index, Kind},
     content_preview::{Cache, Preview},
     editor::Editor,
-    scene::{Entity, Scene},
+    scene::{Actor, Scene},
     skeletal::{self, Data, Model},
     viewport::View,
 };
@@ -72,7 +72,12 @@ impl State {
                 path: path.into(),
                 modified: metadata.as_ref().ok().and_then(|m| m.modified().ok()),
                 size: metadata.as_ref().map_or(0, |m| m.len()),
-                revision: format!("{}:{:?}", index.fingerprint(), crate::workspace::optional_manifest(root).map(|m| m.and_then(|m| m.default_sound_bank))),
+                revision: format!(
+                    "{}:{:?}",
+                    index.fingerprint(),
+                    crate::workspace::optional_manifest(root)
+                        .map(|m| m.and_then(|m| m.default_sound_bank))
+                ),
             };
             if self.key.as_ref() != Some(&key) {
                 self.key = Some(key);
@@ -155,7 +160,13 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
                 .assets
                 .index
                 .usable()
-                .find(|r| r.path == path && matches!(r.meta.kind, Kind::AudioClip | Kind::MusicSequence | Kind::SoundBank))
+                .find(|r| {
+                    r.path == path
+                        && matches!(
+                            r.meta.kind,
+                            Kind::AudioClip | Kind::MusicSequence | Kind::SoundBank
+                        )
+                })
                 .cloned();
             if let Some(record) = audio_record {
                 if ui.button("Edit audio import settings") {
@@ -226,7 +237,9 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
                 }
                 #[cfg(test)]
                 track(ui, "play");
-                if let Some(report) = &e.project_browser.previews.report { ui.text_wrapped(report); }
+                if let Some(report) = &e.project_browser.previews.report {
+                    ui.text_wrapped(report);
+                }
             }
             let origin = ui.cursor_screen_pos();
             let size = ui.content_region_avail().map(|v| v.max(1.));
@@ -301,7 +314,9 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
                     );
                 }
             } else if kind == "Audio" {
-                e.project_browser.previews.ensure_project(&e.root, &e.assets.index);
+                e.project_browser
+                    .previews
+                    .ensure_project(&e.root, &e.assets.index);
                 e.project_browser.previews.request(
                     &path,
                     crate::content_preview::revision(&e.root, &e.assets.index, &path),
@@ -448,47 +463,106 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
         ]);
         if matches!(r.meta.kind, Kind::MusicSequence | Kind::SoundBank) {
             details.fields.push(("Target".into(), "PSX".into()));
-            let name = if r.meta.kind == Kind::MusicSequence { "Sequence.epokcache" } else { "Bank.epokcache" };
-            let summary = root.join(".epok/imported").join(assets::cache_key(&r.meta)).join(name);
+            let name = if r.meta.kind == Kind::MusicSequence {
+                "Sequence.epokcache"
+            } else {
+                "Bank.epokcache"
+            };
+            let summary = root
+                .join(".epok/imported")
+                .join(assets::cache_key(&r.meta))
+                .join(name);
             if let Ok(bytes) = assets::read_bounded(&summary)
                 && let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes)
             {
-                let fresh = value["inputs"].as_object().is_some_and(|inputs| inputs.iter().all(|(key, hash)| {
-                    if key == "default-sound-bank" {
-                        return crate::workspace::optional_manifest(root).ok().flatten().and_then(|m| m.default_sound_bank).is_some_and(|id| hash.as_str() == Some(id.to_string().as_str()));
-                    }
-                    key.strip_prefix("asset:").and_then(|id| id.parse().ok()).and_then(|id| index.resolve(id).ok()).is_some_and(|record| hash.as_str() == Some(assets::cache_key(&record.meta).as_str()))
-                }));
+                let fresh = value["inputs"].as_object().is_some_and(|inputs| {
+                    inputs.iter().all(|(key, hash)| {
+                        if key == "default-sound-bank" {
+                            return crate::workspace::optional_manifest(root)
+                                .ok()
+                                .flatten()
+                                .and_then(|m| m.default_sound_bank)
+                                .is_some_and(|id| hash.as_str() == Some(id.to_string().as_str()));
+                        }
+                        key.strip_prefix("asset:")
+                            .and_then(|id| id.parse().ok())
+                            .and_then(|id| index.resolve(id).ok())
+                            .is_some_and(|record| {
+                                hash.as_str() == Some(assets::cache_key(&record.meta).as_str())
+                            })
+                    })
+                });
                 if fresh {
                     let report = value.get("report").unwrap_or(&value);
-                    if let Some(profile) = report["profile"].as_str() { details.fields.push(("Last cook: PSX profile".into(), profile.into())); }
-                    for (key, label) in [("sequence_bytes", "Last cook: sequence RAM bytes"), ("bank_bytes", "Last cook: bank RAM bytes (includes sample source)"), ("spu_ram_bytes", "Last cook: SPU bytes"), ("package_bytes", "Authoring packages with dependencies, bytes"), ("voice_limit", "PSX voice ceiling"), ("peak_polyphony", "Analyzed peak polyphony")] {
-                        if let Some(value) = report.get(key) { details.fields.push((label.into(), value.to_string())); }
+                    if let Some(profile) = report["profile"].as_str() {
+                        details
+                            .fields
+                            .push(("Last cook: PSX profile".into(), profile.into()));
+                    }
+                    for (key, label) in [
+                        ("sequence_bytes", "Last cook: sequence RAM bytes"),
+                        (
+                            "bank_bytes",
+                            "Last cook: bank RAM bytes (includes sample source)",
+                        ),
+                        ("spu_ram_bytes", "Last cook: SPU bytes"),
+                        (
+                            "package_bytes",
+                            "Authoring packages with dependencies, bytes",
+                        ),
+                        ("voice_limit", "PSX voice ceiling"),
+                        ("peak_polyphony", "Analyzed peak polyphony"),
+                    ] {
+                        if let Some(value) = report.get(key) {
+                            details.fields.push((label.into(), value.to_string()));
+                        }
                     }
                     if let Some(warnings) = report["warnings"].as_array() {
-                        for warning in warnings.iter().filter_map(|v| v.as_str()) { details.fields.push(("PSX cook note".into(), warning.into())); }
+                        for warning in warnings.iter().filter_map(|v| v.as_str()) {
+                            details
+                                .fields
+                                .push(("PSX cook note".into(), warning.into()));
+                        }
                     }
                     details.fields.push(("PSX media / runtime".into(), "Sequence and bank ship inside the EXE; no continuous sequence CD reads. Linked runtime RAM is measured in the build report; hardware timing/stack require profiling.".into()));
-                } else { details.fields.push(("Target cost".into(), "Previous cook is obsolete after a dependency change. Build or request PSX Target Preview.".into())); }
+                } else {
+                    details.fields.push(("Target cost".into(), "Previous cook is obsolete after a dependency change. Build or request PSX Target Preview.".into()));
+                }
             }
         }
         if let Ok(bank) = r.meta.settings.sound_bank() {
             if bank.library.is_some() {
-                details.fields.extend(crate::soundfont_asset::inspect(&assets::Package::load(&r.path)?.source)?);
-                details.fields.push(("Provenance / license".into(), bank.provenance.clone()));
-                details.fields.push(("Sample Load Mode".into(), format!("{:?}", bank.load_mode)));
+                details.fields.extend(crate::soundfont_asset::inspect(
+                    &assets::Package::load(&r.path)?.source,
+                )?);
+                details
+                    .fields
+                    .push(("Provenance / license".into(), bank.provenance.clone()));
+                details
+                    .fields
+                    .push(("Sample Load Mode".into(), format!("{:?}", bank.load_mode)));
             } else if bank.imported.is_some() {
-                details.fields.extend(crate::bank_compat::inspect(&assets::Package::load(&r.path)?)?);
+                details
+                    .fields
+                    .extend(crate::bank_compat::inspect(&assets::Package::load(
+                        &r.path,
+                    )?)?);
             } else {
-            details.fields.extend([
+                details.fields.extend([
                 ("Sample Load Mode".into(), format!("{:?} (Auto resolves to Resident)", bank.load_mode)),
                 ("Bank mappings".into(), format!("{} programs/drum mappings; {} zones; {} unique sample references; one tone per matched note", bank.programs.len(), bank.programs.iter().map(|p| p.zones.len()).sum::<usize>(), bank.dependencies().len())),
                 ("Provenance / license".into(), bank.provenance.clone()),
                 ("Target cost scope".into(), "Last-cook values are shown above when available; other costs remain unknown. Original samples are preserved.".into()),
             ]);
-            for id in bank.dependencies() {
-                details.fields.push(("Sample dependency".into(), index.resolve(id).map(|r| assets::path_string(root, &r.path)).unwrap_or_else(|e| e)));
-            }
+                for id in bank.dependencies() {
+                    details.fields.push((
+                        "Sample dependency".into(),
+                        index
+                            .resolve(id)
+                            .map(|r| assets::path_string(root, &r.path))
+                            .unwrap_or_else(|e| e),
+                    ));
+                }
             }
         }
         if let crate::import_settings::Settings::Audio(settings) = &r.meta.settings {
@@ -586,7 +660,7 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
                 doc.materials.len()
             ),
         ));
-        let mut e = Entity::cube("Asset preview".into());
+        let mut e = Actor::cube("Asset preview".into());
         e.position = [0.; 3];
         let mut c =
             crate::mesh::Component::new(record.map_or_else(uuid::Uuid::new_v4, |r| r.meta.id));
@@ -639,7 +713,7 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
                 model.skeleton.bones.len()
             ),
         ));
-        let mut e = Entity::cube("Model preview".into());
+        let mut e = Actor::cube("Model preview".into());
         e.position = [0.; 3];
         let mut c = skeletal::Component::new(uuid::Uuid::new_v4());
         c.model = Some(Arc::new(model));
@@ -663,20 +737,46 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
         } else {
             assets::read_bounded(path)?
         };
-        if bytes.get(..4) == Some(b"MThd") || bytes.starts_with(b"pQES")
+        if bytes.get(..4) == Some(b"MThd")
+            || bytes.starts_with(b"pQES")
             || record.is_some_and(|r| r.meta.kind == Kind::MusicSequence)
-            || crate::sequence::catalog_source(&bytes, None).is_ok() {
+            || crate::sequence::catalog_source(&bytes, None).is_ok()
+        {
             let defaults = crate::sequence::Settings::default();
-            let settings = record.and_then(|r| r.meta.settings.sequence().ok()).unwrap_or(&defaults);
+            let settings = record
+                .and_then(|r| r.meta.settings.sequence().ok())
+                .unwrap_or(&defaults);
             if bytes.starts_with(b"MThd") {
                 let header = crate::midi::probe(&bytes)?;
-                details.fields.push(("MIDI source".into(), format!("SMF {} · {} tracks · {} PPQN", header.format, header.tracks, header.ppqn)));
+                details.fields.push((
+                    "MIDI source".into(),
+                    format!(
+                        "SMF {} · {} tracks · {} PPQN",
+                        header.format, header.tracks, header.ppqn
+                    ),
+                ));
             } else {
-                let catalog = crate::sequence::catalog_source(&bytes, settings.source_selection.as_ref().map(|s| s.profile))?;
-                details.fields.push(("Sequence source profile".into(), catalog.profile.map_or("MIDI", |p| p.id()).into()));
+                let catalog = crate::sequence::catalog_source(
+                    &bytes,
+                    settings.source_selection.as_ref().map(|s| s.profile),
+                )?;
+                details.fields.push((
+                    "Sequence source profile".into(),
+                    catalog.profile.map_or("MIDI", |p| p.id()).into(),
+                ));
                 for song in &catalog.songs {
-                    details.fields.push(("Source song".into(), format!("ID {} · ordinal {} · {:.3} s · {} events · {} blockers · SHA-256 {}",
-                        song.id, song.ordinal, song.duration_micros as f64 / 1_000_000., song.events, song.playback_blockers.len(), song.record_hash)));
+                    details.fields.push((
+                        "Source song".into(),
+                        format!(
+                            "ID {} · ordinal {} · {:.3} s · {} events · {} blockers · SHA-256 {}",
+                            song.id,
+                            song.ordinal,
+                            song.duration_micros as f64 / 1_000_000.,
+                            song.events,
+                            song.playback_blockers.len(),
+                            song.record_hash
+                        ),
+                    ));
                 }
                 if settings.source_selection.is_none() {
                     details.fields.push(("Selection required".into(), "Import this source and explicitly select its profile and song. The catalog is an analysis view; no song is auditioned automatically.".into()));
@@ -684,28 +784,84 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
                 }
             }
             let sequence = crate::sequence::decode_source(&bytes, settings)?;
-            details.fields.push(("Role / event Load Mode".into(), format!("{:?} / {:?} (Auto resolves to Resident)", settings.role, settings.load_mode)));
-            details.fields.push(("Loop / voice ceiling".into(), format!("{:?} / {} voices", settings.loop_mode, settings.voices())));
+            details.fields.push((
+                "Role / event Load Mode".into(),
+                format!(
+                    "{:?} / {:?} (Auto resolves to Resident)",
+                    settings.role, settings.load_mode
+                ),
+            ));
+            details.fields.push((
+                "Loop / voice ceiling".into(),
+                format!("{:?} / {} voices", settings.loop_mode, settings.voices()),
+            ));
             let bank = crate::sequence::resolve_bank(root, settings, index);
-            details.fields.push(("SoundBank".into(), match &bank { Ok(bank) => format!("{} ({})", assets::path_string(root, &bank.path), bank.meta.id), Err(error) => error.clone() }));
+            details.fields.push((
+                "SoundBank".into(),
+                match &bank {
+                    Ok(bank) => format!(
+                        "{} ({})",
+                        assets::path_string(root, &bank.path),
+                        bank.meta.id
+                    ),
+                    Err(error) => error.clone(),
+                },
+            ));
             if let Ok(bank) = bank {
                 if bank.meta.settings.sound_bank()?.library.is_some() {
                     let package = assets::Package::load(&bank.path)?;
                     let library = crate::soundfont_asset::decode(&package)?;
-                    let coverage = crate::instrument_selection::resolve(&sequence, &library, &settings.instrument_mappings, &std::sync::atomic::AtomicBool::new(false))?;
+                    let coverage = crate::instrument_selection::resolve(
+                        &sequence,
+                        &library,
+                        &settings.instrument_mappings,
+                        &std::sync::atomic::AtomicBool::new(false),
+                    )?;
                     details.fields.push(("Instrument coverage".into(), coverage.require_complete().err().unwrap_or_else(|| format!(
                         "All {} note events resolve to {} regions and {} samples; up to {} layers per note. Conversion determines physical voice and RAM cost.",
                         coverage.note_on_events, coverage.regions.len(), coverage.samples.len(), coverage.peak_layers_per_note))));
                 } else {
-                    details.fields.push(("Instrument compatibility".into(), bank.meta.settings.sound_bank()?.validate_sequence(&sequence, index).err().unwrap_or_else(|| "All used program/key/velocity mappings resolve".into())));
+                    details.fields.push((
+                        "Instrument compatibility".into(),
+                        bank.meta
+                            .settings
+                            .sound_bank()?
+                            .validate_sequence(&sequence, index)
+                            .err()
+                            .unwrap_or_else(|| {
+                                "All used program/key/velocity mappings resolve".into()
+                            }),
+                    ));
                 }
             }
-            if let Err(error) = settings.validate_playback(&sequence) { details.fields.push(("Playback settings".into(), error)); }
+            if let Err(error) = settings.validate_playback(&sequence) {
+                details.fields.push(("Playback settings".into(), error));
+            }
             match crate::psx_sequence::sequence_payload(&sequence, settings, uuid::Uuid::nil()) {
                 Err(error) => details.fields.push(("PSX compatibility".into(), error)),
-                Ok((_, bytes)) => details.fields.push(("PSX sequence payload RAM".into(), format!("{} bytes; SoundBank and runtime state are additional", bytes.len()))),
+                Ok((_, bytes)) => details.fields.push((
+                    "PSX sequence payload RAM".into(),
+                    format!(
+                        "{} bytes; SoundBank and runtime state are additional",
+                        bytes.len()
+                    ),
+                )),
             }
-            details.fields.push(("Tempo map".into(), sequence.tempo_map.iter().map(|t| format!("tick {}: {:.3} BPM", t.tick, 60_000_000. / t.micros_per_quarter as f64)).collect::<Vec<_>>().join("; ")));
+            details.fields.push((
+                "Tempo map".into(),
+                sequence
+                    .tempo_map
+                    .iter()
+                    .map(|t| {
+                        format!(
+                            "tick {}: {:.3} BPM",
+                            t.tick,
+                            60_000_000. / t.micros_per_quarter as f64
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            ));
             details.fields.push((
                 "Sequence analysis".into(),
                 format!(
@@ -716,7 +872,12 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
                 ),
             ));
             details.fields.push((
-                if sequence.source_profile.is_some() { "Program/key requirements (source channel policy may be blocked)" } else { "Programs / drum keys" }.into(),
+                if sequence.source_profile.is_some() {
+                    "Program/key requirements (source channel policy may be blocked)"
+                } else {
+                    "Programs / drum keys"
+                }
+                .into(),
                 sequence
                     .instruments
                     .iter()
@@ -768,7 +929,9 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
     } else if details.kind == "SoundBank" && record.is_none() {
         let bytes = assets::read_bounded(path)?;
         if crate::sf2::has_header(&bytes) {
-            details.fields.extend(crate::soundfont_asset::inspect(&bytes)?);
+            details
+                .fields
+                .extend(crate::soundfont_asset::inspect(&bytes)?);
             return Ok(details);
         }
         let source_name = assets::path_string(root, path);
@@ -822,7 +985,7 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             ));
         }
         let mut scene = Scene {
-            entities: vec![entity],
+            actors: vec![entity],
             ..Default::default()
         };
         crate::texture::resolve(&mut scene, index)?;
@@ -969,7 +1132,7 @@ pub fn verify_interactions(ctx: &mut imgui::Context) {
     e.begin_rename(0);
     assert!(
         e.selected_asset.is_none(),
-        "Entity selection restores the component Inspector"
+        "Actor selection restores the component Inspector"
     );
     drop(e);
     std::fs::remove_dir_all(root).unwrap();
@@ -997,7 +1160,7 @@ mod tests {
         let details = load(&root, &root.join("assets/Box.epokasset"), &index).unwrap();
         assert_eq!(details.kind, "Mesh");
         assert!(details.bounds.is_some());
-        assert_eq!(details.scene.unwrap().entities.len(), 1);
+        assert_eq!(details.scene.unwrap().actors.len(), 1);
         assert_eq!(
             before,
             std::fs::read(root.join("assets/Box.epokasset")).unwrap()

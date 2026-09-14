@@ -29,7 +29,7 @@ public:
     };
     std::array<Particle,capacity> particles;
     void clear(){for(auto& p:particles)p.alive=false;source_count=0;particle_stats={};}
-    void remove_owner(size_t owner){for(auto& p:particles)if(p.alive&&!p.owner.internal&&p.owner.entity.index==owner){p.alive=false;if(particle_stats.alive)--particle_stats.alive;}}
+    void remove_owner(size_t owner){for(auto& p:particles)if(p.alive&&!p.owner.internal&&p.owner.data_slot().index==owner){p.alive=false;if(particle_stats.alive)--particle_stats.alive;}}
     void remove_layer(EffectLayerHandle owner){for(auto& p:particles)if(p.alive&&p.owner.same(owner)){p.alive=false;if(particle_stats.alive)--particle_stats.alive;}}
     void begin(Fixed dt){source_count=0;step=dt.raw()>410?Fixed(410,Fixed::RAW):dt;}
     bool emitter(timeline::BoundTarget owner,ParticleEmitter& emitter,const Affine<Fixed>& world){
@@ -37,9 +37,9 @@ public:
         if(source_count==emitter_capacity){add(particle_stats.dropped_emitters);if(step.raw()>0&&owner.active())add(particle_stats.dropped,requests(emitter,step));return false;}
         sources[source_count++]={owner,&emitter,&world};return true;
     }
-    template<size_t N>void scene_emitters(std::array<Entity,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count){
+    template<size_t N>void scene_emitters(std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count){
         if(count>N)count=N;
-        for(size_t i=0;i<count;++i)emitter(EntityHandle{uint16_t(i),objects[i].generation},objects[i].particle_emitter,world[i]);
+        for(size_t i=0;i<count;++i)emitter(DataHandle{uint16_t(i),objects[i].generation},objects[i].particle_emitter,world[i]);
     }
     void advance(){
         if(step.raw()<=0)return;
@@ -68,7 +68,7 @@ public:
         }
         particle_stats.alive=alive;if(alive>particle_stats.peak)particle_stats.peak=alive;
     }
-    template<size_t N>void advance(std::array<Entity,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,Fixed dt){begin(dt);scene_emitters(objects,world,count);advance();}
+    template<size_t N>void advance(std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,Fixed dt){begin(dt);scene_emitters(objects,world,count);advance();}
     template<class Emit>void each_all(Emit emit)const{
         for(const auto& p:particles){if(!p.alive||!p.owner.valid()||!p.owner.visible()||p.source>=source_count||!p.owner.same(sources[p.source].owner))continue;
             auto sprite=p.sprite;sprite.enabled=true;Fixed t=p.age/p.lifetime;auto size=p.start_size+(p.end_size-p.start_size)*t;
@@ -82,7 +82,7 @@ public:
         }
     }
     template<size_t N,class Emit>void each(const std::array<Affine<Fixed>,N>&,size_t count,Emit emit)const{
-        each_all([&](timeline::BoundTarget owner,const Sprite& sprite,const Affine<Fixed>& matrix){if(!owner.internal&&owner.entity.index<count)emit(owner.entity.index,sprite,matrix);});
+        each_all([&](timeline::BoundTarget owner,const Sprite& sprite,const Affine<Fixed>& matrix){if(!owner.internal&&owner.data_slot().index<count)emit(owner.data_slot().index,sprite,matrix);});
     }
 };
 }

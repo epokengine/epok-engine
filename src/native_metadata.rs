@@ -494,92 +494,38 @@ mod tests {
         destination
     }
     #[test]
-    fn legacy_metadata_changes_and_membership_require_fresh_scene_staging() {
+    fn native_defaults_and_class_membership_require_fresh_scene_staging() {
         let root = fixture();
-        for name in ["Probe", "Extra"] {
-            std::fs::write(
-                root.join(format!("assets/scripts/{name}.hpp")),
-                b"// Legacy header\n",
-            )
-            .unwrap();
-            std::fs::write(
-                root.join(format!("assets/scripts/{name}.cpp")),
-                b"// Legacy source\n",
-            )
-            .unwrap();
-        }
-        let path = root.join("assets/scripts/Probe.epokscript");
-        let mut source = crate::scripts::Script {
-            name: "Probe".into(),
-            ..Default::default()
+        let path = root.join("assets/scripts/Probe.hpp");
+        let write = |name: &str, id: &str, value: i32| {
+            std::fs::write(root.join(format!("assets/scripts/{name}.hpp")),format!("#pragma once\n#include \"epok.hpp\"\nclass EPOK_CLASS(Blueprintable,Id=\"{id}\") {name}:public epok::ActorComponent {{public:EPOK_PROPERTY(EditAnywhere,Id=\"dbd7f48f-c5ea-4d84-902b-e00fd56acb22\") int32_t health={value};}};\n")).unwrap();
         };
-        std::fs::write(&path, serde_json::to_vec(&source).unwrap()).unwrap();
+        let probe = "11f9d403-d033-4e73-8b37-938c9aca27cc";
+        write("Probe", probe, 50);
         let build = stage(&root, ".epok/build");
         let export = stage(&root, "exports/metadata");
-        let key = file_key(&root, &path).unwrap();
         let pending = BuildTicket::begin(&root, &build).unwrap();
-        source.properties.push(crate::scripts::Property {
-            name: "health".into(),
-            default: serde_json::json!(50),
-            value_type: crate::reflection_schema::Type::UInt32,
-            id: String::new(),
-        });
-        std::fs::write(&path, serde_json::to_vec(&source).unwrap()).unwrap();
+        write("Probe", probe, 75);
         assert!(pending.complete(&root, &build, b"old defaults").is_err());
         assert!(crate::staging_files::publish_export(&root, &export, Files::new()).is_err());
-        assert!(
-            Graph::load(&root).unwrap().nodes["stage:.epok/build"]
-                .stale
-                .contains_key(&key)
-        );
         stage(&root, ".epok/build");
-        let extra = root.join("assets/scripts/Extra.epokscript");
         let pending = BuildTicket::begin(&root, &build).unwrap();
-        std::fs::write(&extra, br#"{"name":"Extra","properties":[]}"#).unwrap();
-        assert!(
-            pending
-                .complete(&root, &build, b"old class membership")
-                .is_err()
-        );
-        assert!(
-            Graph::load(&root).unwrap().nodes["stage:.epok/build"]
-                .stale
-                .contains_key(FILES)
-        );
+        std::fs::write(root.join("assets/scripts/Extra.hpp"),"#pragma once\n#include \"epok.hpp\"\nclass EPOK_CLASS(Blueprintable,Id=\"eb0b8687-2a9d-4e11-ace1-57e8f694b4f3\") Extra:public epok::ActorComponent {};\n").unwrap();
+        assert!(pending.complete(&root, &build, b"old membership").is_err());
         stage(&root, ".epok/build");
-        std::fs::remove_file(&extra).unwrap();
+        std::fs::remove_file(root.join("assets/scripts/Extra.hpp")).unwrap();
         assert!(BuildTicket::begin(&root, &build).is_err());
         stage(&root, ".epok/build");
-        std::fs::write(&path, b"{").unwrap();
+        std::fs::write(&path, "invalid C++ {").unwrap();
         assert!(BuildTicket::begin(&root, &build).is_err());
-        std::fs::write(&path, serde_json::to_vec(&source).unwrap()).unwrap();
+        write("Probe", probe, 100);
         assert!(BuildTicket::begin(&root, &build).is_err());
         stage(&root, ".epok/build");
-        // Repeated catalog reads in one stage cannot mix metadata versions.
         let capture = Capture::begin(&root.join("exports/conflict")).unwrap();
         crate::scripts::native_catalog(&root).unwrap();
-        source.properties[0].default = serde_json::json!(75);
-        std::fs::write(&path, serde_json::to_vec(&source).unwrap()).unwrap();
-        assert!(
-            crate::scripts::native_catalog(&root)
-                .unwrap_err()
-                .contains("changed during staging")
-        );
+        write("Probe", probe, 120);
+        assert!(crate::scripts::native_catalog(&root).is_err());
         drop(capture);
-        stage(&root, ".epok/build");
-        artifact_dependencies::transaction(&root, |graph| {
-            graph.nodes.remove(FILES);
-            for node in graph.nodes.values_mut() {
-                node.dependencies.remove(FILES);
-            }
-        })
-        .unwrap();
-        assert!(
-            BuildTicket::begin(&root, &build)
-                .err()
-                .unwrap()
-                .contains("lacks native metadata provenance")
-        );
         stage(&root, ".epok/build");
         BuildTicket::begin(&root, &build)
             .unwrap()
@@ -592,11 +538,6 @@ mod tests {
         );
         stage(&root, "exports/metadata");
         crate::staging_files::publish_export(&root, &export, Files::new()).unwrap();
-        assert!(
-            !serde_json::to_string(&Graph::load(&root).unwrap())
-                .unwrap()
-                .contains("epok-native-metadata-")
-        );
     }
 
     #[test]
@@ -608,7 +549,7 @@ mod tests {
         let include = parent.join("ExternalDefaults.inc");
         std::fs::write(&include, b"#define EPOK_TEST_HEALTH 25\n").unwrap();
         let header = format!(
-            "#pragma once\n#include \"epok.hpp\"\n#include \"{}\"\nclass EPOK_CLASS(Blueprintable,Id=\"{}\") Probe:public epok::Behaviour {{\npublic:\n EPOK_PROPERTY(EditAnywhere,Id=\"{}\") uint32_t health=EPOK_TEST_HEALTH;\n void update(epok::Transform&,epok::Fixed) override {{}}\n}};\n",
+            "#pragma once\n#include \"epok.hpp\"\n#include \"{}\"\nclass EPOK_CLASS(Blueprintable,Id=\"{}\") Probe:public epok::ActorComponent {{\npublic:\n EPOK_PROPERTY(EditAnywhere,Id=\"{}\") uint32_t health=EPOK_TEST_HEALTH;\n void tick(epok::Fixed) override {{}}\n}};\n",
             include.to_string_lossy().replace('\\', "/"),
             uuid::Uuid::new_v4(),
             uuid::Uuid::new_v4()

@@ -158,7 +158,15 @@ impl Batch {
         inputs.extend(
             self.scene_inputs
                 .iter()
-                .filter(|key| matches!(key.as_str(), "scene-registry" | "scene-inventory" | "scene-play-settings" | "blueprint-sources"))
+                .filter(|key| {
+                    matches!(
+                        key.as_str(),
+                        "scene-registry"
+                            | "scene-inventory"
+                            | "scene-play-settings"
+                            | "blueprint-sources"
+                    )
+                })
                 .cloned(),
         );
         if let Some((_, dependencies)) = self
@@ -177,7 +185,7 @@ impl Batch {
             .into_iter()
             .collect::<BTreeSet<_>>();
         ids.extend(crate::audio::clip_ids(scene));
-        for entity in &scene.entities {
+        for entity in &scene.actors {
             if let Some(mesh) = &entity.editable_mesh {
                 ids.insert(mesh.asset);
             }

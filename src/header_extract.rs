@@ -1,6 +1,6 @@
 //! Semantic reflection using libclang. Source text is not used to parse declarations.
 use crate::reflection_schema as schema;
-use clang::{Accessibility, Entity, EntityKind as K, EvaluationResult as Eval, TypeKind};
+use clang::{Accessibility, Entity as Actor, EntityKind as K, EvaluationResult as Eval, TypeKind};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -8,7 +8,7 @@ use std::{
     fs,
 };
 
-fn annotations(entity: Entity<'_>, prefix: &str) -> Vec<String> {
+fn annotations(entity: Actor<'_>, prefix: &str) -> Vec<String> {
     entity
         .get_children()
         .into_iter()
@@ -210,7 +210,7 @@ pub fn component_options(options: &[String]) -> Result<DefaultComponentOptions, 
     Ok(parsed)
 }
 
-fn id(entity: Entity<'_>, prefix: &str) -> Result<String, String> {
+fn id(entity: Actor<'_>, prefix: &str) -> Result<String, String> {
     for option in annotations(entity, prefix) {
         if let Some(value) = option.strip_prefix("Id=") {
             let value = value.trim_matches('"');
@@ -227,14 +227,14 @@ fn id(entity: Entity<'_>, prefix: &str) -> Result<String, String> {
     Ok(format!("cpp:{}", usr.0))
 }
 
-fn qualified(entity: Entity<'_>) -> String {
+fn qualified(entity: Actor<'_>) -> String {
     entity
         .get_type()
         .map(|t| t.get_canonical_type().get_display_name())
         .unwrap_or_default()
 }
 
-fn location(entity: Entity<'_>) -> schema::Location {
+fn location(entity: Actor<'_>) -> schema::Location {
     let loc = entity
         .get_location()
         .expect("declaration location")
@@ -245,7 +245,7 @@ fn location(entity: Entity<'_>) -> schema::Location {
         column: loc.column,
     }
 }
-fn error(entity: Entity<'_>, message: &str) -> String {
+fn error(entity: Actor<'_>, message: &str) -> String {
     let loc = location(entity);
     format!(
         "{}:{}:{}: {}: {message}",
@@ -256,12 +256,12 @@ fn error(entity: Entity<'_>, message: &str) -> String {
     )
 }
 
-fn value_type(ty: clang::Type<'_>, context: Entity<'_>) -> Result<schema::Type, String> {
+fn value_type(ty: clang::Type<'_>, context: Actor<'_>) -> Result<schema::Type, String> {
     value_type_at_depth(ty, context, 0)
 }
 fn value_type_at_depth(
     ty: clang::Type<'_>,
-    context: Entity<'_>,
+    context: Actor<'_>,
     depth: usize,
 ) -> Result<schema::Type, String> {
     if depth > 8 {
@@ -281,7 +281,7 @@ fn value_type_at_depth(
         TypeKind::Record if cpp == "psyqo::FixedPoint<>" || cpp == "psyqo::FixedPoint<12>" => {
             Ok(Type::Fixed)
         }
-        TypeKind::Record if ["epok::Transform", "epok::EntityHandle"].contains(&cpp.as_str()) => {
+        TypeKind::Record if ["epok::Transform", "epok::ObjectId"].contains(&cpp.as_str()) => {
             Ok(Type::Record {
                 cpp_name: cpp,
                 fields: vec![],
@@ -390,7 +390,7 @@ fn value_type_at_depth(
     }
 }
 
-fn parameter(entity: Entity<'_>, index: usize) -> Result<schema::Parameter, String> {
+fn parameter(entity: Actor<'_>, index: usize) -> Result<schema::Parameter, String> {
     let ty = entity.get_type().unwrap();
     let (value, direction) = if ty.get_kind() == TypeKind::LValueReference {
         let pointee = ty.get_pointee_type().unwrap();
@@ -421,7 +421,7 @@ fn numeric(eval: Eval) -> Option<Value> {
     }
 }
 
-fn fixed_default(entity: Entity<'_>) -> Result<Value, String> {
+fn fixed_default(entity: Actor<'_>) -> Result<Value, String> {
     match entity.get_kind() {
         K::UnexposedExpr | K::FunctionalCastExpr | K::ParenExpr => {
             let children = entity
@@ -471,7 +471,7 @@ fn fixed_default(entity: Entity<'_>) -> Result<Value, String> {
     ))
 }
 
-fn property(entity: Entity<'_>) -> Result<schema::Property, String> {
+fn property(entity: Actor<'_>) -> Result<schema::Property, String> {
     let ty = entity.get_type().unwrap();
     if entity.get_accessibility() != Some(Accessibility::Public)
         || entity.is_bit_field()
@@ -484,8 +484,8 @@ fn property(entity: Entity<'_>) -> Result<schema::Property, String> {
         ));
     }
     let value_type = match value_type(ty, entity)? {
-        schema::Type::Record { cpp_name, .. } if cpp_name == "epok::EntityHandle" => {
-            schema::Type::EntityRef { class: None }
+        schema::Type::Record { cpp_name, .. } if cpp_name == "epok::ObjectId" => {
+            schema::Type::ObjectRef { class: None }
         }
         other => other,
     };
@@ -495,8 +495,8 @@ fn property(entity: Entity<'_>) -> Result<schema::Property, String> {
         .filter(|e| e.is_expression())
         .collect::<Vec<_>>();
     let default = match &value_type {
-        schema::Type::EntityRef { .. } => {
-            fn empty(entity: Entity<'_>) -> bool {
+        schema::Type::ObjectRef { .. } => {
+            fn empty(entity: Actor<'_>) -> bool {
                 match entity.get_kind() {
                     K::CallExpr => {
                         entity
@@ -524,7 +524,7 @@ fn property(entity: Entity<'_>) -> Result<schema::Property, String> {
             if !expressions.iter().copied().all(empty) {
                 return Err(error(
                     entity,
-                    "EntityHandle properties require the empty/default handle; assign persistent scene references in the Inspector",
+                    "ObjectId properties require the empty/default handle; assign persistent scene references in the Inspector",
                 ));
             }
             Value::Null
@@ -562,7 +562,7 @@ fn property(entity: Entity<'_>) -> Result<schema::Property, String> {
         _ => {
             return Err(error(
                 entity,
-                "This runtime record has no editable authoring value; use a typed EntityHandle reference or a supported scalar/vector property",
+                "This runtime record has no editable authoring value; use a typed ObjectId reference or a supported scalar/vector property",
             ));
         }
     };
@@ -591,7 +591,7 @@ fn property(entity: Entity<'_>) -> Result<schema::Property, String> {
     })
 }
 
-fn function(entity: Entity<'_>) -> Result<schema::Function, String> {
+fn function(entity: Actor<'_>) -> Result<schema::Function, String> {
     let options = annotations(entity, "EPOK_FUNCTION:");
     let access = entity.get_accessibility();
     let timeline = if options.iter().any(|v| v == "TimelineCallable") {
@@ -668,11 +668,11 @@ fn function(entity: Entity<'_>) -> Result<schema::Function, String> {
     })
 }
 
-fn class(entity: Entity<'_>) -> Result<schema::Class, String> {
+fn class(entity: Actor<'_>) -> Result<schema::Class, String> {
     // An override inherits reflection only from an explicitly reflected method.
     // Runtime-owned hooks (continuation/component synchronization) are not an
     // authoring API merely because they are virtual.
-    fn reflected_method(entity: Entity<'_>) -> bool {
+    fn reflected_method(entity: Actor<'_>) -> bool {
         !annotations(entity, "EPOK_FUNCTION:").is_empty()
             || entity
                 .get_overridden_methods()
@@ -836,7 +836,7 @@ pub fn extract(
     source: &std::path::Path,
 ) -> Result<schema::Manifest, String> {
     fn visit(
-        entity: Entity<'_>,
+        entity: Actor<'_>,
         classes: &mut Vec<schema::Class>,
         dependencies: &mut BTreeSet<std::path::PathBuf>,
     ) -> Result<(), String> {

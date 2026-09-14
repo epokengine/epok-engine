@@ -1,7 +1,7 @@
 use crate::{
     pipeline::{self, Control, Event},
     project,
-    scene::{Entity, Scene, ScriptBinding},
+    scene::{Actor, Scene},
     scripts, viewport,
 };
 use std::{
@@ -118,9 +118,10 @@ pub struct Editor {
     pub timeline_inspector: crate::timeline_scene::Inspector,
     pub effect_inspector: crate::particle_effect_scene::Inspector,
     pub blueprint_creation: crate::blueprint_workflow::Creation,
+    pub actor_creation: crate::actor_workflow::State,
     pub blueprint_debug_enabled: bool,
     pub blueprint_debug_ui: crate::blueprint_debug_ui::State,
-    instance_baseline: std::collections::BTreeMap<uuid::Uuid, (Entity, Option<uuid::Uuid>)>,
+    instance_baseline: std::collections::BTreeMap<uuid::Uuid, (Actor, Option<uuid::Uuid>)>,
     pub mcp: crate::mcp::State,
     pub settings: crate::settings_ui::State,
     pub dependencies: crate::dependencies::State,
@@ -445,13 +446,23 @@ impl Editor {
         let path = crate::workspace::scene_path(&self.root, &manifest)?;
         // Settings are not an instruction to re-import the startup scene.
         // Validate a newly selected map's document without resolving its assets.
-        if self.project.as_ref().is_none_or(|p| p.manifest.startup_scene != manifest.startup_scene) {
+        if self
+            .project
+            .as_ref()
+            .is_none_or(|p| p.manifest.startup_scene != manifest.startup_scene)
+        {
             Scene::load_unresolved(&path)?;
         }
-        if let Some(maps) = &maps { maps.validate(&self.root)?; }
+        if let Some(maps) = &maps {
+            maps.validate(&self.root)?;
+        }
         crate::workspace::save_manifest(&self.root, &manifest)?;
-        self.project_browser.previews.configure(&self.root, &self.assets.index);
-        if let Some(maps) = &maps { maps.save(&self.root)?; }
+        self.project_browser
+            .previews
+            .configure(&self.root, &self.assets.index);
+        if let Some(maps) = &maps {
+            maps.save(&self.root)?;
+        }
         // Publish exactly the settings just saved, leaving compiled consumers
         // stale for the NEXT build. Do not consume/suppress other file changes
         // or clear an already pending source-edit build.
@@ -465,7 +476,9 @@ impl Editor {
         if let Some(project) = self.project.as_mut() {
             let renamed = project.manifest.name != manifest.name;
             project.manifest = manifest;
-            if renamed { let _ = crate::workspace::remember(project); }
+            if renamed {
+                let _ = crate::workspace::remember(project);
+            }
         }
         self.log("Project settings saved. Build changes apply on the next Play / Build.");
         Ok(())
@@ -506,10 +519,10 @@ impl Editor {
         initial_scripts: Option<ScriptCatalog>,
     ) -> Self {
         let selected = scene
-            .entities
+            .actors
             .iter()
             .position(|e| e.kind == "Mesh")
-            .or_else(|| (!scene.entities.is_empty()).then_some(0));
+            .or_else(|| (!scene.actors.is_empty()).then_some(0));
         let config = project::Config::load(&root);
         let auto_build = match config {
             Ok(c) => c.auto_build,
@@ -531,6 +544,7 @@ impl Editor {
             timeline_inspector: Default::default(),
             effect_inspector: Default::default(),
             blueprint_creation: Default::default(),
+            actor_creation: Default::default(),
             blueprint_debug_enabled: false,
             blueprint_debug_ui: Default::default(),
             instance_baseline: Default::default(),
@@ -592,7 +606,7 @@ impl Editor {
             registry_revision: 0,
             script_creation: false,
             script_name: String::new(),
-            script_parent: "Behaviour".into(),
+            script_parent: "epok::ActorComponent".into(),
             script_folder: String::new(),
             script_search: String::new(),
             script_error: None,
@@ -804,7 +818,7 @@ impl Editor {
                     let reloading = prepared.path == self.scene_file;
                     self.accept_scene(prepared);
                     if reloading {
-                        self.selected = (!self.scene.entities.is_empty()).then_some(0);
+                        self.selected = (!self.scene.actors.is_empty()).then_some(0);
                         self.log("Scene reloaded.");
                     }
                     self.log(format!(
@@ -864,6 +878,7 @@ impl Editor {
         self.view_dirty = true;
     }
     fn apply_change(&mut self) {
+        self.scene.sync_actor_components();
         self.source_dirty = true;
         self.invalidate_running_build();
         // This method is called for known editor actions. Metadata propagation
@@ -871,16 +886,16 @@ impl Editor {
         let mut parents = vec![];
         let parent_ids: Vec<_> = self
             .scene
-            .entities
+            .actors
             .iter()
             .map(|entity| {
                 entity
                     .parent
-                    .and_then(|index| self.scene.entities.get(index))
+                    .and_then(|index| self.scene.actors.get(index))
                     .map(|parent| parent.id)
             })
             .collect();
-        for (index, entity) in self.scene.entities.iter_mut().enumerate() {
+        for (index, entity) in self.scene.actors.iter_mut().enumerate() {
             if let Some((original, original_parent)) = self.instance_baseline.get(&entity.id)
                 && original.blueprint_instance == entity.blueprint_instance
             {
@@ -938,8 +953,8 @@ impl Editor {
     /// Selects a P4 document actor, clearing the legacy-entity selection.
     pub fn select_actor(&mut self, actor: Option<uuid::Uuid>) {
         self.selected_actor = actor;
+        self.selected = actor.and_then(|id| self.scene.actor_index(id));
         if actor.is_some() {
-            self.selected = None;
             self.selected_asset = None;
         }
         self.view_dirty = true;
@@ -991,7 +1006,7 @@ impl Editor {
         self.scene = scene;
         self.selected = self
             .selected
-            .filter(|index| *index < self.scene.entities.len());
+            .filter(|index| *index < self.scene.actors.len());
         self.selected_actor = self
             .selected_actor
             .filter(|id| self.scene.actors.iter().any(|actor| actor.id == *id));
@@ -1028,6 +1043,55 @@ impl Editor {
             self.last_error = Some(format!("`{class}` is not a reflected class."));
             return;
         };
+        if self
+            .class_registry
+            .classes
+            .get(&resolved.id)
+            .is_some_and(|c| c.provider.id == "blueprint")
+        {
+            let result = (|| -> Result<Option<usize>, String> {
+                let files = crate::blueprint_asset::load_all(&self.root)?;
+                let template = crate::blueprint_templates::resolve_assets(
+                    &files,
+                    &self.class_registry,
+                    &resolved.id,
+                )?;
+                if template.actors.is_empty() {
+                    return Ok(None);
+                }
+                let class = &self.class_registry.classes[&resolved.id];
+                let binding = crate::scene::ClassDefaults {
+                    name: class.cpp_name.clone(),
+                    class_id: Some(class.id.clone()),
+                    provider: class.provider.clone(),
+                    backend: class.backend.clone(),
+                    ..Default::default()
+                };
+                let placed = crate::blueprint_templates::place(
+                    &mut self.scene,
+                    &template,
+                    binding,
+                    &self.class_registry,
+                    None,
+                )?;
+                Ok(Some(placed.root))
+            })();
+            match result {
+                Ok(Some(index)) => {
+                    let id = self.scene.actors[index].id;
+                    self.last_error = None;
+                    self.select_actor(Some(id));
+                    self.changed();
+                    return;
+                }
+                Err(error) => {
+                    self.last_error = Some(error.clone());
+                    self.log(error);
+                    return;
+                }
+                Ok(None) => {}
+            }
+        }
         let base = resolved
             .cpp_name
             .rsplit("::")
@@ -1037,7 +1101,7 @@ impl Editor {
         let mut name = base.clone();
         let mut suffix = 1;
         while self.scene.actors.iter().any(|a| a.name == name)
-            || self.scene.entities.iter().any(|e| e.name == name)
+            || self.scene.actors.iter().any(|e| e.name == name)
         {
             name = format!("{base}.{suffix:03}");
             suffix += 1;
@@ -1066,7 +1130,21 @@ impl Editor {
             );
             instance.root = default.root;
             instance.inherited = true;
+            instance.default_id = Some(default.id.clone());
             actor.components.push(instance);
+        }
+        for (index, default) in resolved.default_components.iter().enumerate() {
+            if let Some(parent) = &default.attach_to {
+                let parent = resolved
+                    .default_components
+                    .iter()
+                    .position(|c| &c.field == parent)
+                    .and_then(|i| actor.components.get(i))
+                    .map(|c| c.id);
+                if let Some(component) = actor.components.get_mut(index) {
+                    component.attach_parent = parent;
+                }
+            }
         }
         if actor.root().is_none()
             && let Some(root) = match resolved.domain {
@@ -1092,6 +1170,7 @@ impl Editor {
             instance.root = true;
             actor.components.insert(0, instance);
         }
+        actor.refresh_components();
         let id = actor.id;
         self.scene.actors.push(actor);
         if let Err(error) = self.scene.validate_with_model(Some(&model)) {
@@ -1123,7 +1202,11 @@ impl Editor {
     }
     /// Publishes `candidate` when the model accepts it; otherwise keeps the
     /// current document untouched and reports why.
-    fn commit_actor_edit(&mut self, candidate: Scene, message: String) -> bool {
+    fn commit_actor_edit(&mut self, mut candidate: Scene, message: String) -> bool {
+        candidate.refresh_actor_hierarchy();
+        for actor in &mut candidate.actors {
+            actor.refresh_components();
+        }
         let model = self.object_model();
         if let Err(error) = candidate.validate_with_model(model.as_deref()) {
             self.last_error = Some(error.clone());
@@ -1600,7 +1683,7 @@ impl Editor {
     pub fn reset_instance_baseline(&mut self) {
         self.instance_baseline = self
             .scene
-            .entities
+            .actors
             .iter()
             .filter(|e| e.blueprint_instance.is_some())
             .map(|e| {
@@ -1609,7 +1692,7 @@ impl Editor {
                     (
                         e.clone(),
                         e.parent
-                            .and_then(|index| self.scene.entities.get(index))
+                            .and_then(|index| self.scene.actors.get(index))
                             .map(|parent| parent.id),
                     ),
                 )
@@ -1684,14 +1767,6 @@ impl Editor {
                     self.log(error);
                 }
                 self.class_registry = registry;
-                for binding in self
-                    .scene
-                    .entities
-                    .iter_mut()
-                    .filter_map(|e| e.script.as_mut())
-                {
-                    self.class_registry.upgrade_binding(binding);
-                }
                 self.catalog = c;
                 let previous = self.scene.clone();
                 let result = crate::blueprint_asset::load_all(&self.root).and_then(|files| {
@@ -1723,7 +1798,9 @@ impl Editor {
                     // back to the legacy sidecar declarations rather than dropping
                     // the whole catalog and leaving nothing attachable.
                     let registry = crate::blueprint::native_registry(&self.root, &native)
-                        .unwrap_or_else(|_| crate::blueprint::legacy_registry(&self.root, &native));
+                        .unwrap_or_else(|_| {
+                            crate::blueprint::registry_from_catalog(&self.root, &native)
+                        });
                     for (id, class) in registry.classes {
                         self.class_registry.classes.insert(id, class);
                     }
@@ -1739,40 +1816,28 @@ impl Editor {
         if self.playing {
             return;
         }
-        let before = self.scene.clone();
-        if let Some(i) = self.selected {
-            if name == "None" {
-                self.scene.entities[i].script = None;
-                self.changed();
-            } else if self
-                .catalog
-                .iter()
-                .any(|s| s.name == name && s.instantiable())
-            {
-                self.scene.entities[i].script = Some(ScriptBinding {
-                    name: name.into(),
-                    class_id: self.class_registry.named(name).map(|c| c.id.clone()),
-                    provider: self
-                        .class_registry
-                        .named(name)
-                        .map(|c| c.provider.clone())
-                        .unwrap_or_else(crate::reflection_schema::native_provider),
-                    backend: self
-                        .class_registry
-                        .named(name)
-                        .map(|c| c.backend.clone())
-                        .unwrap_or_else(crate::reflection_schema::native_backend),
-                    ..Default::default()
-                });
-                self.changed();
+        let result = (|| {
+            let class = self
+                .class_registry
+                .named(name)
+                .cloned()
+                .ok_or("The ActorComponent class is unresolved.")?;
+            if class.provider.id == "blueprint" {
+                return crate::blueprint_workflow::attach_asset(self, &class.source.file);
             }
-        }
-        if self.scene != before {
-            self.script_undo.push((before, self.scene.clone()));
-            if self.script_undo.len() > 32 {
-                self.script_undo.remove(0);
+            let index = self.selected.ok_or("Select an Actor first.")?;
+            let before = self.scene.clone();
+            let candidate =
+                crate::actor_scripts::assign(&before, index, &class, &self.class_registry)?;
+            crate::blueprint_workflow::commit_scene(self, before, candidate, Some(index));
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.last_error = None,
+            Err(error) => {
+                self.log(&error);
+                self.last_error = Some(error);
             }
-            self.script_redo.clear();
         }
     }
     pub fn undo_attachment(&mut self, redo: bool) -> Result<(), String> {
@@ -1844,14 +1909,42 @@ impl Editor {
         self.build_request(false, false, true);
     }
     fn restore_build_report(&mut self) {
-        if self.memory.summary.is_some() { return; }
-        if let Some(summary) = crate::build_report::Summary::load(&self.root, self.blueprint_debug_enabled) {
-            let current = crate::play::input(&self.root, self.scene_path(), self.scene.clone(), self.play_profile.clone(), false)
-                .and_then(|input| crate::project::Config::load(&self.root).and_then(|config| crate::play_cache::request(&self.root, &input, &config, self.blueprint_debug_enabled))).ok();
-            self.memory.stale = summary.request.is_none() || summary.request != current || summary.verify_inputs(&self.root).is_err();
-            let target = if summary.debug { "stage:.epok/build-blueprint-debug" } else { "stage:.epok/build" };
-            self.memory.stale |= crate::artifact_dependencies::Graph::load(&self.root).ok()
-                .and_then(|graph| graph.nodes.get(target).map(|node| !node.stale.is_empty())).unwrap_or(true);
+        if self.memory.summary.is_some() {
+            return;
+        }
+        if let Some(summary) =
+            crate::build_report::Summary::load(&self.root, self.blueprint_debug_enabled)
+        {
+            let current = crate::play::input(
+                &self.root,
+                self.scene_path(),
+                self.scene.clone(),
+                self.play_profile.clone(),
+                false,
+            )
+            .and_then(|input| {
+                crate::project::Config::load(&self.root).and_then(|config| {
+                    crate::play_cache::request(
+                        &self.root,
+                        &input,
+                        &config,
+                        self.blueprint_debug_enabled,
+                    )
+                })
+            })
+            .ok();
+            self.memory.stale = summary.request.is_none()
+                || summary.request != current
+                || summary.verify_inputs(&self.root).is_err();
+            let target = if summary.debug {
+                "stage:.epok/build-blueprint-debug"
+            } else {
+                "stage:.epok/build"
+            };
+            self.memory.stale |= crate::artifact_dependencies::Graph::load(&self.root)
+                .ok()
+                .and_then(|graph| graph.nodes.get(target).map(|node| !node.stale.is_empty()))
+                .unwrap_or(true);
             self.memory.status_current = !self.memory.stale;
             self.memory.scene_signature = crate::scene_dependencies::signature(&self.scene);
             self.memory.profile = summary.profile.clone();
@@ -1862,7 +1955,8 @@ impl Editor {
     }
     pub fn show_memory_report(&mut self) {
         self.restore_build_report();
-        self.memory.stale |= self.pending_build || self.memory.profile != self.play_profile
+        self.memory.stale |= self.pending_build
+            || self.memory.profile != self.play_profile
             || self.memory.debug != self.blueprint_debug_enabled;
         if self.memory.report.is_some() {
             self.memory.error = None;
@@ -1870,13 +1964,22 @@ impl Editor {
             return;
         }
         self.memory.prompt = Some(match &self.memory.summary {
-            Some(summary) if summary.verify_inputs(&self.root).is_ok() => crate::memory_ui::Prompt::GenerateMissing { automatic: summary.automatic_report },
+            Some(summary) if summary.verify_inputs(&self.root).is_ok() => {
+                crate::memory_ui::Prompt::GenerateMissing {
+                    automatic: summary.automatic_report,
+                }
+            }
             _ => crate::memory_ui::Prompt::BuildFirst,
         });
     }
     pub fn generate_memory_report(&mut self) {
-        if self.critical_busy() || self.job.is_some() { return; }
-        let Some(summary) = self.memory.summary.clone() else { self.show_memory_report(); return; };
+        if self.critical_busy() || self.job.is_some() {
+            return;
+        }
+        let Some(summary) = self.memory.summary.clone() else {
+            self.show_memory_report();
+            return;
+        };
         self.memory.pending = true;
         self.memory.report_only = true;
         self.memory.error = None;
@@ -2047,7 +2150,7 @@ impl Editor {
         }
         self.selected_asset = None;
         self.selected = Some(index);
-        self.rename = Some((index, self.scene.entities[index].name.clone()));
+        self.rename = Some((index, self.scene.actors[index].name.clone()));
         self.rename_focus = true;
         self.reveal_selected = true;
         self.search.clear();
@@ -2056,15 +2159,15 @@ impl Editor {
     pub fn finish_rename(&mut self, commit: bool) {
         if let Some((index, name)) = self.rename.take()
             && commit
-            && index < self.scene.entities.len()
+            && index < self.scene.actors.len()
         {
             let name = name.trim();
             if name.is_empty() || name.len() > 128 || name.chars().any(char::is_control) {
                 self.log("Name must contain 1-128 bytes without control characters");
                 return;
             }
-            if self.scene.entities[index].name != name {
-                self.scene.entities[index].name = name.into();
+            if self.scene.actors[index].name != name {
+                self.scene.actors[index].name = name.into();
                 self.changed();
             }
         }
@@ -2075,20 +2178,20 @@ impl Editor {
         }
         let original = self.scene.clone();
         let mut parent = self.selected.filter(|i| {
-            self.scene.entities[*i].canvas.is_some() || self.scene.entities[*i].rect.is_some()
+            self.scene.actors[*i].canvas.is_some() || self.scene.actors[*i].rect.is_some()
         });
         if kind != "canvas" && parent.is_none() {
-            parent = self.scene.entities.iter().position(|e| e.canvas.is_some());
+            parent = self.scene.actors.iter().position(|e| e.canvas.is_some());
         }
         if kind != "canvas" && parent.is_none() {
-            let mut canvas = Entity::cube("Canvas".into());
+            let mut canvas = Actor::cube("Canvas".into());
             canvas.kind = "Empty".into();
             canvas.position = [0.; 3];
             canvas.canvas = Some(Default::default());
-            parent = Some(self.scene.entities.len());
-            self.scene.entities.push(canvas);
+            parent = Some(self.scene.actors.len());
+            self.scene.actors.push(canvas);
         }
-        let mut entity = Entity::cube(
+        let mut entity = Actor::cube(
             match kind {
                 "canvas" => "Canvas",
                 "text" => "Text",
@@ -2123,18 +2226,18 @@ impl Editor {
         }
         let base = entity.name.clone();
         let mut suffix = 1;
-        while self.scene.entities.iter().any(|e| e.name == entity.name) {
+        while self.scene.actors.iter().any(|e| e.name == entity.name) {
             entity.name = format!("{base}.{suffix:03}");
             suffix += 1;
         }
-        self.scene.entities.push(entity);
+        self.scene.actors.push(entity);
         if let Err(error) = self.scene.validate() {
             self.scene = original;
             self.log(error);
             return;
         }
         self.selected_asset = None;
-        self.selected = Some(self.scene.entities.len() - 1);
+        self.selected = Some(self.scene.actors.len() - 1);
         self.reveal_selected = true;
         self.search.clear();
         self.set_scene_2d(true);
@@ -2156,6 +2259,15 @@ impl Editor {
     }
 
     pub fn action(&mut self, action: &str) {
+        if action == "instantiate-actor" || action == "instantiate-child-actor" {
+            let parent = (action == "instantiate-child-actor")
+                .then_some(self.selected)
+                .flatten()
+                .and_then(|index| self.scene.actors.get(index))
+                .map(|actor| actor.id);
+            crate::actor_workflow::begin(self, parent);
+            return;
+        }
         if self.critical_busy() && !(action == "play" && self.job.is_some()) {
             self.log("Editing is locked until the current operation finishes.");
             return;
@@ -2208,11 +2320,11 @@ impl Editor {
                 }
             }
             "add" | "add-child" | "empty" | "child" => {
-                if self.scene.entities.len() >= 512 {
+                if self.scene.actors.len() >= 512 {
                     self.log("Editor limit: 512 objects.");
                     return;
                 }
-                let mut entity = Entity::cube(
+                let mut entity = Actor::cube(
                     if action == "add" || action == "add-child" {
                         "Cube"
                     } else {
@@ -2230,35 +2342,35 @@ impl Editor {
                 }
                 let base = entity.name.clone();
                 let mut suffix = 1;
-                while self.scene.entities.iter().any(|e| e.name == entity.name) {
+                while self.scene.actors.iter().any(|e| e.name == entity.name) {
                     entity.name = format!("{base}.{suffix:03}");
                     suffix += 1;
                 }
-                self.scene.entities.push(entity);
+                self.scene.actors.push(entity);
                 if let Err(error) = self.scene.validate() {
-                    self.scene.entities.pop();
+                    self.scene.actors.pop();
                     self.log(error);
                     return;
                 }
                 self.selected_asset = None;
-                self.selected = Some(self.scene.entities.len() - 1);
+                self.selected = Some(self.scene.actors.len() - 1);
                 self.reveal_selected = true;
                 self.search.clear();
                 self.changed();
             }
-            "blockout-mesh" => crate::mesh_editor::create_entity(self),
+            "blockout-mesh" => crate::mesh_editor::allocate_actor_data(self),
             "duplicate" => {
                 if let Some(i) = self.selected {
-                    let original_ids = (0..self.scene.entities.len())
+                    let original_ids = (0..self.scene.actors.len())
                         .filter(|index| self.scene.is_descendant(*index, i))
-                        .map(|index| self.scene.entities[index].id)
+                        .map(|index| self.scene.actors[index].id)
                         .collect::<Vec<_>>();
-                    let first = self.scene.entities.len();
+                    let first = self.scene.actors.len();
                     match self.scene.duplicate_branch(i) {
                         Ok(index) => {
                             let identities = original_ids
                                 .into_iter()
-                                .zip(self.scene.entities[first..].iter().map(|e| e.id))
+                                .zip(self.scene.actors[first..].iter().map(|e| e.id))
                                 .collect();
                             crate::blueprint_refs::remap_duplicate(
                                 &mut self.scene,
@@ -2278,8 +2390,8 @@ impl Editor {
                 if let Some(i) = self.selected {
                     self.scene.delete_branch(i);
                     self.selected_asset = None;
-                    self.selected = (!self.scene.entities.is_empty())
-                        .then(|| i.min(self.scene.entities.len() - 1));
+                    self.selected =
+                        (!self.scene.actors.is_empty()).then(|| i.min(self.scene.actors.len() - 1));
                     self.changed();
                 }
             }
@@ -2334,9 +2446,11 @@ impl Editor {
                 }
             }
             "serial-reset" | "serial-pause" | "serial-resume" => {
-                if self.playing && self.active_play_target == crate::play::Target::Serial
+                if self.playing
+                    && self.active_play_target == crate::play::Target::Serial
                     && !self.serial_ui.command_pending
-                    && let Some(job) = &self.job {
+                    && let Some(job) = &self.job
+                {
                     job.control(match action {
                         "serial-reset" => Control::Reset,
                         "serial-pause" => Control::Pause,
@@ -2349,36 +2463,24 @@ impl Editor {
             "new-script" => {
                 self.script_creation = true;
                 self.script_name.clear();
-                self.script_parent = "Behaviour".into();
+                self.script_parent = "epok::ActorComponent".into();
                 self.script_folder.clear();
                 self.script_search.clear();
                 self.script_error = None;
             }
             "edit-script" => {
-                if let Some(binding) = self
-                    .selected
-                    .and_then(|i| self.scene.entities[i].script.clone())
-                {
-                    crate::blueprint_workflow::edit_binding(self, &binding);
-                    return;
-                }
-                let path = self
-                    .selected
-                    .and_then(|i| self.scene.entities[i].script.as_ref())
-                    .map(|s| scripts::source(&self.root, &s.name))
-                    .unwrap_or_else(|| self.root.join("assets/scripts"));
-                self.open_code(&path, None);
+                self.open_code(&self.root.join("assets/scripts"), None);
             }
             "settings" => crate::settings_ui::open_project(self),
             "rename" => {
                 if let Some(i) = self.selected {
-                    self.begin_rename(i);
+                    self.begin_actor_rename(self.scene.actors[i].id);
                 }
             }
             "frame-selected" => {
                 if let Some(i) = self.selected {
                     let world = self.scene.world_matrix(i);
-                    if let Some(doc) = self.scene.entities[i]
+                    if let Some(doc) = self.scene.actors[i]
                         .editable_mesh
                         .as_ref()
                         .and_then(|m| m.document.as_ref())
@@ -2432,7 +2534,9 @@ impl Editor {
     pub fn tick(&mut self) {
         // Continue collecting child results/timeouts even when Scene is hidden.
         // Rendering cadence and input still belong to the visible HUD viewport.
-        if self.hud_simulation.update(0., false) { self.view_dirty = true; }
+        if self.hud_simulation.update(0., false) {
+            self.view_dirty = true;
+        }
         if self.scene_loading.is_some() {
             self.poll_scene_open();
             return; // Present completion before resuming observers/imports.
@@ -2463,7 +2567,9 @@ impl Editor {
         }
         crate::skeletal_ui::tick(self);
         if std::mem::take(&mut self.assets.refresh_editor) {
-            self.project_browser.previews.configure(&self.root, &self.assets.index);
+            self.project_browser
+                .previews
+                .configure(&self.root, &self.assets.index);
             let fingerprint = self.assets.index.fingerprint();
             if self.asset_fingerprint.as_ref() != Some(&fingerprint) {
                 let _ = crate::mesh::resolve(&mut self.scene, &self.assets.index);
@@ -2519,11 +2625,14 @@ impl Editor {
                 }
                 Event::BuildSummary(summary) => {
                     if !self.job_stale {
-                        if summary.report_hash.is_none() { self.memory.report = None; }
+                        if summary.report_hash.is_none() {
+                            self.memory.report = None;
+                        }
                         self.memory.profile = summary.profile.clone();
                         self.memory.debug = summary.debug;
                         if !self.memory.report_only {
-                            self.memory.scene_signature = self.memory.building_scene_signature.clone();
+                            self.memory.scene_signature =
+                                self.memory.building_scene_signature.clone();
                             self.memory.stale = false;
                             self.memory.status_current = true;
                         }
@@ -2591,8 +2700,15 @@ impl Editor {
                 }
                 Event::Paused(p) => {
                     self.paused = p;
-                    let target = if self.active_play_target == crate::play::Target::Serial { "PSX" } else { "Emulator" };
-                    self.log(format!("{target} {}.", if p { "paused" } else { "resumed" }));
+                    let target = if self.active_play_target == crate::play::Target::Serial {
+                        "PSX"
+                    } else {
+                        "Emulator"
+                    };
+                    self.log(format!(
+                        "{target} {}.",
+                        if p { "paused" } else { "resumed" }
+                    ));
                 }
                 Event::Finished(result) => {
                     self.serial_ui.command_pending = false;
@@ -2904,8 +3020,11 @@ impl Editor {
             self.set_buttons(0);
             self.game_capture = false;
             self.game_frame = None;
-            self.game_error = Some("Build inputs changed. Press Build or Play to try again.".into());
-            self.log("Stopping the build because its inputs changed. Press Build or Play when ready.");
+            self.game_error =
+                Some("Build inputs changed. Press Build or Play to try again.".into());
+            self.log(
+                "Stopping the build because its inputs changed. Press Build or Play when ready.",
+            );
         }
     }
 }
@@ -2923,7 +3042,8 @@ impl Drop for Editor {
 mod tests {
     #[test]
     fn serial_controls_wait_for_confirmation_and_stop_still_disconnects() {
-        let root = std::env::temp_dir().join(format!("epok-serial-controls-{}", uuid::Uuid::new_v4()));
+        let root =
+            std::env::temp_dir().join(format!("epok-serial-controls-{}", uuid::Uuid::new_v4()));
         let mut editor = super::Editor::new(root.clone());
         editor.auto_build = false;
         editor.active_play_target = crate::play::Target::Serial;
@@ -2931,27 +3051,48 @@ mod tests {
         editor.job = Some(job);
         editor.playing = true;
         editor.action("pause");
-        assert!(matches!(controls.try_recv(), Ok(crate::pipeline::Control::Pause)));
+        assert!(matches!(
+            controls.try_recv(),
+            Ok(crate::pipeline::Control::Pause)
+        ));
         assert!(editor.serial_ui.command_pending && !editor.paused);
         editor.action("serial-reset");
         assert!(controls.try_recv().is_err(), "Commands must not overlap");
-        events.send(crate::pipeline::Event::SerialCommandPending(false)).unwrap();
+        events
+            .send(crate::pipeline::Event::SerialCommandPending(false))
+            .unwrap();
         events.send(crate::pipeline::Event::Paused(true)).unwrap();
         editor.tick();
         assert!(editor.paused && !editor.serial_ui.command_pending);
         editor.action("pause");
-        assert!(matches!(controls.try_recv(), Ok(crate::pipeline::Control::Resume)));
-        assert!(editor.paused, "Sending Continue alone must not mark the PSX resumed");
+        assert!(matches!(
+            controls.try_recv(),
+            Ok(crate::pipeline::Control::Resume)
+        ));
+        assert!(
+            editor.paused,
+            "Sending Continue alone must not mark the PSX resumed"
+        );
         editor.serial_ui.command_pending = false;
         editor.action("serial-reset");
-        assert!(matches!(controls.try_recv(), Ok(crate::pipeline::Control::Reset)));
+        assert!(matches!(
+            controls.try_recv(),
+            Ok(crate::pipeline::Control::Reset)
+        ));
         editor.action("play");
-        assert!(matches!(controls.try_recv(), Ok(crate::pipeline::Control::Stop)));
-        events.send(crate::pipeline::Event::Finished(Ok(()))).unwrap();
+        assert!(matches!(
+            controls.try_recv(),
+            Ok(crate::pipeline::Control::Stop)
+        ));
+        events
+            .send(crate::pipeline::Event::Finished(Ok(())))
+            .unwrap();
         editor.tick();
         assert!(!editor.playing && !editor.paused && !editor.serial_ui.command_pending);
         drop(editor);
-        if root.exists() { std::fs::remove_dir_all(root).unwrap(); }
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
     }
     fn poll_sources(editor: &mut super::Editor) {
         // Explicit diagnostic request. Production observations are event-driven.
@@ -2973,24 +3114,42 @@ mod tests {
     #[ignore = "Requires installed native SDK; builds a disposable project without launching"]
     fn editor_build_report_lifecycle_with_native_compiler() {
         let root = crate::workspace::tests::temp("native-report-lifecycle");
-        let project = crate::workspace::create(&root, "Report lifecycle", crate::workspace::Template::Basic).unwrap();
+        let project =
+            crate::workspace::create(&root, "Report lifecycle", crate::workspace::Template::Basic)
+                .unwrap();
         let mut editor = Editor::open(project).unwrap();
         let finish = |editor: &mut Editor| {
             let started = Instant::now();
             while editor.job.is_some() {
                 editor.tick();
-                assert!(started.elapsed() < Duration::from_secs(180), "{:?}", editor.logs);
+                assert!(
+                    started.elapsed() < Duration::from_secs(180),
+                    "{:?}",
+                    editor.logs
+                );
                 std::thread::sleep(Duration::from_millis(10));
             }
-            assert!(editor.last_error.is_none(), "{:?}\n{:?}", editor.last_error, editor.logs);
+            assert!(
+                editor.last_error.is_none(),
+                "{:?}\n{:?}",
+                editor.last_error,
+                editor.logs
+            );
             poll_sources(editor);
         };
         editor.show_memory_report();
-        assert_eq!(editor.memory.prompt, Some(crate::memory_ui::Prompt::BuildFirst));
+        assert_eq!(
+            editor.memory.prompt,
+            Some(crate::memory_ui::Prompt::BuildFirst)
+        );
         editor.memory.prompt = None;
         editor.analyze_memory();
         finish(&mut editor);
-        assert!(editor.memory.status_current && !editor.memory.stale, "{:?}", editor.logs);
+        assert!(
+            editor.memory.status_current && !editor.memory.stale,
+            "{:?}",
+            editor.logs
+        );
         assert!(editor.memory.report.is_some() && editor.memory.open);
         editor.memory.open = false;
         editor.show_memory_report();
@@ -3001,17 +3160,25 @@ mod tests {
         editor.apply_project_configuration(settings, None).unwrap();
         editor.build(false);
         finish(&mut editor);
-        assert!(editor.memory.report.is_none() && editor.memory.status_current && !editor.memory.stale);
+        assert!(
+            editor.memory.report.is_none() && editor.memory.status_current && !editor.memory.stale
+        );
         editor.show_memory_report();
-        assert_eq!(editor.memory.prompt, Some(crate::memory_ui::Prompt::GenerateMissing { automatic: false }));
+        assert_eq!(
+            editor.memory.prompt,
+            Some(crate::memory_ui::Prompt::GenerateMissing { automatic: false })
+        );
         editor.memory.prompt = None;
         let exe = std::fs::read(root.join(".epok/build/epok.ps-exe")).unwrap();
         editor.generate_memory_report();
         finish(&mut editor);
         assert!(editor.memory.open && editor.memory.report.is_some());
-        assert_eq!(exe, std::fs::read(root.join(".epok/build/epok.ps-exe")).unwrap());
+        assert_eq!(
+            exe,
+            std::fs::read(root.join(".epok/build/epok.ps-exe")).unwrap()
+        );
         editor.memory.open = false;
-        editor.scene.entities[0].active = !editor.scene.entities[0].active;
+        editor.scene.actors[0].active = !editor.scene.actors[0].active;
         editor.changed();
         editor.show_memory_report();
         assert!(editor.memory.open && editor.memory.stale && editor.job.is_none());
@@ -3023,13 +3190,19 @@ mod tests {
         let root = crate::workspace::tests::temp("report-button-states");
         let mut editor = Editor::new(root.clone());
         editor.show_memory_report();
-        assert_eq!(editor.memory.prompt, Some(crate::memory_ui::Prompt::BuildFirst));
+        assert_eq!(
+            editor.memory.prompt,
+            Some(crate::memory_ui::Prompt::BuildFirst)
+        );
         assert!(editor.job.is_none());
         editor.memory.prompt = None; // Cancel is inert.
         let summary = crate::build_report::tests::fixture(&root, false, false);
         editor.memory.summary = Some(summary.clone());
         editor.show_memory_report();
-        assert_eq!(editor.memory.prompt, Some(crate::memory_ui::Prompt::GenerateMissing { automatic: false }));
+        assert_eq!(
+            editor.memory.prompt,
+            Some(crate::memory_ui::Prompt::GenerateMissing { automatic: false })
+        );
         assert!(editor.job.is_none());
         let summary = crate::build_report::tests::fixture(&root, true, true);
         editor.memory.prompt = None;
@@ -3041,7 +3214,7 @@ mod tests {
         editor.show_memory_report();
         assert!(editor.memory.open && !editor.memory.stale && editor.job.is_none());
         editor.memory.open = false;
-        editor.scene.entities[0].active = !editor.scene.entities[0].active;
+        editor.scene.actors[0].active = !editor.scene.actors[0].active;
         editor.changed();
         editor.show_memory_report();
         assert!(editor.memory.open && editor.memory.stale && editor.job.is_none());
@@ -3060,18 +3233,31 @@ mod tests {
         let summary = crate::build_report::tests::fixture(&root, true, true);
         let (job, events, _controls) = pipeline::Job::test_channels();
         editor.job = Some(job);
-        editor.memory.building_scene_signature = crate::scene_dependencies::signature(&editor.scene);
+        editor.memory.building_scene_signature =
+            crate::scene_dependencies::signature(&editor.scene);
         editor.memory.stale = true;
-        events.send(Event::MemoryReport(Box::new(summary.report(&root).unwrap()))).unwrap();
-        events.send(Event::BuildSummary(Box::new(summary.clone()))).unwrap();
+        events
+            .send(Event::MemoryReport(Box::new(
+                summary.report(&root).unwrap(),
+            )))
+            .unwrap();
+        events
+            .send(Event::BuildSummary(Box::new(summary.clone())))
+            .unwrap();
         events.send(Event::Finished(Ok(()))).unwrap();
         editor.tick();
-        assert!(editor.memory.status_current && !editor.memory.stale && editor.memory.report.is_some());
+        assert!(
+            editor.memory.status_current && !editor.memory.stale && editor.memory.report.is_some()
+        );
         assert!(!editor.memory.open);
         let (job, events, _controls) = pipeline::Job::test_channels();
         editor.job = Some(job);
         editor.memory.pending = true;
-        events.send(Event::MemoryReport(Box::new(summary.report(&root).unwrap()))).unwrap();
+        events
+            .send(Event::MemoryReport(Box::new(
+                summary.report(&root).unwrap(),
+            )))
+            .unwrap();
         events.send(Event::BuildSummary(Box::new(summary))).unwrap();
         events.send(Event::Finished(Ok(()))).unwrap();
         editor.tick();
@@ -3086,7 +3272,7 @@ mod tests {
         editor.auto_build = true; // Legacy preference is no longer a scheduler.
         for active in [false, true] {
             editor.view_dirty = false;
-            editor.scene.entities[0].active = active;
+            editor.scene.actors[0].active = active;
             editor.changed();
             editor.pending_since = Some(Instant::now() - Duration::from_secs(2));
             poll_sources(&mut editor);
@@ -3099,7 +3285,9 @@ mod tests {
         assert!(controls.try_recv().is_err());
         assert!(editor.playing && !editor.job_stale && editor.pending_build);
         drop(editor);
-        if root.exists() { std::fs::remove_dir_all(root).unwrap(); }
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
     }
     #[test]
     fn empty_selected_scenes_warns_before_build_or_serial_setup() {
@@ -3254,7 +3442,9 @@ mod tests {
         editor.set_scene_2d(false);
         assert_eq!(editor.scene, before);
         drop(editor);
-        if root.exists() { std::fs::remove_dir_all(root).unwrap(); }
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
     }
     /// The Hierarchy's and Inspector's actor commands, exercised through the
     /// same `Editor` methods the UI calls.
@@ -3263,8 +3453,10 @@ mod tests {
         let root = crate::workspace::tests::temp("actor-operations");
         let mut editor = Editor::new(root.clone());
         editor.auto_build = false;
+        editor.scene.actors.clear();
         editor.catalog = crate::mcp_tests::actor_catalog();
-        editor.class_registry = crate::blueprint::legacy_registry(&editor.root, &editor.catalog);
+        editor.class_registry =
+            crate::blueprint::registry_from_catalog(&editor.root, &editor.catalog);
         editor.registry_revision += 1;
         assert!(editor.object_model().is_some());
         editor.create_actor("epok::Actor3D");
@@ -3388,7 +3580,7 @@ mod tests {
         let mut editor = Editor::new(root.clone());
         let original = editor.scene.clone();
         for step in 0..50 {
-            editor.scene.entities[0].position[0] = step as f32;
+            editor.scene.actors[0].position[0] = step as f32;
             editor.changed_coalesced("gizmo-drag");
         }
         editor.end_coalesced();
@@ -3425,32 +3617,56 @@ mod tests {
         assert!(!editor.job_stale && !editor.pending_build);
         assert!(controls.try_recv().is_err());
         drop(editor);
-        if root.exists() { std::fs::remove_dir_all(root).unwrap(); }
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
     }
     #[test]
     #[ignore = "requires a disposable EPOK_IDLE_PROJECT and the installed SDK"]
     fn profile_apply_debug_settings_without_reload() {
-        let root=PathBuf::from(std::env::var_os("EPOK_IDLE_PROJECT").unwrap());
-        let mut editor=Editor::open(crate::workspace::Project::open(&root).unwrap()).unwrap();
-        editor.open_scene(root.join("assets/scenes/ForestClearing.epokmap")).unwrap();
-        let started=Instant::now();
-        while started.elapsed()<Duration::from_secs(2) {editor.tick();std::thread::sleep(Duration::from_millis(10));}
-        assert!(!editor.pending_build && editor.job.is_none(),"{:?}",editor.logs);
-        let original=editor.project.as_ref().unwrap().manifest.clone();
-        let revision=editor.registry_revision;
-        let scene=editor.scene.clone();
-        for enabled in [!original.debug.cpu,original.debug.cpu] {
-            let mut draft=original.clone();draft.debug.cpu=enabled;
-            let started=Instant::now();
-            editor.apply_project_configuration(draft,Some(crate::scene_bank::read(&root).unwrap())).unwrap();
-            eprintln!("Ironwood Apply Debug: {:.2} ms",started.elapsed().as_secs_f64()*1000.);
-            assert!(started.elapsed()<Duration::from_secs(1),"Apply should only save settings");
-            let started=Instant::now();
-            while started.elapsed()<Duration::from_secs(3) {
+        let root = PathBuf::from(std::env::var_os("EPOK_IDLE_PROJECT").unwrap());
+        let mut editor = Editor::open(crate::workspace::Project::open(&root).unwrap()).unwrap();
+        editor
+            .open_scene(root.join("assets/scenes/ForestClearing.epokmap"))
+            .unwrap();
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_secs(2) {
+            editor.tick();
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(
+            !editor.pending_build && editor.job.is_none(),
+            "{:?}",
+            editor.logs
+        );
+        let original = editor.project.as_ref().unwrap().manifest.clone();
+        let revision = editor.registry_revision;
+        let scene = editor.scene.clone();
+        for enabled in [!original.debug.cpu, original.debug.cpu] {
+            let mut draft = original.clone();
+            draft.debug.cpu = enabled;
+            let started = Instant::now();
+            editor
+                .apply_project_configuration(draft, Some(crate::scene_bank::read(&root).unwrap()))
+                .unwrap();
+            eprintln!(
+                "Ironwood Apply Debug: {:.2} ms",
+                started.elapsed().as_secs_f64() * 1000.
+            );
+            assert!(
+                started.elapsed() < Duration::from_secs(1),
+                "Apply should only save settings"
+            );
+            let started = Instant::now();
+            while started.elapsed() < Duration::from_secs(3) {
                 editor.tick();
-                assert!(!editor.pending_build && editor.job.is_none(),"{:?}",editor.logs);
-                assert_eq!(editor.registry_revision,revision);
-                assert_eq!(editor.scene,scene);
+                assert!(
+                    !editor.pending_build && editor.job.is_none(),
+                    "{:?}",
+                    editor.logs
+                );
+                assert_eq!(editor.registry_revision, revision);
+                assert_eq!(editor.scene, scene);
                 std::thread::sleep(Duration::from_millis(10));
             }
         }
@@ -3458,41 +3674,83 @@ mod tests {
     #[test]
     fn applying_debug_settings_preserves_scene_and_does_not_auto_build_or_refresh_scripts() {
         let root = crate::workspace::tests::temp("apply-debug-with-auto-build");
-        let project = crate::workspace::create(&root, "Debug settings", crate::workspace::Template::Basic).unwrap();
+        let project =
+            crate::workspace::create(&root, "Debug settings", crate::workspace::Template::Basic)
+                .unwrap();
         let mut editor = Editor::open(project).unwrap();
         editor.auto_build = true;
         let mut manifest = editor.project.as_ref().unwrap().manifest.clone();
         let generated = "generated-scene:.epok/build/scene.hh";
         crate::artifact_dependencies::transaction(&root, |graph| {
-            graph.publish("scene-debug-settings",crate::scene_dependencies::hash(manifest.debug),Default::default());
-            graph.publish(generated,"old-build".into(),["scene-debug-settings".into()].into());
-        }).unwrap();
+            graph.publish(
+                "scene-debug-settings",
+                crate::scene_dependencies::hash(manifest.debug),
+                Default::default(),
+            );
+            graph.publish(
+                generated,
+                "old-build".into(),
+                ["scene-debug-settings".into()].into(),
+            );
+        })
+        .unwrap();
         // A queued observation must not revive old settings after Apply.
-        let delayed=crate::scene_dependencies::inspect_with_registry(&root,&editor.scene_path(),&editor.scene,Ok(&editor.class_registry)).unwrap();
+        let delayed = crate::scene_dependencies::inspect_with_registry(
+            &root,
+            &editor.scene_path(),
+            &editor.scene,
+            Ok(&editor.class_registry),
+        )
+        .unwrap();
         let revision = editor.registry_revision;
-        editor.scene.entities[0].position[0] += 3.;
+        editor.scene.actors[0].position[0] += 3.;
         let scene = editor.scene.clone();
-        manifest.debug.cpu=true;
-        let started=Instant::now();
-        editor.apply_project_configuration(manifest.clone(),Some(crate::scene_bank::read(&root).unwrap())).unwrap();
+        manifest.debug.cpu = true;
+        let started = Instant::now();
+        editor
+            .apply_project_configuration(
+                manifest.clone(),
+                Some(crate::scene_bank::read(&root).unwrap()),
+            )
+            .unwrap();
         eprintln!("Apply Debug: {:?}", started.elapsed());
-        assert_eq!(editor.scene,scene,"Apply must not reload the open document");
-        assert_eq!(editor.registry_revision,revision);
+        assert_eq!(
+            editor.scene, scene,
+            "Apply must not reload the open document"
+        );
+        assert_eq!(editor.registry_revision, revision);
         assert!(!delayed.publish(&root).unwrap());
         poll_sources(&mut editor);
-        let started=Instant::now();
-        while started.elapsed()<Duration::from_millis(1400) {
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_millis(1400) {
             editor.tick();
-            assert!(editor.job.is_none() && !editor.pending_build,"{:?}",editor.logs);
+            assert!(
+                editor.job.is_none() && !editor.pending_build,
+                "{:?}",
+                editor.logs
+            );
             std::thread::sleep(Duration::from_millis(10));
         }
-        assert_eq!(editor.registry_revision,revision,"Debug settings must not reload scripts");
-        assert_eq!(crate::settings::debug_hud(&root).unwrap(),manifest.debug);
-        assert!(!crate::artifact_dependencies::Graph::load(&root).unwrap().nodes[generated].stale.is_empty());
+        assert_eq!(
+            editor.registry_revision, revision,
+            "Debug settings must not reload scripts"
+        );
+        assert_eq!(crate::settings::debug_hud(&root).unwrap(), manifest.debug);
+        assert!(
+            !crate::artifact_dependencies::Graph::load(&root)
+                .unwrap()
+                .nodes[generated]
+                .stale
+                .is_empty()
+        );
         // An independent real source edit must still trigger automatic work.
         std::fs::create_dir_all(root.join("assets/scripts")).unwrap();
-        std::fs::write(root.join("assets/scripts/Changed.cpp"),b"// changed concurrently with Apply\n").unwrap();
-        editor.auto_build=false;
+        std::fs::write(
+            root.join("assets/scripts/Changed.cpp"),
+            b"// changed concurrently with Apply\n",
+        )
+        .unwrap();
+        editor.auto_build = false;
         editor.apply_project_settings(manifest).unwrap();
         poll_sources(&mut editor);
         assert!(editor.pending_build);
@@ -3555,7 +3813,7 @@ mod tests {
         }
         // Unsaved edits are internal events, even when the last build consumed
         // a different scene. No file notification is needed to schedule work.
-        editor.scene.entities[0].position[0] += 1.;
+        editor.scene.actors[0].position[0] += 1.;
         editor.changed();
         assert!(editor.pending_build && editor.source_dirty);
         editor.auto_build = false;
@@ -3815,7 +4073,7 @@ mod tests {
         editor.auto_build = true;
         let index = editor
             .scene
-            .entities
+            .actors
             .iter()
             .position(|e| e.name.contains("Cube"))
             .unwrap();
@@ -3852,10 +4110,7 @@ mod tests {
                         log.contains("mipsel-none-elf-g++ "),
                         "Full compiler commands must remain available in the build log"
                     );
-                    assert_eq!(
-                        editor.scene.entities[index].script.as_ref().unwrap().name,
-                        "BP_Cube"
-                    );
+                    assert_eq!(editor.scene.actors[index].class.name, "BP_Cube");
                     return;
                 }
             } else {
@@ -3899,7 +4154,7 @@ mod tests {
                 editor.logs
             );
         }
-        editor.scene.entities[0].position[0] += 1.;
+        editor.scene.actors[0].position[0] += 1.;
         editor.changed();
         poll_sources(&mut editor);
         assert!(
@@ -3941,25 +4196,25 @@ mod tests {
     #[test]
     fn rename_cancel_validation_and_hud_component_creation() {
         let mut e = Editor::new(std::env::temp_dir().join("epok-rename-hud"));
-        let original = e.scene.entities[1].name.clone();
+        let original = e.scene.actors[1].name.clone();
         e.begin_rename(1);
         e.rename.as_mut().unwrap().1 = "Cancel".into();
         e.finish_rename(false);
-        assert_eq!(e.scene.entities[1].name, original);
+        assert_eq!(e.scene.actors[1].name, original);
         e.begin_rename(1);
         e.rename.as_mut().unwrap().1 = "  ".into();
         e.finish_rename(true);
-        assert_eq!(e.scene.entities[1].name, original);
+        assert_eq!(e.scene.actors[1].name, original);
         e.begin_rename(1);
         e.rename.as_mut().unwrap().1 = "Player".into();
         e.finish_rename(true);
-        assert_eq!(e.scene.entities[1].name, "Player");
+        assert_eq!(e.scene.actors[1].name, "Player");
         e.create_hud("progress");
         let i = e.selected.unwrap();
-        assert!(e.scene.entities[i].progress.is_some());
-        assert!(e.scene.entities[i].rect.is_some());
+        assert!(e.scene.actors[i].progress.is_some());
+        assert!(e.scene.actors[i].rect.is_some());
         assert!(
-            e.scene.entities[e.scene.entities[i].parent.unwrap()]
+            e.scene.actors[e.scene.actors[i].parent.unwrap()]
                 .canvas
                 .is_some()
         );
@@ -3975,18 +4230,18 @@ mod tests {
         e.selected = Some(1);
         e.action("empty");
         let parent = e.selected.unwrap();
-        assert_eq!(e.scene.entities[parent].kind, "Empty");
-        assert_eq!(e.scene.entities[parent].parent, None);
-        e.scene.entities[parent].position = [3., 2., 1.];
-        e.scene.entities[parent].rotation = [0., 45., 0.];
+        assert_eq!(e.scene.actors[parent].kind, "Empty");
+        assert_eq!(e.scene.actors[parent].parent, None);
+        e.scene.actors[parent].position = [3., 2., 1.];
+        e.scene.actors[parent].rotation = [0., 45., 0.];
         e.action("add-child");
         let child = e.selected.unwrap();
-        assert_eq!(e.scene.entities[child].parent, Some(parent));
-        assert_eq!(e.scene.entities[child].kind, "Mesh");
-        assert_eq!(e.scene.entities[child].position, [0.; 3]);
+        assert_eq!(e.scene.actors[child].parent, Some(parent));
+        assert_eq!(e.scene.actors[child].kind, "Mesh");
+        assert_eq!(e.scene.actors[child].position, [0.; 3]);
         assert_eq!(e.scene.world_matrix(child).point([0.; 3]), [3., 2., 1.]);
         e.action("add");
-        assert_eq!(e.scene.entities[e.selected.unwrap()].parent, None);
+        assert_eq!(e.scene.actors[e.selected.unwrap()].parent, None);
         let before = e.scene.clone();
         e.playing = true;
         e.action("add-child");
@@ -4126,9 +4381,7 @@ mod tests {
         assert!(editor.timeline_editor.catalog_error.is_none());
         editor.action("play");
         assert!(matches!(controls.try_recv(), Ok(Control::Stop)));
-        events
-            .send(Event::Finished(Ok(())))
-            .unwrap();
+        events.send(Event::Finished(Ok(()))).unwrap();
         editor.tick();
         assert!(editor.job.is_none() && !editor.playing);
         assert!(
@@ -4248,7 +4501,7 @@ mod tests {
         let timeline = crate::timeline::TimelineAsset::new("Used".into());
         let timeline_bytes = serde_json::to_vec(&timeline).unwrap();
         std::fs::write(&timeline_path, &timeline_bytes).unwrap();
-        editor.scene.entities[0].timeline = Some(crate::timeline_scene::Component {
+        editor.scene.actors[0].timeline = Some(crate::timeline_scene::Component {
             asset: Some(timeline.id),
             ..Default::default()
         });
@@ -4338,7 +4591,7 @@ mod tests {
         assert_eq!(std::fs::read(&executable).unwrap(), original_executable);
         let recovered_pid = editor.emulator_pid.unwrap();
         let saved_scene = std::fs::read(editor.scene_path()).unwrap();
-        editor.scene.entities[1].position[0] += 3.;
+        editor.scene.actors[1].position[0] += 3.;
         editor.changed();
         until(&mut editor, "Restarted edited scene", |e| {
             e.playing
@@ -4418,12 +4671,12 @@ mod tests {
         let path = std::env::temp_dir().join(format!("epok-actions-{}", uuid::Uuid::new_v4()));
         let mut e = Editor::new(path.clone());
         e.action("add");
-        assert_eq!(e.scene.entities.len(), 5);
+        assert_eq!(e.scene.actors.len(), 5);
         e.action("duplicate");
-        assert_eq!(e.scene.entities.len(), 6);
+        assert_eq!(e.scene.actors.len(), 6);
         e.playing = true;
         e.action("delete");
-        assert_eq!(e.scene.entities.len(), 6);
+        assert_eq!(e.scene.actors.len(), 6);
         e.playing = false;
         e.action("delete");
         assert!(e.save());
@@ -4434,8 +4687,8 @@ mod tests {
             e.tick();
             std::thread::sleep(Duration::from_millis(2));
         }
-        assert_eq!(e.scene.entities.len(), 5);
-        while !e.scene.entities.is_empty() {
+        assert_eq!(e.scene.actors.len(), 5);
+        while !e.scene.actors.is_empty() {
             e.action("delete");
         }
         assert_eq!(e.selected, None);
@@ -4449,23 +4702,20 @@ mod tests {
             crate::workspace::create(&root, "Undo", crate::workspace::Template::Sample).unwrap();
         let mut editor = Editor::open(project).unwrap();
         editor.selected = Some(0);
-        editor.attach("Spinner");
-        editor.scene.entities[0]
-            .script
-            .as_mut()
-            .unwrap()
-            .properties
-            .insert("speed".into(), serde_json::json!(123));
         let before = editor.scene.clone();
-        editor.attach("None");
-        assert!(editor.scene.entities[0].script.is_none());
+        editor.attach("Spinner");
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        let attached = editor.scene.clone();
+        assert_eq!(
+            attached.actors[0].components.len(),
+            before.actors[0].components.len() + 1
+        );
         editor.undo_attachment(false).unwrap();
         assert_eq!(editor.scene, before);
         editor.undo_attachment(true).unwrap();
-        assert!(editor.scene.entities[0].script.is_none());
+        assert_eq!(editor.scene, attached);
         editor.scene.name = "Intervening edit".into();
         assert!(editor.undo_attachment(false).is_err());
-        assert_eq!(editor.scene.name, "Intervening edit");
         drop(editor);
         std::fs::remove_dir_all(root).unwrap();
     }

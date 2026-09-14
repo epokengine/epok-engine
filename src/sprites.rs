@@ -129,7 +129,7 @@ fn validate_region(r: [u16; 4]) -> Result<(), String> {
     }
 }
 pub fn validate(scene: &Scene) -> Result<(), String> {
-    for e in &scene.entities {
+    for e in &scene.actors {
         if let Some(s) = &e.sprite {
             validate_sprite(s)?;
             crate::texture::validate_region(s.texture, s.region, scene)?;
@@ -247,7 +247,7 @@ pub struct PreviewQuad {
 }
 pub fn preview(scene: &Scene, camera: [[f32; 3]; 3], seconds: f32) -> Vec<PreviewQuad> {
     scene
-        .entities
+        .actors
         .iter()
         .enumerate()
         .filter_map(|(owner, e)| {
@@ -292,7 +292,7 @@ pub fn cpp_sprite(s: &Sprite, texture_index: i32) -> String {
 pub fn generate(scene: &Scene, texture_ids: &[Uuid]) -> (String, String) {
     let mut tables = String::new();
     let mut init = String::new();
-    for (i, e) in scene.entities.iter().enumerate() {
+    for (i, e) in scene.actors.iter().enumerate() {
         if let Some(s) = &e.sprite {
             init += &format!(
                 "objects[{i}].sprite={};\n",

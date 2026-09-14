@@ -6,18 +6,23 @@ namespace epok {
 unsigned adapter_audio_plays=0,adapter_audio_stops=0,adapter_camera_activations=0;
 void AudioSource::play(){++adapter_audio_plays;}
 void AudioSource::stop(){++adapter_audio_stops;}
-bool set_active_camera(Entity* value){if(!value||!value->camera)return false;++adapter_camera_activations;return true;}
+bool AudioSource::is_playing()const{return false;}
+bool set_active_camera(ActorData* value){if(!value||!value->camera)return false;++adapter_camera_activations;return true;}
 }
 
+#define EPOK_TEST_AUDIO_IMPLEMENTED
+#include "actor_scene_fixture.hpp"
+template<class T>struct Attached:T {void attach(epok::Actor& owner){this->m_owner=owner.id();}};
 int main(){
     using namespace epok;
-    Entity target{};
+    test_reset_scene();auto& target=entities[0];
+    auto* owner=test_registry.resolve<Actor>(test_owner(0));assert(owner);
     target.camera=true;
     target.camera_settings.field_of_view=107.0;
     target.transform.position[0]=13.0;
     target.transform.rotation[1]=24.0;
-    TimelineCamera camera;
-    camera.bind(target);
+    Attached<TimelineCamera> camera;
+    camera.attach(*owner);
     // Capture live component state without applying unrelated proxy defaults.
     constexpr uint64_t fov=UINT64_C(15657026159422320539);
     constexpr uint64_t position=UINT64_C(5859010025834633935);
@@ -53,13 +58,13 @@ int main(){
     camera.timeline_sync(UINT64_MAX,false);
     assert(target.transform.position[0].raw()==9*4096);
 
-    TimelineAudio audio;audio.bind(target);
+    Attached<TimelineAudio> audio;audio.attach(*owner);
     audio.play();audio.stop();
     assert(adapter_audio_plays==0&&adapter_audio_stops==0);
     target.audio.enabled=true;
     audio.play();audio.stop();
     assert(adapter_audio_plays==1&&adapter_audio_stops==1);
-    TimelineEmitter emitter;emitter.bind(target);
+    Attached<TimelineEmitter> emitter;emitter.attach(*owner);
     target.particle_emitter.enabled=true;
     // Restoring an existing valid upper bound must not narrow the component's
     // authoring range. Particle rate supports 512; queue capacity is separate.
@@ -84,12 +89,12 @@ int main(){
     target.particle_emitter.pending=0;
     emitter.burst(300);assert(target.particle_emitter.pending==0);
     emitter.stop();assert(target.particle_emitter.playing);
-    TimelinePalette palette;palette.bind(target);
+    Attached<TimelinePalette> palette;palette.attach(*owner);
     target.palette_animator.enabled=true;
     target.palette_animator.remainder=25;target.palette_animator.offset=7;
     palette.reset();
     assert(target.palette_animator.remainder==0&&target.palette_animator.offset==0);
-    TimelineRect rect;rect.bind(target);target.rect.enabled=true;
+    Attached<TimelineRect> rect;rect.attach(*test_ui_actor(0));target.rect.enabled=true;
     target.rect.size[0]=-1024.0;target.rect.size[1]=1024.0;
     constexpr uint64_t size=UINT64_C(7984496657147586794);
     rect.timeline_sync(size,true);

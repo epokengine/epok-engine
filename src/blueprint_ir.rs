@@ -62,47 +62,30 @@ pub struct Error {
     pub node: Option<String>,
     pub message: String,
 }
-/// What `Self` is for the class being generated. Behaviour keeps the legacy shape
-/// byte for byte; Actor and Component reach the legacy entity slot through the
-/// null-safe adapters in `runtime/actor_blueprint.hpp`.
+/// The concrete instance that executes a graph.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum SelfKind {
     #[default]
-    Behaviour,
     Actor,
     Component,
 }
 impl SelfKind {
-    /// Expression yielding the EntityHandle of the owning legacy slot.
     pub fn handle(self) -> &'static str {
-        match self {
-            SelfKind::Behaviour => "epok::handle(&this->entity())",
-            SelfKind::Actor => "epok::bp::actor_handle(this)",
-            SelfKind::Component => "epok::bp::component_handle(this)",
-        }
+        "this->id()"
     }
-    /// Expression yielding the owning legacy slot pointer, or nullptr.
     pub fn entity_pointer(self) -> &'static str {
-        match self {
-            SelfKind::Behaviour => "&this->entity()",
-            SelfKind::Actor => "epok::bp::actor_entity(this)",
-            SelfKind::Component => "epok::bp::component_entity(this)",
-        }
+        "epok::bp::object_data(this->id())"
     }
-    /// Lvalue alias for an owner Transform parameter.
     pub fn transform(self) -> &'static str {
         match self {
-            SelfKind::Behaviour => "this->entity().transform",
-            SelfKind::Actor => "epok::bp::actor_transform(this)",
-            SelfKind::Component => "epok::bp::component_transform(this)",
+            Self::Actor => "epok::bp::actor_transform(this)",
+            Self::Component => "epok::bp::component_transform(this)",
         }
     }
-    /// Expression yielding the Actor that owns `Self`, for actor-scoped nodes.
     pub fn actor(self) -> &'static str {
         match self {
-            SelfKind::Behaviour => "nullptr",
-            SelfKind::Actor => "this",
-            SelfKind::Component => "this->get_owner()",
+            Self::Actor => "this",
+            Self::Component => "this->get_owner()",
         }
     }
 }
@@ -116,14 +99,134 @@ pub struct Context<'a> {
     pub properties: &'a BTreeMap<String, schema::Property>,
     pub functions: &'a BTreeMap<String, schema::Function>,
     pub parent_name: &'a str,
+    pub self_class: &'a str,
     pub parent_function: Option<&'a schema::Function>,
     pub playback_timelines: &'a [(std::path::PathBuf, crate::timeline::TimelineAsset)],
     pub playback_effects: &'a [(std::path::PathBuf, crate::particle_effect::ParticleEffect)],
 }
 pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, bool) {
-    let entity = Type::EntityRef { class: None };
+    let entity = Type::ObjectRef { class: None };
+    let spatial = Type::ActorRef {
+        class: Some(crate::object_model::ACTOR3D_ID.into()),
+    };
     let vector = Type::Vector { length: 3 };
     let (inputs, output, pure) = match operation {
+        Builtin::GetPosition2D => (
+            vec![(
+                "target",
+                Type::ActorRef {
+                    class: Some(crate::object_model::ACTOR2D_ID.into()),
+                },
+            )],
+            Type::Vector { length: 2 },
+            true,
+        ),
+        Builtin::SetPosition2D => (
+            vec![
+                (
+                    "target",
+                    Type::ActorRef {
+                        class: Some(crate::object_model::ACTOR2D_ID.into()),
+                    },
+                ),
+                ("value", Type::Vector { length: 2 }),
+            ],
+            Type::Void,
+            false,
+        ),
+        Builtin::GetRotation2D => (
+            vec![(
+                "target",
+                Type::ActorRef {
+                    class: Some(crate::object_model::ACTOR2D_ID.into()),
+                },
+            )],
+            Type::Fixed,
+            true,
+        ),
+        Builtin::SetRotation2D => (
+            vec![
+                (
+                    "target",
+                    Type::ActorRef {
+                        class: Some(crate::object_model::ACTOR2D_ID.into()),
+                    },
+                ),
+                ("value", Type::Fixed),
+            ],
+            Type::Void,
+            false,
+        ),
+        Builtin::GetScale2D => (
+            vec![(
+                "target",
+                Type::ActorRef {
+                    class: Some(crate::object_model::ACTOR2D_ID.into()),
+                },
+            )],
+            Type::Vector { length: 2 },
+            true,
+        ),
+        Builtin::SetScale2D => (
+            vec![
+                (
+                    "target",
+                    Type::ActorRef {
+                        class: Some(crate::object_model::ACTOR2D_ID.into()),
+                    },
+                ),
+                ("value", Type::Vector { length: 2 }),
+            ],
+            Type::Void,
+            false,
+        ),
+        Builtin::GetRectPosition => (
+            vec![(
+                "target",
+                Type::ActorRef {
+                    class: Some(crate::object_model::UI_ACTOR_ID.into()),
+                },
+            )],
+            Type::Vector { length: 2 },
+            true,
+        ),
+        Builtin::SetRectPosition => (
+            vec![
+                (
+                    "target",
+                    Type::ActorRef {
+                        class: Some(crate::object_model::UI_ACTOR_ID.into()),
+                    },
+                ),
+                ("value", Type::Vector { length: 2 }),
+            ],
+            Type::Void,
+            false,
+        ),
+        Builtin::GetRectSize => (
+            vec![(
+                "target",
+                Type::ActorRef {
+                    class: Some(crate::object_model::UI_ACTOR_ID.into()),
+                },
+            )],
+            Type::Vector { length: 2 },
+            true,
+        ),
+        Builtin::SetRectSize => (
+            vec![
+                (
+                    "target",
+                    Type::ActorRef {
+                        class: Some(crate::object_model::UI_ACTOR_ID.into()),
+                    },
+                ),
+                ("value", Type::Vector { length: 2 }),
+            ],
+            Type::Void,
+            false,
+        ),
+
         Builtin::PlayTimelineAsset { .. } => (vec![("owner", entity)], Type::SequenceHandle, false),
         Builtin::SpawnParticleEffect { .. } => (
             vec![
@@ -141,7 +244,7 @@ pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, boo
             false,
         ),
         Builtin::GetTransform => (
-            vec![("target", entity)],
+            vec![("target", spatial.clone())],
             Type::Record {
                 cpp_name: "epok::Transform".into(),
                 fields: vec![],
@@ -178,20 +281,20 @@ pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, boo
             Type::SequenceHandle,
             true,
         ),
-        Builtin::SelfEntity => (vec![], entity, true),
+        Builtin::SelfObject => (vec![], entity, true),
         Builtin::IsValid | Builtin::IsA { .. } => (vec![("target", entity)], Type::Bool, true),
         Builtin::Cast { class } => (
             vec![("target", entity)],
-            Type::EntityRef {
+            Type::ObjectRef {
                 class: Some(class.clone()),
             },
             true,
         ),
         Builtin::GetPosition | Builtin::GetRotation | Builtin::GetScale => {
-            (vec![("target", entity)], vector, true)
+            (vec![("target", spatial.clone())], vector, true)
         }
         Builtin::SetPosition | Builtin::SetRotation | Builtin::SetScale => (
-            vec![("target", entity), ("value", vector)],
+            vec![("target", spatial.clone()), ("value", vector)],
             Type::Void,
             false,
         ),
@@ -206,7 +309,7 @@ pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, boo
             Type::Void,
             false,
         ),
-        Builtin::DestroyEntity | Builtin::PlayAudio | Builtin::StopAudio => {
+        Builtin::DestroyActor | Builtin::PlayAudio | Builtin::StopAudio => {
             (vec![("target", entity)], Type::Void, false)
         }
         Builtin::SetTexture => (
@@ -237,7 +340,7 @@ pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, boo
         ),
         Builtin::Spawn { class } => (
             vec![("parent", entity)],
-            Type::EntityRef {
+            Type::ObjectRef {
                 class: Some(class.clone()),
             },
             false,
@@ -258,7 +361,7 @@ pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, boo
                 ("class", Type::ClassRef { base: base.clone() }),
                 ("parent", entity),
             ],
-            Type::EntityRef {
+            Type::ObjectRef {
                 class: Some(base.clone()),
             },
             false,
@@ -277,21 +380,15 @@ pub fn assignable(actual: &Type, expected: &Type, registry: &crate::blueprint::R
     actual == expected
         || match (actual, expected) {
             (Type::AssetRef { kind: a }, Type::AssetRef { kind: b })
-                if matches!(b.as_str(), "AudioClip" | "PlayableAudio") && matches!(a.as_str(), "AudioClip" | "PlayableAudio" | "MusicSequence") => true,
-            (Type::EntityRef { .. }, Type::Record { cpp_name, .. })
-                if cpp_name == "epok::EntityHandle" =>
+                if matches!(b.as_str(), "AudioClip" | "PlayableAudio")
+                    && matches!(a.as_str(), "AudioClip" | "PlayableAudio" | "MusicSequence") =>
             {
                 true
             }
-            (Type::Record { cpp_name, .. }, Type::EntityRef { class: None })
-                if cpp_name == "epok::EntityHandle" =>
-            {
-                true
-            }
-            (Type::EntityRef { class: Some(a) }, Type::EntityRef { class: Some(b) }) => {
+            (Type::ObjectRef { class: Some(a) }, Type::ObjectRef { class: Some(b) }) => {
                 crate::blueprint_refs::class_is_a(registry, a, b)
             }
-            (Type::EntityRef { .. }, Type::EntityRef { class: None }) => true,
+            (Type::ObjectRef { .. }, Type::ObjectRef { class: None }) => true,
             (Type::ActorRef { class: Some(a) }, Type::ActorRef { class: Some(b) })
             | (Type::ComponentRef { class: Some(a) }, Type::ComponentRef { class: Some(b) }) => {
                 crate::blueprint_refs::class_is_a(registry, a, b)
@@ -302,6 +399,10 @@ pub fn assignable(actual: &Type, expected: &Type, registry: &crate::blueprint::R
                 Type::ActorRef { .. } | Type::ComponentRef { .. },
                 Type::ObjectRef { class: None },
             ) => true,
+            (
+                Type::ActorRef { class: Some(a) } | Type::ComponentRef { class: Some(a) },
+                Type::ObjectRef { class: Some(b) },
+            ) => crate::blueprint_refs::class_is_a(registry, a, b),
             (Type::ClassRef { base: a }, Type::ClassRef { base: b }) => {
                 crate::blueprint_refs::class_is_a(registry, a, b)
             }
@@ -321,7 +422,6 @@ pub fn cpp_type(ty: &Type) -> Result<String, String> {
         Type::Int32 => "int32_t".into(),
         Type::UInt32 => "uint32_t".into(),
         Type::Fixed => "epok::Fixed".into(),
-        Type::EntityRef { .. } => "epok::EntityHandle".into(),
         Type::EffectLayerRef { .. } => "epok::EffectLayerHandle".into(),
         Type::SequenceHandle => "epok::timeline::Handle".into(),
         Type::EffectHandle => "epok::effects::Handle".into(),
@@ -365,7 +465,6 @@ pub fn literal(value: &serde_json::Value, ty: &Type) -> Result<String, String> {
                 .collect::<Result<Vec<_>, _>>()?;
             compose(ty, &fields)
         }
-        Type::EntityRef { .. } if value.is_null() => Ok("epok::EntityHandle{}".into()),
         Type::ObjectRef { .. } | Type::ActorRef { .. } | Type::ComponentRef { .. }
             if value.is_null() =>
         {
@@ -540,7 +639,7 @@ impl Lower<'_, '_> {
                             ),
                         ));
                     }
-                    args.push("epok::EntityHandle{}".into());
+                    args.push("epok::ObjectId{}".into());
                     continue;
                 }
                 if slot.required
@@ -579,129 +678,199 @@ impl Lower<'_, '_> {
                 lvalue: false,
             });
         }
-        let cpp =
-            match operation {
-                Builtin::SelfEntity => self.context.self_kind.handle().into(),
-                Builtin::GetOwner => {
-                    if self.context.self_kind != SelfKind::Component {
-                        return Err(err(
-                            &node.id,
-                            "Get Owner is only available inside a Component Blueprint",
-                        ));
-                    }
-                    "epok::bp::component_owner_id(this)".into()
+        let returns = if matches!(operation, Builtin::SelfObject) {
+            let id = self
+                .context
+                .registry
+                .named(self.context.self_class)
+                .map(|c| c.id.clone());
+            if self.context.self_kind == SelfKind::Actor {
+                Type::ActorRef { class: id }
+            } else {
+                Type::ComponentRef { class: id }
+            }
+        } else if let Builtin::Cast { class } = operation {
+            match self
+                .context
+                .model
+                .and_then(|m| m.class(class))
+                .map(|c| c.family)
+            {
+                Some(schema::ClassFamily::Actor) => Type::ActorRef {
+                    class: Some(class.clone()),
+                },
+                Some(schema::ClassFamily::Component) => Type::ComponentRef {
+                    class: Some(class.clone()),
+                },
+                _ => Type::ObjectRef {
+                    class: Some(class.clone()),
+                },
+            }
+        } else if matches!(operation, Builtin::GetOwner) {
+            let owner = self
+                .context
+                .model
+                .and_then(|m| m.class(self.context.self_class))
+                .and_then(|c| c.component.as_ref());
+            let class = owner
+                .filter(|c| c.owners.len() == 1)
+                .and_then(|c| c.owners.first())
+                .and_then(|d| match d {
+                    schema::Domain::World3D => Some(crate::object_model::ACTOR3D_ID.into()),
+                    schema::Domain::World2D => Some(crate::object_model::ACTOR2D_ID.into()),
+                    schema::Domain::UI => Some(crate::object_model::UI_ACTOR_ID.into()),
+                    _ => None,
+                });
+            Type::ActorRef { class }
+        } else {
+            returns
+        };
+        let cpp = match operation {
+            Builtin::SelfObject => "this->id()".into(),
+            Builtin::GetOwner => {
+                if self.context.self_kind != SelfKind::Component {
+                    return Err(err(
+                        &node.id,
+                        "Get Owner is only available inside a Component Blueprint",
+                    ));
                 }
-                Builtin::SpawnActor { base } => {
-                    let metadata = self
-                        .context
-                        .registry
-                        .classes
-                        .get(base)
-                        .ok_or_else(|| err(&node.id, "Unknown spawn base class"))?;
-                    let family = self
+                "epok::bp::component_owner_id(this)".into()
+            }
+            Builtin::SpawnActor { base } => {
+                let metadata = self
+                    .context
+                    .registry
+                    .classes
+                    .get(base)
+                    .ok_or_else(|| err(&node.id, "Unknown spawn base class"))?;
+                let family = self
+                    .context
+                    .model
+                    .and_then(|model| model.class(base))
+                    .map(|class| class.family)
+                    .unwrap_or_default();
+                if family != schema::ClassFamily::Actor {
+                    return Err(err(
+                        &node.id,
+                        format!(
+                            "Spawn Actor requires an Actor class; {} belongs to the {} family",
+                            metadata.cpp_name,
+                            family.label()
+                        ),
+                    ));
+                }
+                format!(
+                    "epok::bp::spawn_actor({},{},{})",
+                    self.context.self_kind.actor(),
+                    args[0],
+                    args[1]
+                )
+            }
+            Builtin::Spawn { class } | Builtin::IsA { class } | Builtin::Cast { class } => {
+                let metadata = self
+                    .context
+                    .registry
+                    .classes
+                    .get(class)
+                    .ok_or_else(|| err(&node.id, format!("Unknown class reference {class}")))?;
+                if matches!(operation, Builtin::Spawn { .. }) && metadata.abstract_class {
+                    return Err(err(&node.id, "Cannot spawn an abstract class"));
+                }
+                let id = crate::blueprint_refs::compact_id(class);
+                if matches!(operation, Builtin::Spawn { .. }) {
+                    if self
                         .context
                         .model
-                        .and_then(|model| model.class(base))
-                        .map(|class| class.family)
-                        .unwrap_or_default();
-                    if family != schema::ClassFamily::Actor {
-                        return Err(err(
-                            &node.id,
-                            format!(
-                                "Spawn Actor requires an Actor class; {} belongs to the {} family",
-                                metadata.cpp_name,
-                                family.label()
-                            ),
-                        ));
-                    }
-                    if self.context.self_kind == SelfKind::Behaviour {
-                        return Err(err(
-                            &node.id,
-                            "Spawn Actor is only available inside an Actor or Component Blueprint",
-                        ));
-                    }
-                    format!(
-                        "epok::bp::spawn_actor({},{},{})",
-                        self.context.self_kind.actor(),
-                        args[0],
-                        args[1]
-                    )
-                }
-                Builtin::Spawn { class } | Builtin::IsA { class } | Builtin::Cast { class } => {
-                    let metadata =
-                        self.context.registry.classes.get(class).ok_or_else(|| {
-                            err(&node.id, format!("Unknown class reference {class}"))
-                        })?;
-                    if matches!(operation, Builtin::Spawn { .. }) && metadata.abstract_class {
-                        return Err(err(&node.id, "Cannot spawn an abstract class"));
-                    }
-                    let id = crate::blueprint_refs::compact_id(class);
-                    if matches!(operation, Builtin::Spawn { .. }) {
-                        format!("epok::bp::api::spawn({id}ULL,{})", args[0])
-                    } else if matches!(operation, Builtin::Cast { .. }) {
-                        format!("epok::bp::api::cast({id}ULL,{})", args[0])
-                    } else {
-                        format!("epok::bp::is_a({},{id}ULL)", args[0])
-                    }
-                }
-                Builtin::SpawnClass { base } => {
-                    let metadata = self
-                        .context
-                        .registry
-                        .classes
-                        .get(base)
-                        .ok_or_else(|| err(&node.id, "Unknown spawn base class"))?;
-                    if metadata.backend != schema::native_backend()
-                        || metadata.provider.version != 1
-                        || !matches!(metadata.provider.id.as_str(), "cpp" | "blueprint")
+                        .and_then(|m| m.class(class))
+                        .is_none_or(|c| {
+                            c.family != schema::ClassFamily::Actor || !c.placement.spawnable
+                        })
                     {
-                        return Err(err(
-                            &node.id,
-                            "Spawn base requires a supported native class representation",
-                        ));
+                        return Err(err(&node.id, "Spawn requires a spawnable Actor class"));
                     }
-                    let base = crate::blueprint_refs::compact_id(base);
                     format!(
-                        "epok::bp::api::spawn_class({base}ULL,{},{})",
-                        args[0], args[1]
+                        "epok::bp::spawn_actor({},{id}ULL,{})",
+                        self.context.self_kind.actor(),
+                        args[0]
                     )
+                } else if matches!(operation, Builtin::Cast { .. }) {
+                    format!("epok::bp::api::cast({id}ULL,{})", args[0])
+                } else {
+                    format!("epok::bp::is_a({},{id}ULL)", args[0])
                 }
-                _ => {
-                    let name = match operation {
-                        Builtin::IsValid => "valid",
-                        Builtin::GetPosition => "position",
-                        Builtin::GetRotation => "rotation",
-                        Builtin::GetScale => "scale",
-                        Builtin::SetPosition => "set_position",
-                        Builtin::SetRotation => "set_rotation",
-                        Builtin::SetScale => "set_scale",
-                        Builtin::InputHeld => "held",
-                        Builtin::InputPressed => "pressed",
-                        Builtin::InputReleased => "released",
-                        Builtin::RequestScene => "request_scene",
-                        Builtin::SetActive => "set_active",
-                        Builtin::DestroyEntity => "destroy",
-                        Builtin::PlayAudio => "play_audio",
-                        Builtin::StopAudio => "stop_audio",
-                        Builtin::SetTexture => "set_texture",
-                        Builtin::SetAudioClip => "set_audio_clip",
-                        Builtin::PlaySequenceComponent => "play_sequence_component",
-                        Builtin::StopSequence => "stop_sequence",
-                        Builtin::PauseSequence => "pause_sequence",
-                        Builtin::ResumeSequence => "resume_sequence",
-                        Builtin::PlayEffectComponent => "play_effect_component",
-                        Builtin::StopEffect => "stop_effect",
-                        Builtin::BurstEffect => "burst_effect",
-                        Builtin::PauseEffect => "pause_effect",
-                        Builtin::ResumeEffect => "resume_effect",
-                        Builtin::EffectSequence => "effect_sequence",
-                        Builtin::GetTransform => "transform",
-                        Builtin::MakeTransform => "make_transform",
-                        _ => unreachable!(),
-                    };
-                    format!("epok::bp::api::{name}({})", args.join(","))
+            }
+            Builtin::SpawnClass { base } => {
+                let metadata = self
+                    .context
+                    .registry
+                    .classes
+                    .get(base)
+                    .ok_or_else(|| err(&node.id, "Unknown spawn base class"))?;
+                if metadata.backend != schema::native_backend()
+                    || metadata.provider.version != 1
+                    || !matches!(metadata.provider.id.as_str(), "cpp" | "blueprint")
+                {
+                    return Err(err(
+                        &node.id,
+                        "Spawn base requires a supported native class representation",
+                    ));
                 }
-            };
+                let base = crate::blueprint_refs::compact_id(base);
+                format!(
+                    "(epok::bp::class_is_a({}, {base}ULL)?epok::bp::spawn_actor({},{},{}):epok::ObjectId{{}})",
+                    args[0],
+                    self.context.self_kind.actor(),
+                    args[0],
+                    args[1]
+                )
+            }
+            _ => {
+                let name = match operation {
+                    Builtin::IsValid => "valid",
+                    Builtin::GetPosition => "position",
+                    Builtin::GetPosition2D => "position_2d",
+                    Builtin::SetPosition2D => "set_position_2d",
+                    Builtin::GetRotation2D => "rotation_2d",
+                    Builtin::SetRotation2D => "set_rotation_2d",
+                    Builtin::GetScale2D => "scale_2d",
+                    Builtin::SetScale2D => "set_scale_2d",
+                    Builtin::GetRectPosition => "rect_position",
+                    Builtin::SetRectPosition => "set_rect_position",
+                    Builtin::GetRectSize => "rect_size",
+                    Builtin::SetRectSize => "set_rect_size",
+
+                    Builtin::GetRotation => "rotation",
+                    Builtin::GetScale => "scale",
+                    Builtin::SetPosition => "set_position",
+                    Builtin::SetRotation => "set_rotation",
+                    Builtin::SetScale => "set_scale",
+                    Builtin::InputHeld => "held",
+                    Builtin::InputPressed => "pressed",
+                    Builtin::InputReleased => "released",
+                    Builtin::RequestScene => "request_scene",
+                    Builtin::SetActive => "set_active",
+                    Builtin::DestroyActor => "destroy",
+                    Builtin::PlayAudio => "play_audio",
+                    Builtin::StopAudio => "stop_audio",
+                    Builtin::SetTexture => "set_texture",
+                    Builtin::SetAudioClip => "set_audio_clip",
+                    Builtin::PlaySequenceComponent => "play_sequence_component",
+                    Builtin::StopSequence => "stop_sequence",
+                    Builtin::PauseSequence => "pause_sequence",
+                    Builtin::ResumeSequence => "resume_sequence",
+                    Builtin::PlayEffectComponent => "play_effect_component",
+                    Builtin::StopEffect => "stop_effect",
+                    Builtin::BurstEffect => "burst_effect",
+                    Builtin::PauseEffect => "pause_effect",
+                    Builtin::ResumeEffect => "resume_effect",
+                    Builtin::EffectSequence => "effect_sequence",
+                    Builtin::GetTransform => "transform",
+                    Builtin::MakeTransform => "make_transform",
+                    _ => unreachable!(),
+                };
+                format!("epok::bp::api::{name}({})", args.join(","))
+            }
+        };
         Ok(Expression {
             value_type: returns,
             cpp,
@@ -728,7 +897,12 @@ impl Lower<'_, '_> {
         let input = node
             .inputs
             .get(name)
-            .ok_or_else(|| err(&node.id, format!("Missing input {name}")))?;
+            .ok_or_else(|| {
+                let hint = if name == "target" || name == "__target" {
+                    ". Connect an Actor to Target; use Self for an Actor Blueprint or Get Owner for an ActorComponent Blueprint."
+                } else { "" };
+                err(&node.id, format!("Missing input {name}{hint}"))
+            })?;
         if let Input::Literal { value_type, .. } = input {
             let prefix = format!("{name}.");
             if node.inputs.keys().any(|key| key.starts_with(&prefix)) {
@@ -1008,14 +1182,14 @@ impl Lower<'_, '_> {
         let receiver = self.input(node, "__target")?;
         if !assignable(
             &receiver.value_type,
-            &Type::EntityRef {
+            &Type::ObjectRef {
                 class: Some(class.into()),
             },
             self.context.registry,
         ) {
             return Err(err(
                 &node.id,
-                "Receiver requires a compatible typed EntityRef; use checked Cast first",
+                "Receiver requires a compatible typed ObjectRef; use checked Cast first",
             ));
         }
         self.invoke(node, f, &call_on_name(class, function), Some(receiver))
@@ -1073,7 +1247,25 @@ impl Lower<'_, '_> {
     fn edges(&mut self, node: &Node, port: &str) -> Result<Vec<Statement>, Error> {
         let mut out = vec![];
         if let Some(ids) = node.outputs.get(port) {
+            if ids.len() > 1 {
+                return Err(err(
+                    &node.id,
+                    format!(
+                        "Execution output {port} has more than one connection; use separate Sequence outputs."
+                    ),
+                ));
+            }
             for id in ids {
+                if self
+                    .nodes
+                    .get(id)
+                    .is_some_and(|target| matches!(target.kind, NodeKind::Entry))
+                {
+                    return Err(err(
+                        &node.id,
+                        "Event and function Entry nodes do not accept incoming execution connections",
+                    ));
+                }
                 out.extend(self.block(id)?);
             }
         }
@@ -1096,7 +1288,12 @@ impl Lower<'_, '_> {
             .ok_or_else(|| err(id, "Execution link targets a missing node"))?;
         let mut out = vec![Statement::Node(id.into())];
         match &node.kind {
-            NodeKind::Entry | NodeKind::Sequence => {}
+            NodeKind::Entry => {}
+            NodeKind::Sequence => {
+                for pin in crate::blueprint_asset::sequence_outputs(node) {
+                    out.extend(self.edges(node, &pin)?);
+                }
+            }
             NodeKind::Reroute if node.inputs.is_empty() => {
                 out.clear();
             }
@@ -1398,8 +1595,10 @@ impl Lower<'_, '_> {
                 ));
             }
         }
+        let sequence_pins = crate::blueprint_asset::sequence_outputs(node);
         let allowed = match node.kind {
-            NodeKind::Branch => vec!["next", "true", "false"],
+            NodeKind::Sequence => sequence_pins.iter().map(String::as_str).collect(),
+            NodeKind::Branch => vec!["true", "false"],
             NodeKind::Loop { .. } => vec!["next", "body"],
             NodeKind::Timeline { .. } => vec!["next", "updated", "finished"],
             NodeKind::WaitPlayback { .. } => vec!["next", "reached", "completed", "cancelled"],

@@ -175,7 +175,7 @@ pub fn prepare(
 }
 pub fn ids(scene: &Scene) -> Vec<Uuid> {
     let mut ids = BTreeSet::new();
-    for e in &scene.entities {
+    for e in &scene.actors {
         ids.extend(e.material.texture);
         ids.extend(e.image.as_ref().and_then(|s| s.texture));
         ids.extend(e.sprite.as_ref().and_then(|s| s.texture));
@@ -322,7 +322,7 @@ pub fn uv_cpp(uv: [[f32; 2]; 4]) -> String {
     )
 }
 pub fn header(scene: &Scene) -> Result<String, String> {
-    for e in &scene.entities {
+    for e in &scene.actors {
         for q in crate::lighting::quads(e) {
             if q.material.texture.is_some()
                 && q.uv
@@ -477,9 +477,9 @@ mod tests {
         let index = assets::scan(&root, &mut Default::default());
         let r = index.resolve(id).unwrap();
         let mut scene = Scene::default();
-        scene.entities[1].material.texture = Some(id);
-        scene.entities[1].material.blend = BlendMode::Add;
-        scene.entities[1].lighting.subdivisions = 2;
+        scene.actors[1].material.texture = Some(id);
+        scene.actors[1].material.blend = BlendMode::Add;
+        scene.actors[1].lighting.subdivisions = 2;
         resolve(&mut scene, &index).unwrap();
         let h = crate::project::scene_header(&scene, &[]).unwrap();
         assert!(h.contains("texture_id_"));
@@ -495,12 +495,12 @@ mod tests {
         let candidate =
             prepare(&root, "assets/t.png", "assets/t.epokasset", Some(r), true).unwrap();
         assert_eq!(assets::commit(candidate).unwrap(), id);
-        let mut canvas = crate::scene::Entity::cube("Canvas".into());
+        let mut canvas = crate::scene::Actor::cube("Canvas".into());
         canvas.kind = "Empty".into();
         canvas.canvas = Some(Default::default());
-        let canvas_i = scene.entities.len();
-        scene.entities.push(canvas);
-        let mut image = crate::scene::Entity::cube("Image".into());
+        let canvas_i = scene.actors.len();
+        scene.actors.push(canvas);
+        let mut image = crate::scene::Actor::cube("Image".into());
         image.kind = "Empty".into();
         image.parent = Some(canvas_i);
         image.rect = Some(crate::hud::RectTransform {
@@ -515,14 +515,14 @@ mod tests {
             color: [1.; 3],
             ..Default::default()
         });
-        scene.entities.push(image);
+        scene.actors.push(image);
         let pixels = crate::hud::render(&scene);
         assert_eq!(
             &pixels[..12],
             &[0, 0, 0, 255, 33, 40, 52, 255, 255, 0, 0, 255]
         );
         scene
-            .entities
+            .actors
             .last_mut()
             .unwrap()
             .image
@@ -539,9 +539,9 @@ mod tests {
         for _ in 0..3 {
             let id = Uuid::new_v4();
             scene
-                .entities
-                .push(crate::scene::Entity::cube("Texture".into()));
-            scene.entities.last_mut().unwrap().material.texture = Some(id);
+                .actors
+                .push(crate::scene::Actor::cube("Texture".into()));
+            scene.actors.last_mut().unwrap().material.texture = Some(id);
             scene.textures.insert(id, Arc::new(d.clone()));
         }
         for (_, p) in layout(&scene).unwrap() {
@@ -550,7 +550,7 @@ mod tests {
             assert!((480..512).contains(&p.clut_y));
         }
         let id = Uuid::new_v4();
-        scene.entities[0].material.texture = Some(id);
+        scene.actors[0].material.texture = Some(id);
         scene.textures.insert(id, Arc::new(d));
         assert!(layout(&scene).is_err());
     }

@@ -100,17 +100,14 @@ pub fn low_pass(
     {
         return Err("Low-pass cutoff must be finite and between zero and Nyquist".into());
     }
-    if !spec.resonance_centibels.is_finite()
-        || !(0.0..=960.0).contains(&spec.resonance_centibels)
-    {
+    if !spec.resonance_centibels.is_finite() || !(0.0..=960.0).contains(&spec.resonance_centibels) {
         return Err("Low-pass resonance must be finite and within 0..=960 centibels".into());
     }
     check_cancelled(cancelled)?;
 
     let omega = 2.0 * std::f64::consts::PI * spec.cutoff_hz / f64::from(sample_rate);
     let (sin_omega, cos_omega) = omega.sin_cos();
-    let q = std::f64::consts::FRAC_1_SQRT_2
-        * 10.0_f64.powf(spec.resonance_centibels / 200.0);
+    let q = std::f64::consts::FRAC_1_SQRT_2 * 10.0_f64.powf(spec.resonance_centibels / 200.0);
     if !q.is_finite() || q > 64.0 {
         return Err(format!(
             "Low-pass resonance requires Q {q:.3}, above the bounded P3 maximum of 64; select an explicit cooking adaptation"
@@ -119,7 +116,7 @@ pub fn low_pass(
     let alpha = sin_omega / (2.0 * q);
     let a0 = 1.0 + alpha;
     // SF2 generator 9 lowers DC gain by half the specified resonance in dB.
-    let dc_gain=10.0_f64.powf(-spec.resonance_centibels / 400.0);
+    let dc_gain = 10.0_f64.powf(-spec.resonance_centibels / 400.0);
     let b0 = dc_gain * ((1.0 - cos_omega) * 0.5) / a0;
     let b1 = dc_gain * (1.0 - cos_omega) / a0;
     let b2 = b0;
@@ -158,7 +155,9 @@ pub fn low_pass(
 
 fn validate_rate(rate: u32) -> Result<(), String> {
     if rate == 0 || rate > MAX_SAMPLE_RATE {
-        return Err(format!("Sample rate must be within 1..={MAX_SAMPLE_RATE} Hz"));
+        return Err(format!(
+            "Sample rate must be within 1..={MAX_SAMPLE_RATE} Hz"
+        ));
     }
     Ok(())
 }
@@ -194,7 +193,11 @@ fn sinc_kernel(distance: f64, cutoff: f64) -> f64 {
         return 0.0;
     }
     let phase = std::f64::consts::PI * cutoff * distance;
-    let sinc = if phase.abs() < 1e-12 { cutoff } else { cutoff * phase.sin() / phase };
+    let sinc = if phase.abs() < 1e-12 {
+        cutoff
+    } else {
+        cutoff * phase.sin() / phase
+    };
     let window_phase = std::f64::consts::PI * distance / SINC_RADIUS as f64;
     let blackman = 0.42 + 0.5 * window_phase.cos() + 0.08 * (2.0 * window_phase).cos();
     sinc * blackman
@@ -204,7 +207,9 @@ fn sinc_kernel(distance: f64, cutoff: f64) -> f64 {
 mod tests {
     use super::*;
 
-    fn active() -> AtomicBool { AtomicBool::new(false) }
+    fn active() -> AtomicBool {
+        AtomicBool::new(false)
+    }
 
     #[test]
     fn sinc_downsampling_has_bounded_length_and_preserves_dc() {
@@ -216,65 +221,104 @@ mod tests {
 
     #[test]
     fn sinc_filter_rejects_source_nyquist_energy() {
-        let input: Vec<f32> = (0..4096).map(|index| if index & 1 == 0 { 1.0 } else { -1.0 }).collect();
+        let input: Vec<f32> = (0..4096)
+            .map(|index| if index & 1 == 0 { 1.0 } else { -1.0 })
+            .collect();
         let output = resample(&input, 48_000, 24_000, &active()).unwrap();
         let interior = &output[32..output.len() - 32];
-        let peak = interior.iter().fold(0.0_f32, |peak, value| peak.max(value.abs()));
+        let peak = interior
+            .iter()
+            .fold(0.0_f32, |peak, value| peak.max(value.abs()));
         assert!(peak < 1e-4, "peak={peak}");
     }
 
     #[test]
     fn low_pass_is_finite_and_attenuates_high_frequency() {
-        let input: Vec<f32> = (0..8192).map(|index| if index & 1 == 0 { 1.0 } else { -1.0 }).collect();
+        let input: Vec<f32> = (0..8192)
+            .map(|index| if index & 1 == 0 { 1.0 } else { -1.0 })
+            .collect();
         let output = low_pass(
             &input,
             48_000,
-            FilterSpec { cutoff_hz: 4_000.0, resonance_centibels: 0.0 },
+            FilterSpec {
+                cutoff_hz: 4_000.0,
+                resonance_centibels: 0.0,
+            },
             &active(),
         )
         .unwrap();
         assert_eq!(output.len(), input.len());
         assert!(output.iter().all(|sample| sample.is_finite()));
-        let tail_peak = output[1024..].iter().fold(0.0_f32, |peak, value| peak.max(value.abs()));
+        let tail_peak = output[1024..]
+            .iter()
+            .fold(0.0_f32, |peak, value| peak.max(value.abs()));
         assert!(tail_peak < 0.08, "peak={tail_peak}");
     }
 
     #[test]
     fn soundfont_resonance_reduces_dc_gain_by_half_its_decibels() {
-        let input=vec![0.25;8192];
-        let output=low_pass(&input,44100,FilterSpec { cutoff_hz:4000.,resonance_centibels:200. },&active()).unwrap();
-        let expected=0.25*10_f32.powf(-10./20.);
-        assert!((output[8191]-expected).abs()<1e-6);
+        let input = vec![0.25; 8192];
+        let output = low_pass(
+            &input,
+            44100,
+            FilterSpec {
+                cutoff_hz: 4000.,
+                resonance_centibels: 200.,
+            },
+            &active(),
+        )
+        .unwrap();
+        let expected = 0.25 * 10_f32.powf(-10. / 20.);
+        assert!((output[8191] - expected).abs() < 1e-6);
     }
 
     #[test]
     fn invalid_parameters_samples_and_cancellation_are_errors() {
         let cancelled = AtomicBool::new(true);
-        assert!(resample(&[0.0], 48_000, 24_000, &cancelled).unwrap_err().contains("cancelled"));
-        assert!(low_pass(
-            &[0.0],
-            48_000,
-            FilterSpec { cutoff_hz: 1_000.0, resonance_centibels: 0.0 },
-            &cancelled,
-        )
-        .unwrap_err()
-        .contains("cancelled"));
+        assert!(
+            resample(&[0.0], 48_000, 24_000, &cancelled)
+                .unwrap_err()
+                .contains("cancelled")
+        );
+        assert!(
+            low_pass(
+                &[0.0],
+                48_000,
+                FilterSpec {
+                    cutoff_hz: 1_000.0,
+                    resonance_centibels: 0.0
+                },
+                &cancelled,
+            )
+            .unwrap_err()
+            .contains("cancelled")
+        );
         assert!(resample(&[0.0], 24_000, 48_000, &active()).is_err());
         assert!(resample(&[f32::NAN], 48_000, 24_000, &active()).is_err());
-        assert!(low_pass(
-            &[0.0],
-            48_000,
-            FilterSpec { cutoff_hz: 24_000.0, resonance_centibels: 0.0 },
-            &active(),
-        )
-        .is_err());
-        assert!(low_pass(
-            &[0.0],
-            48_000,
-            FilterSpec { cutoff_hz: 1_000.0, resonance_centibels: 960.0 },
-            &active(),
-        )
-        .unwrap_err()
-        .contains("explicit cooking adaptation"));
+        assert!(
+            low_pass(
+                &[0.0],
+                48_000,
+                FilterSpec {
+                    cutoff_hz: 24_000.0,
+                    resonance_centibels: 0.0
+                },
+                &active(),
+            )
+            .is_err()
+        );
+        assert!(
+            low_pass(
+                &[0.0],
+                48_000,
+                FilterSpec {
+                    cutoff_hz: 1_000.0,
+                    resonance_centibels: 960.0
+                },
+                &active(),
+            )
+            .unwrap_err()
+            .contains("explicit cooking adaptation")
+        );
     }
 }

@@ -27,7 +27,7 @@ impl Default for Animator {
 }
 pub fn validate(scene: &Scene) -> Result<(), String> {
     let mut used = std::collections::BTreeSet::new();
-    for entity in &scene.entities {
+    for entity in &scene.actors {
         let Some(a) = &entity.palette_animator else {
             continue;
         };
@@ -86,7 +86,7 @@ pub fn offset(animator: &Animator, seconds: f32) -> usize {
     }
 }
 pub fn preview_rgba(scene: &Scene, id: Uuid, seconds: f32, data: &Data) -> Vec<u8> {
-    let animator = scene.entities.iter().enumerate().find_map(|(index, e)| {
+    let animator = scene.actors.iter().enumerate().find_map(|(index, e)| {
         e.palette_animator
             .as_ref()
             .filter(|a| scene.is_active(index) && a.enabled && a.texture == Some(id))
@@ -123,18 +123,14 @@ pub fn preview_rgba(scene: &Scene, id: Uuid, seconds: f32, data: &Data) -> Vec<u
 pub fn cpp_setup(scene: &Scene) -> String {
     use std::fmt::Write;
     let mut output = String::new();
-    for (index, entity) in scene.entities.iter().enumerate() {
+    for (index, entity) in scene.actors.iter().enumerate() {
         if let Some(a) = &entity.palette_animator {
             writeln!(output, "objects[{index}].palette_animator.enabled={};objects[{index}].palette_animator.texture={};objects[{index}].palette_animator.first={};objects[{index}].palette_animator.last={};objects[{index}].palette_animator.speed=Fixed({},Fixed::RAW);objects[{index}].palette_animator.reverse={};", a.enabled, a.texture.map(crate::texture::symbol).unwrap_or("-1".into()), a.first, a.last, (a.speed * 4096.).round() as i32, a.reverse).unwrap();
         }
     }
     output
 }
-pub fn inspector(
-    ui: &imgui::Ui,
-    editor: &crate::editor::Editor,
-    entity: &mut crate::scene::Entity,
-) {
+pub fn inspector(ui: &imgui::Ui, editor: &crate::editor::Editor, entity: &mut crate::scene::Actor) {
     if entity.palette_animator.is_none() {
         if ui.small_button("Add Palette Animator") {
             entity.palette_animator = Some(Animator {
@@ -209,7 +205,7 @@ mod tests {
     fn q12_preview_phase_and_quantized_color_rotation() {
         let id = Uuid::new_v4();
         let mut scene = Scene::default();
-        scene.entities[0].palette_animator = Some(Animator {
+        scene.actors[0].palette_animator = Some(Animator {
             texture: Some(id),
             speed: 1.,
             ..Default::default()
@@ -230,7 +226,7 @@ mod tests {
             [0, 0, 0, 0, 0, 255, 0, 255, 255, 0, 0, 255]
         );
         assert_eq!(
-            offset(scene.entities[0].palette_animator.as_ref().unwrap(), 2.),
+            offset(scene.actors[0].palette_animator.as_ref().unwrap(), 2.),
             0
         );
         let mut a = Animator {
@@ -248,7 +244,7 @@ mod tests {
     fn serialization_validation_and_export() {
         let mut scene = Scene::default();
         let id = Uuid::new_v4();
-        scene.entities[0].palette_animator = Some(Animator {
+        scene.actors[0].palette_animator = Some(Animator {
             texture: Some(id),
             ..Default::default()
         });
@@ -256,10 +252,10 @@ mod tests {
         assert_eq!(scene, decoded);
         validate(&scene).unwrap();
         assert!(cpp_setup(&scene).contains("palette_animator.speed=Fixed(32768,Fixed::RAW)"));
-        scene.entities[1].palette_animator = scene.entities[0].palette_animator.clone();
+        scene.actors[1].palette_animator = scene.actors[0].palette_animator.clone();
         assert!(validate(&scene).is_err());
-        scene.entities[1].palette_animator = None;
-        scene.entities[0].palette_animator.as_mut().unwrap().first = 0;
+        scene.actors[1].palette_animator = None;
+        scene.actors[0].palette_animator.as_mut().unwrap().first = 0;
         assert!(validate(&scene).is_err());
     }
 }

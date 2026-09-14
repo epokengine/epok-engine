@@ -84,8 +84,8 @@ fn event_key(function: &crate::reflection_schema::Function, tick: i32) -> timeli
             .map(|p| {
             let arg = if matches!(
                 p.value_type,
-                crate::reflection_schema::Type::EntityRef { .. }
-            ) || matches!(&p.value_type,crate::reflection_schema::Type::Record{cpp_name,..} if cpp_name=="epok::EntityHandle") {
+                crate::reflection_schema::Type::ObjectRef { .. }
+            ) || matches!(&p.value_type,crate::reflection_schema::Type::Record{cpp_name,..} if cpp_name=="epok::DataHandle") {
                     timeline::Argument::Slot { slot: Uuid::nil() }
                 } else {
                     timeline::Argument::Literal {
@@ -154,7 +154,9 @@ fn event_tracks(
                 let mut delete = None;
                 for (k, key) in track.keys.iter_mut().enumerate() {
                     let _key = ui.push_id(key.id.to_string());
-                    crate::gui::Drag::new("Event tick").speed(1.).build(ui, &mut key.tick);
+                    crate::gui::Drag::new("Event tick")
+                        .speed(1.)
+                        .build(ui, &mut key.tick);
                     for (name, argument) in &mut key.arguments {
                         let _arg = ui.push_id(name);
                         match argument {
@@ -508,14 +510,14 @@ impl TimelineEditor {
             if self.registry_error.is_none() && self.catalog_error.is_none() && self.source_error.is_none() && let Ok(compiled)=timeline_compile::compile_index(a,registry,index){plot(ui,&compiled,self.tick);}
             if button(ui,"Add binding slot") && a.slots.len()<timeline::SLOT_LIMIT {
                 let class=registry.classes.values().filter(|c|c.id!=crate::particle_effect::LAYER_CLASS_ID).find(|c|registry.properties(&c.cpp_name).iter().any(|p|p.timeline.is_some())).map(|c|c.id.clone());
-                a.slots.push(timeline::Slot{id:Uuid::new_v4(),name:"Target".into(),target:crate::reflection_schema::Type::EntityRef{class},required:true,extra:Default::default()});
+                a.slots.push(timeline::Slot{id:Uuid::new_v4(),name:"Target".into(),target:crate::reflection_schema::Type::ObjectRef{class},required:true,extra:Default::default()});
             }
             ui.child_window("Timeline slots").size([0.,175.]).border(true).build(||{
                 let mut remove=None;
                 for (i,s) in a.slots.iter_mut().enumerate(){
                     let _id=ui.push_id(s.id.to_string());
                     ui.input_text("Slot",&mut s.name).build();ui.same_line();ui.checkbox("Required",&mut s.required);
-                    if let crate::reflection_schema::Type::EntityRef{class}=&mut s.target {
+                    if let crate::reflection_schema::Type::ObjectRef{class}=&mut s.target {
                         let selected=class.as_ref().and_then(|id|registry.classes.get(id)).map_or("Missing class",|c|c.cpp_name.as_str());
                         if let Some(_combo)=ui.begin_combo("Class",selected){
                             for c in registry.classes.values().filter(|c|c.id!=crate::particle_effect::LAYER_CLASS_ID){if ui.selectable(&c.cpp_name){*class=Some(c.id.clone());}}
@@ -540,12 +542,12 @@ impl TimelineEditor {
                                 }
                             }
                         }
-                    if matches!(s.target,crate::reflection_schema::Type::EntityRef{..}) {
+                    if matches!(s.target,crate::reflection_schema::Type::ObjectRef{..}) {
                     let current=self.bindings.get(&s.id).copied().flatten();
-                    let preview=current.and_then(|id|scene.entities.iter().find(|e|e.id==id)).map_or("Empty / missing",|e|e.name.as_str());
+                    let preview=current.and_then(|id|scene.actors.iter().find(|e|e.id==id)).map_or("Empty / missing",|e|e.name.as_str());
                     if let Some(_combo)=ui.begin_combo("Test scene binding",preview){
                         if ui.selectable("None"){self.bindings.insert(s.id,None);}
-                        for e in &scene.entities{if ui.selectable(format!("{}##{}",e.name,e.id)){self.bindings.insert(s.id,Some(e.id));}}
+                        for e in &scene.actors{if ui.selectable(format!("{}##{}",e.name,e.id)){self.bindings.insert(s.id,Some(e.id));}}
                     }
                     ui.text_disabled("Test bindings are preview-only and are not saved to the reusable asset.");
                     if ui.small_button("Remove slot"){remove=Some(i);}
@@ -635,7 +637,7 @@ impl TimelineEditor {
                 },
                 Err(errors)=>for error in errors{ui.text_colored([1.,0.5,0.3,1.],error.to_string());},
             }
-            let mut external=(**a).clone();external.slots.retain(|s|matches!(s.target,crate::reflection_schema::Type::EntityRef{..}));
+            let mut external=(**a).clone();external.slots.retain(|s|matches!(s.target,crate::reflection_schema::Type::ObjectRef{..}));
             for d in external.validate_bindings(&self.bindings,scene,registry){ui.text_wrapped(format!("{}: {d}",if d.required{"Required binding error"}else{"Optional / inactive binding"}));}
             if self.cache.as_ref().is_some_and(|c|c.stale){ui.text_colored([1.,0.7,0.3,1.],"Cached preview is stale; cooking requires fresh validation.");}
             });

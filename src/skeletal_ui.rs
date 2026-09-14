@@ -88,7 +88,7 @@ pub fn tick(e: &mut Editor) {
         s.scene_accumulator -= steps / 30.;
     }
     if s.animate_scene && steps > 0. {
-        for entity in &mut e.scene.entities {
+        for entity in &mut e.scene.actors {
             if let Some(c) = &mut entity.skeletal_mesh {
                 c.time = ((c.time * 30.).round() + steps) / 30.;
                 e.view_dirty = true;
@@ -266,13 +266,13 @@ pub fn window(ui: &Ui, e: &mut Editor) {
             ui.checkbox("Show skeleton", &mut s.show_bones);
             playback(ui, c);
             if ui.button("Add character to scene") {
-                let mut entity = crate::scene::Entity::cube("Character".into());
+                let mut entity = crate::scene::Actor::cube("Character".into());
                 entity.position = [0.; 3];
                 let mut component = c.clone();
                 component.time = 0.;
                 entity.skeletal_mesh = Some(component);
-                e.scene.entities.push(entity);
-                e.selected = Some(e.scene.entities.len() - 1);
+                e.scene.actors.push(entity);
+                e.selected = Some(e.scene.actors.len() - 1);
                 e.changed();
             }
             ui.same_line();
@@ -404,7 +404,7 @@ pub fn window(ui: &Ui, e: &mut Editor) {
     s.open = open;
     e.skeletal_ui = s;
 }
-pub fn component(ui: &Ui, e: &mut Editor, entity: &mut crate::scene::Entity) {
+pub fn component(ui: &Ui, e: &mut Editor, entity: &mut crate::scene::Actor) {
     let Some(c) = &mut entity.skeletal_mesh else {
         return;
     };

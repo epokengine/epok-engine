@@ -15,8 +15,7 @@ pub fn default_value(ty: &Type) -> Value {
         Type::Bool => json!(false),
         Type::Vector { length } => json!(vec![0.; *length]),
         Type::Enum { variants, .. } => json!(variants.values().next().copied().unwrap_or_default()),
-        Type::EntityRef { .. }
-        | Type::ObjectRef { .. }
+        Type::ObjectRef { .. }
         | Type::ActorRef { .. }
         | Type::ComponentRef { .. }
         | Type::EffectLayerRef { .. }
@@ -55,8 +54,7 @@ pub fn valid(value: &Value, ty: &Type) -> bool {
         Type::Enum { variants, .. } => value
             .as_i64()
             .is_some_and(|v| variants.values().any(|item| *item == v)),
-        Type::EntityRef { .. }
-        | Type::ObjectRef { .. }
+        Type::ObjectRef { .. }
         | Type::ActorRef { .. }
         | Type::ComponentRef { .. }
         | Type::EffectLayerRef { .. }
@@ -110,7 +108,7 @@ pub fn assignment(target: &str, value: &Value, ty: &Type) -> Result<String, Stri
                 .collect::<Result<Vec<_>, _>>()
                 .map(|v| v.join(""));
         }
-        Type::EntityRef { .. } if value.is_null() => "epok::EntityHandle{}".into(),
+        Type::ObjectRef { .. } if value.is_null() => "epok::DataHandle{}".into(),
         // Typed object references are compact generational ids. Persisted content only
         // ever carries the null identity; live ids are resolved at spawn time.
         Type::ObjectRef { .. } | Type::ActorRef { .. } | Type::ComponentRef { .. }
@@ -211,7 +209,7 @@ pub fn inspector(ui: &imgui::Ui, id: &str, value: &mut Value, ty: &Type) -> bool
                 }
             }
         }
-        Type::EntityRef { .. } | Type::AssetRef { .. } | Type::ClassRef { .. } => {
+        Type::ObjectRef { .. } | Type::AssetRef { .. } | Type::ClassRef { .. } => {
             let mut id_text = value.as_str().unwrap_or_default().to_owned();
             if ui
                 .input_text(id, &mut id_text)

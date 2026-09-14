@@ -96,7 +96,10 @@ fn render_mode(
     if bank.library.is_some() {
         return crate::library_preview::render(root, &ir, settings, record, target, cancelled);
     }
-    if bank.library.is_none() && crate::psx_music_settings::Recipe::from_settings(settings)?.effects != crate::psx_music_settings::Effects::Dry {
+    if bank.library.is_none()
+        && crate::psx_music_settings::Recipe::from_settings(settings)?.effects
+            != crate::psx_music_settings::Effects::Dry
+    {
         return Err("Room reverb requires an instrument library SoundBank; portable v1 banks retain their dry playback contract".into());
     }
     if bank.library.is_none() && !settings.instrument_mappings.is_empty() {
@@ -134,7 +137,9 @@ fn render_mode(
     let target_bank = if target {
         crate::psx_sequence::sequence_payload(&ir, settings, record.meta.id)?;
         Some(crate::psx_sequence::bank(root, record, &index)?)
-    } else { None };
+    } else {
+        None
+    };
     let mut target_samples = Vec::new();
     // Decode each original snapshot once, even when several zones reference it.
     let mut samples = std::collections::BTreeMap::new();
@@ -177,19 +182,43 @@ fn render_mode(
     let mut tail_ms = 0f32;
     if let Some(bank) = &target_bank {
         for sample in &bank.samples {
-            if cancelled.load(Ordering::Relaxed) { return Err("Audio preview cancelled".into()); }
-            target_samples.push(crate::audio_import::decode_adpcm(&sample.bytes)?.into_iter().map(|v| v as f32 / 32768.).collect::<Vec<_>>());
+            if cancelled.load(Ordering::Relaxed) {
+                return Err("Audio preview cancelled".into());
+            }
+            target_samples.push(
+                crate::audio_import::decode_adpcm(&sample.bytes)?
+                    .into_iter()
+                    .map(|v| v as f32 / 32768.)
+                    .collect::<Vec<_>>(),
+            );
         }
         for z in &bank.zones {
             let sample = &bank.samples[z.sample as usize];
             let pcm = &target_samples[z.sample as usize];
             tail_ms = tail_ms.max(z.release_ms as f32);
-            zones.push(Zone { samples: pcm.as_ptr(), frames: pcm.len() as u32, rate: sample.rate,
-                loop_start: sample.loop_region.map_or(0, |r| r[0]), loop_end: sample.loop_region.map_or(0, |r| r[1]),
-                channels: 1, program: z.program, drum_key: z.drum_key, key_lo: z.key_range[0], key_hi: z.key_range[1],
-                velocity_lo: z.velocity_range[0], velocity_hi: z.velocity_range[1], root_key: z.root_key, reserved: 0,
-                cents: z.cents as f32 / 100., gain: z.gain as f32 / 4096., pan: z.pan as f32 / 16384.,
-                attack_ms: z.attack_ms as f32, decay_ms: z.decay_ms as f32, sustain: z.sustain as f32 / 32767., release_ms: z.release_ms as f32 });
+            zones.push(Zone {
+                samples: pcm.as_ptr(),
+                frames: pcm.len() as u32,
+                rate: sample.rate,
+                loop_start: sample.loop_region.map_or(0, |r| r[0]),
+                loop_end: sample.loop_region.map_or(0, |r| r[1]),
+                channels: 1,
+                program: z.program,
+                drum_key: z.drum_key,
+                key_lo: z.key_range[0],
+                key_hi: z.key_range[1],
+                velocity_lo: z.velocity_range[0],
+                velocity_hi: z.velocity_range[1],
+                root_key: z.root_key,
+                reserved: 0,
+                cents: z.cents as f32 / 100.,
+                gain: z.gain as f32 / 4096.,
+                pan: z.pan as f32 / 16384.,
+                attack_ms: z.attack_ms as f32,
+                decay_ms: z.decay_ms as f32,
+                sustain: z.sustain as f32 / 32767.,
+                release_ms: z.release_ms as f32,
+            });
         }
     }
     for p in bank.programs.iter().filter(|_| !target) {
@@ -395,8 +424,9 @@ pub mod tests {
     fn midi_rendered_pitch_matches_independent_rpn_and_legacy_frequency_oracles() {
         let root = crate::workspace::tests::temp("midi-pitch-oracle");
         let (_, bank) = fixture(&root); // The owned sample is a 440 Hz sine, rooted at key 60.
-        let mut track = vec![0, 0x90, 60, 100, 0, 0xb0, 101, 0, 0, 0xb0, 100, 0,
-            0, 0xb0, 6, 12];
+        let mut track = vec![
+            0, 0x90, 60, 100, 0, 0xb0, 101, 0, 0, 0xb0, 100, 0, 0, 0xb0, 6, 12,
+        ];
         // PPQN 480 with the default 500000 us tempo: delta 960 is exactly one second.
         track.extend_from_slice(&[0x87, 0x40, 0xe0, 0, 69]); // 8832: +93.75 cents at range 12.
         track.extend_from_slice(&[0x87, 0x40, 0xe0, 0, 75]); // 9600: +206.25 cents.
@@ -408,14 +438,27 @@ pub mod tests {
         midi.extend_from_slice(&(track.len() as u32).to_be_bytes());
         midi.extend(track);
         for (profile, cents) in [
-            (crate::midi::MidiProfile::MusicalV2, [0., 93.75, 206.25, 256.25, 356.25, 150.]),
-            (crate::midi::MidiProfile::LegacyV1, [0., 15.625, 34.375, 34.375, 34.375, 34.375]),
+            (
+                crate::midi::MidiProfile::MusicalV2,
+                [0., 93.75, 206.25, 256.25, 356.25, 150.],
+            ),
+            (
+                crate::midi::MidiProfile::LegacyV1,
+                [0., 15.625, 34.375, 34.375, 34.375, 34.375],
+            ),
         ] {
-            let (pcm, stats) = render(&root, &midi, &Settings {
-                sound_bank: Some(bank), midi_profile: profile,
-                ignore_unsupported: profile == crate::midi::MidiProfile::LegacyV1,
-                ..Default::default()
-            }, &AtomicBool::new(false)).unwrap();
+            let (pcm, stats) = render(
+                &root,
+                &midi,
+                &Settings {
+                    sound_bank: Some(bank),
+                    midi_profile: profile,
+                    ignore_unsupported: profile == crate::midi::MidiProfile::LegacyV1,
+                    ..Default::default()
+                },
+                &AtomicBool::new(false),
+            )
+            .unwrap();
             assert_eq!((stats.error, stats.steals, stats.clipped), (0, 0, 0));
             for (second, cents) in cents.into_iter().enumerate() {
                 // Measure the emitted waveform, independently of the kernel's pitch calculation.
@@ -434,8 +477,13 @@ pub mod tests {
                     / (crossings.last().unwrap() - crossings[0]);
                 let expected = 440. * 2_f64.powf(cents / 1200.);
                 let error_cents = 1200. * (measured / expected).log2();
-                println!("{profile:?} second {second}: {measured:.6} Hz, expected {expected:.6}, error {error_cents:.6} cents");
-                assert!(error_cents.abs() < 0.2, "{profile:?} second {second}: pitch error {error_cents} cents");
+                println!(
+                    "{profile:?} second {second}: {measured:.6} Hz, expected {expected:.6}, error {error_cents:.6} cents"
+                );
+                assert!(
+                    error_cents.abs() < 0.2,
+                    "{profile:?} second {second}: pitch error {error_cents} cents"
+                );
             }
         }
     }

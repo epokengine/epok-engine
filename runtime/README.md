@@ -43,15 +43,15 @@ when changing folders; use the selected SDK/toolchain paths for the new build.
 Exports include the [Timeline/VFX guide](docs/timelines.md) and
 [Blueprint guide](docs/blueprints.md) alongside the compiled runtime sources.
 
-## Scene and scripts
+## Actors and components
 
-The first active Camera defines the view unless selected through `set_active_camera`; a default view is used if absent. Cameras expose FOV and `camera_project` converts world points to framebuffer coordinates. Transform values are local to the parent. After script updates, the runtime composes parent-first matrices and reuses them for rendering. Empty entities participate in the hierarchy without emitting geometry. Cameras use the inverse of their inherited transform.
+Maps contain Actors with typed ActorComponents. `Actor3D`, `Actor2D` and `UIActor` derive from the transform-free `Actor` base and own roots for their spatial domain. The logical parent controls inherited activation and lifetime; compatible spatial attachments control transform inheritance.
 
-Properties are assigned before `start`. Measured elapsed time drives a fixed 60 Hz simulation, with at most eight recovery steps per frame. Q12 steps alternate 68/69 raw units to preserve elapsed simulation time. `time.set_paused` pauses simulation; `frame_update` still runs for pause-menu input. Keep transforms inside the Q12 renderer bounds, and do not modify parent indices or create cycles manually.
+The loader creates all Actors and components, assigns authored properties and resolves references before calling `begin_play`. Components tick before their owner, followed by the map's `SceneScriptActor`. Measured elapsed time drives the fixed 60 Hz simulation, with at most eight recovery steps per frame. Q12 steps alternate 68/69 raw units to preserve elapsed simulation time. `time.set_paused` pauses simulation; component `frame_update` remains available for pause-menu input.
 
-`entity()` returns the Behaviour's owner. `get<T>()`, `add<T>()` and `remove<T>()` access, enable and disable supported components. Transform remains available. `find_entity(name)` returns the first matching entity.
+An ActorComponent obtains its Actor through `get_owner()`. Class metadata declares compatible owner domains. Access the corresponding spatial root for transform operations. References use generation-checked `ObjectId`; destroying an Actor invalidates its references and destroys its child Actors and components. The Level provides bounded spawning, component attachment and activation. Creation during a callback is deferred until that dispatch completes.
 
-`create_entity(name, parent)` returns an entity pointer or null when the 32 additional slots are occupied. `destroy_entity` and `set_active` operate on subtrees. Use `EntityHandle` for references that must detect destruction and slot reuse. Do not modify `object_count` directly.
+Camera3DComponent selects a view through its owning Actor. Transform values are local to the spatial parent. After ticks, the runtime composes parent-first matrices and reuses them for rendering. Actors without render components participate in the hierarchy without emitting geometry.
 
 ## Display
 

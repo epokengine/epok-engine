@@ -1,6 +1,7 @@
 #pragma once
 #include "timeline.hpp"
 #include "blueprint_runtime.hpp"
+#include "actor_blueprint.hpp"
 
 // The cooked asset owns immutable data. Instances own only bounded playback
 // state; callbacks are generated typed adapters, never offsets into C++ objects.
@@ -10,20 +11,23 @@ inline constexpr size_t slot_limit=8,track_limit=16,marker_limit=64,signal_limit
 // reflection lookup, allocation, or scene-entity surrogate in this binding.
 inline EffectLayer* (*layer_resolver)(EffectLayerHandle)=nullptr;
 struct BoundTarget {
-    union {EntityHandle entity;EffectLayerHandle layer;};
+    union {ObjectId object;EffectLayerHandle layer;};
     bool internal=false;
-    BoundTarget():entity{}{}
-    BoundTarget(EntityHandle value):entity(value){}
+    BoundTarget():object{}{}
+    BoundTarget(ObjectId value):object(value){}
+    BoundTarget(DataHandle value):object(value.get()&&value.get()->owner?value.get()->owner->id():ObjectId{}){}
     BoundTarget(EffectLayerHandle value):layer(value),internal(true){}
     EffectLayer* effect_layer()const{return internal&&layer_resolver?layer_resolver(layer):nullptr;}
-    Entity* get()const{return internal?nullptr:entity.get();}
-    operator EntityHandle()const{return internal?EntityHandle{}:entity;}
+    Object* get()const{return internal?nullptr:object.get();}
+    ActorData* data()const{return internal?nullptr:bp::object_data(object);}
+    DataHandle data_slot()const{return internal?DataHandle{}:bp::data_handle(object);}
+    operator ObjectId()const{return internal?ObjectId{}:object;}
     bool valid()const{return internal?effect_layer()!=nullptr:get()!=nullptr;}
     bool active()const{if(internal){const auto* value=effect_layer();return value&&value->runtime_active;}return is_active(get());}
     bool visible()const{if(internal){const auto* value=effect_layer();return value&&value->runtime_visible;}return is_active(get());}
     bool same(const BoundTarget& other)const{
         if(internal!=other.internal)return false;
-        return internal?layer.index==other.layer.index&&layer.generation==other.layer.generation:bp::same_owner(entity,other.entity);
+        return internal?layer.index==other.layer.index&&layer.generation==other.layer.generation:object==other.object;
     }
 };
 struct Value { int32_t lanes[4]={}; };
@@ -194,7 +198,7 @@ public:
         for(uint16_t i=0;i<instance->asset->marker_count;++i)if(instance->asset->markers[i]==id)return instance->markers[i];
         return 0;
     }
-    Handle play(const Asset& asset,EntityHandle owner,const EntityHandle* targets,uint32_t scene){
+    Handle play(const Asset& asset,DataHandle owner,const DataHandle* targets,uint32_t scene){
         if(asset.target_count>slot_limit){capacity_drop(asset);return {};}
         BoundTarget bindings[slot_limit];
         if(targets)for(uint16_t i=0;i<asset.target_count;++i)bindings[i]=targets[i];

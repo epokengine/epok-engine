@@ -41,12 +41,17 @@ pub enum Kind {
     Material,
 }
 impl Kind {
-    pub fn playable(&self) -> bool { matches!(self, Self::AudioClip | Self::MusicSequence) }
+    pub fn playable(&self) -> bool {
+        matches!(self, Self::AudioClip | Self::MusicSequence)
+    }
     /// Runtime references historically called playable handles AudioClip. Keep
     /// those serialized graphs valid; SoundBank sample references remain strict.
     pub fn runtime_reference(name: &str) -> Result<Self, String> {
-        if name == "PlayableAudio" { return Ok(Self::AudioClip); }
-        serde_json::from_value(serde_json::Value::String(name.into())).map_err(|_| format!("Unknown asset kind {name}"))
+        if name == "PlayableAudio" {
+            return Ok(Self::AudioClip);
+        }
+        serde_json::from_value(serde_json::Value::String(name.into()))
+            .map_err(|_| format!("Unknown asset kind {name}"))
     }
     pub fn accepts_runtime(&self, actual: &Self) -> bool {
         self == actual || (*self == Self::AudioClip && actual.playable())
@@ -308,10 +313,16 @@ impl Package {
         {
             return Err("Unsupported asset/importer version or invalid identity".into());
         }
-        if !matches!(self.meta.kind, Kind::AudioClip | Kind::MusicSequence | Kind::SoundBank) && self.meta.importer_version != 1 {
+        if !matches!(
+            self.meta.kind,
+            Kind::AudioClip | Kind::MusicSequence | Kind::SoundBank
+        ) && self.meta.importer_version != 1
+        {
             return Err("Unsupported model/mesh importer version".into());
         }
-        if matches!(self.meta.kind, Kind::MusicSequence | Kind::SoundBank) && self.meta.importer_version > 2 {
+        if matches!(self.meta.kind, Kind::MusicSequence | Kind::SoundBank)
+            && self.meta.importer_version > 2
+        {
             return Err("Unsupported sequence/bank importer version".into());
         }
         match (&self.meta.kind, &self.meta.settings) {
@@ -343,7 +354,7 @@ impl Package {
             }
             Kind::AudioClip => crate::audio_decode::probe(&self.source)?,
             Kind::MusicSequence => {
-                crate::sequence::decode_source(&self.source,self.meta.settings.sequence()?)?;
+                crate::sequence::decode_source(&self.source, self.meta.settings.sequence()?)?;
             }
             Kind::SoundBank => {
                 let settings = self.meta.settings.sound_bank()?;
@@ -391,7 +402,9 @@ fn relative(value: &str) -> Result<&Path, String> {
     }
     Ok(path)
 }
-pub(crate) fn validate_source_path(value: &str) -> Result<(), String> { relative(value).map(|_| ()) }
+pub(crate) fn validate_source_path(value: &str) -> Result<(), String> {
+    relative(value).map(|_| ())
+}
 pub fn inside(root: &Path, value: &str) -> Result<PathBuf, String> {
     let path = root.join(relative(value)?);
     let canonical_root = fs::canonicalize(root).map_err(|e| e.to_string())?;
@@ -559,8 +572,11 @@ pub fn scan(root: &Path, cache: &mut ScanCache) -> Index {
                         meta: package.meta,
                         revision: hash(&bytes),
                     })))
-                } else if ["wav", "mp3", "flac", "ogg", "mid", "midi", "seq", "sep", "vab", "vh", "vb", "sf2", "sf3", "fbx", "png"]
-                    .contains(&ext.as_str())
+                } else if [
+                    "wav", "mp3", "flac", "ogg", "mid", "midi", "seq", "sep", "vab", "vh", "vb",
+                    "sf2", "sf3", "fbx", "png",
+                ]
+                .contains(&ext.as_str())
                 {
                     let bytes = if ext == "sf2" || ext == "sf3" {
                         read_soundfont_bounded(&path)?
@@ -636,7 +652,14 @@ pub fn atomic_write(path: &Path, bytes: &[u8], expected: Option<&str>) -> Result
         drop(file);
         match expected {
             Some(revision) => {
-                let existing = if path.extension().is_some_and(|extension| extension == "epokasset") { read_package(path)? } else { read_bounded(path)? };
+                let existing = if path
+                    .extension()
+                    .is_some_and(|extension| extension == "epokasset")
+                {
+                    read_package(path)?
+                } else {
+                    read_bounded(path)?
+                };
                 if hash(&existing) != revision {
                     return Err(
                         "Asset changed during the operation; retry against the latest version."
@@ -832,7 +855,9 @@ pub fn source_relinks(root: &Path, index: &Index) -> Vec<Candidate> {
     index
         .usable()
         .filter_map(|record| {
-            if crate::bank_compat::parts(record).is_some() { return None; }
+            if crate::bank_compat::parts(record).is_some() {
+                return None;
+            }
             let source = index.linked_source(record).ok().flatten()?;
             if source.path == record.meta.source || source.hash != record.meta.source_hash {
                 return None;
@@ -888,7 +913,10 @@ pub fn prepare_portable(
         crate::import_settings::Settings::Audio(_) => {
             (Kind::AudioClip, audio_import::IMPORTER_VERSION)
         }
-        crate::import_settings::Settings::MusicSequence(s) => (Kind::MusicSequence, if s.source_selection.is_some() { 2 } else { 1 }),
+        crate::import_settings::Settings::MusicSequence(s) => (
+            Kind::MusicSequence,
+            if s.source_selection.is_some() { 2 } else { 1 },
+        ),
         crate::import_settings::Settings::SoundBank(s) => {
             if s.library.is_some() {
                 return Err(
@@ -958,7 +986,13 @@ pub fn prepare_portable(
 }
 pub fn commit(candidate: Candidate) -> Result<Uuid, String> {
     if let Some(path) = &candidate.source_path
-        && hash(&(if is_soundfont_library(&candidate.package.meta) { read_soundfont_bounded(path)? } else { read_bounded(path)? })) != candidate.source_hash
+        && hash(
+            &(if is_soundfont_library(&candidate.package.meta) {
+                read_soundfont_bounded(path)?
+            } else {
+                read_bounded(path)?
+            }),
+        ) != candidate.source_hash
     {
         return Err("Source changed during import. The previous asset is intact; retry.".into());
     }
@@ -1027,7 +1061,7 @@ pub fn dependencies(root: &Path, id: Uuid) -> Result<Vec<String>, String> {
         .filter(|p| p.to_string_lossy().ends_with(".epokmap"))
     {
         let scene = crate::scene::Scene::load_unresolved(&path)?;
-        for entity in &scene.entities {
+        for entity in &scene.actors {
             if entity.audio.as_ref().is_some_and(|a| a.clip == Some(id))
                 || entity.material.texture == Some(id)
                 || entity.image.as_ref().is_some_and(|i| i.texture == Some(id))
@@ -1193,11 +1227,11 @@ mod tests {
         )
         .unwrap();
         let mut scene = crate::scene::Scene::default();
-        scene.entities[0].audio = Some(crate::audio::AudioSource {
+        scene.actors[0].audio = Some(crate::audio::AudioSource {
             clip: Some(id),
             ..Default::default()
         });
-        scene.entities[1].audio = scene.entities[0].audio.clone();
+        scene.actors[1].audio = scene.actors[0].audio.clone();
         let scene_path = f.0.join("assets/scenes/Main.epokmap");
         scene.save(&scene_path).unwrap();
         let original_scene = fs::read(&scene_path).unwrap();
@@ -1250,7 +1284,7 @@ mod tests {
                 .contains("Missing asset")
         );
         assert_eq!(
-            crate::scene::Scene::load(&scene_path).unwrap().entities[0]
+            crate::scene::Scene::load(&scene_path).unwrap().actors[0]
                 .audio
                 .as_ref()
                 .unwrap()
@@ -1270,7 +1304,7 @@ mod tests {
         let package_path = f.0.join("assets/tone.epokasset");
         let original = fs::read(&package_path).unwrap();
         let mut scene = crate::scene::Scene::default();
-        scene.entities[0].audio = Some(crate::audio::AudioSource {
+        scene.actors[0].audio = Some(crate::audio::AudioSource {
             clip: Some(id),
             ..Default::default()
         });
@@ -1365,7 +1399,7 @@ mod tests {
         fs::write(&native_path, b"int audio_fixture=1;\n").unwrap();
         let path = f.0.join("assets/scenes/Main.epokmap");
         let mut scene = crate::scene::Scene::default();
-        for (entity, id) in scene.entities.iter_mut().zip([first, second]) {
+        for (entity, id) in scene.actors.iter_mut().zip([first, second]) {
             entity.audio = Some(crate::audio::AudioSource {
                 clip: Some(id),
                 ..Default::default()
@@ -1435,9 +1469,9 @@ mod tests {
         }
         fs::write(&native_path, b"int audio_fixture=2;\n").unwrap();
         crate::staging_files::observe_native(&f.0).unwrap();
-        scene.entities[1].position[0] += 2.;
-        scene.entities[1].audio.as_mut().unwrap().volume = 0.25;
-        scene.entities[1].audio.as_mut().unwrap().pitch = 0.5;
+        scene.actors[1].position[0] += 2.;
+        scene.actors[1].audio.as_mut().unwrap().volume = 0.25;
+        scene.actors[1].audio.as_mut().unwrap().pitch = 0.5;
         assert!(crate::scene_dependencies::observe(&f.0, &path, &scene).unwrap());
         let unrelated = Graph::load(&f.0).unwrap();
         for target in [".epok/build", "exports/audio"] {
@@ -1456,13 +1490,13 @@ mod tests {
         for effect in [false, true] {
             let mut playback_selection = scene.clone();
             if effect {
-                playback_selection.entities[0].particle_effect =
+                playback_selection.actors[0].particle_effect =
                     Some(crate::particle_effect_scene::Component {
                         asset: Some(Uuid::new_v4()),
                         ..Default::default()
                     });
             } else {
-                playback_selection.entities[0].timeline = Some(crate::timeline_scene::Component {
+                playback_selection.actors[0].timeline = Some(crate::timeline_scene::Component {
                     asset: Some(Uuid::new_v4()),
                     ..Default::default()
                 });
@@ -1483,14 +1517,14 @@ mod tests {
         }
         let selected_index = f.index();
         let mut saved_scene = crate::scene::Scene::load(&path).unwrap();
-        saved_scene.entities[1].audio.as_mut().unwrap().volume = 0.5;
+        saved_scene.actors[1].audio.as_mut().unwrap().volume = 0.5;
         saved_scene.save(&path).unwrap();
         crate::scene_dependencies::observe(&f.0, &path, &scene).unwrap();
         let volume_only = Graph::load(&f.0).unwrap();
         let export_bank = "generated-resource:exports/audio/audio-bank.hh";
         let build_bank = "generated-resource:.epok/build/audio-bank.hh";
         assert_eq!(volume_only.nodes[export_bank], before.nodes[export_bank]);
-        saved_scene.entities[1].audio = None;
+        saved_scene.actors[1].audio = None;
         saved_scene.save(&path).unwrap();
         crate::scene_dependencies::observe(&f.0, &path, &scene).unwrap();
         let saved_selection = Graph::load(&f.0).unwrap();
@@ -1560,7 +1594,7 @@ mod tests {
         let export_bank = "generated-resource:exports/audio/audio-bank.hh";
         assert!(rebuilt.nodes[bank_key].stale.is_empty());
         let mut changed_selection = scene.clone();
-        changed_selection.entities[1].audio = None;
+        changed_selection.actors[1].audio = None;
         assert!(crate::scene_dependencies::observe(&f.0, &path, &changed_selection).unwrap());
         let selection = Graph::load(&f.0).unwrap();
         assert!(
@@ -1577,7 +1611,7 @@ mod tests {
         crate::timeline_compile::observe_resources(&f.0, &f.index()).unwrap();
         assert!(crate::project::stage_into(&f.0, &scene, &build).is_err());
         assert_eq!(fs::read(&old_payload).unwrap(), old_bytes);
-        scene.entities[1].audio = None;
+        scene.actors[1].audio = None;
         stage(&scene);
         let removed = Graph::load(&f.0).unwrap();
         assert!(!removed.nodes[&key(".epok/build", second)].stale.is_empty());
@@ -1722,7 +1756,7 @@ mod tests {
         let id = f.import();
         let record = f.index().resolve(id).unwrap().clone();
         let mut scene = crate::scene::Scene::default();
-        scene.entities[0].audio = Some(crate::audio::AudioSource {
+        scene.actors[0].audio = Some(crate::audio::AudioSource {
             clip: Some(id),
             ..Default::default()
         });
@@ -1730,7 +1764,7 @@ mod tests {
         scene.save(&path).unwrap();
         assert_eq!(dependencies(&f.0, id).unwrap().len(), 1);
         assert!(trash(&f.0, &record).is_err());
-        scene.entities[0].audio = None;
+        scene.actors[0].audio = None;
         scene.save(&path).unwrap();
         let deleted = trash(&f.0, &record).unwrap();
         assert!(!record.path.exists());
@@ -1751,15 +1785,18 @@ mod tests {
             vec![0u8; 33 * 1024 * 1024],
         )
         .unwrap();
-        assert!(prepare(
-            &fixture.0,
-            "assets/oversized.wav",
-            "assets/oversized.epokasset",
-            Settings::default(),
-            None,
-            false,
-        )
-        .err().unwrap()
-        .contains("exceeds the supported file size"));
+        assert!(
+            prepare(
+                &fixture.0,
+                "assets/oversized.wav",
+                "assets/oversized.epokasset",
+                Settings::default(),
+                None,
+                false,
+            )
+            .err()
+            .unwrap()
+            .contains("exceeds the supported file size")
+        );
     }
 }

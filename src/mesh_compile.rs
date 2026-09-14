@@ -2,11 +2,11 @@
 use crate::{
     lighting::{Quad, dot, sub},
     mesh::{Component, Document},
-    scene::Entity,
+    scene::Actor,
 };
 use std::collections::BTreeMap;
 
-pub fn quads(e: &Entity, mesh: &Component) -> Vec<Quad> {
+pub fn quads(e: &Actor, mesh: &Component) -> Vec<Quad> {
     let Some(doc) = &mesh.document else {
         return vec![];
     };
@@ -128,7 +128,7 @@ pub fn chunks(quads: &[Quad]) -> Result<Vec<Chunk>, String> {
 /// Texture page geometry (width, height, VRAM y) used to bake 8-bit page UVs.
 pub type PageLookup<'a> = &'a dyn Fn(uuid::Uuid) -> Option<(u16, u16, u16)>;
 #[cfg(test)]
-pub fn header(e: &Entity, index: usize) -> Result<String, String> {
+pub fn header(e: &Actor, index: usize) -> Result<String, String> {
     header_with_pages(e, index, &|_| None)
 }
 /// Packed page UVs replicate the runtime's texture_uv mapping so the renderer
@@ -140,7 +140,7 @@ pub fn packed_uv(uv: [f32; 2], page: (u16, u16, u16)) -> u16 {
     let v = ((i32::from(y) % 256) + q(uv[1]) * (i32::from(height) - 1) / 4096) & 255;
     (u | (v << 8)) as u16
 }
-pub fn header_with_pages(e: &Entity, index: usize, pages: PageLookup) -> Result<String, String> {
+pub fn header_with_pages(e: &Actor, index: usize, pages: PageLookup) -> Result<String, String> {
     let mesh = e.editable_mesh.as_ref().unwrap();
     let _doc: &Document = mesh.document.as_deref().ok_or_else(|| {
         mesh.error

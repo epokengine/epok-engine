@@ -770,7 +770,10 @@ fn update_look_cursor(previous: bool, captured: bool, set_visible: impl FnOnce(b
 fn camera_capture_restores_cursor_without_a_backend_shape_change() {
     let mut visible = true;
     for (previous, captured, expected) in [
-        (false, true, false), (true, true, false), (true, false, true), (false, false, true),
+        (false, true, false),
+        (true, true, false),
+        (true, false, true),
+        (false, false, true),
     ] {
         update_look_cursor(previous, captured, |value| visible = value);
         assert_eq!(visible, expected);
@@ -1091,12 +1094,12 @@ fn gpu_scene_and_gizmo_projection_agree_at_different_orbit_distances() {
     let target = texture.create_view(&Default::default());
     let mut renderer = scene_gpu::SceneGpu::new(&device, &queue);
     let mut editor = crate::editor::Editor::new(std::env::temp_dir().join("epok-projection-test"));
-    let mut cube = crate::scene::Entity::cube("Projection marker".into());
+    let mut cube = crate::scene::Actor::cube("Projection marker".into());
     cube.position = [0.4, 0.5, 0.2];
     cube.scale = [0.1; 3];
     cube.material.color = [1., 0., 0.];
     cube.material.unlit = true;
-    editor.scene.entities = vec![cube];
+    editor.scene.actors = vec![cube];
     editor.selected = None;
     editor.grid = false;
     for distance in [4., 12., 30.] {

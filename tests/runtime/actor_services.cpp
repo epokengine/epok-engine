@@ -1,7 +1,7 @@
 // Host contract tests for the actor service adapters (actor-architecture P9).
 // Covers the AudioComponent play_on_start policy, stop on disable/end_play, the
 // asynchronous-consumer quarantine that keeps component-owned AudioSource storage out of
-// the pool, and the LegacyBehaviourComponent pause/trigger forwarding contract.
+// the pool, and the TriggerWatcher pause/trigger forwarding contract.
 // Compiles the real runtime/object_model.hpp through epok.hpp; only the audio service and
 // the class table are stubbed, exactly as the cooked build would provide them.
 #include <cassert>
@@ -31,7 +31,7 @@ void AudioSource::stop() { auto& p = probe_of(this); ++p.stops; p.playing = fals
 bool AudioSource::is_playing() const { return probe_of(this).playing; }
 
 // Stand-in for runtime/music.hpp's XA consumer: the CD driver's lookup/stop completions
-// retain this address, which is what create_entity quarantines legacy slots against.
+// retain this address, which is what allocate_actor_data quarantines legacy slots against.
 const AudioSource* stub_music_active = nullptr;
 bool stub_music_retains(const AudioSource* source) { return source && source == stub_music_active; }
 }  // namespace epok
@@ -47,14 +47,15 @@ struct AudioPanel : UIActor {
     static constexpr uint64_t static_class_id = 0x3002;
     uint64_t class_id() const override { return static_class_id; }
 };
-struct TriggerWatcher : Behaviour {
+struct TriggerWatcher : ActorComponent {
+    static constexpr uint64_t static_class_id=0x3003;
     unsigned starts = 0, updates = 0, frames = 0, triggers = 0;
-    EntityHandle last_other;
+    DataHandle last_other;
     TriggerPhase last_phase = TriggerPhase::Exit;
-    void start(Transform&) override { ++starts; }
-    void update(Transform&, Fixed) override { ++updates; }
-    void frame_update(Transform&, uint32_t) override { ++frames; }
-    void on_trigger(EntityHandle other, TriggerPhase phase) override {
+    void begin_play() override { ++starts; }
+    void tick(Fixed) override { ++updates; }
+    void frame_update(uint32_t) override { ++frames; }
+    void on_trigger(DataHandle other, TriggerPhase phase) override {
         ++triggers;
         last_other = other;
         last_phase = phase;
@@ -76,9 +77,9 @@ const ClassDescriptor object_classes[] = {
     {AudioComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None,
      uint8_t(object_domain_bit(ObjectDomain::World3D) | object_domain_bit(ObjectDomain::World2D) | object_domain_bit(ObjectDomain::UI)),
      ObjectClassMultiple, &object_construct<AudioComponent>, &object_destruct, sizeof(AudioComponent), alignof(AudioComponent), &ObjectPool<AudioComponent, 4>::acquire, &ObjectPool<AudioComponent, 4>::release},
-    {LegacyBehaviourComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None,
+    {TriggerWatcher::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None,
      uint8_t(object_domain_bit(ObjectDomain::World3D) | object_domain_bit(ObjectDomain::World2D) | object_domain_bit(ObjectDomain::UI)),
-     ObjectClassMultiple, &object_construct<LegacyBehaviourComponent>, &object_destruct, sizeof(LegacyBehaviourComponent), alignof(LegacyBehaviourComponent), &ObjectPool<LegacyBehaviourComponent, 2>::acquire, &ObjectPool<LegacyBehaviourComponent, 2>::release},
+     ObjectClassMultiple, &object_construct<TriggerWatcher>, &object_destruct, sizeof(TriggerWatcher), alignof(TriggerWatcher), &ObjectPool<TriggerWatcher, 2>::acquire, &ObjectPool<TriggerWatcher, 2>::release},
     {Level::static_class_id, Object::static_class_id, ObjectFamily::Level, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Level), alignof(Level), nullptr, nullptr},
     {AudioActor::static_class_id, Actor3D::static_class_id, ObjectFamily::Actor, ObjectDomain::World3D, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<AudioActor>, &object_destruct, sizeof(AudioActor), alignof(AudioActor), &ObjectPool<AudioActor, 4>::acquire, &ObjectPool<AudioActor, 4>::release},
     {AudioPanel::static_class_id, UIActor::static_class_id, ObjectFamily::Actor, ObjectDomain::UI, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), &object_construct<AudioPanel>, &object_destruct, sizeof(AudioPanel), alignof(AudioPanel), &ObjectPool<AudioPanel, 2>::acquire, &ObjectPool<AudioPanel, 2>::release},
@@ -120,8 +121,8 @@ ObjectId spawn(uint64_t class_id, const char* name, ObjectId parent = {}) {
 // bank's bank-load loop and bp::activate_spawn_audio own that start.
 void slot_backed_audio_never_double_plays() {
     reset();
-    static Entity slot;
-    slot = Entity{};
+    static ActorData slot;
+    slot = ActorData{};
     slot.audio.enabled = true;
     slot.audio.play_on_start = true;
 
@@ -307,19 +308,18 @@ void audio_is_domain_agnostic() {
     assert(probe_of(&click->local).plays == 1 && probe_of(&hover->local).plays == 0);
 }
 
-// 6. LegacyBehaviourComponent: frame_update keeps running while the simulation clock is
+// 6. TriggerWatcher: frame_update keeps running while the simulation clock is
 // paused (the legacy contract), and update() does not.
-void legacy_frame_update_runs_while_paused() {
+void component_frame_update_runs_while_paused() {
     reset();
-    static Entity slot;
-    slot = Entity{};
-    TriggerWatcher watcher;
+    static ActorData slot;
+    slot = ActorData{};
     const ObjectId id = spawn(AudioActor::static_class_id, "Script");
     auto* actor = registry_storage.resolve<AudioActor>(id);
     assert(actor);
     actor->root.bind_slot(slot);
-    auto* adapter = game_level.add_component<LegacyBehaviourComponent>(*actor, "Logic");
-    assert(adapter && adapter->bind(watcher));
+    auto* adapter = game_level.add_component<TriggerWatcher>(*actor, "Logic");
+    assert(adapter);auto& watcher=*adapter;
 
     // Paused: main.cpp keeps calling Level::frame_update and stops calling Level::tick.
     for (unsigned frame = 0; frame < 3; ++frame) game_level.frame_update(16666);
@@ -338,19 +338,18 @@ void legacy_frame_update_runs_while_paused() {
 
 // 7. dispatch_trigger fans a collision event out to the owner's components; the Level
 // itself never generates one.
-void legacy_trigger_forwarding() {
+void component_trigger_delivery() {
     reset();
-    static Entity slot;
-    slot = Entity{};
-    TriggerWatcher watcher;
+    static ActorData slot;
+    slot = ActorData{};
     const ObjectId id = spawn(AudioActor::static_class_id, "Trigger");
     auto* actor = registry_storage.resolve<AudioActor>(id);
     assert(actor);
     actor->root.bind_slot(slot);
-    auto* adapter = game_level.add_component<LegacyBehaviourComponent>(*actor, "Logic");
-    assert(adapter && adapter->bind(watcher));
+    auto* adapter = game_level.add_component<TriggerWatcher>(*actor, "Logic");
+    assert(adapter);auto& watcher=*adapter;
 
-    const EntityHandle other{7, 3};
+    const DataHandle other{7, 3};
     // Root + adapter both receive the call; only the adapter forwards it.
     assert(dispatch_trigger(game_level, id, other, TriggerPhase::Enter) == 2);
     assert(watcher.triggers == 1 && watcher.last_phase == TriggerPhase::Enter);
@@ -366,7 +365,6 @@ void legacy_trigger_forwarding() {
     assert(game_level.destroy_actor(id));
     assert(dispatch_trigger(game_level, id, other, TriggerPhase::Stay) == 0);
     assert(dispatch_trigger(game_level, ObjectId{}, other, TriggerPhase::Stay) == 0);
-    assert(watcher.triggers == 2);
 }
 }  // namespace
 
@@ -380,8 +378,8 @@ int main() {
     owned_audio_stops_on_disable_and_end_play();
     owned_audio_quarantine_blocks_reuse();
     audio_is_domain_agnostic();
-    legacy_frame_update_runs_while_paused();
-    legacy_trigger_forwarding();
+    component_frame_update_runs_while_paused();
+    component_trigger_delivery();
     reset();
     std::puts("Actor service adapters: audio start/stop/release policy, quarantine, pause and trigger forwarding tests passed.");
     return 0;

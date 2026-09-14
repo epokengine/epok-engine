@@ -290,10 +290,10 @@ fn decode(data: &[u8], depth: usize) -> Vec<u8> {
         return rgba;
     }
     for (p, output) in data.chunks_exact(2).zip(rgba.chunks_exact_mut(4)) {
-            let p = u16::from_le_bytes([p[0], p[1]]);
-            output[0] = ((p & 31) << 3 | (p & 31) >> 2) as u8;
-            output[1] = (((p >> 5) & 31) << 3 | ((p >> 5) & 31) >> 2) as u8;
-            output[2] = (((p >> 10) & 31) << 3 | ((p >> 10) & 31) >> 2) as u8;
+        let p = u16::from_le_bytes([p[0], p[1]]);
+        output[0] = ((p & 31) << 3 | (p & 31) >> 2) as u8;
+        output[1] = (((p >> 5) & 31) << 3 | ((p >> 5) & 31) >> 2) as u8;
+        output[2] = (((p >> 10) & 31) << 3 | ((p >> 10) & 31) >> 2) as u8;
     }
     rgba
 }
@@ -339,13 +339,20 @@ mod tests {
         use crate::{pipeline, project, scene};
         use std::collections::HashSet;
         use std::hash::{Hash, Hasher};
-        let root = std::env::var_os("EPOK_LIVE_PROJECT").map(std::path::PathBuf::from)
+        let root = std::env::var_os("EPOK_LIVE_PROJECT")
+            .map(std::path::PathBuf::from)
             .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/sample-game"));
-        let scene_path = root.join(std::env::var("EPOK_LIVE_SCENE").unwrap_or_else(|_| "assets/scenes/SampleScene.epokmap".into()));
+        let scene_path = root.join(
+            std::env::var("EPOK_LIVE_SCENE")
+                .unwrap_or_else(|_| "assets/scenes/SampleScene.epokmap".into()),
+        );
         let scene = scene::Scene::load(&scene_path).unwrap();
         let config = project::Config::load(&root).unwrap();
         let resolution = crate::settings::rendering(&root).unwrap();
-        let profile = crate::workspace::optional_manifest(&root).unwrap().map(|m| m.play).unwrap_or_default();
+        let profile = crate::workspace::optional_manifest(&root)
+            .unwrap()
+            .map(|m| m.play)
+            .unwrap_or_default();
         let input = crate::play::input(&root, scene_path, scene, profile, false).unwrap();
         let job = pipeline::Job::start_with_debug(root.clone(), input, true, false);
         let bridge = job.bridge.as_ref().expect("bridge startup");
@@ -357,7 +364,9 @@ mod tests {
                     match event {
                         pipeline::Event::Finished(Err(e)) => panic!("{e}"),
                         pipeline::Event::Log(line) => {
-                            if line.contains("EPOK: runtime ready") { runtime_ready.set(true); }
+                            if line.contains("EPOK: runtime ready") {
+                                runtime_ready.set(true);
+                            }
                             eprintln!("{line}");
                         }
                         pipeline::Event::Running(pid) => eprintln!("Emulator PID: {pid}"),
@@ -372,7 +381,10 @@ mod tests {
                     return frame.clone();
                 }
                 drop(state);
-                assert!(start.elapsed() < Duration::from_secs(if after == 0 {180} else {15}), "No video frame");
+                assert!(
+                    start.elapsed() < Duration::from_secs(if after == 0 { 180 } else { 15 }),
+                    "No video frame"
+                );
                 thread::sleep(Duration::from_millis(10));
             }
         };
@@ -390,7 +402,10 @@ mod tests {
             distinct.insert(hash(&f));
         }
         assert!(distinct.len() > 10, "Video is frozen");
-        assert!(runtime_ready.get(), "Runtime logs must reach the editor Console");
+        assert!(
+            runtime_ready.get(),
+            "Runtime logs must reach the editor Console"
+        );
         assert_eq!(f.width, u32::from(resolution.width));
         assert_eq!(f.height, u32::from(resolution.height));
         println!(
@@ -402,12 +417,20 @@ mod tests {
         );
         let emulated_hz = (f.vsyncs - first_vsync) as f64 / started.elapsed().as_secs_f64();
         println!("Emulated vblank rate: {emulated_hz:.1} Hz");
-        assert!(emulated_hz < 75., "Headless emulator must not run unthrottled");
+        assert!(
+            emulated_hz < 75.,
+            "Headless emulator must not run unthrottled"
+        );
         if let Some(path) = std::env::var_os("EPOK_LIVE_CAPTURE") {
-            let mut encoder = png::Encoder::new(std::fs::File::create(path).unwrap(), f.width, f.height);
+            let mut encoder =
+                png::Encoder::new(std::fs::File::create(path).unwrap(), f.width, f.height);
             encoder.set_color(png::ColorType::Rgba);
             encoder.set_depth(png::BitDepth::Eight);
-            encoder.write_header().unwrap().write_image_data(&f.rgba).unwrap();
+            encoder
+                .write_header()
+                .unwrap()
+                .write_image_data(&f.rgba)
+                .unwrap();
         }
         bridge
             .buttons

@@ -35,8 +35,16 @@ pub fn events(ir: &SequenceIr, settings: &Settings) -> Result<Vec<Event>, String
             } => (0, channel, key, velocity, 0),
             EventKind::NoteOff { channel, key } => (1, channel, key, 0, 0),
             EventKind::Program { channel, program } => (2, channel, program, 0, 0),
-            EventKind::BankProgram { channel, bank, program } => (10, channel, program, 0, bank as u32),
-            EventKind::Parameter { channel, parameter, value } => (9, channel, parameter, 0, value as u32),
+            EventKind::BankProgram {
+                channel,
+                bank,
+                program,
+            } => (10, channel, program, 0, bank as u32),
+            EventKind::Parameter {
+                channel,
+                parameter,
+                value,
+            } => (9, channel, parameter, 0, value as u32),
             EventKind::Control {
                 channel,
                 controller,
@@ -80,7 +88,10 @@ pub fn events(ir: &SequenceIr, settings: &Settings) -> Result<Vec<Event>, String
 
 /// v1 keeps its exact legacy bytes. Only streams requiring extended semantics use v2.
 pub fn payload_version(events: &[Event]) -> u16 {
-    if events.iter().any(|event| event.op > 8 || (event.op == 3 && ![7, 10, 11, 64].contains(&event.a))) {
+    if events
+        .iter()
+        .any(|event| event.op > 8 || (event.op == 3 && ![7, 10, 11, 64].contains(&event.a)))
+    {
         2
     } else {
         1

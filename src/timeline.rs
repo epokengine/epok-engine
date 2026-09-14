@@ -67,7 +67,10 @@ pub struct Slot {
 impl Slot {
     pub fn class_id(&self) -> Option<&str> {
         match &self.target {
-            Type::EntityRef { class: Some(class) } | Type::EffectLayerRef { class } => Some(class),
+            Type::ObjectRef { class: Some(class) }
+            | Type::ActorRef { class: Some(class) }
+            | Type::ComponentRef { class: Some(class) }
+            | Type::EffectLayerRef { class } => Some(class),
             _ => None,
         }
     }
@@ -182,7 +185,7 @@ pub fn channels(ty: &Type) -> usize {
     }
 }
 /// This is the serialized binding table for scene/effect components. Only
-/// authoring UUIDs enter the file; existing EntityRef cooking resolves them.
+/// authoring UUIDs enter the file; existing ObjectRef cooking resolves them.
 pub type Bindings = BTreeMap<Uuid, Option<Uuid>>;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -203,7 +206,7 @@ impl std::fmt::Display for Diagnostic {
 }
 fn validate_components(
     class: &str,
-    entity: &crate::scene::Entity,
+    entity: &crate::scene::Actor,
     registry: &Registry,
 ) -> Result<(), String> {
     use crate::reflection_schema::TimelineComponentRequirement as Component;
@@ -368,11 +371,11 @@ impl TimelineAsset {
         }
         for slot in &self.slots {
             match &slot.target {
-                Type::EntityRef { class: Some(class) } if class != crate::particle_effect::LAYER_CLASS_ID && registry.classes.contains_key(class) => {}
+                Type::ObjectRef { class: Some(class) }|Type::ActorRef {class:Some(class)}|Type::ComponentRef {class:Some(class)} if class != crate::particle_effect::LAYER_CLASS_ID && registry.classes.contains_key(class) => {}
                 Type::EffectLayerRef { class } if class == crate::particle_effect::LAYER_CLASS_ID && registry.classes.contains_key(class) => {}
                 _ => report(
                     slot.id,
-                    "Target requires a registered EntityRef class or the reflected EffectLayerRef class ID".into(),
+                    "Target requires a registered ObjectRef class or the reflected EffectLayerRef class ID".into(),
                 ),
             }
         }
@@ -591,7 +594,7 @@ impl TimelineAsset {
                         .get(&slot.id)
                         .copied()
                         .flatten()
-                        .and_then(|id| scene.entities.iter().find(|entity| entity.id == id))
+                        .and_then(|id| scene.actors.iter().find(|entity| entity.id == id))
                         && let Some(class) = slot.class_id()
                     {
                         validate_components(class, entity, registry)?;
@@ -607,7 +610,7 @@ impl TimelineAsset {
                     message,
                 });
             } else if let Some(id) = bindings.get(&slot.id).copied().flatten()
-                && let Some(index) = scene.entities.iter().position(|e| e.id == id)
+                && let Some(index) = scene.actors.iter().position(|e| e.id == id)
                 && !scene.is_active(index)
             {
                 errors.push(Diagnostic {

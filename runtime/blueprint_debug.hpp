@@ -27,7 +27,7 @@ __attribute__((noinline,used)) inline void epok_blueprint_debug_hook() { asm vol
 #endif
 }
 namespace epok::bp {
-inline void debug_begin(uint32_t class_id,uint32_t node_id,EntityHandle owner) {
+inline void debug_begin(uint32_t class_id,uint32_t node_id,ObjectId owner) {
     auto& snapshot=epok_blueprint_debug_snapshot;
     snapshot.class_id=class_id;snapshot.node_id=node_id;snapshot.owner_index=owner.index;
     snapshot.owner_generation=owner.generation;snapshot.count=0;

@@ -61,9 +61,13 @@ fn audio_import_dialog_clicks_publish_package() {
 #[test]
 #[ignore = "Owns an ImGui context; run serially for real MIDI bank selection and import controls"]
 fn midi_import_dialog_assigns_bank_and_publishes_sequence() {
-    let mut context = crate::gui::tests::imgui_context(); context.set_ini_filename(None);
-    context.io_mut().display_size = [1440., 1000.]; context.io_mut().delta_time = 1. / 60.;
-    context.fonts().add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+    let mut context = crate::gui::tests::imgui_context();
+    context.set_ini_filename(None);
+    context.io_mut().display_size = [1440., 1000.];
+    context.io_mut().delta_time = 1. / 60.;
+    context
+        .fonts()
+        .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
     context.fonts().build_rgba32_texture();
     crate::asset_ui::interaction::verify_sequence(&mut context);
 }
@@ -243,12 +247,12 @@ fn audio_legacy_golden_outputs() {
         );
     }
     let mut scene = crate::scene::Scene::default();
-    let mut entity = crate::scene::Entity::cube("Tone".into());
+    let mut entity = crate::scene::Actor::cube("Tone".into());
     entity.audio = Some(crate::audio::AudioSource {
         clip: Some(id),
         ..Default::default()
     });
-    scene.entities.push(entity);
+    scene.actors.push(entity);
     let index = assets::scan(&root, &mut Default::default());
     let build = root.join("build");
     std::fs::create_dir_all(&build).unwrap();

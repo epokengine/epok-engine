@@ -9,7 +9,7 @@
 #include "particle_effect_service.hpp"
 #endif
 namespace epok::bp::api {
-timeline::Handle play_sequence_component(EntityHandle target){
+timeline::Handle play_sequence_component(DataHandle target){
 #ifdef EPOK_TIMELINES
     return timeline::play(target);
 #else
@@ -37,7 +37,7 @@ bool resume_sequence(timeline::Handle handle){
     (void)handle;return false;
 #endif
 }
-effects::Handle play_effect_component(EntityHandle target){
+effects::Handle play_effect_component(DataHandle target){
 #ifdef EPOK_EFFECTS
     return effects::play(target);
 #else

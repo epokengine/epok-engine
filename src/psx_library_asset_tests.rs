@@ -151,9 +151,15 @@ fn library_cook_is_snapshot_stable_and_rebuilds_corrupt_cache() {
     assert_eq!(cold.id, warm.id);
     assert_eq!(cold.payload, warm.payload);
     assert_eq!(cold.inputs, warm.inputs);
-    assert_eq!(crate::psx_sequence::identity(&cold.inputs),
-        crate::psx_sequence::cook_key(&fixture.root,&before_index.resolve(fixture.song).unwrap().meta).unwrap(),
-        "staged library cook identity must survive dependency observation");
+    assert_eq!(
+        crate::psx_sequence::identity(&cold.inputs),
+        crate::psx_sequence::cook_key(
+            &fixture.root,
+            &before_index.resolve(fixture.song).unwrap().meta
+        )
+        .unwrap(),
+        "staged library cook identity must survive dependency observation"
+    );
     assert_eq!(
         cold.library.as_ref().unwrap().report.sample_spu_bytes,
         warm.library.as_ref().unwrap().report.sample_spu_bytes
@@ -189,14 +195,32 @@ fn library_cook_is_snapshot_stable_and_rebuilds_corrupt_cache() {
     assert_eq!(rebuilt.payload, cold.payload);
     let cached = fs::read(cache.join("library.epokcache")).unwrap();
     let envelope: serde_json::Value = serde_json::from_slice(&cached).unwrap();
-    let stored: crate::psx_sequence::Bank = serde_json::from_value(envelope["bank"].clone()).unwrap();
-    assert_eq!(envelope["checksum"], assets::hash(&serde_json::to_vec(&stored).unwrap()));
+    let stored: crate::psx_sequence::Bank =
+        serde_json::from_value(envelope["bank"].clone()).unwrap();
+    assert_eq!(
+        envelope["checksum"],
+        assets::hash(&serde_json::to_vec(&stored).unwrap())
+    );
     // A self-consistent but semantically corrupt cache also rebuilds safely.
     let mut bad = stored;
     bad.samples[0].frames = u32::MAX;
     let checksum = assets::hash(&serde_json::to_vec(&bad).unwrap());
-    fs::write(cache.join("library.epokcache"), serde_json::to_vec(&serde_json::json!({"checksum":checksum,"bank":bad})).unwrap()).unwrap();
-    assert_eq!(cooked(&fixture.root, fixture.song, fixture.bank, &AtomicBool::new(false)).unwrap().payload, cold.payload);
+    fs::write(
+        cache.join("library.epokcache"),
+        serde_json::to_vec(&serde_json::json!({"checksum":checksum,"bank":bad})).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        cooked(
+            &fixture.root,
+            fixture.song,
+            fixture.bank,
+            &AtomicBool::new(false)
+        )
+        .unwrap()
+        .payload,
+        cold.payload
+    );
 }
 
 #[test]

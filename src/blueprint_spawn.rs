@@ -12,12 +12,12 @@ pub fn prepare(
     index: &crate::assets::Index,
 ) -> Result<Vec<CookedTemplate>, String> {
     let files = crate::blueprint_asset::load_all(root)?;
-    let registry = crate::blueprint::legacy_registry(root, catalog);
+    let registry = crate::blueprint::registry_from_catalog(root, catalog);
     let mut result = vec![];
     for file in &files {
         let template =
             crate::blueprint_templates::resolve_assets(&files, &registry, &file.asset.id)?;
-        if template.entities.is_empty() {
+        if template.actors.is_empty() {
             continue;
         }
         crate::blueprint_templates::validate_resources(&template, index)?;
@@ -28,7 +28,7 @@ pub fn prepare(
         if class.abstract_class {
             continue;
         }
-        let binding = crate::scene::ScriptBinding {
+        let binding = crate::scene::ClassDefaults {
             name: class.cpp_name.clone(),
             class_id: Some(class.id.clone()),
             provider: class.provider.clone(),
@@ -50,7 +50,7 @@ pub fn prepare(
 
 #[cfg(test)]
 pub fn header(catalog: &[Script]) -> Result<String, String> {
-    let registry = crate::blueprint::legacy_registry(std::path::Path::new(""), catalog);
+    let registry = crate::blueprint::registry_from_catalog(std::path::Path::new(""), catalog);
     header_with_templates(catalog, &[], false, &registry)
 }
 pub fn header_with_templates(
@@ -59,86 +59,8 @@ pub fn header_with_templates(
     timeline_metadata: bool,
     object_registry: &crate::blueprint::Registry,
 ) -> Result<String, String> {
-    let visual_classes = catalog.iter().any(|s| {
-        s.classes
-            .first()
-            .is_some_and(|c| c.provider.id == "blueprint")
-    });
-    if !visual_classes && !timeline_metadata {
-        // The legacy Behaviour tables stay out of a project that has none, but
-        // object_classes[]/object_class_count are declared extern by the runtime and
-        // main.cpp links against them unconditionally. Emit the (possibly empty) table.
-        return object_class_table_with_registry(object_registry);
-    }
-    let registry = crate::blueprint::legacy_registry(std::path::Path::new(""), catalog);
-    let mut ids = BTreeMap::new();
-    for class in registry.classes.values() {
-        let id = crate::blueprint_refs::compact_id(&class.id);
-        if id == 0 || ids.insert(id, &class.id).is_some() {
-            return Err(format!("Runtime class ID collision: {}", class.id));
-        }
-    }
-    if registry.classes.len() > 64 {
-        return Err(
-            "Blueprint runtime class catalog exceeds 64 classes; reduce cooked class dependencies."
-                .into(),
-        );
-    }
-    let mut output = String::from("#include \"blueprint_template.hpp\"\nnamespace epok::bp {\n");
-    for template in templates {
-        output.push_str(&format!(
-            "bool configure_{}(EntityHandle);\n",
-            crate::blueprint_refs::compact_id(&template.class)
-        ));
-    }
-    output.push_str("inline const ClassInfo classes[] = {\n");
-    let mut budgets = vec![];
-    for class in registry.classes.values() {
-        let id = crate::blueprint_refs::compact_id(&class.id);
-        let parent = class
-            .parent
-            .as_ref()
-            .map(|id| crate::blueprint_refs::compact_id(id))
-            .unwrap_or(0);
-        let factory = if visual_classes
-            && !class.abstract_class
-            && class.blueprintable
-            && matches!(class.provider.id.as_str(), "cpp" | "blueprint")
-        {
-            budgets.push(format!("TypedPool<{},4>::storage_bytes", class.cpp_name));
-            format!(
-                "&TypedPool<{},4>::acquire,&TypedPool<{},4>::release",
-                class.cpp_name, class.cpp_name
-            )
-        } else {
-            "nullptr,nullptr".into()
-        };
-        let configure = if templates.iter().any(|template| template.class == class.id) {
-            format!("&configure_{id}")
-        } else {
-            "nullptr".into()
-        };
-        output.push_str(&format!(
-            "{{UINT64_C({id}),UINT64_C({parent}),{factory},{configure}}},\n"
-        ));
-    }
-    if registry.classes.is_empty() {
-        output.push_str("{},\n");
-    }
-    // Separate native translation units only see the extern declaration in
-    // blueprint_spawn.hpp. Keep storage even when main folds this constant.
-    output.push_str(&format!(
-        "}};\n[[gnu::used]] inline const size_t class_count={};\n",
-        registry.classes.len()
-    ));
-    // Bound compiled storage, not host sizeof/offset guesses. The linker also reports
-    // the real MIPS data footprint for the complete game.
-    if !budgets.is_empty() {
-        output.push_str(&format!("static_assert(({}) <= 65536, \"Blueprint typed pools exceed the 64 KiB cook limit\");\n",budgets.join("+")));
-    }
-    output.push_str("}\n");
-    output.push_str(&object_class_table_with_registry(object_registry)?);
-    Ok(output)
+    let _ = (catalog, templates, timeline_metadata);
+    object_class_table_with_registry(object_registry)
 }
 
 /// Cooked `epok::object_classes[]` table for the Object/Actor/Component runtime model.
@@ -153,7 +75,7 @@ pub fn header_with_templates(
 /// or a class contract changes. The legacy Behaviour `classes[]` table is untouched.
 #[cfg(test)]
 pub fn object_class_table(catalog: &[Script]) -> Result<String, String> {
-    let registry = crate::blueprint::legacy_registry(std::path::Path::new(""), catalog);
+    let registry = crate::blueprint::registry_from_catalog(std::path::Path::new(""), catalog);
     object_class_table_with_registry(&registry)
 }
 
@@ -162,6 +84,72 @@ pub fn object_class_table(catalog: &[Script]) -> Result<String, String> {
 /// the project script catalog, including the default `epok::SceneScriptActor`.
 pub fn object_class_table_with_registry(
     registry: &crate::blueprint::Registry,
+) -> Result<String, String> {
+    object_class_table_with_capacities(registry, &BTreeMap::new())
+}
+pub fn object_class_table_for_scenes(
+    registry: &crate::blueprint::Registry,
+    scenes: &[crate::scene::Scene],
+) -> Result<String, String> {
+    object_class_table_for_scenes_and_templates(registry, scenes, &[])
+}
+pub fn object_class_table_for_scenes_and_templates(
+    registry: &crate::blueprint::Registry,
+    scenes: &[crate::scene::Scene],
+    templates: &[CookedTemplate],
+) -> Result<String, String> {
+    let mut capacities = BTreeMap::<String, usize>::new();
+    for scene in scenes {
+        let mut counts = BTreeMap::<String, usize>::new();
+        for actor in &scene.actors {
+            if let Some(id) = &actor.class.class_id {
+                *counts.entry(id.clone()).or_default() += 1;
+            }
+            for component in actor.components.iter().filter(|c| !c.root) {
+                if let Some(id) = &component.class.class_id {
+                    *counts.entry(id.clone()).or_default() += 1;
+                }
+            }
+        }
+        for (id, count) in counts {
+            capacities
+                .entry(id)
+                .and_modify(|n| *n = (*n).max(count))
+                .or_insert(count);
+        }
+    }
+    let mut dynamic = BTreeMap::<String, usize>::new();
+    for template in templates {
+        let mut counts = BTreeMap::<String, usize>::new();
+        for actor in &template.scene.actors {
+            if let Some(id) = &actor.class.class_id {
+                *counts.entry(id.clone()).or_default() += 1;
+            }
+            for component in actor
+                .components
+                .iter()
+                .filter(|c| !c.root && c.default_id.is_none())
+            {
+                if let Some(id) = &component.class.class_id {
+                    *counts.entry(id.clone()).or_default() += 1;
+                }
+            }
+        }
+        for (id, count) in counts {
+            dynamic
+                .entry(id)
+                .and_modify(|n| *n = (*n).max(count))
+                .or_insert(count);
+        }
+    }
+    for (id, count) in dynamic {
+        *capacities.entry(id).or_default() += 4 * count.saturating_sub(1);
+    }
+    object_class_table_with_capacities(registry, &capacities)
+}
+fn object_class_table_with_capacities(
+    registry: &crate::blueprint::Registry,
+    capacities: &BTreeMap<String, usize>,
 ) -> Result<String, String> {
     let model = match registry.model() {
         Ok(model) => model,
@@ -186,7 +174,7 @@ pub fn object_class_table_with_registry(
     let mut rows: Vec<(u64, String)> = vec![];
     let mut budgets = vec![];
     for class in model.iter() {
-        if class.family == crate::reflection_schema::ClassFamily::Behaviour {
+        if !model.is_a(&class.id, crate::object_model::OBJECT_ID) {
             continue;
         }
         let id = crate::blueprint_refs::compact_id(&class.id);
@@ -253,18 +241,66 @@ pub fn object_class_table_with_registry(
         if !crate::scripts::class_identifier(name) {
             return Err(format!("Invalid reflected C++ class name {name}"));
         }
+        let capacity = capacities.get(&class.id).copied().unwrap_or(0) + 4;
         let storage = if class.instantiable() {
-            budgets.push(format!("epok::ObjectPool<{name},4>::storage_bytes"));
+            budgets.push(format!(
+                "epok::ObjectPool<{name},{capacity}>::storage_bytes"
+            ));
             format!(
-                "&epok::object_construct<{name}>,&epok::object_destruct,sizeof({name}),alignof({name}),&epok::ObjectPool<{name},4>::acquire,&epok::ObjectPool<{name},4>::release"
+                "&epok::object_construct<{name}>,&epok::object_destruct,sizeof({name}),alignof({name}),&epok::ObjectPool<{name},{capacity}>::acquire,&epok::ObjectPool<{name},{capacity}>::release"
             )
         } else {
             "nullptr,nullptr,0,0,nullptr,nullptr".into()
         };
+        let defaults = if class.family == crate::reflection_schema::ClassFamily::Actor
+            && !class.default_components.is_empty()
+        {
+            let mut cases = String::new();
+            for (i, component) in class.default_components.iter().enumerate() {
+                if !crate::scripts::identifier(&component.field) {
+                    return Err("Invalid native component field".into());
+                }
+                let label =
+                    serde_json::to_string(component.name.as_deref().unwrap_or(&component.field))
+                        .unwrap();
+                let parent = component
+                    .attach_to
+                    .as_ref()
+                    .map(|field| {
+                        class
+                            .default_components
+                            .iter()
+                            .position(|c| &c.field == field)
+                            .map(|i| i as i16)
+                            .ok_or_else(|| {
+                                format!(
+                                    "{}: missing default component parent {field}",
+                                    class.cpp_name
+                                )
+                            })
+                    })
+                    .transpose()?
+                    .unwrap_or(-1);
+                let component_class = model
+                    .class(&component.class)
+                    .ok_or_else(|| format!("Unknown native component class {}", component.class))?;
+                let component_id = crate::blueprint_refs::compact_id(&component_class.id);
+                cases += &format!(
+                    "case {i}:return {{&self.{},{label},{},{parent},UINT64_C({component_id})}};",
+                    component.field, component.root
+                );
+            }
+            format!(
+                ",{},+[](epok::Object& value,size_t index)->epok::NativeComponentDefault{{auto& self=static_cast<{name}&>(value);switch(index){{{cases}default:return {{}};}}}}",
+                class.default_components.len()
+            )
+        } else {
+            String::new()
+        };
         rows.push((
             id,
             format!(
-                "{{UINT64_C({id}),UINT64_C({parent}),epok::ObjectFamily::{family},epok::ObjectDomain::{domain},{owners},{flags},{storage}}},\n"
+                "{{UINT64_C({id}),UINT64_C({parent}),epok::ObjectFamily::{family},epok::ObjectDomain::{domain},{owners},{flags},{storage}{defaults}}},\n"
             ),
         ));
     }
@@ -307,143 +343,72 @@ pub fn prototypes(
     resources: &crate::scene::Scene,
     timelines: &[crate::timeline_scene::Prepared],
     effects: &[crate::particle_effect_scene::Prepared],
+    registry: &crate::blueprint::Registry,
 ) -> Result<String, String> {
-    let registry = crate::blueprint::legacy_registry(std::path::Path::new(""), catalog);
     let mut output = String::new();
+    let mut cases = String::new();
     for template in templates {
         let id = crate::blueprint_refs::compact_id(&template.class);
         let scene = &template.scene;
-        let mut components = scene.clone();
-        for entity in &mut components.entities {
-            entity.script = None;
-        }
-        let generated = crate::project::scene_header_body_with_layout(
-            &components,
-            catalog,
-            resources,
-            false,
-            resources,
+        let generated = crate::project::scene_header_with_registry(
+            scene, catalog, resources, false, resources, registry,
         )?;
         let body = generated
-            .split("inline constexpr std::array<size_t,")
-            .next()
-            .ok_or("Missing template component boundary")?;
-        let body = body
             .lines()
-            .filter(|line| {
-                !line.starts_with('#')
-                    && !line.starts_with("lighting_environment=")
-                    && !line.starts_with("fog_environment=")
-            })
+            .filter(|line| !line.starts_with('#'))
             .collect::<Vec<_>>()
             .join("\n")
             .replace(
                 "namespace epok {",
-                &format!("namespace epok::bp::prototype_{id} {{"),
+                &format!("namespace epok::prototype_{id} {{"),
             )
             .replace(
-                &format!("std::array<Entity, {}>", scene.entities.len() + 32),
-                &format!("std::array<Entity, {}>", scene.entities.len()),
+                &format!("std::array<ActorData, {}>", scene.actors.len() + 32),
+                &format!("std::array<ActorData, {}>", scene.actors.len()),
             );
         output.push_str(&body);
-        output.push_str("\n}\n");
-        output.push_str(&format!("namespace epok::bp::prototype_{id} {{\n"));
-        let mut bindings = vec![];
-        for (i, entity) in scene.entities.iter().enumerate() {
-            let Some(binding) = &entity.script else {
-                continue;
-            };
-            let script = crate::script_backend::resolve(binding, catalog)?;
-            let class = registry
-                .bound(binding)
-                .ok_or("Missing template binding class")?;
-            if !script.instantiable()
-                || !class.blueprintable
-                || !matches!(class.provider.id.as_str(), "cpp" | "blueprint")
-            {
-                return Err(format!(
-                    "{}: template child class {} has no concrete typed spawn factory",
-                    entity.name, class.cpp_name
-                ));
-            }
-            for key in binding.properties.keys() {
-                if !script
-                    .properties
-                    .iter()
-                    .any(|property| property.name == *key)
-                {
-                    return Err(format!(
-                        "{}: orphaned template property {key} is preserved; migrate or explicitly reset it before cooking",
-                        entity.name
-                    ));
-                }
-            }
-            output.push_str(&format!("inline void apply_{i}(Behaviour* value,const EntityHandle* handles,size_t){{auto* typed=static_cast<{}*>(value);\n",script.name));
-            for property in &script.properties {
-                let value = binding
-                    .properties
-                    .get(&property.name)
-                    .unwrap_or(&property.default);
-                let mut assignment = crate::blueprint_refs::assignment(
-                    &format!("typed->{}", property.name),
-                    value,
-                    &property.value_type,
-                    scene,
-                    &registry,
-                )?;
-                for index in 0..scene.entities.len() {
-                    assignment = assignment.replace(
-                        &format!("epok::handle(&objects[{index}])"),
-                        &format!("handles[{index}]"),
-                    );
-                }
-                output.push_str(&assignment);
-            }
-            output.push_str("}\n");
-            bindings.push(format!(
-                "{{{i},UINT64_C({}),apply_{i}}}",
-                crate::blueprint_refs::compact_id(&class.id)
-            ));
-        }
-        output.push_str(&format!(
-            "inline const TemplateBinding bindings[]={{{}}};\n",
-            bindings.join(",")
-        ));
-        let has_timelines = scene
-            .entities
+        output.push_str(&format!("\nnamespace epok::prototype_{id} {{\n"));
+        let has_services = scene
+            .actors
             .iter()
-            .any(|entity| entity.timeline.is_some() || entity.particle_effect.is_some());
-        if has_timelines {
-            output
-                .push_str("inline bool configure_timelines(const EntityHandle* handles,size_t){\n");
+            .any(|a| a.timeline.is_some() || a.particle_effect.is_some());
+        if has_services {
+            output.push_str("inline bool configure_services(const DataHandle* handles,size_t){\n");
             output.push_str(&crate::timeline_scene::setup_template(
-                scene, timelines, &registry,
+                scene, timelines, registry,
             )?);
             output.push_str(&crate::particle_effect_scene::setup(
-                scene, effects, &registry, true,
+                scene, effects, registry, true,
             )?);
             output.push_str("return true;}\n");
         }
-        output.push_str("}\n");
-        let root = scene
-            .entities
-            .iter()
-            .position(|entity| entity.parent.is_none())
-            .ok_or("Missing template root")?;
-        let configure = if has_timelines {
-            format!(",prototype_{id}::configure_timelines")
+        let configure = if has_services {
+            "&configure_services"
         } else {
-            String::new()
+            "nullptr"
         };
-        output.push_str(&format!("namespace epok::bp {{inline bool configure_{id}(EntityHandle root){{static bool initialized=false;if(!initialized){{prototype_{id}::initialize_components();initialized=true;}}return instantiate_template(root,prototype_{id}::objects.data(),prototype_{id}::objects.size(),{root},prototype_{id}::bindings,{}{configure});}}}}\n",bindings.len()));
+        output.push_str(&format!("inline const ActorPrototype prototype={{&actor_table,objects.data(),objects.size(),{configure}}};\n}}\n"));
+        cases.push_str(&format!("if(id==UINT64_C({id})){{static bool initialized=false;if(!initialized){{prototype_{id}::initialize_components();initialized=true;}}return &prototype_{id}::prototype;}}\n"));
     }
+    output.push_str(&format!("namespace epok {{inline const ActorPrototype* find_cooked_actor_template(uint64_t id){{(void)id;{cases}return nullptr;}}}}\n"));
     Ok(output)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actor_document::tests::class;
     use crate::{object_model as om, reflection_schema as schema};
+    fn script(classes: Vec<schema::Class>) -> Script {
+        let class = &classes[0];
+        Script {
+            name: class.cpp_name.clone(),
+            parent: None,
+            properties: vec![],
+            header: "Test.hpp".into(),
+            classes,
+        }
+    }
 
     #[test]
     fn native_only_games_do_not_emit_blueprint_factories() {
@@ -455,49 +420,9 @@ mod tests {
         assert!(text.contains("object_class_count=0"));
     }
 
-    fn class(id: &str, cpp_name: &str, parent: Option<&str>) -> schema::Class {
-        schema::Class {
-            family: None,
-            domain: None,
-            placement: Default::default(),
-            component: None,
-            default_components: vec![],
-            explicit_abstract: false,
-            id: id.into(),
-            provider: schema::native_provider(),
-            backend: schema::native_backend(),
-            cpp_name: cpp_name.into(),
-            parent: parent.map(str::to_owned),
-            abstract_class: false,
-            final_class: false,
-            timeline_component: None,
-            blueprintable: true,
-            properties: vec![],
-            functions: vec![],
-            source: schema::Location {
-                file: std::path::PathBuf::from("runtime/object_model.hpp"),
-                line: 0,
-                column: 0,
-            },
-        }
-    }
-
-    fn script(classes: Vec<schema::Class>) -> Script {
-        Script {
-            name: classes[0].cpp_name.clone(),
-            parent: None,
-            properties: vec![],
-            header: std::path::PathBuf::from("object_model.hpp"),
-            classes,
-        }
-    }
-
-    /// The object class table is the cooked half of `runtime/object_model.hpp`: one
-    /// `ClassDescriptor` per non-Behaviour class, pool-backed storage for the concrete
-    /// ones, and a deterministic order so the emitted text is a stable build input.
     #[test]
     fn object_class_table_emits_descriptors_pools_and_a_bounded_budget() {
-        let mut actor = class(om::ACTOR_ID, "epok::Actor", None);
+        let mut actor = class(om::ACTOR_ID, "epok::Actor", Some(om::OBJECT_ID));
         actor.family = Some(schema::ClassFamily::Actor);
         actor.abstract_class = true;
         let mut actor3d = class(om::ACTOR3D_ID, "epok::Actor3D", Some(om::ACTOR_ID));
@@ -507,7 +432,11 @@ mod tests {
             spawnable: true,
             scene_managed: false,
         };
-        let mut component = class(om::ACTOR_COMPONENT_ID, "epok::ActorComponent", None);
+        let mut component = class(
+            om::ACTOR_COMPONENT_ID,
+            "epok::ActorComponent",
+            Some(om::OBJECT_ID),
+        );
         component.family = Some(schema::ClassFamily::Component);
         component.abstract_class = true;
         let mut audio = class(
@@ -529,7 +458,10 @@ mod tests {
             can_root: false,
             capabilities: ["audio".to_string()].into_iter().collect(),
         });
-        let catalog = vec![script(vec![actor, actor3d, component, audio])];
+        let mut object = class(om::OBJECT_ID, "epok::Object", None);
+        object.family = Some(schema::ClassFamily::Object);
+        object.abstract_class = true;
+        let catalog = vec![script(vec![actor, actor3d, component, audio, object])];
 
         let text = object_class_table(&catalog).unwrap();
         assert!(
@@ -537,15 +469,16 @@ mod tests {
                 "namespace epok {\ninline const ClassDescriptor object_classes[] = {\n"
             )
         );
-        assert!(text.contains("[[gnu::used]] inline const size_t object_class_count=4;"));
+        assert!(text.contains("[[gnu::used]] inline const size_t object_class_count=5;"));
 
+        let object_id = crate::blueprint_refs::compact_id(om::OBJECT_ID);
         let actor_id = crate::blueprint_refs::compact_id(om::ACTOR_ID);
         let actor3d_id = crate::blueprint_refs::compact_id(om::ACTOR3D_ID);
         let audio_id = crate::blueprint_refs::compact_id(om::AUDIO_COMPONENT_ID);
         // Abstract bases stay in the table so `object_class_is_a` can walk them, but
         // carry no storage at all.
         assert!(text.contains(&format!(
-            "{{UINT64_C({actor_id}),UINT64_C(0),epok::ObjectFamily::Actor,epok::ObjectDomain::None,0,1,nullptr,nullptr,0,0,nullptr,nullptr}},"
+            "{{UINT64_C({actor_id}),UINT64_C({object_id}),epok::ObjectFamily::Actor,epok::ObjectDomain::None,0,1,nullptr,nullptr,0,0,nullptr,nullptr}},"
         )));
         // Concrete actor: placeable|spawnable, pool-backed, placement-new pair exposed.
         assert!(text.contains(&format!(

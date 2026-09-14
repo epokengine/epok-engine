@@ -397,7 +397,12 @@ pub fn render(
                 ) && modulation.amount != 0
             })
     });
-    if !unsafe { epok_source_instrument_set_gain(native.0, 10_f32.powf(-f32::from(headroom_centibels)/200.)) } {
+    if !unsafe {
+        epok_source_instrument_set_gain(
+            native.0,
+            10_f32.powf(-f32::from(headroom_centibels) / 200.),
+        )
+    } {
         return Err("Invalid Source Preview comparison gain".into());
     }
     let mut pcm = Pcm {

@@ -192,7 +192,9 @@ fn read_manifest_at(root: &Path, path: &Path) -> Result<Manifest, String> {
     manifest.rendering.validate()?;
     manifest.play.validate()?;
     manifest.transition.validate()?;
-    if manifest.default_sound_bank.is_some_and(|id| id.is_nil()) { return Err("Project Default SoundBank UUID cannot be nil".into()); }
+    if manifest.default_sound_bank.is_some_and(|id| id.is_nil()) {
+        return Err("Project Default SoundBank UUID cannot be nil".into());
+    }
     scene_path(root, &manifest)?;
     Ok(manifest)
 }
@@ -347,47 +349,33 @@ pub fn create(destination: &Path, name: &str, template: Template) -> Result<Proj
                 name: "Main".into(),
                 ..Scene::default()
             };
-            scene.entities.truncate(1);
+            scene.actors.truncate(1);
             scene
         }
-        Template::Sample => crate::document::from_str(include_str!(
-            "../examples/sample-game/assets/scenes/SampleScene.epokmap"
-        ))
-        .map_err(|e| e.to_string())?,
-    };
-    if template == Template::Sample {
-        for (name, contents) in [
-            (
-                "Spinner.cpp",
-                include_str!("../examples/sample-game/assets/scripts/Spinner.cpp"),
-            ),
-            (
-                "Spinner.hpp",
-                include_str!("../examples/sample-game/assets/scripts/Spinner.hpp"),
-            ),
-            (
-                "Spinner.epokscript",
-                include_str!("../examples/sample-game/assets/scripts/Spinner.epokscript"),
-            ),
-            (
-                "Behaviour001.cpp",
-                include_str!("../examples/sample-game/assets/scripts/Behaviour001.cpp"),
-            ),
-            (
-                "Behaviour001.hpp",
-                include_str!("../examples/sample-game/assets/scripts/Behaviour001.hpp"),
-            ),
-            (
-                "Behaviour001.epokscript",
-                include_str!("../examples/sample-game/assets/scripts/Behaviour001.epokscript"),
-            ),
-        ] {
+        Template::Sample => {
+            let mut scene = Scene::default();
+            scene.name = "SampleScene".into();
+            scene.actors[1]
+                .components
+                .push(crate::actor_document::ComponentInstance::new(
+                    uuid::Uuid::new_v4(),
+                    crate::actor_document::ClassReference::new(
+                        "Spinner",
+                        "a997b0f2-b3ac-45c2-9d75-9ec11dc890af",
+                    ),
+                    "Spinner",
+                ));
             write_changed(
-                &destination.join("assets/scripts").join(name),
-                contents.as_bytes(),
+                &destination.join("assets/scripts/Spinner.hpp"),
+                include_bytes!("../templates/Spinner.hpp"),
             )?;
+            write_changed(
+                &destination.join("assets/scripts/Spinner.cpp"),
+                b"#include \"Spinner.hpp\"\n",
+            )?;
+            scene
         }
-    }
+    };
     let manifest = Manifest {
         format_version: FORMAT,
         editor_version: env!("CARGO_PKG_VERSION").into(),
@@ -568,18 +556,18 @@ pub(crate) mod tests {
         assert!(editor.save());
         // Project isolation is independent of the optional host reflection tools.
         // The native creation path is verified by verify_reflection.py.
-        for ext in ["hpp", "cpp", "epokscript"] {
+        for ext in ["hpp", "cpp"] {
             fs::copy(
-                b.join(format!("assets/scripts/Behaviour001.{ext}")),
-                a.join(format!("assets/scripts/Behaviour001.{ext}")),
+                b.join(format!("assets/scripts/Spinner.{ext}")),
+                a.join(format!("assets/scripts/Spinner.{ext}")),
             )
             .unwrap();
         }
         let a_scripts = crate::scripts::catalog(&a).unwrap();
         let b_scripts = crate::scripts::catalog(&b).unwrap();
-        assert!(a_scripts.iter().any(|script| script.name == "Behaviour001"));
-        assert!(b_scripts.iter().any(|script| script.name == "Behaviour001"));
-        assert!(!b.join("assets/scripts/Behaviour002.cpp").exists());
+        assert!(a_scripts.iter().any(|script| script.name == "Spinner"));
+        assert!(b_scripts.iter().any(|script| script.name == "Spinner"));
+        assert!(!b.join("assets/scripts/Spinner002.cpp").exists());
         assert_eq!(fs::read(startup_scene(&b).unwrap()).unwrap(), original);
         let config_a = crate::project::Config::load(&a).unwrap();
         let config_b = crate::project::Config::load(&b).unwrap();

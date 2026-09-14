@@ -1,7 +1,10 @@
 #![cfg_attr(all(windows, not(test)), windows_subsystem = "windows")]
 // Debug desktop launches are GUI-only too; the test harness keeps its console.
 // Redirected CLI output is still available to build tools and diagnostics.
+mod actor_components;
 mod actor_document;
+mod actor_scripts;
+mod actor_workflow;
 mod artifact_dependencies;
 mod artifact_dependency_ui;
 mod asset_inspector;
@@ -14,6 +17,7 @@ mod audio_contract_tests;
 mod audio_decode;
 mod audio_import;
 mod audio_ir;
+mod bank_compat;
 mod bitmap_font;
 mod blueprint;
 mod blueprint_asset;
@@ -31,6 +35,7 @@ mod blueprint_workflow;
 mod branding;
 mod bridge;
 mod build_inputs;
+mod build_report;
 mod busy_ui;
 mod collision;
 mod collision_editor;
@@ -52,6 +57,15 @@ mod hud_editor;
 mod hud_native;
 mod hud_simulation;
 mod import_settings;
+mod instrument_dsp;
+mod instrument_ir;
+mod instrument_modulation;
+mod instrument_preview;
+mod instrument_samples;
+mod instrument_selection;
+mod instrument_source_preview;
+mod instrument_voice;
+mod library_preview;
 mod lighting;
 mod lighting_editor;
 mod loading;
@@ -66,39 +80,10 @@ mod mesh;
 mod mesh_compile;
 mod mesh_editor;
 mod mesh_ops;
+mod midi;
 mod model_import;
 mod music;
-mod midi;
-mod sequence_compat;
-mod sequence_ir;
-mod sequence_stream;
-mod psx_sequence;
-mod sequence_preview;
-mod sequence;
-mod sound_bank;
-mod instrument_ir;
-mod instrument_selection;
-mod instrument_samples;
-mod instrument_voice;
-mod instrument_dsp;
-mod instrument_modulation;
-mod instrument_preview;
-mod instrument_source_preview;
-mod library_preview;
-mod psx_music_settings;
-mod psx_library;
-mod psx_music_optimizer;
 mod music_conversion_ui;
-mod psx_library_wire;
-mod psx_library_asset;
-#[cfg(test)]
-mod psx_library_asset_tests;
-mod psx_loop_quality;
-mod spu_encoder;
-mod sf2;
-mod soundfont_asset;
-mod bank_compat;
-mod vab_import;
 mod native;
 mod native_metadata;
 mod obj_import;
@@ -119,32 +104,49 @@ mod playback_staging;
 mod preview_audio;
 mod project;
 mod project_browser;
+mod psx_library;
+mod psx_library_asset;
+#[cfg(test)]
+mod psx_library_asset_tests;
+mod psx_library_wire;
+mod psx_loop_quality;
+mod psx_music_optimizer;
+mod psx_music_settings;
+mod psx_sequence;
 mod reflection;
 mod reflection_schema;
 mod scene;
 mod scene_bank;
-mod build_report;
 mod scene_dependencies;
-mod scene_loading;
 mod scene_gpu;
+mod scene_loading;
 mod scene_view_mode;
 mod script_backend;
 mod script_values;
 mod scripts;
+mod sequence;
+mod sequence_compat;
+mod sequence_ir;
+mod sequence_preview;
+mod sequence_stream;
 mod serial;
 mod serial_support;
 mod serial_terminal;
 mod serial_ui;
 mod settings;
 mod settings_ui;
+mod sf2;
 mod shadows;
 mod skeletal;
 mod skeletal_compile;
 #[cfg(test)]
 mod skeletal_tests;
 mod skeletal_ui;
+mod sound_bank;
+mod soundfont_asset;
 mod sprites;
 mod sprites_editor;
+mod spu_encoder;
 mod staging_files;
 mod streaming;
 mod texture;
@@ -157,6 +159,7 @@ mod timeline_editor;
 mod timeline_runtime;
 mod timeline_scene;
 mod transform;
+mod vab_import;
 mod viewport;
 mod workspace;
 use std::{
@@ -311,9 +314,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     if let Some(pair) = args.windows(2).find(|v| v[0] == "--preview-hud") {
-        let frames=args.windows(2).find(|v|v[0]=="--frames").map(|v|v[1].parse::<u32>()).transpose()?.unwrap_or(120);
-        let output=args.windows(2).find(|v|v[0]=="--output").map(|v|PathBuf::from(&v[1])).ok_or("--preview-hud requires --output image.png")?;
-        println!("{}",serde_json::to_string(&hud_simulation::capture(&root,&root.join(&pair[1]),frames,&output)?)?);
+        let frames = args
+            .windows(2)
+            .find(|v| v[0] == "--frames")
+            .map(|v| v[1].parse::<u32>())
+            .transpose()?
+            .unwrap_or(120);
+        let output = args
+            .windows(2)
+            .find(|v| v[0] == "--output")
+            .map(|v| PathBuf::from(&v[1]))
+            .ok_or("--preview-hud requires --output image.png")?;
+        println!(
+            "{}",
+            serde_json::to_string(&hud_simulation::capture(
+                &root,
+                &root.join(&pair[1]),
+                frames,
+                &output
+            )?)?
+        );
         return Ok(());
     }
     if let Some(pair) = args
@@ -374,7 +394,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .windows(2)
             .find(|v| v[0] == "--parent")
             .map(|v| v[1].as_str())
-            .unwrap_or("epok::Behaviour");
+            .unwrap_or("epok::ActorComponent");
         let class = registry
             .classes
             .get(parent)
@@ -412,7 +432,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .windows(2)
             .find(|v| v[0] == "--parent")
             .map(|v| v[1].as_str())
-            .unwrap_or("Behaviour");
+            .unwrap_or("ActorComponent");
         if let Some(folder) = args.windows(2).find(|v| v[0] == "--folder") {
             scripts::create_in(&root, &pair[1], &folder[1], parent, false)?;
         } else {
@@ -434,25 +454,65 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let value = |flag: &str| {
-        args.windows(2).find(|v| v[0] == flag).map(|v| v[1].as_str())
+        args.windows(2)
+            .find(|v| v[0] == flag)
+            .map(|v| v[1].as_str())
     };
     if let Some(source) = value("--inspect-audio-source") {
-        let explicit_profile=value("--sequence-profile").map(sequence::SourceProfile::from_id).transpose()?;
-        let bytes=assets::read_bounded(&assets::inside(&root,source)?)?;
+        let explicit_profile = value("--sequence-profile")
+            .map(sequence::SourceProfile::from_id)
+            .transpose()?;
+        let bytes = assets::read_bounded(&assets::inside(&root, source)?)?;
         if bytes.starts_with(b"EPOKAS01") {
-            let package=assets::Package::load(&assets::inside(&root,source)?)?;
-            if package.meta.kind==assets::Kind::SoundBank {
-                println!("{}",serde_json::to_string_pretty(&bank_compat::inspect(&package)?)?);
+            let package = assets::Package::load(&assets::inside(&root, source)?)?;
+            if package.meta.kind == assets::Kind::SoundBank {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&bank_compat::inspect(&package)?)?
+                );
             } else {
-                let profile=explicit_profile.or(package.meta.settings.sequence()?.source_selection.as_ref().map(|s|s.profile));
-                println!("{}",serde_json::to_string_pretty(&sequence::catalog_source(&package.source,profile)?)?);
+                let profile = explicit_profile.or(package
+                    .meta
+                    .settings
+                    .sequence()?
+                    .source_selection
+                    .as_ref()
+                    .map(|s| s.profile));
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&sequence::catalog_source(
+                        &package.source,
+                        profile
+                    )?)?
+                );
             }
         } else if bank_compat::has_header(&bytes) || value("--vb").is_some() {
-            let companion=value("--vb").map(|name|assets::inside(&root,name).and_then(|p|assets::read_bounded(&p))).transpose()?;
-            let bank=vab_import::parse(vab_import::Input {bytes:&bytes,label:source,rights:value("--provenance").unwrap_or("")},companion.as_ref().map(|bytes|vab_import::Input {bytes,label:value("--vb").unwrap(),rights:value("--provenance").unwrap_or("")}))?;
-            println!("{}",serde_json::to_string_pretty(&serde_json::json!({"profile":bank.profile,"header":bank.header,"programs":bank.programs,"samples":bank.samples.iter().map(|s|serde_json::json!({"id":s.id,"encoded":s.encoded,"sha256":s.encoded_sha256,"original_hz":s.original_sample_rate_hz,"frames":s.decoded.pcm.len(),"termination":s.decoded.termination,"loop":s.decoded.loop_region})).collect::<Vec<_>>(),"compatibility":vab_import::assess_current_sound_bank(&bank)}))?);
+            let companion = value("--vb")
+                .map(|name| assets::inside(&root, name).and_then(|p| assets::read_bounded(&p)))
+                .transpose()?;
+            let bank = vab_import::parse(
+                vab_import::Input {
+                    bytes: &bytes,
+                    label: source,
+                    rights: value("--provenance").unwrap_or(""),
+                },
+                companion.as_ref().map(|bytes| vab_import::Input {
+                    bytes,
+                    label: value("--vb").unwrap(),
+                    rights: value("--provenance").unwrap_or(""),
+                }),
+            )?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &serde_json::json!({"profile":bank.profile,"header":bank.header,"programs":bank.programs,"samples":bank.samples.iter().map(|s|serde_json::json!({"id":s.id,"encoded":s.encoded,"sha256":s.encoded_sha256,"original_hz":s.original_sample_rate_hz,"frames":s.decoded.pcm.len(),"termination":s.decoded.termination,"loop":s.decoded.loop_region})).collect::<Vec<_>>(),"compatibility":vab_import::assess_current_sound_bank(&bank)})
+                )?
+            );
         } else {
-            println!("{}",serde_json::to_string_pretty(&sequence::catalog_source(&bytes,explicit_profile)?)?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&sequence::catalog_source(&bytes, explicit_profile)?)?
+            );
         }
         return Ok(());
     }
@@ -541,52 +601,115 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if let Some(destination) = value("--create-starter-bank") {
         let id = sound_bank::publish_starter(sound_bank::starter_candidates(&root, destination)?)?;
-        println!("Created Retro Starter SoundBank {id}. Program 0, original generated triangle (MIT). Assign it explicitly to a sequence or Project Default SoundBank.");
+        println!(
+            "Created Retro Starter SoundBank {id}. Program 0, original generated triangle (MIT). Assign it explicitly to a sequence or Project Default SoundBank."
+        );
         return Ok(());
     }
     if let Some(destination) = value("--create-sound-bank") {
-        let sample = value("--sample").ok_or("Use --sample <AudioClip UUID>")?.parse::<uuid::Uuid>()?;
+        let sample = value("--sample")
+            .ok_or("Use --sample <AudioClip UUID>")?
+            .parse::<uuid::Uuid>()?;
         let index = assets::scan(&root, &mut Default::default());
-        if index.resolve(sample)?.meta.kind != assets::Kind::AudioClip { return Err("SoundBank samples must be AudioClips".into()); }
+        if index.resolve(sample)?.meta.kind != assets::Kind::AudioClip {
+            return Err("SoundBank samples must be AudioClips".into());
+        }
         let mut zone = sound_bank::Zone::new(sample);
-        if let Some(root_key) = value("--root-key") { zone.root_key = root_key.parse()?; }
+        if let Some(root_key) = value("--root-key") {
+            zone.root_key = root_key.parse()?;
+        }
         if let Some(start) = value("--sample-loop-start") {
-            zone.sample_loop = Some([start.parse()?, value("--sample-loop-end").ok_or("Supply --sample-loop-end in original source frames")?.parse()?]);
+            zone.sample_loop = Some([
+                start.parse()?,
+                value("--sample-loop-end")
+                    .ok_or("Supply --sample-loop-end in original source frames")?
+                    .parse()?,
+            ]);
         }
         let settings = sound_bank::Settings {
-            programs: vec![sound_bank::Program { program: value("--program").unwrap_or("0").parse()?,
-                drum_key: value("--drum-key").map(str::parse).transpose()?, zones: vec![zone], extra: Default::default() }],
-            provenance: value("--provenance").unwrap_or("").into(), ..Default::default()
+            programs: vec![sound_bank::Program {
+                program: value("--program").unwrap_or("0").parse()?,
+                drum_key: value("--drum-key").map(str::parse).transpose()?,
+                zones: vec![zone],
+                extra: Default::default(),
+            }],
+            provenance: value("--provenance").unwrap_or("").into(),
+            ..Default::default()
         };
-        println!("Created SoundBank: {}", sound_bank::create(&root, destination, settings)?);
+        println!(
+            "Created SoundBank: {}",
+            sound_bank::create(&root, destination, settings)?
+        );
         return Ok(());
     }
     if let Some(source) = value("--import-sound-bank") {
         let bytes = assets::read_bounded(&assets::inside(&root, source)?)?;
-        let destination = value("--asset").map(str::to_owned).unwrap_or_else(|| PathBuf::from(source).with_extension("epokasset").to_string_lossy().into());
+        let destination = value("--asset").map(str::to_owned).unwrap_or_else(|| {
+            PathBuf::from(source)
+                .with_extension("epokasset")
+                .to_string_lossy()
+                .into()
+        });
         if sf2::has_header(&bytes) {
-            let settings = sound_bank::Settings { provenance: value("--provenance").unwrap_or("").into(), ..Default::default() };
-            let candidate = soundfont_asset::prepare(&root, source, &destination, settings, None, false)?;
-            println!("Imported instrument library SoundBank: {}", assets::commit(candidate)?);
+            let settings = sound_bank::Settings {
+                provenance: value("--provenance").unwrap_or("").into(),
+                ..Default::default()
+            };
+            let candidate =
+                soundfont_asset::prepare(&root, source, &destination, settings, None, false)?;
+            println!(
+                "Imported instrument library SoundBank: {}",
+                assets::commit(candidate)?
+            );
             return Ok(());
         }
-        if bank_compat::has_header(&bytes) || value("--vb").is_some() || bank_compat::source_candidate(Path::new(source)) {
-            let settings=sound_bank::Settings {provenance:value("--provenance").unwrap_or("").into(),..Default::default()};
-            let candidate=bank_compat::prepare(&root,source,value("--vb"),&destination,settings,None,false)?;
-            let id=bank_compat::commit(candidate)?;
-            println!("Imported Sony SoundBank {id}. {}",bank_compat::PLAYBACK_BLOCKER);
+        if bank_compat::has_header(&bytes)
+            || value("--vb").is_some()
+            || bank_compat::source_candidate(Path::new(source))
+        {
+            let settings = sound_bank::Settings {
+                provenance: value("--provenance").unwrap_or("").into(),
+                ..Default::default()
+            };
+            let candidate = bank_compat::prepare(
+                &root,
+                source,
+                value("--vb"),
+                &destination,
+                settings,
+                None,
+                false,
+            )?;
+            let id = bank_compat::commit(candidate)?;
+            println!(
+                "Imported Sony SoundBank {id}. {}",
+                bank_compat::PLAYBACK_BLOCKER
+            );
             return Ok(());
         }
         let settings: sound_bank::Settings = document::from_slice(&bytes)?;
-        let candidate = assets::prepare_portable(&root, source, &destination, import_settings::Settings::SoundBank(settings), None, false)?;
+        let candidate = assets::prepare_portable(
+            &root,
+            source,
+            &destination,
+            import_settings::Settings::SoundBank(settings),
+            None,
+            false,
+        )?;
         println!("Imported SoundBank: {}", assets::commit(candidate)?);
         return Ok(());
     }
     if let Some(bank) = value("--default-sound-bank") {
-        let id = if bank == "none" { None } else { Some(bank.parse::<uuid::Uuid>()?) };
+        let id = if bank == "none" {
+            None
+        } else {
+            Some(bank.parse::<uuid::Uuid>()?)
+        };
         if let Some(id) = id {
             let index = assets::scan(&root, &mut Default::default());
-            if index.resolve(id)?.meta.kind != assets::Kind::SoundBank { return Err("Project default must be a SoundBank".into()); }
+            if index.resolve(id)?.meta.kind != assets::Kind::SoundBank {
+                return Err("Project default must be a SoundBank".into());
+            }
         }
         let mut manifest = workspace::read_manifest(&root)?;
         manifest.default_sound_bank = id;
@@ -628,89 +751,260 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .to_string_lossy()
                     .into_owned()
             });
-        let source_bytes = if args.iter().any(|a|a == "--snapshot") {
-            existing.as_ref().map(|r|assets::Package::load(&r.path).map(|p|p.source)).transpose()?
-        } else if source.is_empty() { None } else { Some(assets::read_bounded(&assets::inside(&root,&source)?)?) };
-        if source_bytes.as_ref().is_some_and(|bytes| sf2::has_header(bytes))
-            || existing.as_ref().is_some_and(|record| record.meta.settings.sound_bank().is_ok_and(|settings| settings.library.is_some())) {
-            let mut settings = existing.as_ref().map(|record| record.meta.settings.sound_bank().cloned()).transpose()?.unwrap_or_default();
-            if let Some(provenance) = value("--provenance") { settings.provenance = provenance.into(); }
-            let candidate = soundfont_asset::prepare(&root, &source, &destination, settings, existing.as_ref(), args.iter().any(|a| a == "--snapshot"))?;
-            println!("Imported instrument library SoundBank: {}", assets::commit(candidate)?);
+        let source_bytes = if args.iter().any(|a| a == "--snapshot") {
+            existing
+                .as_ref()
+                .map(|r| assets::Package::load(&r.path).map(|p| p.source))
+                .transpose()?
+        } else if source.is_empty() {
+            None
+        } else {
+            Some(assets::read_bounded(&assets::inside(&root, &source)?)?)
+        };
+        if source_bytes
+            .as_ref()
+            .is_some_and(|bytes| sf2::has_header(bytes))
+            || existing.as_ref().is_some_and(|record| {
+                record
+                    .meta
+                    .settings
+                    .sound_bank()
+                    .is_ok_and(|settings| settings.library.is_some())
+            })
+        {
+            let mut settings = existing
+                .as_ref()
+                .map(|record| record.meta.settings.sound_bank().cloned())
+                .transpose()?
+                .unwrap_or_default();
+            if let Some(provenance) = value("--provenance") {
+                settings.provenance = provenance.into();
+            }
+            let candidate = soundfont_asset::prepare(
+                &root,
+                &source,
+                &destination,
+                settings,
+                existing.as_ref(),
+                args.iter().any(|a| a == "--snapshot"),
+            )?;
+            println!(
+                "Imported instrument library SoundBank: {}",
+                assets::commit(candidate)?
+            );
             return Ok(());
         }
-        if source_bytes.as_ref().is_some_and(|b|bank_compat::has_header(b)) || existing.as_ref().is_some_and(|r|bank_compat::parts(r).is_some()) {
-            let mut settings=existing.as_ref().map(|r|r.meta.settings.sound_bank().cloned()).transpose()?.unwrap_or_default();
-            if let Some(provenance)=value("--provenance") { settings.provenance=provenance.into(); }
-            let candidate=bank_compat::prepare(&root,&source,value("--vb"),&destination,settings,existing.as_ref(),args.iter().any(|a|a=="--snapshot"))?;
-            println!("Imported Sony SoundBank {}. {}",bank_compat::commit(candidate)?,bank_compat::PLAYBACK_BLOCKER);
+        if source_bytes
+            .as_ref()
+            .is_some_and(|b| bank_compat::has_header(b))
+            || existing
+                .as_ref()
+                .is_some_and(|r| bank_compat::parts(r).is_some())
+        {
+            let mut settings = existing
+                .as_ref()
+                .map(|r| r.meta.settings.sound_bank().cloned())
+                .transpose()?
+                .unwrap_or_default();
+            if let Some(provenance) = value("--provenance") {
+                settings.provenance = provenance.into();
+            }
+            let candidate = bank_compat::prepare(
+                &root,
+                &source,
+                value("--vb"),
+                &destination,
+                settings,
+                existing.as_ref(),
+                args.iter().any(|a| a == "--snapshot"),
+            )?;
+            println!(
+                "Imported Sony SoundBank {}. {}",
+                bank_compat::commit(candidate)?,
+                bank_compat::PLAYBACK_BLOCKER
+            );
             return Ok(());
         }
-        let midi = existing.as_ref().is_some_and(|r| r.meta.kind == assets::Kind::MusicSequence)
-            || source_bytes.as_ref().is_some_and(|b| b.starts_with(b"MThd") || b.starts_with(b"pQES") || sequence::catalog_source(b,None).is_ok())
+        let midi = existing
+            .as_ref()
+            .is_some_and(|r| r.meta.kind == assets::Kind::MusicSequence)
+            || source_bytes.as_ref().is_some_and(|b| {
+                b.starts_with(b"MThd")
+                    || b.starts_with(b"pQES")
+                    || sequence::catalog_source(b, None).is_ok()
+            })
             || value("--sequence-profile").is_some()
-            || std::path::Path::new(&source).extension().is_some_and(|e| matches!(e.to_ascii_lowercase().to_str(), Some("mid" | "midi" | "seq" | "sep")));
+            || std::path::Path::new(&source).extension().is_some_and(|e| {
+                matches!(
+                    e.to_ascii_lowercase().to_str(),
+                    Some("mid" | "midi" | "seq" | "sep")
+                )
+            });
         if midi {
-            let mut settings = existing.as_ref().map(|r| r.meta.settings.sequence().cloned()).transpose()?.unwrap_or_default();
-            if let Some(bytes)=&source_bytes {
-                let profile=value("--sequence-profile").map(sequence::SourceProfile::from_id).transpose()?;
-                let catalog=sequence::catalog_source(bytes,profile)?;
-                if let Some(profile)=catalog.profile
-                    && (settings.source_selection.is_none() || value("--song-id").is_some() || value("--song-index").is_some() || value("--sequence-profile").is_some()) {
-                    settings.source_selection=Some(sequence::select_source(bytes,profile,value("--song-id").map(str::parse).transpose()?,value("--song-index").map(str::parse).transpose()?)?);
+            let mut settings = existing
+                .as_ref()
+                .map(|r| r.meta.settings.sequence().cloned())
+                .transpose()?
+                .unwrap_or_default();
+            if let Some(bytes) = &source_bytes {
+                let profile = value("--sequence-profile")
+                    .map(sequence::SourceProfile::from_id)
+                    .transpose()?;
+                let catalog = sequence::catalog_source(bytes, profile)?;
+                if let Some(profile) = catalog.profile
+                    && (settings.source_selection.is_none()
+                        || value("--song-id").is_some()
+                        || value("--song-index").is_some()
+                        || value("--sequence-profile").is_some())
+                {
+                    settings.source_selection = Some(sequence::select_source(
+                        bytes,
+                        profile,
+                        value("--song-id").map(str::parse).transpose()?,
+                        value("--song-index").map(str::parse).transpose()?,
+                    )?);
                 }
             }
-            if ["--rate", "--channels", "--trim-start", "--trim-end", "--normalize", "--audio-usage"].iter().any(|flag| args.iter().any(|a| a == flag)) {
+            if [
+                "--rate",
+                "--channels",
+                "--trim-start",
+                "--trim-end",
+                "--normalize",
+                "--audio-usage",
+            ]
+            .iter()
+            .any(|flag| args.iter().any(|a| a == flag))
+            {
                 return Err("Sample rate, channels, trim, normalization and legacy usage apply to sampled AudioClips. For MIDI use --sound-bank, --voice-limit and --sequence-loop.".into());
             }
             if let Some(role) = value("--audio-role") {
-                settings.role = match role { "sfx" => audio_import::AudioRole::Sfx, "music" => audio_import::AudioRole::Music,
-                    "ambience" => audio_import::AudioRole::Ambience, "dialogue" => audio_import::AudioRole::Dialogue,
-                    _ => return Err("Use --audio-role sfx|music|ambience|dialogue".into()) };
+                settings.role = match role {
+                    "sfx" => audio_import::AudioRole::Sfx,
+                    "music" => audio_import::AudioRole::Music,
+                    "ambience" => audio_import::AudioRole::Ambience,
+                    "dialogue" => audio_import::AudioRole::Dialogue,
+                    _ => return Err("Use --audio-role sfx|music|ambience|dialogue".into()),
+                };
             }
             if let Some(mode) = value("--load-mode") {
-                settings.load_mode = match mode { "auto" => audio_import::LoadMode::Auto, "resident" => audio_import::LoadMode::Resident,
-                    "stream" => audio_import::LoadMode::Stream, _ => return Err("Use --load-mode auto|resident|stream".into()) };
+                settings.load_mode = match mode {
+                    "auto" => audio_import::LoadMode::Auto,
+                    "resident" => audio_import::LoadMode::Resident,
+                    "stream" => audio_import::LoadMode::Stream,
+                    _ => return Err("Use --load-mode auto|resident|stream".into()),
+                };
             }
-            if let Some(bank) = value("--sound-bank") { settings.sound_bank = if bank == "default" { None } else { Some(bank.parse()?) }; }
+            if let Some(bank) = value("--sound-bank") {
+                settings.sound_bank = if bank == "default" {
+                    None
+                } else {
+                    Some(bank.parse()?)
+                };
+            }
             if let Some(profile) = value("--midi-interpretation") {
-                if settings.source_selection.is_some() { return Err("--midi-interpretation applies only to Standard MIDI Files".into()); }
+                if settings.source_selection.is_some() {
+                    return Err("--midi-interpretation applies only to Standard MIDI Files".into());
+                }
                 settings.midi_profile = match profile {
                     "legacy-v1" => midi::MidiProfile::LegacyV1,
                     "musical-v2" => midi::MidiProfile::MusicalV2,
                     _ => return Err("Use --midi-interpretation legacy-v1|musical-v2".into()),
                 };
             }
-            if let Some(limit) = value("--voice-limit") { settings.voice_limit = if limit == "auto" { None } else { Some(limit.parse()?) }; }
+            if let Some(limit) = value("--voice-limit") {
+                settings.voice_limit = if limit == "auto" {
+                    None
+                } else {
+                    Some(limit.parse()?)
+                };
+            }
             if let Some(path) = value("--psx-music-recipe") {
-                let recipe: psx_music_settings::Recipe = document::from_slice(&assets::read_bounded(&assets::inside(&root,path)?)?)?;
+                let recipe: psx_music_settings::Recipe =
+                    document::from_slice(&assets::read_bounded(&assets::inside(&root, path)?)?)?;
                 recipe.store(&mut settings)?;
             }
-            if args.iter().any(|a| a == "--loop") { settings.loop_mode = sequence::LoopMode::Whole; }
-            if let Some(mode) = value("--sequence-loop") {
-                settings.loop_mode = match mode { "off" => sequence::LoopMode::Off, "whole" => sequence::LoopMode::Whole,
-                    "markers" => sequence::LoopMode::Markers, _ => return Err("Use --sequence-loop off|whole|markers".into()) };
+            if args.iter().any(|a| a == "--loop") {
+                settings.loop_mode = sequence::LoopMode::Whole;
             }
-            if args.iter().any(|a| a == "--ignore-unsupported") { settings.ignore_unsupported = true; }
-            let candidate = sequence::prepare(&root, &source, &destination, settings, existing.as_ref(), args.iter().any(|a| a == "--snapshot"))?;
-            let report = sequence::decode_source(&candidate.package.source,candidate.package.meta.settings.sequence()?)?;
+            if let Some(mode) = value("--sequence-loop") {
+                settings.loop_mode = match mode {
+                    "off" => sequence::LoopMode::Off,
+                    "whole" => sequence::LoopMode::Whole,
+                    "markers" => sequence::LoopMode::Markers,
+                    _ => return Err("Use --sequence-loop off|whole|markers".into()),
+                };
+            }
+            if args.iter().any(|a| a == "--ignore-unsupported") {
+                settings.ignore_unsupported = true;
+            }
+            let candidate = sequence::prepare(
+                &root,
+                &source,
+                &destination,
+                settings,
+                existing.as_ref(),
+                args.iter().any(|a| a == "--snapshot"),
+            )?;
+            let report = sequence::decode_source(
+                &candidate.package.source,
+                candidate.package.meta.settings.sequence()?,
+            )?;
             let id = assets::commit(candidate)?;
-            println!("Imported MusicSequence {id}: {} events, {:.3} s, peak {} logical voices", report.events.len(), report.duration_micros as f64 / 1_000_000., report.peak_polyphony);
-            for diagnostic in report.diagnostics { println!("Track {}, tick {}: {}", diagnostic.track + 1, diagnostic.tick, diagnostic.message); }
+            println!(
+                "Imported MusicSequence {id}: {} events, {:.3} s, peak {} logical voices",
+                report.events.len(),
+                report.duration_micros as f64 / 1_000_000.,
+                report.peak_polyphony
+            );
+            for diagnostic in report.diagnostics {
+                println!(
+                    "Track {}, tick {}: {}",
+                    diagnostic.track + 1,
+                    diagnostic.tick,
+                    diagnostic.message
+                );
+            }
             return Ok(());
         }
-        if let Some(record) = existing.as_ref().filter(|r| r.meta.kind == assets::Kind::SoundBank) {
+        if let Some(record) = existing
+            .as_ref()
+            .filter(|r| r.meta.kind == assets::Kind::SoundBank)
+        {
             let snapshot = args.iter().any(|a| a == "--snapshot");
             if record.meta.settings.sound_bank()?.imported.is_some() {
-                let mut settings=record.meta.settings.sound_bank()?.clone();
-                if let Some(provenance)=value("--provenance") { settings.provenance=provenance.into(); }
-                let candidate=bank_compat::prepare(&root,&source,value("--vb"),&destination,settings,Some(record),snapshot)?;
-                println!("Reimported Sony SoundBank: {}",bank_compat::commit(candidate)?);
+                let mut settings = record.meta.settings.sound_bank()?.clone();
+                if let Some(provenance) = value("--provenance") {
+                    settings.provenance = provenance.into();
+                }
+                let candidate = bank_compat::prepare(
+                    &root,
+                    &source,
+                    value("--vb"),
+                    &destination,
+                    settings,
+                    Some(record),
+                    snapshot,
+                )?;
+                println!(
+                    "Reimported Sony SoundBank: {}",
+                    bank_compat::commit(candidate)?
+                );
                 return Ok(());
             }
-            let settings = if snapshot { record.meta.settings.sound_bank()?.clone() }
-                else { document::from_slice(&assets::read_bounded(&assets::inside(&root, &source)?)?)? };
-            let candidate = assets::prepare_portable(&root, &source, &destination, import_settings::Settings::SoundBank(settings), Some(record), snapshot)?;
+            let settings = if snapshot {
+                record.meta.settings.sound_bank()?.clone()
+            } else {
+                document::from_slice(&assets::read_bounded(&assets::inside(&root, &source)?)?)?
+            };
+            let candidate = assets::prepare_portable(
+                &root,
+                &source,
+                &destination,
+                import_settings::Settings::SoundBank(settings),
+                Some(record),
+                snapshot,
+            )?;
             println!("Reimported SoundBank: {}", assets::commit(candidate)?);
             return Ok(());
         }
@@ -795,7 +1089,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let mut scene = scene::Scene::load(&path)?;
         let catalog = scripts::catalog(&root)?;
-        let model = blueprint::legacy_registry(&root, &catalog)
+        let model = blueprint::registry_from_catalog(&root, &catalog)
             .model()
             .map_err(|diagnostics| {
                 diagnostics
@@ -877,30 +1171,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Ok(());
     }
-    if args
-        .iter()
-        .any(|a| a == "--build-psx" || a == "--play-psx" || a == "--analyze-memory" || a == "--generate-asset-report")
-    {
+    if args.iter().any(|a| {
+        a == "--build-psx"
+            || a == "--play-psx"
+            || a == "--analyze-memory"
+            || a == "--generate-asset-report"
+    }) {
         let job = if args.iter().any(|a| a == "--generate-asset-report") {
-            let summary = build_report::Summary::load(&root, args.iter().any(|a| a == "--blueprint-debug"))
-                .ok_or("Build first before generating an asset report.")?;
+            let summary =
+                build_report::Summary::load(&root, args.iter().any(|a| a == "--blueprint-debug"))
+                    .ok_or("Build first before generating an asset report.")?;
             pipeline::Job::report(root.clone(), summary)
         } else {
-        let analyze = args.iter().any(|a| a == "--analyze-memory");
-        let mut scene = scene_dependencies::Input::load(&workspace::startup_scene(&root)?)?;
-        if analyze || args.iter().any(|a| a == "--use-play-profile") {
-            scene = play::saved_input(&root, &workspace::startup_scene(&root)?, play::Profile::load(&root)?)?;
-        }
-        if analyze {
-            pipeline::Job::analyze(root, scene, args.iter().any(|a| a == "--blueprint-debug"))
-        } else {
-            pipeline::Job::start_with_debug(
-                root,
-                scene,
-                args.iter().any(|a| a == "--play-psx"),
-                args.iter().any(|a| a == "--blueprint-debug"),
-            )
-        }
+            let analyze = args.iter().any(|a| a == "--analyze-memory");
+            let mut scene = scene_dependencies::Input::load(&workspace::startup_scene(&root)?)?;
+            if analyze || args.iter().any(|a| a == "--use-play-profile") {
+                scene = play::saved_input(
+                    &root,
+                    &workspace::startup_scene(&root)?,
+                    play::Profile::load(&root)?,
+                )?;
+            }
+            if analyze {
+                pipeline::Job::analyze(root, scene, args.iter().any(|a| a == "--blueprint-debug"))
+            } else {
+                pipeline::Job::start_with_debug(
+                    root,
+                    scene,
+                    args.iter().any(|a| a == "--play-psx"),
+                    args.iter().any(|a| a == "--blueprint-debug"),
+                )
+            }
         };
         let stop_after = args
             .windows(2)
@@ -940,7 +1241,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("PSX running over serial");
                     started = Some(Instant::now());
                 }
-                Ok(pipeline::Event::SerialCommandPending(_)) => {},
+                Ok(pipeline::Event::SerialCommandPending(_)) => {}
                 Ok(pipeline::Event::Finished(result)) => return result.map_err(Into::into),
                 Ok(pipeline::Event::Paused(_)) => {}
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
@@ -958,9 +1259,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn prepare_editor(editor: &mut editor::Editor) {
     let args = std::env::args().collect::<Vec<_>>();
-    if let Some(relative) = args.windows(2).find(|a|a[0]=="--inspect-asset").map(|a|a[1].as_str()) {
-        match assets::inside(&editor.root,relative) {
-            Ok(path) if path.exists() => project_browser::State::select_asset(editor,&path),
+    if let Some(relative) = args
+        .windows(2)
+        .find(|a| a[0] == "--inspect-asset")
+        .map(|a| a[1].as_str())
+    {
+        match assets::inside(&editor.root, relative) {
+            Ok(path) if path.exists() => project_browser::State::select_asset(editor, &path),
             Ok(_) => editor.log("Inspector file does not exist"),
             Err(error) => editor.log(error),
         }
@@ -970,13 +1275,21 @@ fn prepare_editor(editor: &mut editor::Editor) {
         .any(|a| a == "--screenshot-imports" || a == "--screenshot-import-dialog")
     {
         editor.assets.index = assets::scan(&editor.root, &mut Default::default());
-        let capture_asset = args.windows(2).find(|a| a[0] == "--inspect-asset")
+        let capture_asset = args
+            .windows(2)
+            .find(|a| a[0] == "--inspect-asset")
             .and_then(|a| assets::inside(&editor.root, &a[1]).ok());
         let selected_record = editor
             .assets
             .index
             .usable()
-            .find(|r| capture_asset.as_ref().map_or(r.meta.kind == assets::Kind::AudioClip, |path| &r.path == path))
+            .find(|r| {
+                capture_asset
+                    .as_ref()
+                    .map_or(r.meta.kind == assets::Kind::AudioClip, |path| {
+                        &r.path == path
+                    })
+            })
             .cloned();
         if let Some(record) = selected_record {
             editor.assets.selected = Some(record.meta.id);
@@ -1003,16 +1316,16 @@ fn prepare_editor(editor: &mut editor::Editor) {
     }
     if args.iter().any(|a| a == "--screenshot-lighting") {
         editor.lighting_window = true;
-        editor.selected = editor.scene.entities.iter().position(|e| e.light.is_some());
+        editor.selected = editor.scene.actors.iter().position(|e| e.light.is_some());
     }
     if args.iter().any(|a| a == "--screenshot-hud") {
         editor.set_scene_2d(true);
         editor.selected = editor
             .scene
-            .entities
+            .actors
             .iter()
             .position(|e| e.progress.is_some())
-            .or_else(|| editor.scene.entities.iter().position(|e| e.rect.is_some()))
+            .or_else(|| editor.scene.actors.iter().position(|e| e.rect.is_some()))
             .or(editor.selected);
     }
     if args.iter().any(|a| a == "--screenshot-native-hud") {
@@ -1033,7 +1346,7 @@ fn prepare_editor(editor: &mut editor::Editor) {
             .iter()
             .find(|c| c.name == "Enemy")
             .map(|c| c.name.clone())
-            .unwrap_or_else(|| "Behaviour".into());
+            .unwrap_or_else(|| "ActorComponent".into());
     }
     if args.iter().any(|a| a == "--screenshot-game") {
         editor.build(true);

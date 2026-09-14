@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-pub const SCHEMA_VERSION: u32 = 8;
+pub const SCHEMA_VERSION: u32 = 9;
 pub const CLANG_VERSION: &str = "18.1.1";
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -38,10 +38,6 @@ pub enum Type {
         cpp_name: String,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fields: Vec<RecordField>,
-    },
-    /// Persistent authoring UUID, resolved to a generation-checked handle before start.
-    EntityRef {
-        class: Option<String>,
     },
     /// Internal ParticleEffect layer UUID. Never a scene entity or runtime slot.
     EffectLayerRef {
@@ -76,17 +72,15 @@ pub enum Type {
 }
 
 /// Family root of a reflected class. A parent change never crosses families.
-/// `Behaviour` is the legacy family: every pre-schema-8 script class lands here.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClassFamily {
+    #[default]
     Object,
     Actor,
     Component,
     World,
     Level,
-    #[default]
-    Behaviour,
 }
 impl ClassFamily {
     #[allow(dead_code)] // Shared with the extraction binary, which only writes the value.
@@ -97,7 +91,6 @@ impl ClassFamily {
             Self::Component => "Component",
             Self::World => "World",
             Self::Level => "Level",
-            Self::Behaviour => "Behaviour",
         }
     }
 }
@@ -264,9 +257,7 @@ impl Type {
             Self::Fixed => "Fixed (Q12)".into(),
             Self::Enum { cpp_name, .. } | Self::Record { cpp_name, .. } => cpp_name.clone(),
             Self::Vector { length } => format!("Fixed[{length}]"),
-            Self::EntityRef { class } => {
-                format!("EntityRef<{}>", class.as_deref().unwrap_or("Entity"))
-            }
+
             Self::EffectLayerRef { class } => format!("EffectLayerRef<{class}>"),
             Self::SequenceHandle => "SequenceHandle".into(),
             Self::EffectHandle => "EffectHandle".into(),
@@ -400,7 +391,7 @@ pub struct Function {
 }
 
 /// A reflected scene adapter can require one existing component on its owner.
-/// This narrows EntityRef compatibility; it introduces no new entity identity.
+/// This narrows ObjectRef compatibility; it introduces no new entity identity.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TimelineComponentRequirement {
     Camera,
@@ -520,7 +511,7 @@ mod tests {
         for field in ["family", "domain", "component", "default_components"] {
             assert!(round_trip.get(field).is_none(), "{field} was serialized");
         }
-        assert_eq!(super::SCHEMA_VERSION, 8);
+        assert_eq!(super::SCHEMA_VERSION, 9);
     }
 
     #[test]

@@ -4,7 +4,7 @@
 
 // Shared cooked timeline evaluation kernel. Descriptive IDs, bindings and
 // reflection stay on the host. The director (not this stateless kernel) owns
-// lifetime, activation, restoration and the existing EntityHandle checks.
+// lifetime, activation, restoration and the existing DataHandle checks.
 namespace epok::timeline {
 inline constexpr size_t key_limit = 4;
 struct Key { int32_t tick, value; };

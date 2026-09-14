@@ -130,7 +130,7 @@ auto result = object.burst(h, count);
 **Exact declaration**
 
 ```cpp
-void cancel_owner(EntityHandle owner)
+void cancel_owner(DataHandle owner)
 ```
 
 - **Declared at:** [line 128](../../../runtime/particle_effect_runtime.hpp#L128)
@@ -140,7 +140,7 @@ void cancel_owner(EntityHandle owner)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -152,7 +152,7 @@ void cancel_owner(EntityHandle owner)
 #include "particle_effect_runtime.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle owner
+// DataHandle owner
 
 epok::effects::Pool& object = /* obtain a valid instance */;
 
@@ -261,7 +261,7 @@ auto result = object.layer(h, index);
 **Exact declaration**
 
 ```cpp
-EntityHandle lighting_owner(EffectLayerHandle h)const
+DataHandle lighting_owner(EffectLayerHandle h)const
 ```
 
 - **Declared at:** [line 76](../../../runtime/particle_effect_runtime.hpp#L76)
@@ -273,7 +273,7 @@ EntityHandle lighting_owner(EffectLayerHandle h)const
 | --- | --- | --- | --- |
 | `h` | `EffectLayerHandle` | Input | Value supplied for `h`. See the exact type and module contract. |
 
-**Returns.** Returns `EntityHandle`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `DataHandle`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need runtime effects and their deterministic playback state and the preconditions in the declaration are already satisfied.
 
@@ -707,7 +707,7 @@ auto result = object.snapshot(h);
 **Exact declaration**
 
 ```cpp
-Handle spawn(const Asset& asset,const Affine<Fixed>& world,uint32_t scene, const timeline::BoundTarget* external=nullptr,EntityHandle owner={},uint32_t seed=0,LayerInitializer initialize=nullptr)
+Handle spawn(const Asset& asset,const Affine<Fixed>& world,uint32_t scene, const timeline::BoundTarget* external=nullptr,DataHandle owner={},uint32_t seed=0,LayerInitializer initialize=nullptr)
 ```
 
 - **Declared at:** [line 83](../../../runtime/particle_effect_runtime.hpp#L83)
@@ -721,7 +721,7 @@ Handle spawn(const Asset& asset,const Affine<Fixed>& world,uint32_t scene, const
 | `world` | `const Affine<Fixed> &` | Input | Value supplied for `world`. See the exact type and module contract. |
 | `scene` | `uint32_t` | Input | Value supplied for `scene`. See the exact type and module contract. |
 | `external` | `const timeline::BoundTarget *` | Input | Value supplied for `external`. See the exact type and module contract. |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 | `seed` | `uint32_t` | Input | Value supplied for `seed`. See the exact type and module contract. |
 | `initialize` | `LayerInitializer` | Input | Value supplied for `initialize`. See the exact type and module contract. |
 
@@ -739,7 +739,7 @@ Handle spawn(const Asset& asset,const Affine<Fixed>& world,uint32_t scene, const
 // const Affine<Fixed> & world
 // uint32_t scene
 // const timeline::BoundTarget * external
-// EntityHandle owner
+// DataHandle owner
 // uint32_t seed
 // LayerInitializer initialize
 

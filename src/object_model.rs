@@ -37,9 +37,6 @@ pub const RECT_TRANSFORM_COMPONENT_ID: &str = "dc805165-6c65-48dc-8ff8-4a638a5d2
 pub const AUDIO_COMPONENT_ID: &str = "7f0eb028-5301-4ac7-b93b-5665fab12b20";
 pub const WORLD_ID: &str = "ab2d72b4-fcf6-4b30-8494-43fc0a7cf46c";
 pub const LEVEL_ID: &str = "b4683321-83e2-4b90-bd87-bb314f9eda2e";
-pub const LEGACY_BEHAVIOUR_COMPONENT_ID: &str = "430cb0ca-21c3-420c-96a3-da2f7b99781a";
-/// The existing scripting root. Legacy classes reaching it are the Behaviour family.
-pub const BEHAVIOUR_ID: &str = "8ec3a9d4-13f1-4727-b4b1-591202c82490";
 
 // Reserved for the P3/P8 component adapters; declared here so the identities are
 // allocated once and cannot drift when the classes are introduced.
@@ -66,6 +63,19 @@ const PSX_CAPABILITIES: &[&str] = &[
     "particles",
     "timelines",
     "physics3d",
+    "mesh",
+    "sprite",
+    "camera",
+    "light",
+    "collider",
+    "canvas",
+    "image",
+    "text",
+    "progress",
+    "timeline",
+    "effect",
+    "palette",
+    "shadow",
 ];
 /// Provided only when `runtime/world2d.hpp` is part of the cooked runtime source
 /// set; the 2D collision world lives entirely in that header.
@@ -738,9 +748,9 @@ fn resolve_class(
         }
         (Some(declared), _) => declared,
         (None, Some(inherited)) => inherited,
-        // Legacy scripting classes carry no family. They resolve to Behaviour,
-        // which is also the schema default, and are never Actors.
-        (None, None) => ClassFamily::Behaviour,
+        // Reflected value types (for example EffectLayer) have no runtime identity.
+        // They remain queryable metadata, but only the Object ancestry is pooled.
+        (None, None) => ClassFamily::Object,
     };
     let inherited_domain = parent.as_ref().map(|p| p.domain).unwrap_or(Domain::None);
     let domain = match class.domain {
@@ -1091,18 +1101,6 @@ mod tests {
                 ..Default::default()
             })
             .build(),
-            Decl::new(
-                LEGACY_BEHAVIOUR_COMPONENT_ID,
-                "epok::LegacyBehaviourComponent",
-                Some(ACTOR_COMPONENT_ID),
-            )
-            .domain(Domain::None)
-            .component(ComponentContract {
-                owners: all.into_iter().collect(),
-                cardinality: Cardinality::Multiple,
-                ..Default::default()
-            })
-            .build(),
             Decl::new(LEVEL_ID, "epok::Level", Some(OBJECT_ID))
                 .family(ClassFamily::Level)
                 .abstract_base()
@@ -1110,9 +1108,6 @@ mod tests {
             Decl::new(WORLD_ID, "epok::World", Some(OBJECT_ID))
                 .family(ClassFamily::World)
                 .abstract_base()
-                .build(),
-            Decl::new(BEHAVIOUR_ID, "epok::Behaviour", None)
-                .blueprintable()
                 .build(),
         ]
     }
@@ -1169,7 +1164,23 @@ mod tests {
             ("UIComponent", UI_COMPONENT_ID),
             ("RectTransformComponent", RECT_TRANSFORM_COMPONENT_ID),
             ("AudioComponent", AUDIO_COMPONENT_ID),
-            ("LegacyBehaviourComponent", LEGACY_BEHAVIOUR_COMPONENT_ID),
+            ("Mesh3DComponent", MESH3D_COMPONENT_ID),
+            ("Sprite3DComponent", SPRITE3D_COMPONENT_ID),
+            ("Camera3DComponent", CAMERA3D_COMPONENT_ID),
+            ("Light3DComponent", LIGHT3D_COMPONENT_ID),
+            ("Collider3DComponent", COLLIDER3D_COMPONENT_ID),
+            ("CanvasComponent", CANVAS_COMPONENT_ID),
+            ("ImageComponent", IMAGE_COMPONENT_ID),
+            ("TextComponent", TEXT_COMPONENT_ID),
+            ("ProgressBarComponent", PROGRESS_BAR_COMPONENT_ID),
+            (
+                "ParticleEmitterComponent",
+                crate::actor_components::PARTICLES,
+            ),
+            ("TimelineComponent", crate::actor_components::TIMELINE),
+            ("ParticleEffectComponent", crate::actor_components::EFFECT),
+            ("PaletteAnimatorComponent", crate::actor_components::PALETTE),
+            ("BlobShadowComponent", crate::actor_components::SHADOW),
             ("Level", LEVEL_ID),
             ("World", WORLD_ID),
         ]
@@ -1192,19 +1203,9 @@ mod tests {
         }
         // Every reserved P3/P8 identity is a distinct UUID.
         let reserved = [
-            MESH3D_COMPONENT_ID,
-            SPRITE3D_COMPONENT_ID,
-            CAMERA3D_COMPONENT_ID,
-            LIGHT3D_COMPONENT_ID,
-            COLLIDER3D_COMPONENT_ID,
             SPRITE2D_COMPONENT_ID,
             CAMERA2D_COMPONENT_ID,
             COLLIDER2D_COMPONENT_ID,
-            CANVAS_COMPONENT_ID,
-            IMAGE_COMPONENT_ID,
-            TEXT_COMPONENT_ID,
-            PROGRESS_BAR_COMPONENT_ID,
-            BEHAVIOUR_ID,
         ];
         let unique = reserved
             .iter()
@@ -1247,31 +1248,6 @@ mod tests {
         assert!(!audio_contract.can_root);
         // A component inherits its family from ActorComponent without redeclaring it.
         assert_eq!(audio.family, ClassFamily::Component);
-        // Legacy scripting classes are Behaviour and never Actors.
-        let behaviour = model.class("epok::Behaviour").expect("Behaviour");
-        assert_eq!(behaviour.family, ClassFamily::Behaviour);
-        assert!(behaviour.component.is_none());
-    }
-
-    #[test]
-    fn legacy_behaviour_chains_stay_in_the_behaviour_family() {
-        let mut classes = native_classes();
-        classes.push(
-            Decl::new("legacy:Enemy", "Enemy", Some(BEHAVIOUR_ID))
-                .blueprintable()
-                .build(),
-        );
-        classes.push(Decl::new("legacy:Boss", "Boss", Some("legacy:Enemy")).build());
-        let model = Model::from_registry(&registry(classes)).expect("legacy chain resolves");
-        for name in ["Enemy", "Boss"] {
-            let class = model.class(name).expect(name);
-            assert_eq!(class.family, ClassFamily::Behaviour);
-            assert_eq!(class.domain, Domain::None);
-            assert!(!class.placement.placeable);
-        }
-        assert!(model.is_a("Boss", "epok::Behaviour"));
-        assert!(!model.is_a("Boss", "epok::Actor"));
-        assert!(model.placeable().all(|c| c.cpp_name != "Boss"));
     }
 
     #[test]
@@ -1550,7 +1526,7 @@ mod tests {
             .domain(Domain::World3D)
             .component(ComponentContract {
                 requires: vec!["epok::AudioComponent".into()],
-                excludes: vec!["epok::LegacyBehaviourComponent".into()],
+                excludes: vec!["epok::ExoticComponent".into()],
                 ..Default::default()
             })
             .build(),
@@ -1590,11 +1566,14 @@ mod tests {
                 &[
                     spec("cpp:Body", true),
                     spec(AUDIO_COMPONENT_ID, false),
-                    spec(LEGACY_BEHAVIOUR_COMPONENT_ID, false),
+                    spec("cpp:Exotic", false),
                 ],
             )
             .unwrap_err();
-        assert_eq!(codes(&excluded), ["excluded-component"]);
+        assert_eq!(
+            codes(&excluded),
+            ["excluded-component", "unknown-capability"]
+        );
 
         // Cardinality: Single rejects duplicates, Multiple accepts them.
         let single = model

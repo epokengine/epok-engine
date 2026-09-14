@@ -111,7 +111,7 @@ epok::hud_core::Compiler value(sink, width, height, budget);
 **Exact declaration**
 
 ```cpp
-void draw(Entity* entities,size_t count,int* first,int* next)
+void draw(ActorData* entities,size_t count,int* first,int* next)
 ```
 
 - **Declared at:** [line 91](../../../runtime/hud_core.hpp#L91)
@@ -121,7 +121,7 @@ void draw(Entity* entities,size_t count,int* first,int* next)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `entities` | `Entity *` | Input/output; inspect the function contract | Value supplied for `entities`. See the exact type and module contract. |
+| `entities` | `ActorData *` | Input/output; inspect the function contract | Value supplied for `entities`. See the exact type and module contract. |
 | `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `first` | `int *` | Input/output; inspect the function contract | Value supplied for `first`. See the exact type and module contract. |
 | `next` | `int *` | Input/output; inspect the function contract | Value supplied for `next`. See the exact type and module contract. |
@@ -136,7 +136,7 @@ void draw(Entity* entities,size_t count,int* first,int* next)
 #include "hud_core.hpp"
 
 // Assume these named values have been initialized with valid data:
-// Entity * entities
+// ActorData * entities
 // size_t count
 // int * first
 // int * next

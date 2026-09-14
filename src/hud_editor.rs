@@ -1,4 +1,4 @@
-use crate::{editor::Editor, hud, scene::Entity};
+use crate::{editor::Editor, hud, scene::Actor};
 fn heading(ui: &imgui::Ui, label: &str) -> bool {
     crate::gui::heading(ui, label)
 }
@@ -8,7 +8,7 @@ fn vector(ui: &imgui::Ui, label: &str, value: &mut [f32; 2]) {
         .display_format("%.1f")
         .build_array(ui, value);
 }
-pub fn inspector(ui: &imgui::Ui, e: &mut Entity) {
+pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
     if let Some(c) = &mut e.canvas
         && heading(ui, "Canvas")
     {
@@ -266,9 +266,9 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
             crate::gui::muted(
                 ui,
                 format!(
-                    "Frame {} | {} entities | {} draws | {} dropped",
+                    "Frame {} | {} actors | {} draws | {} dropped",
                     frame.number,
-                    frame.entities,
+                    frame.actors,
                     frame.commands.len(),
                     frame.stats[4]
                 ),
@@ -295,7 +295,7 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
     let mut handle = false;
     if let Some(i) = e.selected
         && let Some(r) = hud::layout(&e.scene, i)
-        && e.scene.entities[i].rect.is_some()
+        && e.scene.actors[i].rect.is_some()
     {
         handle = (p[0] - r[0] - r[2]).abs() < 5. / scale && (p[1] - r[1]).abs() < 5. / scale;
     }
@@ -313,7 +313,7 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
         }
         e.hud_drag = e
             .selected
-            .filter(|i| e.scene.entities[*i].rect.is_some())
+            .filter(|i| e.scene.actors[*i].rect.is_some())
             .map(|i| (i, handle));
         e.reveal_selected = e.selected.is_some();
         e.search.clear();
@@ -329,8 +329,8 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
         && ui.is_mouse_dragging(imgui::MouseButton::Left)
     {
         let delta = ui.io().mouse_delta.map(|v| v / scale);
-        let original = e.scene.entities[i].rect.clone();
-        if let Some(r) = &mut e.scene.entities[i].rect {
+        let original = e.scene.actors[i].rect.clone();
+        if let Some(r) = &mut e.scene.actors[i].rect {
             if resize {
                 r.size[0] += delta[0];
                 r.size[1] += delta[1];
@@ -344,7 +344,7 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
         if e.scene.validate().is_ok() {
             e.changed_coalesced("hud-rect-drag");
         } else {
-            e.scene.entities[i].rect = original;
+            e.scene.actors[i].rect = original;
         }
     }
     let draw = ui.get_window_draw_list();
@@ -380,7 +380,7 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
             .session
             .as_ref()
             .and_then(|s| s.frame.as_ref())
-            .is_some_and(|f| f.entities as usize > e.scene.entities.len())
+            .is_some_and(|f| f.actors as usize > e.scene.actors.len())
         {
             format!("HUD {width:.0} x {height:.0} | Procedural UI preview")
         } else {

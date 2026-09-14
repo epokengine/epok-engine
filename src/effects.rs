@@ -31,7 +31,7 @@ pub fn validate(scene: &crate::scene::Scene) -> Result<(), String> {
     {
         return Err("Fog requires 0 ≤ start < end ≤ 128 and color 0..1".into());
     }
-    for e in &scene.entities {
+    for e in &scene.actors {
         crate::texture::validate_material(&e.material)?;
         if let Some(m) = &e.editable_mesh {
             for material in m.materials.values() {
@@ -133,7 +133,7 @@ pub fn scroll_triangle(vertices: [Vertex; 3], scroll: [f32; 2], seconds: f32) ->
     output
 }
 pub fn animated(scene: &crate::scene::Scene) -> bool {
-    scene.entities.iter().any(|e| {
+    scene.actors.iter().any(|e| {
         e.material.uv_scroll != [0.; 2]
             || e.editable_mesh.as_ref().is_some_and(|m| {
                 m.materials.values().any(|m| m.uv_scroll != [0.; 2])
