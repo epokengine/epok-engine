@@ -61,7 +61,7 @@ object.begin_text();
 **Exact declaration**
 
 ```cpp
-template<size_t N>void draw(psyqo::GPU& gpu,std::array<Entity,N>& entities,size_t count)
+template<size_t N>void draw(psyqo::GPU& gpu,std::array<ActorData,N>& entities,size_t count)
 ```
 
 - **Declared at:** [line 71](../../../runtime/hud.hpp#L71)
@@ -72,7 +72,7 @@ template<size_t N>void draw(psyqo::GPU& gpu,std::array<Entity,N>& entities,size_
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
-| `entities` | `std::array<Entity, N> &` | Input/output; inspect the function contract | Value supplied for `entities`. See the exact type and module contract. |
+| `entities` | `std::array<ActorData, N> &` | Input/output; inspect the function contract | Value supplied for `entities`. See the exact type and module contract. |
 | `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -89,7 +89,7 @@ template<size_t N>void draw(psyqo::GPU& gpu,std::array<Entity,N>& entities,size_
 
 // Assume these named values have been initialized with valid data:
 // psyqo::GPU & gpu
-// std::array<Entity, N> & entities
+// std::array<ActorData, N> & entities
 // size_t count
 
 epok::HudRenderer& object = /* obtain a valid instance */;

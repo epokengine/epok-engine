@@ -3,7 +3,7 @@ use crate::{
     assets,
     editor::Editor,
     mcp::State,
-    scene::{Entity, Scene},
+    scene::{Actor, Scene},
 };
 use base64::Engine as _;
 use serde_json::{Value, json};
@@ -61,8 +61,8 @@ fn index(scene: &Scene, args: &Value) -> Result<usize, String> {
     args["index"]
         .as_u64()
         .and_then(|v| usize::try_from(v).ok())
-        .filter(|i| *i < scene.entities.len())
-        .ok_or("Entity index is out of range".into())
+        .filter(|i| *i < scene.actors.len())
+        .ok_or("Actor index is out of range".into())
 }
 fn merge(target: &mut Value, patch: &Value) {
     if let (Some(target), Some(patch)) = (target.as_object_mut(), patch.as_object()) {
@@ -73,7 +73,7 @@ fn merge(target: &mut Value, patch: &Value) {
         *target = patch.clone();
     }
 }
-fn entity_patch(entity: &Entity, patch: &Value) -> Result<Entity, String> {
+fn actor_patch(entity: &Actor, patch: &Value) -> Result<Actor, String> {
     const FIELDS: &[&str] = &[
         "name",
         "kind",
@@ -82,7 +82,6 @@ fn entity_patch(entity: &Entity, patch: &Value) -> Result<Entity, String> {
         "rotation",
         "scale",
         "material",
-        "script",
         "canvas",
         "rect",
         "image",
@@ -97,16 +96,21 @@ fn entity_patch(entity: &Entity, patch: &Value) -> Result<Entity, String> {
     ];
     for key in patch
         .as_object()
-        .ok_or("Entity patch must be an object")?
+        .ok_or("Actor patch must be an object")?
         .keys()
     {
         if !FIELDS.contains(&key.as_str()) {
-            return Err(format!("Unknown entity field: {key}"));
+            return Err(format!("Unknown Actor field: {key}"));
         }
     }
-    let mut value = json!(entity);
+    let mut value = json!(entity.data);
     merge(&mut value, patch);
-    decode(value)
+    let mut actor = entity.clone();
+    actor.data = decode(value)?;
+    actor.name = actor.data.name.clone();
+    actor.active = actor.data.active;
+    crate::actor_components::sync(&mut actor);
+    Ok(actor)
 }
 fn install(e: &mut Editor, mut scene: Scene) -> Result<(), String> {
     scene.display_size = e.scene.display_size;
@@ -139,13 +143,13 @@ fn snapshot(e: &Editor) -> Value {
         }
     });
     let serial = json!({"setup_open":e.serial_ui.open,"tools_ready":e.serial_ui.tools_ready,"tools_directory":crate::serial_support::managed_directory(),"port":e.preferences.serial.port,"status":e.serial_ui.status,"error":e.serial_ui.error,"command_pending":e.serial_ui.command_pending});
-    json!({"project":e.project_name(),"root":e.root,"scene_path":assets::path_string(&e.root,&e.scene_path()),"revision":revision(&e.scene),"dirty":e.dirty,"entities":e.scene.entities.len(),"selected":e.selected,"playing":e.playing,"paused":e.paused,"play_profile":profile,"serial":serial,"build_or_play_active":e.job.is_some(),"editing_locked":e.critical_busy(),"installation_active":e.dependencies.busy(),"operation":operation,"import_active":e.assets.busy,"import_error":e.assets.error,"bake_active":e.bake_job.is_some(),"last_error":e.last_error,"game_error":e.game_error,"game_frame":e.game_frame.as_ref().map(|f|json!({"sequence":f.sequence,"width":f.width,"height":f.height,"buttons":f.buttons,"vsyncs":f.vsyncs,"cycles":f.cycles})),"view":e.view,"scene_2d":e.scene_2d(),"view_mode":e.scene_view_mode.key(),"grid":e.grid,"wire":e.wire})
+    json!({"project":e.project_name(),"root":e.root,"scene_path":assets::path_string(&e.root,&e.scene_path()),"revision":revision(&e.scene),"dirty":e.dirty,"actors":e.scene.actors.len(),"selected":e.selected,"playing":e.playing,"paused":e.paused,"play_profile":profile,"serial":serial,"build_or_play_active":e.job.is_some(),"editing_locked":e.critical_busy(),"installation_active":e.dependencies.busy(),"operation":operation,"import_active":e.assets.busy,"import_error":e.assets.error,"bake_active":e.bake_job.is_some(),"last_error":e.last_error,"game_error":e.game_error,"game_frame":e.game_frame.as_ref().map(|f|json!({"sequence":f.sequence,"width":f.width,"height":f.height,"buttons":f.buttons,"vsyncs":f.vsyncs,"cycles":f.cycles})),"view":e.view,"scene_2d":e.scene_2d(),"view_mode":e.scene_view_mode.key(),"grid":e.grid,"wire":e.wire})
 }
 
 /// Resolved Object/Actor/Component model for the editor's current catalog. `None` when
 /// the project has never compiled: the actor tools then run their structural half only.
 fn actor_model(e: &Editor) -> Option<crate::object_model::Model> {
-    crate::blueprint::legacy_registry(&e.root, &e.catalog)
+    crate::blueprint::registry_from_catalog(&e.root, &e.catalog)
         .model()
         .ok()
 }
@@ -299,15 +303,14 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
             for op in operations {
                 let result = match string(op, "op")?.as_str() {
                     "create" => {
-                        let entity =
-                            entity_patch(&Entity::cube("GameObject".into()), &op["entity"])?;
-                        let i = scene.entities.len();
-                        scene.entities.push(entity);
+                        let entity = actor_patch(&Actor::cube("Actor".into()), &op["actor"])?;
+                        let i = scene.actors.len();
+                        scene.actors.push(entity);
                         json!({"index":i})
                     }
                     "update" => {
                         let i = index(&scene, op)?;
-                        scene.entities[i] = entity_patch(&scene.entities[i], &op["patch"])?;
+                        scene.actors[i] = actor_patch(&scene.actors[i], &op["patch"])?;
                         json!({"index":i})
                     }
                     "delete" => {
@@ -355,7 +358,7 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
         }
         "scene_actors" => {
             let model = actor_model(e);
-            let view = crate::actor_document::actor_view(&e.scene, model.as_ref());
+
             let describe = |actor: &crate::actor_document::ActorInstance, authored: bool| {
                 let class = model.as_ref().and_then(|m| actor.class.resolve(m));
                 json!({
@@ -368,7 +371,6 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                     "active": actor.active,
                     "authored": authored,
                     "logical_parent": actor.logical_parent,
-                    "legacy_entity": actor.legacy_entity,
                     "properties": actor.properties,
                     "overrides": actor.overrides,
                     "attach": actor.attach.as_ref().map(|at| json!({"actor": at.actor, "component": at.component})),
@@ -394,20 +396,10 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                 .iter()
                 .map(|actor| describe(actor, true))
                 .collect::<Vec<_>>();
-            // Legacy entities with no authored actor are shown as the derived view, so
-            // an agent sees the same hierarchy the editor does before any migration.
-            let derived = view
-                .actors
-                .iter()
-                .filter(|actor| !e.scene.actors.iter().any(|a| a.id == actor.id))
-                .map(|actor| describe(actor, false))
-                .collect::<Vec<_>>();
             Ok(json!({
                 "revision": revision(&e.scene),
                 "model_available": model.is_some(),
                 "actors": authored,
-                "derived": derived,
-                "diagnostics": view.codes(),
                 "placeable": model.as_ref().map(|m| m.placeable()
                     .map(|c| json!({"class": c.cpp_name, "class_id": c.id, "domain": format!("{:?}", c.domain)}))
                     .collect::<Vec<_>>()),
@@ -698,13 +690,18 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
             state.redo.clear();
             Ok(snapshot(e))
         }
-        "entity_select" => {
+        "actor_select" => {
             expect_revision(&e.scene, &a)?;
-            e.selected = if a["index"].is_null() {
+            let id = if a["id"].is_null() {
                 None
             } else {
-                Some(index(&e.scene, &a)?)
+                let id = decode::<uuid::Uuid>(a["id"].clone())?;
+                if e.scene.actor_index(id).is_none() {
+                    return Err("Actor does not exist".into());
+                }
+                Some(id)
             };
+            e.select_actor(id);
             e.reveal_selected = true;
             e.view_dirty = true;
             if a["frame"] == true {
@@ -810,8 +807,12 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                     if !e.playing {
                         return Err("Play is not running".into());
                     }
-                    if e.serial_ui.command_pending { return Err("Waiting for the previous PSX command".into()); }
-                    if a["action"] == "reset_psx" && e.active_play_target != crate::play::Target::Serial {
+                    if e.serial_ui.command_pending {
+                        return Err("Waiting for the previous PSX command".into());
+                    }
+                    if a["action"] == "reset_psx"
+                        && e.active_play_target != crate::play::Target::Serial
+                    {
                         return Err("Reset PSX requires an active physical PSX session".into());
                     }
                     e.job
@@ -824,7 +825,9 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                         } else {
                             crate::pipeline::Control::Resume
                         });
-                    if e.active_play_target == crate::play::Target::Serial { e.serial_ui.command_pending = true; }
+                    if e.active_play_target == crate::play::Target::Serial {
+                        e.serial_ui.command_pending = true;
+                    }
                 }
                 "bake" => {
                     editable(e)?;
@@ -901,17 +904,77 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
             } else {
                 Default::default()
             };
-            let detected=assets::audio_source_kind(&e.root,&source);
+            let detected = assets::audio_source_kind(&e.root, &source);
             let soundfont = crate::soundfont_asset::has_source_header(&e.root.join(&source));
             e.assets.form = Some(crate::asset_manager::ImportForm {
-                sequence: if a.get("sequence_settings").is_some() || detected==Some(assets::Kind::MusicSequence) || existing.as_ref().is_some_and(|r|r.meta.kind==assets::Kind::MusicSequence) || (detected.is_none() && std::path::Path::new(&source).extension().is_some_and(|e| matches!(e.to_ascii_lowercase().to_str(),Some("mid"|"midi"|"seq"|"sep")))) {
-                    Some(if let Some(value) = a.get("sequence_settings") { decode(value.clone())? } else { existing.as_ref().and_then(|r| r.meta.settings.sequence().ok()).cloned().unwrap_or_default() })
-                } else { None },
-                bank: if let Some(value) = a.get("bank_settings") { Some(decode(value.clone())?) } else { existing.as_ref().and_then(|r| r.meta.settings.sound_bank().ok()).cloned().or_else(|| if soundfont {
-                    Some(crate::sound_bank::Settings { schema_version: 2, library: Some(crate::soundfont_asset::Definition::detected(crate::sf2::SourceFormat::Sf2Pcm16)), ..Default::default() })
-                } else { (detected==Some(assets::Kind::SoundBank) || (detected.is_none() && crate::bank_compat::source_candidate(std::path::Path::new(&source)))).then(||crate::sound_bank::Settings { imported:Some(Default::default()),..Default::default() }) }) },
-                bank_companion:a.get("vb_source").and_then(|v|v.as_str()).map(str::to_owned).or_else(||existing.as_ref().and_then(crate::bank_compat::parts).and_then(|p|p.get(1)).map(|p|p.path.clone())).unwrap_or_default(),
-                sequence_catalog:None,
+                sequence: if a.get("sequence_settings").is_some()
+                    || detected == Some(assets::Kind::MusicSequence)
+                    || existing
+                        .as_ref()
+                        .is_some_and(|r| r.meta.kind == assets::Kind::MusicSequence)
+                    || (detected.is_none()
+                        && std::path::Path::new(&source).extension().is_some_and(|e| {
+                            matches!(
+                                e.to_ascii_lowercase().to_str(),
+                                Some("mid" | "midi" | "seq" | "sep")
+                            )
+                        })) {
+                    Some(if let Some(value) = a.get("sequence_settings") {
+                        decode(value.clone())?
+                    } else {
+                        existing
+                            .as_ref()
+                            .and_then(|r| r.meta.settings.sequence().ok())
+                            .cloned()
+                            .unwrap_or_default()
+                    })
+                } else {
+                    None
+                },
+                bank: if let Some(value) = a.get("bank_settings") {
+                    Some(decode(value.clone())?)
+                } else {
+                    existing
+                        .as_ref()
+                        .and_then(|r| r.meta.settings.sound_bank().ok())
+                        .cloned()
+                        .or_else(|| {
+                            if soundfont {
+                                Some(crate::sound_bank::Settings {
+                                    schema_version: 2,
+                                    library: Some(crate::soundfont_asset::Definition::detected(
+                                        crate::sf2::SourceFormat::Sf2Pcm16,
+                                    )),
+                                    ..Default::default()
+                                })
+                            } else {
+                                (detected == Some(assets::Kind::SoundBank)
+                                    || (detected.is_none()
+                                        && crate::bank_compat::source_candidate(
+                                            std::path::Path::new(&source),
+                                        )))
+                                .then(|| {
+                                    crate::sound_bank::Settings {
+                                        imported: Some(Default::default()),
+                                        ..Default::default()
+                                    }
+                                })
+                            }
+                        })
+                },
+                bank_companion: a
+                    .get("vb_source")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned)
+                    .or_else(|| {
+                        existing
+                            .as_ref()
+                            .and_then(crate::bank_compat::parts)
+                            .and_then(|p| p.get(1))
+                            .map(|p| p.path.clone())
+                    })
+                    .unwrap_or_default(),
+                sequence_catalog: None,
                 texture: source.to_ascii_lowercase().ends_with(".png"),
                 model,
                 source,
@@ -1012,7 +1075,10 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
             let mut package = assets::Package::load(&path)?;
             if matches!(
                 package.meta.kind,
-                assets::Kind::AudioClip | assets::Kind::MusicSequence | assets::Kind::SoundBank | assets::Kind::ModelSource
+                assets::Kind::AudioClip
+                    | assets::Kind::MusicSequence
+                    | assets::Kind::SoundBank
+                    | assets::Kind::ModelSource
             ) {
                 return Err(
                     "Use project_files read for binary source packages; asset_import for changes."
@@ -1174,7 +1240,7 @@ fn read_file(path: &Path) -> Result<Vec<u8>, String> {
     assets::read_bounded(path)
 }
 fn schema() -> Value {
-    json!({"entity":Entity::cube("Example".into()),"components":{"audio":crate::audio::AudioSource::default(),"light":crate::lighting::Light::default(),"blob_shadow":crate::shadows::BlobShadow::default(),"skeletal_mesh":crate::skeletal::Component::new(uuid::Uuid::nil()),"editable_mesh":crate::mesh::Component::new(uuid::Uuid::nil()),"script":crate::scene::ScriptBinding::default(),"material":crate::scene::Material::default(),"canvas":crate::hud::Canvas::default(),"rect":crate::hud::RectTransform::default(),"image":crate::hud::Image::default(),"text":crate::hud::Text::default(),"progress":crate::hud::ProgressBar::default(),"lighting":crate::lighting::MeshLighting::default(),"environment":crate::lighting::Settings::default()},"kinds":["Empty","Mesh","Camera"],"notes":"Transforms are local to parent. Entity indices change after deletion. Replace nil asset UUIDs in examples with UUIDs from asset_list or mesh_create. Optional components can be removed with null.","example":{"op":"create","entity":{"name":"AI Cube","kind":"Mesh","position":[0,0.5,0],"material":{"color":[0.2,0.6,1.0]}}}})
+    json!({"actor":Actor::cube("Example".into()),"components":{"audio":crate::audio::AudioSource::default(),"light":crate::lighting::Light::default(),"blob_shadow":crate::shadows::BlobShadow::default(),"skeletal_mesh":crate::skeletal::Component::new(uuid::Uuid::nil()),"editable_mesh":crate::mesh::Component::new(uuid::Uuid::nil()),"material":crate::scene::Material::default(),"canvas":crate::hud::Canvas::default(),"rect":crate::hud::RectTransform::default(),"image":crate::hud::Image::default(),"text":crate::hud::Text::default(),"progress":crate::hud::ProgressBar::default(),"lighting":crate::lighting::MeshLighting::default(),"environment":crate::lighting::Settings::default()},"kinds":["Empty","Mesh","Camera"],"notes":"Transforms are local to parent. Actor indices change after deletion. Replace nil asset UUIDs in examples with UUIDs from asset_list or mesh_create. Optional components can be removed with null.","example":{"op":"create","actor":{"name":"AI Cube","kind":"Mesh","position":[0,0.5,0],"material":{"color":[0.2,0.6,1.0]}}}})
 }
 pub fn validate_arguments(name: &str, value: &Value) -> Result<(), String> {
     let tool = catalog()
@@ -1286,35 +1352,35 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
         ),
         (
             "scene_schema",
-            "Read entity/component defaults and an example scene operation.",
+            "Read Actor/component defaults and an example scene operation.",
             json!({}),
             vec![],
             true,
         ),
         (
             "scene_apply",
-            "Atomically edit the scene. Operations: create(entity), update(index,patch), delete(index, including children), duplicate(index), reparent(index,parent,keep_world), environment(patch), replace(scene). Read scene_read first. No automatic save.",
-            json!({"revision":s,"operations":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"object","properties":{"op":{"enum":["create","update","delete","duplicate","reparent","environment","replace"]},"index":n,"entity":o,"patch":o,"scene":o,"parent":{"type":["integer","null"],"minimum":0},"keep_world":b},"required":["op"],"additionalProperties":false}}}),
+            "Atomically edit the scene. Operations: create(actor), update(index,patch), delete(index, including children), duplicate(index), reparent(index,parent,keep_world), environment(patch), replace(scene). Read scene_read first. No automatic save.",
+            json!({"revision":s,"operations":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"object","properties":{"op":{"enum":["create","update","delete","duplicate","reparent","environment","replace"]},"index":n,"actor":o,"patch":o,"scene":o,"parent":{"type":["integer","null"],"minimum":0},"keep_world":b},"required":["op"],"additionalProperties":false}}}),
             vec!["revision", "operations"],
             false,
         ),
         (
             "scene_actors",
-            "List the actors of the open scene: class, family, domain, active flag, logical parent, spatial attachment, property overrides and components. Each component reports its class, root and inherited flags, its authored properties, which of them are explicit overrides, and whether it can be removed. Authored actors come from the document; derived ones are the in-memory view of legacy entities that have not been migrated yet and cannot be edited. Also returns the placeable actor classes for scene_add_actor.",
+            "List the actors of the open scene: class, family, domain, active flag, logical parent, spatial attachment, property overrides and components. Each component reports its class, root and inherited flags, its authored properties, which of them are explicit overrides, and whether it can be removed. Authored actors come from the document; derived ones are the in-memory view of legacy actors that have not been migrated yet and cannot be edited. Also returns the placeable actor classes for scene_add_actor.",
             json!({}),
             vec![],
             true,
         ),
         (
             "scene_add_actor",
-            "Add an actor of a placeable class to the open scene, with its root component for the class domain. Optional parent is the id of another actor (logical parent, not a transform parent). Entity tools stay the legacy path: scene_apply create/update/delete still authors epok::Entity records.",
+            "Add an actor of a placeable class to the open scene, with its root component for the class domain. Optional parent is the id of another actor (logical parent, not a transform parent). Actor tools stay the legacy path: scene_apply create/update/delete still authors epok::Actor records.",
             json!({"revision":s,"class":s,"name":s,"parent":{"type":["string","null"]}}),
             vec!["revision", "class"],
             false,
         ),
         (
             "scene_remove_actor",
-            "Remove one authored actor by id. References to it from other actors are cleared rather than left dangling. Legacy entities are removed with scene_apply delete.",
+            "Remove one authored actor by id. References to it from other actors are cleared rather than left dangling. Legacy actors are removed with scene_apply delete.",
             json!({"revision":s,"id":s}),
             vec!["revision", "id"],
             false,
@@ -1348,10 +1414,10 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
             false,
         ),
         (
-            "entity_select",
-            "Select an entity (null clears selection); optionally frame it in the viewport.",
-            json!({"revision":s,"index":{"type":["integer","null"],"minimum":0},"frame":b}),
-            vec!["revision", "index"],
+            "actor_select",
+            "Select an Actor by UUID (null clears selection); optionally frame it in the viewport.",
+            json!({"revision":s,"id":{"type":["string","null"]},"frame":b}),
+            vec!["revision", "id"],
             false,
         ),
         (

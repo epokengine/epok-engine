@@ -834,7 +834,7 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     assert!(hub.creating);
     let mut editor =
         click(context, &mut hub, 0).expect("Create project button should open the editor");
-    assert_eq!(editor.scene.entities.len(), 1);
+    assert_eq!(editor.scene.actors.len(), 1);
     let root = editor.root.clone();
     assert!(workspace::manifest_path(&root).unwrap().is_file());
     editor.scene.name = "Saved from project UI".into();

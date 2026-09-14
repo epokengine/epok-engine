@@ -9,7 +9,7 @@ class BlobRenderer {
     struct Packet {uint32_t subtract=0xe1000240;psyqo::Prim::GouraudTriangle triangle;uint32_t restore=0xe1000200;};
     psyqo::Fragments::SimpleFragment<Packet> packets[2][256];
 public:
-    template<size_t N,typename Table>void draw(int parity,Table& table,const std::array<Entity,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const Affine<Fixed>& view){
+    template<size_t N,typename Table>void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const Affine<Fixed>& view){
         using namespace lighting_detail;size_t used=0,blobs=0;
         for(size_t i=0;i<count && blobs<32;++i){const auto& b=objects[i].blob_shadow;if(!b.enabled||!is_active_slot(i))continue;
             int center[3];for(int c=0;c<3;++c)center[c]=world[i].values[c][3].raw();int highest=INT32_MIN;int lower[3]={},upper[3]={};

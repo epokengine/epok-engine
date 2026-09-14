@@ -53,9 +53,20 @@ impl Job {
                 summary.verify_inputs(&root)?;
                 let build = crate::build_report::directory(&root, summary.debug);
                 let config = Config::load(&root)?;
-                let report = crate::memory::analyze(&root, &build, summary.profile.clone(), summary.debug, &config)?;
+                let report = crate::memory::analyze(
+                    &root,
+                    &build,
+                    summary.profile.clone(),
+                    summary.debug,
+                    &config,
+                )?;
                 summary.verify_inputs(&root)?;
-                if matches!(rx.try_recv(), Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)) { return Err("Report generation cancelled.".into()); }
+                if matches!(
+                    rx.try_recv(),
+                    Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
+                ) {
+                    return Err("Report generation cancelled.".into());
+                }
                 summary.record_report(&root)?;
                 summary.save(&root)?;
                 let _ = tx.send(Event::MemoryReport(Box::new(report)));
@@ -64,7 +75,12 @@ impl Job {
             })();
             let _ = tx.send(Event::Finished(result));
         });
-        Self { bridge: None, events, controls, worker: Some(worker) }
+        Self {
+            bridge: None,
+            events,
+            controls,
+            worker: Some(worker),
+        }
     }
     pub fn serial_setup(
         mut settings: crate::play::Serial,
@@ -193,6 +209,16 @@ impl Job {
                     &rx,
                 )
             };
+            if let Err(error) = &result {
+                // Preparation can fail before the native compiler writes any output.
+                // Preserve that diagnostic in the same log advertised by Build / Play.
+                if let Ok(mut log) = fs::OpenOptions::new()
+                    .append(true)
+                    .open(root.join(".epok/Build.log"))
+                {
+                    let _ = writeln!(log, "Build / Play failed: {error}");
+                }
+            }
             let _ = tx.send(Event::Finished(result));
         });
         Self {
@@ -434,24 +460,39 @@ fn execute(
     )));
     let mut timing = crate::scene_loading::Progress::new();
     let mut report = |message: crate::scene_loading::Message| {
+        if let Ok(mut log) = build_log.lock() {
+            let _ = writeln!(log, "{}", message.text);
+        }
         let _ = tx.send(Event::Log(message.text));
     };
-    let build = root.join(if debug { ".epok/build-blueprint-debug" } else { ".epok/build" });
+    let build = root.join(if debug {
+        ".epok/build-blueprint-debug"
+    } else {
+        ".epok/build"
+    });
     let receipt_request = (!physical_disc)
-        .then(|| crate::play_cache::request(root, input, &config, debug)).transpose()?;
+        .then(|| crate::play_cache::request(root, input, &config, debug))
+        .transpose()?;
     timing.stage("Checking previous PSX build", &mut report);
-    let cached = if let Some(receipt) = receipt_request.as_deref()
+    let cached = if let Some(receipt) = receipt_request
+        .as_deref()
         .and_then(|request| crate::play_cache::Receipt::load(&build, request))
     {
         let invocation = crate::build_inputs::Invocation::new(root, &build, &config)?;
         let _ = tx.send(Event::Log("Validating cached PSX build...".into()));
-        let native = crate::build_inputs::prepare(root, &build, &config, &invocation, &mut |arguments| {
-            compile_command(invocation.command(arguments), tx, rx, &build_log)
-        })?;
-        if native.requires_rebuild() { None } else {
+        let native =
+            crate::build_inputs::prepare(root, &build, &config, &invocation, &mut |arguments| {
+                compile_command(invocation.command(arguments), tx, rx, &build_log)
+            })?;
+        if native.requires_rebuild() {
+            None
+        } else {
             match receipt.reuse(root, &build) {
                 Ok(outputs) => {
-                    let _ = tx.send(Event::Log("Reusing verified PSX build; no compilation or disc generation needed.".into()));
+                    let _ = tx.send(Event::Log(
+                        "Reusing verified PSX build; no compilation or disc generation needed."
+                            .into(),
+                    ));
                     Some(outputs)
                 }
                 Err(reason) => {
@@ -460,116 +501,127 @@ fn execute(
                 }
             }
         }
-    } else { None };
-    let (exe, disc) = if let Some(outputs) = cached { outputs } else {
-    timing.stage("Preparing scene and build files", &mut report);
-    let nugget = Config::path(root, &config.nugget);
-    if !nugget.join("psyqo/psyqo.mk").is_file() {
-        return Err(
-            "PsyQo missing: run the host setup tool or configure nugget in Editor.epokconfig"
-                .into(),
-        );
-    }
-    let _ = tx.send(Event::Log(
-        if crate::lighting::valid_bake(scene) {
-            "Using cached vertex lighting"
-        } else {
-            "Preparing vertex lighting / static shadows on PC..."
-        }
-        .into(),
-    ));
-    let mut prepared = scene.clone();
-    project::refresh_linked_scene(root, &mut prepared)?;
-    if prepared.entities.iter().any(|e| e.editable_mesh.is_some()) {
-        crate::mesh::resolve(
-            &mut prepared,
-            &crate::assets::scan(root, &mut Default::default()),
-        )?;
-    }
-    if !crate::lighting::valid_bake(&prepared) {
-        let bake = crate::lighting::bake(&prepared)?;
-        let _ = tx.send(Event::LightingBaked(bake.clone()));
-        prepared.bake = Some(bake);
-    }
-    project::stage_prepared(root, input, &prepared, &build)?;
-    let patches = crate::staging_files::Capture::begin(&build)?;
-    if debug {
-        let sources = fs::read_to_string(build.join("sources.mk")).map_err(|e| e.to_string())?;
-        if !sources.contains("-DEPOK_BLUEPRINTS") {
-            return Err("Blueprint debugging requires at least one Blueprint class.".into());
-        }
-        project::write_changed(
-            &build.join("sources.mk"),
-            format!("{sources}CPPFLAGS += -DEPOK_BLUEPRINT_TRACE=1\n").as_bytes(),
-        )?;
-    }
-    if physical_disc {
-        let settings = crate::disc::Settings::load(root)?;
-        crate::disc::physical_manifest(root, &build, &settings)?;
-        let _ = tx.send(Event::Log(format!(
-            "Disc target: {} / {}",
-            settings.region.label(),
-            settings.format.label()
-        )));
-    }
-    crate::staging_files::patch(
-        root,
-        &build,
-        patches.finish(),
-        crate::scene_dependencies::hash((&config, debug, physical_disc, profile)),
-    )?;
-    let invocation = crate::build_inputs::Invocation::new(root, &build, &config)?;
-    let mut run_make = |arguments: &[std::ffi::OsString]| {
-        if arguments.iter().any(|a| a == "epok-build-inputs") {
-            let scope = if arguments.iter().any(|a| a == "-C") {
-                "SDK"
-            } else {
-                "game"
-            };
-            let _ = tx.send(Event::Log(format!(
-                "Checking {scope} compiler dependencies..."
-            )));
-        } else if arguments.iter().any(|a| a == "epok-sdk-archive") {
-            let _ = tx.send(Event::Log("Compiling PsyQo SDK...".into()));
-        }
-        compile_command(invocation.command(arguments), tx, rx, &build_log)
-    };
-    let _ = tx.send(Event::Log(
-        "Preparing native compiler and linker inputs...".into(),
-    ));
-    timing.stage("Preparing native dependencies", &mut report);
-    let native = crate::build_inputs::prepare(root, &build, &config, &invocation, &mut run_make)?;
-    timing.stage("Validating staged build inputs", &mut report);
-    let ticket = crate::staging_files::BuildTicket::begin_native(root, &build)?;
-    timing.stage("Compiling and linking game", &mut report);
-    let _ = tx.send(Event::Log("Compiling C++ / PsyQo for MIPS...".into()));
-    run_make(&native.arguments())?;
-    let exe = build.join("epok.ps-exe");
-    let bytes = fs::read(&exe).map_err(|e| format!("Missing PSX executable: {e}"))?;
-    if !bytes.starts_with(b"PS-X EXE") {
-        return Err("Build output is not a PS-X EXE".into());
-    }
-    let _ = tx.send(Event::Log("Verifying compiled inputs...".into()));
-    timing.stage("Verifying native compiler inputs", &mut report);
-    native.verify(root, &build, &config, &invocation, &mut run_make)?;
-    timing.stage("Certifying build sources and output", &mut report);
-    let certificate = ticket.clone();
-    ticket.complete(root, &build, &bytes)?;
-    timing.stage("Preparing disc image", &mut report);
-    let disc = if profile.is_some_and(|p| p.data == crate::play::DataSource::Host) {
-        None
     } else {
-        crate::disc::build(root, &build, || {
-            matches!(
-                rx.try_recv(),
-                Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
-            )
-        })?
+        None
     };
-    if let Some(request) = &receipt_request {
-        crate::play_cache::Receipt::save(&build, request.clone(), certificate, disc.as_deref())?;
-    }
-    (exe, disc)
+    let (exe, disc) = if let Some(outputs) = cached {
+        outputs
+    } else {
+        timing.stage("Preparing scene and build files", &mut report);
+        let nugget = Config::path(root, &config.nugget);
+        if !nugget.join("psyqo/psyqo.mk").is_file() {
+            return Err(
+                "PsyQo missing: run the host setup tool or configure nugget in Editor.epokconfig"
+                    .into(),
+            );
+        }
+        let _ = tx.send(Event::Log(
+            if crate::lighting::valid_bake(scene) {
+                "Using cached vertex lighting"
+            } else {
+                "Preparing vertex lighting / static shadows on PC..."
+            }
+            .into(),
+        ));
+        let mut prepared = scene.clone();
+        project::refresh_linked_scene(root, &mut prepared)?;
+        if prepared.actors.iter().any(|e| e.editable_mesh.is_some()) {
+            crate::mesh::resolve(
+                &mut prepared,
+                &crate::assets::scan(root, &mut Default::default()),
+            )?;
+        }
+        if !crate::lighting::valid_bake(&prepared) {
+            let bake = crate::lighting::bake(&prepared)?;
+            let _ = tx.send(Event::LightingBaked(bake.clone()));
+            prepared.bake = Some(bake);
+        }
+        project::stage_prepared(root, input, &prepared, &build)?;
+        let patches = crate::staging_files::Capture::begin(&build)?;
+        if debug {
+            let sources =
+                fs::read_to_string(build.join("sources.mk")).map_err(|e| e.to_string())?;
+            if !sources.contains("-DEPOK_BLUEPRINTS") {
+                return Err("Blueprint debugging requires at least one Blueprint class.".into());
+            }
+            project::write_changed(
+                &build.join("sources.mk"),
+                format!("{sources}CPPFLAGS += -DEPOK_BLUEPRINT_TRACE=1\n").as_bytes(),
+            )?;
+        }
+        if physical_disc {
+            let settings = crate::disc::Settings::load(root)?;
+            crate::disc::physical_manifest(root, &build, &settings)?;
+            let _ = tx.send(Event::Log(format!(
+                "Disc target: {} / {}",
+                settings.region.label(),
+                settings.format.label()
+            )));
+        }
+        crate::staging_files::patch(
+            root,
+            &build,
+            patches.finish(),
+            crate::scene_dependencies::hash((&config, debug, physical_disc, profile)),
+        )?;
+        let invocation = crate::build_inputs::Invocation::new(root, &build, &config)?;
+        let mut run_make = |arguments: &[std::ffi::OsString]| {
+            if arguments.iter().any(|a| a == "epok-build-inputs") {
+                let scope = if arguments.iter().any(|a| a == "-C") {
+                    "SDK"
+                } else {
+                    "game"
+                };
+                let _ = tx.send(Event::Log(format!(
+                    "Checking {scope} compiler dependencies..."
+                )));
+            } else if arguments.iter().any(|a| a == "epok-sdk-archive") {
+                let _ = tx.send(Event::Log("Compiling PsyQo SDK...".into()));
+            }
+            compile_command(invocation.command(arguments), tx, rx, &build_log)
+        };
+        let _ = tx.send(Event::Log(
+            "Preparing native compiler and linker inputs...".into(),
+        ));
+        timing.stage("Preparing native dependencies", &mut report);
+        let native =
+            crate::build_inputs::prepare(root, &build, &config, &invocation, &mut run_make)?;
+        timing.stage("Validating staged build inputs", &mut report);
+        let ticket = crate::staging_files::BuildTicket::begin_native(root, &build)?;
+        timing.stage("Compiling and linking game", &mut report);
+        let _ = tx.send(Event::Log("Compiling C++ / PsyQo for MIPS...".into()));
+        run_make(&native.arguments())?;
+        let exe = build.join("epok.ps-exe");
+        let bytes = fs::read(&exe).map_err(|e| format!("Missing PSX executable: {e}"))?;
+        if !bytes.starts_with(b"PS-X EXE") {
+            return Err("Build output is not a PS-X EXE".into());
+        }
+        let _ = tx.send(Event::Log("Verifying compiled inputs...".into()));
+        timing.stage("Verifying native compiler inputs", &mut report);
+        native.verify(root, &build, &config, &invocation, &mut run_make)?;
+        timing.stage("Certifying build sources and output", &mut report);
+        let certificate = ticket.clone();
+        ticket.complete(root, &build, &bytes)?;
+        timing.stage("Preparing disc image", &mut report);
+        let disc = if profile.is_some_and(|p| p.data == crate::play::DataSource::Host) {
+            None
+        } else {
+            crate::disc::build(root, &build, || {
+                matches!(
+                    rx.try_recv(),
+                    Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected)
+                )
+            })?
+        };
+        if let Some(request) = &receipt_request {
+            crate::play_cache::Receipt::save(
+                &build,
+                request.clone(),
+                certificate,
+                disc.as_deref(),
+            )?;
+        }
+        (exe, disc)
     };
     for warning in crate::memory::build_warnings(&build)? {
         let line = format!("Warning: {warning}");
@@ -578,9 +630,16 @@ fn execute(
         }
         let _ = tx.send(Event::Log(line));
     }
-    let automatic_report = crate::workspace::optional_manifest(root)?.is_none_or(|m| m.build.generate_asset_report);
-    let mut summary = crate::build_report::Summary::capture(&build, profile.cloned().unwrap_or_default(), debug,
-        receipt_request, disc.as_deref(), automatic_report)?;
+    let automatic_report =
+        crate::workspace::optional_manifest(root)?.is_none_or(|m| m.build.generate_asset_report);
+    let mut summary = crate::build_report::Summary::capture(
+        &build,
+        profile.cloned().unwrap_or_default(),
+        debug,
+        receipt_request,
+        disc.as_deref(),
+        automatic_report,
+    )?;
     let mut generated_report = None;
     if analyze || automatic_report {
         let _ = tx.send(Event::Stage("Generating asset and memory report".into()));
@@ -591,11 +650,17 @@ fn execute(
                 generated_report = Some(report);
             }
             Err(error) if analyze => return Err(error),
-            Err(error) => { let _ = tx.send(Event::Log(format!("Build succeeded, but asset report generation failed: {error}"))); }
+            Err(error) => {
+                let _ = tx.send(Event::Log(format!(
+                    "Build succeeded, but asset report generation failed: {error}"
+                )));
+            }
         }
     }
     summary.save(root)?;
-    if let Some(report) = generated_report { let _ = tx.send(Event::MemoryReport(Box::new(report))); }
+    if let Some(report) = generated_report {
+        let _ = tx.send(Event::MemoryReport(Box::new(report)));
+    }
     let _ = tx.send(Event::Log(format!("Build sizes: {}", summary.status())));
     let _ = tx.send(Event::BuildSummary(Box::new(summary)));
     let _ = tx.send(Event::Built(disc.clone().unwrap_or_else(|| exe.clone())));
@@ -672,7 +737,8 @@ fn execute(
         .current_dir(&portable)
         .arg("-portable")
         .arg(&portable)
-        .arg("-logfile").arg(&runtime_log)
+        .arg("-logfile")
+        .arg(&runtime_log)
         .args([
             "-run",
             "-stdout",
@@ -708,7 +774,11 @@ fn execute(
     }
     if let Some(parent) = emulator.parent() {
         let fast = parent.join("openbios-fastboot.bin");
-        let bios = if fast.is_file() { fast } else { parent.join("openbios.bin") };
+        let bios = if fast.is_file() {
+            fast
+        } else {
+            parent.join("openbios.bin")
+        };
         if bios.is_file() {
             command.arg("-bios").arg(bios);
         }
@@ -731,21 +801,31 @@ fn execute(
         // Keep terminal-only startup errors for an unsuccessful exit; ordinary
         // log lines come from one source, avoiding duplicates on Unix PTYs.
         for chunk in child.output.try_iter() {
-            if terminal_diagnostics.len() < 16000 { terminal_diagnostics.push_str(&chunk); }
+            if terminal_diagnostics.len() < 16000 {
+                terminal_diagnostics.push_str(&chunk);
+            }
         }
         let mut buffer = [0u8; 8192];
         // Bound each poll so a very chatty game cannot prevent Stop/Pause.
         for _ in 0..8 {
-            let n = runtime_output.read(&mut buffer).map_err(|e| format!("Runtime log: {e}"))?;
-            if n == 0 { break; }
+            let n = runtime_output
+                .read(&mut buffer)
+                .map_err(|e| format!("Runtime log: {e}"))?;
+            if n == 0 {
+                break;
+            }
             pending_log.extend_from_slice(&buffer[..n]);
             while let Some(end) = pending_log.iter().position(|&b| b == b'\n') {
                 let bytes: Vec<_> = pending_log.drain(..=end).collect();
                 let line = String::from_utf8_lossy(&bytes);
                 let line = line.trim_end_matches(['\r', '\n']);
-                if !line.is_empty() { let _ = tx.send(Event::Log(line.chars().take(2000).collect())); }
+                if !line.is_empty() {
+                    let _ = tx.send(Event::Log(line.chars().take(2000).collect()));
+                }
             }
-            if pending_log.len() > 16000 { pending_log.clear(); }
+            if pending_log.len() > 16000 {
+                pending_log.clear();
+            }
         }
         match rx.try_recv() {
             Ok(Control::Stop) | Err(mpsc::TryRecvError::Disconnected) => {
@@ -767,7 +847,7 @@ fn execute(
                     let _ = tx.send(Event::Log(e));
                 }
             },
-            Ok(Control::Reset) => {}, // Reset is a physical PSX session control.
+            Ok(Control::Reset) => {} // Reset is a physical PSX session control.
             Err(mpsc::TryRecvError::Empty) => {}
         }
         match child.poll() {
@@ -775,7 +855,9 @@ fn execute(
                 return if status.success() {
                     Ok(())
                 } else {
-                    if !terminal_diagnostics.is_empty() { let _ = tx.send(Event::Log(terminal_diagnostics)); }
+                    if !terminal_diagnostics.is_empty() {
+                        let _ = tx.send(Event::Log(terminal_diagnostics));
+                    }
                     Err(format!("Emulator exited: {status}"))
                 };
             }
@@ -794,15 +876,31 @@ mod output_tests {
     #[ignore = "requires a disposable Ironwood copy and native tools; builds without launching an emulator"]
     fn profile_play_preparation() {
         let root = std::path::PathBuf::from(std::env::var_os("EPOK_IDLE_PROJECT").unwrap());
-        let mut editor = crate::editor::Editor::open(crate::workspace::Project::open(&root).unwrap()).unwrap();
-        editor.open_scene(root.join("assets/scenes/ForestClearing.epokmap")).unwrap();
+        let mut editor =
+            crate::editor::Editor::open(crate::workspace::Project::open(&root).unwrap()).unwrap();
+        editor
+            .open_scene(root.join("assets/scenes/ForestClearing.epokmap"))
+            .unwrap();
         if std::env::var_os("EPOK_TEST_DEBUG_HUD").is_some() {
             let mut manifest = crate::workspace::read_manifest(&root).unwrap();
-            manifest.debug = crate::settings::DebugHud { fps:true, cpu:true, gte:true, gpu:true, spu_ram:true };
+            manifest.debug = crate::settings::DebugHud {
+                fps: true,
+                cpu: true,
+                gte: true,
+                gpu: true,
+                spu_ram: true,
+            };
             editor.apply_project_settings(manifest).unwrap();
         }
         for iteration in 1..=2 {
-            let input = crate::play::input(&root, editor.scene_path(), editor.scene.clone(), editor.play_profile.clone(), false).unwrap();
+            let input = crate::play::input(
+                &root,
+                editor.scene_path(),
+                editor.scene.clone(),
+                editor.play_profile.clone(),
+                false,
+            )
+            .unwrap();
             let started = std::time::Instant::now();
             let job = super::Job::start_with_debug(root.clone(), input, false, false);
             let mut sdk_builds = 0;
@@ -812,14 +910,28 @@ mod output_tests {
                 assert!(started.elapsed().as_secs() < 180, "Build timed out");
                 match job.events.recv_timeout(std::time::Duration::from_secs(1)) {
                     Ok(super::Event::Log(line)) => {
-                        if line == "Compiling PsyQo SDK..." { sdk_builds += 1; }
-                        if line.starts_with("Reusing verified PSX build") { reused = true; }
-                        if line == "Compiling C++ / PsyQo for MIPS..." { game_builds += 1; }
-                        eprintln!("[build {iteration}, {:.3}s] {line}", started.elapsed().as_secs_f64());
+                        if line == "Compiling PsyQo SDK..." {
+                            sdk_builds += 1;
+                        }
+                        if line.starts_with("Reusing verified PSX build") {
+                            reused = true;
+                        }
+                        if line == "Compiling C++ / PsyQo for MIPS..." {
+                            game_builds += 1;
+                        }
+                        eprintln!(
+                            "[build {iteration}, {:.3}s] {line}",
+                            started.elapsed().as_secs_f64()
+                        );
                     }
                     Ok(super::Event::LightingBaked(bake)) => editor.scene.bake = Some(bake),
-                    Ok(super::Event::Finished(result)) => { result.unwrap(); break; }
-                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => panic!("Build worker disconnected"),
+                    Ok(super::Event::Finished(result)) => {
+                        result.unwrap();
+                        break;
+                    }
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                        panic!("Build worker disconnected")
+                    }
                     _ => {}
                 }
             }

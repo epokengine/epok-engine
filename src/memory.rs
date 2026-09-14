@@ -100,25 +100,40 @@ struct Manifest {
     warnings: Vec<String>,
 }
 pub fn build_warnings(build: &Path) -> Result<Vec<String>, String> {
-    let manifest: Manifest = serde_json::from_slice(
-        &fs::read(build.join(MANIFEST)).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())?;
+    let manifest: Manifest =
+        serde_json::from_slice(&fs::read(build.join(MANIFEST)).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
     Ok(manifest.warnings)
 }
 pub fn external_file_bytes(build: &Path) -> Result<u64, String> {
-    let manifest: Manifest = serde_json::from_slice(&fs::read(build.join(MANIFEST)).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    let manifest: Manifest =
+        serde_json::from_slice(&fs::read(build.join(MANIFEST)).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
     Ok(manifest.files.iter().map(|node| node.bytes).sum())
 }
 pub fn external_file_paths(build: &Path) -> Result<Vec<String>, String> {
-    let manifest: Manifest = serde_json::from_slice(&fs::read(build.join(MANIFEST)).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-    manifest.files.iter().map(|node| {
-        if node.name == "GEOMETRY.BIN" { return Ok(node.name.clone()); }
-        node.name.rsplit_once(" (").and_then(|(_, path)| path.strip_suffix(')'))
-            .filter(|path| path.strip_prefix("music/M").and_then(|p| p.strip_suffix(".XA"))
-                .is_some_and(|n| n.len() == 7 && n.bytes().all(|b| b.is_ascii_digit())))
-            .map(str::to_owned).ok_or_else(|| "Unrecognized external report payload".into())
-    }).collect()
+    let manifest: Manifest =
+        serde_json::from_slice(&fs::read(build.join(MANIFEST)).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    manifest
+        .files
+        .iter()
+        .map(|node| {
+            if node.name == "GEOMETRY.BIN" {
+                return Ok(node.name.clone());
+            }
+            node.name
+                .rsplit_once(" (")
+                .and_then(|(_, path)| path.strip_suffix(')'))
+                .filter(|path| {
+                    path.strip_prefix("music/M")
+                        .and_then(|p| p.strip_suffix(".XA"))
+                        .is_some_and(|n| n.len() == 7 && n.bytes().all(|b| b.is_ascii_digit()))
+                })
+                .map(str::to_owned)
+                .ok_or_else(|| "Unrecognized external report payload".into())
+        })
+        .collect()
 }
 
 /// Capture names/layouts alongside the generated headers, inside the existing
@@ -174,7 +189,9 @@ pub fn stage(
         let sequence_path = format!("audio/{id}.epsq");
         if audio_outputs.iter().any(|o| o.path == sequence_path) {
             let bytes = fs::read(build.join(&sequence_path)).map_err(|e| e.to_string())?;
-            if bytes.len() < 40 || &bytes[..4] != b"EPSQ" { return Err("Invalid staged PSX sequence in memory report".into()); }
+            if bytes.len() < 40 || &bytes[..4] != b"EPSQ" {
+                return Err("Invalid staged PSX sequence in memory report".into());
+            }
             let limit = u16::from_le_bytes([bytes[10], bytes[11]]);
             let bank_id = uuid::Uuid::from_slice(&bytes[24..40]).map_err(|e| e.to_string())?;
             hints.push(Hint { token: format!("epok::sequence_data_{i}"), category: "Audio".into(), resource: resource(id, bytes.len() as u64, &format!("Resident sequence, {limit} voice ceiling; events share the 24 physical voices with SFX"))? });
@@ -182,26 +199,40 @@ pub fn stage(
             let bank_index = sequence_banks.len();
             if sequence_banks.insert(bank_id) {
                 let path = format!("audio/{bank_id}.epsb");
-                if !audio_outputs.iter().any(|o| o.path == path) { return Err("Staged sequence is missing its SoundBank payload".into()); }
+                if !audio_outputs.iter().any(|o| o.path == path) {
+                    return Err("Staged sequence is missing its SoundBank payload".into());
+                }
                 let bytes = fs::read(build.join(path)).map_err(|e| e.to_string())?;
-                if bytes.len() < 32 || &bytes[..4] != b"EPSB" { return Err("Invalid staged PSX bank in memory report".into()); }
-                let version=u16::from_le_bytes([bytes[4],bytes[5]]);
-                let (data_field,source_id) = match version {
-                    1 => (20,bank_id),
-                    2 if bytes.len()>=48 => {
-                        let sequence=index.resolve(id)?;
-                        let source=crate::sequence::resolve_bank(root,sequence.meta.settings.sequence()?,index)?;
-                        if !sequence_reverb && u32::from_le_bytes(bytes[40..44].try_into().unwrap())==1 {
-                            sequence_reverb=true;
+                if bytes.len() < 32 || &bytes[..4] != b"EPSB" {
+                    return Err("Invalid staged PSX bank in memory report".into());
+                }
+                let version = u16::from_le_bytes([bytes[4], bytes[5]]);
+                let (data_field, source_id) = match version {
+                    1 => (20, bank_id),
+                    2 if bytes.len() >= 48 => {
+                        let sequence = index.resolve(id)?;
+                        let source = crate::sequence::resolve_bank(
+                            root,
+                            sequence.meta.settings.sequence()?,
+                            index,
+                        )?;
+                        if !sequence_reverb
+                            && u32::from_le_bytes(bytes[40..44].try_into().unwrap()) == 1
+                        {
+                            sequence_reverb = true;
                             spu.push(Node::leaf("Global Room reverb",crate::psx_music_settings::ROOM_REVERB_BYTES as u64,
                                 "One shared SPU work area at 0x7d940; sequence ownership is exclusive"));
                         }
-                        (24,source.meta.id)
-                    },
+                        (24, source.meta.id)
+                    }
                     _ => return Err("Unsupported staged PSX bank version in memory report".into()),
                 };
-                let data_offset = u32::from_le_bytes(bytes[data_field..data_field+4].try_into().unwrap()) as usize;
-                if data_offset > bytes.len() { return Err("Invalid staged PSX bank data offset".into()); }
+                let data_offset =
+                    u32::from_le_bytes(bytes[data_field..data_field + 4].try_into().unwrap())
+                        as usize;
+                if data_offset > bytes.len() {
+                    return Err("Invalid staged PSX bank data offset".into());
+                }
                 hints.push(Hint { token: format!("epok::sequence_bank_data_{bank_index}"), category: "Audio".into(), resource: resource(source_id, bytes.len() as u64, &format!("Resident derived bank {bank_id}: metadata and DMA sample source; counted once for sequences sharing this derivation"))? });
                 spu.push(resource(source_id, (bytes.len()-data_offset) as u64, &format!("SoundBank {bank_id} SPU samples, deduplicated within this bank and aligned to 64 bytes; shared with SFX budget"))?);
             }
@@ -558,7 +589,8 @@ fn category(name: &str, section: &Section) -> &'static str {
         .any(|s| name.contains(s))
     {
         "Textures"
-    } else if name.contains("audio_") || name.contains("sequence_") || name.contains("psx_audio::") {
+    } else if name.contains("audio_") || name.contains("sequence_") || name.contains("psx_audio::")
+    {
         "Audio"
     } else if section.kind == 8 {
         "Pools / runtime state"

@@ -74,11 +74,11 @@ template<class Sink> class Compiler {
             ++stats.glyphs;sink.glyph(owner,c,x0,y0,x1,y1,x0-x,y0-y,text.color);
         }
     }
-    void visit(Entity* entities,size_t count,int index,Rect parent,const int* first,const int* next,int depth){
+    void visit(ActorData* entities,size_t count,int index,Rect parent,const int* first,const int* next,int depth){
         if(depth>32)return;
         auto& e=entities[index];if(!e.alive||!e.active)return;
         Rect r=parent;
-        if(e.rect.enabled){if(layouts++>=budget.layouts){++stats.dropped;return;}r=resolve(parent,e.rect);}
+        if(e.rect.enabled&&!e.canvas.enabled){if(layouts++>=budget.layouts){++stats.dropped;return;}r=resolve(parent,e.rect);}
         owner=index;
         if(e.image.enabled)picture(r,e.image);
         if(e.progress.enabled){fill(r,e.progress.background);auto part=r;auto value=e.progress.value;if(value.raw()<0)value=0.0;if(value.raw()>4096)value=1.0;part.w*=value;fill(part,e.progress.color);}
@@ -88,11 +88,11 @@ template<class Sink> class Compiler {
 public:
     HudStats stats;
     Compiler(Sink& sink,int width,int height,Budget budget):sink(sink),width(width),height(height),budget(budget){}
-    void draw(Entity* entities,size_t count,int* first,int* next){
+    void draw(ActorData* entities,size_t count,int* first,int* next){
         stats={};layouts=0;
         for(size_t i=0;i<count;++i)first[i]=next[i]=-1;
         for(size_t i=count;i-->0;){int p=entities[i].parent;if(p>=0&&size_t(p)<count){next[i]=first[p];first[p]=int(i);}}
-        for(size_t i=0;i<count;++i)if(entities[i].canvas.enabled&&entities[i].parent<0)visit(entities,count,int(i),{0.0,0.0,Fixed(width*4096,Fixed::RAW),Fixed(height*4096,Fixed::RAW)},first,next,0);
+        for(size_t i=0;i<count;++i)if((entities[i].canvas.enabled||entities[i].rect.enabled)&&entities[i].parent<0)visit(entities,count,int(i),{0.0,0.0,Fixed(width*4096,Fixed::RAW),Fixed(height*4096,Fixed::RAW)},first,next,0);
     }
 };
 }

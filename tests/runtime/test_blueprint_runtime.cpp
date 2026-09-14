@@ -6,15 +6,9 @@
 #endif
 #include "../../runtime/blueprint_runtime.hpp"
 
-// The real public Entity, EntityHandle and PsyQo Q12 types are compiled above.
+// The real public ActorData, DataHandle and PsyQo Q12 types are compiled above.
 // Only the scene lookup service is supplied here, as in the utility host suite.
-namespace epok {
-static std::array<Entity, 4> entities;
-Entity* EntityHandle::get() const {
-    return index < entities.size() && entities[index].alive && entities[index].generation == generation ? &entities[index] : nullptr;
-}
-bool is_active(const Entity* entity) { return entity && entity->alive && entity->active; }
-}
+#include "actor_scene_fixture.hpp"
 using namespace epok;
 using namespace epok::bp;
 static Fixed raw(int32_t value) { return Fixed(value, Fixed::RAW); }
@@ -59,8 +53,8 @@ static void arithmetic() {
     }
 }
 static void continuations() {
-    entities = {};
-    const EntityHandle a{0, entities[0].generation}, b{1, entities[1].generation};
+    test_reset_scene();
+    const ObjectId a=test_owner(0),b=test_owner(1);
     Continuations<2> first, second;
     Continuation result;
     assert(!first.delay(1, -1.0, a) && !first.delay(1, 1.0, {}));
@@ -68,8 +62,8 @@ static void continuations() {
     first.advance(0.25, 7); second.advance(0.25, 7);
     assert(!first.poll(result) && !second.poll(result));
     first.advance(1.0, 7, true);
-    entities[0].active = false; first.advance(1.0, 7);
-    entities[0].active = true; first.advance(-1.0, 7);
+    test_set_active(0,false); first.advance(1.0, 7);
+    test_set_active(0,true); first.advance(-1.0, 7);
     assert(!first.poll(result));
     first.advance(0.25, 7);
     assert(first.poll(result) && result.node == 10 && same_owner(result.owner, a) && result.scene_generation == 7);
@@ -84,7 +78,7 @@ static void continuations() {
     first.cancel(1); assert(first.size() == 1 && first.cancelled == 1);
     first.cancel_owner(a); assert(first.size() == 0 && first.cancelled == 2);
     assert(first.delay(5, 0.0, a)); first.advance(0.0);
-    ++entities[0].generation; // Destruction between advance and poll is checked.
+    test_invalidate(0); // Destruction between advance and poll is checked.
     assert(!first.poll(result) && first.cancelled == 3);
     second.advance(2.0, 8, true); // Scene invalidation runs even while paused.
     assert(second.size() == 0 && second.cancelled == 1);
@@ -94,9 +88,9 @@ static void continuations() {
     first.reset(); assert(!first.dropped && !first.cancelled);
     assert(first.wait_external(100,b,9));
     first.advance(10.0,9);assert(first.waiting(100)&&!first.poll(result));
-    entities[1].active=false;
+    test_set_active(1,false);
     assert(first.signal(100,9)&&!first.waiting(100)&&!first.poll(result));
-    first.advance(0.0,9,true);entities[1].active=true;assert(!first.poll(result));
+    first.advance(0.0,9,true);test_set_active(1,true);assert(!first.poll(result));
     first.advance(0.0,9);assert(first.poll(result)&&result.node==100&&!first.poll(result));
     // A synchronously signalled fresh wait cannot resume in the dispatch that
     // created it, preventing ready/rearm cycles from blocking the frame.
@@ -107,11 +101,11 @@ static void continuations() {
     assert(!first.signal(102,10)&&first.cancelled==1&&first.size()==1);
     first.clear();assert(!first.size());
     assert(first.wait_external(105,b,9)&&first.signal(105,9));
-    ++entities[1].generation;first.advance(0.0,9);assert(!first.poll(result));
+    test_invalidate(1);first.advance(0.0,9);assert(!first.poll(result));
 }
 static void timelines() {
-    entities = {};
-    const EntityHandle owner{0, entities[0].generation};
+    test_reset_scene();
+    const ObjectId owner=test_owner(0);
     Timeline<3> first, second;
     TimelineKey keys[] = {{0.0, -10.0}, {0.5, 0.0}, {1.0, 10.0}};
     assert(!first.configure(nullptr, 3) && !first.configure(keys, 4));
@@ -122,25 +116,25 @@ static void timelines() {
     assert(sample.updated && !sample.completed && sample.value == Fixed(-5.0));
     assert(second.value() == Fixed(-10.0));
     assert(!first.advance(3.0, 3, true).updated);
-    entities[0].active = false; assert(!first.advance(3.0, 3).updated);
-    entities[0].active = true;
+    test_set_active(0,false); assert(!first.advance(3.0, 3).updated);
+    test_set_active(0,true);
     sample = first.advance(3.0, 3);
     assert(sample.updated && sample.completed && sample.value == Fixed(10.0) && !first.playing());
     assert(!first.advance(3.0, 3).completed);
     assert(first.play(owner, 3, true)); sample = first.advance(2.25, 3);
     assert(sample.loops == 2 && !sample.completed && sample.value == Fixed(-5.0));
     first.advance(0.5, 4); assert(!first.playing());
-    ++entities[0].generation; assert(!second.advance(0.5, 3).updated && !second.playing());
+    test_invalidate(0); assert(!second.advance(0.5, 3).updated && !second.playing());
     TimelineKey extremes[] = {{0.0, raw(INT32_MIN)}, {raw(INT32_MAX), raw(INT32_MAX)}};
     assert(first.configure(extremes, 2));
-    assert(first.play({0, entities[0].generation}));
+    test_restore(0);assert(first.play(test_owner(0)));
     assert(first.advance(raw(INT32_MAX)).value.raw() == INT32_MAX);
     extremes[1].time = 0.0; assert(!first.configure(extremes, 2));
     first.reset(); assert(!first.playing() && first.value().raw() == INT32_MIN);
 }
 static void traces_and_debugger() {
-    entities = {};
-    const EntityHandle a{0, entities[0].generation}, b{1, entities[1].generation};
+    test_reset_scene();
+    const ObjectId a=test_owner(0),b=test_owner(1);
     TraceRing<2> ring;
     Trace entry;
     assert(ring.push({1, 2, a}) && ring.push({1, 3, b}));

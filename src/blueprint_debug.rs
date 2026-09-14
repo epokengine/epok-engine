@@ -391,7 +391,7 @@ mod tests {
         let scene =
             crate::scene::Scene::load(&crate::workspace::startup_scene(&root).unwrap()).unwrap();
         let files = crate::blueprint_asset::load_all(&root).unwrap();
-        let (asset,graph)=files.iter().filter(|file|scene.entities.iter().any(|entity|entity.script.as_ref().is_some_and(|binding|binding.class_id.as_ref()==Some(&file.asset.id))))
+        let (asset,graph)=files.iter().filter(|file|scene.actors.iter().any(|entity|entity.class.class_id.as_ref()==Some(&file.asset.id)||entity.components.iter().any(|c|c.class.class_id.as_ref()==Some(&file.asset.id))))
             .find_map(|file|file.asset.functions.iter().find(|graph|graph.name=="on_ready").map(|graph|(&file.asset,graph)))
             .expect("Acceptance scene needs an attached Blueprint overriding on_ready with health 80 or 150.");
         let point = Breakpoint {

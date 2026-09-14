@@ -47,15 +47,15 @@ def main():
     class_id = identity("InteractionBase")
     source = '''#pragma once
 #include "epok.hpp"
-class EPOK_CLASS(Blueprintable, Id="CLASS_ID") InteractionBase : public epok::Behaviour {
+class EPOK_CLASS(Blueprintable, Id="CLASS_ID") InteractionBase : public epok::Actor3D {
 public:
     EPOK_PROPERTY(EditAnywhere, Id="ENABLED_ID") bool enabled = true;
     EPOK_PROPERTY(EditAnywhere, Id="PROGRESS_ID") epok::Fixed progress = 0.0;
     EPOK_FUNCTION(BlueprintCallable) void enable_input(bool active) { enabled = active; }
     EPOK_FUNCTION(BlueprintCallable) void interact(epok::Fixed strength) { progress += strength; }
     EPOK_FUNCTION(BlueprintEvent) virtual void on_interaction() {}
-    void start(epok::Transform&) override { on_interaction(); }
-    void update(epok::Transform&, epok::Fixed) override {}
+    void begin_play() override { on_interaction(); }
+    void tick(epok::Fixed) override {}
 };
 '''.replace("CLASS_ID", class_id).replace("ENABLED_ID", identity("enabled")).replace("PROGRESS_ID", identity("progress"))
     write(project / "assets/scripts/InteractionBase.hpp", source)
@@ -118,13 +118,17 @@ public:
     bp["functions"] = [event_graph, helper_graph]
     bp["layout"] = {"positions": positions, "comments": {}}
     initial = documents.loads((project / "assets/scenes/Main.epokmap").read_text(encoding="utf-8"))
-    prototype = next((entity for entity in initial["entities"] if entity["kind"] == "Mesh"), initial["entities"][0])
+    prototype = copy.deepcopy(initial["actors"][0])
+    prototype["components"] = [c for c in prototype["components"] if c.get("root")]
+    prototype.pop("instance", None)
     root_entity = copy.deepcopy(prototype)
-    root_entity.update(id=identity("template:root"), name="Interaction Root", kind="Empty", parent=None, script=None, blueprint_instance=None, position=[0,0,0], rotation=[0,0,0], scale=[1,1,1])
-    root_entity["collider"] = {"trigger": True}
+    root_entity.update(id=identity("template:root"), name="Interaction Root")
+    root_entity["components"][0].update(id=identity("template:root-transform"), properties={"position":[0,0,0],"rotation":[0,0,0],"scale":[1,1,1]})
     cube_entity = copy.deepcopy(prototype)
-    cube_entity.update(id=identity("template:cube"), name="Visual Cube", kind="Mesh", parent=None, script=None, blueprint_instance=None, position=[0,1,0], rotation=[0,0,0], scale=[1,1,1])
-    bp["template"] = {"entities": [{"entity": root_entity, "parent": None}, {"entity": cube_entity, "parent": root_entity["id"]}], "overrides": {}, "references": [], "construction": []}
+    cube_entity.update(id=identity("template:cube"), name="Visual Cube")
+    cube_entity["components"][0].update(id=identity("template:cube-transform"), properties={"position":[0,1,0],"rotation":[0,0,0],"scale":[1,1,1]})
+    cube_entity["components"].append({"id":identity("template:mesh"),"name":"Mesh Renderer","class":{"name":"epok::Mesh3DComponent","class_id":"580f99b1-c905-4f96-b34f-807c51335ba0"},"properties":{}})
+    bp["template"] = {"actors": [{"entity": root_entity, "parent": None}, {"entity": cube_entity, "parent": root_entity["id"]}], "overrides": {}, "references": [], "construction": []}
     write(bp_path, bp)
     run("--project", project, "--compile-blueprints")
     relative = bp_path.relative_to(project).as_posix()

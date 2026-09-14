@@ -503,8 +503,7 @@ pub(crate) fn confirmed_record(output: &str, expected: &str) -> bool {
 
 fn ping_ok(output: &str) -> bool {
     // nops can exit zero on failure, and its help mentions PONG. Require the actual reply.
-    (confirmed_record(output, "Response: True")
-        || confirmed_record(output, "Got response: PONG"))
+    (confirmed_record(output, "Response: True") || confirmed_record(output, "Got response: PONG"))
         && !output.to_lowercase().contains("response: false")
 }
 pub fn probe(settings: &Serial, task: &Task<'_>) -> Result<(), String> {

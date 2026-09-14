@@ -45,5 +45,8 @@ jobs:
             echo "No release tag exists yet; accepting the initial release version."
           fi
 
+      - name: Build the reflection extractor required by tests
+        run: cargo build --locked --bin epok-header-tool
+
       - name: Run the Rust test suite
         run: cargo test --locked -- --test-threads=1

@@ -22,7 +22,7 @@ This module covers entity creation, activation and destruction. It documents 3 p
 inline bool descendant(size_t child,size_t ancestor)
 ```
 
-- **Declared at:** [line 41](../../../runtime/lifecycle.hpp#L41)
+- **Declared at:** [line 46](../../../runtime/lifecycle.hpp#L46)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -61,7 +61,7 @@ auto result = epok::descendant(child, ancestor);
 **Exact declaration**
 
 ```cpp
-inline int entity_index(const Entity* entity)
+inline int entity_index(const ActorData* entity)
 ```
 
 - **Declared at:** [line 9](../../../runtime/lifecycle.hpp#L9)
@@ -71,7 +71,7 @@ inline int entity_index(const Entity* entity)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `entity` | `const Entity *` | Input | Value supplied for `entity`. See the exact type and module contract. |
+| `entity` | `const ActorData *` | Input | Value supplied for `entity`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -83,7 +83,7 @@ inline int entity_index(const Entity* entity)
 #include "lifecycle.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const Entity * entity
+// const ActorData * entity
 
 auto result = epok::entity_index(entity);
 ```

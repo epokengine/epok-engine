@@ -804,7 +804,7 @@ mod tests {
         compiled.slots.push(crate::timeline::Slot {
             id: Uuid::new_v4(),
             name: "External".into(),
-            target: crate::reflection_schema::Type::EntityRef { class: None },
+            target: crate::reflection_schema::Type::ObjectRef { class: None },
             required: true,
             extra: Default::default(),
         });

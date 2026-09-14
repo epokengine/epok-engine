@@ -4,7 +4,7 @@
 //! it independently; no JSON or authoring representation is embedded in EPSB.
 use crate::{
     instrument_voice::{Curve, Destination, Input, LoopMode, ModSource, Sustain, Voice},
-    psx_library::{Cooked, Sample, Zone, MAX_SAMPLES, MAX_ZONES},
+    psx_library::{Cooked, MAX_SAMPLES, MAX_ZONES, Sample, Zone},
     psx_music_settings::MAX_RATE,
 };
 
@@ -36,7 +36,12 @@ pub fn encode(cooked: &Cooked) -> Result<Vec<u8>, String> {
     for (index, zone) in cooked.zones.iter().enumerate() {
         validate_zone(zone, &cooked.samples)?;
         if cooked.report.recipe.effects == crate::psx_music_settings::Effects::Dry
-            && (zone.voice.reverb_permille != 0 || zone.voice.modulations.iter().any(|m| m.destination == Destination::ReverbPermille && m.amount != 0))
+            && (zone.voice.reverb_permille != 0
+                || zone
+                    .voice
+                    .modulations
+                    .iter()
+                    .any(|m| m.destination == Destination::ReverbPermille && m.amount != 0))
         {
             return Err("EPSB v2 Dry recipe retains a non-dry reverb send".into());
         }
@@ -96,7 +101,10 @@ pub fn encode(cooked: &Cooked) -> Result<Vec<u8>, String> {
     u32le(&mut out, total_u32);
     u32le(&mut out, as_u32(mod_count, "EPSB v2 modulator count")?);
     u32le(&mut out, PROFILE);
-    u32le(&mut out, u32::from(cooked.report.recipe.effects == crate::psx_music_settings::Effects::Room));
+    u32le(
+        &mut out,
+        u32::from(cooked.report.recipe.effects == crate::psx_music_settings::Effects::Room),
+    );
     u32le(&mut out, u32::from(cooked.report.recipe.reverb_depth_q15()));
     debug_assert_eq!(out.len(), HEADER_BYTES);
 
@@ -464,20 +472,16 @@ fn destination_code(destination: Destination, amount: i64) -> Result<u16, String
         | Destination::EndFrames
         | Destination::LoopStartFrames
         | Destination::LoopEndFrames => {
-            return Err("EPSB v2 cannot serialize sample position modulation".into())
+            return Err("EPSB v2 cannot serialize sample position modulation".into());
         }
         Destination::FilterCents
         | Destination::FilterCentibels
         | Destination::ModLfoFilterCents
         | Destination::ModEnvFilterCents => {
-            return Err("EPSB v2 cannot serialize unbaked filter modulation".into())
+            return Err("EPSB v2 cannot serialize unbaked filter modulation".into());
         }
     };
-    if matches!(
-        destination,
-        Destination::ChorusPermille
-    ) && amount != 0
-    {
+    if matches!(destination, Destination::ChorusPermille) && amount != 0 {
         return Err("EPSB v2 requires dry effect modulation sends".into());
     }
     Ok(code)
@@ -494,9 +498,11 @@ fn source_bits(source: ModSource) -> Result<u16, String> {
         Input::ChannelPressure => 13,
         Input::PitchWheel => 14,
         Input::PitchWheelRange => 16,
-        Input::Controller(index) if index < 120 && !matches!(index, 0 | 6 | 32..=63 | 98..=101) => 0x80 | u16::from(index),
+        Input::Controller(index) if index < 120 && !matches!(index, 0 | 6 | 32..=63 | 98..=101) => {
+            0x80 | u16::from(index)
+        }
         Input::Controller(_) => {
-            return Err("EPSB v2 controller source exceeds MIDI CC range".into())
+            return Err("EPSB v2 controller source exceeds MIDI CC range".into());
         }
     };
     let curve = match source.curve {
@@ -615,7 +621,8 @@ mod tests {
                 squared_error: 0,
                 encoded_input_frames: 28,
                 maximum_loop_step: 0.,
-                accounting: Default::default(), loops: vec![],
+                accounting: Default::default(),
+                loops: vec![],
             },
         }
     }
@@ -674,7 +681,10 @@ mod tests {
             absolute: false,
         };
         assert!(encode_modulator(&overflow).is_err());
-        assert_eq!(destination_code(Destination::ReverbPermille, 1).unwrap(), 29);
+        assert_eq!(
+            destination_code(Destination::ReverbPermille, 1).unwrap(),
+            29
+        );
     }
 
     #[test]

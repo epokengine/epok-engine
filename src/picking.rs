@@ -17,7 +17,7 @@ pub fn pick(scene: &Scene, view: &View, pixel: [f32; 2]) -> Option<usize> {
     let next = unproject(view, pixel, 2.);
     let direction = std::array::from_fn(|i| next[i] - start[i]);
     scene
-        .entities
+        .actors
         .iter()
         .enumerate()
         .filter(|(_, e)| e.kind == "Mesh" || e.light.is_some())
@@ -100,12 +100,12 @@ impl ClickGesture {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{scene::Entity, viewport};
-    fn scene(entities: Vec<Entity>) -> Scene {
+    use crate::{scene::Actor, viewport};
+    fn scene(actors: Vec<Actor>) -> Scene {
         Scene {
             version: 1,
             name: "Picking".into(),
-            entities,
+            actors,
             ..Scene::default()
         }
     }
@@ -117,9 +117,9 @@ mod tests {
     fn nearest_visible_mesh_wins_not_entity_order() {
         let view = View::default();
         let p = [480., 342.];
-        let mut far = Entity::cube("Far".into());
+        let mut far = Actor::cube("Far".into());
         far.position = unproject(&view, p, 14.);
-        let mut near = Entity::cube("Near".into());
+        let mut near = Actor::cube("Near".into());
         near.position = unproject(&view, p, 8.);
         assert_eq!(
             pick(&scene(vec![far.clone(), near.clone()]), &view, p),
@@ -129,12 +129,12 @@ mod tests {
     }
     #[test]
     fn inherited_rotation_scale_and_shear_are_pickable_after_orbit_and_zoom() {
-        let mut parent = Entity::cube("Parent".into());
+        let mut parent = Actor::cube("Parent".into());
         parent.kind = "Empty".into();
         parent.position = [2., 1., 0.];
         parent.rotation = [20., 45., 15.];
         parent.scale = [2., 1., 0.5];
-        let mut child = Entity::cube("Child".into());
+        let mut child = Actor::cube("Child".into());
         child.parent = Some(0);
         child.rotation = [10., 45., 20.];
         let scene = scene(vec![parent, child]);
@@ -160,7 +160,7 @@ mod tests {
     #[test]
     fn misses_background_hidden_objects_and_invisible_entities() {
         let view = View::default();
-        let mut cube = Entity::cube("Cube".into());
+        let mut cube = Actor::cube("Cube".into());
         assert_eq!(pick(&scene(vec![cube.clone()]), &view, [20., 20.]), None);
         cube.position = unproject(&view, [480., 342.], -3.);
         assert_eq!(pick(&scene(vec![cube.clone()]), &view, [480., 342.]), None);

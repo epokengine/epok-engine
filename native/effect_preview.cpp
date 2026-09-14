@@ -4,10 +4,12 @@
 #include <new>
 
 namespace epok {
+const ClassDescriptor object_classes[]={{}};
+const size_t object_class_count=0;
 // Asset preview has no native game entities. Required external scene bindings
 // fail playback; optional ones retain the director's bounded skip diagnostics.
-Entity* EntityHandle::get()const{return nullptr;}
-bool is_active(const Entity*){return false;}
+ActorData* DataHandle::get()const{return nullptr;}
+bool is_active(const ActorData*){return false;}
 }
 namespace {
 using namespace epok;

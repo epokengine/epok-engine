@@ -1119,13 +1119,33 @@ pub fn fixture() -> Vec<u8> {
 
 #[cfg(test)]
 pub fn tone_fixture() -> Vec<u8> {
-    let frames=2205_u32;
-    let pcm=(0..frames).flat_map(|i| {
-        ((f64::from(i)*440.*std::f64::consts::TAU/22050.).sin().mul_add(12000.,0.).round() as i16).to_le_bytes()
-    }).collect();
-    tests::synthetic(2,vec![(vec![(41,0)],vec![])],
-        vec![(vec![(33,-32768),(34,-32768),(35,-32768),(38,-3600),(54,1),(53,0)],vec![])],
-        vec![tests::TestSample::mono(0,frames)],pcm)
+    let frames = 2205_u32;
+    let pcm = (0..frames)
+        .flat_map(|i| {
+            ((f64::from(i) * 440. * std::f64::consts::TAU / 22050.)
+                .sin()
+                .mul_add(12000., 0.)
+                .round() as i16)
+                .to_le_bytes()
+        })
+        .collect();
+    tests::synthetic(
+        2,
+        vec![(vec![(41, 0)], vec![])],
+        vec![(
+            vec![
+                (33, -32768),
+                (34, -32768),
+                (35, -32768),
+                (38, -3600),
+                (54, 1),
+                (53, 0),
+            ],
+            vec![],
+        )],
+        vec![tests::TestSample::mono(0, frames)],
+        pcm,
+    )
 }
 
 #[cfg(test)]

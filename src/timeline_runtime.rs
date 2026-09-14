@@ -67,7 +67,9 @@ pub fn header(compiled: &Compiled, registry: &Registry) -> Result<String, String
     let mut target_entries = vec![];
     for (i, slot) in compiled.slots.iter().enumerate() {
         let check = match &slot.target {
-            Type::EntityRef { class: Some(class) } => {
+            Type::ObjectRef { class: Some(class) }
+            | Type::ActorRef { class: Some(class) }
+            | Type::ComponentRef { class: Some(class) } => {
                 let mut check = format!(
                     "!target.internal&&target.get()&&epok::bp::is_a(target,UINT64_C({}))",
                     crate::blueprint_refs::compact_id(class)
@@ -81,7 +83,10 @@ pub fn header(compiled: &Compiled, registry: &Registry) -> Result<String, String
                     .iter()
                     .filter_map(|class| class.timeline_component)
                 {
-                    check += &format!("&&target.get()->{}", component.runtime_member());
+                    check += &format!(
+                        "&&target.data()&&target.data()->{}",
+                        component.runtime_member()
+                    );
                 }
                 check
             }
@@ -108,7 +113,7 @@ pub fn header(compiled: &Compiled, registry: &Registry) -> Result<String, String
             )
         } else {
             format!(
-                "if(!accepts_{slot}(target)||!target.active())return false;auto* base=epok::bp::behaviour(target);if(!base)return false;auto* object=static_cast<{class}*>(base);"
+                "if(!accepts_{slot}(target)||!target.active())return false;auto* base=epok::bp::object(target);if(!base)return false;auto* object=static_cast<{class}*>(base);"
             )
         }
     };
@@ -209,7 +214,7 @@ pub fn header(compiled: &Compiled, registry: &Registry) -> Result<String, String
             out += &format!("{call}}}\n");
         } else {
             out += &format!(
-                "if(auto* binding=epok::bp::find_binding(target)){{epok::bp::DispatchScope scope(*binding);{call}}}{call}}}\n"
+                "if(!epok::active_object_registry)return false;epok::ObjectDispatchScope scope(*epok::active_object_registry);{call}}}\n"
             );
         }
         event_entries.push(format!(

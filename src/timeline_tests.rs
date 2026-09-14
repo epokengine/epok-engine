@@ -48,7 +48,7 @@ fn fixture() -> (TimelineAsset, Registry, crate::scene::Scene) {
     a.slots.push(Slot {
         id: slot,
         name: "Caster".into(),
-        target: Type::EntityRef {
+        target: Type::ObjectRef {
             class: Some(class.clone()),
         },
         required: true,
@@ -87,11 +87,13 @@ fn fixture() -> (TimelineAsset, Registry, crate::scene::Scene) {
         extra: Default::default(),
     });
     let mut scene = crate::scene::Scene::default();
-    scene.entities[0].script = Some(crate::scene::ScriptBinding {
-        name: "Spell".into(),
-        class_id: Some(class),
-        ..Default::default()
-    });
+    scene.actors[0].set_class_defaults(
+        &(crate::scene::ClassDefaults {
+            name: "Spell".into(),
+            class_id: Some(class),
+            ..Default::default()
+        }),
+    );
     (a, registry, scene)
 }
 struct Temp(PathBuf);
@@ -241,10 +243,8 @@ fn event_entity_arguments_share_blueprint_assignability_and_slot_reorder_is_stab
     slot.id = Uuid::new_v4();
     slot.name = "Target".into();
     a.slots.push(slot);
-    r.classes.values_mut().next().unwrap().functions[0].parameters[0].value_type = Type::Record {
-        cpp_name: "epok::EntityHandle".into(),
-        fields: vec![],
-    };
+    r.classes.values_mut().next().unwrap().functions[0].parameters[0].value_type =
+        Type::ObjectRef { class: None };
     a.events[0].keys[0].arguments.insert(
         "power".into(),
         Argument::Slot {
@@ -328,9 +328,11 @@ fn v1_migration_is_in_memory_only_and_does_not_grant_blueprint_permissions() {
     let path = temp.0.join("Legacy.blueprint.json");
     let raw = serde_json::to_vec(&b).unwrap();
     fs::write(&path, &raw).unwrap();
-    let migrated = crate::blueprint_asset::load(&path).unwrap();
-    assert_eq!(migrated.version, crate::blueprint_asset::VERSION);
-    assert_eq!(migrated.id, b.id);
+    assert!(
+        crate::blueprint_asset::load(&path)
+            .unwrap_err()
+            .contains("unsupported Blueprint version")
+    );
     assert_eq!(fs::read(&path).unwrap(), raw);
     let variable:crate::blueprint_asset::Variable=serde_json::from_value(serde_json::json!({"id":"old-variable","name":"Power","value_type":{"kind":"fixed"},"default":0})).unwrap();
     assert!(!variable.timeline_animatable);
@@ -367,17 +369,22 @@ fn roundtrip_reorder_rename_preserves_id_and_semantics() {
 #[test]
 fn required_optional_bindings_use_existing_typed_entity_identity() {
     let (mut a, registry, mut scene) = fixture();
-    let id = scene.entities[0].id;
+    let id = scene.actors[0].id;
     let bindings = Bindings::from([(a.slots[0].id, Some(id))]);
     assert!(a.validate_bindings(&bindings, &scene, &registry).is_empty());
-    scene.entities.swap(0, 1);
+    scene.actors.swap(0, 1);
     assert!(a.validate_bindings(&bindings, &scene, &registry).is_empty());
-    scene.entities[1].active = false;
+    scene.actors[1].active = false;
     assert!(!a.validate_bindings(&bindings, &scene, &registry)[0].required);
-    scene.entities[1].script = None;
+    scene.actors[1].class = crate::actor_document::ClassReference::new(
+        "epok::Actor3D",
+        crate::object_model::ACTOR3D_ID,
+    );
+    scene.actors[1].properties.clear();
+    scene.actors[1].overrides.clear();
     assert!(a.validate_bindings(&bindings, &scene, &registry)[0].required);
     a.slots[0].required = false;
-    scene.entities.remove(1);
+    scene.actors.remove(1);
     let errors = a.validate_bindings(&bindings, &scene, &registry);
     assert!(!errors[0].required);
     assert!(errors[0].message.contains("missing"));
@@ -399,8 +406,8 @@ fn component_requirements_inherit_validate_and_change_cooked_dependencies() {
     let parent_id = parent.id.clone();
     registry.classes.get_mut(&child_id).unwrap().parent = Some(parent_id.clone());
     registry.classes.insert(parent_id.clone(), parent);
-    scene.entities[0].kind = "Empty".into();
-    let bindings = Bindings::from([(asset.slots[0].id, Some(scene.entities[0].id))]);
+    scene.actors[0].kind = "Empty".into();
+    let bindings = Bindings::from([(asset.slots[0].id, Some(scene.actors[0].id))]);
     let missing = asset.validate_bindings(&bindings, &scene, &registry);
     assert!(
         missing
@@ -415,7 +422,7 @@ fn component_requirements_inherit_validate_and_change_cooked_dependencies() {
             .all(|d| !d.required)
     );
     asset.slots[0].required = true;
-    scene.entities[0].kind = "Camera".into();
+    scene.actors[0].kind = "Camera".into();
     assert!(
         asset
             .validate_bindings(&bindings, &scene, &registry)
@@ -423,7 +430,7 @@ fn component_requirements_inherit_validate_and_change_cooked_dependencies() {
     );
     let camera = cook::compile(&asset, &registry).unwrap();
     let header = crate::timeline_runtime::header(&camera, &registry).unwrap();
-    assert!(header.contains("&&target.get()->camera"));
+    assert!(header.contains("&&target.data()->camera"));
     assert!(header.contains("timeline_sync("));
     registry
         .classes
@@ -435,15 +442,15 @@ fn component_requirements_inherit_validate_and_change_cooked_dependencies() {
     assert!(
         crate::timeline_runtime::header(&light, &registry)
             .unwrap()
-            .contains("&&target.get()->light.enabled")
+            .contains("&&target.data()->light.enabled")
     );
-    scene.entities[0].light = Some(Default::default());
+    scene.actors[0].light = Some(Default::default());
     assert!(
         asset
             .validate_bindings(&bindings, &scene, &registry)
             .is_empty()
     );
-    scene.entities[0].light.as_mut().unwrap().enabled = false;
+    scene.actors[0].light.as_mut().unwrap().enabled = false;
     assert!(
         asset
             .validate_bindings(&bindings, &scene, &registry)
@@ -462,14 +469,14 @@ fn component_requirements_inherit_validate_and_change_cooked_dependencies() {
         .get_mut(&child_id)
         .unwrap()
         .timeline_component = Some(Component::Text);
-    scene.entities[0].text = Some(Default::default());
+    scene.actors[0].text = Some(Default::default());
     assert!(
         asset
             .validate_bindings(&bindings, &scene, &registry)
             .iter()
             .any(|d| d.message.contains("RectTransform"))
     );
-    scene.entities[0].rect = Some(Default::default());
+    scene.actors[0].rect = Some(Default::default());
     assert!(
         asset
             .validate_bindings(&bindings, &scene, &registry)
@@ -478,7 +485,10 @@ fn component_requirements_inherit_validate_and_change_cooked_dependencies() {
     let header =
         crate::timeline_runtime::header(&cook::compile(&asset, &registry).unwrap(), &registry)
             .unwrap();
-    assert!(header.contains("&&target.get()->rect.enabled&&target.get()->text.enabled"));
+    assert!(
+        header
+            .contains("&&target.data()->rect.enabled&&target.data()&&target.data()->text.enabled")
+    );
 
     // Older manifests retain authoring identity and grant no new capability.
     let original = &registry.classes[&child_id];
@@ -536,7 +546,7 @@ fn permission_types_conflicts_and_orphans_are_not_rebound() {
     let b = a
         .slots
         .iter()
-        .map(|s| (s.id, Some(scene.entities[0].id)))
+        .map(|s| (s.id, Some(scene.actors[0].id)))
         .collect();
     assert!(
         a.validate_bindings(&b, &scene, &registry)
@@ -583,7 +593,7 @@ fn dependency_signatures_follow_ancestry_but_ignore_unrelated_classes() {
     r.classes.insert(unrelated.id.clone(), unrelated);
     assert_eq!(cook::compile(&a, &r).unwrap().signature, original);
     let class_id = match &a.slots[0].target {
-        Type::EntityRef { class: Some(id) } => id.clone(),
+        Type::ObjectRef { class: Some(id) } => id.clone(),
         _ => unreachable!(),
     };
     r.classes.get_mut(&class_id).unwrap().properties[0].name = "renamed_progress".into();
@@ -597,7 +607,7 @@ fn dependency_signatures_follow_ancestry_but_ignore_unrelated_classes() {
     derived.parent = Some(class_id.clone());
     derived.properties.clear();
     let mut child_asset = a.clone();
-    child_asset.slots[0].target = Type::EntityRef {
+    child_asset.slots[0].target = Type::ObjectRef {
         class: Some(derived.id.clone()),
     };
     r.classes.insert(derived.id.clone(), derived);
@@ -846,9 +856,9 @@ fn required_scene_assets_ignore_unrelated_errors_and_reject_missing_or_ambiguous
     layer_class.cpp_name = "epok::EffectLayer".into();
     layer_class.properties.clear();
     registry.classes.insert(layer_class.id.clone(), layer_class);
-    scene.entities[0].timeline = Some(crate::timeline_scene::Component {
+    scene.actors[0].timeline = Some(crate::timeline_scene::Component {
         asset: Some(asset.id),
-        bindings: BTreeMap::from([(asset.slots[0].id, Some(scene.entities[0].id))]),
+        bindings: BTreeMap::from([(asset.slots[0].id, Some(scene.actors[0].id))]),
         ..Default::default()
     });
     let path = temp.0.join("assets/Timelines/Cast.timeline.json");

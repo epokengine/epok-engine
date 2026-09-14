@@ -26,7 +26,10 @@ pub struct State {
     layout: bool,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Prompt { BuildFirst, GenerateMissing { automatic: bool } }
+pub enum Prompt {
+    BuildFirst,
+    GenerateMissing { automatic: bool },
+}
 
 pub fn button(ui: &Ui) -> bool {
     let result = ui.button_with_size("##memory-analyzer", [30., ui.frame_height()]);
@@ -357,7 +360,9 @@ fn vram_layout(ui: &Ui, scene: &crate::memory::SceneReport) {
 pub fn window(ui: &Ui, e: &mut Editor) {
     if let Some(prompt) = e.memory.prompt {
         let title = "Asset report required";
-        if !crate::busy_ui::popup_open(title) { ui.open_popup(title); }
+        if !crate::busy_ui::popup_open(title) {
+            ui.open_popup(title);
+        }
         let mut accepted = false;
         ui.modal_popup_config(title).always_auto_resize(true).build(|| {
             match prompt {

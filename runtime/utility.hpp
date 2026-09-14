@@ -16,7 +16,7 @@ public:
     void cancel(){running=finished=false;}bool playing()const{return running;}
     bool take_completion(){bool result=finished;finished=false;return result;}
 };
-struct Event {uint16_t kind=0;int32_t value=0;EntityHandle source;};
+struct Event {uint16_t kind=0;int32_t value=0;DataHandle source;};
 template<size_t Capacity=64> class EventQueue {
     static_assert(Capacity>0);Event events[Capacity];size_t first=0,count=0;
 public:
@@ -30,24 +30,24 @@ class Sequence {
     SequenceStep steps[256];size_t count=0,index=0;Fixed elapsed=0.0;bool running=false,completed=false;
 public:
     bool start(const SequenceStep* data,size_t length){if(!data||!length||length>256)return false;for(size_t i=0;i<length;++i)if(data[i].duration.raw()<0)return false;for(size_t i=0;i<length;++i)steps[i]=data[i];count=length;index=0;elapsed=0.0;running=true;completed=false;return true;}
-    template<size_t N>void advance(Fixed dt,EventQueue<N>& queue,EntityHandle source={}){if(!running||dt.raw()<0)return;int64_t total=int64_t(elapsed.raw())+dt.raw();for(size_t budget=0;running&&budget<256;++budget){if(total<steps[index].duration.raw())break;total-=steps[index].duration.raw();if(steps[index].event)queue.emit({steps[index].event,0,source});if(++index==count){running=false;completed=true;}}elapsed=Fixed(int32_t(total>INT32_MAX?INT32_MAX:total),Fixed::RAW);}
+    template<size_t N>void advance(Fixed dt,EventQueue<N>& queue,DataHandle source={}){if(!running||dt.raw()<0)return;int64_t total=int64_t(elapsed.raw())+dt.raw();for(size_t budget=0;running&&budget<256;++budget){if(total<steps[index].duration.raw())break;total-=steps[index].duration.raw();if(steps[index].event)queue.emit({steps[index].event,0,source});if(++index==count){running=false;completed=true;}}elapsed=Fixed(int32_t(total>INT32_MAX?INT32_MAX:total),Fixed::RAW);}
     void cancel(){running=completed=false;}bool playing()const{return running;}
     bool take_completion(){bool result=completed;completed=false;return result;}
 };
 // Generic focus/navigation independent of menu meaning. Disabled or destroyed
 // targets are skipped and callers consume activation/cancel events themselves.
 template<size_t Capacity=64>class Focus {
-    EntityHandle targets[Capacity];size_t count=0;int selected=-1;
+    DataHandle targets[Capacity];size_t count=0;int selected=-1;
     bool available(size_t i)const{auto* e=targets[i].get();return e&&is_active(e);}
 public:
-    bool add(EntityHandle entity){if(!entity||count==Capacity)return false;targets[count++]=entity;if(selected<0&&available(count-1))selected=int(count-1);return true;}
+    bool add(DataHandle entity){if(!entity||count==Capacity)return false;targets[count++]=entity;if(selected<0&&available(count-1))selected=int(count-1);return true;}
     void clear(){count=0;selected=-1;}
-    EntityHandle current()const{return selected>=0&&size_t(selected)<count&&available(size_t(selected))?targets[selected]:EntityHandle{};}
+    DataHandle current()const{return selected>=0&&size_t(selected)<count&&available(size_t(selected))?targets[selected]:DataHandle{};}
     bool move(int direction,bool wrap=true){if(!count||!direction)return false;int step=direction>0?1:-1;int next=selected<0?(step>0?-1:int(count)):selected;for(size_t i=0;i<count;++i){next+=step;if(next<0||next>=int(count)){if(!wrap)return false;next=next<0?int(count)-1:0;}if(available(size_t(next))){selected=next;return true;}}selected=-1;return false;}
     template<size_t N>void navigate(EventQueue<N>& queue,unsigned port=0){if(input.frame_pressed(Button::Up,port))move(-1);if(input.frame_pressed(Button::Down,port))move(1);auto target=current();if(target&&input.frame_pressed(Button::Cross,port))queue.emit({1,selected,target});if(input.frame_pressed(Button::Circle,port))queue.emit({2,selected,target});}
 };
 // List layout in native HUD pixels; anchoring remains the RectTransform system.
-inline void layout_list(EntityHandle* children,size_t count,Fixed item_extent,Fixed spacing,bool vertical=true){
+inline void layout_list(DataHandle* children,size_t count,Fixed item_extent,Fixed spacing,bool vertical=true){
     if(!children||item_extent.raw()<0)return;Fixed cursor=0.0;
     for(size_t i=0;i<count;++i)if(auto* e=children[i].get())if(auto* r=e->get<RectTransform>()){
         r->anchor_min[0]=r->anchor_max[0]=r->pivot[0]=0.0;r->anchor_min[1]=r->anchor_max[1]=r->pivot[1]=1.0;

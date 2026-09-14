@@ -206,7 +206,9 @@ fn edit_parameter(
             diagnostic(
                 diagnostics,
                 event,
-                format!("RPN selection is incomplete; CC {data_controller}={data_value} on channel {channel_number} was retained but cannot execute"),
+                format!(
+                    "RPN selection is incomplete; CC {data_controller}={data_value} on channel {channel_number} was retained but cannot execute"
+                ),
             )?;
             return Ok(None);
         }
@@ -214,7 +216,9 @@ fn edit_parameter(
             diagnostic(
                 diagnostics,
                 event,
-                format!("NRPN selection is incomplete; CC {data_controller}={data_value} on channel {channel_number} was retained but cannot execute"),
+                format!(
+                    "NRPN selection is incomplete; CC {data_controller}={data_value} on channel {channel_number} was retained but cannot execute"
+                ),
             )?;
             return Ok(None);
         }
@@ -223,7 +227,9 @@ fn edit_parameter(
             diagnostic(
                 diagnostics,
                 event,
-                format!("Unsupported RPN {number}; CC {data_controller}={data_value} on channel {channel_number} was retained but cannot execute"),
+                format!(
+                    "Unsupported RPN {number}; CC {data_controller}={data_value} on channel {channel_number} was retained but cannot execute"
+                ),
             )?;
             return Ok(None);
         }
@@ -231,7 +237,9 @@ fn edit_parameter(
             diagnostic(
                 diagnostics,
                 event,
-                format!("Unsupported NRPN {number}; CC {data_controller}={data_value} on channel {channel_number} was retained but cannot execute"),
+                format!(
+                    "Unsupported NRPN {number}; CC {data_controller}={data_value} on channel {channel_number} was retained but cannot execute"
+                ),
             )?;
             return Ok(None);
         }
@@ -382,14 +390,25 @@ pub(crate) fn resolve(
                             value: 0,
                         })
                     }
-                    91 => Some(EventKind::Control { channel, controller, value }),
+                    91 => Some(EventKind::Control {
+                        channel,
+                        controller,
+                        value,
+                    }),
                     92 | 93 | 95 if value == 0 => Some(EventKind::Control {
                         channel,
                         controller,
                         value,
                     }),
                     92 | 93 | 95 => {
-                        diagnostic(diagnostics, event, format!("Unsupported effect CC {controller}={value} on channel {}; only explicit zero is representable", channel + 1))?;
+                        diagnostic(
+                            diagnostics,
+                            event,
+                            format!(
+                                "Unsupported effect CC {controller}={value} on channel {}; only explicit zero is representable",
+                                channel + 1
+                            ),
+                        )?;
                         None
                     }
                     _ => {

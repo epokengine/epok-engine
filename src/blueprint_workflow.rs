@@ -13,19 +13,19 @@ pub struct Creation {
     pub parent: String,
     pub search: String,
     pub error: Option<String>,
+    pub created: Option<PathBuf>,
+    pub owner_domain: usize,
 }
 
 /// Family of the chain a new Blueprint would join, without building the resolved
 /// model: a declared family wins, otherwise the native family roots are recognised by
-/// id. Everything else is the legacy Behaviour family.
+/// id. Non-Actor roots are reflected objects and cannot be attached to an Actor.
 pub(crate) fn parent_family(
     registry: &crate::blueprint::Registry,
     parent: &schema::Class,
 ) -> schema::ClassFamily {
     for class in registry.ancestry(&parent.cpp_name).into_iter().rev() {
-        if let Some(declared) = class.family
-            && declared != schema::ClassFamily::Object
-        {
+        if let Some(declared) = class.family {
             return declared;
         }
         match class.id.as_str() {
@@ -34,17 +34,16 @@ pub(crate) fn parent_family(
             _ => {}
         }
     }
-    schema::ClassFamily::Behaviour
+    schema::ClassFamily::Object
 }
 
 /// Lifecycle entry points seeded into a new Blueprint of this family. Actors and
-/// components share the object-model events; legacy Behaviour keeps its own three.
+/// components share the object-model events.
 fn default_event_names(family: schema::ClassFamily) -> &'static [&'static str] {
     match family {
         schema::ClassFamily::Actor | schema::ClassFamily::Component => {
             &["begin_play", "tick", "end_play"]
         }
-        schema::ClassFamily::Behaviour => &["start", "update", "on_trigger"],
         _ => &[],
     }
 }
@@ -61,12 +60,7 @@ pub(crate) fn ensure_default_events(
     let family = parent_family(registry, parent);
     let events = default_event_names(family);
     let ancestry = registry.ancestry(&parent.cpp_name);
-    if events.is_empty()
-        || (family == schema::ClassFamily::Behaviour
-            && !ancestry
-                .iter()
-                .any(|class| class.cpp_name == "epok::Behaviour"))
-    {
+    if events.is_empty() {
         return false;
     }
     let mut functions = BTreeMap::new();
@@ -153,6 +147,17 @@ pub fn create(
     parent: &str,
     concrete: bool,
 ) -> Result<PathBuf, String> {
+    create_with_owner(root, registry, name, folder, parent, concrete, None)
+}
+fn create_with_owner(
+    root: &Path,
+    registry: &crate::blueprint::Registry,
+    name: &str,
+    folder: &str,
+    parent: &str,
+    concrete: bool,
+    owner: Option<schema::Domain>,
+) -> Result<PathBuf, String> {
     crate::workspace::validate_name(name)?;
     if !crate::scripts::identifier(name) {
         return Err("Blueprint names must be portable, non-reserved identifiers.".into());
@@ -174,6 +179,12 @@ pub fn create(
     let relative = relative.strip_prefix(root).map_err(|e| e.to_string())?;
     let path = crate::assets::inside(root, &relative.to_string_lossy().replace('\\', "/"))?;
     let mut draft = asset::BlueprintAsset::new(name.into(), parent.id.clone());
+    if parent_family(registry, parent) == schema::ClassFamily::Component {
+        draft.component = owner.map(|domain| schema::ComponentContract {
+            owners: [domain].into(),
+            ..Default::default()
+        });
+    }
     ensure_default_events(&mut draft, registry);
     // Fulfil inherited abstract events only. Never suppress an implemented parent event.
     let mut functions = BTreeMap::new();
@@ -302,6 +313,7 @@ pub fn begin(editor: &mut crate::editor::Editor, parent: Option<String>) {
             for (id, class) in registry.classes {
                 editor.class_registry.classes.insert(id, class);
             }
+            editor.registry_revision = editor.registry_revision.wrapping_add(1);
         }
         Err(error) => {
             editor.log(error);
@@ -310,11 +322,25 @@ pub fn begin(editor: &mut crate::editor::Editor, parent: Option<String>) {
     }
     editor.blueprint_creation = Creation {
         requested: true,
+        owner_domain: editor
+            .selected
+            .and_then(|i| editor.scene.actors.get(i))
+            .and_then(|a| {
+                editor
+                    .object_model()
+                    .and_then(|m| a.class.resolve(&m).map(|c| c.domain))
+            })
+            .map_or(0, |d| match d {
+                schema::Domain::World3D => 1,
+                schema::Domain::World2D => 2,
+                schema::Domain::UI => 3,
+                _ => 0,
+            }),
         parent: parent
             .or_else(|| {
                 editor
                     .class_registry
-                    .named("epok::Behaviour")
+                    .named("epok::ActorComponent")
                     .map(|c| c.id.clone())
             })
             .unwrap_or_default(),
@@ -324,20 +350,6 @@ pub fn begin(editor: &mut crate::editor::Editor, parent: Option<String>) {
 
 pub fn draw(ui: &imgui::Ui, editor: &mut crate::editor::Editor) {
     crate::blueprint_debug_ui::draw(ui, editor);
-    if editor.blueprint_editor.open {
-        ui.window("Blueprint build options")
-            .always_auto_resize(true)
-            .build(|| {
-                let _disabled = ui.begin_disabled(editor.playing || editor.job.is_some());
-                ui.checkbox(
-                    "Instrument Blueprint Debugger",
-                    &mut editor.blueprint_debug_enabled,
-                );
-                ui.text_disabled(
-                    "Applies to the next Build / Play. Release builds remain uninstrumented.",
-                );
-            });
-    }
     let mut creation = std::mem::take(&mut editor.blueprint_creation);
     if creation.requested {
         ui.open_popup("Create Blueprint class");
@@ -345,6 +357,7 @@ pub fn draw(ui: &imgui::Ui, editor: &mut crate::editor::Editor) {
     }
     ui.modal_popup_config("Create Blueprint class").always_auto_resize(true).build(|| {
         ui.text_wrapped("A Blueprint inherits native or visual behavior and changes only explicit defaults/events.");
+        let inputs_disabled = ui.begin_disabled(creation.created.is_some());
         ui.input_text("Asset name", &mut creation.name).hint("BP_Enemy").build();
         ui.input_text("Folder", &mut creation.folder).hint("Under assets/Blueprints").build();
         ui.input_text("Search parent classes", &mut creation.search).build();
@@ -356,31 +369,70 @@ pub fn draw(ui: &imgui::Ui, editor: &mut crate::editor::Editor) {
                 if ui.selectable_config(format!("{}{}{}", "  ".repeat(depth), class.cpp_name, if class.abstract_class {" (abstract)"} else {""})).selected(creation.parent==class.id).build() {creation.parent=class.id.clone();}
             }
         });
+        drop(inputs_disabled);
         if let Some(parent)=editor.class_registry.classes.get(&creation.parent) {
             ui.text(format!("Parent: {}",parent.cpp_name));
+            ui.text_wrapped(match parent_family(&editor.class_registry, parent) {
+                schema::ClassFamily::Actor => "Actor Blueprint: defines the object's class. A 3D object can have one actor class.",
+                schema::ClassFamily::Component => "Component Blueprint: adds reusable behavior to the object's actor.",
+                _ => "Object Blueprint: create the asset without attaching it to a scene object.",
+            });
+            if parent_family(&editor.class_registry,parent)==schema::ClassFamily::Component {
+                ui.combo_simple_string("Compatible Actors",&mut creation.owner_domain,&["Inherit parent compatibility","Actor3D","Actor2D","UIActor"]);
+            }
             ui.child_window("blueprint-inherited").size([540.,120.]).border(true).build(|| {
                 for property in editor.class_registry.properties(&parent.cpp_name) {ui.bullet_text(format!("{}: {} = {}",property.name,property.value_type.label(),property.default));}
                 for class in editor.class_registry.ancestry(&parent.cpp_name) {for function in &class.functions {if function.event {ui.bullet_text(format!("Event {}({})", function.name,function.parameters.iter().map(|p|p.value_type.label()).collect::<Vec<_>>().join(", ")));}}}
             });
         }
         if let Some(error)=&creation.error {ui.text_colored([1.,0.5,0.4,1.],error);}
+        let owner=match creation.owner_domain {1=>Some(schema::Domain::World3D),2=>Some(schema::Domain::World2D),3=>Some(schema::Domain::UI),_=>None};
+        let attachment_error = editor.selected.ok_or_else(|| "Select an Actor to enable Create and Attach.".to_string())
+            .and_then(|index| crate::actor_scripts::validate_parent_with_owner(&editor.scene, index, &creation.parent, &editor.class_registry,owner)).err();
+        if let Some(error) = &attachment_error { ui.text_wrapped(error); }
         if ui.button("Cancel") {ui.close_current_popup();}
-        ui.same_line(); let create_only=ui.button("Create");
-        ui.same_line(); let attach={let _disabled=ui.begin_disabled(editor.selected.is_none() || editor.playing); ui.button("Create and Attach")};
+        ui.same_line(); let create_only=ui.button(if creation.created.is_some() {"Open Created Blueprint"} else {"Create"});
+        ui.same_line(); let attach={let _disabled=ui.begin_disabled(editor.playing || attachment_error.is_some()); crate::gui::script_button(ui, if creation.created.is_some() {"Attach Created Blueprint"} else {"Create and Attach"})};
         if create_only || attach {
-            match create(&editor.root,&editor.class_registry,creation.name.trim(),creation.folder.trim(),&creation.parent,attach) {
+            let owner=match creation.owner_domain {1=>Some(schema::Domain::World3D),2=>Some(schema::Domain::World2D),3=>Some(schema::Domain::UI),_=>None};
+            let result = creation.created.clone().map(Ok).unwrap_or_else(|| create_with_owner(&editor.root,&editor.class_registry,creation.name.trim(),creation.folder.trim(),&creation.parent,attach,owner));
+            match result {
                 Ok(path) => {
+                    creation.created = Some(path.clone());
                     editor.refresh_scripts(); editor.assets.refresh();
-                    if attach {editor.attach(creation.name.trim());}
-                    if let Err(error)=editor.blueprint_editor.open(&path) {editor.log(error);}
-                    ui.close_current_popup();
+                    match if attach { attach_asset(editor, &path) } else { Ok(()) } {
+                        Ok(()) => {
+                            if let Err(error)=editor.blueprint_editor.open(&path) {editor.log(error);}
+                            ui.close_current_popup();
+                        }
+                        Err(error) => {
+                            editor.log(format!("Blueprint created, but could not be attached: {error}"));
+                            creation.error=Some(format!("Blueprint created, but could not be attached: {error}"));
+                        }
+                    }
                 }
                 Err(error) => creation.error=Some(error),
             }
         }
     });
     editor.blueprint_creation = creation;
-    if editor.blueprint_editor.draw(ui, &editor.class_registry) {
+    if editor
+        .blueprint_editor
+        .draw_with_options(ui, &editor.class_registry, |ui| {
+            let _disabled = ui.begin_disabled(editor.playing || editor.job.is_some());
+            ui.checkbox(
+                "Instrument Blueprint Debugger",
+                &mut editor.blueprint_debug_enabled,
+            );
+            let _color = ui.push_style_color(
+                imgui::StyleColor::Text,
+                ui.style_color(imgui::StyleColor::TextDisabled),
+            );
+            ui.text_wrapped(
+                "Applies to the next Build / Play. Release builds remain uninstrumented.",
+            );
+        })
+    {
         editor.refresh_scripts();
         editor.assets.refresh();
     }
@@ -393,9 +445,17 @@ pub fn draw(ui: &imgui::Ui, editor: &mut crate::editor::Editor) {
     }
     if editor.blueprint_editor.compile_requested {
         editor.blueprint_editor.compile_requested = false;
-        editor
+        let valid = editor
             .blueprint_editor
             .compile(&editor.root, &editor.class_registry);
+        if valid {
+            editor.log("Blueprint compilation succeeded.");
+        } else {
+            editor.log(format!(
+                "Blueprint compilation failed. Build / Play is blocked.\n{}",
+                editor.blueprint_editor.diagnostics.join("\n")
+            ));
+        }
     }
     if std::mem::take(&mut editor.blueprint_editor.place_requested)
         && let Err(error) = place_current(editor, None)
@@ -416,7 +476,7 @@ pub fn draw(ui: &imgui::Ui, editor: &mut crate::editor::Editor) {
     });
 }
 
-pub fn edit_binding(editor: &mut crate::editor::Editor, binding: &crate::scene::ScriptBinding) {
+pub fn edit_binding(editor: &mut crate::editor::Editor, binding: &crate::scene::ClassDefaults) {
     let class = editor.class_registry.bound(binding);
     let visual =
         class.is_some_and(|c| c.provider.id == "blueprint") || binding.provider.id == "blueprint";
@@ -447,8 +507,8 @@ pub fn edit_binding(editor: &mut crate::editor::Editor, binding: &crate::scene::
     }
 }
 
-fn binding(class: &schema::Class) -> crate::scene::ScriptBinding {
-    crate::scene::ScriptBinding {
+fn binding(class: &schema::Class) -> crate::scene::ClassDefaults {
+    crate::scene::ClassDefaults {
         name: class.cpp_name.clone(),
         class_id: Some(class.id.clone()),
         provider: class.provider.clone(),
@@ -456,15 +516,14 @@ fn binding(class: &schema::Class) -> crate::scene::ScriptBinding {
         ..Default::default()
     }
 }
-/// Attach the saved behaviour without replacing the selected entity's components
-/// or instantiating the Blueprint's entity template.
+/// Assign a saved Blueprint using its family's runtime representation.
 pub fn attach_asset(editor: &mut crate::editor::Editor, path: &Path) -> Result<(), String> {
     if editor.playing {
         return Err("Stop Play before assigning a Blueprint.".into());
     }
     let index = editor
         .selected
-        .filter(|&i| i < editor.scene.entities.len())
+        .filter(|&i| i < editor.scene.actors.len())
         .ok_or("Select an object in Scene or Hierarchy before assigning a Blueprint.")?;
     let doc = asset::load(path)?;
     if editor.blueprint_editor.dirty()
@@ -488,39 +547,19 @@ pub fn attach_asset(editor: &mut crate::editor::Editor, path: &Path) -> Result<(
     if class.abstract_class {
         return Err("Implement the Blueprint's abstract functions before assigning it.".into());
     }
-    if !registry
-        .ancestry(&class.cpp_name)
-        .iter()
-        .any(|c| c.cpp_name == "epok::Behaviour")
-    {
-        return Err("Only Behaviour Blueprints can be assigned to scene objects.".into());
-    }
-    if editor.scene.entities[index]
-        .script
-        .as_ref()
-        .is_some_and(|s| s.class_id.as_ref() == Some(&doc.id))
-    {
-        return Ok(()); // Re-dropping the same class preserves instance overrides.
-    }
     let before = editor.scene.clone();
-    let mut scene = before.clone();
-    scene.entities[index].script = Some(binding(class));
-    crate::blueprint_templates::record_overrides(
-        &before.entities[index],
-        &mut scene.entities[index],
-    );
-    scene.validate()?;
+    let scene = crate::actor_scripts::assign(&before, index, class, &registry)?;
     editor.catalog = catalog;
     editor.class_registry = registry;
     editor.registry_revision = editor.registry_revision.wrapping_add(1);
     commit_scene(editor, before, scene, Some(index));
     editor.log(format!(
         "Assigned {} to {}.",
-        doc.name, editor.scene.entities[index].name
+        doc.name, editor.scene.actors[index].name
     ));
     Ok(())
 }
-fn commit_scene(
+pub(crate) fn commit_scene(
     editor: &mut crate::editor::Editor,
     before: crate::scene::Scene,
     scene: crate::scene::Scene,
@@ -545,7 +584,7 @@ pub fn place_current(
     parent: Option<usize>,
 ) -> Result<(), String> {
     if editor.playing {
-        return Err("Stop Play before placing Blueprint entities.".into());
+        return Err("Stop Play before placing Blueprint actors.".into());
     }
     if editor.blueprint_editor.dirty() {
         return Err("Save the Blueprint before placing a linked instance.".into());
@@ -577,13 +616,13 @@ pub fn place_current(
         &editor.class_registry,
         parent,
     )?;
-    let count = placement.entities.len();
-    if placement.identities.len() != count {
+    let count = placement.actors.len();
+    if placement.identities.len() < count {
         return Err("Template placement produced an invalid identity map; scene preserved.".into());
     }
     commit_scene(editor, before, candidate, Some(placement.root));
     editor.log(format!(
-        "Placed {count} linked Blueprint entities. Undo restores the previous scene."
+        "Placed {count} linked Blueprint actors. Undo restores the previous scene."
     ));
     Ok(())
 }
@@ -612,24 +651,24 @@ pub fn capture_current(editor: &mut crate::editor::Editor) -> Result<(), String>
             &editor.class_registry,
             &doc.parent,
         )?;
-        if !inherited.entities.is_empty() {
-            return Err("This Blueprint inherits an entity template. Edit its inherited members/children in Entity Template instead of replacing its root with a capture.".into());
+        if !inherited.actors.is_empty() {
+            return Err("This Blueprint inherits an entity template. Edit its inherited members/children in Actor Template instead of replacing its root with a capture.".into());
         }
     }
     let mut template =
         crate::blueprint_templates::capture(&editor.scene, selected, &editor.class_registry)?;
-    let selected_indices: Vec<_> = (0..editor.scene.entities.len())
+    let selected_indices: Vec<_> = (0..editor.scene.actors.len())
         .filter(|&i| editor.scene.is_descendant(i, selected))
         .collect();
     let existing_root = doc
         .template
-        .entities
+        .actors
         .iter()
         .find(|e| e.parent.is_none())
         .map(|e| e.entity.id);
     let mut ids = BTreeMap::new();
-    for (entity, index) in template.entities.iter().zip(selected_indices) {
-        let source = &editor.scene.entities[index];
+    for (entity, index) in template.actors.iter().zip(selected_indices) {
+        let source = &editor.scene.actors[index];
         let stable = if index == selected {
             existing_root
         } else {
@@ -641,7 +680,7 @@ pub fn capture_current(editor: &mut crate::editor::Editor) -> Result<(), String>
         };
         ids.insert(entity.entity.id, stable.unwrap_or(entity.entity.id));
     }
-    for entity in &mut template.entities {
+    for entity in &mut template.actors {
         entity.entity.id = ids[&entity.entity.id];
         entity.parent = entity.parent.map(|id| ids[&id]);
     }
@@ -660,7 +699,7 @@ pub fn capture_current(editor: &mut crate::editor::Editor) -> Result<(), String>
 pub fn instance_inspector(ui: &imgui::Ui, editor: &mut crate::editor::Editor, index: usize) {
     let Some(instance) = editor
         .scene
-        .entities
+        .actors
         .get(index)
         .and_then(|e| e.blueprint_instance.clone())
     else {
@@ -704,10 +743,7 @@ pub fn instance_inspector(ui: &imgui::Ui, editor: &mut crate::editor::Editor, in
     if let Some(key) = reset {
         let before = editor.scene.clone();
         let mut candidate = before.clone();
-        let state = candidate.entities[index]
-            .blueprint_instance
-            .as_mut()
-            .unwrap();
+        let state = candidate.actors[index].blueprint_instance.as_mut().unwrap();
         match key.as_str() {
             "all" => {
                 state.overrides.clear();
@@ -732,7 +768,7 @@ pub fn instance_inspector(ui: &imgui::Ui, editor: &mut crate::editor::Editor, in
     if ui.button("Unlink complete instance") {
         let before = editor.scene.clone();
         let mut candidate = before.clone();
-        for entity in &mut candidate.entities {
+        for entity in &mut candidate.actors {
             if entity
                 .blueprint_instance
                 .as_ref()
@@ -742,7 +778,7 @@ pub fn instance_inspector(ui: &imgui::Ui, editor: &mut crate::editor::Editor, in
             }
         }
         commit_scene(editor, before, candidate, Some(index));
-        editor.log("Blueprint instance unlinked; current entities/components remain. Undo restores the link.");
+        editor.log("Blueprint instance unlinked; current actors/components remain. Undo restores the link.");
     }
     ui.text_wrapped("Unchanged members follow the class template. User edits create explicit overrides; Reset restores inheritance. Unlink keeps the current scene objects.");
     ui.separator();

@@ -233,7 +233,7 @@ fn class_inputs(id: &str, registry: &Registry, inputs: &mut BTreeMap<String, Str
 fn reference_type(ty: &schema::Type, registry: &Registry, inputs: &mut BTreeMap<String, String>) {
     match ty {
         schema::Type::ClassRef { base }
-        | schema::Type::EntityRef { class: Some(base) }
+        | schema::Type::ObjectRef { class: Some(base) }
         | schema::Type::EffectLayerRef { class: base } => class_inputs(base, registry, inputs),
         _ => {}
     }

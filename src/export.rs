@@ -110,9 +110,12 @@ mod tests {
 
     #[test]
     fn exported_project_carries_runtime_sources_and_notices() {
-        let sample = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/sample-game");
+        let sample = crate::workspace::tests::temp("actor-export");
+        let _project =
+            crate::workspace::create(&sample, "Export", crate::workspace::Template::Sample)
+                .unwrap();
         let root = sample.as_path();
-        let scene = Scene::load(&root.join("assets/scenes/SampleScene.epokmap")).unwrap();
+        let scene = Scene::load(&crate::workspace::startup_scene(root).unwrap()).unwrap();
         let destination = export_project(root, &scene.into()).unwrap();
         for file in [
             "main.cpp",

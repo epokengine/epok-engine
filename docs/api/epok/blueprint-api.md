@@ -2,7 +2,7 @@
 
 > **Header:** `"blueprint_api.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/blueprint_api.hpp)
 
-This module covers compiled Blueprint execution and object interaction. It documents 34 public callables declared directly in this header.
+This module covers compiled Blueprint execution and object interaction. It documents 46 public callables declared directly in this header.
 
 ## Callable index
 
@@ -16,21 +16,33 @@ This module covers compiled Blueprint execution and object interaction. It docum
 - [`epok::bp::api::pause_sequence`](#epok-bp-api-pause-sequence-1) — Pauses sequence as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::play_audio`](#epok-bp-api-play-audio-1) — Starts audio as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::play_effect_component`](#epok-bp-api-play-effect-component-1) — Starts effect component as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::play_effect_component`](#epok-bp-api-play-effect-component-2) — Starts effect component as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::play_sequence_component`](#epok-bp-api-play-sequence-component-1) — Starts sequence component as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::play_sequence_component`](#epok-bp-api-play-sequence-component-2) — Starts sequence component as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::playback_snapshot`](#epok-bp-api-playback-snapshot-1) — Starts back snapshot as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::position`](#epok-bp-api-position-1) — Performs `position` as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::position_2d`](#epok-bp-api-position-2d-1) — Performs `position 2d` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::pressed`](#epok-bp-api-pressed-1) — Performs `pressed` as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::rect_position`](#epok-bp-api-rect-position-1) — Performs `rect position` as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::rect_size`](#epok-bp-api-rect-size-1) — Performs `rect size` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::released`](#epok-bp-api-released-1) — Performs `released` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::request_scene`](#epok-bp-api-request-scene-1) — Requests scene as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::resume_effect`](#epok-bp-api-resume-effect-1) — Resumes effect as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::resume_sequence`](#epok-bp-api-resume-sequence-1) — Resumes sequence as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::rotation`](#epok-bp-api-rotation-1) — Performs `rotation` as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::rotation_2d`](#epok-bp-api-rotation-2d-1) — Performs `rotation 2d` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::scale`](#epok-bp-api-scale-1) — Performs `scale` as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::scale_2d`](#epok-bp-api-scale-2d-1) — Performs `scale 2d` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::set_active`](#epok-bp-api-set-active-1) — Sets active as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::set_audio_clip`](#epok-bp-api-set-audio-clip-1) — Sets audio clip as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::set_position`](#epok-bp-api-set-position-1) — Sets position as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::set_position_2d`](#epok-bp-api-set-position-2d-1) — Sets position 2d as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::set_rect_position`](#epok-bp-api-set-rect-position-1) — Sets rect position as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::set_rect_size`](#epok-bp-api-set-rect-size-1) — Sets rect size as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::set_rotation`](#epok-bp-api-set-rotation-1) — Sets rotation as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::set_rotation_2d`](#epok-bp-api-set-rotation-2d-1) — Sets rotation 2d as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::set_scale`](#epok-bp-api-set-scale-1) — Sets scale as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::set_scale_2d`](#epok-bp-api-set-scale-2d-1) — Sets scale 2d as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::set_texture`](#epok-bp-api-set-texture-1) — Sets texture as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::spawn`](#epok-bp-api-spawn-1) — Performs `spawn` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::spawn_class`](#epok-bp-api-spawn-class-1) — Performs `spawn class` as part of compiled Blueprint execution and object interaction.
@@ -92,10 +104,10 @@ auto result = epok::bp::api::burst_effect(arg1, arg2);
 **Exact declaration**
 
 ```cpp
-inline EntityHandle cast(ClassId type,EntityHandle target)
+inline ObjectId cast(ClassId type,ObjectId target)
 ```
 
-- **Declared at:** [line 55](../../../runtime/blueprint_api.hpp#L55)
+- **Declared at:** [line 73](../../../runtime/blueprint_api.hpp#L73)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -103,9 +115,9 @@ inline EntityHandle cast(ClassId type,EntityHandle target)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `type` | `ClassId` | Input | Value supplied for `type`. See the exact type and module contract. |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 
-**Returns.** Returns `EntityHandle`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
 
@@ -116,7 +128,7 @@ inline EntityHandle cast(ClassId type,EntityHandle target)
 
 // Assume these named values have been initialized with valid data:
 // ClassId type
-// EntityHandle target
+// ObjectId target
 
 auto result = epok::bp::api::cast(type, target);
 ```
@@ -134,17 +146,17 @@ auto result = epok::bp::api::cast(type, target);
 **Exact declaration**
 
 ```cpp
-inline void destroy(EntityHandle target)
+inline void destroy(ObjectId target)
 ```
 
-- **Declared at:** [line 46](../../../runtime/blueprint_api.hpp#L46)
+- **Declared at:** [line 68](../../../runtime/blueprint_api.hpp#L68)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -156,7 +168,7 @@ inline void destroy(EntityHandle target)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 
 epok::bp::api::destroy(target);
 ```
@@ -217,7 +229,7 @@ auto result = epok::bp::api::effect_sequence(arg1);
 inline bool held(uint32_t button,uint32_t port)
 ```
 
-- **Declared at:** [line 41](../../../runtime/blueprint_api.hpp#L41)
+- **Declared at:** [line 63](../../../runtime/blueprint_api.hpp#L63)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -380,17 +392,17 @@ auto result = epok::bp::api::pause_sequence(arg1);
 **Exact declaration**
 
 ```cpp
-inline void play_audio(EntityHandle target)
+inline void play_audio(ObjectId target)
 ```
 
-- **Declared at:** [line 47](../../../runtime/blueprint_api.hpp#L47)
+- **Declared at:** [line 69](../../../runtime/blueprint_api.hpp#L69)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -402,7 +414,7 @@ inline void play_audio(EntityHandle target)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 
 epok::bp::api::play_audio(target);
 ```
@@ -420,7 +432,7 @@ epok::bp::api::play_audio(target);
 **Exact declaration**
 
 ```cpp
-effects::Handle play_effect_component(EntityHandle)
+effects::Handle play_effect_component(DataHandle)
 ```
 
 - **Declared at:** [line 13](../../../runtime/blueprint_api.hpp#L13)
@@ -430,7 +442,7 @@ effects::Handle play_effect_component(EntityHandle)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `EntityHandle` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+| `arg1` | `DataHandle` | Input | Value supplied for `arg1`. See the exact type and module contract. |
 
 **Returns.** Returns `effects::Handle`. Check the purpose and failure notes before using the value.
 
@@ -442,9 +454,49 @@ effects::Handle play_effect_component(EntityHandle)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle arg1
+// DataHandle arg1
 
 auto result = epok::bp::api::play_effect_component(arg1);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-bp-api-play-effect-component-2"></a>
+
+## `epok::bp::api::play_effect_component`
+
+**Purpose.** Starts effect component as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline effects::Handle play_effect_component(ObjectId target)
+```
+
+- **Declared at:** [line 75](../../../runtime/blueprint_api.hpp#L75)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
+
+**Returns.** Returns `effects::Handle`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId target
+
+auto result = epok::bp::api::play_effect_component(target);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
@@ -460,17 +512,17 @@ auto result = epok::bp::api::play_effect_component(arg1);
 **Exact declaration**
 
 ```cpp
-timeline::Handle play_sequence_component(EntityHandle)
+inline timeline::Handle play_sequence_component(ObjectId target)
 ```
 
-- **Declared at:** [line 9](../../../runtime/blueprint_api.hpp#L9)
+- **Declared at:** [line 74](../../../runtime/blueprint_api.hpp#L74)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `EntityHandle` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 
 **Returns.** Returns `timeline::Handle`. Check the purpose and failure notes before using the value.
 
@@ -482,7 +534,47 @@ timeline::Handle play_sequence_component(EntityHandle)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle arg1
+// ObjectId target
+
+auto result = epok::bp::api::play_sequence_component(target);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-bp-api-play-sequence-component-2"></a>
+
+## `epok::bp::api::play_sequence_component`
+
+**Purpose.** Starts sequence component as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+timeline::Handle play_sequence_component(DataHandle)
+```
+
+- **Declared at:** [line 9](../../../runtime/blueprint_api.hpp#L9)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `arg1` | `DataHandle` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+
+**Returns.** Returns `timeline::Handle`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// DataHandle arg1
 
 auto result = epok::bp::api::play_sequence_component(arg1);
 ```
@@ -540,7 +632,7 @@ auto result = epok::bp::api::playback_snapshot(arg1);
 **Exact declaration**
 
 ```cpp
-inline Vector<3> position(EntityHandle target)
+inline Vector<3> position(ObjectId target)
 ```
 
 - **Declared at:** [line 25](../../../runtime/blueprint_api.hpp#L25)
@@ -550,7 +642,7 @@ inline Vector<3> position(EntityHandle target)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 
 **Returns.** Returns `Vector<3>`. Check the purpose and failure notes before using the value.
 
@@ -562,9 +654,49 @@ inline Vector<3> position(EntityHandle target)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 
 auto result = epok::bp::api::position(target);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-bp-api-position-2d-1"></a>
+
+## `epok::bp::api::position_2d`
+
+**Purpose.** Performs `position 2d` as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline Vector<2> position_2d(ObjectId target)
+```
+
+- **Declared at:** [line 50](../../../runtime/blueprint_api.hpp#L50)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
+
+**Returns.** Returns `Vector<2>`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId target
+
+auto result = epok::bp::api::position_2d(target);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
@@ -583,7 +715,7 @@ auto result = epok::bp::api::position(target);
 inline bool pressed(uint32_t button,uint32_t port)
 ```
 
-- **Declared at:** [line 42](../../../runtime/blueprint_api.hpp#L42)
+- **Declared at:** [line 64](../../../runtime/blueprint_api.hpp#L64)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -613,6 +745,86 @@ auto result = epok::bp::api::pressed(button, port);
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
 
+<a id="epok-bp-api-rect-position-1"></a>
+
+## `epok::bp::api::rect_position`
+
+**Purpose.** Performs `rect position` as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline Vector<2> rect_position(ObjectId target)
+```
+
+- **Declared at:** [line 59](../../../runtime/blueprint_api.hpp#L59)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
+
+**Returns.** Returns `Vector<2>`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId target
+
+auto result = epok::bp::api::rect_position(target);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-bp-api-rect-size-1"></a>
+
+## `epok::bp::api::rect_size`
+
+**Purpose.** Performs `rect size` as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline Vector<2> rect_size(ObjectId target)
+```
+
+- **Declared at:** [line 61](../../../runtime/blueprint_api.hpp#L61)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
+
+**Returns.** Returns `Vector<2>`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId target
+
+auto result = epok::bp::api::rect_size(target);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-bp-api-released-1"></a>
 
 ## `epok::bp::api::released`
@@ -625,7 +837,7 @@ auto result = epok::bp::api::pressed(button, port);
 inline bool released(uint32_t button,uint32_t port)
 ```
 
-- **Declared at:** [line 43](../../../runtime/blueprint_api.hpp#L43)
+- **Declared at:** [line 65](../../../runtime/blueprint_api.hpp#L65)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -667,7 +879,7 @@ auto result = epok::bp::api::released(button, port);
 inline bool request_scene(uint32_t index)
 ```
 
-- **Declared at:** [line 44](../../../runtime/blueprint_api.hpp#L44)
+- **Declared at:** [line 66](../../../runtime/blueprint_api.hpp#L66)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -784,17 +996,17 @@ auto result = epok::bp::api::resume_sequence(arg1);
 **Exact declaration**
 
 ```cpp
-inline Vector<3> rotation(EntityHandle target)
+inline Vector<3> rotation(ObjectId target)
 ```
 
-- **Declared at:** [line 28](../../../runtime/blueprint_api.hpp#L28)
+- **Declared at:** [line 33](../../../runtime/blueprint_api.hpp#L33)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 
 **Returns.** Returns `Vector<3>`. Check the purpose and failure notes before using the value.
 
@@ -806,9 +1018,49 @@ inline Vector<3> rotation(EntityHandle target)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 
 auto result = epok::bp::api::rotation(target);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-bp-api-rotation-2d-1"></a>
+
+## `epok::bp::api::rotation_2d`
+
+**Purpose.** Performs `rotation 2d` as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline Fixed rotation_2d(ObjectId target)
+```
+
+- **Declared at:** [line 57](../../../runtime/blueprint_api.hpp#L57)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId target
+
+auto result = epok::bp::api::rotation_2d(target);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
@@ -824,17 +1076,17 @@ auto result = epok::bp::api::rotation(target);
 **Exact declaration**
 
 ```cpp
-inline Vector<3> scale(EntityHandle target)
+inline Vector<3> scale(ObjectId target)
 ```
 
-- **Declared at:** [line 31](../../../runtime/blueprint_api.hpp#L31)
+- **Declared at:** [line 41](../../../runtime/blueprint_api.hpp#L41)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 
 **Returns.** Returns `Vector<3>`. Check the purpose and failure notes before using the value.
 
@@ -846,9 +1098,49 @@ inline Vector<3> scale(EntityHandle target)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 
 auto result = epok::bp::api::scale(target);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-bp-api-scale-2d-1"></a>
+
+## `epok::bp::api::scale_2d`
+
+**Purpose.** Performs `scale 2d` as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline Vector<2> scale_2d(ObjectId target)
+```
+
+- **Declared at:** [line 53](../../../runtime/blueprint_api.hpp#L53)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
+
+**Returns.** Returns `Vector<2>`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId target
+
+auto result = epok::bp::api::scale_2d(target);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
@@ -864,17 +1156,17 @@ auto result = epok::bp::api::scale(target);
 **Exact declaration**
 
 ```cpp
-inline void set_active(EntityHandle target,bool active)
+inline void set_active(ObjectId target,bool active)
 ```
 
-- **Declared at:** [line 45](../../../runtime/blueprint_api.hpp#L45)
+- **Declared at:** [line 67](../../../runtime/blueprint_api.hpp#L67)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 | `active` | `bool` | Input | Value supplied for `active`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -887,7 +1179,7 @@ inline void set_active(EntityHandle target,bool active)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 // bool active
 
 epok::bp::api::set_active(target, active);
@@ -906,17 +1198,17 @@ epok::bp::api::set_active(target, active);
 **Exact declaration**
 
 ```cpp
-inline void set_audio_clip(EntityHandle target,uint64_t clip)
+inline void set_audio_clip(ObjectId target,uint64_t clip)
 ```
 
-- **Declared at:** [line 63](../../../runtime/blueprint_api.hpp#L63)
+- **Declared at:** [line 83](../../../runtime/blueprint_api.hpp#L83)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 | `clip` | `uint64_t` | Input | Value supplied for `clip`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -929,7 +1221,7 @@ inline void set_audio_clip(EntityHandle target,uint64_t clip)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 // uint64_t clip
 
 epok::bp::api::set_audio_clip(target, clip);
@@ -948,17 +1240,17 @@ epok::bp::api::set_audio_clip(target, clip);
 **Exact declaration**
 
 ```cpp
-inline void set_position(EntityHandle target,const Vector<3>& value)
+inline void set_position(ObjectId target,const Vector<3>& value)
 ```
 
-- **Declared at:** [line 34](../../../runtime/blueprint_api.hpp#L34)
+- **Declared at:** [line 29](../../../runtime/blueprint_api.hpp#L29)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 | `value` | `const Vector<3> &` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -971,10 +1263,136 @@ inline void set_position(EntityHandle target,const Vector<3>& value)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 // const Vector<3> & value
 
 epok::bp::api::set_position(target, value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-bp-api-set-position-2d-1"></a>
+
+## `epok::bp::api::set_position_2d`
+
+**Purpose.** Sets position 2d as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline void set_position_2d(ObjectId target,const Vector<2>& value)
+```
+
+- **Declared at:** [line 51](../../../runtime/blueprint_api.hpp#L51)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `value` | `const Vector<2> &` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId target
+// const Vector<2> & value
+
+epok::bp::api::set_position_2d(target, value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-bp-api-set-rect-position-1"></a>
+
+## `epok::bp::api::set_rect_position`
+
+**Purpose.** Sets rect position as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline void set_rect_position(ObjectId target,const Vector<2>& value)
+```
+
+- **Declared at:** [line 60](../../../runtime/blueprint_api.hpp#L60)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `value` | `const Vector<2> &` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId target
+// const Vector<2> & value
+
+epok::bp::api::set_rect_position(target, value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-bp-api-set-rect-size-1"></a>
+
+## `epok::bp::api::set_rect_size`
+
+**Purpose.** Sets rect size as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline void set_rect_size(ObjectId target,const Vector<2>& value)
+```
+
+- **Declared at:** [line 62](../../../runtime/blueprint_api.hpp#L62)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `value` | `const Vector<2> &` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId target
+// const Vector<2> & value
+
+epok::bp::api::set_rect_size(target, value);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
@@ -990,17 +1408,17 @@ epok::bp::api::set_position(target, value);
 **Exact declaration**
 
 ```cpp
-inline void set_rotation(EntityHandle target,const Vector<3>& value)
+inline void set_rotation(ObjectId target,const Vector<3>& value)
 ```
 
-- **Declared at:** [line 35](../../../runtime/blueprint_api.hpp#L35)
+- **Declared at:** [line 37](../../../runtime/blueprint_api.hpp#L37)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 | `value` | `const Vector<3> &` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1013,7 +1431,7 @@ inline void set_rotation(EntityHandle target,const Vector<3>& value)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 // const Vector<3> & value
 
 epok::bp::api::set_rotation(target, value);
@@ -1022,6 +1440,48 @@ epok::bp::api::set_rotation(target, value);
 **Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-bp-api-set-rotation-2d-1"></a>
+
+## `epok::bp::api::set_rotation_2d`
+
+**Purpose.** Sets rotation 2d as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline void set_rotation_2d(ObjectId target,Fixed value)
+```
+
+- **Declared at:** [line 58](../../../runtime/blueprint_api.hpp#L58)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId target
+// Fixed value
+
+epok::bp::api::set_rotation_2d(target, value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
 <a id="epok-bp-api-set-scale-1"></a>
 
@@ -1032,17 +1492,17 @@ epok::bp::api::set_rotation(target, value);
 **Exact declaration**
 
 ```cpp
-inline void set_scale(EntityHandle target,const Vector<3>& value)
+inline void set_scale(ObjectId target,const Vector<3>& value)
 ```
 
-- **Declared at:** [line 36](../../../runtime/blueprint_api.hpp#L36)
+- **Declared at:** [line 45](../../../runtime/blueprint_api.hpp#L45)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 | `value` | `const Vector<3> &` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1055,10 +1515,52 @@ inline void set_scale(EntityHandle target,const Vector<3>& value)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 // const Vector<3> & value
 
 epok::bp::api::set_scale(target, value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-bp-api-set-scale-2d-1"></a>
+
+## `epok::bp::api::set_scale_2d`
+
+**Purpose.** Sets scale 2d as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline void set_scale_2d(ObjectId target,const Vector<2>& value)
+```
+
+- **Declared at:** [line 54](../../../runtime/blueprint_api.hpp#L54)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `value` | `const Vector<2> &` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId target
+// const Vector<2> & value
+
+epok::bp::api::set_scale_2d(target, value);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
@@ -1074,17 +1576,17 @@ epok::bp::api::set_scale(target, value);
 **Exact declaration**
 
 ```cpp
-inline void set_texture(EntityHandle target,uint64_t texture)
+inline void set_texture(ObjectId target,uint64_t texture)
 ```
 
-- **Declared at:** [line 56](../../../runtime/blueprint_api.hpp#L56)
+- **Declared at:** [line 76](../../../runtime/blueprint_api.hpp#L76)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 | `texture` | `uint64_t` | Input | Value supplied for `texture`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1097,7 +1599,7 @@ inline void set_texture(EntityHandle target,uint64_t texture)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 // uint64_t texture
 
 epok::bp::api::set_texture(target, texture);
@@ -1116,10 +1618,10 @@ epok::bp::api::set_texture(target, texture);
 **Exact declaration**
 
 ```cpp
-inline EntityHandle spawn(ClassId type,EntityHandle parent)
+inline ObjectId spawn(ClassId type,ObjectId parent)
 ```
 
-- **Declared at:** [line 49](../../../runtime/blueprint_api.hpp#L49)
+- **Declared at:** [line 71](../../../runtime/blueprint_api.hpp#L71)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1127,9 +1629,9 @@ inline EntityHandle spawn(ClassId type,EntityHandle parent)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `type` | `ClassId` | Input | Value supplied for `type`. See the exact type and module contract. |
-| `parent` | `EntityHandle` | Input | Value supplied for `parent`. See the exact type and module contract. |
+| `parent` | `ObjectId` | Input | Value supplied for `parent`. See the exact type and module contract. |
 
-**Returns.** Returns `EntityHandle`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
 
@@ -1140,7 +1642,7 @@ inline EntityHandle spawn(ClassId type,EntityHandle parent)
 
 // Assume these named values have been initialized with valid data:
 // ClassId type
-// EntityHandle parent
+// ObjectId parent
 
 auto result = epok::bp::api::spawn(type, parent);
 ```
@@ -1158,10 +1660,10 @@ auto result = epok::bp::api::spawn(type, parent);
 **Exact declaration**
 
 ```cpp
-inline EntityHandle spawn_class(ClassId base,ClassId type,EntityHandle parent)
+inline ObjectId spawn_class(ClassId base,ClassId type,ObjectId parent)
 ```
 
-- **Declared at:** [line 50](../../../runtime/blueprint_api.hpp#L50)
+- **Declared at:** [line 72](../../../runtime/blueprint_api.hpp#L72)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1170,9 +1672,9 @@ inline EntityHandle spawn_class(ClassId base,ClassId type,EntityHandle parent)
 | --- | --- | --- | --- |
 | `base` | `ClassId` | Input | Value supplied for `base`. See the exact type and module contract. |
 | `type` | `ClassId` | Input | Value supplied for `type`. See the exact type and module contract. |
-| `parent` | `EntityHandle` | Input | Value supplied for `parent`. See the exact type and module contract. |
+| `parent` | `ObjectId` | Input | Value supplied for `parent`. See the exact type and module contract. |
 
-**Returns.** Returns `EntityHandle`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
 
@@ -1184,7 +1686,7 @@ inline EntityHandle spawn_class(ClassId base,ClassId type,EntityHandle parent)
 // Assume these named values have been initialized with valid data:
 // ClassId base
 // ClassId type
-// EntityHandle parent
+// ObjectId parent
 
 auto result = epok::bp::api::spawn_class(base, type, parent);
 ```
@@ -1202,17 +1704,17 @@ auto result = epok::bp::api::spawn_class(base, type, parent);
 **Exact declaration**
 
 ```cpp
-inline void stop_audio(EntityHandle target)
+inline void stop_audio(ObjectId target)
 ```
 
-- **Declared at:** [line 48](../../../runtime/blueprint_api.hpp#L48)
+- **Declared at:** [line 70](../../../runtime/blueprint_api.hpp#L70)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1224,7 +1726,7 @@ inline void stop_audio(EntityHandle target)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 
 epok::bp::api::stop_audio(target);
 ```
@@ -1322,7 +1824,7 @@ auto result = epok::bp::api::stop_sequence(arg1);
 **Exact declaration**
 
 ```cpp
-inline Transform transform(EntityHandle target)
+inline Transform transform(ObjectId target)
 ```
 
 - **Declared at:** [line 21](../../../runtime/blueprint_api.hpp#L21)
@@ -1332,7 +1834,7 @@ inline Transform transform(EntityHandle target)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 
 **Returns.** Returns `Transform`. Check the purpose and failure notes before using the value.
 
@@ -1344,7 +1846,7 @@ inline Transform transform(EntityHandle target)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 
 auto result = epok::bp::api::transform(target);
 ```
@@ -1362,7 +1864,7 @@ auto result = epok::bp::api::transform(target);
 **Exact declaration**
 
 ```cpp
-inline bool valid(EntityHandle target)
+inline bool valid(ObjectId target)
 ```
 
 - **Declared at:** [line 20](../../../runtime/blueprint_api.hpp#L20)
@@ -1372,7 +1874,7 @@ inline bool valid(EntityHandle target)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `target` | `EntityHandle` | Input | Value supplied for `target`. See the exact type and module contract. |
+| `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1384,7 +1886,7 @@ inline bool valid(EntityHandle target)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle target
+// ObjectId target
 
 auto result = epok::bp::api::valid(target);
 ```

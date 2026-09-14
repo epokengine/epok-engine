@@ -226,7 +226,7 @@ fn actor_blueprints_derive_across_levels_and_override_each_event_once() {
     // Call Parent emits one qualified dispatch to the immediate parent.
     assert_eq!(goblin_text.matches("epok::Actor3D::tick(").count(), 1);
     // Self is the Actor: the legacy slot is reached null-safely, never dereferenced blind.
-    assert!(goblin_text.contains("epok::Entity* epok_self=epok::bp::actor_entity(this);"));
+    assert!(goblin_text.contains("const auto epok_owner=this->id();"));
     assert!(!goblin_text.contains("&this->entity()"));
     // Behaviour-only hooks stay out of an Actor class.
     assert!(!goblin_text.contains("blueprint_class_id"));
@@ -267,7 +267,7 @@ fn actor_blueprint_latent_graphs_pump_tasks_from_tick_and_cancel_in_end_play() {
     assert!(text.contains("epok_tasks.cancel_all();"));
     assert!(text.contains("epok::Actor3D::end_play(reason);"));
     // Latent frames wait on the actor's own handle, resolved through the adapter.
-    assert!(text.contains("epok::bp::actor_handle(this)"));
+    assert!(text.contains("this->id()"));
 }
 
 #[test]
@@ -421,10 +421,10 @@ fn spawn_actor_requires_an_actor_class_reference() {
     assert!(text.contains("epok::bp::spawn_actor(this,"));
 
     // A Behaviour class reference is not an Actor and cannot be spawned as one.
-    spawner.asset.functions = vec![make(&id(1))];
+    spawner.asset.functions = vec![make(om::AUDIO_COMPONENT_ID)];
     let message = errors(compile(Path::new(""), &registry, &[spawner]))[0].to_string();
     assert!(message.contains("Spawn Actor requires an Actor class"), "{message}");
-    assert!(message.contains("Behaviour family"), "{message}");
+    assert!(message.contains("Component family"), "{message}");
 }
 
 #[test]

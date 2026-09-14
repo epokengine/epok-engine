@@ -56,12 +56,13 @@ namespace {
 void observe_blueprint_playback(){
   // Capture outcomes even for inactive consumers; their continuation dispatch
   // remains paused. No gameplay runs during observation or playback-slot reuse.
-  for(auto& binding:epok::bindings)
-    if(binding.entity<epok::object_count&&epok::objects[binding.entity].alive)
-      binding.behaviour->blueprint_observe();
-  epok::bp::visit([](epok::Binding& binding,epok::EntityHandle owner){
-    if(owner.get())binding.behaviour->blueprint_observe();
-  });
+  for(size_t i=0;i<epok::level.actor_count();++i) {
+    if(auto* actor=epok::object_registry.resolve<epok::Actor>(epok::level.actor_at(i))) {
+      actor->blueprint_observe();
+      for(size_t c=0;c<actor->component_count();++c)
+        if(auto* component=epok::object_registry.resolve<epok::ActorComponent>(actor->component_id(c))) component->blueprint_observe();
+    }
+  }
 }
 #endif
 using epok::Fixed;
@@ -110,7 +111,7 @@ epok::LightingRenderer<epok::objects.size()> lighting;
 // Retained GPU packets for static meshes, one record per scene quad.
 epok::RetainedGeometry<epok::objects.size(), epok::retained_geometry ? epok::retained_quad_capacity : 1> retained;
 std::array<epok::StreamObjectBinding, epok::stream_archive_fits ? epok::objects.size() : 0> stream_bindings{};
-epok::EntityHandle camera_override;
+epok::DataHandle camera_override;
 
 // Degrees in the editor and scripts; fixed point throughout the PSX runtime.
 void rotate(Fixed *p, const Fixed *degrees) {
@@ -328,8 +329,8 @@ Matrix inverse_local(const epok::Transform &transform) {
   }
   return out;
 }
-epok::Entity* camera_entity() {
-  auto valid=[](epok::Entity* e){return e&&epok::is_active(e)&&(e->camera||e->camera_settings.enabled);};
+epok::ActorData* camera_entity() {
+  auto valid=[](epok::ActorData* e){return e&&epok::is_active(e)&&(e->camera||e->camera_settings.enabled);};
   if(auto* e=camera_override.get();valid(e))return e;
   for(size_t i=0;i<epok::object_count;++i)if(valid(&epok::objects[i]))return &epok::objects[i];
   return nullptr;
@@ -368,21 +369,7 @@ void refresh_collisions() {
   }
 }
 void dispatch_trigger(const epok::TriggerEvent& event) {
-  const epok::EntityHandle first{event.first,event.first_generation},second{event.second,event.second_generation};
-  for(auto& binding:epok::bindings) {
-    if(binding.entity==first.index&&first.get()&&epok::is_active(first.get()))binding.behaviour->on_trigger(second,event.phase);
-    if(binding.entity==second.index&&second.get()&&epok::is_active(second.get()))binding.behaviour->on_trigger(first,event.phase);
-  }
-#ifdef EPOK_BLUEPRINTS
-  epok::bp::visit([&](epok::Binding& binding,epok::EntityHandle owner){
-    if(epok::bp::same_owner(owner,first)&&first.get()&&epok::is_active(first.get()))binding.behaviour->on_trigger(second,event.phase);
-    if(epok::bp::same_owner(owner,second)&&second.get()&&epok::is_active(second.get()))binding.behaviour->on_trigger(first,event.phase);
-  });
-#endif
-  // Actor half: each colliding slot is resolved to the actor whose root is bound to it
-  // and the event fans out to that actor's components once. A LegacyBehaviourComponent
-  // wrapping a Behaviour the loops above already notified is filtered out, so no
-  // Behaviour receives on_trigger twice.
+  const epok::DataHandle first{event.first,event.first_generation},second{event.second,event.second_generation};
   if(first.get()&&epok::is_active(first.get()))epok::dispatch_slot_trigger(first,second,event.phase);
   if(second.get()&&epok::is_active(second.get()))epok::dispatch_slot_trigger(second,first,event.phase);
 }
@@ -490,16 +477,6 @@ void GameScene::frame() {
 #endif
   const unsigned steps=epok::scene_loading()?(epok::time.synchronize(gpu().now()),0u):epok::time.advance(gpu().now());
   performance_work.steps=steps;
-  for(auto& binding:epok::bindings)
-    if(!epok::scene_loading()&&binding.entity<epok::object_count&&epok::is_active_slot(binding.entity))
-      binding.behaviour->frame_update(epok::objects[binding.entity].transform,epok::time.frame_microseconds);
-#ifdef EPOK_BLUEPRINTS
-  epok::bp::visit([&](epok::Binding& binding,epok::EntityHandle owner){
-    if(!epok::scene_loading()&&owner.get()&&epok::is_active(owner.get()))binding.behaviour->frame_update(owner.get()->transform,epok::time.frame_microseconds);
-  });
-#endif
-  // Actors and components registered for frame_update follow the legacy bindings; the
-  // level's scene script is last. Runs while paused, for legacy Behaviour parity.
   if(!epok::scene_loading())epok::level.frame_update(epok::time.frame_microseconds);
   if(epok::time.paused()||epok::scene_loading())epok::input.discard_edges();
   motion.select(epok::objects,epok::object_count,[](size_t i){
@@ -523,23 +500,6 @@ void GameScene::frame() {
   #ifdef EPOK_PLAYBACK_WAITS
       epok::bp::observe_playback();
   #endif
-      for(auto& binding:epok::bindings)
-      if(binding.entity<epok::object_count&&epok::is_active_slot(binding.entity)) {
-#ifdef EPOK_BLUEPRINTS
-        binding.behaviour->blueprint_tick(epok::objects[binding.entity].transform,dt);
-        if(!epok::objects[binding.entity].alive || !epok::is_active_slot(binding.entity))continue;
-#endif
-        binding.behaviour->update(epok::objects[binding.entity].transform,dt);
-      }
-#ifdef EPOK_BLUEPRINTS
-    epok::bp::visit([&](epok::Binding& binding,epok::EntityHandle owner){
-      if(!owner.get()||!epok::is_active(owner.get()))return;
-      binding.behaviour->blueprint_tick(owner.get()->transform,dt);
-      if(owner.get()&&epok::is_active(owner.get()))binding.behaviour->update(owner.get()->transform,dt);
-    });
-#endif
-    // Simulation step order: legacy bindings (above), then the level -- actors and
-    // components registered for tick in table order, then the scene script.
     epok::level.tick(dt);
     refresh_collisions();collision_world.update_triggers(dispatch_trigger);
     bool has_emitters=false;
@@ -1245,7 +1205,7 @@ void GameScene::frame() {
 #endif
       return;
     }
-    const size_t i=owner.entity.index;const auto& sprite=source;
+    const size_t i=owner.data_slot().index;const auto& sprite=source;
     if(!epok::is_active_slot(i))return;
     if(!sprite.unlit&&epok::objects[i].lighting.enabled&&!epok::objects[i].material.unlit)lighting.shade(i,epok::objects,render_world,true);
     sprites.draw(parity,table,sprite,matrix,view,epok::objects[i].lighting.enabled&&!epok::objects[i].material.unlit);
@@ -1295,13 +1255,13 @@ void GameScene::frame() {
 } // namespace
 namespace epok {
 void reset_motion_interpolation(){motion.clear();}
-bool set_active_camera(Entity* camera) {
+bool set_active_camera(ActorData* camera) {
   if(!camera){camera_override={};motion.clear();return true;}
   if(entity_index(camera)<0||!is_active(camera)||(!camera->camera&&!camera->camera_settings.enabled))return false;
   if(camera_override.index!=handle(camera).index||camera_override.generation!=handle(camera).generation)motion.clear();
   camera_override=handle(camera);return true;
 }
-EntityHandle active_camera(){return handle(camera_entity());}
+DataHandle active_camera(){return handle(camera_entity());}
 bool camera_project(const Fixed* world_point,Fixed* screen_xy) {
   if(!world_point||!screen_xy)return false;
   Fixed p[3];camera_view().point(world_point,p);p[0]*=projection_focal;p[1]*=projection_focal;
@@ -1346,30 +1306,30 @@ void remove_runtime_owner(size_t index) {
   particles.remove_owner(index);lighting.reset_owner(index);retained.forget(index);
 }
 #ifdef EPOK_EFFECTS
-Affine<Fixed> effect_world(EntityHandle owner){refresh_world();return owner.get()?world[owner.index]:Affine<Fixed>::identity();}
+Affine<Fixed> effect_world(DataHandle owner){refresh_world();return owner.get()?world[owner.index]:Affine<Fixed>::identity();}
 Affine<Fixed> effect_matrix(const Transform& transform){return local_matrix(transform);}
 void remove_effect_particles(EffectLayerHandle owner){particles.remove_layer(owner);}
 #endif
-SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask,const Entity* ignore,bool triggers) {
+SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask,const ActorData* ignore,bool triggers) {
   refresh_collisions();return collision_world.raycast(origin,displacement,mask,entity_index(ignore),triggers);
 }
-size_t overlap(const Aabb& box,EntityHandle* output,size_t capacity,uint32_t mask,const Entity* ignore,bool triggers) {
+size_t overlap(const Aabb& box,DataHandle* output,size_t capacity,uint32_t mask,const ActorData* ignore,bool triggers) {
   refresh_collisions();uint16_t indices[objects.size()];
   size_t count=collision_world.overlap(box,indices,objects.size(),mask,entity_index(ignore),triggers);
   if(output)for(size_t i=0;i<count&&i<capacity;++i)output[i]=handle(&objects[indices[i]]);
   return count;
 }
-bool collider_aabb(const Entity& entity,Aabb& output) {
+bool collider_aabb(const ActorData& entity,Aabb& output) {
   refresh_collisions();int index=entity_index(&entity);
   auto box=index<0?nullptr:collision_world.bounds(size_t(index));if(!box)return false;
   output=*box;return true;
 }
-SpatialHit query_ground(const Entity& entity,Fixed distance,uint32_t mask) {
+SpatialHit query_ground(const ActorData& entity,Fixed distance,uint32_t mask) {
   refresh_collisions();int index=entity_index(&entity);
   auto box=index<0?nullptr:collision_world.bounds(size_t(index));
   return box?collision_world.ground(*box,distance,mask&entity.collider.mask,index):SpatialHit{};
 }
-MoveResult move_and_slide(Entity& entity,const Fixed* displacement,uint32_t mask) {
+MoveResult move_and_slide(ActorData& entity,const Fixed* displacement,uint32_t mask) {
   refresh_collisions();int index=entity_index(&entity);
   auto box=index<0?nullptr:collision_world.bounds(size_t(index));
   if(!box) { MoveResult result;result.unresolved_overlap=true;return result; }

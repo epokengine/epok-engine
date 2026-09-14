@@ -143,6 +143,7 @@ pub fn scene_header_with_resources(
 ) -> Result<String, String> {
     scene_header_body_with_layout(scene, catalog, resources, true, scene)
 }
+#[cfg(test)]
 pub fn scene_header_body_with_layout(
     scene: &Scene,
     catalog: &[scripts::Script],
@@ -150,8 +151,18 @@ pub fn scene_header_body_with_layout(
     emit_resources: bool,
     layout_scene: &Scene,
 ) -> Result<String, String> {
-    let registry = crate::blueprint::legacy_registry(Path::new(""), catalog);
-    scene_header_with_registry(scene, catalog, resources, emit_resources, layout_scene, &registry)
+    let mut registry = crate::actor_document::tests::registry();
+    registry
+        .classes
+        .extend(crate::blueprint::registry_from_catalog(Path::new(""), catalog).classes);
+    scene_header_with_registry(
+        scene,
+        catalog,
+        resources,
+        emit_resources,
+        layout_scene,
+        &registry,
+    )
 }
 pub fn scene_header_with_registry(
     scene: &Scene,
@@ -163,6 +174,7 @@ pub fn scene_header_with_registry(
 ) -> Result<String, String> {
     scene.validate()?;
     let mut prepared = scene.clone();
+    prepared.sync_actor_components();
     if !crate::lighting::valid_bake(&prepared) {
         prepared.bake = Some(crate::lighting::bake(&prepared)?);
     }
@@ -182,7 +194,7 @@ pub fn scene_header_with_registry(
     text.push_str(&sprite_tables);
     let mut topologies = std::collections::BTreeMap::new();
     for e in scene
-        .entities
+        .actors
         .iter()
         .filter(|e| e.kind == "Mesh" && e.editable_mesh.is_none() && e.skeletal_mesh.is_none())
     {
@@ -245,7 +257,7 @@ pub fn scene_header_with_registry(
         Some((t.width, t.height, placement.1.y))
     };
     for (index, e) in scene
-        .entities
+        .actors
         .iter()
         .enumerate()
         .filter(|(_, e)| e.kind == "Mesh" && e.editable_mesh.is_some())
@@ -253,7 +265,7 @@ pub fn scene_header_with_registry(
         text.push_str(&crate::mesh_compile::header_with_pages(e, index, &pages)?);
     }
     let mut skeletal_assets = std::collections::BTreeMap::new();
-    for (i, e) in scene.entities.iter().enumerate() {
+    for (i, e) in scene.actors.iter().enumerate() {
         if let Some(c) = &e.skeletal_mesh
             && let std::collections::btree_map::Entry::Vacant(entry) =
                 skeletal_assets.entry(c.asset)
@@ -264,11 +276,11 @@ pub fn scene_header_with_registry(
     }
     text.push_str("}\n");
     text.push_str(&format!(
-        "namespace epok {{\ninline std::array<Entity, {}> objects = {{{{\n",
-        scene.entities.len() + 32
+        "namespace epok {{\ninline std::array<ActorData, {}> objects = {{{{\n",
+        scene.actors.len() + 32
     ));
     let fixed = |v: f32| format!("Fixed({}, Fixed::RAW)", (v as f64 * 4096.).round() as i32);
-    for (index, e) in scene.entities.iter().enumerate() {
+    for (index, e) in scene.actors.iter().enumerate() {
         if e.position.iter().any(|v| v.abs() > 128.) || e.scale.iter().any(|v| *v > 64.) {
             return Err(format!(
                 "{}: initial PSX renderer supports positions ±128 and scales up to 64",
@@ -317,12 +329,12 @@ pub fn scene_header_with_registry(
     text.push_str("}};\n");
     text.push_str(&format!(
         "inline constexpr size_t authored_count={};\ninline size_t object_count=authored_count;\n",
-        scene.entities.len()
+        scene.actors.len()
     ));
     text.push_str(&format!(
         "inline constexpr size_t render_capacity={};\n",
         scene
-            .entities
+            .actors
             .iter()
             .map(crate::lighting::quad_count)
             .sum::<usize>()
@@ -373,7 +385,7 @@ inline void initialize_components(){
         scene.environment.point_lights
     ));
     let clips = crate::audio::clip_ids(resources);
-    for (i, e) in scene.entities.iter().enumerate() {
+    for (i, e) in scene.actors.iter().enumerate() {
         if let Some(audio) = &e.audio {
             let clip = audio.clip.map_or(-1, |id| {
                 clips.iter().position(|candidate| *candidate == id).unwrap() as i32
@@ -497,13 +509,13 @@ inline void initialize_components(){
     text.push_str(&crate::effects::cpp_setup(scene));
     text.push_str("}\n");
 
-    let mut order: Vec<_> = (0..scene.entities.len()).collect();
+    let mut order: Vec<_> = (0..scene.actors.len()).collect();
     order.sort_by_key(|i| {
         let mut depth = 0;
-        let mut p = scene.entities[*i].parent;
+        let mut p = scene.spatial_parent(*i);
         while let Some(index) = p {
             depth += 1;
-            p = scene.entities[index].parent;
+            p = scene.spatial_parent(index);
         }
         depth
     });
@@ -518,76 +530,14 @@ inline void initialize_components(){
     ));
     text.push_str(&format!(
         "inline constexpr size_t terrain_count = {};\n",
-        scene.entities.iter().filter(|e| tiled(e)).count()
+        scene.actors.iter().filter(|e| tiled(e)).count()
     ));
-    let mut bindings = Vec::new();
-    let mut setup = String::new();
-    let mut preview = String::new();
-    for (i, e) in scene.entities.iter().enumerate() {
-        if let Some(binding) = &e.script {
-            let script = crate::script_backend::resolve(binding, catalog)
-                .map_err(|error| format!("{}: {error}", e.name))?;
-            for key in binding.properties.keys() {
-                if !script.properties.iter().any(|p| &p.name == key) {
-                    return Err(format!(
-                        "{}: orphaned property {key} is preserved; migrate it or explicitly reset it before building",
-                        e.name
-                    ));
-                }
-            }
-            if !script.instantiable() {
-                return Err(format!(
-                    "{}: abstract class {} cannot be attached",
-                    e.name, script.name
-                ));
-            }
-            text.push_str(
-                &crate::script_backend::backend(&binding.backend)?
-                    .declaration(&script.name, &format!("behaviour_{i}")),
-            );
-            let class_id = if scene
-                .entities
-                .iter()
-                .any(|e| e.timeline.is_some() || e.particle_effect.is_some())
-                || catalog.iter().any(|script| {
-                    script
-                        .classes
-                        .iter()
-                        .any(|class| class.provider.id == "blueprint")
-                }) {
-                let class = class_registry
-                    .bound(binding)
-                    .ok_or("Missing runtime binding class identity")?;
-                format!(
-                    ",UINT64_C({})",
-                    crate::blueprint_refs::compact_id(&class.id)
-                )
-            } else {
-                String::new()
-            };
-            bindings.push(format!("{{&behaviour_{i},{i}{class_id}}}"));
-            preview.push_str(&format!("if(is_active(&objects[{i}])) preview_behaviour(behaviour_{i},objects[{i}].transform);\n"));
-            for prop in &script.properties {
-                setup.push_str(&crate::blueprint_refs::assignment(
-                    &format!("behaviour_{i}.{}", prop.name),
-                    binding.properties.get(&prop.name).unwrap_or(&prop.default),
-                    &prop.value_type,
-                    scene,
-                    class_registry,
-                )?);
-            }
-        }
-    }
-    let lifecycle = crate::script_backend::backend(&crate::reflection_schema::native_backend())?
-        .bind_and_start("bindings");
-    text.push_str(&format!("inline std::array<Binding, {}> bindings = {{{{{}}}}};\ninline void initialize_scripts() {{\ninitialize_components();\n{}{lifecycle}}}\n",bindings.len(),bindings.join(","),setup));
-    text.push_str(&actor_table_with_registry(scene, class_registry)?);
-    // Compile-time dispatch adds no console vtable entry or stored UI templates.
-    // Editor construction deliberately does not call gameplay lifecycle events.
-    text.push_str(&format!("#ifdef EPOK_EDITOR_PREVIEW\ntemplate<class T> void preview_behaviour(T& value,Transform& transform) {{if constexpr(requires {{value.editor_preview(transform);}}) value.editor_preview(transform);}}\ninline void initialize_editor_preview() {{initialize_components();\n{setup}for(auto& b:bindings)b.behaviour->bind(objects[b.entity]);\n{preview}}}\n#endif\n}}\n"));
+    text.push_str("inline void initialize_scripts() {initialize_components();}\n");
+    text.push_str(&actor_table_with_registry(scene, class_registry, &clips)?);
+    text.push_str("#ifdef EPOK_EDITOR_PREVIEW\ninline void initialize_editor_preview() {initialize_components();}\n#endif\n}\n");
     Ok(text)
 }
-fn tiled(e: &crate::scene::Entity) -> bool {
+fn tiled(e: &crate::scene::Actor) -> bool {
     crate::lighting::tiled(e)
 }
 #[cfg(test)]
@@ -596,12 +546,12 @@ pub fn stage(root: &Path, scene: &Scene) -> Result<PathBuf, String> {
 }
 pub fn refresh_linked_scene(root: &Path, scene: &mut Scene) -> Result<(), String> {
     if scene
-        .entities
+        .actors
         .iter()
         .any(|entity| entity.blueprint_instance.is_some())
     {
         let catalog = crate::scripts::catalog(root)?;
-        let registry = crate::blueprint::legacy_registry(root, &catalog);
+        let registry = crate::blueprint::registry_from_catalog(root, &catalog);
         crate::blueprint_templates::refresh_instances(
             scene,
             &crate::blueprint_asset::load_all(root)?,
@@ -676,7 +626,10 @@ fn stage_with_playback(
     refresh_linked_scene(root, &mut resolved)?;
     let rendering = crate::settings::rendering(root)?;
     let debug = crate::settings::debug_hud(root)?;
-    playback.scene_input("scene-debug-settings".into(), crate::scene_dependencies::hash(debug))?;
+    playback.scene_input(
+        "scene-debug-settings".into(),
+        crate::scene_dependencies::hash(debug),
+    )?;
     write_changed(&build.join("debug-hud.hh"), debug.header().as_bytes())?;
     let profile = input.and_then(|i| i.play.as_ref());
     if let Some(signature) = input.and_then(|i| i.play_settings_signature.as_ref()) {
@@ -715,7 +668,7 @@ fn stage_with_playback(
             crate::assets::hash(display.as_bytes()),
         )]),
     }])?;
-    if resolved.entities.iter().any(|e| e.editable_mesh.is_some()) {
+    if resolved.actors.iter().any(|e| e.editable_mesh.is_some()) {
         crate::mesh::resolve(
             &mut resolved,
             &crate::assets::scan(root, &mut Default::default()),
@@ -731,7 +684,7 @@ fn stage_with_playback(
     )?;
     let scene = &resolved;
     let catalog = scripts::catalog(root)?;
-    let blueprint_registry = crate::blueprint::legacy_registry(root, &catalog);
+    let blueprint_registry = crate::blueprint::registry_from_catalog(root, &catalog);
     // Template refresh can replace resource defaults. Observe the submitted
     // document with the same types used to select the actual cooked resources.
     playback.scene_audio_source(root, authored.0, authored.1, &blueprint_registry)?;
@@ -747,8 +700,10 @@ fn stage_with_playback(
         )?;
     }
     if profile.is_some_and(|p| p.content == crate::play::Content::WholeGame) {
-        playback.scene_input("scene-inventory".into(),
-            crate::scene_dependencies::hash(crate::scene_bank::available(root)?))?;
+        playback.scene_input(
+            "scene-inventory".into(),
+            crate::scene_dependencies::hash(crate::scene_bank::available(root)?),
+        )?;
     }
     playback.scene_catalog(root, &catalog)?;
     let mut banks = loaded.scenes;
@@ -777,7 +732,7 @@ fn stage_with_playback(
         bank.validate()?;
         if !rendering.streaming_geometry
             && bank
-                .entities
+                .actors
                 .iter()
                 .map(crate::lighting::quad_count)
                 .sum::<usize>()
@@ -815,7 +770,7 @@ fn stage_with_playback(
         || !direct_effects.is_empty()
         || timeline_scenes
             .iter()
-            .any(|scene| scene.entities.iter().any(|e| e.particle_effect.is_some()))
+            .any(|scene| scene.actors.iter().any(|e| e.particle_effect.is_some()))
     {
         crate::blueprint::native_registry(root, &catalog)?
     } else {
@@ -941,10 +896,7 @@ fn stage_with_playback(
         &banks,
         &shared_resources,
         &asset_index,
-        !templates.is_empty()
-            || resource_scenes
-                .last()
-                .is_some_and(|s| !s.entities.is_empty()),
+        !templates.is_empty() || resource_scenes.last().is_some_and(|s| !s.actors.is_empty()),
         &catalog,
         &audio_outputs,
     )?;
@@ -963,7 +915,7 @@ fn stage_with_playback(
     // typed assignments in scene.hh still consume explicit reflection contracts.
     for scene in &timeline_scenes {
         for component in scene
-            .entities
+            .actors
             .iter()
             .filter_map(|e| e.particle_effect.as_ref())
         {
@@ -1057,7 +1009,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             "object_model.hpp",
             include_bytes!("../runtime/object_model.hpp").as_slice(),
         ),
-        ("world2d.hpp", include_bytes!("../runtime/world2d.hpp").as_slice()),
+        (
+            "world2d.hpp",
+            include_bytes!("../runtime/world2d.hpp").as_slice(),
+        ),
         (
             "actor_blueprint.hpp",
             include_bytes!("../runtime/actor_blueprint.hpp").as_slice(),
@@ -1066,10 +1021,22 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             "actor_tables.hpp",
             include_bytes!("../runtime/actor_tables.hpp").as_slice(),
         ),
-        ("hud_core.hpp", include_bytes!("../runtime/hud_core.hpp").as_slice()),
-        ("serial_kernel.hpp", include_bytes!("../runtime/serial_kernel.hpp").as_slice()),
-        ("serial_debug.hpp", include_bytes!("../runtime/serial_debug.hpp").as_slice()),
-        ("debug_hud.hpp", include_bytes!("../runtime/debug_hud.hpp").as_slice()),
+        (
+            "hud_core.hpp",
+            include_bytes!("../runtime/hud_core.hpp").as_slice(),
+        ),
+        (
+            "serial_kernel.hpp",
+            include_bytes!("../runtime/serial_kernel.hpp").as_slice(),
+        ),
+        (
+            "serial_debug.hpp",
+            include_bytes!("../runtime/serial_debug.hpp").as_slice(),
+        ),
+        (
+            "debug_hud.hpp",
+            include_bytes!("../runtime/debug_hud.hpp").as_slice(),
+        ),
         (
             "frame_clear.hpp",
             include_bytes!("../runtime/frame_clear.hpp").as_slice(),
@@ -1224,19 +1191,58 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             "audio.hpp",
             include_bytes!("../runtime/audio.hpp").as_slice(),
         ),
-        ("spu_transfer.hpp", include_bytes!("../runtime/spu_transfer.hpp").as_slice()),
-        ("sequence_kernel.hpp", include_bytes!("../runtime/sequence_kernel.hpp").as_slice()),
-        ("sequence_data.hpp", include_bytes!("../runtime/sequence_data.hpp").as_slice()),
-        ("sequence_tables.hpp", include_bytes!("../runtime/sequence_tables.hpp").as_slice()),
-        ("sequence_lock.hpp", include_bytes!("../runtime/sequence_lock.hpp").as_slice()),
-        ("sequence_service.hpp", include_bytes!("../runtime/sequence_service.hpp").as_slice()),
-        ("sequence_instrument_service.hpp", include_bytes!("../runtime/sequence_instrument_service.hpp").as_slice()),
-        ("instrument_bank.hpp", include_bytes!("../runtime/instrument_bank.hpp").as_slice()),
-        ("instrument_allocator.hpp", include_bytes!("../runtime/instrument_allocator.hpp").as_slice()),
-        ("instrument_synth.hpp", include_bytes!("../runtime/instrument_synth.hpp").as_slice()),
-        ("instrument_preparation.hpp", include_bytes!("../runtime/instrument_preparation.hpp").as_slice()),
-        ("instrument_reverb.hpp", include_bytes!("../runtime/instrument_reverb.hpp").as_slice()),
-        ("sequence_clock.hpp", include_bytes!("../runtime/sequence_clock.hpp").as_slice()),
+        (
+            "spu_transfer.hpp",
+            include_bytes!("../runtime/spu_transfer.hpp").as_slice(),
+        ),
+        (
+            "sequence_kernel.hpp",
+            include_bytes!("../runtime/sequence_kernel.hpp").as_slice(),
+        ),
+        (
+            "sequence_data.hpp",
+            include_bytes!("../runtime/sequence_data.hpp").as_slice(),
+        ),
+        (
+            "sequence_tables.hpp",
+            include_bytes!("../runtime/sequence_tables.hpp").as_slice(),
+        ),
+        (
+            "sequence_lock.hpp",
+            include_bytes!("../runtime/sequence_lock.hpp").as_slice(),
+        ),
+        (
+            "sequence_service.hpp",
+            include_bytes!("../runtime/sequence_service.hpp").as_slice(),
+        ),
+        (
+            "sequence_instrument_service.hpp",
+            include_bytes!("../runtime/sequence_instrument_service.hpp").as_slice(),
+        ),
+        (
+            "instrument_bank.hpp",
+            include_bytes!("../runtime/instrument_bank.hpp").as_slice(),
+        ),
+        (
+            "instrument_allocator.hpp",
+            include_bytes!("../runtime/instrument_allocator.hpp").as_slice(),
+        ),
+        (
+            "instrument_synth.hpp",
+            include_bytes!("../runtime/instrument_synth.hpp").as_slice(),
+        ),
+        (
+            "instrument_preparation.hpp",
+            include_bytes!("../runtime/instrument_preparation.hpp").as_slice(),
+        ),
+        (
+            "instrument_reverb.hpp",
+            include_bytes!("../runtime/instrument_reverb.hpp").as_slice(),
+        ),
+        (
+            "sequence_clock.hpp",
+            include_bytes!("../runtime/sequence_clock.hpp").as_slice(),
+        ),
         ("epok.hpp", include_bytes!("../runtime/epok.hpp").as_slice()),
         (
             "affine.hpp",
@@ -1246,7 +1252,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             "transform_cache.hpp",
             include_bytes!("../runtime/transform_cache.hpp").as_slice(),
         ),
-        ("motion_interpolation.hpp", include_bytes!("../runtime/motion_interpolation.hpp").as_slice()),
+        (
+            "motion_interpolation.hpp",
+            include_bytes!("../runtime/motion_interpolation.hpp").as_slice(),
+        ),
         (
             "frustum.hpp",
             include_bytes!("../runtime/frustum.hpp").as_slice(),
@@ -1298,7 +1307,9 @@ fn fingerprint_inputs(root: &Path, include_settings: bool) -> Result<u64, String
         files.push(manifest);
     }
     for name in [crate::scene_bank::REGISTRY, "Local.epokconfig"] {
-        if name == crate::scene_bank::REGISTRY && !include_settings { continue; }
+        if name == crate::scene_bank::REGISTRY && !include_settings {
+            continue;
+        }
         let p = root.join(name);
         if p.exists() {
             files.push(p);
@@ -1335,7 +1346,11 @@ fn fingerprint_inputs(root: &Path, include_settings: bool) -> Result<u64, String
 /// Nothing here is persisted: `properties`/`overrides` come from the document, every
 /// index is derived from the order of `scene.actors`, and class identities come from the
 /// resolved `object_model::Model`.
-fn actor_table_with_registry(scene: &Scene, registry: &crate::blueprint::Registry) -> Result<String, String> {
+fn actor_table_with_registry(
+    scene: &Scene,
+    registry: &crate::blueprint::Registry,
+    clips: &[uuid::Uuid],
+) -> Result<String, String> {
     if scene.actors.is_empty() && scene.scene_script.is_none() {
         return Ok(
             "inline constexpr ActorTable actor_table={nullptr,0,UINT64_C(0)};\ninline constexpr uint64_t scene_script_class=UINT64_C(0);\ninline constexpr size_t actor_registry_slots=0;\n"
@@ -1373,7 +1388,7 @@ fn actor_table_with_registry(scene: &Scene, registry: &crate::blueprint::Registr
         depth
     });
     let slot = |id: uuid::Uuid| order.iter().position(|i| scene.actors[*i].id == id);
-    let entity_index = |id: uuid::Uuid| scene.entities.iter().position(|entity| entity.id == id);
+    let entity_index = |id: uuid::Uuid| scene.actors.iter().position(|entity| entity.id == id);
     let mut components_text = String::new();
     let mut applies = String::new();
     let mut rows = Vec::new();
@@ -1406,42 +1421,113 @@ fn actor_table_with_registry(scene: &Scene, registry: &crate::blueprint::Registr
                     scene.name, actor.name, component.name, component.class.name
                 )
             })?;
-            // The root of an actor backed by a legacy entity keeps the canonical slot
-            // transform: collision, rendering and motion interpolation read that memory.
-            let legacy_slot = if component.root {
-                actor
-                    .legacy_entity
-                    .and_then(entity_index)
-                    .map_or(-1, |i| i as i32)
-            } else {
-                -1
-            };
+            let data_slot = *source as i32;
+            let default_index = component
+                .default_id
+                .as_ref()
+                .map(|id| {
+                    class
+                        .default_components
+                        .iter()
+                        .position(|c| &c.id == id)
+                        .map(|i| i as i16)
+                        .ok_or_else(|| {
+                            format!(
+                                "{}: native default component {id} no longer exists",
+                                actor.name
+                            )
+                        })
+                })
+                .transpose()?
+                .unwrap_or(-1);
             let attach_parent = component
                 .attach_parent
                 .and_then(|id| actor.components.iter().position(|c| c.id == id))
                 .map_or(-1, |i| i as i32);
             records.push(format!(
-                "{{UINT64_C({}),{},{},{attach_parent},{legacy_slot}}}",
+                "{{UINT64_C({}),{},{},{attach_parent},{data_slot},{default_index}}}",
                 crate::blueprint_refs::compact_id(&component_class.id),
                 serde_json::to_string(&component.name).unwrap(),
                 component.root
             ));
-            setters.push_str(&property_setters(
-                &format!(
-                    "registry.resolve<{}>(components[{position}])",
-                    component_class.cpp_name
-                ),
-                "component",
-                &component.properties,
-                &component.overrides,
-                &component_class.cpp_name,
-                &registry,
-                scene,
-                &format!(
-                    "{}: actor {} component {}",
-                    scene.name, actor.name, component.name
-                ),
-            )?);
+            if component_class.id == crate::object_model::SCENE_COMPONENT2D_ID {
+                let p = &component.properties;
+                let position_value = p
+                    .get("position")
+                    .cloned()
+                    .unwrap_or(serde_json::json!([0, 0]));
+                let scale = p.get("scale").cloned().unwrap_or(serde_json::json!([1, 1]));
+                let rotation = p.get("rotation").cloned().unwrap_or(serde_json::json!(0));
+                let ty = crate::reflection_schema::Type::Vector { length: 2 };
+                let body = crate::script_values::assignment(
+                    "component->transform.position",
+                    &position_value,
+                    &ty,
+                )? + &crate::script_values::assignment(
+                    "component->transform.scale",
+                    &scale,
+                    &ty,
+                )? + &crate::script_values::assignment(
+                    "component->transform.rotation",
+                    &rotation,
+                    &crate::reflection_schema::Type::Fixed,
+                )?;
+                setters += &format!(
+                    "if(auto* component=registry.resolve<epok::SceneComponent2D>(components[{position_index}])){{{body}}}\n",
+                    position_index = position
+                );
+            }
+            if component_class.id == crate::object_model::AUDIO_COMPONENT_ID {
+                let audio: crate::audio::AudioSource = component
+                    .properties
+                    .get("audio")
+                    .map(|v| serde_json::from_value(v.clone()))
+                    .transpose()
+                    .map_err(|e| e.to_string())?
+                    .unwrap_or_default();
+                let clip = audio
+                    .clip
+                    .map(|id| {
+                        clips
+                            .iter()
+                            .position(|v| *v == id)
+                            .map(|i| i as i32)
+                            .ok_or_else(|| {
+                                format!(
+                                    "{}: Audio clip {id} is missing from the resource bank",
+                                    actor.name
+                                )
+                            })
+                    })
+                    .transpose()?
+                    .unwrap_or(-1);
+                let fixed = |v: f32| (v as f64 * 4096.).round() as i32;
+                setters += &format!(
+                    "if(auto* component=registry.resolve<epok::AudioComponent>(components[{position}])){{if(auto* source=component->source){{source->enabled=true;source->clip={clip};source->volume=epok::Fixed({},epok::Fixed::RAW);source->pitch=epok::Fixed({},epok::Fixed::RAW);source->play_on_start={};source->priority={};}}}}\n",
+                    fixed(audio.volume),
+                    fixed(audio.pitch),
+                    audio.play_on_start,
+                    audio.priority
+                );
+            }
+            if !crate::actor_components::native(&component_class.id) {
+                setters.push_str(&property_setters(
+                    &format!(
+                        "registry.resolve<{}>(components[{position}])",
+                        component_class.cpp_name
+                    ),
+                    "component",
+                    &component.properties,
+                    &component.overrides,
+                    &component_class.cpp_name,
+                    &registry,
+                    scene,
+                    &format!(
+                        "{}: actor {} component {}",
+                        scene.name, actor.name, component.name
+                    ),
+                )?);
+            }
         }
         let components_symbol = if records.is_empty() {
             "nullptr".to_string()
@@ -1456,7 +1542,7 @@ fn actor_table_with_registry(scene: &Scene, registry: &crate::blueprint::Registr
             "nullptr".to_string()
         } else {
             applies.push_str(&format!(
-                "inline void actor_apply_{index}(ObjectRegistry& registry,Actor& actor,const ObjectId* components){{\n(void)registry;(void)actor;(void)components;\n{setters}}}\n"
+                "inline void actor_apply_{index}(ObjectRegistry& registry,Actor& actor,const ObjectId* components,const ObjectId* actors){{\n(void)registry;(void)actor;(void)components;(void)actors;\n{setters}}}\n"
             ));
             format!("&actor_apply_{index}")
         };
@@ -1531,7 +1617,7 @@ fn actor_table_with_registry(scene: &Scene, registry: &crate::blueprint::Registr
 /// Cooked `scene_reference` table for one bank, plus the trailing `ActorTable` fields
 /// that point at it.
 ///
-/// P6 lowers every persisted `ActorRef`/`ComponentRef`/`EntityRef` default of a map's own
+/// P6 lowers every persisted `ActorRef`/`ComponentRef`/`ObjectRef` default of a map's own
 /// Blueprint to the null identity and resolves the authored UUID against the map's scope.
 /// This turns each resolution into a *table index* — never a UUID and never a name — and
 /// emits the generated writer that assigns it, because typed member access needs the C++
@@ -1545,15 +1631,16 @@ fn scene_reference_table(
     order: &[usize],
     entity_index: &dyn Fn(uuid::Uuid) -> Option<usize>,
 ) -> Result<(String, String), String> {
-    let references =
-        crate::blueprint_compile::map_scene_references(Path::new(&scene.name), scene)?;
+    let references = crate::blueprint_compile::map_scene_references(Path::new(&scene.name), scene)?;
     if references.is_empty() {
         return Ok((String::new(), String::new()));
     }
-    let script = scene
-        .scene_script
-        .as_ref()
-        .ok_or_else(|| format!("{}: map-scoped references without a scene script", scene.name))?;
+    let script = scene.scene_script.as_ref().ok_or_else(|| {
+        format!(
+            "{}: map-scoped references without a scene script",
+            scene.name
+        )
+    })?;
     let class = model.class(&script.blueprint.id).ok_or_else(|| {
         format!(
             "{}: the scene Blueprint class {} is not in the compiled catalog; its map-scoped references cannot be bound",
@@ -1586,10 +1673,10 @@ fn scene_reference_table(
                 scene.name, reference.target
             )
         };
-        let (kind, actor, component, entity, value) = match reference.kind {
+        let (kind, actor, component, value) = match reference.kind {
             crate::blueprint_compile::SceneRefKind::Actor => {
                 let index = actor_slot(reference.target).ok_or_else(missing)?;
-                ("Actor", index as i32, -1, -1, "target")
+                ("Actor", index as i32, -1, "target")
             }
             crate::blueprint_compile::SceneRefKind::Component => {
                 let (actor, position) = scene
@@ -1604,15 +1691,11 @@ fn scene_reference_table(
                     })
                     .ok_or_else(missing)?;
                 let index = actor_slot(actor).ok_or_else(missing)?;
-                ("Component", index as i32, position as i32, -1, "target")
-            }
-            crate::blueprint_compile::SceneRefKind::Entity => {
-                let index = entity_index(reference.target).ok_or_else(missing)?;
-                ("Entity", -1, -1, index as i32, "entity")
+                ("Component", index as i32, position as i32, "target")
             }
         };
         rows.push(format!(
-            "{{UINT64_C({}),UINT64_C({member}),SceneRefKind::{kind},{actor},{component},{entity}}}",
+            "{{UINT64_C({}),UINT64_C({member}),SceneRefKind::{kind},{actor},{component}}}",
             crate::blueprint_refs::compact_id(&class.id)
         ));
         body.push_str(&format!(
@@ -1620,7 +1703,7 @@ fn scene_reference_table(
         ));
     }
     let text = format!(
-        "inline void scene_reference_bind(ObjectRegistry& registry,Actor& owner,uint64_t member,ObjectId target,EntityHandle entity){{\n(void)registry;(void)owner;(void)member;(void)target;(void)entity;\nif(auto* self=registry.resolve<{}>(owner.id())){{\n{body}}}\n}}\ninline constexpr SceneReferenceRecord scene_references[]={{{}}};\n",
+        "inline void scene_reference_bind(ObjectRegistry& registry,Actor& owner,uint64_t member,ObjectId target){{\n(void)registry;(void)owner;(void)member;(void)target;\nif(auto* self=registry.resolve<{}>(owner.id())){{\n{body}}}\n}}\ninline constexpr SceneReferenceRecord scene_references[]={{{}}};\n",
         class.cpp_name,
         rows.join(",")
     );
@@ -1676,7 +1759,7 @@ fn property_setters(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scene::ScriptBinding;
+    use crate::scene::ClassDefaults;
     #[test]
     #[ignore = "requires the configured pinned host extractor and PSX SDK; does not launch the emulator"]
     fn linked_refresh_precedes_obsolete_asset_resolution_and_preserves_overrides() {
@@ -1709,8 +1792,8 @@ mod tests {
         let mut asset = crate::blueprint_asset::load(&asset_path).unwrap();
         asset.template = templates::Template::root("Linked Root");
         let removed_texture = uuid::Uuid::new_v4();
-        asset.template.entities[0].entity.material.texture = Some(removed_texture);
-        asset.template.entities[0].entity.audio = Some(crate::audio::AudioSource {
+        asset.template.actors[0].entity.material.texture = Some(removed_texture);
+        asset.template.actors[0].entity.audio = Some(crate::audio::AudioSource {
             clip: Some(uuid::Uuid::new_v4()),
             ..Default::default()
         });
@@ -1723,7 +1806,7 @@ mod tests {
             ..parent
         };
         registry.classes.insert(class.id.clone(), class.clone());
-        let binding = ScriptBinding {
+        let binding = ClassDefaults {
             name: class.cpp_name,
             class_id: Some(class.id),
             provider: class.provider,
@@ -1739,11 +1822,11 @@ mod tests {
             None,
         )
         .unwrap();
-        let before = saved.entities[placed.root].clone();
-        saved.entities[placed.root].position = [9., 2., 1.];
-        templates::record_overrides(&before, &mut saved.entities[placed.root]);
+        let before = saved.actors[placed.root].clone();
+        saved.actors[placed.root].position = [9., 2., 1.];
+        templates::record_overrides(&before, &mut saved.actors[placed.root]);
         let identities = saved
-            .entities
+            .actors
             .iter()
             .map(|entity| entity.id)
             .collect::<Vec<_>>();
@@ -1755,17 +1838,17 @@ mod tests {
         );
         // The parent removes the inherited asset, but the serialized instance
         // still contains its old UUID. A deliberate position edit must survive.
-        asset.template.entities[0].entity.material.texture = None;
-        asset.template.entities[0].entity.audio = None;
-        asset.template.entities[0].entity.position = [3., 4., 5.];
+        asset.template.actors[0].entity.material.texture = None;
+        asset.template.actors[0].entity.audio = None;
+        asset.template.actors[0].entity.position = [3., 4., 5.];
         write_changed(&asset_path, &crate::document::to_vec(&asset).unwrap()).unwrap();
         let mut refreshed = saved.clone();
         refresh_linked_scene(&root, &mut refreshed).unwrap();
         crate::texture::resolve(&mut refreshed, &crate::assets::Index::default()).unwrap();
-        assert_eq!(refreshed.entities[placed.root].material.texture, None);
-        assert_eq!(refreshed.entities[placed.root].position, [9., 2., 1.]);
+        assert_eq!(refreshed.actors[placed.root].material.texture, None);
+        assert_eq!(refreshed.actors[placed.root].position, [9., 2., 1.]);
         assert!(
-            refreshed.entities[placed.root]
+            refreshed.actors[placed.root]
                 .blueprint_instance
                 .as_ref()
                 .unwrap()
@@ -1774,7 +1857,7 @@ mod tests {
         );
         assert_eq!(
             refreshed
-                .entities
+                .actors
                 .iter()
                 .map(|entity| entity.id)
                 .collect::<Vec<_>>(),
@@ -1784,10 +1867,10 @@ mod tests {
         // not only a hand-ordered sequence of refresh and resolver calls.
         stage_into(&root, &saved, &root.join(".epok/build")).unwrap();
         assert_eq!(
-            saved.entities[placed.root].material.texture,
+            saved.actors[placed.root].material.texture,
             Some(removed_texture)
         );
-        assert_eq!(saved.entities[placed.root].position, [9., 2., 1.]);
+        assert_eq!(saved.actors[placed.root].position, [9., 2., 1.]);
         // The Play pipeline prepares linked instances before staging. Its
         // resource-selection provenance must still describe the saved input.
         let path = root.join("assets/scenes/Main.epokmap");
@@ -1815,53 +1898,68 @@ mod tests {
     #[test]
     fn native_export_keeps_local_transforms_materials_and_parent_first_order() {
         let mut s = Scene::default();
-        s.entities[3].kind = "Empty".into();
-        s.entities[3].scale = [1.; 3];
-        s.entities[1].parent = Some(3);
-        s.entities[2].parent = Some(1);
-        s.entities[2].material.color = [1., 0., 0.];
-        s.entities[2].material.unlit = true;
+        s.actors[3].kind = "Empty".into();
+        s.actors[3].scale = [1.; 3];
+        s.actors[1].parent = Some(3);
+        s.actors[2].parent = Some(1);
+        s.actors[2].material.color = [1., 0., 0.];
+        s.actors[2].material.unlit = true;
         let header = scene_header(&s, &[]).unwrap();
         assert!(header.contains("transform_order = {{0,3,1,2}}"));
         assert!(header.contains("{false, true, false, 3,"));
         assert!(header.contains("{{255,0,0}, true}"));
-        s.entities[3].scale = [64.; 3];
-        s.entities[1].scale = [2.; 3];
+        s.actors[3].scale = [64.; 3];
+        s.actors[1].scale = [2.; 3];
         assert!(scene_header(&s, &[]).is_err());
     }
     #[test]
     fn missing_script_fails_before_build() {
         let mut s = Scene::default();
-        s.entities[1].script = Some(ScriptBinding {
-            name: "Missing".into(),
-            ..Default::default()
-        });
-        assert!(scene_header(&s, &[]).unwrap_err().contains("Missing class"));
+        s.actors[1].set_class_defaults(
+            &(ClassDefaults {
+                name: "Missing".into(),
+                ..Default::default()
+            }),
+        );
+        assert!(
+            scene_header(&s, &[])
+                .unwrap_err()
+                .contains("unknown class Missing")
+        );
     }
     #[test]
     fn properties_generate_independent_native_instances() {
-        let mut s = Scene::default();
+        let mut scene = Scene::default();
+        let mut class = crate::actor_document::tests::class(
+            "spinner",
+            "Spinner",
+            Some(crate::object_model::ACTOR3D_ID),
+        );
+        class.properties.push(crate::reflection_schema::Property {
+            id: "speed".into(),
+            name: "speed".into(),
+            value_type: crate::reflection_schema::Type::Fixed,
+            default: serde_json::json!(90),
+            editable: true,
+            timeline: None,
+            source: class.source.clone(),
+        });
         for i in [1, 2] {
-            s.entities[i].script = Some(ScriptBinding {
+            scene.actors[i].set_class_defaults(&ClassDefaults {
                 name: "Spinner".into(),
+                class_id: Some("spinner".into()),
                 properties: [("speed".into(), serde_json::json!(i))].into(),
                 overrides: ["speed".into()].into(),
                 ..Default::default()
             });
         }
-        let c = vec![scripts::Script {
+        let catalog = vec![scripts::Script {
             name: "Spinner".into(),
-            parent: None,
-            properties: vec![scripts::Property {
-                name: "speed".into(),
-                default: serde_json::json!(90.0),
-                value_type: Default::default(),
-                id: "legacy:Spinner:speed".into(),
-            }],
+            classes: vec![class],
             ..Default::default()
         }];
-        let out = scene_header(&s, &c).unwrap();
-        assert!(out.contains("behaviour_1.speed = Fixed(4096"));
-        assert!(out.contains("behaviour_2.speed = Fixed(8192"));
+        let out = scene_header(&scene, &catalog).unwrap();
+        assert!(out.contains("self->speed = Fixed(4096"), "{out}");
+        assert!(out.contains("self->speed = Fixed(8192"), "{out}");
     }
 }

@@ -56,7 +56,6 @@ pub struct Compilation {
 pub enum SceneRefKind {
     Actor,
     Component,
-    Entity,
 }
 /// One persisted reference from a map's own Blueprint into that map.
 ///
@@ -119,7 +118,7 @@ fn receiver_artifacts(
     for class in targets
         .keys()
         .flat_map(|(class, _)| registry.ancestry(&registry.classes[class].cpp_name))
-        .filter(|c| c.provider.id == "cpp" && c.cpp_name != "epok::Behaviour")
+        .filter(|c| c.provider.id == "cpp" && !c.cpp_name.starts_with("epok::"))
     {
         let script_root = root.join("assets/scripts");
         let script_root = std::fs::canonicalize(&script_root).unwrap_or(script_root);
@@ -150,7 +149,7 @@ fn receiver_artifacts(
     for ((class_id, function_id), (file, function)) in targets {
         let class = &registry.classes[&class_id];
         let returns = ir::cpp_type(&function.returns).map_err(|e| vec![diagnostic(file, e)])?;
-        let mut parameters = vec!["epok::EntityHandle epok_receiver".to_string()];
+        let mut parameters = vec!["epok::ObjectId epok_receiver".to_string()];
         let mut arguments = vec![];
         for (index, p) in function.parameters.iter().enumerate() {
             let ty = ir::cpp_type(&p.value_type).map_err(|e| vec![diagnostic(file, e)])?;
@@ -180,7 +179,7 @@ fn receiver_artifacts(
             function.name,
             arguments.join(",")
         );
-        source.push_str(&format!("{signature}{{UqReceiverDepth epok_depth;if(!epok_depth.entered){{{fallback}}}if(!epok::bp::is_a(epok_receiver,{class_hash}ULL)){{{fallback}}}auto* epok_object=epok::bp::behaviour(epok_receiver);if(!epok_object){{{fallback}}}if(auto* epok_binding=epok::bp::find_binding(epok_receiver)){{epok::bp::DispatchScope epok_scope(*epok_binding);{invoke}}}{invoke}}}\n"));
+        source.push_str(&format!("{signature}{{UqReceiverDepth epok_depth;if(!epok_depth.entered){{{fallback}}}if(!epok::bp::is_a(epok_receiver,{class_hash}ULL)){{{fallback}}}auto* epok_object=epok::bp::object(epok_receiver);if(!epok_object){{{fallback}}}if(!epok::active_object_registry){{{fallback}}}epok::ObjectDispatchScope epok_scope(*epok::active_object_registry);{invoke}}}\n"));
     }
     artifacts.files.insert(
         "scripts/generated/blueprint_calls.hpp".into(),
@@ -207,7 +206,6 @@ fn reference_target(ty: &schema::Type, value: &serde_json::Value) -> Option<uuid
         schema::Type::ObjectRef { .. }
             | schema::Type::ActorRef { .. }
             | schema::Type::ComponentRef { .. }
-            | schema::Type::EntityRef { .. }
     ) {
         return None;
     }
@@ -219,7 +217,7 @@ fn reference_target(ty: &schema::Type, value: &serde_json::Value) -> Option<uuid
 /// Resolves one persisted reference against the scope of its Blueprint.
 ///
 /// Only a map's own Blueprint has a scope, and it is exactly the actors,
-/// components and entities of that map. Resolution happens here, once, at compile
+/// components and actors of that map. Resolution happens here, once, at compile
 /// time: nothing looks an identity up by name during Tick. A standalone Blueprint
 /// has no map, so any map-scoped value in one is a diagnostic rather than a
 /// reference that would silently mean nothing at run time.
@@ -251,13 +249,9 @@ fn scene_reference(
             .components
             .contains(&target)
             .then_some(SceneRefKind::Component),
-        schema::Type::EntityRef { .. } => scope
-            .entities
-            .contains(&target)
-            .then_some(SceneRefKind::Entity),
         _ if scope.actors.contains(&target) => Some(SceneRefKind::Actor),
         _ if scope.components.contains(&target) => Some(SceneRefKind::Component),
-        _ if scope.entities.contains(&target) => Some(SceneRefKind::Entity),
+        _ if scope.actors.contains(&target) => Some(SceneRefKind::Actor),
         _ => None,
     };
     let Some(kind) = kind else {
@@ -267,7 +261,6 @@ fn scene_reference(
                 "{member} references {target}, which is not {} of {}; the value is preserved for repair",
                 match ty {
                     schema::Type::ComponentRef { .. } => "a component",
-                    schema::Type::EntityRef { .. } => "an entity",
                     _ => "an actor",
                 },
                 file.path.display()
@@ -403,7 +396,8 @@ fn validate_resources(
             .ok_or_else(|| vec![diagnostic(file, "Asset reference requires a UUID")])?;
         let record = index.resolve(id).map_err(|e| vec![diagnostic(file, e)])?;
         if let schema::Type::AssetRef { kind } = ty {
-            let expected=crate::assets::Kind::runtime_reference(&kind).map_err(|e|vec![diagnostic(file,e)])?;
+            let expected = crate::assets::Kind::runtime_reference(&kind)
+                .map_err(|e| vec![diagnostic(file, e)])?;
             if !expected.accepts_runtime(&record.meta.kind) {
                 return Err(vec![diagnostic(
                     file,
@@ -712,7 +706,7 @@ fn declarations(file: &AssetFile, registry: &Registry) -> Result<schema::Class, 
         family: None,
         domain: None,
         placement: Default::default(),
-        component: None,
+        component: a.component.clone(),
         default_components: vec![],
         explicit_abstract: false,
         id: a.id.clone(),
@@ -743,17 +737,12 @@ fn write_body(
                 text.push_str(&format!(
                     "\n#line 1 \"Blueprint/{asset_id}/{graph}/{id}\"\n"
                 ));
-                // `epok::bp::trace` and `epok_debug` hang off the Behaviour debugger.
-                // Binding the trace protocol to the object model is deferred, so an
-                // Actor/Component class carries the source mapping but no hooks.
-                if kind == ir::SelfKind::Behaviour {
-                    text.push_str(&format!(
-                        "epok::bp::trace({}u,{}u,epok::handle(&this->entity()));\n",
-                        trace_id(asset_id),
-                        trace_id(id)
-                    ));
-                    text.push_str(&format!("#if defined(EPOK_BLUEPRINT_TRACE) && EPOK_BLUEPRINT_TRACE\nepok_debug({}u);\n#endif\n",trace_id(id)));
-                }
+                text.push_str(&format!(
+                    "epok::bp::trace({}u,{}u,this->id());\n",
+                    trace_id(asset_id),
+                    trace_id(id)
+                ));
+                text.push_str(&format!("#if defined(EPOK_BLUEPRINT_TRACE) && EPOK_BLUEPRINT_TRACE\nepok_debug({}u);\n#endif\n",trace_id(id)));
             }
             Statement::Delay(_) | Statement::Timeline { .. } | Statement::WaitPlayback { .. } => {
                 unreachable!("latent bodies require continuation lowering")
@@ -805,40 +794,11 @@ fn trace_id(id: &str) -> u32 {
     let hash = Sha256::digest(id.as_bytes());
     u32::from_le_bytes(hash[..4].try_into().unwrap())
 }
-/// Family of a class without building the whole resolved model. Walks the parent chain
-/// by id looking for a declared family or one of the native family roots. Projects that
-/// only contain legacy Behaviour classes never pay for `Model::from_registry`, so their
-/// generated code stays byte for byte what it was.
-fn probe_family(registry: &Registry, id: &str) -> schema::ClassFamily {
-    let mut current = Some(id.to_string());
-    let mut seen = BTreeSet::new();
-    while let Some(key) = current {
-        if !seen.insert(key.clone()) {
-            break;
-        }
-        let Some(class) = registry.classes.get(&key) else {
-            break;
-        };
-        if let Some(declared) = class.family
-            && declared != schema::ClassFamily::Object
-        {
-            return declared;
-        }
-        match key.as_str() {
-            crate::object_model::ACTOR_ID => return schema::ClassFamily::Actor,
-            crate::object_model::ACTOR_COMPONENT_ID => return schema::ClassFamily::Component,
-            _ => {}
-        }
-        current = class.parent.clone();
-    }
-    schema::ClassFamily::Behaviour
-}
-
 fn self_kind_of(family: schema::ClassFamily) -> ir::SelfKind {
     match family {
         schema::ClassFamily::Actor => ir::SelfKind::Actor,
         schema::ClassFamily::Component => ir::SelfKind::Component,
-        _ => ir::SelfKind::Behaviour,
+        _ => unreachable!("Blueprint parent must be Actor or ActorComponent"),
     }
 }
 
@@ -846,14 +806,8 @@ fn self_kind_of(family: schema::ClassFamily) -> ir::SelfKind {
 /// Actor and Component resolve the legacy slot once and tolerate its absence: an
 /// Actor2D or a UIActor has no 3D slot at all, so the handle is simply null there and
 /// every `epok::bp::api` entry point already treats a null handle as a no-op.
-fn self_prologue(kind: ir::SelfKind) -> String {
-    if kind == ir::SelfKind::Behaviour {
-        return "const auto epok_owner=epok::handle(&this->entity());(void)epok_owner;".into();
-    }
-    format!(
-        "epok::Entity* epok_self={};(void)epok_self;const auto epok_owner=epok_self?epok::handle(epok_self):epok::EntityHandle{{}};(void)epok_owner;",
-        kind.entity_pointer()
-    )
+fn self_prologue(_kind: ir::SelfKind) -> String {
+    "const auto epok_owner=this->id();(void)epok_owner;".into()
 }
 
 /// Nodes that always lower to a continuation frame. Checked on the authored graph so the
@@ -873,7 +827,7 @@ fn expects_latent(asset: &asset::BlueprintAsset) -> bool {
 
 fn debug_members(properties: &BTreeMap<String, schema::Property>, class_id: &str) -> String {
     let mut output = format!(
-        "#if defined(EPOK_BLUEPRINT_TRACE) && EPOK_BLUEPRINT_TRACE\nvoid epok_debug(uint32_t node){{epok::bp::debug_begin({}u,node,epok::handle(&this->entity()));\n",
+        "#if defined(EPOK_BLUEPRINT_TRACE) && EPOK_BLUEPRINT_TRACE\nvoid epok_debug(uint32_t node){{epok::bp::debug_begin({}u,node,this->id());\n",
         trace_id(class_id)
     );
     for property in properties.values() {
@@ -894,7 +848,7 @@ fn debug_members(properties: &BTreeMap<String, schema::Property>, class_id: &str
                     .map(|i| format!("uint32_t({name}[{i}].raw())"))
                     .collect(),
             ),
-            schema::Type::EntityRef { .. } => (
+            schema::Type::ObjectRef { .. } => (
                 8,
                 vec![
                     format!("uint32_t({name}.index)"),
@@ -1072,7 +1026,7 @@ fn latent(
         {
             // Dereferencing the legacy slot is only valid once it exists. Actor and
             // Component frames skip the resumption instead of aliasing a placeholder.
-            if kind != ir::SelfKind::Behaviour {
+            {
                 aliases.push_str(&format!("if(!{})return;\n", kind.entity_pointer()));
             }
             aliases.push_str(&format!("auto& {}={};\n", p.name, kind.transform()));
@@ -1217,7 +1171,7 @@ fn latent(
             "epok::bp::Timeline<16> epok_track_{track};uint32_t epok_epoch_{track}=0;\n"
         ));
         code.prepare.push_str(&format!("const auto epok_epoch_snapshot_{track}=epok_epoch_{track};const auto epok_sample_{track}=epok_track_{track}.advance(dt,epok::blueprint_scene_generation);\n"));
-        code.dispatch.push_str(&format!("if(epok_epoch_snapshot_{track}==epok_epoch_{track}&&epok_sample_{track}.updated){{{target}=epok_sample_{track}.value;epok_run_{key}({updated}u);{guard}}}if(epok_epoch_snapshot_{track}==epok_epoch_{track}&&epok_sample_{track}.completed){{epok_run_{key}({finished}u);{guard}}}\n",guard=if kind==ir::SelfKind::Behaviour {"if(!epok_owner.get())return;"} else {""}));
+        code.dispatch.push_str(&format!("if(epok_epoch_snapshot_{track}==epok_epoch_{track}&&epok_sample_{track}.updated){{{target}=epok_sample_{track}.value;epok_run_{key}({updated}u);{guard}}}if(epok_epoch_snapshot_{track}==epok_epoch_{track}&&epok_sample_{track}.completed){{epok_run_{key}({finished}u);{guard}}}\n",guard="if(!epok_owner.get())return;"));
         code.cancel.push_str(&format!(
             "epok_track_{track}.cancel();++epok_epoch_{track};\n"
         ));
@@ -1533,25 +1487,12 @@ pub fn compile(
         }
     }
     artifacts.dependencies.extend(resource_dependencies.paths);
-    // The resolved family of every compiled class. Behaviour-only projects skip the
-    // model entirely, so their generated text is unchanged by this phase.
-    // A map's own Blueprint always needs the model: its parent must be proved to be
-    // an `epok::SceneScriptActor` subclass before anything else is generated.
-    let needs_model = files.iter().any(|file| {
-        file.is_embedded()
-            || file.asset.family.is_some()
-            || probe_family(&registry, &file.asset.id) != schema::ClassFamily::Behaviour
-    });
-    let model = if needs_model {
-        Some(registry.model().map_err(|diagnostics| {
-            diagnostics
-                .iter()
-                .map(|d| diagnostic(&files[0], format!("{}: {}", d.code, d.message)))
-                .collect::<Vec<_>>()
-        })?)
-    } else {
-        None
-    };
+    let model = Some(registry.model().map_err(|diagnostics| {
+        diagnostics
+            .iter()
+            .map(|d| diagnostic(&files[0], format!("{}: {}", d.code, d.message)))
+            .collect::<Vec<_>>()
+    })?);
     let has_receivers = receiver_artifacts(root, &registry, files, &mut artifacts)?;
     let mut scene_scripts = vec![];
     let mut scene_references = vec![];
@@ -1575,7 +1516,7 @@ pub fn compile(
                         )]);
                     }
                 }
-                schema::Type::EntityRef { class: Some(base) }
+                schema::Type::ObjectRef { class: Some(base) }
                     if !registry.classes.contains_key(base) =>
                 {
                     return Err(vec![diagnostic(
@@ -1594,7 +1535,16 @@ pub fn compile(
             .as_ref()
             .and_then(|model| model.class(&a.id))
             .map(|class| class.family)
-            .unwrap_or(schema::ClassFamily::Behaviour);
+            .unwrap_or(schema::ClassFamily::Object);
+        if !matches!(
+            family,
+            schema::ClassFamily::Actor | schema::ClassFamily::Component
+        ) {
+            return Err(vec![diagnostic(
+                file,
+                "Blueprint parent must derive from Actor or ActorComponent",
+            )]);
+        }
         if let Some(hint) = a.family
             && hint != family
         {
@@ -1768,18 +1718,8 @@ pub fn compile(
                 1,
             );
         }
-        if self_kind == ir::SelfKind::Behaviour {
-            // `blueprint_class_id` and the trace hook are Behaviour virtuals. Actor and
-            // Component classes carry `Object::class_id()` instead; wiring the debugger
-            // to the object model is deferred with the rest of the runtime binding.
-            text.push_str(&debug_members(&properties, &a.id));
-            use sha2::{Digest, Sha256};
-            let hash = Sha256::digest(a.id.as_bytes());
-            let runtime_id = u64::from_le_bytes(hash[..8].try_into().unwrap());
-            text.push_str(&format!(
-                "uint64_t blueprint_class_id() const override {{return {runtime_id}ULL;}}\n"
-            ));
-        }
+        text.push_str(&format!("static constexpr uint64_t static_class_id={}ULL;\nuint64_t class_id() const override {{return static_class_id;}}\n",crate::blueprint_refs::compact_id(&a.id)));
+        text.push_str(&debug_members(&properties, &a.id));
         for v in &a.variables {
             if let schema::Type::Vector { length } = v.value_type {
                 text.push_str(&format!("epok::Fixed {}[{length}]{{}};\n", v.name));
@@ -1815,7 +1755,7 @@ pub fn compile(
         // reflected `tick`/`end_play` events are the continuation pump. When the class
         // owns latent frames the authored graphs for those two events are emitted under
         // private names and a single synthesized override drives them.
-        let latent_events = self_kind != ir::SelfKind::Behaviour && expects_latent(a);
+        let latent_events = expects_latent(a);
         let tick_signature = functions
             .values()
             .find(|f| f.name == "tick" && f.parameters.len() == 1)
@@ -1843,6 +1783,7 @@ pub fn compile(
                 writable: &writable,
                 properties: &properties,
                 functions: &functions,
+                self_class: &a.name,
                 parent_name: &parent.cpp_name,
                 parent_function: graph
                     .override_id
@@ -1975,7 +1916,7 @@ pub fn compile(
                 "A class supports at most eight simultaneously active latent event frames",
             )]);
         }
-        if self_kind != ir::SelfKind::Behaviour && latent_count > 0 && !synthesize {
+        if latent_count > 0 && !synthesize {
             return Err(vec![diagnostic(
                 file,
                 "Latent nodes in an Actor or Component Blueprint need the reflected tick event",
@@ -2015,18 +1956,11 @@ pub fn compile(
                 ));
             }
             if !playback_observe.is_empty() {
+                text.push_str(&format!("void blueprint_observe() override {{ {}::blueprint_observe();{playback_observe}}}\n",parent.cpp_name));
                 artifacts
                     .runtime_capabilities
                     .insert("playback_wait".into());
             }
-        } else if latent_count > 0 {
-            if !playback_observe.is_empty() {
-                text.push_str(&format!("void blueprint_observe() override {{{playback_observe}{}::blueprint_observe();}}\n",parent.cpp_name));
-                artifacts
-                    .runtime_capabilities
-                    .insert("playback_wait".into());
-            }
-            text.push_str(&format!("epok::bp::Continuations<8> epok_tasks;\nvoid blueprint_tick(epok::Transform& transform,epok::Fixed dt) override {{auto epok_owner=epok::handle(&this->entity());epok_tasks.advance(dt,epok::blueprint_scene_generation);{timeline_prepare}{}::blueprint_tick(transform,dt);if(!epok_owner.get())return;{timeline_dispatch}epok::bp::Continuation epok_cont;while(epok_tasks.poll(epok_cont)){{switch(epok_cont.node){{{continuations}default:break;}}if(!epok_owner.get())return;}}}}\nvoid blueprint_cancel() override {{epok_tasks.cancel_all();{timeline_cancel}{}::blueprint_cancel();}}\n",parent.cpp_name,parent.cpp_name));
         }
         text.push_str("};\n");
         let header = PathBuf::from(format!("generated/{}.hpp", a.id));
@@ -2103,7 +2037,7 @@ mod tests {
             provider: schema::native_provider(),
             backend: schema::native_backend(),
             cpp_name: "Enemy".into(),
-            parent: None,
+            parent: Some(crate::object_model::ACTOR3D_ID.into()),
             abstract_class: false,
             final_class: false,
             timeline_component: None,
@@ -2138,9 +2072,9 @@ mod tests {
             }],
             source: location(Path::new("assets/scripts/Enemy.hpp")),
         };
-        Registry {
-            classes: BTreeMap::from([(class.id.clone(), class)]),
-        }
+        let mut registry = crate::actor_document::tests::registry();
+        registry.classes.insert(class.id.clone(), class);
+        registry
     }
     fn asset() -> AssetFile {
         let mut a = BlueprintAsset::new("Boss".into(), id(1));
@@ -2253,7 +2187,7 @@ mod tests {
         let mut entry = node(10, NodeKind::Entry);
         entry.outputs.insert("next".into(), vec![id(10)]);
         f.asset.functions.push(event(vec![entry]));
-        assert!(error(f).contains("Execution cycles"));
+        assert!(error(f).contains("Entry"));
         let mut f = asset();
         let mut entry = node(10, NodeKind::Entry);
         entry.outputs.insert("next".into(), vec![id(11)]);
@@ -2301,8 +2235,8 @@ mod tests {
         assert!(code.contains("epok_loop_"));
         assert!(code.contains("epok_tasks.cancel("));
         assert!(code.contains("epok_tasks.delay("));
-        assert!(code.contains("Enemy::blueprint_tick(transform,dt)"));
-        assert!(code.contains("Enemy::blueprint_cancel()"));
+        assert!(code.contains("Enemy::tick(dt)"));
+        assert!(code.contains("Enemy::end_play(reason)"));
     }
     #[test]
     fn typed_playback_waits_share_latent_frames_and_reject_serialized_handles() {
@@ -2312,7 +2246,7 @@ mod tests {
         let self_node = node(
             12,
             NodeKind::Builtin {
-                operation: asset::Builtin::SelfEntity,
+                operation: asset::Builtin::SelfObject,
             },
         );
         let mut play = node(
@@ -2424,14 +2358,14 @@ mod tests {
             crate::timeline::Slot {
                 id: required,
                 name: "Caster".into(),
-                target: schema::Type::EntityRef { class: Some(id(1)) },
+                target: schema::Type::ObjectRef { class: Some(id(1)) },
                 required: true,
                 extra: Default::default(),
             },
             crate::timeline::Slot {
                 id: optional,
                 name: "Optional target".into(),
-                target: schema::Type::EntityRef { class: Some(id(1)) },
+                target: schema::Type::ObjectRef { class: Some(id(1)) },
                 required: false,
                 extra: Default::default(),
             },
@@ -2444,7 +2378,7 @@ mod tests {
         let own = node(
             11,
             NodeKind::Builtin {
-                operation: asset::Builtin::SelfEntity,
+                operation: asset::Builtin::SelfObject,
             },
         );
         let mut cast = node(
@@ -2490,7 +2424,7 @@ mod tests {
         file.asset.functions[0].nodes[3].inputs.insert(
             format!("binding:{required}"),
             Input::Literal {
-                value_type: schema::Type::EntityRef { class: Some(id(1)) },
+                value_type: schema::Type::ObjectRef { class: Some(id(1)) },
                 value: serde_json::Value::Null,
             },
         );
@@ -2502,7 +2436,10 @@ mod tests {
                 pin: "value".into(),
             },
         );
-        assert!(message(&file).contains("requires EntityRef"));
+        assert!(
+            compile_file(&file).is_ok(),
+            "Self carries its Actor class into typed playback bindings"
+        );
         file.asset.functions[0].nodes[3].inputs.insert(
             format!("binding:{required}"),
             Input::Link {
@@ -2915,7 +2852,7 @@ mod tests {
             node(
                 13,
                 NodeKind::Builtin {
-                    operation: asset::Builtin::SelfEntity,
+                    operation: asset::Builtin::SelfObject,
                 },
             ),
         ]));
@@ -2941,9 +2878,9 @@ mod tests {
                 .blueprint_audio_source(file, Some(&compiled.registry))
                 .unwrap();
             let template_scene = crate::scene::Scene {
-                entities: crate::blueprint_templates::resolve(&[&file.asset.template])
+                actors: crate::blueprint_templates::resolve(&[&file.asset.template])
                     .unwrap()
-                    .entities
+                    .actors
                     .into_iter()
                     .map(|item| item.entity)
                     .collect(),
@@ -3153,7 +3090,7 @@ mod tests {
         // Templates can contribute clips without any graph literal. Preserve
         // their source coverage when removing the broad Blueprint graph edge.
         file.asset.template = crate::blueprint_templates::Template::root("Sound");
-        file.asset.template.entities[0].entity.audio = Some(crate::audio::AudioSource {
+        file.asset.template.actors[0].entity.audio = Some(crate::audio::AudioSource {
             clip: Some(clip),
             ..Default::default()
         });
@@ -3170,12 +3107,28 @@ mod tests {
         );
         let template_bank = stage(".epok/build", &file);
         stage("exports/audio", &file);
-        let template_root = file.asset.template.entities[0].entity.id;
+        crate::actor_components::sync(&mut file.asset.template.actors[0].entity);
+        let scale_path = format!(
+            "/components/{}/properties/scale",
+            file.asset.template.actors[0].entity.root().unwrap().id
+        );
+        let audio_path = format!(
+            "/components/{}",
+            file.asset.template.actors[0]
+                .entity
+                .components
+                .iter()
+                .find(|c| c.class.class_id.as_deref()
+                    == Some(crate::object_model::AUDIO_COMPONENT_ID))
+                .unwrap()
+                .id
+        );
+        let template_root = file.asset.template.actors[0].entity.id;
         file.asset
             .template
             .add_child(template_root, "Untextured visual");
-        file.asset.template.entities[0].entity.position = [2., 3., 4.];
-        file.asset.template.entities[0]
+        file.asset.template.actors[0].entity.position = [2., 3., 4.];
+        file.asset.template.actors[0]
             .entity
             .audio
             .as_mut()
@@ -3193,7 +3146,7 @@ mod tests {
             .entry(template_root)
             .or_default()
             .members
-            .insert("uq.entity.scale.v1".into(), json!([2, 2, 2]));
+            .insert(scale_path.clone(), json!([2, 2, 2]));
         observe(&file);
         for target in [".epok/build", "exports/audio"] {
             assert!(
@@ -3212,7 +3165,7 @@ mod tests {
             .get_mut(&template_root)
             .unwrap()
             .members
-            .insert("uq.component.audio.v1".into(), json!(null));
+            .insert(audio_path.clone(), json!(null));
         observe(&file);
         for target in [".epok/build", "exports/audio"] {
             assert!(
@@ -3233,7 +3186,7 @@ mod tests {
             .get_mut(&template_root)
             .unwrap()
             .members
-            .remove("uq.component.audio.v1");
+            .remove(&audio_path);
         observe(&file);
         stage(".epok/build", &file);
         std::fs::write(&file.path, b"{").unwrap();
@@ -3486,7 +3439,7 @@ mod tests {
                 spawn.inputs.insert(
                     "parent".into(),
                     Input::Literal {
-                        value_type: schema::Type::EntityRef { class: None },
+                        value_type: schema::Type::ObjectRef { class: None },
                         value: json!(null),
                     },
                 );
@@ -3594,13 +3547,13 @@ mod tests {
         spawn.inputs.insert(
             "parent".into(),
             Input::Literal {
-                value_type: schema::Type::EntityRef { class: None },
+                value_type: schema::Type::ObjectRef { class: None },
                 value: json!(null),
             },
         );
         f.asset.functions.push(event(vec![entry, spawn]));
         let result = compile(Path::new(""), &registry(), &[f.clone()]).unwrap();
-        assert!(generated(&result).contains("epok::bp::api::spawn("));
+        assert!(generated(&result).contains("epok::bp::spawn_actor("));
         if let NodeKind::Builtin {
             operation: asset::Builtin::Spawn { class },
         } = &mut f.asset.functions[0].nodes[1].kind
@@ -3634,7 +3587,7 @@ mod tests {
         call.inputs.insert(
             "__target".into(),
             Input::Literal {
-                value_type: schema::Type::EntityRef { class: Some(id(1)) },
+                value_type: schema::Type::ObjectRef { class: Some(id(1)) },
                 value: json!(null),
             },
         );
@@ -3741,7 +3694,7 @@ mod tests {
         spawn.inputs.insert(
             "parent".into(),
             Input::Literal {
-                value_type: schema::Type::EntityRef { class: None },
+                value_type: schema::Type::ObjectRef { class: None },
                 value: json!(null),
             },
         );
@@ -3752,7 +3705,7 @@ mod tests {
         let cpp = generated(&compiled);
         assert!(cpp.contains("Vector<3>{{"));
         assert!(cpp.contains("})[1]"));
-        assert!(cpp.contains("api::spawn_class("));
+        assert!(cpp.contains("epok::bp::spawn_actor("));
         if let NodeKind::VectorComponent { index, .. } = &mut file.asset.functions[0].nodes[2].kind
         {
             *index = 3;

@@ -327,7 +327,10 @@ fn observe_build_sources(root: &Path) -> Result<(), String> {
     let mut last = std::time::Instant::now();
     let mut measured = |label| {
         if std::env::var_os("EPOK_PROFILE_BUILD").is_some() {
-            eprintln!("[build-validation] {label}: {:.1} ms", last.elapsed().as_secs_f64() * 1000.);
+            eprintln!(
+                "[build-validation] {label}: {:.1} ms",
+                last.elapsed().as_secs_f64() * 1000.
+            );
         }
         last = std::time::Instant::now();
     };
@@ -410,7 +413,13 @@ impl BuildTicket {
     /// Reuse is allowed only after a fresh begin_native (including content and
     /// manifest validation) and a fresh compiler dependency capture. The ticket
     /// must be identical to the one that certified the cached executable.
-    pub fn reuse(self, previous: &Self, root: &Path, destination: &Path, bytes: &[u8]) -> Result<(), String> {
+    pub fn reuse(
+        self,
+        previous: &Self,
+        root: &Path,
+        destination: &Path,
+        bytes: &[u8],
+    ) -> Result<(), String> {
         if &self != previous {
             return Err("Cached build inputs no longer match their certificate".into());
         }
@@ -533,7 +542,7 @@ mod tests {
         let mut saved = crate::scene::Scene::default();
         saved.save(&path).unwrap();
         let mut editor = saved.clone();
-        editor.entities[1].position[0] += 3.;
+        editor.actors[1].position[0] += 3.;
         let stage_scene = |target: &str, input: Input| {
             let destination = root.join(target);
             crate::project::stage_with_origin(&root, &input.scene, &destination, &input.origin)
@@ -546,7 +555,7 @@ mod tests {
         let baseline = Graph::load(&root).unwrap();
         let pending = BuildTicket::begin(&root, &build).unwrap();
         let saved_pending = BuildTicket::begin(&root, &export).unwrap();
-        saved.entities[1].active = false;
+        saved.actors[1].active = false;
         saved.save(&path).unwrap();
         pending
             .complete(&root, &build, b"submitted editor scene")
@@ -602,7 +611,7 @@ mod tests {
         );
         stage_scene(".epok/build", Input::editor(path.clone(), editor.clone()));
         let pending = BuildTicket::begin(&root, &build).unwrap();
-        after.entities[1].position[2] += 2.;
+        after.actors[1].position[2] += 2.;
         after.save(&after_path).unwrap();
         assert!(
             pending

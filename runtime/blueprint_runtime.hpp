@@ -1,8 +1,9 @@
 #pragma once
 #include "epok.hpp"
+#include "object_model.hpp"
 
 // Allocation-free support for generated Blueprint code. All state below belongs
-// to a behaviour instance unless the generated game explicitly shares it.
+// to an Actor or ActorComponent instance unless the generated game explicitly shares it.
 namespace epok::bp {
 
 // Blueprint arithmetic saturates, divides by zero to zero, and rounds division
@@ -62,14 +63,17 @@ template<size_t Size> inline Vector<Size> mul(const Vector<Size>& a, Fixed b) {
 template<size_t Size> inline Vector<Size> div(const Vector<Size>& a, Fixed b) {
     Vector<Size> result; for (size_t i = 0; i < Size; ++i) result[i] = div(a[i], b); return result;
 }
-constexpr bool same_owner(EntityHandle a, EntityHandle b) {
+constexpr bool same_owner(ObjectId a, ObjectId b) {
+    return a == b;
+}
+constexpr bool same_owner(DataHandle a, DataHandle b) {
     return a.index == b.index && a.generation == b.generation;
 }
 inline void increment(uint32_t& value) { if (value != UINT32_MAX) ++value; }
 
 struct Continuation {
     uint32_t node = 0;
-    EntityHandle owner;
+    ObjectId owner;
     uint32_t scene_generation = 0;
 };
 
@@ -89,7 +93,7 @@ template<size_t Capacity = 8> class Continuations {
     bool dispatch_paused = false;
 public:
     uint32_t dropped = 0, cancelled = 0;
-    bool delay(uint32_t node, Fixed seconds, EntityHandle owner, uint32_t scene_generation = 0) {
+    bool delay(uint32_t node, Fixed seconds, ObjectId owner, uint32_t scene_generation = 0) {
         if (seconds.raw() < 0 || !owner.get()) return false;
         for (auto& slot : slots) if (!slot.used) {
             slot = {{node, owner, scene_generation}, seconds.raw(), true, false, false};
@@ -101,7 +105,7 @@ public:
     // External producers only mark an existing frame ready. They never invoke
     // callbacks or allocate another listener/continuation. Negative remaining
     // time is internal state and cannot be authored through Delay.
-    bool wait_external(uint32_t node, EntityHandle owner, uint32_t scene_generation = 0) {
+    bool wait_external(uint32_t node, ObjectId owner, uint32_t scene_generation = 0) {
         if (!owner.get()) return false;
         for (auto& slot : slots) if (!slot.used) {
             slot = {{node, owner, scene_generation}, -1, true, false, false};
@@ -151,7 +155,7 @@ public:
         }
         return false;
     }
-    void cancel_owner(EntityHandle owner) {
+    void cancel_owner(ObjectId owner) {
         for (auto& slot : slots) if (slot.used && same_owner(slot.continuation.owner, owner)) {
             slot.used = false; increment(cancelled);
         }
@@ -186,7 +190,7 @@ template<size_t Capacity = 16> class Timeline {
     TimelineKey keys[Capacity] = {};
     size_t count = 0;
     int32_t elapsed = 0;
-    EntityHandle owner;
+    ObjectId owner;
     uint32_t generation = 0;
     bool running = false, looping = false;
 public:
@@ -199,7 +203,7 @@ public:
         elapsed = 0;
         return true;
     }
-    bool play(EntityHandle source, uint32_t scene_generation = 0, bool loop = false) {
+    bool play(ObjectId source, uint32_t scene_generation = 0, bool loop = false) {
         if (count < 2 || !source.get()) return false;
         owner = source; generation = scene_generation; elapsed = 0; looping = loop; running = true;
         return true;
@@ -238,7 +242,7 @@ public:
 enum class TraceKind : uint8_t { Enter, Value, Suspend, Resume, Error, Breakpoint };
 struct Trace {
     uint32_t class_id = 0, node_id = 0;
-    EntityHandle owner;
+    ObjectId owner;
     TraceKind kind = TraceKind::Enter;
     int32_t value = 0;
 };
@@ -262,7 +266,7 @@ public:
 
 struct Breakpoint {
     uint32_t class_id = 0, node_id = 0;
-    EntityHandle owner;
+    ObjectId owner;
     bool instance_only = false;
 };
 // Cooperative execution gate, not a busy wait or platform trap. A generated
@@ -273,7 +277,7 @@ template<size_t Capacity = 32> class Debugger {
     size_t count = 0;
     Trace stopped;
     bool halted = false, stepping = false, skip_stopped = false, has_stop = false;
-    bool is_stopped(uint32_t class_id, uint32_t node_id, EntityHandle owner) const {
+    bool is_stopped(uint32_t class_id, uint32_t node_id, ObjectId owner) const {
         return has_stop && stopped.class_id == class_id && stopped.node_id == node_id && same_owner(stopped.owner, owner);
     }
 public:
@@ -285,7 +289,7 @@ public:
         points[count++] = point; return true;
     }
     void clear_breakpoints() { count = 0; }
-    bool checkpoint(uint32_t class_id, uint32_t node_id, EntityHandle owner) {
+    bool checkpoint(uint32_t class_id, uint32_t node_id, ObjectId owner) {
         if (halted) return false;
         bool skip = skip_stopped && is_stopped(class_id, node_id, owner);
         skip_stopped = false;
@@ -317,11 +321,11 @@ public:
 // IDs, not runtime hashes or C++ RTTI; the host retains their asset/node mapping.
 #if defined(EPOK_BLUEPRINT_TRACE) && EPOK_BLUEPRINT_TRACE
 inline TraceRing<128> traces;
-inline void trace(uint32_t class_id, uint32_t node_id, EntityHandle owner,
+inline void trace(uint32_t class_id, uint32_t node_id, ObjectId owner,
                   TraceKind kind = TraceKind::Enter, int32_t value = 0) {
     traces.push({class_id, node_id, owner, kind, value});
 }
 #else
-inline void trace(uint32_t, uint32_t, EntityHandle, TraceKind = TraceKind::Enter, int32_t = 0) {}
+inline void trace(uint32_t, uint32_t, ObjectId, TraceKind = TraceKind::Enter, int32_t = 0) {}
 #endif
 }

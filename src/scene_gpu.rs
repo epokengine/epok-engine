@@ -78,7 +78,7 @@ struct RenderInput<'a> {
 impl SceneGpu {
     pub fn animated(scene: &Scene) -> bool {
         crate::effects::animated(scene)
-            || scene.entities.iter().enumerate().any(|(index, e)| {
+            || scene.actors.iter().enumerate().any(|(index, e)| {
                 scene.is_active(index)
                     && (e.sprite_animator.as_ref().is_some_and(|a| a.playing)
                         || e.particle_emitter.as_ref().is_some_and(|p| p.enabled)
@@ -643,7 +643,7 @@ fn geometry_with_effects(
     let lighting = crate::lighting::Lighting::new(scene);
     let valid = crate::lighting::valid_bake(scene);
     for (index, e) in scene
-        .entities
+        .actors
         .iter()
         .enumerate()
         .filter(|(i, e)| e.kind == "Mesh" && scene.is_active(*i))
@@ -761,7 +761,7 @@ fn geometry_with_effects(
         }
     }
     // Light helpers are editor-only, using the entity's inherited transform.
-    for (i, e) in scene.entities.iter().enumerate() {
+    for (i, e) in scene.actors.iter().enumerate() {
         if let Some(l) = &e.light {
             let m = scene.world_matrix(i);
             let p = m.point([0.; 3]);
@@ -796,7 +796,7 @@ fn geometry_with_effects(
         }
     }
     if let Some(i) = selected
-        && let Some(e) = scene.entities.get(i)
+        && let Some(e) = scene.actors.get(i)
         && let Some(c) = e.collider.as_ref().filter(|c| c.enabled)
     {
         for (a, b) in crate::collision::world_bounds(c, scene.world_matrix(i)).edges() {
@@ -813,7 +813,7 @@ fn geometry_with_effects(
         }
     }
     if let Some(i) = selected
-        && let Some(e) = scene.entities.get(i)
+        && let Some(e) = scene.actors.get(i)
         && e.kind == "Camera"
     {
         let world = scene.world_matrix(i);

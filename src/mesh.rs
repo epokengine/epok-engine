@@ -1,7 +1,7 @@
 //! Authored geometry. UUID packages own the editable source; scene references only own overrides.
 use crate::{
     assets,
-    scene::{Entity, Material, Scene},
+    scene::{Actor, Material, Scene},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -447,7 +447,7 @@ pub fn save(record: &assets::Record, doc: &Document) -> Result<String, String> {
 pub fn resolve(scene: &mut Scene, index: &assets::Index) -> Result<(), String> {
     let mut errors = vec![];
     let mut loaded = BTreeMap::new();
-    for e in &mut scene.entities {
+    for e in &mut scene.actors {
         if let Some(m) = &mut e.editable_mesh {
             let result = loaded
                 .entry(m.asset)
@@ -471,7 +471,7 @@ pub fn resolve(scene: &mut Scene, index: &assets::Index) -> Result<(), String> {
         Err(errors.join("\n"))
     }
 }
-pub fn material(e: &Entity, slot: Uuid) -> Material {
+pub fn material(e: &Actor, slot: Uuid) -> Material {
     let Some(m) = &e.editable_mesh else {
         return e.material.clone();
     };
@@ -626,16 +626,16 @@ mod tests {
         let copy = assets::duplicate(record, &root.join("assets/Copy.epokasset")).unwrap();
         assert_ne!(copy, id);
         let mut scene = Scene::default();
-        scene.entities[1].editable_mesh = Some(Component::new(id));
+        scene.actors[1].editable_mesh = Some(Component::new(id));
         resolve(&mut scene, &index).unwrap();
         let serialized = serde_json::to_string(&scene).unwrap();
         assert!(!serialized.contains("\"vertices\""));
         std::fs::remove_file(renamed).unwrap();
         let index = assets::scan(&root, &mut Default::default());
         assert!(resolve(&mut scene, &index).is_err());
-        assert_eq!(scene.entities[1].editable_mesh.as_ref().unwrap().asset, id);
+        assert_eq!(scene.actors[1].editable_mesh.as_ref().unwrap().asset, id);
         assert!(
-            scene.entities[1]
+            scene.actors[1]
                 .editable_mesh
                 .as_ref()
                 .unwrap()
@@ -666,7 +666,7 @@ mod tests {
             slot,
         );
         doc.validate().unwrap();
-        let mut e = Entity::cube("Room".into());
+        let mut e = Actor::cube("Room".into());
         let mut m = Component::new(Uuid::new_v4());
         m.materials.insert(
             slot,

@@ -20,8 +20,12 @@ pub struct Collider {
     #[serde(default, skip_serializing_if = "crate::collision::is_default_axis")]
     pub slope_axis: u8,
 }
-pub fn is_zero(value: &f32) -> bool { *value == 0. }
-pub fn is_default_axis(value: &u8) -> bool { *value == 0 }
+pub fn is_zero(value: &f32) -> bool {
+    *value == 0.
+}
+pub fn is_default_axis(value: &u8) -> bool {
+    *value == 0
+}
 impl Default for Collider {
     fn default() -> Self {
         Self {
@@ -102,7 +106,7 @@ pub fn validate_component(collider: &Collider) -> Result<(), String> {
 }
 
 pub fn validate(scene: &Scene) -> Result<(), String> {
-    for (index, entity) in scene.entities.iter().enumerate() {
+    for (index, entity) in scene.actors.iter().enumerate() {
         let Some(collider) = &entity.collider else {
             continue;
         };
@@ -133,7 +137,7 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
 pub fn cpp_setup(scene: &Scene) -> String {
     use std::fmt::Write;
     let mut output = String::new();
-    for (index, entity) in scene.entities.iter().enumerate() {
+    for (index, entity) in scene.actors.iter().enumerate() {
         if let Some(collider) = &entity.collider {
             writeln!(output, "objects[{index}].collider.enabled={};objects[{index}].collider.trigger={};objects[{index}].collider.layer={}u;objects[{index}].collider.mask={}u;", collider.enabled, collider.trigger, collider.layer, collider.mask).unwrap();
             for axis in 0..3 {
@@ -155,7 +159,7 @@ mod tests {
         let collider: Collider = serde_json::from_str("{}").unwrap();
         assert_eq!(collider, Collider::default());
         let mut scene = Scene::default();
-        scene.entities[1].collider = Some(Collider {
+        scene.actors[1].collider = Some(Collider {
             trigger: true,
             mask: 0b0100,
             layer: 0b0010,
@@ -207,11 +211,11 @@ mod tests {
             assert!(validate_component(&collider).is_err());
         }
         let mut scene = Scene::default();
-        scene.entities[1].collider = Some(Collider::default());
-        scene.entities[1].position = [1000., 0., 0.];
+        scene.actors[1].collider = Some(Collider::default());
+        scene.actors[1].position = [1000., 0., 0.];
         assert!(validate(&scene).is_err());
-        scene.entities[1].position = [0.; 3];
-        scene.entities[1].scale = [0.00001; 3];
+        scene.actors[1].position = [0.; 3];
+        scene.actors[1].scale = [0.00001; 3];
         assert!(validate(&scene).is_err());
     }
     #[test]

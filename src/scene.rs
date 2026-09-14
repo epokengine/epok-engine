@@ -1,3 +1,4 @@
+pub use crate::actor_document::ActorInstance as Actor;
 use crate::transform::Matrix;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -34,7 +35,7 @@ impl Default for Material {
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
-pub struct ScriptBinding {
+pub struct ClassDefaults {
     pub name: String,
     pub provider: crate::reflection_schema::Extension,
     pub backend: crate::reflection_schema::Extension,
@@ -50,7 +51,7 @@ pub struct ScriptBinding {
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub overrides: BTreeSet<String>,
 }
-impl Default for ScriptBinding {
+impl Default for ClassDefaults {
     fn default() -> Self {
         Self {
             name: String::new(),
@@ -63,7 +64,7 @@ impl Default for ScriptBinding {
         }
     }
 }
-impl<'de> Deserialize<'de> for ScriptBinding {
+impl<'de> Deserialize<'de> for ClassDefaults {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
         struct Raw {
@@ -99,7 +100,7 @@ impl<'de> Deserialize<'de> for ScriptBinding {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Entity {
+pub struct BuiltinData {
     /// Persistent authoring identity; runtime references are resolved to fresh handles at cook/load.
     #[serde(default)]
     pub id: uuid::Uuid,
@@ -139,8 +140,6 @@ pub struct Entity {
     pub rotation: [f32; 3],
     pub scale: [f32; 3],
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub script: Option<ScriptBinding>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub canvas: Option<crate::hud::Canvas>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rect: Option<crate::hud::RectTransform>,
@@ -158,7 +157,7 @@ pub struct Entity {
     pub blob_shadow: Option<crate::shadows::BlobShadow>,
 }
 
-impl Entity {
+impl BuiltinData {
     pub fn cube(name: String) -> Self {
         Self {
             name,
@@ -182,7 +181,6 @@ impl Entity {
             position: [0., 0.5, 0.],
             rotation: [0.; 3],
             scale: [1.; 3],
-            script: None,
             canvas: None,
             rect: None,
             image: None,
@@ -195,7 +193,8 @@ impl Entity {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(from = "SceneDocument", into = "SceneDocument")]
 pub struct Scene {
     #[serde(default)]
     pub fog: crate::effects::Fog,
@@ -208,18 +207,70 @@ pub struct Scene {
     pub display_size: [u16; 2],
     pub version: u32,
     pub name: String,
-    pub entities: Vec<Entity>,
+    pub actors: Vec<Actor>,
     #[serde(default)]
     pub environment: crate::lighting::Settings,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bake: Option<crate::lighting::Bake>,
-    /// Placed actors (scene document version 5). Absent in legacy documents;
-    /// `actor_document::actor_view` derives the in-memory view for those.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub actors: Vec<crate::actor_document::ActorInstance>,
     /// The map's own Blueprint, one `SceneScriptActor` subclass per scene.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scene_script: Option<crate::actor_document::SceneScript>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SceneDocument {
+    version: u32,
+    name: String,
+    actors: Vec<Actor>,
+    #[serde(default)]
+    fog: crate::effects::Fog,
+    #[serde(default)]
+    hud_budget: crate::hud::Budget,
+    #[serde(default)]
+    environment: crate::lighting::Settings,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    bake: Option<crate::lighting::Bake>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    scene_script: Option<crate::actor_document::SceneScript>,
+}
+impl From<Scene> for SceneDocument {
+    fn from(mut scene: Scene) -> Self {
+        scene.sync_actor_components();
+        Self {
+            version: scene.version,
+            name: scene.name,
+            actors: scene.actors,
+            fog: scene.fog,
+            hud_budget: scene.hud_budget,
+            environment: scene.environment,
+            bake: scene.bake,
+            scene_script: scene.scene_script,
+        }
+    }
+}
+impl From<SceneDocument> for Scene {
+    fn from(doc: SceneDocument) -> Self {
+        let mut scene = Self {
+            version: doc.version,
+            name: doc.name,
+            actors: doc.actors,
+            fog: doc.fog,
+            hud_budget: doc.hud_budget,
+            environment: doc.environment,
+            bake: doc.bake,
+            scene_script: doc.scene_script,
+            textures: Default::default(),
+            display_size: legacy_display_size(),
+        };
+        scene.refresh_actor_hierarchy();
+        scene
+    }
+}
+impl PartialEq for Scene {
+    fn eq(&self, other: &Self) -> bool {
+        serde_json::to_value(self).ok() == serde_json::to_value(other).ok()
+    }
 }
 
 fn legacy_display_size() -> [u16; 2] {
@@ -228,13 +279,13 @@ fn legacy_display_size() -> [u16; 2] {
 
 impl Default for Scene {
     fn default() -> Self {
-        let mut camera = Entity::cube("Main Camera".into());
+        let mut camera = Actor::cube("Main Camera".into());
         camera.kind = "Camera".into();
         camera.position = [0., 3., -6.];
-        let mut floor = Entity::cube("Ground".into());
+        let mut floor = Actor::cube("Ground".into());
         floor.position = [0., -0.15, 0.];
         floor.scale = [7., 0.2, 7.];
-        let mut second = Entity::cube("Cube.001".into());
+        let mut second = Actor::cube("Cube.001".into());
         second.position = [2., 0.5, 1.];
         Self {
             hud_budget: Default::default(),
@@ -243,10 +294,9 @@ impl Default for Scene {
             bake: None,
             display_size: legacy_display_size(),
             textures: Default::default(),
-            version: 3,
+            version: crate::actor_document::SCENE_VERSION,
             name: "SampleScene".into(),
-            entities: vec![camera, Entity::cube("Cube".into()), second, floor],
-            actors: Vec::new(),
+            actors: vec![camera, Actor::cube("Cube".into()), second, floor],
             scene_script: None,
         }
     }
@@ -255,11 +305,11 @@ impl Default for Scene {
 impl Scene {
     pub fn is_active(&self, index: usize) -> bool {
         let mut current = Some(index);
-        for _ in 0..=self.entities.len() {
+        for _ in 0..=self.actors.len() {
             let Some(i) = current else {
                 return true;
             };
-            let Some(e) = self.entities.get(i) else {
+            let Some(e) = self.actors.get(i) else {
                 return false;
             };
             if !e.active {
@@ -271,26 +321,31 @@ impl Scene {
     }
     pub fn is_descendant(&self, child: usize, ancestor: usize) -> bool {
         let mut current = Some(child);
-        for _ in 0..=self.entities.len() {
+        for _ in 0..=self.actors.len() {
             let Some(i) = current else {
                 return false;
             };
             if i == ancestor {
                 return true;
             }
-            current = self.entities.get(i).and_then(|e| e.parent);
+            current = self.actors.get(i).and_then(|e| e.parent);
         }
         false
     }
     pub fn world_matrix(&self, index: usize) -> Matrix {
-        let e = &self.entities[index];
+        let e = &self.actors[index];
         let local = Matrix::trs(e.position, e.rotation, e.scale);
-        e.parent
+        self.spatial_parent(index)
             .map_or(local, |p| self.world_matrix(p).compose(local))
     }
+    pub fn spatial_parent(&self, index: usize) -> Option<usize> {
+        self.actors[index]
+            .attach
+            .as_ref()
+            .and_then(|a| self.actor_index(a.actor))
+    }
     pub fn parent_matrix(&self, index: usize) -> Matrix {
-        self.entities[index]
-            .parent
+        self.spatial_parent(index)
             .map_or(Matrix::IDENTITY, |p| self.world_matrix(p))
     }
     pub fn reparent(
@@ -299,21 +354,30 @@ impl Scene {
         parent: Option<usize>,
         keep_world: bool,
     ) -> Result<(), String> {
-        if index >= self.entities.len()
-            || parent.is_some_and(|p| p >= self.entities.len() || self.is_descendant(p, index))
+        if index >= self.actors.len()
+            || parent.is_some_and(|p| p >= self.actors.len() || self.is_descendant(p, index))
         {
             return Err("Cannot parent an object to itself or one of its descendants".into());
         }
-        if self.entities[index].parent == parent {
+        if self.actors[index].parent == parent {
             return Ok(());
         }
-        let original = self.entities[index].clone();
+        let original = self.actors[index].clone();
         let mut next = original.clone();
+        let spatial_parent = parent.filter(|p| {
+            crate::actor_components::domain(&next)
+                == crate::actor_components::domain(&self.actors[*p])
+        });
         if keep_world && let Some(r) = next.rect.as_mut() {
             let old = crate::hud::layout(self, index).ok_or("Invalid HUD hierarchy")?;
-            let p = parent
+            let p = spatial_parent
                 .and_then(|p| crate::hud::layout(self, p))
-                .ok_or("HUD elements need a Canvas or RectTransform parent")?;
+                .unwrap_or([
+                    0.,
+                    0.,
+                    self.display_size[0] as f32,
+                    self.display_size[1] as f32,
+                ]);
             for i in 0..2 {
                 r.size[i] = old[i + 2] - p[i + 2] * (r.anchor_max[i] - r.anchor_min[i]);
                 r.position[i] = old[i]
@@ -324,144 +388,47 @@ impl Scene {
             }
         } else if keep_world {
             let inverse =
-                parent.map_or(Ok(Matrix::IDENTITY), |p| self.world_matrix(p).inverse())?;
+                spatial_parent.map_or(Ok(Matrix::IDENTITY), |p| self.world_matrix(p).inverse())?;
             inverse
                 .compose(self.world_matrix(index))
                 .apply_trs(&mut next)?;
         }
         next.parent = parent;
-        self.entities[index] = next;
+        next.logical_parent = parent.map(|index| self.actors[index].id);
+        next.attach = spatial_parent.map(|p| crate::actor_document::Attachment {
+            actor: self.actors[p].id,
+            component: None,
+        });
+        self.actors[index] = next;
         if let Err(error) = self.validate() {
-            self.entities[index] = original;
+            self.actors[index] = original;
             return Err(error);
         }
         Ok(())
     }
     pub fn duplicate_branch(&mut self, index: usize) -> Result<usize, String> {
-        if index >= self.entities.len() {
-            return Err("No object selected".into());
-        }
-        let branch: Vec<_> = (0..self.entities.len())
-            .filter(|i| self.is_descendant(*i, index))
-            .collect();
-        if self.entities.len() + branch.len() > 512 {
-            return Err("Editor limit: 512 objects".into());
-        }
-        let mut map = vec![None; self.entities.len()];
-        for (offset, i) in branch.iter().enumerate() {
-            map[*i] = Some(self.entities.len() + offset);
-        }
-        let identities = branch
-            .iter()
-            .map(|index| (self.entities[*index].id, uuid::Uuid::new_v4()))
-            .collect::<BTreeMap<_, _>>();
-        for i in branch {
-            let mut copy = self.entities[i].clone();
-            copy.id = identities[&copy.id];
-            if let Some(instance) = &mut copy.blueprint_instance {
-                if let Some(new_root) = identities.get(&instance.instance) {
-                    instance.instance = *new_root;
-                } else {
-                    // A copied fragment is no longer a complete class instance.
-                    copy.blueprint_instance = None;
-                }
-            }
-            if i != index {
-                copy.parent = copy.parent.and_then(|p| map[p]);
-            }
-            let base = copy.name.clone();
-            let mut suffix = 1;
-            while self.entities.iter().any(|e| e.name == copy.name) {
-                copy.name = format!("{base}.{suffix:03}");
-                suffix += 1;
-            }
-            self.entities.push(copy);
-        }
-        // Actors derived from or authored against a duplicated entity are copied
-        // with the branch. References that leave the branch (a parent actor that
-        // was not copied, an asset UUID inside `properties`) keep their target.
-        let copied: Vec<_> = self
-            .actors
-            .iter()
-            .filter(|a| {
-                a.legacy_entity
-                    .is_some_and(|id| identities.contains_key(&id))
-            })
-            .cloned()
-            .collect();
-        let remap = crate::actor_document::fresh_identities(&copied);
-        for mut actor in copied {
-            actor.legacy_entity = actor.legacy_entity.map(|id| identities[&id]);
-            crate::actor_document::remap_actor(&mut actor, &remap);
-            self.actors.push(actor);
-        }
-        Ok(map[index].unwrap())
+        self.sync_actor_components();
+        let id = self.actors.get(index).ok_or("No actor selected")?.id;
+        let copy = self.duplicate_actor_branch(id)?;
+        self.actor_index(copy)
+            .ok_or("Duplicated actor is missing".into())
     }
     pub fn delete_branch(&mut self, index: usize) {
-        let keep: Vec<_> = (0..self.entities.len())
-            .filter(|i| !self.is_descendant(*i, index))
-            .collect();
-        let mut map = vec![None; self.entities.len()];
-        for (new, old) in keep.iter().enumerate() {
-            map[*old] = Some(new);
-        }
-        let removed: BTreeSet<_> = (0..self.entities.len())
-            .filter(|i| map[*i].is_none())
-            .map(|i| self.entities[i].id)
-            .collect();
-        self.entities = keep
-            .into_iter()
-            .map(|i| {
-                let mut e = self.entities[i].clone();
-                e.parent = e.parent.and_then(|p| map[p]);
-                e
-            })
-            .collect();
-        self.actors
-            .retain(|a| !a.legacy_entity.is_some_and(|id| removed.contains(&id)));
-        // Whatever pointed into the deleted branch loses its reference rather
-        // than dangling; the actors themselves survive.
-        let alive: BTreeSet<_> = self.actors.iter().map(|a| a.id).collect();
-        for actor in &mut self.actors {
-            if actor.logical_parent.is_some_and(|p| !alive.contains(&p)) {
-                actor.logical_parent = None;
-            }
-            if actor
-                .attach
-                .as_ref()
-                .is_some_and(|a| !alive.contains(&a.actor))
-            {
-                actor.attach = None;
-            }
+        self.sync_actor_components();
+        if let Some(actor) = self.actors.get(index) {
+            self.delete_actor_branch(actor.id);
         }
     }
-    /// Fresh identities for every entity, actor and component of a copied scene,
-    /// with every internal reference remapped. External asset UUIDs are not in
-    /// the table and therefore survive unchanged.
     pub fn duplicate_identities(&mut self) {
-        let mut map = crate::actor_document::fresh_identities(&self.actors);
-        for entity in &self.entities {
-            map.insert(entity.id, uuid::Uuid::new_v4());
-        }
-        for entity in &mut self.entities {
-            entity.id = map[&entity.id];
-            if let Some(instance) = &mut entity.blueprint_instance
-                && let Some(root) = map.get(&instance.instance)
-            {
-                instance.instance = *root;
-            }
-        }
+        self.sync_actor_components();
+        let map = crate::actor_document::fresh_identities(&self.actors);
         for actor in &mut self.actors {
-            if let Some(legacy) = actor.legacy_entity.as_mut()
-                && let Some(id) = map.get(legacy)
-            {
-                *legacy = *id;
-            }
             crate::actor_document::remap_actor(actor, &map);
         }
         if let Some(script) = &mut self.scene_script {
             crate::actor_document::remap_scene_script(script, &map, true);
         }
+        self.refresh_actor_hierarchy();
     }
     /// Gives a map that has no scene Blueprint the default one, in memory.
     ///
@@ -501,7 +468,7 @@ impl Scene {
     }
     /// A copy of this map under a new name, with fresh identities everywhere.
     ///
-    /// The embedded Blueprint gets a new asset id and every `ActorRef`/`EntityRef`
+    /// The embedded Blueprint gets a new asset id and every `ActorRef`/`ObjectRef`
     /// literal inside it is rewritten to the duplicated actor, component or entity,
     /// so the copy refers to itself and never back to the original. Asset UUIDs
     /// (textures, meshes, sounds) are not remapped: they name shared content.
@@ -546,12 +513,12 @@ impl Scene {
             .collect()
     }
     /// A name no actor and no entity of this map already uses, suffixed like
-    /// [`Self::duplicate_branch`] does for entities.
+    /// [`Self::duplicate_branch`] does for actors.
     pub fn unique_actor_name(&self, base: &str) -> String {
         let mut name = base.to_owned();
         let mut suffix = 1;
         while self.actors.iter().any(|a| a.name == name)
-            || self.entities.iter().any(|e| e.name == name)
+            || self.actors.iter().any(|e| e.name == name)
         {
             name = format!("{base}.{suffix:03}");
             suffix += 1;
@@ -585,6 +552,7 @@ impl Scene {
                 actor.attach = None;
             }
         }
+        self.refresh_actor_hierarchy();
         branch
     }
     /// Copies one actor and its whole logical branch with fresh identities,
@@ -604,15 +572,13 @@ impl Scene {
         let map = crate::actor_document::fresh_identities(&copies);
         for actor in &mut copies {
             crate::actor_document::remap_actor(actor, &map);
-            // A copy is a new placement, not a second view of the same legacy
-            // entity: provenance belongs to the original only.
-            actor.legacy_entity = None;
         }
         let root = *map.get(&id).expect("the branch contains its own root");
         for mut actor in copies {
             actor.name = self.unique_actor_name(&actor.name);
             self.actors.push(actor);
         }
+        self.refresh_actor_hierarchy();
         Ok(root)
     }
     /// Structural validation only. Rules that need the reflected class model
@@ -635,26 +601,26 @@ impl Scene {
                 crate::actor_document::SCENE_VERSION
             ));
         }
-        if !(1..=crate::actor_document::SCENE_VERSION).contains(&self.version) {
-            return Err("Unsupported scene version".into());
+        if self.version != crate::actor_document::SCENE_VERSION {
+            return Err("This map uses the retired Entity/Behaviour format; recreate the project with the Actor templates.".into());
         }
-        if self.entities.len() > 512 {
+        if self.actors.len() > 512 {
             return Err("Editor limit: 512 objects per scene".into());
         }
         let mut entity_ids = BTreeSet::new();
-        for entity in &self.entities {
+        for entity in &self.actors {
             if entity.id.is_nil() {
                 if self.version >= 3 {
                     return Err("Scene v3 requires a persistent UUID for every entity.".into());
                 }
             } else if !entity_ids.insert(entity.id) {
                 return Err(format!(
-                    "Duplicate entity UUID {}. Duplicate entities through the editor to assign new identities.",
+                    "Duplicate entity UUID {}. Duplicate actors through the editor to assign new identities.",
                     entity.id
                 ));
             }
         }
-        for (index, e) in self.entities.iter().enumerate() {
+        for (index, e) in self.actors.iter().enumerate() {
             if let Some(m) = &e.editable_mesh
                 && (m.asset.is_nil()
                     || m.materials.iter().any(|(id, mat)| {
@@ -670,12 +636,12 @@ impl Scene {
             let mut parent = e.parent;
             let mut depth = 0;
             while let Some(p) = parent {
-                if p >= self.entities.len() || p == index || depth >= 32 {
+                if p >= self.actors.len() || p == index || depth >= 32 {
                     return Err(
                         "Invalid hierarchy: missing parent, cycle, or depth above 32".into(),
                     );
                 }
-                parent = self.entities[p].parent;
+                parent = self.actors[p].parent;
                 depth += 1;
             }
             if e.material
@@ -690,19 +656,6 @@ impl Scene {
                 for mat in m.materials.values() {
                     crate::texture::validate_material(mat)?;
                 }
-            }
-            if let Some(script) = &e.script
-                && (!crate::scripts::class_identifier(&script.name)
-                    || script
-                        .properties
-                        .keys()
-                        .any(|k| !crate::scripts::identifier(k))
-                    || script
-                        .overrides
-                        .iter()
-                        .any(|key| !script.properties.contains_key(key)))
-            {
-                return Err("Invalid C++ script binding".into());
             }
             if !["Mesh", "Camera", "Empty"].contains(&e.kind.as_str()) {
                 return Err("Unknown object type".into());
@@ -725,7 +678,7 @@ impl Scene {
                 return Err("Scale must be positive".into());
             }
         }
-        for e in &self.entities {
+        for e in &self.actors {
             if let Some(b) = &e.blob_shadow
                 && (!b.radius.is_finite()
                     || !(0.01..=8.).contains(&b.radius)
@@ -750,7 +703,7 @@ impl Scene {
     }
     pub fn load(path: &Path) -> Result<Self, String> {
         let mut scene = Self::load_unresolved(path)?;
-        if scene.entities.iter().any(|e| {
+        if scene.actors.iter().any(|e| {
             e.editable_mesh.is_some()
                 || e.skeletal_mesh.is_some()
                 || e.material.texture.is_some()
@@ -767,9 +720,26 @@ impl Scene {
         Ok(scene)
     }
     pub fn load_unresolved(path: &Path) -> Result<Self, String> {
-        let mut scene: Self =
-            crate::document::from_slice(&fs::read(path).map_err(|e| e.to_string())?)
-                .map_err(|e| e.to_string())?;
+        let bytes = fs::read(path).map_err(|e| e.to_string())?;
+        let document: serde_json::Value = crate::document::from_slice(&bytes)?;
+        if document["version"]
+            .as_u64()
+            .is_none_or(|version| version < u64::from(crate::actor_document::SCENE_VERSION))
+        {
+            return Err("This map uses the retired Entity/Behaviour format; recreate the project with the Actor templates.".into());
+        }
+        let mut scene: Self = crate::document::from_slice(&bytes).map_err(|e| e.to_string())?;
+        let indices: BTreeMap<_, _> = scene
+            .actors
+            .iter()
+            .enumerate()
+            .map(|(index, actor)| (actor.id, index))
+            .collect();
+        for actor in &mut scene.actors {
+            actor.parent = actor
+                .logical_parent
+                .and_then(|id| indices.get(&id).copied());
+        }
         scene.validate()?;
         // Deterministic in-memory migration keeps references stable across repeated reads
         // and complete-folder relocation. Only Save publishes the assigned identities.
@@ -792,38 +762,48 @@ impl Scene {
         fs::rename(temp, path).map_err(|e| e.to_string())
     }
     pub fn upgrade_entity_ids(&mut self) {
-        use sha2::{Digest, Sha256};
-        for (index, entity) in self.entities.iter_mut().enumerate() {
-            if let Some(component) = &mut entity.particle_effect {
-                component.migrate();
-            }
-            if entity.id.is_nil() {
-                let mut digest = Sha256::new();
-                // This historical salt is part of the persisted identity algorithm.
-                digest.update(b"UniQo legacy entity identity v1");
-                digest.update(self.name.as_bytes());
-                digest.update((index as u64).to_le_bytes());
-                digest.update(serde_json::to_vec(entity).expect("serializable legacy entity"));
-                let bytes: [u8; 16] = digest.finalize()[..16].try_into().unwrap();
-                entity.id = uuid::Uuid::from_bytes(bytes);
-            }
+        self.sync_actor_components();
+    }
+    pub fn refresh_actor_hierarchy(&mut self) {
+        let indices: BTreeMap<_, _> = self
+            .actors
+            .iter()
+            .enumerate()
+            .map(|(i, a)| (a.id, i))
+            .collect();
+        for actor in &mut self.actors {
+            actor.data.parent = actor
+                .logical_parent
+                .and_then(|id| indices.get(&id).copied());
+            actor.data.id = actor.id;
+            actor.data.name = actor.name.clone();
+            actor.data.active = actor.active;
         }
-        // Classic scenes retain their existing format. A timeline/effect component
-        // raises the scene version so older editors cannot silently discard it.
-        self.version = if !self.actors.is_empty() || self.scene_script.is_some() {
-            // Actor content exists only from version 5 on; an older editor must
-            // refuse the document instead of dropping it.
-            5
-        } else if self.version >= 4
-            || self
-                .entities
-                .iter()
-                .any(|e| e.timeline.is_some() || e.particle_effect.is_some())
-        {
-            4
-        } else {
-            3
-        };
+    }
+    pub fn sync_actor_components(&mut self) {
+        let ids: Vec<_> = self.actors.iter().map(|actor| actor.id).collect();
+        let domains: Vec<_> = self
+            .actors
+            .iter()
+            .map(crate::actor_components::domain)
+            .collect();
+        for actor in &mut self.actors {
+            if actor.logical_parent.is_none() && actor.parent.is_some() && actor.attach.is_none() {
+                actor.attach = actor
+                    .parent
+                    .filter(|i| domains.get(*i) == Some(&crate::actor_components::domain(actor)))
+                    .and_then(|i| ids.get(i))
+                    .map(|id| crate::actor_document::Attachment {
+                        actor: *id,
+                        component: None,
+                    });
+            }
+            actor.logical_parent = actor
+                .parent
+                .and_then(|index| ids.get(index).copied())
+                .or(actor.logical_parent);
+            crate::actor_components::sync(actor);
+        }
     }
 }
 
@@ -840,32 +820,34 @@ mod tests {
     #[test]
     fn nested_transform_inherits_rotation_scale_and_translation() {
         let mut s = Scene::default();
-        s.entities[1].position = [3., 1., 0.];
-        s.entities[1].rotation = [0., 0., 90.];
-        s.entities[1].scale = [2.; 3];
-        s.entities[2].parent = Some(1);
-        s.entities[2].position = [1., 0., 0.];
-        s.entities[2].scale = [1., 2., 1.];
+        s.actors[1].position = [3., 1., 0.];
+        s.actors[1].rotation = [0., 0., 90.];
+        s.actors[1].scale = [2.; 3];
+        s.actors[2].parent = Some(1);
+        s.sync_actor_components();
+        s.actors[2].position = [1., 0., 0.];
+        s.actors[2].scale = [1., 2., 1.];
         let p = s.world_matrix(2).point([1., 0., 0.]);
         for (a, b) in p.into_iter().zip([3., 5., 0.]) {
             assert!((a - b).abs() < 0.0001);
         }
-        s.entities[3].parent = Some(2);
-        s.entities[3].position = [0., 1., 0.];
+        s.actors[3].parent = Some(2);
+        s.sync_actor_components();
+        s.actors[3].position = [0., 1., 0.];
         let p = s.world_matrix(3).point([0.; 3]);
         for (a, b) in p.into_iter().zip([-1., 3., 0.]) {
             assert!((a - b).abs() < 0.0001);
         }
-        s.entities[1].position[0] += 5.;
+        s.actors[1].position[0] += 5.;
         assert!((s.world_matrix(3).point([0.; 3])[0] - 4.).abs() < 0.0001);
     }
     #[test]
     fn reparent_and_unparent_preserve_world_and_reject_cycles_atomically() {
         let mut s = Scene::default();
-        s.entities[3].position = [2., 1., -3.];
-        s.entities[3].rotation = [23., 41., -12.];
-        s.entities[3].scale = [2.; 3];
-        s.entities[1].rotation = [18., -24., 71.];
+        s.actors[3].position = [2., 1., -3.];
+        s.actors[3].rotation = [23., 41., -12.];
+        s.actors[3].scale = [2.; 3];
+        s.actors[1].rotation = [18., -24., 71.];
         let before = s.world_matrix(1);
         s.reparent(1, Some(3), true).unwrap();
         near(before, s.world_matrix(1));
@@ -876,16 +858,16 @@ mod tests {
         assert_eq!(s, valid);
         s.reparent(1, None, true).unwrap();
         near(before, s.world_matrix(1));
-        let local = s.entities[1].clone();
+        let local = s.actors[1].clone();
         s.reparent(1, Some(3), false).unwrap();
-        assert_eq!(s.entities[1].position, local.position);
-        assert_eq!(s.entities[1].rotation, local.rotation);
+        assert_eq!(s.actors[1].position, local.position);
+        assert_eq!(s.actors[1].rotation, local.rotation);
     }
     #[test]
     fn shear_is_rendered_but_not_silently_discarded_when_unparenting() {
         let mut s = Scene::default();
-        s.entities[1].scale = [2., 1., 1.];
-        s.entities[2].rotation = [0., 0., 45.];
+        s.actors[1].scale = [2., 1., 1.];
+        s.actors[2].rotation = [0., 0., 45.];
         s.reparent(2, Some(1), false).unwrap();
         let m = s.world_matrix(2);
         let dot = (0..3).map(|r| m.0[r][0] * m.0[r][1]).sum::<f32>();
@@ -902,112 +884,66 @@ mod tests {
     #[test]
     fn branch_duplicate_and_delete_remap_unsorted_parent_references() {
         let mut s = Scene::default();
-        s.entities[1].parent = Some(3);
-        s.entities[2].parent = Some(1);
-        s.entities[1].material.color = [1., 0., 0.];
+        s.actors[1].parent = Some(3);
+        s.actors[2].parent = Some(1);
+        s.actors[1].material.color = [1., 0., 0.];
         let copy = s.duplicate_branch(3).unwrap();
         assert_eq!(copy, 6);
-        assert_eq!(s.entities[4].parent, Some(6));
-        assert_eq!(s.entities[5].parent, Some(4));
-        assert_eq!(s.entities[4].material, s.entities[1].material);
-        s.entities[4].material.color = [0., 1., 0.];
-        assert_eq!(s.entities[1].material.color, [1., 0., 0.]);
+        assert_eq!(s.actors[4].parent, Some(6));
+        assert_eq!(s.actors[5].parent, Some(4));
+        assert_eq!(s.actors[4].material, s.actors[1].material);
+        s.actors[4].material.color = [0., 1., 0.];
+        assert_eq!(s.actors[1].material.color, [1., 0., 0.]);
         s.delete_branch(3);
         s.validate().unwrap();
-        assert_eq!(s.entities.len(), 4);
-        assert_eq!(s.entities[1].parent, Some(3));
-        assert_eq!(s.entities[2].parent, Some(1));
+        assert_eq!(s.actors.len(), 4);
+        assert_eq!(s.actors[1].parent, Some(3));
+        assert_eq!(s.actors[2].parent, Some(1));
     }
     #[test]
     fn old_scenes_load_and_new_material_and_parent_roundtrip() {
         let mut value = serde_json::to_value(Scene::default()).unwrap();
-        for e in value["entities"].as_array_mut().unwrap() {
+        for e in value["actors"].as_array_mut().unwrap() {
             e.as_object_mut().unwrap().remove("material");
         }
         let mut s: Scene = serde_json::from_value(value).unwrap();
         s.validate().unwrap();
-        assert_eq!(s.entities[1].material, Material::default());
-        s.entities[2].parent = Some(1);
-        s.entities[2].material = Material {
+        assert_eq!(s.actors[1].material, Material::default());
+        s.actors[2].parent = Some(1);
+        s.actors[2].material = Material {
             color: [0.25, 0.5, 1.],
             unlit: true,
             ..Default::default()
         };
         assert_eq!(
-            crate::lighting::modulate([255; 3], s.entities[2].material.color),
+            crate::lighting::modulate([255; 3], s.actors[2].material.color),
             [64, 128, 255]
         );
         let decoded: Scene = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert_eq!(decoded, s);
-        s.entities[2].material.color[0] = f32::NAN;
+        s.actors[2].material.color[0] = f32::NAN;
         assert!(s.validate().is_err());
     }
     #[test]
     fn scene_roundtrip_preserves_transforms() {
         let mut scene = Scene::default();
-        scene.entities[1].position = [-42., 0.25, 123.];
+        scene.actors[1].position = [-42., 0.25, 123.];
         let decoded: Scene = serde_json::from_str(&serde_json::to_string(&scene).unwrap()).unwrap();
         decoded.validate().unwrap();
         assert_eq!(decoded, scene);
     }
     #[test]
-    fn entity_identity_migrates_deterministically_and_duplicates_get_new_ids() {
-        let root = crate::workspace::tests::temp("entity-identity");
+    fn previous_scene_formats_are_rejected_without_rewriting_the_file() {
+        let root = crate::workspace::tests::temp("retired-scene");
         fs::create_dir_all(&root).unwrap();
-        let path = root.join("Legacy.epokmap");
-        let mut legacy = serde_json::to_value(Scene::default()).unwrap();
-        legacy["version"] = serde_json::json!(2);
-        for entity in legacy["entities"].as_array_mut().unwrap() {
-            entity.as_object_mut().unwrap().remove("id");
+        let path = root.join("Old.epokmap");
+        for version in 1..crate::actor_document::SCENE_VERSION {
+            let bytes =
+                serde_json::to_vec(&serde_json::json!({"version":version,"entities":[]})).unwrap();
+            fs::write(&path, &bytes).unwrap();
+            assert!(Scene::load(&path).unwrap_err().contains("recreate"));
+            assert_eq!(fs::read(&path).unwrap(), bytes);
         }
-        let bytes = serde_json::to_vec(&legacy).unwrap();
-        fs::write(&path, &bytes).unwrap();
-        let mut migrated = Scene::load(&path).unwrap();
-        assert_eq!(migrated, Scene::load(&path).unwrap());
-        assert_eq!(fs::read(&path).unwrap(), bytes);
-        let relocated = root.join("Moved.epokmap");
-        fs::write(&relocated, &bytes).unwrap();
-        assert_eq!(migrated, Scene::load(&relocated).unwrap());
-        let original = migrated.entities[1].id;
-        let copied = migrated.duplicate_branch(1).unwrap();
-        assert_ne!(original, migrated.entities[copied].id);
-        migrated.save(&path).unwrap();
-        assert_eq!(migrated, Scene::load(&path).unwrap());
-        migrated.entities[copied].id = original;
-        assert!(
-            migrated
-                .validate()
-                .unwrap_err()
-                .contains("Duplicate entity UUID")
-        );
-        fs::remove_dir_all(root).unwrap();
-    }
-    #[test]
-    fn version_one_values_are_explicit_and_orphans_survive_save() {
-        let root = crate::workspace::tests::temp("scene-migration");
-        fs::create_dir_all(&root).unwrap();
-        let path = root.join("Legacy.epokmap");
-        let mut legacy = serde_json::to_value(Scene::default()).unwrap();
-        legacy["version"] = serde_json::json!(1);
-        legacy["entities"][1]["script"] = serde_json::json!({"name":"Spinner","properties":{"speed":90.0,"orphan":{"kind":"old_struct","value":[1,2]}}});
-        let original = serde_json::to_vec(&legacy).unwrap();
-        fs::write(&path, &original).unwrap();
-        let migrated = Scene::load(&path).unwrap();
-        assert_eq!(migrated.version, 3);
-        let binding = migrated.entities[1].script.as_ref().unwrap();
-        assert!(binding.overrides.contains("speed"));
-        assert!(binding.overrides.contains("orphan"));
-        assert_eq!(
-            fs::read(&path).unwrap(),
-            original,
-            "Reading is not an on-disk migration"
-        );
-        migrated.save(&path).unwrap();
-        assert_eq!(Scene::load(&path).unwrap(), migrated);
-        assert_eq!(
-            binding.properties["orphan"]["value"],
-            serde_json::json!([1, 2])
-        );
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
@@ -1018,16 +954,16 @@ mod tests {
         };
         assert!(scene.validate().is_err());
         scene.version = 1;
-        scene.entities[1].scale[0] = 0.;
+        scene.actors[1].scale[0] = 0.;
         assert!(scene.validate().is_err());
-        scene.entities[1].scale[0] = f32::NAN;
+        scene.actors[1].scale[0] = f32::NAN;
         assert!(scene.validate().is_err());
     }
 
     #[test]
     fn every_supported_scene_version_loads_and_a_newer_document_is_refused() {
         let mut scene = Scene::default();
-        for version in 1..=crate::actor_document::SCENE_VERSION {
+        for version in [crate::actor_document::SCENE_VERSION] {
             scene.version = version;
             scene.validate().unwrap();
         }
@@ -1035,7 +971,7 @@ mod tests {
         let error = scene.validate().unwrap_err();
         assert!(error.contains("newer editor"), "{error}");
         scene.version = 0;
-        assert_eq!(scene.validate().unwrap_err(), "Unsupported scene version");
+        assert!(scene.validate().unwrap_err().contains("recreate"));
     }
 
     #[test]
@@ -1053,10 +989,10 @@ mod tests {
             "Hero",
         );
         scene.actors.push(actor);
-        assert_eq!(scene.version, 3);
+        assert_eq!(scene.version, crate::actor_document::SCENE_VERSION);
         scene.save(&path).unwrap();
         let loaded = Scene::load(&path).unwrap();
-        assert_eq!(loaded.version, 5);
+        assert_eq!(loaded.version, crate::actor_document::SCENE_VERSION);
         assert_eq!(loaded.actors, scene.actors);
         let bytes = fs::read(&path).unwrap();
         assert_eq!(Scene::load(&path).unwrap(), loaded);
@@ -1096,7 +1032,11 @@ mod tests {
             script.blueprint.functions.is_empty(),
             "the graph starts empty"
         );
-        assert_eq!(scene.version, 3, "the default is not a document edit");
+        assert_eq!(
+            scene.version,
+            crate::actor_document::SCENE_VERSION,
+            "the default is not a document edit"
+        );
         assert_eq!(
             fs::read(&path).unwrap(),
             bytes,
@@ -1116,7 +1056,7 @@ mod tests {
         // Only an explicit save publishes it, and the document becomes version 5.
         scene.save(&path).unwrap();
         let reloaded = Scene::load_unresolved(&path).unwrap();
-        assert_eq!(reloaded.version, 5);
+        assert_eq!(reloaded.version, crate::actor_document::SCENE_VERSION);
         assert_eq!(reloaded.scene_script, scene.scene_script);
         fs::remove_dir_all(root).unwrap();
     }
@@ -1141,7 +1081,7 @@ mod tests {
             "Hero",
         ));
         assert!(scene.ensure_scene_script(None));
-        let entity = scene.entities[0].id;
+        let entity = scene.actors[0].id;
         let texture = uuid::Uuid::new_v4();
         let blueprint = &mut scene.scene_script.as_mut().unwrap().blueprint;
         let class = blueprint.id.clone();
@@ -1163,10 +1103,10 @@ mod tests {
         assert_ne!(script.blueprint.id, class, "the copy is a different class");
         assert_eq!(script.blueprint.name, "Town_Copy_SceneScript");
         assert_ne!(copy.actors[0].id, actor);
-        assert_ne!(copy.entities[0].id, entity);
+        assert_ne!(copy.actors[0].id, entity);
         assert_eq!(
             script.blueprint.variables[0].default,
-            serde_json::json!(copy.actors[0].id.to_string()),
+            serde_json::json!(copy.actors.last().unwrap().id.to_string()),
             "the copy's reference names the copy's actor"
         );
         assert_eq!(
@@ -1183,12 +1123,12 @@ mod tests {
         let path = directory.join("scene.json");
         let mut scene = Scene::default();
         scene.save(&path).unwrap();
-        scene.entities[1].position[0] = 7.5;
+        scene.actors[1].position[0] = 7.5;
         scene.save(&path).unwrap();
         assert_eq!(Scene::load(&path).unwrap(), scene);
-        scene.entities[1].scale[0] = -1.;
+        scene.actors[1].scale[0] = -1.;
         assert!(scene.save(&path).is_err());
-        assert_eq!(Scene::load(&path).unwrap().entities[1].position[0], 7.5);
+        assert_eq!(Scene::load(&path).unwrap().actors[1].position[0], 7.5);
         std::fs::remove_file(path).unwrap();
         std::fs::remove_dir(directory).unwrap();
     }

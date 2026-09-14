@@ -40,6 +40,15 @@ impl Script {
     pub fn instantiable(&self) -> bool {
         self.classes.first().is_none_or(|c| !c.abstract_class)
     }
+    pub fn is_component(&self) -> bool {
+        self.classes.iter().any(|c| {
+            c.id == crate::object_model::ACTOR_COMPONENT_ID
+                || c.family == Some(schema::ClassFamily::Component)
+        })
+    }
+    pub fn attachable(&self) -> bool {
+        self.instantiable() && self.is_component()
+    }
 }
 pub fn identifier(s: &str) -> bool {
     let mut chars = s.chars();
@@ -72,7 +81,7 @@ pub fn declaration_registry(root: &Path) -> Result<crate::blueprint::Registry, S
     let scripts = native_catalog(root)?;
     let files = crate::blueprint_asset::load_all(root)?;
     if files.is_empty() {
-        return Ok(crate::blueprint::legacy_registry(root, &scripts));
+        return Ok(crate::blueprint::registry_from_catalog(root, &scripts));
     }
     let native = crate::blueprint::native_registry(root, &scripts)?;
     crate::blueprint_compile::declaration_registry(&native, &files).map_err(|errors| {
@@ -128,35 +137,13 @@ pub fn metadata_files(files: &[PathBuf]) -> impl Iterator<Item = &PathBuf> {
 pub fn native_catalog(root: &Path) -> Result<Vec<Script>, String> {
     let files = crate::reflection::script_files(root)?;
     crate::native_metadata::catalog_files(root, &files)?;
-    let mut result = Vec::new();
+    let mut result: Vec<Script> = Vec::new();
     let mut names = BTreeSet::new();
-    for path in metadata_files(&files) {
-        let bytes = fs::read(path).map_err(|e| e.to_string())?;
-        let mut script: Script =
-            crate::document::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
-        crate::native_metadata::file(root, path, crate::assets::hash(&bytes))?;
-        if !identifier(&script.name)
-            || path.file_name().unwrap().to_string_lossy() != format!("{}.epokscript", script.name)
-            || !names.insert(script.name.to_ascii_lowercase())
-        {
-            return Err(format!(
-                "Invalid or duplicate script name: {}",
-                path.display()
-            ));
-        }
-        let dir = path.parent().unwrap();
-        for ext in ["hpp", "cpp"] {
-            if !dir.join(format!("{}.{ext}", script.name)).is_file() {
-                return Err(format!("Missing {}.{ext}", script.name));
-            }
-        }
-        script.header = dir
-            .join(format!("{}.hpp", script.name))
-            .strip_prefix(root.join("assets/scripts"))
-            .map_err(|e| e.to_string())?
-            .into();
-        validate_properties(&script)?;
-        result.push(script);
+    if let Some(path) = metadata_files(&files).next() {
+        return Err(format!(
+            "{} uses retired script sidecars. Recreate this project with Actor templates and annotated C++ classes.",
+            path.display()
+        ));
     }
     // Text detection only schedules semantic extraction. Clang determines all declarations.
     let annotated = files
@@ -175,9 +162,11 @@ pub fn native_catalog(root: &Path) -> Result<Vec<Script>, String> {
             .collect::<BTreeMap<_, _>>();
         let canonical_root = fs::canonicalize(root).map_err(|e| e.to_string())?;
         let runtime = canonical_root.join(".epok/reflection/runtime");
-        for class in manifest.classes.iter().filter(|c| {
-            c.cpp_name != "epok::Behaviour" && c.id != crate::particle_effect::LAYER_CLASS_ID
-        }) {
+        for class in manifest
+            .classes
+            .iter()
+            .filter(|c| c.id != crate::particle_effect::LAYER_CLASS_ID)
+        {
             let header = fs::canonicalize(&class.source.file).map_err(|e| e.to_string())?;
             // SDK declarations belong to the native registry, not the list of
             // project-authored scripts. Keep them available in ancestry chains.
@@ -202,10 +191,10 @@ pub fn native_catalog(root: &Path) -> Result<Vec<Script>, String> {
             }
             if chain
                 .last()
-                .is_none_or(|base| base.cpp_name != "epok::Behaviour" && base.id != crate::object_model::OBJECT_ID)
+                .is_none_or(|base| base.id != crate::object_model::OBJECT_ID)
             {
                 return Err(format!(
-                    "{} is not derived from epok::Behaviour or epok::Object",
+                    "{} is not derived from epok::Object",
                     class.cpp_name
                 ));
             }
@@ -248,30 +237,6 @@ pub fn native_catalog(root: &Path) -> Result<Vec<Script>, String> {
                 result.push(script);
             }
         }
-    }
-    // Only legacy assets use their manual parent metadata.
-    let direct = result.clone();
-    for script in result.iter_mut().filter(|s| s.classes.is_empty()) {
-        let mut parent = script.parent.clone();
-        let mut seen = BTreeSet::from([script.name.clone()]);
-        let mut inherited = Vec::new();
-        while let Some(name) = parent {
-            if name == "Behaviour" {
-                break;
-            }
-            if !seen.insert(name.clone()) {
-                return Err("Legacy inheritance cycle".into());
-            }
-            let base = direct
-                .iter()
-                .find(|s| s.name == name)
-                .ok_or_else(|| format!("Missing parent {name}"))?;
-            inherited.extend(base.properties.clone());
-            parent = base.parent.clone();
-        }
-        inherited.extend(script.properties.clone());
-        script.properties = inherited;
-        validate_properties(script)?;
     }
     result.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(result)
@@ -338,13 +303,7 @@ pub fn create_in(
     if catalog.iter().any(|s| s.name.eq_ignore_ascii_case(name)) {
         return Err(format!("A class named {name} already exists"));
     }
-    let (include, base, implementation) = if parent == "Behaviour" || parent == "epok::Behaviour" {
-        (
-            "epok.hpp".into(),
-            "epok::Behaviour".into(),
-            "\npublic:\n    void update(epok::Transform&, epok::Fixed) override {}\n".into(),
-        )
-    } else if let Some(base) = runtime_base(parent) {
+    let (include, base, implementation) = if let Some(base) = runtime_base(parent) {
         // Actor and Component bases live in the runtime headers, not in assets/scripts,
         // and their lifecycle events (begin_play/tick/end_play/on_enable/on_disable) all
         // have defaults, so the generated class needs no body to be concrete.
@@ -402,7 +361,7 @@ pub fn create_in(
     }
     let id = uuid::Uuid::new_v4();
     let header = format!(
-        "#pragma once\n#include \"{include}\"\n\nclass EPOK_CLASS(Blueprintable, Id=\"{id}\") {name} : public {base} {{{implementation}}};\n"
+        "#pragma once\n#include \"{include}\"\n\nclass EPOK_CLASS(Blueprintable, Id=\"{id}\") {name} : public {base} {{\npublic:\n    static constexpr uint64_t static_class_id=epok::detail::compact_class_id(\"{id}\");\n    uint64_t class_id() const override {{return static_class_id;}}\n{implementation}}};\n"
     );
     let source = format!("#include \"{name}.hpp\"\n");
     let mut owned = Vec::new();
@@ -466,7 +425,8 @@ mod tests {
     #[ignore = "Requires pinned libclang/MIPS SDK and cargo build --bins"]
     fn reflected_catalog_keeps_legacy_and_actor_scripts_without_sdk_entries() {
         let root = crate::workspace::tests::temp("mixed-script-catalog");
-        crate::workspace::create(&root, "Mixed scripts", crate::workspace::Template::Basic).unwrap();
+        crate::workspace::create(&root, "Mixed scripts", crate::workspace::Template::Basic)
+            .unwrap();
         create_in(&root, "LegacyController", "", "Behaviour", false).unwrap();
         create_in(&root, "HeroActor", "", "Actor3D", false).unwrap();
         create_in(&root, "HeroAudio", "", "AudioComponent", false).unwrap();
@@ -476,7 +436,10 @@ mod tests {
         }
         assert!(scripts.iter().all(|s| !s.name.starts_with("epok::")));
         let actor = scripts.iter().find(|s| s.name == "HeroActor").unwrap();
-        assert_eq!(actor.classes.last().unwrap().id, crate::object_model::OBJECT_ID);
+        assert_eq!(
+            actor.classes.last().unwrap().id,
+            crate::object_model::OBJECT_ID
+        );
         let registry = crate::blueprint::native_registry(&root, &scripts).unwrap();
         assert!(registry.named("epok::Object").is_some());
         assert!(registry.named("epok::Behaviour").is_some());

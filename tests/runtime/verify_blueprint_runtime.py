@@ -44,7 +44,8 @@ def main():
         documents.write_text(path / "EASTL/functional.h", "#pragma once\n#include <functional>\nnamespace eastl {using std::function;}\n")
         documents.write_text(path / "display.hh", "#pragma once\nnamespace epok {inline constexpr int display_width=320,display_height=240;}\n")
         includes = [path, ROOT / "third_party/nugget", ROOT / "runtime", ROOT / "templates"]
-        for test, tracing in [("test_blueprint_runtime", 0), ("test_blueprint_runtime", 1), ("test_blueprint_spawn", 1), ("test_actor_tables", 0), ("test_timeline", 0), ("test_timeline_director", 0), ("test_timeline_adapters", 0), ("test_particle_effect", 0), ("test_blueprint_playback", 0)]:
+        cases = [("test_blueprint_runtime", 0), ("test_blueprint_runtime", 1), ("test_blueprint_spawn", 1), ("test_actor_tables", 0), ("test_timeline", 0), ("test_timeline_director", 0), ("test_timeline_adapters", 0), ("test_particle_effect", 0), ("test_blueprint_playback", 0)]
+        for test, tracing in [case for case in cases if len(_sys.argv)==1 or case[0] in _sys.argv[1:]]:
             source = ROOT / f"tests/runtime/{test}.cpp"
             target = path / (f"{test}-{tracing}" + (".exe" if os.name == "nt" else ""))
             if Path(compiler).name.lower() == "cl.exe":
@@ -66,8 +67,8 @@ def main():
                                      'template class epok::bp::Timeline<16>;\n'
                                      'template class epok::bp::TraceRing<128>;\n'
                                      'template class epok::bp::Debugger<32>;\n'
-                                     'struct Test:epok::Behaviour {void update(epok::Transform&,epok::Fixed)override{}};\n'
-                                     'template struct epok::bp::TypedPool<Test,4>;\n'
+                                     'struct Test:epok::ActorComponent {void tick(epok::Fixed)override{}};\n'
+                                     'template struct epok::ObjectPool<Test,4>;\n'
                                      'epok::Fixed probe(epok::Fixed a, epok::Fixed b) { return epok::bp::mul(a,b); }\n')
             nugget = ROOT / "third_party/nugget"
             target_includes = [nugget / "third_party/EASTL/include", nugget / "third_party/EABase/include/Common", path, nugget, ROOT / "runtime", ROOT / "templates"]

@@ -87,7 +87,7 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
         })
         .collect();
     let nodes: Vec<_> = scene
-        .entities
+        .actors
         .iter()
         .map(|e| {
             let mut n = Node {
@@ -280,24 +280,24 @@ mod tests {
     #[test]
     fn dynamic_budget_and_disabled_parent_match_console() {
         let mut s = Scene::default();
-        s.entities.clear();
-        let mut root = crate::scene::Entity::cube("Canvas".into());
+        s.actors.clear();
+        let mut root = crate::scene::Actor::cube("Canvas".into());
         root.kind = "Empty".into();
         root.canvas = Some(Default::default());
-        s.entities.push(root);
+        s.actors.push(root);
         for _ in 0..3 {
-            let mut e = crate::scene::Entity::cube("Image".into());
+            let mut e = crate::scene::Actor::cube("Image".into());
             e.kind = "Empty".into();
             e.parent = Some(0);
             e.rect = Some(Default::default());
             e.image = Some(Default::default());
-            s.entities.push(e);
+            s.actors.push(e);
         }
         s.hud_budget.rectangles = 2;
         let (commands, stats) = compile(&s);
         assert_eq!(commands.len(), 2);
         assert_eq!(stats, [2, 0, 0, 0, 1]);
-        s.entities[0].active = false;
+        s.actors[0].active = false;
         assert!(compile(&s).0.is_empty());
     }
 }

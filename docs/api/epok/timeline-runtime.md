@@ -2,7 +2,7 @@
 
 > **Header:** `"timeline_runtime.hpp"` · **Tier:** Engine internal · **Source:** [open header](../../../runtime/timeline_runtime.hpp)
 
-This module covers fixed-step simulation time and frame timing. It documents 25 public callables declared directly in this header.
+This module covers fixed-step simulation time and frame timing. It documents 28 public callables declared directly in this header.
 
 ## Declared types
 
@@ -14,9 +14,12 @@ This module covers fixed-step simulation time and frame timing. It documents 25 
 - [`epok::timeline::BoundTarget::BoundTarget`](#epok-timeline-boundtarget-boundtarget-1) — Constructs `epok::timeline::BoundTarget` for fixed-step simulation time and frame timing.
 - [`epok::timeline::BoundTarget::BoundTarget`](#epok-timeline-boundtarget-boundtarget-2) — Constructs `epok::timeline::BoundTarget` for fixed-step simulation time and frame timing.
 - [`epok::timeline::BoundTarget::BoundTarget`](#epok-timeline-boundtarget-boundtarget-3) — Constructs `epok::timeline::BoundTarget` for fixed-step simulation time and frame timing.
+- [`epok::timeline::BoundTarget::BoundTarget`](#epok-timeline-boundtarget-boundtarget-4) — Constructs `epok::timeline::BoundTarget` for fixed-step simulation time and frame timing.
+- [`epok::timeline::BoundTarget::data`](#epok-timeline-boundtarget-data-1) — Performs `data` as part of fixed-step simulation time and frame timing.
+- [`epok::timeline::BoundTarget::data_slot`](#epok-timeline-boundtarget-data-slot-1) — Performs `data slot` as part of fixed-step simulation time and frame timing.
 - [`epok::timeline::BoundTarget::effect_layer`](#epok-timeline-boundtarget-effect-layer-1) — Performs `effect layer` as part of fixed-step simulation time and frame timing.
 - [`epok::timeline::BoundTarget::get`](#epok-timeline-boundtarget-get-1) — Returns get as part of fixed-step simulation time and frame timing.
-- [`epok::timeline::BoundTarget::operator EntityHandle`](#epok-timeline-boundtarget-operator-entityhandle-1) — Performs `operator  entity handle` as part of fixed-step simulation time and frame timing.
+- [`epok::timeline::BoundTarget::operator ObjectId`](#epok-timeline-boundtarget-operator-objectid-1) — Performs `operator  object id` as part of fixed-step simulation time and frame timing.
 - [`epok::timeline::BoundTarget::same`](#epok-timeline-boundtarget-same-1) — Performs `same` as part of fixed-step simulation time and frame timing.
 - [`epok::timeline::BoundTarget::valid`](#epok-timeline-boundtarget-valid-1) — Performs `valid` as part of fixed-step simulation time and frame timing.
 - [`epok::timeline::BoundTarget::visible`](#epok-timeline-boundtarget-visible-1) — Performs `visible` as part of fixed-step simulation time and frame timing.
@@ -48,7 +51,7 @@ This module covers fixed-step simulation time and frame timing. It documents 25 
 bool active()const
 ```
 
-- **Declared at:** [line 22](../../../runtime/timeline_runtime.hpp#L22)
+- **Declared at:** [line 26](../../../runtime/timeline_runtime.hpp#L26)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -78,10 +81,10 @@ auto result = object.active();
 **Exact declaration**
 
 ```cpp
-BoundTarget():ent
+BoundTarget():obj
 ```
 
-- **Declared at:** [line 15](../../../runtime/timeline_runtime.hpp#L15)
+- **Declared at:** [line 16](../../../runtime/timeline_runtime.hpp#L16)
 - **Kind:** `constructor`
 
 **Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
@@ -107,10 +110,48 @@ epok::timeline::BoundTarget value();
 **Exact declaration**
 
 ```cpp
+BoundTarget(DataHandle value):obj
+```
+
+- **Declared at:** [line 18](../../../runtime/timeline_runtime.hpp#L18)
+- **Kind:** `constructor`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `DataHandle` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "timeline_runtime.hpp"
+
+// Assume these named values have been initialized with valid data:
+// DataHandle value
+
+epok::timeline::BoundTarget value(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to fixed-step simulation time and frame timing. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control.
+
+<a id="epok-timeline-boundtarget-boundtarget-3"></a>
+
+## `epok::timeline::BoundTarget::BoundTarget`
+
+**Purpose.** Constructs `epok::timeline::BoundTarget` for fixed-step simulation time and frame timing.
+
+**Exact declaration**
+
+```cpp
 BoundTarget(EffectLayerHandle value):lay
 ```
 
-- **Declared at:** [line 17](../../../runtime/timeline_runtime.hpp#L17)
+- **Declared at:** [line 19](../../../runtime/timeline_runtime.hpp#L19)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -136,7 +177,7 @@ epok::timeline::BoundTarget value(value);
 
 **Trade-offs and warnings.** This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control.
 
-<a id="epok-timeline-boundtarget-boundtarget-3"></a>
+<a id="epok-timeline-boundtarget-boundtarget-4"></a>
 
 ## `epok::timeline::BoundTarget::BoundTarget`
 
@@ -145,17 +186,17 @@ epok::timeline::BoundTarget value(value);
 **Exact declaration**
 
 ```cpp
-BoundTarget(EntityHandle value):ent
+BoundTarget(ObjectId value):obj
 ```
 
-- **Declared at:** [line 16](../../../runtime/timeline_runtime.hpp#L16)
+- **Declared at:** [line 17](../../../runtime/timeline_runtime.hpp#L17)
 - **Kind:** `constructor`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `EntityHandle` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `ObjectId` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
 
@@ -165,12 +206,78 @@ BoundTarget(EntityHandle value):ent
 #include "timeline_runtime.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle value
+// ObjectId value
 
 epok::timeline::BoundTarget value(value);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to fixed-step simulation time and frame timing. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control.
+
+<a id="epok-timeline-boundtarget-data-1"></a>
+
+## `epok::timeline::BoundTarget::data`
+
+**Purpose.** Performs `data` as part of fixed-step simulation time and frame timing.
+
+**Exact declaration**
+
+```cpp
+ActorData* data()const
+```
+
+- **Declared at:** [line 22](../../../runtime/timeline_runtime.hpp#L22)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "timeline_runtime.hpp"
+
+epok::timeline::BoundTarget& object = /* obtain a valid instance */;
+
+auto result = object.data();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control.
+
+<a id="epok-timeline-boundtarget-data-slot-1"></a>
+
+## `epok::timeline::BoundTarget::data_slot`
+
+**Purpose.** Performs `data slot` as part of fixed-step simulation time and frame timing.
+
+**Exact declaration**
+
+```cpp
+DataHandle data_slot()const
+```
+
+- **Declared at:** [line 23](../../../runtime/timeline_runtime.hpp#L23)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `DataHandle`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "timeline_runtime.hpp"
+
+epok::timeline::BoundTarget& object = /* obtain a valid instance */;
+
+auto result = object.data_slot();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
 
 **Trade-offs and warnings.** This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control.
 
@@ -186,7 +293,7 @@ epok::timeline::BoundTarget value(value);
 EffectLayer* effect_layer()const
 ```
 
-- **Declared at:** [line 18](../../../runtime/timeline_runtime.hpp#L18)
+- **Declared at:** [line 20](../../../runtime/timeline_runtime.hpp#L20)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `EffectLayer *`. Check the purpose and failure notes before using the value.
@@ -216,13 +323,13 @@ auto result = object.effect_layer();
 **Exact declaration**
 
 ```cpp
-Entity* get()const
+Object* get()const
 ```
 
-- **Declared at:** [line 19](../../../runtime/timeline_runtime.hpp#L19)
+- **Declared at:** [line 21](../../../runtime/timeline_runtime.hpp#L21)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `Entity *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Object *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
 
@@ -240,22 +347,22 @@ auto result = object.get();
 
 **Trade-offs and warnings.** This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control.
 
-<a id="epok-timeline-boundtarget-operator-entityhandle-1"></a>
+<a id="epok-timeline-boundtarget-operator-objectid-1"></a>
 
-## `epok::timeline::BoundTarget::operator EntityHandle`
+## `epok::timeline::BoundTarget::operator ObjectId`
 
-**Purpose.** Performs `operator  entity handle` as part of fixed-step simulation time and frame timing.
+**Purpose.** Performs `operator  object id` as part of fixed-step simulation time and frame timing.
 
 **Exact declaration**
 
 ```cpp
-operator EntityHandle()const
+operator ObjectId()const
 ```
 
-- **Declared at:** [line 20](../../../runtime/timeline_runtime.hpp#L20)
+- **Declared at:** [line 24](../../../runtime/timeline_runtime.hpp#L24)
 - **Kind:** `conversion function`; qualifiers: `const`
 
-**Returns.** Returns `EntityHandle`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
 
@@ -266,7 +373,7 @@ operator EntityHandle()const
 
 epok::timeline::BoundTarget& object = /* obtain a valid instance */;
 
-auto result = object.operator EntityHandle();
+auto result = object.operator ObjectId();
 ```
 
 **Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
@@ -285,7 +392,7 @@ auto result = object.operator EntityHandle();
 bool same(const BoundTarget& other)const
 ```
 
-- **Declared at:** [line 24](../../../runtime/timeline_runtime.hpp#L24)
+- **Declared at:** [line 28](../../../runtime/timeline_runtime.hpp#L28)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -327,7 +434,7 @@ auto result = object.same(other);
 bool valid()const
 ```
 
-- **Declared at:** [line 21](../../../runtime/timeline_runtime.hpp#L21)
+- **Declared at:** [line 25](../../../runtime/timeline_runtime.hpp#L25)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -360,7 +467,7 @@ auto result = object.valid();
 bool visible()const
 ```
 
-- **Declared at:** [line 23](../../../runtime/timeline_runtime.hpp#L23)
+- **Declared at:** [line 27](../../../runtime/timeline_runtime.hpp#L27)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -393,7 +500,7 @@ auto result = object.visible();
 void advance(Fixed dt,uint32_t scene,bool paused=false)
 ```
 
-- **Declared at:** [line 249](../../../runtime/timeline_runtime.hpp#L249)
+- **Declared at:** [line 253](../../../runtime/timeline_runtime.hpp#L253)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -439,7 +546,7 @@ object.advance(dt, scene, paused);
 void cancel_all()
 ```
 
-- **Declared at:** [line 236](../../../runtime/timeline_runtime.hpp#L236)
+- **Declared at:** [line 240](../../../runtime/timeline_runtime.hpp#L240)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -472,7 +579,7 @@ object.cancel_all();
 void cancel_owner(BoundTarget owner)
 ```
 
-- **Declared at:** [line 237](../../../runtime/timeline_runtime.hpp#L237)
+- **Declared at:** [line 241](../../../runtime/timeline_runtime.hpp#L241)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -514,7 +621,7 @@ object.cancel_owner(owner);
 void capacity_drop(const Asset& asset)
 ```
 
-- **Declared at:** [line 169](../../../runtime/timeline_runtime.hpp#L169)
+- **Declared at:** [line 173](../../../runtime/timeline_runtime.hpp#L173)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -556,7 +663,7 @@ object.capacity_drop(asset);
 uint32_t marker(Handle h,uint16_t index)const
 ```
 
-- **Declared at:** [line 189](../../../runtime/timeline_runtime.hpp#L189)
+- **Declared at:** [line 193](../../../runtime/timeline_runtime.hpp#L193)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -600,7 +707,7 @@ auto result = object.marker(h, index);
 uint32_t marker_revision(Handle h,uint64_t id)const
 ```
 
-- **Declared at:** [line 192](../../../runtime/timeline_runtime.hpp#L192)
+- **Declared at:** [line 196](../../../runtime/timeline_runtime.hpp#L196)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -644,7 +751,7 @@ auto result = object.marker_revision(h, id);
 bool pause(Handle h,bool paused)
 ```
 
-- **Declared at:** [line 235](../../../runtime/timeline_runtime.hpp#L235)
+- **Declared at:** [line 239](../../../runtime/timeline_runtime.hpp#L239)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -688,7 +795,7 @@ auto result = object.pause(h, paused);
 Handle play(const Asset& asset,BoundTarget owner,const BoundTarget* targets,uint32_t scene)
 ```
 
-- **Declared at:** [line 203](../../../runtime/timeline_runtime.hpp#L203)
+- **Declared at:** [line 207](../../../runtime/timeline_runtime.hpp#L207)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -733,10 +840,10 @@ auto result = object.play(asset, owner, targets, scene);
 **Exact declaration**
 
 ```cpp
-Handle play(const Asset& asset,EntityHandle owner,const EntityHandle* targets,uint32_t scene)
+Handle play(const Asset& asset,DataHandle owner,const DataHandle* targets,uint32_t scene)
 ```
 
-- **Declared at:** [line 197](../../../runtime/timeline_runtime.hpp#L197)
+- **Declared at:** [line 201](../../../runtime/timeline_runtime.hpp#L201)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -744,8 +851,8 @@ Handle play(const Asset& asset,EntityHandle owner,const EntityHandle* targets,ui
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `asset` | `const Asset &` | Input | Value supplied for `asset`. See the exact type and module contract. |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
-| `targets` | `const EntityHandle *` | Input | Value supplied for `targets`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `targets` | `const DataHandle *` | Input | Value supplied for `targets`. See the exact type and module contract. |
 | `scene` | `uint32_t` | Input | Value supplied for `scene`. See the exact type and module contract. |
 
 **Returns.** Returns `Handle`. Check the purpose and failure notes before using the value.
@@ -759,8 +866,8 @@ Handle play(const Asset& asset,EntityHandle owner,const EntityHandle* targets,ui
 
 // Assume these named values have been initialized with valid data:
 // const Asset & asset
-// EntityHandle owner
-// const EntityHandle * targets
+// DataHandle owner
+// const DataHandle * targets
 // uint32_t scene
 
 epok::timeline::Director& object = /* obtain a valid instance */;
@@ -784,7 +891,7 @@ auto result = object.play(asset, owner, targets, scene);
 bool poll_diagnostic(Diagnostic& result)
 ```
 
-- **Declared at:** [line 170](../../../runtime/timeline_runtime.hpp#L170)
+- **Declared at:** [line 174](../../../runtime/timeline_runtime.hpp#L174)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -826,7 +933,7 @@ auto result = object.poll_diagnostic(result);
 bool seek(Handle h,int32_t tick,uint32_t scene)
 ```
 
-- **Declared at:** [line 238](../../../runtime/timeline_runtime.hpp#L238)
+- **Declared at:** [line 242](../../../runtime/timeline_runtime.hpp#L242)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -872,7 +979,7 @@ auto result = object.seek(h, tick, scene);
 bp::PlaybackSnapshot snapshot(Handle h,uint64_t asset=0,uint64_t marker=0)const
 ```
 
-- **Declared at:** [line 175](../../../runtime/timeline_runtime.hpp#L175)
+- **Declared at:** [line 179](../../../runtime/timeline_runtime.hpp#L179)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -918,7 +1025,7 @@ auto result = object.snapshot(h, asset, marker);
 State state(Handle h)const
 ```
 
-- **Declared at:** [line 174](../../../runtime/timeline_runtime.hpp#L174)
+- **Declared at:** [line 178](../../../runtime/timeline_runtime.hpp#L178)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -960,7 +1067,7 @@ auto result = object.state(h);
 bool stop(Handle h)
 ```
 
-- **Declared at:** [line 234](../../../runtime/timeline_runtime.hpp#L234)
+- **Declared at:** [line 238](../../../runtime/timeline_runtime.hpp#L238)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1002,7 +1109,7 @@ auto result = object.stop(h);
 int32_t tick(Handle h)const
 ```
 
-- **Declared at:** [line 188](../../../runtime/timeline_runtime.hpp#L188)
+- **Declared at:** [line 192](../../../runtime/timeline_runtime.hpp#L192)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**

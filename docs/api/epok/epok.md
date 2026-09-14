@@ -2,16 +2,22 @@
 
 > **Header:** `"epok.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/epok.hpp)
 
-This module covers the epok module. It documents 51 public callables declared directly in this header.
+This module covers the epok module. It documents 41 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::Aabb`, `epok::AnimationClip`, `epok::Animator`, `epok::AudioSource`, `epok::Behaviour`, `epok::Binding`, `epok::BlobShadow`, `epok::Bone`, `epok::BonePose`, `epok::BoneTrack`, `epok::CameraSettings`, `epok::Canvas`, `epok::ChunkVisibility`, `epok::Collider`, `epok::Entity`, `epok::EntityHandle`, `epok::Fixed`, `epok::Image`, `epok::LegacyEntityStorage`, `epok::Light`, `epok::LightingEnvironment`, `epok::LightingStats`, `epok::LightMode`, `epok::LightType`, `epok::Material`, `epok::MeshGeometry`, `epok::MeshLighting`, `epok::MeshQuad`, `epok::MeshStats`, `epok::MoveResult`, `epok::MusicStats`, `epok::PerformanceStats`, `epok::ProgressBar`, `epok::ReceiveLighting`, `epok::RectTransform`, `epok::SkeletalMesh`, `epok::SpatialHit`, `epok::Transform`
+`epok::Aabb`, `epok::Actor`, `epok::ActorData`, `epok::AnimationClip`, `epok::Animator`, `epok::AudioSource`, `epok::BlobShadow`, `epok::Bone`, `epok::BonePose`, `epok::BoneTrack`, `epok::CameraSettings`, `epok::Canvas`, `epok::ChunkVisibility`, `epok::Collider`, `epok::DataHandle`, `epok::Fixed`, `epok::Image`, `epok::Light`, `epok::LightingEnvironment`, `epok::LightingStats`, `epok::LightMode`, `epok::LightType`, `epok::Material`, `epok::MeshGeometry`, `epok::MeshLighting`, `epok::MeshQuad`, `epok::MeshStats`, `epok::MoveResult`, `epok::MusicStats`, `epok::PerformanceStats`, `epok::ProgressBar`, `epok::ReceiveLighting`, `epok::RectTransform`, `epok::SkeletalMesh`, `epok::SpatialHit`, `epok::Transform`
 
 ## Callable index
 
 - [`epok::activate_texture_bank`](#epok-activate-texture-bank-1) — Performs `activate texture bank` as part of the epok module.
 - [`epok::active_camera`](#epok-active-camera-1) — Performs `active camera` as part of the epok module.
+- [`epok::ActorData::add`](#epok-actordata-add-1) — Adds add as part of the epok module.
+- [`epok::ActorData::component`](#epok-actordata-component-1) — Performs `component` as part of the epok module.
+- [`epok::ActorData::get`](#epok-actordata-get-1) — Returns get as part of the epok module.
+- [`epok::ActorData::remove`](#epok-actordata-remove-1) — Removes remove as part of the epok module.
+- [`epok::ActorData::set_name`](#epok-actordata-set-name-1) — Sets name as part of the epok module.
+- [`epok::allocate_actor_data`](#epok-allocate-actor-data-1) — Performs `allocate actor data` as part of the epok module.
 - [`epok::Animator::advance`](#epok-animator-advance-1) — Performs `advance` as part of the epok module.
 - [`epok::Animator::pause`](#epok-animator-pause-1) — Pauses pause as part of the epok module.
 - [`epok::Animator::play`](#epok-animator-play-1) — Starts play as part of the epok module.
@@ -20,33 +26,17 @@ This module covers the epok module. It documents 51 public callables declared di
 - [`epok::AudioSource::is_playing`](#epok-audiosource-is-playing-1) — Reports whether playing as part of the epok module.
 - [`epok::AudioSource::play`](#epok-audiosource-play-1) — Starts play as part of the epok module.
 - [`epok::AudioSource::stop`](#epok-audiosource-stop-1) — Stops stop as part of the epok module.
-- [`epok::Behaviour::bind`](#epok-behaviour-bind-1) — Performs `bind` as part of the epok module.
-- [`epok::Behaviour::entity`](#epok-behaviour-entity-1) — Performs `entity` as part of the epok module.
-- [`epok::Behaviour::frame_update`](#epok-behaviour-frame-update-1) — Runs once per rendered frame even while paused.
-- [`epok::Behaviour::on_destroy`](#epok-behaviour-on-destroy-1) — Performs `on destroy` as part of the epok module.
-- [`epok::Behaviour::on_disable`](#epok-behaviour-on-disable-1) — Performs `on disable` as part of the epok module.
-- [`epok::Behaviour::on_enable`](#epok-behaviour-on-enable-1) — Performs `on enable` as part of the epok module.
-- [`epok::Behaviour::on_trigger`](#epok-behaviour-on-trigger-1) — Performs `on trigger` as part of the epok module.
-- [`epok::Behaviour::start`](#epok-behaviour-start-1) — Starts start as part of the epok module.
-- [`epok::Behaviour::timeline_sync`](#epok-behaviour-timeline-sync-1) — Typed component adapters synchronize only the reflected property being read or written.
-- [`epok::Behaviour::update`](#epok-behaviour-update-1) — Updates update as part of the epok module.
 - [`epok::camera_project`](#epok-camera-project-1) — Performs `camera project` as part of the epok module.
 - [`epok::collider_aabb`](#epok-collider-aabb-1) — Performs `collider aabb` as part of the epok module.
-- [`epok::create_entity`](#epok-create-entity-1) — Creates entity as part of the epok module.
 - [`epok::current_scene`](#epok-current-scene-1) — Performs `current scene` as part of the epok module.
-- [`epok::destroy_entity`](#epok-destroy-entity-1) — Destroys entity as part of the epok module.
-- [`epok::EntityHandle::get`](#epok-entityhandle-get-1) — Returns get as part of the epok module.
-- [`epok::EntityHandle::operator bool`](#epok-entityhandle-operator-bool-1) — Performs `operator  bool` as part of the epok module.
-- [`epok::find_entity`](#epok-find-entity-1) — Finds entity as part of the epok module.
+- [`epok::DataHandle::get`](#epok-datahandle-get-1) — Returns get as part of the epok module.
+- [`epok::DataHandle::operator bool`](#epok-datahandle-operator-bool-1) — Performs `operator  bool` as part of the epok module.
+- [`epok::destroy_actor_data`](#epok-destroy-actor-data-1) — Destroys actor data as part of the epok module.
+- [`epok::find_actor_data`](#epok-find-actor-data-1) — Finds actor data as part of the epok module.
 - [`epok::handle`](#epok-handle-1) — Performs `handle` as part of the epok module.
 - [`epok::hit_entity`](#epok-hit-entity-1) — Performs `hit entity` as part of the epok module.
 - [`epok::is_active`](#epok-is-active-1) — Reports whether active as part of the epok module.
 - [`epok::is_active_slot`](#epok-is-active-slot-1) — Same test for a slot index; skips the pointer validation of is_active.
-- [`epok::LegacyEntityStorage::add`](#epok-legacyentitystorage-add-1) — Adds add as part of the epok module.
-- [`epok::LegacyEntityStorage::component`](#epok-legacyentitystorage-component-1) — Performs `component` as part of the epok module.
-- [`epok::LegacyEntityStorage::get`](#epok-legacyentitystorage-get-1) — Returns get as part of the epok module.
-- [`epok::LegacyEntityStorage::remove`](#epok-legacyentitystorage-remove-1) — Removes remove as part of the epok module.
-- [`epok::LegacyEntityStorage::set_name`](#epok-legacyentitystorage-set-name-1) — Sets name as part of the epok module.
 - [`epok::move_and_slide`](#epok-move-and-slide-1) — Performs `move and slide` as part of the epok module.
 - [`epok::overlap`](#epok-overlap-1) — Performs `overlap` as part of the epok module.
 - [`epok::query_ground`](#epok-query-ground-1) — Performs `query ground` as part of the epok module.
@@ -74,7 +64,7 @@ This module covers the epok module. It documents 51 public callables declared di
 void activate_texture_bank(const Texture* textures)
 ```
 
-- **Declared at:** [line 197](../../../runtime/epok.hpp#L197)
+- **Declared at:** [line 198](../../../runtime/epok.hpp#L198)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -111,13 +101,13 @@ epok::activate_texture_bank(textures);
 **Exact declaration**
 
 ```cpp
-EntityHandle active_camera()
+DataHandle active_camera()
 ```
 
-- **Declared at:** [line 195](../../../runtime/epok.hpp#L195)
+- **Declared at:** [line 196](../../../runtime/epok.hpp#L196)
 - **Kind:** `function decl`
 
-**Returns.** Returns `EntityHandle`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `DataHandle`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
 
@@ -132,6 +122,234 @@ auto result = epok::active_camera();
 **Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-actordata-add-1"></a>
+
+## `epok::ActorData::add`
+
+**Purpose.** Adds add as part of the epok module.
+
+**Exact declaration**
+
+```cpp
+template<class T>T& add()
+```
+
+- **Declared at:** [line 154](../../../runtime/epok.hpp#L154)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Returns.** Returns `T &`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// T
+
+epok::ActorData& object = /* obtain a valid instance */;
+
+auto result = object.add<T>();
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size.
+
+<a id="epok-actordata-component-1"></a>
+
+## `epok::ActorData::component`
+
+**Purpose.** Performs `component` as part of the epok module.
+
+**Exact declaration**
+
+```cpp
+template<class T>T& component()
+```
+
+- **Declared at:** [line 152](../../../runtime/epok.hpp#L152)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Returns.** Returns `T &`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// T
+
+epok::ActorData& object = /* obtain a valid instance */;
+
+auto result = object.component<T>();
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size.
+
+<a id="epok-actordata-get-1"></a>
+
+## `epok::ActorData::get`
+
+**Purpose.** Returns get as part of the epok module.
+
+**Exact declaration**
+
+```cpp
+template<class T>T* get()
+```
+
+- **Declared at:** [line 153](../../../runtime/epok.hpp#L153)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Returns.** Returns `T *`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// T
+
+epok::ActorData& object = /* obtain a valid instance */;
+
+auto result = object.get<T>();
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size.
+
+<a id="epok-actordata-remove-1"></a>
+
+## `epok::ActorData::remove`
+
+**Purpose.** Removes remove as part of the epok module.
+
+**Exact declaration**
+
+```cpp
+template<class T>void remove()
+```
+
+- **Declared at:** [line 155](../../../runtime/epok.hpp#L155)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// T
+
+epok::ActorData& object = /* obtain a valid instance */;
+
+object.remove<T>();
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size.
+
+<a id="epok-actordata-set-name-1"></a>
+
+## `epok::ActorData::set_name`
+
+**Purpose.** Sets name as part of the epok module.
+
+**Exact declaration**
+
+```cpp
+void set_name(const char* value)
+```
+
+- **Declared at:** [line 151](../../../runtime/epok.hpp#L151)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `const char *` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Assume these named values have been initialized with valid data:
+// const char * value
+
+epok::ActorData& object = /* obtain a valid instance */;
+
+object.set_name(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-allocate-actor-data-1"></a>
+
+## `epok::allocate_actor_data`
+
+**Purpose.** Performs `allocate actor data` as part of the epok module.
+
+**Exact declaration**
+
+```cpp
+ActorData* allocate_actor_data(const char* name,ActorData* parent=nullptr)
+```
+
+- **Declared at:** [line 177](../../../runtime/epok.hpp#L177)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `name` | `const char *` | Input | Value supplied for `name`. See the exact type and module contract. |
+| `parent` | `ActorData *` | Input/output; inspect the function contract | Value supplied for `parent`. See the exact type and module contract. |
+
+**Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Assume these named values have been initialized with valid data:
+// const char * name
+// ActorData * parent
+
+auto result = epok::allocate_actor_data(name, parent);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
 <a id="epok-animator-advance-1"></a>
 
@@ -408,402 +626,6 @@ object.stop();
 
 **Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
 
-<a id="epok-behaviour-bind-1"></a>
-
-## `epok::Behaviour::bind`
-
-**Purpose.** Performs `bind` as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-void bind(Entity& owner)
-```
-
-- **Declared at:** [line 218](../../../runtime/epok.hpp#L218)
-- **Kind:** `cxx method`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `owner` | `Entity &` | Input/output; inspect the function contract | Value supplied for `owner`. See the exact type and module contract. |
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Assume these named values have been initialized with valid data:
-// Entity & owner
-
-epok::Behaviour& object = /* obtain a valid instance */;
-
-object.bind(owner);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
-
-<a id="epok-behaviour-entity-1"></a>
-
-## `epok::Behaviour::entity`
-
-**Purpose.** Performs `entity` as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-Entity& entity()
-```
-
-- **Declared at:** [line 219](../../../runtime/epok.hpp#L219)
-- **Kind:** `cxx method`
-
-**Returns.** Returns `Entity &`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-epok::Behaviour& object = /* obtain a valid instance */;
-
-auto result = object.entity();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="epok-behaviour-frame-update-1"></a>
-
-## `epok::Behaviour::frame_update`
-
-**Purpose.** Runs once per rendered frame even while paused.
-
-**Details.** Use input.frame_pressed() for pause menus; update() receives buffered simulation input edges.
-
-**Exact declaration**
-
-```cpp
-virtual void frame_update(Transform&,uint32_t elapsed_microseconds)
-```
-
-- **Declared at:** [line 238](../../../runtime/epok.hpp#L238)
-- **Kind:** `cxx method`; qualifiers: `virtual`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `arg1` | `Transform &` | Input/output; inspect the function contract | Value supplied for `arg1`. See the exact type and module contract. |
-| `elapsed_microseconds` | `uint32_t` | Input | Value supplied for `elapsed_microseconds`. See the exact type and module contract. |
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** Use input.frame_pressed() for pause menus; update() receives buffered simulation input edges.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Assume these named values have been initialized with valid data:
-// Transform & arg1
-// uint32_t elapsed_microseconds
-
-epok::Behaviour& object = /* obtain a valid instance */;
-
-object.frame_update(arg1, elapsed_microseconds);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
-
-<a id="epok-behaviour-on-destroy-1"></a>
-
-## `epok::Behaviour::on_destroy`
-
-**Purpose.** Performs `on destroy` as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-virtual void on_destroy()
-```
-
-- **Declared at:** [line 234](../../../runtime/epok.hpp#L234)
-- **Kind:** `cxx method`; qualifiers: `virtual`
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-epok::Behaviour& object = /* obtain a valid instance */;
-
-object.on_destroy();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="epok-behaviour-on-disable-1"></a>
-
-## `epok::Behaviour::on_disable`
-
-**Purpose.** Performs `on disable` as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-virtual void on_disable()
-```
-
-- **Declared at:** [line 233](../../../runtime/epok.hpp#L233)
-- **Kind:** `cxx method`; qualifiers: `virtual`
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-epok::Behaviour& object = /* obtain a valid instance */;
-
-object.on_disable();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="epok-behaviour-on-enable-1"></a>
-
-## `epok::Behaviour::on_enable`
-
-**Purpose.** Performs `on enable` as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-virtual void on_enable()
-```
-
-- **Declared at:** [line 232](../../../runtime/epok.hpp#L232)
-- **Kind:** `cxx method`; qualifiers: `virtual`
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-epok::Behaviour& object = /* obtain a valid instance */;
-
-object.on_enable();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="epok-behaviour-on-trigger-1"></a>
-
-## `epok::Behaviour::on_trigger`
-
-**Purpose.** Performs `on trigger` as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-virtual void on_trigger(EntityHandle,TriggerPhase)
-```
-
-- **Declared at:** [line 235](../../../runtime/epok.hpp#L235)
-- **Kind:** `cxx method`; qualifiers: `virtual`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `arg1` | `EntityHandle` | Input | Value supplied for `arg1`. See the exact type and module contract. |
-| `arg2` | `TriggerPhase` | Input | Value supplied for `arg2`. See the exact type and module contract. |
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Assume these named values have been initialized with valid data:
-// EntityHandle arg1
-// TriggerPhase arg2
-
-epok::Behaviour& object = /* obtain a valid instance */;
-
-object.on_trigger(arg1, arg2);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="epok-behaviour-start-1"></a>
-
-## `epok::Behaviour::start`
-
-**Purpose.** Starts start as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-virtual void start(Transform&)
-```
-
-- **Declared at:** [line 231](../../../runtime/epok.hpp#L231)
-- **Kind:** `cxx method`; qualifiers: `virtual`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `arg1` | `Transform &` | Input/output; inspect the function contract | Value supplied for `arg1`. See the exact type and module contract. |
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Assume these named values have been initialized with valid data:
-// Transform & arg1
-
-epok::Behaviour& object = /* obtain a valid instance */;
-
-object.start(arg1);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
-
-<a id="epok-behaviour-timeline-sync-1"></a>
-
-## `epok::Behaviour::timeline_sync`
-
-**Purpose.** Typed component adapters synchronize only the reflected property being read or written.
-
-**Details.** Reads capture live state; writes (including restoration) apply before crossing events. Ordinary behaviours need no synchronization.
-
-**Exact declaration**
-
-```cpp
-virtual void timeline_sync(uint64_t, bool)
-```
-
-- **Declared at:** [line 223](../../../runtime/epok.hpp#L223)
-- **Kind:** `cxx method`; qualifiers: `virtual`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `arg1` | `uint64_t` | Input | Value supplied for `arg1`. See the exact type and module contract. |
-| `arg2` | `bool` | Input | Value supplied for `arg2`. See the exact type and module contract. |
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** Reads capture live state; writes (including restoration) apply before crossing events. Ordinary behaviours need no synchronization.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Assume these named values have been initialized with valid data:
-// uint64_t arg1
-// bool arg2
-
-epok::Behaviour& object = /* obtain a valid instance */;
-
-object.timeline_sync(arg1, arg2);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="epok-behaviour-update-1"></a>
-
-## `epok::Behaviour::update`
-
-**Purpose.** Updates update as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-virtual void update(Transform&, Fixed) = 0
-```
-
-- **Declared at:** [line 239](../../../runtime/epok.hpp#L239)
-- **Kind:** `cxx method`; qualifiers: `virtual`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `arg1` | `Transform &` | Input/output; inspect the function contract | Value supplied for `arg1`. See the exact type and module contract. |
-| `arg2` | `Fixed` | Input | Value supplied for `arg2`. See the exact type and module contract. |
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Assume these named values have been initialized with valid data:
-// Transform & arg1
-// Fixed arg2
-
-epok::Behaviour& object = /* obtain a valid instance */;
-
-object.update(arg1, arg2);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
-
 <a id="epok-camera-project-1"></a>
 
 ## `epok::camera_project`
@@ -816,7 +638,7 @@ object.update(arg1, arg2);
 bool camera_project(const Fixed* world_point,Fixed* screen_xy)
 ```
 
-- **Declared at:** [line 196](../../../runtime/epok.hpp#L196)
+- **Declared at:** [line 197](../../../runtime/epok.hpp#L197)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -855,17 +677,17 @@ auto result = epok::camera_project(world_point, screen_xy);
 **Exact declaration**
 
 ```cpp
-bool collider_aabb(const Entity& entity,Aabb& output)
+bool collider_aabb(const ActorData& entity,Aabb& output)
 ```
 
-- **Declared at:** [line 206](../../../runtime/epok.hpp#L206)
+- **Declared at:** [line 207](../../../runtime/epok.hpp#L207)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `entity` | `const Entity &` | Input | Value supplied for `entity`. See the exact type and module contract. |
+| `entity` | `const ActorData &` | Input | Value supplied for `entity`. See the exact type and module contract. |
 | `output` | `Aabb &` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -878,7 +700,7 @@ bool collider_aabb(const Entity& entity,Aabb& output)
 #include "epok.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const Entity & entity
+// const ActorData & entity
 // Aabb & output
 
 auto result = epok::collider_aabb(entity, output);
@@ -887,48 +709,6 @@ auto result = epok::collider_aabb(entity, output);
 **Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
-
-<a id="epok-create-entity-1"></a>
-
-## `epok::create_entity`
-
-**Purpose.** Creates entity as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-Entity* create_entity(const char* name,Entity* parent=nullptr)
-```
-
-- **Declared at:** [line 176](../../../runtime/epok.hpp#L176)
-- **Kind:** `function decl`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `name` | `const char *` | Input | Value supplied for `name`. See the exact type and module contract. |
-| `parent` | `Entity *` | Input/output; inspect the function contract | Value supplied for `parent`. See the exact type and module contract. |
-
-**Returns.** Returns `Entity *`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Assume these named values have been initialized with valid data:
-// const char * name
-// Entity * parent
-
-auto result = epok::create_entity(name, parent);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
 <a id="epok-current-scene-1"></a>
 
@@ -942,7 +722,7 @@ auto result = epok::create_entity(name, parent);
 size_t current_scene()
 ```
 
-- **Declared at:** [line 192](../../../runtime/epok.hpp#L192)
+- **Declared at:** [line 193](../../../runtime/epok.hpp#L193)
 - **Kind:** `function decl`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -961,62 +741,22 @@ auto result = epok::current_scene();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
-<a id="epok-destroy-entity-1"></a>
+<a id="epok-datahandle-get-1"></a>
 
-## `epok::destroy_entity`
-
-**Purpose.** Destroys entity as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-bool destroy_entity(Entity* entity)
-```
-
-- **Declared at:** [line 183](../../../runtime/epok.hpp#L183)
-- **Kind:** `function decl`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `entity` | `Entity *` | Input/output; inspect the function contract | Value supplied for `entity`. See the exact type and module contract. |
-
-**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Assume these named values have been initialized with valid data:
-// Entity * entity
-
-auto result = epok::destroy_entity(entity);
-```
-
-**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
-
-**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
-
-<a id="epok-entityhandle-get-1"></a>
-
-## `epok::EntityHandle::get`
+## `epok::DataHandle::get`
 
 **Purpose.** Returns get as part of the epok module.
 
 **Exact declaration**
 
 ```cpp
-Entity* get() const
+ActorData* get() const
 ```
 
-- **Declared at:** [line 179](../../../runtime/epok.hpp#L179)
+- **Declared at:** [line 180](../../../runtime/epok.hpp#L180)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `Entity *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
 
@@ -1025,7 +765,7 @@ Entity* get() const
 ```cpp
 #include "epok.hpp"
 
-epok::EntityHandle& object = /* obtain a valid instance */;
+epok::DataHandle& object = /* obtain a valid instance */;
 
 auto result = object.get();
 ```
@@ -1034,9 +774,9 @@ auto result = object.get();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
-<a id="epok-entityhandle-operator-bool-1"></a>
+<a id="epok-datahandle-operator-bool-1"></a>
 
-## `epok::EntityHandle::operator bool`
+## `epok::DataHandle::operator bool`
 
 **Purpose.** Performs `operator  bool` as part of the epok module.
 
@@ -1046,7 +786,7 @@ auto result = object.get();
 explicit operator bool() const
 ```
 
-- **Declared at:** [line 180](../../../runtime/epok.hpp#L180)
+- **Declared at:** [line 181](../../../runtime/epok.hpp#L181)
 - **Kind:** `conversion function`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1058,7 +798,7 @@ explicit operator bool() const
 ```cpp
 #include "epok.hpp"
 
-epok::EntityHandle& object = /* obtain a valid instance */;
+epok::DataHandle& object = /* obtain a valid instance */;
 
 auto result = object.operator bool();
 ```
@@ -1067,19 +807,59 @@ auto result = object.operator bool();
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
 
-<a id="epok-find-entity-1"></a>
+<a id="epok-destroy-actor-data-1"></a>
 
-## `epok::find_entity`
+## `epok::destroy_actor_data`
 
-**Purpose.** Finds entity as part of the epok module.
+**Purpose.** Destroys actor data as part of the epok module.
 
 **Exact declaration**
 
 ```cpp
-Entity* find_entity(const char* name)
+bool destroy_actor_data(ActorData* entity)
 ```
 
-- **Declared at:** [line 175](../../../runtime/epok.hpp#L175)
+- **Declared at:** [line 184](../../../runtime/epok.hpp#L184)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `entity` | `ActorData *` | Input/output; inspect the function contract | Value supplied for `entity`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "epok.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ActorData * entity
+
+auto result = epok::destroy_actor_data(entity);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-find-actor-data-1"></a>
+
+## `epok::find_actor_data`
+
+**Purpose.** Finds actor data as part of the epok module.
+
+**Exact declaration**
+
+```cpp
+ActorData* find_actor_data(const char* name)
+```
+
+- **Declared at:** [line 176](../../../runtime/epok.hpp#L176)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1088,7 +868,7 @@ Entity* find_entity(const char* name)
 | --- | --- | --- | --- |
 | `name` | `const char *` | Input | Value supplied for `name`. See the exact type and module contract. |
 
-**Returns.** Returns `Entity *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
 
@@ -1100,7 +880,7 @@ Entity* find_entity(const char* name)
 // Assume these named values have been initialized with valid data:
 // const char * name
 
-auto result = epok::find_entity(name);
+auto result = epok::find_actor_data(name);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
@@ -1116,19 +896,19 @@ auto result = epok::find_entity(name);
 **Exact declaration**
 
 ```cpp
-EntityHandle handle(const Entity* entity)
+DataHandle handle(const ActorData* entity)
 ```
 
-- **Declared at:** [line 182](../../../runtime/epok.hpp#L182)
+- **Declared at:** [line 183](../../../runtime/epok.hpp#L183)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `entity` | `const Entity *` | Input | Value supplied for `entity`. See the exact type and module contract. |
+| `entity` | `const ActorData *` | Input | Value supplied for `entity`. See the exact type and module contract. |
 
-**Returns.** Returns `EntityHandle`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `DataHandle`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
 
@@ -1138,7 +918,7 @@ EntityHandle handle(const Entity* entity)
 #include "epok.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const Entity * entity
+// const ActorData * entity
 
 auto result = epok::handle(entity);
 ```
@@ -1156,10 +936,10 @@ auto result = epok::handle(entity);
 **Exact declaration**
 
 ```cpp
-inline EntityHandle hit_entity(const SpatialHit& hit)
+inline DataHandle hit_entity(const SpatialHit& hit)
 ```
 
-- **Declared at:** [line 202](../../../runtime/epok.hpp#L202)
+- **Declared at:** [line 203](../../../runtime/epok.hpp#L203)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1168,7 +948,7 @@ inline EntityHandle hit_entity(const SpatialHit& hit)
 | --- | --- | --- | --- |
 | `hit` | `const SpatialHit &` | Input | Value supplied for `hit`. See the exact type and module contract. |
 
-**Returns.** Returns `EntityHandle`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `DataHandle`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
 
@@ -1196,17 +976,17 @@ auto result = epok::hit_entity(hit);
 **Exact declaration**
 
 ```cpp
-bool is_active(const Entity* entity)
+bool is_active(const ActorData* entity)
 ```
 
-- **Declared at:** [line 185](../../../runtime/epok.hpp#L185)
+- **Declared at:** [line 186](../../../runtime/epok.hpp#L186)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `entity` | `const Entity *` | Input | Value supplied for `entity`. See the exact type and module contract. |
+| `entity` | `const ActorData *` | Input | Value supplied for `entity`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1218,7 +998,7 @@ bool is_active(const Entity* entity)
 #include "epok.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const Entity * entity
+// const ActorData * entity
 
 auto result = epok::is_active(entity);
 ```
@@ -1239,7 +1019,7 @@ auto result = epok::is_active(entity);
 bool is_active_slot(size_t index)
 ```
 
-- **Declared at:** [line 187](../../../runtime/epok.hpp#L187)
+- **Declared at:** [line 188](../../../runtime/epok.hpp#L188)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1267,192 +1047,6 @@ auto result = epok::is_active_slot(index);
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
 
-<a id="epok-legacyentitystorage-add-1"></a>
-
-## `epok::LegacyEntityStorage::add`
-
-**Purpose.** Adds add as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-template<class T>T& add()
-```
-
-- **Declared at:** [line 152](../../../runtime/epok.hpp#L152)
-- **Kind:** `function template`; qualifiers: `template`
-
-**Returns.** Returns `T &`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Replace these template arguments with types or values accepted by the declaration:
-// T
-
-epok::LegacyEntityStorage& object = /* obtain a valid instance */;
-
-auto result = object.add<T>();
-```
-
-**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
-
-**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size.
-
-<a id="epok-legacyentitystorage-component-1"></a>
-
-## `epok::LegacyEntityStorage::component`
-
-**Purpose.** Performs `component` as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-template<class T>T& component()
-```
-
-- **Declared at:** [line 150](../../../runtime/epok.hpp#L150)
-- **Kind:** `function template`; qualifiers: `template`
-
-**Returns.** Returns `T &`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Replace these template arguments with types or values accepted by the declaration:
-// T
-
-epok::LegacyEntityStorage& object = /* obtain a valid instance */;
-
-auto result = object.component<T>();
-```
-
-**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
-
-**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size.
-
-<a id="epok-legacyentitystorage-get-1"></a>
-
-## `epok::LegacyEntityStorage::get`
-
-**Purpose.** Returns get as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-template<class T>T* get()
-```
-
-- **Declared at:** [line 151](../../../runtime/epok.hpp#L151)
-- **Kind:** `function template`; qualifiers: `template`
-
-**Returns.** Returns `T *`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Replace these template arguments with types or values accepted by the declaration:
-// T
-
-epok::LegacyEntityStorage& object = /* obtain a valid instance */;
-
-auto result = object.get<T>();
-```
-
-**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
-
-**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size.
-
-<a id="epok-legacyentitystorage-remove-1"></a>
-
-## `epok::LegacyEntityStorage::remove`
-
-**Purpose.** Removes remove as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-template<class T>void remove()
-```
-
-- **Declared at:** [line 153](../../../runtime/epok.hpp#L153)
-- **Kind:** `function template`; qualifiers: `template`
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Replace these template arguments with types or values accepted by the declaration:
-// T
-
-epok::LegacyEntityStorage& object = /* obtain a valid instance */;
-
-object.remove<T>();
-```
-
-**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
-
-**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size.
-
-<a id="epok-legacyentitystorage-set-name-1"></a>
-
-## `epok::LegacyEntityStorage::set_name`
-
-**Purpose.** Sets name as part of the epok module.
-
-**Exact declaration**
-
-```cpp
-void set_name(const char* value)
-```
-
-- **Declared at:** [line 149](../../../runtime/epok.hpp#L149)
-- **Kind:** `cxx method`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `value` | `const char *` | Input | Value supplied for `value`. See the exact type and module contract. |
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the epok module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "epok.hpp"
-
-// Assume these named values have been initialized with valid data:
-// const char * value
-
-epok::LegacyEntityStorage& object = /* obtain a valid instance */;
-
-object.set_name(value);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the epok module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
-
 <a id="epok-move-and-slide-1"></a>
 
 ## `epok::move_and_slide`
@@ -1462,17 +1056,17 @@ object.set_name(value);
 **Exact declaration**
 
 ```cpp
-MoveResult move_and_slide(Entity& entity,const Fixed* world_displacement,uint32_t mask=0xffffffffu)
+MoveResult move_and_slide(ActorData& entity,const Fixed* world_displacement,uint32_t mask=0xffffffffu)
 ```
 
-- **Declared at:** [line 203](../../../runtime/epok.hpp#L203)
+- **Declared at:** [line 204](../../../runtime/epok.hpp#L204)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `entity` | `Entity &` | Input/output; inspect the function contract | Value supplied for `entity`. See the exact type and module contract. |
+| `entity` | `ActorData &` | Input/output; inspect the function contract | Value supplied for `entity`. See the exact type and module contract. |
 | `world_displacement` | `const Fixed *` | Input | Value supplied for `world_displacement`. See the exact type and module contract. |
 | `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 
@@ -1486,7 +1080,7 @@ MoveResult move_and_slide(Entity& entity,const Fixed* world_displacement,uint32_
 #include "epok.hpp"
 
 // Assume these named values have been initialized with valid data:
-// Entity & entity
+// ActorData & entity
 // const Fixed * world_displacement
 // uint32_t mask
 
@@ -1506,10 +1100,10 @@ auto result = epok::move_and_slide(entity, world_displacement, mask);
 **Exact declaration**
 
 ```cpp
-size_t overlap(const Aabb& box,EntityHandle* output,size_t capacity,uint32_t mask=0xffffffffu,const Entity* ignore=nullptr,bool triggers=true)
+size_t overlap(const Aabb& box,DataHandle* output,size_t capacity,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=true)
 ```
 
-- **Declared at:** [line 200](../../../runtime/epok.hpp#L200)
+- **Declared at:** [line 201](../../../runtime/epok.hpp#L201)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1517,10 +1111,10 @@ size_t overlap(const Aabb& box,EntityHandle* output,size_t capacity,uint32_t mas
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `box` | `const Aabb &` | Input | Value supplied for `box`. See the exact type and module contract. |
-| `output` | `EntityHandle *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
+| `output` | `DataHandle *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
 | `capacity` | `size_t` | Input | Value supplied for `capacity`. See the exact type and module contract. |
 | `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
-| `ignore` | `const Entity *` | Input | Value supplied for `ignore`. See the exact type and module contract. |
+| `ignore` | `const ActorData *` | Input | Value supplied for `ignore`. See the exact type and module contract. |
 | `triggers` | `bool` | Input | Value supplied for `triggers`. See the exact type and module contract. |
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -1534,10 +1128,10 @@ size_t overlap(const Aabb& box,EntityHandle* output,size_t capacity,uint32_t mas
 
 // Assume these named values have been initialized with valid data:
 // const Aabb & box
-// EntityHandle * output
+// DataHandle * output
 // size_t capacity
 // uint32_t mask
-// const Entity * ignore
+// const ActorData * ignore
 // bool triggers
 
 auto result = epok::overlap(box, output, capacity, mask, ignore, triggers);
@@ -1556,17 +1150,17 @@ auto result = epok::overlap(box, output, capacity, mask, ignore, triggers);
 **Exact declaration**
 
 ```cpp
-SpatialHit query_ground(const Entity& entity,Fixed distance,uint32_t mask=0xffffffffu)
+SpatialHit query_ground(const ActorData& entity,Fixed distance,uint32_t mask=0xffffffffu)
 ```
 
-- **Declared at:** [line 201](../../../runtime/epok.hpp#L201)
+- **Declared at:** [line 202](../../../runtime/epok.hpp#L202)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `entity` | `const Entity &` | Input | Value supplied for `entity`. See the exact type and module contract. |
+| `entity` | `const ActorData &` | Input | Value supplied for `entity`. See the exact type and module contract. |
 | `distance` | `Fixed` | Input | Value supplied for `distance`. See the exact type and module contract. |
 | `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 
@@ -1580,7 +1174,7 @@ SpatialHit query_ground(const Entity& entity,Fixed distance,uint32_t mask=0xffff
 #include "epok.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const Entity & entity
+// const ActorData & entity
 // Fixed distance
 // uint32_t mask
 
@@ -1602,10 +1196,10 @@ auto result = epok::query_ground(entity, distance, mask);
 **Exact declaration**
 
 ```cpp
-SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask=0xffffffffu,const Entity* ignore=nullptr,bool triggers=false)
+SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false)
 ```
 
-- **Declared at:** [line 199](../../../runtime/epok.hpp#L199)
+- **Declared at:** [line 200](../../../runtime/epok.hpp#L200)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1615,7 +1209,7 @@ SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask=0
 | `origin` | `const Fixed *` | Input | Value supplied for `origin`. See the exact type and module contract. |
 | `displacement` | `const Fixed *` | Input | Value supplied for `displacement`. See the exact type and module contract. |
 | `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
-| `ignore` | `const Entity *` | Input | Value supplied for `ignore`. See the exact type and module contract. |
+| `ignore` | `const ActorData *` | Input | Value supplied for `ignore`. See the exact type and module contract. |
 | `triggers` | `bool` | Input | Value supplied for `triggers`. See the exact type and module contract. |
 
 **Returns.** Returns `SpatialHit`. Check the purpose and failure notes before using the value.
@@ -1631,7 +1225,7 @@ SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask=0
 // const Fixed * origin
 // const Fixed * displacement
 // uint32_t mask
-// const Entity * ignore
+// const ActorData * ignore
 // bool triggers
 
 auto result = epok::raycast(origin, displacement, mask, ignore, triggers);
@@ -1653,7 +1247,7 @@ auto result = epok::raycast(origin, displacement, mask, ignore, triggers);
 void remove_runtime_owner(size_t index)
 ```
 
-- **Declared at:** [line 208](../../../runtime/epok.hpp#L208)
+- **Declared at:** [line 209](../../../runtime/epok.hpp#L209)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1693,7 +1287,7 @@ epok::remove_runtime_owner(index);
 bool request_scene(const char* name)
 ```
 
-- **Declared at:** [line 189](../../../runtime/epok.hpp#L189)
+- **Declared at:** [line 190](../../../runtime/epok.hpp#L190)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1733,7 +1327,7 @@ auto result = epok::request_scene(name);
 bool request_scene(const char* name,const TransitionOptions& options)
 ```
 
-- **Declared at:** [line 191](../../../runtime/epok.hpp#L191)
+- **Declared at:** [line 192](../../../runtime/epok.hpp#L192)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1775,7 +1369,7 @@ auto result = epok::request_scene(name, options);
 bool request_scene(size_t index)
 ```
 
-- **Declared at:** [line 188](../../../runtime/epok.hpp#L188)
+- **Declared at:** [line 189](../../../runtime/epok.hpp#L189)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1815,7 +1409,7 @@ auto result = epok::request_scene(index);
 bool request_scene(size_t index,const TransitionOptions& options)
 ```
 
-- **Declared at:** [line 190](../../../runtime/epok.hpp#L190)
+- **Declared at:** [line 191](../../../runtime/epok.hpp#L191)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1857,7 +1451,7 @@ auto result = epok::request_scene(index, options);
 void reset_motion_interpolation()
 ```
 
-- **Declared at:** [line 205](../../../runtime/epok.hpp#L205)
+- **Declared at:** [line 206](../../../runtime/epok.hpp#L206)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1888,7 +1482,7 @@ epok::reset_motion_interpolation();
 void reset_runtime_services()
 ```
 
-- **Declared at:** [line 207](../../../runtime/epok.hpp#L207)
+- **Declared at:** [line 208](../../../runtime/epok.hpp#L208)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1919,7 +1513,7 @@ epok::reset_runtime_services();
 bool scene_loading()
 ```
 
-- **Declared at:** [line 193](../../../runtime/epok.hpp#L193)
+- **Declared at:** [line 194](../../../runtime/epok.hpp#L194)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1947,17 +1541,17 @@ auto result = epok::scene_loading();
 **Exact declaration**
 
 ```cpp
-bool set_active(Entity* entity,bool active)
+bool set_active(ActorData* entity,bool active)
 ```
 
-- **Declared at:** [line 184](../../../runtime/epok.hpp#L184)
+- **Declared at:** [line 185](../../../runtime/epok.hpp#L185)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `entity` | `Entity *` | Input/output; inspect the function contract | Value supplied for `entity`. See the exact type and module contract. |
+| `entity` | `ActorData *` | Input/output; inspect the function contract | Value supplied for `entity`. See the exact type and module contract. |
 | `active` | `bool` | Input | Value supplied for `active`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1970,7 +1564,7 @@ bool set_active(Entity* entity,bool active)
 #include "epok.hpp"
 
 // Assume these named values have been initialized with valid data:
-// Entity * entity
+// ActorData * entity
 // bool active
 
 auto result = epok::set_active(entity, active);
@@ -1989,17 +1583,17 @@ auto result = epok::set_active(entity, active);
 **Exact declaration**
 
 ```cpp
-bool set_active_camera(Entity* camera)
+bool set_active_camera(ActorData* camera)
 ```
 
-- **Declared at:** [line 194](../../../runtime/epok.hpp#L194)
+- **Declared at:** [line 195](../../../runtime/epok.hpp#L195)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `camera` | `Entity *` | Input/output; inspect the function contract | Value supplied for `camera`. See the exact type and module contract. |
+| `camera` | `ActorData *` | Input/output; inspect the function contract | Value supplied for `camera`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -2011,7 +1605,7 @@ bool set_active_camera(Entity* camera)
 #include "epok.hpp"
 
 // Assume these named values have been initialized with valid data:
-// Entity * camera
+// ActorData * camera
 
 auto result = epok::set_active_camera(camera);
 ```

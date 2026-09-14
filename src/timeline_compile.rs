@@ -128,10 +128,10 @@ pub fn reflection_dependency(key: &str, registry: &Registry) -> Option<String> {
 /// requirements is unchanged, so no timeline that compiles today stops compiling.
 ///
 /// Requirements with no reserved actor component (`PaletteAnimator`,
-/// `ParticleEmitter`) are skipped here; they stay enforced on legacy entities
+/// `ParticleEmitter`) are skipped here; they stay enforced on legacy actors
 /// until those component classes exist.
 // P9 states the actor-side rule ahead of the actor timeline binding that calls it
-// (the editor still binds timelines to legacy entities), exactly as P1 introduced
+// (the editor still binds timelines to legacy actors), exactly as P1 introduced
 // the object model ahead of its consumers.
 #[allow(dead_code)]
 pub fn verify_actor_requirements(
@@ -689,23 +689,33 @@ fn observe_source_catalog(
 pub fn observe_resources(root: &Path, index: &crate::assets::Index) -> Result<(), String> {
     let graph = crate::artifact_dependencies::transaction(root, |graph| {
         if graph.nodes.contains_key("default-sound-bank") {
-            match crate::workspace::read_manifest(root).ok().and_then(|m| m.default_sound_bank) {
+            match crate::workspace::read_manifest(root)
+                .ok()
+                .and_then(|m| m.default_sound_bank)
+            {
                 Some(id) => graph.publish("default-sound-bank", id.to_string(), Default::default()),
-                None => graph.invalidate("default-sound-bank", "Project Default SoundBank is missing or unreadable"),
+                None => graph.invalidate(
+                    "default-sound-bank",
+                    "Project Default SoundBank is missing or unreadable",
+                ),
             }
         }
         let keys = graph
             .nodes
             .keys()
             .filter_map(|key| {
-                key.strip_prefix("asset:").or_else(|| key.strip_prefix("audio-cook:"))
+                key.strip_prefix("asset:")
+                    .or_else(|| key.strip_prefix("audio-cook:"))
                     .and_then(|id| Uuid::parse_str(id).ok())
                     .map(|id| (key.clone(), id))
             })
             .collect::<Vec<_>>();
         for (key, id) in keys {
             if key.starts_with("audio-cook:") {
-                match index.resolve(id).and_then(|record| crate::assets::cook_key(root, &record.meta)) {
+                match index
+                    .resolve(id)
+                    .and_then(|record| crate::assets::cook_key(root, &record.meta))
+                {
                     Ok(signature) => graph.publish(&key, signature, Default::default()),
                     Err(error) => graph.invalidate(&key, &error),
                 }

@@ -183,20 +183,35 @@ pub fn observe_saved(root: &Path) -> Result<(), String> {
 
 /// Settings UI already owns/validated this snapshot. Invalidate its consumers
 /// immediately without parsing scenes, refreshing scripts or scheduling a job.
-pub fn apply_settings(root: &Path, manifest: &crate::workspace::Manifest, maps: Option<&crate::scene_bank::Registry>) -> Result<(), String> {
+pub fn apply_settings(
+    root: &Path,
+    manifest: &crate::workspace::Manifest,
+    maps: Option<&crate::scene_bank::Registry>,
+) -> Result<(), String> {
     let mut values = BTreeMap::from([
         ("scene-render-settings", hash(manifest.rendering)),
-        ("display-settings", crate::assets::hash(manifest.rendering.header()?.as_bytes())),
+        (
+            "display-settings",
+            crate::assets::hash(manifest.rendering.header()?.as_bytes()),
+        ),
         ("scene-debug-settings", hash(manifest.debug)),
         ("scene-transition-settings", hash(&manifest.transition)),
-        ("scene-play-settings", hash(Some((&manifest.play, &manifest.startup_scene)))),
+        (
+            "scene-play-settings",
+            hash(Some((&manifest.play, &manifest.startup_scene))),
+        ),
     ]);
-    if let Some(maps) = maps { values.insert("scene-registry", hash(maps)); }
+    if let Some(maps) = maps {
+        values.insert("scene-registry", hash(maps));
+    }
     artifact_dependencies::transaction(root, |graph| {
         for (key, signature) in values {
-            if graph.nodes.contains_key(key) { graph.publish(key, signature, Default::default()); }
+            if graph.nodes.contains_key(key) {
+                graph.publish(key, signature, Default::default());
+            }
         }
-    }).map(|_| ())
+    })
+    .map(|_| ())
 }
 
 fn observe_inputs(
@@ -290,7 +305,10 @@ fn inspect_inputs(
         );
     }
     if graph.nodes.contains_key("scene-inventory") {
-        observations.insert("scene-inventory".into(), crate::scene_bank::available(root).map(hash));
+        observations.insert(
+            "scene-inventory".into(),
+            crate::scene_bank::available(root).map(hash),
+        );
     }
     if graph.nodes.contains_key("scene-transition-settings") {
         observations.insert(
@@ -300,7 +318,10 @@ fn inspect_inputs(
         );
     }
     if graph.nodes.contains_key("scene-debug-settings") {
-        observations.insert("scene-debug-settings".into(), crate::settings::debug_hud(root).map(hash));
+        observations.insert(
+            "scene-debug-settings".into(),
+            crate::settings::debug_hud(root).map(hash),
+        );
     }
     if graph.nodes.contains_key("scene-play-settings") {
         observations.insert(
@@ -483,7 +504,7 @@ mod tests {
                 .is_empty()
         );
         // An unrelated real edit during navigation must still propagate.
-        scene.entities[0].position[0] += 2.;
+        scene.actors[0].position[0] += 2.;
         scene.save(&path).unwrap();
         assert!(
             inspect_with_registry(&root, &path, &scene, Ok(&registry))
@@ -522,139 +543,25 @@ mod tests {
         root
     }
     #[test]
-    fn audio_observation_uses_current_native_types_without_raw_code_bank_edges() {
-        use crate::scripts::{Property, Script};
-        use serde_json::json;
+    fn retired_sidecars_invalidate_audio_observation_without_rewriting_sources() {
         let root = root();
-        let scripts = root.join("assets/scripts");
-        std::fs::create_dir_all(&scripts).unwrap();
-        std::fs::write(scripts.join("Sound.hpp"), "#pragma once\n").unwrap();
-        std::fs::write(scripts.join("Sound.cpp"), "// Initial native source\n").unwrap();
-        let mut source = Script {
-            name: "Sound".into(),
-            properties: vec![
-                Property {
-                    name: "sound".into(),
-                    default: json!(null),
-                    value_type: crate::reflection_schema::Type::AssetRef {
-                        kind: "AudioClip".into(),
-                    },
-                    id: "sound".into(),
-                },
-                Property {
-                    name: "health".into(),
-                    default: json!(50),
-                    value_type: crate::reflection_schema::Type::Fixed,
-                    id: "health".into(),
-                },
-            ],
-            ..Default::default()
-        };
-        let write = |source: &Script| {
-            std::fs::write(
-                scripts.join("Sound.epokscript"),
-                serde_json::to_vec(source).unwrap(),
-            )
-            .unwrap()
-        };
-        write(&source);
-        let path = root.join("assets/scenes/Main.epokmap");
-        let mut scene = Scene::default();
-        scene.entities[0].script = Some(crate::scene::ScriptBinding {
-            name: "Sound".into(),
-            properties: [("health".into(), json!(50))].into(),
-            ..Default::default()
-        });
-        scene.save(&path).unwrap();
-        let stage_bank = |target: &str| {
-            let catalog = crate::scripts::native_catalog(&root).unwrap();
-            let registry = crate::blueprint::legacy_registry(&root, &catalog);
-            let input = Input::load(&path).unwrap();
-            let destination = root.join(target);
-            std::fs::create_dir_all(&destination).unwrap();
-            let mut batch = Batch::new(&root, &destination).unwrap();
-            batch.scene_source(&root, &input.origin).unwrap();
-            batch
-                .scene_audio_source(&root, &input.origin, &input.scene, &registry)
-                .unwrap();
-            batch.scene_catalog(&root, &catalog).unwrap();
-            batch
-                .scene_input("native-metadata:test".into(), hash(&source))
-                .unwrap();
-            batch
-                .resources(
-                    crate::audio::stage(
-                        &root,
-                        &input.scene,
-                        &destination,
-                        &crate::assets::scan(&root, &mut Default::default()),
-                    )
-                    .unwrap(),
-                )
-                .unwrap();
-            batch.audio_bank_inputs();
-            batch.publish(&root).unwrap();
-        };
-        stage_bank(".epok/build");
-        stage_bank("exports/check");
-        let keys = [
-            "generated-resource:.epok/build/audio-bank.hh",
-            "generated-resource:exports/check/audio-bank.hh",
-        ];
-        let before = Graph::load(&root).unwrap();
-        for key in keys {
-            assert!(
-                !before.nodes[key]
-                    .dependencies
-                    .iter()
-                    .any(|key| key.starts_with("native-metadata:"))
-            );
-        }
-        std::fs::write(
-            scripts.join("Sound.cpp"),
-            "// Changed native implementation\n",
-        )
-        .unwrap();
-        scene.entities[0]
-            .script
-            .as_mut()
-            .unwrap()
-            .properties
-            .insert("health".into(), json!(75));
-        scene.save(&path).unwrap();
-        source.properties[1].default = json!(100);
-        write(&source);
+        let path = root.join("assets/scripts/Retired.epokscript");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let original = b"{\"name\":\"Retired\",\"properties\":[]}";
+        std::fs::write(&path, original).unwrap();
+        assert!(
+            crate::scripts::native_catalog(&root)
+                .unwrap_err()
+                .contains("retired script sidecars")
+        );
         observe_saved(&root).unwrap();
-        for key in keys {
-            assert_eq!(Graph::load(&root).unwrap().nodes[key], before.nodes[key]);
-        }
-        source.properties[0].default = json!(uuid::Uuid::new_v4());
-        write(&source);
-        observe_saved(&root).unwrap();
-        for key in keys {
-            assert!(
-                Graph::load(&root).unwrap().nodes[key]
-                    .stale
-                    .contains_key("audio-catalog")
-            );
-        }
-        // A metadata failure invalidates both projections; repair observes new
-        // sources but cannot certify either destination's retained output.
-        std::fs::write(scripts.join("Sound.epokscript"), "invalid").unwrap();
-        observe_saved(&root).unwrap();
+        observe_catalog(&root, Err("retired script sidecars")).unwrap();
         assert!(
             !Graph::load(&root).unwrap().nodes["audio-catalog"]
                 .stale
                 .is_empty()
         );
-        source.properties[0].default = json!(null);
-        write(&source);
-        observe_saved(&root).unwrap();
-        let repaired = Graph::load(&root).unwrap();
-        assert!(repaired.nodes["audio-catalog"].stale.is_empty());
-        for key in keys {
-            assert!(!repaired.nodes[key].stale.is_empty());
-        }
+        assert_eq!(std::fs::read(&path).unwrap(), original);
     }
     fn stage(root: &Path, target: &str, input: Input, additional: &[Input]) {
         let mut batch = Batch::new(root, &root.join(target)).unwrap();
@@ -685,7 +592,7 @@ mod tests {
         let baseline = Graph::load(&root).unwrap();
         let saved = baseline.nodes["generated-scene:exports/saved/scene.hh"].clone();
         let playback = baseline.nodes["stage-playback:.epok/build"].clone();
-        scene.entities[1].position[0] += 2.;
+        scene.actors[1].position[0] += 2.;
         assert!(observe(&root, &path, &scene).unwrap());
         let changed = Graph::load(&root).unwrap();
         assert_eq!(
@@ -740,7 +647,7 @@ mod tests {
         );
         let key = "scene-file:assets/scenes/After.epokmap";
         let before = Graph::load(&root).unwrap();
-        after.entities[1].active = false;
+        after.actors[1].active = false;
         after.save(&after_path).unwrap();
         assert!(observe(&root, &path, &scene).unwrap());
         let changed = Graph::load(&root).unwrap();

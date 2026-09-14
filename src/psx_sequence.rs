@@ -21,7 +21,10 @@ pub fn cook_key(root: &Path, meta: &assets::Metadata) -> Result<String, String> 
             let settings = meta.settings.sequence()?;
             let record = crate::sequence::resolve_bank(root, settings, &index)?;
             if record.meta.settings.sound_bank()?.library.is_some() {
-                return Ok(identity(&crate::psx_library_asset::inputs(meta,&record.meta)?));
+                return Ok(identity(&crate::psx_library_asset::inputs(
+                    meta,
+                    &record.meta,
+                )?));
             }
             if settings.sound_bank.is_none() {
                 inputs.insert("default-sound-bank".into(), record.meta.id.to_string());
@@ -228,7 +231,9 @@ pub fn stage(
             if let Some(asset) = input.strip_prefix("asset:") {
                 let id = Uuid::parse_str(asset).map_err(|e| e.to_string())?;
                 let dependency = index.resolve(id)?;
-                if assets::cache_key(&dependency.meta) != *expected { return Err("Audio dependency changed during staging; retry build".into()); }
+                if assets::cache_key(&dependency.meta) != *expected {
+                    return Err("Audio dependency changed during staging; retry build".into());
+                }
                 crate::psx_library_asset::verify_record(dependency, &cancelled)?;
             }
         }
@@ -246,7 +251,9 @@ pub fn stage(
                 if reverb.is_some_and(|previous| previous != depth) {
                     return Err("Resident PSX banks request conflicting global reverb depths; use one Room configuration for this scene".into());
                 }
-                if reverb.replace(depth).is_none() { staged.spu_bytes += crate::psx_music_settings::ROOM_REVERB_BYTES as usize; }
+                if reverb.replace(depth).is_none() {
+                    staged.spu_bytes += crate::psx_music_settings::ROOM_REVERB_BYTES as usize;
+                }
             }
             if staged.spu_bytes > audio_import::SPU_BUDGET {
                 return Err(format!(
@@ -277,10 +284,17 @@ pub fn stage(
         staged
             .declarations
             .push_str(&declaration(&name, &cooked.payload));
-        let prepared = if cooked.report.prepared_start_states>0 {
-            staged.declarations.push_str(&format!("inline instrument::preparation::Storage<{},{},{}> sequence_prepared_{i};\n",cooked.report.prepared_start_states,(cooked.payload.len()-SEQUENCE_HEADER)/12,cooked.report.prepared_start_references));
+        let prepared = if cooked.report.prepared_start_states > 0 {
+            staged.declarations.push_str(&format!(
+                "inline instrument::preparation::Storage<{},{},{}> sequence_prepared_{i};\n",
+                cooked.report.prepared_start_states,
+                (cooked.payload.len() - SEQUENCE_HEADER) / 12,
+                cooked.report.prepared_start_references
+            ));
             format!("&sequence_prepared_{i}.cache")
-        } else { "nullptr".into() };
+        } else {
+            "nullptr".into()
+        };
         staged.declarations.push_str(&format!("inline const psx_audio::Sequence sequence_asset_{i}{{{name},{},&sequence_bank_{bank_index},{prepared}}};\n", cooked.payload.len()));
         staged.descriptors.insert(
             id,
@@ -323,36 +337,66 @@ fn u32le(out: &mut Vec<u8>, value: u32) {
 /// initial channel state. The authoritative IR/ledger and every note remain
 /// intact. LoopStart snapshots the same state before every repeated traversal.
 fn compact_noop_controls(events: &mut Vec<sequence_stream::Event>) {
-    #[derive(Clone,Copy)]
-    struct Channel { program:u8, bank:u16, bend:u16, parameters:[u16;3], cc:[Option<u8>;128] }
-    let mut initial=Channel { program:0,bank:0,bend:8192,parameters:[200,8192,64],cc:[None;128] };
-    for (cc,value) in [(1,0),(7,100),(10,64),(11,127),(64,0),(66,0)] { initial.cc[cc]=Some(value); }
+    #[derive(Clone, Copy)]
+    struct Channel {
+        program: u8,
+        bank: u16,
+        bend: u16,
+        parameters: [u16; 3],
+        cc: [Option<u8>; 128],
+    }
+    let mut initial = Channel {
+        program: 0,
+        bank: 0,
+        bend: 8192,
+        parameters: [200, 8192, 64],
+        cc: [None; 128],
+    };
+    for (cc, value) in [(1, 0), (7, 100), (10, 64), (11, 127), (64, 0), (66, 0)] {
+        initial.cc[cc] = Some(value);
+    }
     // CC91's first zero must remain: it suppresses a bank's authored send.
-    let mut channels=[initial;16];
-    fn assign<T:Copy+Eq>(old: &mut T,value:T)->bool { let changed=*old!=value;*old=value;changed }
+    let mut channels = [initial; 16];
+    fn assign<T: Copy + Eq>(old: &mut T, value: T) -> bool {
+        let changed = *old != value;
+        *old = value;
+        changed
+    }
     events.retain(|event| {
-        let Some(channel)=channels.get_mut(event.channel as usize) else { return true; };
+        let Some(channel) = channels.get_mut(event.channel as usize) else {
+            return true;
+        };
         match event.op {
-            2|10 => {
-                let bank=if event.op==2 {0} else {event.value as u16};
-                let changed=channel.program!=event.a || channel.bank!=bank;
-                channel.program=event.a;channel.bank=bank;changed
-            },
-            4=>assign(&mut channel.bend,event.value as u16),
-            9=>channel.parameters.get_mut(event.a as usize).is_none_or(|old|assign(old,event.value as u16)),
-            3=>match event.a {
-                1|7|10|11|91=>assign(&mut channel.cc[event.a as usize],Some(event.b)),
-                64|66=>assign(&mut channel.cc[event.a as usize],Some(if event.b>=64 {127} else {0})),
+            2 | 10 => {
+                let bank = if event.op == 2 { 0 } else { event.value as u16 };
+                let changed = channel.program != event.a || channel.bank != bank;
+                channel.program = event.a;
+                channel.bank = bank;
+                changed
+            }
+            4 => assign(&mut channel.bend, event.value as u16),
+            9 => channel
+                .parameters
+                .get_mut(event.a as usize)
+                .is_none_or(|old| assign(old, event.value as u16)),
+            3 => match event.a {
+                1 | 7 | 10 | 11 | 91 => assign(&mut channel.cc[event.a as usize], Some(event.b)),
+                64 | 66 => assign(
+                    &mut channel.cc[event.a as usize],
+                    Some(if event.b >= 64 { 127 } else { 0 }),
+                ),
                 // These zero depths are defined no-ops in this target profile.
-                92|93|95=>event.b!=0,
-                121=>{
-                    channel.bend=8192;
-                    for(cc,value)in[(1,0),(11,127),(64,0),(66,0)]{channel.cc[cc]=Some(value);}
+                92 | 93 | 95 => event.b != 0,
+                121 => {
+                    channel.bend = 8192;
+                    for (cc, value) in [(1, 0), (11, 127), (64, 0), (66, 0)] {
+                        channel.cc[cc] = Some(value);
+                    }
                     true // Keep the reset's note/pedal behavior.
-                },
-                _=>true,
+                }
+                _ => true,
             },
-            _=>true,
+            _ => true,
         }
     });
 }
@@ -362,17 +406,27 @@ fn compact_noop_controls(events: &mut Vec<sequence_stream::Event>) {
 /// defaults and replaying the same assignments on every loop, without that IRQ
 /// burst. Do not move a note, a later-tick event, or a marker-loop boundary.
 fn hoist_whole_loop_setup(events: &mut [sequence_stream::Event]) -> usize {
-    if events.first().is_none_or(|e| e.op!=6 || e.tick!=0) { return 0; }
-    let setup=events.iter().skip(1).take_while(|e| e.tick==0 && matches!(e.op,2|3|4|5|9|10)).count();
+    if events.first().is_none_or(|e| e.op != 6 || e.tick != 0) {
+        return 0;
+    }
+    let setup = events
+        .iter()
+        .skip(1)
+        .take_while(|e| e.tick == 0 && matches!(e.op, 2 | 3 | 4 | 5 | 9 | 10))
+        .count();
     events[..=setup].rotate_left(1);
     setup
 }
 
-fn library_events(ir: &crate::sequence_ir::SequenceIr,settings: &crate::sequence::Settings)
-    -> Result<Vec<sequence_stream::Event>,String> {
-    let mut events=sequence_stream::events(ir,settings)?;
+fn library_events(
+    ir: &crate::sequence_ir::SequenceIr,
+    settings: &crate::sequence::Settings,
+) -> Result<Vec<sequence_stream::Event>, String> {
+    let mut events = sequence_stream::events(ir, settings)?;
     compact_noop_controls(&mut events);
-    if settings.loop_mode==crate::sequence::LoopMode::Whole { hoist_whole_loop_setup(&mut events); }
+    if settings.loop_mode == crate::sequence::LoopMode::Whole {
+        hoist_whole_loop_setup(&mut events);
+    }
     Ok(events)
 }
 
@@ -381,21 +435,32 @@ pub fn sequence_payload(
     settings: &crate::sequence::Settings,
     bank: Uuid,
 ) -> Result<(Vec<sequence_stream::Event>, Vec<u8>), String> {
-    sequence_payload_impl(ir,settings,bank,false)
+    sequence_payload_impl(ir, settings, bank, false)
 }
-pub(crate) fn library_payload(ir: &crate::sequence_ir::SequenceIr,settings: &crate::sequence::Settings,
-    bank: Uuid) -> Result<(Vec<sequence_stream::Event>,Vec<u8>),String> {
-    sequence_payload_impl(ir,settings,bank,true)
+pub(crate) fn library_payload(
+    ir: &crate::sequence_ir::SequenceIr,
+    settings: &crate::sequence::Settings,
+    bank: Uuid,
+) -> Result<(Vec<sequence_stream::Event>, Vec<u8>), String> {
+    sequence_payload_impl(ir, settings, bank, true)
 }
-fn sequence_payload_impl(ir: &crate::sequence_ir::SequenceIr,settings: &crate::sequence::Settings,
-    bank: Uuid,compact: bool) -> Result<(Vec<sequence_stream::Event>,Vec<u8>),String> {
+fn sequence_payload_impl(
+    ir: &crate::sequence_ir::SequenceIr,
+    settings: &crate::sequence::Settings,
+    bank: Uuid,
+    compact: bool,
+) -> Result<(Vec<sequence_stream::Event>, Vec<u8>), String> {
     if settings.voices() > 24 {
         return Err(format!(
             "PSX has 24 physical sample voices; requested music ceiling {}. Edit Voice Limit explicitly.",
             settings.voices()
         ));
     }
-    let events = if compact { library_events(ir,settings)? } else { sequence_stream::events(ir,settings)? };
+    let events = if compact {
+        library_events(ir, settings)?
+    } else {
+        sequence_stream::events(ir, settings)?
+    };
     let size = SEQUENCE_HEADER + events.len() * 12;
     if size > SEQUENCE_BUDGET {
         return Err(format!(
@@ -696,30 +761,59 @@ pub fn cook(
     package: &assets::Package,
     index: &assets::Index,
 ) -> Result<Cooked, String> {
-    cook_cancelled(root, package, index, &std::sync::atomic::AtomicBool::new(false))
+    cook_cancelled(
+        root,
+        package,
+        index,
+        &std::sync::atomic::AtomicBool::new(false),
+    )
 }
-pub fn cook_cancelled(root: &Path, package: &assets::Package, index: &assets::Index,
-    cancelled: &std::sync::atomic::AtomicBool) -> Result<Cooked, String> {
-    if cancelled.load(std::sync::atomic::Ordering::Relaxed) { return Err("PSX sequence cook cancelled".into()); }
+pub fn cook_cancelled(
+    root: &Path,
+    package: &assets::Package,
+    index: &assets::Index,
+    cancelled: &std::sync::atomic::AtomicBool,
+) -> Result<Cooked, String> {
+    if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err("PSX sequence cook cancelled".into());
+    }
     let settings = package.meta.settings.sequence()?;
-    let ir = crate::sequence::decode_source(&package.source,settings)?;
+    let ir = crate::sequence::decode_source(&package.source, settings)?;
     let record = crate::sequence::resolve_bank(root, settings, index)?;
     let library = record.meta.settings.sound_bank()?.library.is_some();
     let bank = if library {
         crate::psx_library_asset::cook(root, package, record, &ir, cancelled)?
     } else {
-        if crate::psx_music_settings::Recipe::from_settings(settings)?.effects != crate::psx_music_settings::Effects::Dry {
+        if crate::psx_music_settings::Recipe::from_settings(settings)?.effects
+            != crate::psx_music_settings::Effects::Dry
+        {
             return Err("The Room reverb profile requires an instrument library SoundBank; EPSB v1 retains its dry playback contract".into());
         }
         if !settings.instrument_mappings.is_empty() {
             return Err("Explicit library mappings require an instrument library SoundBank; portable v1 banks use their saved zones".into());
         }
-        record.meta.settings.sound_bank()?.validate_sequence(&ir, index)?;
+        record
+            .meta
+            .settings
+            .sound_bank()?
+            .validate_sequence(&ir, index)?;
         bank(root, record, index)?
     };
-    let (events, payload) = if library { library_payload(&ir,settings,bank.id)? } else { sequence_payload(&ir,settings,bank.id)? };
-    let elided_noop_events=if library { sequence_stream::events(&ir,settings)?.len()-events.len() } else { 0 };
-    let (prepared_start_states,prepared_start_references) = if library { crate::instrument_preview::prepared_count(&events,ir.ppqn,&bank.payload)? } else { (0,0) };
+    let (events, payload) = if library {
+        library_payload(&ir, settings, bank.id)?
+    } else {
+        sequence_payload(&ir, settings, bank.id)?
+    };
+    let elided_noop_events = if library {
+        sequence_stream::events(&ir, settings)?.len() - events.len()
+    } else {
+        0
+    };
+    let (prepared_start_states, prepared_start_references) = if library {
+        crate::instrument_preview::prepared_count(&events, ir.ppqn, &bank.payload)?
+    } else {
+        (0, 0)
+    };
     let payload_version = u16::from_le_bytes([payload[4], payload[5]]);
     let mut inputs = bank.inputs.clone();
     inputs.insert(
@@ -732,7 +826,13 @@ pub fn cook_cancelled(root: &Path, package: &assets::Package, index: &assets::In
     let sample_bytes = bank.samples.iter().map(|s| s.bytes.len()).sum();
     let report = Report {
         target: "psx",
-        profile: if library { crate::psx_music_settings::PROFILE } else if payload_version == 1 { PROFILE } else { MUSICAL_PROFILE },
+        profile: if library {
+            crate::psx_music_settings::PROFILE
+        } else if payload_version == 1 {
+            PROFILE
+        } else {
+            MUSICAL_PROFILE
+        },
         resolved_mode: "Resident sequence",
         bank_mode: "Resident SoundBank",
         payload_version,
@@ -750,7 +850,9 @@ pub fn cook_cancelled(root: &Path, package: &assets::Package, index: &assets::In
         warnings: bank.warnings.clone(),
     };
     let cache = root.join(".epok/imported").join(identity(&inputs));
-    if cancelled.load(std::sync::atomic::Ordering::Relaxed) { return Err("PSX sequence cook cancelled".into()); }
+    if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err("PSX sequence cook cancelled".into());
+    }
     std::fs::create_dir_all(&cache).map_err(|e| e.to_string())?;
     assets::replace_cache(&cache.join("sequence.epsq"), &payload)?;
     let summary = root
@@ -775,34 +877,84 @@ mod tests {
     #[test]
     fn whole_loop_setup_moves_only_the_initial_snapshot() {
         use crate::sequence_stream::Event;
-        let e=|tick,op,a,b,value|Event{tick,op,channel:0,a,b,value};
-        let source=vec![e(0,6,0,0,0),e(0,5,0,0,400000),e(0,9,0,0,1200),
-            e(0,3,64,127,0),e(0,0,60,100,0),e(0,3,7,80,0),e(1,1,60,0,0),e(2,7,0,0,0)];
-        let mut cooked=source.clone();
-        assert_eq!(super::hoist_whole_loop_setup(&mut cooked),3);
-        assert_eq!(cooked[3],source[0]);
-        assert_eq!(cooked.iter().filter(|e|e.op!=6).collect::<Vec<_>>(),source.iter().filter(|e|e.op!=6).collect::<Vec<_>>());
-        let mut later=vec![e(0,6,0,0,0),e(1,2,1,0,0)];
-        assert_eq!(super::hoist_whole_loop_setup(&mut later),0);
-        let mut intro=vec![e(0,0,60,100,0),e(1,6,0,0,0),e(1,3,7,80,0)];
-        let original=intro.clone();
-        assert_eq!(super::hoist_whole_loop_setup(&mut intro),0);assert_eq!(intro,original);
+        let e = |tick, op, a, b, value| Event {
+            tick,
+            op,
+            channel: 0,
+            a,
+            b,
+            value,
+        };
+        let source = vec![
+            e(0, 6, 0, 0, 0),
+            e(0, 5, 0, 0, 400000),
+            e(0, 9, 0, 0, 1200),
+            e(0, 3, 64, 127, 0),
+            e(0, 0, 60, 100, 0),
+            e(0, 3, 7, 80, 0),
+            e(1, 1, 60, 0, 0),
+            e(2, 7, 0, 0, 0),
+        ];
+        let mut cooked = source.clone();
+        assert_eq!(super::hoist_whole_loop_setup(&mut cooked), 3);
+        assert_eq!(cooked[3], source[0]);
+        assert_eq!(
+            cooked.iter().filter(|e| e.op != 6).collect::<Vec<_>>(),
+            source.iter().filter(|e| e.op != 6).collect::<Vec<_>>()
+        );
+        let mut later = vec![e(0, 6, 0, 0, 0), e(1, 2, 1, 0, 0)];
+        assert_eq!(super::hoist_whole_loop_setup(&mut later), 0);
+        let mut intro = vec![e(0, 0, 60, 100, 0), e(1, 6, 0, 0, 0), e(1, 3, 7, 80, 0)];
+        let original = intro.clone();
+        assert_eq!(super::hoist_whole_loop_setup(&mut intro), 0);
+        assert_eq!(intro, original);
     }
     #[test]
     fn library_compaction_retains_notes_resets_explicit_sends_and_changes() {
         use crate::sequence_stream::Event;
-        let e=|tick,op,a,b,value|Event{tick,op,channel:0,a,b,value};
-        let mut events=vec![e(0,6,0,0,0),e(0,9,0,0,200),e(0,9,0,0,1200),
-            e(0,3,7,100,0),e(0,3,91,0,0),e(0,3,93,0,0),e(0,0,60,100,0),
-            e(1,4,0,0,8192),e(1,3,91,0,0),e(1,3,64,127,0),e(1,3,64,100,0),
-            e(2,3,121,0,0),e(2,3,64,127,0),e(2,1,60,0,0),e(3,7,0,0,0)];
-        let notes=events.iter().copied().filter(|e|e.op<=1).collect::<Vec<_>>();
+        let e = |tick, op, a, b, value| Event {
+            tick,
+            op,
+            channel: 0,
+            a,
+            b,
+            value,
+        };
+        let mut events = vec![
+            e(0, 6, 0, 0, 0),
+            e(0, 9, 0, 0, 200),
+            e(0, 9, 0, 0, 1200),
+            e(0, 3, 7, 100, 0),
+            e(0, 3, 91, 0, 0),
+            e(0, 3, 93, 0, 0),
+            e(0, 0, 60, 100, 0),
+            e(1, 4, 0, 0, 8192),
+            e(1, 3, 91, 0, 0),
+            e(1, 3, 64, 127, 0),
+            e(1, 3, 64, 100, 0),
+            e(2, 3, 121, 0, 0),
+            e(2, 3, 64, 127, 0),
+            e(2, 1, 60, 0, 0),
+            e(3, 7, 0, 0, 0),
+        ];
+        let notes = events
+            .iter()
+            .copied()
+            .filter(|e| e.op <= 1)
+            .collect::<Vec<_>>();
         super::compact_noop_controls(&mut events);
-        assert_eq!(events.iter().filter(|e|e.op<=1).copied().collect::<Vec<_>>(),notes);
-        assert_eq!(events.len(),9);
-        assert!(events.contains(&e(0,9,0,0,1200)) && events.contains(&e(0,3,91,0,0)));
-        assert!(events.contains(&e(2,3,121,0,0)) && events.contains(&e(2,3,64,127,0)));
-        assert_eq!(events.last(),Some(&e(3,7,0,0,0)));
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| e.op <= 1)
+                .copied()
+                .collect::<Vec<_>>(),
+            notes
+        );
+        assert_eq!(events.len(), 9);
+        assert!(events.contains(&e(0, 9, 0, 0, 1200)) && events.contains(&e(0, 3, 91, 0, 0)));
+        assert!(events.contains(&e(2, 3, 121, 0, 0)) && events.contains(&e(2, 3, 64, 127, 0)));
+        assert_eq!(events.last(), Some(&e(3, 7, 0, 0, 0)));
     }
     use super::*;
     #[test]
@@ -863,11 +1015,11 @@ mod tests {
         let index = assets::scan(&root, &mut Default::default());
         let before = std::fs::read(&index.resolve(sample).unwrap().path).unwrap();
         let mut scene = crate::scene::Scene::default();
-        scene.entities[0].audio = Some(crate::audio::AudioSource {
+        scene.actors[0].audio = Some(crate::audio::AudioSource {
             clip: Some(sample),
             ..Default::default()
         });
-        scene.entities[1].audio = Some(crate::audio::AudioSource {
+        scene.actors[1].audio = Some(crate::audio::AudioSource {
             clip: Some(song),
             ..Default::default()
         });
@@ -912,7 +1064,7 @@ mod tests {
         .unwrap();
         let index = assets::scan(&root, &mut Default::default());
         let mut scene = crate::scene::Scene::default();
-        scene.entities[0].audio = Some(crate::audio::AudioSource {
+        scene.actors[0].audio = Some(crate::audio::AudioSource {
             clip: Some(id),
             ..Default::default()
         });
@@ -986,19 +1138,66 @@ mod tests {
     #[test]
     fn midi_extended_semantics_require_epsq_v2_and_bank_identity_never_falls_back() {
         use crate::sequence_ir::{Event, EventKind, SequenceIr};
-        let ir = SequenceIr::analyze(480, vec![
-            Event { tick: 0, track: 0, order: 0, kind: EventKind::Parameter { channel: 0, parameter: 0, value: 1200 } },
-            Event { tick: 0, track: 0, order: 1, kind: EventKind::BankProgram { channel: 0, bank: 130, program: 5 } },
-            Event { tick: 0, track: 0, order: 2, kind: EventKind::NoteOn { channel: 0, key: 60, velocity: 100 } },
-            Event { tick: 480, track: 0, order: 3, kind: EventKind::NoteOff { channel: 0, key: 60 } },
-            Event { tick: 480, track: 0, order: 4, kind: EventKind::EndTrack },
-        ], vec![]).unwrap();
+        let ir = SequenceIr::analyze(
+            480,
+            vec![
+                Event {
+                    tick: 0,
+                    track: 0,
+                    order: 0,
+                    kind: EventKind::Parameter {
+                        channel: 0,
+                        parameter: 0,
+                        value: 1200,
+                    },
+                },
+                Event {
+                    tick: 0,
+                    track: 0,
+                    order: 1,
+                    kind: EventKind::BankProgram {
+                        channel: 0,
+                        bank: 130,
+                        program: 5,
+                    },
+                },
+                Event {
+                    tick: 0,
+                    track: 0,
+                    order: 2,
+                    kind: EventKind::NoteOn {
+                        channel: 0,
+                        key: 60,
+                        velocity: 100,
+                    },
+                },
+                Event {
+                    tick: 480,
+                    track: 0,
+                    order: 3,
+                    kind: EventKind::NoteOff {
+                        channel: 0,
+                        key: 60,
+                    },
+                },
+                Event {
+                    tick: 480,
+                    track: 0,
+                    order: 4,
+                    kind: EventKind::EndTrack,
+                },
+            ],
+            vec![],
+        )
+        .unwrap();
         let settings = crate::sequence::Settings::default();
         let (events, payload) = sequence_payload(&ir, &settings, Uuid::from_u128(1)).unwrap();
         assert_eq!(&payload[..8], b"EPSQ\x02\0\x28\0");
         assert_eq!((events[0].op, events[0].a, events[0].value), (9, 0, 1200));
         assert_eq!((events[1].op, events[1].a, events[1].value), (10, 5, 130));
-        let error = crate::sound_bank::Settings::default().validate_sequence(&ir, &assets::Index::default()).unwrap_err();
+        let error = crate::sound_bank::Settings::default()
+            .validate_sequence(&ir, &assets::Index::default())
+            .unwrap_err();
         assert!(error.contains("bank MSB 1/LSB 2"), "{error}");
         assert!(error.contains("bank 0 only"), "{error}");
     }

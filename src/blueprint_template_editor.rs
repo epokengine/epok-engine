@@ -4,10 +4,9 @@ use crate::{
     blueprint::Registry,
     blueprint_asset::{self, BlueprintAsset},
     blueprint_templates::{self as templates, ConstructionOp, ParentOverride, Template},
-    scene::Entity,
+    scene::Actor,
 };
 use imgui::Ui;
-use serde_json::Value;
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
@@ -97,27 +96,27 @@ fn browser_inner(
         .build();
     super::record_control(ui, "bp-component-search");
     if let Some(_popup) = ui.begin_popup("bp-components-add") {
-        if resolved.entities.is_empty() {
-            if ui.selectable("Entity root") {
+        if resolved.actors.is_empty() {
+            if ui.selectable("Actor root") {
                 create_root(&mut doc.template, &doc.name)?;
-                state.selected = doc.template.entities.first().map(|e| e.entity.id);
+                state.selected = doc.template.actors.first().map(|e| e.entity.id);
                 activated = true;
             }
         } else {
             let selected = state.selected.or_else(|| resolved.root()).unwrap();
             ui.input_text("Child name", &mut state.name).build();
-            if ui.selectable("Add child entity") {
+            if ui.selectable("Add child Actor") {
                 if state.name.trim().is_empty() {
                     return Err("Child name cannot be empty.".into());
                 }
-                if resolved.entities.len() >= templates::MAX_ENTITIES {
-                    return Err("Entity template capacity reached (32).".into());
+                if resolved.actors.len() >= templates::MAX_ENTITIES {
+                    return Err("Actor template capacity reached (32).".into());
                 }
                 state.selected = Some(doc.template.add_child(selected, &state.name));
                 activated = true;
             }
             if let Some(item) = resolved
-                .entities
+                .actors
                 .iter()
                 .find(|item| item.entity.id == selected)
             {
@@ -136,9 +135,7 @@ fn browser_inner(
                     if super::choose(ui, name) {
                         let parent = item
                             .parent
-                            .and_then(|id| {
-                                resolved.entities.iter().find(|item| item.entity.id == id)
-                            })
+                            .and_then(|id| resolved.actors.iter().find(|item| item.entity.id == id))
                             .map(|item| &item.entity);
                         add_component(&mut entity, parent, name)?;
                         state.selected = Some(selected);
@@ -152,9 +149,9 @@ fn browser_inner(
         }
     }
     ui.separator();
-    if resolved.entities.is_empty() {
+    if resolved.actors.is_empty() {
         ui.text_disabled(format!("\u{eb29} {} (Self)", doc.name));
-        ui.text_wrapped("Behavior-only class. Add a root to author components.");
+        ui.text_wrapped("Add an Actor root to author its component composition.");
     }
     fn row(
         ui: &Ui,
@@ -175,10 +172,7 @@ fn browser_inner(
             if !own_match && !descendant_matches(all, item.entity.id, &query) {
                 continue;
             }
-            let inherited = !own
-                .entities
-                .iter()
-                .any(|own| own.entity.id == item.entity.id);
+            let inherited = !own.actors.iter().any(|own| own.entity.id == item.entity.id);
             let label = format!(
                 "\u{eb29} {}{}##entity-{}",
                 item.entity.name,
@@ -222,7 +216,7 @@ fn browser_inner(
     }
     row(
         ui,
-        &resolved.entities,
+        &resolved.actors,
         None,
         &doc.template,
         state,
@@ -241,7 +235,7 @@ fn descendant_matches(all: &[templates::TemplateEntity], id: Uuid, query: &str) 
                 || descendant_matches(all, child.entity.id, query)
         })
 }
-fn add_component(entity: &mut Entity, parent: Option<&Entity>, name: &str) -> Result<(), String> {
+fn add_component(entity: &mut Actor, parent: Option<&Actor>, name: &str) -> Result<(), String> {
     if name == "Canvas" && (parent.is_some() || entity.kind != "Empty" || entity.rect.is_some()) {
         return Err("Canvas can only be added to an Empty template root without RectTransform. Existing components were preserved.".into());
     }
@@ -283,7 +277,7 @@ fn add_component(entity: &mut Entity, parent: Option<&Entity>, name: &str) -> Re
     }
     Ok(())
 }
-fn component_names(entity: &Entity) -> Vec<&'static str> {
+fn component_names(entity: &Actor) -> Vec<&'static str> {
     let mut names = vec!["Transform"];
     for (present, name) in [
         (entity.kind == "Mesh", "Mesh"),
@@ -297,7 +291,6 @@ fn component_names(entity: &Entity) -> Vec<&'static str> {
         (entity.text.is_some(), "HUD Text"),
         (entity.progress.is_some(), "HUD Progress"),
         (entity.blob_shadow.is_some(), "Blob Shadow"),
-        (entity.script.is_some(), "Script"),
     ] {
         if present {
             names.push(name);
@@ -336,17 +329,17 @@ fn draw_inner(
     if state.selected.is_none() {
         state.selected = resolved.root();
     }
-    if resolved.entities.is_empty() {
+    if resolved.actors.is_empty() {
         ui.text_wrapped("No entity template. Use Add in Components to create a root, or capture a scene selection.");
     }
     if let Some(selected) = state.selected
-        && let Some(item) = resolved.entities.iter().find(|e| e.entity.id == selected)
+        && let Some(item) = resolved.actors.iter().find(|e| e.entity.id == selected)
     {
         let _id = ui.push_id(selected.to_string());
         ui.input_text("Child name", &mut state.name).build();
         if ui.button("Add child") {
-            if resolved.entities.len() >= templates::MAX_ENTITIES {
-                return Err("Entity template capacity reached (32).".into());
+            if resolved.actors.len() >= templates::MAX_ENTITIES {
+                return Err("Actor template capacity reached (32).".into());
             }
             if state.name.trim().is_empty() {
                 return Err("Child name cannot be empty.".into());
@@ -355,8 +348,8 @@ fn draw_inner(
         }
         ui.same_line();
         if ui.button("Remove local leaf") {
-            if resolved.entities.iter().any(|e| e.parent == Some(selected)) {
-                return Err("Entity has inherited or local children; reparent them first.".into());
+            if resolved.actors.iter().any(|e| e.parent == Some(selected)) {
+                return Err("Actor has inherited or local children; reparent them first.".into());
             }
             doc.template.remove_local(selected)?;
             state.selected = None;
@@ -364,7 +357,7 @@ fn draw_inner(
         }
         let old = item.entity.clone();
         let mut entity = old.clone();
-        ui.input_text("Entity name", &mut entity.name).build();
+        ui.input_text("Actor name", &mut entity.name).build();
         ui.checkbox("Active", &mut entity.active);
         if let Some(_combo) = ui.begin_combo("Kind", &entity.kind) {
             for kind in ["Empty", "Mesh", "Camera"] {
@@ -374,9 +367,9 @@ fn draw_inner(
             }
         }
         for (label, value) in [
-            ("Position", &mut entity.position),
-            ("Rotation", &mut entity.rotation),
-            ("Scale", &mut entity.scale),
+            ("Position", &mut entity.data.position),
+            ("Rotation", &mut entity.data.rotation),
+            ("Scale", &mut entity.data.scale),
         ] {
             let control = crate::gui::Drag::new(label).speed(0.01);
             if label == "Scale" {
@@ -387,23 +380,23 @@ fn draw_inner(
         }
         let parent = item
             .parent
-            .and_then(|id| resolved.entities.iter().find(|e| e.entity.id == id))
+            .and_then(|id| resolved.actors.iter().find(|e| e.entity.id == id))
             .map(|e| e.entity.name.as_str())
             .unwrap_or("Root");
-        if let Some(_combo) = ui.begin_combo("Entity parent", parent) {
-            for candidate in &resolved.entities {
+        if let Some(_combo) = ui.begin_combo("Actor parent", parent) {
+            for candidate in &resolved.actors {
                 if candidate.entity.id != selected && ui.selectable(&candidate.entity.name) {
                     let before = doc.template.clone();
                     if let Some(local) = doc
                         .template
-                        .entities
+                        .actors
                         .iter_mut()
                         .find(|e| e.entity.id == selected)
                     {
                         local.parent = Some(candidate.entity.id);
                     } else {
                         doc.template.overrides.entry(selected).or_default().parent =
-                            Some(ParentOverride::Entity {
+                            Some(ParentOverride::Actor {
                                 entity: candidate.entity.id,
                             });
                     }
@@ -453,7 +446,7 @@ fn draw_inner(
         if let Some(_combo) = ui.begin_combo("Add component", "Choose...") {
             let parent = item
                 .parent
-                .and_then(|id| resolved.entities.iter().find(|item| item.entity.id == id))
+                .and_then(|id| resolved.actors.iter().find(|item| item.entity.id == id))
                 .map(|item| &item.entity);
             for name in [
                 "Light",
@@ -474,8 +467,7 @@ fn draw_inner(
         if entity != old {
             apply_entity_changes(&mut doc.template, &old, &entity)?;
         }
-        if doc.template.overrides.contains_key(&selected) && ui.button("Reset entity to inherited")
-        {
+        if doc.template.overrides.contains_key(&selected) && ui.button("Reset Actor to inherited") {
             doc.template.overrides.remove(&selected);
         }
         if let Some(edits) = doc.template.overrides.get_mut(&selected) {
@@ -487,7 +479,7 @@ fn draw_inner(
             }
         }
         if let Ok(preview) = &preview
-            && let Some(entity) = preview.entities.iter().find(|e| e.entity.id == selected)
+            && let Some(entity) = preview.actors.iter().find(|e| e.entity.id == selected)
         {
             ui.text_disabled(format!(
                 "Constructed position: {:.3}, {:.3}, {:.3}",
@@ -563,16 +555,16 @@ fn draw_inner(
     Ok(())
 }
 fn create_root(template: &mut Template, name: &str) -> Result<(), String> {
-    if !template.entities.is_empty() {
-        return Err("An entity root already exists.".into());
+    if !template.actors.is_empty() {
+        return Err("An Actor root already exists.".into());
     }
     if !template.overrides.is_empty()
         || !template.references.is_empty()
         || !template.construction.is_empty()
     {
-        return Err("Root creation rejected: orphan overrides, references, or construction operations are preserved. Restore their entities with Undo, or repair the source before creating a new root.".into());
+        return Err("Root creation rejected: orphan overrides, references, or construction operations are preserved. Restore their actors with Undo, or repair the source before creating a new root.".into());
     }
-    template.entities = Template::root(name).entities;
+    template.actors = Template::root(name).actors;
     Ok(())
 }
 fn uuid_field(
@@ -598,48 +590,23 @@ fn uuid_field(
 }
 fn apply_entity_changes(
     template: &mut Template,
-    before: &Entity,
-    after: &Entity,
+    before: &Actor,
+    after: &Actor,
 ) -> Result<(), String> {
     if let Some(local) = template
-        .entities
+        .actors
         .iter_mut()
         .find(|e| e.entity.id == before.id)
     {
         local.entity = after.clone();
         return Ok(());
     }
-    let a = serde_json::to_value(before).map_err(|e| e.to_string())?;
-    let b = serde_json::to_value(after).map_err(|e| e.to_string())?;
-    for (field, member) in [
-        ("name", "uq.entity.name.v1"),
-        ("kind", "uq.entity.kind.v1"),
-        ("active", "uq.entity.active.v1"),
-        ("position", "uq.entity.position.v1"),
-        ("rotation", "uq.entity.rotation.v1"),
-        ("scale", "uq.entity.scale.v1"),
-        ("material", "uq.entity.material.v1"),
-        ("camera_fov", "uq.entity.camera_fov.v1"),
-        ("collider", "uq.component.collider.v1"),
-        ("audio", "uq.component.audio.v1"),
-        ("light", "uq.component.light.v1"),
-        ("lighting", "uq.component.lighting.v1"),
-        ("canvas", "uq.component.canvas.v1"),
-        ("rect", "uq.component.rect.v1"),
-        ("image", "uq.component.image.v1"),
-        ("text", "uq.component.text.v1"),
-        ("progress", "uq.component.progress.v1"),
-        ("blob_shadow", "uq.component.blob_shadow.v1"),
-    ] {
-        if a.get(field) != b.get(field) {
-            template
-                .overrides
-                .entry(before.id)
-                .or_default()
-                .members
-                .insert(member.into(), b.get(field).cloned().unwrap_or(Value::Null));
-        }
-    }
+    template
+        .overrides
+        .entry(before.id)
+        .or_default()
+        .members
+        .extend(templates::changed_members(before, after)?);
     Ok(())
 }
 #[cfg(test)]
@@ -649,9 +616,9 @@ mod tests {
     #[test]
     fn component_addition_obeys_canvas_contract_without_overwriting() {
         let mut template = Template::root("Root");
-        let root = template.entities[0].entity.id;
+        let root = template.actors[0].entity.id;
         let child = template.add_child(root, "Child");
-        let root_entity = &mut template.entities[0].entity;
+        let root_entity = &mut template.actors[0].entity;
         add_component(root_entity, None, "Canvas").unwrap();
         assert!(root_entity.rect.is_none());
         root_entity.canvas.as_mut().unwrap().enabled = false;
@@ -659,7 +626,7 @@ mod tests {
         add_component(root_entity, None, "Canvas").unwrap();
         assert_eq!(*root_entity, original);
         let child = &mut template
-            .entities
+            .actors
             .iter_mut()
             .find(|item| item.entity.id == child)
             .unwrap()
@@ -685,7 +652,7 @@ mod tests {
         let before = doc.template.clone();
         assert!(
             transaction(&mut doc, &registry, |doc| {
-                doc.template.entities[0].entity.scale = [0.; 3];
+                doc.template.actors[0].entity.scale = [0.; 3];
                 Ok(())
             })
             .is_err()
@@ -693,8 +660,8 @@ mod tests {
         assert_eq!(doc.template, before);
         assert!(
             transaction(&mut doc, &registry, |doc| {
-                doc.template.entities[0].entity.kind = "Camera".into();
-                doc.template.entities[0].entity.camera_fov = 150.;
+                doc.template.actors[0].entity.kind = "Camera".into();
+                doc.template.actors[0].entity.camera_fov = 150.;
                 Ok(())
             })
             .is_err()
@@ -702,21 +669,26 @@ mod tests {
         assert_eq!(doc.template, before);
         assert!(
             transaction(&mut doc, &registry, |doc| {
-                doc.template.entities[0].entity.name.clear();
+                doc.template.actors[0].entity.name.clear();
                 Ok(())
             })
             .is_err()
         );
         assert_eq!(doc.template, before);
-        let root = doc.template.entities[0].entity.id;
-        doc.template.entities[0].entity.canvas = Some(Default::default());
+        let root = doc.template.actors[0].entity.id;
+        doc.template.actors[0].entity.canvas = Some(Default::default());
         let child = doc.template.add_child(root, "HUD");
-        doc.template.entities[1].entity.rect = Some(Default::default());
-        doc.template.entities[1].entity.image = Some(Default::default());
+        doc.template.actors[1].entity.rect = Some(Default::default());
+        doc.template.actors[1].entity.image = Some(Default::default());
         let before = doc.template.clone();
         assert!(
             transaction(&mut doc, &registry, |doc| {
-                doc.template.entities[0].entity.canvas = None;
+                doc.template.actors[1]
+                    .entity
+                    .rect
+                    .as_mut()
+                    .unwrap()
+                    .anchor_max = [-1.; 2];
                 Ok(())
             })
             .is_err()
@@ -733,25 +705,25 @@ mod tests {
     #[test]
     fn component_search_retains_only_matching_ancestor_chains() {
         let mut template = Template::root("Root");
-        let root = template.entities[0].entity.id;
+        let root = template.actors[0].entity.id;
         let branch = template.add_child(root, "Branch");
         let leaf = template.add_child(branch, "Camera Mount");
         let unrelated = template.add_child(root, "Other");
-        assert!(descendant_matches(&template.entities, root, "camera"));
-        assert!(descendant_matches(&template.entities, branch, "camera"));
-        assert!(!descendant_matches(&template.entities, unrelated, "camera"));
+        assert!(descendant_matches(&template.actors, root, "camera"));
+        assert!(descendant_matches(&template.actors, branch, "camera"));
+        assert!(!descendant_matches(&template.actors, unrelated, "camera"));
         let entity = &mut template
-            .entities
+            .actors
             .iter_mut()
             .find(|item| item.entity.id == leaf)
             .unwrap()
             .entity;
         entity.audio = Some(Default::default());
         assert!(
-            descendant_matches(&template.entities, root, "audio"),
+            descendant_matches(&template.actors, root, "audio"),
             "Search includes real component names"
         );
-        assert!(!descendant_matches(&template.entities, root, "nonexistent"));
+        assert!(!descendant_matches(&template.actors, root, "nonexistent"));
     }
     #[test]
     fn root_creation_rejects_orphans_without_discarding_source() {
@@ -765,30 +737,33 @@ mod tests {
         assert_eq!(serde_json::to_value(&template).unwrap(), before);
         template.construction.clear();
         create_root(&mut template, "Root").unwrap();
-        assert_eq!(template.entities.len(), 1);
+        assert_eq!(template.actors.len(), 1);
         assert!(create_root(&mut template, "Another root").is_err());
     }
     #[test]
     fn inherited_edits_are_explicit_and_local_edits_keep_identity() {
         let base = Template::root("Root");
-        let original = base.entities[0].entity.clone();
+        let original = base.actors[0].entity.clone();
         let mut changed = original.clone();
         changed.position = [1., 2., 3.];
         changed.collider = Some(Default::default());
         let mut derived = Template::default();
         apply_entity_changes(&mut derived, &original, &changed).unwrap();
-        assert!(derived.entities.is_empty());
+        assert!(derived.actors.is_empty());
         assert_eq!(
-            derived.overrides[&original.id].members["uq.entity.position.v1"],
+            derived.overrides[&original.id].members[&format!(
+                "/components/{}/properties/position",
+                original.root().unwrap().id
+            )],
             json!([1., 2., 3.])
         );
         assert_eq!(
-            templates::resolve(&[&base, &derived]).unwrap().entities[0].entity,
+            templates::resolve(&[&base, &derived]).unwrap().actors[0].entity,
             changed
         );
         let mut local = base.clone();
         apply_entity_changes(&mut local, &original, &changed).unwrap();
         assert!(local.overrides.is_empty());
-        assert_eq!(local.entities[0].entity.id, original.id);
+        assert_eq!(local.actors[0].entity.id, original.id);
     }
 }

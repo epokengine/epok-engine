@@ -30,7 +30,7 @@ create a Blueprint in your own project.
 
 | Area | Use it for |
 | --- | --- |
-| Components | Browse the class's root and child entity template. These are the objects instances will contain. |
+| Components | Browse the class's root and child Actor template. These are the objects instances will contain. |
 | My Blueprint | Find graphs, functions, variables and inherited members. Select an item to edit its details. |
 | Canvas | Connect execution and typed data pins; select, move, copy and organize nodes. |
 | Details | Edit the selected node or member, including literal values and member settings. |
@@ -48,7 +48,7 @@ not the saved gameplay.
 
 `BP_Interaction` derives from the native `InteractionBase` class. Its parent
 exposes an `enabled` Boolean, a Fixed `progress` value, callable methods and an
-`on_interaction` event. The parent calls that event from Start.
+`on_interaction` event. The parent calls that event from Begin Play.
 
 Follow the event's execution wires from its entry. The graph reads `enabled`,
 branches, calls the native methods and uses a Delay. The `compute_strength`
@@ -62,8 +62,7 @@ native event, another graph call or an existing lifecycle entry must invoke it.
 ## Make a change and test it
 
 The generator creates the class asset, not a running instance. In the scene,
-create an Empty entity, attach `BP_Interaction` through the script selector and
-save the scene. Leave the entity active and its inherited `enabled` value true.
+choose **Instantiate Actor**, select `BP_Interaction` and save the scene. Leave the Actor active and its inherited `enabled` value true.
 
 1. Select the **Delay** node in the interaction graph. Change its seconds input
    from `0.25` to `1.0`. This input is a Fixed value in seconds.
@@ -137,7 +136,7 @@ Use Components to author a reusable entity hierarchy, or capture a scene subtree
 as a class template. Place the class to create a linked instance. Internal
 references remap to that instance; references outside the captured subtree need
 explicit inputs or removal. Unlink keeps the current scene objects but ends
-template propagation. See [Entity templates and construction](blueprints.md#entity-templates-and-construction)
+template propagation. See [Actor templates and construction](blueprints.md#actor-templates-and-construction)
 for spawning limits and the host construction subset.
 
 ## Save, undo and rebuild

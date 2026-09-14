@@ -589,10 +589,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(ir.peak_polyphony, 1);
-        assert!(!ir
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("remain at song end")));
+        assert!(
+            !ir.diagnostics
+                .iter()
+                .any(|d| d.message.contains("remain at song end"))
+        );
     }
 
     #[test]
@@ -640,10 +641,11 @@ mod tests {
             vec![],
         )
         .unwrap();
-        assert!(!ir
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("remain at song end")));
+        assert!(
+            !ir.diagnostics
+                .iter()
+                .any(|d| d.message.contains("remain at song end"))
+        );
     }
 
     #[test]
@@ -684,10 +686,11 @@ mod tests {
         assert_eq!(events.len(), MAX_EVENTS);
         let ir = SequenceIr::analyze(96, events, vec![]).unwrap();
         assert_eq!(ir.peak_polyphony, 1);
-        assert!(!ir
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("remain at song end")));
+        assert!(
+            !ir.diagnostics
+                .iter()
+                .any(|d| d.message.contains("remain at song end"))
+        );
     }
 
     #[test]
@@ -716,8 +719,10 @@ mod tests {
                 },
             ));
         }
-        assert!(SequenceIr::analyze(96, events, vec![])
-            .unwrap_err()
-            .contains("MIDI note-state operation budget exceeded (2000000)"));
+        assert!(
+            SequenceIr::analyze(96, events, vec![])
+                .unwrap_err()
+                .contains("MIDI note-state operation budget exceeded (2000000)")
+        );
     }
 }

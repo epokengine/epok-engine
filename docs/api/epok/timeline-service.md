@@ -69,7 +69,7 @@ epok::timeline::advance(dt);
 **Exact declaration**
 
 ```cpp
-inline Component* component(EntityHandle owner)
+inline Component* component(DataHandle owner)
 ```
 
 - **Declared at:** [line 17](../../../runtime/timeline_service.hpp#L17)
@@ -79,7 +79,7 @@ inline Component* component(EntityHandle owner)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 
 **Returns.** Returns `Component *`. Check the purpose and failure notes before using the value.
 
@@ -91,7 +91,7 @@ inline Component* component(EntityHandle owner)
 #include "timeline_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle owner
+// DataHandle owner
 
 auto result = epok::timeline::component(owner);
 ```
@@ -109,7 +109,7 @@ auto result = epok::timeline::component(owner);
 **Exact declaration**
 
 ```cpp
-inline Component* configure(EntityHandle owner,const Asset& asset,bool enabled,bool automatic)
+inline Component* configure(DataHandle owner,const Asset& asset,bool enabled,bool automatic)
 ```
 
 - **Declared at:** [line 22](../../../runtime/timeline_service.hpp#L22)
@@ -119,7 +119,7 @@ inline Component* configure(EntityHandle owner,const Asset& asset,bool enabled,b
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 | `asset` | `const Asset &` | Input | Value supplied for `asset`. See the exact type and module contract. |
 | `enabled` | `bool` | Input | Value supplied for `enabled`. See the exact type and module contract. |
 | `automatic` | `bool` | Input | Value supplied for `automatic`. See the exact type and module contract. |
@@ -134,7 +134,7 @@ inline Component* configure(EntityHandle owner,const Asset& asset,bool enabled,b
 #include "timeline_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle owner
+// DataHandle owner
 // const Asset & asset
 // bool enabled
 // bool automatic
@@ -155,7 +155,7 @@ auto result = epok::timeline::configure(owner, asset, enabled, automatic);
 **Exact declaration**
 
 ```cpp
-inline Handle play(EntityHandle owner)
+inline Handle play(DataHandle owner)
 ```
 
 - **Declared at:** [line 33](../../../runtime/timeline_service.hpp#L33)
@@ -165,7 +165,7 @@ inline Handle play(EntityHandle owner)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 
 **Returns.** Returns `Handle`. Check the purpose and failure notes before using the value.
 
@@ -177,7 +177,7 @@ inline Handle play(EntityHandle owner)
 #include "timeline_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle owner
+// DataHandle owner
 
 auto result = epok::timeline::play(owner);
 ```
@@ -226,7 +226,7 @@ epok::timeline::publish_stats();
 **Exact declaration**
 
 ```cpp
-inline void remove_owner(EntityHandle owner)
+inline void remove_owner(DataHandle owner)
 ```
 
 - **Declared at:** [line 50](../../../runtime/timeline_service.hpp#L50)
@@ -236,7 +236,7 @@ inline void remove_owner(EntityHandle owner)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -248,7 +248,7 @@ inline void remove_owner(EntityHandle owner)
 #include "timeline_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle owner
+// DataHandle owner
 
 epok::timeline::remove_owner(owner);
 ```
@@ -328,7 +328,7 @@ epok::timeline::start_components();
 **Exact declaration**
 
 ```cpp
-inline bool stop(EntityHandle owner)
+inline bool stop(DataHandle owner)
 ```
 
 - **Declared at:** [line 40](../../../runtime/timeline_service.hpp#L40)
@@ -338,7 +338,7 @@ inline bool stop(EntityHandle owner)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -350,7 +350,7 @@ inline bool stop(EntityHandle owner)
 #include "timeline_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle owner
+// DataHandle owner
 
 auto result = epok::timeline::stop(owner);
 ```

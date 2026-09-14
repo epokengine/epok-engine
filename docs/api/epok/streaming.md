@@ -725,7 +725,7 @@ auto result = epok::streaming_warmup(pages, count, gpu);
 **Exact declaration**
 
 ```cpp
-template <class Entity, class Active> inline bool streaming_warmup_scene(const Entity *objects, size_t count, Active &&active, psyqo::GPU &gpu)
+template <class ActorData, class Active> inline bool streaming_warmup_scene(const ActorData *objects, size_t count, Active &&active, psyqo::GPU &gpu)
 ```
 
 - **Declared at:** [line 261](../../../runtime/streaming.hpp#L261)
@@ -735,7 +735,7 @@ template <class Entity, class Active> inline bool streaming_warmup_scene(const E
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `objects` | `const Entity *` | Input | Value supplied for `objects`. See the exact type and module contract. |
+| `objects` | `const ActorData *` | Input | Value supplied for `objects`. See the exact type and module contract. |
 | `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `active` | `Active &&` | Consumed or moved input | Value supplied for `active`. See the exact type and module contract. |
 | `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
@@ -750,15 +750,15 @@ template <class Entity, class Active> inline bool streaming_warmup_scene(const E
 #include "streaming.hpp"
 
 // Replace these template arguments with types or values accepted by the declaration:
-// Entity, Active
+// ActorData, Active
 
 // Assume these named values have been initialized with valid data:
-// const Entity * objects
+// const ActorData * objects
 // size_t count
 // Active && active
 // psyqo::GPU & gpu
 
-auto result = epok::streaming_warmup_scene<Entity, Active>(objects, count, active, gpu);
+auto result = epok::streaming_warmup_scene<ActorData, Active>(objects, count, active, gpu);
 ```
 
 **Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection. The boolean result makes success, availability or state explicit without exceptions.

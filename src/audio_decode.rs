@@ -429,11 +429,23 @@ mod tests {
         assert!(super::ogg_terminal_frames(&stream[..stream.len() - 1], None).is_err());
         let mut multiple = ogg_page(7, 0, 6, 1, b"a");
         multiple.extend(ogg_page(7, 1, 4, 2, b"b"));
-        assert!(super::ogg_terminal_frames(&multiple, None).unwrap_err().contains("not terminal"));
+        assert!(
+            super::ogg_terminal_frames(&multiple, None)
+                .unwrap_err()
+                .contains("not terminal")
+        );
         let mut skipped = ogg_page(7, 0, 2, 0, b"header");
         skipped.extend(ogg_page(7, 2, 4, 37, b"audio"));
-        assert!(super::ogg_terminal_frames(&skipped, None).unwrap_err().contains("discontinuous"));
-        assert!(super::decode_soundfont_vorbis_with_budget(&stream, 36, None).unwrap_err().contains("36-sample PCM budget"));
+        assert!(
+            super::ogg_terminal_frames(&skipped, None)
+                .unwrap_err()
+                .contains("discontinuous")
+        );
+        assert!(
+            super::decode_soundfont_vorbis_with_budget(&stream, 36, None)
+                .unwrap_err()
+                .contains("36-sample PCM budget")
+        );
         let mut damaged = stream.clone();
         *damaged.last_mut().unwrap() ^= 1;
         assert!(

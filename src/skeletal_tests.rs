@@ -231,13 +231,15 @@ fn model_reimport_is_portable_preserves_ids_materials_and_rejects_stale_edits() 
             .is_empty()
     );
     assert!(assets::trash(&f.0, after.resolve(model.mesh.skeleton).unwrap()).is_err());
-    let mut entity = crate::scene::Entity::cube("Hero".into());
+    let mut entity = crate::scene::Actor::cube("Hero".into());
     entity.skeletal_mesh = Some(skeletal::Component::new(mesh.meta.id));
     let mut scene = crate::scene::Scene::default();
-    scene.entities.push(entity);
+    scene.actors.push(entity);
     skeletal::resolve(&mut scene, &after).unwrap();
-    scene.entities.push(scene.entities.last().unwrap().clone());
-    scene.entities.last_mut().unwrap().id = uuid::Uuid::new_v4();
+    scene.actors.push(scene.actors.last().unwrap().clone());
+    let actor = scene.actors.last_mut().unwrap();
+    let ids = crate::actor_document::fresh_identities(std::slice::from_ref(actor));
+    crate::actor_document::remap_actor(actor, &ids);
     let header = crate::project::scene_header(&scene, &[]).unwrap();
     assert!(header.contains("inline constexpr SkeletalMesh"));
     assert_eq!(
@@ -259,7 +261,7 @@ fn model_reimport_is_portable_preserves_ids_materials_and_rejects_stale_edits() 
     // Runtime state is not persisted into scenes.
     let serialized = serde_json::to_vec(&scene).unwrap();
     scene
-        .entities
+        .actors
         .last_mut()
         .unwrap()
         .skeletal_mesh
@@ -313,15 +315,15 @@ fn fbx_import_inbox_worker_publishes_subassets_and_opens_a_usable_model() {
         .find(|r| r.meta.kind == Kind::SkeletalMesh)
         .unwrap();
     let mut scene = crate::scene::Scene::default();
-    let mut entity = crate::scene::Entity::cube("Missing clip".into());
+    let mut entity = crate::scene::Actor::cube("Missing clip".into());
     let mut c = skeletal::Component::new(mesh.meta.id);
     c.clip = Some(Uuid::new_v4());
     entity.skeletal_mesh = Some(c);
-    scene.entities.push(entity);
+    scene.actors.push(entity);
     assert!(skeletal::resolve(&mut scene, &index).is_err());
     assert!(
         scene
-            .entities
+            .actors
             .last()
             .unwrap()
             .skeletal_mesh

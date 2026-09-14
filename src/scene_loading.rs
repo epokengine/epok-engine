@@ -78,9 +78,6 @@ impl Prepared {
         progress.stage("Refreshing scene bindings", &mut emit);
         // Scripts belong to the project, not the scene. The source watcher owns
         // catalog refresh; navigation must not rerun the native extractor.
-        for binding in scene.entities.iter_mut().filter_map(|e| e.script.as_mut()) {
-            registry.upgrade_binding(binding);
-        }
         let previous = scene.clone();
         if let Err(error) = crate::blueprint_asset::load_all(root).and_then(|files| {
             crate::blueprint_templates::refresh_instances(&mut scene, &files, registry)
@@ -138,9 +135,10 @@ impl Loading {
         let worker = std::thread::Builder::new()
             .name("epok-scene-loading".into())
             .spawn(move || {
-                let result = Prepared::load(&root, path, display_size, &registry, cache, |message| {
-                    let _ = tx.send(Event::Message(message));
-                });
+                let result =
+                    Prepared::load(&root, path, display_size, &registry, cache, |message| {
+                        let _ = tx.send(Event::Message(message));
+                    });
                 let _ = tx.send(Event::Ready(Box::new(result)));
             })
             .map_err(|error| format!("Cannot start scene loader: {error}"))?;

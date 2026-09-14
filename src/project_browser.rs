@@ -348,7 +348,9 @@ fn visible(s: &State, e: &Editor) -> Vec<Entry> {
 
 pub fn window(ui: &Ui, e: &mut Editor, asset_font: imgui::FontId) {
     let mut s = std::mem::take(&mut e.project_browser);
-    if let Some(report) = s.previews.take_report() { s.message = report; }
+    if let Some(report) = s.previews.take_report() {
+        s.message = report;
+    }
     if let Some(error) = s.previews.error.take() {
         e.log(error);
     }
@@ -669,8 +671,12 @@ fn toolbar(ui: &Ui, e: &mut Editor, s: &mut State) {
 }
 
 fn creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
-    if ui.menu_item("SoundBank...") { e.assets.begin_new_bank(); }
-    if ui.menu_item("Retro Starter SoundBank (generated triangle)") { e.assets.start_starter_bank(); }
+    if ui.menu_item("SoundBank...") {
+        e.assets.begin_new_bank();
+    }
+    if ui.menu_item("Retro Starter SoundBank (generated triangle)") {
+        e.assets.start_starter_bank();
+    }
     if ui.menu_item("New Folder") {
         s.new_folder = true;
         s.name = "NewFolder".into();
@@ -1446,7 +1452,10 @@ fn open(e: &mut Editor, s: &mut State, entry: &Entry) {
         e.assets.selected = Some(record.meta.id);
         match record.meta.kind {
             assets::Kind::EditableMesh => crate::mesh_editor::open(e, record, None),
-            assets::Kind::Texture | assets::Kind::AudioClip | assets::Kind::MusicSequence | assets::Kind::SoundBank => {
+            assets::Kind::Texture
+            | assets::Kind::AudioClip
+            | assets::Kind::MusicSequence
+            | assets::Kind::SoundBank => {
                 e.assets.focus_tab = Some(2);
                 e.assets.operation_path = entry.path.clone();
                 e.assets.window = true;
@@ -2386,7 +2395,12 @@ fn import(e: &mut Editor, s: &mut State, source: &Path) -> bool {
             .and_then(|s| s.to_str())
             .unwrap_or_default()
             .to_lowercase();
-        if !["png", "wav", "mp3", "flac", "ogg", "mid", "midi", "seq", "sep", "vab", "vh", "vb", "sf2", "sf3", "fbx"].contains(&ext.as_str()) {
+        if ![
+            "png", "wav", "mp3", "flac", "ogg", "mid", "midi", "seq", "sep", "vab", "vh", "vb",
+            "sf2", "sf3", "fbx",
+        ]
+        .contains(&ext.as_str())
+        {
             return Err("Supported import sources: PNG, WAV, MP3, FLAC, OGG and FBX.".into());
         }
         let name = source
@@ -2464,7 +2478,7 @@ pub fn inspector_drop(_ui: &Ui, e: &mut Editor) {
 fn assign_content(e: &mut Editor, paths: &[String]) -> Result<(), String> {
     if paths.len() != 1 || !paths[0].ends_with(".epokbp") {
         return Err(
-            "Drop one Blueprint onto Inspector to assign its behaviour to the selected object."
+            "Drop an ActorComponent Blueprint onto Inspector to attach it to the selected Actor."
                 .into(),
         );
     }
@@ -2499,7 +2513,7 @@ fn place_content(e: &mut Editor, paths: &[String]) -> Result<(), String> {
     let mut scene = before.clone();
     for path in paths {
         let absolute = assets::inside(&e.root, path)?;
-        let mut entity = crate::scene::Entity::cube(
+        let mut entity = crate::scene::Actor::cube(
             Path::new(path)
                 .file_stem()
                 .unwrap_or_default()
@@ -2557,24 +2571,24 @@ fn place_content(e: &mut Editor, paths: &[String]) -> Result<(), String> {
                     let selected = e
                         .selected
                         .ok_or("Select a mesh to apply this texture, then drop it in Scene.")?;
-                    scene.entities[selected].material.texture = Some(record.meta.id);
+                    scene.actors[selected].material.texture = Some(record.meta.id);
                     continue;
                 }
                 _ => return Err("This asset cannot be placed directly in Scene.".into()),
             }
         }
-        scene.entities.push(entity);
+        scene.actors.push(entity);
     }
     scene.validate()?;
     crate::mesh::resolve(&mut scene, &e.assets.index)?;
     crate::skeletal::resolve(&mut scene, &e.assets.index)?;
     crate::texture::resolve(&mut scene, &e.assets.index)?;
-    let added = scene.entities.len() > before.entities.len();
+    let added = scene.actors.len() > before.actors.len();
     e.script_undo.push((before, scene.clone()));
     e.script_redo.clear();
     e.scene = scene;
     if added {
-        e.selected = Some(e.scene.entities.len() - 1);
+        e.selected = Some(e.scene.actors.len() - 1);
         e.selected_asset = None;
     }
     e.reveal_selected = true;
@@ -2888,13 +2902,10 @@ pub fn verify_interactions(ctx: &mut imgui::Context, font: imgui::FontId) {
         let relative = "assets/Blueprints/BP_Cube.epokbp".to_string();
         let blueprint = crate::blueprint_asset::load(&path).unwrap();
         e.selected = Some(0);
-        e.scene.entities[0] = crate::scene::Entity::cube("Existing Cube".into());
+        e.scene.actors[0] = crate::scene::Actor::cube("Existing Cube".into());
         e.attach("Spinner");
-        e.scene.entities[0].position = [12., 3., -7.];
-        e.scene.entities[0]
-            .script
-            .as_mut()
-            .unwrap()
+        e.scene.actors[0].position = [12., 3., -7.];
+        e.scene.actors[0]
             .properties
             .insert("speed".into(), serde_json::json!(123));
         let before = e.scene.clone();
@@ -2924,16 +2935,21 @@ pub fn verify_interactions(ctx: &mut imgui::Context, font: imgui::FontId) {
             .add_mouse_button_event(MouseButton::Left, false);
         frame(ctx, &mut e, font);
         frame(ctx, &mut e, font);
-        let binding = e.scene.entities[0].script.as_ref().unwrap();
+        let binding = e.scene.actors[0].components.last().unwrap();
         assert_eq!(
-            binding.class_id.as_ref(),
+            binding.class.class_id.as_ref(),
             Some(&blueprint.id),
             "Inspector drop failed: {:?}",
             e.project_browser.error
         );
-        assert_eq!(binding.provider.id, "blueprint");
+        assert_eq!(
+            e.class_registry.classes[binding.class.class_id.as_ref().unwrap()]
+                .provider
+                .id,
+            "blueprint"
+        );
         let mut expected = before.clone();
-        expected.entities[0].script = Some(binding.clone());
+        expected.actors[0].components.push(binding.clone());
         assert_eq!(e.scene, expected, "Only the behaviour should change");
         e.undo_attachment(false).unwrap();
         assert_eq!(
@@ -2941,10 +2957,7 @@ pub fn verify_interactions(ctx: &mut imgui::Context, font: imgui::FontId) {
             "Undo restores the previous script and its overrides"
         );
         e.undo_attachment(true).unwrap();
-        e.scene.entities[0]
-            .script
-            .as_mut()
-            .unwrap()
+        e.scene.actors[0]
             .properties
             .insert("speed".into(), serde_json::json!(42));
         let assigned = e.scene.clone();
@@ -3088,19 +3101,33 @@ mod tests {
         context.set_ini_filename(None);
         context.io_mut().display_size = [1100., 700.];
         context.io_mut().delta_time = 1. / 60.;
-        let font = context.fonts().add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        let font = context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
         context.fonts().build_rgba32_texture();
         let root = crate::workspace::tests::temp("midi-preview-console");
         fs::create_dir_all(root.join("assets")).unwrap();
         // Owned SMF: undefined controller, then one note. Import is valid;
         // playback must retain its diagnostic without silently ignoring the event.
-        let events = [0, 0xb0, 119, 1, 0, 0x90, 60, 100, 96, 0x80, 60, 0, 0, 0xff, 0x2f, 0];
+        let events = [
+            0, 0xb0, 119, 1, 0, 0x90, 60, 100, 96, 0x80, 60, 0, 0, 0xff, 0x2f, 0,
+        ];
         let mut midi = b"MThd\0\0\0\x06\0\0\0\x01\0\x60MTrk".to_vec();
         midi.extend((events.len() as u32).to_be_bytes());
         midi.extend(events);
         fs::write(root.join("assets/unsupported.mid"), midi).unwrap();
-        assets::commit(crate::sequence::prepare(&root, "assets/unsupported.mid",
-            "assets/unsupported.epokasset", Default::default(), None, false).unwrap()).unwrap();
+        assets::commit(
+            crate::sequence::prepare(
+                &root,
+                "assets/unsupported.mid",
+                "assets/unsupported.epokasset",
+                Default::default(),
+                None,
+                false,
+            )
+            .unwrap(),
+        )
+        .unwrap();
         let path = root.join("assets/unsupported.epokasset");
         let original = fs::read(&path).unwrap();
         let mut editor = Editor::new(root.clone());
@@ -3112,7 +3139,10 @@ mod tests {
             editor.project_browser.previews.poll();
             let ui = context.frame();
             unsafe {
-                imgui::sys::igSetNextWindowSize(imgui::sys::ImVec2 { x: 1100., y: 600. }, imgui::sys::ImGuiCond_Always as i32);
+                imgui::sys::igSetNextWindowSize(
+                    imgui::sys::ImVec2 { x: 1100., y: 600. },
+                    imgui::sys::ImGuiCond_Always as i32,
+                );
             }
             window(ui, editor, font);
             context.render();
@@ -3121,12 +3151,17 @@ mod tests {
             editor.project_browser.prefs.list = list;
             frame(&mut context, &mut editor);
             frame(&mut context, &mut editor);
-            let position = CONTROLS.with(|buttons| buttons.borrow()["Play##assets/unsupported.epokasset"]);
+            let position =
+                CONTROLS.with(|buttons| buttons.borrow()["Play##assets/unsupported.epokasset"]);
             context.io_mut().add_mouse_pos_event(position);
             frame(&mut context, &mut editor);
-            context.io_mut().add_mouse_button_event(MouseButton::Left, true);
+            context
+                .io_mut()
+                .add_mouse_button_event(MouseButton::Left, true);
             frame(&mut context, &mut editor);
-            context.io_mut().add_mouse_button_event(MouseButton::Left, false);
+            context
+                .io_mut()
+                .add_mouse_button_event(MouseButton::Left, false);
             frame(&mut context, &mut editor);
             let deadline = Instant::now() + std::time::Duration::from_secs(5);
             while editor.project_browser.previews.active(&path) {
@@ -3134,17 +3169,36 @@ mod tests {
                 std::thread::sleep(std::time::Duration::from_millis(2));
                 frame(&mut context, &mut editor);
             }
-            for _ in 0..30 { frame(&mut context, &mut editor); }
-            assert_eq!(editor.logs.len(), attempt + 1, "Exactly one Console entry per Play attempt");
+            for _ in 0..30 {
+                frame(&mut context, &mut editor);
+            }
+            assert_eq!(
+                editor.logs.len(),
+                attempt + 1,
+                "Exactly one Console entry per Play attempt"
+            );
             let message = editor.logs.last().unwrap();
-            assert!(message.contains("unsupported.epokasset") && message.contains("1 unsupported events")
-                && message.contains("CC 119=1") && message.contains("re-export the MIDI"), "{message}");
-            assert!(editor.project_browser.error.is_none(), "Playback errors must not persist in the browser footer");
+            assert!(
+                message.contains("unsupported.epokasset")
+                    && message.contains("1 unsupported events")
+                    && message.contains("CC 119=1")
+                    && message.contains("re-export the MIDI"),
+                "{message}"
+            );
+            assert!(
+                editor.project_browser.error.is_none(),
+                "Playback errors must not persist in the browser footer"
+            );
             assert!(editor.project_browser.previews.error.is_none());
         }
         editor.clear_logs();
-        for _ in 0..30 { frame(&mut context, &mut editor); }
-        assert!(editor.logs.is_empty(), "Clearing Console must not replay the last error");
+        for _ in 0..30 {
+            frame(&mut context, &mut editor);
+        }
+        assert!(
+            editor.logs.is_empty(),
+            "Clearing Console must not replay the last error"
+        );
         assert_eq!(fs::read(&path).unwrap(), original);
         drop(editor);
         fs::remove_dir_all(root).unwrap();
@@ -3158,18 +3212,23 @@ mod tests {
         e.auto_build = false;
         let index = e
             .scene
-            .entities
+            .actors
             .iter()
             .position(|entity| entity.name.contains("Cube"))
             .expect("Ironwood fixture must contain its existing cube");
         e.selected = Some(index);
         let before = e.scene.clone();
         assign_content(&mut e, &["assets/Blueprints/BP_Cube.epokbp".into()]).unwrap();
-        let binding = e.scene.entities[index].script.as_ref().unwrap();
+        let binding = e.scene.actors[index].components.last().unwrap();
         assert_eq!(binding.name, "BP_Cube");
-        assert_eq!(binding.provider.id, "blueprint");
+        assert_eq!(
+            e.class_registry.classes[binding.class.class_id.as_ref().unwrap()]
+                .provider
+                .id,
+            "blueprint"
+        );
         let mut expected = before.clone();
-        expected.entities[index].script = Some(binding.clone());
+        expected.actors[index].components.push(binding.clone());
         assert_eq!(e.scene, expected);
         e.undo_attachment(false).unwrap();
         assert_eq!(e.scene, before);
@@ -3388,14 +3447,7 @@ mod tests {
         assert_eq!(e.scene, initial);
         place_content(&mut e, &["assets/A/tone.epokasset".into()]).unwrap();
         assert_eq!(
-            e.scene
-                .entities
-                .last()
-                .unwrap()
-                .audio
-                .as_ref()
-                .unwrap()
-                .clip,
+            e.scene.actors.last().unwrap().audio.as_ref().unwrap().clip,
             Some(id)
         );
         assert!(e.dirty);

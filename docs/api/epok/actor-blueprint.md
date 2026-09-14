@@ -2,7 +2,7 @@
 
 > **Header:** `"actor_blueprint.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/actor_blueprint.hpp)
 
-This module covers compiled Blueprint execution and object interaction. It documents 10 public callables declared directly in this header.
+This module covers compiled Blueprint execution and object interaction. It documents 14 public callables declared directly in this header.
 
 ## Callable index
 
@@ -14,7 +14,11 @@ This module covers compiled Blueprint execution and object interaction. It docum
 - [`epok::bp::component_owner`](#epok-bp-component-owner-1) — Owning actor of a component, and its handle/slot, for Component-family Blueprints.
 - [`epok::bp::component_owner_id`](#epok-bp-component-owner-id-1) — Performs `component owner id` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::component_transform`](#epok-bp-component-transform-1) — Performs `component transform` as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::data_handle`](#epok-bp-data-handle-1) — Performs `data handle` as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::object_data`](#epok-bp-object-data-1) — Performs `object data` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::object_transform_fallback`](#epok-bp-object-transform-fallback-1) — Transform alias target.
+- [`epok::bp::owner_actor`](#epok-bp-owner-actor-1) — Performs `owner actor` as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::root_component`](#epok-bp-root-component-1) — Performs `root component` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::spawn_actor`](#epok-bp-spawn-actor-1) — Bounded actor spawn for the SpawnActor node.
 
 <a id="epok-bp-actor-entity-1"></a>
@@ -28,10 +32,10 @@ This module covers compiled Blueprint execution and object interaction. It docum
 **Exact declaration**
 
 ```cpp
-inline Entity* actor_entity(Actor* actor)
+inline ActorData* actor_entity(Actor* actor)
 ```
 
-- **Declared at:** [line 19](../../../runtime/actor_blueprint.hpp#L19)
+- **Declared at:** [line 31](../../../runtime/actor_blueprint.hpp#L31)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -40,7 +44,7 @@ inline Entity* actor_entity(Actor* actor)
 | --- | --- | --- | --- |
 | `actor` | `Actor *` | Input/output; inspect the function contract | Value supplied for `actor`. See the exact type and module contract. |
 
-**Returns.** Returns `Entity *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Null for Actor2D/UIActor, whose roots carry their own transform storage, and for an actor that has no root yet.
 
@@ -70,10 +74,10 @@ auto result = epok::bp::actor_entity(actor);
 **Exact declaration**
 
 ```cpp
-inline EntityHandle actor_handle(Actor* actor)
+inline DataHandle actor_handle(Actor* actor)
 ```
 
-- **Declared at:** [line 23](../../../runtime/actor_blueprint.hpp#L23)
+- **Declared at:** [line 35](../../../runtime/actor_blueprint.hpp#L35)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -82,7 +86,7 @@ inline EntityHandle actor_handle(Actor* actor)
 | --- | --- | --- | --- |
 | `actor` | `Actor *` | Input/output; inspect the function contract | Value supplied for `actor`. See the exact type and module contract. |
 
-**Returns.** Returns `EntityHandle`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `DataHandle`. Check the purpose and failure notes before using the value.
 
 **Use it when.** A null slot yields a null handle, which every epok::bp::api entry point already treats as "do nothing".
 
@@ -113,7 +117,7 @@ auto result = epok::bp::actor_handle(actor);
 inline Transform& actor_transform(Actor* actor)
 ```
 
-- **Declared at:** [line 50](../../../runtime/actor_blueprint.hpp#L50)
+- **Declared at:** [line 62](../../../runtime/actor_blueprint.hpp#L62)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -150,10 +154,10 @@ auto result = epok::bp::actor_transform(actor);
 **Exact declaration**
 
 ```cpp
-inline Entity* component_entity(ActorComponent* component)
+inline ActorData* component_entity(ActorComponent* component)
 ```
 
-- **Declared at:** [line 36](../../../runtime/actor_blueprint.hpp#L36)
+- **Declared at:** [line 48](../../../runtime/actor_blueprint.hpp#L48)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -162,7 +166,7 @@ inline Entity* component_entity(ActorComponent* component)
 | --- | --- | --- | --- |
 | `component` | `ActorComponent *` | Input/output; inspect the function contract | Value supplied for `component`. See the exact type and module contract. |
 
-**Returns.** Returns `Entity *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
 
@@ -190,10 +194,10 @@ auto result = epok::bp::component_entity(component);
 **Exact declaration**
 
 ```cpp
-inline EntityHandle component_handle(ActorComponent* component)
+inline DataHandle component_handle(ActorComponent* component)
 ```
 
-- **Declared at:** [line 39](../../../runtime/actor_blueprint.hpp#L39)
+- **Declared at:** [line 51](../../../runtime/actor_blueprint.hpp#L51)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -202,7 +206,7 @@ inline EntityHandle component_handle(ActorComponent* component)
 | --- | --- | --- | --- |
 | `component` | `ActorComponent *` | Input/output; inspect the function contract | Value supplied for `component`. See the exact type and module contract. |
 
-**Returns.** Returns `EntityHandle`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `DataHandle`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
 
@@ -233,7 +237,7 @@ auto result = epok::bp::component_handle(component);
 inline Actor* component_owner(ActorComponent* component)
 ```
 
-- **Declared at:** [line 29](../../../runtime/actor_blueprint.hpp#L29)
+- **Declared at:** [line 41](../../../runtime/actor_blueprint.hpp#L41)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -273,7 +277,7 @@ auto result = epok::bp::component_owner(component);
 inline ObjectId component_owner_id(ActorComponent* component)
 ```
 
-- **Declared at:** [line 32](../../../runtime/actor_blueprint.hpp#L32)
+- **Declared at:** [line 44](../../../runtime/actor_blueprint.hpp#L44)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -313,7 +317,7 @@ auto result = epok::bp::component_owner_id(component);
 inline Transform& component_transform(ActorComponent* component)
 ```
 
-- **Declared at:** [line 54](../../../runtime/actor_blueprint.hpp#L54)
+- **Declared at:** [line 66](../../../runtime/actor_blueprint.hpp#L66)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -341,6 +345,86 @@ auto result = epok::bp::component_transform(component);
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-bp-data-handle-1"></a>
+
+## `epok::bp::data_handle`
+
+**Purpose.** Performs `data handle` as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline DataHandle data_handle(ObjectId id)
+```
+
+- **Declared at:** [line 24](../../../runtime/actor_blueprint.hpp#L24)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `id` | `ObjectId` | Input | Value supplied for `id`. See the exact type and module contract. |
+
+**Returns.** Returns `DataHandle`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "actor_blueprint.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId id
+
+auto result = epok::bp::data_handle(id);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-bp-object-data-1"></a>
+
+## `epok::bp::object_data`
+
+**Purpose.** Performs `object data` as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline ActorData* object_data(ObjectId id)
+```
+
+- **Declared at:** [line 23](../../../runtime/actor_blueprint.hpp#L23)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `id` | `ObjectId` | Input | Value supplied for `id`. See the exact type and module contract. |
+
+**Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "actor_blueprint.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId id
+
+auto result = epok::bp::object_data(id);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-bp-object-transform-fallback-1"></a>
 
 ## `epok::bp::object_transform_fallback`
@@ -355,7 +439,7 @@ auto result = epok::bp::component_transform(component);
 inline Transform& object_transform_fallback()
 ```
 
-- **Declared at:** [line 46](../../../runtime/actor_blueprint.hpp#L46)
+- **Declared at:** [line 58](../../../runtime/actor_blueprint.hpp#L58)
 - **Kind:** `function decl`
 
 **Returns.** Returns `Transform &`. Check the purpose and failure notes before using the value.
@@ -374,6 +458,91 @@ auto result = epok::bp::object_transform_fallback();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-bp-owner-actor-1"></a>
+
+## `epok::bp::owner_actor`
+
+**Purpose.** Performs `owner actor` as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+inline Actor* owner_actor(ObjectId id)
+```
+
+- **Declared at:** [line 17](../../../runtime/actor_blueprint.hpp#L17)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `id` | `ObjectId` | Input | Value supplied for `id`. See the exact type and module contract. |
+
+**Returns.** Returns `Actor *`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "actor_blueprint.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId id
+
+auto result = epok::bp::owner_actor(id);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-bp-root-component-1"></a>
+
+## `epok::bp::root_component`
+
+**Purpose.** Performs `root component` as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+template<class Root> Root* root_component(ObjectId id)
+```
+
+- **Declared at:** [line 25](../../../runtime/actor_blueprint.hpp#L25)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `id` | `ObjectId` | Input | Value supplied for `id`. See the exact type and module contract. |
+
+**Returns.** Returns `Root *`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "actor_blueprint.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// Root
+
+// Assume these named values have been initialized with valid data:
+// ObjectId id
+
+epok::bp& object = /* obtain a valid instance */;
+
+auto result = object.root_component<Root>(id);
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size.
+
 <a id="epok-bp-spawn-actor-1"></a>
 
 ## `epok::bp::spawn_actor`
@@ -388,7 +557,7 @@ auto result = epok::bp::object_transform_fallback();
 inline ObjectId spawn_actor(Actor* context, uint64_t class_id, ObjectId logical_parent)
 ```
 
-- **Declared at:** [line 61](../../../runtime/actor_blueprint.hpp#L61)
+- **Declared at:** [line 73](../../../runtime/actor_blueprint.hpp#L73)
 - **Kind:** `function decl`
 
 **Parameters**

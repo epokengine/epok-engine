@@ -235,7 +235,7 @@ auto result = object.size();
 **Exact declaration**
 
 ```cpp
-bool add(EntityHandle entity)
+bool add(DataHandle entity)
 ```
 
 - **Declared at:** [line 43](../../../runtime/utility.hpp#L43)
@@ -245,7 +245,7 @@ bool add(EntityHandle entity)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `entity` | `EntityHandle` | Input | Value supplied for `entity`. See the exact type and module contract. |
+| `entity` | `DataHandle` | Input | Value supplied for `entity`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -257,7 +257,7 @@ bool add(EntityHandle entity)
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle entity
+// DataHandle entity
 
 epok::Focus& object = /* obtain a valid instance */;
 
@@ -310,13 +310,13 @@ object.clear();
 **Exact declaration**
 
 ```cpp
-EntityHandle current()const
+DataHandle current()const
 ```
 
 - **Declared at:** [line 45](../../../runtime/utility.hpp#L45)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `EntityHandle`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `DataHandle`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -434,7 +434,7 @@ object.navigate<N>(queue, port);
 **Exact declaration**
 
 ```cpp
-inline void layout_list(EntityHandle* children,size_t count,Fixed item_extent,Fixed spacing,bool vertical=true)
+inline void layout_list(DataHandle* children,size_t count,Fixed item_extent,Fixed spacing,bool vertical=true)
 ```
 
 - **Declared at:** [line 50](../../../runtime/utility.hpp#L50)
@@ -444,7 +444,7 @@ inline void layout_list(EntityHandle* children,size_t count,Fixed item_extent,Fi
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `children` | `EntityHandle *` | Input/output; inspect the function contract | Value supplied for `children`. See the exact type and module contract. |
+| `children` | `DataHandle *` | Input/output; inspect the function contract | Value supplied for `children`. See the exact type and module contract. |
 | `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `item_extent` | `Fixed` | Input | Value supplied for `item_extent`. See the exact type and module contract. |
 | `spacing` | `Fixed` | Input | Value supplied for `spacing`. See the exact type and module contract. |
@@ -460,7 +460,7 @@ inline void layout_list(EntityHandle* children,size_t count,Fixed item_extent,Fi
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle * children
+// DataHandle * children
 // size_t count
 // Fixed item_extent
 // Fixed spacing
@@ -526,7 +526,7 @@ auto result = epok::lerp(a, b, t);
 **Exact declaration**
 
 ```cpp
-template<size_t N>void advance(Fixed dt,EventQueue<N>& queue,EntityHandle source={})
+template<size_t N>void advance(Fixed dt,EventQueue<N>& queue,DataHandle source={})
 ```
 
 - **Declared at:** [line 33](../../../runtime/utility.hpp#L33)
@@ -538,7 +538,7 @@ template<size_t N>void advance(Fixed dt,EventQueue<N>& queue,EntityHandle source
 | --- | --- | --- | --- |
 | `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
 | `queue` | `EventQueue<N> &` | Input/output; inspect the function contract | Value supplied for `queue`. See the exact type and module contract. |
-| `source` | `EntityHandle` | Input | Value supplied for `source`. See the exact type and module contract. |
+| `source` | `DataHandle` | Input | Value supplied for `source`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -555,7 +555,7 @@ template<size_t N>void advance(Fixed dt,EventQueue<N>& queue,EntityHandle source
 // Assume these named values have been initialized with valid data:
 // Fixed dt
 // EventQueue<N> & queue
-// EntityHandle source
+// DataHandle source
 
 epok::Sequence& object = /* obtain a valid instance */;
 

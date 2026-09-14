@@ -3,7 +3,7 @@
 mod controls;
 
 use crate::sequence_ir::{
-    Diagnostic, Event, EventKind, SequenceIr, SourceEvent, MAX_DIAGNOSTICS, MAX_EVENTS,
+    Diagnostic, Event, EventKind, MAX_DIAGNOSTICS, MAX_EVENTS, SequenceIr, SourceEvent,
 };
 use serde::{Deserialize, Serialize};
 
@@ -274,7 +274,13 @@ fn parse_track(
                                 return Err("Invalid MIDI time signature".into());
                             }
                             if len > 4 {
-                                diagnostic = Some((format!("Time signature has {} additional bytes; preserved in source", len - 4), false));
+                                diagnostic = Some((
+                                    format!(
+                                        "Time signature has {} additional bytes; preserved in source",
+                                        len - 4
+                                    ),
+                                    false,
+                                ));
                             }
                             let legacy = EventKind::TimeSignature {
                                 numerator: data[0],
@@ -291,7 +297,7 @@ fn parse_track(
                             (Some(legacy), Some(musical))
                         }
                         0x51 | 0x58 => {
-                            return Err(format!("Truncated MIDI meta event 0x{meta:02X}"))
+                            return Err(format!("Truncated MIDI meta event 0x{meta:02X}"));
                         }
                         0x06 if data == b"loop_start" => (
                             Some(EventKind::LoopStart),
@@ -302,11 +308,21 @@ fn parse_track(
                             Some(controls::StagedKind::LoopEnd),
                         ),
                         0x01..=0x07 | 0x00 | 0x59 => {
-                            diagnostic = Some((format!("Annotation meta 0x{meta:02X} ({len} bytes), preserved in source"), false));
+                            diagnostic = Some((
+                                format!(
+                                    "Annotation meta 0x{meta:02X} ({len} bytes), preserved in source"
+                                ),
+                                false,
+                            ));
                             (None, None)
                         }
                         _ => {
-                            diagnostic = Some((format!("Unsupported meta 0x{meta:02X} ({len} bytes), preserved in source"), true));
+                            diagnostic = Some((
+                                format!(
+                                    "Unsupported meta 0x{meta:02X} ({len} bytes), preserved in source"
+                                ),
+                                true,
+                            ));
                             (None, None)
                         }
                     }
@@ -314,7 +330,7 @@ fn parse_track(
                 _ => {
                     return Err(format!(
                         "Status 0x{status:02X} is not legal in an SMF track"
-                    ))
+                    ));
                 }
             }
         };
@@ -551,16 +567,27 @@ mod tests {
                 controller: 121,
                 value: 0
             }));
-        assert!(ir.events.iter().any(|e| e.kind == EventKind::Control { channel: 0, controller: 91, value: 1 }));
-        assert!(!ir.diagnostics.iter().any(|d| d.message.contains("effect CC 91=1")));
-        assert!(ir
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("RPN selection is incomplete")));
-        assert!(ir
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("Unsupported RPN 384")));
+        assert!(ir.events.iter().any(|e| e.kind
+            == EventKind::Control {
+                channel: 0,
+                controller: 91,
+                value: 1
+            }));
+        assert!(
+            !ir.diagnostics
+                .iter()
+                .any(|d| d.message.contains("effect CC 91=1"))
+        );
+        assert!(
+            ir.diagnostics
+                .iter()
+                .any(|d| d.message.contains("RPN selection is incomplete"))
+        );
+        assert!(
+            ir.diagnostics
+                .iter()
+                .any(|d| d.message.contains("Unsupported RPN 384"))
+        );
     }
 
     #[test]
@@ -618,7 +645,9 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             values,
-            [1200, 1327, 1427, 1428, 12728, 12827, 12827, 12826, 12700, 12699]
+            [
+                1200, 1327, 1427, 1428, 12728, 12827, 12827, 12826, 12700, 12699
+            ]
         );
     }
     #[test]
@@ -633,10 +662,11 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(ir.peak_polyphony, 3);
-        assert!(!ir
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("remain at song end")));
+        assert!(
+            !ir.diagnostics
+                .iter()
+                .any(|d| d.message.contains("remain at song end"))
+        );
     }
     #[test]
     fn legacy_profile_preserves_unsupported_rpn_oracle() {

@@ -53,7 +53,7 @@ epok::sequence_clock_irq();
 inline bool sequence_clock_start()
 ```
 
-- **Declared at:** [line 41](../../../runtime/sequence_clock.hpp#L41)
+- **Declared at:** [line 43](../../../runtime/sequence_clock.hpp#L43)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.

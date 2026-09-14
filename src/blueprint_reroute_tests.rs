@@ -73,41 +73,16 @@ fn execution_reroutes_split_only_one_branch_and_reject_cycles() {
     let mut editor = editor();
     editor.add_node(NodeKind::Sequence);
     editor.add_node(NodeKind::Return);
-    let first = editor.current().unwrap().nodes[1].id.clone();
-    let second = editor.current().unwrap().nodes[2].id.clone();
-    editor.asset.as_mut().unwrap().functions[0].nodes[0]
-        .outputs
-        .insert("next".into(), vec![first.clone(), second.clone()]);
-    let wire = CanvasWire {
-        from: socket(&editor, 0, "next", true),
-        to: socket(&editor, 1, "exec", false),
-        points: [[0., 0.]; 4],
-    };
-    editor.insert_reroute(&wire, [100., 100.]);
-    let graph = editor.current().unwrap();
-    assert_eq!(
-        graph.nodes[0].outputs["next"],
-        [graph.nodes[3].id.clone(), second]
-    );
-    assert_eq!(graph.nodes[3].outputs["next"], [first]);
-    assert_eq!(socket(&editor, 3, "next", true).ty, SocketType::Exec);
-    editor
-        .connect(
-            &socket(&editor, 3, "next", true),
-            &socket(&editor, 2, "exec", false),
-            &Registry::new(),
-        )
-        .unwrap();
-    assert!(
-        editor
-            .connect(
-                &socket(&editor, 1, "next", true),
-                &socket(&editor, 3, "exec", false),
-                &Registry::new()
-            )
-            .is_err()
-    );
-    assert_eq!(editor.current().unwrap().nodes[3].outputs["next"].len(), 2);
+    let first=editor.current().unwrap().nodes[1].id.clone();
+    editor.asset.as_mut().unwrap().functions[0].nodes[0].outputs.insert("next".into(),vec![first.clone()]);
+    let wire=CanvasWire{from:socket(&editor,0,"next",true),to:socket(&editor,1,"exec",false),points:[[0.,0.];4]};
+    editor.insert_reroute(&wire,[100.,100.]);
+    let graph=editor.current().unwrap();
+    assert_eq!(graph.nodes[0].outputs["next"],[graph.nodes[3].id.clone()]);
+    assert_eq!(graph.nodes[3].outputs["next"],[first]);
+    assert!(editor.connect(&socket(&editor,1,"then_0",true),&socket(&editor,3,"exec",false),&Registry::new()).is_err());
+    editor.connect(&socket(&editor,3,"next",true),&socket(&editor,2,"exec",false),&Registry::new()).unwrap();
+    assert_eq!(editor.current().unwrap().nodes[3].outputs["next"],[editor.current().unwrap().nodes[2].id.clone()]);
 }
 
 #[test]

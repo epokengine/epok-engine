@@ -147,7 +147,7 @@ pub struct Inspector {
 pub fn inspector(
     ui: &imgui::Ui,
     editor: &mut crate::editor::Editor,
-    entity: &mut crate::scene::Entity,
+    entity: &mut crate::scene::Actor,
 ) {
     let Some(component) = &mut entity.particle_effect else {
         return;
@@ -283,12 +283,12 @@ pub fn inspector(
                 }
             }
         }
-        for slot in asset
-            .timeline
-            .slots
-            .iter()
-            .filter(|s| matches!(s.target, Type::EntityRef { .. }))
-        {
+        for slot in asset.timeline.slots.iter().filter(|s| {
+            matches!(
+                s.target,
+                Type::ObjectRef { .. } | Type::ActorRef { .. } | Type::ComponentRef { .. }
+            )
+        }) {
             let _id = ui.push_id(slot.id.to_string());
             let mut value = component
                 .bindings
@@ -321,9 +321,12 @@ pub fn inspector(
             }
         }
         let mut external = asset.timeline.clone();
-        external
-            .slots
-            .retain(|s| matches!(s.target, Type::EntityRef { .. }));
+        external.slots.retain(|s| {
+            matches!(
+                s.target,
+                Type::ObjectRef { .. } | Type::ActorRef { .. } | Type::ComponentRef { .. }
+            )
+        });
         for diagnostic in
             external.validate_bindings(&component.bindings, &editor.scene, &editor.class_registry)
         {
@@ -366,7 +369,7 @@ pub fn prepare(
     let mut required = direct.clone();
     for scene in scenes {
         let mut count = 0;
-        for entity in &scene.entities {
+        for entity in &scene.actors {
             let Some(component) = &entity.particle_effect else {
                 continue;
             };
@@ -415,14 +418,17 @@ pub fn prepare(
             return Err(error);
         }
         // Internal slots are filled by the effect pool. Only explicitly typed
-        // external EntityRefs go through scene authoring binding resolution.
+        // external ObjectRefs go through scene authoring binding resolution.
         let mut external = source.timeline.clone();
         let mut initializers = BTreeMap::new();
-        external
-            .slots
-            .retain(|s| matches!(s.target, Type::EntityRef { .. }));
+        external.slots.retain(|s| {
+            matches!(
+                s.target,
+                Type::ObjectRef { .. } | Type::ActorRef { .. } | Type::ComponentRef { .. }
+            )
+        });
         for scene in scenes {
-            for entity in &scene.entities {
+            for entity in &scene.actors {
                 let Some(component) = &entity.particle_effect else {
                     continue;
                 };
@@ -619,7 +625,7 @@ pub fn setup(
     if !template {
         out += "epok::effects::component_count=0;\n";
     }
-    for (owner, entity) in scene.entities.iter().enumerate() {
+    for (owner, entity) in scene.actors.iter().enumerate() {
         let Some(component) = &entity.particle_effect else {
             continue;
         };
@@ -655,7 +661,10 @@ pub fn setup(
             out += "default:break;}};";
         }
         for (i, slot) in effect.compiled.slots.iter().enumerate() {
-            if !matches!(slot.target, Type::EntityRef { .. }) {
+            if !matches!(
+                slot.target,
+                Type::ObjectRef { .. } | Type::ActorRef { .. } | Type::ComponentRef { .. }
+            ) {
                 continue;
             }
             let value = component
@@ -676,7 +685,7 @@ pub fn setup(
                 Err(_) => format!("component->bindings[{i}]={{}};\n"),
             };
             if template {
-                for index in 0..scene.entities.len() {
+                for index in 0..scene.actors.len() {
                     assignment = assignment.replace(
                         &format!("epok::handle(&objects[{index}])"),
                         &format!("handles[{index}]"),
@@ -738,20 +747,20 @@ mod tests {
     fn component_roundtrip_and_template_remapping_keep_authoring_identity() {
         let mut scene = Scene::default();
         let slot = Uuid::new_v4();
-        let target = scene.entities[1].id;
+        let target = scene.actors[1].id;
         let asset = Uuid::new_v4();
-        scene.entities[0].particle_effect = Some(Component {
+        scene.actors[0].particle_effect = Some(Component {
             asset: Some(asset),
             bindings: BTreeMap::from([(slot, Some(target))]),
             seed: 73,
             ..Default::default()
         });
         scene.upgrade_entity_ids();
-        assert_eq!(scene.version, 4);
+        assert_eq!(scene.version, crate::actor_document::SCENE_VERSION);
         let mut loaded: Scene =
             serde_json::from_slice(&serde_json::to_vec(&scene).unwrap()).unwrap();
-        loaded.entities.swap(1, 2);
-        let component = loaded.entities[0].particle_effect.as_mut().unwrap();
+        loaded.actors.swap(1, 2);
+        let component = loaded.actors[0].particle_effect.as_mut().unwrap();
         assert_eq!(component.bindings[&slot], Some(target));
         let replacement = Uuid::new_v4();
         remap(component, &BTreeMap::from([(target, replacement)]), true).unwrap();

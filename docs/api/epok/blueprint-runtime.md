@@ -2,7 +2,7 @@
 
 > **Header:** `"blueprint_runtime.hpp"` · **Tier:** Engine internal · **Source:** [open header](../../../runtime/blueprint_runtime.hpp)
 
-This module covers compiled Blueprint execution and object interaction. It documents 63 public callables declared directly in this header.
+This module covers compiled Blueprint execution and object interaction. It documents 64 public callables declared directly in this header.
 
 ## Declared types
 
@@ -50,6 +50,7 @@ This module covers compiled Blueprint execution and object interaction. It docum
 - [`epok::bp::mul`](#epok-bp-mul-3) — Performs `mul` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::neg`](#epok-bp-neg-1) — Performs `neg` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::same_owner`](#epok-bp-same-owner-1) — Performs `same owner` as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::same_owner`](#epok-bp-same-owner-2) — Performs `same owner` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::saturate`](#epok-bp-saturate-1) — Blueprint arithmetic saturates, divides by zero to zero, and rounds division toward zero.
 - [`epok::bp::sub`](#epok-bp-sub-1) — Performs `sub` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::sub`](#epok-bp-sub-2) — Performs `sub` as part of compiled Blueprint execution and object interaction.
@@ -86,7 +87,7 @@ This module covers compiled Blueprint execution and object interaction. It docum
 inline Fixed add(Fixed a, Fixed b)
 ```
 
-- **Declared at:** [line 28](../../../runtime/blueprint_runtime.hpp#L28)
+- **Declared at:** [line 29](../../../runtime/blueprint_runtime.hpp#L29)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -128,7 +129,7 @@ auto result = epok::bp::add(a, b);
 template<size_t Size> inline Vector<Size> add(const Vector<Size>& a, const Vector<Size>& b)
 ```
 
-- **Declared at:** [line 47](../../../runtime/blueprint_runtime.hpp#L47)
+- **Declared at:** [line 48](../../../runtime/blueprint_runtime.hpp#L48)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -175,7 +176,7 @@ auto result = object.add<Size>(a, b);
 void advance(Fixed dt, uint32_t scene_generation = 0, bool paused = false)
 ```
 
-- **Declared at:** [line 127](../../../runtime/blueprint_runtime.hpp#L127)
+- **Declared at:** [line 131](../../../runtime/blueprint_runtime.hpp#L131)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -221,7 +222,7 @@ object.advance(dt, scene_generation, paused);
 void cancel(uint32_t node)
 ```
 
-- **Declared at:** [line 159](../../../runtime/blueprint_runtime.hpp#L159)
+- **Declared at:** [line 163](../../../runtime/blueprint_runtime.hpp#L163)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -263,7 +264,7 @@ object.cancel(node);
 void cancel_all()
 ```
 
-- **Declared at:** [line 169](../../../runtime/blueprint_runtime.hpp#L169)
+- **Declared at:** [line 173](../../../runtime/blueprint_runtime.hpp#L173)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -293,17 +294,17 @@ object.cancel_all();
 **Exact declaration**
 
 ```cpp
-void cancel_owner(EntityHandle owner)
+void cancel_owner(ObjectId owner)
 ```
 
-- **Declared at:** [line 154](../../../runtime/blueprint_runtime.hpp#L154)
+- **Declared at:** [line 158](../../../runtime/blueprint_runtime.hpp#L158)
 - **Kind:** `cxx method`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `ObjectId` | Input | Value supplied for `owner`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -315,7 +316,7 @@ void cancel_owner(EntityHandle owner)
 #include "blueprint_runtime.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle owner
+// ObjectId owner
 
 epok::bp::Continuations& object = /* obtain a valid instance */;
 
@@ -338,7 +339,7 @@ object.cancel_owner(owner);
 void clear()
 ```
 
-- **Declared at:** [line 170](../../../runtime/blueprint_runtime.hpp#L170)
+- **Declared at:** [line 174](../../../runtime/blueprint_runtime.hpp#L174)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -368,10 +369,10 @@ object.clear();
 **Exact declaration**
 
 ```cpp
-bool delay(uint32_t node, Fixed seconds, EntityHandle owner, uint32_t scene_generation = 0)
+bool delay(uint32_t node, Fixed seconds, ObjectId owner, uint32_t scene_generation = 0)
 ```
 
-- **Declared at:** [line 92](../../../runtime/blueprint_runtime.hpp#L92)
+- **Declared at:** [line 96](../../../runtime/blueprint_runtime.hpp#L96)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -380,7 +381,7 @@ bool delay(uint32_t node, Fixed seconds, EntityHandle owner, uint32_t scene_gene
 | --- | --- | --- | --- |
 | `node` | `uint32_t` | Input | Value supplied for `node`. See the exact type and module contract. |
 | `seconds` | `Fixed` | Input | Value supplied for `seconds`. See the exact type and module contract. |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `ObjectId` | Input | Value supplied for `owner`. See the exact type and module contract. |
 | `scene_generation` | `uint32_t` | Input | Value supplied for `scene_generation`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -395,7 +396,7 @@ bool delay(uint32_t node, Fixed seconds, EntityHandle owner, uint32_t scene_gene
 // Assume these named values have been initialized with valid data:
 // uint32_t node
 // Fixed seconds
-// EntityHandle owner
+// ObjectId owner
 // uint32_t scene_generation
 
 epok::bp::Continuations& object = /* obtain a valid instance */;
@@ -419,7 +420,7 @@ auto result = object.delay(node, seconds, owner, scene_generation);
 bool poll(Continuation& result)
 ```
 
-- **Declared at:** [line 142](../../../runtime/blueprint_runtime.hpp#L142)
+- **Declared at:** [line 146](../../../runtime/blueprint_runtime.hpp#L146)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -461,7 +462,7 @@ auto result = object.poll(result);
 void reset()
 ```
 
-- **Declared at:** [line 164](../../../runtime/blueprint_runtime.hpp#L164)
+- **Declared at:** [line 168](../../../runtime/blueprint_runtime.hpp#L168)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -494,7 +495,7 @@ object.reset();
 bool signal(uint32_t node, uint32_t scene_generation = 0)
 ```
 
-- **Declared at:** [line 116](../../../runtime/blueprint_runtime.hpp#L116)
+- **Declared at:** [line 120](../../../runtime/blueprint_runtime.hpp#L120)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -538,7 +539,7 @@ auto result = object.signal(node, scene_generation);
 size_t size() const
 ```
 
-- **Declared at:** [line 171](../../../runtime/blueprint_runtime.hpp#L171)
+- **Declared at:** [line 175](../../../runtime/blueprint_runtime.hpp#L175)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -570,10 +571,10 @@ auto result = object.size();
 **Exact declaration**
 
 ```cpp
-bool wait_external(uint32_t node, EntityHandle owner, uint32_t scene_generation = 0)
+bool wait_external(uint32_t node, ObjectId owner, uint32_t scene_generation = 0)
 ```
 
-- **Declared at:** [line 104](../../../runtime/blueprint_runtime.hpp#L104)
+- **Declared at:** [line 108](../../../runtime/blueprint_runtime.hpp#L108)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -581,7 +582,7 @@ bool wait_external(uint32_t node, EntityHandle owner, uint32_t scene_generation 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `node` | `uint32_t` | Input | Value supplied for `node`. See the exact type and module contract. |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `ObjectId` | Input | Value supplied for `owner`. See the exact type and module contract. |
 | `scene_generation` | `uint32_t` | Input | Value supplied for `scene_generation`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -595,7 +596,7 @@ bool wait_external(uint32_t node, EntityHandle owner, uint32_t scene_generation 
 
 // Assume these named values have been initialized with valid data:
 // uint32_t node
-// EntityHandle owner
+// ObjectId owner
 // uint32_t scene_generation
 
 epok::bp::Continuations& object = /* obtain a valid instance */;
@@ -619,7 +620,7 @@ auto result = object.wait_external(node, owner, scene_generation);
 bool waiting(uint32_t node) const
 ```
 
-- **Declared at:** [line 112](../../../runtime/blueprint_runtime.hpp#L112)
+- **Declared at:** [line 116](../../../runtime/blueprint_runtime.hpp#L116)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -661,7 +662,7 @@ auto result = object.waiting(node);
 bool add(Breakpoint point)
 ```
 
-- **Declared at:** [line 281](../../../runtime/blueprint_runtime.hpp#L281)
+- **Declared at:** [line 285](../../../runtime/blueprint_runtime.hpp#L285)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -700,10 +701,10 @@ auto result = object.add(point);
 **Exact declaration**
 
 ```cpp
-bool checkpoint(uint32_t class_id, uint32_t node_id, EntityHandle owner)
+bool checkpoint(uint32_t class_id, uint32_t node_id, ObjectId owner)
 ```
 
-- **Declared at:** [line 288](../../../runtime/blueprint_runtime.hpp#L288)
+- **Declared at:** [line 292](../../../runtime/blueprint_runtime.hpp#L292)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -712,7 +713,7 @@ bool checkpoint(uint32_t class_id, uint32_t node_id, EntityHandle owner)
 | --- | --- | --- | --- |
 | `class_id` | `uint32_t` | Input | Value supplied for `class_id`. See the exact type and module contract. |
 | `node_id` | `uint32_t` | Input | Value supplied for `node_id`. See the exact type and module contract. |
-| `owner` | `EntityHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `ObjectId` | Input | Value supplied for `owner`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -726,7 +727,7 @@ bool checkpoint(uint32_t class_id, uint32_t node_id, EntityHandle owner)
 // Assume these named values have been initialized with valid data:
 // uint32_t class_id
 // uint32_t node_id
-// EntityHandle owner
+// ObjectId owner
 
 epok::bp::Debugger& object = /* obtain a valid instance */;
 
@@ -749,7 +750,7 @@ auto result = object.checkpoint(class_id, node_id, owner);
 void clear_breakpoints()
 ```
 
-- **Declared at:** [line 287](../../../runtime/blueprint_runtime.hpp#L287)
+- **Declared at:** [line 291](../../../runtime/blueprint_runtime.hpp#L291)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -782,7 +783,7 @@ object.clear_breakpoints();
 const Trace* location() const
 ```
 
-- **Declared at:** [line 311](../../../runtime/blueprint_runtime.hpp#L311)
+- **Declared at:** [line 315](../../../runtime/blueprint_runtime.hpp#L315)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `const Trace *`. Check the purpose and failure notes before using the value.
@@ -815,7 +816,7 @@ auto result = object.location();
 void pause()
 ```
 
-- **Declared at:** [line 307](../../../runtime/blueprint_runtime.hpp#L307)
+- **Declared at:** [line 311](../../../runtime/blueprint_runtime.hpp#L311)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -848,7 +849,7 @@ object.pause();
 bool paused() const
 ```
 
-- **Declared at:** [line 310](../../../runtime/blueprint_runtime.hpp#L310)
+- **Declared at:** [line 314](../../../runtime/blueprint_runtime.hpp#L314)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -881,7 +882,7 @@ auto result = object.paused();
 void reset()
 ```
 
-- **Declared at:** [line 312](../../../runtime/blueprint_runtime.hpp#L312)
+- **Declared at:** [line 316](../../../runtime/blueprint_runtime.hpp#L316)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -914,7 +915,7 @@ object.reset();
 void resume()
 ```
 
-- **Declared at:** [line 308](../../../runtime/blueprint_runtime.hpp#L308)
+- **Declared at:** [line 312](../../../runtime/blueprint_runtime.hpp#L312)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -947,7 +948,7 @@ object.resume();
 void step()
 ```
 
-- **Declared at:** [line 309](../../../runtime/blueprint_runtime.hpp#L309)
+- **Declared at:** [line 313](../../../runtime/blueprint_runtime.hpp#L313)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -980,7 +981,7 @@ object.step();
 inline Fixed div(Fixed a, Fixed b)
 ```
 
-- **Declared at:** [line 31](../../../runtime/blueprint_runtime.hpp#L31)
+- **Declared at:** [line 32](../../../runtime/blueprint_runtime.hpp#L32)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1022,7 +1023,7 @@ auto result = epok::bp::div(a, b);
 template<size_t Size> inline Vector<Size> div(const Vector<Size>& a, Fixed b)
 ```
 
-- **Declared at:** [line 62](../../../runtime/blueprint_runtime.hpp#L62)
+- **Declared at:** [line 63](../../../runtime/blueprint_runtime.hpp#L63)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1069,7 +1070,7 @@ auto result = object.div<Size>(a, b);
 template<size_t Size> inline Vector<Size> div(const Vector<Size>& a, const Vector<Size>& b)
 ```
 
-- **Declared at:** [line 56](../../../runtime/blueprint_runtime.hpp#L56)
+- **Declared at:** [line 57](../../../runtime/blueprint_runtime.hpp#L57)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1116,7 +1117,7 @@ auto result = object.div<Size>(a, b);
 inline Fixed from_int(int32_t value)
 ```
 
-- **Declared at:** [line 35](../../../runtime/blueprint_runtime.hpp#L35)
+- **Declared at:** [line 36](../../../runtime/blueprint_runtime.hpp#L36)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1156,7 +1157,7 @@ auto result = epok::bp::from_int(value);
 constexpr int32_t iadd(int32_t a, int32_t b)
 ```
 
-- **Declared at:** [line 14](../../../runtime/blueprint_runtime.hpp#L14)
+- **Declared at:** [line 15](../../../runtime/blueprint_runtime.hpp#L15)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1198,7 +1199,7 @@ auto result = epok::bp::iadd(a, b);
 constexpr int32_t idiv(int32_t a, int32_t b)
 ```
 
-- **Declared at:** [line 17](../../../runtime/blueprint_runtime.hpp#L17)
+- **Declared at:** [line 18](../../../runtime/blueprint_runtime.hpp#L18)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1240,7 +1241,7 @@ auto result = epok::bp::idiv(a, b);
 constexpr int32_t imod(int32_t a, int32_t b)
 ```
 
-- **Declared at:** [line 18](../../../runtime/blueprint_runtime.hpp#L18)
+- **Declared at:** [line 19](../../../runtime/blueprint_runtime.hpp#L19)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1282,7 +1283,7 @@ auto result = epok::bp::imod(a, b);
 constexpr int32_t imul(int32_t a, int32_t b)
 ```
 
-- **Declared at:** [line 16](../../../runtime/blueprint_runtime.hpp#L16)
+- **Declared at:** [line 17](../../../runtime/blueprint_runtime.hpp#L17)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1324,7 +1325,7 @@ auto result = epok::bp::imul(a, b);
 inline void increment(uint32_t& value)
 ```
 
-- **Declared at:** [line 68](../../../runtime/blueprint_runtime.hpp#L68)
+- **Declared at:** [line 72](../../../runtime/blueprint_runtime.hpp#L72)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1364,7 +1365,7 @@ epok::bp::increment(value);
 constexpr int32_t ineg(int32_t a)
 ```
 
-- **Declared at:** [line 19](../../../runtime/blueprint_runtime.hpp#L19)
+- **Declared at:** [line 20](../../../runtime/blueprint_runtime.hpp#L20)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1404,7 +1405,7 @@ auto result = epok::bp::ineg(a);
 inline Fixed interpolate(Fixed a, Fixed b, Fixed alpha)
 ```
 
-- **Declared at:** [line 37](../../../runtime/blueprint_runtime.hpp#L37)
+- **Declared at:** [line 38](../../../runtime/blueprint_runtime.hpp#L38)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1448,7 +1449,7 @@ auto result = epok::bp::interpolate(a, b, alpha);
 constexpr int32_t isub(int32_t a, int32_t b)
 ```
 
-- **Declared at:** [line 15](../../../runtime/blueprint_runtime.hpp#L15)
+- **Declared at:** [line 16](../../../runtime/blueprint_runtime.hpp#L16)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1490,7 +1491,7 @@ auto result = epok::bp::isub(a, b);
 inline Fixed mul(Fixed a, Fixed b)
 ```
 
-- **Declared at:** [line 30](../../../runtime/blueprint_runtime.hpp#L30)
+- **Declared at:** [line 31](../../../runtime/blueprint_runtime.hpp#L31)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1532,7 +1533,7 @@ auto result = epok::bp::mul(a, b);
 template<size_t Size> inline Vector<Size> mul(const Vector<Size>& a, Fixed b)
 ```
 
-- **Declared at:** [line 59](../../../runtime/blueprint_runtime.hpp#L59)
+- **Declared at:** [line 60](../../../runtime/blueprint_runtime.hpp#L60)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1579,7 +1580,7 @@ auto result = object.mul<Size>(a, b);
 template<size_t Size> inline Vector<Size> mul(const Vector<Size>& a, const Vector<Size>& b)
 ```
 
-- **Declared at:** [line 53](../../../runtime/blueprint_runtime.hpp#L53)
+- **Declared at:** [line 54](../../../runtime/blueprint_runtime.hpp#L54)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1626,7 +1627,7 @@ auto result = object.mul<Size>(a, b);
 inline Fixed neg(Fixed a)
 ```
 
-- **Declared at:** [line 34](../../../runtime/blueprint_runtime.hpp#L34)
+- **Declared at:** [line 35](../../../runtime/blueprint_runtime.hpp#L35)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1663,18 +1664,18 @@ auto result = epok::bp::neg(a);
 **Exact declaration**
 
 ```cpp
-constexpr bool same_owner(EntityHandle a, EntityHandle b)
+constexpr bool same_owner(DataHandle a, DataHandle b)
 ```
 
-- **Declared at:** [line 65](../../../runtime/blueprint_runtime.hpp#L65)
+- **Declared at:** [line 69](../../../runtime/blueprint_runtime.hpp#L69)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `EntityHandle` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `b` | `EntityHandle` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `a` | `DataHandle` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `DataHandle` | Input | Value supplied for `b`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1686,8 +1687,50 @@ constexpr bool same_owner(EntityHandle a, EntityHandle b)
 #include "blueprint_runtime.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle a
-// EntityHandle b
+// DataHandle a
+// DataHandle b
+
+auto result = epok::bp::same_owner(a, b);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control.
+
+<a id="epok-bp-same-owner-2"></a>
+
+## `epok::bp::same_owner`
+
+**Purpose.** Performs `same owner` as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+constexpr bool same_owner(ObjectId a, ObjectId b)
+```
+
+- **Declared at:** [line 66](../../../runtime/blueprint_runtime.hpp#L66)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `a` | `ObjectId` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `ObjectId` | Input | Value supplied for `b`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_runtime.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId a
+// ObjectId b
 
 auto result = epok::bp::same_owner(a, b);
 ```
@@ -1710,7 +1753,7 @@ auto result = epok::bp::same_owner(a, b);
 constexpr int32_t saturate(int64_t value)
 ```
 
-- **Declared at:** [line 11](../../../runtime/blueprint_runtime.hpp#L11)
+- **Declared at:** [line 12](../../../runtime/blueprint_runtime.hpp#L12)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1750,7 +1793,7 @@ auto result = epok::bp::saturate(value);
 inline Fixed sub(Fixed a, Fixed b)
 ```
 
-- **Declared at:** [line 29](../../../runtime/blueprint_runtime.hpp#L29)
+- **Declared at:** [line 30](../../../runtime/blueprint_runtime.hpp#L30)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1792,7 +1835,7 @@ auto result = epok::bp::sub(a, b);
 template<size_t Size> inline Vector<Size> sub(const Vector<Size>& a, const Vector<Size>& b)
 ```
 
-- **Declared at:** [line 50](../../../runtime/blueprint_runtime.hpp#L50)
+- **Declared at:** [line 51](../../../runtime/blueprint_runtime.hpp#L51)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1839,7 +1882,7 @@ auto result = object.sub<Size>(a, b);
 TimelineSample advance(Fixed dt, uint32_t scene_generation = 0, bool paused = false)
 ```
 
-- **Declared at:** [line 218](../../../runtime/blueprint_runtime.hpp#L218)
+- **Declared at:** [line 222](../../../runtime/blueprint_runtime.hpp#L222)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1885,7 +1928,7 @@ auto result = object.advance(dt, scene_generation, paused);
 void cancel()
 ```
 
-- **Declared at:** [line 233](../../../runtime/blueprint_runtime.hpp#L233)
+- **Declared at:** [line 237](../../../runtime/blueprint_runtime.hpp#L237)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1918,7 +1961,7 @@ object.cancel();
 bool configure(const TimelineKey* data, size_t length)
 ```
 
-- **Declared at:** [line 193](../../../runtime/blueprint_runtime.hpp#L193)
+- **Declared at:** [line 197](../../../runtime/blueprint_runtime.hpp#L197)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1959,17 +2002,17 @@ auto result = object.configure(data, length);
 **Exact declaration**
 
 ```cpp
-bool play(EntityHandle source, uint32_t scene_generation = 0, bool loop = false)
+bool play(ObjectId source, uint32_t scene_generation = 0, bool loop = false)
 ```
 
-- **Declared at:** [line 202](../../../runtime/blueprint_runtime.hpp#L202)
+- **Declared at:** [line 206](../../../runtime/blueprint_runtime.hpp#L206)
 - **Kind:** `cxx method`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `source` | `EntityHandle` | Input | Value supplied for `source`. See the exact type and module contract. |
+| `source` | `ObjectId` | Input | Value supplied for `source`. See the exact type and module contract. |
 | `scene_generation` | `uint32_t` | Input | Value supplied for `scene_generation`. See the exact type and module contract. |
 | `loop` | `bool` | Input | Value supplied for `loop`. See the exact type and module contract. |
 
@@ -1983,7 +2026,7 @@ bool play(EntityHandle source, uint32_t scene_generation = 0, bool loop = false)
 #include "blueprint_runtime.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EntityHandle source
+// ObjectId source
 // uint32_t scene_generation
 // bool loop
 
@@ -2008,7 +2051,7 @@ auto result = object.play(source, scene_generation, loop);
 bool playing() const
 ```
 
-- **Declared at:** [line 235](../../../runtime/blueprint_runtime.hpp#L235)
+- **Declared at:** [line 239](../../../runtime/blueprint_runtime.hpp#L239)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2041,7 +2084,7 @@ auto result = object.playing();
 void reset()
 ```
 
-- **Declared at:** [line 234](../../../runtime/blueprint_runtime.hpp#L234)
+- **Declared at:** [line 238](../../../runtime/blueprint_runtime.hpp#L238)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2074,7 +2117,7 @@ object.reset();
 Fixed value() const
 ```
 
-- **Declared at:** [line 207](../../../runtime/blueprint_runtime.hpp#L207)
+- **Declared at:** [line 211](../../../runtime/blueprint_runtime.hpp#L211)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -2107,7 +2150,7 @@ auto result = object.value();
 inline int32_t to_int(Fixed value)
 ```
 
-- **Declared at:** [line 36](../../../runtime/blueprint_runtime.hpp#L36)
+- **Declared at:** [line 37](../../../runtime/blueprint_runtime.hpp#L37)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2144,10 +2187,10 @@ auto result = epok::bp::to_int(value);
 **Exact declaration**
 
 ```cpp
-inline void trace(uint32_t, uint32_t, EntityHandle, TraceKind = TraceKind::Enter, int32_t = 0)
+inline void trace(uint32_t, uint32_t, ObjectId, TraceKind = TraceKind::Enter, int32_t = 0)
 ```
 
-- **Declared at:** [line 325](../../../runtime/blueprint_runtime.hpp#L325)
+- **Declared at:** [line 329](../../../runtime/blueprint_runtime.hpp#L329)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2156,7 +2199,7 @@ inline void trace(uint32_t, uint32_t, EntityHandle, TraceKind = TraceKind::Enter
 | --- | --- | --- | --- |
 | `arg1` | `uint32_t` | Input | Value supplied for `arg1`. See the exact type and module contract. |
 | `arg2` | `uint32_t` | Input | Value supplied for `arg2`. See the exact type and module contract. |
-| `arg3` | `EntityHandle` | Input | Value supplied for `arg3`. See the exact type and module contract. |
+| `arg3` | `ObjectId` | Input | Value supplied for `arg3`. See the exact type and module contract. |
 | `arg4` | `TraceKind` | Input | Value supplied for `arg4`. See the exact type and module contract. |
 | `arg5` | `int32_t` | Input | Value supplied for `arg5`. See the exact type and module contract. |
 
@@ -2172,7 +2215,7 @@ inline void trace(uint32_t, uint32_t, EntityHandle, TraceKind = TraceKind::Enter
 // Assume these named values have been initialized with valid data:
 // uint32_t arg1
 // uint32_t arg2
-// EntityHandle arg3
+// ObjectId arg3
 // TraceKind arg4
 // int32_t arg5
 
@@ -2195,7 +2238,7 @@ epok::bp::trace(arg1, arg2, arg3, arg4, arg5);
 void clear()
 ```
 
-- **Declared at:** [line 259](../../../runtime/blueprint_runtime.hpp#L259)
+- **Declared at:** [line 263](../../../runtime/blueprint_runtime.hpp#L263)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2228,7 +2271,7 @@ object.clear();
 bool poll(Trace& entry)
 ```
 
-- **Declared at:** [line 255](../../../runtime/blueprint_runtime.hpp#L255)
+- **Declared at:** [line 259](../../../runtime/blueprint_runtime.hpp#L259)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2270,7 +2313,7 @@ auto result = object.poll(entry);
 bool push(Trace entry)
 ```
 
-- **Declared at:** [line 251](../../../runtime/blueprint_runtime.hpp#L251)
+- **Declared at:** [line 255](../../../runtime/blueprint_runtime.hpp#L255)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2312,7 +2355,7 @@ auto result = object.push(entry);
 size_t size() const
 ```
 
-- **Declared at:** [line 260](../../../runtime/blueprint_runtime.hpp#L260)
+- **Declared at:** [line 264](../../../runtime/blueprint_runtime.hpp#L264)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -2345,7 +2388,7 @@ auto result = object.size();
 constexpr uint32_t uadd(uint32_t a, uint32_t b)
 ```
 
-- **Declared at:** [line 20](../../../runtime/blueprint_runtime.hpp#L20)
+- **Declared at:** [line 21](../../../runtime/blueprint_runtime.hpp#L21)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2387,7 +2430,7 @@ auto result = epok::bp::uadd(a, b);
 constexpr uint32_t udiv(uint32_t a, uint32_t b)
 ```
 
-- **Declared at:** [line 26](../../../runtime/blueprint_runtime.hpp#L26)
+- **Declared at:** [line 27](../../../runtime/blueprint_runtime.hpp#L27)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2429,7 +2472,7 @@ auto result = epok::bp::udiv(a, b);
 constexpr uint32_t umod(uint32_t a, uint32_t b)
 ```
 
-- **Declared at:** [line 27](../../../runtime/blueprint_runtime.hpp#L27)
+- **Declared at:** [line 28](../../../runtime/blueprint_runtime.hpp#L28)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2471,7 +2514,7 @@ auto result = epok::bp::umod(a, b);
 constexpr uint32_t umul(uint32_t a, uint32_t b)
 ```
 
-- **Declared at:** [line 22](../../../runtime/blueprint_runtime.hpp#L22)
+- **Declared at:** [line 23](../../../runtime/blueprint_runtime.hpp#L23)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2513,7 +2556,7 @@ auto result = epok::bp::umul(a, b);
 constexpr uint32_t usub(uint32_t a, uint32_t b)
 ```
 
-- **Declared at:** [line 21](../../../runtime/blueprint_runtime.hpp#L21)
+- **Declared at:** [line 22](../../../runtime/blueprint_runtime.hpp#L22)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2555,7 +2598,7 @@ auto result = epok::bp::usub(a, b);
 Fixed& operator[](size_t index)
 ```
 
-- **Declared at:** [line 44](../../../runtime/blueprint_runtime.hpp#L44)
+- **Declared at:** [line 45](../../../runtime/blueprint_runtime.hpp#L45)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2597,7 +2640,7 @@ auto result = object.operator[](index);
 const Fixed& operator[](size_t index) const
 ```
 
-- **Declared at:** [line 45](../../../runtime/blueprint_runtime.hpp#L45)
+- **Declared at:** [line 46](../../../runtime/blueprint_runtime.hpp#L46)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**

@@ -2,7 +2,7 @@ use crate::{
     assets,
     editor::Editor,
     mesh::{self, Document},
-    scene::{Entity, Scene},
+    scene::{Actor, Scene},
 };
 use imgui::{Condition, Ui};
 use std::{collections::BTreeSet, sync::Arc};
@@ -116,7 +116,7 @@ pub fn open(e: &mut Editor, record: assets::Record, target: Option<usize>) {
     e.mesh_editor.open = false;
     preview(e);
     let target = target.or_else(|| {
-        e.scene.entities.iter().position(|v| {
+        e.scene.actors.iter().position(|v| {
             v.editable_mesh
                 .as_ref()
                 .is_some_and(|m| m.asset == record.meta.id)
@@ -151,7 +151,7 @@ pub fn preview(e: &mut Editor) {
             shown.faces.retain(|f| e.mesh_editor.visible(doc, f.group));
         }
         let shown = Arc::new(shown);
-        for entity in &mut e.scene.entities {
+        for entity in &mut e.scene.actors {
             if let Some(m) = &mut entity.editable_mesh
                 && m.asset == record.meta.id
             {
@@ -299,7 +299,7 @@ pub fn undo(e: &mut Editor, redo: bool) -> Result<(), String> {
 fn fresh_path(_e: &Editor) -> String {
     format!("assets/Meshes/Blockout-{}.epokasset", Uuid::new_v4())
 }
-pub fn create_component(e: &mut Editor, entity: &mut Entity) -> Result<(), String> {
+pub fn create_component(e: &mut Editor, entity: &mut Actor) -> Result<(), String> {
     let mut doc = Document::default();
     doc.primitive(
         "Box",
@@ -320,25 +320,25 @@ pub fn create_component(e: &mut Editor, entity: &mut Entity) -> Result<(), Strin
     e.assets.refresh();
     Ok(())
 }
-pub fn create_entity(e: &mut Editor) {
+pub fn allocate_actor_data(e: &mut Editor) {
     if e.playing {
         return;
     }
-    if e.scene.entities.len() >= 512 {
+    if e.scene.actors.len() >= 512 {
         e.log("Scene entity limit: 512");
         return;
     }
-    let mut entity = Entity::cube("Blockout".into());
+    let mut entity = Actor::cube("Blockout".into());
     entity.position = [0.; 3];
     match create_component(e, &mut entity) {
         Ok(()) => {
-            e.scene.entities.push(entity);
-            e.selected = Some(e.scene.entities.len() - 1);
+            e.scene.actors.push(entity);
+            e.selected = Some(e.scene.actors.len() - 1);
             e.changed();
             e.assets.index = assets::scan(&e.root, &mut Default::default());
             let id = e
                 .scene
-                .entities
+                .actors
                 .last()
                 .unwrap()
                 .editable_mesh
@@ -361,7 +361,7 @@ pub fn extract(e: &mut Editor) -> Result<(), String> {
         .target
         .ok_or("Open the component on a scene entity to extract geometry")?;
     if e.scene
-        .entities
+        .actors
         .get(index)
         .and_then(|v| v.editable_mesh.as_ref())
         .is_none_or(|m| Some(m.asset) != e.mesh_editor.record.as_ref().map(|r| r.meta.id))
@@ -379,7 +379,7 @@ pub fn extract(e: &mut Editor) -> Result<(), String> {
         );
     }
     if e.scene
-        .entities
+        .actors
         .iter()
         .filter(|v| v.editable_mesh.as_ref().is_some_and(|m| m.asset == asset))
         .count()
@@ -400,14 +400,14 @@ pub fn extract(e: &mut Editor) -> Result<(), String> {
     let mut scene = e.scene.clone();
     let original_scene = scene.clone();
     let id = mesh::create(&e.root, &path, &extracted)?;
-    let mut child = Entity::cube("Extracted geometry".into());
+    let mut child = Actor::cube("Extracted geometry".into());
     child.position = [0.; 3];
     child.parent = Some(index);
-    child.lighting = scene.entities[index].lighting.clone();
-    child.material = scene.entities[index].material.clone();
+    child.lighting = scene.actors[index].lighting.clone();
+    child.material = scene.actors[index].material.clone();
     child.editable_mesh = Some(mesh::Component {
         asset: id,
-        materials: scene.entities[index]
+        materials: scene.actors[index]
             .editable_mesh
             .as_ref()
             .unwrap()
@@ -416,7 +416,7 @@ pub fn extract(e: &mut Editor) -> Result<(), String> {
         document: Some(Arc::new(extracted)),
         error: None,
     });
-    scene.entities.push(child);
+    scene.actors.push(child);
     let result = scene
         .validate()
         .and_then(|_| publish(e, after, Some(scene)));
@@ -436,7 +436,7 @@ pub fn extract(e: &mut Editor) -> Result<(), String> {
     e.mesh_editor.selected.clear();
     Ok(())
 }
-pub fn component(ui: &Ui, e: &mut Editor, entity: &mut Entity) {
+pub fn component(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
     let Some(m) = &mut entity.editable_mesh else {
         return;
     };
@@ -532,7 +532,7 @@ pub fn pick(e: &mut Editor, pixel: [f32; 2], extend: bool) -> bool {
         return false;
     };
     if e.scene
-        .entities
+        .actors
         .get(index)
         .and_then(|v| v.editable_mesh.as_ref())
         .is_none_or(|m| Some(m.asset) != e.mesh_editor.record.as_ref().map(|r| r.meta.id))
@@ -645,12 +645,12 @@ fn report(e: &mut Editor, result: Result<(), String>) {
     e.mesh_editor.error = result.err();
 }
 fn add_instance(e: &mut Editor) -> Result<(), String> {
-    if e.scene.entities.len() >= 512 {
+    if e.scene.actors.len() >= 512 {
         return Err("Scene entity limit: 512".into());
     }
     let record = e.mesh_editor.record.as_ref().ok_or("No mesh open")?;
     let doc = mesh::document(record)?;
-    let mut entity = Entity::cube("Blockout".into());
+    let mut entity = Actor::cube("Blockout".into());
     entity.position = [0.; 3];
     entity.material = Default::default();
     let mut component = mesh::Component::new(record.meta.id);
@@ -658,8 +658,8 @@ fn add_instance(e: &mut Editor) -> Result<(), String> {
     entity.editable_mesh = Some(component);
     entity.lighting.static_geometry = true;
     entity.lighting.receive = crate::lighting::Receive::Baked;
-    e.scene.entities.push(entity);
-    e.mesh_editor.target = Some(e.scene.entities.len() - 1);
+    e.scene.actors.push(entity);
+    e.mesh_editor.target = Some(e.scene.actors.len() - 1);
     e.selected = e.mesh_editor.target;
     preview(e);
     e.changed();
@@ -803,7 +803,7 @@ pub fn window(ui: &Ui, e: &mut Editor) {
             let Some(doc) = e.mesh_editor.doc.clone() else {return;};
             let Some(record) = e.mesh_editor.record.clone() else {return;};
             ui.text_wrapped(assets::path_string(&e.root, &record.path));
-            let users = e.scene.entities.iter().filter(|v|v.editable_mesh.as_ref().is_some_and(|m|m.asset==record.meta.id)).count();
+            let users = e.scene.actors.iter().filter(|v|v.editable_mesh.as_ref().is_some_and(|m|m.asset==record.meta.id)).count();
             ui.text_wrapped(format!("Shared asset: {users} instance(s) in this scene. Edits save automatically. Use Undo/Redo to revert geometry."));
             ui.disabled(e.playing, || {
                 if button(ui, "Undo") {let result=undo(e,false);report(e,result);}
@@ -831,7 +831,7 @@ pub fn window(ui: &Ui, e: &mut Editor) {
                             }
                         }
                         ui.text_wrapped(format!("{} authored faces / {} stored vertices / {} groups / {} materials", doc.faces.len(),doc.vertices.len(),doc.groups.len(),doc.materials.len()));
-                        let mut entity=Entity::cube("Budget".into());
+                        let mut entity=Actor::cube("Budget".into());
                         let mut component=mesh::Component::new(record.meta.id);
                         component.document=Some(Arc::new(doc.clone()));entity.editable_mesh=Some(component);
                         let quads=crate::lighting::quads(&entity);
@@ -1381,7 +1381,7 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     std::fs::create_dir_all(root.join("assets")).unwrap();
     let mut e = Editor::new(root.clone());
     e.auto_build = false;
-    create_entity(&mut e);
+    allocate_actor_data(&mut e);
     fn frame(context: &mut imgui::Context, e: &mut Editor, panel: usize) {
         let ui = context.frame();
         ui.window("Blockout interaction")
@@ -1544,13 +1544,13 @@ mod tests {
         std::fs::create_dir_all(root.join("assets")).unwrap();
         let mut e = Editor::new(root.clone());
         e.auto_build = false;
-        create_entity(&mut e);
+        allocate_actor_data(&mut e);
         assert!(e.mesh_editor.open);
         let target = e.mesh_editor.target.unwrap();
         let original = e.mesh_editor.doc.clone().unwrap();
-        let mut shared = e.scene.entities[target].clone();
+        let mut shared = e.scene.actors[target].clone();
         shared.id = uuid::Uuid::new_v4();
-        e.scene.entities.push(shared);
+        e.scene.actors.push(shared);
         edit(&mut e, |d| {
             d.groups[0].name = "Building".into();
             Ok(())
@@ -1558,7 +1558,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             e.scene
-                .entities
+                .actors
                 .last()
                 .unwrap()
                 .editable_mesh
@@ -1576,21 +1576,21 @@ mod tests {
         undo(&mut e, true).unwrap();
         e.mesh_editor.selected.insert(original.faces[0].id);
         assert!(extract(&mut e).unwrap_err().contains("independent"));
-        e.scene.entities.pop();
+        e.scene.actors.pop();
         let other_scene = root.join("assets/scenes/Other.epokmap");
         e.scene.save(&other_scene).unwrap();
         assert!(extract(&mut e).unwrap_err().contains("other saved scenes"));
         std::fs::remove_file(other_scene).unwrap();
-        let count = e.scene.entities.len();
+        let count = e.scene.actors.len();
         extract(&mut e).unwrap();
-        assert_eq!(e.scene.entities.len(), count + 1);
-        assert_eq!(e.scene.entities.last().unwrap().parent, Some(target));
+        assert_eq!(e.scene.actors.len(), count + 1);
+        assert_eq!(e.scene.actors.last().unwrap().parent, Some(target));
         assert_eq!(e.mesh_editor.doc.as_ref().unwrap().faces.len(), 5);
         undo(&mut e, false).unwrap();
-        assert_eq!(e.scene.entities.len(), count);
+        assert_eq!(e.scene.actors.len(), count);
         assert_eq!(e.mesh_editor.doc.as_ref().unwrap().faces.len(), 6);
         undo(&mut e, true).unwrap();
-        e.scene.entities[target].name = "Changed after extraction".into();
+        e.scene.actors[target].name = "Changed after extraction".into();
         assert!(undo(&mut e, false).unwrap_err().contains("scene changed"));
         let persisted = mesh::document(e.mesh_editor.record.as_ref().unwrap()).unwrap();
         assert_eq!(persisted, e.mesh_editor.doc.clone().unwrap());
@@ -1598,7 +1598,7 @@ mod tests {
         e.mesh_editor.hidden.insert(group);
         preview(&mut e);
         assert!(
-            e.scene.entities[target]
+            e.scene.actors[target]
                 .editable_mesh
                 .as_ref()
                 .unwrap()
@@ -1615,7 +1615,7 @@ mod tests {
         e.mesh_editor.open = false;
         preview(&mut e);
         assert_eq!(
-            e.scene.entities[target]
+            e.scene.actors[target]
                 .editable_mesh
                 .as_ref()
                 .unwrap()

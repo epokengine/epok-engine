@@ -1,6 +1,6 @@
 //! Host-side extension contracts. No VM or dynamic plugin loader is linked.
 //! Native code generation uses the same backend boundary exercised by test providers.
-use crate::{reflection_schema as schema, scene::ScriptBinding, scripts::Script};
+use crate::{reflection_schema as schema, scene::ClassDefaults, scripts::Script};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Component, Path, PathBuf},
@@ -189,7 +189,7 @@ pub fn can_derive(author: &schema::Extension, parent: &schema::Class) -> bool {
         && parent.blueprintable
         && !parent.final_class
 }
-pub fn validate_binding(binding: &ScriptBinding) -> Result<(), String> {
+pub fn validate_binding(binding: &ClassDefaults) -> Result<(), String> {
     if !capabilities(&binding.provider)?.attach {
         return Err("This provider cannot attach instances.".into());
     }
@@ -200,9 +200,6 @@ pub fn validate_binding(binding: &ScriptBinding) -> Result<(), String> {
 pub trait ExecutionBackend {
     fn declaration(&self, class: &str, instance: &str) -> String;
     fn reset(&self, class: &str, instance: &str) -> String;
-    /// Bind/default application is generated separately before dispatching start.
-    /// Native teardown calls on_disable/on_destroy in the established runtime.
-    fn bind_and_start(&self, bindings: &str) -> String;
 }
 pub struct Native;
 impl ExecutionBackend for Native {
@@ -211,11 +208,6 @@ impl ExecutionBackend for Native {
     }
     fn reset(&self, class: &str, instance: &str) -> String {
         format!("{instance}={class}{{}};\n")
-    }
-    fn bind_and_start(&self, bindings: &str) -> String {
-        format!(
-            "for (auto& b : {bindings}) b.behaviour->bind(objects[b.entity]);for (auto& b : {bindings}) if(objects[b.entity].alive) {{b.behaviour->start(objects[b.entity].transform);if(is_active(&objects[b.entity]))b.behaviour->on_enable();}}\n"
-        )
     }
 }
 pub fn backend(id: &schema::Extension) -> Result<&'static dyn ExecutionBackend, String> {
@@ -228,7 +220,7 @@ pub fn backend(id: &schema::Extension) -> Result<&'static dyn ExecutionBackend, 
         ))
     }
 }
-pub fn resolve<'a>(binding: &ScriptBinding, catalog: &'a [Script]) -> Result<&'a Script, String> {
+pub fn resolve<'a>(binding: &ClassDefaults, catalog: &'a [Script]) -> Result<&'a Script, String> {
     validate_binding(binding)?;
     let script = if let Some(id) = &binding.class_id {
         catalog.iter().find(|s| {
@@ -427,9 +419,6 @@ mod tests {
         fn reset(&self, _: &str, instance: &str) -> String {
             format!("cancel_tasks({instance}); release({instance}); {instance}=new_environment();")
         }
-        fn bind_and_start(&self, instances: &str) -> String {
-            format!("bind_defaults_start({instances});")
-        }
     }
     #[test]
     fn non_cpp_provider_artifacts_and_lifecycle_are_backend_owned() {
@@ -450,12 +439,11 @@ mod tests {
         let reset = FakeVm.reset("FakeEnemy", "enemy");
         assert!(reset.contains("cancel_tasks(enemy); release(enemy)"));
         assert!(!reset.contains("FakeEnemy{}"));
-        assert!(FakeVm.bind_and_start("enemies").contains("bind_defaults"));
         std::fs::remove_dir_all(dir).unwrap();
     }
     #[test]
     fn unavailable_instances_roundtrip_without_reinterpretation() {
-        let binding = ScriptBinding {
+        let binding = ClassDefaults {
             name: "FakeEnemy".into(),
             provider: Fake.identity(),
             backend: schema::Extension {
@@ -468,7 +456,7 @@ mod tests {
             ..Default::default()
         };
         let bytes = serde_json::to_vec(&binding).unwrap();
-        let loaded: ScriptBinding = serde_json::from_slice(&bytes).unwrap();
+        let loaded: ClassDefaults = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(loaded, binding);
         assert!(resolve(&loaded, &[]).unwrap_err().contains("unavailable"));
         assert_eq!(serde_json::to_vec(&loaded).unwrap(), bytes);

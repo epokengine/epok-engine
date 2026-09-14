@@ -257,8 +257,8 @@ inline bool streaming_warmup(const uint32_t *pages, size_t count, psyqo::GPU &gp
 // camera/transform changes in the first script frame cannot invalidate a purely
 // camera-based warmup. Large active sets are rejected before reading anything.
 // The caller supplies its normal hierarchy-aware activity predicate.
-template <class Entity, class Active>
-inline bool streaming_warmup_scene(const Entity *objects, size_t count,
+template <class ActorData, class Active>
+inline bool streaming_warmup_scene(const ActorData *objects, size_t count,
                                   Active &&active, psyqo::GPU &gpu) {
   stream_warm_scene = false;
   if constexpr (stream_page_count == 0) return true;

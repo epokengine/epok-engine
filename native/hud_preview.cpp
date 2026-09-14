@@ -3,7 +3,7 @@
 
 extern "C" uint32_t epok_hud_compile(const EpokHudNode* nodes,uint32_t count,const int32_t* dimensions,uint32_t textures,int32_t width,int32_t height,const uint32_t* budget,EpokHudCommand* output,uint32_t capacity,uint32_t* stats){
     EpokHudSink sink;sink.dimensions.assign(dimensions,dimensions+textures*2);
-    std::vector<epok::Entity> entities(count);
+    std::vector<epok::ActorData> entities(count);
     for(uint32_t i=0;i<count;++i){
         const auto& n=nodes[i];auto& e=entities[i];e.parent=n.parent;
         e.alive=n.flags&1;e.active=n.flags&2;e.canvas.enabled=n.flags&4;

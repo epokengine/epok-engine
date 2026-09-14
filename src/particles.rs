@@ -60,7 +60,7 @@ impl Default for Emitter {
 }
 pub fn validate(scene: &crate::scene::Scene) -> Result<(), String> {
     if scene
-        .entities
+        .actors
         .iter()
         .filter(|e| e.particle_emitter.is_some())
         .count()
@@ -68,7 +68,7 @@ pub fn validate(scene: &crate::scene::Scene) -> Result<(), String> {
     {
         return Err("Maximum 64 particle emitters per scene".into());
     }
-    for e in &scene.entities {
+    for e in &scene.actors {
         if let Some(p) = &e.particle_emitter {
             validate_emitter(p)?;
             crate::texture::validate_region(p.sprite.texture, p.sprite.region, scene)?;
@@ -184,7 +184,7 @@ impl Pool {
         let dt = dt.min(0.1);
         self.particles.retain_mut(|v| {
             if scene
-                .entities
+                .actors
                 .get(v.owner)
                 .and_then(|e| e.particle_emitter.as_ref())
                 .is_none_or(|p| !p.enabled)
@@ -201,7 +201,7 @@ impl Pool {
             }
             true
         });
-        for (i, e) in scene.entities.iter().enumerate() {
+        for (i, e) in scene.actors.iter().enumerate() {
             if !scene.is_active(i) {
                 continue;
             }
@@ -313,7 +313,7 @@ pub fn preview(
 }
 pub fn generate(scene: &crate::scene::Scene, ids: &[uuid::Uuid]) -> String {
     let mut out = String::new();
-    for (i, e) in scene.entities.iter().enumerate() {
+    for (i, e) in scene.actors.iter().enumerate() {
         if let Some(p) = &e.particle_emitter {
             let texture = p
                 .sprite
@@ -375,7 +375,7 @@ mod tests {
         assert_eq!(a.dropped, 6);
         assert_eq!(a.particles[0].velocity, b.particles[0].velocity);
         let mut scene = crate::scene::Scene::default();
-        scene.entities[0].particle_emitter = Some(Emitter {
+        scene.actors[0].particle_emitter = Some(Emitter {
             play_on_start: false,
             ..p
         });
@@ -403,7 +403,7 @@ mod tests {
     #[test]
     fn preview_advances_once_per_tick_and_respects_parent_activation() {
         let mut scene = crate::scene::Scene::default();
-        scene.entities[1].particle_emitter = Some(Emitter {
+        scene.actors[1].particle_emitter = Some(Emitter {
             rate: 60.,
             lifetime: 2.,
             ..Emitter::default()
@@ -413,10 +413,10 @@ mod tests {
         let again = preview(&scene, camera, 0.5);
         assert_eq!(first.len(), 30);
         assert_eq!(first[0].points, again[0].points);
-        scene.entities[1].parent = Some(3);
-        scene.entities[3].active = false;
+        scene.actors[1].parent = Some(3);
+        scene.actors[3].active = false;
         assert!(preview(&scene, camera, 0.5).is_empty());
-        scene.entities[3].active = true;
+        scene.actors[3].active = true;
         assert_eq!(preview(&scene, camera, 0.5).len(), 30);
     }
 }

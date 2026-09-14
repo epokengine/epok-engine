@@ -56,7 +56,7 @@ impl Matrix {
         }
         Ok(m)
     }
-    pub fn apply_trs(self, e: &mut crate::scene::Entity) -> Result<(), String> {
+    pub fn apply_trs(self, e: &mut crate::scene::Actor) -> Result<(), String> {
         let scale: [f32; 3] =
             std::array::from_fn(|c| (0..3).map(|r| self.0[r][c].powi(2)).sum::<f32>().sqrt());
         if scale.iter().any(|s| !s.is_finite() || *s < 1e-6) {

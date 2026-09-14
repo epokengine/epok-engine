@@ -2,7 +2,7 @@
 
 > **Header:** `"sequence_data.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/sequence_data.hpp)
 
-This module covers the sequence data module. It documents 12 public callables declared directly in this header.
+This module covers the sequence data module. It documents 14 public callables declared directly in this header.
 
 ## Declared types
 
@@ -10,6 +10,8 @@ This module covers the sequence data module. It documents 12 public callables de
 
 ## Callable index
 
+- [`epok::psx_audio::Bank::is_library`](#epok-psx-audio-bank-is-library-1) — Reports whether library as part of the sequence data module.
+- [`epok::psx_audio::Bank::library`](#epok-psx-audio-bank-library-1) — Performs `library` as part of the sequence data module.
 - [`epok::psx_audio::Bank::sample`](#epok-psx-audio-bank-sample-1) — Performs `sample` as part of the sequence data module.
 - [`epok::psx_audio::Bank::sample_count`](#epok-psx-audio-bank-sample-count-1) — Performs `sample count` as part of the sequence data module.
 - [`epok::psx_audio::Bank::valid`](#epok-psx-audio-bank-valid-1) — Performs `valid` as part of the sequence data module.
@@ -23,6 +25,72 @@ This module covers the sequence data module. It documents 12 public callables de
 - [`epok::psx_audio::Sequence::valid`](#epok-psx-audio-sequence-valid-1) — Performs `valid` as part of the sequence data module.
 - [`epok::psx_audio::Sequence::voices`](#epok-psx-audio-sequence-voices-1) — Performs `voices` as part of the sequence data module.
 
+<a id="epok-psx-audio-bank-is-library-1"></a>
+
+## `epok::psx_audio::Bank::is_library`
+
+**Purpose.** Reports whether library as part of the sequence data module.
+
+**Exact declaration**
+
+```cpp
+bool is_library() const
+```
+
+- **Declared at:** [line 30](../../../runtime/sequence_data.hpp#L30)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the sequence data module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_data.hpp"
+
+epok::psx_audio::Bank& object = /* obtain a valid instance */;
+
+auto result = object.is_library();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions. The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+
+<a id="epok-psx-audio-bank-library-1"></a>
+
+## `epok::psx_audio::Bank::library`
+
+**Purpose.** Performs `library` as part of the sequence data module.
+
+**Exact declaration**
+
+```cpp
+instrument::BankView library() const
+```
+
+- **Declared at:** [line 31](../../../runtime/sequence_data.hpp#L31)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `instrument::BankView`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the sequence data module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_data.hpp"
+
+epok::psx_audio::Bank& object = /* obtain a valid instance */;
+
+auto result = object.library();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+
 <a id="epok-psx-audio-bank-sample-1"></a>
 
 ## `epok::psx_audio::Bank::sample`
@@ -35,7 +103,7 @@ This module covers the sequence data module. It documents 12 public callables de
 const Sample& sample(uint16_t i) const
 ```
 
-- **Declared at:** [line 30](../../../runtime/sequence_data.hpp#L30)
+- **Declared at:** [line 34](../../../runtime/sequence_data.hpp#L34)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -77,7 +145,7 @@ auto result = object.sample(i);
 uint16_t sample_count() const
 ```
 
-- **Declared at:** [line 28](../../../runtime/sequence_data.hpp#L28)
+- **Declared at:** [line 32](../../../runtime/sequence_data.hpp#L32)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
@@ -110,7 +178,7 @@ auto result = object.sample_count();
 bool valid() const
 ```
 
-- **Declared at:** [line 32](../../../runtime/sequence_data.hpp#L32)
+- **Declared at:** [line 36](../../../runtime/sequence_data.hpp#L36)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -143,7 +211,7 @@ auto result = object.valid();
 const Zone& zone(uint16_t i) const
 ```
 
-- **Declared at:** [line 31](../../../runtime/sequence_data.hpp#L31)
+- **Declared at:** [line 35](../../../runtime/sequence_data.hpp#L35)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -185,7 +253,7 @@ auto result = object.zone(i);
 uint16_t zone_count() const
 ```
 
-- **Declared at:** [line 29](../../../runtime/sequence_data.hpp#L29)
+- **Declared at:** [line 33](../../../runtime/sequence_data.hpp#L33)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
@@ -218,7 +286,7 @@ auto result = object.zone_count();
 inline uint16_t read16(const uint8_t* p)
 ```
 
-- **Declared at:** [line 6](../../../runtime/sequence_data.hpp#L6)
+- **Declared at:** [line 8](../../../runtime/sequence_data.hpp#L8)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -258,7 +326,7 @@ auto result = epok::psx_audio::read16(p);
 inline uint32_t read32(const uint8_t* p)
 ```
 
-- **Declared at:** [line 7](../../../runtime/sequence_data.hpp#L7)
+- **Declared at:** [line 9](../../../runtime/sequence_data.hpp#L9)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -298,7 +366,7 @@ auto result = epok::psx_audio::read32(p);
 uint32_t count() const
 ```
 
-- **Declared at:** [line 65](../../../runtime/sequence_data.hpp#L65)
+- **Declared at:** [line 71](../../../runtime/sequence_data.hpp#L71)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -331,7 +399,7 @@ auto result = object.count();
 const sequence::Event* events() const
 ```
 
-- **Declared at:** [line 66](../../../runtime/sequence_data.hpp#L66)
+- **Declared at:** [line 72](../../../runtime/sequence_data.hpp#L72)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `const sequence::Event *`. Check the purpose and failure notes before using the value.
@@ -364,7 +432,7 @@ auto result = object.events();
 uint16_t ppqn() const
 ```
 
-- **Declared at:** [line 63](../../../runtime/sequence_data.hpp#L63)
+- **Declared at:** [line 69](../../../runtime/sequence_data.hpp#L69)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
@@ -397,7 +465,7 @@ auto result = object.ppqn();
 bool valid() const
 ```
 
-- **Declared at:** [line 67](../../../runtime/sequence_data.hpp#L67)
+- **Declared at:** [line 73](../../../runtime/sequence_data.hpp#L73)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -430,7 +498,7 @@ auto result = object.valid();
 uint16_t voices() const
 ```
 
-- **Declared at:** [line 64](../../../runtime/sequence_data.hpp#L64)
+- **Declared at:** [line 70](../../../runtime/sequence_data.hpp#L70)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.

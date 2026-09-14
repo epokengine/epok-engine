@@ -7,9 +7,9 @@
 #endif
 #include "../../runtime/utility.hpp"
 namespace epok {
-static std::array<Entity,4> entities;
-Entity* EntityHandle::get()const{return index<entities.size()&&entities[index].alive&&entities[index].generation==generation?&entities[index]:nullptr;}
-bool is_active(const Entity* entity){return entity&&entity->alive&&entity->active;}
+static std::array<ActorData,4> entities;
+ActorData* DataHandle::get()const{return index<entities.size()&&entities[index].alive&&entities[index].generation==generation?&entities[index]:nullptr;}
+bool is_active(const ActorData* entity){return entity&&entity->alive&&entity->active;}
 }
 using namespace epok;
 void tweens_and_easing(){
@@ -27,7 +27,7 @@ void tweens_and_easing(){
     assert(tween.start(0.0,10.0,1.0));assert(!tween.start(0.0,10.0,-1.0));assert(tween.playing());assert(tween.advance(-1.0)==Fixed(0.0));
 }
 void queues_and_sequences(){
-    entities={};EntityHandle source{0,entities[0].generation};EventQueue<3> queue;
+    entities={};DataHandle source{0,entities[0].generation};EventQueue<3> queue;
     assert(queue.emit({1,42,source}));++entities[0].generation;Event event;assert(queue.poll(event)&&event.value==42&&!event.source.get());
     assert(queue.emit({1,0,{}})&&queue.emit({2,0,{}})&&queue.emit({3,0,{}}));assert(!queue.emit({4,0,{}})&&queue.dropped==1);
     assert(queue.poll(event)&&event.kind==1);assert(queue.emit({4,0,{}}));for(unsigned kind=2;kind<=4;++kind)assert(queue.poll(event)&&event.kind==kind);assert(!queue.poll(event));
@@ -45,7 +45,7 @@ void focus_and_layout(){
     assert(!focus.current());entities[3].active=true;assert(focus.move(-1,false)&&focus.current().index==3);
     entities[1].active=true;assert(focus.move(-1,false)&&focus.current().index==1);++entities[1].generation;assert(!focus.current());assert(focus.move(1)&&focus.current().index==3);
     EventQueue<4> queue;input.sample(0,true,1<<14);focus.navigate(queue);Event event;assert(queue.poll(event)&&event.kind==1&&event.source.index==3);
-    EntityHandle children[3]={{0,entities[0].generation},{1,entities[1].generation},{2,entities[2].generation}};
+    DataHandle children[3]={{0,entities[0].generation},{1,entities[1].generation},{2,entities[2].generation}};
     for(unsigned i=0;i<3;++i)entities[i].rect.enabled=true;
     layout_list(children,3,12.0,2.0);assert(entities[0].rect.position[1]==Fixed(0.0));assert(entities[2].rect.position[1]==Fixed(-28.0));
     assert(entities[1].rect.size[1]==Fixed(12.0)&&entities[1].rect.anchor_min[1]==Fixed(1.0));

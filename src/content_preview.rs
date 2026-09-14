@@ -71,7 +71,9 @@ pub(crate) fn audio_content_kind(bytes: &[u8]) -> Option<&'static str> {
         Some("Sequence") // No magic: converted must pass the complete structural parser.
     } else if crate::audio_decode::probe(bytes).is_ok() {
         Some("Audio")
-    } else { None }
+    } else {
+        None
+    }
 }
 pub enum Preview {
     Image {
@@ -408,7 +410,10 @@ impl Cache {
                     Ok(player) => self.player = Some(player),
                     Err(error) => {
                         self.stop();
-                        self.error = Some(format!("Audio preview failed for {}: {error}", job.path.display()));
+                        self.error = Some(format!(
+                            "Audio preview failed for {}: {error}",
+                            job.path.display()
+                        ));
                     }
                 }
             }
@@ -504,7 +509,9 @@ fn decode_size_mode(path: &Path, edge: u32, mode: PreviewMode) -> Result<Preview
         let package = assets::Package::load(path)?;
         match package.meta.kind {
             assets::Kind::AudioClip => waveform(decode_audio_mode(path, mode)?),
-            assets::Kind::MusicSequence => sequence_plot(&package.source, package.meta.settings.sequence()?),
+            assets::Kind::MusicSequence => {
+                sequence_plot(&package.source, package.meta.settings.sequence()?)
+            }
             assets::Kind::Texture => {
                 let data = crate::texture::decode(&package.source)?;
                 Ok(thumbnail(
@@ -626,8 +633,12 @@ fn sequence_pcm(
     let root = root.ok_or("MIDI needs a SoundBank. Open a project and assign a SoundBank or Project Default SoundBank.")?;
     let (mut pcm, stats) = if mode == PreviewMode::TargetPsx {
         crate::sequence_preview::render_target(root, bytes, settings, cancelled)?
-    } else { crate::sequence_preview::render(root, bytes, settings, cancelled)? };
-    let pitch_policy = if settings.source_selection.is_some() || settings.midi_profile == crate::midi::MidiProfile::LegacyV1 {
+    } else {
+        crate::sequence_preview::render(root, bytes, settings, cancelled)?
+    };
+    let pitch_policy = if settings.source_selection.is_some()
+        || settings.midi_profile == crate::midi::MidiProfile::LegacyV1
+    {
         "legacy ±2 semitones"
     } else {
         "source RPN sensitivity/tuning (default ±2 semitones)"
@@ -639,7 +650,10 @@ fn sequence_pcm(
         stats.steals,
         stats.clipped
     );
-    pcm.report = Some(pcm.report.map_or_else(|| report.clone(), |target| format!("{target} {report}")));
+    pcm.report = Some(
+        pcm.report
+            .map_or_else(|| report.clone(), |target| format!("{target} {report}")),
+    );
     Ok(pcm)
 }
 fn sequence_plot(bytes: &[u8], settings: &crate::sequence::Settings) -> Result<Preview, String> {
@@ -777,7 +791,15 @@ mod tests {
         let bytes = crate::audio_import::test_wav();
         let source = preview_pcm(&bytes, None, PreviewMode::Source).unwrap();
         let target = preview_pcm(&bytes, None, PreviewMode::TargetPsx).unwrap();
-        let looped = preview_pcm(&bytes, Some(&crate::audio_import::Settings { looping: true, ..Default::default() }), PreviewMode::TargetPsx).unwrap();
+        let looped = preview_pcm(
+            &bytes,
+            Some(&crate::audio_import::Settings {
+                looping: true,
+                ..Default::default()
+            }),
+            PreviewMode::TargetPsx,
+        )
+        .unwrap();
         assert_eq!(looped.loop_region, Some((28, looped.samples.len())));
         assert_eq!(source.samples.len(), 2205);
         assert!(target.samples.len() > source.samples.len()); // SPU silent entry / block padding.
@@ -988,20 +1010,49 @@ mod tests {
         assert!(sequence_plot(&source, &Default::default()).is_err());
         let settings = crate::sequence::Settings {
             sound_bank: Some(bank),
-            source_selection: Some(crate::sequence::select_source(&source, crate::sequence::SourceProfile::SonySeqV1, Some(0), None).unwrap()),
+            source_selection: Some(
+                crate::sequence::select_source(
+                    &source,
+                    crate::sequence::SourceProfile::SonySeqV1,
+                    Some(0),
+                    None,
+                )
+                .unwrap(),
+            ),
             ..Default::default()
         };
-        let Preview::Audio { peaks, duration } = sequence_plot(&source, &settings).unwrap() else { panic!() };
-        assert_eq!(duration, 0.5); assert!(peaks.iter().any(|&peak| peak > 0.));
+        let Preview::Audio { peaks, duration } = sequence_plot(&source, &settings).unwrap() else {
+            panic!()
+        };
+        assert_eq!(duration, 0.5);
+        assert!(peaks.iter().any(|&peak| peak > 0.));
         for mode in [PreviewMode::Source, PreviewMode::TargetPsx] {
-            let pcm = sequence_pcm(Some(&root), &source, &settings, mode, &AtomicBool::new(false)).unwrap();
+            let pcm = sequence_pcm(
+                Some(&root),
+                &source,
+                &settings,
+                mode,
+                &AtomicBool::new(false),
+            )
+            .unwrap();
             assert!(pcm.samples.iter().any(|&s| s.unsigned_abs() > 500));
         }
         let mut blocked = source[..15].to_vec();
         blocked.extend([0, 0xb0, 0, 3, 0, 0xff, 0x2f, 0]);
-        let mut settings = settings; settings.ignore_unsupported = true;
+        let mut settings = settings;
+        settings.ignore_unsupported = true;
         for mode in [PreviewMode::Source, PreviewMode::TargetPsx] {
-            assert!(sequence_pcm(Some(&root), &blocked, &settings, mode, &AtomicBool::new(false)).unwrap_err().contains("cannot bypass"));
+            assert!(
+                sequence_pcm(
+                    Some(&root),
+                    &blocked,
+                    &settings,
+                    mode,
+                    &AtomicBool::new(false)
+                )
+                .unwrap_err()
+                .contains("cannot bypass")
+            );
         }
     }
     #[test]
@@ -1009,9 +1060,19 @@ mod tests {
         let root = crate::workspace::tests::temp("compatibility-bank-no-fallback");
         std::fs::create_dir_all(&root).unwrap();
         for extension in ["vab", "vh", "vb"] {
-            let path = root.join(format!("source.{extension}")); std::fs::write(&path, b"unresolved bank source").unwrap();
+            let path = root.join(format!("source.{extension}"));
+            std::fs::write(&path, b"unresolved bank source").unwrap();
             assert_eq!(source_kind(&path), Some("SoundBank"));
-            assert!(decode_audio_context(&path, PreviewMode::Source, Some(&root), &AtomicBool::new(false)).unwrap_err().contains("No waveform rate is assumed"));
+            assert!(
+                decode_audio_context(
+                    &path,
+                    PreviewMode::Source,
+                    Some(&root),
+                    &AtomicBool::new(false)
+                )
+                .unwrap_err()
+                .contains("No waveform rate is assumed")
+            );
         }
     }
     #[test]
@@ -1020,24 +1081,56 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         let mut seq = b"pQES\0\0\0\x01\0\x60\x07\xa1\x20\x04\x02".to_vec();
         seq.extend([0, 0xff, 0x2f, 0]);
-        let wrong_bank = root.join("song.vab"); std::fs::write(&wrong_bank, &seq).unwrap();
+        let wrong_bank = root.join("song.vab");
+        std::fs::write(&wrong_bank, &seq).unwrap();
         assert_eq!(audio_content_kind(&seq), Some("Sequence"));
-        assert!(matches!(decode_size_mode(&wrong_bank, EDGE, PreviewMode::Source), Err(e) if e.contains("Select the source profile")));
-        let mut vab = vec![0_u8; 0xc30]; vab[..4].copy_from_slice(b"pBAV");
-        vab[4..8].copy_from_slice(&7_u32.to_le_bytes()); vab[12..16].copy_from_slice(&0xc30_u32.to_le_bytes());
-        for at in [18, 20, 22] { vab[at] = 1; }
-        vab[32] = 1; vab[0x824] = 60; vab[0x827] = 127; vab[0x836] = 1;
-        vab[0xa22] = 2; vab[0xc20] = 12; vab[0xc21] = 1;
-        assert!(crate::vab_import::parse(crate::vab_import::Input { bytes: &vab, label: "original synthetic bank", rights: "Epok test fixture" }, None).is_ok());
-        let wrong_sequence = root.join("bank.sep"); std::fs::write(&wrong_sequence, &vab).unwrap();
+        assert!(
+            matches!(decode_size_mode(&wrong_bank, EDGE, PreviewMode::Source), Err(e) if e.contains("Select the source profile"))
+        );
+        let mut vab = vec![0_u8; 0xc30];
+        vab[..4].copy_from_slice(b"pBAV");
+        vab[4..8].copy_from_slice(&7_u32.to_le_bytes());
+        vab[12..16].copy_from_slice(&0xc30_u32.to_le_bytes());
+        for at in [18, 20, 22] {
+            vab[at] = 1;
+        }
+        vab[32] = 1;
+        vab[0x824] = 60;
+        vab[0x827] = 127;
+        vab[0x836] = 1;
+        vab[0xa22] = 2;
+        vab[0xc20] = 12;
+        vab[0xc21] = 1;
+        assert!(
+            crate::vab_import::parse(
+                crate::vab_import::Input {
+                    bytes: &vab,
+                    label: "original synthetic bank",
+                    rights: "Epok test fixture"
+                },
+                None
+            )
+            .is_ok()
+        );
+        let wrong_sequence = root.join("bank.sep");
+        std::fs::write(&wrong_sequence, &vab).unwrap();
         assert_eq!(audio_content_kind(&vab), Some("SoundBank"));
-        assert!(matches!(decode_audio_context(&wrong_sequence, PreviewMode::Source, Some(&root), &AtomicBool::new(false)), Err(e) if e.contains("No waveform rate is assumed")));
-        let mut converted_seq = 16_u32.to_le_bytes().to_vec(); converted_seq.extend(500000_u32.to_le_bytes());
+        assert!(
+            matches!(decode_audio_context(&wrong_sequence, PreviewMode::Source, Some(&root), &AtomicBool::new(false)), Err(e) if e.contains("No waveform rate is assumed"))
+        );
+        let mut converted_seq = 16_u32.to_le_bytes().to_vec();
+        converted_seq.extend(500000_u32.to_le_bytes());
         converted_seq.extend([96, 0, 4, 2, 0xff, 0x2f, 0, 0]);
         assert_eq!(audio_content_kind(&converted_seq), Some("Sequence"));
-        let path = root.join("converted.seq"); std::fs::write(&path, converted_seq).unwrap();
-        assert!(matches!(decode_size_mode(&path, EDGE, PreviewMode::Source), Err(e) if e.contains("converted-seq-le32")));
-        assert_eq!(audio_content_kind(&crate::audio_import::test_wav()), Some("Audio"));
+        let path = root.join("converted.seq");
+        std::fs::write(&path, converted_seq).unwrap();
+        assert!(
+            matches!(decode_size_mode(&path, EDGE, PreviewMode::Source), Err(e) if e.contains("converted-seq-le32"))
+        );
+        assert_eq!(
+            audio_content_kind(&crate::audio_import::test_wav()),
+            Some("Audio")
+        );
     }
     fn png(width: u32, height: u32, rgba: &[u8]) -> Vec<u8> {
         let mut bytes = Vec::new();

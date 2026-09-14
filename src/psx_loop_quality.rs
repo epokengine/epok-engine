@@ -40,7 +40,9 @@ pub fn crossfade(
         return Ok(0);
     }
     if start == 0 {
-        return Err("Loop crossfade requires PCM before loop start 0; padding is not inferred".into());
+        return Err(
+            "Loop crossfade requires PCM before loop start 0; padding is not inferred".into(),
+        );
     }
     let count = usize::from(frames).min(start).min((end - start) / 4);
     if count == 0 {
@@ -140,7 +142,9 @@ pub fn analyze(
 
 fn validate_region(length: usize, loop_region: [usize; 2]) -> Result<[usize; 2], String> {
     if length > MAX_PCM_FRAMES {
-        return Err(format!("Loop quality input exceeds {MAX_PCM_FRAMES} frames"));
+        return Err(format!(
+            "Loop quality input exceeds {MAX_PCM_FRAMES} frames"
+        ));
     }
     let [start, end] = loop_region;
     if start >= end || end > length {
@@ -200,9 +204,14 @@ mod tests {
         let final_quality = analyze(&decoded(&samples), [16, 48], 8, &active()).unwrap();
         assert_eq!(applied, 8);
         assert_eq!(final_quality.window_frames, 8);
-        assert!(final_quality.step < prior.step, "{prior:?} -> {final_quality:?}");
-        assert!(final_quality.boundary_window_rms.unwrap() < prior.boundary_window_rms.unwrap(),
-            "{prior:?} -> {final_quality:?}");
+        assert!(
+            final_quality.step < prior.step,
+            "{prior:?} -> {final_quality:?}"
+        );
+        assert!(
+            final_quality.boundary_window_rms.unwrap() < prior.boundary_window_rms.unwrap(),
+            "{prior:?} -> {final_quality:?}"
+        );
     }
 
     #[test]
@@ -212,8 +221,15 @@ mod tests {
         let applied = crossfade(&mut samples, [12, 60], 32, &active()).unwrap();
         assert_eq!(applied, 12, "start bounds the requested window");
         assert_eq!(&samples[..48], &original[..48]);
-        assert_eq!(&samples[60..], &original[60..], "UntilRelease tail must survive");
-        assert_eq!(samples[48], original[48], "half-cosine begins at weight zero");
+        assert_eq!(
+            &samples[60..],
+            &original[60..],
+            "UntilRelease tail must survive"
+        );
+        assert_eq!(
+            samples[48], original[48],
+            "half-cosine begins at weight zero"
+        );
         assert_eq!(samples[59], original[11], "half-cosine ends at weight one");
     }
 
@@ -243,12 +259,26 @@ mod tests {
         non_finite[23] = f32::NAN;
         let before = non_finite.clone();
         assert!(crossfade(&mut non_finite, [8, 24], 4, &active()).is_err());
-        assert!(non_finite.iter().zip(before).all(|(a, b)| a.to_bits() == b.to_bits()));
+        assert!(
+            non_finite
+                .iter()
+                .zip(before)
+                .all(|(a, b)| a.to_bits() == b.to_bits())
+        );
         assert!(analyze(&[0; 32], [8, 24], 257, &active()).is_err());
         assert!(analyze(&[0; 32], [8, 24], 4, &AtomicBool::new(true)).is_err());
-        let start_zero = analyze(&[0, 100, 200, 300, 400, 500, 600, 700], [0, 8], 4, &active()).unwrap();
+        let start_zero = analyze(
+            &[0, 100, 200, 300, 400, 500, 600, 700],
+            [0, 8],
+            4,
+            &active(),
+        )
+        .unwrap();
         assert_eq!(start_zero.boundary_window_rms, None);
-        assert_eq!((start_zero.window_frames, start_zero.comparison_frames), (2, 0));
+        assert_eq!(
+            (start_zero.window_frames, start_zero.comparison_frames),
+            (2, 0)
+        );
         assert!(start_zero.step > 0.0 && start_zero.maximum_slope >= start_zero.step);
     }
 }

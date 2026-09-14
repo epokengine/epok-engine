@@ -312,7 +312,7 @@ impl Component {
     }
 }
 pub fn validate(scene: &Scene) -> Result<(), String> {
-    for e in &scene.entities {
+    for e in &scene.actors {
         if let Some(c) = &e.skeletal_mesh
             && (e.kind != "Mesh"
                 || e.editable_mesh.is_some()
@@ -332,7 +332,7 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
 pub fn resolve(scene: &mut Scene, index: &Index) -> Result<(), String> {
     let mut cache = BTreeMap::new();
     let mut errors = vec![];
-    for e in &mut scene.entities {
+    for e in &mut scene.actors {
         if let Some(c) = &mut e.skeletal_mesh {
             let result = cache
                 .entry(c.asset)

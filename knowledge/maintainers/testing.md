@@ -32,7 +32,7 @@ missing-class identity, native metadata failure/repair and independent banks.
 Run checks from the repository root. Full validation is performed locally;
 GitHub Actions enforces the release branch and version policy.
 
-`make check` runs the four editor checks below sequentially and stops on the first failure. On Windows after setup, use `.\.tools\mips\bin\make.exe check` if Make is not on PATH. The root Makefile also exposes `test`, `lint`, `fmt-check`, `build` and `release` individually; native emulator checks remain separate.
+`make check` runs the editor checks below sequentially and stops on the first failure. Both `make check` and `make test` build the companion reflection extractor before running tests. On Windows after setup, use `.\.tools\mips\bin\make.exe check` if Make is not on PATH. The root Makefile also exposes `test`, `lint`, `fmt-check`, `build` and `release` individually; native emulator checks remain separate.
 
 ## Editor checks
 
@@ -40,10 +40,16 @@ Rustup selects the pinned toolchain. These checks do not launch the emulator:
 
 ```powershell
 cargo fmt --all -- --check
+cargo build --locked --bin epok-header-tool
 cargo test --locked
 cargo clippy --locked --all-targets -- -D warnings
 cargo build --locked
 ```
+
+Tests that create Actor projects or stage native classes execute the companion
+`epok-header-tool` binary. `cargo test` builds that binary's test harness, not
+the standalone extractor. Run the explicit build above in a fresh checkout;
+the PR and release workflows perform the same prerequisite before testing.
 
 Unit tests cover scene hierarchy, transforms, export generation, lighting, HUD, picking, transport decoding, asset recovery/import transactions, WAV/MP3/ADPCM quality and XA sector spacing and Dear ImGui interaction without a desktop window. Tests requiring a graphics adapter or real emulator are explicitly ignored by the default run.
 

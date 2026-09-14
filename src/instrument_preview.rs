@@ -32,7 +32,14 @@ pub struct Stats {
 }
 
 unsafe extern "C" {
-    fn epok_instrument_prepared_count(events: *const Event,count: u32,ppqn: u16,bytes: *const u8,size: u32,references: *mut u32) -> i32;
+    fn epok_instrument_prepared_count(
+        events: *const Event,
+        count: u32,
+        ppqn: u16,
+        bytes: *const u8,
+        size: u32,
+        references: *mut u32,
+    ) -> i32;
     fn epok_instrument_create(
         events: *const Event,
         count: u32,
@@ -51,14 +58,25 @@ unsafe extern "C" {
 
 /// Exact number of immutable note-start states required by the resident stream.
 /// Uses the same bounded control/loop traversal as preparation on the console.
-pub fn prepared_count(events: &[Event], ppqn: u16, bank: &[u8]) -> Result<(u16,u32),String> {
-    if events.is_empty() || events.len()>65536 || bank.len()>u32::MAX as usize {
+pub fn prepared_count(events: &[Event], ppqn: u16, bank: &[u8]) -> Result<(u16, u32), String> {
+    if events.is_empty() || events.len() > 65536 || bank.len() > u32::MAX as usize {
         return Err("Invalid PSX instrument preparation inputs".into());
     }
-    let mut references=0;
-    let count=unsafe { epok_instrument_prepared_count(events.as_ptr(),events.len() as u32,ppqn,bank.as_ptr(),bank.len() as u32,&mut references) };
-    if count<1 { return Err("PSX instrument preparation failed: missing mappings, invalid control stream, more than 1024 distinct note-start states or 65535 layer references. Split the sequence or simplify its instrument/control variation".into()); }
-    Ok((count as u16,references))
+    let mut references = 0;
+    let count = unsafe {
+        epok_instrument_prepared_count(
+            events.as_ptr(),
+            events.len() as u32,
+            ppqn,
+            bank.as_ptr(),
+            bank.len() as u32,
+            &mut references,
+        )
+    };
+    if count < 1 {
+        return Err("PSX instrument preparation failed: missing mappings, invalid control stream, more than 1024 distinct note-start states or 65535 layer references. Split the sequence or simplify its instrument/control variation".into());
+    }
+    Ok((count as u16, references))
 }
 
 struct Native(*mut c_void);

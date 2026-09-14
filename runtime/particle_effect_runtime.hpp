@@ -29,7 +29,7 @@ struct Stats {
 class Pool {
     struct Instance {
         const Asset* asset=nullptr;
-        EntityHandle owner;
+        DataHandle owner;
         Affine<Fixed> root=Affine<Fixed>::identity(),world[layer_capacity];
         EffectLayer layers[layer_capacity];
         timeline::Handle playback;
@@ -73,15 +73,15 @@ public:
         return {live(*value)?bp::PlaybackResult::Pending:value->state==State::Completed?bp::PlaybackResult::Completed:bp::PlaybackResult::Cancelled,0};
     }
     timeline::Handle sequence(Handle h)const{const auto* value=find(h);return value?value->playback:timeline::Handle{};}
-    EntityHandle lighting_owner(EffectLayerHandle h)const{
+    DataHandle lighting_owner(EffectLayerHandle h)const{
         if(h.index>=capacity*layer_capacity)return {};
-        const auto& value=instances[h.index/layer_capacity];return value.generation==h.generation&&live(value)&&value.owned?value.owner:EntityHandle{};
+        const auto& value=instances[h.index/layer_capacity];return value.generation==h.generation&&live(value)&&value.owned?value.owner:DataHandle{};
     }
     EffectLayerHandle layer(Handle h,uint16_t index)const{
         const auto* value=find(h);return value&&live(*value)&&index<value->asset->layer_count?EffectLayerHandle{uint16_t(h.index*layer_capacity+index),h.generation}:EffectLayerHandle{};
     }
     Handle spawn(const Asset& asset,const Affine<Fixed>& world,uint32_t scene,
-                 const timeline::BoundTarget* external=nullptr,EntityHandle owner={},uint32_t seed=0,LayerInitializer initialize=nullptr){
+                 const timeline::BoundTarget* external=nullptr,DataHandle owner={},uint32_t seed=0,LayerInitializer initialize=nullptr){
         if(!asset.id||!asset.timeline||!asset.layers||!asset.layer_count||asset.layer_count>layer_capacity||asset.timeline->target_count>timeline::slot_limit||
            (owner.index!=0xffff&&!owner.get())||(resolver_owner&&resolver_owner!=this&&resolver_owner->stats.active)){add(stats.dropped);return {};}
         bool slots[timeline::slot_limit]={};
@@ -125,7 +125,7 @@ public:
     }
     bool pause(Handle h,bool paused){auto* value=find(h);if(!value||!live(*value))return false;value->paused=paused;return true;}
     bool move(Handle h,const Affine<Fixed>& world){auto* value=find(h);if(!value||!live(*value))return false;value->root=world;return true;}
-    void cancel_owner(EntityHandle owner){for(auto& value:instances)if(value.owned&&bp::same_owner(value.owner,owner))finish(value,State::Cancelled);}
+    void cancel_owner(DataHandle owner){for(auto& value:instances)if(value.owned&&bp::same_owner(value.owner,owner))finish(value,State::Cancelled);}
     void reset(){for(auto& value:instances)finish(value,State::Cancelled);}
     // Call before the shared director advances. This is lifecycle preparation,
     // not another continuation scheduler or another timeline evaluator.

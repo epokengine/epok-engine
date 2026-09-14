@@ -332,7 +332,7 @@ fn rotation_output_menu_and_drag_preview_snap_before_release() {
     assert!(e.wire.is_none());
     assert!(matches!(&e.current().unwrap().nodes[2].inputs["value"], Input::Link { node, pin } if node == &from.node && pin == "value"));
     e.undo(); assert_eq!(bytes(e.asset.as_ref().unwrap()), before);
-    // A vector cannot light up the target EntityRef input.
+    // A vector cannot light up the target ObjectRef input.
     let wrong = socket(&e, 2, "target", false);
     assert!(!e.can_connect(&from, &wrong, &Registry::new()));
 }

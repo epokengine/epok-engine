@@ -221,7 +221,7 @@ pub fn draw(
     if e.tool == 0 || e.playing {
         return;
     }
-    let entity = &e.scene.entities[index];
+    let entity = &e.scene.actors[index];
     let center = entity.position;
     let parent = e.scene.parent_matrix(index);
     let view = e.view;
@@ -338,7 +338,7 @@ pub fn draw(
             paths[axis][1]
         };
         let delta = ui.io().mouse_delta;
-        let object = &mut e.scene.entities[index];
+        let object = &mut e.scene.actors[index];
         if e.tool == 2 {
             let a = (mouse[1] - origin[1]).atan2(mouse[0] - origin[0]);
             let b = (mouse[1] - delta[1] - origin[1]).atan2(mouse[0] - delta[0] - origin[0]);

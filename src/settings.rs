@@ -14,7 +14,14 @@ pub struct DebugHud {
 }
 impl DebugHud {
     pub fn header(self) -> String {
-        format!("#pragma once\n#define EPOK_DEBUG_FPS {}\n#define EPOK_DEBUG_CPU {}\n#define EPOK_DEBUG_GTE {}\n#define EPOK_DEBUG_GPU {}\n#define EPOK_DEBUG_SPU {}\n", u8::from(self.fps), u8::from(self.cpu), u8::from(self.gte), u8::from(self.gpu), u8::from(self.spu_ram))
+        format!(
+            "#pragma once\n#define EPOK_DEBUG_FPS {}\n#define EPOK_DEBUG_CPU {}\n#define EPOK_DEBUG_GTE {}\n#define EPOK_DEBUG_GPU {}\n#define EPOK_DEBUG_SPU {}\n",
+            u8::from(self.fps),
+            u8::from(self.cpu),
+            u8::from(self.gte),
+            u8::from(self.gpu),
+            u8::from(self.spu_ram)
+        )
     }
 }
 pub fn debug_hud(root: &Path) -> Result<DebugHud, String> {
@@ -150,15 +157,23 @@ pub enum GameScale {
 impl GameScale {
     pub const ALL: [Self; 3] = [Self::Fit, Self::Stretch, Self::Integer];
     pub fn label(self) -> &'static str {
-        match self { Self::Fit => "Fit (4:3)", Self::Stretch => "Stretch", Self::Integer => "Integer (4:3)" }
+        match self {
+            Self::Fit => "Fit (4:3)",
+            Self::Stretch => "Stretch",
+            Self::Integer => "Integer (4:3)",
+        }
     }
     pub fn image_size(self, frame: [u32; 2], available: [f32; 2]) -> [f32; 2] {
-        let available = available.map(|v| if v.is_finite() {v.max(0.)} else {0.});
-        if self == Self::Stretch { return available; }
+        let available = available.map(|v| if v.is_finite() { v.max(0.) } else { 0. });
+        if self == Self::Stretch {
+            return available;
+        }
         let width = (frame[0].max(1) as f32).max(frame[1].max(1) as f32 * 4. / 3.);
         let height = width * 3. / 4.;
         let mut scale = (available[0] / width).min(available[1] / height);
-        if self == Self::Integer && scale >= 1. { scale = scale.floor(); }
+        if self == Self::Integer && scale >= 1. {
+            scale = scale.floor();
+        }
         [width * scale, height * scale]
     }
 }
@@ -279,54 +294,89 @@ mod tests {
     #[test]
     fn game_view_scaling_fills_an_axis_or_stretches_without_cropping() {
         use super::GameScale::*;
-        assert_eq!(Fit.image_size([640,480], [1000.,600.]), [800.,600.]);
-        assert_eq!(Fit.image_size([640,480], [800.,1000.]), [800.,600.]);
-        assert_eq!(Stretch.image_size([640,480], [1000.,600.]), [1000.,600.]);
-        assert_eq!(Integer.image_size([640,480], [1000.,600.]), [640.,480.]);
-        assert_eq!(Integer.image_size([640,480], [320.,240.]), [320.,240.]);
-        for frame in [[256,240],[320,240],[512,480],[640,480]] {
-            let size = Fit.image_size(frame, [800.,600.]);
-            assert!((size[0]-800.).abs()<0.01 && (size[1]-600.).abs()<0.01);
+        assert_eq!(Fit.image_size([640, 480], [1000., 600.]), [800., 600.]);
+        assert_eq!(Fit.image_size([640, 480], [800., 1000.]), [800., 600.]);
+        assert_eq!(Stretch.image_size([640, 480], [1000., 600.]), [1000., 600.]);
+        assert_eq!(Integer.image_size([640, 480], [1000., 600.]), [640., 480.]);
+        assert_eq!(Integer.image_size([640, 480], [320., 240.]), [320., 240.]);
+        for frame in [[256, 240], [320, 240], [512, 480], [640, 480]] {
+            let size = Fit.image_size(frame, [800., 600.]);
+            assert!((size[0] - 800.).abs() < 0.01 && (size[1] - 600.).abs() < 0.01);
         }
-        assert_eq!(Fit.image_size([640,480], [0.,0.]), [0.,0.]);
+        assert_eq!(Fit.image_size([640, 480], [0., 0.]), [0., 0.]);
         let legacy: super::Preferences = serde_json::from_str(r#"{"integer_scale":true}"#).unwrap();
         assert_eq!(legacy.game_scale, Fit);
         for mode in super::GameScale::ALL {
-            let prefs=super::Preferences{game_scale:mode,..Default::default()};
-            assert_eq!(serde_json::from_str::<super::Preferences>(&serde_json::to_string(&prefs).unwrap()).unwrap(),prefs);
+            let prefs = super::Preferences {
+                game_scale: mode,
+                ..Default::default()
+            };
+            assert_eq!(
+                serde_json::from_str::<super::Preferences>(&serde_json::to_string(&prefs).unwrap())
+                    .unwrap(),
+                prefs
+            );
         }
     }
     #[test]
     fn debug_hud_defaults_and_independent_compile_toggles() {
         let defaults: super::DebugHud = serde_json::from_str("{}").unwrap();
         assert_eq!(defaults, super::DebugHud::default());
-        for (field, define) in [("fps", "FPS"), ("cpu", "CPU"), ("gte", "GTE"), ("gpu", "GPU"), ("spu_ram", "SPU")] {
+        for (field, define) in [
+            ("fps", "FPS"),
+            ("cpu", "CPU"),
+            ("gte", "GTE"),
+            ("gpu", "GPU"),
+            ("spu_ram", "SPU"),
+        ] {
             let value = serde_json::json!({field:true});
             let options: super::DebugHud = serde_json::from_value(value).unwrap();
             let header = options.header();
             assert!(header.contains(&format!("#define EPOK_DEBUG_{define} 1\n")));
-            assert_eq!(header.lines().filter(|line| line.ends_with(" 1")).count(), 1);
-            assert_eq!(serde_json::from_str::<super::DebugHud>(&serde_json::to_string(&options).unwrap()).unwrap(), options);
+            assert_eq!(
+                header.lines().filter(|line| line.ends_with(" 1")).count(),
+                1
+            );
+            assert_eq!(
+                serde_json::from_str::<super::DebugHud>(&serde_json::to_string(&options).unwrap())
+                    .unwrap(),
+                options
+            );
         }
     }
     #[test]
     fn debug_hud_settings_invalidate_staged_inputs_and_persist() {
         use crate::artifact_dependencies::{self, Graph};
         let root = crate::workspace::tests::temp("debug-hud-provenance");
-        let project = crate::workspace::create(&root, "Debug HUD", crate::workspace::Template::Basic).unwrap();
+        let project =
+            crate::workspace::create(&root, "Debug HUD", crate::workspace::Template::Basic)
+                .unwrap();
         let mut manifest = project.manifest.clone();
         drop(project);
         let path = root.join(&manifest.startup_scene);
         let scene = crate::scene::Scene::load(&path).unwrap();
         artifact_dependencies::transaction(&root, |graph| {
-            graph.publish("scene-debug-settings", crate::scene_dependencies::hash(manifest.debug), Default::default());
-            graph.publish("stage:test", "previous".into(), ["scene-debug-settings".into()].into_iter().collect());
-        }).unwrap();
+            graph.publish(
+                "scene-debug-settings",
+                crate::scene_dependencies::hash(manifest.debug),
+                Default::default(),
+            );
+            graph.publish(
+                "stage:test",
+                "previous".into(),
+                ["scene-debug-settings".into()].into_iter().collect(),
+            );
+        })
+        .unwrap();
         manifest.debug.cpu = true;
         crate::workspace::save_manifest(&root, &manifest).unwrap();
         assert_eq!(super::debug_hud(&root).unwrap(), manifest.debug);
         crate::scene_dependencies::observe(&root, &path, &scene).unwrap();
-        assert!(!Graph::load(&root).unwrap().nodes["stage:test"].stale.is_empty());
+        assert!(
+            !Graph::load(&root).unwrap().nodes["stage:test"]
+                .stale
+                .is_empty()
+        );
     }
     use super::*;
     #[test]
@@ -421,7 +471,7 @@ mod tests {
             before.dependencies,
             ["display-settings".to_owned()].into_iter().collect()
         );
-        input.scene.entities[0].position[0] += 3.;
+        input.scene.actors[0].position[0] += 3.;
         crate::scene_dependencies::observe(&root, &path, &input.scene).unwrap();
         assert_eq!(Graph::load(&root).unwrap().nodes[key], before);
         let mut manifest = crate::workspace::read_manifest(&root).unwrap();
@@ -555,12 +605,12 @@ mod tests {
     #[test]
     fn hud_anchors_and_pixels_use_project_output_dimensions() {
         let mut scene = crate::scene::Scene::default();
-        scene.entities.clear();
+        scene.actors.clear();
         scene.display_size = [640, 480];
-        let mut canvas = crate::scene::Entity::cube("Canvas".into());
+        let mut canvas = crate::scene::Actor::cube("Canvas".into());
         canvas.kind = "Empty".into();
         canvas.canvas = Some(Default::default());
-        let mut panel = crate::scene::Entity::cube("Panel".into());
+        let mut panel = crate::scene::Actor::cube("Panel".into());
         panel.kind = "Empty".into();
         panel.parent = Some(0);
         panel.rect = Some(crate::hud::RectTransform {
@@ -575,7 +625,7 @@ mod tests {
             enabled: true,
             ..Default::default()
         });
-        scene.entities = vec![canvas, panel];
+        scene.actors = vec![canvas, panel];
         assert_eq!(crate::hud::layout(&scene, 1), Some([620., 460., 20., 20.]));
         let pixels = crate::hud::render(&scene);
         assert_eq!(pixels.len(), 640 * 480 * 4);

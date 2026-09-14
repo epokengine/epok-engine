@@ -85,7 +85,7 @@ fn scene_registry_at(root: &Path) -> Registry {
 /// An empty map with a scene Blueprint deriving from `parent`.
 fn map(name: &str, parent_name: &str, parent_id: &str) -> Scene {
     let mut scene = Scene {
-        entities: vec![],
+        actors: vec![],
         name: name.into(),
         ..Scene::default()
     };
@@ -229,7 +229,7 @@ fn a_scene_blueprint_that_does_not_derive_from_scene_script_actor_is_refused() {
     );
 }
 
-/// A map's Blueprint may name the actors and entities of its own map by UUID. The
+/// A map's Blueprint may name the actors and actors of its own map by UUID. The
 /// compiler resolves them here, by identity and scope, and hands the bindings to the
 /// Level loader; the generated constructor keeps the null identity, exactly as every
 /// other typed object reference does. Nothing looks an identity up by name at Tick.
@@ -239,8 +239,8 @@ fn map_scoped_references_resolve_by_uuid_and_scope() {
     let mut scene = map("Level1", "epok::SceneScriptActor", om::SCENE_SCRIPT_ACTOR_ID);
     let class = with_class_id(&mut scene, 75);
     let actor = one_actor(&mut scene, 76);
-    let entity = scene.entities.first().map(|e| e.id);
-    assert!(entity.is_none(), "the fixture map has no legacy entities");
+    let entity = scene.actors.first().map(|e| e.id);
+    assert_eq!(entity, Some(actor), "one Actor collection backs scene references");
     scene
         .scene_script
         .as_mut()

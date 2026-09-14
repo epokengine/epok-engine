@@ -88,7 +88,7 @@ int main(int argc,char** argv){
     PreviewCards cards;epok::memory_card.attach(cards);
     epok::time.reset(0);epok::input.reset();
     epok::editor_preview_active=editing;
-    if(editing)epok::initialize_editor_preview();else epok::initialize_scripts();
+    if(editing)epok::initialize_editor_preview();else {epok::initialize_components();if(epok::load_actor_bank(epok::actor_table,epok::objects.data(),epok::object_count)!=epok::actor_table.count)return 4;}
     frame();
     uint32_t now=0,elapsed=0,buttons=0;
     while(read32(elapsed)&&read32(buttons)){
@@ -96,11 +96,11 @@ int main(int argc,char** argv){
         if(!editing&&epok::requested_scene.empty()){
             now+=elapsed;epok::input.sample(0,true,uint16_t(buttons));
             const auto steps=epok::time.advance(now);
-            for(auto& b:epok::bindings)if(epok::is_active_slot(b.entity))b.behaviour->frame_update(epok::objects[b.entity].transform,epok::time.frame_microseconds);
+            epok::level.frame_update(epok::time.frame_microseconds);
             if(epok::time.paused()||epok::scene_loading())epok::input.discard_edges();
             for(unsigned i=0;i<steps&&!epok::time.paused()&&!epok::scene_loading();++i){
                 epok::time.begin_tick();epok::input.begin_tick();
-                for(auto& b:epok::bindings)if(epok::is_active_slot(b.entity))b.behaviour->update(epok::objects[b.entity].transform,epok::Fixed(epok::time.delta_raw,epok::Fixed::RAW));
+                epok::level.tick(epok::Fixed(epok::time.delta_raw,epok::Fixed::RAW));
                 epok::input.end_tick();
             }
             cards.pump();++epok::performance_stats.frame;

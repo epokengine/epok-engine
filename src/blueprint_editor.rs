@@ -52,6 +52,7 @@ enum Details {
     Template,
     CreateFunction,
     CreateVariable,
+    BuildOptions,
 }
 pub struct BlueprintEditor {
     pub open: bool,
@@ -94,6 +95,8 @@ pub struct BlueprintEditor {
     comment: String,
     pub error: Option<String>,
     pub diagnostics: Vec<String>,
+    diagnostic_nodes: BTreeMap<usize, (String, String)>,
+    compile_stale: bool,
     pub generated: String,
     pub compile_requested: bool,
     compile_valid: bool,
@@ -149,6 +152,8 @@ impl Default for BlueprintEditor {
             comment: String::new(),
             error: None,
             diagnostics: vec![],
+            diagnostic_nodes: BTreeMap::new(),
+            compile_stale: true,
             generated: String::new(),
             compile_requested: false,
             compile_valid: false,
@@ -233,7 +238,7 @@ fn primitive(index: usize) -> schema::Type {
         3 => schema::Type::UInt32,
         4 => schema::Type::Vector { length: 2 },
         5 => schema::Type::Vector { length: 3 },
-        6 => schema::Type::EntityRef { class: None },
+        6 => schema::Type::ObjectRef { class: None },
         7 => schema::Type::AssetRef {
             kind: "Texture".into(),
         },
@@ -279,7 +284,7 @@ fn type_picker(ui: &Ui, label: &str, index: &mut usize, registry: &Registry) {
         .iter()
         .map(|ty| match ty {
             schema::Type::ClassRef { .. } => "Class reference".into(),
-            schema::Type::EntityRef { class: None } => "Entity reference".into(),
+            schema::Type::ObjectRef { class: None } => "Actor reference".into(),
             _ => ty.label(),
         })
         .collect();
@@ -386,6 +391,7 @@ impl BlueprintEditor {
         }
         if previous != self.selected_playback_sources() {
             self.compile_valid = false;
+            self.compile_stale = true;
             self.compile_requested = true;
         }
     }
@@ -426,11 +432,12 @@ impl BlueprintEditor {
             })
             .collect()
     }
-    pub fn compile(&mut self, root: &Path, registry: &Registry) {
+    pub fn compile(&mut self, root: &Path, registry: &Registry) -> bool {
         self.refresh_playback_sources(root);
         self.compile_requested = false;
         self.compile_valid = false;
         self.generated.clear();
+        let mut diagnostic_nodes = BTreeMap::new();
         let result = (|| {
             let mut files = asset::load_all(root).map_err(|e| vec![e])?;
             if let (Some(path), Some(doc)) = (&self.path, &self.asset) {
@@ -454,7 +461,34 @@ impl BlueprintEditor {
             crate::blueprint_compile::compile(root, &native, &files).map_err(|errors| {
                 errors
                     .into_iter()
-                    .map(|e| e.to_string())
+                    .enumerate()
+                    .map(|(index, e)| {
+                        let Some(file) = files.iter().find(|file| file.path == e.asset) else {
+                            return e.to_string();
+                        };
+                        let mut label = file.asset.name.clone();
+                        if let Some(graph) = file
+                            .asset
+                            .functions
+                            .iter()
+                            .find(|g| Some(&g.id) == e.graph.as_ref())
+                        {
+                            label.push_str(&format!(" / {}", display_port(&graph.name)));
+                            if let Some(node) =
+                                graph.nodes.iter().find(|n| Some(&n.id) == e.node.as_ref())
+                            {
+                                label.push_str(&format!(
+                                    " / {}",
+                                    node_label(node, &file.asset, registry)
+                                ));
+                                if self.path.as_ref() == Some(&file.path) {
+                                    diagnostic_nodes
+                                        .insert(index, (graph.id.clone(), node.id.clone()));
+                                }
+                            }
+                        }
+                        format!("{label}: {}", e.message)
+                    })
                     .collect::<Vec<_>>()
             })
         })();
@@ -477,6 +511,31 @@ impl BlueprintEditor {
             }
             Err(errors) => self.diagnostics = errors,
         }
+        self.diagnostic_nodes = diagnostic_nodes;
+        self.compile_stale = false;
+        self.compile_valid
+    }
+    fn focus_diagnostic(&mut self, index: usize) {
+        let Some((graph_id, node_id)) = self.diagnostic_nodes.get(&index) else {
+            return;
+        };
+        let Some(doc) = &self.asset else { return };
+        let Some((index, graph)) = doc
+            .functions
+            .iter()
+            .enumerate()
+            .find(|(_, g)| &g.id == graph_id)
+        else {
+            return;
+        };
+        if !graph.nodes.iter().any(|node| &node.id == node_id) {
+            return;
+        }
+        let p = node_position(doc, graph, node_id);
+        self.graph = index;
+        self.details = Details::Node;
+        self.selected = BTreeSet::from([node_id.clone()]);
+        self.pan = [50. - p[0] * self.zoom, 50. - p[1] * self.zoom];
     }
     pub fn discard(&mut self) {
         *self = Self::default();
@@ -675,10 +734,12 @@ impl BlueprintEditor {
                 self.undo.remove(0);
             }
             self.redo.clear();
+            self.compile_stale = true;
         }
     }
     pub fn undo(&mut self) {
         if let Some(old) = self.undo.pop() {
+            self.compile_stale = true;
             if let Some(now) = self.asset.replace(old) {
                 self.redo.push(now);
             }
@@ -688,6 +749,7 @@ impl BlueprintEditor {
     }
     pub fn redo(&mut self) {
         if let Some(next) = self.redo.pop() {
+            self.compile_stale = true;
             if let Some(now) = self.asset.replace(next) {
                 self.undo.push(now);
             }
@@ -947,7 +1009,17 @@ impl BlueprintEditor {
     }
 
     /// Returns true when an authoring source was saved and catalogs must refresh.
+    #[cfg(test)]
     pub fn draw(&mut self, ui: &Ui, registry: &Registry) -> bool {
+        self.draw_with_options(ui, registry, |_| {})
+    }
+    /// Build settings belong to the project, but are presented inside this editor.
+    pub fn draw_with_options(
+        &mut self,
+        ui: &Ui,
+        registry: &Registry,
+        build_options: impl FnOnce(&Ui),
+    ) -> bool {
         if !self.open {
             self.focused = false;
             return false;
@@ -1036,6 +1108,35 @@ impl BlueprintEditor {
             if button(ui, "Create derived Blueprint...") {
                 self.derived_requested = true;
             }
+            ui.same_line();
+            if button(ui, "Build Options") {
+                self.details = Details::BuildOptions;
+            }
+            if self.compile_requested {
+                ui.text_disabled("Compiling Blueprint...");
+            } else if self.compile_stale {
+                ui.text_disabled("Compile to validate the current Blueprint.");
+            } else if self.compile_valid {
+                ui.text_colored([0.45, 0.85, 0.55, 1.], "Blueprint compilation succeeded.");
+            } else {
+                ui.text_colored(
+                    [1., 0.4, 0.35, 1.],
+                    format!(
+                        "Blueprint compilation failed ({}). Build / Play is blocked.",
+                        self.diagnostics.len()
+                    ),
+                );
+                if let Some(index) = self.diagnostic_nodes.keys().next().copied() {
+                    ui.same_line();
+                    if button(ui, "Show error") {
+                        self.focus_diagnostic(index);
+                    }
+                }
+                if let Some(message) = self.diagnostics.first() {
+                    let _color = ui.push_style_color(imgui::StyleColor::Text, [1., 0.6, 0.5, 1.]);
+                    ui.text_wrapped(message);
+                }
+            }
             if let Some(_popup) = ui.begin_modal_popup("Revert Blueprint") {
                 ui.text_wrapped(
                     "Reload the file on disk? Current edits remain recoverable with Undo.",
@@ -1056,7 +1157,10 @@ impl BlueprintEditor {
             {
                 if ui.io().key_ctrl && ui.is_key_pressed(imgui::Key::S) {
                     match self.save() {
-                        Ok(()) => saved = true,
+                        Ok(()) => {
+                            saved = true;
+                            self.compile_requested = true;
+                        }
                         Err(e) => self.error = Some(e),
                     }
                 }
@@ -1093,7 +1197,7 @@ impl BlueprintEditor {
             let available = ui.content_region_avail();
             let left = (available[0] * 0.18).clamp(185., 235.);
             let right = (available[0] * 0.22).clamp(245., 310.);
-            let body = (available[1] - 95.).max(220.);
+            let body = (available[1] - 110.).max(80.);
             let _header = ui.push_style_color(imgui::StyleColor::Header, [0.19, 0.19, 0.19, 1.]);
             let _header_hover =
                 ui.push_style_color(imgui::StyleColor::HeaderHovered, [0.28, 0.28, 0.28, 1.]);
@@ -1154,7 +1258,12 @@ impl BlueprintEditor {
                     ui.text_disabled("\u{eae9} Details");
                     ui.separator();
                     ui.set_next_item_width(-1.);
-                    self.members(ui, registry);
+                    if self.details == Details::BuildOptions {
+                        ui.text("Build Options");
+                        build_options(ui);
+                    } else {
+                        self.members(ui, registry);
+                    }
                 });
             if self.drag.is_none()
                 && self.drag_before.is_none()
@@ -1163,34 +1272,25 @@ impl BlueprintEditor {
                 self.checkpoint(before);
             }
             ui.separator();
+            let mut focus_diagnostic = None;
             ui.child_window("bp-diagnostics").size([0., 0.]).build(|| {
                 ui.text("Compiler diagnostics");
                 if self.diagnostics.is_empty() {
                     ui.text_disabled("Compile to validate the document and inspect generated C++.");
                 }
-                for diagnostic in &self.diagnostics {
-                    if ui.selectable(diagnostic)
-                        && let Some(doc) = &self.asset
-                    {
-                        for (index, graph) in doc.functions.iter().enumerate() {
-                            for node in &graph.nodes {
-                                if diagnostic.contains(&node.id) {
-                                    self.graph = index;
-                                    self.details = Details::Node;
-                                    self.selected = BTreeSet::from([node.id.clone()]);
-                                    let p = doc
-                                        .layout
-                                        .positions
-                                        .get(&node.id)
-                                        .copied()
-                                        .unwrap_or([0., 0.]);
-                                    self.pan = [50. - p[0] * self.zoom, 50. - p[1] * self.zoom];
-                                }
-                            }
+                for (index, diagnostic) in self.diagnostics.iter().enumerate() {
+                    if self.diagnostic_nodes.contains_key(&index) {
+                        if button(ui, &format!("Show node##bp-diagnostic-{index}")) {
+                            focus_diagnostic = Some(index);
                         }
+                        ui.same_line();
                     }
+                    ui.text_wrapped(diagnostic);
                 }
             });
+            if let Some(index) = focus_diagnostic {
+                self.focus_diagnostic(index);
+            }
         });
         if !visible {
             if self.dirty() {
@@ -1376,6 +1476,47 @@ impl BlueprintEditor {
             let doc = self.asset.as_mut().unwrap();
             ui.input_text("Class name", &mut doc.name).build();
             ui.text_disabled(format!("Class ID: {}", doc.id));
+            if let Ok(model) = registry.model()
+                && let Some(parent) = model.class(&doc.parent)
+                && parent.family == crate::reflection_schema::ClassFamily::Component
+            {
+                ui.text("Compatible Actors");
+                let inherited = parent
+                    .component
+                    .as_ref()
+                    .map(|c| c.owners.clone())
+                    .unwrap_or_default();
+                if ui.checkbox("Use parent compatibility", &mut doc.component.is_none()) {
+                    if doc.component.is_some() {
+                        doc.component = None;
+                    } else {
+                        doc.component = Some(crate::reflection_schema::ComponentContract {
+                            owners: inherited.clone(),
+                            ..Default::default()
+                        });
+                    }
+                }
+                if let Some(contract) = &mut doc.component {
+                    for domain in [
+                        crate::reflection_schema::Domain::World3D,
+                        crate::reflection_schema::Domain::World2D,
+                        crate::reflection_schema::Domain::UI,
+                    ] {
+                        if !inherited.is_empty() && !inherited.contains(&domain) {
+                            continue;
+                        }
+                        let mut enabled = contract.owners.contains(&domain);
+                        if ui.checkbox(domain.label(), &mut enabled) {
+                            if enabled {
+                                contract.owners.insert(domain);
+                            } else if contract.owners.len() > 1 {
+                                contract.owners.remove(&domain);
+                            }
+                        }
+                    }
+                }
+            }
+
             let current = registry
                 .classes
                 .get(&doc.parent)
@@ -2729,10 +2870,7 @@ impl BlueprintEditor {
                 node.outputs.entry("next".into()).or_default();
             }
             let node = graph.nodes.iter_mut().find(|n| n.id == from.node).unwrap();
-            let targets = node.outputs.entry(from.pin.clone()).or_default();
-            if !targets.contains(&to.node) {
-                targets.push(to.node.clone());
-            }
+            node.outputs.insert(from.pin.clone(), vec![to.node.clone()]);
         } else {
             let node = graph.nodes.iter_mut().find(|n| n.id == to.node).unwrap();
             if matches!(
@@ -2983,9 +3121,19 @@ impl BlueprintEditor {
             }
         }
         for (name, operation) in [
-            ("Entity / Self", asset::Builtin::SelfEntity),
-            ("Entity / Is valid", asset::Builtin::IsValid),
-            ("Transform / Get position", asset::Builtin::GetPosition),
+            ("Actor / Self", asset::Builtin::SelfObject),
+            ("Actor / Is valid", asset::Builtin::IsValid),
+            ("Transform 3D / Get position", asset::Builtin::GetPosition),
+            ("World2D / Get position 2d", asset::Builtin::GetPosition2D),
+            ("World2D / Set position 2d", asset::Builtin::SetPosition2D),
+            ("World2D / Get rotation 2d", asset::Builtin::GetRotation2D),
+            ("World2D / Set rotation 2d", asset::Builtin::SetRotation2D),
+            ("World2D / Get scale 2d", asset::Builtin::GetScale2D),
+            ("World2D / Set scale 2d", asset::Builtin::SetScale2D),
+            ("UI / Get rect position", asset::Builtin::GetRectPosition),
+            ("UI / Set rect position", asset::Builtin::SetRectPosition),
+            ("UI / Get rect size", asset::Builtin::GetRectSize),
+            ("UI / Set rect size", asset::Builtin::SetRectSize),
             ("Transform / Get rotation", asset::Builtin::GetRotation),
             ("Transform / Get scale", asset::Builtin::GetScale),
             ("Transform / Get transform", asset::Builtin::GetTransform),
@@ -2997,8 +3145,8 @@ impl BlueprintEditor {
             ("Input / Button pressed", asset::Builtin::InputPressed),
             ("Input / Button released", asset::Builtin::InputReleased),
             ("Scene / Request scene", asset::Builtin::RequestScene),
-            ("Entity / Set active", asset::Builtin::SetActive),
-            ("Entity / Destroy", asset::Builtin::DestroyEntity),
+            ("Actor / Set active", asset::Builtin::SetActive),
+            ("Actor / Destroy", asset::Builtin::DestroyActor),
             ("Audio / Play", asset::Builtin::PlayAudio),
             ("Audio / Stop", asset::Builtin::StopAudio),
             ("Audio / Set clip", asset::Builtin::SetAudioClip),
@@ -3048,7 +3196,7 @@ impl BlueprintEditor {
                 ));
             }
             candidates.push((
-                format!("Entity / Cast to {}", class.cpp_name),
+                format!("Actor / Cast to {}", class.cpp_name),
                 NodeKind::Builtin {
                     operation: asset::Builtin::Cast {
                         class: class.id.clone(),
@@ -3056,7 +3204,7 @@ impl BlueprintEditor {
                 },
             ));
             candidates.push((
-                format!("Entity / Is A {}", class.cpp_name),
+                format!("Actor / Is A {}", class.cpp_name),
                 NodeKind::Builtin {
                     operation: asset::Builtin::IsA {
                         class: class.id.clone(),
@@ -3134,7 +3282,11 @@ impl BlueprintEditor {
                 ));
             }
         }
-        for graph in &doc.functions {
+        for graph in doc
+            .functions
+            .iter()
+            .filter(|graph| graph.override_id.is_none())
+        {
             candidates.push((
                 format!("Functions / {} / {}", doc.name, graph.name),
                 NodeKind::Call {
@@ -3524,7 +3676,10 @@ impl BlueprintEditor {
             }
             NodeKind::Loop { count } => {
                 let mut n = *count as i32;
-                if crate::gui::Drag::new("Iterations").speed(1.).build(ui, &mut n) {
+                if crate::gui::Drag::new("Iterations")
+                    .speed(1.)
+                    .build(ui, &mut n)
+                {
                     *count = n.clamp(1, 1024) as u32;
                 }
             }
@@ -3682,7 +3837,7 @@ fn event_pin_label(graph: &Graph, node: &Node, pin: &str) -> String {
         let label = match (graph.name.as_str(), index) {
             ("start" | "update", 0) => Some("Transform"),
             ("update", 1) => Some("Delta Seconds"),
-            ("on_trigger", 0) => Some("Other Entity"),
+            ("on_trigger", 0) => Some("Other Actor"),
             ("on_trigger", 1) => Some("Phase"),
             _ => None,
         };
@@ -3850,7 +4005,64 @@ fn output_type(
                 .map(|function| function.returns)
         }
         NodeKind::Builtin { operation } => {
-            Some(crate::blueprint_ir::builtin_signature(operation).1)
+            use asset::Builtin;
+            let family = registry
+                .classes
+                .get(&doc.parent)
+                .map(|p| crate::blueprint_workflow::parent_family(registry, p));
+            Some(match operation {
+                Builtin::SelfObject if family == Some(schema::ClassFamily::Component) => {
+                    schema::Type::ComponentRef {
+                        class: Some(doc.id.clone()),
+                    }
+                }
+                Builtin::SelfObject => schema::Type::ActorRef {
+                    class: Some(doc.id.clone()),
+                },
+                Builtin::GetOwner => {
+                    let inherited = registry.classes.get(&doc.parent).and_then(|p| {
+                        registry
+                            .ancestry(&p.cpp_name)
+                            .into_iter()
+                            .rev()
+                            .filter_map(|c| c.component.as_ref())
+                            .find(|c| !c.owners.is_empty())
+                    });
+                    let contract = doc
+                        .component
+                        .as_ref()
+                        .filter(|c| !c.owners.is_empty())
+                        .or(inherited);
+                    let class = contract
+                        .filter(|c| c.owners.len() == 1)
+                        .and_then(|c| c.owners.first())
+                        .and_then(|d| match d {
+                            schema::Domain::World3D => Some(crate::object_model::ACTOR3D_ID.into()),
+                            schema::Domain::World2D => Some(crate::object_model::ACTOR2D_ID.into()),
+                            schema::Domain::UI => Some(crate::object_model::UI_ACTOR_ID.into()),
+                            _ => None,
+                        });
+                    schema::Type::ActorRef { class }
+                }
+                Builtin::Cast { class } => {
+                    let kind = registry
+                        .classes
+                        .get(class)
+                        .map(|p| crate::blueprint_workflow::parent_family(registry, p));
+                    match kind {
+                        Some(schema::ClassFamily::Actor) => schema::Type::ActorRef {
+                            class: Some(class.clone()),
+                        },
+                        Some(schema::ClassFamily::Component) => schema::Type::ComponentRef {
+                            class: Some(class.clone()),
+                        },
+                        _ => schema::Type::ObjectRef {
+                            class: Some(class.clone()),
+                        },
+                    }
+                }
+                _ => crate::blueprint_ir::builtin_signature(operation).1,
+            })
         }
         _ => None,
     }
@@ -3925,6 +4137,11 @@ fn node_sockets_with_assets(
     }
     if !pure && !matches!(node.kind, NodeKind::Return) {
         match node.kind {
+            NodeKind::Sequence => {
+                for pin in asset::sequence_outputs(node) {
+                    push(&pin, true, SocketType::Exec);
+                }
+            }
             NodeKind::Branch => {
                 push("true", true, SocketType::Exec);
                 push("false", true, SocketType::Exec);
@@ -3997,7 +4214,7 @@ fn node_sockets_with_assets(
             push(
                 "__target",
                 false,
-                SocketType::Value(schema::Type::EntityRef {
+                SocketType::Value(schema::Type::ObjectRef {
                     class: Some(class.clone()),
                 }),
             );
@@ -4229,7 +4446,7 @@ fn socket_color(ty: &SocketType) -> [f32; 4] {
         SocketType::Value(schema::Type::Fixed) => [0.42, 0.87, 0.22, 1.],
         SocketType::Value(schema::Type::Int32 | schema::Type::UInt32) => [0.2, 0.8, 0.9, 1.],
         SocketType::Value(
-            schema::Type::EntityRef { .. }
+            schema::Type::ObjectRef { .. }
             | schema::Type::AssetRef { .. }
             | schema::Type::Record { .. },
         ) => [0., 0.70, 0.90, 1.],
@@ -4689,12 +4906,12 @@ mod tests {
         let mut editor = editor();
         editor.open = true;
         let mut template = crate::blueprint_templates::Template::root("Root");
-        let root = template.entities[0].entity.id;
-        template.entities[0].entity.canvas = Some(crate::hud::Canvas { enabled: false });
+        let root = template.actors[0].entity.id;
+        template.actors[0].entity.canvas = Some(crate::hud::Canvas { enabled: false });
         let child = template.add_child(root, "Target Child");
         let other = template.add_child(root, "Other Child");
         let original = template
-            .entities
+            .actors
             .iter_mut()
             .find(|item| item.entity.id == child)
             .unwrap();
@@ -4775,7 +4992,7 @@ mod tests {
         let click = |ctx: &mut imgui::Context, editor: &mut BlueprintEditor, label: &str| {
             let point = CONTROLS.with(|controls| {
                 let controls=controls.borrow();
-                *controls.get(label).unwrap_or_else(||panic!("Missing panel control {label:?}; rendered controls={:?}; editor error={:?}; selected template={}, source nodes={}",controls.keys().collect::<Vec<_>>(),editor.error,editor.asset.as_ref().unwrap().template.entities.len(),editor.current().map_or(0,|graph|graph.nodes.len())))
+                *controls.get(label).unwrap_or_else(||panic!("Missing panel control {label:?}; rendered controls={:?}; editor error={:?}; selected template={}, source nodes={}",controls.keys().collect::<Vec<_>>(),editor.error,editor.asset.as_ref().unwrap().template.actors.len(),editor.current().map_or(0,|graph|graph.nodes.len())))
             });
             ctx.io_mut().add_mouse_pos_event(point);
             frame(ctx, editor);
@@ -4829,7 +5046,7 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .template
-                .entities
+                .actors
                 .iter()
                 .find(|item| item.entity.id == child)
                 .unwrap()
@@ -4908,10 +5125,136 @@ mod tests {
         e.add_graph("test".into(), None);
         e
     }
+    fn rotation_fixture() -> (PathBuf, Registry, BlueprintEditor) {
+        let root = std::env::temp_dir().join(format!("epok-bp-diagnostics-{}", id()));
+        std::fs::create_dir_all(root.join("assets/scripts")).unwrap();
+        let header = root.join("assets/scripts/Parent.hpp");
+        std::fs::write(&header, "// reflected fixture\n").unwrap();
+        let parent: schema::Class = serde_json::from_value(json!({
+            "id": "parent", "cpp_name": "Parent", "parent": crate::object_model::ACTOR3D_ID,
+            "abstract_class": false, "final_class": false, "blueprintable": true,
+            "properties": [], "functions": [],
+            "source": {"file": header, "line": 1, "column": 1}
+        }))
+        .unwrap();
+        let mut registry = crate::actor_document::tests::registry();
+        registry.classes.insert("parent".into(), parent);
+        let mut e = editor();
+        e.path = Some(root.join("assets/Blueprints/BP_Test.epokbp"));
+        e.add_node(NodeKind::Builtin {
+            operation: asset::Builtin::GetRotation,
+        });
+        e.add_node(NodeKind::Return);
+        e.add_node(NodeKind::Builtin {
+            operation: asset::Builtin::SelfObject,
+        });
+        let graph = &mut e.asset.as_mut().unwrap().functions[0];
+        graph.returns = schema::Type::Fixed;
+        let rotation = graph.nodes[1].id.clone();
+        let exit = graph.nodes[2].id.clone();
+        graph.nodes[0].outputs.insert("next".into(), vec![exit]);
+        graph.nodes[2].inputs.insert(
+            "value".into(),
+            Input::Link {
+                node: rotation,
+                pin: "value.x".into(),
+            },
+        );
+        (root, registry, e)
+    }
+    #[test]
+    fn compile_diagnostics_locate_missing_target_and_clear_after_repair() {
+        let (root, registry, mut e) = rotation_fixture();
+        e.save().unwrap();
+        assert!(!e.compile(&root, &registry));
+        assert!(!e.compile_stale);
+        assert!(
+            e.diagnostics[0].contains("BP_Test / Test / Get Rotation"),
+            "{:?}",
+            e.diagnostics
+        );
+        assert!(e.diagnostics[0].contains("Target"));
+        e.focus_diagnostic(0);
+        let graph = e.current().unwrap();
+        assert!(e.selected.contains(&graph.nodes[1].id));
+        let before = e.asset.clone().unwrap();
+        let graph = &mut e.asset.as_mut().unwrap().functions[0];
+        let receiver = graph.nodes[3].id.clone();
+        graph.nodes[1].inputs.insert(
+            "target".into(),
+            Input::Link {
+                node: receiver,
+                pin: "value".into(),
+            },
+        );
+        e.checkpoint(before);
+        assert!(e.compile_stale);
+        // Compiling uses the unsaved canvas, even though the saved asset is still broken.
+        assert!(e.compile(&root, &registry), "{:?}", e.diagnostics);
+        assert!(e.diagnostic_nodes.is_empty());
+        assert!(e.generated.contains("epok::bp::api::rotation"));
+        e.undo();
+        assert!(e.compile_stale);
+        assert!(!e.compile(&root, &registry));
+        e.redo();
+        assert!(e.compile_stale);
+        e.save().unwrap();
+        assert!(e.compile(&root, &registry), "{:?}", e.diagnostics);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[ignore = "Owns a real ImGui context; run explicitly and serially"]
+    fn compile_feedback_and_build_options_use_the_blueprint_window() {
+        let (root, registry, mut e) = rotation_fixture();
+        e.open = true;
+        e.save().unwrap();
+        assert!(!e.compile(&root, &registry));
+        let mut context = crate::gui::tests::imgui_context();
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1280., 850.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        let mut options_drawn = false;
+        let mut frame = |ctx: &mut imgui::Context, e: &mut BlueprintEditor| {
+            e.draw_with_options(ctx.frame(), &registry, |ui| {
+                options_drawn = true;
+                ui.text("Instrument Blueprint Debugger");
+                assert!(ui.is_window_focused_with_flags(
+                    imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS
+                ));
+            });
+            ctx.render();
+        };
+        frame(&mut context, &mut e);
+        for control in ["Show error", "Build Options"] {
+            let point = CONTROLS.with(|c| c.borrow()[control]);
+            assert!(
+                point[1] > 0. && point[1] < 850.,
+                "{control} must be visible"
+            );
+            context.io_mut().add_mouse_pos_event(point);
+            frame(&mut context, &mut e);
+            context
+                .io_mut()
+                .add_mouse_button_event(MouseButton::Left, true);
+            frame(&mut context, &mut e);
+            context
+                .io_mut()
+                .add_mouse_button_event(MouseButton::Left, false);
+            frame(&mut context, &mut e);
+        }
+        assert!(options_drawn);
+        assert!(e.selected.contains(&e.current().unwrap().nodes[1].id));
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn visual_labels_humanize_identifiers_without_changing_source_names() {
         assert_eq!(display_port("enable_input"), "Enable Input");
-        assert_eq!(display_port("SelfEntity"), "Self Entity");
+        assert_eq!(display_port("SelfObject"), "Self Object");
         assert_eq!(display_port("SetAudioClip"), "Set Audio Clip");
         assert_eq!(display_port("HTTPServer"), "HTTP Server");
         assert_eq!(display_port("next"), "");
@@ -5025,7 +5368,7 @@ mod tests {
             id: Uuid::new_v4(),
             name: "Caster".into(),
             required: true,
-            target: schema::Type::EntityRef {
+            target: schema::Type::ObjectRef {
                 class: Some("caster".into()),
             },
             extra: Default::default(),
@@ -5158,7 +5501,7 @@ mod tests {
             assert_eq!(pins.iter().any(|pin| pin.ty == SocketType::Exec), !pure);
             assert!(pins.iter().any(|pin| pin.pin == "__target"
                 && pin.ty
-                    == SocketType::Value(schema::Type::EntityRef {
+                    == SocketType::Value(schema::Type::ObjectRef {
                         class: Some("target".into())
                     })
                 && !pin.output));
@@ -5176,6 +5519,50 @@ mod tests {
         registry.classes.get_mut("target").unwrap().functions[0].access = "private".into();
         assert!(target_functions(&registry, "target").is_empty());
         assert_eq!(node_label(&node, doc, &registry), "Missing target function");
+    }
+    #[test]
+    fn event_entries_have_no_inputs_and_execution_rewiring_replaces_the_target() {
+        let mut e = editor();
+        let registry = Registry::new();
+        e.add_node(NodeKind::Sequence);
+        e.add_node(NodeKind::Sequence);
+        let doc = e.asset.as_ref().unwrap();
+        let graph = e.current().unwrap();
+        let entry = node_sockets(doc, graph, &graph.nodes[0], &registry);
+        assert!(entry.iter().all(|s| s.output));
+        let source = entry
+            .iter()
+            .find(|s| s.ty == SocketType::Exec)
+            .unwrap()
+            .clone();
+        let a = node_sockets(doc, graph, &graph.nodes[1], &registry)
+            .into_iter()
+            .find(|s| !s.output && s.ty == SocketType::Exec)
+            .unwrap();
+        let b = node_sockets(doc, graph, &graph.nodes[2], &registry)
+            .into_iter()
+            .find(|s| !s.output && s.ty == SocketType::Exec)
+            .unwrap();
+        e.connect(&source, &a, &registry).unwrap();
+        let before = e.asset.clone().unwrap();
+        e.connect(&source, &b, &registry).unwrap();
+        e.checkpoint(before);
+        assert_eq!(e.current().unwrap().nodes[0].outputs["next"], vec![b.node]);
+        e.undo();
+        assert_eq!(e.current().unwrap().nodes[0].outputs["next"], vec![a.node]);
+        let mut input = source.clone();
+        input.output = false;
+        input.pin = "exec".into();
+        let output = node_sockets(
+            e.asset.as_ref().unwrap(),
+            e.current().unwrap(),
+            &e.current().unwrap().nodes[2],
+            &registry,
+        )
+        .into_iter()
+        .find(|s| s.output)
+        .unwrap();
+        assert!(e.connect(&output, &input, &registry).is_err());
     }
     #[test]
     fn copy_remaps_internal_links_and_excludes_entry() {
@@ -5227,15 +5614,15 @@ mod tests {
             ty: SocketType::Exec,
         };
         let registry = Registry::new();
-        e.connect(&s(1, true, "next"), &s(2, false, "exec"), &registry)
+        e.connect(&s(1, true, "then_0"), &s(2, false, "exec"), &registry)
             .unwrap();
         assert!(
-            e.connect(&s(2, true, "next"), &s(1, false, "exec"), &registry)
+            e.connect(&s(2, true, "then_0"), &s(1, false, "exec"), &registry)
                 .is_err()
         );
         let mut wrong = s(2, false, "exec");
         wrong.ty = SocketType::Value(schema::Type::Bool);
-        assert!(e.connect(&s(1, true, "next"), &wrong, &registry).is_err());
+        assert!(e.connect(&s(1, true, "then_0"), &wrong, &registry).is_err());
     }
     #[test]
     fn unbound_numeric_and_reroute_sockets_infer_without_coercion() {

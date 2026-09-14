@@ -30,7 +30,7 @@ This module covers bounded particle simulation and rendering. It documents 10 pu
 **Exact declaration**
 
 ```cpp
-template<size_t N>void advance(std::array<Entity,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,Fixed dt)
+template<size_t N>void advance(std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,Fixed dt)
 ```
 
 - **Declared at:** [line 71](../../../runtime/particles.hpp#L71)
@@ -40,7 +40,7 @@ template<size_t N>void advance(std::array<Entity,N>& objects,const std::array<Af
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `objects` | `std::array<Entity, N> &` | Input/output; inspect the function contract | Value supplied for `objects`. See the exact type and module contract. |
+| `objects` | `std::array<ActorData, N> &` | Input/output; inspect the function contract | Value supplied for `objects`. See the exact type and module contract. |
 | `world` | `const std::array<Affine<Fixed>, N> &` | Input | Value supplied for `world`. See the exact type and module contract. |
 | `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
@@ -58,7 +58,7 @@ template<size_t N>void advance(std::array<Entity,N>& objects,const std::array<Af
 // N
 
 // Assume these named values have been initialized with valid data:
-// std::array<Entity, N> & objects
+// std::array<ActorData, N> & objects
 // const std::array<Affine<Fixed>, N> & world
 // size_t count
 // Fixed dt
@@ -413,7 +413,7 @@ object.remove_owner(owner);
 **Exact declaration**
 
 ```cpp
-template<size_t N>void scene_emitters(std::array<Entity,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count)
+template<size_t N>void scene_emitters(std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count)
 ```
 
 - **Declared at:** [line 40](../../../runtime/particles.hpp#L40)
@@ -423,7 +423,7 @@ template<size_t N>void scene_emitters(std::array<Entity,N>& objects,const std::a
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `objects` | `std::array<Entity, N> &` | Input/output; inspect the function contract | Value supplied for `objects`. See the exact type and module contract. |
+| `objects` | `std::array<ActorData, N> &` | Input/output; inspect the function contract | Value supplied for `objects`. See the exact type and module contract. |
 | `world` | `const std::array<Affine<Fixed>, N> &` | Input | Value supplied for `world`. See the exact type and module contract. |
 | `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 
@@ -440,7 +440,7 @@ template<size_t N>void scene_emitters(std::array<Entity,N>& objects,const std::a
 // N
 
 // Assume these named values have been initialized with valid data:
-// std::array<Entity, N> & objects
+// std::array<ActorData, N> & objects
 // const std::array<Affine<Fixed>, N> & world
 // size_t count
 

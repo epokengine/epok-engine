@@ -134,7 +134,8 @@ struct Animator {
     void pause(){playing=false;}void resume(){playing=true;}void stop(){playing=false;ticks=0;}
     void advance(){if(!enabled||!playing||!model||clip<0||size_t(clip)>=model->clip_count)return;auto frames=model->clips[clip].frames;if(looping){ticks=(ticks+1)%(uint32_t(frames>1?frames-1:1)*2);}else if(ticks<uint32_t(frames-1)*2)++ticks;else playing=false;}
 };
-struct LegacyEntityStorage {
+class Actor;
+struct ActorData {
     bool camera; bool mesh; bool tiled; int parent; Transform transform; Material material;
     Canvas canvas;RectTransform rect;Image image;Text text;ProgressBar progress;char name[129]={};
     const MeshGeometry* geometry=nullptr;
@@ -146,43 +147,43 @@ struct LegacyEntityStorage {
     Collider collider;
     CameraSettings camera_settings;
     uint32_t generation=1;
+    Actor* owner=nullptr;
     void set_name(const char* value){size_t i=0;if(value)for(;i<128 && value[i];++i)name[i]=value[i];name[i]=0;}
     template<class T>T& component();
     template<class T>T* get(){auto& c=component<T>();return c.enabled?&c:nullptr;}
     template<class T>T& add(){auto& c=component<T>();c.enabled=true;return c;}
     template<class T>void remove(){component<T>().enabled=false;}
 };
-template<>inline Transform& LegacyEntityStorage::component<Transform>(){return transform;}
-template<>inline Collider& LegacyEntityStorage::component<Collider>(){return collider;}
-template<>inline CameraSettings& LegacyEntityStorage::component<CameraSettings>(){return camera_settings;}
-template<>inline BlobShadow& LegacyEntityStorage::component<BlobShadow>(){return blob_shadow;}
-template<>inline Light& LegacyEntityStorage::component<Light>(){return light;}
-template<>inline AudioSource& LegacyEntityStorage::component<AudioSource>(){return audio;}
-template<>inline Animator& LegacyEntityStorage::component<Animator>(){return animator;}
-template<>inline Sprite& LegacyEntityStorage::component<Sprite>(){return sprite;}
-template<>inline SpriteAnimator& LegacyEntityStorage::component<SpriteAnimator>(){return sprite_animator;}
-template<>inline PaletteAnimator& LegacyEntityStorage::component<PaletteAnimator>(){return palette_animator;}
-template<>inline ParticleEmitter& LegacyEntityStorage::component<ParticleEmitter>(){return particle_emitter;}
-template<>inline MeshLighting& LegacyEntityStorage::component<MeshLighting>(){return lighting;}
-template<>inline Canvas& LegacyEntityStorage::component<Canvas>(){return canvas;}
-template<>inline RectTransform& LegacyEntityStorage::component<RectTransform>(){return rect;}
-template<>inline Image& LegacyEntityStorage::component<Image>(){return image;}
-template<>inline Text& LegacyEntityStorage::component<Text>(){return text;}
-template<>inline ProgressBar& LegacyEntityStorage::component<ProgressBar>(){return progress;}
-template<>inline Transform* LegacyEntityStorage::get<Transform>(){return &transform;}
-template<>inline Transform& LegacyEntityStorage::add<Transform>(){return transform;}
-using Entity=LegacyEntityStorage;
-Entity* find_entity(const char* name);
-Entity* create_entity(const char* name,Entity* parent=nullptr);
-struct EntityHandle {
+template<>inline Transform& ActorData::component<Transform>(){return transform;}
+template<>inline Collider& ActorData::component<Collider>(){return collider;}
+template<>inline CameraSettings& ActorData::component<CameraSettings>(){return camera_settings;}
+template<>inline BlobShadow& ActorData::component<BlobShadow>(){return blob_shadow;}
+template<>inline Light& ActorData::component<Light>(){return light;}
+template<>inline AudioSource& ActorData::component<AudioSource>(){return audio;}
+template<>inline Animator& ActorData::component<Animator>(){return animator;}
+template<>inline Sprite& ActorData::component<Sprite>(){return sprite;}
+template<>inline SpriteAnimator& ActorData::component<SpriteAnimator>(){return sprite_animator;}
+template<>inline PaletteAnimator& ActorData::component<PaletteAnimator>(){return palette_animator;}
+template<>inline ParticleEmitter& ActorData::component<ParticleEmitter>(){return particle_emitter;}
+template<>inline MeshLighting& ActorData::component<MeshLighting>(){return lighting;}
+template<>inline Canvas& ActorData::component<Canvas>(){return canvas;}
+template<>inline RectTransform& ActorData::component<RectTransform>(){return rect;}
+template<>inline Image& ActorData::component<Image>(){return image;}
+template<>inline Text& ActorData::component<Text>(){return text;}
+template<>inline ProgressBar& ActorData::component<ProgressBar>(){return progress;}
+template<>inline Transform* ActorData::get<Transform>(){return &transform;}
+template<>inline Transform& ActorData::add<Transform>(){return transform;}
+ActorData* find_actor_data(const char* name);
+ActorData* allocate_actor_data(const char* name,ActorData* parent=nullptr);
+struct DataHandle {
     uint16_t index=0xffff; uint32_t generation=0;
-    Entity* get() const;
+    ActorData* get() const;
     explicit operator bool() const {return get()!=nullptr;}
 };
-EntityHandle handle(const Entity* entity);
-bool destroy_entity(Entity* entity);
-bool set_active(Entity* entity,bool active);
-bool is_active(const Entity* entity);
+DataHandle handle(const ActorData* entity);
+bool destroy_actor_data(ActorData* entity);
+bool set_active(ActorData* entity,bool active);
+bool is_active(const ActorData* entity);
 // Same test for a slot index; skips the pointer validation of is_active.
 bool is_active_slot(size_t index);
 bool request_scene(size_t index);
@@ -191,19 +192,19 @@ bool request_scene(size_t index,const TransitionOptions& options);
 bool request_scene(const char* name,const TransitionOptions& options);
 size_t current_scene();
 bool scene_loading();
-bool set_active_camera(Entity* camera);
-EntityHandle active_camera();
+bool set_active_camera(ActorData* camera);
+DataHandle active_camera();
 bool camera_project(const Fixed* world_point,Fixed* screen_xy);
 void activate_texture_bank(const Texture* textures);
 // Spatial queries use world coordinates. Ray displacement defines a finite segment.
-SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask=0xffffffffu,const Entity* ignore=nullptr,bool triggers=false);
-size_t overlap(const Aabb& box,EntityHandle* output,size_t capacity,uint32_t mask=0xffffffffu,const Entity* ignore=nullptr,bool triggers=true);
-SpatialHit query_ground(const Entity& entity,Fixed distance,uint32_t mask=0xffffffffu);
-inline EntityHandle hit_entity(const SpatialHit& hit) { return hit.entity<0?EntityHandle{}:EntityHandle{uint16_t(hit.entity),hit.generation}; }
-MoveResult move_and_slide(Entity& entity,const Fixed* world_displacement,uint32_t mask=0xffffffffu);
+SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false);
+size_t overlap(const Aabb& box,DataHandle* output,size_t capacity,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=true);
+SpatialHit query_ground(const ActorData& entity,Fixed distance,uint32_t mask=0xffffffffu);
+inline DataHandle hit_entity(const SpatialHit& hit) { return hit.entity<0?DataHandle{}:DataHandle{uint16_t(hit.entity),hit.generation}; }
+MoveResult move_and_slide(ActorData& entity,const Fixed* world_displacement,uint32_t mask=0xffffffffu);
 // Call after an intentional teleport/cut to snap visual position history.
 void reset_motion_interpolation();
-bool collider_aabb(const Entity& entity,Aabb& output);
+bool collider_aabb(const ActorData& entity,Aabb& output);
 void reset_runtime_services();
 void remove_runtime_owner(size_t index);
 #ifdef EPOK_EDITOR_PREVIEW
@@ -212,37 +213,7 @@ inline bool editor_preview_active=false;
 #ifdef EPOK_BLUEPRINTS
 inline uint32_t blueprint_scene_generation=1;
 #endif
-class EPOK_CLASS(Blueprintable, Id="8ec3a9d4-13f1-4727-b4b1-591202c82490") Behaviour {
-    Entity* m_entity=nullptr;
-public:
-    void bind(Entity& owner){m_entity=&owner;}
-    Entity& entity(){return *m_entity;}
-    // Typed component adapters synchronize only the reflected property being read
-    // or written. Reads capture live state; writes (including restoration) apply
-    // before crossing events. Ordinary behaviours need no synchronization.
-    virtual void timeline_sync(uint64_t, bool) {}
-#ifdef EPOK_BLUEPRINTS
-    // Runtime-owned continuation hooks are independent of overridable gameplay events.
-    virtual void blueprint_tick(Transform&,Fixed) {}
-    virtual void blueprint_cancel() {}
-    virtual void blueprint_observe() {}
-    virtual uint64_t blueprint_class_id() const {return 0;}
-#endif
-    EPOK_FUNCTION(BlueprintEvent) virtual void start(Transform&) {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void on_enable() {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void on_disable() {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void on_destroy() {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void on_trigger(EntityHandle,TriggerPhase) {}
-    // Runs once per rendered frame even while paused. Use input.frame_pressed()
-    // for pause menus; update() receives buffered simulation input edges.
-    EPOK_FUNCTION(BlueprintEvent) virtual void frame_update(Transform&,uint32_t elapsed_microseconds) {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void update(Transform&, Fixed) = 0;
-};
-struct Binding { Behaviour* behaviour; size_t entity;
-#ifdef EPOK_BLUEPRINTS
-    uint64_t class_id=0;
-#endif
-};
+
 }
 #include "effect_types.hpp"
 #include "object_model.hpp"

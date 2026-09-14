@@ -1,5 +1,8 @@
 # Design contract — Object / Actor / Component model
 
+The actor-only decision in [actor-only.md](actor-only.md), accepted on 2026-09-14,
+supersedes this document's Entity/Behaviour compatibility requirements.
+
 This is the binding contract for every phase of the actor-architecture initiative. Agents
 implementing a phase follow these names, IDs and rules; deviations are recorded here first.
 

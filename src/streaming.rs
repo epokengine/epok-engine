@@ -209,7 +209,7 @@ pub fn compile_with_budget(
     for scene in scenes {
         let layout = crate::texture::layout(scene)?;
         let mut locations = BTreeMap::new();
-        for (entity, e) in scene.entities.iter().enumerate().filter(|(_, e)| {
+        for (entity, e) in scene.actors.iter().enumerate().filter(|(_, e)| {
             e.kind == "Mesh" && e.editable_mesh.is_some() && e.skeletal_mesh.is_none()
         }) {
             let qs = crate::lighting::quads(e);
@@ -295,13 +295,13 @@ mod tests {
                 doc.materials[0].id,
             );
         }
-        let mut e = crate::scene::Entity::cube("Streamed".into());
+        let mut e = crate::scene::Actor::cube("Streamed".into());
         let mut component = crate::mesh::Component::new(uuid::Uuid::new_v4());
         component.document = Some(std::sync::Arc::new(doc));
         e.editable_mesh = Some(component);
         e.lighting.static_geometry = true;
         Scene {
-            entities: vec![e],
+            actors: vec![e],
             ..Default::default()
         }
     }
@@ -321,7 +321,7 @@ mod tests {
             bundle.bytes,
             compile(std::slice::from_ref(&scene), 2).unwrap().bytes
         );
-        let qs = crate::lighting::quads(&scene.entities[0]);
+        let qs = crate::lighting::quads(&scene.actors[0]);
         for (i, chunk) in crate::mesh_compile::chunks(&qs).unwrap().iter().enumerate() {
             let loc = &bundle.chunks[0][&format!("editable_0_{i}")];
             assert_eq!(loc.vertices % 4, 0);
@@ -366,7 +366,7 @@ mod tests {
         assert!(header.contains("&editable_0_1"));
         assert!(header.contains("stream_pool_pages=4"));
         let mut dynamic = scene(1);
-        dynamic.entities[0].lighting.static_geometry = false;
+        dynamic.actors[0].lighting.static_geometry = false;
         // Runtime transforms may change; only immutable payload is streamed.
         assert_eq!(compile(&[dynamic], 2).unwrap().page_count(), 1);
         assert_eq!(compile(&[Scene::default()], 2).unwrap().page_count(), 0);
@@ -376,7 +376,7 @@ mod tests {
     #[test]
     fn packed_uv_and_global_texture_index_have_native_offsets() {
         let scene = scene(1);
-        let q = &crate::lighting::quads(&scene.entities[0])[0];
+        let q = &crate::lighting::quads(&scene.actors[0])[0];
         let encoded = encode_quad(q, [1, 2, 3, 4], 7, 12, Some((64, 32, 300)));
         assert_eq!(i32_at(&encoded, 20), 12);
         assert_eq!(encoded[60], 1);
@@ -390,12 +390,13 @@ mod tests {
     #[test]
     fn streamed_world_size_does_not_size_gpu_or_retained_buffers() {
         let mut scene = scene(350);
-        let mut other = scene.entities[0].clone();
-        other.id = uuid::Uuid::new_v4();
+        let mut other = scene.actors[0].clone();
+        let ids = crate::actor_document::fresh_identities(std::slice::from_ref(&other));
+        crate::actor_document::remap_actor(&mut other, &ids);
         other.name = "Second mesh".into();
-        scene.entities.push(other);
+        scene.actors.push(other);
         let world_triangles = scene
-            .entities
+            .actors
             .iter()
             .map(crate::lighting::quad_count)
             .sum::<usize>()

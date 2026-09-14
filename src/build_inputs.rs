@@ -645,7 +645,9 @@ pub fn prepare(
     })
 }
 impl Prepared {
-    pub fn requires_rebuild(&self) -> bool { self.rebuild }
+    pub fn requires_rebuild(&self) -> bool {
+        self.rebuild
+    }
     pub fn arguments(&self) -> Vec<OsString> {
         let mut arguments = vec!["all".into(), format!("EPOK_INPUT_STAMP={STAMP}").into()];
         if self.rebuild {
@@ -929,10 +931,12 @@ sdk_blob:
         )
         .unwrap();
         let mut scene = crate::scene::Scene::default();
-        scene.entities[0].script = Some(crate::scene::ScriptBinding {
-            name: "Probe".into(),
-            ..Default::default()
-        });
+        scene.actors[0].set_class_defaults(
+            &(crate::scene::ClassDefaults {
+                name: "Probe".into(),
+                ..Default::default()
+            }),
+        );
         let build = root.join(".epok/build");
         crate::project::stage_into(&root, &scene, &build).unwrap();
         let mut patches = Files::new();

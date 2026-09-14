@@ -507,7 +507,7 @@ mod tests {
         let reopened = crate::workspace::Project::open(&root).unwrap();
         assert_eq!(reopened.manifest.play, profile);
         drop(reopened);
-        other.entities[0].name = "Unsaved edit".into();
+        other.actors[0].name = "Unsaved edit".into();
         let request = input(&root, path.clone(), other.clone(), profile, false).unwrap();
         assert_ne!(request.scene.name, "Other");
         let loaded = crate::scene_bank::load_selected(
@@ -518,7 +518,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(loaded.scenes.len(), 2);
-        assert_eq!(loaded.scenes[1].entities[0].name, "Unsaved edit");
+        assert_eq!(loaded.scenes[1].actors[0].name, "Unsaved edit");
         assert!(matches!(
             loaded.sources[0],
             crate::scene_dependencies::Origin::Editor(..)

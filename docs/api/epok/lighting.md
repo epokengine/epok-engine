@@ -593,7 +593,7 @@ auto result = object.localize(world);
 **Exact declaration**
 
 ```cpp
-void prepare(const std::array<Entity,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t object_count)
+void prepare(const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t object_count)
 ```
 
 - **Declared at:** [line 128](../../../runtime/lighting.hpp#L128)
@@ -603,7 +603,7 @@ void prepare(const std::array<Entity,N>& objects,const std::array<Affine<Fixed>,
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `objects` | `const std::array<Entity, N> &` | Input | Value supplied for `objects`. See the exact type and module contract. |
+| `objects` | `const std::array<ActorData, N> &` | Input | Value supplied for `objects`. See the exact type and module contract. |
 | `world` | `const std::array<Affine<Fixed>, N> &` | Input | Value supplied for `world`. See the exact type and module contract. |
 | `object_count` | `size_t` | Input | Value supplied for `object_count`. See the exact type and module contract. |
 
@@ -617,7 +617,7 @@ void prepare(const std::array<Entity,N>& objects,const std::array<Affine<Fixed>,
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const std::array<Entity, N> & objects
+// const std::array<ActorData, N> & objects
 // const std::array<Affine<Fixed>, N> & world
 // size_t object_count
 
@@ -681,7 +681,7 @@ object.reset_owner(index);
 **Exact declaration**
 
 ```cpp
-std::array<psyqo::Color,6> shade(size_t object,const std::array<Entity,N>& objects,const std::array<Affine<Fixed>,N>& world,bool generic=false)
+std::array<psyqo::Color,6> shade(size_t object,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,bool generic=false)
 ```
 
 - **Declared at:** [line 134](../../../runtime/lighting.hpp#L134)
@@ -692,7 +692,7 @@ std::array<psyqo::Color,6> shade(size_t object,const std::array<Entity,N>& objec
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `object` | `size_t` | Input | Value supplied for `object`. See the exact type and module contract. |
-| `objects` | `const std::array<Entity, N> &` | Input | Value supplied for `objects`. See the exact type and module contract. |
+| `objects` | `const std::array<ActorData, N> &` | Input | Value supplied for `objects`. See the exact type and module contract. |
 | `world` | `const std::array<Affine<Fixed>, N> &` | Input | Value supplied for `world`. See the exact type and module contract. |
 | `generic` | `bool` | Input | Value supplied for `generic`. See the exact type and module contract. |
 
@@ -707,7 +707,7 @@ std::array<psyqo::Color,6> shade(size_t object,const std::array<Entity,N>& objec
 
 // Assume these named values have been initialized with valid data:
 // size_t object
-// const std::array<Entity, N> & objects
+// const std::array<ActorData, N> & objects
 // const std::array<Affine<Fixed>, N> & world
 // bool generic
 

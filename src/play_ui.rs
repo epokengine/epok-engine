@@ -286,7 +286,10 @@ mod tests {
             .fonts()
             .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
         context.fonts().build_rgba32_texture();
-        let mut profile = Profile { data: DataSource::Disc, ..Default::default() };
+        let mut profile = Profile {
+            data: DataSource::Disc,
+            ..Default::default()
+        };
         let frame = |context: &mut imgui::Context, profile: &mut Profile, open: bool| {
             ITEMS.with_borrow_mut(|items| items.clear());
             let ui = context.frame();
@@ -328,9 +331,15 @@ mod tests {
         click(&mut context, &mut profile, "target:Serial");
         assert_eq!(profile.data, DataSource::Host);
         frame(&mut context, &mut profile, true);
-        for _ in 0..3 { frame(&mut context, &mut profile, false); }
+        for _ in 0..3 {
+            frame(&mut context, &mut profile, false);
+        }
         click(&mut context, &mut profile, "data:Disc");
-        assert_eq!(profile.data, DataSource::Host, "CD is disabled while Serial is selected");
+        assert_eq!(
+            profile.data,
+            DataSource::Host,
+            "CD is disabled while Serial is selected"
+        );
         click(&mut context, &mut profile, "scenes");
         click(&mut context, &mut profile, "selected");
         assert_eq!(
