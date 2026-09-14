@@ -4,16 +4,16 @@
 -- no C++ code spawns it. `Guard` creates it with `epok.spawn("Sentinel")`, and
 -- it destroys itself through the inherited reflected `Actor::destroy`. The
 -- whole lifecycle is therefore authored in Lua alone.
--- No `id`: nothing places this class in a scene, so the engine-derived
--- `lua:Sentinel` identity is enough and the acceptance run exercises it.
-local Sentinel = epok.class {
-    name = "Sentinel",
-    extends = "EnemyBase",
-    properties = {
-        seen = { type = "Int32", default = 0, editable = true }
-    },
-    functions = {}
-}
+--
+-- Nothing places this class in a scene, so the project deliberately records no
+-- identity for it: the acceptance run therefore exercises the adoption path,
+-- where the first catalog refresh writes an entry for a script that arrived
+-- without one and names the class by it from that moment on.
+
+---@class Sentinel : EnemyBase
+local Sentinel = EnemyBase:extend()
+
+Sentinel.seen = 0
 
 -- `EnemyBase::begin_play` is deliberately NOT called: it registers the actor in
 -- the native fixture table and drives the numeric battery, which belongs to the

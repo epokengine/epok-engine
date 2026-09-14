@@ -3596,9 +3596,11 @@ mod interaction_tests {
         click(&mut context, &mut editor, "Create and Attach");
         let created = root.join("assets/scripts/Enemies/Guard.lua");
         assert!(created.is_file(), "{:?}", editor.lua_error);
+        // The template's own property line, replaced by the one this test
+        // reads back out of the Inspector.
         let declared = std::fs::read_to_string(&created).unwrap().replace(
-            "properties = {}",
-            "properties = {\n        health = { id = \"0f1d2c3b-4a59-4687-9b0c-1d2e3f405162\",\n            type = \"Fixed\", default = 100, editable = true }\n    }",
+            "Guard.speed = 1.0",
+            "---@id 0f1d2c3b-4a59-4687-9b0c-1d2e3f405162\nGuard.health = 100.0",
         );
         std::fs::write(&created, declared).unwrap();
         editor.refresh_scripts();

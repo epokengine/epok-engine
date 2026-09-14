@@ -11,24 +11,15 @@
 -- live yet. Profile v1 therefore drives an actor's lifetime from that actor's
 -- own body -- `Spinner` expires on its own `lifetime` -- rather than by holding
 -- a reference to it here.
-local Spawner = epok.class {
-    id = "5c8e1a37-9b42-4d6f-8e15-7a3b9c2d4e60",
-    name = "Spawner",
-    extends = "epok::Actor3D",
-    properties = {
-        -- Seconds this actor stays alive before destroying itself.
-        lifetime = {
-            type = "Fixed", default = 5.0, editable = true
-        },
-        elapsed = {
-            type = "Fixed", default = 0.0, editable = false
-        },
-        spawned = {
-            type = "Int32", default = 0, editable = false
-        }
-    },
-    functions = {}
-}
+
+---@class Spawner : epok.Actor3D
+local Spawner = epok.Actor3D:extend()
+
+-- Seconds this actor stays alive before destroying itself.
+Spawner.lifetime = 5.0
+-- `epok.Hidden` is the one wrapper: the same value, kept out of the Inspector.
+Spawner.elapsed = epok.Hidden(0.0)
+Spawner.spawned = epok.Hidden(0)
 
 function Spawner:begin_play()
     -- A numeric `for` needs constant bounds in the profile, so the batch size

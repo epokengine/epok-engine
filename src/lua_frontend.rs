@@ -60,6 +60,7 @@ pub mod profile {
     pub const ASSET_ARGUMENT: &str = "Asset and class reference arguments must be a direct read of a declared property of this class, such as epok.set_texture(self.ref, self.skin)";
     pub const UNKNOWN_CLASS: &str =
         "Unknown class name; a builtin resolves its class statically through the registry";
+    pub const FILE_SCOPE: &str = "Only `local <Class> = <Parent>:extend()`, `<Class>.<name> = <value>` property assignments, method definitions and a final `return <Class>` are allowed at file scope";
     pub const AMBIGUOUS_LITERAL: &str =
         "Numeric literal has no contextual type; annotate the target or use an explicit conversion";
 }
@@ -113,6 +114,10 @@ struct Lexer<'a> {
     line: u32,
     column: u32,
     file: &'a Path,
+    /// `---@...` documentation comments, by the line they start on. Every other
+    /// comment is discarded: only the annotation dialect the Lua Language
+    /// Server reads carries a declaration.
+    annotations: BTreeMap<u32, ast::Annotation>,
 }
 impl<'a> Lexer<'a> {
     fn new(file: &'a Path, source: &'a str) -> Self {
@@ -122,6 +127,7 @@ impl<'a> Lexer<'a> {
             line: 1,
             column: 1,
             file,
+            annotations: BTreeMap::new(),
         }
     }
     fn span(&self) -> Span {
@@ -187,14 +193,33 @@ impl<'a> Lexer<'a> {
                     self.bump();
                 }
                 Some(b'-') if self.peek(1) == Some(b'-') => {
+                    let span = self.span();
                     self.bump();
                     self.bump();
                     if let Some(result) = self.long_bracket() {
                         result?;
                         continue;
                     }
+                    // `---@tag rest`: the Lua Language Server dialect. A line
+                    // that only looks like one (`-- ---@param ...`) is an
+                    // ordinary comment and stays discarded.
+                    let annotated = self.peek(0) == Some(b'-') && self.peek(1) == Some(b'@');
+                    let start = self.index;
                     while !matches!(self.peek(0), None | Some(b'\n')) {
                         self.bump();
+                    }
+                    if annotated {
+                        let text = String::from_utf8_lossy(&self.bytes[start + 2..self.index]);
+                        let mut words = text.split_whitespace();
+                        let tag = words.next().unwrap_or_default().to_owned();
+                        self.annotations.insert(
+                            span.line,
+                            ast::Annotation {
+                                tag,
+                                operands: words.map(str::to_owned).collect(),
+                                span,
+                            },
+                        );
                     }
                 }
                 _ => return Ok(()),
@@ -281,7 +306,7 @@ impl<'a> Lexer<'a> {
             span,
         })
     }
-    fn tokens(mut self) -> Result<Vec<Token>, Diagnostic> {
+    fn tokens(mut self) -> Result<(Vec<Token>, BTreeMap<u32, ast::Annotation>), Diagnostic> {
         let mut out = vec![];
         loop {
             self.skip_trivia()?;
@@ -291,7 +316,7 @@ impl<'a> Lexer<'a> {
                     tok: Tok::Eof,
                     span,
                 });
-                return Ok(out);
+                return Ok((out, self.annotations));
             };
             if byte == b'['
                 && matches!(self.peek(1), Some(b'[' | b'='))
@@ -496,6 +521,15 @@ pub mod ast {
             }
         }
     }
+    /// One `---@<tag> <operands...>` documentation comment.
+    #[derive(Clone, Debug)]
+    pub struct Annotation {
+        /// The tag without its `@`, for example `param`, `return`, `override`.
+        pub tag: String,
+        /// Whitespace-separated words after the tag.
+        pub operands: Vec<String>,
+        pub span: Span,
+    }
     /// `function <object>:<name>(<parameters>) ... end`
     #[derive(Clone, Debug)]
     pub struct Method {
@@ -503,13 +537,38 @@ pub mod ast {
         pub name: String,
         pub parameters: Vec<(String, Span)>,
         pub body: Block,
+        /// The unbroken run of `---@` lines immediately above `function`, in
+        /// source order. The signature of a method with no `functions` entry is
+        /// read from them.
+        pub annotations: Vec<Annotation>,
+        pub span: Span,
+    }
+    /// A file-scope `local <name> = <value>` binding.
+    #[derive(Clone, Debug)]
+    pub struct Local {
+        pub name: String,
+        pub value: Expr,
+        /// The unbroken run of `---@` lines immediately above `local`.
+        pub annotations: Vec<Annotation>,
+        pub span: Span,
+    }
+    /// A file-scope `<object>.<name> = <value>` property assignment.
+    #[derive(Clone, Debug)]
+    pub struct Assignment {
+        pub object: String,
+        pub name: String,
+        pub value: Expr,
+        /// The unbroken run of `---@` lines immediately above the assignment.
+        pub annotations: Vec<Annotation>,
         pub span: Span,
     }
     /// A whole `.lua` file in the profile's fixed shape.
     #[derive(Clone, Debug)]
     pub struct Chunk {
         /// Top-level `local <name> = <value>` bindings, in source order.
-        pub locals: Vec<(String, Expr, Span)>,
+        pub locals: Vec<Local>,
+        /// Top-level `<Class>.<name> = <value>` properties, in source order.
+        pub assignments: Vec<Assignment>,
         pub methods: Vec<Method>,
         pub returns: Option<(String, Span)>,
     }
@@ -525,6 +584,7 @@ struct Parser<'a> {
     depth: usize,
     /// Method bodies reject every construct the metadata table is allowed to use.
     in_body: bool,
+    annotations: BTreeMap<u32, ast::Annotation>,
 }
 impl<'a> Parser<'a> {
     fn error(&self, span: Span, message: impl Into<String>) -> Diagnostic {
@@ -588,6 +648,7 @@ impl<'a> Parser<'a> {
     fn chunk(&mut self) -> Result<ast::Chunk, Diagnostic> {
         let mut chunk = ast::Chunk {
             locals: vec![],
+            assignments: vec![],
             methods: vec![],
             returns: None,
         };
@@ -612,9 +673,47 @@ impl<'a> Parser<'a> {
                     if self.at_sym(",") {
                         return Err(self.error(span, profile::MULTI_ASSIGN));
                     }
-                    chunk.locals.push((name, value, span));
+                    chunk.locals.push(ast::Local {
+                        name,
+                        value,
+                        annotations: self.preceding_annotations(span.line),
+                        span,
+                    });
                 }
                 Tok::Keyword("function") => chunk.methods.push(self.method()?),
+                // `<Class>.<name> = <value>`: a declared property. Everything a
+                // literal cannot express is written as an `epok.<Type>(...)`
+                // constructor, so the value is still read, never executed.
+                Tok::Name(object) => {
+                    self.advance();
+                    if !self.eat_sym(".") {
+                        return Err(self.error(span, profile::FILE_SCOPE));
+                    }
+                    let (name, _) = self.expect_name()?;
+                    if self.at_sym(".") || self.at_sym(":") || self.at_sym("(") {
+                        return Err(self.error(span, profile::FILE_SCOPE));
+                    }
+                    self.expect_sym("=")?;
+                    let value = self.expression(0)?;
+                    if self.at_sym(",") {
+                        return Err(self.error(span, profile::MULTI_ASSIGN));
+                    }
+                    if !chunk.methods.is_empty() {
+                        return Err(self.error(
+                            span,
+                            format!(
+                                "{object}.{name}: properties are declared before the first method"
+                            ),
+                        ));
+                    }
+                    chunk.assignments.push(ast::Assignment {
+                        object,
+                        name,
+                        value,
+                        annotations: self.preceding_annotations(span.line),
+                        span,
+                    });
+                }
                 Tok::Keyword("return") => {
                     self.advance();
                     let (name, _) = self.expect_name()?;
@@ -628,19 +727,31 @@ impl<'a> Parser<'a> {
                     }
                     break;
                 }
-                _ => {
-                    return Err(self.error(
-                        span,
-                        "Only `local <Class> = epok.class{...}`, method definitions and a final `return` are allowed at file scope",
-                    ));
-                }
+                _ => return Err(self.error(span, profile::FILE_SCOPE)),
             }
         }
         Ok(chunk)
     }
 
+    /// The unbroken run of `---@` lines directly above `line`, in source order.
+    /// A blank line or any other text between them and the `function` keyword
+    /// ends the run, exactly as the Lua Language Server binds them.
+    fn preceding_annotations(&self, line: u32) -> Vec<ast::Annotation> {
+        let mut out = vec![];
+        let mut above = line;
+        while above > 1
+            && let Some(annotation) = self.annotations.get(&(above - 1))
+        {
+            out.push(annotation.clone());
+            above -= 1;
+        }
+        out.reverse();
+        out
+    }
+
     fn method(&mut self) -> Result<ast::Method, Diagnostic> {
         let span = self.expect_keyword("function")?;
+        let annotations = self.preceding_annotations(span.line);
         let (object, _) = self.expect_name()?;
         if self.eat_sym(".") {
             let (name, dot) = self.expect_name()?;
@@ -678,6 +789,7 @@ impl<'a> Parser<'a> {
             name,
             parameters,
             body,
+            annotations,
             span,
         })
     }
@@ -1083,13 +1195,14 @@ impl<'a> Parser<'a> {
 }
 
 pub fn parse(file: &LuaFile) -> Result<ast::Chunk, Diagnostic> {
-    let tokens = Lexer::new(&file.path, &file.source).tokens()?;
+    let (tokens, annotations) = Lexer::new(&file.path, &file.source).tokens()?;
     let mut parser = Parser {
         tokens,
         index: 0,
         file: &file.path,
         depth: 0,
         in_body: false,
+        annotations,
     };
     parser.chunk()
 }
@@ -1111,7 +1224,7 @@ struct Lower<'a> {
     properties: BTreeMap<String, schema::Property>,
     /// Every method callable on `self`, by name.
     methods: BTreeMap<String, schema::Function>,
-    /// Every parent method reachable through `epok.super`, by name.
+    /// Every parent method reachable through `<Class>.super`, by name.
     parent_methods: BTreeMap<String, schema::Function>,
     /// Intrinsic transform shape, or `None` for a non-spatial class.
     transform: Option<TransformAccess>,
@@ -1247,6 +1360,11 @@ impl<'a> Lower<'a> {
                 } else {
                     self.parent_methods.get(name).map(|f| f.returns.clone())
                 }
+            }
+            ast::Expr::Call { base, args, span } if super_path(base).is_some() => {
+                let _ = (args, span);
+                let (_, method) = super_path(base)?;
+                self.parent_methods.get(&method).map(|f| f.returns.clone())
             }
             ast::Expr::Call { base, args, span } => match builtin(base).as_deref() {
                 Some("to_fixed") => Some(Type::Fixed),
@@ -1458,9 +1576,12 @@ impl<'a> Lower<'a> {
                 right,
                 span,
             } => self.binary(*op, left, right, *span, expected, pending),
-            ast::Expr::Call { base, args, span } => {
-                self.builtin_call(base, args, *span, pending, root)
-            }
+            ast::Expr::Call { base, args, span } => match super_path(base) {
+                Some((class, method)) => {
+                    self.parent_call(&class, &method, args, *span, pending, root)
+                }
+                None => self.builtin_call(base, args, *span, pending, root),
+            },
             ast::Expr::MethodCall {
                 base,
                 name,
@@ -1675,13 +1796,6 @@ impl<'a> Lower<'a> {
         let (kind, operand_type) = match name.as_str() {
             "to_fixed" => (ir::Conversion::IntToFixed, Type::Int32),
             "to_int" => (ir::Conversion::FixedToInt, Type::Fixed),
-            "super" => {
-                self.report(
-                    span,
-                    "`epok.super(Class, self)` must be followed by a method call",
-                );
-                return None;
-            }
             other if adapter(other).is_some() => {
                 return self.adapter_call(other, args, span, pending, root);
             }
@@ -2032,44 +2146,55 @@ impl<'a> Lower<'a> {
         pending: &mut ir::Block,
         root: bool,
     ) -> Option<ir::Expr> {
-        let parent = match base {
-            ast::Expr::Name { name: base, .. } if base == "self" => false,
-            ast::Expr::Call {
-                base: callee, args, ..
-            } if builtin(callee).as_deref() == Some("super") => {
-                if args.len() != 2
-                    || !matches!(&args[1], ast::Expr::Name { name, .. } if name == "self")
-                {
-                    self.report(span, "`epok.super` takes the enclosing class and `self`");
-                    return None;
-                }
-                let class = match &args[0] {
-                    ast::Expr::Name { name, .. } => name.clone(),
-                    other => {
-                        self.report(other.span(), "`epok.super` takes the enclosing class name");
-                        return None;
-                    }
-                };
-                if class != self.class.cpp_name {
-                    self.report(
-                        span,
-                        format!(
-                            "`epok.super` must name the enclosing class {}",
-                            self.class.cpp_name
-                        ),
-                    );
-                    return None;
-                }
-                true
-            }
-            other => {
-                self.report(
-                    other.span(),
-                    "Only `self` and `epok.super(Class, self)` receivers are supported",
-                );
-                return None;
-            }
+        if !on_self(base) {
+            self.report(base.span(), RECEIVERS);
+            return None;
+        }
+        self.invoke(false, name, args, span, pending, root)
+    }
+
+    /// `<Class>.super.<method>(self, ...)`: the lexically qualified parent
+    /// call. `<Class>` must be the class this body belongs to, so the call is
+    /// always the immediate parent's implementation, never a runtime lookup.
+    fn parent_call(
+        &mut self,
+        class: &str,
+        method: &str,
+        args: &[ast::Expr],
+        span: Span,
+        pending: &mut ir::Block,
+        root: bool,
+    ) -> Option<ir::Expr> {
+        if class != self.class.cpp_name {
+            self.report(
+                span,
+                format!(
+                    "`{class}.super` must name the enclosing class {}",
+                    self.class.cpp_name
+                ),
+            );
+            return None;
+        }
+        let Some((receiver, rest)) = args.split_first() else {
+            self.report(span, SUPER_SELF);
+            return None;
         };
+        if !on_self(receiver) {
+            self.report(receiver.span(), SUPER_SELF);
+            return None;
+        }
+        self.invoke(true, method, rest, span, pending, root)
+    }
+
+    fn invoke(
+        &mut self,
+        parent: bool,
+        name: &str,
+        args: &[ast::Expr],
+        span: Span,
+        pending: &mut ir::Block,
+        root: bool,
+    ) -> Option<ir::Expr> {
         let function = if parent {
             let Some(function) = self.parent_methods.get(name).cloned() else {
                 self.report(span, format!("Unknown parent method {name}"));
@@ -2566,6 +2691,36 @@ fn builtin(expr: &ast::Expr) -> Option<String> {
     }
 }
 
+/// The receivers a call may be written on in the epok-lua profile.
+pub const RECEIVERS: &str =
+    "Only `self:method(...)` and `<Class>.super.method(self, ...)` receivers are supported";
+/// The qualified parent call always passes the running instance explicitly.
+pub const SUPER_SELF: &str =
+    "A qualified parent call passes `self` first, as in `Cube.super.tick(self, delta_seconds)`";
+
+/// `<Class>.super.<method>` written as a call target, as `(class, method)`.
+/// Nothing else reaches the parent implementation: there is no `super` value.
+fn super_path(expr: &ast::Expr) -> Option<(String, String)> {
+    let ast::Expr::Field { base, name, .. } = expr else {
+        return None;
+    };
+    let ast::Expr::Field {
+        base: class,
+        name: marker,
+        ..
+    } = &**base
+    else {
+        return None;
+    };
+    if marker != "super" {
+        return None;
+    }
+    match &**class {
+        ast::Expr::Name { name: class, .. } => Some((class.clone(), name.clone())),
+        _ => None,
+    }
+}
+
 /// `true` when the expression is the receiver `self`.
 fn on_self(expr: &ast::Expr) -> bool {
     matches!(expr, ast::Expr::Name { name, .. } if name == "self")
@@ -2804,7 +2959,7 @@ pub fn lower_class(
             lower.report(
                 declared.span,
                 format!(
-                    "Methods must be declared on {}, the local bound to `epok.class`",
+                    "Methods must be declared on {}, the local the class is bound to",
                     decl.binding
                 ),
             );
@@ -2925,15 +3080,20 @@ pub(crate) mod tests {
     use crate::lua_asset;
 
     fn file(source: &str) -> LuaFile {
-        LuaFile {
-            path: "assets/scripts/EnemyLogic.lua".into(),
-            source: source.into(),
-        }
+        lua_asset::tests::fixture("assets/scripts/EnemyLogic.lua", source)
     }
+    /// The shared chunk: the fixture declaration, the body under test written
+    /// into `damage`, and a second annotated method the tests call into.
     fn body(source: &str) -> LuaFile {
         file(&format!(
-            "{}\nfunction EnemyLogic:damage(amount)\n{source}\nend\nreturn EnemyLogic\n",
-            lua_asset::tests::HEADER
+            "{}\n{}function EnemyLogic:damage(amount)\n{source}\nend\n\
+             ---@id 9a8b7c6d-5e4f-4a3b-2c1d-0e9f8a7b6c5d\n\
+             ---@param amount Fixed\n\
+             ---@return Fixed\n\
+             function EnemyLogic:absorb(amount)\n    return amount\nend\n\
+             return EnemyLogic\n",
+            lua_asset::tests::HEADER,
+            lua_asset::tests::DAMAGE
         ))
     }
     fn lower_in(registry: &Registry, source: &str) -> Result<ir::ClassIr, Vec<Diagnostic>> {
@@ -3537,15 +3697,21 @@ pub(crate) mod tests {
         assert!(message("self:sealed()").contains("Unknown method"));
     }
 
+    /// The qualified parent call: `<Class>.super.<method>(self, ...)`. It names
+    /// the enclosing class literally, so the target is always the lexical
+    /// parent's implementation and never a runtime lookup.
     #[test]
     fn lua_frontend_rejects_super_misuse() {
-        assert!(
-            message("epok.super(Wrong, self):hit(amount)")
-                .contains("must name the enclosing class")
-        );
+        lower("EnemyLogic.super.hit(amount, self)").unwrap_err();
+        assert!(message("Wrong.super.hit(self, amount)").contains("must name the enclosing class"));
+        // `self` comes first, and it really has to be `self`.
+        assert!(message("EnemyLogic.super.hit(amount)").contains(SUPER_SELF));
+        assert!(message("EnemyLogic.super.hit()").contains(SUPER_SELF));
         // `damage` is a new function, not an override: it has no parent slot.
-        assert!(message("epok.super(EnemyLogic, self):damage(amount)").contains("Unknown parent"));
-        lower("epok.super(EnemyLogic, self):hit(amount)").unwrap();
+        assert!(message("EnemyLogic.super.damage(self, amount)").contains("Unknown parent"));
+        // A receiver that is neither `self` nor a qualified parent.
+        assert!(message("other:hit(amount)").contains(RECEIVERS));
+        lower("EnemyLogic.super.hit(self, amount)").unwrap();
     }
 
     #[test]

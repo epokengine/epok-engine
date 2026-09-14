@@ -3,39 +3,34 @@
 -- The SAME file is compiled by all three LuaExecution modes. Nothing in it can
 -- observe which mode is active; every probe below therefore has to come out
 -- byte-identical in Native C++, VM bytecode and VM source.
-local Guard = epok.class {
-    id = "1f9a6b30-2c4d-4e58-9a71-3b5c7d9e0f11",
-    name = "Guard",
-    extends = "EnemyBase",
-    properties = {
-        speed   = { type = "Fixed",  default = 1.5,  editable = true },
-        count   = { type = "Int32",  default = 0,    editable = true },
-        armed   = { type = "Bool",   default = true, editable = true },
-        stamina = { type = "UInt32", default = 7,    editable = true },
-        ticks   = { type = "Int32",  default = 0,    editable = true },
-        -- Holds the actor this class spawns at runtime, so a later tick can ask
-        -- whether it is still alive.
-        target  = { type = "ActorRef", editable = false }
-    },
-    functions = {
-        report = { callable = true,
-            parameters = {}, returns = "Fixed" },
-        on_alert = { overrides = "on_alert",
-            parameters = {}, returns = "void" }
-    }
-}
 
+---@class Guard : EnemyBase
+local Guard = EnemyBase:extend()
+
+Guard.speed = 1.5
+Guard.count = 0
+Guard.armed = true
+Guard.stamina = epok.UInt32(7)
+Guard.ticks = 0
+-- Holds the actor this class spawns at runtime, so a later tick can ask whether
+-- it is still alive. `epok.Hidden` keeps it out of the Inspector.
+Guard.target = epok.Hidden(epok.ActorRef())
+
+---@id 7a3d9e51-2b4c-4d6e-8f81-3a5b7c9d1e24
+---@return Fixed
 function Guard:report()
     return self.health + self.speed
 end
 
+---@id 8b4ea062-3c5d-4e7f-9a92-4b6c8d0e2f35
+---@override
 function Guard:on_alert()
     self.count = self.count + 1
 end
 
 function Guard:begin_play()
     -- Exactly once: the native base writes the probes the next lines read back.
-    epok.super(Guard, self):begin_play()
+    Guard.super.begin_play(self)
     local base = self.slot
     self:probe(base + 0, 1)
     self:probe(base + 1, self.hits)

@@ -226,12 +226,10 @@ fn lua_actor_project(label: &str) -> (PathBuf, String) {
 
     let created = crate::lua_asset::create_in(&root, "Sentry", "", "epok::Actor3D").unwrap();
     let source = std::fs::read_to_string(&created).unwrap();
-    let class_id = source
-        .split("id = \"")
-        .nth(1)
-        .and_then(|rest| rest.split('"').next())
-        .expect("class id")
-        .to_owned();
+    // The identity lives beside the script, not inside it: the editor recorded
+    // it when it created the class.
+    let class_id =
+        crate::lua_identity::read(&root).unwrap().classes["assets/scripts/Sentry.lua"].clone();
     // Nothing here is a C++ helper: these are the engine base's own reflected members.
     let source = source.replace(
         "function Sentry:begin_play()\nend",

@@ -337,12 +337,30 @@ python3 -m pip install -r tools/requirements.txt
 | `tests/integration/verify_lua_modes.py` | Cross-mode acceptance: 21 checks | `artifacts/lua_modes/report.json` |
 | `tests/integration/verify_lua_vm_abi.py` | Host-cooked bytecode == on-target `luaU_dump` | `--output` (no default) |
 | `tests/integration/verify_lua_feasibility.py` | Technology benchmark behind the design choice | `--output` (no default) |
+| `tests/integration/verify_lua_editor_tooling.py` | The generated definitions are enforced: a correct class reports nothing and a broken one reports the same three errors the compiler rejects | `artifacts/lua_editor_tooling/report.json` |
 
 ```sh
 python3 tests/integration/verify_lua_modes.py
 python3 tests/integration/verify_lua_vm_abi.py --output report.json
 python3 tests/integration/verify_lua_feasibility.py --emulator --output report.json
+python3 tests/integration/verify_lua_editor_tooling.py
 ```
+
+**`verify_lua_editor_tooling.py`** needs no emulator, but it does need
+`lua-language-server` on `PATH` (`brew install lua-language-server`); without it
+the script skips with that message instead of failing. It creates one project
+through the production CLI, writes one Lua class, builds it once with
+`--build-psx` so the catalog refresh rewrites `.epok/lua/epok.d.lua` and
+`.luarc.json`, and then proves both halves of the editor claim: the correct
+class reports **nothing** at `--checklevel=Error`, and a copy with a Bool
+written to a `Fixed` field, a string passed to a `Fixed` parameter and a read of
+an undeclared member reports **exactly those three errors on those three
+lines** — the same three lines the Epok compiler then rejects with its own
+diagnostics. The generated `.luarc.json` is what makes the first half bite: it
+raises `assign-type-mismatch`, `param-type-mismatch` and `undefined-field` to
+`Error!`, which LuaLS otherwise reports only as warnings. A class body is
+checked only if its local is bound to the generated declaration, which the
+`---@class <Class> : <Parent>` line of the declaration form already does.
 
 **`verify_lua_modes.py`** is the cross-mode acceptance script and the slowest of
 the three: it creates one real project through the production CLI, builds the

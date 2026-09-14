@@ -824,13 +824,10 @@ impl MethodIr {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::lua_asset::{self, LuaFile};
+    use crate::lua_asset;
 
     pub(crate) fn lower(path: &str, source: &str, registry: &Registry) -> (Registry, ClassIr) {
-        let file = LuaFile {
-            path: path.into(),
-            source: source.into(),
-        };
+        let file = lua_asset::tests::fixture(path, source);
         let declaration = lua_asset::extract(&file).expect("declaration");
         let class = lua_asset::declarations(&declaration, &file, registry).expect("class");
         let mut registry = registry.clone();
@@ -852,9 +849,10 @@ pub(crate) mod tests {
     #[test]
     fn lua_aot_emits_the_documented_native_class() {
         let registry = lua_asset::tests::registry();
-        let source = enemy_logic(
-            "function EnemyLogic:damage(amount)\n    self.health = self.health - amount\nend\n",
-        );
+        let source = enemy_logic(&format!(
+            "{}function EnemyLogic:damage(amount)\n    self.health = self.health - amount\nend\n",
+            lua_asset::tests::DAMAGE
+        ));
         let (registry, ir) = lower("assets/scripts/EnemyLogic.lua", &source, &registry);
         let class = registry.classes["956f4946-0c61-42f8-899e-2db063b42420"].clone();
         let text = emit_class(&class, &ir, &registry, BodyMode::Native, None).unwrap();
@@ -879,7 +877,9 @@ pub(crate) mod tests {
 
     /// The body both backends must lower identically: one builtin of every
     /// shape the profile exposes.
-    pub(crate) const BUILTIN_BODY: &str = r#"function EnemyLogic:damage(amount)
+    pub(crate) const BUILTIN_BODY: &str = r#"---@id 224e6b46-e4b4-475c-9744-8b9fb4c0baaa
+---@param amount Fixed
+function EnemyLogic:damage(amount)
     local other = epok.spawn("Spinner")
     if epok.is_valid(other) then
         epok.set_texture(self.ref, self.skin)
@@ -955,7 +955,7 @@ end
             .unwrap()
             .source
             .file = "assets/scripts/Enemies/EnemyBase.hpp".into();
-        let source = "local Guard = epok.class {\n    profile = 1,\n    id = \"b7c9d1e3-4f5a-4b6c-8d7e-9f0a1b2c3d4e\",\n    name = \"Guard\",\n    extends = \"EnemyBase\",\n    properties = {},\n    functions = {}\n}\nfunction Guard:begin_play()\n    epok.super(Guard, self):begin_play()\nend\nreturn Guard\n";
+        let source = "---@class Guard : EnemyBase\nlocal Guard = EnemyBase:extend()\nfunction Guard:begin_play()\n    Guard.super.begin_play(self)\nend\nreturn Guard\n";
         let (registry, ir) = lower("assets/scripts/Guard.lua", source, &registry);
         assert!(
             emit_class(
@@ -1001,9 +1001,10 @@ end
     /// handle the class's family dictates.
     #[test]
     fn lua_aot_lowers_intrinsic_transform_places_to_the_blueprint_api() {
-        let source = enemy_logic(
-            "function EnemyLogic:damage(amount)\n    self.rotation.y = self.rotation.y + amount\nend\n",
-        );
+        let source = enemy_logic(&format!(
+            "{}function EnemyLogic:damage(amount)\n    self.rotation.y = self.rotation.y + amount\nend\n",
+            lua_asset::tests::DAMAGE
+        ));
         for (family, handle) in [
             (schema::ClassFamily::Actor, "this->id()"),
             (schema::ClassFamily::Component, "this->owner_id()"),
@@ -1078,9 +1079,12 @@ end
     #[test]
     fn lua_aot_rechecks_the_owner_after_a_call_and_maps_lines_to_the_lua_source() {
         let registry = lua_asset::tests::registry();
-        let source = enemy_logic(
-            "function EnemyLogic:absorb(amount)\n    self:damage(amount)\n    return self.health\nend\n",
-        );
+        let source = enemy_logic(&format!(
+            "{}function EnemyLogic:damage(amount)\nend\n\
+             ---@param amount Fixed\n---@return Fixed\n\
+             function EnemyLogic:absorb(amount)\n    self:damage(amount)\n    return self.health\nend\n",
+            lua_asset::tests::DAMAGE
+        ));
         let (registry, ir) = lower("assets/scripts/EnemyLogic.lua", &source, &registry);
         let class = registry.classes["956f4946-0c61-42f8-899e-2db063b42420"].clone();
         let text = emit_class(&class, &ir, &registry, BodyMode::Native, None).unwrap();
@@ -1089,11 +1093,11 @@ end
             "{text}"
         );
         assert!(
-            text.contains("#line 23 \"assets/scripts/EnemyLogic.lua\"\nthis->damage"),
+            text.contains("#line 18 \"assets/scripts/EnemyLogic.lua\"\nthis->damage"),
             "{text}"
         );
         assert!(
-            text.contains("#line 24 \"assets/scripts/EnemyLogic.lua\"\nreturn this->health;"),
+            text.contains("#line 19 \"assets/scripts/EnemyLogic.lua\"\nreturn this->health;"),
             "{text}"
         );
     }
@@ -1102,7 +1106,9 @@ end
     fn lua_aot_emits_vm_trampolines_and_slot_accurate_bindings() {
         let registry = lua_asset::tests::registry();
         let source = enemy_logic(
-            "function EnemyLogic:tick(delta)\n    self.health = self.health - delta\nend\nfunction EnemyLogic:absorb(amount)\n    return self.health\nend\n",
+            "function EnemyLogic:tick(delta)\n    self.health = self.health - delta\nend\n\
+             ---@param amount Fixed\n---@return Fixed\n\
+             function EnemyLogic:absorb(amount)\n    return self.health\nend\n",
         );
         let (registry, ir) = lower("assets/scripts/EnemyLogic.lua", &source, &registry);
         let class = registry.classes["956f4946-0c61-42f8-899e-2db063b42420"].clone();

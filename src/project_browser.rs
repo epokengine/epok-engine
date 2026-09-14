@@ -2086,7 +2086,10 @@ fn move_paths(root: &Path, moves: &[(String, String)]) -> Result<(), String> {
         }
         done.push((source, dest));
     }
-    Ok(())
+    // A `.lua` class is identified outside its source text, so the recorded
+    // identity follows the file: renaming or moving a script never makes it a
+    // new class, and every placed instance keeps its binding.
+    crate::lua_identity::moved(root, moves)
 }
 /// Copies publish only after all sources can be cloned. Asset copies get new identities.
 /// Code classes and composite model packages require their dedicated creation/import workflows.
@@ -2281,6 +2284,7 @@ fn trash_content(
             "Could not save recovery paths: {error}. Recovery: {rollback:?}"
         ));
     }
+    crate::lua_identity::removed(&e.root, &paths)?;
     Ok(journal)
 }
 fn restore_trash(root: &Path, journal: &[(String, PathBuf)]) -> Result<(), String> {

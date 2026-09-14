@@ -76,6 +76,7 @@ mod lua_bytecode;
 mod lua_compile;
 mod lua_dependencies;
 mod lua_frontend;
+mod lua_identity;
 mod lua_vm;
 mod mcp;
 mod mcp_stdio;

@@ -11,6 +11,7 @@ The PSX runtime consumes generated C++ and binary data; it does not parse YAML.
 | Legacy C++ property metadata | `assets/scripts/Spinner.epokscript` |
 | Resource package | `Stone.epokasset` (binary) |
 | Additional map registry | `ProjectSettings/Maps.epoksettings` |
+| Lua class identity registry | `ProjectSettings/LuaClasses.epoksettings` |
 | Editor tool configuration | `Editor.epokconfig` |
 | Machine/project tool override | `Local.epokconfig` |
 | User preferences | `Editor.epokprefs`, `RecentProjects.epokprefs` |

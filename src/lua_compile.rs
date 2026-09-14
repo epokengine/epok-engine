@@ -375,8 +375,13 @@ mod tests {
     }
     fn enemy_logic(body: &str) -> LuaFile {
         LuaFile {
+            id: Some(crate::lua_asset::tests::CLASS_ID.into()),
             path: "assets/scripts/EnemyLogic.lua".into(),
-            source: format!("{}\n{body}\nreturn EnemyLogic\n", HEADER.trim_start()),
+            source: format!(
+                "{}\n{}{body}\nreturn EnemyLogic\n",
+                HEADER.trim_start(),
+                crate::lua_asset::tests::DAMAGE
+            ),
         }
     }
 
@@ -558,35 +563,28 @@ mod tests {
         // The reverse is not available yet: Lua compiles first, so a Blueprint
         // type does not exist when a Lua parent must be resolved.
         let lua = LuaFile {
+            id: None,
             path: "assets/scripts/Minion.lua".into(),
-            source: "local Minion = epok.class {\n    profile = 1,\n    id = \"7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d\",\n    name = \"Minion\",\n    extends = \"Boss\",\n    properties = {},\n    functions = {}\n}\nreturn Minion\n".into(),
+            source: "local Minion = Boss:extend()\nreturn Minion\n".into(),
         };
         let message = errors(compile(&root, &resolved, &[lua], LuaExecution::NativeCpp));
         assert!(message.contains(BLUEPRINT_PARENT), "{message}");
         std::fs::remove_dir_all(root).unwrap();
     }
 
-    const SENTINEL: &str = r#"local Sentinel = epok.class {
-    profile = 1,
-    id = "1c0d3f57-9a2b-4e6d-8f31-5b7c9d0e2a41",
-    name = "Sentinel",
-    extends = "epok::ActorComponent",
-    properties = {
-        health = { id = "2d1e4a68-0b3c-4f7e-9a42-6c8d0e1f3b52",
-            type = "Fixed", default = 100, editable = true },
-        ticks = { id = "3e2f5b79-1c4d-4a8f-8b53-7d9e1f2a4c63",
-            type = "Int32", default = 0, editable = true },
-        ready = { id = "4f306c8a-2d5e-4b90-9c64-8e0f2a3b5d74",
-            type = "Bool", default = true, editable = true }
-    },
-    functions = {
-        damage = { id = "50417d9b-3e6f-4ca1-8d75-9f102b4c6e85", callable = true,
-            parameters = { { name = "amount", type = "Fixed" } }, returns = "void" },
-        absorb = { id = "61528eac-4f70-4db2-9e86-0a213c5d7f96", callable = true,
-            parameters = { { name = "amount", type = "Fixed" } }, returns = "Fixed" }
-    }
-}
+    const SENTINEL_ID: &str = "1c0d3f57-9a2b-4e6d-8f31-5b7c9d0e2a41";
+    const SENTINEL: &str = r#"---@class Sentinel : epok.ActorComponent
+local Sentinel = epok.ActorComponent:extend()
 
+---@id 2d1e4a68-0b3c-4f7e-9a42-6c8d0e1f3b52
+Sentinel.health = 100.0
+---@id 3e2f5b79-1c4d-4a8f-8b53-7d9e1f2a4c63
+Sentinel.ticks = 0
+---@id 4f306c8a-2d5e-4b90-9c64-8e0f2a3b5d74
+Sentinel.ready = true
+
+---@id 50417d9b-3e6f-4ca1-8d75-9f102b4c6e85
+---@param amount Fixed
 function Sentinel:damage(amount)
     if self.ready then
         self.health = self.health - amount
@@ -595,6 +593,9 @@ function Sentinel:damage(amount)
     end
 end
 
+---@id 61528eac-4f70-4db2-9e86-0a213c5d7f96
+---@param amount Fixed
+---@return Fixed
 function Sentinel:absorb(amount)
     self:damage(amount)
     for i = 1, 3 do
@@ -620,6 +621,14 @@ return Sentinel
         let root = crate::workspace::tests::temp(label);
         crate::workspace::create(&root, "Lua Build", crate::workspace::Template::Basic).unwrap();
         std::fs::write(root.join("assets/scripts/Sentinel.lua"), SENTINEL).unwrap();
+        // The identity lives beside the script, exactly as the editor records
+        // it when the class is created, so the generated artifacts are named by
+        // a fixed uuid rather than one this test would have to discover.
+        let mut identities = crate::lua_identity::Registry::default();
+        identities
+            .classes
+            .insert("assets/scripts/Sentinel.lua".into(), SENTINEL_ID.into());
+        identities.save(&root).unwrap();
         let scene =
             crate::scene::Scene::load(&crate::workspace::startup_scene(&root).unwrap()).unwrap();
         (root, scene)
@@ -637,7 +646,7 @@ return Sentinel
     fn lua_mode_change_replaces_generated_bodies_in_both_directions() {
         let (root, scene) = lua_project("lua-mode-switch");
         let build = root.join(".epok/build");
-        let header = build.join("scripts/generated/lua/1c0d3f57-9a2b-4e6d-8f31-5b7c9d0e2a41.hpp");
+        let header = build.join(format!("scripts/generated/lua/{SENTINEL_ID}.hpp"));
         let bindings = build.join("scripts/generated/lua/lua_bindings.cpp");
 
         select(&root, LuaExecution::NativeCpp);
@@ -692,9 +701,9 @@ return Sentinel
         // Qualified parent dispatch has to compile and link like any other call.
         let guard = std::fs::read_to_string(&created).unwrap().replace(
             "function Guard:begin_play()\nend",
-            "function Guard:begin_play()\n    epok.super(Guard, self):begin_play()\nend",
+            "function Guard:begin_play()\n    Guard.super.begin_play(self)\nend",
         );
-        assert!(guard.contains("epok.super"));
+        assert!(guard.contains("Guard.super.begin_play(self)"));
         std::fs::write(&created, &guard).unwrap();
         let catalog = crate::scripts::catalog(&root).unwrap();
         for name in ["EnemyBase", "Sentinel", "Guard"] {

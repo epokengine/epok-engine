@@ -8,12 +8,12 @@ create and end themselves with no C++ and no Blueprint at all.
 | File | What it demonstrates |
 | --- | --- |
 | `EnemyBase.hpp` | A reflected `EPOK_CLASS(Blueprintable)` `Actor3D` base with a `Fixed` property, a `BlueprintCallable` method and a `BlueprintEvent`. |
-| `Guard.lua` | A Lua class extending C++: own properties, a new callable, an event override declared through `overrides`, `begin_play` with `epok.super`, `tick(delta_seconds)` using the reflected parameter name, and a call to an *inherited* native callable (`self:apply_damage`). |
-| `Patrol.lua` | A Lua class extending a Lua class: `epok.super(Patrol, self):tick(delta_seconds)`, a constant-bounded numeric `for`, and the explicit `epok.to_fixed` conversion. |
+| `Guard.lua` | A Lua class extending C++: properties declared as plain assignments, a new callable typed by `---@param`/`---@return`, an event override marked `---@override`, `begin_play` with the qualified parent call `Guard.super.begin_play(self)`, `tick(delta_seconds)` using the reflected parameter name, and a call to an *inherited* native callable (`self:apply_damage`). |
+| `Patrol.lua` | A Lua class extending a Lua class: `Patrol.super.tick(self, delta_seconds)`, a constant-bounded numeric `for`, and the explicit `epok.to_fixed` conversion. |
 | `Spinner.lua` | A Lua class extending `epok::Actor3D` that rotates and moves itself in `tick` through the intrinsic `self.rotation.y` and `self.position.x` — no C++ helper and no declared transform property — and ends its own run with the inherited `self:destroy()` once `lifetime` elapses. |
-| `Spawner.lua` | A Lua-only lifecycle: `epok.spawn("Spinner")` in `begin_play` inside a constant-bounded `for`, then `self:destroy()` from `tick` after `lifetime` seconds. |
+| `Spawner.lua` | A Lua-only lifecycle: `epok.spawn("Spinner")` in `begin_play` inside a constant-bounded `for`, then `self:destroy()` from `tick` after `lifetime` seconds, with `epok.Hidden(...)` on the fields the Inspector should not show. |
 
-The full reference for the metadata table, the profile and the execution modes
+The full reference for the declaration form, the profile and the execution modes
 is [`docs/lua-scripting.md`](../../docs/lua-scripting.md).
 
 ## Using them in a project

@@ -29,11 +29,17 @@ observe which mode is active.
 Supported (initial profile):
 - Types: `Bool`, `Int32`, `UInt32`, `Fixed` (Q12), `Enum`, `Vector{2,3}`, `AssetRef`,
   `ClassRef`, `ObjectRef`, `ActorRef`, `ComponentRef` — the existing `schema::Type` set.
-- Declarations: `epok.class { ... }` metadata table, read statically from the AST. It is
-  never executed to discover classes. Only `name` and `extends` are required: the engine
-  assigns the identity and the profile (see §4), so `profile`, the class `id` and every
-  member `id` are optional. A written `profile` pins the script and must equal the
-  supported profile; a written `id` must be a canonical, non-nil UUID.
+- Declarations: `local <Class> = <Parent>:extend()`, `<Class>.<name> = <value>` property
+  assignments and annotated method definitions, all read statically from the AST. Nothing
+  is ever executed to discover a class. The class is named by its file and the local must
+  carry that name; `---@class <Class> : <Parent>` is optional for compiling and, when
+  written, must agree. A property is a literal or one of the closed set of
+  `epok.<Type>(...)` value constructors (`Bool`, `Int32`, `UInt32`, `Fixed`, `Vector2`,
+  `Vector3`, `Enum`, `ActorRef`, `ComponentRef`, `ObjectRef`, `AssetRef`, `ClassRef`,
+  and the `Hidden` wrapper). A function signature comes from `---@param`/`---@return`, or
+  from the reflected parent for a lifecycle name or a `---@override`. Identity is assigned
+  by the engine (see §4): the class by `ProjectSettings/LuaClasses.epoksettings`, a member
+  by `---@id <uuid>` or derivation.
 - Locals with inferred, fixed, single types; definite assignment checked.
 - Conditions are `Bool` only. `and`/`or` accept `Bool` operands only, short-circuit.
 - Statically resolved calls with fixed return arity.
@@ -48,7 +54,8 @@ Supported (initial profile):
   Blueprint Get/Set nodes call, so the two authoring surfaces are equivalent by
   construction. Non-spatial classes get a profile diagnostic.
 - Constant-bounded numeric `for`.
-- Explicit parent call: `epok.super(Class, self):method(...)`.
+- Explicit parent call: `<Class>.super.<method>(self, ...)`, where `<Class>` is the
+  lexically enclosing class. There is no dynamic `super` value.
 - Intrinsic UI places on UI-domain classes: `self.rect_position` and
   `self.rect_size`, `Vector{2}` addressed by component, lowering to the
   `epok::bp::api` rect entry points the Blueprint Get/Set Rect nodes call.
@@ -116,15 +123,22 @@ under stock fork arithmetic.
 - Authoring provider: `Extension { id: "lua", version: 1 }` — stable across all modes.
 - Execution backend: always `schema::native_backend()` (`native` v1). The physical type
   is a real C++ subclass in every mode; only method bodies differ.
-- Identity mirrors reflected C++, where `EPOK_*(Id=...)` is optional and an unannotated
-  declaration is identified by `cpp:<USR>`. An explicit `id` is a canonical, non-nil UUID
-  and survives a rename. With no `id` the engine derives one deterministically from the
-  declaration: `lua:<Name>` for a class, `lua:<class identity>:<member>` for a property or
-  a function, where the class identity is the explicit UUID if there is one and the class
-  name otherwise. A bare lifecycle method with no `functions` entry uses the same member
-  scheme. A derived id is stable across machines and across moves but changes when the
-  declaration is renamed, so a rename needs an explicit id or a migration; `epok lua new`
-  therefore writes an explicit class UUID into every new file.
+- **Class identity lives outside the source text.** A Lua class is named by its file, so a
+  class that carried its identity in its source could not be renamed without becoming a
+  different class. The editor instead records one UUID per project-relative script path in
+  `ProjectSettings/LuaClasses.epoksettings`, a plain sorted `path: uuid` map validated on
+  read (canonical, unique, under `assets/scripts`, `.lua`). Creating a class records a
+  fresh UUID before the file is written; a Content Browser rename or move carries the
+  entry with the file, so the class keeps its identity; a deletion removes it; a script
+  that arrives by hand or by merge is adopted on the catalog refresh that discovers it.
+  Only the settings document is ever written — an author's `.lua` is never rewritten.
+  Until an entry exists the class is identified by a derived `lua:<Name>`.
+- Member identity mirrors reflected C++, where `EPOK_*(Id=...)` is optional and an
+  unannotated declaration is identified by `cpp:<USR>`. `---@id <uuid>` above a property
+  assignment or a method pins that member to a canonical, non-nil UUID and survives a
+  rename. With no `---@id` the engine derives `lua:<class identity>:<member>`
+  deterministically, which is stable across machines and moves but changes when the member
+  is renamed, so renaming a derived member needs an explicit id or a migration.
 - A derived id cannot collide with a UUID or a reflected `cpp:` identity by construction.
   The compiler still rejects any collision across the project, and rejects an explicit id
   that is not a canonical, non-nil UUID.
@@ -163,7 +177,7 @@ inherited signature, visibility, `final` and abstract-completion rules are enfor
 Native calls through a base reference reach Lua overrides in all three modes because the
 override is a real C++ virtual override in every mode.
 
-`epok.super(Guard, self):begin_play()` lowers to qualified `EnemyBase::begin_play()` in
+`Guard.super.begin_play(self)` lowers to qualified `EnemyBase::begin_play()` in
 AOT, and in VM modes to a generated per-class super-dispatcher that performs the same
 qualified native call. Resolution is lexical, never the most-derived runtime type.
 
@@ -171,7 +185,8 @@ qualified native call. Resolution is lexical, never the most-derived runtime typ
 
 | Module | Responsibility |
 | --- | --- |
-| `src/lua_asset.rs` | `.lua` discovery, `epok.class` declaration extraction, ids, asset file model |
+| `src/lua_asset.rs` | `.lua` discovery, declaration extraction, member ids, asset file model |
+| `src/lua_identity.rs` | class identity per script path in `ProjectSettings/LuaClasses.epoksettings` |
 | `src/lua_frontend.rs` | lexer, parser, scopes, type inference, profile enforcement, diagnostics |
 | `src/script_ir.rs` | shared typed body IR (language-neutral), reused by both backends |
 | `src/lua_compile.rs` | orchestration: declarations, registry publication, backend dispatch |

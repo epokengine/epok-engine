@@ -19,7 +19,8 @@ public:
     EPOK_PROPERTY(EditAnywhere, Id="6a3c1f20-77d1-4b9e-8f42-9c0e1a5b7d12") int32_t hits = 0;
     EPOK_PROPERTY(EditAnywhere, Id="6a3c1f20-77d1-4b9e-8f42-9c0e1a5b7d13") int32_t slot = 0;
 
-    // Overridable in Lua; the default body is the one `epok.super` must reach.
+    // Overridable in Lua; the default body is the one the qualified parent call
+    // `<Class>.super.<method>(self, ...)` must reach.
     EPOK_FUNCTION(BlueprintEvent, BlueprintCallable, Id="6a3c1f20-77d1-4b9e-8f42-9c0e1a5b7d14")
     virtual void damage(epok::Fixed amount);
     EPOK_FUNCTION(BlueprintEvent, Id="6a3c1f20-77d1-4b9e-8f42-9c0e1a5b7d15")

@@ -38,13 +38,10 @@ created are removed again.
 The generated template is:
 
 ```lua
-local Guard = epok.class {
-    id = "7bb2a7b2-3a7c-4285-b11e-d6252ac5b7d2",
-    name = "Guard",
-    extends = "epok::ActorComponent",
-    properties = {},
-    functions = {}
-}
+---@class Guard : epok.ActorComponent
+local Guard = epok.ActorComponent:extend()
+
+Guard.speed = 1.0
 
 function Guard:begin_play()
 end
@@ -55,67 +52,156 @@ return Guard
 A worked example with a C++ base, a Lua child and a Lua-derived-from-Lua child
 is in [`examples/lua-scripting/`](../examples/lua-scripting/README.md).
 
-## The `epok.class` metadata table
+## Writing a class
 
-`epok.class { ... }` is **data, not code**. It is read statically from the
-syntax tree and is never executed, so the editor can list classes, properties
-and functions without a Lua interpreter, and the same metadata is produced in
-every build.
+A class declaration is **data, not code**. Every part of it — the parent, the
+properties and the function signatures — is read statically from the syntax
+tree, so the editor can list classes, properties and functions without a Lua
+interpreter, and the same metadata is produced in every build. **The engine
+never executes a line of a project's Lua to discover a class.**
 
-The file must contain exactly one `local <Name> = epok.class { ... }` statement
-and must end with `return <Name>`. Methods must be declared on that same local.
-
-Only `name` and `extends` have to be written. The engine assigns everything
-else: `profile` defaults to the profile this editor supports, and an omitted
-`id` — on the class or on any member — is derived from the declaration.
-
-| Key | Required | Meaning |
-| --- | --- | --- |
-| `name` | yes | Generated C++ class name. Must be a valid identifier and must not start with `epok_`. |
-| `extends` | yes | `cpp_name` of the parent class. |
-| `profile` | no | Language profile version. Defaults to the supported profile; if written it must be `1`, and any other value is rejected. |
-| `id` | no | Canonical UUID of the class. Omitted, the identity is derived (see [Identity](#identity)). |
-| `properties` | no | Table of `<name> = { ... }` property declarations. |
-| `functions` | no | Table of `<name> = { ... }` function declarations. |
-
-Write `profile` only to pin a script to one profile version on purpose:
+A file has exactly four kinds of statement at file scope, in this order:
 
 ```lua
-local Guard = epok.class {
-    profile = 1, -- pinned: this script is rejected by a later profile
-    name = "Guard",
-    extends = "EnemyBase",
-    properties = {},
-    functions = {}
-}
+---@class Cube : epok.Actor3D          -- optional; see The ---@class line
+local Cube = epok.Actor3D:extend()     -- the declaration head
+
+Cube.speed = 90.0                      -- properties, before any method
+
+function Cube:begin_play()             -- methods
+end
+
+return Cube                            -- the last statement
 ```
 
-### Property entries
+Anything else at file scope is rejected with
+``` Only `local <Class> = <Parent>:extend()`, `<Class>.<name> = <value>` property assignments, method definitions and a final `return <Class>` are allowed at file scope ```.
 
-| Key | Required | Meaning |
-| --- | --- | --- |
-| `type` | yes | One of the type names below. |
-| `id` | no | Canonical UUID of the property. Omitted, the identity is derived. |
-| `default` | no | A literal value. Defaults to the type's zero value. |
-| `editable` | no | `true` exposes the property in the Inspector. Defaults to `false`. |
+### The declaration head
 
-Defaults are literals only — a number, `true`/`false`, or a table of numbers for
-a vector. An expression is rejected with `Default is not a literal value`.
+`local <Class> = <Parent>:extend()` declares the class. The local must be named
+after the file: `Cube.lua` declares `Cube`, and a different local name is
+rejected with `The class local is named <X>; Cube.lua declares Cube`. The file
+must end with `return <Class>`, and a second `local` is rejected with
+`A Lua script declares exactly one class`.
 
-### Function entries
+The class name is therefore the file name — which an author already has to keep
+unique — and never has to be typed twice. A file whose stem is not a usable C++
+identifier is rejected with `The file name is not a usable class name (<stem>)`.
 
-| Key | Required | Meaning |
-| --- | --- | --- |
-| `id` | no | Canonical UUID of the function. Omitted, the identity is derived. |
-| `parameters` | no | Ordered list of `{ name = "...", type = "..." }`. |
-| `returns` | no | A type name, or `"void"`. Defaults to `"void"`. |
-| `callable` | no | Declares the method callable from other classes. |
-| `overrides` | no | Name of the reflected parent event this method overrides. |
+`<Parent>` is written the way the generated Lua definitions spell it, with `.`
+where C++ writes `::`:
 
-An entry with `overrides` must match the reflected parent signature exactly —
-same name, same return type, same parameter names and types — or it is rejected
-with `Override <name> signature differs from its reflected parent`. The parent
-member must be an event, must not be `final`, must not be `private`, and may be
+| Written | Parent |
+| --- | --- |
+| `epok.Actor3D:extend()` | the engine class `epok::Actor3D` |
+| `EnemyBase:extend()` | a project C++ class, or another Lua class, at global scope |
+| `game.Enemy:extend()` | the namespaced C++ class `game::Enemy` |
+
+Everything reachable is bound as a value in the generated definitions, so the
+editor completes the eligible parents as you type. An unresolved name is
+rejected with `Unknown parent <cpp_name>`.
+
+### The `---@class` line
+
+`---@class <Class> : <Parent>` above the declaration head is what gives the Lua
+Language Server the type of the local, which is what makes `self.speed`,
+`self:take_damage(1.0)` and `Cube.super.tick` complete and type-check in an
+editor. The creation template always writes it.
+
+It is **optional for compiling**: the compiler reads the class from the file
+name and the parent from the `extend()` call. When it is present it must agree
+with both, or it is rejected with `---@class names <X>` or
+`---@class extends <X>`.
+
+### Properties
+
+A property is a plain assignment on the class local, written before the first
+method:
+
+```lua
+Cube.speed = 90.0                       -- Fixed, editable
+Cube.spinning = true                    -- Bool
+Cube.lives = 3                          -- Int32
+Cube.count = epok.UInt32(0)             -- UInt32
+Cube.target = epok.ActorRef(EnemyBase)  -- narrowed actor reference
+Cube.mode = epok.Enum(Mode, "Idle")     -- reflected enum, by variant name
+Cube.colour = epok.Vector3(1.0, 0.5, 0.0)
+Cube.hidden = epok.Hidden(1.0)          -- not shown in the Inspector
+```
+
+A bare literal declares both the type and the default. Everything a literal
+cannot express has exactly one constructor:
+
+| Written | Type | Default | Inspector |
+| --- | --- | --- | --- |
+| `90.0`, `-2.5` | `Fixed` | the literal | editable |
+| `3`, `-7` | `Int32` | the literal | editable |
+| `true`, `false` | `Bool` | the literal | editable |
+| `epok.Bool(b)` | `Bool` | `b` | editable |
+| `epok.Int32(n)` | `Int32` | `n` | editable |
+| `epok.UInt32(n)` | `UInt32` | `n` | editable |
+| `epok.Fixed(x)` | `Fixed` | `x` | editable |
+| `epok.Vector2(x, y)` | `Vector2` | the two components | editable |
+| `epok.Vector3(x, y, z)` | `Vector3` | the three components | editable |
+| `epok.Enum(E, "Variant")` | the reflected enum `E` | that variant | editable |
+| `epok.ActorRef()` / `epok.ActorRef(Class)` | `ActorRef` / `ActorRef<Class>` | null | editable |
+| `epok.ComponentRef()` / `epok.ComponentRef(Class)` | `ComponentRef` / `ComponentRef<Class>` | null | editable |
+| `epok.ObjectRef()` / `epok.ObjectRef(Class)` | `ObjectRef` / `ObjectRef<Class>` | null | editable |
+| `epok.AssetRef("Kind")` | `AssetRef<Kind>` | null | editable |
+| `epok.ClassRef(Base)` | `ClassRef<Base>` | null | editable |
+| `epok.Hidden(<any of the above>)` | the wrapped type | the wrapped default | **not** editable |
+
+Class operands (`epok.ActorRef(EnemyBase)`, `epok.ClassRef(Base)`,
+`epok.Enum(Mode, ...)`) are written **unquoted**, exactly as a parent is; asset
+kinds and enum variants are quoted strings. A constructor that is not in the
+table is rejected with `epok.<Name> is not an epok value constructor`, and a
+value that is neither a literal nor a constructor — an expression such as
+`1 + 1`, a string, `nil` — is rejected with
+`A property is a literal default or an epok value constructor ...`.
+
+`position`, `rotation`, `scale`, `rect_position`, `rect_size`, `super` and `ref`
+are reserved: a property of one of those names would shadow an intrinsic and is
+rejected. A property that shadows an inherited member is rejected too.
+
+Only components of vectors cross the boundary in a body, so a `Vector2` or
+`Vector3` property is declared and edited whole but read and written as
+`.x`, `.y`, `.z`.
+
+### Functions
+
+A method **is** its declaration: there is no separate function table. Its
+signature comes from the annotations the Lua Language Server already reads, so
+one set of lines types the method in the editor and declares it to the compiler.
+
+```lua
+---@param amount Fixed
+---@return Fixed
+function Cube:take_damage(amount)
+    self.speed = self.speed - amount
+    return self.speed
+end
+```
+
+| Method | What it is |
+| --- | --- |
+| One of the five lifecycle names (`begin_play`, `tick`, `end_play`, `on_enable`, `on_disable`) | An override; the signature comes from the reflected parent, so no annotation is needed. |
+| Marked `---@override` | An override of any other reflected parent event; the signature comes from the parent. |
+| Annotated with `---@param` / `---@return` | A new callable other classes and Blueprints may call. |
+| No parameters and no annotations | A new `void` callable. |
+| Parameters but no annotations | Rejected: `Declare the parameter types with ---@param annotations, for example ---@param amount Fixed` |
+
+One `---@param` per parameter, in source order, naming the very parameters of
+the method below; a mismatch is rejected with
+`<name> takes N parameter(s) but declares M with ---@param` or
+`Parameter <written> is annotated as <annotated>`. A method returns at most one
+value. `function Cube.take_damage(...)` (a dot) declares a static function and
+is rejected.
+
+An override must match the reflected parent signature exactly — same name, same
+return type, same parameter names and types — or it is rejected with
+`Override <name> signature differs from its reflected parent`. The parent member
+must be an event, must not be `final`, must not be `private`, and may be
 overridden only once.
 
 ### Type names
@@ -123,7 +209,9 @@ overridden only once.
 `void`, `Bool`, `Int32`, `UInt32`, `Fixed`, `Vector2`, `Vector3`,
 `ActorRef`, `ComponentRef`, `ObjectRef`, and the parameterized forms
 `ActorRef<Class>`, `ComponentRef<Class>`, `ObjectRef<Class>`,
-`AssetRef<Kind>`, `ClassRef<Base>`.
+`AssetRef<Kind>`, `ClassRef<Base>`. A class operand may be written with `.` or
+`::`, so `ActorRef<epok.Actor3D>` and `ActorRef<epok::Actor3D>` are the same
+type.
 
 The vocabulary is closed: an unknown name is a diagnostic
 (`<name> is not an epok-lua type name`), never passed through to the generator.
@@ -131,44 +219,61 @@ The vocabulary is closed: an unknown name is a diagnostic
 ### Identity
 
 Every class, property and function has a persistent identity, and the author
-never has to type one. The rule is the same as for reflected C++, where `Id=` is
-optional and an unannotated declaration is identified by `cpp:<USR>`.
+never has to type one.
 
-- **Explicit.** An `id` written in the metadata table must be a canonical,
-  non-nil UUID. It belongs to the declaration and nothing derives it, so it
-  **survives a rename**: renaming the class, a property or a function keeps every
-  serialized override and reference bound.
-- **Derived.** With no `id`, the engine assigns one deterministically from the
-  declaration: `lua:<Name>` for the class, and `lua:<class identity>:<member>`
-  for a property or a function, where the class identity is the explicit UUID
-  when there is one (`lua:<uuid>:<member>`) and the class name otherwise
-  (`lua:<Name>:<member>`). A derived id is **stable across machines and across
-  moves** — it does not depend on the file path, the checkout or the build — but
-  it is computed from the *name*, so **renaming a declaration with a derived id
-  changes its identity** and orphans what referenced it. Renaming such a
-  declaration requires an explicit id or a migration.
+**A class is identified outside its source text.** The editor records one UUID
+per script path in `ProjectSettings/LuaClasses.epoksettings`:
 
-The consequences follow directly:
+```yaml
+classes:
+  assets/scripts/Cube.lua: 7bb2a7b2-3a7c-4285-b11e-d6252ac5b7d2
+  assets/scripts/Enemies/Guard.lua: 5e21b03e-da85-417a-867b-420cd25b01a4
+```
 
-| Rename | Explicit id | Derived id |
-| --- | --- | --- |
-| Class renamed | placed instances stay bound | instances orphaned; class members derived from the class name change too |
-| Property or function renamed | overrides and callers stay bound | that member's overrides and references are orphaned |
-| File moved or renamed | unaffected | unaffected |
+That is deliberate, and it is what makes a Lua class **rename-safe**. The class
+name is the file name, so a class that carried its identity in its source could
+not be renamed without becoming a different class and orphaning every placed
+instance. With the identity beside the script instead:
 
-`epok lua new` therefore writes an explicit class UUID into the new file — the
-editor assigns it, not the author — so a class rename never orphans placed
-instances. Members are left derived, which is safe until a member is renamed;
-pin a member with an explicit `id` before renaming it.
+| Action | Effect |
+| --- | --- |
+| **Assets > Create > Lua Class** | A fresh UUID is recorded before the file is written. |
+| Rename or move a `.lua` in the Content Browser | The entry follows the file; the class keeps its UUID and every placed instance stays bound. |
+| Delete a `.lua` in the Content Browser | The entry is removed. |
+| Copy a `.lua` in by hand, or merge one in from version control | The next catalog refresh records a UUID for it, and the class is rename-safe from then on. |
+
+The document is a plain text map, one `path: uuid` line per class, sorted by
+path, so a version control merge of two authors who each added a class is a
+two-line merge and a real conflict is readable. It is validated on read:
+canonical UUIDs, unique, on distinct `assets/scripts/**.lua` paths. Only the
+settings document is ever written — **an author's `.lua` is never rewritten**.
+
+Until an entry exists, the class is identified by a **derived**
+`lua:<Name>` identity. It is stable across machines and checkouts — it depends
+on nothing but the class name — so a project that has never been opened in the
+editor still compiles reproducibly. Restoring a deleted script from the Content
+Browser trash restores the file but not the entry, so the class is adopted again
+with a new UUID; re-record the old UUID by hand if instances must stay bound.
+
+Members follow the same rule as reflected C++, where `Id=` is optional and an
+unannotated declaration is identified by `cpp:<USR>`:
+
+- **Explicit.** `---@id <uuid>` above a property assignment or a method pins that
+  member. It must be a canonical, non-nil UUID, and it **survives a rename**.
+- **Derived.** With no `---@id`, the engine assigns
+  `lua:<class identity>:<member>` deterministically. It is computed from the
+  *name*, so **renaming a member with a derived id changes its identity** and
+  orphans what referenced it. Pin a member with `---@id` before renaming it.
+
+```lua
+---@id 0f1d2c3b-4a59-4687-9b0c-1d2e3f405162
+Cube.health = 100.0
+```
 
 A derived id cannot collide with a UUID or with a reflected `cpp:` identity by
 construction. Any id — explicit or derived — that collides with another
-reflected, Blueprint or Lua identity is still rejected, and an explicit id that
-is not a canonical UUID is rejected with `<what> id must be a canonical UUID`.
-
-A lifecycle event written as a bare method with no `functions` entry is
-identified by the same member scheme, so moving it into `functions` without an
-`id` does not change its identity.
+reflected, Blueprint or Lua identity is rejected, and an explicit id that is not
+a canonical UUID is rejected with `<what> id must be a canonical UUID`.
 
 ### Parent eligibility
 
@@ -190,9 +295,12 @@ with `Lua hierarchy exceeds the 16-property runtime budget`.
 
 ## Writing methods
 
-Methods are declared with a colon:
+Methods are declared with a colon, and their signature is declared by the
+annotations above them (see [Functions](#functions)):
 
 ```lua
+---@param amount Fixed
+---@return Fixed
 function Guard:wake_up(amount)
     self.awake = true
     self.health = self.health - amount
@@ -200,13 +308,9 @@ function Guard:wake_up(amount)
 end
 ```
 
-`function Guard.wake_up(...)` (a dot) declares a static function and is
-rejected. Every method must either appear in `functions` or be a reflected
-lifecycle event.
-
 ### Lifecycle overrides
 
-These five reflected events may be overridden without a `functions` entry:
+These five reflected events may be overridden with no annotation at all:
 
 `begin_play`, `tick`, `end_play`, `on_enable`, `on_disable`
 
@@ -226,19 +330,22 @@ A name that does not match is rejected with
 ### Calling the parent
 
 ```lua
-epok.super(Guard, self):begin_play()
+function Guard:begin_play()
+    Guard.super.begin_play(self)
+end
 ```
 
 The rule is exact:
 
-- The first argument is the **enclosing class name**, written literally. A
-  different name is rejected with
-  ``` `epok.super` must name the enclosing class <Name> ```.
-- The second argument is `self`.
-- It must be followed immediately by a method call. On its own it is rejected
-  with ``` `epok.super(Class, self)` must be followed by a method call ```.
+- The receiver is `<Class>.super`, where `<Class>` is the **enclosing class**,
+  written literally. A different name is rejected with
+  ``` `<X>.super` must name the enclosing class <Name> ```.
+- The running instance is passed explicitly, as the first argument, and it must
+  be `self`. Anything else is rejected with
+  ``` A qualified parent call passes `self` first, as in `Cube.super.tick(self, delta_seconds)` ```.
 - Resolution is **lexical**: it always calls the qualified parent
-  implementation, never the most-derived runtime type.
+  implementation, never the most-derived runtime type. There is no dynamic
+  `super` value: `<Class>.super` exists only as the target of a call.
 
 A parent method reached this way must either be the method this body overrides,
 or be public and callable.
@@ -246,10 +353,9 @@ or be public and callable.
 ### Calling other methods
 
 `self:name(...)` calls a method of this class through the C++ virtual, so a
-derived class's override wins. `epok.super(Class, self):name(...)` is the
-qualified parent call. **No other receiver is supported**; anything else is
-rejected with
-``` Only `self` and `epok.super(Class, self)` receivers are supported ```.
+derived class's override wins. `<Class>.super.name(self, ...)` is the qualified
+parent call. **No other receiver is supported**; anything else is rejected with
+``` Only `self:method(...)` and `<Class>.super.method(self, ...)` receivers are supported ```.
 
 Reflected native methods that are `BlueprintCallable` and public are visible to
 Lua bodies by name, **in every execution mode**, whether the Lua class declares
@@ -267,7 +373,7 @@ end
 In the VM modes the generated binding publishes a dispatch slot for the class's
 own methods *and* for every inherited reflected function, so an inherited
 callable is reached through the same `self_call` switch as an own method, and
-`epok.super(Class, self):name(...)` through the matching `super_call` switch.
+`<Class>.super.name(self, ...)` through the matching `super_call` switch.
 Declaring a new, non-override callable is likewise supported in every mode.
 
 Recursion is rejected: a cycle in the call graph of methods declared in the same
@@ -360,7 +466,7 @@ name a mode.
 - `return` — at most one value, and only as the last statement of a block.
 - Single assignment to a local, a property, or a vector component.
 - Calls to `self:` methods (including every inherited reflected callable, such
-  as `Actor::set_active` and `Actor::destroy`), `epok.super(Class, self):`
+  as `Actor::set_active` and `Actor::destroy`), `<Class>.super.<method>(self, ...)`
   parent methods, and the builtins listed below.
 - Comparisons `== ~= < <= > >=`, `and`, `or`, `not`, unary `-`.
 - Arithmetic `+ - * /`, and `%` on integers.
@@ -382,7 +488,7 @@ construction rather than by agreement.
 | --- | --- |
 | `epok.to_fixed(value)` | `Int32` → `Fixed` |
 | `epok.to_int(value)` | `Fixed` → `Int32` |
-| `epok.super(Class, self)` | Qualified parent receiver (must be called on) |
+| `<Class>.super.<method>(self, ...)` | Qualified parent call |
 
 #### Adapters
 
@@ -675,15 +781,20 @@ authoring surface:
 - the intrinsic places a class actually has — `position`, `rotation` and `scale`
   on a World3D or World2D class, `rect_position` and `rect_size` on a UI class —
   and `ref`, the object's own typed reference;
-- the `epok` namespace: `epok.class`, `epok.super`, the conversions and every
+- the `epok` namespace: the property value constructors, the conversions and every
   adapter builtin of profile v1, with the same arities and types the compiler
   enforces;
 - the value vocabulary, as `Fixed`, `Int32`, `UInt32`, `Bool`, `Vector2`,
-  `Vector3` and the reference and handle types.
+  `Vector3` and the reference and handle types;
+- the declaration form itself: `extend()` on the hierarchy root, `super` on every
+  Lua class, and every class bound as a *value* under the name its Lua type
+  carries, so `epok.Actor3D:extend()`, `EnemyBase:extend()` and
+  `Cube.super.tick(self, delta_seconds)` all resolve and type-check.
 
 A C++ class name becomes a Lua type name by writing `.` where C++ writes `::`,
 so `epok::Actor3D` is the type `epok.Actor3D`. Methods are declared on a
-file-local table, so the file introduces no global but `epok`.
+file-local table, so the only globals the file introduces are `epok` and the
+class values above.
 
 The file is generated, never authored: it is rewritten from the registry on
 every refresh, is regenerated from scratch if deleted, and nothing in the engine,

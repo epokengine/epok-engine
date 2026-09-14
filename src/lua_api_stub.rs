@@ -27,10 +27,31 @@ pub const STUB_PATH: &str = ".epok/lua/epok.d.lua";
 /// project has none: an author's own configuration is never overwritten.
 pub const CONFIG_PATH: &str = ".luarc.json";
 
+/// The Lua Language Server settings a project needs for the generated
+/// definitions to be *enforced* rather than merely offered.
+///
+/// `workspace.library` loads the definitions and `diagnostics.globals` declares
+/// the one global they introduce. The severities matter as much: LuaLS reports
+/// a type mismatch against a `---@field` or a `---@param` only as a Warning by
+/// default, which an editor shows as a hint an author can ignore. Raising them
+/// with the `!` suffix — "this severity, whatever the check level" — is what
+/// makes VS Code flag a wrong assignment, a wrong argument or an undeclared
+/// member as an error, before the Epok compiler is ever run. The same three
+/// constructs are rejected by the compiler with its own diagnostics, so the two
+/// agree by construction.
 const CONFIG: &str = r#"{
   "runtime.version": "Lua 5.2",
   "workspace.library": [".epok/lua"],
-  "diagnostics.globals": ["epok"]
+  "diagnostics.globals": ["epok"],
+  "diagnostics.severity": {
+    "assign-type-mismatch": "Error!",
+    "param-type-mismatch": "Error!",
+    "return-type-mismatch": "Error!",
+    "cast-local-type": "Error!",
+    "undefined-field": "Error!",
+    "undefined-global": "Error!",
+    "inject-field": "Error!"
+  }
 }
 "#;
 
@@ -142,6 +163,10 @@ pub fn render(registry: &Registry) -> String {
     let mut named = Named::default();
     let mut classes = String::new();
     let mut taken = BTreeSet::new();
+    // Lua type name -> the file-local table that carries it, so every class can
+    // also be named as a *value*: `epok.Actor3D:extend()` and `EnemyBase:extend()`
+    // both read the binding rendered below.
+    let mut bindings: Vec<(String, String)> = vec![];
     let mut sorted = registry.classes.values().collect::<Vec<_>>();
     sorted.sort_by(|a, b| a.cpp_name.cmp(&b.cpp_name).then(a.id.cmp(&b.id)));
     for class in sorted {
@@ -187,6 +212,17 @@ pub fn render(registry: &Registry) -> String {
             "---@field ref {} This object's own typed reference.",
             self_reference(registry, &class.cpp_name)
         );
+        // Only a Lua class has a qualified parent receiver: `Cube.super.tick`
+        // is the declaration form's replacement for a dynamic `super` value.
+        if class.provider == crate::lua_asset::provider()
+            && let Some(parent) = &parent
+        {
+            fields.insert("super".to_owned());
+            let _ = writeln!(
+                classes,
+                "---@field super {parent} The parent implementation: `{name}.super.tick(self, delta_seconds)`."
+            );
+        }
         for property in &class.properties {
             // `ref` and the intrinsic places are reserved names: a property of
             // the same name is addressed as the intrinsic, so it is declared once.
@@ -206,6 +242,21 @@ pub fn render(registry: &Registry) -> String {
             );
         }
         let _ = writeln!(classes, "local {local} = {{}}\n");
+        // The declaration form: `local Cube = epok.Actor3D:extend()`. It is
+        // declared once on the hierarchy root and inherited by every class, and
+        // it is generic in the receiver so the result is the parent's own type
+        // until the `---@class` line above the local names the new one.
+        if class.parent.is_none() {
+            let _ = writeln!(
+                classes,
+                "--- Declares a subclass of this class. `local Cube = epok.Actor3D:extend()`\n\
+                 ---@generic T\n\
+                 ---@param self T\n\
+                 ---@return T\n\
+                 function {local}:extend() end\n"
+            );
+        }
+        bindings.push((lua_name(&class.cpp_name), local.clone()));
         let mut functions = class
             .functions
             .iter()
@@ -291,6 +342,42 @@ pub fn render(registry: &Registry) -> String {
     }
     out.push_str(&classes);
     out.push_str(NAMESPACE);
+    out.push_str(&namespace_bindings(&bindings));
+    out
+}
+
+/// The class values. A declaration names its parent as a value, so every
+/// reflected class is bound under the very name its Lua type carries:
+/// `epok.Actor3D` under the `epok` namespace, `EnemyBase` as a global and
+/// `game::Enemy` as a field of a `game` table this file declares.
+fn namespace_bindings(bindings: &[(String, String)]) -> String {
+    let mut out = String::from(
+        "\n-- Class values. A declaration names its parent as a value, so each\n         -- reflected class is bound under the name its Lua type already carries.\n",
+    );
+    let mut namespaces = BTreeSet::new();
+    for (name, _) in bindings {
+        let segments = name.split('.').collect::<Vec<_>>();
+        let mut prefix = String::new();
+        for segment in &segments[..segments.len() - 1] {
+            prefix = if prefix.is_empty() {
+                (*segment).to_owned()
+            } else {
+                format!("{prefix}.{segment}")
+            };
+            namespaces.insert(prefix.clone());
+        }
+    }
+    // `epok` is declared by the namespace section above; every other namespace
+    // root a project introduces is declared here, outermost first.
+    for namespace in &namespaces {
+        if namespace == "epok" || namespace.starts_with("epok.") {
+            continue;
+        }
+        let _ = writeln!(out, "{namespace} = {{}}");
+    }
+    for (name, local) in bindings {
+        let _ = writeln!(out, "{name} = {local}");
+    }
     out
 }
 
@@ -363,18 +450,73 @@ const NAMESPACE: &str = "\
 epok = {}
 epok.input = {}
 
---- Declares a class from its metadata table and returns it.
----@param declaration table
----@return table
-function epok.class(declaration) end
+-- Property value constructors. They appear only at file scope, as the value of
+-- a `<Class>.<name> = ...` declaration, and are read from the source text: a
+-- property whose type and default a bare literal can express needs none of
+-- them, so `Cube.speed = 90.0` is a Fixed and `Cube.lives = 3` an Int32.
 
---- The qualified parent receiver: `epok.super(Class, self):begin_play()`. The
---- first argument is the enclosing class, written literally; it must be
---- followed immediately by a method call.
----@param class table
----@param instance table
----@return table
-function epok.super(class, instance) end
+---@param value boolean
+---@return Bool
+function epok.Bool(value) end
+
+---@param value number
+---@return Int32
+function epok.Int32(value) end
+
+---@param value number
+---@return UInt32
+function epok.UInt32(value) end
+
+---@param value number
+---@return Fixed
+function epok.Fixed(value) end
+
+---@param x number
+---@param y number
+---@return Vector2
+function epok.Vector2(x, y) end
+
+---@param x number
+---@param y number
+---@param z number
+---@return Vector3
+function epok.Vector3(x, y, z) end
+
+--- A reflected enum and the variant the property starts on, written unquoted
+--- and quoted respectively: `Cube.mode = epok.Enum(Mode, \"Idle\")`.
+---@param enumeration any
+---@param variant string
+---@return integer
+function epok.Enum(enumeration, variant) end
+
+--- An actor reference, optionally narrowed to a class written unquoted.
+---@param class? any
+---@return ActorRef
+function epok.ActorRef(class) end
+
+---@param class? any
+---@return ComponentRef
+function epok.ComponentRef(class) end
+
+---@param class? any
+---@return ObjectRef
+function epok.ObjectRef(class) end
+
+--- An asset reference of one imported asset kind, such as \"Mesh\".
+---@param kind string
+---@return AssetRef
+function epok.AssetRef(kind) end
+
+--- A class reference narrowed to a base class written unquoted.
+---@param base any
+---@return ClassRef
+function epok.ClassRef(base) end
+
+--- The same value, kept out of the Inspector: `Cube.hidden = epok.Hidden(1.0)`.
+---@generic T
+---@param value T
+---@return T
+function epok.Hidden(value) end
 
 ---@param value Int32
 ---@return Fixed
@@ -704,10 +846,20 @@ mod tests {
             "function epok.input.held(button, port) end",
             "function epok.spawn(class, parent) end",
             "function epok.to_fixed(value) end",
-            "function epok.super(class, instance) end",
-            "function epok.class(declaration) end",
+            "function epok.UInt32(value) end",
+            "function epok.ActorRef(class) end",
+            "function epok.Hidden(value) end",
+            "function epok.Enum(enumeration, variant) end",
+            // The declaration form itself: `local Cube = epok.Actor3D:extend()`
+            // needs the parent as a value and `extend` on the hierarchy root.
+            "function _epok__Object:extend() end",
+            "epok.Actor3D = _epok__Actor3D",
         ] {
             assert!(stub.contains(line), "{line} is missing from:\n{stub}");
+        }
+        // The replaced entry points are gone for good: there is no dual form.
+        for gone in ["epok.class", "epok.super("] {
+            assert!(!stub.contains(gone), "{gone} still appears in:\n{stub}");
         }
     }
 
@@ -741,6 +893,20 @@ mod tests {
         let config = std::fs::read_to_string(root.join(CONFIG_PATH)).unwrap();
         for setting in ["\"Lua 5.2\"", ".epok/lua", "\"epok\""] {
             assert!(config.contains(setting), "{config}");
+        }
+        // The definitions are only useful if a mismatch against them is
+        // reported: the three the compiler also rejects are raised to errors.
+        let parsed: serde_json::Value = serde_json::from_str(&config).unwrap();
+        for check in [
+            "assign-type-mismatch",
+            "param-type-mismatch",
+            "undefined-field",
+        ] {
+            assert_eq!(
+                parsed["diagnostics.severity"][check].as_str(),
+                Some("Error!"),
+                "{config}"
+            );
         }
 
         // An unchanged registry rewrites nothing.

@@ -370,6 +370,17 @@ def create_project(directory):
     for name in ("EnemyBase.hpp", "Probe.cpp", "Guard.lua", "Patrol.lua", "Sentinel.lua"):
         shutil.copy2(FIXTURES / name, scripts / name)
 
+    # A Lua class is identified outside its source text, so the scene below can
+    # name Guard and Patrol by uuid. Sentinel is deliberately left out: nothing
+    # places it, so the first build exercises the derived `lua:Sentinel`
+    # identity and the refresh that follows adopts it into this same file.
+    identities = root / "ProjectSettings/LuaClasses.epoksettings"
+    identities.parent.mkdir(parents=True, exist_ok=True)
+    documents.write_text(identities, documents.dumps({"classes": {
+        "assets/scripts/Guard.lua": GUARD_ID,
+        "assets/scripts/Patrol.lua": PATROL_ID,
+    }}))
+
     path = root / "assets/scenes/Main.epokmap"
     scene = documents.loads(path.read_text(encoding="utf-8"))
     # The Director is a component: the level calls `frame_update` once per
@@ -592,13 +603,8 @@ def check_unsupported_diagnostics(project, report):
     """One source diagnostic, identical in every mode (contract §2)."""
     path = project / "assets/scripts/Broken.lua"
     template = (
-        'local Broken = epok.class {\n'
-        '    id = "3b7d6e52-4e6f-4a7b-9c93-5d7e9f0a2b33",\n'
-        '    name = "Broken",\n'
-        '    extends = "EnemyBase",\n'
-        '    properties = {},\n'
-        '    functions = {}\n'
-        '}\n\n'
+        '---@class Broken : EnemyBase\n'
+        'local Broken = EnemyBase:extend()\n\n'
         'function Broken:begin_play()\n@BODY@end\n\nreturn Broken\n'
     )
     diagnostics = {}

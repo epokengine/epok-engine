@@ -1,41 +1,24 @@
 -- A Lua class that extends the reflected C++ class EnemyBase.
 --
--- `epok.class{}` is metadata, not code: the editor reads it statically from the
--- source, so it is never executed to discover the class.
-local Guard = epok.class {
-    id = "7bb2a7b2-3a7c-4285-b11e-d6252ac5b7d2",
-    name = "Guard",
-    extends = "EnemyBase",
-    properties = {
-        -- Own storage on the generated subclass, editable in the Inspector.
-        alert_speed = {
-            type = "Fixed", default = 2.5, editable = true
-        },
-        awake = {
-            type = "Bool", default = false, editable = true
-        }
-    },
-    functions = {
-        -- A new callable method. Blueprints and other classes can call it.
-        wake_up = {
-            callable = true,
-            parameters = { { name = "amount", type = "Fixed" } },
-            returns = "Fixed"
-        },
-        -- An override of a reflected parent event needs an explicit
-        -- `overrides` entry; its signature must match the parent exactly.
-        defeated = {
-            overrides = "defeated", returns = "void"
-        }
-    }
-}
+-- The declaration is source text, not code: the editor reads the `extend()`
+-- call, the property assignments and the method definitions statically, so a
+-- class is never executed to be discovered.
+
+---@class Guard : EnemyBase
+local Guard = EnemyBase:extend()
+
+-- Own storage on the generated subclass. A literal declares both the type and
+-- the default: 2.5 is Fixed, false is Bool, an integer would be Int32.
+Guard.alert_speed = 2.5
+Guard.awake = false
 
 -- Lifecycle events (begin_play, tick, end_play, on_enable, on_disable) need no
--- `functions` entry: their signature comes from the reflected parent.
+-- annotation: their signature comes from the reflected parent.
 function Guard:begin_play()
     -- Lexically qualified parent call: always EnemyBase::begin_play(), never
-    -- the most-derived runtime type. It names the enclosing class and `self`.
-    epok.super(Guard, self):begin_play()
+    -- the most-derived runtime type. The class is named literally and the
+    -- running instance is passed explicitly.
+    Guard.super.begin_play(self)
     self.awake = false
 end
 
@@ -49,6 +32,10 @@ function Guard:tick(delta_seconds)
     end
 end
 
+-- A new callable method. Blueprints and other classes can call it; its
+-- signature comes from the annotations the language server already reads.
+---@param amount Fixed
+---@return Fixed
 function Guard:wake_up(amount)
     self.awake = true
     -- An inherited reflected `BlueprintCallable` declared by the native parent.
@@ -63,9 +50,12 @@ function Guard:wake_up(amount)
     return self.health
 end
 
+-- An override of a reflected parent event that is not one of the five lifecycle
+-- names is marked with `---@override`; its signature comes from the parent.
+---@override
 function Guard:defeated()
     self.awake = false
 end
 
--- The file ends by returning the local the class table is bound to.
+-- The file ends by returning the local the class is bound to.
 return Guard

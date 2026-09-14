@@ -1,8 +1,11 @@
-//! `.lua` discovery and the statically extracted `epok.class` declaration.
+//! `.lua` discovery and the statically extracted class declaration.
 //!
-//! Declarations are read from the AST. `epok.class` is never executed: the
-//! editor must be able to list classes, properties and functions without a Lua
-//! interpreter, and the same metadata must be identical in every build.
+//! A class is declared by `local <Class> = <Parent>:extend()`, its properties by
+//! `<Class>.<name> = <value>` assignments and its functions by the methods
+//! written on the same local. All of it is read from the AST: the engine never
+//! executes a line of user Lua to discover a class, because the editor must be
+//! able to list classes, properties and functions without a Lua interpreter and
+//! the same metadata must be identical in every build.
 #![allow(dead_code)] // M2 (`lua_compile`) publishes these declarations; M1 only produces them.
 use crate::{
     blueprint::Registry,
@@ -35,6 +38,10 @@ pub fn provider() -> schema::Extension {
 pub struct LuaFile {
     pub path: PathBuf,
     pub source: String,
+    /// Class identity recorded for this path in
+    /// `ProjectSettings/LuaClasses.epoksettings`. `None` means the project has
+    /// no entry yet and the class is identified by its derived `lua:<Name>`.
+    pub id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -96,7 +103,6 @@ pub struct Declaration {
     pub name: String,
     /// `cpp_name` of the parent: reflected C++, Blueprint or another Lua class.
     pub extends: String,
-    pub profile: u32,
     pub properties: Vec<DeclaredProperty>,
     pub functions: Vec<DeclaredFunction>,
     /// Local the class table is bound to; methods must be declared on it.
@@ -143,7 +149,11 @@ pub fn load_all(root: &Path) -> Result<Vec<LuaFile>, String> {
                 let path = entry.path();
                 let source =
                     fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-                result.push(LuaFile { path, source });
+                result.push(LuaFile {
+                    path,
+                    source,
+                    id: None,
+                });
             }
         }
         Ok(())
@@ -151,50 +161,11 @@ pub fn load_all(root: &Path) -> Result<Vec<LuaFile>, String> {
     let mut result = vec![];
     visit(&root.join("assets/scripts"), &mut result)?;
     result.sort_by(|a, b| a.path.cmp(&b.path));
+    crate::lua_identity::resolve(root, &mut result)?;
     Ok(result)
 }
 
 // ----------------------------------------------------------- extraction ----
-
-fn fields<'a>(
-    expr: &'a ast::Expr,
-    file: &Path,
-    what: &str,
-) -> Result<&'a [ast::Field], Diagnostic> {
-    match expr {
-        ast::Expr::Table { fields, .. } => Ok(fields),
-        other => Err(Diagnostic::new(
-            file,
-            other.span(),
-            format!("{what} must be a table"),
-        )),
-    }
-}
-fn entry<'a>(fields: &'a [ast::Field], key: &str) -> Option<&'a ast::Field> {
-    fields.iter().find(|f| f.key.as_deref() == Some(key))
-}
-fn text(fields: &[ast::Field], key: &str, file: &Path, span: Span) -> Result<String, Diagnostic> {
-    match entry(fields, key).map(|f| &f.value) {
-        Some(ast::Expr::Str { value, .. }) => Ok(value.clone()),
-        Some(other) => Err(Diagnostic::new(
-            file,
-            other.span(),
-            format!("{key} must be a string"),
-        )),
-        None => Err(Diagnostic::new(file, span, format!("Missing {key}"))),
-    }
-}
-fn flag(fields: &[ast::Field], key: &str, file: &Path) -> Result<bool, Diagnostic> {
-    match entry(fields, key).map(|f| &f.value) {
-        None => Ok(false),
-        Some(ast::Expr::Bool(value, _)) => Ok(*value),
-        Some(other) => Err(Diagnostic::new(
-            file,
-            other.span(),
-            format!("{key} must be a boolean"),
-        )),
-    }
-}
 
 /// The metadata type vocabulary. It is deliberately a closed set: an unknown
 /// name is a diagnostic, never an opaque pass-through to the code generator.
@@ -239,31 +210,44 @@ pub fn value_type(name: &str) -> Option<Type> {
         }
     })
 }
-fn declared_type(
-    fields: &[ast::Field],
-    key: &str,
-    file: &Path,
-    span: Span,
-) -> Result<Type, Diagnostic> {
-    let name = text(fields, key, file, span)?;
-    value_type(&name)
-        .ok_or_else(|| Diagnostic::new(file, span, format!("{name} is not an epok-lua type name")))
+/// The type of a member written as a bare literal: `90.0` is `Fixed`, `true` is
+/// `Bool`, `3` is `Int32`, and a unary minus keeps the literal's own type.
+/// Anything else — a string, an expression such as `1 + 1`, a table — is not a
+/// literal and has no shorthand type.
+pub fn literal_type(expr: &ast::Expr) -> Option<Type> {
+    let number = |integer: bool| Some(if integer { Type::Int32 } else { Type::Fixed });
+    match expr {
+        ast::Expr::Bool(..) => Some(Type::Bool),
+        ast::Expr::Number { integer, .. } => number(*integer),
+        ast::Expr::Unary {
+            op: ast::UnOp::Neg,
+            operand,
+            ..
+        } => match &**operand {
+            ast::Expr::Number { integer, .. } => number(*integer),
+            _ => None,
+        },
+        _ => None,
+    }
 }
-/// Literal defaults only. The metadata table is data, never an expression.
-fn default_value(
-    field: Option<&ast::Field>,
-    ty: &Type,
-    file: &Path,
-    _span: Span,
-) -> Result<Value, Diagnostic> {
-    let Some(field) = field else {
-        return Ok(crate::script_values::default_value(ty));
-    };
-    let invalid = || Diagnostic::new(file, field.value.span(), "Default is not a literal value");
-    let value = match &field.value {
-        ast::Expr::Nil(_) => Value::Null,
+
+/// The type vocabulary as an annotation spells it. `value_type` is the whole
+/// set; on top of it the Lua Language Server definitions name a reflected class
+/// with `.` where C++ writes `::`, so `ActorRef<epok.Actor3D>` — the exact text
+/// the generated stub shows in completion — resolves to the same type as
+/// `ActorRef<epok::Actor3D>`.
+pub fn annotation_type(name: &str) -> Option<Type> {
+    // No name in the vocabulary contains a `.`, so the rewrite is total and
+    // touches nothing but a dotted class operand.
+    value_type(&name.replace('.', "::"))
+}
+/// A literal default: a number or a boolean, with a unary minus allowed. The
+/// declaration is data read from the source text, never an evaluated
+/// expression, so nothing else can spell a default.
+fn literal_value(expr: &ast::Expr, ty: &Type, file: &Path) -> Result<Value, Diagnostic> {
+    let invalid = || Diagnostic::new(file, expr.span(), "Default is not a literal value");
+    Ok(match expr {
         ast::Expr::Bool(value, _) => Value::from(*value),
-        ast::Expr::Str { value, .. } => Value::from(value.clone()),
         ast::Expr::Number { value, .. } => number(*value, ty),
         ast::Expr::Unary {
             op: ast::UnOp::Neg,
@@ -273,32 +257,23 @@ fn default_value(
             ast::Expr::Number { value, .. } => number(-*value, ty),
             _ => return Err(invalid()),
         },
-        ast::Expr::Table { fields, .. } => {
-            let component = match ty {
-                Type::Vector { .. } => Type::Fixed,
-                _ => return Err(invalid()),
-            };
-            Value::Array(
-                fields
-                    .iter()
-                    .map(|f| default_value(Some(f), &component, file, f.span))
-                    .collect::<Result<Vec<_>, _>>()?,
-            )
-        }
         _ => return Err(invalid()),
-    };
-    Ok(value)
+    })
 }
+
 fn number(value: f64, ty: &Type) -> Value {
     match ty {
         Type::Int32 => Value::from(value as i64),
+        // A negative literal is kept negative so the bounds check rejects it,
+        // rather than wrapping silently into an unsigned default.
+        Type::UInt32 if value < 0.0 => Value::from(value as i64),
         Type::UInt32 => Value::from(value as u64),
         Type::Enum { .. } => Value::from(value as i64),
         _ => Value::from(value),
     }
 }
 
-fn canonical(id: &str) -> bool {
+pub fn canonical(id: &str) -> bool {
     uuid::Uuid::parse_str(id).is_ok_and(|value| !value.is_nil() && value.to_string() == id)
 }
 /// Engine-derived identity. The editor assigns it when the author writes no
@@ -338,62 +313,375 @@ pub fn artifact_stem(class_id: &str) -> String {
         None => class_id.to_owned(),
     }
 }
-/// An authored `id`, which is optional everywhere. When present it must be a
-/// canonical UUID: the derived form is assigned by the engine, never typed.
-fn explicit_id(
-    fields: &[ast::Field],
+/// `---@id <uuid>` above a property assignment or a method pins that member's
+/// identity. It is optional everywhere: without it the engine derives one. When
+/// written it must be a canonical UUID, because the derived form is assigned by
+/// the engine and never typed.
+fn annotated_id(
     file: &Path,
+    annotations: &[ast::Annotation],
     what: &str,
 ) -> Result<Option<String>, Diagnostic> {
-    match entry(fields, "id").map(|f| &f.value) {
-        None => Ok(None),
-        Some(ast::Expr::Str { value, .. }) if canonical(value) => Ok(Some(value.clone())),
-        Some(other) => Err(Diagnostic::new(
+    let Some(annotation) = annotations.iter().find(|a| a.tag == "id") else {
+        return Ok(None);
+    };
+    match annotation.operands.first() {
+        Some(id) if canonical(id) && annotation.operands.len() == 1 => Ok(Some(id.clone())),
+        _ => Err(Diagnostic::new(
             file,
-            other.span(),
+            annotation.span,
             format!("{what} id must be a canonical UUID"),
         )),
     }
+}
+
+/// Asked of a method that has parameters but describes none of them. The text
+/// names the annotation an author writes, not the tooling it also serves.
+pub const PARAMETER_ANNOTATIONS: &str =
+    "Declare the parameter types with ---@param annotations, for example ---@param amount Fixed";
+
+/// A signature read from the `---@` block above a method. The tags are the ones
+/// the Lua Language Server already understands, so the same lines type the
+/// method in the editor and declare it to the compiler.
+#[derive(Clone, Debug, Default)]
+pub struct Annotated {
+    pub parameters: Vec<(String, Type)>,
+    pub returns: Option<Type>,
+    /// `---@override`: the equivalent of an `overrides = "..."` entry.
+    pub overrides: bool,
+}
+impl Annotated {
+    /// Whether the block states a signature, as opposed to only marking the
+    /// method as an override whose signature comes from the parent.
+    fn typed(&self) -> bool {
+        !self.parameters.is_empty() || self.returns.is_some()
+    }
+    /// The annotations and an explicit `functions` entry describe one function,
+    /// so they must agree; a silent winner would make the editor and the
+    /// language server disagree about the same method.
+    fn agrees_with(
+        &self,
+        file: &Path,
+        method: &ast::Method,
+        declared: &DeclaredFunction,
+    ) -> Result<(), Diagnostic> {
+        let conflict = |what: &str| {
+            Err(Diagnostic::new(
+                file,
+                method.span,
+                format!(
+                    "{}: the annotated {what} differs from its `functions` entry",
+                    method.name
+                ),
+            ))
+        };
+        if self.overrides && declared.overrides.is_none() {
+            return conflict("override");
+        }
+        if self.typed() {
+            if self.parameters != declared.parameters {
+                return conflict("parameters");
+            }
+            if self.returns.clone().unwrap_or(Type::Void) != declared.returns {
+                return conflict("return type");
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The `---@param`, `---@return` and `---@override` lines above a method.
+/// Returns `None` when the block declares nothing about the signature: any
+/// other tag, and any ordinary comment, is left to the language server.
+fn annotated_signature(file: &Path, method: &ast::Method) -> Result<Option<Annotated>, Diagnostic> {
+    let mut out = Annotated::default();
+    let mut seen = false;
+    for annotation in &method.annotations {
+        let fail = |message: String| Diagnostic::new(file, annotation.span, message);
+        let named = |index: usize| -> Result<Type, Diagnostic> {
+            let name = annotation.operands.get(index).ok_or_else(|| {
+                fail(format!(
+                    "---@{} needs a type from the epok value vocabulary",
+                    annotation.tag
+                ))
+            })?;
+            annotation_type(name)
+                .ok_or_else(|| fail(format!("{name} is not an epok-lua type name")))
+        };
+        match annotation.tag.as_str() {
+            "param" => {
+                seen = true;
+                let name = annotation
+                    .operands
+                    .first()
+                    .ok_or_else(|| fail("---@param needs a parameter name and a type".into()))?;
+                out.parameters.push((name.clone(), named(1)?));
+            }
+            "return" => {
+                seen = true;
+                if out.returns.is_some() {
+                    return Err(fail(format!(
+                        "{}: a method returns at most one value",
+                        method.name
+                    )));
+                }
+                out.returns = Some(named(0)?);
+            }
+            "override" => {
+                seen = true;
+                out.overrides = true;
+            }
+            _ => {}
+        }
+    }
+    if !seen {
+        return Ok(None);
+    }
+    // One `---@param` per parameter, in the order they are written: the
+    // annotations name the very parameters of the method they sit above.
+    if !out.parameters.is_empty() && out.parameters.len() != method.parameters.len() {
+        return Err(Diagnostic::new(
+            file,
+            method.span,
+            format!(
+                "{} takes {} parameter(s) but declares {} with ---@param",
+                method.name,
+                method.parameters.len(),
+                out.parameters.len()
+            ),
+        ));
+    }
+    for ((annotated, _), (written, span)) in out.parameters.iter().zip(&method.parameters) {
+        if annotated != written {
+            return Err(Diagnostic::new(
+                file,
+                *span,
+                format!("Parameter {written} is annotated as {annotated}"),
+            ));
+        }
+    }
+    Ok(Some(out))
+}
+
+/// A dotted name written in Lua, as the registry spells it: `epok.Actor3D` is
+/// `epok::Actor3D` and `game.Enemy` is `game::Enemy`. A bare identifier names a
+/// project class at global scope and is returned unchanged.
+fn dotted_name(expr: &ast::Expr) -> Option<String> {
+    match expr {
+        ast::Expr::Name { name, .. } => Some(name.clone()),
+        ast::Expr::Field { base, name, .. } => Some(format!("{}::{name}", dotted_name(base)?)),
+        _ => None,
+    }
+}
+/// The `epok.<Name>(` constructor a property value is written with, if any.
+fn constructor(expr: &ast::Expr) -> Option<(&str, &[ast::Expr], Span)> {
+    let ast::Expr::Call { base, args, span } = expr else {
+        return None;
+    };
+    let ast::Expr::Field {
+        base: root, name, ..
+    } = &**base
+    else {
+        return None;
+    };
+    matches!(&**root, ast::Expr::Name { name, .. } if name == "epok").then_some((
+        name.as_str(),
+        args.as_slice(),
+        *span,
+    ))
+}
+
+/// A property as the source text declares it: its type, its default and whether
+/// the Inspector shows it.
+#[derive(Clone, Debug)]
+pub struct Shape {
+    pub value_type: Type,
+    pub default: Value,
+    pub editable: bool,
+}
+
+/// The declared shape of `<Class>.<name> = <value>`.
+///
+/// A bare literal says everything about the simple cases; each remaining kind
+/// of value has one `epok.<Type>(...)` constructor, so the vocabulary stays the
+/// closed set `value_type` already names and the file is still pure data.
+pub fn shape(expr: &ast::Expr, file: &Path) -> Result<Shape, Diagnostic> {
+    let editable = |value_type: Type, default: Value| {
+        Ok(Shape {
+            value_type,
+            default,
+            editable: true,
+        })
+    };
+    if let Some(value_type) = literal_type(expr) {
+        let default = literal_value(expr, &value_type, file)?;
+        return editable(value_type, default);
+    }
+    let Some((name, args, span)) = constructor(expr) else {
+        return Err(Diagnostic::new(
+            file,
+            expr.span(),
+            format!(
+                "A property is a literal default or an epok value constructor such as {}",
+                "epok.UInt32(0), epok.ActorRef(EnemyBase) or epok.Hidden(1.0)"
+            ),
+        ));
+    };
+    let fail = |message: String| Diagnostic::new(file, span, message);
+    let arity = |wanted: usize| {
+        (args.len() == wanted)
+            .then_some(())
+            .ok_or_else(|| fail(format!("epok.{name} takes {wanted} argument(s)")))
+    };
+    // An optional class operand narrows a reference; without one the reference
+    // accepts any class, exactly as `ActorRef` does in an annotation.
+    let narrowed = |kind: fn(Option<String>) -> Type| {
+        if args.is_empty() {
+            return Ok(kind(None));
+        }
+        if args.len() != 1 {
+            return Err(fail(format!("epok.{name} takes an optional class name")));
+        }
+        let class = dotted_name(&args[0])
+            .ok_or_else(|| fail(format!("epok.{name} takes a class name, written unquoted")))?;
+        Ok(kind(Some(class)))
+    };
+    let text = |index: usize| match args.get(index) {
+        Some(ast::Expr::Str { value, .. }) => Ok(value.clone()),
+        _ => Err(fail(format!("epok.{name} takes a quoted name"))),
+    };
+    match name {
+        "Bool" => {
+            arity(1)?;
+            editable(Type::Bool, literal_value(&args[0], &Type::Bool, file)?)
+        }
+        "Int32" | "UInt32" | "Fixed" => {
+            arity(1)?;
+            let value_type = value_type(name).expect("named above");
+            let default = literal_value(&args[0], &value_type, file)?;
+            editable(value_type, default)
+        }
+        "Vector2" | "Vector3" => {
+            let length = if name == "Vector2" { 2 } else { 3 };
+            arity(length)?;
+            let mut components = vec![];
+            for argument in args {
+                components.push(literal_value(argument, &Type::Fixed, file)?);
+            }
+            editable(Type::Vector { length }, Value::Array(components))
+        }
+        // The variants are reflected, so the enum is resolved against the
+        // registry when the declaration is published, not here.
+        "Enum" => {
+            arity(2)?;
+            let cpp_name = dotted_name(&args[0]).ok_or_else(|| {
+                fail("epok.Enum takes a reflected enum name and a variant".into())
+            })?;
+            editable(
+                Type::Enum {
+                    cpp_name,
+                    variants: BTreeMap::new(),
+                },
+                Value::from(text(1)?),
+            )
+        }
+        "ActorRef" => editable(narrowed(|class| Type::ActorRef { class })?, Value::Null),
+        "ComponentRef" => editable(narrowed(|class| Type::ComponentRef { class })?, Value::Null),
+        "ObjectRef" => editable(narrowed(|class| Type::ObjectRef { class })?, Value::Null),
+        "AssetRef" => {
+            arity(1)?;
+            editable(Type::AssetRef { kind: text(0)? }, Value::Null)
+        }
+        "ClassRef" => {
+            arity(1)?;
+            let base = dotted_name(&args[0])
+                .ok_or_else(|| fail("epok.ClassRef takes a base class name".into()))?;
+            editable(Type::ClassRef { base }, Value::Null)
+        }
+        // The one wrapper: it changes nothing but the Inspector.
+        "Hidden" => {
+            arity(1)?;
+            let inner = shape(&args[0], file)?;
+            if !inner.editable {
+                return Err(fail("epok.Hidden wraps a value once".into()));
+            }
+            Ok(Shape {
+                editable: false,
+                ..inner
+            })
+        }
+        _ => Err(fail(format!(
+            "epok.{name} is not an epok value constructor"
+        ))),
+    }
+}
+
+/// `---@class <Name> : <Base>` above the class local. It is what gives the Lua
+/// Language Server the type of the local, so the template always writes it, but
+/// the compiler reads the class from the file name and the `extend()` call: the
+/// annotation only has to agree with them.
+fn annotated_class(
+    file: &Path,
+    annotations: &[ast::Annotation],
+    name: &str,
+    extends: &str,
+) -> Result<(), Diagnostic> {
+    let Some(annotation) = annotations.iter().find(|a| a.tag == "class") else {
+        return Ok(());
+    };
+    let fail = |message: String| Diagnostic::new(file, annotation.span, message);
+    let written = annotation.operands.concat();
+    let (declared, base) = written
+        .split_once(':')
+        .ok_or_else(|| fail(format!("---@class must read ---@class {name} : {extends}")))?;
+    if declared != name {
+        return Err(fail(format!(
+            "---@class names {declared}; the file names the class {name}"
+        )));
+    }
+    if base.replace('.', "::") != extends {
+        return Err(fail(format!(
+            "---@class extends {base}; the declaration extends {extends}"
+        )));
+    }
+    Ok(())
 }
 
 pub fn extract(file: &LuaFile) -> Result<Declaration, Diagnostic> {
     let chunk = crate::lua_frontend::parse(file)?;
     let path = file.path.as_path();
     let top = Span { line: 1, column: 1 };
-    let mut declarations = chunk.locals.iter().filter(|(_, value, _)| {
-        matches!(value, ast::Expr::Call { base, .. }
-            if matches!(&**base, ast::Expr::Field { base, name, .. }
-                if name == "class" && matches!(&**base, ast::Expr::Name{name,..} if name == "epok")))
-    });
-    let Some((binding, value, span)) = declarations.next() else {
-        return Err(Diagnostic::new(
-            path,
-            top,
-            "No `local <Class> = epok.class{...}` declaration in this file",
-        ));
+
+    // `local <Class> = <Parent>:extend()` — the whole declaration head.
+    let mut locals = chunk.locals.iter();
+    let Some(local) = locals.next() else {
+        return Err(Diagnostic::new(path, top, DECLARATION));
     };
-    if let Some((_, _, extra)) = declarations.next() {
+    if let Some(extra) = locals.next() {
         return Err(Diagnostic::new(
             path,
-            *extra,
+            extra.span,
             "A Lua script declares exactly one class",
         ));
     }
-    let span = *span;
-    let ast::Expr::Call { args, .. } = value else {
-        unreachable!("filtered above")
+    let binding = local.name.clone();
+    let span = local.span;
+    let ast::Expr::MethodCall {
+        base,
+        name: method,
+        args,
+        ..
+    } = &local.value
+    else {
+        return Err(Diagnostic::new(path, span, DECLARATION));
     };
-    if args.len() != 1 {
-        return Err(Diagnostic::new(
-            path,
-            span,
-            "`epok.class` takes exactly one metadata table",
-        ));
+    if method != "extend" || !args.is_empty() {
+        return Err(Diagnostic::new(path, span, DECLARATION));
     }
-    let table = fields(&args[0], path, "`epok.class` metadata")?;
+    let extends = dotted_name(base).ok_or_else(|| Diagnostic::new(path, span, PARENT))?;
 
     match &chunk.returns {
-        Some((name, _)) if name == binding => {}
+        Some((name, _)) if name == &binding => {}
         Some((_, at)) => {
             return Err(Diagnostic::new(
                 path,
@@ -410,139 +698,105 @@ pub fn extract(file: &LuaFile) -> Result<Declaration, Diagnostic> {
         }
     }
 
-    // `profile` is optional: absent means the profile this editor supports. It
-    // is written only to pin a script to one profile version on purpose.
-    let profile = match entry(table, "profile").map(|f| &f.value) {
-        None => PROFILE_VERSION,
-        Some(ast::Expr::Number { value, .. }) => *value as u32,
-        Some(other) => {
-            return Err(Diagnostic::new(
-                path,
-                other.span(),
-                "profile must be a version number",
-            ));
-        }
-    };
-    if profile != PROFILE_VERSION {
+    // The class is named by its file, which is what an author already has to
+    // keep unique, and the local must be bound to that same name so the
+    // qualified parent call and the language server agree with the compiler.
+    let stem = path
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if !crate::scripts::identifier(&stem) || stem.starts_with("epok_") {
         return Err(Diagnostic::new(
             path,
             span,
-            format!("Profile {profile} is not epok-lua v{PROFILE_VERSION}"),
+            format!("The file name is not a usable class name ({stem})"),
         ));
     }
-    let name = text(table, "name", path, span)?;
-    let id = explicit_id(table, path, "Class")?.unwrap_or_else(|| derived_class_id(&name));
-    let extends = text(table, "extends", path, span)?;
+    if binding != stem {
+        return Err(Diagnostic::new(
+            path,
+            span,
+            format!("The class local is named {binding}; {stem}.lua declares {stem}"),
+        ));
+    }
+    let name = stem;
+    annotated_class(path, &local.annotations, &name, &extends)?;
+
+    // Identity comes from ProjectSettings/LuaClasses.epoksettings, which the
+    // editor maintains, so renaming the file never changes the class identity.
+    // A file with no entry yet is identified by its name until the next catalog
+    // refresh records one.
+    let id = file.id.clone().unwrap_or_else(|| derived_class_id(&name));
 
     let mut properties = vec![];
-    if let Some(field) = entry(table, "properties") {
-        for property in fields(&field.value, path, "properties")? {
-            let Some(key) = property.key.clone() else {
-                return Err(Diagnostic::new(
-                    path,
-                    property.span,
-                    "Properties are declared as `<name> = { ... }`",
-                ));
-            };
-            let body = fields(&property.value, path, "A property")?;
-            let value_type = declared_type(body, "type", path, property.span)?;
-            properties.push(DeclaredProperty {
-                id: explicit_id(body, path, &format!("Property {key}"))?
-                    .unwrap_or_else(|| derived_member_id(&id, &key)),
-                name: key,
-                default: default_value(entry(body, "default"), &value_type, path, property.span)?,
-                value_type,
-                editable: flag(body, "editable", path)?,
-                span: property.span,
-            });
+    for assignment in &chunk.assignments {
+        if assignment.object != binding {
+            return Err(Diagnostic::new(
+                path,
+                assignment.span,
+                format!("Properties must be declared on {binding}"),
+            ));
         }
+        let shape = shape(&assignment.value, path)?;
+        properties.push(DeclaredProperty {
+            id: annotated_id(
+                path,
+                &assignment.annotations,
+                &format!("Property {}", assignment.name),
+            )?
+            .unwrap_or_else(|| derived_member_id(&id, &assignment.name)),
+            name: assignment.name.clone(),
+            value_type: shape.value_type,
+            default: shape.default,
+            editable: shape.editable,
+            span: assignment.span,
+        });
     }
 
     let mut functions = vec![];
-    if let Some(field) = entry(table, "functions") {
-        for function in fields(&field.value, path, "functions")? {
-            let Some(key) = function.key.clone() else {
-                return Err(Diagnostic::new(
-                    path,
-                    function.span,
-                    "Functions are declared as `<name> = { ... }`",
-                ));
-            };
-            let body = fields(&function.value, path, "A function")?;
-            let mut parameters = vec![];
-            if let Some(list) = entry(body, "parameters") {
-                for parameter in fields(&list.value, path, "parameters")? {
-                    if parameter.key.is_some() {
-                        return Err(Diagnostic::new(
-                            path,
-                            parameter.span,
-                            "Parameters are an ordered list of `{ name = ..., type = ... }`",
-                        ));
-                    }
-                    let entry = fields(&parameter.value, path, "A parameter")?;
-                    parameters.push((
-                        text(entry, "name", path, parameter.span)?,
-                        declared_type(entry, "type", path, parameter.span)?,
-                    ));
-                }
-            }
-            let overrides = match entry(body, "overrides").map(|f| &f.value) {
-                None => None,
-                Some(ast::Expr::Str { value, .. }) => Some(value.clone()),
-                Some(other) => {
-                    return Err(Diagnostic::new(
-                        path,
-                        other.span(),
-                        "overrides must name a reflected parent function",
-                    ));
-                }
-            };
-            functions.push(DeclaredFunction {
-                id: explicit_id(body, path, &format!("Function {key}"))?
-                    .unwrap_or_else(|| derived_member_id(&id, &key)),
-                name: key,
-                parameters,
-                returns: match entry(body, "returns") {
-                    Some(_) => declared_type(body, "returns", path, function.span)?,
-                    None => Type::Void,
-                },
-                callable: flag(body, "callable", path)?,
-                overrides,
-                inferred: false,
-                span: function.span,
-            });
-        }
-    }
-
     for method in &chunk.methods {
-        if &method.object != binding {
+        if method.object != binding {
             return Err(Diagnostic::new(
                 path,
                 method.span,
                 format!("Methods must be declared on {binding}"),
             ));
         }
-        if functions.iter().any(|f| f.name == method.name) {
-            continue;
-        }
-        if !LIFECYCLE.contains(&method.name.as_str()) {
-            return Err(Diagnostic::new(
-                path,
-                method.span,
-                format!(
-                    "{} is neither declared in `functions` nor a reflected lifecycle event",
-                    method.name
-                ),
-            ));
-        }
+        let annotated = annotated_signature(path, method)?;
+        let lifecycle = LIFECYCLE.contains(&method.name.as_str());
+        let (parameters, returns, overrides, inferred) = match &annotated {
+            // A reflected event override takes its whole signature from the
+            // parent, so it needs no annotation at all.
+            None if lifecycle => (vec![], Type::Void, Some(method.name.clone()), true),
+            // A method with nothing to describe is a new `void` callable.
+            None if method.parameters.is_empty() => (vec![], Type::Void, None, false),
+            None => {
+                return Err(Diagnostic::new(path, method.span, PARAMETER_ANNOTATIONS));
+            }
+            Some(signature) => {
+                let overrides = (signature.overrides || lifecycle).then(|| method.name.clone());
+                let inferred = overrides.is_some() && !signature.typed();
+                (
+                    signature.parameters.clone(),
+                    signature.returns.clone().unwrap_or(Type::Void),
+                    overrides,
+                    inferred,
+                )
+            }
+        };
         functions.push(DeclaredFunction {
-            id: derived_member_id(&id, &method.name),
+            id: annotated_id(
+                path,
+                &method.annotations,
+                &format!("Function {}", method.name),
+            )?
+            .unwrap_or_else(|| derived_member_id(&id, &method.name)),
             name: method.name.clone(),
-            parameters: vec![],
-            returns: Type::Void,
-            callable: false,
-            overrides: Some(method.name.clone()),
-            inferred: true,
+            parameters,
+            returns,
+            callable: overrides.is_none(),
+            overrides,
+            inferred,
             span: method.span,
         });
     }
@@ -552,15 +806,58 @@ pub fn extract(file: &LuaFile) -> Result<Declaration, Diagnostic> {
         id,
         name,
         extends,
-        profile,
         properties,
         functions,
-        binding: binding.clone(),
+        binding,
         span,
     })
 }
 
+/// `ref` and `super` name the intrinsic receivers of the profile, so neither is
+/// available as a member name.
+pub const RESERVED_MEMBERS: &str =
+    "ref and super are reserved member names in the epok-lua profile";
+
+/// The one declaration head a `.lua` class file may open with.
+pub const DECLARATION: &str =
+    "A Lua class opens with `local <Class> = <Parent>:extend()`, where <Class> is the file name";
+/// Written when the parent is not a name at all; an unknown but well-formed
+/// name is resolved, and reported, against the registry.
+pub const PARENT: &str =
+    "The parent is `epok.<EngineClass>`, or the name of a project C++ or Lua class";
+
 // ---------------------------------------------------------- declarations ----
+
+/// A reflected enum, found by name. Enums are not declared on their own: the
+/// registry spells one out wherever a member uses it, so an authored
+/// `epok.Enum(Mode, "Idle")` is resolved by looking for that spelling.
+fn reflected_enum(registry: &Registry, cpp_name: &str) -> Option<Type> {
+    fn walk(ty: &Type, cpp_name: &str) -> Option<Type> {
+        match ty {
+            Type::Enum {
+                cpp_name: name,
+                variants,
+            } if name == cpp_name && !variants.is_empty() => Some(ty.clone()),
+            Type::Record { fields, .. } => fields
+                .iter()
+                .find_map(|field| walk(&field.value_type, cpp_name)),
+            _ => None,
+        }
+    }
+    registry.classes.values().find_map(|class| {
+        class
+            .properties
+            .iter()
+            .map(|p| &p.value_type)
+            .chain(class.functions.iter().flat_map(|f| {
+                f.parameters
+                    .iter()
+                    .map(|p| &p.value_type)
+                    .chain(std::iter::once(&f.returns))
+            }))
+            .find_map(|ty| walk(ty, cpp_name))
+    })
+}
 
 fn location(path: &Path, span: Span) -> schema::Location {
     schema::Location {
@@ -646,6 +943,30 @@ pub fn declarations(
 
     let mut properties = vec![];
     for property in &decl.properties {
+        // `epok.Enum(Mode, "Idle")` names a reflected enum and one of its
+        // variants; the variants themselves live in the registry, so the type
+        // and the default are completed here rather than during extraction.
+        let (value_type, default) = match (&property.value_type, &property.default) {
+            (Type::Enum { cpp_name, variants }, Value::String(variant)) if variants.is_empty() => {
+                let Some(resolved) = reflected_enum(registry, cpp_name) else {
+                    return Err(fail(
+                        property.span,
+                        format!("{cpp_name} is not a reflected enum"),
+                    ));
+                };
+                let Type::Enum { variants, .. } = &resolved else {
+                    unreachable!("reflected_enum returns an enum")
+                };
+                let Some(value) = variants.get(variant).copied() else {
+                    return Err(fail(
+                        property.span,
+                        format!("{cpp_name} has no variant named {variant}"),
+                    ));
+                };
+                (resolved.clone(), Value::from(value))
+            }
+            (value_type, default) => (value_type.clone(), default.clone()),
+        };
         if !identity(&property.id) || !ids.insert(property.id.clone()) {
             return Err(fail(
                 property.span,
@@ -662,6 +983,15 @@ pub fn declarations(
                 ),
             ));
         }
+        // `self.ref` is the object's own typed reference and `<Class>.super` the
+        // qualified parent receiver: a property of either name would be
+        // addressed as the intrinsic and never read.
+        if property.name == crate::lua_frontend::SELF_REFERENCE || property.name == "super" {
+            return Err(fail(
+                property.span,
+                format!("{RESERVED_MEMBERS}: {} cannot be declared", property.name),
+            ));
+        }
         if !crate::scripts::identifier(&property.name)
             || property.name.starts_with("epok_")
             || !names.insert(property.name.clone())
@@ -674,9 +1004,9 @@ pub fn declarations(
                 ),
             ));
         }
-        if !crate::script_values::valid(&property.default, &property.value_type)
-            || matches!(property.value_type, Type::Vector { length } if length != 2 && length != 3)
-            || property.value_type == Type::Void
+        if !crate::script_values::valid(&default, &value_type)
+            || matches!(value_type, Type::Vector { length } if length != 2 && length != 3)
+            || value_type == Type::Void
         {
             return Err(fail(
                 property.span,
@@ -689,8 +1019,8 @@ pub fn declarations(
         properties.push(schema::Property {
             id: property.id.clone(),
             name: property.name.clone(),
-            value_type: property.value_type.clone(),
-            default: property.default.clone(),
+            value_type,
+            default,
             editable: property.editable,
             timeline: None,
             source: location(path, property.span),
@@ -859,30 +1189,41 @@ pub fn editable_class_source(root: &Path, class: &schema::Class) -> Option<PathB
 
 /// Publish a new `.lua` class with `create_new` and roll back only the files
 /// and directories this call owns, then prove the whole project still compiles.
-/// Source of a freshly created class. The metadata table is read statically;
-/// the comments explain each key without adding declarations the author has
-/// to delete. Tests patch `properties = {}` and the empty `begin_play` body.
-pub fn template(name: &str, id: &str, parent_cpp_name: &str) -> String {
+/// Source of a freshly created class.
+///
+/// `---@class` is what gives the Lua Language Server the type of the local, so
+/// the template always writes it even though the compiler reads the class from
+/// the file name and the `extend()` call. The comments show the two remaining
+/// shapes — a reflected event and a new callable — without declaring anything
+/// the author has to delete. Tests patch the `speed` property line and the
+/// empty `begin_play` body.
+pub fn template(name: &str, parent_cpp_name: &str) -> String {
+    let parent = parent_cpp_name.replace("::", ".");
     format!(
-        "-- Class metadata. The editor reads this table from the source text; it is\n\
--- never executed to discover the class.\n\
-local {name} = epok.class {{\n\
-    id = \"{id}\", -- assigned by the editor; keeps placed instances bound if the class is renamed\n\
-    name = \"{name}\", -- generated C++ class name\n\
-    extends = \"{parent_cpp_name}\", -- any Blueprintable reflected parent\n\
-    -- Inspector-editable fields, for example:\n\
-    -- speed = {{ type = \"Fixed\", default = 1.0, editable = true }},\n\
-    properties = {{}},\n\
-    -- Methods other classes and Blueprints may call, for example:\n\
-    -- reset = {{ callable = true, parameters = {{}}, returns = \"void\" }},\n\
-    functions = {{}}\n\
-}}\n\
+        "---@class {name} : {parent}\n\
+local {name} = {parent}:extend()\n\
 \n\
--- Lifecycle events need no `functions` entry: begin_play, tick, end_play,\n\
--- on_enable and on_disable take their signature from the parent.\n\
+-- Properties are plain assignments, read from the source text and never\n\
+-- executed. A literal declares the type and the default; everything a literal\n\
+-- cannot say has a constructor, such as epok.UInt32(0), epok.Vector3(0.0, 1.0,\n\
+-- 0.0), epok.ActorRef(SomeClass) or epok.Hidden(1.0) for a field the Inspector\n\
+-- does not show.\n\
+{name}.speed = 1.0\n\
+\n\
+-- Lifecycle events take their signature from the parent: begin_play, tick,\n\
+-- end_play, on_enable and on_disable.\n\
 function {name}:begin_play()\nend\n\
 \n\
--- function {name}:tick(arg0) -- arg0: elapsed seconds (Fixed, Q12)\n\
+-- function {name}:tick(delta_seconds)\n\
+--     {name}.super.tick(self, delta_seconds) -- the qualified parent call\n\
+-- end\n\
+\n\
+-- A method other classes and Blueprints may call declares its signature with\n\
+-- the annotations the language server already reads:\n\
+-- ---@param amount Fixed\n\
+-- ---@return Fixed\n\
+-- function {name}:take_damage(amount)\n\
+--     return amount\n\
 -- end\n\
 \n\
 return {name}\n"
@@ -946,9 +1287,12 @@ pub fn create_in(
             return Err("Script folder links must remain inside assets/scripts.".into());
         }
     }
-    let source = template(name, &uuid::Uuid::new_v4().to_string(), parent_cpp_name);
+    let source = template(name, parent_cpp_name);
     let path = dir.join(format!("{name}.lua"));
     let result = (|| {
+        // The identity is recorded before the file exists, so the very first
+        // catalog refresh already sees the class the editor assigned.
+        crate::lua_identity::assign(root, &path)?;
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -968,6 +1312,12 @@ pub fn create_in(
     })();
     if result.is_err() {
         let _ = fs::remove_file(&path);
+        let _ = crate::lua_identity::removed(
+            root,
+            &crate::lua_identity::relative(root, &path)
+                .into_iter()
+                .collect::<Vec<_>>(),
+        );
         for owned in owned_dirs.iter().rev() {
             let _ = fs::remove_dir(owned);
         }
@@ -985,28 +1335,28 @@ pub(crate) mod tests {
     pub(crate) const ENEMY_BASE_ID: &str = "c2e0f1b3-5d7a-4f9b-8c4e-6a8b2d3f5e71";
     pub(crate) const SEALED_ID: &str = "d3f1a2c4-6e8b-4a0c-9d5f-7b9c3e4a6f82";
     pub(crate) const OFFSET_ID: &str = "e4a2b3c5-7f9c-4b1d-8e6a-9c1d4e5b7a94";
+    /// The identity `ProjectSettings/LuaClasses.epoksettings` records for the
+    /// `EnemyLogic.lua` fixture, and the one the `Guard.lua` fixture carries.
+    pub(crate) const CLASS_ID: &str = "956f4946-0c61-42f8-899e-2db063b42420";
+    pub(crate) const GUARD_ID: &str = "b7c9d1e3-4f5a-4b6c-8d7e-9f0a1b2c3d4e";
+    /// The shared declaration head: the class, its properties, and nothing else.
+    /// Methods are appended by each test, because in the declaration form a
+    /// function *is* its definition.
     pub(crate) const HEADER: &str = r#"
-local EnemyLogic = epok.class {
-    profile = 1,
-    id = "956f4946-0c61-42f8-899e-2db063b42420",
-    name = "EnemyLogic",
-    extends = "epok::ActorComponent",
-    properties = {
-        health = { id = "3d352b2b-c2d7-4b99-9ba1-a003d648e897",
-            type = "Fixed", default = 100, editable = true },
-        charges = { id = "5c1a5a1e-1d0e-4f3a-9a2b-1c2d3e4f5a6b",
-            type = "UInt32", default = 3, editable = true },
-        ready = { id = "7f9c0b1d-2e3f-4a5b-8c9d-0e1f2a3b4c5d",
-            type = "Bool", default = true, editable = true }
-    },
-    functions = {
-        damage = { id = "224e6b46-e4b4-475c-9744-8b9fb4c0baaa", callable = true,
-            parameters = { { name = "amount", type = "Fixed" } }, returns = "void" },
-        absorb = { id = "9a8b7c6d-5e4f-4a3b-2c1d-0e9f8a7b6c5d", callable = true,
-            parameters = { { name = "amount", type = "Fixed" } }, returns = "Fixed" }
-    }
-}
+---@class EnemyLogic : epok.ActorComponent
+local EnemyLogic = epok.ActorComponent:extend()
+
+---@id 3d352b2b-c2d7-4b99-9ba1-a003d648e897
+EnemyLogic.health = 100.0
+---@id 5c1a5a1e-1d0e-4f3a-9a2b-1c2d3e4f5a6b
+EnemyLogic.charges = epok.UInt32(3)
+---@id 7f9c0b1d-2e3f-4a5b-8c9d-0e1f2a3b4c5d
+EnemyLogic.ready = true
 "#;
+    /// `damage` as the fixtures declare it, so a chunk that defines the body
+    /// still carries the annotated signature the compiler reads.
+    pub(crate) const DAMAGE: &str =
+        "---@id 224e6b46-e4b4-475c-9744-8b9fb4c0baaa\n---@param amount Fixed\n";
 
     fn function(
         id: &str,
@@ -1130,34 +1480,60 @@ local EnemyLogic = epok.class {
         registry
     }
 
-    pub(crate) fn file(source: &str) -> LuaFile {
+    /// A discovered script with the identity the project records for it. The
+    /// two fixture classes are pinned; anything else is an unrecorded file and
+    /// falls back to its derived `lua:<Name>` identity, as a hand-copied script
+    /// does before the next catalog refresh adopts it.
+    pub(crate) fn fixture(path: &str, source: &str) -> LuaFile {
+        let stem = Path::new(path)
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
         LuaFile {
-            path: "assets/scripts/EnemyLogic.lua".into(),
+            path: path.into(),
             source: source.into(),
+            id: match stem.as_str() {
+                "EnemyLogic" => Some(CLASS_ID.into()),
+                "Guard" => Some(GUARD_ID.into()),
+                _ => None,
+            },
+        }
+    }
+    pub(crate) fn file(source: &str) -> LuaFile {
+        fixture("assets/scripts/EnemyLogic.lua", source)
+    }
+    /// The same fixture with no recorded identity, so extraction derives one.
+    fn unrecorded(path: &str, source: &str) -> LuaFile {
+        LuaFile {
+            path: path.into(),
+            source: source.into(),
+            id: None,
         }
     }
     fn example() -> LuaFile {
         file(&format!(
-            "{HEADER}\nfunction EnemyLogic:damage(amount)\n    self.health = self.health - amount\nend\n\nreturn EnemyLogic\n"
+            "{HEADER}\n{DAMAGE}function EnemyLogic:damage(amount)\n    self.health = self.health - amount\nend\n\nreturn EnemyLogic\n"
         ))
     }
+    const TAIL: &str = "\nreturn EnemyLogic\n";
 
     #[test]
     fn lua_asset_extracts_the_documented_declaration() {
         let decl = extract(&example()).unwrap();
-        assert_eq!(decl.id, "956f4946-0c61-42f8-899e-2db063b42420");
+        assert_eq!(decl.id, CLASS_ID);
         assert_eq!(decl.name, "EnemyLogic");
         assert_eq!(decl.extends, "epok::ActorComponent");
-        assert_eq!(decl.profile, PROFILE_VERSION);
         assert_eq!(decl.binding, "EnemyLogic");
         let health = decl.properties.iter().find(|p| p.name == "health").unwrap();
         assert_eq!(health.value_type, Type::Fixed);
         assert_eq!(health.default, serde_json::json!(100.0));
         assert!(health.editable);
+        assert_eq!(health.id, "3d352b2b-c2d7-4b99-9ba1-a003d648e897");
         let damage = decl.functions.iter().find(|f| f.name == "damage").unwrap();
         assert_eq!(damage.parameters, vec![("amount".into(), Type::Fixed)]);
         assert_eq!(damage.returns, Type::Void);
         assert!(damage.callable && damage.overrides.is_none());
+        assert_eq!(damage.id, "224e6b46-e4b4-475c-9744-8b9fb4c0baaa");
 
         let class = declarations(&decl, &example(), &registry()).unwrap();
         assert_eq!(class.provider, provider());
@@ -1174,66 +1550,351 @@ local EnemyLogic = epok.class {
         );
     }
 
+    /// The declaration head: one class per file, named by the file, bound to a
+    /// local the whole file agrees on, and returned at the end.
     #[test]
     fn lua_asset_requires_the_declaration_shape() {
-        let missing_return = file(&format!("{HEADER}\n"));
+        let message = |source: String| extract(&file(&source)).unwrap_err().message;
+        assert!(message(HEADER.into()).contains("must end with `return EnemyLogic`"));
         assert!(
-            extract(&missing_return)
-                .unwrap_err()
-                .message
-                .contains("must end with `return EnemyLogic`")
+            message(format!("{HEADER}{HEADER}{TAIL}")).contains("exactly one class"),
+            "a second local is a second class"
         );
-        let twice = file(&format!("{HEADER}{HEADER}\nreturn EnemyLogic\n"));
         assert!(
-            extract(&twice)
-                .unwrap_err()
-                .message
-                .contains("exactly one class")
+            message(format!("local EnemyLogic = epok.ActorComponent{TAIL}")).contains(DECLARATION),
+            "the parent must actually be extended"
         );
-        let dot = file(&format!(
-            "{HEADER}\nfunction EnemyLogic.damage(amount)\nend\nreturn EnemyLogic\n"
+        assert!(
+            message("local Other = epok.ActorComponent:extend()\nreturn Other\n".into())
+                .contains("EnemyLogic.lua declares EnemyLogic"),
+            "the local is named after the file"
+        );
+        assert!(
+            message(format!(
+                "{HEADER}\nfunction EnemyLogic.damage(amount)\nend{TAIL}"
+            ))
+            .contains("must be declared as `function EnemyLogic:damage`")
+        );
+        // A property written after the first method would be read out of order.
+        assert!(
+            message(format!(
+                "{HEADER}\nfunction EnemyLogic:begin_play()\nend\nEnemyLogic.late = 1{TAIL}"
+            ))
+            .contains("declared before the first method")
+        );
+        // Nothing else may appear at file scope.
+        assert!(
+            message(format!("{HEADER}\nEnemyLogic.speed = 1.0\nprint(1){TAIL}"))
+                .contains(crate::lua_frontend::profile::FILE_SCOPE)
+        );
+        // A file whose stem is not a C++ identifier cannot name a class.
+        for stem in ["enemy-logic", "2Fast", "class"] {
+            let source = "local X = epok.ActorComponent:extend()\nreturn X\n";
+            let message = extract(&unrecorded(&format!("assets/scripts/{stem}.lua"), source))
+                .unwrap_err()
+                .message;
+            assert!(
+                message.contains("not a usable class name") && message.contains(stem),
+                "{stem}: {message}"
+            );
+        }
+    }
+
+    /// The parent expression: an engine class, a project C++ class, another Lua
+    /// class, or a namespaced C++ class written with `.` for `::`.
+    #[test]
+    fn lua_asset_resolves_every_eligible_parent_spelling() {
+        let extends = |parent: &str| {
+            extract(&file(&format!(
+                "local EnemyLogic = {parent}:extend(){TAIL}"
+            )))
+            .unwrap()
+            .extends
+        };
+        assert_eq!(extends("epok.ActorComponent"), "epok::ActorComponent");
+        assert_eq!(extends("EnemyBase"), "EnemyBase");
+        assert_eq!(extends("game.Enemy"), "game::Enemy");
+
+        // The registry has the last word on which of those actually exist.
+        let unknown = file(&format!(
+            "local EnemyLogic = epok.Nonexistent:extend(){TAIL}"
         ));
         assert!(
-            extract(&dot)
+            declarations(&extract(&unknown).unwrap(), &unknown, &registry())
                 .unwrap_err()
                 .message
-                .contains("must be declared as `function EnemyLogic:damage`")
+                .contains("Unknown parent epok::Nonexistent")
         );
-        let undeclared = file(&format!(
-            "{HEADER}\nfunction EnemyLogic:mystery()\nend\nreturn EnemyLogic\n"
-        ));
+        let sealed = file(&format!("local EnemyLogic = SealedBase:extend(){TAIL}"));
         assert!(
-            extract(&undeclared)
+            declarations(&extract(&sealed).unwrap(), &sealed, &registry())
                 .unwrap_err()
                 .message
-                .contains("neither declared in `functions`")
+                .contains("does not support native Lua inheritance")
         );
-        // A bare lifecycle method needs no `functions` entry.
-        let lifecycle = file(&format!(
-            "{HEADER}\nfunction EnemyLogic:begin_play()\nend\nreturn EnemyLogic\n"
-        ));
-        let decl = extract(&lifecycle).unwrap();
-        let begin = decl
-            .functions
-            .iter()
-            .find(|f| f.name == "begin_play")
-            .unwrap();
-        assert_eq!(begin.overrides.as_deref(), Some("begin_play"));
-        // The synthesized id follows the same scheme as an omitted member id.
+        // A parent that is not a name at all never reaches the registry.
+        assert!(
+            extract(&file(&format!(
+                "local EnemyLogic = epok.ActorComponent:extend():extend(){TAIL}"
+            )))
+            .unwrap_err()
+            .message
+            .contains(PARENT)
+        );
+    }
+
+    /// `---@class` is optional for compiling, and when written it must say the
+    /// same thing as the file name and the `extend()` call.
+    #[test]
+    fn lua_asset_checks_the_class_annotation_against_the_declaration() {
+        let with = |annotation: &str| {
+            extract(&file(&format!(
+                "{annotation}\nlocal EnemyLogic = epok.ActorComponent:extend(){TAIL}"
+            )))
+        };
+        // Absent: the file still compiles, because the file names the class.
         assert_eq!(
-            begin.id,
-            "lua:956f4946-0c61-42f8-899e-2db063b42420:begin_play"
+            extract(&file(&format!(
+                "local EnemyLogic = epok.ActorComponent:extend(){TAIL}"
+            )))
+            .unwrap()
+            .name,
+            "EnemyLogic"
         );
-        assert!(begin.inferred);
-        let class = declarations(&decl, &lifecycle, &registry()).unwrap();
-        let begin = class
-            .functions
-            .iter()
-            .find(|f| f.name == "begin_play")
-            .unwrap();
+        with("---@class EnemyLogic : epok.ActorComponent").unwrap();
+        with("---@class EnemyLogic:epok.ActorComponent").unwrap();
+        assert!(
+            with("---@class Other : epok.ActorComponent")
+                .unwrap_err()
+                .message
+                .contains("---@class names Other")
+        );
+        assert!(
+            with("---@class EnemyLogic : epok.Object")
+                .unwrap_err()
+                .message
+                .contains("---@class extends epok.Object")
+        );
+        assert!(
+            with("---@class EnemyLogic")
+                .unwrap_err()
+                .message
+                .contains("must read ---@class EnemyLogic : epok::ActorComponent")
+        );
+    }
+
+    /// Every literal and every typed constructor, as the reference table in
+    /// `docs/lua-scripting.md` lists them.
+    #[test]
+    fn lua_asset_reads_literals_and_typed_constructors() {
+        let single = |value: &str| {
+            let mut all = extract(&file(&format!(
+                "local EnemyLogic = epok.ActorComponent:extend()\nEnemyLogic.member = {value}{TAIL}"
+            )))
+            .unwrap()
+            .properties;
+            assert_eq!(all.len(), 1, "{value}");
+            all.remove(0)
+        };
+        let shape = |value: &str| {
+            let p = single(value);
+            (p.value_type, p.default, p.editable)
+        };
+        // Literals.
+        assert_eq!(shape("90.0"), (Type::Fixed, serde_json::json!(90.0), true));
+        assert_eq!(shape("true"), (Type::Bool, serde_json::json!(true), true));
+        assert_eq!(shape("3"), (Type::Int32, serde_json::json!(3), true));
+        assert_eq!(shape("-2.5"), (Type::Fixed, serde_json::json!(-2.5), true));
+        assert_eq!(shape("-7"), (Type::Int32, serde_json::json!(-7), true));
+        // Typed constructors.
         assert_eq!(
-            begin.overrides,
-            vec!["00000000-0000-4000-8000-000000000000"]
+            shape("epok.Bool(false)"),
+            (Type::Bool, serde_json::json!(false), true)
+        );
+        assert_eq!(
+            shape("epok.Int32(-4)"),
+            (Type::Int32, serde_json::json!(-4), true)
+        );
+        assert_eq!(
+            shape("epok.UInt32(0)"),
+            (Type::UInt32, serde_json::json!(0), true)
+        );
+        assert_eq!(
+            shape("epok.Fixed(1)"),
+            (Type::Fixed, serde_json::json!(1.0), true)
+        );
+        assert_eq!(
+            shape("epok.Vector2(1.0, 2.0)"),
+            (
+                Type::Vector { length: 2 },
+                serde_json::json!([1.0, 2.0]),
+                true
+            )
+        );
+        assert_eq!(
+            shape("epok.Vector3(1.0, 0.5, 0.0)"),
+            (
+                Type::Vector { length: 3 },
+                serde_json::json!([1.0, 0.5, 0.0]),
+                true
+            )
+        );
+        assert_eq!(
+            shape("epok.ActorRef()"),
+            (Type::ActorRef { class: None }, Value::Null, true)
+        );
+        assert_eq!(
+            shape("epok.ActorRef(EnemyBase)"),
+            (
+                Type::ActorRef {
+                    class: Some("EnemyBase".into())
+                },
+                Value::Null,
+                true
+            )
+        );
+        assert_eq!(
+            shape("epok.ComponentRef(epok.ActorComponent)"),
+            (
+                Type::ComponentRef {
+                    class: Some("epok::ActorComponent".into())
+                },
+                Value::Null,
+                true
+            )
+        );
+        assert_eq!(
+            shape("epok.ObjectRef()"),
+            (Type::ObjectRef { class: None }, Value::Null, true)
+        );
+        assert_eq!(
+            shape("epok.AssetRef(\"Mesh\")"),
+            (
+                Type::AssetRef {
+                    kind: "Mesh".into()
+                },
+                Value::Null,
+                true
+            )
+        );
+        assert_eq!(
+            shape("epok.ClassRef(EnemyBase)"),
+            (
+                Type::ClassRef {
+                    base: "EnemyBase".into()
+                },
+                Value::Null,
+                true
+            )
+        );
+        // The Inspector wrapper changes nothing but the visibility.
+        assert_eq!(
+            shape("epok.Hidden(1.0)"),
+            (Type::Fixed, serde_json::json!(1.0), false)
+        );
+        assert_eq!(
+            shape("epok.Hidden(epok.UInt32(2))"),
+            (Type::UInt32, serde_json::json!(2), false)
+        );
+        // An enum is named, not resolved: the variants are reflected, so the
+        // type is completed when the declaration is published.
+        assert_eq!(
+            shape("epok.Enum(Mode, \"Idle\")"),
+            (
+                Type::Enum {
+                    cpp_name: "Mode".into(),
+                    variants: BTreeMap::new()
+                },
+                serde_json::json!("Idle"),
+                true
+            )
+        );
+
+        let rejected = |value: &str| {
+            extract(&file(&format!(
+                "local EnemyLogic = epok.ActorComponent:extend()\nEnemyLogic.member = {value}{TAIL}"
+            )))
+            .unwrap_err()
+            .message
+        };
+        for (value, expected) in [
+            ("1 + 1", "epok value constructor"),
+            ("\"fast\"", "epok value constructor"),
+            ("nil", "epok value constructor"),
+            ("epok.Money(1)", "is not an epok value constructor"),
+            ("epok.UInt32()", "epok.UInt32 takes 1 argument(s)"),
+            ("epok.Vector3(1.0, 2.0)", "epok.Vector3 takes 3 argument(s)"),
+            ("epok.Vector2(1.0, self)", "Default is not a literal value"),
+            ("epok.AssetRef(Mesh)", "epok.AssetRef takes a quoted name"),
+            ("epok.ActorRef(\"EnemyBase\")", "written unquoted"),
+            ("epok.Hidden(epok.Hidden(1.0))", "wraps a value once"),
+        ] {
+            let message = rejected(value);
+            assert!(message.contains(expected), "{value} gave: {message}");
+        }
+    }
+
+    /// `epok.Enum` is completed against the reflected variants, or refused.
+    #[test]
+    fn lua_asset_resolves_enum_properties_against_the_registry() {
+        // Enums are declared by the members that use them, which is how
+        // `epok.Enum(Mode, "Idle")` finds its variants.
+        let mut registry = registry();
+        registry
+            .classes
+            .get_mut(ACTOR_COMPONENT_ID)
+            .unwrap()
+            .properties
+            .push(schema::Property {
+                id: "f5b3c4d6-8a0d-4c2e-9f7b-0d2e5f6c8b05".into(),
+                name: "stance".into(),
+                value_type: Type::Enum {
+                    cpp_name: "Mode".into(),
+                    variants: [("Idle".to_owned(), 0), ("Alert".to_owned(), 1)]
+                        .into_iter()
+                        .collect(),
+                },
+                default: serde_json::json!(0),
+                editable: true,
+                timeline: None,
+                source: schema::Location {
+                    file: "object_model.hpp".into(),
+                    line: 1,
+                    column: 1,
+                },
+            });
+        let declared = |value: &str| {
+            let source = format!(
+                "local EnemyLogic = epok.ActorComponent:extend()\nEnemyLogic.mode = {value}{TAIL}"
+            );
+            let file = file(&source);
+            declarations(&extract(&file).unwrap(), &file, &registry).map(|class| {
+                let property = class.properties.iter().find(|p| p.name == "mode").unwrap();
+                (property.value_type.clone(), property.default.clone())
+            })
+        };
+        let (value_type, default) = declared("epok.Enum(Mode, \"Alert\")").unwrap();
+        assert_eq!(
+            value_type,
+            Type::Enum {
+                cpp_name: "Mode".into(),
+                variants: [("Idle".to_owned(), 0), ("Alert".to_owned(), 1)]
+                    .into_iter()
+                    .collect()
+            }
+        );
+        assert_eq!(default, serde_json::json!(1));
+        assert!(
+            declared("epok.Enum(Mood, \"Idle\")")
+                .unwrap_err()
+                .message
+                .contains("Mood is not a reflected enum")
+        );
+        assert!(
+            declared("epok.Enum(Mode, \"Asleep\")")
+                .unwrap_err()
+                .message
+                .contains("Mode has no variant named Asleep")
         );
     }
 
@@ -1255,58 +1916,54 @@ local EnemyLogic = epok.class {
                 "got `{message}`, expected `{expected}`"
             );
         };
-        let tail = "\nreturn EnemyLogic\n";
-        check(
-            HEADER.replace("epok::ActorComponent", "epok::Nonexistent") + tail,
-            "Unknown parent",
-        );
-        check(
-            HEADER.replace("epok::ActorComponent", "SealedBase") + tail,
-            "does not support native Lua inheritance",
-        );
-        check(
-            HEADER.replace("956f4946-0c61-42f8-899e-2db063b42420", "not-a-uuid") + tail,
-            "Class id must be a canonical UUID",
-        );
         // Shadowing an inherited property name.
         check(
-            HEADER.replace("health =", "armour =") + tail,
+            HEADER.replace("EnemyLogic.health", "EnemyLogic.armour") + TAIL,
             "shadows an inherited member",
         );
         // The intrinsic transform names are reserved in every class, spatial or
         // not: a property called `rotation` would shadow `self.rotation`.
         check(
-            HEADER.replace("health =", "rotation =") + tail,
+            HEADER.replace("EnemyLogic.health", "EnemyLogic.rotation") + TAIL,
             crate::lua_frontend::profile::TRANSFORM_RESERVED,
         );
+        // The two intrinsic receivers are reserved for the same reason.
+        for name in ["ref", "super"] {
+            check(
+                HEADER.replace("EnemyLogic.health", &format!("EnemyLogic.{name}")) + TAIL,
+                RESERVED_MEMBERS,
+            );
+        }
         // A default that is not valid for the declared type.
         check(
-            HEADER.replace("default = true", "default = 2") + tail,
+            HEADER.replace("epok.UInt32(3)", "epok.UInt32(-1)") + TAIL,
             "no valid bounded native default",
         );
         // Overriding a final function.
         check(
-            HEADER
-                .replace("epok::ActorComponent", "EnemyBase")
-                .replace("damage = {", "smash = {")
-                .replace(
-                    r#"returns = "Fixed" }"#,
-                    r#"returns = "Fixed" },
-        sealed = { id = "a5b6c7d8-1e2f-4a3b-8c4d-5e6f7a8b9c01",
-            overrides = "sealed", returns = "void" }"#,
-                )
-                + tail,
+            HEADER.replace("epok.ActorComponent", "EnemyBase")
+                + "\n---@override\nfunction EnemyLogic:sealed()\nend"
+                + TAIL,
             "not an overridable event",
         );
         // An override whose signature differs from the reflected parent.
         check(
-            HEADER.replace("epok::ActorComponent", "EnemyBase").replace(
-                r#"damage = { id = "224e6b46-e4b4-475c-9744-8b9fb4c0baaa", callable = true,
-            parameters = { { name = "amount", type = "Fixed" } }, returns = "void" },"#,
-                r#"damage = { id = "224e6b46-e4b4-475c-9744-8b9fb4c0baaa", overrides = "damage",
-            parameters = { { name = "amount", type = "Int32" } }, returns = "void" },"#,
-            ) + tail,
+            HEADER.replace("epok.ActorComponent", "EnemyBase")
+                + "\n---@override\n---@param amount Int32\nfunction EnemyLogic:damage(amount)\nend"
+                + TAIL,
             "signature differs from its reflected parent",
+        );
+        // A `---@id` that is not a canonical UUID.
+        check(
+            HEADER.replace(
+                "3d352b2b-c2d7-4b99-9ba1-a003d648e897",
+                "lua:EnemyLogic:health",
+            ) + TAIL,
+            "Property health id must be a canonical UUID",
+        );
+        check(
+            format!("{HEADER}\n---@id not-a-uuid\nfunction EnemyLogic:reset()\nend{TAIL}"),
+            "Function reset id must be a canonical UUID",
         );
     }
 
@@ -1314,14 +1971,9 @@ local EnemyLogic = epok.class {
     fn lua_asset_enforces_the_property_budget() {
         let mut extra = String::new();
         for index in 0..16 {
-            extra.push_str(&format!(
-                "        slot{index} = {{ id = \"aaaaaaaa-0000-4000-8000-{index:012}\",
-            type = \"Int32\", default = 0, editable = true }},\n"
-            ));
+            extra.push_str(&format!("EnemyLogic.slot{index} = 0\n"));
         }
-        let source = HEADER.replace("        health =", &format!("{extra}        health ="))
-            + "\nreturn EnemyLogic\n";
-        let file = file(&source);
+        let file = file(&format!("{HEADER}{extra}{TAIL}"));
         let decl = extract(&file).unwrap();
         assert!(
             declarations(&decl, &file, &registry())
@@ -1343,6 +1995,15 @@ local EnemyLogic = epok.class {
         assert_eq!(files.len(), 2);
         assert!(files[0].path.ends_with("A.lua"));
         assert!(files[1].path.ends_with("enemies/B.lua"));
+        // Discovery also answers "which class is this file?": nothing is
+        // recorded yet, so both fall back to their derived identity.
+        assert!(files.iter().all(|file| file.id.is_none()));
+        let recorded =
+            crate::lua_identity::assign(&root, &root.join("assets/scripts/A.lua")).unwrap();
+        assert_eq!(
+            load_all(&root).unwrap()[0].id.as_deref(),
+            Some(recorded.as_str())
+        );
         #[cfg(unix)]
         {
             std::os::unix::fs::symlink(
@@ -1382,27 +2043,138 @@ local EnemyLogic = epok.class {
         );
         assert_eq!(value_type("void"), Some(Type::Void));
         assert_eq!(value_type("String"), None);
+
+        // An annotation may also use the spelling the generated Lua Language
+        // Server definitions show, which writes `.` where C++ writes `::`.
+        assert_eq!(
+            annotation_type("ActorRef<epok.Actor3D>"),
+            value_type("ActorRef<epok::Actor3D>")
+        );
+        assert_eq!(annotation_type("Fixed"), Some(Type::Fixed));
+        assert_eq!(annotation_type("string"), None);
+    }
+
+    /// Function signatures read from the annotations the language server reads.
+    #[test]
+    fn lua_asset_reads_function_signatures_from_annotations() {
+        let source =
+            |body: &str| format!("local EnemyLogic = epok.ActorComponent:extend()\n{body}{TAIL}");
+        let extracted = |body: &str| extract(&file(&source(body)));
+        let named = |body: &str, name: &str| {
+            extracted(body)
+                .unwrap()
+                .functions
+                .into_iter()
+                .find(|f| f.name == name)
+                .unwrap()
+        };
+
+        let take = named(
+            "---@param amount Fixed\n---@return Fixed\nfunction EnemyLogic:take_damage(amount)\nend",
+            "take_damage",
+        );
+        assert_eq!(take.parameters, vec![("amount".into(), Type::Fixed)]);
+        assert_eq!(take.returns, Type::Fixed);
+        assert!(take.callable && take.overrides.is_none() && !take.inferred);
+
+        // Several parameters, in the order they are written, and the dotted
+        // spelling of a reflected class name.
+        let aim = named(
+            "---@param target ActorRef<epok.Actor3D>\n---@param force Int32\nfunction EnemyLogic:aim(target, force)\nend",
+            "aim",
+        );
+        assert_eq!(
+            aim.parameters,
+            vec![
+                (
+                    "target".into(),
+                    Type::ActorRef {
+                        class: Some("epok::Actor3D".into())
+                    }
+                ),
+                ("force".into(), Type::Int32),
+            ]
+        );
+        assert_eq!(aim.returns, Type::Void, "no ---@return means void");
+
+        // `---@override` is the annotation form for a reflected event that is
+        // not one of the five lifecycle names.
+        let hit = named("---@override\nfunction EnemyLogic:hit(amount)\nend", "hit");
+        assert_eq!(hit.overrides.as_deref(), Some("hit"));
+        assert!(hit.inferred && !hit.callable);
+
+        // A bare lifecycle method needs no annotation at all.
+        let begin = named("function EnemyLogic:begin_play()\nend", "begin_play");
+        assert_eq!(begin.overrides.as_deref(), Some("begin_play"));
+        assert!(begin.inferred);
+
+        // A method with no parameters has nothing left to declare.
+        let bare = named("function EnemyLogic:mystery()\nend", "mystery");
+        assert_eq!(bare.parameters, vec![]);
+        assert_eq!(bare.returns, Type::Void);
+        assert!(bare.callable && bare.overrides.is_none() && !bare.inferred);
+
+        // Count, order and vocabulary are all checked.
+        for (body, expected) in [
+            (
+                "function EnemyLogic:mystery(amount)\nend",
+                PARAMETER_ANNOTATIONS,
+            ),
+            (
+                "---@param amount Fixed\nfunction EnemyLogic:aim(target, force)\nend",
+                "takes 2 parameter(s) but declares 1",
+            ),
+            (
+                "---@param force Int32\n---@param target Fixed\nfunction EnemyLogic:aim(target, force)\nend",
+                "Parameter target is annotated as force",
+            ),
+            (
+                "---@param amount Money\nfunction EnemyLogic:aim(amount)\nend",
+                "Money is not an epok-lua type name",
+            ),
+            (
+                "---@return Money\nfunction EnemyLogic:aim()\nend",
+                "Money is not an epok-lua type name",
+            ),
+            (
+                "---@return Fixed\n---@return Fixed\nfunction EnemyLogic:aim()\nend",
+                "returns at most one value",
+            ),
+        ] {
+            let message = extracted(body).unwrap_err().message;
+            assert!(message.contains(expected), "{body}\ngave: {message}");
+        }
+
+        // Only the unbroken run directly above `function` is the signature, and
+        // a commented-out annotation is an ordinary comment.
+        let spaced = extracted(
+            "---@param amount Fixed\n\n-- ---@param amount Fixed\nfunction EnemyLogic:aim(amount)\nend",
+        );
+        assert_eq!(spaced.unwrap_err().message, PARAMETER_ANNOTATIONS);
     }
 
     #[test]
     fn creation_template_extracts_and_keeps_the_patched_anchors() {
-        let source = template(
-            "Spinner",
-            "1f4d9c8e-2b3a-4c5d-8e6f-7a8b9c0d1e2f",
-            "epok::ActorComponent",
-        );
-        assert!(source.contains("properties = {},"));
+        let source = template("Spinner", "epok::ActorComponent");
+        assert!(source.contains("Spinner.speed = 1.0"));
         assert!(source.contains("function Spinner:begin_play()\nend"));
+        assert!(source.contains("---@class Spinner : epok.ActorComponent"));
         assert!(!source.contains("PSX"));
-        assert!(!source.contains("profile ="));
+        // The engine assigns the identity: the author is never asked to type it.
+        assert!(!source.contains("id ="));
         let file = LuaFile {
             path: PathBuf::from("assets/scripts/Spinner.lua"),
             source,
+            id: Some("1f4d9c8e-2b3a-4c5d-8e6f-7a8b9c0d1e2f".into()),
         };
         let declaration = extract(&file).unwrap();
         assert_eq!(declaration.name, "Spinner");
         assert_eq!(declaration.extends, "epok::ActorComponent");
-        assert!(declaration.properties.is_empty());
+        assert_eq!(declaration.id, "1f4d9c8e-2b3a-4c5d-8e6f-7a8b9c0d1e2f");
+        let speed = &declaration.properties[0];
+        assert_eq!(speed.name, "speed");
+        assert_eq!(speed.value_type, Type::Fixed);
+        assert_eq!(declaration.properties.len(), 1);
         // The empty lifecycle body is the only declared member: a synthesized
         // override of the parent's begin_play, nothing from the comments.
         assert_eq!(
@@ -1413,39 +2185,29 @@ local EnemyLogic = epok.class {
                 .collect::<Vec<_>>(),
             ["begin_play"]
         );
-        // The engine assigns the identity and the profile: the author is never
-        // asked to type either one.
-        assert_eq!(declaration.id, "1f4d9c8e-2b3a-4c5d-8e6f-7a8b9c0d1e2f");
-        assert_eq!(declaration.profile, PROFILE_VERSION);
+        declarations(&declaration, &file, &registry()).unwrap();
     }
 
-    /// The identity a script does not spell out is assigned by the engine,
+    /// The identity a project does not record is derived from the class name,
     /// deterministically, exactly as a C++ declaration without `Id=` is
     /// identified by its USR.
     #[test]
-    fn lua_identities_are_derived_when_the_script_declares_none() {
-        let source = r#"
-local Drone = epok.class {
-    name = "Drone",
-    extends = "epok::ActorComponent",
-    properties = {
-        speed = { type = "Fixed", default = 1.0, editable = true },
-        armed = { type = "Bool", default = false, editable = true }
-    },
-    functions = {
-        reset = { callable = true, parameters = {}, returns = "void" }
-    }
-}
+    fn lua_identities_are_derived_when_the_project_records_none() {
+        let source = "\
+local Drone = epok.ActorComponent:extend()
+Drone.speed = 1.0
+Drone.armed = false
+
 function Drone:reset()
 end
+
 function Drone:begin_play()
 end
+
 return Drone
-"#;
-        let file = file(source);
+";
+        let file = unrecorded("assets/scripts/Drone.lua", source);
         let decl = extract(&file).unwrap();
-        // Missing `profile` means the profile this editor supports.
-        assert_eq!(decl.profile, PROFILE_VERSION);
         assert_eq!(decl.id, "lua:Drone");
         assert!(derived(&decl.id) && identity(&decl.id) && !canonical(&decl.id));
         let member = |name: &str| {
@@ -1460,8 +2222,6 @@ return Drone
         assert_eq!(member("speed"), "lua:Drone:speed");
         assert_eq!(member("armed"), "lua:Drone:armed");
         assert_eq!(member("reset"), "lua:Drone:reset");
-        // A bare lifecycle method is identified by the same scheme, so
-        // promoting it into `functions` does not change its identity.
         assert_eq!(member("begin_play"), "lua:Drone:begin_play");
         // Distinct per member, and reproducible across extractions.
         let again = extract(&file).unwrap();
@@ -1481,80 +2241,30 @@ return Drone
             "1f4d9c8e-2b3a-4c5d-8e6f-7a8b9c0d1e2f"
         );
         declarations(&decl, &file, &registry()).unwrap();
-    }
 
-    /// An explicit id still wins, and it must still be a canonical UUID. A
-    /// class pinned to a UUID passes that stability on to its members.
-    #[test]
-    fn lua_explicit_identities_win_and_must_be_canonical_uuids() {
-        let pinned = file(
-            r#"
-local Drone = epok.class {
-    profile = 1,
-    id = "6a1e8f20-4c3d-4b5e-9f70-1a2b3c4d5e6f",
-    name = "Drone",
-    extends = "epok::ActorComponent",
-    properties = {
-        speed = { id = "7b2f9031-5d4e-4c6f-8a81-2b3c4d5e6f70",
-            type = "Fixed", default = 1.0, editable = true },
-        armed = { type = "Bool", default = false, editable = true }
-    },
-    functions = {}
-}
-return Drone
-"#,
-        );
+        // The very same file, once the project records an identity for it: the
+        // class is pinned, and so is every member that has no `---@id`.
+        let pinned = LuaFile {
+            id: Some("6a1e8f20-4c3d-4b5e-9f70-1a2b3c4d5e6f".into()),
+            ..file.clone()
+        };
         let decl = extract(&pinned).unwrap();
         assert_eq!(decl.id, "6a1e8f20-4c3d-4b5e-9f70-1a2b3c4d5e6f");
         assert_eq!(
             decl.properties[0].id,
-            "7b2f9031-5d4e-4c6f-8a81-2b3c4d5e6f70"
+            "lua:6a1e8f20-4c3d-4b5e-9f70-1a2b3c4d5e6f:speed"
         );
+        // And `---@id` still wins over both.
+        let annotated = LuaFile {
+            source: source.replace(
+                "Drone.speed",
+                "---@id 7b2f9031-5d4e-4c6f-8a81-2b3c4d5e6f70\nDrone.speed",
+            ),
+            ..pinned.clone()
+        };
         assert_eq!(
-            decl.properties[1].id,
-            "lua:6a1e8f20-4c3d-4b5e-9f70-1a2b3c4d5e6f:armed"
-        );
-        declarations(&decl, &pinned, &registry()).unwrap();
-
-        let message = |source: String| extract(&file(&source)).unwrap_err().message;
-        assert!(
-            message(
-                HEADER.replace(
-                    "3d352b2b-c2d7-4b99-9ba1-a003d648e897",
-                    "lua:EnemyLogic:health"
-                ) + "
-return EnemyLogic
-"
-            )
-            .contains("Property health id must be a canonical UUID")
-        );
-        assert!(
-            message(
-                HEADER.replace("224e6b46-e4b4-475c-9744-8b9fb4c0baaa", "not-a-uuid")
-                    + "
-return EnemyLogic
-"
-            )
-            .contains("Function damage id must be a canonical UUID")
-        );
-        // A `profile` that is present must still name the supported profile.
-        assert!(
-            message(
-                HEADER.replace("profile = 1", "profile = 2")
-                    + "
-return EnemyLogic
-"
-            )
-            .contains("Profile 2 is not epok-lua v1")
-        );
-        assert!(
-            message(
-                HEADER.replace("profile = 1", "profile = \"v1\"")
-                    + "
-return EnemyLogic
-"
-            )
-            .contains("profile must be a version number")
+            extract(&annotated).unwrap().properties[0].id,
+            "7b2f9031-5d4e-4c6f-8a81-2b3c4d5e6f70"
         );
     }
 }

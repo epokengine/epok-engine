@@ -113,13 +113,22 @@ pub fn compile_lua(
     root: &Path,
     native: &[Script],
 ) -> Result<Option<crate::lua_compile::Compilation>, String> {
-    let files = crate::lua_asset::load_all(root).inspect_err(|error| {
+    let mut files = crate::lua_asset::load_all(root).inspect_err(|error| {
         let _ = crate::lua_dependencies::invalidate_all(root, error);
     })?;
     if files.is_empty() {
         crate::lua_dependencies::observe_sources(root, &files)?;
         return Ok(None);
     }
+    // A script the project has no entry for — one copied in by hand, or added
+    // by a merge — is adopted here, before anything is compiled, so this very
+    // refresh already names the class by the identity it will keep. Only the
+    // settings document is written; the author's `.lua` is never rewritten.
+    if files.iter().any(|file| file.id.is_none()) {
+        crate::lua_identity::adopt(root, &files)?;
+        crate::lua_identity::resolve(root, &mut files)?;
+    }
+    let files = files;
     crate::lua_dependencies::observe_sources(root, &files)?;
     let mode = crate::settings::lua_execution(root).inspect_err(|error| {
         let _ = crate::lua_dependencies::invalidate(root, &files, error);
