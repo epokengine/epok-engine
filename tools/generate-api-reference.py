@@ -488,6 +488,9 @@ inline constexpr char stream_archive_path[]="";
 #define EPOK_FADE_IN_MS 300
 #define EPOK_LOADING_TEXT "Now loading..."
 """,
+        "lua-config.hh": """#pragma once
+#define EPOK_LUA_MODE 0
+""",
     }
     for name, contents in generated_headers.items():
         path = runtime / name
