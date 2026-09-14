@@ -6,7 +6,7 @@ Choose **New project > Third Person** in the Hub, or use:
 cargo run --locked -- --create-project "D:/Games/Third Person" --template third-person
 ```
 
-This template is an editable **level placeholder**. Play renders the arena through a static overview camera on PSX. The mannequin and blue cubes in this template are static. The engine's [input and collision APIs](input-collision.md) are available, but this template does not attach a character controller or follow-camera Behaviour. The separate [FBX skeletal pipeline](skeletal.md) can import and animate characters, but is not wired into this template yet. See the [included example](../examples/rpg-2-5d-demo/README.md) for input, collision and scene transitions in use.
+This template includes an editable arena and a project-owned `ThirdPersonController` ActorComponent with character movement, jumping, collision and an orbiting follow camera. The mannequin uses rigid boxes and the blue cubes are static. The separate [FBX skeletal pipeline](skeletal.md) can import and animate characters, but is not wired into this template yet.
 
 ## Arena layout
 
@@ -18,8 +18,10 @@ All geometry is generated locally by `src/third_person.rs`. Project creation pub
 
 ## PSX adaptation
 
+New Third Person projects use **320 x 240 progressive** output with position interpolation enabled. Progressive output avoids interlaced motion artifacts on physical displays. The setting is saved in the project descriptor and can be changed through **Edit > Project Settings > Rendering**. Existing projects retain their saved resolution.
+
 The floor and wall grid uses adjacent colored polygons, with no overlapping decal surfaces. The template retains this geometry-based grid, although imported textures are now supported. Thin joints are widened for the native resolution. The usual geometry compiler subdivides and partitions meshes; a template test verifies the generated scene remains below the 7,000 triangle-slot capacity. This capacity check is not a frame-rate guarantee.
 
 Creation also seeds `UserSettings/SceneView.epokprefs` with an overview for the editor. This optional local starting view is validated when a project opens; a missing or invalid file falls back to the normal editor view. It is independent of the scene's runtime camera and is not currently saved automatically during navigation.
 
-Validation includes project creation, asset resolution, mesh validation, baked-light validity, scene-header generation and editor opening. A development preview is also compiled to PS-X EXE and captured in PCSX-Redux. Physical-console validation remains pending.
+Validation includes project creation, persisted progressive display settings, asset resolution, mesh validation, baked-light validity, scene-header generation and editor opening. A development preview is also compiled to PS-X EXE and captured in PCSX-Redux. Emulator previews alone do not validate physical display compatibility; see the [native PSX testing notes](../knowledge/maintainers/testing.md#native-psx-checks).

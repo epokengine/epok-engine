@@ -325,8 +325,8 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                             row(ui,"Output Pixels","Pixels rendered per frame, excluding overdraw.",||{ui.text(format!("{}",u32::from(m.rendering.width)*u32::from(m.rendering.height)));});
                             row(ui,"Display Aspect Ratio","Native pixels are presented at the intended TV aspect ratio.",||{ui.text("4:3");});
                         });
-                        ui.spacing();ui.text_colored([0.5,0.72,0.94,1.],"640 x 480 interlaced is the project default.");
-                        ui.text_wrapped("Higher resolution uses more GPU fill work. Interlaced output can flicker on a CRT. HUD coordinates use the selected resolution.");
+                        ui.spacing();ui.text_colored([0.5,0.72,0.94,1.],"240-line modes use progressive output.");
+                        ui.text_wrapped("Higher resolution uses more GPU fill work. Interlaced output can flicker or show motion artifacts on physical displays. HUD coordinates use the selected resolution.");
                         section(ui,"Movement",||{
                             row(ui,"Position Interpolation","Smooth entity and camera translations between 60 Hz simulation steps. Physics and running speed are unchanged. Adds up to one simulation tick of visual latency and a small fixed RAM/CPU cost. Rotation, skeletal poses and particles are not interpolated. Changes apply on the next build.",||{
                                 ui.checkbox("##motion-interpolation",&mut m.rendering.motion_interpolation);

@@ -1,4 +1,4 @@
-//! Editable greybox arena with platforms, ramps and a static mannequin.
+//! Editable greybox arena with platforms, ramps and a controllable mannequin.
 //! Layout, dimensions and PSX rendering details: docs/third-person.md.
 use crate::{
     lighting, mesh,
@@ -450,6 +450,9 @@ mod tests {
             crate::workspace::Template::ThirdPerson,
         )
         .unwrap();
+        let rendering = crate::settings::rendering(&root).unwrap();
+        assert_eq!((rendering.width, rendering.height), (320, 240));
+        assert!(rendering.motion_interpolation);
         let scene = Scene::load(&crate::workspace::startup_scene(&root).unwrap()).unwrap();
         assert!(lighting::valid_bake(&scene));
         assert_eq!(
@@ -494,6 +497,11 @@ mod tests {
                 Some(crate::object_model::SCENE_SCRIPT_ACTOR_ID)
             );
             crate::project::stage(&root, &editor.scene).unwrap();
+            let display = std::fs::read_to_string(root.join(".epok/build/display.hh")).unwrap();
+            assert!(display.contains("display_width = 320;"));
+            assert!(display.contains("display_height = 240;"));
+            assert!(display.contains("display_interlaced = false;"));
+            assert!(display.contains("motion_interpolation = true;"));
             let cooked = std::fs::read_to_string(root.join(".epok/build/scene.hh")).unwrap();
             let scene_script =
                 crate::blueprint_refs::compact_id(crate::object_model::SCENE_SCRIPT_ACTOR_ID);

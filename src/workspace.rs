@@ -385,7 +385,15 @@ pub fn create(destination: &Path, name: &str, template: Template) -> Result<Proj
         build: Default::default(),
         play: Default::default(),
         transition: Default::default(),
-        rendering: Default::default(),
+        rendering: if template == Template::ThirdPerson {
+            crate::settings::Rendering {
+                width: 320,
+                height: 240,
+                ..Default::default()
+            }
+        } else {
+            Default::default()
+        },
         debug: Default::default(),
         default_sound_bank: None,
         default_scene_script_parent: None,
