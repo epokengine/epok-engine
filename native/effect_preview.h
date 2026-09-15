@@ -20,8 +20,10 @@ struct PreviewKey {int32_t tick,value;};
 struct PreviewTrack {
     uint64_t property;
     uint32_t slot,field,channels,additive,restore,interpolation;
+    uint32_t modes[4];
+    int32_t start,end,offset,numerator,denominator;
     uint32_t lengths[4];
-    PreviewKey keys[4][4];
+    PreviewKey keys[4][256];
 };
 struct PreviewEvent {uint32_t slot,function,count,idempotent;};
 struct PreviewSignal {int32_t tick;uint32_t index,event;};

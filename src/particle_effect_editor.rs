@@ -156,6 +156,7 @@ pub fn add_preset(effect: &mut ParticleEffect, preset: Preset) -> Result<Uuid, S
     let slot = effect.layers.last().unwrap().slot;
     let end = effect.timeline.duration_ticks;
     effect.timeline.tracks.push(timeline::Track {
+        sections: vec![],
         id: Uuid::new_v4(),
         name: format!("{} opacity", preset.name()),
         slot,
@@ -374,6 +375,27 @@ fn retime(asset: &mut timeline::TimelineAsset, duration: i32) -> Result<(), Stri
             .collect::<std::collections::BTreeSet<_>>();
         if unique.len() != track.keys.len() {
             return Err("Duration is too short to preserve distinct curve keys".into());
+        }
+        for section in &mut track.sections {
+            section.start_tick = tick(section.start_tick);
+            section.end_tick = tick(section.end_tick);
+            section.source_offset_tick = tick(section.source_offset_tick);
+            if section.end_tick <= section.start_tick {
+                return Err("Duration is too short to preserve a timeline section".into());
+            }
+            for channel in &mut section.channels {
+                for key in &mut channel.keys {
+                    key.tick = tick(key.tick);
+                }
+                let unique = channel
+                    .keys
+                    .iter()
+                    .map(|k| k.tick)
+                    .collect::<std::collections::BTreeSet<_>>();
+                if unique.len() != channel.keys.len() {
+                    return Err("Duration is too short to preserve distinct channel keys".into());
+                }
+            }
         }
     }
     for event in &mut next.events {

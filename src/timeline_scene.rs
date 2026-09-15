@@ -285,12 +285,13 @@ pub fn setup(scene: &Scene, timelines: &[Prepared], registry: &Registry) -> Resu
                 .copied()
                 .flatten()
                 .map_or(serde_json::Value::Null, |id| serde_json::json!(id));
-            match crate::blueprint_refs::assignment(
+            match crate::blueprint_refs::data_slot_assignment(
                 &format!("component.targets[{i}]"),
                 &value,
                 &slot.target,
                 scene,
                 registry,
+                |index| format!("&objects[{index}]"),
             ) {
                 Ok(assignment) => out += &assignment,
                 Err(error) if slot.required => return Err(error),
@@ -328,23 +329,18 @@ pub fn setup_template(
                 .copied()
                 .flatten()
                 .map_or(serde_json::Value::Null, |id| serde_json::json!(id));
-            let mut assignment = match crate::blueprint_refs::assignment(
+            let assignment = match crate::blueprint_refs::data_slot_assignment(
                 &format!("component->targets[{i}]"),
                 &value,
                 &slot.target,
                 scene,
                 registry,
+                |index| format!("handles[{index}].get()"),
             ) {
                 Ok(code) => code,
                 Err(error) if slot.required => return Err(error),
                 Err(_) => format!("component->targets[{i}]={{}};\n"),
             };
-            for index in 0..scene.actors.len() {
-                assignment = assignment.replace(
-                    &format!("epok::handle(&objects[{index}])"),
-                    &format!("handles[{index}]"),
-                );
-            }
             out += &assignment;
         }
         out += "}\n";
@@ -355,6 +351,34 @@ pub fn setup_template(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn scene_and_spawned_bindings_use_initialized_component_identities() {
+        let (asset, registry, mut scene) = crate::timeline_scene_preview::tests::fixture();
+        let target = scene.actors[0].components.last().unwrap().id;
+        let component_index = scene.actors[0].components.len() - 1;
+        // Actor table order differs from authored data-slot order.
+        scene.actors[0].logical_parent = Some(scene.actors[1].id);
+        scene.actors[0].timeline = Some(Component {
+            asset: Some(asset.id),
+            bindings: BTreeMap::from([(asset.slots[0].id, Some(target))]),
+            ..Default::default()
+        });
+        let prepared = [Prepared {
+            compiled: timeline_compile::compile(&asset, &registry).unwrap(),
+            source: asset,
+        }];
+        let code = setup(&scene, &prepared, &registry).unwrap();
+        assert!(code.contains(&format!(
+            "(&objects[0])->owner->component_id({component_index})"
+        )));
+        assert!(!code.contains("registry.resolve") && !code.contains("actors["));
+        let code = setup_template(&scene, &prepared, &registry).unwrap();
+        assert!(code.contains(&format!(
+            "(handles[0].get())->owner->component_id({component_index})"
+        )));
+        assert!(!code.contains("objects[") && !code.contains("actors["));
+    }
+
     #[test]
     fn scene_component_roundtrip_preserves_authoring_ids_and_migrates_only_when_used() {
         let mut scene = Scene::default();

@@ -1,4 +1,5 @@
 #pragma once
+#include "timeline.hpp"
 #include "epok.hpp"
 #include "object_model.hpp"
 
@@ -187,7 +188,7 @@ struct TimelineSample {
 // emitted exactly once; a looping track exposes the crossed-loop count instead.
 template<size_t Capacity = 16> class Timeline {
     static_assert(Capacity >= 2 && Capacity <= 256);
-    TimelineKey keys[Capacity] = {};
+    epok::timeline::Key keys[Capacity] = {};
     size_t count = 0;
     int32_t elapsed = 0;
     ObjectId owner;
@@ -197,7 +198,7 @@ public:
     bool configure(const TimelineKey* data, size_t length) {
         if (!data || length < 2 || length > Capacity || data[0].time.raw() != 0) return false;
         for (size_t i = 1; i < length; ++i) if (data[i].time.raw() <= data[i - 1].time.raw()) return false;
-        for (size_t i = 0; i < length; ++i) keys[i] = data[i];
+        for (size_t i = 0; i < length; ++i) keys[i] = {data[i].time.raw(),data[i].value.raw()};
         count = length;
         running = false;
         elapsed = 0;
@@ -209,15 +210,7 @@ public:
         return true;
     }
     Fixed value() const {
-        if (!count) return 0.0;
-        if (elapsed >= keys[count - 1].time.raw()) return keys[count - 1].value;
-        for (size_t i = 1; i < count; ++i) if (elapsed < keys[i].time.raw()) {
-            const int32_t span = keys[i].time.raw() - keys[i - 1].time.raw();
-            const int32_t part = elapsed - keys[i - 1].time.raw();
-            const int64_t delta = int64_t(keys[i].value.raw()) - keys[i - 1].value.raw();
-            return Fixed(saturate(int64_t(keys[i - 1].value.raw()) + delta * part / span), Fixed::RAW);
-        }
-        return keys[count - 1].value;
+        return Fixed(epok::timeline::sample({keys,uint16_t(count)},elapsed),Fixed::RAW);
     }
     TimelineSample advance(Fixed dt, uint32_t scene_generation = 0, bool paused = false) {
         TimelineSample result{value()};
@@ -226,7 +219,7 @@ public:
         if (!source || scene_generation != generation) { running = false; return result; }
         if (paused || !is_active(source) || dt.raw() <= 0) return result;
         const int64_t next = int64_t(elapsed) + dt.raw();
-        const int32_t duration = keys[count - 1].time.raw();
+        const int32_t duration = keys[count - 1].tick;
         if (looping) { result.loops = uint32_t(next / duration); elapsed = int32_t(next % duration); }
         else if (next >= duration) { elapsed = duration; running = false; result.completed = true; }
         else elapsed = int32_t(next);

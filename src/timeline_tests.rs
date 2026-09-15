@@ -55,6 +55,7 @@ fn fixture() -> (TimelineAsset, Registry, crate::scene::Scene) {
         extra: Default::default(),
     });
     a.tracks.push(Track {
+        sections: vec![],
         id: Uuid::new_v4(),
         name: "Charge".into(),
         slot,
@@ -154,6 +155,58 @@ fn typed_tracks_cook_all_lanes_and_reject_discrete_interpolation() {
     assert_eq!(c.sample(4096)[0].1, 1);
     a.tracks[0].blend = Blend::Additive;
     assert!(cook::compile(&a, &r).is_err());
+}
+
+#[test]
+fn v3_sections_map_independent_source_time_and_are_silent_outside_their_range() {
+    let (mut asset, registry, _) = fixture();
+    let track = &mut asset.tracks[0];
+    track.make_section(asset.duration_ticks);
+    let section = &mut track.sections[0];
+    section.start_tick = 1024;
+    section.end_tick = 3072;
+    section.source_offset_tick = 0;
+    section.rate_numerator = 1;
+    section.rate_denominator = 1;
+    assert!(asset.validate(&registry).is_empty());
+    let compiled = cook::compile(&asset, &registry).unwrap();
+    assert!(compiled.sample_values(0).is_empty());
+    assert_eq!(compiled.sample_values(1024)[0].1[0], -40960);
+    assert_eq!(compiled.sample_values(2048)[0].1[0], -20480);
+    assert!(compiled.sample_values(3072).is_empty());
+    assert!(
+        crate::timeline_runtime::header(&compiled, &registry)
+            .unwrap()
+            .contains("1024,3072,0,1,1")
+    );
+}
+
+#[test]
+fn authoring_and_cooked_curves_accept_the_full_256_key_profile() {
+    let (mut asset, registry, _) = fixture();
+    asset.tracks[0].keys = (0..256)
+        .map(|i| Key {
+            id: Uuid::new_v4(),
+            tick: i * 16,
+            value: serde_json::json!(i),
+            extra: Default::default(),
+        })
+        .collect();
+    let compiled = cook::compile(&asset, &registry).unwrap();
+    assert_eq!(compiled.tracks[0].channels[0].len(), 256);
+    assert_eq!(compiled.sample_values(2040)[0].1[0], 127 * 4096 + 2048);
+    asset.tracks[0].keys.push(Key {
+        id: Uuid::new_v4(),
+        tick: 4095,
+        value: serde_json::json!(256),
+        extra: Default::default(),
+    });
+    assert!(
+        asset
+            .validate(&registry)
+            .iter()
+            .any(|d| d.message.contains("2–256"))
+    );
 }
 
 fn add_event(a: &mut TimelineAsset, r: &mut Registry) {

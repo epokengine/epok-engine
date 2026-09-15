@@ -63,7 +63,7 @@ struct KeyData {
     value: i32,
 }
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 struct TrackData {
     property: u64,
     slot: u32,
@@ -72,8 +72,35 @@ struct TrackData {
     additive: u32,
     restore: u32,
     interpolation: u32,
+    modes: [u32; 4],
+    start: i32,
+    end: i32,
+    offset: i32,
+    numerator: i32,
+    denominator: i32,
     lengths: [u32; 4],
-    keys: [[KeyData; 4]; 4],
+    keys: [[KeyData; 256]; 4],
+}
+impl Default for TrackData {
+    fn default() -> Self {
+        Self {
+            property: 0,
+            slot: 0,
+            field: 0,
+            channels: 0,
+            additive: 0,
+            restore: 0,
+            interpolation: 0,
+            modes: [0; 4],
+            start: 0,
+            end: i32::MAX,
+            offset: 0,
+            numerator: 1,
+            denominator: 1,
+            lengths: [0; 4],
+            keys: [[KeyData::default(); 256]; 4],
+        }
+    }
 }
 #[repr(C)]
 struct EventData {
@@ -425,7 +452,15 @@ impl Simulation {
                 },
                 ..Default::default()
             };
+            if let Some(range) = track.range {
+                data.start = range.start;
+                data.end = range.end;
+                data.offset = range.offset;
+                data.numerator = range.numerator;
+                data.denominator = range.denominator;
+            }
             for (c, keys) in track.channels.iter().enumerate() {
+                data.modes[c] = track.mode(c) as u32;
                 data.lengths[c] = keys.len() as u32;
                 for (k, (tick, value)) in keys.iter().enumerate() {
                     data.keys[c][k] = KeyData {
@@ -813,6 +848,8 @@ mod tests {
         compiled
             .tracks
             .push(crate::timeline_compile::CompiledTrack {
+                range: None,
+                interpolation_modes: vec![],
                 id: Uuid::new_v4(),
                 slot: compiled.slots.last().unwrap().id,
                 property: Uuid::new_v4().to_string(),

@@ -156,12 +156,19 @@ pub fn header(compiled: &Compiled, registry: &Registry) -> Result<String, String
         out += &sync(false);
         out += "return true;}\n";
         property_entries.push(format!(
-            "{{UINT64_C({}),{slot},{},{},{},curves_{},read_{i},write_{i}}}",
+            "{{UINT64_C({}),{slot},{},{},{},curves_{},read_{i},write_{i},{}}}",
             crate::blueprint_refs::compact_id(&track.property),
             track.channels.len(),
             track.blend == crate::timeline::Blend::Additive,
             track.restore == crate::timeline::Restore::RestoreInitial,
-            track.id.simple()
+            track.id.simple(),
+            track.range.map_or_else(
+                || "0,INT32_MAX,0,1,1".into(),
+                |r| format!(
+                    "{},{},{},{},{}",
+                    r.start, r.end, r.offset, r.numerator, r.denominator
+                )
+            )
         ));
     }
     let mut event_entries = vec![];

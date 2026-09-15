@@ -567,6 +567,18 @@ fn draw_workspace(
         crate::asset_ui::windows(ui, e);
         return;
     }
+    if e.timeline_editor.layout && e.timeline_editor.open {
+        e.view_dirty = true;
+        e.scene_look = false;
+        scene_view(ui, e, scene, hud_texture, image_size);
+        e.timeline_editor
+            .draw(ui, &e.root, &e.class_registry, &e.scene, &e.assets.index);
+        if ui.is_key_pressed(imgui::Key::Escape) && !ui.io().want_text_input {
+            e.timeline_editor.layout = false;
+            e.reset_layout = true;
+        }
+        return;
+    }
     let size = ui.io().display_size;
     let menu_height = ui.frame_height();
     let toolbar_height = 40.;
@@ -813,6 +825,13 @@ fn draw_workspace(
                 ui.open_popup("layout-menu");
             }
             ui.popup("layout-menu", || {
+                if ui
+                    .menu_item_config("Sequencer")
+                    .enabled(e.timeline_editor.open)
+                    .build()
+                {
+                    e.timeline_editor.layout = true;
+                }
                 if ui.menu_item("Default") {
                     e.reset_layout = true;
                 }
@@ -989,8 +1008,10 @@ fn draw_workspace(
     lua_creation_dialog(ui, e);
     crate::blueprint_workflow::draw(ui, e);
     crate::actor_workflow::draw(ui, e);
+    e.view_dirty |= e.timeline_editor.scene_preview.scene.is_some();
     e.timeline_editor
         .draw(ui, &e.root, &e.class_registry, &e.scene, &e.assets.index);
+    e.view_dirty |= e.timeline_editor.scene_preview.scene.is_some();
     if e.close_requested {
         ui.open_popup("Unsaved scene");
         e.close_requested = false;
@@ -2862,61 +2883,80 @@ fn scene_view(
             imgui::sys::igSetNextWindowCollapsed(false, imgui::sys::ImGuiCond_Always as i32);
         }
     }
-    ui.window("\u{eb29} Scene###Scene").build(|| {
-        for mode in crate::scene_view_mode::SceneViewMode::ALL {
-            if mode != crate::scene_view_mode::SceneViewMode::ALL[0] {
-                ui.same_line();
+    let compact = e.timeline_editor.layout && e.timeline_editor.open;
+    let mut window = ui.window("\u{eb29} Scene###Scene");
+    if compact {
+        window = window
+            .position([0., 0.], Condition::Always)
+            .size(
+                [ui.io().display_size[0], ui.io().display_size[1] * 0.537],
+                Condition::Always,
+            )
+            .title_bar(false)
+            .resizable(false)
+            .movable(false)
+            .scroll_bar(false)
+            .scrollable(false);
+    }
+    let _compact_padding =
+        compact.then(|| ui.push_style_var(imgui::StyleVar::WindowPadding([0., 0.])));
+    window.build(|| {
+        if !compact {
+            for mode in crate::scene_view_mode::SceneViewMode::ALL {
+                if mode != crate::scene_view_mode::SceneViewMode::ALL[0] {
+                    ui.same_line();
+                }
+                if ui.radio_button_bool(mode.label(), e.scene_view_mode == mode) {
+                    e.set_scene_view_mode(mode);
+                }
             }
-            if ui.radio_button_bool(mode.label(), e.scene_view_mode == mode) {
-                e.set_scene_view_mode(mode);
+            inline(ui, "Shaded");
+            match e.scene_view_mode {
+                crate::scene_view_mode::SceneViewMode::UI => {
+                    ui.text("Canvas / HUD");
+                    ui.separator();
+                    crate::hud_editor::view(ui, e, hud_texture);
+                    return;
+                }
+                crate::scene_view_mode::SceneViewMode::TwoD => {
+                    // The 3D simulation and preview state are untouched: switching
+                    // back to 3D resumes exactly where the author left it.
+                    world2d_view(ui, e);
+                    return;
+                }
+                crate::scene_view_mode::SceneViewMode::ThreeD => {}
             }
-        }
-        inline(ui, "Shaded");
-        match e.scene_view_mode {
-            crate::scene_view_mode::SceneViewMode::UI => {
-                ui.text("Canvas / HUD");
-                ui.separator();
-                crate::hud_editor::view(ui, e, hud_texture);
-                return;
+            if ui.button("Shaded  \u{eab4}") {
+                ui.open_popup("shading");
             }
-            crate::scene_view_mode::SceneViewMode::TwoD => {
-                // The 3D simulation and preview state are untouched: switching
-                // back to 3D resumes exactly where the author left it.
-                world2d_view(ui, e);
-                return;
-            }
-            crate::scene_view_mode::SceneViewMode::ThreeD => {}
-        }
-        if ui.button("Shaded  \u{eab4}") {
-            ui.open_popup("shading");
-        }
-        ui.popup("shading", || {
-            if ui.menu_item_config("Shaded").selected(!e.wire).build() {
-                e.wire = false;
+            ui.popup("shading", || {
+                if ui.menu_item_config("Shaded").selected(!e.wire).build() {
+                    e.wire = false;
+                    e.view_dirty = true;
+                }
+                if ui.menu_item_config("Wireframe").selected(e.wire).build() {
+                    e.wire = true;
+                    e.view_dirty = true;
+                }
+            });
+            inline(ui, "Grid");
+            if ui.checkbox("Grid", &mut e.grid) {
                 e.view_dirty = true;
             }
-            if ui.menu_item_config("Wireframe").selected(e.wire).build() {
-                e.wire = true;
-                e.view_dirty = true;
+            inline(ui, "Reset View");
+            if ui.button("Reset View") {
+                e.action("reset-view");
             }
-        });
-        inline(ui, "Grid");
-        if ui.checkbox("Grid", &mut e.grid) {
-            e.view_dirty = true;
+            inline_width(ui, 125.);
+            ui.set_next_item_width(70.);
+            crate::gui::Drag::new("Speed")
+                .speed(0.1)
+                .range(0.1, 100.)
+                .build(ui, &mut e.view.fly_speed);
+            muted(ui, "RMB + WASD: fly | Q/E: down/up | Alt + LMB: orbit");
+            crate::lighting_editor::preview_status(ui, e);
+            ui.separator();
         }
-        inline(ui, "Reset View");
-        if ui.button("Reset View") {
-            e.action("reset-view");
-        }
-        inline_width(ui, 125.);
-        ui.set_next_item_width(70.);
-        crate::gui::Drag::new("Speed")
-            .speed(0.1)
-            .range(0.1, 100.)
-            .build(ui, &mut e.view.fly_speed);
-        muted(ui, "RMB + WASD: fly | Q/E: down/up | Alt + LMB: orbit");
-        crate::lighting_editor::preview_status(ui, e);
-        ui.separator();
         let position = ui.cursor_screen_pos();
         let available = ui.content_region_avail().map(|v| v.max(1.));
         // Fill the Scene panel, preserving projection aspect by cropping the preview texture.
@@ -3009,7 +3049,8 @@ fn scene_view(
             let pixel = crate::picking::texture_pixel(mouse, position, factor, uv);
             e.selected_asset = None;
             if !crate::mesh_editor::pick(e, pixel, ui.io().key_ctrl) {
-                e.selected = crate::picking::pick(&e.scene, &e.view, pixel);
+                let scene = e.timeline_editor.scene_preview.scene.as_ref().filter(|_| e.timeline_editor.open && !e.playing).unwrap_or(&e.scene);
+                e.selected = crate::picking::pick(scene, &e.view, pixel);
             }
             e.view_dirty = true;
             e.reveal_selected = e.selected.is_some();

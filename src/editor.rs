@@ -339,6 +339,9 @@ impl Editor {
             let path = crate::assets::inside(&editor.root, &pair[1])?;
             editor.refresh_scripts();
             editor.timeline_editor.open(&path)?;
+            if std::env::args().any(|arg| arg == "--sequencer-layout") {
+                editor.timeline_editor.layout = true;
+            }
         }
         if let Some(pair) = std::env::args()
             .collect::<Vec<_>>()
@@ -2550,8 +2553,9 @@ impl Editor {
             }
             "frame-selected" => {
                 if let Some(i) = self.selected {
-                    let world = self.scene.world_matrix(i);
-                    if let Some(doc) = self.scene.actors[i]
+                    let scene = self.timeline_editor.scene_preview.scene.as_ref().filter(|_| self.timeline_editor.open && !self.playing).unwrap_or(&self.scene);
+                    let world = scene.world_matrix(i);
+                    if let Some(doc) = scene.actors[i]
                         .editable_mesh
                         .as_ref()
                         .and_then(|m| m.document.as_ref())

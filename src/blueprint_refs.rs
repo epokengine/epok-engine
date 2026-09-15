@@ -281,6 +281,30 @@ pub fn assignment(
     scene: &Scene,
     registry: &Registry,
 ) -> Result<String, String> {
+    assignment_in(target, value, ty, scene, registry, None)
+}
+
+/// Bind a service after actor creation, outside an ActorTable apply callback.
+/// `data` names the original scene-order ActorData pointer (including spawned slots).
+pub fn data_slot_assignment(
+    target: &str,
+    value: &Value,
+    ty: &Type,
+    scene: &Scene,
+    registry: &Registry,
+    data: impl Fn(usize) -> String,
+) -> Result<String, String> {
+    assignment_in(target, value, ty, scene, registry, Some(&data))
+}
+
+fn assignment_in(
+    target: &str,
+    value: &Value,
+    ty: &Type,
+    scene: &Scene,
+    registry: &Registry,
+    data: Option<&dyn Fn(usize) -> String>,
+) -> Result<String, String> {
     match ty {
         Type::ObjectRef { class } | Type::ActorRef { class } | Type::ComponentRef { class }
             if !value.is_null() =>
@@ -309,13 +333,23 @@ pub fn assignment(
             for (slot, index) in order.iter().enumerate() {
                 let actor = &scene.actors[*index];
                 let found = if actor.id == id && !matches!(ty, Type::ComponentRef { .. }) {
-                    Some((&actor.class, format!("actors[{slot}]")))
+                    Some((
+                        &actor.class,
+                        data.map_or_else(
+                            || format!("actors[{slot}]"),
+                            |data| format!("epok::actor_for_slot({})", data(*index)),
+                        ),
+                    ))
                 } else if !matches!(ty, Type::ActorRef { .. }) {
                     actor.components.iter().position(|c| c.id == id).map(|i| {
                         (
                             &actor.components[i].class,
-                            format!(
-                                "registry.resolve<epok::Actor>(actors[{slot}])->component_id({i})"
+                            data.map_or_else(
+                                || format!("registry.resolve<epok::Actor>(actors[{slot}])->component_id({i})"),
+                                |data| {
+                                    let pointer = data(*index);
+                                    format!("(({pointer}) && ({pointer})->owner ? ({pointer})->owner->component_id({i}) : epok::ObjectId{{}})")
+                                },
                             ),
                         )
                     })

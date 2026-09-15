@@ -32,6 +32,9 @@ int main() {
         }
         assert(previous==UINT32_MAX);
     }
+    Key dense[256];for(int i=0;i<256;++i)dense[i]={i*17,i*51-4096};
+    for(int tick=4335;tick>=0;--tick)assert(sample({dense,256},tick)==tick*3-4096);
+    assert(sample({dense,256},INT32_MAX)==dense[255].value);
     const Marker markers[] = {{0, 9}, {68, 2}, {68, 3}, {4096, 4}};
     uint16_t cursor = 0, id = 0;
     assert(poll_marker(markers, 4, cursor, 68, id) && id == 9);
