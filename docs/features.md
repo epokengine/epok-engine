@@ -486,11 +486,11 @@ See [Geometry streaming](streaming.md) and [Native PSX performance](performance.
 
 See [Memory Card service](memory-card.md).
 
-## AI assistant / MCP integration
+## External tools / MCP integration
 
 - **Optional local server.** Authenticated Streamable HTTP binds only to IPv4
   loopback; a stdio bridge connects clients to the already-running editor. The
-  feature is disabled by default and requires no specific AI provider.
+  feature is disabled by default and requires no specific client provider.
 - **Twenty-four tools.** `editor_state`, `logs_read`, `scene_read`, `scene_schema`,
   `scene_apply`, `scene_actors`, `scene_add_actor`, `scene_remove_actor`,
   `scene_set_actor`, `scene_history`, `scene_save`, `scene_open`, `entity_select`,
@@ -507,7 +507,7 @@ See [Memory Card service](memory-card.md).
 - **Read-only resources.** Clients can read the embedded guide, state, scene,
   schema and settings resources in addition to tool calls.
 
-See [AI assistants / MCP](mcp.md) for schemas, security and limits.
+See [Integrations / MCP](mcp.md) for schemas, security and limits.
 
 ## Command-line and automation surface
 

@@ -19,7 +19,7 @@
   <a href="docs/features.md">Complete catalog</a> &nbsp;·&nbsp;
   <a href="#blueprints">Blueprints</a> &nbsp;·&nbsp;
   <a href="#examples">Examples</a> &nbsp;·&nbsp;
-  <a href="#ai-assisted-development">AI assistants</a> &nbsp;·&nbsp;
+  <a href="#external-tools-and-automation">External tools</a> &nbsp;·&nbsp;
   <a href="docs/getting-started.md">Documentation</a>
 </p>
 
@@ -158,7 +158,7 @@ A release build produces the editor executable. On macOS, `make app` additionall
 
 ![A game built with Epok showing a sprite character, textured forest and portrait dialogue UI](docs/images/forest-dialogue.png)
 
-<p align="center"><sub>Native 640 × 480 output captured in PCSX-Redux. A visual showcase of world sprites, textured geometry and HUD rendering. Character and environment artwork was created with AI image generation and prepared for PSX textures.</sub></p>
+<p align="center"><sub>Native 640 × 480 output captured in PCSX-Redux. A visual showcase of world sprites, textured geometry and HUD rendering. Character and environment artwork is synthetic prototype imagery prepared for PSX textures.</sub></p>
 
 See [Sprites and particles](docs/sprites-particles.md), [Textures](docs/textures.md) and [HUD](docs/hud.md) for the engine features used in this scene.
 
@@ -185,20 +185,20 @@ The included mannequin has 96 vertices, 144 triangles and Idle/Walk clips. The P
 
 </details>
 
-## AI-assisted development
+## External tools and automation
 
-Connect an MCP-compatible assistant to work directly with the running editor. Epok exposes **24 tools** for scenes, actors, assets, scripts, screenshots, builds and emulator controls.
+Connect an MCP-compatible client to work directly with the running editor. Epok exposes **24 tools** for scenes, actors, assets, scripts, screenshots, builds and emulator controls.
 
-An assistant can arrange entities, move the Scene camera, capture Scene/Game/HUD/editor views, inspect build logs and control Play, Pause and Step. Scene batches support Undo/Redo and revision checks; file replacements retain local backups.
+A connected client can arrange entities, move the Scene camera, capture Scene/Game/HUD/editor views, inspect build logs and control Play, Pause and Step. Scene batches support Undo/Redo and revision checks; file replacements retain local backups.
 
 > “Inspect this scene, add a blue cube beside the platform, frame it and show me a screenshot. Then build the game and check the logs.”
 
-Enable **Edit → Editor Preferences → AI / MCP → Enable MCP Server → Apply**, then copy the HTTP or stdio client configuration. MCP is **off by default**, uses a local access key and listens only on your computer. Epok does not require an AI account or a specific provider.
+Enable **Edit → Editor Preferences → Integrations / MCP → Enable MCP Server → Apply**, then copy the HTTP or stdio client configuration. MCP is **off by default**, uses a local access key and listens only on your computer. Epok does not require an external account or a specific provider.
 
 <details>
 <summary><strong>View the connection settings</strong></summary>
 
-![Epok AI / MCP preferences with the optional server disabled](docs/images/mcp-preferences.png)
+![Epok Integrations / MCP preferences with the optional server disabled](docs/images/mcp-preferences.png)
 
 </details>
 
@@ -216,7 +216,7 @@ Browse the **[Epok documentation](docs/getting-started.md)** for guides, workflo
 | **Build gameplay** | [Actors and components](docs/actors.md) · [Blueprints](docs/blueprints.md) · [C++ scripting](docs/scripting.md) · [Lua scripting](docs/lua-scripting.md) · [Input and collision](docs/input-collision.md) · [Runtime services](docs/runtime-services.md) · [Cameras and resources](docs/camera-resources.md) · [Memory Card](docs/memory-card.md) |
 | **Look up C++ APIs** | [Complete API reference](docs/api/index.md) · [Epok runtime API](docs/api/epok.md) · [PsyQo API](docs/api/psyqo.md) |
 | **Sound and interface** | [Assets and audio](docs/assets.md) · [HUD](docs/hud.md) |
-| **Extend and verify** | [AI / MCP](docs/mcp.md) · [Architecture](knowledge/architecture.md) · [Performance](docs/performance.md) · [Lua VM runtime](docs/lua-vm-runtime.md) · [Testing](knowledge/maintainers/testing.md) · [Runtime and export](runtime/README.md) |
+| **Extend and verify** | [Integrations / MCP](docs/mcp.md) · [Architecture](knowledge/architecture.md) · [Performance](docs/performance.md) · [Lua VM runtime](docs/lua-vm-runtime.md) · [Testing](knowledge/maintainers/testing.md) · [Runtime and export](runtime/README.md) |
 
 ## Current limits
 

@@ -160,7 +160,7 @@ def main():
         check_stdio(args.editor, env)
         initial = client.tool("scene_read")
         edited = client.tool("scene_apply", revision=initial["revision"], operations=[
-            {"op": "create", "entity": {"name": "AI Cube", "position": [0, 1, 0], "material": {"color": [0.2, 0.6, 1]}}}])
+            {"op": "create", "entity": {"name": "Example Cube", "position": [0, 1, 0], "material": {"color": [0.2, 0.6, 1]}}}])
         client.tool("entity_select", revision=edited["revision"], index=edited["results"][0]["index"], frame=True)
         client.tool("editor_view", scene_2d=False)
         size, before = client.screenshot("scene", home / "scene-before.png")

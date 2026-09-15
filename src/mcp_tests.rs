@@ -125,7 +125,7 @@ fn scene_batches_are_atomic_versioned_and_reversible() {
         )
         .is_err()
     );
-    run(&mut e,&mut state,json!([{"op":"create","actor":{"name":"AI Mesh","position":[1,2,3]}},{"op":"update","index":0,"patch":{"material":{"color":[0.2,0.5,1.0]}}}])).unwrap();
+    run(&mut e,&mut state,json!([{"op":"create","actor":{"name":"Example Mesh","position":[1,2,3]}},{"op":"update","index":0,"patch":{"material":{"color":[0.2,0.5,1.0]}}}])).unwrap();
     let updated = mcp_tools::revision(&e.scene);
     assert!(e.rename.is_none() && e.hud_drag.is_none());
     assert_ne!(initial, updated);
@@ -187,10 +187,10 @@ fn files_preserve_conflicts_backups_and_project_boundary() {
             .is_err()
         );
     }
-    let a = json!({"action":"write","path":"assets/scripts/AI note.txt","revision":"absent","content":"first"});
+    let a = json!({"action":"write","path":"assets/scripts/Example note.txt","revision":"absent","content":"first"});
     let saved = mcp_tools::execute(&mut e, &mut state, "project_files", a.clone()).unwrap();
     assert!(mcp_tools::execute(&mut e, &mut state, "project_files", a).is_err());
-    let updated=mcp_tools::execute(&mut e,&mut state,"project_files",json!({"action":"write","path":"assets/scripts/AI note.txt","revision":saved["revision"],"content":"second"})).unwrap();
+    let updated=mcp_tools::execute(&mut e,&mut state,"project_files",json!({"action":"write","path":"assets/scripts/Example note.txt","revision":saved["revision"],"content":"second"})).unwrap();
     assert_eq!(
         fs::read_to_string(e.root.join(updated["backup"].as_str().unwrap())).unwrap(),
         "first"
@@ -222,11 +222,11 @@ fn mesh_assets_can_be_created_attached_and_edited() {
         &mut e,
         &mut state,
         "mesh_create",
-        json!({"path":"assets/meshes/AI.epokasset","shape":"Stairs","steps":4}),
+        json!({"path":"assets/meshes/Example.epokasset","shape":"Stairs","steps":4}),
     )
     .unwrap();
     let hash = mcp_tools::revision(&e.scene);
-    mcp_tools::execute(&mut e,&mut state,"scene_apply",json!({"revision":hash,"operations":[{"op":"create","actor":{"name":"AI Stairs","editable_mesh":asset["component"]}}]})).unwrap();
+    mcp_tools::execute(&mut e,&mut state,"scene_apply",json!({"revision":hash,"operations":[{"op":"create","actor":{"name":"Example Stairs","editable_mesh":asset["component"]}}]})).unwrap();
     assert!(
         e.scene
             .actors

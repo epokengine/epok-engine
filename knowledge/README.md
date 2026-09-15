@@ -1,4 +1,4 @@
-# AI working context
+# Maintainer working context
 
 Write all Markdown in English. Keep internal context, investigation notes and
 handoffs and technical debt under `knowledge/`. Do not put agent handoffs,
@@ -6,7 +6,7 @@ acceptance investigations, unresolved regression analysis or implementation
 backlogs in `docs/`. Public documentation may remain under `docs/`, and
 README files may remain beside the components they describe.
 
-`docs/` is for people using Epok to make games. `knowledge/` is for AI agents
+`docs/` is for people using Epok to make games. `knowledge/` is for contributors
 and developers maintaining Epok itself. User-facing option descriptions and
 observable behavior belong in `docs/`; implementation contracts, diagnostic
 methodology, technical debt and continuation plans belong in `knowledge/`.
@@ -32,7 +32,7 @@ methodology, technical debt and continuation plans belong in `knowledge/`.
 - [Moving-route evidence](performance-route-validation.md) preserves the v12 comparison with the original engine; current-default activation failures are recorded in the current validation report.
 - [Technical debt](performance-debt.md), [implementation contracts](performance-implementation.md),
   [streaming internals](streaming-implementation.md) and [validation workflows](performance-testing.md)
-  provide the continuation context for future AI agents.
+  provide the continuation context for future maintainers.
 - [Runtime performance](../docs/performance.md), [streaming usage](../docs/streaming.md)
   and [project settings](../docs/settings.md) describe supported behavior.
 - Geometry Streaming and Precomputed Visibility remain experimental and disabled

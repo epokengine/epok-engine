@@ -1,6 +1,6 @@
 # Performance regression and diagnostic workflows
 
-Internal validation procedures for AI agents continuing the performance work.
+Internal validation procedures for contributors continuing the performance work.
 See [technical debt](performance-debt.md) for priorities and
 [current measurements](performance-validation.md) for recorded results.
 Run commands from the engine checkout and serialize all emulator runs.

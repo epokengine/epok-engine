@@ -20,6 +20,7 @@ pub fn pick(scene: &Scene, view: &View, pixel: [f32; 2]) -> Option<usize> {
         .actors
         .iter()
         .enumerate()
+        .filter(|(i, _)| scene.is_active(*i))
         .filter(|(_, e)| e.kind == "Mesh" || e.light.is_some())
         .filter_map(|(index, e)| {
             if e.kind != "Mesh" {
@@ -27,15 +28,34 @@ pub fn pick(scene: &Scene, view: &View, pixel: [f32; 2]) -> Option<usize> {
                 return (p[2] > 1. && (p[0] - pixel[0]).hypot(p[1] - pixel[1]) <= 10.)
                     .then_some((index, p[2] - 1.));
             }
-            let inverse = scene.world_matrix(index).inverse().ok()?;
+            let world = scene.world_matrix(index);
+            if e.skeletal_mesh.is_some() || e.editable_mesh.is_some() {
+                // Use the current posed surfaces, including inherited reflection
+                // and shear. A missing model must not become an invisible cube.
+                return crate::lighting::quads(e)
+                    .into_iter()
+                    .flat_map(|quad| {
+                        let p = quad.points.map(|p| world.point(p));
+                        [[p[0], p[1], p[2]], [p[0], p[2], p[3]]]
+                    })
+                    .filter_map(|p| {
+                        let normal = crate::mesh::cross(
+                            crate::lighting::sub(p[1], p[0]),
+                            crate::lighting::sub(p[2], p[0]),
+                        );
+                        if crate::lighting::dot(normal, direction) >= 0. {
+                            return None;
+                        }
+                        crate::mesh::hit(start, direction, p).filter(|d| *d <= 19999.)
+                    })
+                    .min_by(f32::total_cmp)
+                    .map(|depth| (index, depth));
+            }
+            let inverse = world.inverse().ok()?;
             // Transform the ray, not an enclosing world-space box: rotated and
             // sheared cubes are picked exactly, including inherited transforms.
             let origin = inverse.point(start);
             let direction = inverse.vector(direction);
-            if let Some(m) = &e.editable_mesh {
-                return crate::mesh::pick(m.document.as_deref()?, origin, direction, |_| true)
-                    .map(|(_, depth)| (index, depth));
-            }
             cube_hit(origin, direction).map(|depth| (index, depth))
         })
         .min_by(|a, b| a.1.total_cmp(&b.1).then(b.0.cmp(&a.0)))

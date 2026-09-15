@@ -220,7 +220,7 @@ struct PolygonEmitter {
   }
   // Retained slot: screen words every frame, colour words only when they changed.
   inline void retained_emit(uint32_t slot, const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c,
-                            const epok::RetainedQuad& rec, const uint32_t* colors, int ia, int ib, int ic) {
+                            const epok::RetainedQuad& rec, const uint32_t* colors, int corner_a, int ib, int ic) {
     const int depth = Units::bucket(a.camera[2], b.camera[2], c.camera[2]) + rec.depth_bias;
     if (depth < 0 || depth >= buckets) return;
     ++emitted; ++retained_emitted;
@@ -228,14 +228,14 @@ struct PolygonEmitter {
       auto& f = textured[slot];
       uint32_t* w = reinterpret_cast<uint32_t*>(&f.primitive);
       w[1] = a.screen.packed; w[4] = b.screen.packed; w[7] = c.screen.packed;
-      if (colors) { w[0] = rec.command | colors[ia]; w[3] = colors[ib]; w[6] = colors[ic]; }
+      if (colors) { w[0] = rec.command | colors[corner_a]; w[3] = colors[ib]; w[6] = colors[ic]; }
       table.insert(f, depth);
       return;
     }
     auto& f = gouraud[slot];
     uint32_t* w = reinterpret_cast<uint32_t*>(&f.primitive);
     w[1] = a.screen.packed; w[3] = b.screen.packed; w[5] = c.screen.packed;
-    if (colors) { w[0] = 0x30000000u | colors[ia]; w[2] = colors[ib]; w[4] = colors[ic]; }
+    if (colors) { w[0] = 0x30000000u | colors[corner_a]; w[2] = colors[ib]; w[4] = colors[ic]; }
     table.insert(f, depth);
   }
   // Software clipping stays out of line so the per-quad loop remains compact.
@@ -745,14 +745,14 @@ void GameScene::frame() {
         }
         static constexpr int corners[2][3] = {{0, 1, 2}, {0, 2, 3}};
         for (int t = 0; t < 2; ++t) {
-          const int ia = corners[t][0], ib = corners[t][1], ic = corners[t][2];
+          const int corner_a = corners[t][0], ib = corners[t][1], ic = corners[t][2];
           if (textured) {
             uint32_t* w = reinterpret_cast<uint32_t*>(&tex_frags[slot + t].primitive);
-            w[0] = rec.command | final[ia]; w[2] = uv[ia] | build_material.clut16; w[3] = final[ib];
+            w[0] = rec.command | final[corner_a]; w[2] = uv[corner_a] | build_material.clut16; w[3] = final[ib];
             w[5] = uv[ib] | build_material.tpage16; w[6] = final[ic]; w[8] = uv[ic];
           } else {
             uint32_t* w = reinterpret_cast<uint32_t*>(&gou_frags[slot + t].primitive);
-            w[0] = 0x30000000u | final[ia]; w[2] = final[ib]; w[4] = final[ic];
+            w[0] = 0x30000000u | final[corner_a]; w[2] = final[ib]; w[4] = final[ic];
           }
         }
       }

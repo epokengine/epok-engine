@@ -207,6 +207,7 @@ pub struct Editor {
     pub asset_inspector: crate::asset_inspector::State,
     pub drag_axis: Option<usize>,
     pub scene_click: crate::picking::ClickGesture,
+    pub scene_panel_size: [f32; 2],
     pub reveal_selected: bool,
     pub rename: Option<(usize, String)>,
     pub rename_focus: bool,
@@ -317,7 +318,6 @@ impl Editor {
         {
             editor.view = view;
             editor.selected = None;
-            editor.grid = false;
         }
         if let Some(pair) = std::env::args()
             .collect::<Vec<_>>()
@@ -658,6 +658,7 @@ impl Editor {
             asset_inspector: Default::default(),
             drag_axis: None,
             scene_click: Default::default(),
+            scene_panel_size: [960., 600.],
             reveal_selected: false,
             rename: None,
             rename_focus: false,
@@ -2553,19 +2554,40 @@ impl Editor {
             }
             "frame-selected" => {
                 if let Some(i) = self.selected {
-                    let scene = self.timeline_editor.scene_preview.scene.as_ref().filter(|_| self.timeline_editor.open && !self.playing).unwrap_or(&self.scene);
-                    let world = scene.world_matrix(i);
-                    if let Some(doc) = scene.actors[i]
-                        .editable_mesh
+                    let scene = self
+                        .timeline_editor
+                        .scene_preview
+                        .scene
                         .as_ref()
-                        .and_then(|m| m.document.as_ref())
+                        .filter(|_| self.timeline_editor.open && !self.playing)
+                        .unwrap_or(&self.scene);
+                    let world = scene.world_matrix(i);
+                    let points: Vec<_> = scene
+                        .actors
+                        .iter()
+                        .enumerate()
+                        .filter(|(index, actor)| {
+                            actor.kind == "Mesh"
+                                && scene.is_active(*index)
+                                && scene.is_descendant(*index, i)
+                        })
+                        .flat_map(|(index, actor)| {
+                            let world = scene.world_matrix(index);
+                            let points = if let Some(c) = &actor.skeletal_mesh {
+                                c.model
+                                    .as_ref()
+                                    .map(|m| m.points(c.clip, c.time, c.looping))
+                                    .unwrap_or_default()
+                            } else {
+                                crate::lighting::quads(actor)
+                                    .into_iter()
+                                    .flat_map(|q| q.points)
+                                    .collect()
+                            };
+                            points.into_iter().map(move |p| world.point(p))
+                        })
+                        .collect();
                     {
-                        let points = doc
-                            .faces
-                            .iter()
-                            .flat_map(|f| doc.points(f))
-                            .map(|p| world.point(p))
-                            .collect::<Vec<_>>();
                         if !points.is_empty() {
                             let low: [f32; 3] = std::array::from_fn(|c| {
                                 points.iter().map(|p| p[c]).fold(f32::INFINITY, f32::min)
@@ -2576,7 +2598,8 @@ impl Editor {
                                     .map(|p| p[c])
                                     .fold(f32::NEG_INFINITY, f32::max)
                             });
-                            self.view.frame_bounds(low, high);
+                            self.view
+                                .frame_bounds_in_panel(low, high, self.scene_panel_size);
                             self.view_dirty = true;
                             return;
                         }
@@ -2585,9 +2608,10 @@ impl Editor {
                     let extents: [f32; 3] = std::array::from_fn(|i| {
                         world.0[i][..3].iter().map(|v| v.abs()).sum::<f32>() * 0.5
                     });
-                    self.view.frame_bounds(
+                    self.view.frame_bounds_in_panel(
                         std::array::from_fn(|i| center[i] - extents[i]),
                         std::array::from_fn(|i| center[i] + extents[i]),
+                        self.scene_panel_size,
                     );
                     self.view_dirty = true;
                 }

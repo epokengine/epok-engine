@@ -2,11 +2,30 @@
 
 > **Header:** `"input.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/input.hpp)
 
-This module covers controller sampling and simulation-tick input edges. It documents 12 public callables declared directly in this header.
+This module covers controller sampling, analog axes and simulation-tick input edges. It documents 14 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::Button`, `epok::Input`
+`epok::Button`, `epok::Axis`, `epok::Input`
+
+## Analog axes
+
+```cpp
+bool analog(unsigned port=0) const;
+int16_t axis_raw(Axis axis,unsigned port=0) const;
+```
+
+`Axis` contains `LeftX`, `LeftY`, `RightX`, and `RightY`. Values use signed Q12
+(-4096 to +4096), positive right/up, with ADC 128 centered exactly at zero.
+There is no built-in dead zone. Digital or disconnected pads return zero, as do
+invalid ports or axis values. Both physical ports support analog stick and pad
+packets. Convert with `Fixed(input.axis_raw(Axis::LeftX), Fixed::RAW)` where the
+runtime fixed-point type is available. Apply a project-specific radial dead zone
+and diagonal limit before using the pair as a movement vector.
+
+`sample` accepts optional raw ADC bytes after the button mask. Their order is
+left X, left Y, right X, right Y; the polling adapter maps the hardware packet's
+right-first byte ordering. Existing three-argument digital calls remain valid.
 
 ## Callable index
 
@@ -475,7 +494,9 @@ object.reset();
 **Exact declaration**
 
 ```cpp
-void sample(unsigned port,bool connected,uint16_t held)
+void sample(unsigned port,bool connected,uint16_t held,bool analog=false,
+            uint8_t left_x=128,uint8_t left_y=128,
+            uint8_t right_x=128,uint8_t right_y=128)
 ```
 
 - **Declared at:** [line 23](../../../runtime/input.hpp#L23)

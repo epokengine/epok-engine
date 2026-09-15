@@ -73,7 +73,7 @@ After SDK setup, `python tools/extract_hud_font.py --check` verifies that the co
 
 After `cargo build --locked`, run `python tests/integration/mcp.py` to launch an isolated editor project and exercise HTTP/stdio negotiation, scene edits, Undo/Redo, camera changes, real Scene/HUD/editor screenshots and audio import. Add `--emulator` to compile and run the sample in PCSX-Redux, send controller input, Pause/Step, capture Game and Stop. `--editor <path>` selects an alternate binary, including a release build. These checks need a desktop GPU; the emulator option also requires SDK setup. Preferences and captures stay in the test's `.epok/mcp-integration-*/` directory, leaving the user's MCP preference unchanged.
 
-Unit tests also cover disabled defaults, key migration, port conflicts, Host/Origin/authentication rejection, listener shutdown, stale edits, atomic batch failure, file backups and cancelled/expired queued requests. `--screenshot-mcp-settings` opens the AI / MCP preference page for visual checks.
+Unit tests also cover disabled defaults, key migration, port conflicts, Host/Origin/authentication rejection, listener shutdown, stale edits, atomic batch failure, file backups and cancelled/expired queued requests. `--screenshot-mcp-settings` opens the Integrations / MCP preference page for visual checks.
 
 ## Native PSX checks
 

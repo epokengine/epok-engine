@@ -140,7 +140,7 @@ Pause/Resume controls execution. Step advances one VBlank and pauses the CPU aga
 
 The external debugger window is hidden after the first frame. Use Debugger or Window > Emulator Debugger to show it. Emulator audio remains handled by PCSX-Redux.
 
-For AI-assisted authoring, enable the optional local server in **Edit > Editor Preferences > AI / MCP**. It exposes scene/component edits, assets, source files, screenshots and emulator controls through MCP. It starts disabled; see [AI assistants / MCP](mcp.md) for connection configuration and revision/Undo behavior.
+For external authoring tools, enable the optional local server in **Edit > Editor Preferences > Integrations / MCP**. It exposes scene/component edits, assets, source files, screenshots and emulator controls through MCP. It starts disabled; see [Integrations / MCP](mcp.md) for connection configuration and revision/Undo behavior.
 
 ## Prototype limits
 

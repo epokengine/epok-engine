@@ -1,4 +1,4 @@
-# AI assistants / MCP
+# Integrations / MCP
 
 Epok exposes the open game project through the Model Context Protocol. An MCP client can inspect and edit scenes, components, assets and C++ scripts, control the editor and emulator, and receive PNG screenshots from the actual renderer.
 
@@ -7,14 +7,14 @@ Epok exposes the open game project through the Model Context Protocol. An MCP cl
 uploads a program. `editor_state.serial` reports the setup window, component
 directory, adapter and setup result; `play` uses the project's saved destination.
 
-The server is **off by default**. No AI account or provider SDK is needed.
+The server is **off by default**. No external account or provider SDK is needed.
 
 ## Connect
 
 1. Open a game project.
-2. Open **Edit > Editor Preferences > AI / MCP**.
+2. Open **Edit > Editor Preferences > Integrations / MCP**.
 3. Check **Enable MCP Server**, then **Apply**. Status should show `Listening`.
-4. Copy either client configuration and add it to your AI application's MCP settings.
+4. Copy either client configuration and add it to your client application's MCP settings.
 
 ![MCP preferences with the local server disabled by default](images/mcp-preferences.png)
 

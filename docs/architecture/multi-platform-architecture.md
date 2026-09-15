@@ -1,6 +1,6 @@
 # Epok Multi-Console Architecture Plan
 
-Navigate: [assessment](#2-current-epok-architecture-assessment) · [coupling register](#3-psx-specific-coupling-found) · [design](#6-proposed-layered-architecture) · [workspace](#7-proposed-rust-workspace--crate-layout) · [N64 roadmap](#18-n64-integration-roadmap) · [decisions](#21-architecture-decision-records) · [agent tasks](#22-concrete-implementation-tasks-for-ai-agents) · [sources](#evidence-and-source-register).
+Navigate: [assessment](#2-current-epok-architecture-assessment) · [coupling register](#3-psx-specific-coupling-found) · [design](#6-proposed-layered-architecture) · [workspace](#7-proposed-rust-workspace--crate-layout) · [N64 roadmap](#18-n64-integration-roadmap) · [decisions](#21-architecture-decision-records) · [implementation tasks](#22-concrete-implementation-tasks-for-maintainers) · [sources](#evidence-and-source-register).
 
 ## 1. Executive Summary
 
@@ -105,8 +105,8 @@ Hardware facts and SDK implementation choices must be kept distinct. The followi
 | Graphics work | CPU/GTE transforms; GPU consumes screen-space packets; ordering tables arrange painter ordering | RSP executes microcode; RDP rasterizes queued commands; software stack controls command/microcode format | Share scene/draw intent, not low-level commands or geometry stages. |
 | Visibility / depth | No conventional hardware depth buffer; affine texture mapping and explicit draw ordering | RDP supports depth buffering and perspective-correct texture mapping | Material/order policy must state semantic requirements and target fallbacks. Results need not be pixel-identical. |
 | Texture working set | VRAM allocation, texture pages and CLUTs; indexed 4/8-bit and direct 15-bit color representations | RDP texture memory is a small 4 KiB working store, loaded from RDRAM; formats and palette/tile restrictions apply | Offline texture partitioning and batching are different problems. Neither 256 pixels nor 4 KiB is a universal source-asset limit. |
-| DMA / visibility | GPU/SPU/CD transfers and packet lifetimes, PSX memory/bus rules | Cached/uncached aliases, cache-line maintenance and PI/RSP/RDP/AI transfers | Backend owns preparation, submission and retirement. `volatile` is insufficient for cache coherence. |
-| Audio | SPU voices and sample RAM; XA/CDDA use CD resources | AI consumes sample buffers; mixing/decoding may use CPU/RSP according to SDK | Expose logical playback; reserve queue time and buffers for the chosen native mixer. |
+| DMA / visibility | GPU/SPU/CD transfers and packet lifetimes, PSX memory/bus rules | Cached/uncached aliases, cache-line maintenance and peripheral/signal/display/audio transfers | Backend owns preparation, submission and retirement. `volatile` is insufficient for cache coherence. |
+| Audio | SPU voices and sample RAM; XA/CDDA use CD resources | The audio interface consumes sample buffers; mixing/decoding may use CPU/RSP according to SDK | Expose logical playback; reserve queue time and buffers for the chosen native mixer. |
 | Input / saves | Two controller connectors, optional multitap; cards share serial interface | Four controller connectors; accessories and cartridge save hardware vary | Device count and save availability are runtime observations constrained by the build profile. |
 | Bulk assets | CD sectors, seeks, media contention, optional executable residency or host dev transport | ROM/cartridge transfers, DragonFS or packaged ROM regions; flashcart extensions are optional | Separate logical asset source, packaging, physical reader and save storage. |
 | Boot / execution | PS-X executable or bootable disc; PsyQo/Nugget startup and linker conventions | ROM construction and SDK boot/startup/linker conventions | One native entry/startup owner per artifact; final link and packaging stay SDK-specific. |
@@ -801,7 +801,7 @@ All decisions below are proposed for implementation. Hardware/toolchain gates re
 
 **Future consequences:** One shared framework can become the default after parity; unsupported old direct-access APIs remain in a clearly bounded legacy profile until migrated.
 
-## 22. Concrete Implementation Tasks for AI Agents
+## 22. Concrete Implementation Tasks for Maintainers
 
 Each task is a separate reviewable change unless its description explicitly calls for an experiment/report. Proposed paths below do not imply files already exist. Resolve existing references against the baseline captured by T00. General constraints apply to **every** task: preserve unrelated working-tree changes; do not reformat unrelated files, update SDK pins incidentally, modify source assets in place, or call a test passed without executing it. Use disposable fixture copies. A task may report a failed gate with evidence; it may not mark a dependent milestone complete by changing the definition of success.
 

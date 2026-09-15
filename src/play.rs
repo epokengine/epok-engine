@@ -54,6 +54,12 @@ pub struct Profile {
     pub data: DataSource,
     pub selected_scenes: Vec<String>,
     pub initial_scene: Option<String>,
+    /// Opt-in analog first controller for emulator Play; physical hardware is unchanged.
+    #[serde(skip_serializing_if = "is_false")]
+    pub analog_controller: bool,
+}
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 impl Profile {
     pub fn normalize(&mut self) {
@@ -330,6 +336,21 @@ impl Serial {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn analog_controller_is_opt_in_and_round_trips() {
+        let mut profile: Profile = serde_json::from_str("{}").unwrap();
+        assert!(!profile.analog_controller);
+        assert!(
+            serde_json::to_value(&profile)
+                .unwrap()
+                .get("analog_controller")
+                .is_none()
+        );
+        profile.analog_controller = true;
+        let restored: Profile =
+            serde_json::from_value(serde_json::to_value(&profile).unwrap()).unwrap();
+        assert_eq!(restored, profile);
+    }
     #[test]
     fn selected_scene_initial_follows_next_included_and_empty_is_persistable() {
         let mut profile = Profile {

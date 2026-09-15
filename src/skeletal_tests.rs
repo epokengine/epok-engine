@@ -53,6 +53,77 @@ fn decoded() -> Model {
         materials: vec![],
     }
 }
+
+#[test]
+fn frame_selected_uses_animated_skeletal_bounds_and_parent_transform() {
+    let model = std::sync::Arc::new(decoded());
+    let mut editor = crate::editor::Editor::new(
+        std::env::temp_dir().join(format!("epok-frame-skin-{}", Uuid::new_v4())),
+    );
+    let mut parent = crate::scene::Actor::cube("Parent".into());
+    parent.kind = "Empty".into();
+    parent.position = [4., 2., -3.];
+    parent.rotation = [15., 35., -10.];
+    parent.scale = [1.3, 0.7, 1.1];
+    let mut actor = crate::scene::Actor::cube("Character".into());
+    actor.parent = Some(0);
+    actor.attach = Some(crate::actor_document::Attachment {
+        actor: parent.id,
+        component: None,
+    });
+    actor.position = [2., 1., 0.];
+    actor.rotation = [-5., 60., 12.];
+    actor.scale = [0.8, 1.7, 0.6];
+    let mut component = skeletal::Component::new(Uuid::new_v4());
+    component.model = Some(model.clone());
+    actor.skeletal_mesh = Some(component);
+    editor.scene.actors = vec![parent, actor];
+    editor.selected = Some(1);
+    for clip in [None, Some(model.clips[0].0)] {
+        for time in [0., 0.25, 0.75] {
+            let component = editor.scene.actors[1].skeletal_mesh.as_mut().unwrap();
+            component.clip = clip;
+            component.time = time;
+            let world = editor.scene.world_matrix(1);
+            let points: Vec<_> = model
+                .points(clip, time, true)
+                .into_iter()
+                .map(|p| world.point(p))
+                .collect();
+            let expected: [f32; 3] = std::array::from_fn(|axis| {
+                (points.iter().map(|p| p[axis]).fold(f32::INFINITY, f32::min)
+                    + points
+                        .iter()
+                        .map(|p| p[axis])
+                        .fold(f32::NEG_INFINITY, f32::max))
+                    * 0.5
+            });
+            let scene = editor.scene.clone();
+            for zoom in [0.3, 0.85, 3.5] {
+                editor.view.zoom = zoom;
+                editor.view.center = [-10., -10., -10.];
+                editor.view.yaw = 0.6;
+                editor.view.pitch = 0.3;
+                editor.action("frame-selected");
+                assert_eq!(editor.view.center, expected);
+                assert_eq!(editor.view.zoom, zoom);
+                assert_eq!(editor.view.yaw, 0.6);
+                assert_eq!(editor.view.pitch, 0.3);
+                for &point in &points {
+                    let pixel = crate::viewport::project(&editor.view, point);
+                    assert!(pixel[2] > 1.);
+                    assert!((0. ..960.).contains(&pixel[0]), "{pixel:?}");
+                    assert!((0. ..600.).contains(&pixel[1]), "{pixel:?}");
+                }
+                assert_eq!(
+                    editor.scene, scene,
+                    "Framing must not edit the actor or pose"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn fbx_quantized_skinning_matches_independent_ufbx_evaluation() {
     let model = decoded();
@@ -428,6 +499,102 @@ fn seam_actor(model: Model) -> crate::scene::Actor {
     component.model = Some(std::sync::Arc::new(model));
     actor.skeletal_mesh = Some(component);
     actor
+}
+
+#[test]
+fn skeletal_picking_follows_pose_surfaces_activity_and_inherited_transforms() {
+    let mut model = seam_model(false, None);
+    model.mesh.triangles[0].indices = [0, 2, 1];
+    model.mesh.triangles[1].indices = [0, 3, 2];
+    let clip = Uuid::new_v4();
+    let mut pose = identity_pose();
+    pose.translation[1] = 512;
+    let mut later = pose.clone();
+    later.translation[0] = 768;
+    model.clips.push((
+        clip,
+        skeletal::Clip {
+            skeleton: model.mesh.skeleton,
+            name: "Move".into(),
+            fps: 30,
+            frames: 2,
+            tracks: vec![vec![pose, later]],
+        },
+    ));
+    model.mesh.clips = vec![clip];
+    let mut parent = crate::scene::Actor::cube("Parent".into());
+    parent.kind = "Empty".into();
+    parent.position = [2., 0., 1.];
+    parent.rotation = [0., 25., 0.];
+    parent.scale = [1.5, 0.8, 1.];
+    let mut actor = seam_actor(model);
+    actor.parent = Some(0);
+    actor.position = [0.; 3];
+    actor.attach = Some(crate::actor_document::Attachment {
+        actor: parent.id,
+        component: None,
+    });
+    let c = actor.skeletal_mesh.as_mut().unwrap();
+    c.clip = Some(clip);
+    c.looping = false;
+    let mut scene = crate::scene::Scene {
+        actors: vec![parent, actor],
+        ..Default::default()
+    };
+    let view = crate::viewport::View {
+        yaw: 0.,
+        pitch: 0.,
+        ..Default::default()
+    };
+    let pixel = |point| {
+        let p = crate::viewport::project(&view, point);
+        [p[0], p[1]]
+    };
+    let world = scene.world_matrix(1);
+    let first = pixel(world.point([0., 2., 0.]));
+    let later = pixel(world.point([3., 2., 0.]));
+    assert_eq!(crate::picking::pick(&scene, &view, first), Some(1));
+    assert_eq!(
+        crate::picking::pick(&scene, &view, pixel(world.point([0.; 3]))),
+        None,
+        "No invisible pivot cube"
+    );
+    scene.actors[1].skeletal_mesh.as_mut().unwrap().time = 1. / 30.;
+    assert_eq!(crate::picking::pick(&scene, &view, first), None);
+    assert_eq!(crate::picking::pick(&scene, &view, later), Some(1));
+    scene.actors[0].active = false;
+    assert_eq!(crate::picking::pick(&scene, &view, later), None);
+    scene.actors[0].active = true;
+    scene.actors[1].skeletal_mesh.as_mut().unwrap().model = None;
+    assert_eq!(crate::picking::pick(&scene, &view, later), None);
+    assert_eq!(
+        crate::picking::pick(&scene, &view, pixel(world.point([0.; 3]))),
+        None
+    );
+}
+
+#[test]
+fn frame_selected_includes_skeletal_child_when_controller_root_is_selected() {
+    let mut model = seam_model(false, None);
+    model.skeleton.bones[0].bind.translation[1] = 512;
+    let mut root = crate::scene::Actor::cube("Controller".into());
+    root.kind = "Empty".into();
+    root.position = [4., 1., -2.];
+    let mut actor = seam_actor(model);
+    actor.parent = Some(0);
+    actor.position = [0.; 3];
+    actor.attach = Some(crate::actor_document::Attachment {
+        actor: root.id,
+        component: None,
+    });
+    let mut editor = crate::editor::Editor::new(
+        std::env::temp_dir().join(format!("epok-frame-root-{}", Uuid::new_v4())),
+    );
+    editor.scene.actors = vec![root, actor];
+    editor.selected = Some(0);
+    editor.scene_panel_size = [240., 900.];
+    editor.action("frame-selected");
+    assert_eq!(editor.view.center, [4., 3., -2.]);
 }
 
 #[test]

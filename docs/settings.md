@@ -134,10 +134,10 @@ Preferences are stored in the user's Epok data directory (`%LOCALAPPDATA%/Epok/E
 | --- | --- |
 | General / Viewports | Default grid visibility and flight speed |
 | General / Play | Integer scaling in Game and smoothing in the external emulator window |
-| General / AI / MCP | Enable the local MCP server, choose its port, rotate the access key and copy HTTP/stdio client configurations |
+| General / Integrations / MCP | Enable the local MCP server, choose its port, rotate the access key and copy HTTP/stdio client configurations |
 
 Applying viewport preferences updates the current view. A template's saved starting view can override the navigation defaults on opening. Integer scaling uses whole display-scale steps when space allows; smaller Game panels fit the image instead. Game always uses point filtering.
 
 **Smooth Image** controls PCSX-Redux's external debugger window and takes effect on the next Play. It is off by default to keep pixels crisp. Other emulator settings are preserved.
 
-**Enable MCP Server** is off by default. Apply starts or stops the server for the open project; MCP preferences can be applied while Play is running. The access key stays in local editor preferences. See [AI assistants / MCP](mcp.md) for available tools, screenshots and connection instructions.
+**Enable MCP Server** is off by default. Apply starts or stops the server for the open project; MCP preferences can be applied while Play is running. The access key stays in local editor preferences. See [Integrations / MCP](mcp.md) for available tools, screenshots and connection instructions.
