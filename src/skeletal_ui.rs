@@ -148,6 +148,34 @@ pub fn sample(e: &mut Editor) -> Result<(), String> {
     }
     Ok(())
 }
+/// Rewrite one Material asset in place. The stored package is the source of
+/// truth, so every field the model window does not expose (texture, blend,
+/// depth bias, UV scroll, unlit) survives an edit. The write keeps the caller's
+/// stale-revision protection and the payload is validated before it lands.
+pub fn edit_material(
+    path: &std::path::Path,
+    revision: &str,
+    edit: impl FnOnce(&mut crate::scene::Material),
+) -> Result<(assets::Metadata, String, crate::scene::Material), String> {
+    let mut package = assets::Package::load(path)?;
+    let skeletal::Data::Material(mut material) = skeletal::Data::parse(&package.source)? else {
+        return Err(format!(
+            "{} is not a Material asset",
+            path.file_name().unwrap_or_default().to_string_lossy()
+        ));
+    };
+    edit(&mut material);
+    crate::texture::validate_material(&material)?;
+    package.source = serde_json::to_vec(&skeletal::Data::Material(material))
+        .map_err(|e: serde_json::Error| e.to_string())?;
+    let skeletal::Data::Material(material) = skeletal::Data::parse(&package.source)? else {
+        unreachable!()
+    };
+    package.meta.source_hash = assets::hash(&package.source);
+    let bytes = package.bytes()?;
+    assets::atomic_write(path, &bytes, Some(revision))?;
+    Ok((package.meta, assets::hash(&bytes), material))
+}
 fn playback(ui: &Ui, c: &mut Component) {
     let Some(model) = &c.model else {
         return;
@@ -249,7 +277,7 @@ pub fn window(ui: &Ui, e: &mut Editor) {
             );
             crate::gui::muted(
                 ui,
-                "PSX preview: rigid weights, quantized poses, 30 Hz samples, flat colors",
+                "PSX preview: rigid weights, quantized poses, 30 Hz samples, assigned textures",
             );
             if ui.button(if s.playing {
                 "Pause preview"
@@ -277,6 +305,34 @@ pub fn window(ui: &Ui, e: &mut Editor) {
             }
             ui.same_line();
             crate::gui::muted(ui, "Drag preview to orbit");
+            // Host preview textures come from the shared asset preview cache,
+            // which the editor loop uploads to the imgui renderer each frame.
+            e.project_browser
+                .previews
+                .ensure_project(&e.root, &e.assets.index);
+            let mut slot_textures = vec![None; m.materials.len()];
+            for (slot, material) in m.materials.iter().enumerate() {
+                let Some(texture) = material.texture else {
+                    continue;
+                };
+                let Some((path, revision)) = e
+                    .assets
+                    .index
+                    .resolve(texture)
+                    .ok()
+                    .map(|r| (r.path.clone(), r.revision.clone()))
+                else {
+                    continue;
+                };
+                e.project_browser.previews.request(&path, &revision);
+                if let Some(crate::content_preview::Preview::Image {
+                    texture: Some(handle),
+                    ..
+                }) = e.project_browser.previews.get(&path)
+                {
+                    slot_textures[slot] = Some(*handle);
+                }
+            }
             let origin = ui.cursor_screen_pos();
             let size = [
                 ui.content_region_avail()[0].max(1.),
@@ -331,9 +387,23 @@ pub fn window(ui: &Ui, e: &mut Editor) {
                 for (_, t, p) in faces {
                     let mat = &m.materials[t.material as usize];
                     let color = [mat.color[0], mat.color[1], mat.color[2], 1.];
-                    dl.add_triangle(p[0].0, p[1].0, p[2].0, color)
-                        .filled(true)
-                        .build();
+                    match slot_textures[t.material as usize] {
+                        // The fourth corner repeats the third, so the quad's
+                        // second triangle is degenerate and only the authored
+                        // corner coordinates are sampled.
+                        Some(handle) => {
+                            let uv = crate::skeletal::corner_uv(t);
+                            dl.add_image_quad(handle, p[0].0, p[1].0, p[2].0, p[2].0)
+                                .uv(uv[0], uv[1], uv[2], uv[2])
+                                .col(color)
+                                .build();
+                        }
+                        None => {
+                            dl.add_triangle(p[0].0, p[1].0, p[2].0, color)
+                                .filled(true)
+                                .build();
+                        }
+                    }
                     dl.add_triangle(p[0].0, p[1].0, p[2].0, [0.1, 0.12, 0.15, 0.5])
                         .build();
                 }
@@ -358,45 +428,46 @@ pub fn window(ui: &Ui, e: &mut Editor) {
                     ui.text(format!("{i}: {}  (parent {})", b.name, b.parent));
                 }
             }
-            if let Some(_tree) = ui.tree_node("Material colors") {
+            if let Some(_tree) = ui.tree_node("Materials") {
+                crate::gui::muted(
+                    ui,
+                    "Texture images are assigned here; imported coordinates stay with the mesh.",
+                );
                 for (slot, id) in m.mesh.materials.iter().enumerate() {
-                    let mut color = m.materials[slot].color;
-                    if ui.color_edit3(format!("Color {slot}"), &mut color)
-                        && let Ok(record) = e.assets.index.resolve(*id).cloned()
-                    {
-                        let result = (|| {
-                            let mut p = assets::Package::load(&record.path)?;
-                            p.source = serde_json::to_vec(&skeletal::Data::Material(
-                                crate::scene::Material {
-                                    color,
-                                    unlit: true,
-                                    ..Default::default()
-                                },
-                            ))
-                            .map_err(|e| e.to_string())?;
-                            p.meta.source_hash = assets::hash(&p.source);
-                            let bytes = p.bytes()?;
-                            assets::atomic_write(&record.path, &bytes, Some(&record.revision))?;
-                            Ok::<_, String>((p.meta, assets::hash(&bytes)))
-                        })();
-                        match result {
-                            Ok((meta, revision)) => {
-                                if let Some(records) = e.assets.index.assets.get_mut(id) {
-                                    for r in records {
-                                        if r.path == record.path {
-                                            r.meta = meta.clone();
-                                            r.revision = revision.clone();
-                                        }
+                    let _id = ui.push_id_usize(slot);
+                    ui.text(format!("Slot {slot}"));
+                    let mut edited = m.materials[slot].clone();
+                    let mut changed = ui.color_edit3("Color", &mut edited.color);
+                    changed |= crate::texture::picker(ui, &e.assets.index, &mut edited);
+                    if !changed {
+                        continue;
+                    }
+                    let Ok(record) = e.assets.index.resolve(*id).cloned() else {
+                        continue;
+                    };
+                    match edit_material(&record.path, &record.revision, |material| {
+                        material.color = edited.color;
+                        material.texture = edited.texture;
+                        material.blend = edited.blend;
+                        material.depth_bias = edited.depth_bias;
+                        material.uv_scroll = edited.uv_scroll;
+                    }) {
+                        Ok((meta, revision, material)) => {
+                            if let Some(records) = e.assets.index.assets.get_mut(id) {
+                                for r in records {
+                                    if r.path == record.path {
+                                        r.meta = meta.clone();
+                                        r.revision = revision.clone();
                                     }
                                 }
-                                e.assets.refresh();
-                                s.error = None;
-                                let mut updated = (*m).clone();
-                                updated.materials[slot].color = color;
-                                c.model = Some(Arc::new(updated));
                             }
-                            Err(error) => s.error = Some(error),
+                            e.assets.refresh();
+                            s.error = None;
+                            let mut updated = (*m).clone();
+                            updated.materials[slot] = material;
+                            c.model = Some(Arc::new(updated));
                         }
+                        Err(error) => s.error = Some(error),
                     }
                 }
             }

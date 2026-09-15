@@ -366,19 +366,19 @@ fn import_dialog(ui: &Ui, m: &mut Manager) {
             .size([680.,380.],Condition::FirstUseEver).size_constraints([520.,300.],[1600.,1000.]).build(||{
             let form=m.form.as_mut().unwrap();
             ui.text("FBX -> PlayStation skeletal assets");
-            ui.text_wrapped("512 vertices / 1024 triangles / 64 bones and helpers. Strongest weight per vertex. Clips sampled at 30 Hz; flat diffuse colors.");
+            ui.text_wrapped("512 vertices / 1024 triangles / 64 bones and helpers. Strongest weight per vertex. Clips sampled at 30 Hz. Texture coordinates are imported; assign Texture assets to the material slots afterwards.");
             ui.disabled(m.busy,||{
                 ui.disabled(form.snapshot,||{ui.input_text(crate::gui::field(ui, "Source"),&mut form.source).build();});
                 ui.disabled(form.existing.is_some(),||{ui.input_text(crate::gui::field(ui, "Model asset"),&mut form.destination).build();});
                 let storage_label = match form.model_storage {
-                    crate::skeletal::AnimationStorage::RigidGte => "Rigid bones (fastest)",
+                    crate::skeletal::AnimationStorage::RigidGte => "Rigid bones (smallest)",
                     crate::skeletal::AnimationStorage::BakedVertices => "Baked vertex frames",
                 };
                 if let Some(_combo) = ui.begin_combo(
                     crate::gui::field(ui, "PSX animation"),
                     storage_label,
                 ) {
-                    if ui.selectable_config("Rigid bones (fastest)")
+                    if ui.selectable_config("Rigid bones (smallest)")
                         .selected(form.model_storage == crate::skeletal::AnimationStorage::RigidGte)
                         .build()
                     {

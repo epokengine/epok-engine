@@ -12,6 +12,14 @@ use std::{
 };
 use uuid::Uuid;
 
+/// Manifest entries are identities and are never removed: renaming a clip or a
+/// material retires the old entry so existing scenes keep resolving. One
+/// import at the payload limits occupies 1 skeleton + 1 mesh + 64 material
+/// slots + 1 default material + 32 clips = 99 entries, so the bound must leave
+/// room for several later generations of renamed subassets rather than just
+/// one. 512 allows five such full generations.
+pub const MAX_OUTPUTS: usize = 512;
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Output {
@@ -39,7 +47,7 @@ impl Default for Settings {
 }
 impl Settings {
     pub fn validate(&self) -> Result<(), String> {
-        if self.version != 1 || self.outputs.len() > 128 || self.warnings.len() > 64 {
+        if self.version != 1 || self.outputs.len() > MAX_OUTPUTS || self.warnings.len() > 64 {
             return Err("Unsupported FBX settings".into());
         }
         let mut ids = BTreeSet::new();
@@ -397,9 +405,39 @@ pub fn decode(bytes: &[u8], settings: &mut Settings) -> Result<Imported, String>
                 .unwrap_or(default_index) as u16;
             for t in tri_indices[..count * 3].chunks_exact(3) {
                 // FBX winding converted to the renderer's clockwise front faces.
-                let indices = [t[0], t[2], t[1]]
-                    .map(|i| (offset + m.vertex_indices[i as usize] as usize) as u16);
-                mesh.triangles.push(Triangle { indices, material });
+                let corners = [t[0], t[2], t[1]];
+                let indices =
+                    corners.map(|i| (offset + m.vertex_indices[i as usize] as usize) as u16);
+                // FBX stores v from the bottom edge upwards; the texture
+                // importer keeps PNG row 0 (the top row) at v = 0 and the
+                // target page mapping scales v downwards from it, so the
+                // vertical axis is inverted once here, at import.
+                let uv = m
+                    .vertex_uv
+                    .exists
+                    .then(|| -> Result<[[f32; 2]; 3], String> {
+                        let mut out = [[0.; 2]; 3];
+                        for (slot, corner) in corners.iter().enumerate() {
+                            let value = ufbx::get_vertex_vec2(&m.vertex_uv, *corner as usize);
+                            out[slot] = [value.x as f32, 1. - value.y as f32];
+                            if out[slot]
+                                .iter()
+                                .any(|v| !v.is_finite() || !(0. ..=1.).contains(v))
+                            {
+                                return Err(format!(
+                                    "Mesh '{}' has texture coordinates outside 0..1; unwrap it into atlas space before exporting",
+                                    m.element.name
+                                ));
+                            }
+                        }
+                        Ok(out)
+                    })
+                    .transpose()?;
+                mesh.triangles.push(Triangle {
+                    indices,
+                    material,
+                    uv,
+                });
             }
         }
     }
@@ -413,11 +451,21 @@ pub fn decode(bytes: &[u8], settings: &mut Settings) -> Result<Imported, String>
     }
     if !scene.textures.is_empty() {
         warnings.push(
-            "Texture references are not imported yet; materials use flat diffuse colors.".into(),
+            "Texture images are not read from the model file; assign a Texture asset to each material slot in the model window."
+                .into(),
         );
     }
-    if scene.anim_stacks.len() > 16 {
-        return Err("Maximum 16 animation clips per model".into());
+    if mesh.triangles.iter().all(|t| t.uv.is_none()) {
+        warnings.push(
+            "No texture coordinates were found; assigned textures will need a UV set on reimport."
+                .into(),
+        );
+    }
+    if scene.anim_stacks.len() > skeletal::MAX_CLIPS {
+        return Err(format!(
+            "Maximum {} animation clips per model",
+            skeletal::MAX_CLIPS
+        ));
     }
     let mut clip_names = BTreeSet::new();
     let mut pose_bytes = 0;

@@ -884,7 +884,22 @@ void GameScene::frame() {
         continue;
       }
       const auto& mesh = bounds_mesh;
-      if(baked_vertices&&!baked_vertices_ready){const uint16_t begin=COUNTERS[1].value;epok::skeletal_detail::scratch.decode_vertices(*object.animator.model,object.animator);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);performance_work.skeletal_decoded_vertices+=mesh.vertex_count;baked_vertices_ready=true;}
+      if(baked_vertices&&!baked_vertices_ready){
+        // decode_vertices() returns the bind positions untouched when the animator
+        // has no valid clip or the clip carries no encoded vertex frames (see
+        // runtime/skeletal.hpp). Mirror that condition here so the counter reports
+        // coordinates that were actually decoded from a clip frame, not the
+        // per-vertex cost of a model that is only showing its bind pose.
+        const auto& animator=object.animator;const auto& model=*animator.model;
+        const epok::AnimationClip* const decoded_clip=
+            animator.clip>=0&&size_t(animator.clip)<model.clip_count?&model.clips[animator.clip]:nullptr;
+        const bool frame_decoded=decoded_clip&&decoded_clip->vertex_frames&&decoded_clip->vertex_data;
+        const uint16_t begin=COUNTERS[1].value;
+        epok::skeletal_detail::scratch.decode_vertices(model,animator);
+        performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);
+        if(frame_decoded)performance_work.skeletal_decoded_vertices+=mesh.vertex_count;
+        baked_vertices_ready=true;
+      }
       if(cpu_rigid&&!skeletal_pose_ready){const uint16_t begin=COUNTERS[1].value;epok::skeletal_detail::scratch.pose(*object.animator.model,object.animator);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);performance_work.skeletal_bone_matrices+=object.animator.model->bone_count;performance_work.skeletal_cpu_vertices+=mesh.vertex_count;skeletal_pose_ready=true;}
       const auto* mesh_vertices = (baked_vertices||cpu_rigid)?epok::skeletal_detail::scratch.geometry.vertices:mesh_view.vertices;
       const auto* mesh_quads = mesh_view.quads;

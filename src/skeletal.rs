@@ -10,6 +10,11 @@ use uuid::Uuid;
 pub const MAX_BONES: usize = 64;
 pub const MAX_VERTICES: usize = 512;
 pub const MAX_TRIANGLES: usize = 1024;
+pub const MAX_MATERIALS: usize = 64;
+/// Clips referenced by one skeletal mesh. Raising this only costs generated
+/// descriptor bytes, which `skeletal_compile::budget` accounts for explicitly
+/// against the same 512 KiB animation budget.
+pub const MAX_CLIPS: usize = 32;
 pub const MAX_CLIP_BYTES: usize = 512 * 1024;
 
 /// Target-side representation selected per imported model. Both modes retain
@@ -88,6 +93,12 @@ pub struct Vertex {
 pub struct Triangle {
     pub indices: [u16; 3],
     pub material: u16,
+    /// Normalized atlas coordinates, one pair per corner in `indices` order.
+    /// `None` marks a legacy or unmapped triangle. Vertical convention: v = 0
+    /// is the top row of the source image, matching the texture importer's PNG
+    /// row order and the target page mapping.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uv: Option<[[f32; 2]; 3]>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Mesh {
@@ -147,10 +158,12 @@ impl Data {
                     || m.triangles.is_empty()
                     || m.triangles.len() > MAX_TRIANGLES
                     || m.materials.is_empty()
-                    || m.materials.len() > 64
-                    || m.clips.len() > 16
+                    || m.materials.len() > MAX_MATERIALS
+                    || m.clips.len() > MAX_CLIPS
                 {
-                    return Err("Skeletal mesh exceeds limits: 512 vertices / 1024 triangles / 64 materials / 16 clips".into());
+                    return Err(format!(
+                        "Skeletal mesh exceeds limits: {MAX_VERTICES} vertices / {MAX_TRIANGLES} triangles / {MAX_MATERIALS} materials / {MAX_CLIPS} clips"
+                    ));
                 }
                 if m.vertices.iter().any(|v| v.bone as usize >= MAX_BONES)
                     || m.triangles.iter().any(|t| {
@@ -160,6 +173,17 @@ impl Data {
                     || m.materials.iter().chain(&m.clips).any(Uuid::is_nil)
                 {
                     return Err("Invalid skeletal mesh references or indices".into());
+                }
+                if m.triangles.iter().any(|t| {
+                    t.uv.iter()
+                        .flatten()
+                        .flatten()
+                        .any(|v| !v.is_finite() || !(0. ..=1.).contains(v))
+                }) {
+                    return Err(
+                        "Skeletal triangle texture coordinates must be finite and normalized to 0..1 within an atlas"
+                            .into(),
+                    );
                 }
             }
             Self::AnimationClip(c) => {
@@ -252,6 +276,16 @@ impl Model {
                 unreachable!()
             };
             materials.push(m);
+        }
+        // Textured slots need authored corner coordinates; an untextured slot
+        // may legitimately keep flat-colored triangles without them.
+        for (i, t) in mesh.triangles.iter().enumerate() {
+            if t.uv.is_none() && materials[t.material as usize].texture.is_some() {
+                return Err(format!(
+                    "Triangle {i} uses textured material slot {} but has no texture coordinates; reimport the model with a UV set",
+                    t.material
+                ));
+            }
         }
         Ok(Self {
             mesh,
@@ -385,6 +419,14 @@ pub fn resolve(scene: &mut Scene, index: &Index) -> Result<(), String> {
         Err(errors.join("\n"))
     }
 }
+/// Expand a triangle's stored corner coordinates into the four-corner quad the
+/// renderer and the generated tables use; the fourth corner repeats the third.
+pub fn corner_uv(t: &Triangle) -> [[f32; 2]; 4] {
+    match t.uv {
+        Some([a, b, c]) => [a, b, c, c],
+        None => [[0., 0.], [1., 0.], [1., 1.], [1., 1.]],
+    }
+}
 pub fn quads(c: &Component) -> Vec<crate::lighting::Quad> {
     let Some(m) = &c.model else {
         return vec![];
@@ -397,7 +439,7 @@ pub fn quads(c: &Component) -> Vec<crate::lighting::Quad> {
             let [a, b, d] = t.indices.map(|v| vertices[v as usize]);
             let points = [a, b, d, d];
             crate::lighting::Quad {
-                uv: [[0., 0.], [1., 0.], [1., 1.], [1., 1.]],
+                uv: corner_uv(t),
                 face: 0,
                 normal: crate::mesh::face_normal(points),
                 points,

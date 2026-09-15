@@ -4,6 +4,22 @@
 namespace epok {
 // Shared scratch, reused between visible characters. RigidGte never writes vertices;
 // BakedVertices decodes a single frame here, and CpuRigid is the lit-material fallback.
+// The editor's table generator sizes every emitted array with these exact
+// numbers (see src/skeletal_compile.rs). Assert the MIPS layout here so a
+// change to any runtime struct fails the target build instead of silently
+// invalidating the reported budget.
+static_assert(sizeof(BonePose)==20,"BonePose layout changed; update the editor's size constants");
+static_assert(sizeof(Bone)==22,"Bone layout changed; update the editor's size constants");
+static_assert(sizeof(BoneTrack)==8,"BoneTrack layout changed; update the editor's size constants");
+static_assert(sizeof(VertexFrame)==8,"VertexFrame layout changed; update the editor's size constants");
+static_assert(sizeof(AnimationClip)==20,"AnimationClip layout changed; update the editor's size constants");
+static_assert(sizeof(Material)==24,"Material layout changed; update the editor's size constants");
+static_assert(sizeof(MeshQuad)==72,"MeshQuad layout changed; update the editor's size constants");
+static_assert(sizeof(MeshGeometry)==72,"MeshGeometry layout changed; update the editor's size constants");
+static_assert(sizeof(SkeletalMesh)==32,"SkeletalMesh layout changed; update the editor's size constants");
+static_assert(sizeof(Animator)==20,"Animator layout changed; update the editor's size constants");
+static_assert(sizeof(Affine<Fixed>)==48,"Affine<Fixed> layout changed; update the editor's size constants");
+
 namespace skeletal_detail {
 inline Affine<Fixed> pose_matrix(const BonePose& p) {
     Fixed x(p.rotation[0],Fixed::RAW),y(p.rotation[1],Fixed::RAW),z(p.rotation[2],Fixed::RAW),w(p.rotation[3],Fixed::RAW);
@@ -65,6 +81,7 @@ struct Scratch {
         pose_bones(model,animator);skin_vertices(model);
     }
 };
+static_assert(sizeof(Scratch)==64*48+512*6+72,"Shared skeletal scratch layout changed; update the editor's size constants");
 inline Scratch scratch;
 }
 }

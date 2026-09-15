@@ -271,7 +271,7 @@ pub fn scene_header_with_registry(
                 skeletal_assets.entry(c.asset)
         {
             entry.insert(i);
-            text.push_str(&crate::skeletal_compile::header(e, i)?);
+            text.push_str(&crate::skeletal_compile::header_with_pages(e, i, &pages)?);
         }
     }
     text.push_str("}\n");
