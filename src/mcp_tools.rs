@@ -904,6 +904,17 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
             } else {
                 Default::default()
             };
+            let model_storage = if let Some(value) = a.get("animation_storage") {
+                decode(value.clone())?
+            } else {
+                existing
+                    .as_ref()
+                    .and_then(|r| match &r.meta.settings {
+                        crate::import_settings::Settings::Fbx(s) => Some(s.animation_storage),
+                        _ => None,
+                    })
+                    .unwrap_or_default()
+            };
             let detected = assets::audio_source_kind(&e.root, &source);
             let soundfont = crate::soundfont_asset::has_source_header(&e.root.join(&source));
             e.assets.form = Some(crate::asset_manager::ImportForm {
@@ -977,6 +988,7 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                 sequence_catalog: None,
                 texture: source.to_ascii_lowercase().ends_with(".png"),
                 model,
+                model_storage,
                 source,
                 destination,
                 settings,
@@ -1478,8 +1490,8 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
         ),
         (
             "asset_import",
-            "Import an FBX or audio source already in assets/. Destination must be .epokasset. Reimport requires current asset revision. Poll editor_state for completion.",
-            json!({"source":s,"destination":s,"revision":s,"audio_settings":o,"sequence_settings":o,"bank_settings":o,"vb_source":s}),
+            "Import an FBX or audio source already in assets/. FBX animation_storage selects RigidGte or BakedVertices. Destination must be .epokasset. Reimport requires current asset revision. Poll editor_state for completion.",
+            json!({"source":s,"destination":s,"revision":s,"animation_storage":{"enum":["RigidGte","BakedVertices"]},"audio_settings":o,"sequence_settings":o,"bank_settings":o,"vb_source":s}),
             vec!["source", "destination"],
             false,
         ),

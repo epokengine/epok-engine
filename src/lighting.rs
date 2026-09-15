@@ -91,6 +91,19 @@ impl Default for Settings {
 pub struct Bake {
     pub fingerprint: u64,
     pub colors: Vec<Vec<[u8; 3]>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub actor_ids: Vec<uuid::Uuid>,
+}
+impl Bake {
+    /// Stale colors are intentionally retained until an explicit build. Match
+    /// by identity so removing/reordering actors cannot transfer their lighting.
+    pub fn preview_colors(&self, actor: uuid::Uuid, vertices: usize) -> Option<&[[u8; 3]]> {
+        let index = self.actor_ids.iter().position(|id| *id == actor)?;
+        self.colors
+            .get(index)
+            .filter(|colors| colors.len() == vertices)
+            .map(Vec::as_slice)
+    }
 }
 pub const CORNERS: [[f32; 3]; 8] = [
     [-0.5, -0.5, -0.5],
@@ -266,14 +279,25 @@ pub fn fingerprint(scene: &Scene) -> u64 {
     hash.finish()
 }
 pub fn valid_bake(scene: &Scene) -> bool {
-    scene.bake.as_ref().is_some_and(|b| {
-        b.fingerprint == fingerprint(scene)
-            && b.colors.len() == scene.actors.len()
-            && b.colors
+    scene
+        .bake
+        .as_ref()
+        .is_some_and(|b| bake_matches(scene, b, fingerprint(scene)))
+}
+fn bake_matches(scene: &Scene, bake: &Bake, fingerprint: u64) -> bool {
+    bake.fingerprint == fingerprint
+        && bake.colors.len() == scene.actors.len()
+        && (bake.actor_ids.is_empty()
+            || bake
+                .actor_ids
                 .iter()
-                .zip(&scene.actors)
-                .all(|(c, e)| c.len() == if baked(e) { quad_count(e) * 4 } else { 0 })
-    })
+                .copied()
+                .eq(scene.actors.iter().map(|e| e.id)))
+        && bake
+            .colors
+            .iter()
+            .zip(&scene.actors)
+            .all(|(c, e)| c.len() == if baked(e) { quad_count(e) * 4 } else { 0 })
 }
 pub fn baked(e: &Actor) -> bool {
     e.kind == "Mesh"
@@ -349,6 +373,13 @@ struct Caster {
 }
 impl Lighting {
     pub fn new(scene: &Scene) -> Self {
+        Self::with_shadows(scene, true)
+    }
+    /// Interactive shading never rebuilds static shadows or their ray geometry.
+    pub fn unshadowed(scene: &Scene) -> Self {
+        Self::with_shadows(scene, false)
+    }
+    fn with_shadows(scene: &Scene, shadows: bool) -> Self {
         Self {
             sources: scene
                 .actors
@@ -370,7 +401,10 @@ impl Lighting {
                 .iter()
                 .enumerate()
                 .filter(|(_, e)| {
-                    e.kind == "Mesh" && e.lighting.static_geometry && e.lighting.cast_shadows
+                    shadows
+                        && e.kind == "Mesh"
+                        && e.lighting.static_geometry
+                        && e.lighting.cast_shadows
                 })
                 .filter_map(|(i, e)| {
                     scene.world_matrix(i).inverse().ok().map(|m| Caster {
@@ -523,6 +557,9 @@ impl Lighting {
 }
 pub fn bake(scene: &Scene) -> Result<Bake, String> {
     scene.validate()?;
+    Ok(sample_bake(scene, fingerprint(scene)))
+}
+fn sample_bake(scene: &Scene, fingerprint: u64) -> Bake {
     let lighting = Lighting::new(scene);
     let mut colors = vec![Vec::new(); scene.actors.len()];
     for (i, e) in scene.actors.iter().enumerate().filter(|(_, e)| baked(e)) {
@@ -534,10 +571,11 @@ pub fn bake(scene: &Scene) -> Result<Bake, String> {
             }
         }
     }
-    Ok(Bake {
-        fingerprint: fingerprint(scene),
+    Bake {
+        fingerprint,
         colors,
-    })
+        actor_ids: scene.actors.iter().map(|e| e.id).collect(),
+    }
 }
 pub fn modulate(light: [u8; 3], color: [f32; 3]) -> [u8; 3] {
     std::array::from_fn(|c| {
@@ -546,8 +584,117 @@ pub fn modulate(light: [u8; 3], color: [f32; 3]) -> [u8; 3] {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    pub(crate) fn shadow_scene() -> Scene {
+        let mut scene = Scene::default();
+        scene.environment.ambient = [0.1; 3];
+        for i in 1..=3 {
+            scene.actors[i].lighting.static_geometry = true;
+            scene.actors[i].lighting.receive = Receive::Baked;
+        }
+        scene.actors[1].position = [-1.4, 0.5, 0.];
+        scene.actors[2].position = [1.4, 0.5, 0.];
+        let mut sun = Actor::cube("Sun".into());
+        sun.kind = "Empty".into();
+        sun.rotation = [90., 0., 0.];
+        sun.light = Some(Light {
+            mode: LightMode::Mixed,
+            ..Default::default()
+        });
+        scene.actors.push(sun);
+        scene.bake = Some(bake(&scene).unwrap());
+        scene
+    }
+
+    #[test]
+    fn preview_retains_baked_shadows_until_an_explicit_rebuild() {
+        let mut scene = shadow_scene();
+        let original = scene.bake.clone().unwrap();
+        let floor = scene.actors[3].id;
+        let vertices = quad_count(&scene.actors[3]) * 4;
+        scene.actors[1].lighting.static_geometry = false;
+        scene.actors[1].lighting.receive = Receive::Realtime;
+        assert!(!valid_bake(&scene));
+        let cached = scene
+            .bake
+            .as_ref()
+            .unwrap()
+            .preview_colors(floor, vertices)
+            .unwrap();
+        assert_eq!(cached, original.colors[3]);
+        assert_ne!(
+            cached,
+            bake(&scene).unwrap().colors[3],
+            "Preview must not recompute shadows after an edit"
+        );
+        assert!(
+            Lighting::unshadowed(&scene).casters.is_empty(),
+            "Interactive rendering must not build ray geometry"
+        );
+        assert_eq!(scene.bake.as_ref().unwrap(), &original);
+        scene.bake = Some(bake(&scene).unwrap());
+        assert!(valid_bake(&scene));
+        assert_ne!(scene.bake.as_ref().unwrap().colors[3], original.colors[3]);
+    }
+
+    #[test]
+    fn stale_colors_follow_actor_identity_and_require_matching_vertex_counts() {
+        let mut scene = shadow_scene();
+        let original = scene.bake.clone().unwrap();
+        let floor = scene.actors[3].id;
+        let vertices = quad_count(&scene.actors[3]) * 4;
+        scene.actors.swap(1, 3);
+        scene.actors.remove(2);
+        scene.actors.push(Actor::cube("New cube".into()));
+        assert!(!valid_bake(&scene));
+        let cache = scene.bake.as_ref().unwrap();
+        assert_eq!(
+            cache.preview_colors(floor, vertices).unwrap(),
+            original.colors[3]
+        );
+        assert!(
+            cache
+                .preview_colors(scene.actors.last().unwrap().id, 24)
+                .is_none()
+        );
+        assert!(cache.preview_colors(floor, vertices + 4).is_none());
+        scene.bake.as_mut().unwrap().colors[3].pop();
+        assert!(
+            scene
+                .bake
+                .as_ref()
+                .unwrap()
+                .preview_colors(floor, vertices)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn legacy_bake_positions_are_bound_once_when_loading_the_scene() {
+        let scene = shadow_scene();
+        let mut document = serde_json::to_value(&scene).unwrap();
+        document["bake"]
+            .as_object_mut()
+            .unwrap()
+            .remove("actor_ids");
+        let mut copy: Scene = serde_json::from_value(document).unwrap();
+        assert!(valid_bake(&copy));
+        let floor = copy.actors[3].id;
+        copy.actors.swap(1, 3);
+        let vertices = quad_count(&copy.actors[1]) * 4;
+        assert_eq!(
+            copy.bake
+                .as_ref()
+                .unwrap()
+                .preview_colors(floor, vertices)
+                .unwrap(),
+            scene.bake.as_ref().unwrap().colors[3]
+        );
+        let reloaded: Scene = serde_json::from_value(serde_json::to_value(&copy).unwrap()).unwrap();
+        assert_eq!(reloaded.bake, copy.bake);
+    }
     #[test]
     fn baked_point_gradient_and_parent_invalidation() {
         let mut s = Scene::default();

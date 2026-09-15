@@ -194,6 +194,62 @@ impl ClassModel {
     }
 }
 
+/// How a script body reaches the transform of the actor it belongs to. It is
+/// the same root-component transform the Blueprint Get/Set Position, Rotation
+/// and Scale nodes address, so both authoring surfaces stay equivalent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TransformAccess {
+    /// `World3D` (Vector{3} position/rotation/scale) or `World2D`
+    /// (Vector{2} position/scale, scalar `Fixed` rotation).
+    pub domain: Domain,
+    /// Components address their owner; actors address themselves.
+    pub through_owner: bool,
+}
+
+/// Family, domain and component `Owners` of `cpp_name`, inherited the way
+/// `Model::from_registry` inherits them but without resolving the whole graph:
+/// the nearest declaring ancestor wins for each.
+pub fn resolved_shape(
+    registry: &blueprint::Registry,
+    cpp_name: &str,
+) -> (ClassFamily, Domain, BTreeSet<Domain>) {
+    let (mut family, mut domain) = (ClassFamily::Object, Domain::None);
+    let mut owners = BTreeSet::new();
+    for class in registry.ancestry(cpp_name) {
+        if let Some(declared) = class.family {
+            family = declared;
+        }
+        if let Some(declared) = class.domain {
+            domain = declared;
+        }
+        if let Some(contract) = &class.component
+            && !contract.owners.is_empty()
+        {
+            owners = contract.owners.clone();
+        }
+    }
+    (family, domain, owners)
+}
+
+/// Resolves `cpp_name`'s transform access straight from the registry instead of
+/// building a whole `Model`: family, domain and the component `Owners` set are
+/// inherited, so the nearest declaring ancestor wins. A component has no
+/// transform of its own — its `Owners` contract says which actor domains may
+/// carry it, and `World3D` wins when a contract admits both.
+pub fn transform_access(registry: &blueprint::Registry, cpp_name: &str) -> Option<TransformAccess> {
+    let (family, domain, owners) = resolved_shape(registry, cpp_name);
+    let (domain, through_owner) = match family {
+        ClassFamily::Actor => (domain, false),
+        ClassFamily::Component if owners.contains(&Domain::World3D) => (Domain::World3D, true),
+        ClassFamily::Component if owners.contains(&Domain::World2D) => (Domain::World2D, true),
+        _ => return None,
+    };
+    matches!(domain, Domain::World3D | Domain::World2D).then_some(TransformAccess {
+        domain,
+        through_owner,
+    })
+}
+
 /// One authored component on an actor instance.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ComponentSpec {

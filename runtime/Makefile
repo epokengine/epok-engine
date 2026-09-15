@@ -24,6 +24,12 @@ main.o: Makefile
 # use GCC's integer helpers; append the archive after application/PsyQo objects.
 LIBRARIES += $(shell $(CC) -print-libgcc-file-name)
 
+# sources.mk sets EPOK_LUA_VM only for the two Lua VM execution modes; the
+# archive it builds is the only interpreter the executable ever links.
+ifeq ($(EPOK_LUA_VM),1)
+include lua.mk
+endif
+
 # Relink when the set of scripts changes, including script removal.
 epok.elf: sources.mk
 

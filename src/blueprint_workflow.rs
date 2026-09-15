@@ -8,6 +8,7 @@ use std::{
 #[derive(Default)]
 pub struct Creation {
     pub requested: bool,
+    pub context: crate::actor_scripts::CreationContext,
     pub name: String,
     pub folder: String,
     pub parent: String,
@@ -49,7 +50,7 @@ fn default_event_names(family: schema::ClassFamily) -> &'static [&'static str] {
 }
 
 /// Supply the lifecycle entry points supported by the PSX runtime for this family.
-/// Implemented parent events keep their qualified parent dispatch.
+/// Disconnected placeholders inherit the parent until execution is connected.
 pub(crate) fn ensure_default_events(
     draft: &mut asset::BlueprintAsset,
     registry: &crate::blueprint::Registry,
@@ -92,36 +93,12 @@ pub(crate) fn ensure_default_events(
             continue;
         }
         let entry = uuid::Uuid::new_v4().to_string();
-        let mut nodes = vec![asset::Node {
+        let nodes = vec![asset::Node {
             id: entry.clone(),
             kind: asset::NodeKind::Entry,
             inputs: BTreeMap::new(),
             outputs: BTreeMap::new(),
         }];
-        // Even an apparently empty native default may be overridden by an
-        // intermediate parent. Never replace inherited behavior with a no-op.
-        if !function.abstract_method {
-            let call = uuid::Uuid::new_v4().to_string();
-            nodes[0].outputs.insert("next".into(), vec![call.clone()]);
-            nodes.push(asset::Node {
-                id: call.clone(),
-                kind: asset::NodeKind::CallParent,
-                inputs: function
-                    .parameters
-                    .iter()
-                    .map(|p| {
-                        (
-                            p.name.clone(),
-                            asset::Input::Parameter {
-                                name: p.name.clone(),
-                            },
-                        )
-                    })
-                    .collect(),
-                outputs: BTreeMap::new(),
-            });
-            draft.layout.positions.insert(call, [340., y]);
-        }
         draft.functions.push(asset::Graph {
             id: uuid::Uuid::new_v4().to_string(),
             name: name.into(),
@@ -298,6 +275,22 @@ fn create_with_owner(
 }
 
 pub fn begin(editor: &mut crate::editor::Editor, parent: Option<String>) {
+    begin_with_context(editor, parent, Default::default());
+}
+
+pub fn begin_component(editor: &mut crate::editor::Editor, actor: uuid::Uuid) {
+    begin_with_context(
+        editor,
+        Some(crate::object_model::ACTOR_COMPONENT_ID.into()),
+        crate::actor_scripts::CreationContext::Component(actor),
+    );
+}
+
+fn begin_with_context(
+    editor: &mut crate::editor::Editor,
+    parent: Option<String>,
+    context: crate::actor_scripts::CreationContext,
+) {
     if editor.playing {
         editor.log("Stop Play before creating a Blueprint.");
         return;
@@ -322,8 +315,9 @@ pub fn begin(editor: &mut crate::editor::Editor, parent: Option<String>) {
     }
     editor.blueprint_creation = Creation {
         requested: true,
-        owner_domain: editor
-            .selected
+        context,
+        owner_domain: context
+            .actor_index(&editor.scene, editor.selected)
             .and_then(|i| editor.scene.actors.get(i))
             .and_then(|a| {
                 editor
@@ -351,6 +345,7 @@ pub fn begin(editor: &mut crate::editor::Editor, parent: Option<String>) {
 pub fn draw(ui: &imgui::Ui, editor: &mut crate::editor::Editor) {
     crate::blueprint_debug_ui::draw(ui, editor);
     let mut creation = std::mem::take(&mut editor.blueprint_creation);
+    let model = editor.object_model();
     if creation.requested {
         ui.open_popup("Create Blueprint class");
         creation.requested = false;
@@ -364,9 +359,12 @@ pub fn draw(ui: &imgui::Ui, editor: &mut crate::editor::Editor) {
         let query = creation.search.to_lowercase();
         ui.child_window("blueprint-parent-tree").size([540.,210.]).border(true).build(|| {
             for class in editor.class_registry.blueprint_parents() {
+                if !creation.context.allows_parent(&editor.scene, model.as_deref(), class) {continue;}
                 if !query.is_empty() && !class.cpp_name.to_lowercase().contains(&query) {continue;}
                 let depth=editor.class_registry.ancestry(&class.cpp_name).len().saturating_sub(1);
                 if ui.selectable_config(format!("{}{}{}", "  ".repeat(depth), class.cpp_name, if class.abstract_class {" (abstract)"} else {""})).selected(creation.parent==class.id).build() {creation.parent=class.id.clone();}
+                #[cfg(test)]
+                crate::gui::record_script_control(ui, &class.cpp_name);
             }
         });
         drop(inputs_disabled);
@@ -378,7 +376,15 @@ pub fn draw(ui: &imgui::Ui, editor: &mut crate::editor::Editor) {
                 _ => "Object Blueprint: create the asset without attaching it to a scene object.",
             });
             if parent_family(&editor.class_registry,parent)==schema::ClassFamily::Component {
-                ui.combo_simple_string("Compatible Actors",&mut creation.owner_domain,&["Inherit parent compatibility","Actor3D","Actor2D","UIActor"]);
+                let choices=[("Inherit parent compatibility",None),("Actor3D",Some(schema::Domain::World3D)),("Actor2D",Some(schema::Domain::World2D)),("UIActor",Some(schema::Domain::UI))];
+                let target_domain=creation.context.actor_index(&editor.scene,editor.selected)
+                    .and_then(|index| model.as_deref().and_then(|model| editor.scene.actors[index].class.resolve(model).map(|class| class.domain)));
+                if let Some(_combo)=ui.begin_combo("Compatible Actors",choices[creation.owner_domain.min(3)].0) {
+                    for (index,(label,domain)) in choices.iter().enumerate() {
+                        if matches!(creation.context,crate::actor_scripts::CreationContext::Component(_)) && domain.is_some() && *domain!=target_domain {continue;}
+                        if ui.selectable_config(label).selected(creation.owner_domain==index).build() {creation.owner_domain=index;}
+                    }
+                }
             }
             ui.child_window("blueprint-inherited").size([540.,120.]).border(true).build(|| {
                 for property in editor.class_registry.properties(&parent.cpp_name) {ui.bullet_text(format!("{}: {} = {}",property.name,property.value_type.label(),property.default));}
@@ -387,12 +393,14 @@ pub fn draw(ui: &imgui::Ui, editor: &mut crate::editor::Editor) {
         }
         if let Some(error)=&creation.error {ui.text_colored([1.,0.5,0.4,1.],error);}
         let owner=match creation.owner_domain {1=>Some(schema::Domain::World3D),2=>Some(schema::Domain::World2D),3=>Some(schema::Domain::UI),_=>None};
-        let attachment_error = editor.selected.ok_or_else(|| "Select an Actor to enable Create and Attach.".to_string())
+        let parent_allowed = editor.class_registry.blueprint_parents().any(|parent| parent.id == creation.parent && creation.context.allows_parent(&editor.scene, model.as_deref(), parent));
+        let attachment_index = creation.context.actor_index(&editor.scene, editor.selected);
+        let attachment_error = attachment_index.ok_or_else(|| "Select an Actor to enable Create and Attach.".to_string())
             .and_then(|index| crate::actor_scripts::validate_parent_with_owner(&editor.scene, index, &creation.parent, &editor.class_registry,owner)).err();
         if let Some(error) = &attachment_error { ui.text_wrapped(error); }
-        if ui.button("Cancel") {ui.close_current_popup();}
-        ui.same_line(); let create_only=ui.button(if creation.created.is_some() {"Open Created Blueprint"} else {"Create"});
-        ui.same_line(); let attach={let _disabled=ui.begin_disabled(editor.playing || attachment_error.is_some()); crate::gui::script_button(ui, if creation.created.is_some() {"Attach Created Blueprint"} else {"Create and Attach"})};
+        if crate::gui::script_button(ui,"Cancel") {ui.close_current_popup();}
+        ui.same_line(); let create_only={let _disabled=ui.begin_disabled(!parent_allowed); crate::gui::script_button(ui,if creation.created.is_some() {"Open Created Blueprint"} else {"Create"})};
+        ui.same_line(); let attach={let _disabled=ui.begin_disabled(editor.playing || !parent_allowed || attachment_error.is_some()); crate::gui::script_button(ui, if creation.created.is_some() {"Attach Created Blueprint"} else {"Create and Attach"})};
         if create_only || attach {
             let owner=match creation.owner_domain {1=>Some(schema::Domain::World3D),2=>Some(schema::Domain::World2D),3=>Some(schema::Domain::UI),_=>None};
             let result = creation.created.clone().map(Ok).unwrap_or_else(|| create_with_owner(&editor.root,&editor.class_registry,creation.name.trim(),creation.folder.trim(),&creation.parent,attach,owner));
@@ -400,6 +408,7 @@ pub fn draw(ui: &imgui::Ui, editor: &mut crate::editor::Editor) {
                 Ok(path) => {
                     creation.created = Some(path.clone());
                     editor.refresh_scripts(); editor.assets.refresh();
+                    if attach { editor.select_actor(attachment_index.map(|index| editor.scene.actors[index].id)); }
                     match if attach { attach_asset(editor, &path) } else { Ok(()) } {
                         Ok(()) => {
                             if let Err(error)=editor.blueprint_editor.open(&path) {editor.log(error);}
@@ -503,8 +512,22 @@ pub fn edit_binding(editor: &mut crate::editor::Editor, binding: &crate::scene::
             None => editor.log("Blueprint source is unavailable. Instance values are preserved."),
         }
     } else {
-        editor.open_code(&crate::scripts::source(&editor.root, &binding.name), None);
+        let source = class.and_then(|class| {
+            class_source(&editor.root, class).map(|path| (path, class.source.line as usize))
+        });
+        if let Some((path, line)) = source {
+            editor.open_code(&path, Some(line.max(1)));
+        } else {
+            editor.log("Engine classes are read-only. Create a derived class in the project to customize their behavior.");
+        }
     }
+}
+
+/// The project-owned declaration behind a textual class: the `.hpp` for C++ and
+/// the authored `.lua` for a Lua class. Engine classes have none.
+pub fn class_source(root: &std::path::Path, class: &schema::Class) -> Option<std::path::PathBuf> {
+    crate::scripts::editable_class_source(root, class)
+        .or_else(|| crate::lua_asset::editable_class_source(root, class))
 }
 
 fn binding(class: &schema::Class) -> crate::scene::ClassDefaults {
@@ -782,4 +805,41 @@ pub fn instance_inspector(ui: &imgui::Ui, editor: &mut crate::editor::Editor, in
     }
     ui.text_wrapped("Unchanged members follow the class template. User edits create explicit overrides; Reset restores inheritance. Unlink keeps the current scene objects.");
     ui.separator();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One "open source" action serves every textual provider: a Lua class opens
+    /// its authored `.lua`, a C++ class its project header, an engine class none.
+    #[test]
+    fn class_source_opens_the_authored_lua_asset_and_never_an_engine_declaration() {
+        let root = crate::workspace::tests::temp("lua-class-source");
+        let folder = root.join("assets/scripts/Enemies");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("Guard.lua"), "-- authored\n").unwrap();
+        std::fs::create_dir_all(root.join(".epok/reflection/runtime")).unwrap();
+        let engine = root.join(".epok/reflection/runtime/object_model.hpp");
+        std::fs::write(&engine, "// Engine source\n").unwrap();
+
+        let mut class = crate::actor_document::tests::class("guard-id", "Guard", None);
+        class.provider = crate::lua_asset::provider();
+        class.source.file = PathBuf::from("assets/scripts/Enemies/Guard.lua");
+        let expected = std::fs::canonicalize(folder.join("Guard.lua")).unwrap();
+        assert_eq!(
+            crate::lua_asset::editable_class_source(&root, &class),
+            Some(expected.clone())
+        );
+        assert_eq!(class_source(&root, &class), Some(expected));
+        // A C++ class never resolves through the Lua provider, and a Lua class
+        // pointed at an engine declaration resolves to nothing at all.
+        assert!(crate::scripts::editable_class_source(&root, &class).is_none());
+        class.source.file = engine;
+        assert!(class_source(&root, &class).is_none());
+        class.provider = schema::native_provider();
+        class.source.file = PathBuf::from("assets/scripts/Enemies/Guard.lua");
+        assert!(crate::lua_asset::editable_class_source(&root, &class).is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

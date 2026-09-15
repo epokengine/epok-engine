@@ -397,8 +397,8 @@ public:
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     EPOK_FUNCTION(BlueprintEvent) virtual void begin_play() {}
     virtual void blueprint_observe() {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void tick(Fixed) {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void end_play(EndPlayReason) {}
+    EPOK_FUNCTION(BlueprintEvent) virtual void tick(Fixed delta_seconds) { (void)delta_seconds; }
+    EPOK_FUNCTION(BlueprintEvent) virtual void end_play(EndPlayReason end_play_reason) { (void)end_play_reason; }
     EPOK_FUNCTION(BlueprintEvent) virtual void on_enable() {}
     EPOK_FUNCTION(BlueprintEvent) virtual void on_disable() {}
     // Runtime hook, not reflected: the declarative root component embedded in the actor.
@@ -412,15 +412,21 @@ public:
         if (value) for (; i < 32 && value[i]; ++i) m_name[i] = value[i];
         m_name[i] = 0;
     }
-    ObjectId level_id() const { return m_level; }
-    ObjectId root_id() const { return m_root; }
-    ObjectId logical_parent() const { return m_logical_parent; }
-    ObjectId component_id(size_t index) const { return index < actor_component_capacity ? m_components[index] : ObjectId{}; }
-    size_t component_count() const { return m_component_count; }
+    // Reflected identity/hierarchy readers. Every authoring provider (C++, Blueprint,
+    // Lua) inherits them from this base instead of bridging a private builtin.
+    EPOK_FUNCTION(BlueprintPure, Id="8e2697a0-4267-4923-808b-62acb68d5f3e") ObjectId level_id() const { return m_level; }
+    EPOK_FUNCTION(BlueprintPure, Id="d8217460-caff-411c-b7bc-f0ebb34b1c83") ObjectId root_id() const { return m_root; }
+    EPOK_FUNCTION(BlueprintPure, Id="146a6de0-328f-4273-bc7e-ba379ff26ad7") ObjectId logical_parent() const { return m_logical_parent; }
+    EPOK_FUNCTION(BlueprintPure, Id="3538d7f8-8886-4437-a7ab-41afa18aad93") ObjectId component_id(size_t index) const { return index < actor_component_capacity ? m_components[index] : ObjectId{}; }
+    EPOK_FUNCTION(BlueprintPure, Id="3092c8e4-43ff-47f5-ab0c-290ba4685978") size_t component_count() const { return m_component_count; }
     // Self flag only; Level::actor_active() folds the logical parent chain.
-    bool active() const { return m_active; }
-    bool wants_tick() const { return m_wants_tick; }
-    void set_wants_tick(bool value) { m_wants_tick = value; }
+    EPOK_FUNCTION(BlueprintPure, Id="66f0ed92-0e29-498a-aff0-1102dd0c9783") bool active() const { return m_active; }
+    // Folded activation with the on_enable/on_disable fan-out, and deferred destruction
+    // inside a dispatch scope: the same Level paths the legacy Blueprint nodes take.
+    EPOK_FUNCTION(BlueprintCallable, Id="6eb5a977-358e-45a2-a8ab-317646d124f2") void set_active(bool active);
+    EPOK_FUNCTION(BlueprintCallable, Id="cf849e67-22a1-4838-b593-774689e03195") void destroy();
+    EPOK_FUNCTION(BlueprintPure, Id="9771750e-0866-439b-acdc-7c76c271e46e") bool wants_tick() const { return m_wants_tick; }
+    EPOK_FUNCTION(BlueprintCallable, Id="ffe58520-ad64-4c77-a2ce-85c0d3ba18dc") void set_wants_tick(bool value) { m_wants_tick = value; }
 protected:
     friend class Level;
     char m_name[33] = {};
@@ -438,8 +444,8 @@ public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("2e5021ee-d14d-4d77-9112-455f29d639d2");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
     EPOK_FUNCTION(BlueprintEvent) virtual void begin_play() {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void tick(Fixed) {}
-    EPOK_FUNCTION(BlueprintEvent) virtual void end_play(EndPlayReason) {}
+    EPOK_FUNCTION(BlueprintEvent) virtual void tick(Fixed delta_seconds) { (void)delta_seconds; }
+    EPOK_FUNCTION(BlueprintEvent) virtual void end_play(EndPlayReason end_play_reason) { (void)end_play_reason; }
     EPOK_FUNCTION(BlueprintEvent) virtual void on_enable() {}
     EPOK_FUNCTION(BlueprintEvent) virtual void on_disable() {}
     // Runtime hooks, not reflected. frame_update runs once per rendered frame even while
@@ -455,7 +461,7 @@ public:
     // False while a service still holds this component's storage; the registry then
     // keeps the (already dead) slot quarantined instead of returning it to the pool.
     virtual bool releasable() const { return true; }
-    ObjectId owner_id() const { return m_owner; }
+    EPOK_FUNCTION(BlueprintPure, Id="845721eb-1ae9-49f4-b207-607875ce46ef") ObjectId owner_id() const { return m_owner; }
     Actor* get_owner();
     const char* name() const { return m_name; }
     void set_name(const char* value) {
@@ -1199,6 +1205,16 @@ public:
 };
 
 // ---- out-of-line definitions -------------------------------------------------------
+// The reflected Actor operations reach the Level through the registry, exactly like
+// epok::bp::api::set_active/destroy. Without an active registry or Level they do nothing.
+inline void Actor::set_active(bool active) {
+    auto* level = active_object_registry ? active_object_registry->resolve<Level>(m_level) : nullptr;
+    if (level) level->set_active(id(), active);
+}
+inline void Actor::destroy() {
+    auto* level = active_object_registry ? active_object_registry->resolve<Level>(m_level) : nullptr;
+    if (level) level->destroy_actor(id());
+}
 inline Actor* ActorComponent::get_owner() {
     return active_object_registry ? active_object_registry->resolve<Actor>(m_owner) : nullptr;
 }

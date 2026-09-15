@@ -48,7 +48,7 @@ properties:
     default: 90.0
 ```
 
-Unavailable providers/backends remain serialized and diagnose their missing capability. Lua creation, a VM, and Lua dependencies are not enabled.
+Unavailable providers/backends remain serialized and diagnose their missing capability. Classes can also be authored in Lua against the same registry and Inspector; see [Lua scripting](lua-scripting.md).
 
 ## Runtime semantics
 
@@ -57,6 +57,8 @@ Positions, rotations and scales are local to the parent. Rotations are in degree
 Properties are assigned before `start`. Measured elapsed time drives fixed 60 Hz `update` steps, with at most eight catch-up steps per rendered frame; Q12 deltas alternate 68/69 raw units to preserve elapsed time. `frame_update` runs once per rendered frame, including while simulation is paused. Use `time.set_paused` and the input API for pause menus; see [input and collision](input-collision.md).
 
 A script on an Empty entity can animate a hierarchy. Scripts must preserve valid transforms and parent relationships. Zero or negative scales, cycles and manually edited runtime parent indices are unsupported.
+
+`epok::Actor` and `epok::ActorComponent` reflect their own operations, so every authoring provider inherits them: `set_active`, `destroy`, `active`, `wants_tick`, `set_wants_tick`, `level_id`, `root_id`, `logical_parent`, `component_id`, `component_count` and the component's `owner_id`. C++ calls the member directly, a Blueprint places the matching `Functions / Self` node and a Lua class writes `self:set_active(false)`; none of them needs a C++ helper for behavior the engine bases already provide. The legacy Blueprint builtin nodes for Set Active, Destroy and Get Owner keep working for existing graphs.
 
 Activation, destruction, safe handles, scene transitions, tweens and event helpers are documented in [runtime services](runtime-services.md). Additional APIs are documented under [sprites and particles](sprites-particles.md), [cameras](camera-resources.md), [HUD](hud.md) and [Memory Card](memory-card.md).
 
@@ -74,3 +76,9 @@ Only the Epok runtime is covered by the included Epok MIT license. User-authored
 
 For visual class assets, graph authoring, entity templates, references, timelines,
 and instrumented node debugging, see [Blueprints](blueprints.md).
+
+## Lua classes
+
+For classes authored in Lua that subclass these reflected C++ types, the
+`epok-lua` v1 profile and the project-wide execution modes, see
+[Lua scripting](lua-scripting.md).

@@ -71,7 +71,7 @@ pub(crate) fn script_button(ui: &imgui::Ui, label: &str) -> bool {
     pressed
 }
 #[cfg(test)]
-fn record_script_control(ui: &imgui::Ui, label: &str) {
+pub(crate) fn record_script_control(ui: &imgui::Ui, label: &str) {
     SCRIPT_BUTTONS.with(|buttons| {
         let a = ui.item_rect_min();
         let b = ui.item_rect_max();
@@ -82,12 +82,59 @@ fn record_script_control(ui: &imgui::Ui, label: &str) {
 }
 #[cfg(test)]
 thread_local! {static SCRIPT_BUTTONS:std::cell::RefCell<std::collections::BTreeMap<String,[f32;2]>>=const{std::cell::RefCell::new(std::collections::BTreeMap::new())};}
+fn build_menu(ui: &imgui::Ui, e: &mut Editor) {
+    let menu = ui.begin_menu("Build");
+    #[cfg(test)]
+    record_script_control(ui, "Build menu");
+    if let Some(_menu) = menu {
+        let enabled = crate::lighting_editor::can_start_bake(e);
+        if ui
+            .menu_item_config("Build Project")
+            .enabled(enabled)
+            .build()
+        {
+            e.action("build");
+        }
+        if ui
+            .menu_item_config("Build Lighting")
+            .enabled(enabled)
+            .build()
+        {
+            crate::lighting_editor::start_bake(e);
+        }
+        #[cfg(test)]
+        record_script_control(ui, "Build Lighting");
+        ui.separator();
+        if ui
+            .menu_item_config("Package PSX Disc...")
+            .enabled(enabled)
+            .build()
+        {
+            e.action("export-disc");
+        }
+        if ui
+            .menu_item_config("Export PsyQo Project...")
+            .enabled(enabled)
+            .build()
+        {
+            e.action("export");
+        }
+        ui.separator();
+        if ui.menu_item("Lighting Settings...") {
+            e.lighting_window = true;
+        }
+    }
+}
 fn script_creation_dialog(ui: &imgui::Ui, editor: &mut Editor) {
     if editor.script_creation {
         ui.open_popup("Create C++ script");
         editor.script_creation = false;
     }
     ui.modal_popup_config("Create C++ script").always_auto_resize(true).build(|| {
+        let model = editor.object_model();
+        let allowed: std::collections::BTreeSet<_> = editor.class_registry.eligible_parents()
+            .filter(|parent| editor.script_creation_context.allows_parent(&editor.scene, model.as_deref(), parent))
+            .map(|parent| parent.id.clone()).collect();
         ui.text_wrapped("Children inherit properties and lifecycle behavior. Override only events you intend to change.");
         ui.input_text("Asset name", &mut editor.script_name).hint("Enemy").build();
         ui.input_text("Folder", &mut editor.script_folder).hint("Enemies/Bosses (under assets/scripts)").build();
@@ -95,9 +142,12 @@ fn script_creation_dialog(ui: &imgui::Ui, editor: &mut Editor) {
         let query=editor.script_search.to_lowercase();
         ui.child_window("parent-tree").size([520.,180.]).border(true).build(|| {
             for parent in ["epok::Actor3D","epok::Actor2D","epok::UIActor","epok::ActorComponent"] {
+                if !editor.class_registry.named(parent).is_some_and(|class| allowed.contains(&class.id)) {continue;}
                 if let Some(_node)=ui.tree_node_config(parent).default_open(true).push() {
                     if ui.selectable_config(format!("Use {parent}")).selected(editor.script_parent==parent).build() {editor.script_parent=parent.into();}
-                    parent_class_tree(ui,&editor.class_registry,parent,&query,&mut editor.script_parent);
+                    #[cfg(test)]
+                    record_script_control(ui, parent);
+                    parent_class_tree(ui,&editor.class_registry,parent,&query,&mut editor.script_parent,&allowed);
                 }
             }
         });
@@ -118,22 +168,101 @@ fn script_creation_dialog(ui: &imgui::Ui, editor: &mut Editor) {
         if let Some(error)=&editor.script_error {ui.text_colored([1.,0.5,0.4,1.],error);}
         if script_button(ui,"Cancel") { ui.close_current_popup(); }
         ui.same_line();
-        let create = script_button(ui,"Create");
+        let parent_allowed = editor.class_registry.named(&editor.script_parent).is_some_and(|parent| allowed.contains(&parent.id));
+        let create = {let _disabled=ui.begin_disabled(!parent_allowed); script_button(ui,"Create")};
         ui.same_line();
         let mut attach=false;
-        ui.disabled(editor.selected.is_none() || editor.playing, || {attach=script_button(ui,"Create and Attach");});
-        if editor.selected.is_none() {ui.text_disabled("Select an entity to enable Create and Attach.");}
+        let attachment_index = editor.script_creation_context.actor_index(&editor.scene, editor.selected);
+        let attachment_error = attachment_index.ok_or_else(|| "Select an Actor to enable Create and Attach.".to_owned())
+            .and_then(|index| {
+                let parent=editor.class_registry.named(&editor.script_parent).ok_or("Select an ActorComponent parent.")?;
+                crate::actor_scripts::validate_parent(&editor.scene,index,&parent.id,&editor.class_registry)
+            }).err();
+        ui.disabled(!parent_allowed || attachment_error.is_some() || editor.playing, || {attach=script_button(ui,"Create and Attach");});
+        if let Some(error)=&attachment_error {ui.text_wrapped(error);}
         if create || attach {
             match crate::scripts::create_in(&editor.root, editor.script_name.trim(), editor.script_folder.trim(), &editor.script_parent, attach) {
                 Ok(()) => {
                     let name = editor.script_name.trim().to_owned();
                     editor.refresh_scripts();
-                    if attach { editor.attach(&name); }
+                    if attach {
+                        editor.select_actor(attachment_index.map(|index| editor.scene.actors[index].id));
+                        editor.attach(&name);
+                    }
                     #[cfg(not(test))]
                     editor.open_code(&crate::scripts::source(&editor.root, &name), None);
                     ui.close_current_popup();
                 }
                 Err(error) => {editor.log(&error); editor.script_error=Some(error);}
+            }
+        }
+    });
+}
+/// Lua authoring, presented exactly like the Blueprint creation dialog: one flat
+/// list of eligible parents from the shared registry, then `lua_asset::create_in`.
+fn lua_creation_dialog(ui: &imgui::Ui, editor: &mut Editor) {
+    if editor.lua_creation {
+        ui.open_popup("Create Lua class");
+        editor.lua_creation = false;
+    }
+    ui.modal_popup_config("Create Lua class").always_auto_resize(true).build(|| {
+        let model = editor.object_model();
+        ui.text_wrapped("A Lua class is a real subclass of its parent: it inherits properties and overrides only the events it declares.");
+        ui.input_text("Asset name", &mut editor.lua_name).hint("Guard").build();
+        ui.input_text("Folder", &mut editor.lua_folder).hint("Enemies/Bosses (under assets/scripts)").build();
+        ui.input_text("Search parent classes", &mut editor.lua_search).build();
+        let query = editor.lua_search.to_lowercase();
+        let mut parent = std::mem::take(&mut editor.lua_parent);
+        ui.child_window("lua-parent-tree").size([540.,210.]).border(true).build(|| {
+            for class in editor.class_registry.lua_parents() {
+                if !editor.lua_creation_context.allows_parent(&editor.scene, model.as_deref(), class) {continue;}
+                if !query.is_empty() && !class.cpp_name.to_lowercase().contains(&query) {continue;}
+                let depth = editor.class_registry.ancestry(&class.cpp_name).len().saturating_sub(1);
+                if ui.selectable_config(format!("{}{}{}", "  ".repeat(depth), class.cpp_name, if class.abstract_class {" (abstract)"} else {""})).selected(parent==class.cpp_name).build() {parent=class.cpp_name.clone();}
+                #[cfg(test)]
+                record_script_control(ui, &class.cpp_name);
+            }
+        });
+        editor.lua_parent = parent;
+        ui.text(format!("Parent: {}",editor.lua_parent));
+        ui.child_window("lua-inherited").size([540.,120.]).border(true).build(|| {
+            for property in editor.class_registry.properties(&editor.lua_parent) {ui.bullet_text(format!("{}: {} = {}",property.name,property.value_type.label(),property.default));}
+            for class in editor.class_registry.ancestry(&editor.lua_parent) {for function in &class.functions {if function.event {ui.bullet_text(format!("Event {}({})", function.name,function.parameters.iter().map(|p|p.value_type.label()).collect::<Vec<_>>().join(", ")));}}}
+        });
+        if let Some(error)=&editor.lua_error {ui.text_colored([1.,0.5,0.4,1.],error);}
+        if script_button(ui,"Cancel") {ui.close_current_popup();}
+        ui.same_line();
+        let parent_allowed = editor.class_registry.lua_parents().any(|class| class.cpp_name==editor.lua_parent
+            && editor.lua_creation_context.allows_parent(&editor.scene, model.as_deref(), class));
+        let create = {let _disabled=ui.begin_disabled(!parent_allowed); script_button(ui,"Create")};
+        ui.same_line();
+        let mut attach=false;
+        let attachment_index = editor.lua_creation_context.actor_index(&editor.scene, editor.selected);
+        let attachment_error = attachment_index.ok_or_else(|| "Select an Actor to enable Create and Attach.".to_owned())
+            .and_then(|index| {
+                let parent=editor.class_registry.named(&editor.lua_parent).ok_or("Select an ActorComponent parent.")?;
+                crate::actor_scripts::validate_parent(&editor.scene,index,&parent.id,&editor.class_registry)
+            }).err();
+        ui.disabled(!parent_allowed || attachment_error.is_some() || editor.playing, || {attach=script_button(ui,"Create and Attach");});
+        if let Some(error)=&attachment_error {ui.text_wrapped(error);}
+        if create || attach {
+            let parent = editor.lua_parent.clone();
+            match crate::lua_asset::create_in(&editor.root, editor.lua_name.trim(), editor.lua_folder.trim(), &parent) {
+                Ok(path) => {
+                    let name = editor.lua_name.trim().to_owned();
+                    editor.refresh_scripts();
+                    editor.assets.refresh();
+                    if attach {
+                        editor.select_actor(attachment_index.map(|index| editor.scene.actors[index].id));
+                        editor.attach(&name);
+                    }
+                    #[cfg(not(test))]
+                    editor.open_code(&path, None);
+                    #[cfg(test)]
+                    let _ = path;
+                    ui.close_current_popup();
+                }
+                Err(error) => {editor.log(&error); editor.lua_error=Some(error);}
             }
         }
     });
@@ -144,10 +273,12 @@ fn parent_class_tree(
     parent: &str,
     query: &str,
     selected: &mut String,
+    allowed: &std::collections::BTreeSet<String>,
 ) {
     for class in registry
         .eligible_parents()
         .filter(|c| c.id != crate::object_model::OBJECT_ID)
+        .filter(|c| allowed.contains(&c.id))
     {
         let direct = class
             .parent
@@ -161,6 +292,7 @@ fn parent_class_tree(
         let visible = query.is_empty()
             || registry.eligible_parents().any(|candidate| {
                 candidate.cpp_name.to_lowercase().contains(query)
+                    && allowed.contains(&candidate.id)
                     && registry
                         .ancestry(&candidate.cpp_name)
                         .iter()
@@ -188,9 +320,61 @@ fn parent_class_tree(
                 {
                     *selected = class.cpp_name.clone();
                 }
-                parent_class_tree(ui, registry, &class.cpp_name, query, selected);
+                #[cfg(test)]
+                record_script_control(ui, &class.cpp_name);
+                parent_class_tree(ui, registry, &class.cpp_name, query, selected, allowed);
             });
     }
+}
+
+/// Both Inspector presentations use the same reflected, compatible components.
+fn add_component_menu(ui: &imgui::Ui, editor: &mut Editor, actor: uuid::Uuid) -> bool {
+    let mut added = false;
+    ui.popup("add-component", || {
+        let classes = editor.addable_component_classes(actor);
+        for group in ["Shared", "Domain"] {
+            if !classes.iter().any(|(g, _, _)| *g == group) {
+                continue;
+            }
+            ui.text_disabled(group);
+            for (_, class, label) in classes.iter().filter(|(g, _, _)| *g == group) {
+                if ui.menu_item(label) {
+                    if editor.catalog.iter().any(|script| script.name == *class) {
+                        editor.select_actor(Some(actor));
+                        editor.attach(class);
+                    } else {
+                        editor.add_actor_component(actor, class);
+                    }
+                    added = true;
+                }
+                #[cfg(test)]
+                record_script_control(ui, class);
+                if ui.is_item_hovered() {
+                    ui.tooltip_text(class);
+                }
+            }
+        }
+        ui.separator();
+        if ui.menu_item("Create C++ ActorComponent...") {
+            editor.action("new-script");
+            editor.script_creation_context =
+                crate::actor_scripts::CreationContext::Component(actor);
+        }
+        #[cfg(test)]
+        record_script_control(ui, "Create C++ ActorComponent...");
+        if ui.menu_item("Create Blueprint ActorComponent...") {
+            crate::blueprint_workflow::begin_component(editor, actor);
+        }
+        #[cfg(test)]
+        record_script_control(ui, "Create Blueprint ActorComponent...");
+        if ui.menu_item("Create Lua ActorComponent...") {
+            editor.action("new-lua");
+            editor.lua_creation_context = crate::actor_scripts::CreationContext::Component(actor);
+        }
+        #[cfg(test)]
+        record_script_control(ui, "Create Lua ActorComponent...");
+    });
+    added
 }
 pub(crate) fn gray(v: u8) -> [f32; 4] {
     let f = v as f32 / 255.;
@@ -311,7 +495,7 @@ fn icon(ui: &imgui::Ui, glyph: &str, id: &str, tip: &str, active: bool) -> bool 
         },
     );
     let result = ui.button_with_size(format!("{glyph}##{id}"), [28., 21.]);
-    if ui.is_item_hovered() {
+    if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
         ui.tooltip_text(tip);
     }
     result
@@ -406,16 +590,6 @@ fn draw_workspace(
                 e.action("reload");
             }
             ui.separator();
-            if ui.menu_item("Build") {
-                e.action("build");
-            }
-            if ui.menu_item("Package PSX Disc...") {
-                e.action("export-disc");
-            }
-            if ui.menu_item("Export PsyQo Project...") {
-                e.action("export");
-            }
-            ui.separator();
             if ui.menu_item("Exit") {
                 request_exit(e);
             }
@@ -474,6 +648,9 @@ fn draw_workspace(
             if ui.menu_item("Create > C++ Script") {
                 e.action("new-script");
             }
+            if ui.menu_item("Create > Lua Class") {
+                e.action("new-lua");
+            }
             if ui.menu_item("Open C++ Project") {
                 e.open_code(&e.root.join("assets"), None);
             }
@@ -488,6 +665,7 @@ fn draw_workspace(
                 e.create_actor(&class);
             }
         });
+        build_menu(ui, e);
         ui.menu("Window", || {
             if ui.menu_item("Artifact Dependencies") {
                 e.artifact_dependencies.open = true;
@@ -808,6 +986,7 @@ fn draw_workspace(
     }
     crate::export_ui::window(ui, e);
     script_creation_dialog(ui, e);
+    lua_creation_dialog(ui, e);
     crate::blueprint_workflow::draw(ui, e);
     crate::actor_workflow::draw(ui, e);
     e.timeline_editor
@@ -1697,10 +1876,16 @@ fn edit_class_button(
         .or_else(|| e.class_registry.named(key))
         .cloned();
     if let Some(class) = class {
-        let label = if class.provider.id == "blueprint" {
-            "Open Blueprint"
-        } else {
-            "Edit C++ Class"
+        if class.provider.id != "blueprint"
+            && crate::blueprint_workflow::class_source(&e.root, &class).is_none()
+        {
+            ui.text_disabled("Engine class (read-only)");
+            return;
+        }
+        let label = match class.provider.id.as_str() {
+            "blueprint" => "Open Blueprint",
+            "lua" => "Edit Lua Class",
+            _ => "Edit C++ Class",
         };
         if script_button(ui, label) {
             crate::blueprint_workflow::edit_binding(
@@ -1715,6 +1900,43 @@ fn edit_class_button(
             );
         }
     }
+}
+
+fn actor_header(ui: &imgui::Ui, actor: &mut crate::scene::Actor, glyph: &str) -> bool {
+    ui.align_text_to_frame_padding();
+    ui.text(glyph);
+    ui.same_line();
+    let mut changed = false;
+    if icon(ui, "A", "actor-active", "Active", actor.active) {
+        actor.active = !actor.active;
+        changed = true;
+    }
+    #[cfg(test)]
+    record_script_control(ui, "Active");
+    ui.same_line();
+    let disabled = ui.begin_disabled(actor.skeletal_mesh.is_some());
+    if icon(
+        ui,
+        "S",
+        "actor-static",
+        "Static",
+        actor.lighting.static_geometry,
+    ) {
+        actor.lighting.static_geometry = !actor.lighting.static_geometry;
+        if !actor.lighting.static_geometry {
+            actor.lighting.receive = crate::lighting::Receive::Realtime;
+        }
+        changed = true;
+    }
+    drop(disabled);
+    #[cfg(test)]
+    record_script_control(ui, "Static");
+    ui.same_line();
+    ui.set_next_item_width(-1.);
+    changed |= ui.input_text("##name", &mut actor.name).build();
+    #[cfg(test)]
+    record_script_control(ui, "Actor name");
+    changed
 }
 
 /// The actor class and component scripts associated with an existing mesh/entity
@@ -1804,20 +2026,9 @@ fn actor_inspector(ui: &imgui::Ui, e: &mut Editor) {
         .and_then(|m| e.scene.actors[index].class.resolve(m))
         .map(|c| (c.cpp_name.clone(), c.domain));
     ui.disabled(e.playing, || {
-        ui.text(ACTOR);
-        ui.same_line();
-        let mut active = e.scene.actors[index].active;
-        if ui.checkbox("##actor-active", &mut active) {
-            e.scene.actors[index].active = active;
-            e.changed();
-        }
-        ui.same_line();
-        ui.set_next_item_width(-1.);
-        let mut name = e.scene.actors[index].name.clone();
-        if ui.input_text("##actor-name", &mut name).build() {
-            e.scene.actors[index].name = name;
-        }
-        if ui.is_item_deactivated_after_edit() {
+        let mut actor = e.scene.actors[index].clone();
+        if actor_header(ui, &mut actor, ACTOR) {
+            e.scene.actors[index] = actor;
             e.changed();
         }
         ui.separator();
@@ -1927,38 +2138,12 @@ fn actor_inspector(ui: &imgui::Ui, e: &mut Editor) {
                 }
             }
             ui.spacing();
-            let classes = e.addable_component_classes(id);
-            let _disabled = ui.begin_disabled(classes.is_empty());
             if ui.button("Add Component") {
                 ui.open_popup("add-component");
             }
-            drop(_disabled);
-            if classes.is_empty()
-                && ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED)
-            {
-                ui.tooltip_text(
-                    "No component class of this project may be attached to this actor.",
-                );
-            }
-            let mut add = None;
-            ui.popup("add-component", || {
-                // Shared and logic components first: they are offered for what
-                // they do rather than for where the actor lives.
-                for group in ["Shared", "Domain"] {
-                    if !classes.iter().any(|(g, _, _)| *g == group) {
-                        continue;
-                    }
-                    ui.text_disabled(group);
-                    for (_, class, label) in classes.iter().filter(|(g, _, _)| *g == group) {
-                        if ui.menu_item(label) {
-                            add = Some(class.clone());
-                        }
-                        if ui.is_item_hovered() {
-                            ui.tooltip_text(class);
-                        }
-                    }
-                }
-            });
+            #[cfg(test)]
+            record_script_control(ui, "Add Component");
+            add_component_menu(ui, e, id);
             if let Some((component, action)) = edit
                 && let Some(position) = e.scene.actors[index]
                     .components
@@ -1972,9 +2157,6 @@ fn actor_inspector(ui: &imgui::Ui, e: &mut Editor) {
                 target.properties = properties;
                 target.overrides = overrides;
                 e.changed();
-            }
-            if let Some(class) = add {
-                e.add_actor_component(id, &class);
             }
             if let Some(component) = remove {
                 e.remove_actor_component(id, component);
@@ -2222,27 +2404,12 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
         let original = entity.clone();
         let mut requested_parent = None;
         ui.disabled(e.playing, || {
-            ui.text(if entity.kind == "Camera" {
+            let glyph = if entity.kind == "Camera" {
                 CAMERA
             } else {
                 CUBE
-            });
-            ui.same_line();
-            let mut active = true;
-            ui.disabled(true, || {
-                ui.checkbox("##active", &mut active);
-            });
-            ui.same_line();
-            ui.set_next_item_width(-1.);
-            ui.input_text("##name", &mut entity.name).build();
-            ui.checkbox("Active##entity", &mut entity.active);
-            let _dynamic_only = ui.begin_disabled(entity.skeletal_mesh.is_some());
-            if ui.checkbox("Static", &mut entity.lighting.static_geometry)
-                && !entity.lighting.static_geometry
-            {
-                entity.lighting.receive = crate::lighting::Receive::Realtime;
-            }
-            drop(_dynamic_only);
+            };
+            actor_header(ui, &mut entity, glyph);
             ui.separator();
             entity_actor_inspector(ui, e, index);
             crate::hud_editor::inspector(ui, &mut entity);
@@ -2278,16 +2445,13 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             crate::sprites_editor::inspector(ui, e, &mut entity);
             crate::collision_editor::inspector(ui, &mut entity);
             crate::palette::inspector(ui, e, &mut entity);
+            if entity.kind == "Mesh" {
+                crate::mesh_editor::filter(ui, e, &mut entity);
+            }
             if entity.kind == "Mesh"
                 && entity.editable_mesh.is_none()
                 && entity.skeletal_mesh.is_none()
             {
-                if heading(ui, &format!("{CUBE} Mesh Filter")) {
-                    ui.align_text_to_frame_padding();
-                    let _ = field(ui, "Mesh");
-                    ui.text_disabled(format!("{CUBE} Cube"));
-                }
-                ui.separator();
                 if heading(ui, "\u{eb5c} Mesh Renderer") {
                     let _ = field(ui, "Material");
                     ui.text("PSX Material (instance)");
@@ -2362,13 +2526,6 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                 }
             }
             crate::mesh_editor::component(ui, e, &mut entity);
-            if entity.skeletal_mesh.is_none()
-                && entity.rect.is_none()
-                && entity.canvas.is_none()
-                && entity.kind != "Camera"
-            {
-                crate::obj_import::inspector(ui, e, &mut entity);
-            }
             ui.dummy([0., 7.]);
             let width = ui.content_region_avail()[0];
             ui.set_cursor_pos([
@@ -2380,147 +2537,9 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             }
             #[cfg(test)]
             record_script_control(ui, "Add Component");
-            ui.popup("add-component", || {
-                if entity.timeline.is_none() && ui.menu_item("Timeline Component") {
-                    entity.timeline = Some(Default::default());
-                }
-                if entity.particle_effect.is_none() && ui.menu_item("Particle Effect Component") {
-                    entity.particle_effect = Some(Default::default());
-                }
-                if entity.rect.is_none() && entity.canvas.is_none() {
-                    if entity.sprite.is_none() && ui.menu_item("Sprite") {
-                        entity.sprite = Some(Default::default());
-                    }
-                    if entity.sprite.is_some()
-                        && entity.sprite_animator.is_none()
-                        && ui.menu_item("Sprite Animator")
-                    {
-                        entity.sprite_animator = Some(Default::default());
-                    }
-                    if entity.particle_emitter.is_none() && ui.menu_item("Particle Emitter") {
-                        entity.particle_emitter = Some(Default::default());
-                    }
-                    if entity.collider.is_none() && ui.menu_item("Collider") {
-                        entity.collider = Some(Default::default());
-                    }
-                }
-                if entity.editable_mesh.is_none()
-                    && entity.skeletal_mesh.is_none()
-                    && entity.kind != "Camera"
-                    && entity.rect.is_none()
-                    && entity.canvas.is_none()
-                    && ui.menu_item("Editable Mesh")
-                    && let Err(error) = crate::mesh_editor::create_component(e, &mut entity)
-                {
-                    e.log(error);
-                }
-
-                if entity.blob_shadow.is_none()
-                    && entity.rect.is_none()
-                    && entity.canvas.is_none()
-                    && ui.menu_item("Blob Shadow")
-                {
-                    entity.blob_shadow = Some(Default::default());
-                }
-                if entity.light.is_none()
-                    && entity.rect.is_none()
-                    && entity.canvas.is_none()
-                    && ui.menu_item("Light")
-                {
-                    entity.light = Some(Default::default());
-                }
-                if entity.rect.is_some() {
-                    if entity.image.is_none() && ui.menu_item("UI Image") {
-                        entity.image = Some(Default::default());
-                    }
-                    if entity.text.is_none() && ui.menu_item("UI Text") {
-                        entity.text = Some(Default::default());
-                    }
-                    if entity.progress.is_none() && ui.menu_item("UI Progress Bar") {
-                        entity.progress = Some(Default::default());
-                    }
-                    ui.separator();
-                } else if entity.kind == "Empty" && entity.canvas.is_none() {
-                    if entity.parent.is_none() && ui.menu_item("UI Canvas") {
-                        entity.canvas = Some(Default::default());
-                        e.set_scene_2d(true);
-                    }
-                    if entity.parent.is_some_and(|p| {
-                        e.scene.actors[p].canvas.is_some() || e.scene.actors[p].rect.is_some()
-                    }) && ui.menu_item("UI RectTransform")
-                    {
-                        entity.rect = Some(Default::default());
-                        e.set_scene_2d(true);
-                    }
-                }
-
-                if entity.kind == "Empty" && entity.rect.is_none() && entity.canvas.is_none() {
-                    if ui.menu_item("Mesh Renderer (Cube)") {
-                        entity.kind = "Mesh".into();
-                    }
-                    ui.separator();
-                }
-                if entity.audio.is_none() && ui.menu_item("Audio Source") {
-                    entity.audio = Some(Default::default());
-                }
-                if entity.audio.is_some() && ui.menu_item("Additional Audio Component") {
-                    e.add_actor_component(entity.id, "epok::AudioComponent");
-                    entity = e.scene.actors[index].clone();
-                }
-                let model = e.object_model();
-                let scripts: Vec<_> = e
-                    .catalog
-                    .iter()
-                    .filter(|s| s.instantiable())
-                    .filter_map(|script| {
-                        let class = model.as_deref().and_then(|model| model.class(&script.name));
-                        let family = if let (Some(model), Some(class)) = (model.as_deref(), class) {
-                            crate::actor_scripts::validate_target(&e.scene, index, class, model)
-                                .ok()?;
-                            class.family
-                        } else {
-                            return None;
-                        };
-                        Some((script.name.clone(), family))
-                    })
-                    .collect();
-                for (group, family) in [(
-                    "Actor Components",
-                    crate::reflection_schema::ClassFamily::Component,
-                )] {
-                    if !scripts.iter().any(|(_, f)| *f == family) {
-                        continue;
-                    }
-                    ui.separator();
-                    ui.text_disabled(group);
-                    for (name, _) in scripts.iter().filter(|(_, f)| *f == family) {
-                        let assigned = family == crate::reflection_schema::ClassFamily::Actor
-                            && crate::actor_scripts::owner(&e.scene, index)
-                                .is_some_and(|a| a.class.name == *name);
-                        if ui
-                            .menu_item_config(format!("{CODE} {name}"))
-                            .selected(assigned)
-                            .enabled(!assigned)
-                            .build()
-                        {
-                            e.attach(&name);
-                            entity = e.scene.actors[index].clone();
-                        }
-                        #[cfg(test)]
-                        record_script_control(ui, name);
-                    }
-                }
-                ui.separator();
-                if ui.menu_item("New C++ Script...") {
-                    e.action("new-script");
-                    entity = e.scene.actors[index].clone();
-                }
-                if ui.menu_item("New Blueprint...") {
-                    let parent = Some(crate::object_model::ACTOR_COMPONENT_ID.to_owned());
-                    crate::blueprint_workflow::begin(e, parent);
-                    entity = e.scene.actors[index].clone();
-                }
-            });
+            if add_component_menu(ui, e, entity.id) {
+                entity = e.scene.actors[index].clone();
+            }
         });
         if entity != original {
             let previous = e.scene.actors[index].clone();
@@ -2896,6 +2915,7 @@ fn scene_view(
             .range(0.1, 100.)
             .build(ui, &mut e.view.fly_speed);
         muted(ui, "RMB + WASD: fly | Q/E: down/up | Alt + LMB: orbit");
+        crate::lighting_editor::preview_status(ui, e);
         ui.separator();
         let position = ui.cursor_screen_pos();
         let available = ui.content_region_avail().map(|v| v.max(1.));
@@ -3166,6 +3186,513 @@ fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) 
 mod interaction_tests {
     use super::*;
     #[test]
+    fn build_menu_runs_lighting_in_background_and_clears_the_stale_warning() {
+        let mut context = crate::gui::tests::imgui_context();
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1000., 700.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        let root = crate::workspace::tests::temp("build-lighting-menu");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene = crate::lighting::tests::shadow_scene();
+        editor.changed();
+        assert!(!crate::lighting_editor::needs_rebuild(&editor));
+        let saved = editor.scene.bake.clone();
+        editor.scene.actors[1].lighting.static_geometry = false;
+        editor.scene.actors[1].lighting.receive = crate::lighting::Receive::Realtime;
+        editor.changed();
+        assert!(crate::lighting_editor::needs_rebuild(&editor));
+        assert!(editor.bake_job.is_none());
+
+        fn frame(context: &mut imgui::Context, editor: &mut Editor) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            let ui = context.frame();
+            ui.main_menu_bar(|| build_menu(ui, editor));
+            ui.window("Scene lighting status")
+                .position([10., 80.], Condition::Always)
+                .size([700., 200.], Condition::Always)
+                .build(|| {
+                    crate::lighting_editor::preview_status(ui, editor);
+                });
+            context.render();
+        }
+        fn click(context: &mut imgui::Context, editor: &mut Editor, label: &str) {
+            frame(context, editor);
+            frame(context, editor);
+            let point = SCRIPT_BUTTONS.with(|buttons| buttons.borrow()[label]);
+            context.io_mut().add_mouse_pos_event(point);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, true);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, false);
+            frame(context, editor);
+        }
+        fn finish_bake(editor: &mut Editor) {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+            while editor.bake_job.is_some() {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "Lighting worker timed out"
+                );
+                crate::lighting_editor::poll(editor);
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        }
+        frame(&mut context, &mut editor);
+        SCRIPT_BUTTONS
+            .with(|buttons| assert!(buttons.borrow().contains_key("Lighting needs rebuilding")));
+        click(&mut context, &mut editor, "Build menu");
+        click(&mut context, &mut editor, "Build Lighting");
+        assert!(editor.bake_job.is_some());
+        assert_eq!(
+            editor.scene.bake, saved,
+            "The menu must only start the worker"
+        );
+        assert!(!crate::lighting_editor::can_start_bake(&editor));
+        finish_bake(&mut editor);
+        assert!(editor.bake_current && editor.view_dirty);
+        assert!(!crate::lighting_editor::needs_rebuild(&editor));
+        frame(&mut context, &mut editor);
+        SCRIPT_BUTTONS
+            .with(|buttons| assert!(!buttons.borrow().contains_key("Lighting needs rebuilding")));
+
+        let rebuilt = editor.scene.bake.clone();
+        crate::lighting_editor::start_bake(&mut editor);
+        editor.scene.actors[2].position[0] += 1.;
+        editor.changed();
+        finish_bake(&mut editor);
+        assert_eq!(
+            editor.scene.bake, rebuilt,
+            "Edits made while baking must discard outdated results"
+        );
+        assert!(crate::lighting_editor::needs_rebuild(&editor));
+        assert!(
+            editor
+                .logs
+                .iter()
+                .any(|log| log.contains("Result discarded"))
+        );
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    #[test]
+    fn inspector_header_class_editing_and_mesh_selection_follow_actor_ownership() {
+        let mut context = crate::gui::tests::imgui_context();
+        context.io_mut().display_size = [1000., 1500.];
+        context.io_mut().delta_time = 1. / 60.;
+        theme(context.style_mut());
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][Inspector]\nPos=0,0\nSize=380,1400\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("inspector-ownership");
+        std::fs::create_dir_all(root.join("assets/scripts")).unwrap();
+        std::fs::create_dir_all(root.join("assets/Meshes")).unwrap();
+        let source = root.join("assets/scripts/Actors.hpp");
+        std::fs::write(&source, "// Project Actor declaration\n").unwrap();
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.class_registry = crate::actor_document::tests::registry();
+        let mut class = crate::actor_document::tests::class(
+            "project-actor",
+            "ProjectActor",
+            Some(crate::object_model::ACTOR3D_ID),
+        );
+        class.source.file = source;
+        editor
+            .class_registry
+            .classes
+            .insert(class.id.clone(), class);
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        editor.add_actor_component(editor.selected_actor.unwrap(), "epok::Mesh3DComponent");
+        let asset = crate::mesh::create(
+            &root,
+            "assets/Meshes/Ramp.epokasset",
+            &crate::mesh::tests::shape("Ramp"),
+        )
+        .unwrap();
+        let index = crate::assets::scan(&root, &mut Default::default());
+        editor.assets.adopt(index, Default::default());
+        fn frame(context: &mut imgui::Context, editor: &mut Editor) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            inspector(context.frame(), editor);
+            context.render();
+        }
+        fn click(context: &mut imgui::Context, editor: &mut Editor, label: &str) {
+            frame(context, editor);
+            frame(context, editor);
+            let point = SCRIPT_BUTTONS.with(|buttons| {
+                *buttons
+                    .borrow()
+                    .get(label)
+                    .unwrap_or_else(|| panic!("Missing control {label}"))
+            });
+            context.io_mut().add_mouse_pos_event(point);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, true);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, false);
+            frame(context, editor);
+            frame(context, editor);
+        }
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        SCRIPT_BUTTONS.with(|buttons| {
+            let buttons = buttons.borrow();
+            assert!(!buttons.contains_key("Edit C++ Class"));
+            let [active, static_flag, name] =
+                ["Active", "Static", "Actor name"].map(|key| buttons[key]);
+            assert!(active[0] < static_flag[0] && static_flag[0] < name[0]);
+            assert!((active[1] - name[1]).abs() < 2. && (static_flag[1] - name[1]).abs() < 2.);
+        });
+        let active = editor.scene.actors[0].active;
+        click(&mut context, &mut editor, "Active");
+        assert_eq!(editor.scene.actors[0].active, !active);
+        let static_flag = editor.scene.actors[0].lighting.static_geometry;
+        click(&mut context, &mut editor, "Static");
+        assert_eq!(
+            editor.scene.actors[0].lighting.static_geometry,
+            !static_flag
+        );
+        click(&mut context, &mut editor, "Mesh");
+        click(&mut context, &mut editor, "assets/Meshes/Ramp.epokasset");
+        assert_eq!(
+            editor.scene.actors[0].editable_mesh.as_ref().unwrap().asset,
+            asset
+        );
+        click(&mut context, &mut editor, "Mesh");
+        click(&mut context, &mut editor, "Engine / Cube");
+        assert!(editor.scene.actors[0].editable_mesh.is_none());
+        assert_eq!(editor.scene.actors[0].kind, "Mesh");
+        editor.scene.actors[0].class =
+            crate::actor_document::ClassReference::new("ProjectActor", "project-actor");
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        SCRIPT_BUTTONS.with(|buttons| assert!(buttons.borrow().contains_key("Edit C++ Class")));
+        drop(editor);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn add_component_cpp_dialog_hides_actor_and_wrong_domain_parents() {
+        let mut context = crate::gui::tests::imgui_context();
+        context.io_mut().display_size = [1600., 2000.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][Inspector]\nPos=0,0\nSize=1000,1800\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("component-parent-dialog");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.class_registry = crate::actor_document::tests::registry();
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        fn frame(context: &mut imgui::Context, editor: &mut Editor) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            let ui = context.frame();
+            inspector(ui, editor);
+            script_creation_dialog(ui, editor);
+            crate::blueprint_workflow::draw(ui, editor);
+            context.render();
+        }
+        fn click(context: &mut imgui::Context, editor: &mut Editor, label: &str) {
+            frame(context, editor);
+            frame(context, editor);
+            let point = SCRIPT_BUTTONS.with(|buttons| buttons.borrow()[label]);
+            context.io_mut().add_mouse_pos_event(point);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, true);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, false);
+            frame(context, editor);
+            frame(context, editor);
+        }
+        click(&mut context, &mut editor, "Add Component");
+        SCRIPT_BUTTONS.with(|buttons| {
+            let buttons = buttons.borrow();
+            assert!(buttons.contains_key("epok::AudioComponent"));
+            assert!(buttons.contains_key("Create Blueprint ActorComponent..."));
+            assert!(!buttons.contains_key("epok::SceneComponent3D"));
+            assert!(!buttons.contains_key("epok::Actor3D"));
+        });
+        click(&mut context, &mut editor, "Create C++ ActorComponent...");
+        let assert_component_parents = || {
+            SCRIPT_BUTTONS.with(|buttons| {
+                let buttons = buttons.borrow();
+                assert!(buttons.contains_key("epok::ActorComponent"));
+                assert!(buttons.contains_key("epok::AudioComponent"));
+                for hidden in [
+                    "epok::Actor",
+                    "epok::Actor3D",
+                    "epok::Actor2D",
+                    "epok::UIActor",
+                    "epok::SceneComponent2D",
+                    "epok::UIComponent",
+                    "epok::SceneScriptActor",
+                ] {
+                    assert!(!buttons.contains_key(hidden), "unexpected parent {hidden}");
+                }
+            })
+        };
+        assert_component_parents();
+        click(&mut context, &mut editor, "Cancel");
+        editor.action("new-script");
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        SCRIPT_BUTTONS.with(|buttons| assert!(buttons.borrow().contains_key("epok::Actor3D")));
+        click(&mut context, &mut editor, "Cancel");
+        // Render the Blueprint selector against the same reflection fixture.
+        editor.blueprint_creation = crate::blueprint_workflow::Creation {
+            requested: true,
+            context: crate::actor_scripts::CreationContext::Component(
+                editor.selected_actor.unwrap(),
+            ),
+            parent: crate::object_model::ACTOR_COMPONENT_ID.into(),
+            owner_domain: 1,
+            ..Default::default()
+        };
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        assert_component_parents();
+        editor.blueprint_creation.search = "Actor3D".into();
+        frame(&mut context, &mut editor);
+        SCRIPT_BUTTONS.with(|buttons| assert!(!buttons.borrow().contains_key("epok::Actor3D")));
+        editor.blueprint_creation.context = crate::actor_scripts::CreationContext::Project;
+        frame(&mut context, &mut editor);
+        SCRIPT_BUTTONS.with(|buttons| assert!(buttons.borrow().contains_key("epok::Actor3D")));
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    /// The Lua dialog offers exactly the registry's Lua parents and honours the
+    /// component context, like its C++ and Blueprint siblings.
+    #[test]
+    fn lua_creation_dialog_lists_lua_parents_and_respects_the_component_context() {
+        let mut context = crate::gui::tests::imgui_context();
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1600., 2000.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        let root = crate::workspace::tests::temp("lua-parent-dialog");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.class_registry = crate::actor_document::tests::registry();
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        fn frame(context: &mut imgui::Context, editor: &mut Editor) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            lua_creation_dialog(context.frame(), editor);
+            context.render();
+        }
+        editor.action("new-lua");
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        SCRIPT_BUTTONS.with(|buttons| {
+            let buttons = buttons.borrow();
+            for expected in [
+                "epok::Actor3D",
+                "epok::ActorComponent",
+                "epok::AudioComponent",
+            ] {
+                assert!(buttons.contains_key(expected), "missing parent {expected}");
+            }
+            // `epok::Object` is not blueprintable, so no provider may derive from it.
+            assert!(!buttons.contains_key("epok::Object"));
+        });
+        editor.action("new-lua");
+        editor.lua_creation_context =
+            crate::actor_scripts::CreationContext::Component(editor.selected_actor.unwrap());
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        SCRIPT_BUTTONS.with(|buttons| {
+            let buttons = buttons.borrow();
+            assert!(buttons.contains_key("epok::ActorComponent"));
+            for hidden in ["epok::Actor3D", "epok::Actor2D", "epok::UIActor"] {
+                assert!(!buttons.contains_key(hidden), "unexpected parent {hidden}");
+            }
+        });
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    /// The authoring round trip: the dialog writes the `.lua` asset, the catalog
+    /// republishes it as a Lua class, the Inspector sees the declared defaults and
+    /// the source action opens the authored file rather than generated C++.
+    #[test]
+    #[ignore = "Requires pinned libclang/MIPS SDK and built epok-header-tool; run explicitly after cargo build --bins"]
+    fn lua_creation_dialog_creates_attaches_and_reports_rejections() {
+        let mut context = crate::gui::tests::imgui_context();
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1280., 720.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        let root = crate::workspace::tests::temp("lua-creation-ui");
+        let project =
+            crate::workspace::create(&root, "Lua acceptance", crate::workspace::Template::Basic)
+                .unwrap();
+        let mut editor = Editor::open(project).unwrap();
+        editor.auto_build = false;
+        editor.selected = Some(0);
+        let frame = |context: &mut imgui::Context, editor: &mut Editor| {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            lua_creation_dialog(context.frame(), editor);
+            context.render();
+        };
+        let click = |context: &mut imgui::Context, editor: &mut Editor, label: &str| {
+            let point = SCRIPT_BUTTONS.with(|buttons| buttons.borrow()[label]);
+            context.io_mut().add_mouse_pos_event(point);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, true);
+            frame(context, editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, false);
+            frame(context, editor);
+        };
+        editor.action("new-lua");
+        editor.lua_name = "Guard".into();
+        editor.lua_folder = "Enemies".into();
+        editor.lua_parent = "epok::ActorComponent".into();
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        click(&mut context, &mut editor, "Create and Attach");
+        let created = root.join("assets/scripts/Enemies/Guard.lua");
+        assert!(created.is_file(), "{:?}", editor.lua_error);
+        // The template's own property line, replaced by the one this test
+        // reads back out of the Inspector.
+        let declared = std::fs::read_to_string(&created).unwrap().replace(
+            "Guard.speed = 1.0",
+            "---@id 0f1d2c3b-4a59-4687-9b0c-1d2e3f405162\nGuard.health = 100.0",
+        );
+        std::fs::write(&created, declared).unwrap();
+        editor.refresh_scripts();
+        let script = editor
+            .catalog
+            .iter()
+            .find(|s| s.name == "Guard")
+            .expect("the catalog publishes the Lua class");
+        assert_eq!(script.classes[0].provider, crate::lua_asset::provider());
+        assert!(script.attachable(), "a component parent stays attachable");
+        let properties = editor.class_registry.properties("Guard");
+        let health = properties
+            .iter()
+            .find(|p| p.name == "health")
+            .expect("declared property");
+        assert_eq!(health.value_type, crate::reflection_schema::Type::Fixed);
+        assert_eq!(health.default, serde_json::json!(100.0));
+        // The source action opens the authored `.lua`, never the generated C++.
+        let class = editor.class_registry.named("Guard").unwrap().clone();
+        assert_eq!(
+            crate::blueprint_workflow::class_source(&editor.root, &class),
+            Some(std::fs::canonicalize(&created).unwrap())
+        );
+        assert!(crate::scripts::editable_class_source(&editor.root, &class).is_none());
+        let engine = editor.class_registry.named("epok::ActorComponent").unwrap();
+        assert!(crate::lua_asset::editable_class_source(&editor.root, engine).is_none());
+        assert_eq!(editor.scene.actors[0].class.name, "epok::Actor3D");
+        assert!(
+            editor.scene.actors[0]
+                .components
+                .iter()
+                .any(|c| c.class.name == "Guard"),
+            "Create and Attach must attach the new component"
+        );
+        // A Lua diagnostic reaches the console with its source position, the way
+        // a Blueprint compilation failure reports its own diagnostics.
+        let valid = std::fs::read_to_string(&created).unwrap();
+        std::fs::write(
+            &created,
+            valid.replace(
+                "function Guard:begin_play()\nend",
+                "function Guard:begin_play()\n    local t = {}\nend",
+            ),
+        )
+        .unwrap();
+        editor.refresh_scripts();
+        let reported = editor
+            .logs
+            .iter()
+            .rev()
+            .find(|line| line.contains("Guard.lua:"))
+            .expect("the Lua diagnostic reaches the console");
+        let position = reported.split("Guard.lua:").nth(1).unwrap();
+        let (line, rest) = position.split_once(':').unwrap();
+        let (column, message) = rest.split_once(':').unwrap();
+        assert!(line.parse::<u32>().unwrap() >= 1, "{reported}");
+        assert!(column.parse::<u32>().unwrap() >= 1, "{reported}");
+        assert!(!message.trim().is_empty(), "{reported}");
+        std::fs::write(&created, &valid).unwrap();
+        editor.refresh_scripts();
+        assert!(editor.catalog.iter().any(|s| s.name == "Guard"));
+
+        // A duplicate name and an ineligible parent are refused with the same
+        // style of message the Blueprint and C++ flows produce.
+        editor.action("new-lua");
+        editor.lua_name = "Guard".into();
+        editor.lua_folder = "ShouldNotExist".into();
+        frame(&mut context, &mut editor);
+        frame(&mut context, &mut editor);
+        click(&mut context, &mut editor, "Create");
+        assert!(
+            editor
+                .lua_error
+                .as_ref()
+                .unwrap()
+                .contains("already exists"),
+            "{:?}",
+            editor.lua_error
+        );
+        assert!(!root.join("assets/scripts/ShouldNotExist").exists());
+        assert_eq!(
+            crate::lua_asset::create_in(&root, "Orphan", "", "epok::Object"),
+            Err("epok::Object is not an eligible parent".into())
+        );
+        assert!(!root.join("assets/scripts/Orphan.lua").exists());
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    #[test]
     #[ignore = "Requires pinned reflection toolchain; exercises the real ImGui Inspector and Blueprint creation dialog"]
     fn actor_blueprint_create_attach_and_add_component_show_the_assignment() {
         let mut context = crate::gui::tests::imgui_context();
@@ -3225,9 +3752,15 @@ mod interaction_tests {
                 .add_mouse_button_event(imgui::MouseButton::Left, false);
             frame(context, editor, wizard);
         }
-        crate::blueprint_workflow::begin(
+        click(&mut context, &mut editor, "Add Component", false);
+        click(
+            &mut context,
             &mut editor,
-            Some(crate::object_model::ACTOR_COMPONENT_ID.into()),
+            "Create Blueprint ActorComponent...",
+            false,
+        );
+        assert!(
+            matches!(editor.blueprint_creation.context, crate::actor_scripts::CreationContext::Component(actor) if actor == original.id)
         );
         editor.blueprint_creation.name = "BP_Box".into();
         editor.blueprint_creation.owner_domain = 1;
@@ -3291,6 +3824,23 @@ mod interaction_tests {
                 .any(|c| c.class.name == "BP_Rotate")
         );
         assert_eq!(editor.scene.actors[1].id, original.id);
+        crate::scripts::create_in(
+            &editor.root,
+            "NativeCollider",
+            "",
+            "epok::Collider3DComponent",
+            true,
+        )
+        .unwrap();
+        editor.refresh_scripts();
+        editor.attach("NativeCollider");
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        assert!(
+            editor.scene.actors[1]
+                .components
+                .iter()
+                .any(|c| c.class.name == "NativeCollider")
+        );
         assert!(editor.save());
         let restored = crate::scene::Scene::load(&editor.scene_path()).unwrap();
         assert_eq!(restored.actors, editor.scene.actors);
@@ -4072,14 +4622,18 @@ mod interaction_tests {
         let pivot = editor.view.center;
         let lens = editor.view.zoom;
         let distance = editor.view.distance;
+        let forward = editor.view.basis()[2];
         context.io_mut().add_mouse_wheel_event([0., 1.]);
         frame(context, &mut editor, false);
-        assert_eq!(
-            editor.view.center, pivot,
-            "Wheel must preserve the orbit pivot"
-        );
+        for i in 0..3 {
+            assert!(
+                (editor.view.center[i] - pivot[i] - forward[i] * editor.view.fly_speed * 0.2).abs()
+                    < 0.0001,
+                "Wheel must move the camera along its viewing direction"
+            );
+        }
         assert_eq!(editor.view.zoom, lens, "Wheel must preserve the FOV");
-        assert!(editor.view.distance < distance);
+        assert_eq!(editor.view.distance, distance);
         let yaw = editor.view.yaw;
         let middle = [origin[0] + size[0] * 0.5, origin[1] + size[1] * 0.5];
         context.io_mut().add_mouse_pos_event(middle);

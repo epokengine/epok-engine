@@ -498,11 +498,9 @@ fn ordered<'a>(
 fn declarations(file: &AssetFile, registry: &Registry) -> Result<schema::Class, Diagnostic> {
     let a = &file.asset;
     let parent = &registry.classes[&a.parent];
-    if !parent.blueprintable
-        || parent.final_class
-        || parent.backend != schema::native_backend()
-        || !matches!(parent.provider.id.as_str(), "cpp" | "blueprint")
-    {
+    // A Lua class is a real native subclass in every execution mode, so it is an
+    // eligible Blueprint parent; `can_derive` is the single eligibility rule.
+    if !crate::script_backend::can_derive(&crate::script_backend::blueprint_provider(), parent) {
         return Err(diagnostic(
             file,
             "Parent does not support native Blueprint inheritance",
@@ -611,6 +609,7 @@ fn declarations(file: &AssetFile, registry: &Registry) -> Result<schema::Class, 
     }
     let mut declared = vec![];
     let mut overrides = BTreeSet::new();
+    let mut seen_overrides = BTreeSet::new();
     for graph in &a.functions {
         if uuid::Uuid::parse_str(&graph.id).is_err() || !ids.insert(graph.id.clone()) {
             return Err(diagnostic(file, "Function UUID is invalid or duplicated"));
@@ -622,7 +621,7 @@ fn declarations(file: &AssetFile, registry: &Registry) -> Result<schema::Class, 
             if !inherited.event
                 || inherited.final_method
                 || inherited.access == "private"
-                || !overrides.insert(inherited.id.clone())
+                || !seen_overrides.insert(inherited.id.clone())
             {
                 return Err(diagnostic(
                     file,
@@ -630,8 +629,12 @@ fn declarations(file: &AssetFile, registry: &Registry) -> Result<schema::Class, 
                 ));
             }
             if graph.name != inherited.name
-                || serde_json::to_value(&graph.parameters).unwrap()
-                    != serde_json::to_value(&inherited.parameters).unwrap()
+                || graph.parameters.len() != inherited.parameters.len()
+                || graph
+                    .parameters
+                    .iter()
+                    .zip(&inherited.parameters)
+                    .any(|(a, b)| a.value_type != b.value_type || a.direction != b.direction)
                 || graph.returns != inherited.returns
             {
                 return Err(diagnostic(
@@ -642,7 +645,13 @@ fn declarations(file: &AssetFile, registry: &Registry) -> Result<schema::Class, 
                     ),
                 ));
             }
+            if !graph.inherits_event() {
+                overrides.insert(inherited.id.clone());
+            }
             let mut f = inherited.clone();
+            // Parameter names are local bindings, not part of a C++ override's
+            // signature. Keep existing graph wires when SDK pin names improve.
+            f.parameters = graph.parameters.clone();
             f.timeline = graph.timeline.or(f.timeline);
             f.overrides = vec![inherited.id.clone()];
             f
@@ -695,7 +704,11 @@ fn declarations(file: &AssetFile, registry: &Registry) -> Result<schema::Class, 
             ir::cpp_type(&p.value_type).map_err(|e| diagnostic(file, e))?;
         }
         f.id = graph.id.clone();
-        f.abstract_method = false;
+        // Keep disconnected event declarations as aliases so existing children
+        // retain their override UUIDs. They do not implement an abstract method.
+        if !graph.inherits_event() {
+            f.abstract_method = false;
+        }
         f.source = location(&file.path);
         declared.push(f);
     }
@@ -1773,7 +1786,21 @@ pub fn compile(
             .filter(|c| c.provider.id == "blueprint")
             .flat_map(|c| c.properties.iter().map(|p| p.id.clone()))
             .collect::<BTreeSet<_>>();
-        for (graph, signature) in a.functions.iter().zip(&class.functions) {
+        for (graph, signature) in a
+            .functions
+            .iter()
+            .zip(&class.functions)
+            .filter(|(graph, _)| !graph.inherits_event())
+        {
+            let parent_function = graph
+                .override_id
+                .as_ref()
+                .and_then(|id| parent_functions.get(id))
+                .cloned()
+                .map(|mut f| {
+                    f.parameters = graph.parameters.clone();
+                    f
+                });
             let context = ir::Context {
                 registry: &registry,
                 model: model.as_ref(),
@@ -1785,10 +1812,7 @@ pub fn compile(
                 functions: &functions,
                 self_class: &a.name,
                 parent_name: &parent.cpp_name,
-                parent_function: graph
-                    .override_id
-                    .as_ref()
-                    .and_then(|id| parent_functions.get(id)),
+                parent_function: parent_function.as_ref(),
             };
             let mut lowered = ir::lower(graph, signature, &context).map_err(|e| {
                 vec![Diagnostic {
@@ -1924,7 +1948,7 @@ pub fn compile(
         }
         if synthesize {
             let tick = tick_signature.expect("latent Actor events require a reflected tick");
-            let dt = tick.parameters[0].name.clone();
+            let dt = "dt";
             let dt_type = ir::cpp_type(&tick.parameters[0].value_type)
                 .map_err(|e| vec![diagnostic(file, e)])?;
             text.push_str("epok::bp::Continuations<8> epok_tasks;\n");
@@ -2180,6 +2204,44 @@ mod tests {
         );
         f.asset.functions.push(event(vec![entry, set]));
         assert!(error(f).contains("Assignment expects"));
+    }
+    #[test]
+    fn unwired_event_inherits_until_connected_and_parent_calls_are_explicit() {
+        let mut file = asset();
+        file.asset
+            .functions
+            .push(event(vec![node(10, NodeKind::Entry)]));
+        let native = registry();
+        let inherited = compile(Path::new(""), &native, &[file.clone()]).unwrap();
+        assert!(!generated(&inherited).contains("void damage("));
+        assert_eq!(inherited.registry.classes[&id(4)].functions[0].id, id(5));
+
+        // Connecting even a Return is an intentional empty override.
+        let graph = &mut file.asset.functions[0];
+        graph.nodes.push(node(11, NodeKind::Return));
+        graph.nodes[0].outputs.insert("next".into(), vec![id(11)]);
+        let overridden = compile(Path::new(""), &native, &[file.clone()]).unwrap();
+        assert!(generated(&overridden).contains("void damage("));
+        assert!(!generated(&overridden).contains("Enemy::damage("));
+
+        // Old saved pin bindings survive a descriptive SDK parameter rename.
+        let graph = &mut file.asset.functions[0];
+        graph.parameters[0].name = "arg0".into();
+        graph.nodes[1].kind = NodeKind::CallParent;
+        graph.nodes[1].inputs.insert(
+            "arg0".into(),
+            Input::Link {
+                node: id(10),
+                pin: "arg0".into(),
+            },
+        );
+        let source = generated(&compile(Path::new(""), &native, &[file.clone()]).unwrap());
+        assert!(source.contains("Enemy::damage(epok_argument_0)"));
+
+        file.asset.functions[0].nodes[0].outputs.clear();
+        let inherited_again = compile(Path::new(""), &native, &[file.clone()]).unwrap();
+        assert!(!generated(&inherited_again).contains("void damage("));
+        assert_eq!(file.asset.functions[0].parameters[0].name, "arg0");
     }
     #[test]
     fn execution_cycle_and_nested_loop_budget_are_checked() {

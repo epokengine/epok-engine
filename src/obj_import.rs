@@ -239,17 +239,13 @@ pub fn parse(
     doc.validate()?;
     Ok(doc)
 }
-fn linked(root: &Path, parent: &Path, value: &str) -> Result<std::path::PathBuf, String> {
+fn linked(directory: &Path, parent: &Path, value: &str) -> Result<std::path::PathBuf, String> {
     let path = parent
         .join(value)
         .canonicalize()
         .map_err(|e| format!("Missing OBJ dependency {value}: {e}"))?;
-    let assets = root
-        .join("assets")
-        .canonicalize()
-        .map_err(|e| e.to_string())?;
-    if !path.starts_with(assets) {
-        return Err("OBJ dependencies must stay inside project assets".into());
+    if !path.starts_with(directory) {
+        return Err("OBJ dependencies must stay inside the source folder or project assets".into());
     }
     Ok(path)
 }
@@ -257,15 +253,24 @@ fn read_materials(
     root: &Path,
     path: &Path,
     source: &str,
+    destination: &str,
 ) -> Result<BTreeMap<String, Material>, String> {
     let mut out = BTreeMap::<String, Material>::new();
     let index = assets::scan(root, &mut Default::default());
+    let project = root.canonicalize().map_err(|e| e.to_string())?;
+    let project_assets = project.join("assets");
+    let external = !path.starts_with(&project_assets);
+    let directory = if external {
+        path.parent().ok_or("Missing OBJ source folder")?
+    } else {
+        &project_assets
+    };
     for line in source.lines() {
         let line = line.split('#').next().unwrap().trim();
         let Some(value) = line.strip_prefix("mtllib ") else {
             continue;
         };
-        let mtl = linked(root, path.parent().unwrap(), value.trim())?;
+        let mtl = linked(directory, path.parent().unwrap(), value.trim())?;
         let data = std::fs::read_to_string(&mtl).map_err(|e| e.to_string())?;
         let mut current = None::<String>;
         for line in data.lines() {
@@ -301,11 +306,19 @@ fn read_materials(
                             "MTL map_Kd options are unsupported; bake transforms into UVs".into(),
                         );
                     }
-                    let file = linked(root, mtl.parent().unwrap(), &file)?;
-                    let relative = assets::path_string(
-                        &root.canonicalize().map_err(|e| e.to_string())?,
-                        &file,
-                    );
+                    let file = linked(directory, mtl.parent().unwrap(), &file)?;
+                    let imported = if external {
+                        project
+                            .join(
+                                Path::new(destination)
+                                    .parent()
+                                    .ok_or("Missing mesh destination folder")?,
+                            )
+                            .join(file.strip_prefix(directory).map_err(|e| e.to_string())?)
+                    } else {
+                        file
+                    };
+                    let relative = assets::path_string(&project, &imported);
                     let matches = index
                         .usable()
                         .filter(|r| {
@@ -336,39 +349,33 @@ fn read_materials(
 }
 pub fn import(root: &Path, source: &str, destination: &str, scale: f32) -> Result<Uuid, String> {
     let path = assets::inside(root, source)?;
-    if !source.to_ascii_lowercase().ends_with(".obj") || !destination.ends_with(".epokasset") {
+    import_file(root, &path, destination, scale)
+}
+
+/// Import from the Project browser; material libraries are read next to the
+/// source while the new project-owned package contains the editable geometry.
+pub fn import_file(
+    root: &Path,
+    source: &Path,
+    destination: &str,
+    scale: f32,
+) -> Result<Uuid, String> {
+    if !source
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("obj"))
+        || !destination.ends_with(".epokasset")
+    {
         return Err("Select an .obj source and a new .epokasset destination".into());
     }
+    let path = source.canonicalize().map_err(|e| e.to_string())?;
     if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() > 8 * 1024 * 1024 {
         return Err("OBJ limit is 8 MiB".into());
     }
     let source = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let materials = read_materials(root, &path, &source)?;
+    let materials = read_materials(root, &path, &source, destination)?;
     let document = parse(&source, scale, &materials)?;
     crate::mesh::create(root, destination, &document)
-}
-pub fn inspector(
-    ui: &imgui::Ui,
-    editor: &mut crate::editor::Editor,
-    entity: &mut crate::scene::Actor,
-) {
-    #[derive(Default)]
-    struct Form {
-        source: String,
-        destination: String,
-        error: Option<String>,
-    }
-    thread_local! {static FORM:std::cell::RefCell<Form>=const{std::cell::RefCell::new(Form{source:String::new(),destination:String::new(),error:None})};}
-    if ui.small_button("Import static OBJ...") {
-        ui.open_popup("Import static OBJ");
-    }
-    if let Some(_popup) = ui.begin_popup("Import static OBJ") {
-        FORM.with(|state|{let mut form=state.borrow_mut();ui.text_wrapped("Import a project-relative OBJ to a new editable mesh asset. Import referenced PNG textures first.");ui.input_text("OBJ in assets/",&mut form.source).build();ui.input_text("New .epokasset",&mut form.destination).build();if ui.button("Import and assign"){
-        let result=import(&editor.root,&form.source,&form.destination,1.);
-        match result {Ok(id)=>{editor.assets.refresh();let index=assets::scan(&editor.root,&mut Default::default());match index.resolve(id).and_then(crate::mesh::document){Ok(doc)=>{let mut component=crate::mesh::Component::new(id);component.document=Some(std::sync::Arc::new(doc));entity.editable_mesh=Some(component);entity.kind="Mesh".into();editor.mesh_editor.open=false;ui.close_current_popup();form.error=None;},Err(e)=>form.error=Some(e)}},Err(e)=>form.error=Some(e)}
-    }
-    if let Some(e)=&form.error{ui.text_wrapped(e);}});
-    }
 }
 #[cfg(test)]
 mod tests {

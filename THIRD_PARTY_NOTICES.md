@@ -28,6 +28,8 @@ Segoe UI is loaded from the Windows installation when available. Its font file i
 
 Nugget is referenced as an upstream submodule at the revision in [dependencies.json](tools/dependencies.json). PsyQo uses its common runtime code and included EASTL/EABase sources. See [runtime notices](runtime/THIRD_PARTY_NOTICES.md) and the original license texts in [runtime/licenses](runtime/licenses).
 
+The editor's Lua bytecode cooker (`native/lua/epok_ldump32.c`) is a derived work of `ldump.c` from the pinned `psxlua` fork of Lua 5.2, which Nugget carries as a nested submodule at revision `abed030e686b4e34987851bd0a028c93b1f73967`. Lua is MIT licensed (Lua.org, PUC-Rio); its notice is in the submodule's `src/lua.h`. No Lua source is vendored into this repository: `build.rs` compiles the submodule's own parser, and `runtime/lua.mk` builds the target archive from it. Preserve the Lua notice with any build whose project selects a Lua VM execution mode.
+
 The repository does not distribute a proprietary PlayStation BIOS or game images.
 
 ## External development tools

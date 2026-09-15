@@ -28,6 +28,121 @@ pub fn debug_hud(root: &Path) -> Result<DebugHud, String> {
     crate::workspace::optional_manifest(root).map(|m| m.map(|m| m.debug).unwrap_or_default())
 }
 
+/// `epok-lua` language profile revision. One profile serves every execution
+/// mode; bumping it invalidates staged execution artifacts in all of them.
+pub const LUA_PROFILE_VERSION: u32 = 1;
+/// Shared frontend/lowering revision. Bumped when parsing, inference or the
+/// typed IR changes output for unchanged sources.
+pub const LUA_FRONTEND_VERSION: u32 = 1;
+
+/// Exactly one Lua execution mode per project. Explicit and reproducible; it is
+/// never switched automatically. Only the selected mode's runtime is linked.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LuaExecution {
+    #[default]
+    NativeCpp,
+    VmBytecode,
+    VmSource,
+}
+impl LuaExecution {
+    pub const ALL: [Self; 3] = [Self::NativeCpp, Self::VmBytecode, Self::VmSource];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::NativeCpp => "Native C++",
+            Self::VmBytecode => "Lua VM — bytecode",
+            Self::VmSource => "Lua VM — source",
+        }
+    }
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::NativeCpp => "Execute the common Epok Lua profile natively.",
+            Self::VmBytecode => {
+                "Execute the same scripts through a VM with a smaller interpreter build."
+            }
+            Self::VmSource => {
+                "Execute the same scripts while parsing their packaged source at load time."
+            }
+        }
+    }
+    pub fn is_vm(self) -> bool {
+        self != Self::NativeCpp
+    }
+    fn value(self) -> u8 {
+        match self {
+            Self::NativeCpp => 0,
+            Self::VmBytecode => 1,
+            Self::VmSource => 2,
+        }
+    }
+    /// Compiled into the runtime so a VM-only translation unit can exclude
+    /// itself without the build system consulting the manifest again.
+    pub fn header(self) -> String {
+        let mut text = format!(
+            "#pragma once\n#define EPOK_LUA_MODE_NATIVE 0\n#define EPOK_LUA_MODE_VM_BYTECODE 1\n#define EPOK_LUA_MODE_VM_SOURCE 2\n#define EPOK_LUA_MODE {}\n",
+            self.value()
+        );
+        if let Some(bytes) = self.arena_bytes() {
+            text.push_str(&format!(
+                "#ifndef EPOK_LUA_ARENA_BYTES\n#define EPOK_LUA_ARENA_BYTES {bytes}\n#endif\n"
+            ));
+        }
+        text
+    }
+    /// Static VM arena. Parsing source on the target allocates transiently
+    /// while each chunk loads (a full collection runs between chunks), so the
+    /// source packaging reserves more than the bytecode packaging; the
+    /// three-class conformance fixture peaks at 18 KiB and 21 KiB respectively.
+    /// Native builds have no arena at all.
+    pub fn arena_bytes(self) -> Option<u32> {
+        match self {
+            Self::NativeCpp => None,
+            Self::VmBytecode => Some(96 * 1024),
+            Self::VmSource => Some(128 * 1024),
+        }
+    }
+    /// Appended to the generated `sources.mk`; the runtime Makefile defines
+    /// `NUGGET_DIR` before including it. `EPOK_LUA_VM` is a make variable, not
+    /// a define: it is what makes the runtime Makefile include `lua.mk`, and
+    /// `EPOK_LUA_NOPARSER` selects which archive that file builds.
+    pub fn cppflags(self) -> &'static str {
+        match self {
+            Self::NativeCpp => "CPPFLAGS += -DEPOK_LUA_MODE=0\n",
+            Self::VmBytecode => {
+                "CPPFLAGS += -DEPOK_LUA_MODE=1\nCPPFLAGS += -DEPOK_LUA_VM -I$(NUGGET_DIR)/third_party/psxlua/src -DLUA_TARGET_PSX\nEPOK_LUA_VM := 1\nEPOK_LUA_NOPARSER := 1\n"
+            }
+            Self::VmSource => {
+                "CPPFLAGS += -DEPOK_LUA_MODE=2\nCPPFLAGS += -DEPOK_LUA_VM -I$(NUGGET_DIR)/third_party/psxlua/src -DLUA_TARGET_PSX\nEPOK_LUA_VM := 1\n"
+            }
+        }
+    }
+    /// The interpreter archive `runtime/lua.mk` builds for this mode, in the
+    /// build directory so the parser and no-parser variants never share object
+    /// files. `libpsyqo-lua.a` is not linked in any mode: its constructor loads
+    /// a source bootstrap chunk and opens the standard libraries, and
+    /// `runtime/lua_runtime.hpp` supplies `luaI_sprintf/realloc/free` itself.
+    pub fn libraries(self) -> &'static str {
+        match self {
+            Self::NativeCpp => "",
+            Self::VmBytecode => {
+                "# Built by lua.mk from $(NUGGET_DIR)/third_party/psxlua/src, no-parser variant.\nLIBRARIES += lua/liblua-epok-noparser.a\n"
+            }
+            Self::VmSource => {
+                "# Built by lua.mk from $(NUGGET_DIR)/third_party/psxlua/src, parser variant.\nLIBRARIES += lua/liblua-epok-parser.a\n"
+            }
+        }
+    }
+    /// Build signature for the mode. The profile/frontend revisions are folded
+    /// in so a compiler bump invalidates artifacts without a manifest edit.
+    pub fn signature(self) -> String {
+        crate::scene_dependencies::hash((self, LUA_PROFILE_VERSION, LUA_FRONTEND_VERSION))
+    }
+}
+pub fn lua_execution(root: &Path) -> Result<LuaExecution, String> {
+    crate::workspace::optional_manifest(root)
+        .map(|m| m.map(|m| m.lua_execution).unwrap_or_default())
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Rendering {
@@ -343,6 +458,51 @@ mod tests {
                 options
             );
         }
+    }
+    #[test]
+    fn lua_execution_settings_invalidate_staged_inputs_and_persist() {
+        use crate::artifact_dependencies::{self, Graph};
+        let root = crate::workspace::tests::temp("lua-execution-provenance");
+        let project =
+            crate::workspace::create(&root, "Lua Modes", crate::workspace::Template::Basic)
+                .unwrap();
+        let mut manifest = project.manifest.clone();
+        drop(project);
+        artifact_dependencies::transaction(&root, |graph| {
+            graph.publish(
+                "scene-lua-settings",
+                manifest.lua_execution.signature(),
+                Default::default(),
+            );
+            graph.publish(
+                "stage:test",
+                "previous".into(),
+                ["scene-lua-settings".into()].into_iter().collect(),
+            );
+        })
+        .unwrap();
+        // Every mode has its own signature; a bumped profile/frontend revision
+        // is folded in so a compiler change invalidates without a manifest edit.
+        let signatures = super::LuaExecution::ALL
+            .map(|mode| mode.signature())
+            .to_vec();
+        assert_eq!(
+            signatures
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            3
+        );
+        manifest.lua_execution = super::LuaExecution::VmSource;
+        crate::workspace::save_manifest(&root, &manifest).unwrap();
+        assert_eq!(super::lua_execution(&root).unwrap(), manifest.lua_execution);
+        crate::scene_dependencies::apply_settings(&root, &manifest, None).unwrap();
+        assert!(
+            !Graph::load(&root).unwrap().nodes["stage:test"]
+                .stale
+                .is_empty()
+        );
+        std::fs::remove_dir_all(&root).unwrap();
     }
     #[test]
     fn debug_hud_settings_invalidate_staged_inputs_and_persist() {

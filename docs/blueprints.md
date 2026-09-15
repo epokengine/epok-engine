@@ -43,7 +43,11 @@ Comments and reroutes are authoring-only. **Compile** checks the current draft,
 shows diagnostics with node navigation, and can show generated native code.
 Save before building; unsaved drafts are never silently replaced by disk code.
 
-Actor and ActorComponent Blueprints start with **Begin Play**, **Tick**, and **End Play** in one event canvas. These correspond to `begin_play`, `tick`, and `end_play`. Event entries have no input pins; event parameters appear as outputs. Implemented parent events receive a **Call Parent** node so inherited logic keeps running.
+Actor and ActorComponent Blueprints start with **Begin Play**, **Tick**, and **End Play** in one event canvas. These correspond to `begin_play`, `tick`, and `end_play`. Event entries have no input pins. Tick outputs **Delta Seconds**; End Play outputs **End Play Reason**.
+
+New events are disconnected and dimmed, with an **Inherited from** label. They leave the parent's implementation in effect. Connecting the execution output implements the event in this Blueprint and gives it full opacity. Disconnecting it restores inheritance. To run the parent as part of an override, right-click that event and choose **Add Call to Parent Function**, then connect the resulting **Parent: Tick**, **Parent: Begin Play**, or **Parent: End Play** node where it should execute. Its target label names the parent class. The editor does not insert parent calls automatically.
+
+Reflected C++ parameters require descriptive names. Overrides inherit their base declaration's pin names even if the implementation omits or abbreviates an argument. Anonymous parameters and numbered placeholders such as `arg0` produce an actionable reflection diagnostic instead of becoming Blueprint pins. Existing graph connections retain their saved identities when the SDK improves a parameter name.
 
 Each execution output connects to one destination. Reconnecting it replaces its previous wire and can be undone. Use **Sequence** to run several paths in explicit order, or a branching node for separate outcomes. Data outputs may be reused by several inputs.
 
@@ -119,6 +123,8 @@ the same override. Ordinary non-overridden behavior remains inherited.
 A Blueprint inherits its parent's family: **Actor** or **ActorComponent**. Actor classes can be placed through **Instantiate Actor** in the Hierarchy, filtered by the active 3D, 2D or UI view. ActorComponents attach through **Add Component** in the Inspector. See [Actors and components](actors.md).
 
 Both families support **Begin Play**, **Tick**, **End Play**, inherited properties and event overrides. `Self` refers to the current instance. A component uses **Get Owner** to access its Actor; selecting one compatible owner domain gives that reference a specific Actor type. Transform operations require the corresponding domain.
+
+The engine's own Actor and ActorComponent operations are reflected members, not nodes of one provider: **Set Active**, **Destroy**, **Active**, **Wants Tick**, **Set Wants Tick**, the identity and hierarchy readers (**Level Id**, **Root Id**, **Logical Parent**, **Component Id**, **Component Count**) and the component's **Owner Id** appear under `Functions / Self` in the action menu and compile to a direct call on the instance. The same members are available to C++ and Lua classes, so no provider needs a hand-written helper for them. The legacy **Actor / Set active**, **Actor / Destroy** and **Get Owner** builtin nodes remain unchanged for graphs that already use them; both spellings therefore appear in the action menu and produce equivalent behavior.
 
 The parent picker requires a Blueprintable class that is not final. Abstract classes can be parents. C++ classes derive from native classes; Blueprint classes may derive from native or Blueprint classes. Reparenting validates family, domain and inheritance cycles before accepting a change.
 

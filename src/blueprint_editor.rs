@@ -83,6 +83,7 @@ pub struct BlueprintEditor {
     wire_dragging: bool,
     inline_edit: Option<inline_values::Edit>,
     pin_menu: Option<Socket>,
+    node_menu: Option<String>,
     action_menu: action_menu::State,
     catalog_position: Option<[f32; 2]>,
     member_search: String,
@@ -140,6 +141,7 @@ impl Default for BlueprintEditor {
             wire_dragging: false,
             inline_edit: None,
             pin_menu: None,
+            node_menu: None,
             action_menu: Default::default(),
             catalog_position: None,
             member_search: String::new(),
@@ -828,6 +830,25 @@ impl BlueprintEditor {
         doc.layout.positions.insert(key.clone(), point);
         self.selected = BTreeSet::from([key]);
         self.details = Details::Node;
+    }
+    fn add_parent_call(&mut self, entry: &str, registry: &Registry) {
+        self.select_node_graph(entry);
+        let Some((doc, graph)) = self.asset.as_ref().zip(self.current()) else {
+            return;
+        };
+        if graph.entry != entry || !can_call_parent(doc, graph, registry) {
+            return;
+        }
+        let position = node_position(doc, graph, entry);
+        self.add_node(NodeKind::CallParent);
+        if let Some(key) = self.selected.iter().next().cloned() {
+            self.asset
+                .as_mut()
+                .unwrap()
+                .layout
+                .positions
+                .insert(key, [position[0] + 320., position[1] + 100.]);
+        }
     }
     fn add_graph(&mut self, name: String, function: Option<&schema::Function>) {
         let Some(doc) = &mut self.asset else {
@@ -2043,13 +2064,13 @@ impl BlueprintEditor {
                             playback_label(node, &self.playback_timelines, &self.playback_effects)
                                 .unwrap_or_else(|| node_label(node, doc, registry))
                         };
-                        // Existing bundled Codicons, merged into the editor font:
-                        // play denotes an event entry, code denotes a callable.
+                        // Callable icon only: a play triangle in an event header
+                        // looks like an execution input, although it is decorative.
                         let title = match node.kind {
-                            NodeKind::Entry => format!("\u{eb2c} {title}"),
-                            NodeKind::Call { .. }
-                            | NodeKind::CallOn { .. }
-                            | NodeKind::CallParent => {
+                            NodeKind::CallParent => {
+                                format!("\u{eae9} Parent: {}", event_label(&graph.name))
+                            }
+                            NodeKind::Call { .. } | NodeKind::CallOn { .. } => {
                                 format!("\u{eae9} {title}")
                             }
                             _ => title,
@@ -2063,9 +2084,14 @@ impl BlueprintEditor {
                                     .map(|class| class.cpp_name.as_str())
                                     .unwrap_or("Missing class")
                             )),
-                            NodeKind::Call { .. } | NodeKind::CallParent => {
-                                Some(format!("Target is {}", doc.name))
+                            NodeKind::CallParent => {
+                                Some(format!("Target is {}", parent_class_label(doc, registry)))
                             }
+                            NodeKind::Entry if graph.inherits_event() => Some(format!(
+                                "Inherited from {}",
+                                parent_class_label(doc, registry)
+                            )),
+                            NodeKind::Call { .. } => Some(format!("Target is {}", doc.name)),
                             _ => None,
                         };
                         let reroute = matches!(node.kind, NodeKind::Reroute);
@@ -2106,6 +2132,11 @@ impl BlueprintEditor {
                             (ui.calc_text_size(&title)[0] / self.zoom + 28.)
                                 .clamp(126., 300.)
                                 .max(row_width)
+                                .max(
+                                    subtitle
+                                        .as_ref()
+                                        .map_or(0., |s| ui.calc_text_size(s)[0] / self.zoom + 24.),
+                                )
                                 * self.zoom
                         };
                         let header = 20. * self.zoom;
@@ -2120,6 +2151,13 @@ impl BlueprintEditor {
                         };
                         let max = [p[0] + width, p[1] + height];
                         boxes.push((node.id.clone(), p, max));
+                        #[cfg(test)]
+                        CONTROLS.with(|c| {
+                            c.borrow_mut().insert(
+                                format!("bp-node-header:{}", node.id),
+                                [p[0] + 35. * self.zoom, p[1] + 10. * self.zoom],
+                            );
+                        });
                         if let Some(comment) = doc.layout.comments.get(&node.id) {
                             draw.add_text(
                                 [p[0], p[1] - 18. * self.zoom],
@@ -2395,6 +2433,12 @@ impl BlueprintEditor {
                                 sockets.push((pin, point));
                             }
                         }
+                        if matches!(node.kind, NodeKind::Entry) && graph.inherits_event() {
+                            draw.add_rect(p, max, [0.20, 0.20, 0.20, 0.45])
+                                .filled(true)
+                                .rounding(4. * self.zoom)
+                                .build();
+                        }
                     }
                 }
                 channels.set_current(0);
@@ -2484,6 +2528,14 @@ impl BlueprintEditor {
                 self.wire = None;
                 self.wire_dragging = false;
                 ui.open_popup("Blueprint Pin");
+            } else if let Some((node, _, _)) =
+                boxes.iter().rev().find(|(_, a, b)| inside(mouse, *a, *b))
+            {
+                self.select_node_graph(node);
+                self.selected = BTreeSet::from([node.clone()]);
+                self.node_menu = Some(node.clone());
+                self.wire = None;
+                ui.open_popup("Blueprint Node");
             } else {
                 self.catalog_position = Some([
                     (mouse[0] - origin[0] - self.pan[0]) / self.zoom,
@@ -2493,6 +2545,32 @@ impl BlueprintEditor {
             }
         }
         self.pin_popup(ui, registry);
+        if let Some(_popup) = ui.begin_popup("Blueprint Node") {
+            let entry = self
+                .node_menu
+                .clone()
+                .filter(|key| self.current().is_some_and(|graph| graph.entry == *key));
+            if let Some(entry) = entry {
+                let available = self
+                    .asset
+                    .as_ref()
+                    .zip(self.current())
+                    .is_some_and(|(doc, graph)| can_call_parent(doc, graph, registry));
+                let _disabled = ui.begin_disabled(!available);
+                if button(ui, "Add Call to Parent Function") {
+                    self.add_parent_call(&entry, registry);
+                    ui.close_current_popup();
+                }
+            }
+            if button(ui, "Copy") {
+                self.copy_to_clipboard(ui);
+                ui.close_current_popup();
+            }
+            if button(ui, "Delete") {
+                self.delete_selected();
+                ui.close_current_popup();
+            }
+        }
         let canvas_max = [origin[0] + size[0], origin[1] + size[1]];
         numeric_inputs
             .retain(|f| inside(f.min, origin, canvas_max) && inside(f.max, origin, canvas_max));
@@ -3428,6 +3506,10 @@ impl BlueprintEditor {
             &self.playback_effects,
         );
         let parameters = graph.parameters.clone();
+        let parameter_labels: BTreeMap<_, _> = parameters
+            .iter()
+            .map(|p| (p.name.clone(), event_parameter_label(graph, &p.name)))
+            .collect();
         let timelines: Vec<_> = graph
             .nodes
             .iter()
@@ -3698,7 +3780,13 @@ impl BlueprintEditor {
                         ui.tooltip_text(asset::link_id(source, pin, &key, &socket.pin));
                     }
                 }
-                Some(Input::Parameter { name }) => ui.text_disabled(format!("Parameter: {name}")),
+                Some(Input::Parameter { name }) => ui.text_disabled(format!(
+                    "Parameter: {}",
+                    parameter_labels
+                        .get(name)
+                        .cloned()
+                        .unwrap_or_else(|| display_port(name))
+                )),
                 Some(Input::Literal { value_type, value }) => {
                     edit_value(ui, "##input", value, value_type, registry);
                 }
@@ -3718,7 +3806,9 @@ impl BlueprintEditor {
             }
             if let Some(_combo) = ui.begin_combo("Parameter", "Choose...") {
                 for parameter in &parameters {
-                    if parameter.value_type == ty && ui.selectable(&parameter.name) {
+                    if parameter.value_type == ty
+                        && ui.selectable(&parameter_labels[&parameter.name])
+                    {
                         node.inputs.insert(
                             socket.pin.clone(),
                             Input::Parameter {
@@ -3830,11 +3920,63 @@ fn event_label(name: &str) -> String {
     }
 }
 fn event_pin_label(graph: &Graph, node: &Node, pin: &str) -> String {
+    if matches!(node.kind, NodeKind::Entry | NodeKind::CallParent) {
+        return event_parameter_label(graph, pin);
+    }
+    if let NodeKind::Builtin { operation } = &node.kind {
+        use asset::Builtin::*;
+        if pin == "value" {
+            // The serialized port stays stable; the visible label describes the
+            // actual value. This match deliberately covers every system adapter.
+            return match operation {
+                GetPosition | SetPosition | GetPosition2D | SetPosition2D | GetRectPosition
+                | SetRectPosition => "Position",
+                GetRotation | SetRotation | GetRotation2D | SetRotation2D => "Rotation",
+                GetScale | SetScale | GetScale2D | SetScale2D => "Scale",
+                GetRectSize | SetRectSize => "Size",
+                GetTransform | MakeTransform => "Transform",
+                SelfObject => "Self",
+                GetOwner => "Owner",
+                Spawn { .. } | SpawnClass { .. } => "Spawned Object",
+                SpawnActor { .. } => "Spawned Actor",
+                Cast { .. } => "Cast Result",
+                IsA { .. } => "Is Matching Class",
+                IsValid => "Is Valid",
+                InputHeld => "Is Held",
+                InputPressed => "Was Pressed",
+                InputReleased => "Was Released",
+                RequestScene => "Request Accepted",
+                PlaySequenceComponent | PlayTimelineAsset { .. } | EffectSequence => {
+                    "Sequence Playback"
+                }
+                PlayEffectComponent | SpawnParticleEffect { .. } => "Effect Playback",
+                StopSequence | PauseSequence | ResumeSequence | StopEffect | PauseEffect
+                | ResumeEffect | BurstEffect => "Succeeded",
+                SetActive | DestroyActor | PlayAudio | StopAudio | SetTexture | SetAudioClip => {
+                    "Result"
+                }
+            }
+            .into();
+        }
+        if pin == "port" {
+            return "Controller Port".into();
+        }
+        if pin == "index" && matches!(operation, RequestScene) {
+            return "Scene Index".into();
+        }
+        if pin == "seed" {
+            return "Random Seed".into();
+        }
+    }
+    display_port(pin)
+}
+fn event_parameter_label(graph: &Graph, pin: &str) -> String {
     if graph.override_id.is_some()
-        && matches!(node.kind, NodeKind::Entry | NodeKind::CallParent)
         && let Some(index) = graph.parameters.iter().position(|p| p.name == pin)
     {
         let label = match (graph.name.as_str(), index) {
+            ("tick", 0) => Some("Delta Seconds"),
+            ("end_play", 0) => Some("End Play Reason"),
             ("start" | "update", 0) => Some("Transform"),
             ("update", 1) => Some("Delta Seconds"),
             ("on_trigger", 0) => Some("Other Actor"),
@@ -3846,6 +3988,20 @@ fn event_pin_label(graph: &Graph, node: &Node, pin: &str) -> String {
         }
     }
     display_port(pin)
+}
+fn parent_class_label(doc: &BlueprintAsset, registry: &Registry) -> String {
+    registry
+        .classes
+        .get(&doc.parent)
+        .map(|c| c.cpp_name.trim_start_matches("epok::").to_owned())
+        .unwrap_or_else(|| "Missing parent class".into())
+}
+fn can_call_parent(doc: &BlueprintAsset, graph: &Graph, registry: &Registry) -> bool {
+    graph
+        .override_id
+        .as_ref()
+        .and_then(|id| function_by_id(doc, registry, id))
+        .is_some_and(|f| !f.abstract_method && !f.final_method && f.access != "private")
 }
 fn exec_reroute(graph: &Graph, node: &Node) -> bool {
     matches!(node.kind, NodeKind::Reroute)
@@ -4343,7 +4499,12 @@ fn node_label(node: &Node, doc: &BlueprintAsset, registry: &Registry) -> String 
                     .map(|g| display_port(&g.name))
             })
             .unwrap_or_else(|| "Missing function".into()),
-        NodeKind::CallParent => "Call Parent".into(),
+        NodeKind::CallParent => doc
+            .functions
+            .iter()
+            .find(|g| g.nodes.iter().any(|n| n.id == node.id))
+            .map(|g| format!("Parent: {}", event_label(&g.name)))
+            .unwrap_or_else(|| "Call Parent".into()),
         NodeKind::CallOn { class, function } => {
             crate::blueprint_ir::call_on_function(registry, class, function)
                 .map(|function| display_port(&function.name))
@@ -4759,6 +4920,9 @@ fn reachable(
 #[cfg(test)]
 mod tests {
     use super::*;
+    mod events {
+        include!("blueprint_event_tests.rs");
+    }
     mod reroutes {
         include!("blueprint_reroute_tests.rs");
     }

@@ -17,6 +17,8 @@ tools="$root/.tools/macos"
 sdk="$root/third_party/nugget"
 sdk_revision="6186b131aacc5853a9161fb076ed34ffe504552d"
 sdk_marker="$sdk/.epok-pinned-revision"
+psxlua="$sdk/third_party/psxlua"
+psxlua_revision="abed030e686b4e34987851bd0a028c93b1f73967"
 
 require() {
     command -v "$1" >/dev/null 2>&1 || { echo "Missing required command: $1" >&2; exit 1; }
@@ -63,6 +65,25 @@ fi
 for file in psyqo/psyqo.mk common.mk third_party/EASTL/include/EASTL/array.h third_party/EABase/include/Common/EABase/eabase.h; do
     [[ -f "$sdk/$file" ]] || { echo "Incomplete Nugget SDK: $file" >&2; exit 1; }
 done
+
+# The Lua VM execution modes build their interpreter from psxlua, a nested
+# submodule of the pinned Nugget mirror. Only this one is initialized: the
+# mirror carries other nested submodules whose paths are not all valid after
+# mirroring, which is why the SDK itself is never initialized recursively.
+if [[ -e "$sdk/.git" && ! -f "$psxlua/src/lparser.c" ]]; then
+    git -C "$sdk" -c submodule.recurse=false submodule update --init -- third_party/psxlua
+fi
+[[ -f "$psxlua/src/lparser.c" ]] || {
+    echo "psxlua is missing; initialize third_party/nugget/third_party/psxlua first." >&2
+    exit 1
+}
+if [[ -e "$psxlua/.git" ]]; then
+    [[ "$(git -C "$psxlua" rev-parse HEAD)" == "$psxlua_revision" ]] || {
+        echo "psxlua is not at the pinned revision $psxlua_revision." >&2
+        exit 1
+    }
+fi
+echo "Verified psxlua $psxlua_revision"
 
 mkdir -p "$tools/src" "$tools/bin"
 

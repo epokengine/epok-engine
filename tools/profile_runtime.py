@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EDITOR = ROOT / ("target/debug/epok-editor.exe" if os.name == "nt" else "target/debug/epok-editor")
 FIELDS = "frame frame_scanlines simulation_scanlines world_scanlines collision_scanlines render_scanlines vertex_scanlines polygon_scanlines steps world_syncs local_matrices world_matrices collider_bounds fog_scanlines shade_scanlines emit_scanlines gte_vertices software_vertices gte_validation_errors gte_max_delta".split()
 # Optional extra fields appended to PerformanceStats after the original layout.
-EXTRA_FIELDS = "tested_chunks visible_chunks backfaces clipped triangles gte_screen_max_delta prepare_scanlines finish_scanlines setup_scanlines camera_scanlines sprite_scanlines hud_scanlines retained_triangles retained_rebuilds visibility_skipped_chunks streamed_chunks stream_failed_chunks".split()
+EXTRA_FIELDS = "tested_chunks visible_chunks backfaces clipped triangles gte_screen_max_delta prepare_scanlines finish_scanlines setup_scanlines camera_scanlines sprite_scanlines hud_scanlines retained_triangles retained_rebuilds visibility_skipped_chunks streamed_chunks stream_failed_chunks skeletal_scanlines skeletal_bone_matrices skeletal_cpu_vertices skeletal_decoded_vertices".split()
 STREAMING_FIELDS = "reads bytes stalls stall_us errors timeouts xa_interruptions".split()
 WARMUP_FIELDS = "attempts pages reads stall_us rejected failures".split()
 PLAYBACK_STATS = {

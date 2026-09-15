@@ -32,6 +32,10 @@ pub struct Manifest {
     pub rendering: crate::settings::Rendering,
     #[serde(default)]
     pub debug: crate::settings::DebugHud,
+    /// Exactly one Lua execution mode per project; Play, Build and export all
+    /// resolve this field. Never three booleans, never switched automatically.
+    #[serde(default)]
+    pub lua_execution: crate::settings::LuaExecution,
     #[serde(default)]
     pub default_sound_bank: Option<uuid::Uuid>,
     /// `cpp_name` of the `SceneScriptActor` subclass proposed when a map's
@@ -395,6 +399,7 @@ pub fn create(destination: &Path, name: &str, template: Template) -> Result<Proj
             Default::default()
         },
         debug: Default::default(),
+        lua_execution: Default::default(),
         default_sound_bank: None,
         default_scene_script_parent: None,
     };
@@ -529,6 +534,38 @@ pub(crate) mod tests {
                 .unwrap()
                 .as_nanos()
         ))
+    }
+    #[test]
+    fn lua_execution_defaults_for_legacy_manifests_and_round_trips() {
+        use crate::settings::LuaExecution;
+        let root = temp("lua-execution-manifest");
+        let project = create(&root, "Lua Modes", Template::Basic).unwrap();
+        let mut manifest = project.manifest.clone();
+        drop(project);
+        assert_eq!(manifest.lua_execution, LuaExecution::NativeCpp);
+        // A project written before the setting existed keeps the explicit,
+        // reproducible default rather than being migrated to a VM.
+        let mut document = serde_json::to_value(&manifest).unwrap();
+        assert!(
+            document
+                .as_object_mut()
+                .unwrap()
+                .remove("lua_execution")
+                .is_some()
+        );
+        let legacy: Manifest = serde_json::from_value(document).unwrap();
+        assert_eq!(legacy.lua_execution, LuaExecution::NativeCpp);
+        for mode in LuaExecution::ALL {
+            manifest.lua_execution = mode;
+            save_manifest(&root, &manifest).unwrap();
+            assert_eq!(read_manifest(&root).unwrap().lua_execution, mode);
+            assert_eq!(crate::settings::lua_execution(&root).unwrap(), mode);
+        }
+        assert_eq!(
+            LuaExecution::ALL.map(|m| serde_json::to_value(m).unwrap()),
+            ["native_cpp", "vm_bytecode", "vm_source"].map(serde_json::Value::from)
+        );
+        fs::remove_dir_all(&root).unwrap();
     }
     #[test]
     fn independent_projects_lock_relocate_and_regenerate() {

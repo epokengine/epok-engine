@@ -259,7 +259,7 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
                     state.model_dirty = true;
                 }
                 if hovered && ui.io().mouse_wheel != 0. {
-                    state.camera.dolly(ui.io().mouse_wheel);
+                    state.camera.zoom_orbit(ui.io().mouse_wheel);
                     state.model_dirty = true;
                 }
                 if let Some(texture) = state.texture {

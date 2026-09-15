@@ -54,6 +54,11 @@ impl Registry {
             crate::script_backend::can_derive(&crate::script_backend::blueprint_provider(), class)
         })
     }
+    pub fn lua_parents(&self) -> impl Iterator<Item = &schema::Class> {
+        self.classes.values().filter(|class| {
+            crate::script_backend::can_derive(&crate::script_backend::lua_provider(), class)
+        })
+    }
     pub fn named(&self, name: &str) -> Option<&schema::Class> {
         self.classes.values().find(|c| c.cpp_name == name)
     }

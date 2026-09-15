@@ -228,7 +228,9 @@ emulator validation are pending on an SDK machine. See
 - **FBX skeletal import.** Import a mesh, armature and clips as a UUID-linked
   ModelSource package, inspect the skeleton, preview clips and place a character.
   The PSX profile supports up to 64 bones, 512 vertices and 1,024 triangles with
-  one rigid bone per vertex and quantized 30 Hz clips. See
+  one rigid bone per vertex and quantized 30 Hz clips. Each model can compile to
+  bone-grouped direct GTE skinning or compressed baked vertex frames; conservative
+  animation envelopes cull characters before pose/decode work. See
   [Skeletal characters](skeletal.md).
 
 ## Timelines and sequenced effects
@@ -287,9 +289,9 @@ See [HUD and 2D entities](hud.md).
 
 ## Native C++ gameplay and reflection
 
-- **C++20 Behaviours.** Create classes, derive from native or generated classes
-  and implement lifecycle/update callbacks. Exported classes are compiled into
-  the MIPS executable; there is no Lua gameplay VM.
+- **C++20 Actors and components.** Create project classes, derive from eligible
+  native or generated classes and implement reflected lifecycle/event methods.
+  Exported classes compile directly into the MIPS executable.
 - **Semantic reflection.** A pinned libclang extractor records stable class IDs,
   inheritance, editable properties, functions, parameter directions and Timeline
   metadata. Versioned manifests and caches are validated against source/tool
@@ -305,6 +307,36 @@ See [HUD and 2D entities](hud.md).
   timed Sequence, UI Focus and list-layout helpers are included.
 
 See [C++ scripting and exports](scripting.md).
+
+## Lua gameplay scripting
+
+- **Reflected Lua classes.** Author `assets/scripts/*.lua` classes by extending
+  eligible C++, Blueprint or Lua parents. The shared class registry exposes them
+  to the Inspector, parent pickers, defaults, attachment, spawning and Blueprint
+  inheritance instead of maintaining a separate Lua-only object model.
+- **Code-first declarations and stable identity.** A class is declared with code
+  such as `local Guard = epok.Actor3D:extend()`. Plain assignments define typed
+  Inspector properties, Lua Language Server annotations describe new callables,
+  and `ProjectSettings/LuaClasses.epoksettings` preserves class UUIDs across
+  source-file renames.
+- **Three project-wide execution modes.** Native C++ lowers the typed script IR
+  to C++ and links no interpreter. Lua VM bytecode cooks a verified 32-bit chunk
+  on the host and links the no-parser archive; Lua VM source packages normalized
+  text and links the parser archive. Play, Build and export use exactly the saved
+  mode and invalidate incompatible artifacts.
+- **Shared engine operations.** Intrinsic spatial/UI fields and typed builtins
+  cover input, scene requests, validity/casts, spawning, ownership, audio,
+  textures and component sequence/effect playback. Actor and ActorComponent
+  operations are reflected once for C++, Blueprint and Lua callers.
+- **Bounded target runtime.** VM modes use fixed arenas (96 KiB for bytecode and
+  128 KiB for source by default), keep 64-bit identities outside the VM's int32
+  boundary and route numeric operations through the Blueprint runtime contract.
+- **Editor definitions and diagnostics.** Registry refresh writes
+  `.epok/lua/epok.d.lua` and creates `.luarc.json` when absent, exposing native,
+  Blueprint and Lua inheritance, properties, events, records, enums and builtins
+  to Lua Language Server tooling.
+
+See [Lua scripting](lua-scripting.md) and the [Lua VM runtime](lua-vm-runtime.md).
 
 ## Blueprint visual gameplay
 
@@ -528,19 +560,20 @@ features:
 - Console builds and PCSX-Redux execution are validated. Physical-console timing,
   controllers, serial paths on every host and real Memory Card media still need
   hardware validation.
-- Skeletal animation is rigid: one bone per vertex. Textured skeletal materials,
-  blended weights and animation blending are not implemented.
+- Skeletal source skinning is rigid: one bone per vertex. Target playback selects
+  direct GTE bone ranges or compressed baked vertex frames. Textured skeletal
+  materials, blended weights and animation blending are not implemented.
 - Collision is conservative AABB overlap/sweep with triggers, not a rigid-body
   physics engine.
 - Entity multiselection is not implemented, and Undo/Redo is not editor-wide. It is
   scoped to the open map's last 32 scene edits, Blueprint graphs/templates,
   Timelines/Effects, Blockout, Content Browser moves and MCP scene batches as
   documented by each tool.
-- The actor model has no Pawn/Character archetypes, no positional 2D or 3D audio,
-  and no 2D physics beyond axis-aligned colliders, raycasts, sliding movement and
-  triggers. Component add/remove and actor rename/duplicate/delete are not yet in
-  the Inspector. PSX build and emulator validation of actor content is pending on an
-  SDK machine.
+- The actor model has no Pawn/Character archetypes or positional 2D/3D audio.
+  The bounded 2D collision toolkit provides box/circle overlap, raycasts, sliding
+  movement and triggers, not a general rigid-body solver. Actor hierarchy editing
+  and compatible component add/remove are implemented; cross-domain conversion is
+  not offered.
 - Scene banks, textures, scripts and resident audio must fit PSX memory. Geometry
   streaming covers EditableMesh pages only; it is not arbitrary map, texture or
   audio streaming.
@@ -548,8 +581,10 @@ features:
   show ordering artifacts, and capacity validation is not a frame-rate guarantee.
 - Release builds produce an editor executable, not a packaged installer/app
   bundle. A PlayStation system-area license, BIOS and Unirom are not distributed.
-- Non-native/Lua gameplay execution, live native-code hot reload and general
-  external-source packaging are not implemented.
+- `epok-lua` v1 is a deliberately bounded, statically checked profile rather than
+  general Lua 5.2 compatibility. It has no coroutines, metatables, standard
+  libraries, dynamic table growth or source-level debugger. Live native-code hot
+  reload and general external-source packaging are not implemented.
 
 ## Source coverage map
 
@@ -568,6 +603,7 @@ live beside the corresponding implementation and are summarized under
 | Geometry and rendering | `mesh`, `mesh_ops`, `mesh_editor`, `mesh_compile`, `lighting`, `lighting_editor`, `shadows`, `effects`, `palette` |
 | Components and UI | `bitmap_font`, `collision`, `collision_editor`, `hud`, `hud_editor`, `sprites`, `sprites_editor`, `particles`, `skeletal`, `skeletal_compile`, `skeletal_ui`, `third_person` |
 | Native scripting/reflection | `scripts`, `script_values`, `script_backend`, `reflection`, `reflection_schema`, `header_extract`, `header_tool`, `native`, `native_metadata` |
+| Lua scripting | `lua_aot`, `lua_api_stub`, `lua_asset`, `lua_bytecode`, `lua_compile`, `lua_dependencies`, `lua_frontend`, `lua_identity`, `lua_vm`, `script_ir` |
 | Blueprints | `blueprint`, `blueprint_asset`, `blueprint_compile`, `blueprint_debug`, `blueprint_debug_ui`, `blueprint_dependencies`, `blueprint_editor`, `blueprint_ir`, `blueprint_playback`, `blueprint_refs`, `blueprint_spawn`, `blueprint_templates`, `blueprint_template_editor`, `blueprint_workflow`, `blueprint_action_menu`, `blueprint_inline_values`, `blueprint_split_pins` |
 | Timeline/VFX | `timeline`, `timeline_adapters`, `timeline_compile`, `timeline_curve`, `timeline_editor`, `timeline_runtime`, `timeline_scene`, `particle_effect`, `particle_effect_editor`, `particle_effect_preview`, `particle_effect_scene`, `playback_staging` |
 | Build/play/export | `build_inputs`, `staging_files`, `pipeline`, `play`, `play_ui`, `disc`, `export`, `export_ui`, `bridge`, `dependencies` |
@@ -582,7 +618,7 @@ live beside the corresponding implementation and are summarized under
 | Rendering/resources | `frame_clear.hpp`, `gte_geometry.hpp`, `frustum.hpp`, `polygon.hpp`, `visibility.hpp`, `retained.hpp`, `texture_types.hpp`, `texture.hpp`, `resources.hpp`, `lighting.hpp`, `shadows.hpp` |
 | Visual content | `sprite_types.hpp`, `sprites.hpp`, `particle_types.hpp`, `particles.hpp`, `effect_types.hpp`, `effects.hpp`, `particle_effect_runtime.hpp`, `particle_effect_service.hpp`, `palette_types.hpp`, `palette.hpp`, `skeletal.hpp`, `hud.hpp`, `text.hpp` |
 | Gameplay services | `input.hpp`, `collision.hpp`, `audio.hpp`, `music.hpp`, `memory_card.hpp`, `memory_card_backend.hpp`, `streaming_pool.hpp`, `streaming.hpp` |
-| Blueprint/Timeline | `blueprint_api.hpp`, `blueprint_runtime.hpp`, `blueprint_debug.hpp`, `blueprint_spawn.hpp`, `blueprint_template.hpp`, `blueprint_playback_service.hpp`, `playback_types.hpp`, `timeline.hpp`, `timeline_runtime.hpp`, `timeline_service.hpp` |
+| Blueprint/Lua/Timeline | `blueprint_api.hpp`, `blueprint_runtime.hpp`, `blueprint_debug.hpp`, `blueprint_spawn.hpp`, `blueprint_template.hpp`, `blueprint_playback_service.hpp`, `lua_runtime.hpp`, `playback_types.hpp`, `timeline.hpp`, `timeline_runtime.hpp`, `timeline_service.hpp` |
 
 `runtime/main.cpp`, `runtime/Makefile`, `runtime/build.ps1`, `runtime/build.sh`
 and `runtime/build-inputs.mk` assemble these services into the generated native

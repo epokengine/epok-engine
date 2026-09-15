@@ -1,8 +1,5 @@
 pub fn inspector(ui: &imgui::Ui, entity: &mut crate::scene::Actor) {
     if entity.collider.is_none() {
-        if ui.small_button("Add Box Collider") {
-            entity.collider = Some(Default::default());
-        }
         return;
     }
     if !crate::gui::heading(ui, "Box Collider") {

@@ -41,6 +41,7 @@ struct Decisions {
 }
 pub struct ImportForm {
     pub model: bool,
+    pub model_storage: crate::skeletal::AnimationStorage,
     pub texture: bool,
     pub source: String,
     pub destination: String,
@@ -430,6 +431,13 @@ impl Manager {
             });
         self.form = Some(ImportForm {
             model,
+            model_storage: existing
+                .as_ref()
+                .and_then(|r| match &r.meta.settings {
+                    crate::import_settings::Settings::Fbx(s) => Some(s.animation_storage),
+                    _ => None,
+                })
+                .unwrap_or_default(),
             texture: item.source.to_ascii_lowercase().ends_with(".png"),
             source: item.source.clone(),
             destination,
@@ -503,6 +511,10 @@ impl Manager {
             .map_or_else(|| record.meta.source.clone(), |s| s.path.clone());
         self.form = Some(ImportForm {
             model: record.meta.kind == assets::Kind::ModelSource,
+            model_storage: match &record.meta.settings {
+                crate::import_settings::Settings::Fbx(s) => s.animation_storage,
+                _ => Default::default(),
+            },
             texture: record.meta.kind == assets::Kind::Texture,
             source,
             destination: assets::path_string(&self.root, &record.path),
@@ -528,6 +540,7 @@ impl Manager {
         }
         self.form = Some(ImportForm {
             model: false,
+            model_storage: Default::default(),
             texture: false,
             source: String::new(),
             destination: format!("{}/New SoundBank.epokasset", self.folder),
@@ -612,6 +625,7 @@ impl Manager {
             form.snapshot,
         );
         let model = form.model;
+        let model_storage = form.model_storage;
         let texture = form.texture;
         let sequence = form.sequence.clone();
         let bank = form.bank.clone();
@@ -630,6 +644,7 @@ impl Manager {
                     &destination,
                     existing.as_ref(),
                     snapshot,
+                    Some(model_storage),
                 )
                 .map(Prepared::Model)
             } else if let Some(settings) = sequence {

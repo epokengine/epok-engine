@@ -12,6 +12,7 @@ https://github.com/pcsx-redux/nugget/tree/6186b131aacc5853a9161fb076ed34ffe50455
 | EABase | Electronic Arts and contributors | [BSD 3-Clause](licenses/EABase.txt) |
 | GCC libgcc integer arithmetic helpers | Free Software Foundation, Inc. and contributors | [GPL version 3 or later](licenses/GCC-GPL-3.txt), with [GCC Runtime Library Exception 3.1](licenses/GCC-Runtime-Exception-3.1.txt) |
 | mig68000 system font | Zingot Games | [Font attribution](licenses/psx-font.txt) |
+| Lua 5.2, via the psxlua fork in Nugget (linked only by the two Lua VM execution modes) | Lua.org, PUC-Rio, and the psxlua authors | MIT, in the submodule's own `lua.h` copyright notice |
 
 The system font is included by PsyQo. Its pinned source credits Zingot Games and permits free use with attribution. The author's FontPack page lists CC BY 4.0:
 https://zingot.itch.io/fontpack
@@ -24,4 +25,6 @@ Preserve these notices with redistributed builds. Changing the SDK or adding lib
 
 The exported Makefile links the MIPS compiler's `libgcc.a` for 64-bit integer division used by collision, clipping and measured time. The GCC runtime source applies the Runtime Library Exception: [libgcc2.c](https://github.com/gcc-mirror/gcc/blob/master/libgcc/libgcc2.c), [exception text](https://github.com/gcc-mirror/gcc/blob/master/COPYING.RUNTIME). The exception permits eligible compiled programs to use the covered runtime with independently chosen licensing for their own modules.
 
-The standalone game does not contain the desktop editor's icon fonts, its Rust libraries, the Lua adapter or the PCSX-Redux emulator.
+A project whose Lua execution mode is "Native C++" links no interpreter at all. The two Lua VM modes link one archive built by `lua.mk` from `third_party/psxlua`, the pinned Lua 5.2 fork carried by Nugget at revision `abed030e686b4e34987851bd0a028c93b1f73967`; Lua is MIT licensed and its notice must be preserved with such a build. `libpsyqo-lua.a` is never linked.
+
+Except for that archive in the two VM modes, the standalone game does not contain the desktop editor's icon fonts, its Rust libraries, the Lua adapter or the PCSX-Redux emulator.

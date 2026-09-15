@@ -617,7 +617,7 @@ auto result = object.default_root();
 **Exact declaration**
 
 ```cpp
-virtual void end_play(EndPlayReason)
+virtual void end_play(EndPlayReason end_play_reason)
 ```
 
 - **Declared at:** [line 401](../../../runtime/object_model.hpp#L401)
@@ -627,7 +627,7 @@ virtual void end_play(EndPlayReason)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `EndPlayReason` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+| `end_play_reason` | `EndPlayReason` | Input | Value supplied for `end_play_reason`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -639,11 +639,11 @@ virtual void end_play(EndPlayReason)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EndPlayReason arg1
+// EndPlayReason end_play_reason
 
 epok::Actor& object = /* obtain a valid instance */;
 
-object.end_play(arg1);
+object.end_play(end_play_reason);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
@@ -941,7 +941,7 @@ object.set_wants_tick(value);
 **Exact declaration**
 
 ```cpp
-virtual void tick(Fixed)
+virtual void tick(Fixed delta_seconds)
 ```
 
 - **Declared at:** [line 400](../../../runtime/object_model.hpp#L400)
@@ -951,7 +951,7 @@ virtual void tick(Fixed)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `Fixed` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+| `delta_seconds` | `Fixed` | Input | Value supplied for `delta_seconds`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -963,11 +963,11 @@ virtual void tick(Fixed)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// Fixed arg1
+// Fixed delta_seconds
 
 epok::Actor& object = /* obtain a valid instance */;
 
-object.tick(arg1);
+object.tick(delta_seconds);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
@@ -1148,7 +1148,7 @@ auto result = object.class_id();
 **Exact declaration**
 
 ```cpp
-virtual void end_play(EndPlayReason)
+virtual void end_play(EndPlayReason end_play_reason)
 ```
 
 - **Declared at:** [line 442](../../../runtime/object_model.hpp#L442)
@@ -1158,7 +1158,7 @@ virtual void end_play(EndPlayReason)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `EndPlayReason` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+| `end_play_reason` | `EndPlayReason` | Input | Value supplied for `end_play_reason`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1170,11 +1170,11 @@ virtual void end_play(EndPlayReason)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// EndPlayReason arg1
+// EndPlayReason end_play_reason
 
 epok::ActorComponent& object = /* obtain a valid instance */;
 
-object.end_play(arg1);
+object.end_play(end_play_reason);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
@@ -1518,7 +1518,7 @@ object.set_name(value);
 **Exact declaration**
 
 ```cpp
-virtual void tick(Fixed)
+virtual void tick(Fixed delta_seconds)
 ```
 
 - **Declared at:** [line 441](../../../runtime/object_model.hpp#L441)
@@ -1528,7 +1528,7 @@ virtual void tick(Fixed)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `Fixed` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+| `delta_seconds` | `Fixed` | Input | Value supplied for `delta_seconds`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1540,11 +1540,11 @@ virtual void tick(Fixed)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// Fixed arg1
+// Fixed delta_seconds
 
 epok::ActorComponent& object = /* obtain a valid instance */;
 
-object.tick(arg1);
+object.tick(delta_seconds);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.

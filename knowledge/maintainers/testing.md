@@ -60,6 +60,13 @@ with temporary archives: selected-package isolation, companion-file repair,
 checksum rejection, and archive path containment. Capture the settings page with
 `--project <folder> --screenshot-dependencies --screenshot <file.png>`.
 
+Changing the reflected surface of a runtime header (`runtime/object_model.hpp` in
+particular) also changes the generated API reference. Regenerate it with
+`python3 tools/generate-api-reference.py` on a host that has the libclang Python
+bindings installed, and commit the regenerated `docs/api/` output; the committed
+files record declaration line numbers, so even a pure insertion above an existing
+member makes `--check` fail until they are regenerated. Never hand-edit them.
+
 After SDK setup, `python tools/extract_hud_font.py --check` verifies that the committed editor HUD font matches the pinned PsyQo font. Omit `--check` to regenerate the bitmap when intentionally updating that resource.
 
 ## MCP integration
@@ -288,6 +295,112 @@ sections, the measured function's prologue frame, and guest interpreter cycles.
 It does not measure peak stack/RAM, hardware timing, or FPS. Native/debug builds
 are kept separate. See `docs/blueprints.md` for reproducible example generation
 and `design-qa.md` for actual desktop evidence.
+
+## Lua scripting acceptance
+
+The default `cargo test --locked` run covers the Lua authoring provider on the
+host: declaration extraction and identity rules (`lua_asset`), the `epok-lua` v1
+profile, type inference and every rejection diagnostic (`lua_frontend`), the
+shared typed IR (`script_ir`), ordering/registry publication/backend dispatch
+(`lua_compile`), generated C++ and VM bindings (`lua_aot`), normalized chunk
+emission and packaging (`lua_vm`), the host bytecode cooker (`lua_bytecode`) and
+mode-scoped generation footprints (`lua_dependencies`).
+
+The cooker tests skip themselves when Nugget's nested `third_party/psxlua`
+submodule is absent — `lua_bytecode::available()` is false and `build.rs` does
+not set `epok_luac`. Run the repository setup first if they should really run.
+
+The editor authoring round trip is `#[ignore]`d because it needs the pinned
+libclang, the MIPS SDK and a built `epok-header-tool`. Build both binaries with
+`cargo build --locked --bins`, then:
+
+```powershell
+cargo test --locked lua_creation_dialog_creates_attaches_and_reports_rejections -- --ignored --nocapture
+cargo test --locked lua_creation_dialog_lists_lua_parents_and_respects_the_component_context -- --ignored --nocapture
+```
+
+### Target checks
+
+Three Python drivers. All three need the MIPS toolchain
+(`mipsel-none-elf-gcc/g++/size/nm/ar` on `PATH`), the pinned
+`third_party/nugget` submodule **including its nested `third_party/psxlua`**,
+and PCSX-Redux plus `openbios.bin` under `.tools/`. They also import
+`tools/epok_documents.py`, so the host needs PyYAML from
+`tools/requirements.txt`:
+
+```sh
+python3 -m pip install -r tools/requirements.txt
+```
+
+| Driver | What it proves | Report |
+| --- | --- | --- |
+| `tests/integration/verify_lua_modes.py` | Cross-mode acceptance: 21 checks | `artifacts/lua_modes/report.json` |
+| `tests/integration/verify_lua_vm_abi.py` | Host-cooked bytecode == on-target `luaU_dump` | `--output` (no default) |
+| `tests/integration/verify_lua_feasibility.py` | Technology benchmark behind the design choice | `--output` (no default) |
+| `tests/integration/verify_lua_editor_tooling.py` | The generated definitions are enforced: a correct class reports nothing and a broken one reports the same three errors the compiler rejects | `artifacts/lua_editor_tooling/report.json` |
+
+```sh
+python3 tests/integration/verify_lua_modes.py
+python3 tests/integration/verify_lua_vm_abi.py --output report.json
+python3 tests/integration/verify_lua_feasibility.py --emulator --output report.json
+python3 tests/integration/verify_lua_editor_tooling.py
+```
+
+**`verify_lua_editor_tooling.py`** needs no emulator, but it does need
+`lua-language-server` on `PATH` (`brew install lua-language-server`); without it
+the script skips with that message instead of failing. It creates one project
+through the production CLI, writes one Lua class, builds it once with
+`--build-psx` so the catalog refresh rewrites `.epok/lua/epok.d.lua` and
+`.luarc.json`, and then proves both halves of the editor claim: the correct
+class reports **nothing** at `--checklevel=Error`, and a copy with a Bool
+written to a `Fixed` field, a string passed to a `Fixed` parameter and a read of
+an undeclared member reports **exactly those three errors on those three
+lines** — the same three lines the Epok compiler then rejects with its own
+diagnostics. The generated `.luarc.json` is what makes the first half bite: it
+raises `assign-type-mismatch`, `param-type-mismatch` and `undefined-field` to
+`Error!`, which LuaLS otherwise reports only as warnings. A class body is
+checked only if its local is bound to the generated declaration, which the
+`---@class <Class> : <Parent>` line of the declaration form already does.
+
+**`verify_lua_modes.py`** is the cross-mode acceptance script and the slowest of
+the three: it creates one real project through the production CLI, builds the
+same `.lua` sources in `native_cpp`, `vm_bytecode` and `vm_source`
+(`--build-psx`), runs each under PCSX-Redux, and reads a 72-slot probe array out
+of guest RAM. The probe values must be identical across the three modes *and*
+equal to constants the script derives by reimplementing the numeric contract in
+Python — it never compares a run against a previous run. It records **21
+checks** into `artifacts/lua_modes/report.json` (override with `--output`),
+along with per-mode ELF sections, `epok.ps-exe` hashes, arena peaks and tick
+cycles. `--no-emulator` builds every mode but skips the on-target run,
+`--skip-export` drops the standalone `make` checks, and `--keep` retains the
+generated project for inspection. It pins `EPOK_RUNTIME_OPT=-Os` itself so the
+three modes' sizes compare like for like. Budget well over ten minutes.
+
+**`verify_lua_vm_abi.py`** compares the host-cooked bytecode with an on-target
+`luaU_dump` of the same chunk byte for byte, checks the 18-byte header both
+sides accept, and runs the VM runtime's numeric/dispatch conformance probes in
+both VM modes. `--no-emulator` builds without running, and `--build-dir`,
+`--output` and `--timeout` behave as in the other integration drivers.
+
+**`verify_lua_feasibility.py`** is the isolated PsyQo benchmark harness that
+compares a native AOT reference against the PsyQo Lua VM variants. It links no
+Epok engine code; `tests/integration/lua_feasibility/README.md` documents its
+four variants, seven workloads, correctness gate and — importantly — exactly
+what its numbers do and do not mean. Without `--emulator` it builds and reports
+linked sizes only. It copies the pinned Nugget tree into its build directory, so
+it never writes into the repository.
+
+Two acceptance properties are **not** covered by these drivers and live in
+`cargo test` instead: a Blueprint child of a Lua class
+(`lua_compile::lua_classes_are_blueprint_parents_but_blueprint_classes_are_not_lua_parents`,
+because the CLI `--new-blueprint` resolves parents from the reflected C++
+registry only) and corrupt-bytecode rejection
+(`lua_bytecode::lua_bytecode_rejects_a_payload_whose_header_byte_drifted`).
+
+Serialize all three with the other emulator checks. None of these ran on
+physical PlayStation hardware; emulator results are for reproducible development
+comparison only. The recorded results of the acceptance run are in
+[`knowledge/initiatives/lua-scripting/validation-2026-09-14.md`](../initiatives/lua-scripting/validation-2026-09-14.md).
 
 ## Screenshots and profiling
 

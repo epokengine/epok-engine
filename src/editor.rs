@@ -160,11 +160,20 @@ pub struct Editor {
     pub class_registry: crate::blueprint::Registry,
     pub(crate) registry_revision: u64,
     pub script_creation: bool,
+    pub script_creation_context: crate::actor_scripts::CreationContext,
     pub script_name: String,
     pub script_parent: String,
     pub script_folder: String,
     pub script_search: String,
     pub script_error: Option<String>,
+    /// Lua authoring mirrors the C++ dialog: one pending creation at a time.
+    pub lua_creation: bool,
+    pub lua_creation_context: crate::actor_scripts::CreationContext,
+    pub lua_name: String,
+    pub lua_parent: String,
+    pub lua_folder: String,
+    pub lua_search: String,
+    pub lua_error: Option<String>,
     pub script_undo: Vec<(Scene, Scene)>,
     pub script_redo: Vec<(Scene, Scene)>,
     pub job: Option<pipeline::Job>,
@@ -605,11 +614,19 @@ impl Editor {
             class_registry: crate::blueprint::Registry::new(),
             registry_revision: 0,
             script_creation: false,
+            script_creation_context: Default::default(),
             script_name: String::new(),
             script_parent: "epok::ActorComponent".into(),
             script_folder: String::new(),
             script_search: String::new(),
             script_error: None,
+            lua_creation: false,
+            lua_creation_context: Default::default(),
+            lua_name: String::new(),
+            lua_parent: "epok::ActorComponent".into(),
+            lua_folder: String::new(),
+            lua_search: String::new(),
+            lua_error: None,
             script_undo: vec![],
             script_redo: vec![],
             job: None,
@@ -1342,19 +1359,27 @@ impl Editor {
         let Some(model) = self.object_model() else {
             return Vec::new();
         };
-        let Some(owner) = self
-            .scene
-            .actors
-            .iter()
-            .find(|a| a.id == actor)
-            .and_then(|a| a.class.resolve(&model))
-        else {
+        let Some(actor) = self.scene.actors.iter().find(|a| a.id == actor) else {
+            return Vec::new();
+        };
+        let Some(owner) = actor.class.resolve(&model) else {
             return Vec::new();
         };
         let mut classes: Vec<_> = model
             .iter()
             .filter(|class| {
                 class.component.is_some() && model.validate_component(&owner.id, &class.id).is_ok()
+            })
+            .filter(|class| {
+                let mut candidate = actor.clone();
+                candidate
+                    .components
+                    .push(crate::actor_document::ComponentInstance::new(
+                        uuid::Uuid::new_v4(),
+                        crate::actor_document::ClassReference::new(&class.cpp_name, &class.id),
+                        "ComponentPreview",
+                    ));
+                crate::mcp_tools::validate_actor_components(&model, &candidate).is_ok()
             })
             .map(|class| {
                 let owners = &class.component.as_ref().expect("a component").owners;
@@ -1413,11 +1438,41 @@ impl Editor {
             target,
             crate::actor_document::short_class_name(&resolved.cpp_name),
         );
-        let component = crate::actor_document::ComponentInstance::new(
+        let mut component = crate::actor_document::ComponentInstance::new(
             uuid::Uuid::new_v4(),
             crate::actor_document::ClassReference::new(&resolved.cpp_name, &resolved.id),
             &name,
         );
+        // These adapters carry an authored document even before an asset is chosen.
+        // Seed it so the Inspector projection retains the newly added component.
+        match resolved.id.as_str() {
+            crate::actor_components::PALETTE => {
+                let animator = crate::palette::Animator {
+                    texture: target
+                        .material
+                        .texture
+                        .or(target.sprite.as_ref().and_then(|sprite| sprite.texture))
+                        .or(target.image.as_ref().and_then(|image| image.texture)),
+                    ..Default::default()
+                };
+                component
+                    .properties
+                    .insert("palette_animator".into(), serde_json::json!(animator));
+            }
+            crate::actor_components::TIMELINE => {
+                component.properties.insert(
+                    "timeline".into(),
+                    serde_json::json!(crate::timeline_scene::Component::default()),
+                );
+            }
+            crate::actor_components::EFFECT => {
+                component.properties.insert(
+                    "particle_effect".into(),
+                    serde_json::json!(crate::particle_effect_scene::Component::default()),
+                );
+            }
+            _ => {}
+        }
         target.components.push(component);
         // Whole-actor rules (requires/excludes, cardinality, one root) are the
         // model's, not this method's: ask it before the document changes.
@@ -1810,6 +1865,11 @@ impl Editor {
                 }
                 self.reset_instance_baseline();
             }
+        }
+        // Editor tooling only. A definition file that cannot be written costs a
+        // Lua author completion, never a catalog: the refresh continues.
+        if let Err(error) = crate::lua_api_stub::write(&self.root, &self.class_registry) {
+            self.log(format!("Lua API definitions: {error}"));
         }
     }
     pub fn attach(&mut self, name: &str) {
@@ -2300,6 +2360,7 @@ impl Editor {
                 "delete",
                 "reload",
                 "new-script",
+                "new-lua",
             ]
             .contains(&action)
         {
@@ -2462,11 +2523,21 @@ impl Editor {
             "new-blueprint" => crate::blueprint_workflow::begin(self, None),
             "new-script" => {
                 self.script_creation = true;
+                self.script_creation_context = Default::default();
                 self.script_name.clear();
                 self.script_parent = "epok::ActorComponent".into();
                 self.script_folder.clear();
                 self.script_search.clear();
                 self.script_error = None;
+            }
+            "new-lua" => {
+                self.lua_creation = true;
+                self.lua_creation_context = Default::default();
+                self.lua_name.clear();
+                self.lua_parent = "epok::ActorComponent".into();
+                self.lua_folder.clear();
+                self.lua_search.clear();
+                self.lua_error = None;
             }
             "edit-script" => {
                 self.open_code(&self.root.join("assets/scripts"), None);
@@ -3449,6 +3520,101 @@ mod tests {
     /// The Hierarchy's and Inspector's actor commands, exercised through the
     /// same `Editor` methods the UI calls.
     #[test]
+    fn add_component_choices_respect_the_existing_component_set() {
+        use crate::{actor_document::tests as fixture, object_model as om};
+        let root = crate::workspace::tests::temp("component-choices");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        let mut registry = fixture::registry();
+        let mut needs_audio =
+            fixture::class("needs-audio", "NeedsAudio", Some(om::ACTOR_COMPONENT_ID));
+        needs_audio.component = Some(crate::reflection_schema::ComponentContract {
+            requires: vec![om::AUDIO_COMPONENT_ID.into()],
+            ..Default::default()
+        });
+        let mut excludes_audio = fixture::class(
+            "excludes-audio",
+            "ExcludesAudio",
+            Some(om::ACTOR_COMPONENT_ID),
+        );
+        excludes_audio.component = Some(crate::reflection_schema::ComponentContract {
+            excludes: vec![om::AUDIO_COMPONENT_ID.into()],
+            ..Default::default()
+        });
+        for class in [
+            needs_audio,
+            excludes_audio,
+            fixture::class(
+                crate::actor_components::TIMELINE,
+                "epok::TimelineComponent",
+                Some(om::ACTOR_COMPONENT_ID),
+            ),
+            fixture::class(
+                crate::actor_components::EFFECT,
+                "epok::ParticleEffectComponent",
+                Some(om::ACTOR_COMPONENT_ID),
+            ),
+        ] {
+            registry.classes.insert(class.id.clone(), class);
+        }
+        editor.class_registry = registry;
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        let actor = editor.selected_actor.unwrap();
+        let names = |editor: &Editor| {
+            editor
+                .addable_component_classes(actor)
+                .into_iter()
+                .map(|(_, name, _)| name)
+                .collect::<Vec<_>>()
+        };
+        let offered = names(&editor);
+        assert!(offered.iter().any(|name| name == "ExcludesAudio"));
+        for hidden in [
+            "NeedsAudio",
+            "epok::Actor3D",
+            "epok::ActorComponent",
+            "epok::SceneComponent3D",
+            "epok::SceneComponent2D",
+            "epok::UIComponent",
+        ] {
+            assert!(
+                !offered.iter().any(|name| name == hidden),
+                "must not offer {hidden}"
+            );
+        }
+        editor.add_actor_component(actor, "epok::AudioComponent");
+        let offered = names(&editor);
+        assert!(offered.iter().any(|name| name == "NeedsAudio"));
+        assert!(offered.iter().any(|name| name == "epok::AudioComponent"));
+        assert!(!offered.iter().any(|name| name == "ExcludesAudio"));
+        editor.add_actor_component(actor, "NeedsAudio");
+        assert!(!names(&editor).iter().any(|name| name == "NeedsAudio"));
+        editor.add_actor_component(actor, "epok::TimelineComponent");
+        editor.add_actor_component(actor, "epok::ParticleEffectComponent");
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        assert!(editor.scene.actors[0].timeline.is_some());
+        assert!(editor.scene.actors[0].particle_effect.is_some());
+        editor.scene.sync_actor_components();
+        assert!(
+            editor.scene.actors[0]
+                .components
+                .iter()
+                .any(|c| c.class.name == "epok::TimelineComponent")
+        );
+        assert!(
+            !names(&editor)
+                .iter()
+                .any(|name| name == "epok::TimelineComponent")
+        );
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    #[test]
     fn actor_operations_rename_duplicate_delete_reparent_and_edit_components() {
         let root = crate::workspace::tests::temp("actor-operations");
         let mut editor = Editor::new(root.clone());
@@ -3670,6 +3836,35 @@ mod tests {
                 std::thread::sleep(Duration::from_millis(10));
             }
         }
+    }
+    #[test]
+    fn a_catalog_refresh_publishes_the_generated_lua_definitions() {
+        let root = crate::workspace::tests::temp("lua-definitions");
+        let project =
+            crate::workspace::create(&root, "Definitions", crate::workspace::Template::Basic)
+                .unwrap();
+        let mut editor = Editor::open(project).unwrap();
+        editor.refresh_scripts();
+        let stub = std::fs::read_to_string(root.join(crate::lua_api_stub::STUB_PATH))
+            .expect("the refresh writes the Lua definitions");
+        assert!(stub.starts_with("---@meta\n"), "{stub}");
+        assert!(
+            stub.contains("function epok.input.held(button, port) end"),
+            "{stub}"
+        );
+        // Every class the refresh published is in the file, named as Lua sees it.
+        let class = editor
+            .class_registry
+            .classes
+            .values()
+            .map(|class| class.cpp_name.replace("::", "."))
+            .min()
+            .expect("the project publishes at least one class");
+        assert!(
+            stub.contains(&format!("---@class {class}")),
+            "{class}\n{stub}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
     #[test]
     fn applying_debug_settings_preserves_scene_and_does_not_auto_build_or_refresh_scripts() {

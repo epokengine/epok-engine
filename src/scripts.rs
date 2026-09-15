@@ -68,6 +68,12 @@ pub fn catalog(root: &Path) -> Result<Vec<Script>, String> {
 }
 fn catalog_inner(root: &Path) -> Result<Vec<Script>, String> {
     let mut scripts = native_catalog(root)?;
+    // Lua compiles before Blueprint so a Blueprint may derive from a Lua class:
+    // the Lua types are already published when the Blueprint registry is built.
+    if let Some(compiled) = compile_lua(root, &scripts)? {
+        scripts.extend(compiled.scripts);
+        scripts.sort_by(|a, b| a.name.cmp(&b.name));
+    }
     if let Some(compiled) = compile_blueprints(root, &scripts)? {
         scripts.extend(compiled.scripts);
         scripts.sort_by(|a, b| a.name.cmp(&b.name));
@@ -80,10 +86,18 @@ fn catalog_inner(root: &Path) -> Result<Vec<Script>, String> {
 pub fn declaration_registry(root: &Path) -> Result<crate::blueprint::Registry, String> {
     let scripts = native_catalog(root)?;
     let files = crate::blueprint_asset::load_all(root)?;
-    if files.is_empty() {
+    let lua = crate::lua_asset::load_all(root)?;
+    if files.is_empty() && lua.is_empty() {
         return Ok(crate::blueprint::registry_from_catalog(root, &scripts));
     }
-    let native = crate::blueprint::native_registry(root, &scripts)?;
+    let mut native = crate::blueprint::native_registry(root, &scripts)?;
+    if !lua.is_empty() {
+        native = crate::lua_compile::declaration_registry(&native, &lua)
+            .map_err(|errors| crate::lua_compile::report(&errors))?;
+    }
+    if files.is_empty() {
+        return Ok(native);
+    }
     crate::blueprint_compile::declaration_registry(&native, &files).map_err(|errors| {
         errors
             .iter()
@@ -91,6 +105,54 @@ pub fn declaration_registry(root: &Path) -> Result<crate::blueprint::Registry, S
             .collect::<Vec<_>>()
             .join("\n")
     })
+}
+
+/// Compile every `.lua` class in the selected execution mode. A VM packaging
+/// failure is this call's failure: nothing silently falls back to the AOT path.
+pub fn compile_lua(
+    root: &Path,
+    native: &[Script],
+) -> Result<Option<crate::lua_compile::Compilation>, String> {
+    let mut files = crate::lua_asset::load_all(root).inspect_err(|error| {
+        let _ = crate::lua_dependencies::invalidate_all(root, error);
+    })?;
+    if files.is_empty() {
+        crate::lua_dependencies::observe_sources(root, &files)?;
+        return Ok(None);
+    }
+    // A script the project has no entry for — one copied in by hand, or added
+    // by a merge — is adopted here, before anything is compiled, so this very
+    // refresh already names the class by the identity it will keep. Only the
+    // settings document is written; the author's `.lua` is never rewritten.
+    if files.iter().any(|file| file.id.is_none()) {
+        crate::lua_identity::adopt(root, &files)?;
+        crate::lua_identity::resolve(root, &mut files)?;
+    }
+    let files = files;
+    crate::lua_dependencies::observe_sources(root, &files)?;
+    let mode = crate::settings::lua_execution(root).inspect_err(|error| {
+        let _ = crate::lua_dependencies::invalidate(root, &files, error);
+    })?;
+    let registry = crate::blueprint::native_registry(root, native).inspect_err(|error| {
+        let _ = crate::lua_dependencies::invalidate(root, &files, error);
+    })?;
+    let compiled =
+        crate::lua_compile::compile(root, &registry, &files, mode).map_err(|errors| {
+            let message = crate::lua_compile::report(&errors);
+            let affected = files
+                .iter()
+                .filter(|file| errors.iter().any(|error| error.file == file.path))
+                .cloned()
+                .collect::<Vec<_>>();
+            let _ = if affected.is_empty() {
+                crate::lua_dependencies::invalidate_all(root, &message)
+            } else {
+                crate::lua_dependencies::invalidate(root, &affected, &message)
+            };
+            message
+        })?;
+    crate::lua_dependencies::record(root, &compiled)?;
+    Ok(Some(compiled))
 }
 
 pub fn compile_blueprints(
@@ -283,6 +345,20 @@ fn runtime_base(parent: &str) -> Option<String> {
         "UIComponent",
         "RectTransformComponent",
         "AudioComponent",
+        "Mesh3DComponent",
+        "Sprite3DComponent",
+        "Camera3DComponent",
+        "Light3DComponent",
+        "Collider3DComponent",
+        "CanvasComponent",
+        "ImageComponent",
+        "TextComponent",
+        "ProgressBarComponent",
+        "ParticleEmitterComponent",
+        "TimelineComponent",
+        "ParticleEffectComponent",
+        "PaletteAnimatorComponent",
+        "BlobShadowComponent",
     ];
     let short = parent.strip_prefix("epok::").unwrap_or(parent);
     BASES.contains(&short).then(|| format!("epok::{short}"))
@@ -418,9 +494,62 @@ pub fn source(root: &Path, name: &str) -> PathBuf {
         })
         .unwrap_or_else(|| root.join("assets/scripts").join(format!("{name}.cpp")))
 }
+
+/// Open the declaration actually owned by this project, never an SDK header or
+/// a guessed source filename. Classes can share a header or use namespaces.
+pub fn editable_class_source(root: &Path, class: &schema::Class) -> Option<PathBuf> {
+    if class.provider.id != "cpp" {
+        return None;
+    }
+    let root = root.canonicalize().ok()?;
+    let source = if class.source.file.is_absolute() {
+        class.source.file.clone()
+    } else {
+        root.join(&class.source.file)
+    }
+    .canonicalize()
+    .ok()?;
+    (source.is_file() && source.starts_with(root.join("assets/scripts"))).then_some(source)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn inspector_class_source_opens_project_declarations_and_excludes_engine_headers() {
+        let root = std::env::temp_dir().join(format!("epok-class-source-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(root.join("assets/scripts/Gameplay")).unwrap();
+        fs::create_dir_all(root.join(".epok/reflection/runtime")).unwrap();
+        let header = root.join("assets/scripts/Gameplay/Actors.hpp");
+        fs::write(
+            &header,
+            "// Two project classes share this declaration file.\n",
+        )
+        .unwrap();
+        let mut class = crate::actor_document::tests::class(
+            "custom-actor",
+            "game::Enemy",
+            Some(crate::object_model::ACTOR3D_ID),
+        );
+        class.source.file = header.clone();
+        assert_eq!(
+            editable_class_source(&root, &class),
+            Some(header.canonicalize().unwrap())
+        );
+        class.cpp_name = "game::Boss".into();
+        class.source.file = PathBuf::from("assets/scripts/Gameplay/Actors.hpp");
+        assert_eq!(
+            editable_class_source(&root, &class),
+            Some(header.canonicalize().unwrap())
+        );
+        let engine = root.join(".epok/reflection/runtime/object_model.hpp");
+        fs::write(&engine, "// Engine source\n").unwrap();
+        class.cpp_name = "epok::Actor3D".into();
+        class.source.file = engine;
+        assert!(editable_class_source(&root, &class).is_none());
+        class.source.file = root.join("assets/scripts/Missing.hpp");
+        assert!(editable_class_source(&root, &class).is_none());
+        fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     #[ignore = "Requires pinned libclang/MIPS SDK and cargo build --bins"]
     fn reflected_catalog_keeps_legacy_and_actor_scripts_without_sdk_entries() {

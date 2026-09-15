@@ -6,7 +6,7 @@ from pathlib import Path as _Path
 _sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "tools"))
 import epok_documents as documents
 from project_paths import project_manifest
-import json, pathlib, re, shutil, struct, subprocess, time, urllib.request
+import copy, json, pathlib, re, shutil, struct, subprocess, time, urllib.request, uuid
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 EXE=ROOT/'target/debug/epok-editor.exe'
 ART=ROOT/'artifacts'
@@ -48,56 +48,83 @@ def main():
  documents.write_text(video_path, json.dumps(video))  # Fixed pixel-reference fixture.
 
  shutil.copyfile(ROOT/'resources/models/EpokMannequin.fbx',folder/'assets/EpokMannequin.fbx')
- run('--project',folder,'--import-fbx','assets/EpokMannequin.fbx')
+ run('--project',folder,'--import-fbx','assets/EpokMannequin.fbx','--animation-storage','rigid-gte')
  assets=[(p,*package(p)) for p in folder.glob('assets/**/*.epokasset')]
  mesh=next(m['id'] for p,m,s in assets if m['kind']=='SkeletalMesh')
  clip=next(m['id'] for p,m,s in assets if m['kind']=='AnimationClip' and 'Walk' in json.loads(s)['data']['name'])
  materials=[json.loads(s)['data']['color'] for p,m,s in assets if m['kind']=='Material']
  assert len(set(tuple(c) for c in materials))>=3,materials
- camera=dict(name='Main Camera',kind='Camera',position=[2.2,1.45,-3.2],rotation=[7,-34,0],scale=[1,1,1])
- character=dict(name='Character',kind='Mesh',position=[0,0,0],rotation=[0,180,0],scale=[1,1,1],skeletal_mesh=dict(asset=mesh,clip=clip,looping=True,play_on_start=True))
- floor=dict(name='Floor',kind='Mesh',position=[0,-.12,0],rotation=[0,0,0],scale=[3,.1,3],material=dict(color=[.16,.19,.24],unlit=True))
- scene=dict(version=1,name='Skeletal Preview',entities=[camera,character,floor])
- documents.write_text(folder/'assets/scenes/Main.epokmap', json.dumps(scene,indent=2))
+ scene_path=folder/'assets/scenes/Main.epokmap'
+ scene=documents.loads(scene_path.read_text())
+ def component(actor,suffix):return next(c for c in actor['components'] if c['class']['name'].endswith(suffix))
+ camera=next(a for a in scene['actors'] if any(c['class']['name'].endswith('Camera3DComponent') for c in a['components']))
+ camera_transform=component(camera,'SceneComponent3D')
+ camera_transform['properties'].update(position=[2.2,1.45,-3.2],rotation=[7,-34,0],scale=[1,1,1])
+ sample=documents.loads((ROOT/'examples/sample-game/assets/scenes/SampleScene.epokmap').read_text())
+ character=copy.deepcopy(next(a for a in sample['actors'] if any(c['class']['name'].endswith('Mesh3DComponent') for c in a['components'])))
+ character['id']=str(uuid.uuid4())
+ character['components']=[c for c in character['components'] if c['class']['name'].endswith(('SceneComponent3D','Mesh3DComponent'))]
+ for c in character['components']:c['id']=str(uuid.uuid4())
+ character['name']='Character'
+ transform=component(character,'SceneComponent3D')
+ transform['properties'].update(position=[0,0,0],rotation=[0,180,0],scale=[1,1,1])
+ renderer=component(character,'Mesh3DComponent')
+ renderer['properties']['skeletal_mesh']=dict(asset=mesh,clip=clip,looping=True,play_on_start=True)
+ if 'skeletal_mesh' not in renderer['overrides']:renderer['overrides'].append('skeletal_mesh')
+ scene['actors']=[camera,character]
+ documents.write_text(scene_path, json.dumps(scene,indent=2))
  documents.write_text(folder/'UserSettings/SceneView.epokprefs', json.dumps(dict(center=[0,.85,0],yaw=-.45,pitch=.18,zoom=2.5)))
  run('--project',folder,'--build-psx')
+ generated=(folder/'.epok/build/scene.hh').read_text()
+ assert 'SkeletalStorage::RigidGte' in generated
  run('--project',folder,'--preview-model','assets/EpokMannequin.imported/Model.epokasset','--screenshot',ART/'skeletal-import-preview.png')
- with (ART/'skeletal-emulator.log').open('w') as log:
-  process=subprocess.Popen([str(EXE),'--project',str(folder),'--play-psx','--stop-after','15'],stdout=log,stderr=log,creationflags=FLAGS)
-  try:
-   deadline=time.monotonic()+40
-   while True:
-    assert process.poll() is None,'See skeletal-emulator.log'
-    try:
-     if json.loads(request('execution-flow'))['running']:break
-    except (OSError,ValueError):pass
-    assert time.monotonic()<deadline
-    time.sleep(.1)
-   # Read the shared skinned vertex scratch and completed GPU output at two times.
-   symbols=(folder/'.epok/build/epok.map').read_text()
-   matches=re.findall(r'0x([0-9a-f]+)\s+epok::skeletal_detail::scratch\b',symbols)
-   assert matches,'Skeletal scratch symbol missing'
-   address=int(matches[0],16)&0x1fffff
-   vertices=[];screens=[]
-   for delay in [1.0,.43]:
-    time.sleep(delay);request('execution-flow?function=pause',True)
-    ram=request('cpu/ram/raw');vertices.append(ram[address+64*48:address+64*48+96*6])
-    vram=request('gpu/vram/raw');screen=b''.join(vram[y*2048:y*2048+640] for y in range(240));screens.append(screen)
-    request('execution-flow?function=resume',True)
-   assert vertices[0]!=vertices[1],'Native bone playback did not deform the mesh'
-   expected=expected_poses(assets,mesh,clip)
-   errors=[min(max(abs(a-b) for a,b in zip(struct.unpack('<288h',raw),pose)) for pose in expected) for raw in vertices]
-   assert max(errors)<48,('Native pose differs from editor quantized pose',errors)
-   assert screens[0]!=screens[1],'Animated geometry did not reach the GPU'
-   for screen in screens:
-    pixels=struct.unpack('<76800H',screen)
-    assert sum(1 for v in pixels if ((v>>10)&31)>18 and (v&31)<8)>200,'Blue character is missing'
-   (ART/'skeletal-native-poses.bin').write_bytes(b''.join(vertices))
-   report=dict(vertices=96,triangles=144,clips=['Idle','Walk'],pose_changed=True,frame_changed=True,max_position_error_meters=max(errors)/4096,ps_exe_bytes=(folder/'.epok/build/epok.ps-exe').stat().st_size)
-   documents.write_text(ART/'skeletal-verification.json', json.dumps(report,indent=2))
-   assert process.wait(timeout=25)==0
-  finally:
-   if process.poll() is None:process.wait(timeout=45)
+ def play(mode,validate_vertices):
+  vertices=[];screens=[]
+  with (ART/f'skeletal-emulator-{mode}.log').open('w') as log:
+   process=subprocess.Popen([str(EXE),'--project',str(folder),'--play-psx','--stop-after','15'],stdout=log,stderr=log,creationflags=FLAGS)
+   try:
+    deadline=time.monotonic()+40
+    while True:
+     assert process.poll() is None,f'See skeletal-emulator-{mode}.log'
+     try:
+      if json.loads(request('execution-flow'))['running']:break
+     except (OSError,ValueError):pass
+     assert time.monotonic()<deadline
+     time.sleep(.1)
+    address=None
+    if validate_vertices:
+     symbols=(folder/'.epok/build/epok.map').read_text()
+     matches=re.findall(r'0x([0-9a-f]+)\s+epok::skeletal_detail::scratch\b',symbols)
+     assert matches,'Skeletal scratch symbol missing'
+     address=int(matches[0],16)&0x1fffff
+    for delay in [1.0,.43]:
+     time.sleep(delay);request('execution-flow?function=pause',True)
+     if address is not None:
+      ram=request('cpu/ram/raw');vertices.append(ram[address+64*48:address+64*48+96*6])
+     vram=request('gpu/vram/raw');screens.append(b''.join(vram[y*2048:y*2048+640] for y in range(240)))
+     request('execution-flow?function=resume',True)
+    assert screens[0]!=screens[1],f'{mode} animation did not reach the GPU'
+    for screen in screens:
+     pixels=struct.unpack('<76800H',screen)
+     assert sum(1 for v in pixels if ((v>>10)&31)>18 and (v&31)<8)>200,'Blue character is missing'
+    assert process.wait(timeout=25)==0
+   finally:
+    if process.poll() is None:process.wait(timeout=45)
+  return vertices
+ rigid_size=(folder/'.epok/build/epok.ps-exe').stat().st_size
+ play('rigid-gte',False)
+ run('--project',folder,'--reimport-asset','assets/EpokMannequin.imported/Model.epokasset','--animation-storage','baked-vertices')
+ run('--project',folder,'--build-psx')
+ generated=(folder/'.epok/build/scene.hh').read_text()
+ assert 'SkeletalStorage::BakedVertices' in generated and 'skin_vertex_data_' in generated
+ vertices=play('baked-vertices',True)
+ assert vertices[0]!=vertices[1],'Baked vertex playback did not deform the mesh'
+ expected=expected_poses(assets,mesh,clip)
+ errors=[min(max(abs(a-b) for a,b in zip(struct.unpack('<288h',raw),pose)) for pose in expected) for raw in vertices]
+ assert max(errors)<48,('Decoded baked pose differs from editor quantized pose',errors)
+ (ART/'skeletal-native-poses.bin').write_bytes(b''.join(vertices))
+ report=dict(vertices=96,triangles=144,clips=['Idle','Walk'],rigid_gte_frame_changed=True,baked_frame_changed=True,max_baked_position_error_meters=max(errors)/4096,rigid_ps_exe_bytes=rigid_size,baked_ps_exe_bytes=(folder/'.epok/build/epok.ps-exe').stat().st_size)
+ documents.write_text(ART/'skeletal-verification.json', json.dumps(report,indent=2))
  run('--project',folder,'--screenshot-game','--screenshot',ART/'skeletal-psx.png')
- print('PASS FBX import, distinct material colors, native skeletal deformation and GPU animation:',folder)
+ print('PASS FBX import, rigid GTE animation, compressed baked animation and GPU playback:',folder)
 if __name__=='__main__':main()

@@ -69,6 +69,15 @@ mod library_preview;
 mod lighting;
 mod lighting_editor;
 mod loading;
+mod lua_aot;
+mod lua_api_stub;
+mod lua_asset;
+mod lua_bytecode;
+mod lua_compile;
+mod lua_dependencies;
+mod lua_frontend;
+mod lua_identity;
+mod lua_vm;
 mod mcp;
 mod mcp_stdio;
 #[cfg(test)]
@@ -115,6 +124,8 @@ mod psx_music_settings;
 mod psx_sequence;
 mod reflection;
 mod reflection_schema;
+#[cfg(test)]
+mod runtime_api_tests;
 mod scene;
 mod scene_bank;
 mod scene_dependencies;
@@ -122,6 +133,7 @@ mod scene_gpu;
 mod scene_loading;
 mod scene_view_mode;
 mod script_backend;
+mod script_ir;
 mod script_values;
 mod scripts;
 mod sequence;
@@ -166,6 +178,14 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
+
+fn parse_animation_storage(value: &str) -> Result<skeletal::AnimationStorage, String> {
+    match value {
+        "rigid-gte" | "RigidGte" => Ok(skeletal::AnimationStorage::RigidGte),
+        "baked-vertices" | "BakedVertices" => Ok(skeletal::AnimationStorage::BakedVertices),
+        _ => Err("Animation storage must be rigid-gte or baked-vertices".into()),
+    }
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = std::env::args().collect::<Vec<_>>();
@@ -281,6 +301,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--reflect",
             "--new-script",
             "--new-blueprint",
+            "--new-lua-class",
             "--compile-blueprints",
             "--new-timeline",
             "--install-timeline-adapters",
@@ -441,6 +462,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Created {} : {parent}", pair[1]);
         return Ok(());
     }
+    if let Some(pair) = args.windows(2).find(|v| v[0] == "--new-lua-class") {
+        let parent = args
+            .windows(2)
+            .find(|v| v[0] == "--parent")
+            .map(|v| v[1].as_str())
+            .unwrap_or("epok::ActorComponent");
+        let folder = args
+            .windows(2)
+            .find(|v| v[0] == "--folder")
+            .map(|v| v[1].as_str())
+            .unwrap_or("");
+        let path = lua_asset::create_in(&root, &pair[1], folder, parent)?;
+        println!("{}", path.display());
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--export-psx") {
         let scene = scene_dependencies::Input::load(&workspace::startup_scene(&root)?)?;
         println!("{}", export::export_project(&root, &scene)?.display());
@@ -544,7 +580,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let destination = value("--asset")
             .map(str::to_owned)
             .unwrap_or_else(|| model_import::destination(source));
-        let candidate = model_import::prepare(&root, source, &destination, None, false)?;
+        let storage = value("--animation-storage")
+            .map(parse_animation_storage)
+            .transpose()?;
+        let candidate = model_import::prepare(&root, source, &destination, None, false, storage)?;
         println!("Imported FBX: {}", model_import::commit(candidate)?);
         return Ok(());
     }
@@ -594,6 +633,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &assets::path_string(&root, &path),
                 Some(r),
                 args.iter().any(|a| a == "--snapshot"),
+                value("--animation-storage")
+                    .map(parse_animation_storage)
+                    .transpose()?,
             )?;
             println!("Reimported FBX: {}", model_import::commit(candidate)?);
             return Ok(());

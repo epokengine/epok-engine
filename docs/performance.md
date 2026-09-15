@@ -78,7 +78,7 @@ scene banks of (actors + components) plus 32 dynamic slots. Exhausting it increm
 `rejected`, never overwrites memory. `epok::level_actor_capacity` (64) and
 `epok::actor_component_capacity` (8) bound one level and one actor respectively.
 
-Additional fields report mesh chunks tested/visible, backfaces, clipped polygons, emitted triangles, frame work before and after mesh rendering (`prepare`, `finish`), retained triangles and retained-packet rebuilds. With `EPOK_PROFILE_DETAIL=1`, per-quad shade/fog/emit timers, chunk setup and camera/sprite/HUD timers are also populated. Release builds leave those detail fields at zero. Reading extra timers adds work, so detail-build timings are not release measurements.
+Additional fields report mesh chunks tested/visible, backfaces, clipped polygons, emitted triangles, frame work before and after mesh rendering (`prepare`, `finish`), retained triangles and retained-packet rebuilds. Skeletal fields report pose/decode `skeletal_scanlines`, evaluated `skeletal_bone_matrices`, CPU-skinned vertices and decoded baked vertices; a culled character contributes zero to all four. With `EPOK_PROFILE_DETAIL=1`, per-quad shade/fog/emit timers, chunk setup and camera/sprite/HUD timers are also populated. Release builds leave those detail fields at zero. Reading extra timers adds work, so detail-build timings are not release measurements.
 
 The descriptive `streamed_chunks` counter is collected only with
 `EPOK_PROFILE_DETAIL=1` (`tools/profile_runtime.py --detail`). Ordinary builds

@@ -209,6 +209,12 @@ fn actor_blueprints_derive_across_levels_and_override_each_event_once() {
     fire.asset
         .functions
         .push(graph(50, "begin_play", &event_id("begin_play"), vec![]));
+    // An unconnected event now inherits. Wire Return to author empty overrides.
+    for (file, terminal) in [(&mut goblin, 42), (&mut fire, 52)] {
+        let begin = file.asset.functions.iter_mut().find(|g| g.name == "begin_play").unwrap();
+        begin.nodes[0].outputs.insert("next".into(), vec![id(terminal)]);
+        begin.nodes.push(node(terminal, NodeKind::Return));
+    }
 
     let compiled = compile(Path::new(""), &registry, &[goblin, fire]).unwrap();
     let goblin_text = text_of(&compiled, 20);

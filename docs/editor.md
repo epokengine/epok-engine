@@ -32,7 +32,7 @@ Editor panels and tool windows share a charcoal theme with blue selection and fo
 | Right mouse held + Q / E | Fly down / up |
 | Shift during flight | Increase speed |
 | Alt + left mouse drag | Orbit around the focus point |
-| Wheel | Move forward/backward without changing field of view |
+| Wheel | Move the camera forward/backward along its viewing direction, using Speed, without a zoom limit or field-of-view change |
 | Right mouse held + wheel | Adjust flight speed (also available as Speed in Scene) |
 | Escape | Release camera capture |
 | 1 / 2 / 3 in Blockout | Faces / edges / vertices |
@@ -40,6 +40,10 @@ Editor panels and tool windows share a charcoal theme with blue selection and fo
 | F | Frame the selected entity |
 
 Gizmo shortcuts are suppressed during flight. Click a mesh to select the nearest visible hit, or click the background to clear selection. Camera and gizmo drags do not change selection. Use Hierarchy to select empty entities and cameras without selectable Scene icons.
+
+The top **Build** menu contains **Build Project**, **Build Lighting**, packaging
+and export actions, and **Lighting Settings**. Scene edits retain baked shadows;
+an amber warning indicates when to run **Build Lighting** again.
 
 ### Orientation control
 

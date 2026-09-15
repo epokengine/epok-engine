@@ -370,6 +370,31 @@ fn import_dialog(ui: &Ui, m: &mut Manager) {
             ui.disabled(m.busy,||{
                 ui.disabled(form.snapshot,||{ui.input_text(crate::gui::field(ui, "Source"),&mut form.source).build();});
                 ui.disabled(form.existing.is_some(),||{ui.input_text(crate::gui::field(ui, "Model asset"),&mut form.destination).build();});
+                let storage_label = match form.model_storage {
+                    crate::skeletal::AnimationStorage::RigidGte => "Rigid bones (fastest)",
+                    crate::skeletal::AnimationStorage::BakedVertices => "Baked vertex frames",
+                };
+                if let Some(_combo) = ui.begin_combo(
+                    crate::gui::field(ui, "PSX animation"),
+                    storage_label,
+                ) {
+                    if ui.selectable_config("Rigid bones (fastest)")
+                        .selected(form.model_storage == crate::skeletal::AnimationStorage::RigidGte)
+                        .build()
+                    {
+                        form.model_storage = crate::skeletal::AnimationStorage::RigidGte;
+                    }
+                    if ui.selectable_config("Baked vertex frames")
+                        .selected(form.model_storage == crate::skeletal::AnimationStorage::BakedVertices)
+                        .build()
+                    {
+                        form.model_storage = crate::skeletal::AnimationStorage::BakedVertices;
+                    }
+                }
+                crate::gui::muted(ui, match form.model_storage {
+                    crate::skeletal::AnimationStorage::RigidGte => "Groups vertices per bone and skins directly in the GTE after culling.",
+                    crate::skeletal::AnimationStorage::BakedVertices => "Stores compressed 30 Hz vertex poses; avoids bone evaluation but uses more target data.",
+                });
                 if form.snapshot{ui.text("Using the original FBX stored in ModelSource.");}
                 if ui.button(if form.existing.is_some(){"Reimport"}else{"Import"}){start=true;}
             });

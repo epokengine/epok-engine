@@ -264,6 +264,14 @@ impl From<SceneDocument> for Scene {
             display_size: legacy_display_size(),
         };
         scene.refresh_actor_hierarchy();
+        // Older caches used only positional color arrays. Bind those positions
+        // once when loading, before edits can add, remove or reorder actors.
+        if let Some(bake) = &mut scene.bake
+            && bake.actor_ids.is_empty()
+            && bake.colors.len() == scene.actors.len()
+        {
+            bake.actor_ids = scene.actors.iter().map(|actor| actor.id).collect();
+        }
         scene
     }
 }
