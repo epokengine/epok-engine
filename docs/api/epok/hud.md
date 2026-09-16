@@ -6,7 +6,7 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 
 ## Declared types
 
-`epok::HudRenderer`
+`epok::HudRenderer`, `epok::HudRenderer::Nop`
 
 ## Callable index
 
@@ -72,8 +72,8 @@ template<size_t N>void draw(psyqo::GPU& gpu,std::array<ActorData,N>& entities,si
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
-| `entities` | `std::array<ActorData, N> &` | Input/output; inspect the function contract | Value supplied for `entities`. See the exact type and module contract. |
-| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `entities` | `int &` | Input/output; inspect the function contract | Value supplied for `entities`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -89,8 +89,8 @@ template<size_t N>void draw(psyqo::GPU& gpu,std::array<ActorData,N>& entities,si
 
 // Assume these named values have been initialized with valid data:
 // psyqo::GPU & gpu
-// std::array<ActorData, N> & entities
-// size_t count
+// int & entities
+// int count
 
 epok::HudRenderer& object = /* obtain a valid instance */;
 
@@ -128,7 +128,7 @@ void glyph(int,unsigned c,int x0,int y0,int x1,int y1,int u,int v,const uint8_t*
 | `y1` | `int` | Input | Value supplied for `y1`. See the exact type and module contract. |
 | `u` | `int` | Input | Value supplied for `u`. See the exact type and module contract. |
 | `v` | `int` | Input | Value supplied for `v`. See the exact type and module contract. |
-| `color` | `const uint8_t *` | Input | Value supplied for `color`. See the exact type and module contract. |
+| `color` | `const int *` | Input | Value supplied for `color`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -148,7 +148,7 @@ void glyph(int,unsigned c,int x0,int y0,int x1,int y1,int u,int v,const uint8_t*
 // int y1
 // int u
 // int v
-// const uint8_t * color
+// const int * color
 
 epok::HudRenderer& object = /* obtain a valid instance */;
 
@@ -188,7 +188,7 @@ void image(int,int id,int x0,int y0,int x1,int y1,int u0,int v0,int u1,int v1,co
 | `v0` | `int` | Input | Value supplied for `v0`. See the exact type and module contract. |
 | `u1` | `int` | Input | Value supplied for `u1`. See the exact type and module contract. |
 | `v1` | `int` | Input | Value supplied for `v1`. See the exact type and module contract. |
-| `color` | `const uint8_t *` | Input | Value supplied for `color`. See the exact type and module contract. |
+| `color` | `const int *` | Input | Value supplied for `color`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -210,7 +210,7 @@ void image(int,int id,int x0,int y0,int x1,int y1,int u0,int v0,int u1,int v1,co
 // int v0
 // int u1
 // int v1
-// const uint8_t * color
+// const int * color
 
 epok::HudRenderer& object = /* obtain a valid instance */;
 
@@ -320,7 +320,7 @@ void rectangle(int,int x0,int y0,int x1,int y1,const uint8_t* color)
 | `y0` | `int` | Input | Value supplied for `y0`. See the exact type and module contract. |
 | `x1` | `int` | Input | Value supplied for `x1`. See the exact type and module contract. |
 | `y1` | `int` | Input | Value supplied for `y1`. See the exact type and module contract. |
-| `color` | `const uint8_t *` | Input | Value supplied for `color`. See the exact type and module contract. |
+| `color` | `const int *` | Input | Value supplied for `color`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -337,7 +337,7 @@ void rectangle(int,int x0,int y0,int x1,int y1,const uint8_t* color)
 // int y0
 // int x1
 // int y1
-// const uint8_t * color
+// const int * color
 
 epok::HudRenderer& object = /* obtain a valid instance */;
 

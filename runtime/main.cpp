@@ -536,6 +536,7 @@ void GameScene::frame() {
   if(advanced_motion)motion.after_tick(epok::objects,epok::object_count);
   if(epok::time.paused()||epok::scene_loading()||steps==epok::Time::max_steps)motion.clear();
   epok::streaming_tick();
+  epok::streaming_service_gameplay_requests();
   epok::music_tick();
   if(epok::transition.loading()){
     clear.draw(gpu(),psyqo::Color{{.r=0,.g=0,.b=0}});
@@ -1360,7 +1361,10 @@ void remove_runtime_owner(size_t index) {
 }
 #ifdef EPOK_EFFECTS
 Affine<Fixed> effect_world(DataHandle owner){refresh_world();return owner.get()?world[owner.index]:Affine<Fixed>::identity();}
-Affine<Fixed> effect_matrix(const Transform& transform){return local_matrix(transform);}
+// The 3D helper lives in this translation unit's anonymous namespace. Qualify
+// it explicitly: `epok::local_matrix` is the unrelated 2D overload exported by
+// world2d.hpp and otherwise wins lookup from inside namespace epok.
+Affine<Fixed> effect_matrix(const Transform& transform){return ::local_matrix(transform);}
 void remove_effect_particles(EffectLayerHandle owner){particles.remove_layer(owner);}
 #endif
 SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask,const ActorData* ignore,bool triggers) {
@@ -1376,6 +1380,17 @@ bool collider_aabb(const ActorData& entity,Aabb& output) {
   refresh_collisions();int index=entity_index(&entity);
   auto box=index<0?nullptr:collision_world.bounds(size_t(index));if(!box)return false;
   output=*box;return true;
+}
+bool skeletal_world_point(const ActorData& entity,const Fixed* model,Fixed* output) {
+  refresh_world();const int index=entity_index(&entity);
+  if(index<0||size_t(index)>=object_count||!model||!output)return false;
+  world[size_t(index)].point(model,output);return true;
+}
+WorldAffineSample gameplay_world_affine(const ActorData* entity) {
+  WorldAffineSample result;if(!entity)return result;refresh_world();const int index=entity_index(entity);
+  if(index<0||size_t(index)>=object_count)return result;const auto& value=world[size_t(index)];result.success=true;
+  for(int row=0;row<3;++row){result.basis_x[row]=value.values[row][0];result.basis_y[row]=value.values[row][1];result.basis_z[row]=value.values[row][2];result.position[row]=value.values[row][3];}
+  return result;
 }
 SpatialHit query_ground(const ActorData& entity,Fixed distance,uint32_t mask) {
   refresh_collisions();int index=entity_index(&entity);

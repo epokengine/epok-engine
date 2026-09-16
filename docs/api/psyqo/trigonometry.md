@@ -190,7 +190,7 @@ void generateTable(eastl::array<int32_t, 512>& table, unsigned precisionBits)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `table` | `eastl::array<int32_t, 512> &` | Input/output; inspect the function contract | Value supplied for `table`. See the exact type and module contract. |
+| `table` | `int &` | Input/output; inspect the function contract | Value supplied for `table`. See the exact type and module contract. |
 | `precisionBits` | `unsigned int` | Input | Value supplied for `precisionBits`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -203,7 +203,7 @@ void generateTable(eastl::array<int32_t, 512>& table, unsigned precisionBits)
 #include "psyqo/trigonometry.hh"
 
 // Assume these named values have been initialized with valid data:
-// eastl::array<int32_t, 512> & table
+// int & table
 // unsigned int precisionBits
 
 psyqo::TrigInternals::generateTable(table, precisionBits);

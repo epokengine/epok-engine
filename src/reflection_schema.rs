@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-pub const SCHEMA_VERSION: u32 = 9;
+pub const SCHEMA_VERSION: u32 = 10;
 pub const CLANG_VERSION: &str = "18.1.1";
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -200,6 +200,45 @@ pub enum Direction {
     MutableReference,
 }
 impl Type {
+    /// Number of 32-bit words in Lua ABI v2. Records are flattened in source
+    /// field order; references/handles retain their full 64-bit bit pattern.
+    #[allow(dead_code)]
+    pub fn wire_words(&self) -> usize {
+        match self {
+            Self::Void => 0,
+            Self::Vector { length } => *length,
+            Self::Record { cpp_name, fields }
+                if fields.is_empty() && cpp_name == "epok::Transform" =>
+            {
+                9
+            }
+            Self::Record { fields, .. } => fields.iter().map(|f| f.value_type.wire_words()).sum(),
+            Self::AssetRef { .. }
+            | Self::ClassRef { .. }
+            | Self::SequenceHandle
+            | Self::EffectHandle
+            | Self::EffectLayerRef { .. } => 2,
+            Self::Bool
+            | Self::Int32
+            | Self::UInt32
+            | Self::Fixed
+            | Self::Enum { .. }
+            | Self::ObjectRef { .. }
+            | Self::ActorRef { .. }
+            | Self::ComponentRef { .. } => 1,
+        }
+    }
+    #[allow(dead_code)]
+    pub fn member_wire_offset(&self, name: &str) -> Option<(usize, Type)> {
+        let mut offset = 0;
+        for field in self.members() {
+            if field.name == name {
+                return Some((offset, field.value_type));
+            }
+            offset += field.value_type.wire_words();
+        }
+        None
+    }
     /// Value members only. Handles and opaque runtime records are intentionally
     /// not decomposed into their internal indices or pointers.
     #[allow(dead_code)] // Shared with the extraction binary, which only writes fields.
@@ -282,6 +321,96 @@ pub struct Parameter {
     pub name: String,
     pub value_type: Type,
     pub direction: Direction,
+}
+
+/// Receiver representation of a public gameplay operation. Function libraries
+/// are namespaces only: a `Service` receiver never allocates an Object slot or
+/// participates in actor lifecycle.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ReceiverKind {
+    Instance { class: String },
+    Service { library: String },
+    Value { cpp_name: String },
+}
+
+/// Observable behavior used by graph scheduling, Lua reentrancy guards and
+/// dependency collection. This is deliberately independent of `pure`: a state
+/// read is side-effect free but may not be hoisted across a mutation.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OperationEffect {
+    PureValue,
+    StateRead,
+    Mutation,
+    EventConsumption,
+    AsyncRequest,
+    ResourceAcquisition,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct OperationParameter {
+    /// Stable within the owning operation. Derived from the operation identity
+    /// and declaration position when C++ does not provide an explicit id.
+    pub id: String,
+    pub name: String,
+    pub value_type: Type,
+    pub direction: Direction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<serde_json::Value>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OperationOutput {
+    pub id: String,
+    pub name: String,
+    pub value_type: Type,
+}
+
+/// Versioned compiler-facing operation descriptor. The Clang declaration is
+/// still the signature authority; frontends consume this normalized contract
+/// rather than maintaining language-specific signatures.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Operation {
+    pub version: u32,
+    pub id: String,
+    pub namespace: String,
+    pub name: String,
+    pub category: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub search_terms: Vec<String>,
+    pub receiver: ReceiverKind,
+    pub native_target: String,
+    pub parameters: Vec<OperationParameter>,
+    pub outputs: Vec<OperationOutput>,
+    pub effect: OperationEffect,
+    #[serde(default)]
+    pub can_destroy_receiver: bool,
+    #[serde(default)]
+    pub valid_domains: BTreeSet<Domain>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub component_requirements: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resource_demands: Vec<String>,
+    pub error_contract: String,
+    pub complexity: String,
+    pub source: Location,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct FunctionLibrary {
+    pub id: String,
+    pub cpp_name: String,
+    pub operations: Vec<Operation>,
+    pub source: Location,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ValueDeclaration {
+    pub id: String,
+    pub cpp_name: String,
+    pub value_type: Type,
+    pub source: Location,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -383,6 +512,9 @@ pub struct Function {
     pub timeline: Option<TimelineCall>,
     pub event: bool,
     pub pure: bool,
+    /// Optional cooker/runtime features retained when this operation is used.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resource_demands: Vec<String>,
     pub abstract_method: bool,
     pub final_method: bool,
     pub access: String,
@@ -479,6 +611,13 @@ pub struct Manifest {
     pub clang_version: String,
     pub target: String,
     pub classes: Vec<Class>,
+    /// Static/free public service namespaces. They never enter the Object
+    /// registry at runtime and generate no constructor, vtable or storage.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub function_libraries: Vec<FunctionLibrary>,
+    /// Registered plain values used by operation parameters/results.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub value_types: Vec<ValueDeclaration>,
     /// Every header Clang actually included, including SDK and standard headers.
     pub dependencies: BTreeMap<PathBuf, String>,
 }
@@ -511,7 +650,7 @@ mod tests {
         for field in ["family", "domain", "component", "default_components"] {
             assert!(round_trip.get(field).is_none(), "{field} was serialized");
         }
-        assert_eq!(super::SCHEMA_VERSION, 9);
+        assert_eq!(super::SCHEMA_VERSION, 10);
     }
 
     #[test]

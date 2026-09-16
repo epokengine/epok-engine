@@ -632,6 +632,7 @@ mod tests {
             name: "Certification".into(),
             debug: Default::default(),
             lua_execution: Default::default(),
+            lua_profile: Default::default(),
             play: Default::default(),
             transition: Default::default(),
             startup_scene: "assets/scenes/Main.epokmap".into(),

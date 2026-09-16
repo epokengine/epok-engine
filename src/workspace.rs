@@ -36,6 +36,10 @@ pub struct Manifest {
     /// resolve this field. Never three booleans, never switched automatically.
     #[serde(default)]
     pub lua_execution: crate::settings::LuaExecution,
+    /// Language capabilities are versioned separately from execution. Old
+    /// manifests default to v1; new projects start on the current profile.
+    #[serde(default)]
+    pub lua_profile: crate::settings::LuaProfile,
     #[serde(default)]
     pub default_sound_bank: Option<uuid::Uuid>,
     /// `cpp_name` of the `SceneScriptActor` subclass proposed when a map's
@@ -400,6 +404,7 @@ pub fn create(destination: &Path, name: &str, template: Template) -> Result<Proj
         },
         debug: Default::default(),
         lua_execution: Default::default(),
+        lua_profile: crate::settings::LuaProfile::GameplayV2,
         default_sound_bank: None,
         default_scene_script_parent: None,
     };

@@ -1,0 +1,136 @@
+{
+  "abi": {
+    "header_matches": true,
+    "host_bytes": 1805,
+    "identical": true,
+    "load_ok": true,
+    "pinned_header": "1b4c7561520001040404040119930d0a1a0a",
+    "target_bytes": 1805,
+    "target_header": "1b4c7561520001040404040119930d0a1a0a"
+  },
+  "archives": {
+    "noparser": 635500,
+    "parser": 884238
+  },
+  "builds": {
+    "dump": {
+      "built": true,
+      "elf": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/lua-vm-abi/dump/dump.elf",
+      "ps_exe": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/lua-vm-abi/dump/dump.ps-exe",
+      "sections": {
+        "bss": 16668,
+        "data": 1456,
+        "linked_resident_bytes": 94440,
+        "rodata": 6236,
+        "text": 70080
+      }
+    },
+    "smoke-bytecode": {
+      "built": true,
+      "elf": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/lua-vm-abi/smoke-bytecode/smoke_bytecode.elf",
+      "ps_exe": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/lua-vm-abi/smoke-bytecode/smoke_bytecode.ps-exe",
+      "sections": {
+        "bss": 238380,
+        "data": 1056,
+        "linked_resident_bytes": 307956,
+        "rodata": 8856,
+        "text": 59664
+      }
+    },
+    "smoke-source": {
+      "built": true,
+      "elf": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/lua-vm-abi/smoke-source/smoke_source.elf",
+      "ps_exe": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/lua-vm-abi/smoke-source/smoke_source.ps-exe",
+      "sections": {
+        "bss": 238380,
+        "data": 880,
+        "linked_resident_bytes": 336628,
+        "rodata": 10120,
+        "text": 87248
+      }
+    }
+  },
+  "caveats": [
+    "Nothing here was validated on physical PlayStation hardware.",
+    "Linked section sizes are this smoke program's, not a game's.",
+    "Arena figures cover Lua allocations inside EPOK_LUA_ARENA_BYTES only."
+  ],
+  "chunk_bytes": 1154,
+  "conformance": {
+    "smoke-bytecode": {
+      "absent_bound": 0,
+      "absent_entries": 0,
+      "arena_allocations": 150,
+      "arena_live": 5528,
+      "arena_peak": 6024,
+      "bool_after": 1,
+      "bool_before": 0,
+      "bool_field": 1,
+      "errors": 0,
+      "fmul": -1229,
+      "iadd": 2147483647,
+      "idiv": 0,
+      "ineg": 2147483647,
+      "nested": 42,
+      "ult": 1
+    },
+    "smoke-source": {
+      "absent_bound": 0,
+      "absent_entries": 0,
+      "arena_allocations": 247,
+      "arena_live": 6408,
+      "arena_peak": 8816,
+      "bool_after": 1,
+      "bool_before": 0,
+      "bool_field": 1,
+      "errors": 0,
+      "fmul": -1229,
+      "iadd": 2147483647,
+      "idiv": 0,
+      "ineg": 2147483647,
+      "nested": 42,
+      "ult": 1
+    }
+  },
+  "environment": {
+    "bios": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.tools/macos/redux/PCSX-Redux.app/Contents/Resources/share/pcsx-redux/resources/openbios.bin",
+    "emulator": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.tools/macos/redux/PCSX-Redux.app/Contents/MacOS/PCSX-Redux",
+    "platform": "darwin",
+    "revisions": {
+      "nugget": "6186b131aacc5853a9161fb076ed34ffe504552d",
+      "psxlua": "abed030e686b4e34987851bd0a028c93b1f73967",
+      "psxlua_pinned": "abed030e686b4e34987851bd0a028c93b1f73967"
+    },
+    "toolchain": {
+      "ar": "/opt/homebrew/bin/mipsel-none-elf-ar",
+      "g++": "/opt/homebrew/bin/mipsel-none-elf-g++",
+      "gcc": "/opt/homebrew/bin/mipsel-none-elf-gcc",
+      "nm": "/opt/homebrew/bin/mipsel-none-elf-nm",
+      "size": "/opt/homebrew/bin/mipsel-none-elf-size"
+    }
+  },
+  "expected": {
+    "absent_bound": 0,
+    "absent_entries": 0,
+    "bool_after": 1,
+    "bool_before": 0,
+    "bool_field": 1,
+    "errors": 0,
+    "fmul": -1229,
+    "iadd": 2147483647,
+    "idiv": 0,
+    "ineg": 2147483647,
+    "nested": 42,
+    "ult": 1
+  },
+  "failures": [],
+  "host_cook": {
+    "bytes": 1805,
+    "debug_info_cost_bytes": 813,
+    "header_matches_pinned": true,
+    "strip": 0,
+    "stripped_bytes": 992
+  },
+  "modes_agree": true,
+  "ok": true
+}

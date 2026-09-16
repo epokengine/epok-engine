@@ -144,7 +144,11 @@ fn animated_bounds(m: &Model) -> ([i32; 3], [i32; 3]) {
                 )));
             }
         }
-    } else {
+    }
+    // Bone query sidecars share the existing quantized hierarchy/tracks. The
+    // baked renderer still consumes only vertex frames; gameplay bone queries
+    // never attempt to reconstruct a pose from skinned positions.
+    {
         include(fixed_points(m, None, 0));
         for (_, clip) in &m.clips {
             for frame in 0..clip.frames as usize {
@@ -164,6 +168,7 @@ struct RigidOrder {
     vertices: Vec<Vertex>,
     triangles: Vec<Triangle>,
     bone_offsets: Vec<u16>,
+    portable_to_cooked: Vec<u16>,
 }
 
 /// The GTE path changes its matrix once per contiguous bone range. Reorder the
@@ -203,6 +208,7 @@ fn rigid_order(m: &Model) -> RigidOrder {
         vertices,
         triangles,
         bone_offsets,
+        portable_to_cooked: remap,
     }
 }
 
@@ -210,6 +216,7 @@ fn rigid_order(m: &Model) -> RigidOrder {
 struct EncodedFrame {
     offset: u32,
     raw: bool,
+    seek: Vec<u32>,
 }
 #[derive(Clone, Debug, PartialEq)]
 struct EncodedVertexClip {
@@ -220,7 +227,11 @@ struct EncodedVertexClip {
 /// Independent frames support random clip changes and shared scratch. A compact
 /// coordinate is a signed Q8 delta from bind pose; 0x80 escapes to an absolute
 /// little-endian Q12 i16. If escapes make a frame larger, store raw i16s.
-fn encode_vertex_clip(base: &[[i16; 3]], frames: &[Vec<[i16; 3]>]) -> EncodedVertexClip {
+fn encode_vertex_clip(
+    base: &[[i16; 3]],
+    frames: &[Vec<[i16; 3]>],
+    indexed_queries: bool,
+) -> EncodedVertexClip {
     let mut output = EncodedVertexClip {
         frames: Vec::with_capacity(frames.len()),
         data: vec![],
@@ -260,12 +271,29 @@ fn encode_vertex_clip(base: &[[i16; 3]], frames: &[Vec<[i16; 3]>]) -> EncodedVer
         } else {
             let offset = output.data.len() as u32;
             output.data.extend_from_slice(&key.1);
-            known.insert(key, offset);
+            known.insert(key.clone(), offset);
             offset
         };
+        let mut seek = vec![];
+        if indexed_queries && !raw_frame {
+            let mut cursor = 0usize;
+            for vertex in 0..base.len() {
+                if vertex % 16 == 0 {
+                    seek.push(offset + cursor as u32);
+                }
+                for _ in 0..3 {
+                    let delta = key.1[cursor] as i8;
+                    cursor += 1;
+                    if delta == -128 {
+                        cursor += 2;
+                    }
+                }
+            }
+        }
         output.frames.push(EncodedFrame {
             offset,
             raw: raw_frame,
+            seek,
         });
     }
     output
@@ -291,8 +319,8 @@ pub const BONE_POSE_BYTES: usize = 20;
 pub const BONE_BYTES: usize = 22;
 /// `BoneTrack { const BonePose* poses; bool constant; }` — 4 + 1 padded to 8.
 pub const BONE_TRACK_BYTES: usize = 8;
-/// `VertexFrame { uint32_t offset; bool raw; }` — 4 + 1 padded to 8.
-pub const VERTEX_FRAME_BYTES: usize = 8;
+/// `VertexFrame { uint32_t offset; const uint32_t* seek; bool raw; }` — 8 + 1 padded to 12.
+pub const VERTEX_FRAME_BYTES: usize = 12;
 /// `AnimationClip { const BoneTrack*; const VertexFrame*; const uint8_t*;
 /// uint16_t frames; const char* name; }` — 12 + 2 + 2 padding + 4.
 pub const ANIMATION_CLIP_BYTES: usize = 20;
@@ -311,8 +339,8 @@ pub const MESH_QUAD_BYTES: usize = 72;
 /// `MeshGeometry` — four words of pointers/counts, `editable` padded to a word,
 /// three `int32_t[3]` boxes, two pointers, `stream_page` and two `uint16_t`.
 pub const MESH_GEOMETRY_BYTES: usize = 72;
-/// `SkeletalMesh` — seven words plus the `SkeletalStorage` byte padded to a word.
-pub const SKELETAL_MESH_BYTES: usize = 32;
+/// `SkeletalMesh` — eight words plus the `SkeletalStorage` byte padded to a word.
+pub const SKELETAL_MESH_BYTES: usize = 36;
 /// `Animator` — `enabled` padded to a word, model pointer, clip, ticks, and the
 /// `playing`/`looping` pair padded to a word.
 pub const ANIMATOR_BYTES: usize = 20;
@@ -326,6 +354,25 @@ pub const AFFINE_BYTES: usize = 48;
 pub const SCRATCH_BYTES: usize = crate::skeletal::MAX_BONES * AFFINE_BYTES
     + crate::skeletal::MAX_VERTICES * VERTEX_BYTES
     + MESH_GEOMETRY_BYTES;
+
+/// Immutable query tables retained in addition to the selected render format.
+/// These flags are computed from the shared operation demand set before scene
+/// banks are emitted, so a project that does not query poses keeps no sidecar.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct QueryDemand {
+    pub vertices: bool,
+    pub bones: bool,
+}
+impl QueryDemand {
+    pub const NONE: Self = Self {
+        vertices: false,
+        bones: false,
+    };
+    pub const ALL: Self = Self {
+        vertices: true,
+        bones: true,
+    };
+}
 
 const _: () = {
     // `Material` starts at offset 16 in `MeshQuad`; after it come the colour
@@ -399,10 +446,14 @@ fn checked(value: Option<usize>) -> Result<usize, String> {
 /// Byte accounting for a model in its selected storage mode. Fails when the
 /// host tracks or the generated target tables exceed the animation budget.
 pub fn budget(m: &Model) -> Result<Budget, String> {
-    measure(m).map(|(budget, _)| budget)
+    budget_for(m, QueryDemand::NONE)
 }
 
-fn measure(m: &Model) -> Result<(Budget, Vec<EncodedVertexClip>), String> {
+pub fn budget_for(m: &Model, demand: QueryDemand) -> Result<Budget, String> {
+    measure(m, demand).map(|(budget, _)| budget)
+}
+
+fn measure(m: &Model, demand: QueryDemand) -> Result<(Budget, Vec<EncodedVertexClip>), String> {
     let baked = m.mesh.animation_storage == AnimationStorage::BakedVertices;
     let bones = m.skeleton.bones.len();
     let clips = m.clips.len();
@@ -430,8 +481,18 @@ fn measure(m: &Model) -> Result<(Budget, Vec<EncodedVertexClip>), String> {
     )?;
     geometry = checked(geometry.checked_add(MESH_GEOMETRY_BYTES + SKELETAL_MESH_BYTES))?;
     if !baked {
-        // One bone index per vertex plus the per-bone range table (bones + 1).
+        // One bone index and one portable-to-cooked uint16 per vertex, plus
+        // the per-bone range table (bones + 1).
         geometry = checked(geometry.checked_add(m.mesh.vertices.len()))?;
+        if demand.vertices {
+            geometry = checked(
+                m.mesh
+                    .vertices
+                    .len()
+                    .checked_mul(2)
+                    .and_then(|v| v.checked_add(geometry)),
+            )?;
+        }
         geometry = checked(
             bones
                 .checked_add(1)
@@ -462,14 +523,40 @@ fn measure(m: &Model) -> Result<(Budget, Vec<EncodedVertexClip>), String> {
         }
         return Ok((budget, vec![]));
     }
-    budget.baked_descriptor_bytes = clip_descriptors;
+    // Baked rendering always keeps its vertex payload. Quantized hierarchy and
+    // tracks are a gameplay-query sidecar and are retained only when the
+    // operation/native-use demand set requests bone sampling.
+    budget.rigid_pose_bytes = if demand.bones {
+        checked(poses.checked_mul(BONE_POSE_BYTES))?
+    } else {
+        0
+    };
+    let query_tracks = if demand.bones {
+        checked(
+            clips
+                .checked_mul(bones)
+                .and_then(|v| v.checked_mul(BONE_TRACK_BYTES)),
+        )?
+    } else {
+        0
+    };
+    let query_bones = if demand.bones {
+        checked(bones.checked_mul(BONE_BYTES))?
+    } else {
+        0
+    };
+    budget.baked_descriptor_bytes = checked(
+        clip_descriptors
+            .checked_add(query_tracks)
+            .and_then(|v| v.checked_add(query_bones)),
+    )?;
     let base = q12(&m.points(None, 0., false));
     let mut encoded = Vec::with_capacity(clips);
     for (clip_id, clip) in &m.clips {
         let frames = (0..clip.frames)
             .map(|frame| q12(&m.points(Some(*clip_id), frame as f32 / 30. + 0.00001, false)))
             .collect::<Vec<_>>();
-        let clip_encoded = encode_vertex_clip(&base, &frames);
+        let clip_encoded = encode_vertex_clip(&base, &frames, demand.vertices);
         budget.baked_frame_bytes = checked(
             budget
                 .baked_frame_bytes
@@ -480,6 +567,19 @@ fn measure(m: &Model) -> Result<(Budget, Vec<EncodedVertexClip>), String> {
                 .frames
                 .len()
                 .checked_mul(VERTEX_FRAME_BYTES)
+                .and_then(|v| v.checked_add(budget.baked_descriptor_bytes)),
+        )?;
+        budget.baked_descriptor_bytes = checked(
+            clip_encoded
+                .frames
+                .iter()
+                .try_fold(0usize, |total, frame| {
+                    frame
+                        .seek
+                        .len()
+                        .checked_mul(4)
+                        .and_then(|bytes| total.checked_add(bytes))
+                })
                 .and_then(|v| v.checked_add(budget.baked_descriptor_bytes)),
         )?;
         encoded.push(clip_encoded);
@@ -521,12 +621,20 @@ pub fn validate_bounds(m: &Model) -> Result<(), String> {
 
 #[cfg(test)]
 pub fn header(e: &Actor, id: usize) -> Result<String, String> {
-    header_with_pages(e, id, &|_| None)
+    header_with_pages_for(e, id, &|_| None, QueryDemand::NONE)
 }
 pub fn header_with_pages(
     e: &Actor,
     id: usize,
     pages: crate::mesh_compile::PageLookup,
+) -> Result<String, String> {
+    header_with_pages_for(e, id, pages, QueryDemand::NONE)
+}
+pub fn header_with_pages_for(
+    e: &Actor,
+    id: usize,
+    pages: crate::mesh_compile::PageLookup,
+    demand: QueryDemand,
 ) -> Result<String, String> {
     let c = e.skeletal_mesh.as_ref().ok_or("No skeletal component")?;
     let m = c.model.as_ref().ok_or_else(|| {
@@ -535,7 +643,7 @@ pub fn header_with_pages(
             .unwrap_or("Skeletal asset unresolved".into())
     })?;
     validate_bounds(m)?;
-    let (budget, encoded_clips) = measure(m)?;
+    let (budget, encoded_clips) = measure(m, demand)?;
     let (center, extent) = animated_bounds(m);
     let baked = m.mesh.animation_storage == AnimationStorage::BakedVertices;
     let rigid = (!baked).then(|| rigid_order(m));
@@ -585,6 +693,14 @@ pub fn header_with_pages(
             array(&rigid.bone_offsets)
         )
         .unwrap();
+        if demand.vertices {
+            writeln!(
+                s,
+                "inline constexpr uint16_t skin_portable_to_cooked_{id}[]={{{}}};",
+                array(&rigid.portable_to_cooked)
+            )
+            .unwrap();
+        }
     }
     writeln!(
         s,
@@ -620,27 +736,9 @@ pub fn header_with_pages(
     .unwrap();
     writeln!(s,"inline constexpr MeshGeometry skin_geometry_{id}={{skin_vertices_{id},{},skin_faces_{id},{},true,{{0,0,0}},{{{}}},{{{}}}}};",base.len(),triangles.len(),array(&center),array(&extent)).unwrap();
 
-    if baked {
-        for (clip_index, encoded) in encoded_clips.iter().enumerate() {
-            writeln!(
-                s,
-                "inline constexpr VertexFrame skin_vertex_frames_{id}_{clip_index}[]={{{}}};",
-                encoded
-                    .frames
-                    .iter()
-                    .map(|f| format!("{{{},{}}}", f.offset, f.raw))
-                    .collect::<Vec<_>>()
-                    .join(",")
-            )
-            .unwrap();
-            writeln!(
-                s,
-                "inline constexpr uint8_t skin_vertex_data_{id}_{clip_index}[]={{{}}};",
-                array(&encoded.data)
-            )
-            .unwrap();
-        }
-    } else {
+    // Rigid rendering consumes the hierarchy and tracks directly. Baked
+    // rendering retains them only when a reachable bone query demands them.
+    if !baked || demand.bones {
         writeln!(
             s,
             "inline constexpr Bone skin_bones_{id}[]={{{}}};",
@@ -653,11 +751,11 @@ pub fn header_with_pages(
         )
         .unwrap();
         for (clip, (_, c)) in m.clips.iter().enumerate() {
-            for (track, t) in c.tracks.iter().enumerate() {
+            for (track, values) in c.tracks.iter().enumerate() {
                 writeln!(
                     s,
                     "inline constexpr BonePose skin_pose_{id}_{clip}_{track}[]={{{}}};",
-                    t.iter().map(pose).collect::<Vec<_>>().join(",")
+                    values.iter().map(pose).collect::<Vec<_>>().join(",")
                 )
                 .unwrap();
             }
@@ -667,9 +765,54 @@ pub fn header_with_pages(
                 c.tracks
                     .iter()
                     .enumerate()
-                    .map(|(t, p)| format!("{{skin_pose_{id}_{clip}_{t},{}}}", p.len() == 1))
+                    .map(|(track, values)| format!(
+                        "{{skin_pose_{id}_{clip}_{track},{}}}",
+                        values.len() == 1
+                    ))
                     .collect::<Vec<_>>()
                     .join(",")
+            )
+            .unwrap();
+        }
+    }
+
+    if baked {
+        for (clip_index, encoded) in encoded_clips.iter().enumerate() {
+            for (frame_index, frame) in encoded.frames.iter().enumerate() {
+                if !frame.seek.is_empty() {
+                    writeln!(
+                        s,
+                        "inline constexpr uint32_t skin_vertex_seek_{id}_{clip_index}_{frame_index}[]={{{}}};",
+                        array(&frame.seek)
+                    )
+                    .unwrap();
+                }
+            }
+            writeln!(
+                s,
+                "inline constexpr VertexFrame skin_vertex_frames_{id}_{clip_index}[]={{{}}};",
+                encoded
+                    .frames
+                    .iter()
+                    .enumerate()
+                    .map(|(frame_index, f)| format!(
+                        "{{{},{},{}}}",
+                        f.offset,
+                        if f.seek.is_empty() {
+                            "nullptr".to_string()
+                        } else {
+                            format!("skin_vertex_seek_{id}_{clip_index}_{frame_index}")
+                        },
+                        f.raw
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
+            .unwrap();
+            writeln!(
+                s,
+                "inline constexpr uint8_t skin_vertex_data_{id}_{clip_index}[]={{{}}};",
+                array(&encoded.data)
             )
             .unwrap();
         }
@@ -682,7 +825,8 @@ pub fn header_with_pages(
                 .iter()
                 .enumerate()
                 .map(|(i, (_, c))| if baked {
-                    format!("{{nullptr,skin_vertex_frames_{id}_{i},skin_vertex_data_{id}_{i},{},\"{}\"}}",c.frames,name(&c.name))
+                    let tracks=if demand.bones {format!("skin_tracks_{id}_{i}")} else {"nullptr".into()};
+                    format!("{{{tracks},skin_vertex_frames_{id}_{i},skin_vertex_data_{id}_{i},{},\"{}\"}}",c.frames,name(&c.name))
                 } else {
                     format!("{{skin_tracks_{id}_{i},nullptr,nullptr,{},\"{}\"}}",c.frames,name(&c.name))
                 })
@@ -697,7 +841,17 @@ pub fn header_with_pages(
         format!("skin_clips_{id}")
     };
     if baked {
-        writeln!(s,"inline constexpr SkeletalMesh skin_{id}={{&skin_geometry_{id},nullptr,nullptr,nullptr,0,{clips},{},SkeletalStorage::BakedVertices}};",m.clips.len()).unwrap();
+        let bones = if demand.bones {
+            format!("skin_bones_{id}")
+        } else {
+            "nullptr".into()
+        };
+        let bone_count = if demand.bones {
+            m.skeleton.bones.len()
+        } else {
+            0
+        };
+        writeln!(s,"inline constexpr SkeletalMesh skin_{id}={{&skin_geometry_{id},nullptr,nullptr,nullptr,{bones},{bone_count},{clips},{},SkeletalStorage::BakedVertices}};",m.clips.len()).unwrap();
     } else {
         // Dynamic lit triangles need posed model-space normals and keep the
         // compatible CPU path. Imported materials are unlit by default.
@@ -706,7 +860,12 @@ pub fn header_with_pages(
         } else {
             "CpuRigid"
         };
-        writeln!(s,"inline constexpr SkeletalMesh skin_{id}={{&skin_geometry_{id},skin_weights_{id},skin_bone_vertices_{id},skin_bones_{id},{},{clips},{},SkeletalStorage::{mode}}};",m.skeleton.bones.len(),m.clips.len()).unwrap();
+        let remap = if demand.vertices {
+            format!("skin_portable_to_cooked_{id}")
+        } else {
+            "nullptr".into()
+        };
+        writeln!(s,"inline constexpr SkeletalMesh skin_{id}={{&skin_geometry_{id},skin_weights_{id},skin_bone_vertices_{id},{remap},skin_bones_{id},{},{clips},{},SkeletalStorage::{mode}}};",m.skeleton.bones.len(),m.clips.len()).unwrap();
     }
     Ok(s)
 }
@@ -719,7 +878,7 @@ mod tests {
     fn baked_vertex_frames_are_independent_compact_and_bounded() {
         let base = vec![[100, -200, 300], [32000, -32000, 0]];
         let frames = vec![base.clone(), vec![[116, -232, 308], [-30000, 30000, 4096]]];
-        let encoded = encode_vertex_clip(&base, &frames);
+        let encoded = encode_vertex_clip(&base, &frames, true);
         assert_eq!(encoded.frames.len(), 2);
         assert!(!encoded.frames[0].raw);
         assert!(encoded.data.len() < frames.len() * frames[0].len() * 3 * 2);

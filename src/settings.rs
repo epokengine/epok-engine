@@ -30,10 +30,47 @@ pub fn debug_hud(root: &Path) -> Result<DebugHud, String> {
 
 /// `epok-lua` language profile revision. One profile serves every execution
 /// mode; bumping it invalidates staged execution artifacts in all of them.
-pub const LUA_PROFILE_VERSION: u32 = 1;
+pub const LUA_PROFILE_VERSION: u32 = 2;
 /// Shared frontend/lowering revision. Bumped when parsing, inference or the
 /// typed IR changes output for unchanged sources.
-pub const LUA_FRONTEND_VERSION: u32 = 1;
+pub const LUA_FRONTEND_VERSION: u32 = 2;
+
+/// Source-language contract, independent from the selected execution backend.
+/// Missing fields deserialize as v1 so opening an older project never silently
+/// broadens the programs it accepts; newly created projects select v2.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LuaProfile {
+    #[default]
+    LegacyV1,
+    GameplayV2,
+}
+impl LuaProfile {
+    pub const ALL: [Self; 2] = [Self::LegacyV1, Self::GameplayV2];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::LegacyV1 => "Legacy v1",
+            Self::GameplayV2 => "Gameplay v2",
+        }
+    }
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::LegacyV1 => "Preserves the original scalar-only language and VM ABI.",
+            Self::GameplayV2 => {
+                "Enables typed gameplay services, composite results and foreign receivers."
+            }
+        }
+    }
+    pub fn version(self) -> u32 {
+        match self {
+            Self::LegacyV1 => 1,
+            Self::GameplayV2 => LUA_PROFILE_VERSION,
+        }
+    }
+    pub fn signature(self) -> String {
+        crate::scene_dependencies::hash((self, self.version(), LUA_FRONTEND_VERSION))
+    }
+}
 
 /// Exactly one Lua execution mode per project. Explicit and reproducible; it is
 /// never switched automatically. Only the selected mode's runtime is linked.
@@ -141,6 +178,9 @@ impl LuaExecution {
 pub fn lua_execution(root: &Path) -> Result<LuaExecution, String> {
     crate::workspace::optional_manifest(root)
         .map(|m| m.map(|m| m.lua_execution).unwrap_or_default())
+}
+pub fn lua_profile(root: &Path) -> Result<LuaProfile, String> {
+    crate::workspace::optional_manifest(root).map(|m| m.map(|m| m.lua_profile).unwrap_or_default())
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

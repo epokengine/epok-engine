@@ -1,0 +1,7 @@
+format_version: 1
+editor_version: 0.2.0
+name: Lua Gameplay Parity
+startup_scene: assets/scenes/Main.epokmap
+auto_build: false
+lua_execution: native_cpp
+lua_profile: gameplay_v2

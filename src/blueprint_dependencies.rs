@@ -346,6 +346,18 @@ pub fn capture(
                                 .insert(format!("blueprint:{}", callee.id), callee.semantic_hash());
                         }
                     }
+                    NodeKind::Operation { operation } => {
+                        let declaration = registry
+                            .operation(operation)
+                            .ok_or_else(|| format!("Missing gameplay operation {operation}"))?;
+                        inputs.insert(format!("gameplay-operation:{operation}"), hash(declaration));
+                        for demand in &declaration.resource_demands {
+                            inputs.insert(
+                                format!("gameplay-resource-demand:{demand}"),
+                                hash((operation, demand)),
+                            );
+                        }
+                    }
                     NodeKind::Builtin {
                         operation:
                             Builtin::Spawn { class }

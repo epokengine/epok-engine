@@ -188,6 +188,15 @@ pub enum Expr {
         kind: Conversion,
         operand: Box<Expr>,
     },
+    /// Read one field from a typed record/vector value. `index` is the
+    /// flattened wire offset used by Lua VM ABI v2; AOT emits the named C++
+    /// member. Values are immutable snapshots, never aliases into native data.
+    Member {
+        base: Box<Expr>,
+        name: String,
+        index: usize,
+        value_type: Type,
+    },
     CallSelf {
         function_id: String,
         name: String,
@@ -218,6 +227,20 @@ pub enum Expr {
         site: u32,
         operation: crate::blueprint_asset::Builtin,
         args: Vec<BuiltinArg>,
+        returns: Type,
+        pure: bool,
+    },
+    /// Catalog operation resolved from a reflected service/library
+    /// declaration. Instance operations use the same descriptor once foreign
+    /// receivers are available; the first v2 slice uses service receivers.
+    CallOperation {
+        site: u32,
+        operation: crate::reflection_schema::Operation,
+        /// Present for instance/value operations and absent for services. The
+        /// frontend materializes effectful receivers before their arguments,
+        /// preserving single, left-to-right evaluation in every backend.
+        receiver: Option<Box<Expr>>,
+        args: Vec<Expr>,
         returns: Type,
         pure: bool,
     },
@@ -252,14 +275,16 @@ impl Expr {
             | Self::Read { value_type, .. }
             | Self::Unary { value_type, .. }
             | Self::Binary { value_type, .. }
-            | Self::MakeVector { value_type, .. } => value_type,
+            | Self::MakeVector { value_type, .. }
+            | Self::Member { value_type, .. } => value_type,
             Self::Convert { kind, .. } => match kind {
                 Conversion::IntToFixed => &FIXED,
                 Conversion::FixedToInt => &INT32,
             },
             Self::CallSelf { returns, .. }
             | Self::CallParent { returns, .. }
-            | Self::CallBuiltin { returns, .. } => returns,
+            | Self::CallBuiltin { returns, .. }
+            | Self::CallOperation { returns, .. } => returns,
         }
     }
     /// Calls are hoisted into temporaries by the frontend, so a well-formed
@@ -276,8 +301,20 @@ impl Expr {
                         .filter_map(BuiltinArg::value)
                         .any(Self::has_call)
             }
+            Self::CallOperation {
+                pure,
+                receiver,
+                args,
+                ..
+            } => {
+                !*pure
+                    || receiver.as_deref().is_some_and(Self::has_call)
+                    || args.iter().any(Self::has_call)
+            }
             Self::Literal { .. } | Self::Read { .. } => false,
-            Self::Unary { operand, .. } | Self::Convert { operand, .. } => operand.has_call(),
+            Self::Unary { operand, .. }
+            | Self::Convert { operand, .. }
+            | Self::Member { base: operand, .. } => operand.has_call(),
             Self::Binary { left, right, .. } => left.has_call() || right.has_call(),
             Self::MakeVector { components, .. } => components.iter().any(Self::has_call),
         }
@@ -454,7 +491,10 @@ fn validate_block(block: &Block, locals: &[Local], returns: &Type) -> Result<(),
                 validate_expr(value, locals).map_err(&at)?;
                 if !matches!(
                     value,
-                    Expr::CallSelf { .. } | Expr::CallParent { .. } | Expr::CallBuiltin { .. }
+                    Expr::CallSelf { .. }
+                        | Expr::CallParent { .. }
+                        | Expr::CallBuiltin { .. }
+                        | Expr::CallOperation { .. }
                 ) {
                     return Err(at("Only calls may be evaluated for effect".into()));
                 }
@@ -583,6 +623,26 @@ fn validate_expr(expr: &Expr, locals: &[Local]) -> Result<(), String> {
                 return Err("Conversion operand has the wrong type".into());
             }
         }
+        Expr::Member {
+            base,
+            name,
+            index,
+            value_type,
+        } => {
+            validate_expr(base, locals)?;
+            let Some((expected_index, expected_type)) = base.value_type().member_wire_offset(name)
+            else {
+                return Err(format!(
+                    "Unknown member {name} on {}",
+                    base.value_type().label()
+                ));
+            };
+            if *index != expected_index || value_type != &expected_type {
+                return Err(format!(
+                    "Member {name} does not match its declared wire layout"
+                ));
+            }
+        }
         Expr::CallSelf {
             function_id,
             name,
@@ -655,6 +715,101 @@ fn validate_expr(expr: &Expr, locals: &[Local]) -> Result<(), String> {
             }
             let _ = pure;
         }
+        Expr::CallOperation {
+            operation,
+            receiver,
+            args,
+            returns,
+            ..
+        } => {
+            if operation.outputs.len() > 1 {
+                return Err(format!("{} has more than one result", operation.name));
+            }
+            let expected_return = operation
+                .outputs
+                .first()
+                .map(|output| output.value_type.clone())
+                .unwrap_or(Type::Void);
+            if returns != &expected_return {
+                return Err(format!(
+                    "{} return type differs from its operation",
+                    operation.name
+                ));
+            }
+            if let Some(receiver) = receiver {
+                validate_expr(receiver, locals)?;
+                if receiver.has_call() {
+                    return Err(format!("{} receiver call was not hoisted", operation.name));
+                }
+            }
+            for argument in args {
+                validate_expr(argument, locals)?;
+                if argument.has_call() {
+                    return Err(format!("{} argument call was not hoisted", operation.name));
+                }
+            }
+            let resolved_receiver = match &operation.receiver {
+                schema::ReceiverKind::Service { library } => {
+                    if receiver.is_some() {
+                        return Err("Service operation unexpectedly has a receiver value".into());
+                    }
+                    crate::operation::Receiver::Service {
+                        library: library.clone(),
+                    }
+                }
+                schema::ReceiverKind::Instance { class } => {
+                    let value = receiver
+                        .as_deref()
+                        .ok_or("Instance operation has no receiver value")?;
+                    if !matches!(
+                        value.value_type(),
+                        schema::Type::ObjectRef { .. }
+                            | schema::Type::ActorRef { .. }
+                            | schema::Type::ComponentRef { .. }
+                    ) {
+                        return Err("Instance operation receiver is not an object reference".into());
+                    }
+                    crate::operation::Receiver::Instance {
+                        value: value.clone(),
+                        value_type: schema::Type::ObjectRef {
+                            class: Some(class.clone()),
+                        },
+                    }
+                }
+                schema::ReceiverKind::Value { cpp_name } => {
+                    let value = receiver
+                        .as_deref()
+                        .ok_or("Value operation has no receiver value")?;
+                    crate::operation::Receiver::Value {
+                        value: value.clone(),
+                        value_type: schema::Type::Record {
+                            cpp_name: cpp_name.clone(),
+                            fields: value.value_type().members(),
+                        },
+                    }
+                }
+            };
+            let arguments = operation
+                .parameters
+                .iter()
+                .zip(args)
+                .map(|(parameter, value)| crate::operation::Argument {
+                    parameter_id: parameter.id.clone(),
+                    value: value.clone(),
+                    // The frontend already proved assignability against the
+                    // registry. Store the resolved parameter type just like
+                    // Blueprint lowering does, so safe reference widening
+                    // (ActorRef<T> -> ObjectRef) is part of the call contract.
+                    value_type: parameter.value_type.clone(),
+                })
+                .collect();
+            crate::operation::ResolvedCall::from_operation(
+                operation,
+                resolved_receiver,
+                arguments,
+                Span::default(),
+            )?;
+        }
         Expr::MakeVector {
             components,
             length,
@@ -693,6 +848,7 @@ mod tests {
             timeline: None,
             event: true,
             pure: false,
+            resource_demands: vec![],
             abstract_method: false,
             final_method: false,
             access: "public".into(),

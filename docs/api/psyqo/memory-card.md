@@ -51,7 +51,7 @@ static constexpr uint32_t blockCount()
 - **Declared at:** [line 110](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L110)
 - **Kind:** `cxx method`; qualifiers: `static`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need asynchronous Memory Card access and files and the preconditions in the declaration are already satisfied.
 
@@ -82,7 +82,7 @@ static constexpr uint32_t blockSize()
 - **Declared at:** [line 109](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L109)
 - **Kind:** `cxx method`; qualifiers: `static`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need asynchronous Memory Card access and files and the preconditions in the declaration are already satisfied.
 
@@ -235,7 +235,7 @@ ReadSectorAwaiter readSector(Port port, uint16_t sector, void *buffer)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
-| `sector` | `uint16_t` | Input | Value supplied for `sector`. See the exact type and module contract. |
+| `sector` | `int` | Input | Value supplied for `sector`. See the exact type and module contract. |
 | `buffer` | `void *` | Input/output; inspect the function contract | Value supplied for `buffer`. See the exact type and module contract. |
 
 **Returns.** Returns `ReadSectorAwaiter`. Check the purpose and failure notes before using the value.
@@ -249,7 +249,7 @@ ReadSectorAwaiter readSector(Port port, uint16_t sector, void *buffer)
 
 // Assume these named values have been initialized with valid data:
 // Port port
-// uint16_t sector
+// int sector
 // void * buffer
 
 psyqo::MemoryCard& object = /* obtain a valid instance */;
@@ -281,7 +281,7 @@ void readSector(Port port, uint16_t sector, void *buffer, eastl::function<void(E
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
-| `sector` | `uint16_t` | Input | Value supplied for `sector`. See the exact type and module contract. |
+| `sector` | `int` | Input | Value supplied for `sector`. See the exact type and module contract. |
 | `buffer` | `void *` | Input/output; inspect the function contract | Value supplied for `buffer`. See the exact type and module contract. |
 | `callback` | `eastl::function<void (Error)> &&` | Consumed or moved input | Value supplied for `callback`. See the exact type and module contract. |
 
@@ -296,7 +296,7 @@ void readSector(Port port, uint16_t sector, void *buffer, eastl::function<void(E
 
 // Assume these named values have been initialized with valid data:
 // Port port
-// uint16_t sector
+// int sector
 // void * buffer
 // eastl::function<void (Error)> && callback
 
@@ -394,7 +394,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `handle` | `std::coroutine_handle<U>` | Input | Value supplied for `handle`. See the exact type and module contract. |
+| `handle` | `int` | Input | Value supplied for `handle`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -409,7 +409,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 // U
 
 // Assume these named values have been initialized with valid data:
-// std::coroutine_handle<U> handle
+// int handle
 
 psyqo::MemoryCard::ReadSectorAwaiter& object = /* obtain a valid instance */;
 
@@ -441,7 +441,7 @@ ReadSectorAwaiter(MemoryCard &device, Port port, uint16_t sector, void *buffer)
 | --- | --- | --- | --- |
 | `device` | `MemoryCard &` | Input/output; inspect the function contract | Value supplied for `device`. See the exact type and module contract. |
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
-| `sector` | `uint16_t` | Input | Value supplied for `sector`. See the exact type and module contract. |
+| `sector` | `int` | Input | Value supplied for `sector`. See the exact type and module contract. |
 | `buffer` | `void *` | Input/output; inspect the function contract | Value supplied for `buffer`. See the exact type and module contract. |
 
 **Use it when.** You need asynchronous Memory Card access and files and the preconditions in the declaration are already satisfied.
@@ -454,7 +454,7 @@ ReadSectorAwaiter(MemoryCard &device, Port port, uint16_t sector, void *buffer)
 // Assume these named values have been initialized with valid data:
 // MemoryCard & device
 // Port port
-// uint16_t sector
+// int sector
 // void * buffer
 
 psyqo::MemoryCard::ReadSectorAwaiter value(device, port, sector, buffer);
@@ -484,7 +484,7 @@ Error readSectorBlocking(Port port, uint16_t sector, void *buffer)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `port` | `Port` | Input | The port to read from. |
-| `sector` | `uint16_t` | Input | The sector index (0..1023). |
+| `sector` | `int` | Input | The sector index (0..1023). |
 | `buffer` | `void *` | Input/output; inspect the function contract | A buffer of at least 128 bytes. |
 
 **Returns.** Error::OK on success.
@@ -498,7 +498,7 @@ Error readSectorBlocking(Port port, uint16_t sector, void *buffer)
 
 // Assume these named values have been initialized with valid data:
 // Port port
-// uint16_t sector
+// int sector
 // void * buffer
 
 psyqo::MemoryCard& object = /* obtain a valid instance */;
@@ -530,7 +530,7 @@ TaskQueue::Task scheduleReadSector(Port port, uint16_t sector, void *buffer, Err
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
-| `sector` | `uint16_t` | Input | Value supplied for `sector`. See the exact type and module contract. |
+| `sector` | `int` | Input | Value supplied for `sector`. See the exact type and module contract. |
 | `buffer` | `void *` | Input/output; inspect the function contract | Value supplied for `buffer`. See the exact type and module contract. |
 | `resultOut` | `Error *` | Input/output; inspect the function contract | Value supplied for `resultOut`. See the exact type and module contract. |
 
@@ -545,7 +545,7 @@ TaskQueue::Task scheduleReadSector(Port port, uint16_t sector, void *buffer, Err
 
 // Assume these named values have been initialized with valid data:
 // Port port
-// uint16_t sector
+// int sector
 // void * buffer
 // Error * resultOut
 
@@ -578,7 +578,7 @@ TaskQueue::Task scheduleWriteSector(Port port, uint16_t sector, const void *buff
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
-| `sector` | `uint16_t` | Input | Value supplied for `sector`. See the exact type and module contract. |
+| `sector` | `int` | Input | Value supplied for `sector`. See the exact type and module contract. |
 | `buffer` | `const void *` | Input | Value supplied for `buffer`. See the exact type and module contract. |
 | `resultOut` | `Error *` | Input/output; inspect the function contract | Value supplied for `resultOut`. See the exact type and module contract. |
 
@@ -593,7 +593,7 @@ TaskQueue::Task scheduleWriteSector(Port port, uint16_t sector, const void *buff
 
 // Assume these named values have been initialized with valid data:
 // Port port
-// uint16_t sector
+// int sector
 // const void * buffer
 // Error * resultOut
 
@@ -621,7 +621,7 @@ static constexpr uint32_t sectorCount()
 - **Declared at:** [line 108](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L108)
 - **Kind:** `cxx method`; qualifiers: `static`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need asynchronous Memory Card access and files and the preconditions in the declaration are already satisfied.
 
@@ -652,7 +652,7 @@ static constexpr uint32_t sectorSize()
 - **Declared at:** [line 107](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/memory-card.hh#L107)
 - **Kind:** `cxx method`; qualifiers: `static`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need asynchronous Memory Card access and files and the preconditions in the declaration are already satisfied.
 
@@ -688,7 +688,7 @@ WriteSectorAwaiter writeSector(Port port, uint16_t sector, const void *buffer)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
-| `sector` | `uint16_t` | Input | Value supplied for `sector`. See the exact type and module contract. |
+| `sector` | `int` | Input | Value supplied for `sector`. See the exact type and module contract. |
 | `buffer` | `const void *` | Input | Value supplied for `buffer`. See the exact type and module contract. |
 
 **Returns.** Returns `WriteSectorAwaiter`. Check the purpose and failure notes before using the value.
@@ -702,7 +702,7 @@ WriteSectorAwaiter writeSector(Port port, uint16_t sector, const void *buffer)
 
 // Assume these named values have been initialized with valid data:
 // Port port
-// uint16_t sector
+// int sector
 // const void * buffer
 
 psyqo::MemoryCard& object = /* obtain a valid instance */;
@@ -734,7 +734,7 @@ void writeSector(Port port, uint16_t sector, const void *buffer, eastl::function
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
-| `sector` | `uint16_t` | Input | Value supplied for `sector`. See the exact type and module contract. |
+| `sector` | `int` | Input | Value supplied for `sector`. See the exact type and module contract. |
 | `buffer` | `const void *` | Input | Value supplied for `buffer`. See the exact type and module contract. |
 | `callback` | `eastl::function<void (Error)> &&` | Consumed or moved input | Value supplied for `callback`. See the exact type and module contract. |
 
@@ -749,7 +749,7 @@ void writeSector(Port port, uint16_t sector, const void *buffer, eastl::function
 
 // Assume these named values have been initialized with valid data:
 // Port port
-// uint16_t sector
+// int sector
 // const void * buffer
 // eastl::function<void (Error)> && callback
 
@@ -847,7 +847,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `handle` | `std::coroutine_handle<U>` | Input | Value supplied for `handle`. See the exact type and module contract. |
+| `handle` | `int` | Input | Value supplied for `handle`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -862,7 +862,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 // U
 
 // Assume these named values have been initialized with valid data:
-// std::coroutine_handle<U> handle
+// int handle
 
 psyqo::MemoryCard::WriteSectorAwaiter& object = /* obtain a valid instance */;
 
@@ -894,7 +894,7 @@ WriteSectorAwaiter(MemoryCard &device, Port port, uint16_t sector, const void *b
 | --- | --- | --- | --- |
 | `device` | `MemoryCard &` | Input/output; inspect the function contract | Value supplied for `device`. See the exact type and module contract. |
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
-| `sector` | `uint16_t` | Input | Value supplied for `sector`. See the exact type and module contract. |
+| `sector` | `int` | Input | Value supplied for `sector`. See the exact type and module contract. |
 | `buffer` | `const void *` | Input | Value supplied for `buffer`. See the exact type and module contract. |
 
 **Use it when.** You need asynchronous Memory Card access and files and the preconditions in the declaration are already satisfied.
@@ -907,7 +907,7 @@ WriteSectorAwaiter(MemoryCard &device, Port port, uint16_t sector, const void *b
 // Assume these named values have been initialized with valid data:
 // MemoryCard & device
 // Port port
-// uint16_t sector
+// int sector
 // const void * buffer
 
 psyqo::MemoryCard::WriteSectorAwaiter value(device, port, sector, buffer);
@@ -937,7 +937,7 @@ Error writeSectorBlocking(Port port, uint16_t sector, const void *buffer)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `port` | `Port` | Input | The port to write to. |
-| `sector` | `uint16_t` | Input | The sector index (0..1023). |
+| `sector` | `int` | Input | The sector index (0..1023). |
 | `buffer` | `const void *` | Input | A buffer of at least 128 bytes. |
 
 **Returns.** Error::OK on success.
@@ -951,7 +951,7 @@ Error writeSectorBlocking(Port port, uint16_t sector, const void *buffer)
 
 // Assume these named values have been initialized with valid data:
 // Port port
-// uint16_t sector
+// int sector
 // const void * buffer
 
 psyqo::MemoryCard& object = /* obtain a valid instance */;

@@ -38,7 +38,7 @@ inline bool audio_initialize(const AudioClip* clips,size_t count)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `clips` | `const AudioClip *` | Input | Value supplied for `clips`. See the exact type and module contract. |
-| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -51,7 +51,7 @@ inline bool audio_initialize(const AudioClip* clips,size_t count)
 
 // Assume these named values have been initialized with valid data:
 // const AudioClip * clips
-// size_t count
+// int count
 
 auto result = epok::audio_initialize(clips, count);
 ```

@@ -28,7 +28,7 @@ void tweens_and_easing(){
 }
 void queues_and_sequences(){
     entities={};DataHandle source{0,entities[0].generation};EventQueue<3> queue;
-    assert(queue.emit({1,42,source}));++entities[0].generation;Event event;assert(queue.poll(event)&&event.value==42&&!event.source.get());
+    assert(queue.emit({1,42,source}));++entities[0].generation;QueueEvent event;assert(queue.poll(event)&&event.value==42&&!event.source.get());
     assert(queue.emit({1,0,{}})&&queue.emit({2,0,{}})&&queue.emit({3,0,{}}));assert(!queue.emit({4,0,{}})&&queue.dropped==1);
     assert(queue.poll(event)&&event.kind==1);assert(queue.emit({4,0,{}}));for(unsigned kind=2;kind<=4;++kind)assert(queue.poll(event)&&event.kind==kind);assert(!queue.poll(event));
     Sequence sequence;SequenceStep steps[]={{0.0,10},{0.25,11},{0.25,12},{0.0,13}};assert(sequence.start(steps,4));
@@ -44,7 +44,7 @@ void focus_and_layout(){
     entities={};Focus<4> focus;for(unsigned i=0;i<4;++i){entities[i].active=false;assert(focus.add({uint16_t(i),entities[i].generation}));}
     assert(!focus.current());entities[3].active=true;assert(focus.move(-1,false)&&focus.current().index==3);
     entities[1].active=true;assert(focus.move(-1,false)&&focus.current().index==1);++entities[1].generation;assert(!focus.current());assert(focus.move(1)&&focus.current().index==3);
-    EventQueue<4> queue;input.sample(0,true,1<<14);focus.navigate(queue);Event event;assert(queue.poll(event)&&event.kind==1&&event.source.index==3);
+    EventQueue<4> queue;input.sample(0,true,1<<14);focus.navigate(queue);QueueEvent event;assert(queue.poll(event)&&event.kind==1&&event.source.index==3);
     DataHandle children[3]={{0,entities[0].generation},{1,entities[1].generation},{2,entities[2].generation}};
     for(unsigned i=0;i<3;++i)entities[i].rect.enabled=true;
     layout_list(children,3,12.0,2.0);assert(entities[0].rect.position[1]==Fixed(0.0));assert(entities[2].rect.position[1]==Fixed(-28.0));

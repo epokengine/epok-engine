@@ -124,7 +124,7 @@ uint32_t active() const
 - **Declared at:** [line 168](../../../runtime/sequence_kernel.hpp#L168)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need PSX kernel ownership, interrupts and low-level services and the preconditions in the declaration are already satisfied.
 
@@ -161,7 +161,7 @@ template<class Backend> #if defined(__mips__) && defined(__GNUC__) __attribute__
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `microseconds` | `uint32_t` | Input | Value supplied for `microseconds`. See the exact type and module contract. |
+| `microseconds` | `int` | Input | Value supplied for `microseconds`. See the exact type and module contract. |
 | `backend` | `Backend &` | Input/output; inspect the function contract | Value supplied for `backend`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -177,7 +177,7 @@ template<class Backend> #if defined(__mips__) && defined(__GNUC__) __attribute__
 // Backend
 
 // Assume these named values have been initialized with valid data:
-// uint32_t microseconds
+// int microseconds
 // Backend & backend
 
 epok::sequence::Kernel& object = /* obtain a valid instance */;
@@ -208,7 +208,7 @@ template<class Backend> void all_notes_off(uint8_t channel, Backend& backend)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `channel` | `uint8_t` | Input | Value supplied for `channel`. See the exact type and module contract. |
+| `channel` | `int` | Input | Value supplied for `channel`. See the exact type and module contract. |
 | `backend` | `Backend &` | Input/output; inspect the function contract | Value supplied for `backend`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -224,7 +224,7 @@ template<class Backend> void all_notes_off(uint8_t channel, Backend& backend)
 // Backend
 
 // Assume these named values have been initialized with valid data:
-// uint8_t channel
+// int channel
 // Backend & backend
 
 epok::sequence::Kernel& object = /* obtain a valid instance */;
@@ -255,7 +255,7 @@ template<class Backend> void all_sound_off(uint8_t channel, Backend& backend)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `channel` | `uint8_t` | Input | Value supplied for `channel`. See the exact type and module contract. |
+| `channel` | `int` | Input | Value supplied for `channel`. See the exact type and module contract. |
 | `backend` | `Backend &` | Input/output; inspect the function contract | Value supplied for `backend`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -271,7 +271,7 @@ template<class Backend> void all_sound_off(uint8_t channel, Backend& backend)
 // Backend
 
 // Assume these named values have been initialized with valid data:
-// uint8_t channel
+// int channel
 // Backend & backend
 
 epok::sequence::Kernel& object = /* obtain a valid instance */;
@@ -303,9 +303,9 @@ bool begin(const Event* data, uint32_t size, uint16_t division, uint16_t voices)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `data` | `const Event *` | Input | Value supplied for `data`. See the exact type and module contract. |
-| `size` | `uint32_t` | Input | Value supplied for `size`. See the exact type and module contract. |
-| `division` | `uint16_t` | Input | Value supplied for `division`. See the exact type and module contract. |
-| `voices` | `uint16_t` | Input | Value supplied for `voices`. See the exact type and module contract. |
+| `size` | `int` | Input | Value supplied for `size`. See the exact type and module contract. |
+| `division` | `int` | Input | Value supplied for `division`. See the exact type and module contract. |
+| `voices` | `int` | Input | Value supplied for `voices`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -318,9 +318,9 @@ bool begin(const Event* data, uint32_t size, uint16_t division, uint16_t voices)
 
 // Assume these named values have been initialized with valid data:
 // const Event * data
-// uint32_t size
-// uint16_t division
-// uint16_t voices
+// int size
+// int division
+// int voices
 
 epok::sequence::Kernel& object = /* obtain a valid instance */;
 
@@ -353,9 +353,9 @@ void begin_validated(const Event* data, uint32_t size, uint16_t division, uint16
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `data` | `const Event *` | Input | Value supplied for `data`. See the exact type and module contract. |
-| `size` | `uint32_t` | Input | Value supplied for `size`. See the exact type and module contract. |
-| `division` | `uint16_t` | Input | Value supplied for `division`. See the exact type and module contract. |
-| `voices` | `uint16_t` | Input | Value supplied for `voices`. See the exact type and module contract. |
+| `size` | `int` | Input | Value supplied for `size`. See the exact type and module contract. |
+| `division` | `int` | Input | Value supplied for `division`. See the exact type and module contract. |
+| `voices` | `int` | Input | Value supplied for `voices`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -368,9 +368,9 @@ void begin_validated(const Event* data, uint32_t size, uint16_t division, uint16
 
 // Assume these named values have been initialized with valid data:
 // const Event * data
-// uint32_t size
-// uint16_t division
-// uint16_t voices
+// int size
+// int division
+// int voices
 
 epok::sequence::Kernel& object = /* obtain a valid instance */;
 
@@ -555,7 +555,7 @@ static unsigned first_bit(uint32_t mask)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
 
 **Returns.** Returns `unsigned int`. Check the purpose and failure notes before using the value.
 
@@ -567,7 +567,7 @@ static unsigned first_bit(uint32_t mask)
 #include "sequence_kernel.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t mask
+// int mask
 
 auto result = epok::sequence::Kernel::first_bit(mask);
 ```
@@ -595,7 +595,7 @@ template<class Backend> void release(uint16_t slot, Backend& backend)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `slot` | `uint16_t` | Input | Value supplied for `slot`. See the exact type and module contract. |
+| `slot` | `int` | Input | Value supplied for `slot`. See the exact type and module contract. |
 | `backend` | `Backend &` | Input/output; inspect the function contract | Value supplied for `backend`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -611,7 +611,7 @@ template<class Backend> void release(uint16_t slot, Backend& backend)
 // Backend
 
 // Assume these named values have been initialized with valid data:
-// uint16_t slot
+// int slot
 // Backend & backend
 
 epok::sequence::Kernel& object = /* obtain a valid instance */;
@@ -642,7 +642,7 @@ template<class Backend> void release_if_unheld(uint16_t slot, Backend& backend)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `slot` | `uint16_t` | Input | Value supplied for `slot`. See the exact type and module contract. |
+| `slot` | `int` | Input | Value supplied for `slot`. See the exact type and module contract. |
 | `backend` | `Backend &` | Input/output; inspect the function contract | Value supplied for `backend`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -658,7 +658,7 @@ template<class Backend> void release_if_unheld(uint16_t slot, Backend& backend)
 // Backend
 
 // Assume these named values have been initialized with valid data:
-// uint16_t slot
+// int slot
 // Backend & backend
 
 epok::sequence::Kernel& object = /* obtain a valid instance */;
@@ -689,7 +689,7 @@ template<class Backend> void release_pedal(uint8_t channel, bool sustain, Backen
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `channel` | `uint8_t` | Input | Value supplied for `channel`. See the exact type and module contract. |
+| `channel` | `int` | Input | Value supplied for `channel`. See the exact type and module contract. |
 | `sustain` | `bool` | Input | Value supplied for `sustain`. See the exact type and module contract. |
 | `backend` | `Backend &` | Input/output; inspect the function contract | Value supplied for `backend`. See the exact type and module contract. |
 
@@ -706,7 +706,7 @@ template<class Backend> void release_pedal(uint8_t channel, bool sustain, Backen
 // Backend
 
 // Assume these named values have been initialized with valid data:
-// uint8_t channel
+// int channel
 // bool sustain
 // Backend & backend
 
@@ -771,7 +771,7 @@ void retire(uint16_t slot)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `slot` | `uint16_t` | Input | Value supplied for `slot`. See the exact type and module contract. |
+| `slot` | `int` | Input | Value supplied for `slot`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -783,7 +783,7 @@ void retire(uint16_t slot)
 #include "sequence_kernel.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t slot
+// int slot
 
 epok::sequence::Kernel& object = /* obtain a valid instance */;
 
@@ -858,7 +858,7 @@ void unlink_key_note(uint16_t slot)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `slot` | `uint16_t` | Input | Value supplied for `slot`. See the exact type and module contract. |
+| `slot` | `int` | Input | Value supplied for `slot`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -870,7 +870,7 @@ void unlink_key_note(uint16_t slot)
 #include "sequence_kernel.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t slot
+// int slot
 
 epok::sequence::Kernel& object = /* obtain a valid instance */;
 
@@ -900,7 +900,7 @@ template<class Backend> void update(uint8_t channel, Backend& backend)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `channel` | `uint8_t` | Input | Value supplied for `channel`. See the exact type and module contract. |
+| `channel` | `int` | Input | Value supplied for `channel`. See the exact type and module contract. |
 | `backend` | `Backend &` | Input/output; inspect the function contract | Value supplied for `backend`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -916,7 +916,7 @@ template<class Backend> void update(uint8_t channel, Backend& backend)
 // Backend
 
 // Assume these named values have been initialized with valid data:
-// uint8_t channel
+// int channel
 // Backend & backend
 
 epok::sequence::Kernel& object = /* obtain a valid instance */;
@@ -948,9 +948,9 @@ void initialize(uint64_t serial,uint8_t input_channel,uint8_t input_key,uint8_t 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `serial` | `uint64_t` | Input | Value supplied for `serial`. See the exact type and module contract. |
-| `input_channel` | `uint8_t` | Input | Value supplied for `input_channel`. See the exact type and module contract. |
-| `input_key` | `uint8_t` | Input | Value supplied for `input_key`. See the exact type and module contract. |
-| `input_velocity` | `uint8_t` | Input | Value supplied for `input_velocity`. See the exact type and module contract. |
+| `input_channel` | `int` | Input | Value supplied for `input_channel`. See the exact type and module contract. |
+| `input_key` | `int` | Input | Value supplied for `input_key`. See the exact type and module contract. |
+| `input_velocity` | `int` | Input | Value supplied for `input_velocity`. See the exact type and module contract. |
 | `enabled` | `bool` | Input | Value supplied for `enabled`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -964,9 +964,9 @@ void initialize(uint64_t serial,uint8_t input_channel,uint8_t input_key,uint8_t 
 
 // Assume these named values have been initialized with valid data:
 // uint64_t serial
-// uint8_t input_channel
-// uint8_t input_key
-// uint8_t input_velocity
+// int input_channel
+// int input_key
+// int input_velocity
 // bool enabled
 
 epok::sequence::Note& object = /* obtain a valid instance */;

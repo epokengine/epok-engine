@@ -17,6 +17,13 @@ methodology, technical debt and continuation plans belong in `knowledge/`.
 
 ## Initiatives
 
+- [Gameplay API parity](initiatives/gameplay-api-parity/contract.md) defines the
+  compatibility contract for complete C++/Blueprint/Lua gameplay coverage, including
+  skeletal queries, typed bindings, cooking, and PSX performance acceptance gates.
+  Its [baseline](initiatives/gameplay-api-parity/baseline.md), generated
+  [coverage matrix](initiatives/gameplay-api-parity/coverage.md), and recorded artifacts
+  provide the maintainer evidence.
+
 - [Actor architecture](initiatives/actor-architecture/README.md) records the
   Object/Actor/Component model: the binding design contract, the P0–P10 phase
   reports, the closing delivery and test matrix, and the inventory of legacy

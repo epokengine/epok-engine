@@ -91,7 +91,7 @@ PSYQO_GTE_MATH_INLINE Vec3 cubic(const Vec3 &a, const Vec3 &b, const Vec3 &c, co
 | `b` | `const Vec3 &` | Input | Value supplied for `b`. See the exact type and module contract. |
 | `c` | `const Vec3 &` | Input | Value supplied for `c`. See the exact type and module contract. |
 | `d` | `const Vec3 &` | Input | Value supplied for `d`. See the exact type and module contract. |
-| `t` | `FixedPoint<>` | Input | Value supplied for `t`. See the exact type and module contract. |
+| `t` | `int` | Input | Value supplied for `t`. See the exact type and module contract. |
 
 **Returns.** Returns `Vec3`. Check the purpose and failure notes before using the value.
 
@@ -107,7 +107,7 @@ PSYQO_GTE_MATH_INLINE Vec3 cubic(const Vec3 &a, const Vec3 &b, const Vec3 &c, co
 // const Vec3 & b
 // const Vec3 & c
 // const Vec3 & d
-// FixedPoint<> t
+// int t
 
 auto result = psyqo::GteMath::cubic(a, b, c, d, t);
 ```
@@ -141,7 +141,7 @@ PSYQO_GTE_MATH_INLINE Vec3 cubicDerivative(const Vec3 &a, const Vec3 &b, const V
 | `b` | `const Vec3 &` | Input | Value supplied for `b`. See the exact type and module contract. |
 | `c` | `const Vec3 &` | Input | Value supplied for `c`. See the exact type and module contract. |
 | `d` | `const Vec3 &` | Input | Value supplied for `d`. See the exact type and module contract. |
-| `t` | `FixedPoint<>` | Input | Value supplied for `t`. See the exact type and module contract. |
+| `t` | `int` | Input | Value supplied for `t`. See the exact type and module contract. |
 
 **Returns.** Returns `Vec3`. Check the purpose and failure notes before using the value.
 
@@ -157,7 +157,7 @@ PSYQO_GTE_MATH_INLINE Vec3 cubicDerivative(const Vec3 &a, const Vec3 &b, const V
 // const Vec3 & b
 // const Vec3 & c
 // const Vec3 & d
-// FixedPoint<> t
+// int t
 
 auto result = psyqo::GteMath::cubicDerivative(a, b, c, d, t);
 ```
@@ -275,9 +275,9 @@ PSYQO_GTE_MATH_INLINE FixedPoint<> inverseSquareRootSeed(FixedPoint<> x)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `FixedPoint<>` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
 
-**Returns.** Returns `FixedPoint<>`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** The seed wants HALF the exponent, since the target is 1/sqrt(x) and not 1/x. With lzcr = 31 - floor(log2(x.raw())), that is (5 + lzcr) / 2 in 20.12. Shifting by the whole count is a seed for the wrong function: it is correct only where x == 0.0625 and diverges either side, and because SoftMath::inverseSquareRoot is four Newton steps with no convergence check, a seed outside the basin explodes rather than degrading. Swept over all 4096 representable values below 1.0, the halved exponent has a worst relative error of 0.48% and no failures; the unhalved one breaks 199 of them. CLOBBERS: LZCS and LZCR only. Safe to call with a matrix loaded. NOTE: LZCS/LZCR do not interlock the way the cop2 commands do - they are the one corner of the GTE where the hardware will not stall for you - so the write must be Safe.
 
@@ -287,7 +287,7 @@ PSYQO_GTE_MATH_INLINE FixedPoint<> inverseSquareRootSeed(FixedPoint<> x)
 #include "psyqo/gte-math.hh"
 
 // Assume these named values have been initialized with valid data:
-// FixedPoint<> x
+// int x
 
 auto result = psyqo::GteMath::inverseSquareRootSeed(x);
 ```
@@ -408,7 +408,7 @@ PSYQO_GTE_MATH_INLINE FixedPoint<> matrixVecMul3z(const Matrix33 &m, const Vec3 
 | `m` | `const Matrix33 &` | Input | Value supplied for `m`. See the exact type and module contract. |
 | `v` | `const Vec3 &` | Input | Value supplied for `v`. See the exact type and module contract. |
 
-**Returns.** Returns `FixedPoint<>`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need Geometry Transformation Engine math and register operations and the preconditions in the declaration are already satisfied.
 

@@ -48,7 +48,7 @@ const Modulation& modulation(uint16_t i) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `i` | `uint16_t` | Input | Value supplied for `i`. See the exact type and module contract. |
+| `i` | `int` | Input | Value supplied for `i`. See the exact type and module contract. |
 
 **Returns.** Returns `const Modulation &`. Check the purpose and failure notes before using the value.
 
@@ -60,7 +60,7 @@ const Modulation& modulation(uint16_t i) const
 #include "instrument_bank.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t i
+// int i
 
 epok::instrument::BankView& object = /* obtain a valid instance */;
 
@@ -86,7 +86,7 @@ uint32_t modulation_count() const
 - **Declared at:** [line 62](../../../runtime/instrument_bank.hpp#L62)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument bank module and the preconditions in the declaration are already satisfied.
 
@@ -119,7 +119,7 @@ uint32_t reverb_bytes() const
 - **Declared at:** [line 66](../../../runtime/instrument_bank.hpp#L66)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument bank module and the preconditions in the declaration are already satisfied.
 
@@ -152,7 +152,7 @@ uint16_t reverb_depth() const
 - **Declared at:** [line 65](../../../runtime/instrument_bank.hpp#L65)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument bank module and the preconditions in the declaration are already satisfied.
 
@@ -185,7 +185,7 @@ uint32_t reverb_preset() const
 - **Declared at:** [line 64](../../../runtime/instrument_bank.hpp#L64)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument bank module and the preconditions in the declaration are already satisfied.
 
@@ -222,7 +222,7 @@ const Sample& sample(uint16_t i) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `i` | `uint16_t` | Input | Value supplied for `i`. See the exact type and module contract. |
+| `i` | `int` | Input | Value supplied for `i`. See the exact type and module contract. |
 
 **Returns.** Returns `const Sample &`. Check the purpose and failure notes before using the value.
 
@@ -234,7 +234,7 @@ const Sample& sample(uint16_t i) const
 #include "instrument_bank.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t i
+// int i
 
 epok::instrument::BankView& object = /* obtain a valid instance */;
 
@@ -260,7 +260,7 @@ uint32_t sample_bytes() const
 - **Declared at:** [line 63](../../../runtime/instrument_bank.hpp#L63)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument bank module and the preconditions in the declaration are already satisfied.
 
@@ -293,7 +293,7 @@ uint16_t sample_count() const
 - **Declared at:** [line 60](../../../runtime/instrument_bank.hpp#L60)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument bank module and the preconditions in the declaration are already satisfied.
 
@@ -372,7 +372,7 @@ const Zone& zone(uint16_t i) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `i` | `uint16_t` | Input | Value supplied for `i`. See the exact type and module contract. |
+| `i` | `int` | Input | Value supplied for `i`. See the exact type and module contract. |
 
 **Returns.** Returns `const Zone &`. Check the purpose and failure notes before using the value.
 
@@ -384,7 +384,7 @@ const Zone& zone(uint16_t i) const
 #include "instrument_bank.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t i
+// int i
 
 epok::instrument::BankView& object = /* obtain a valid instance */;
 
@@ -410,7 +410,7 @@ uint16_t zone_count() const
 - **Declared at:** [line 61](../../../runtime/instrument_bank.hpp#L61)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument bank module and the preconditions in the declaration are already satisfied.
 
@@ -447,9 +447,9 @@ inline bool range(int32_t value, int32_t lo, int32_t hi)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
-| `lo` | `int32_t` | Input | Value supplied for `lo`. See the exact type and module contract. |
-| `hi` | `int32_t` | Input | Value supplied for `hi`. See the exact type and module contract. |
+| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `lo` | `int` | Input | Value supplied for `lo`. See the exact type and module contract. |
+| `hi` | `int` | Input | Value supplied for `hi`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -461,9 +461,9 @@ inline bool range(int32_t value, int32_t lo, int32_t hi)
 #include "instrument_bank.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int32_t value
-// int32_t lo
-// int32_t hi
+// int value
+// int lo
+// int hi
 
 auto result = epok::instrument::range(value, lo, hi);
 ```
@@ -491,8 +491,8 @@ inline bool time(int32_t value, int32_t maximum, bool zero)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
-| `maximum` | `int32_t` | Input | Value supplied for `maximum`. See the exact type and module contract. |
+| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `maximum` | `int` | Input | Value supplied for `maximum`. See the exact type and module contract. |
 | `zero` | `bool` | Input | Value supplied for `zero`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -505,8 +505,8 @@ inline bool time(int32_t value, int32_t maximum, bool zero)
 #include "instrument_bank.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int32_t value
-// int32_t maximum
+// int value
+// int maximum
 // bool zero
 
 auto result = epok::instrument::time(value, maximum, zero);
@@ -535,9 +535,9 @@ inline uint16_t u16(const uint8_t* p)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `p` | `const uint8_t *` | Input | Value supplied for `p`. See the exact type and module contract. |
+| `p` | `const int *` | Input | Value supplied for `p`. See the exact type and module contract. |
 
-**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument bank module and the preconditions in the declaration are already satisfied.
 
@@ -547,7 +547,7 @@ inline uint16_t u16(const uint8_t* p)
 #include "instrument_bank.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const uint8_t * p
+// const int * p
 
 auto result = epok::instrument::u16(p);
 ```
@@ -575,9 +575,9 @@ inline uint32_t u32(const uint8_t* p)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `p` | `const uint8_t *` | Input | Value supplied for `p`. See the exact type and module contract. |
+| `p` | `const int *` | Input | Value supplied for `p`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument bank module and the preconditions in the declaration are already satisfied.
 
@@ -587,7 +587,7 @@ inline uint32_t u32(const uint8_t* p)
 #include "instrument_bank.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const uint8_t * p
+// const int * p
 
 auto result = epok::instrument::u32(p);
 ```
@@ -699,7 +699,7 @@ inline bool valid_source(uint16_t bits)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `bits` | `uint16_t` | Input | Value supplied for `bits`. See the exact type and module contract. |
+| `bits` | `int` | Input | Value supplied for `bits`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -711,7 +711,7 @@ inline bool valid_source(uint16_t bits)
 #include "instrument_bank.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t bits
+// int bits
 
 auto result = epok::instrument::valid_source(bits);
 ```

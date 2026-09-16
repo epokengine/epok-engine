@@ -69,6 +69,31 @@ struct MeshGeometry {
   uint16_t stream_vertex_offset = 0, stream_quad_offset = 8;
   const MeshGeometry *next = nullptr;
 };
+enum class CoordinateSpace:uint32_t { Model=0, World=1 };
+enum class MeshDataState:uint32_t { Unavailable=0, Pending=1, Ready=2, Failed=3 };
+enum class MeshVertexError:uint32_t {
+  None=0,MissingGeometry=1,InvalidVertex=2,Pending=3,
+  StreamFailed=4,InvalidCoordinateSpace=5,WorldUnavailable=6
+};
+struct Fixed {
+  enum Raw { RAW };
+  int32_t value=0;
+  Fixed()=default;
+  Fixed(int32_t input,Raw):value(input){}
+  int32_t raw()const{return value;}
+};
+struct MeshVertexSample {
+  bool success=false;
+  MeshVertexError error=MeshVertexError::MissingGeometry;
+  MeshDataState data_state=MeshDataState::Unavailable;
+  Fixed position[3]{};
+};
+struct ActorData { const MeshGeometry* geometry=nullptr; };
+inline bool skeletal_world_point(const ActorData&,const Fixed* model,Fixed* world) {
+  if(!model||!world)return false;
+  for(int axis=0;axis<3;++axis)world[axis]=Fixed(model[axis].raw()+4096,Fixed::RAW);
+  return true;
+}
 inline bool music_active = false, music_requested = false, music_lookup = false,
             music_ready = false, music_boot_failed = false, music_data_owner = false;
 struct Drive {

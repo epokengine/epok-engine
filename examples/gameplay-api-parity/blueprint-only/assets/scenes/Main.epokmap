@@ -1,0 +1,26 @@
+version: 6
+name: Main
+actors:
+- active: true
+  class:
+    class_id: 63f96d61-5fd4-4e7e-8daa-052510688418
+    name: BP_GameplayParity
+  components:
+  - class:
+      class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
+      name: epok::SceneComponent3D
+    id: 6d6f728c-f958-4b44-8201-829487d72a79
+    name: Transform
+    overrides:
+    - position
+    - rotation
+    - scale
+    properties:
+      position: [0.0, 0.0, 0.0]
+      rotation: [0.0, 0.0, 0.0]
+      scale: [1.0, 1.0, 1.0]
+    root: true
+  id: 4ed7d32c-56f5-43f4-8d1a-a8e5771b735d
+  name: Gameplay Demo
+  overrides: []
+  properties: {}

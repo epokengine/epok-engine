@@ -34,7 +34,7 @@ inline bool chunk_bounds_isolated_x(const int32_t rows[3][3])
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `rows` | `const int32_t[3][3]` | Input | Value supplied for `rows`. See the exact type and module contract. |
+| `rows` | `const int[3][3]` | Input | Value supplied for `rows`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -46,7 +46,7 @@ inline bool chunk_bounds_isolated_x(const int32_t rows[3][3])
 #include "frustum.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int32_t[3][3] rows
+// const int[3][3] rows
 
 auto result = epok::chunk_bounds_isolated_x(rows);
 ```
@@ -74,11 +74,11 @@ inline uint8_t frustum_outcode(int32_t x,int32_t y,int32_t z)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int32_t` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int32_t` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `z` | `int32_t` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
 
-**Returns.** Returns `uint8_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the frustum module and the preconditions in the declaration are already satisfied.
 
@@ -88,9 +88,9 @@ inline uint8_t frustum_outcode(int32_t x,int32_t y,int32_t z)
 #include "frustum.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int32_t x
-// int32_t y
-// int32_t z
+// int x
+// int y
+// int z
 
 auto result = epok::frustum_outcode(x, y, z);
 ```
@@ -118,11 +118,11 @@ template<int32_t Near,int32_t FarExclusive> inline uint8_t frustum_outcode32(int
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int32_t` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int32_t` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `z` | `int32_t` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
 
-**Returns.** Returns `uint8_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the frustum module and the preconditions in the declaration are already satisfied.
 
@@ -135,9 +135,9 @@ template<int32_t Near,int32_t FarExclusive> inline uint8_t frustum_outcode32(int
 // Near, FarExclusive
 
 // Assume these named values have been initialized with valid data:
-// int32_t x
-// int32_t y
-// int32_t z
+// int x
+// int y
+// int z
 
 auto result = epok::frustum_outcode32<Near, FarExclusive>(x, y, z);
 ```
@@ -167,11 +167,11 @@ template<int32_t Near,int32_t FarExclusive> inline uint8_t frustum_outcode_units
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int32_t` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int32_t` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `z` | `int32_t` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
 
-**Returns.** Returns `uint8_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Wide intermediates also make classification safe for far off-screen points.
 
@@ -184,9 +184,9 @@ template<int32_t Near,int32_t FarExclusive> inline uint8_t frustum_outcode_units
 // Near, FarExclusive
 
 // Assume these named values have been initialized with valid data:
-// int32_t x
-// int32_t y
-// int32_t z
+// int x
+// int y
+// int z
 
 auto result = epok::frustum_outcode_units<Near, FarExclusive>(x, y, z);
 ```
@@ -253,7 +253,7 @@ auto result = epok::gpu_clip_safe<Point>(a, b, c);
 **Exact declaration**
 
 ```cpp
-inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[3][3], const int32_t translation[3],const int32_t vector[3], const int32_t extent[3],int32_t center[3],int32_t span[3], bool isolated_x)
+__attribute__((always_inline)) #endif inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[3][3], const int32_t translation[3],const int32_t vector[3], const int32_t extent[3],int32_t center[3],int32_t span[3], bool isolated_x)
 ```
 
 - **Declared at:** [line 16](../../../runtime/frustum.hpp#L16)
@@ -263,13 +263,13 @@ inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `rows` | `const int32_t[3][3]` | Input | Value supplied for `rows`. See the exact type and module contract. |
-| `absolute` | `const int32_t[3][3]` | Input | Value supplied for `absolute`. See the exact type and module contract. |
-| `translation` | `const int32_t[3]` | Input | Value supplied for `translation`. See the exact type and module contract. |
-| `vector` | `const int32_t[3]` | Input | Value supplied for `vector`. See the exact type and module contract. |
-| `extent` | `const int32_t[3]` | Input | Value supplied for `extent`. See the exact type and module contract. |
-| `center` | `int32_t[3]` | Input | Value supplied for `center`. See the exact type and module contract. |
-| `span` | `int32_t[3]` | Input | Value supplied for `span`. See the exact type and module contract. |
+| `rows` | `const int[3][3]` | Input | Value supplied for `rows`. See the exact type and module contract. |
+| `absolute` | `const int[3][3]` | Input | Value supplied for `absolute`. See the exact type and module contract. |
+| `translation` | `const int[3]` | Input | Value supplied for `translation`. See the exact type and module contract. |
+| `vector` | `const int[3]` | Input | Value supplied for `vector`. See the exact type and module contract. |
+| `extent` | `const int[3]` | Input | Value supplied for `extent`. See the exact type and module contract. |
+| `center` | `int[3]` | Input | Value supplied for `center`. See the exact type and module contract. |
+| `span` | `int[3]` | Input | Value supplied for `span`. See the exact type and module contract. |
 | `isolated_x` | `bool` | Input | Value supplied for `isolated_x`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -282,13 +282,13 @@ inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[
 #include "frustum.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int32_t[3][3] rows
-// const int32_t[3][3] absolute
-// const int32_t[3] translation
-// const int32_t[3] vector
-// const int32_t[3] extent
-// int32_t[3] center
-// int32_t[3] span
+// const int[3][3] rows
+// const int[3][3] absolute
+// const int[3] translation
+// const int[3] vector
+// const int[3] extent
+// int[3] center
+// int[3] span
 // bool isolated_x
 
 epok::narrow_chunk_bounds(rows, absolute, translation, vector, extent, center, span, isolated_x);

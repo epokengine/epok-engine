@@ -1,6 +1,8 @@
 #pragma once
 #include "timeline.hpp"
+#define EPOK_INCLUDE_FROM_BLUEPRINT_RUNTIME 1
 #include "epok.hpp"
+#undef EPOK_INCLUDE_FROM_BLUEPRINT_RUNTIME
 #include "object_model.hpp"
 
 // Allocation-free support for generated Blueprint code. All state below belongs

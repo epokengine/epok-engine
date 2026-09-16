@@ -183,7 +183,7 @@ uint32_t getCommandWord() const
 - **Declared at:** [line 295](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L295)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Meant for the GTE's RGBC CODE field, which gets fused into every colour the GTE emits. Preload it and the colour FIFO hands back finished first words. See `GouraudQuad::getCommandWord` for the full round trip.
 
@@ -502,7 +502,7 @@ GouraudTexturedTriangle& setColorAPacked(uint32_t packed)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `packed` | `uint32_t` | Input | Value supplied for `packed`. See the exact type and module contract. |
+| `packed` | `int` | Input | Value supplied for `packed`. See the exact type and module contract. |
 
 **Returns.** Returns `GouraudTexturedTriangle &`. Check the purpose and failure notes before using the value.
 
@@ -514,7 +514,7 @@ GouraudTexturedTriangle& setColorAPacked(uint32_t packed)
 #include "psyqo/primitives/triangles.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t packed
+// int packed
 
 psyqo::Prim::GouraudTexturedTriangle& object = /* obtain a valid instance */;
 
@@ -791,7 +791,7 @@ uint32_t getCommandWord() const
 - **Declared at:** [line 173](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/triangles.hh#L173)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Meant for the GTE's RGBC CODE field, which gets fused into every colour the GTE emits. Preload it and the colour FIFO hands back finished first words. See `GouraudQuad::getCommandWord` for the full round trip.
 
@@ -1110,7 +1110,7 @@ GouraudTriangle& setColorAPacked(uint32_t packed)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `packed` | `uint32_t` | Input | Value supplied for `packed`. See the exact type and module contract. |
+| `packed` | `int` | Input | Value supplied for `packed`. See the exact type and module contract. |
 
 **Returns.** Returns `GouraudTriangle &`. Check the purpose and failure notes before using the value.
 
@@ -1122,7 +1122,7 @@ GouraudTriangle& setColorAPacked(uint32_t packed)
 #include "psyqo/primitives/triangles.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t packed
+// int packed
 
 psyqo::Prim::GouraudTriangle& object = /* obtain a valid instance */;
 

@@ -19,8 +19,15 @@ import urllib.request
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
-EDITOR = ROOT / "target/debug/epok-editor.exe"
-TOOL = ROOT / "target/debug/epok-header-tool.exe"
+def debug_binary(name):
+    for candidate in (ROOT / "target/debug" / name, ROOT / "target/debug" / f"{name}.exe"):
+        if candidate.is_file():
+            return candidate
+    return ROOT / "target/debug" / name
+
+
+EDITOR = debug_binary("epok-editor")
+TOOL = debug_binary("epok-header-tool")
 
 
 def run(*arguments, ok=True):

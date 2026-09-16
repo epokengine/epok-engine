@@ -422,7 +422,13 @@ impl SceneGpu {
             encoder,
             target,
             RenderInput {
-                scene: editor.timeline_editor.scene_preview.scene.as_ref().filter(|_| editor.timeline_editor.open && !editor.playing).unwrap_or(&editor.scene),
+                scene: editor
+                    .timeline_editor
+                    .scene_preview
+                    .scene
+                    .as_ref()
+                    .filter(|_| editor.timeline_editor.open && !editor.playing)
+                    .unwrap_or(&editor.scene),
                 view: &editor.view,
                 selected: editor.selected,
                 mesh: &editor.mesh_editor,

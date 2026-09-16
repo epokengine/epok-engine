@@ -1,5 +1,7 @@
 #pragma once
+#define EPOK_INCLUDE_FROM_BLUEPRINT_API 1
 #include "blueprint_spawn.hpp"
+#undef EPOK_INCLUDE_FROM_BLUEPRINT_API
 #include "input.hpp"
 namespace epok::bp { int asset_index(uint64_t asset,uint32_t kind); }
 

@@ -239,6 +239,29 @@ pub fn header_with_templates(
     effects: &[crate::particle_effect_scene::Prepared],
     class_registry: &crate::blueprint::Registry,
 ) -> Result<String, String> {
+    header_with_templates_for(
+        scenes,
+        catalog,
+        streaming,
+        templates,
+        referenced,
+        timelines,
+        effects,
+        class_registry,
+        crate::skeletal_compile::QueryDemand::ALL,
+    )
+}
+pub fn header_with_templates_for(
+    scenes: &[Scene],
+    catalog: &[Script],
+    streaming: Option<&crate::streaming::Bundle>,
+    templates: &[crate::blueprint_spawn::CookedTemplate],
+    referenced: Option<&Scene>,
+    timelines: &[crate::timeline_scene::Prepared],
+    effects: &[crate::particle_effect_scene::Prepared],
+    class_registry: &crate::blueprint::Registry,
+    skeletal_queries: crate::skeletal_compile::QueryDemand,
+) -> Result<String, String> {
     if scenes.is_empty() || scenes.len() > 16 {
         return Err("Scene registry needs 1..16 scenes".into());
     }
@@ -325,13 +348,14 @@ pub fn header_with_templates(
     let mut headers = Vec::new();
     let mut render_capacity = 0;
     for (bank, s) in scenes.iter().enumerate() {
-        let mut h = crate::project::scene_header_with_registry(
+        let mut h = crate::project::scene_header_with_registry_for(
             s,
             catalog,
             &shared,
             false,
             if global_layout { &shared } else { s },
             class_registry,
+            skeletal_queries,
         )?;
         if let Some(streaming) = streaming {
             h = streaming.rewrite(bank, &h)?;

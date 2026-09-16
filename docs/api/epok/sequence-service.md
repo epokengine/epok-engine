@@ -54,7 +54,7 @@ inline uint16_t counter_ticks()
 - **Declared at:** [line 56](../../../runtime/sequence_service.hpp#L56)
 - **Kind:** `function decl`
 
-**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
 
@@ -89,7 +89,7 @@ inline int first_voice(uint32_t mask)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -101,7 +101,7 @@ inline int first_voice(uint32_t mask)
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t mask
+// int mask
 
 auto result = epok::psx_audio::first_voice(mask);
 ```
@@ -171,7 +171,7 @@ void cut(uint16_t note)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -183,7 +183,7 @@ void cut(uint16_t note)
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t note
+// int note
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
 
@@ -214,7 +214,7 @@ bool defer_note(const sequence::Event&,uint32_t cursor)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `arg1` | `const sequence::Event &` | Input | Value supplied for `arg1`. See the exact type and module contract. |
-| `cursor` | `uint32_t` | Input | Value supplied for `cursor`. See the exact type and module contract. |
+| `cursor` | `int` | Input | Value supplied for `cursor`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -227,7 +227,7 @@ bool defer_note(const sequence::Event&,uint32_t cursor)
 
 // Assume these named values have been initialized with valid data:
 // const sequence::Event & arg1
-// uint32_t cursor
+// int cursor
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
 
@@ -300,7 +300,7 @@ bool owns(int voice,uint16_t note)const
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `voice` | `int` | Input | Value supplied for `voice`. See the exact type and module contract. |
-| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -313,7 +313,7 @@ bool owns(int voice,uint16_t note)const
 
 // Assume these named values have been initialized with valid data:
 // int voice
-// uint16_t note
+// int note
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
 
@@ -343,7 +343,7 @@ void release(uint16_t note)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -355,7 +355,7 @@ void release(uint16_t note)
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t note
+// int note
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
 
@@ -385,7 +385,7 @@ void release_library(uint16_t note)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -397,7 +397,7 @@ void release_library(uint16_t note)
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t note
+// int note
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
 
@@ -427,7 +427,7 @@ bool start(uint16_t note,const sequence::Note& n,const sequence::Channel& channe
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
 | `n` | `const sequence::Note &` | Input | Value supplied for `n`. See the exact type and module contract. |
 | `channel` | `const sequence::Channel &` | Input | Value supplied for `channel`. See the exact type and module contract. |
 
@@ -441,7 +441,7 @@ bool start(uint16_t note,const sequence::Note& n,const sequence::Channel& channe
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t note
+// int note
 // const sequence::Note & n
 // const sequence::Channel & channel
 
@@ -473,7 +473,7 @@ bool start_library(uint16_t note,const sequence::Note& n,const sequence::Channel
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
 | `n` | `const sequence::Note &` | Input | Value supplied for `n`. See the exact type and module contract. |
 | `channel` | `const sequence::Channel &` | Input | Value supplied for `channel`. See the exact type and module contract. |
 
@@ -487,7 +487,7 @@ bool start_library(uint16_t note,const sequence::Note& n,const sequence::Channel
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t note
+// int note
 // const sequence::Note & n
 // const sequence::Channel & channel
 
@@ -519,7 +519,7 @@ void update(uint16_t note,const sequence::Channel& channel)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
 | `channel` | `const sequence::Channel &` | Input | Value supplied for `channel`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -532,7 +532,7 @@ void update(uint16_t note,const sequence::Channel& channel)
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t note
+// int note
 // const sequence::Channel & channel
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
@@ -609,7 +609,7 @@ int voice(uint16_t note) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -621,7 +621,7 @@ int voice(uint16_t note) const
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t note
+// int note
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
 
@@ -1017,7 +1017,7 @@ inline void sequence_service(uint32_t elapsed_us)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `elapsed_us` | `uint32_t` | Input | Value supplied for `elapsed_us`. See the exact type and module contract. |
+| `elapsed_us` | `int` | Input | Value supplied for `elapsed_us`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1029,7 +1029,7 @@ inline void sequence_service(uint32_t elapsed_us)
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t elapsed_us
+// int elapsed_us
 
 epok::sequence_service(elapsed_us);
 ```

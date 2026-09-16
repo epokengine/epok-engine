@@ -23,7 +23,8 @@ inline StreamPagePool<(stream_page_count > 0 ? stream_pool_pages : 1),
 inline const uint8_t *stream_page_data[stream_archive_fits ? stream_page_count : 1]{};
 struct StreamingStats {
   uint32_t reads = 0, bytes = 0, stalls = 0, stall_us = 0,
-           errors = 0, timeouts = 0, xa_interruptions = 0;
+           errors = 0, timeouts = 0, xa_interruptions = 0,
+           gameplay_requests = 0, gameplay_rejected = 0;
 };
 inline StreamingStats streaming_stats;
 inline psyqo::ISO9660Parser::DirEntry stream_entry;
@@ -31,6 +32,9 @@ inline bool stream_lookup_started = false, stream_lookup_pending = false,
             stream_ready = false, stream_failed = false, stream_read_pending = false;
 inline bool stream_warm_scene = false;
 inline constexpr uint32_t stream_timeout_us = 10000000;
+inline uint32_t stream_gameplay_requests[8]{};
+inline uint8_t stream_gameplay_request_count = 0;
+constexpr bool streaming_descriptor_valid(const MeshGeometry &mesh);
 #if EPOK_HOST_DATA
 inline int stream_host_file = -1;
 #endif
@@ -117,6 +121,85 @@ inline bool streaming_start_read(uint32_t page) {
   });
   return true;
 #endif
+}
+
+// Gameplay requests are deliberately queued: the script call never performs a
+// CD seek or waits for callbacks. The normal frame service starts at most one
+// asynchronous read and mesh queries copy only from a pinned resident page.
+inline bool streaming_request_page(uint32_t page) {
+  if constexpr (stream_page_count == 0) { (void)page; ++streaming_stats.gameplay_rejected; return false; }
+  if (page >= stream_page_count || stream_failed) { ++streaming_stats.gameplay_rejected; return false; }
+  if (stream_pool.ready(page)) return true;
+  for (uint8_t i = 0; i < stream_gameplay_request_count; ++i)
+    if (stream_gameplay_requests[i] == page) return true;
+  if (stream_gameplay_request_count == 8) { ++streaming_stats.gameplay_rejected; return false; }
+  stream_gameplay_requests[stream_gameplay_request_count++] = page;
+  ++streaming_stats.gameplay_requests;
+  return true;
+}
+
+inline void streaming_service_gameplay_requests() {
+  if constexpr (stream_page_count == 0) return;
+  while (stream_gameplay_request_count &&
+         (stream_failed || stream_pool.ready(stream_gameplay_requests[0]))) {
+    for (uint8_t i = 1; i < stream_gameplay_request_count; ++i)
+      stream_gameplay_requests[i - 1] = stream_gameplay_requests[i];
+    --stream_gameplay_request_count;
+  }
+  if (!stream_gameplay_request_count || stream_failed) return;
+  streaming_lookup();
+  if (!stream_ready || stream_read_pending || music_active || music_requested ||
+      music_lookup || music_data_owner || !music_drive.isIdle()) return;
+  streaming_start_read(stream_gameplay_requests[0]);
+}
+
+// These are public gameplay entry points invoked from generated script
+// translation units. `used` keeps their weak inline definitions linkable even
+// when main.cpp itself has no direct call to a particular query.
+__attribute__((used)) inline MeshDataState mesh_geometry_state(const MeshGeometry* geometry) {
+  if (!geometry) return MeshDataState::Unavailable;
+  if (geometry->stream_page == stream_invalid_page)
+    return geometry->vertices ? MeshDataState::Ready : MeshDataState::Unavailable;
+  if constexpr (stream_page_count == 0) return MeshDataState::Failed;
+  if (geometry->stream_page >= stream_page_count || stream_failed)
+    return MeshDataState::Failed;
+  return stream_pool.ready(geometry->stream_page) ? MeshDataState::Ready : MeshDataState::Pending;
+}
+
+__attribute__((used)) inline bool request_mesh_geometry(const MeshGeometry* geometry) {
+  if (!geometry) return false;
+  if (geometry->stream_page == stream_invalid_page) return geometry->vertices;
+  return streaming_request_page(geometry->stream_page);
+}
+
+__attribute__((used)) inline MeshVertexSample sample_mesh_vertex(const ActorData* entity,uint32_t vertex,CoordinateSpace space) {
+  MeshVertexSample result;
+  const MeshGeometry* geometry=entity?entity->geometry:nullptr;
+  result.data_state=mesh_geometry_state(geometry);
+  if (!geometry) return result;
+  if (vertex>=geometry->vertex_count) { result.error=MeshVertexError::InvalidVertex; return result; }
+  if (space!=CoordinateSpace::Model&&space!=CoordinateSpace::World) { result.error=MeshVertexError::InvalidCoordinateSpace; return result; }
+  const int16_t (*vertices)[3]=geometry->vertices;
+  int slot=-1;
+  if (geometry->stream_page!=stream_invalid_page) {
+    if (result.data_state==MeshDataState::Failed) { result.error=MeshVertexError::StreamFailed; return result; }
+    if (result.data_state!=MeshDataState::Ready) { result.error=MeshVertexError::Pending; return result; }
+    if (!streaming_descriptor_valid(*geometry)) { result.data_state=MeshDataState::Failed; result.error=MeshVertexError::StreamFailed; return result; }
+    slot=stream_pool.pin_slot(geometry->stream_page);
+    if (slot<0) { result.data_state=MeshDataState::Pending; result.error=MeshVertexError::Pending; return result; }
+    const auto* data=stream_pool.destination(slot);
+    vertices=reinterpret_cast<const int16_t (*)[3]>(data+geometry->stream_vertex_offset);
+  }
+  if (!vertices) { result.data_state=MeshDataState::Unavailable; return result; }
+  for (int axis=0;axis<3;++axis) result.position[axis]=Fixed(vertices[vertex][axis],Fixed::RAW);
+  if (slot>=0) stream_pool.unpin_slot(slot,geometry->stream_page);
+  if (space==CoordinateSpace::World) {
+    Fixed world[3];
+    if (!skeletal_world_point(*entity,result.position,world)) { result.error=MeshVertexError::WorldUnavailable; return result; }
+    for (int axis=0;axis<3;++axis) result.position[axis]=world[axis];
+  }
+  result.success=true;result.error=MeshVertexError::None;result.data_state=MeshDataState::Ready;
+  return result;
 }
 
 // Opportunistic only: XA playback and a pending XA request retain priority.
@@ -469,9 +552,10 @@ public:
     valid_ = true;
   }
   ~StreamMeshLease() {
-    if constexpr (stream_page_count > 0)
+    if constexpr (stream_page_count > 0) {
       if (cursor_) cursor_->release_borrow(source_->stream_page);
       else if (slot_ >= 0) stream_pool.unpin_slot(slot_, source_->stream_page);
+    }
   }
   StreamMeshLease(const StreamMeshLease &) = delete;
   StreamMeshLease &operator=(const StreamMeshLease &) = delete;

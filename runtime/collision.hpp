@@ -26,7 +26,7 @@ template<class Number> struct SpatialHitT {
     explicit operator bool() const { return entity>=0; }
 };
 template<class Number> struct MoveResultT {
-    Number displacement[3]={},normal[3]={};int entity=-1;
+    Number displacement[3]={},normal[3]={};int entity=-1;uint32_t generation=0;
     bool grounded=false,blocked=false,unresolved_overlap=false;
 };
 enum class TriggerPhase { Enter, Stay, Exit };
@@ -209,7 +209,7 @@ public:
             }
             if(!found)break;
             auto shift=raw(int32_t(best));box.min[best_axis]+=shift;box.max[best_axis]+=shift;result.displacement[best_axis]+=shift;
-            result.blocked=true;result.entity=best_entity;result.normal[best_axis]=raw(best<0?-4096:4096);
+            result.blocked=true;result.entity=best_entity;result.generation=entries[size_t(best_entity)].generation;result.normal[best_axis]=raw(best<0?-4096:4096);
             if(best_axis==1&&best>0)result.grounded=true;
         }
         // A ramp always overlaps the character standing on it, by design; only a
@@ -237,7 +237,7 @@ public:
             }
             if(best_entity<0)break;
             auto skin=raw(best_sign);box.min[best_axis]+=skin;box.max[best_axis]+=skin;result.displacement[best_axis]+=skin;remaining[best_axis]=raw(0);
-            result.blocked=true;result.entity=best_entity;result.normal[best_axis]=raw(best_sign*4096);
+            result.blocked=true;result.entity=best_entity;result.generation=entries[size_t(best_entity)].generation;result.normal[best_axis]=raw(best_sign*4096);
             if(best_axis==1&&best_sign>0)result.grounded=true;
         }
         return result;

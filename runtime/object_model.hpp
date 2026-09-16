@@ -9,7 +9,9 @@
 // Declaration order follows C++ completeness requirements: the component classes precede
 // Actor3D/Actor2D/UIActor because those actors embed their root component by value. The
 // annotations, names and Ids are the contract; their order in the file is not.
+#define EPOK_INCLUDE_FROM_OBJECT_MODEL 1
 #include "epok.hpp"
+#undef EPOK_INCLUDE_FROM_OBJECT_MODEL
 #include <new>
 #include <stddef.h>
 #include <stdint.h>
@@ -40,6 +42,10 @@ struct ObjectId {
         return index == other.index && generation == other.generation;
     }
     constexpr bool operator!=(const ObjectId& other) const { return !(*this == other); }
+};
+struct EPOK_VALUE(Id="74e6240c-40ea-40a5-ae85-e54d9d92c7ad") ObjectBatch8 {
+    uint32_t total=0,count=0;
+    ObjectId item0{},item1{},item2{},item3{},item4{},item5{},item6{},item7{};
 };
 enum class ObjectState : uint8_t { Unused, Reserved, Initialized, Playing, EndingPlay, Destroyed };
 enum class EndPlayReason : uint8_t { Destroyed, LevelUnloaded, Quit };
@@ -401,6 +407,8 @@ public:
     EPOK_FUNCTION(BlueprintEvent) virtual void end_play(EndPlayReason end_play_reason) { (void)end_play_reason; }
     EPOK_FUNCTION(BlueprintEvent) virtual void on_enable() {}
     EPOK_FUNCTION(BlueprintEvent) virtual void on_disable() {}
+    EPOK_FUNCTION(BlueprintEvent, Id="5c57d8df-b3f0-42f9-a46e-77ce16248221") virtual void on_frame(uint32_t frame_microseconds) {(void)frame_microseconds;}
+    virtual void frame_update(uint32_t frame_microseconds) {on_frame(frame_microseconds);}
     // Runtime hook, not reflected: the declarative root component embedded in the actor.
     virtual ActorComponent* default_root() { return nullptr; }
     // Legacy adapter: the canonical slot behind the root scene component, or nullptr.
@@ -448,16 +456,18 @@ public:
     EPOK_FUNCTION(BlueprintEvent) virtual void end_play(EndPlayReason end_play_reason) { (void)end_play_reason; }
     EPOK_FUNCTION(BlueprintEvent) virtual void on_enable() {}
     EPOK_FUNCTION(BlueprintEvent) virtual void on_disable() {}
+    EPOK_FUNCTION(BlueprintEvent, Id="6422355a-f3d5-48c5-b516-22c46dd375c9") virtual void on_frame(uint32_t frame_microseconds) {(void)frame_microseconds;}
     // Runtime hooks, not reflected. frame_update runs once per rendered frame even while
     // paused; attach_slot exposes the spatial parent of components that have one.
-    virtual void timeline_sync(uint64_t, bool) {}
+    void timeline_sync(uint64_t, bool) override {}
     virtual void blueprint_observe() {}
-    virtual void frame_update(uint32_t) {}
+    virtual void frame_update(uint32_t frame_microseconds) {on_frame(frame_microseconds);}
     virtual ObjectId* attach_slot() { return nullptr; }
     // Forward-only collision hook. The Level does not own collision; the collision
     // service calls dispatch_trigger(Level&, ...) which fans the event out to the
     // owner's components. Nothing in the object model generates trigger events.
-    virtual void on_trigger(DataHandle, TriggerPhase) {}
+    EPOK_FUNCTION(BlueprintEvent, Id="45c82d77-d076-43fe-b947-a4eed670f46b") virtual void trigger_event(ObjectId other,TriggerPhase phase) {(void)other;(void)phase;}
+    virtual void on_trigger(DataHandle other, TriggerPhase phase) {(void)other;(void)phase;}
     // False while a service still holds this component's storage; the registry then
     // keeps the (already dead) slot quarantined instead of returning it to the pool.
     virtual bool releasable() const { return true; }
@@ -476,6 +486,8 @@ protected:
     bool m_begun = false, m_ended = false;
 };
 
+inline bool attach_component(ObjectId child,ObjectId parent);
+
 class EPOK_CLASS(Blueprintable, Root, Domain=World3D, Owners=World3D, Id="ed73d249-b6cb-4a3c-a0e8-696de55e286f") SceneComponent3D : public ActorComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("ed73d249-b6cb-4a3c-a0e8-696de55e286f");
@@ -491,6 +503,14 @@ public:
     void bind_local() { slot = nullptr; transform = &local; }
     ActorData* entity_slot() const { return slot; }
     Transform local = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}};
+    EPOK_FUNCTION(BlueprintPure, Id="62b05cbc-6533-4ef5-ab4a-10799392885d") Transform local_transform() const {return transform?*transform:local;}
+    EPOK_FUNCTION(BlueprintCallable, Id="6401cab7-d0e1-4da9-9fd7-e0f93a9af82f") void set_local_transform(Transform value) {if(transform)*transform=value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="d8980f8d-c4be-4124-a3a6-c76b514d0cd3") void set_local_position(Fixed x,Fixed y,Fixed z) {if(transform){transform->position[0]=x;transform->position[1]=y;transform->position[2]=z;}}
+    EPOK_FUNCTION(BlueprintCallable, Id="47515dbf-aa6f-4b37-8e4d-cefdfe350da1") void set_local_rotation(Fixed x,Fixed y,Fixed z) {if(transform){transform->rotation[0]=x;transform->rotation[1]=y;transform->rotation[2]=z;}}
+    EPOK_FUNCTION(BlueprintCallable, Id="7ea295a2-7bfa-4a52-8ff2-53d521cb6b0c") void set_local_scale(Fixed x,Fixed y,Fixed z) {if(transform){transform->scale[0]=x;transform->scale[1]=y;transform->scale[2]=z;}}
+    EPOK_FUNCTION(BlueprintPure, Id="206bc783-8e14-4454-aa80-0477ae7dc20a") WorldAffineSample world_affine() const {return gameplay_world_affine(slot);}
+    EPOK_FUNCTION(BlueprintCallable, Id="b54be7db-02d4-46c8-a924-5016d0901e99") bool attach_to(ObjectId parent) {return attach_component(id(),parent);}
+    EPOK_FUNCTION(BlueprintCallable, Id="abbb446c-b23c-4b67-925a-034148e4d9c0") void teleport(Fixed x,Fixed y,Fixed z) {set_local_position(x,y,z);reset_motion_interpolation();}
 protected:
     ActorData* slot = nullptr;
 };
@@ -503,6 +523,13 @@ public:
     // fictitious 3D transform is created for them.
     Transform2D transform;
     ObjectId attach_parent;
+    EPOK_FUNCTION(BlueprintCallable, Id="35d86c50-a113-4d96-afb3-13ac190366d6") void set_position(Fixed x,Fixed y) {transform.position[0]=x;transform.position[1]=y;}
+    EPOK_FUNCTION(BlueprintCallable, Id="aa6a1bc3-3b47-426e-b637-2df0934b69d4") void set_rotation(Fixed value) {transform.rotation=value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="1a8868ba-9090-40f1-ade0-0bdf5d878e71") void set_scale(Fixed x,Fixed y) {transform.scale[0]=x;transform.scale[1]=y;}
+    EPOK_FUNCTION(BlueprintPure, Id="954493ae-978f-4396-b6c9-e0e27f97ebbe") Fixed position_x() const {return transform.position[0];}
+    EPOK_FUNCTION(BlueprintPure, Id="2bb96472-0dbf-46a4-9c88-6564bd3368d0") Fixed position_y() const {return transform.position[1];}
+    EPOK_FUNCTION(BlueprintPure, Id="cf9ed1af-c5e9-4228-b81a-dd27db5f4dc3") Fixed rotation() const {return transform.rotation;}
+    EPOK_FUNCTION(BlueprintCallable, Id="6fc034d2-686c-40d7-b447-08d76abfd5ab") bool attach_to(ObjectId parent) {return attach_component(id(),parent);}
 };
 class EPOK_CLASS(Abstract, Blueprintable, Domain=UI, Owners=UI, Id="83bffb60-2c33-4be1-9041-8c8f4c395b86") UIComponent : public ActorComponent {
 public:
@@ -520,6 +547,12 @@ public:
     void bind_local() { slot = nullptr; rect = &local; }
     ActorData* entity_slot() const { return slot; }
     RectTransform local;
+    EPOK_FUNCTION(BlueprintPure, Id="eb82c905-50c1-42dd-8d7f-df0b1ebc173a") bool enabled() const {return rect&&rect->enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="3c6b4722-b31d-40c5-8f83-0add66ac31c8") void set_enabled(bool value) {if(rect)rect->enabled=value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="c5628299-4e0c-4ba6-89a2-8d289865a550") void set_position(Fixed x,Fixed y) {if(rect){rect->position[0]=x;rect->position[1]=y;}}
+    EPOK_FUNCTION(BlueprintCallable, Id="45b9ad2e-b86b-464f-b303-c54353bc5f4d") void set_size(Fixed x,Fixed y) {if(rect){rect->size[0]=x;rect->size[1]=y;}}
+    EPOK_FUNCTION(BlueprintCallable, Id="1eca293e-859c-4462-bc73-0b67d42ab4d6") void set_anchors(Fixed min_x,Fixed min_y,Fixed max_x,Fixed max_y) {if(rect){rect->anchor_min[0]=min_x;rect->anchor_min[1]=min_y;rect->anchor_max[0]=max_x;rect->anchor_max[1]=max_y;}}
+    EPOK_FUNCTION(BlueprintCallable, Id="b1345048-7372-4bd1-b1e1-10ec4c33e7fc") void set_pivot(Fixed x,Fixed y) {if(rect){rect->pivot[0]=x;rect->pivot[1]=y;}}
 protected:
     ActorData* slot = nullptr;
 };
@@ -532,6 +565,18 @@ public:
     EPOK_FUNCTION(Callable) void play() { if (source) source->play(); }
     EPOK_FUNCTION(Callable) void stop() { if (source) source->stop(); }
     EPOK_FUNCTION(Pure) bool is_playing() const { return source && source->is_playing(); }
+    EPOK_FUNCTION(BlueprintPure, Id="012b5766-939d-4755-b18b-a262cce20486") bool enabled() const { return source&&source->enabled; }
+    EPOK_FUNCTION(BlueprintCallable, Id="883763d2-faba-462f-a5e7-cafcc15aa17e") void set_enabled(bool value) {if(source){source->enabled=value;if(!value)source->stop();}}
+    EPOK_FUNCTION(BlueprintPure, Id="f5afcdbb-dd4d-45de-9bea-1243707147e5") int32_t clip() const {return source?source->clip:-1;}
+    EPOK_FUNCTION(BlueprintCallable, Id="c75782d6-2772-4d29-b864-f1d1790d1d26") void set_clip(int32_t value) {if(source&&source->clip!=value){source->stop();source->clip=value;}}
+    EPOK_FUNCTION(BlueprintPure, Id="85028699-06fa-4ace-9bb4-9b4f10f7665e") Fixed volume() const {return source?source->volume:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintCallable, Id="9fdfc008-5493-4659-a63a-cba2822602fc") void set_volume(Fixed value) {if(source)source->volume=value<0.0?Fixed(0.0):value>1.0?Fixed(1.0):value;}
+    EPOK_FUNCTION(BlueprintPure, Id="cfa327ac-f4a2-43d0-a88d-1881b96a23bc") Fixed pitch() const {return source?source->pitch:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintCallable, Id="3b263a70-c72d-41e8-86c7-676d68cb2874") void set_pitch(Fixed value) {if(source)source->pitch=value<0.25?Fixed(0.25):value>4.0?Fixed(4.0):value;}
+    EPOK_FUNCTION(BlueprintPure, Id="b597e8ba-58bf-48d6-b7d5-9eca0455b209") uint32_t priority() const {return source?source->priority:0;}
+    EPOK_FUNCTION(BlueprintCallable, Id="b3ec45ef-1e8f-4f36-a951-c01b045537a7") void set_priority(uint32_t value) {if(source)source->priority=uint8_t(value>255?255:value);}
+    EPOK_FUNCTION(BlueprintPure, Id="6b6c0d55-e8ac-4249-9fe9-4f53ae07784b") bool play_on_start() const {return source&&source->play_on_start;}
+    EPOK_FUNCTION(BlueprintCallable, Id="53cb39bd-7174-4fa3-b537-fc924632fe8c") void set_play_on_start(bool value) {if(source)source->play_on_start=value;}
     // Bind to the legacy slot's AudioSource, or to component-owned storage.
     void bind_slot(ActorData& value) { source = &value.audio; m_slot = &value; }
     void bind_local() { source = &local; m_slot = nullptr; }
@@ -573,51 +618,164 @@ class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=mesh,
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("580f99b1-c905-4f96-b34f-807c51335ba0");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const { auto* owner=const_cast<Mesh3DComponent*>(this)->get_owner();return owner?owner->data():nullptr; }
+    EPOK_FUNCTION(BlueprintPure, Id="0f7800c8-0ea2-488a-90da-e6a60083edb4") uint32_t vertex_count() const {
+        const auto* data=entity_slot();const auto* geometry=data&&data->animator.model?data->animator.model->geometry:data?data->geometry:nullptr;return geometry?uint32_t(geometry->vertex_count):0;
+    }
+    EPOK_FUNCTION(BlueprintPure, Id="2f1dce0f-f29d-44bd-b8f9-c455540516f8") uint32_t bone_count() const {
+        const auto* data=entity_slot();return data&&data->animator.model?uint32_t(data->animator.model->bone_count):0;
+    }
+    EPOK_FUNCTION(BlueprintPure, Id="45e1ce94-0ed3-4557-a7d5-30bd670d8097") uint32_t clip_count() const {
+        const auto* data=entity_slot();return data&&data->animator.model?uint32_t(data->animator.model->clip_count):0;
+    }
+    EPOK_FUNCTION(BlueprintCallable, Id="047cbafb-5024-44d8-92a3-4939b31de81d") bool play_clip(uint32_t clip,bool looping) {
+        auto* data=entity_slot();return data&&clip<=0x7fffffffu&&data->animator.play(int(clip),looping);
+    }
+    EPOK_FUNCTION(BlueprintCallable, Id="74c0cd75-108d-486c-bccb-68b0a85b1a9a") void pause_animation() {auto* data=entity_slot();if(data)data->animator.pause();}
+    EPOK_FUNCTION(BlueprintCallable, Id="a6ef5510-6cb3-418d-be3c-c1e5f4e56776") void resume_animation() {auto* data=entity_slot();if(data)data->animator.resume();}
+    EPOK_FUNCTION(BlueprintCallable, Id="a127e39c-84a2-4618-b6e3-b08f8d466ae3") void stop_animation() {auto* data=entity_slot();if(data)data->animator.stop();}
+    EPOK_FUNCTION(BlueprintPure, Id="3ec24d35-4613-4ffb-b50a-0ea205e901b1") SkeletalPlaybackState playback_state() const {
+        SkeletalPlaybackState result;const auto* data=entity_slot();if(!data||!data->animator.model)return result;
+        const auto& animator=data->animator;result.valid=true;result.enabled=animator.enabled;result.playing=animator.playing;result.looping=animator.looping;result.clip=animator.clip;result.ticks=animator.ticks;
+        if(animator.clip>=0&&size_t(animator.clip)<animator.model->clip_count){const auto frames=animator.model->clips[animator.clip].frames;const uint32_t length=frames>1?frames-1:1;result.sampled_frame=animator.looping?(animator.ticks/2)%length:(animator.ticks/2<frames?animator.ticks/2:frames?frames-1:0);}return result;
+    }
+    EPOK_FUNCTION(BlueprintCallable, Capability=skeletal-vertex-query, Id="ac3cac16-6202-4c15-93ed-9a5fb2721ca1") VertexSample sample_vertex(uint32_t vertex,PoseKind pose,CoordinateSpace space) {return skeletal_sample_vertex(entity_slot(),vertex,pose,space);}
+    EPOK_FUNCTION(BlueprintCallable, Capability=skeletal-vertex-query, Id="2a2f91f6-3591-46e3-8ced-ea5a41ce565a") VertexSamples4 sample_vertices(VertexIndexBatch4 indices,PoseKind pose,CoordinateSpace space) {return skeletal_sample_vertices(entity_slot(),indices,pose,space);}
+    EPOK_FUNCTION(BlueprintCallable, Capability=skeletal-bone-query, Id="7c6e66dd-df5c-4195-adb0-e66c7ee4587b") BoneSample sample_bone(uint32_t bone,PoseKind pose,CoordinateSpace space) {return skeletal_sample_bone(entity_slot(),bone,pose,space);}
+    EPOK_FUNCTION(BlueprintPure, Id="d186f5be-bb2d-42cb-936c-e792a7be6247") MaterialSnapshot material_state() const {
+        MaterialSnapshot result;const auto* data=entity_slot();if(!data)return result;const auto& value=data->material;result.valid=true;result.unlit=value.unlit;result.red=value.color[0];result.green=value.color[1];result.blue=value.color[2];result.texture=uint32_t(value.texture);result.blend=uint32_t(value.blend);result.depth_bias=value.depth_bias;result.uv_x=Fixed(value.uv_scroll[0],Fixed::RAW);result.uv_y=Fixed(value.uv_scroll[1],Fixed::RAW);return result;
+    }
+    EPOK_FUNCTION(BlueprintCallable, Id="e3a012fc-ee1e-4201-b22e-c0159df503f7") void set_material_color(uint32_t red,uint32_t green,uint32_t blue) {auto* data=entity_slot();if(data){data->material.color[0]=uint8_t(red>255?255:red);data->material.color[1]=uint8_t(green>255?255:green);data->material.color[2]=uint8_t(blue>255?255:blue);}}
+    EPOK_FUNCTION(BlueprintCallable, Id="97078826-e1ef-4ec4-9d24-33151d2f68b9") void set_material_texture(int32_t texture) {auto* data=entity_slot();if(data)data->material.texture=texture;}
+    EPOK_FUNCTION(BlueprintCallable, Id="99f6b202-f672-49fb-bea8-3778b5b26b0c") void set_material_unlit(bool unlit) {auto* data=entity_slot();if(data)data->material.unlit=unlit;}
+    EPOK_FUNCTION(BlueprintCallable, Id="ad3a142b-e4b7-4e19-b35a-ed0a57fae64a") void set_material_blend(BlendMode blend) {auto* data=entity_slot();if(data)data->material.blend=blend;}
+    EPOK_FUNCTION(BlueprintCallable, Id="6f111802-066c-44aa-bd5b-c63ec08b45cb") void set_material_depth_bias(int32_t value) {auto* data=entity_slot();if(data)data->material.depth_bias=int16_t(value<-32768?-32768:value>32767?32767:value);}
+    EPOK_FUNCTION(BlueprintCallable, Id="736a9982-99f0-45f7-ad00-bc938a3c1786") void set_uv_scroll(Fixed x,Fixed y) {auto* data=entity_slot();if(data){data->material.uv_scroll[0]=x.raw();data->material.uv_scroll[1]=y.raw();}}
+    EPOK_FUNCTION(BlueprintPure, Id="29d828aa-a390-443b-9628-36a8661f76d0") uint32_t quad_count() const {const auto* data=entity_slot();const auto* geometry=data&&data->animator.model?data->animator.model->geometry:data?data->geometry:nullptr;return geometry?uint32_t(geometry->quad_count):0;}
+    EPOK_FUNCTION(BlueprintPure, Id="c476252f-20d0-47aa-bda9-a0d09f490b4d") bool streamed() const {const auto* data=entity_slot();const auto* geometry=data&&data->animator.model?data->animator.model->geometry:data?data->geometry:nullptr;return geometry&&geometry->stream_page!=0xffffffffu;}
+    EPOK_FUNCTION(BlueprintPure, Capability=mesh-streaming, Id="a9a09e6d-2393-41f9-abfa-5cd51b484983") MeshDataState geometry_state() const {const auto* data=entity_slot();return mesh_geometry_state(data?data->geometry:nullptr);}
+    EPOK_FUNCTION(BlueprintCallable, Capability=mesh-streaming, AsyncRequest, Id="ca928c49-6773-433a-8fbf-94979698ab40") bool request_geometry() {const auto* data=entity_slot();return request_mesh_geometry(data?data->geometry:nullptr);}
+    EPOK_FUNCTION(BlueprintCallable, Capability=mesh-streaming, Id="2a9adf07-389e-4455-8d45-a1d87ae5f32f") MeshVertexSample sample_geometry_vertex(uint32_t vertex,CoordinateSpace space) {return sample_mesh_vertex(entity_slot(),vertex,space);}
+    EPOK_FUNCTION(BlueprintPure, Id="a120a95e-3961-4855-b058-1b63e98f1213") bool lighting_enabled() const {const auto* data=entity_slot();return data&&data->lighting.enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="3e7046c9-fe54-403e-b82d-2c4da8ec6946") void set_lighting_enabled(bool value) {auto* data=entity_slot();if(data)data->lighting.enabled=value;}
 };
 class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=sprite, Id="0b68656b-364b-441f-ad86-ddc0408e80a0") Sprite3DComponent : public ActorComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("0b68656b-364b-441f-ad86-ddc0408e80a0");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<Sprite3DComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="cbcb2992-f37c-4bb2-b099-0843ebbc81a8") SpritePlaybackState playback_state() const {SpritePlaybackState result;const auto* data=entity_slot();if(!data)return result;const auto& animator=data->sprite_animator;result.valid=true;result.enabled=animator.enabled;result.playing=animator.playing;result.completed=animator.completed;result.clip=animator.clip;result.frame=animator.frame;result.clip_count=animator.clip_count;result.pending_events=animator.event_count;result.dropped_events=animator.dropped_events;return result;}
+    EPOK_FUNCTION(BlueprintCallable, Id="2d45b9ac-969a-4ee1-8afa-c2516c4e48f5") bool play_clip(uint32_t clip) {auto* data=entity_slot();return data&&clip<=0xffffu&&data->sprite_animator.play(uint16_t(clip));}
+    EPOK_FUNCTION(BlueprintCallable, Id="b22cf961-2e2f-49ef-ab17-460779926861") void pause_animation() {auto* data=entity_slot();if(data)data->sprite_animator.pause();}
+    EPOK_FUNCTION(BlueprintCallable, Id="5ffc422d-bc57-4bb4-9909-615533655743") void resume_animation() {auto* data=entity_slot();if(data)data->sprite_animator.resume();}
+    EPOK_FUNCTION(BlueprintCallable, Id="3fc41b61-85c1-4a93-a3d3-50f553028e63") uint32_t poll_event() {auto* data=entity_slot();uint16_t event=0;return data&&data->sprite_animator.poll_event(event)?event:0;}
+    EPOK_FUNCTION(BlueprintCallable, Id="f5b6ff77-26f8-4142-92f7-e27ba8e5f646") bool take_completion() {auto* data=entity_slot();return data&&data->sprite_animator.take_completion();}
+    EPOK_FUNCTION(BlueprintPure, Id="67c2aaf1-400d-46ef-9629-50e5bde990e8") bool enabled() const {const auto* data=entity_slot();return data&&data->sprite.enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="fd1516be-0dc8-4812-b70f-5b707df972b6") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->sprite.enabled=value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="49748389-94aa-4a76-ab76-1bbc63836c3c") void set_texture(int32_t value) {auto* data=entity_slot();if(data)data->sprite.texture=value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="e0a080ba-34ee-44e6-ae72-598503e23060") void set_size(Fixed x,Fixed y) {auto* data=entity_slot();if(data){data->sprite.size[0]=x;data->sprite.size[1]=y;}}
+    EPOK_FUNCTION(BlueprintCallable, Id="7dc105f5-e92e-4e71-a53a-19d99c069dde") void set_flip(bool x,bool y) {auto* data=entity_slot();if(data){data->sprite.flip_x=x;data->sprite.flip_y=y;}}
+    EPOK_FUNCTION(BlueprintCallable, Id="b7cbde1f-44f3-4480-8acd-4cfe934f4397") void set_color(uint32_t red,uint32_t green,uint32_t blue) {auto* data=entity_slot();if(data){data->sprite.color[0]=uint8_t(red>255?255:red);data->sprite.color[1]=uint8_t(green>255?255:green);data->sprite.color[2]=uint8_t(blue>255?255:blue);}}
 };
 class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=camera, Id="9fe2abff-f285-435d-976d-825c5db5420a") Camera3DComponent : public ActorComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("9fe2abff-f285-435d-976d-825c5db5420a");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<Camera3DComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="c847011b-6678-416b-8821-b6e7462e2bf8") bool enabled() const {const auto* data=entity_slot();return data&&(data->camera||data->camera_settings.enabled);}
+    EPOK_FUNCTION(BlueprintCallable, Id="d0e959f6-f593-40a8-ab06-350478b79a68") void set_enabled(bool value) {auto* data=entity_slot();if(data){data->camera=value;data->camera_settings.enabled=value;}}
+    EPOK_FUNCTION(BlueprintPure, Id="ac1b7ccf-5f66-4262-a68e-c8ad425cc175") Fixed field_of_view() const {const auto* data=entity_slot();return data?data->camera_settings.field_of_view:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintCallable, Id="69851a74-a83c-4f4f-8b15-c8faf9b76dd4") void set_field_of_view(Fixed value) {auto* data=entity_slot();if(data)data->camera_settings.field_of_view=value<1.0?Fixed(1.0):value>179.0?Fixed(179.0):value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="7f08b9a7-3873-4f45-aae0-b11a78c59257") bool make_active() {return set_active_camera(entity_slot());}
 };
 class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=light, Id="e18d296c-5820-4557-9386-8b12b9ca37a2") Light3DComponent : public ActorComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("e18d296c-5820-4557-9386-8b12b9ca37a2");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<Light3DComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="93482c0f-d8fd-40c3-b506-38686fd21a36") bool enabled() const {const auto* data=entity_slot();return data&&data->light.enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="c39fab3a-d50e-4f4b-84e7-089805c15d49") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->light.enabled=value;}
+    EPOK_FUNCTION(BlueprintPure, Id="3020a7cf-2b91-4d65-916f-86fb22145016") Fixed intensity() const {const auto* data=entity_slot();return data?data->light.intensity:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintCallable, Id="4caf5ff0-af40-4f31-884c-47efdb4956cc") void set_intensity(Fixed value) {auto* data=entity_slot();if(data)data->light.intensity=value<0.0?Fixed(0.0):value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="25f782ce-f53b-4eb2-a3bc-b6cf3cf6d8aa") void set_range(Fixed value) {auto* data=entity_slot();if(data)data->light.range=value<0.0?Fixed(0.0):value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="7af83e00-f5a8-488f-af89-504b74e7e372") void set_color(uint32_t red,uint32_t green,uint32_t blue) {auto* data=entity_slot();if(data){data->light.color[0]=uint8_t(red>255?255:red);data->light.color[1]=uint8_t(green>255?255:green);data->light.color[2]=uint8_t(blue>255?255:blue);}}
+    EPOK_FUNCTION(BlueprintCallable, Id="00eb6cb5-b5fb-465b-8aa3-056adf6ad038") void set_type(LightType value) {auto* data=entity_slot();if(data)data->light.type=value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="c6acdbff-6961-48ea-afda-f5f36733d50a") void set_mode(LightMode value) {auto* data=entity_slot();if(data)data->light.mode=value;}
 };
 class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=collider, Id="e8431f94-e526-4d7d-aace-8c8fae7955e6") Collider3DComponent : public ActorComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("e8431f94-e526-4d7d-aace-8c8fae7955e6");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<Collider3DComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="a794af03-7f2c-4de2-8211-cfcbe0aa05e4") bool enabled() const {const auto* data=entity_slot();return data&&data->collider.enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="67d0ff7c-9d3d-440f-acba-5331147adb09") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->collider.enabled=value;}
+    EPOK_FUNCTION(BlueprintPure, Id="9c100782-860e-428a-8b15-5b7e89716b1b") bool trigger() const {const auto* data=entity_slot();return data&&data->collider.trigger;}
+    EPOK_FUNCTION(BlueprintCallable, Id="ed541c10-273f-4d93-a12a-c64234837b54") void set_trigger(bool value) {auto* data=entity_slot();if(data)data->collider.trigger=value;}
+    EPOK_FUNCTION(BlueprintPure, Id="e282e657-8d99-4b9a-9681-136c4661e72d") uint32_t layer() const {const auto* data=entity_slot();return data?data->collider.layer:0;}
+    EPOK_FUNCTION(BlueprintCallable, Id="7170c50e-054d-46f8-ae7c-f820407745f4") void set_layer(uint32_t value) {auto* data=entity_slot();if(data)data->collider.layer=value;}
+    EPOK_FUNCTION(BlueprintPure, Id="79415044-4a35-47a7-9789-a4a19272c796") uint32_t mask() const {const auto* data=entity_slot();return data?data->collider.mask:0;}
+    EPOK_FUNCTION(BlueprintCallable, Id="54229688-e3fd-433a-b111-a9218291ab78") void set_mask(uint32_t value) {auto* data=entity_slot();if(data)data->collider.mask=value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="14cacb6a-ff12-43b3-b918-909c6613735b") void set_center(Fixed x,Fixed y,Fixed z) {auto* data=entity_slot();if(data){data->collider.center[0]=x;data->collider.center[1]=y;data->collider.center[2]=z;}}
+    EPOK_FUNCTION(BlueprintCallable, Id="9336d04c-300a-4bda-b9a6-301e775277d0") void set_half_extents(Fixed x,Fixed y,Fixed z) {auto* data=entity_slot();if(data){data->collider.half_extents[0]=x<0.0?-x:x;data->collider.half_extents[1]=y<0.0?-y:y;data->collider.half_extents[2]=z<0.0?-z:z;}}
 };
 class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=canvas, Id="f2cfb26b-af53-4a46-9d91-1debea72e01b") CanvasComponent : public UIComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("f2cfb26b-af53-4a46-9d91-1debea72e01b");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<CanvasComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="00aeb910-bc8e-41cd-9a73-0fe2eef92a29") bool enabled() const {const auto* data=entity_slot();return data&&data->canvas.enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="45fd9028-92b6-463b-bd03-f34787624b73") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->canvas.enabled=value;}
 };
 class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=image, Id="d04c78d6-23bd-40d7-88f1-b1afc1b05b5b") ImageComponent : public UIComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("d04c78d6-23bd-40d7-88f1-b1afc1b05b5b");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<ImageComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="8701ea5a-0d4e-43bc-af6b-691bddcfd82d") bool enabled() const {const auto* data=entity_slot();return data&&data->image.enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="3f06fcef-66ca-48f1-8883-ea12d42d786c") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->image.enabled=value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="39996407-2091-4a70-b2e1-2bbf508f77e9") void set_texture(int32_t value) {auto* data=entity_slot();if(data)data->image.texture=value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="7d9da0a9-2ae2-403b-9f40-5061bfd12e47") void set_color(uint32_t red,uint32_t green,uint32_t blue) {auto* data=entity_slot();if(data){data->image.color[0]=uint8_t(red>255?255:red);data->image.color[1]=uint8_t(green>255?255:green);data->image.color[2]=uint8_t(blue>255?255:blue);}}
+    EPOK_FUNCTION(BlueprintCallable, Id="d4550792-9e1d-4454-b65d-1b4b86d04880") void set_region(uint32_t x,uint32_t y,uint32_t width,uint32_t height) {auto* data=entity_slot();if(data){data->image.region[0]=uint16_t(x>65535?65535:x);data->image.region[1]=uint16_t(y>65535?65535:y);data->image.region[2]=uint16_t(width>65535?65535:width);data->image.region[3]=uint16_t(height>65535?65535:height);}}
 };
 class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=text, Id="fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34") TextComponent : public UIComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<TextComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="75d0c7d3-e56e-43cd-a5e2-476c1265b2b7") bool enabled() const {const auto* data=entity_slot();return data&&data->text.enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="e687c218-94b4-4db8-ad06-7a14cfec7ad9") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->text.enabled=value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="60b81db3-178c-4639-95ce-bfc9b9c47847") void set_number(int32_t value) {auto* data=entity_slot();if(!data)return;char text[16]={};char reversed[16]={};uint32_t magnitude=value<0?uint32_t(-int64_t(value)):uint32_t(value);uint32_t count=0;do{reversed[count++]=char('0'+magnitude%10);magnitude/=10;}while(magnitude&&count<15);uint32_t out=0;if(value<0)text[out++]='-';while(count)text[out++]=reversed[--count];text[out]=0;data->text.set_text(text);}
+    EPOK_FUNCTION(BlueprintCallable, Id="9d40fb20-8d06-4ea1-afba-5c743418b301") void set_unsigned(uint32_t value) {auto* data=entity_slot();if(!data)return;char text[16]={};char reversed[16]={};uint32_t count=0;do{reversed[count++]=char('0'+value%10);value/=10;}while(value&&count<15);uint32_t out=0;while(count)text[out++]=reversed[--count];text[out]=0;data->text.set_text(text);}
+    EPOK_FUNCTION(BlueprintCallable, Id="f8757d62-0492-45fe-a27f-0a018532f842") void clear_text() {auto* data=entity_slot();if(data)data->text.value[0]=0;}
+    EPOK_FUNCTION(BlueprintCallable, Id="cbcc41a3-936a-49c0-b55e-12dbbe869c7e") bool set_text_word(uint32_t index,uint32_t packed) {auto* data=entity_slot();if(!data||index>=128)return false;char* output=data->text.value+index*4;for(uint32_t i=0;i<4;++i){const uint8_t value=uint8_t(packed>>(i*8));output[i]=value&&value<128?char(value):value?'?':0;}data->text.value[511]=0;return true;}
+    EPOK_FUNCTION(BlueprintPure, Id="694cc674-49fb-4c9f-8851-b655b1b8fd45") uint32_t text_word(uint32_t index) const {const auto* data=entity_slot();if(!data||index>=128)return 0;uint32_t result=0;for(uint32_t i=0;i<4;++i)result|=uint32_t(uint8_t(data->text.value[index*4+i]))<<(i*8);return result;}
+    EPOK_FUNCTION(BlueprintCallable, Id="0e61f050-7634-473f-a3bf-85d4067af329") void set_color(uint32_t red,uint32_t green,uint32_t blue) {auto* data=entity_slot();if(data){data->text.color[0]=uint8_t(red>255?255:red);data->text.color[1]=uint8_t(green>255?255:green);data->text.color[2]=uint8_t(blue>255?255:blue);}}
+    EPOK_FUNCTION(BlueprintCallable, Id="bdcfb111-a742-4059-96a7-d10dd8182c88") void set_wrap(bool value) {auto* data=entity_slot();if(data)data->text.wrap=value;}
 };
 class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=progress, Id="28bf5245-5d80-4cba-a77d-1d74479ac276") ProgressBarComponent : public UIComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("28bf5245-5d80-4cba-a77d-1d74479ac276");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<ProgressBarComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="243e056c-8774-476a-94c1-f9381299f418") bool enabled() const {const auto* data=entity_slot();return data&&data->progress.enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="9b695075-9675-4dd1-9097-14c1616c51aa") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->progress.enabled=value;}
+    EPOK_FUNCTION(BlueprintPure, Id="77e4c531-5d42-470c-954e-937d5204f664") Fixed value() const {const auto* data=entity_slot();return data?data->progress.value:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintCallable, Id="d9ce66cc-cf09-4e8d-b76c-a1793dd980e0") void set_value(Fixed value) {auto* data=entity_slot();if(data)data->progress.value=value<0.0?Fixed(0.0):value>1.0?Fixed(1.0):value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="0afbb6fa-16ca-455b-aa47-5cc6cb719527") void set_colors(uint32_t red,uint32_t green,uint32_t blue,uint32_t background_red,uint32_t background_green,uint32_t background_blue) {auto* data=entity_slot();if(data){data->progress.color[0]=uint8_t(red>255?255:red);data->progress.color[1]=uint8_t(green>255?255:green);data->progress.color[2]=uint8_t(blue>255?255:blue);data->progress.background[0]=uint8_t(background_red>255?255:background_red);data->progress.background[1]=uint8_t(background_green>255?255:background_green);data->progress.background[2]=uint8_t(background_blue>255?255:background_blue);}}
 };
 class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=particles, Id="1d067605-c408-40b8-b2c2-718b8cf0c601") ParticleEmitterComponent : public ActorComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("1d067605-c408-40b8-b2c2-718b8cf0c601");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<ParticleEmitterComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="30e02f03-0c0d-4875-85e1-3423af5156fd") ParticleEmitterState state() const {ParticleEmitterState result;const auto* data=entity_slot();if(!data)return result;const auto& emitter=data->particle_emitter;result.valid=true;result.enabled=emitter.enabled;result.playing=emitter.playing;result.continuous=emitter.continuous;result.pending=emitter.pending;result.max_particles=emitter.max_particles;return result;}
+    EPOK_FUNCTION(BlueprintCallable, Id="e2f09d77-b27c-42a1-8e2c-8b3138819d34") void play() {auto* data=entity_slot();if(data)data->particle_emitter.play();}
+    EPOK_FUNCTION(BlueprintCallable, Id="a5fac700-06a4-4dd9-a6a2-ac9b920c2dac") void stop() {auto* data=entity_slot();if(data)data->particle_emitter.stop();}
+    EPOK_FUNCTION(BlueprintCallable, Id="3ca01647-47a6-4f54-a4b5-3ca3021b6783") void burst(uint32_t count) {auto* data=entity_slot();if(data)data->particle_emitter.burst(uint16_t(count>256?256:count));}
+    EPOK_FUNCTION(BlueprintCallable, Id="4394060a-88bc-45fa-8895-f7f58c6c3846") void set_enabled(bool value) {auto* data=entity_slot();if(data){data->particle_emitter.enabled=value;if(!value)data->particle_emitter.stop();}}
+    EPOK_FUNCTION(BlueprintCallable, Id="d74618dc-1e6c-4dd3-af09-a8640d315cd9") void set_rate(Fixed value) {auto* data=entity_slot();if(data)data->particle_emitter.rate=value<0.0?Fixed(0.0):value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="6a8c1193-55af-4a63-b6f0-50b5091e6b08") void set_lifetime(Fixed value) {auto* data=entity_slot();if(data)data->particle_emitter.lifetime=value<0.0?Fixed(0.0):value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="c9a87858-341d-4fac-bef0-dd83cd9140d4") void set_max_particles(uint32_t value) {auto* data=entity_slot();if(data)data->particle_emitter.max_particles=uint16_t(value>256?256:value);}
 };
 class EPOK_CLASS(Blueprintable, Domain=None, Owners=World3D|World2D|UI, Capability=timeline, Id="1d067605-c408-40b8-b2c2-718b8cf0c602") TimelineComponent : public ActorComponent {
 public:
@@ -633,11 +791,20 @@ class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=palet
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("1d067605-c408-40b8-b2c2-718b8cf0c604");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<PaletteAnimatorComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="ba716145-f679-420d-9081-dd6b4e8b0b2c") PaletteAnimationState state() const {PaletteAnimationState result;const auto* data=entity_slot();if(!data)return result;const auto& value=data->palette_animator;result.valid=true;result.enabled=value.enabled;result.reverse=value.reverse;result.texture=uint32_t(value.texture);result.first=value.first;result.last=value.last;result.offset=value.offset;result.speed=value.speed;return result;}
+    EPOK_FUNCTION(BlueprintCallable, Id="f590d75b-157c-4b05-9218-d0f506998e4b") void configure(int32_t texture,uint32_t first,uint32_t last,Fixed speed,bool reverse) {auto* data=entity_slot();if(!data)return;auto& value=data->palette_animator;value.texture=texture;value.first=uint8_t(first>255?255:first);value.last=uint8_t(last>255?255:last);value.speed=speed<0.0?Fixed(0.0):speed;value.reverse=reverse;value.enabled=value.first>0&&value.last>value.first;value.reset();}
+    EPOK_FUNCTION(BlueprintCallable, Id="a3a8b122-7f9b-4cf5-8c95-b55fce5a881c") void set_enabled(bool enabled) {auto* data=entity_slot();if(data)data->palette_animator.enabled=enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="e93e4745-783d-454d-b1f0-094d426949b4") void reset() {auto* data=entity_slot();if(data)data->palette_animator.reset();}
 };
 class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=shadow, Id="1d067605-c408-40b8-b2c2-718b8cf0c605") BlobShadowComponent : public ActorComponent {
 public:
     static constexpr uint64_t static_class_id = detail::compact_class_id("1d067605-c408-40b8-b2c2-718b8cf0c605");
     uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<BlobShadowComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="db3a27d7-5c08-42dd-9cb3-d76c1f49a751") bool enabled() const {const auto* data=entity_slot();return data&&data->blob_shadow.enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="5d5ac6bc-6440-42fa-ae16-8c1d6a5d3175") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->blob_shadow.enabled=value;}
+    EPOK_FUNCTION(BlueprintCallable, Id="d75bdf7e-c768-4e73-9d6d-d63961070389") void configure(Fixed radius,Fixed strength,Fixed distance) {auto* data=entity_slot();if(data){data->blob_shadow.radius=radius<0.0?Fixed(0.0):radius;data->blob_shadow.strength=strength<0.0?Fixed(0.0):strength>1.0?Fixed(1.0):strength;data->blob_shadow.distance=distance<0.0?Fixed(0.0):distance;}}
 };
 
 class EPOK_CLASS(Blueprintable, Placeable, Spawnable, Domain=World3D, Id="fc24ce9b-558c-49de-bc35-e040f350e486") Actor3D : public Actor {
@@ -1109,6 +1276,7 @@ protected:
             if (actor->m_doomed) return;
             if (auto* component = m_registry->resolve<ActorComponent>(actor->m_components[c])) component->frame_update(elapsed);
         }
+        if(!actor->m_doomed)actor->frame_update(elapsed);
     }
     // Releases an unstarted reservation: no gameplay event ever ran on it.
     void release_actor_storage(ObjectId id) {
@@ -1241,12 +1409,15 @@ inline size_t dispatch_trigger(Level& level, ObjectId actor, DataHandle other, T
     auto* owner = registry->resolve<Actor>(actor);
     if (!owner || !level.actor_active(*owner)) return 0;
     size_t delivered = 0;
+    auto* other_data=other.get();
+    const ObjectId other_id=other_data&&other_data->owner?other_data->owner->id():ObjectId{};
     ObjectDispatchScope scope(*registry);
     for (size_t i = 0; i < owner->component_count(); ++i)
         if (auto* component = registry->resolve<ActorComponent>(owner->component_id(i))) {
             // The legacy bindings table wins: a component wrapping a Behaviour that
             // table already notified is skipped, so nothing is delivered twice.
             component->on_trigger(other, phase);
+            component->trigger_event(other_id, phase);
             ++delivered;
         }
     return delivered;

@@ -45,8 +45,19 @@ extern "C" {
 #define EPOK_LUA_MAX_SLOTS 64
 #define EPOK_LUA_MAX_ARGS 8
 #define EPOK_LUA_MAX_DEPTH 16
+#define EPOK_LUA_MAX_VALUES 64
+#define EPOK_LUA_MAX_VALUE_WORDS 32
 
 namespace epok::lua {
+
+/// Version-2 value ABI. Compound values are flattened into 32-bit words in
+/// reflected field order and live in a bounded call-frame arena. Lua observes
+/// an opaque handle, so no native pointer, table allocation or partial-width
+/// gameplay handle enters authored code.
+struct WireValue {
+    uint8_t count = 0;
+    int32_t words[EPOK_LUA_MAX_VALUE_WORDS]{};
+};
 
 struct ClassBinding {
     uint64_t class_id;
@@ -57,13 +68,18 @@ struct ClassBinding {
     uint32_t method_count;
     int32_t (*get_field)(Object&, uint32_t slot);
     void (*set_field)(Object&, uint32_t slot, int32_t value);
+    WireValue (*wide_get_field)(Object&, uint32_t slot);
+    void (*wide_set_field)(Object&, uint32_t slot, const WireValue& value);
     int32_t (*self_call)(Object&, uint32_t slot, const int32_t* args, uint32_t argc);
     int32_t (*super_call)(Object&, uint32_t slot, const int32_t* args, uint32_t argc);
+    WireValue (*wide_self_call)(Object&, uint32_t slot, const WireValue* args, uint32_t argc);
+    WireValue (*wide_super_call)(Object&, uint32_t slot, const WireValue* args, uint32_t argc);
     // One case per builtin call site of the class. The case body is the very
     // `epok::bp::api` call the native backend compiles for the same site, so a
     // 64-bit asset or class id is read from the native field here and never
     // crosses the 32-bit value ABI.
     int32_t (*builtin_call)(Object&, uint32_t site, const int32_t* args, uint32_t argc);
+    WireValue (*operation_call)(Object&, uint32_t site, const WireValue* args, uint32_t argc);
 };
 // Defined by the generated `scripts/generated/lua/lua_bindings.cpp`.
 extern const ClassBinding class_bindings[];
@@ -274,6 +290,36 @@ inline int registry_key(uint32_t class_index, uint32_t slot) {
 }
 
 inline int32_t argument(lua_State* L, int index) { return int32_t(lua_tonumber(L, index)); }
+
+inline WireValue values[EPOK_LUA_MAX_DEPTH][EPOK_LUA_MAX_VALUES];
+inline uint8_t value_count[EPOK_LUA_MAX_DEPTH]{};
+
+inline WireValue* value_from_lua(lua_State* L, int index) {
+    if (!lua_islightuserdata(L, index) || depth == 0) return nullptr;
+    auto* candidate = static_cast<WireValue*>(lua_touserdata(L, index));
+    const uint32_t frame = depth - 1;
+    for (uint32_t i = 0; i < value_count[frame]; ++i)
+        if (candidate == &values[frame][i]) return candidate;
+    return nullptr;
+}
+
+inline WireValue wire_argument(lua_State* L, int index) {
+    if (auto* compound = value_from_lua(L, index)) return *compound;
+    WireValue result{};
+    result.count = 1;
+    result.words[0] = argument(L, index);
+    return result;
+}
+
+inline WireValue* retain_value(const WireValue& value) {
+    if (depth == 0) return nullptr;
+    const uint32_t frame = depth - 1;
+    if (value_count[frame] >= EPOK_LUA_MAX_VALUES)
+        psyqo::Kernel::abort("Lua composite value arena exceeds EPOK_LUA_MAX_VALUES");
+    WireValue* slot = &values[frame][value_count[frame]++];
+    *slot = value;
+    return slot;
+}
 inline void push_int(lua_State* L, int32_t value) { lua_pushnumber(L, lua_Number(value)); }
 
 // ---- self resolution ------------------------------------------------------
@@ -385,6 +431,31 @@ inline int h_setf(lua_State* L) {
     return 0;
 }
 
+inline int h_getwf(lua_State* L) {
+    Object* object = current_self(L, 1);
+    const ClassBinding* binding = binding_for(object);
+    const uint32_t slot = uint32_t(argument(L, 2));
+    if (!binding || !binding->wide_get_field)
+        return luaL_error(L, "epok: no composite field binding");
+    const WireValue result = binding->wide_get_field(*object, slot);
+    if (result.count == 0) return 0;
+    if (result.count == 1) {
+        push_int(L, result.words[0]);
+        return 1;
+    }
+    lua_pushlightuserdata(L, retain_value(result));
+    return 1;
+}
+inline int h_setwf(lua_State* L) {
+    Object* object = current_self(L, 1);
+    const ClassBinding* binding = binding_for(object);
+    const uint32_t slot = uint32_t(argument(L, 2));
+    if (!binding || !binding->wide_set_field)
+        return luaL_error(L, "epok: no composite field binding");
+    binding->wide_set_field(*object, slot, wire_argument(L, 3));
+    return 0;
+}
+
 enum class Dispatch { SelfCall, SuperCall, Builtin };
 
 inline int dispatch(lua_State* L, Dispatch kind) {
@@ -409,6 +480,65 @@ inline int h_super(lua_State* L) { return dispatch(L, Dispatch::SuperCall); }
 // The builtin adapters. A site index, not a name: the whole call was resolved
 // and typed by the frontend, so the VM only chooses a generated case.
 inline int h_builtin(lua_State* L) { return dispatch(L, Dispatch::Builtin); }
+
+inline int dispatch_wide(lua_State* L, bool parent) {
+    Object* object = current_self(L, 1);
+    const ClassBinding* binding = binding_for(object);
+    if (!binding) return luaL_error(L, "epok: no class binding");
+    const uint32_t slot = uint32_t(argument(L, 2));
+    const int count = lua_gettop(L) - 2;
+    if (count < 0 || count > EPOK_LUA_MAX_ARGS)
+        return luaL_error(L, "epok: wide call arity %d is outside the profile", count);
+    WireValue args[EPOK_LUA_MAX_ARGS]{};
+    for (int i = 0; i < count; ++i) args[i] = wire_argument(L, 3 + i);
+    auto* entry = parent ? binding->wide_super_call : binding->wide_self_call;
+    if (!entry) return luaL_error(L, "epok: no wide dispatch binding");
+    const WireValue result = entry(*object, slot, args, uint32_t(count));
+    if (result.count == 0) return 0;
+    if (result.count == 1) {
+        push_int(L, result.words[0]);
+        return 1;
+    }
+    lua_pushlightuserdata(L, retain_value(result));
+    return 1;
+}
+inline int h_wide_call(lua_State* L) { return dispatch_wide(L, false); }
+inline int h_wide_super(lua_State* L) { return dispatch_wide(L, true); }
+
+inline int h_operation(lua_State* L) {
+    Object* object = current_self(L, 1);
+    const ClassBinding* binding = binding_for(object);
+    if (!binding || !binding->operation_call)
+        return luaL_error(L, "epok: no operation binding");
+    const uint32_t site = uint32_t(argument(L, 2));
+    const int count = lua_gettop(L) - 2;
+    if (count < 0 || count > EPOK_LUA_MAX_ARGS)
+        return luaL_error(L, "epok: operation arity %d is outside the profile", count);
+    WireValue args[EPOK_LUA_MAX_ARGS]{};
+    for (int i = 0; i < count; ++i) args[i] = wire_argument(L, 3 + i);
+    const WireValue result = binding->operation_call(*object, site, args, uint32_t(count));
+    if (result.count == 0) return 0;
+    if (result.count == 1) {
+        push_int(L, result.words[0]);
+        return 1;
+    }
+    lua_pushlightuserdata(L, retain_value(result));
+    return 1;
+}
+
+inline int h_member(lua_State* L) {
+    WireValue* value = value_from_lua(L, 1);
+    if (!value) return luaL_error(L, "epok: stale or invalid composite value");
+    const uint32_t offset = uint32_t(argument(L, 2));
+    const uint32_t count = uint32_t(argument(L, 3));
+    if (!count || offset >= value->count || count > value->count-offset)
+        return luaL_error(L, "epok: composite member offset is outside the value");
+    if(count==1){push_int(L,value->words[offset]);return 1;}
+    WireValue result{};result.count=uint8_t(count);
+    for(uint32_t i=0;i<count;++i)result.words[i]=value->words[offset+i];
+    lua_pushlightuserdata(L,retain_value(result));
+    return 1;
+}
 
 inline void register_helper(lua_State* L, const char* name, lua_CFunction fn) {
     lua_pushcfunction(L, fn);
@@ -472,9 +602,15 @@ inline void initialize() {
     register_helper(L, "__epok_ule", h_ule);
     register_helper(L, "__epok_getf", h_getf);
     register_helper(L, "__epok_setf", h_setf);
+    register_helper(L, "__epok_getwf", h_getwf);
+    register_helper(L, "__epok_setwf", h_setwf);
     register_helper(L, "__epok_call", h_call);
     register_helper(L, "__epok_super", h_super);
+    register_helper(L, "__epok_wide_call", h_wide_call);
+    register_helper(L, "__epok_wide_super", h_wide_super);
     register_helper(L, "__epok_builtin", h_builtin);
+    register_helper(L, "__epok_operation", h_operation);
+    register_helper(L, "__epok_member", h_member);
 
     // Mode 1 loads bytecode only; the no-parser core rejects text with its own
     // message, which is propagated rather than replaced.
@@ -546,6 +682,7 @@ class Frame {
             m_registry = active_object_registry;
             ++m_registry->dispatch;
         }
+        detail::value_count[detail::depth] = 0;
         detail::frames[detail::depth++] = {&self, class_index};
         lua_State* L = detail::state;
         m_top = lua_gettop(L);
@@ -569,6 +706,15 @@ class Frame {
     void arg(int32_t value) {
         if (!m_bound) return;
         detail::push_int(detail::state, value);
+        ++m_args;
+    }
+    void arg(const WireValue& value) {
+        if (!m_bound) return;
+        if (value.count <= 1) {
+            detail::push_int(detail::state, value.count ? value.words[0] : 0);
+        } else {
+            lua_pushlightuserdata(detail::state, detail::retain_value(value));
+        }
         ++m_args;
     }
     bool call(unsigned results) {
@@ -597,6 +743,17 @@ class Frame {
         lua_State* L = detail::state;
         if (lua_isboolean(L, -1)) return lua_toboolean(L, -1) ? 1 : 0;
         return int32_t(lua_tonumber(L, -1));
+    }
+    WireValue ret_wire() const {
+        WireValue result{};
+        if (!m_bound || m_results <= 0) return result;
+        lua_State* L = detail::state;
+        if (auto* compound = detail::value_from_lua(L, -1)) return *compound;
+        result.count = 1;
+        result.words[0] = lua_isboolean(L, -1)
+                              ? (lua_toboolean(L, -1) ? 1 : 0)
+                              : int32_t(lua_tonumber(L, -1));
+        return result;
     }
 
   private:

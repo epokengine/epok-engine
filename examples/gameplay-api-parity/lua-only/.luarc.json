@@ -1,0 +1,14 @@
+{
+  "runtime.version": "Lua 5.2",
+  "workspace.library": [".epok/lua"],
+  "diagnostics.globals": ["epok"],
+  "diagnostics.severity": {
+    "assign-type-mismatch": "Error!",
+    "param-type-mismatch": "Error!",
+    "return-type-mismatch": "Error!",
+    "cast-local-type": "Error!",
+    "undefined-field": "Error!",
+    "undefined-global": "Error!",
+    "inject-field": "Error!"
+  }
+}

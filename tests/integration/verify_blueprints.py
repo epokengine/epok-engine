@@ -19,7 +19,17 @@ import urllib.request
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
-EDITOR = ROOT / "target/debug/epok-editor.exe"
+EDITOR = next(
+    (
+        candidate
+        for candidate in (
+            ROOT / "target/debug/epok-editor",
+            ROOT / "target/debug/epok-editor.exe",
+        )
+        if candidate.is_file()
+    ),
+    ROOT / "target/debug/epok-editor",
+)
 
 
 def write(path, data):

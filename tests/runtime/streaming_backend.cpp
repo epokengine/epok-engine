@@ -8,6 +8,7 @@ void reset() {
   streaming_warmup_stats = {};
   stream_lookup_started = stream_lookup_pending = stream_ready = stream_failed = stream_read_pending = false;
   stream_warm_scene = false;
+  stream_gameplay_request_count = 0;
   music_active = music_requested = music_lookup = music_ready = music_boot_failed = music_data_owner = false;
   fake_cd::pending = {};
   fake_cd::idle = fake_cd::read_ok = true;
@@ -22,6 +23,31 @@ int main() {
   static_assert(!streaming_descriptor_valid([] { MeshGeometry m; m.stream_page = 0; m.stream_vertex_offset = 1; return m; }()));
   static_assert(!streaming_descriptor_valid([] { MeshGeometry m; m.stream_page = 0; m.stream_quad_offset = 2; return m; }()));
   psyqo::GPU gpu;
+  // Gameplay acquisition queues media work and copies one vertex from a
+  // briefly pinned resident page. The script-facing call itself never pumps.
+  reset();
+  MeshGeometry requested_mesh; requested_mesh.stream_page = 1;
+  requested_mesh.vertex_count = 2;
+  ActorData requested_actor{&requested_mesh};
+  assert(mesh_geometry_state(&requested_mesh) == MeshDataState::Pending);
+  assert(request_mesh_geometry(&requested_mesh));
+  assert(stream_gameplay_request_count == 1 && fake_cd::reads == 0);
+  streaming_service_gameplay_requests();
+  assert(!stream_lookup_pending && fake_cd::reads == 0);
+  music_tick();
+  streaming_service_gameplay_requests();
+  assert(stream_lookup_pending && fake_cd::reads == 0);
+  gpu.pumpCallbacks(); streaming_tick();
+  streaming_service_gameplay_requests();
+  assert(stream_read_pending && fake_cd::reads == 1);
+  auto pending_sample=sample_mesh_vertex(&requested_actor,0,CoordinateSpace::Model);
+  assert(!pending_sample.success&&pending_sample.error==MeshVertexError::Pending);
+  gpu.pumpCallbacks(); streaming_tick();
+  auto ready_sample=sample_mesh_vertex(&requested_actor,1,CoordinateSpace::World);
+  assert(ready_sample.success&&ready_sample.data_state==MeshDataState::Ready);
+  assert(ready_sample.position[0].raw()==0x0101+4096);
+  assert(!stream_pool.unpin(1));
+  assert(!sample_mesh_vertex(&requested_actor,2,CoordinateSpace::Model).success);
   reset();
   streaming_prepare();
   const uint8_t *first = streaming_acquire(1, gpu);

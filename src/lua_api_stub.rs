@@ -297,6 +297,67 @@ pub fn render(registry: &Registry) -> String {
         }
     }
 
+    // Gameplay service completion is generated from the same operation
+    // catalog consumed by Blueprint and the compiler. No handwritten stub can
+    // advertise a signature the frontend does not know.
+    let mut services = String::new();
+    let mut namespaces = BTreeSet::new();
+    let mut operations = registry
+        .operations
+        .values()
+        .filter(|operation| matches!(operation.receiver, schema::ReceiverKind::Service { .. }))
+        .collect::<Vec<_>>();
+    operations.sort_by(|a, b| {
+        a.category
+            .cmp(&b.category)
+            .then(a.name.cmp(&b.name))
+            .then(a.id.cmp(&b.id))
+    });
+    for operation in operations {
+        let namespace = operation
+            .category
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() {
+                    character.to_ascii_lowercase()
+                } else {
+                    '_'
+                }
+            })
+            .collect::<String>();
+        if crate::scripts::identifier(&namespace) && namespaces.insert(namespace.clone()) {
+            let _ = writeln!(services, "epok.{namespace} = {{}}");
+        }
+        let _ = writeln!(
+            services,
+            "--- {} Complexity: {}. Failure: {}",
+            operation.category, operation.complexity, operation.error_contract
+        );
+        let mut parameters = Vec::new();
+        for (index, parameter) in operation.parameters.iter().enumerate() {
+            let name = parameter_name(&parameter.name, index);
+            let _ = writeln!(
+                services,
+                "---@param {name} {}",
+                lua_type(registry, &parameter.value_type, &mut named)
+            );
+            parameters.push(name);
+        }
+        if let Some(output) = operation.outputs.first() {
+            let _ = writeln!(
+                services,
+                "---@return {}",
+                lua_type(registry, &output.value_type, &mut named)
+            );
+        }
+        let _ = writeln!(
+            services,
+            "function epok.{namespace}.{}({}) end\n",
+            operation.name,
+            parameters.join(", ")
+        );
+    }
+
     // A record field may name a further record or enum, so rendering continues
     // until the set of named types stops growing.
     let mut records = BTreeMap::new();
@@ -342,6 +403,8 @@ pub fn render(registry: &Registry) -> String {
     }
     out.push_str(&classes);
     out.push_str(NAMESPACE);
+    out.push_str("\n-- Catalog-generated Gameplay v2 services.\n");
+    out.push_str(&services);
     out.push_str(&namespace_bindings(&bindings));
     out
 }
@@ -674,6 +737,7 @@ mod tests {
             timeline: None,
             event: false,
             pure: false,
+            resource_demands: vec![],
             abstract_method: false,
             final_method: false,
             access: "public".into(),
