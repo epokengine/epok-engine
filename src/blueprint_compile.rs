@@ -896,6 +896,25 @@ fn has_delay(body: &[Statement]) -> bool {
         _ => false,
     })
 }
+fn has_delay_node(body: &[Statement]) -> bool {
+    body.iter().any(|s| match s {
+        Statement::Delay(_) => true,
+        Statement::Branch { yes, no, .. } => has_delay_node(yes) || has_delay_node(no),
+        Statement::Loop { body, .. } => has_delay_node(body),
+        Statement::Timeline {
+            updated, finished, ..
+        } => has_delay_node(updated) || has_delay_node(finished),
+        Statement::WaitPlayback {
+            reached,
+            completed,
+            cancelled,
+            ..
+        } => {
+            has_delay_node(reached) || has_delay_node(completed) || has_delay_node(cancelled)
+        }
+        _ => false,
+    })
+}
 fn cost(body: &[Statement]) -> u64 {
     body.iter()
         .map(|s| match s {
@@ -1190,7 +1209,12 @@ fn latent(
         ));
     }
     output.push_str(&format!(
-        "epok_tasks.cancel({token}u);\n{}{capture}epok_run_{key}({entry}u);\n}}\n",
+        "{}epok_tasks.cancel({token}u);\n{}{capture}epok_run_{key}({entry}u);\n}}\n",
+        if has_delay_node(&function.body) {
+            format!("if(epok_tasks.contains({token}u))return;\n")
+        } else {
+            String::new()
+        },
         code.cancel
     ));
     output.push_str(&fields);

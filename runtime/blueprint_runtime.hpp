@@ -118,6 +118,10 @@ public:
         for (const auto& slot : slots) if (slot.used && !slot.ready && slot.remaining < 0 && slot.continuation.node == node) return true;
         return false;
     }
+    bool contains(uint32_t node) const {
+        for (const auto& slot : slots) if (slot.used && slot.continuation.node == node) return true;
+        return false;
+    }
     bool signal(uint32_t node, uint32_t scene_generation = 0) {
         for (auto& slot : slots) if (slot.used && slot.remaining < 0 && slot.continuation.node == node) {
             if (!slot.continuation.owner.get() || slot.continuation.scene_generation != scene_generation) {
