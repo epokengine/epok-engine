@@ -15,6 +15,7 @@
 #include <new>
 #include <stddef.h>
 #include <stdint.h>
+#include <type_traits>
 
 #if defined(__clang__) && defined(EPOK_REFLECTION)
 // Declarative default component on an actor field: EPOK_COMPONENT(Root, Name="Body").
@@ -25,6 +26,10 @@
 
 namespace epok {
 class Object;
+class Actor;
+class ActorComponent;
+class Level;
+class World;
 struct NativeComponentDefault {
     Object* component=nullptr;
     const char* name=nullptr;
@@ -152,6 +157,9 @@ struct ClassDescriptor {
     void (*release)(Object* instance) = nullptr;
     size_t default_component_count=0;
     NativeComponentDefault (*default_component)(Object&,size_t)=nullptr;
+    // Legacy hand-written tables remain conservative. Cooked tables detect
+    // inherited no-op callbacks at compile time, including inherited overrides.
+    bool component_tick=true,component_frame=true;
 };
 // Emitted by the Rust cook next to the scene banks. Host tests provide their own table.
 extern const ClassDescriptor object_classes[];
@@ -264,6 +272,7 @@ struct ObjectRegistry {
     ObjectSlot* slots = nullptr;
     uint16_t capacity = 0;
     uint16_t dispatch = 0;
+    uint16_t pending_releases = 0;
     ObjectStats stats;
     constexpr ObjectRegistry(ObjectSlot* table, uint16_t count) : slots(table), capacity(count) {}
     ObjectRegistry(const ObjectRegistry&) = delete;
@@ -283,10 +292,21 @@ struct ObjectRegistry {
     }
     // Generation and class checked; the runtime class must derive from T's static class.
     template<class T> T* resolve(ObjectId id) {
-        Object* instance = get(id);
-        if (!instance) return nullptr;
-        if (!object_class_is_a(instance->class_id(), T::static_class_id)) return nullptr;
-        return static_cast<T*>(instance);
+        auto* record = slot(id);
+        if (!record || !record->instance || !record->type) return nullptr;
+        // The cook validates each class family. Base-family queries dominate
+        // ticking and activation; they need no virtual call or ancestry walk.
+        if constexpr (std::is_same_v<T, Object>) {}
+        else if constexpr (std::is_same_v<T, Actor>) {
+            if (record->type->family != ObjectFamily::Actor) return nullptr;
+        } else if constexpr (std::is_same_v<T, ActorComponent>) {
+            if (record->type->family != ObjectFamily::Component) return nullptr;
+        } else if constexpr (std::is_same_v<T, Level>) {
+            if (record->type->family != ObjectFamily::Level) return nullptr;
+        } else if constexpr (std::is_same_v<T, World>) {
+            if (record->type->family != ObjectFamily::World) return nullptr;
+        } else if (!object_class_is_a(record->type->id, T::static_class_id)) return nullptr;
+        return static_cast<T*>(record->instance);
     }
     template<class T> const T* resolve(ObjectId id) const { return const_cast<ObjectRegistry*>(this)->resolve<T>(id); }
     const ClassDescriptor* class_of(ObjectId id) {
@@ -321,6 +341,7 @@ struct ObjectRegistry {
         record->state = ObjectState::Destroyed;
         if (record->instance) record->instance->m_state = ObjectState::Destroyed;
         record->releasing = true;
+        ++pending_releases;
         record->generation = next_generation(record->generation);
         if (stats.alive) --stats.alive;
         if (!dispatch) finish_release();
@@ -332,7 +353,7 @@ struct ObjectRegistry {
     // only effect is that the slot and the pool entry are not reused yet. Call again
     // (`collect_quarantined`) once the service releases it.
     void finish_release() {
-        if (dispatch) return;
+        if (dispatch || !pending_releases) return;
         stats.quarantined = 0;  // gauge, not a counter: slots still held by a service.
         for (uint16_t i = 0; i < capacity; ++i) {
             auto& record = slots[i];
@@ -345,6 +366,7 @@ struct ObjectRegistry {
             record.used = false;
             record.releasing = false;
             record.owns_storage = false;
+            --pending_releases;
         }
     }
     // Retry the quarantined slots. The scene bank calls it once per frame, next to the
@@ -484,6 +506,18 @@ protected:
     ObjectId m_owner;
     char m_name[33] = {};
     bool m_begun = false, m_ended = false;
+};
+
+// Access-restricted or overloaded user hooks must remain callable through the
+// virtual base interface. When detection is ambiguous, conservatively dispatch.
+template<class T,class=void> struct ComponentCallbacks {
+    static constexpr bool tick=true,frame=true;
+};
+template<class T> struct ComponentCallbacks<T,std::void_t<decltype(&T::tick),
+    decltype(&T::frame_update),decltype(&T::on_frame)>> {
+    static constexpr bool tick=!std::is_same_v<decltype(&T::tick),decltype(&ActorComponent::tick)>;
+    static constexpr bool frame=!std::is_same_v<decltype(&T::frame_update),decltype(&ActorComponent::frame_update)> ||
+        !std::is_same_v<decltype(&T::on_frame),decltype(&ActorComponent::on_frame)>;
 };
 
 inline bool attach_component(ObjectId child,ObjectId parent);
@@ -1263,7 +1297,9 @@ protected:
         ObjectDispatchScope scope(*m_registry);
         for (size_t c = 0; c < actor->m_component_count; ++c) {
             if (actor->m_doomed) return;
-            if (auto* component = m_registry->resolve<ActorComponent>(actor->m_components[c])) component->tick(delta);
+            const auto* type = m_registry->class_of(actor->m_components[c]);
+            if (type && type->component_tick)
+                if (auto* component = m_registry->resolve<ActorComponent>(actor->m_components[c])) component->tick(delta);
         }
         if (!actor->m_doomed && actor->m_wants_tick) actor->tick(delta);
     }
@@ -1274,7 +1310,9 @@ protected:
         ObjectDispatchScope scope(*m_registry);
         for (size_t c = 0; c < actor->m_component_count; ++c) {
             if (actor->m_doomed) return;
-            if (auto* component = m_registry->resolve<ActorComponent>(actor->m_components[c])) component->frame_update(elapsed);
+            const auto* type = m_registry->class_of(actor->m_components[c]);
+            if (type && type->component_frame)
+                if (auto* component = m_registry->resolve<ActorComponent>(actor->m_components[c])) component->frame_update(elapsed);
         }
         if(!actor->m_doomed)actor->frame_update(elapsed);
     }

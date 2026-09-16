@@ -85,4 +85,20 @@ inline void project_geometry_vertex(const int16_t* vertex,const int32_t* offset,
     screen=readRaw<Register::SXY2>();
     flags=readRaw<Register::FLAG>();
 }
+// Interior retained chunks never need camera X/Y for software clipping. RTPT
+// preserves all three screen/depth results in its FIFOs (not MAC1..3).
+inline bool project_geometry_triple(const int16_t (*vertices)[3],const int32_t* offset,
+                                    uint32_t* screen,int32_t* depth) {
+    using namespace psyqo::GTE;
+    auto xy=[&](unsigned i){return uint32_t(uint16_t(offset[0]+(vertices[i][0]>>4))) |
+        (uint32_t(uint16_t(offset[1]+(vertices[i][1]>>4)))<<16);};
+    write<Register::VXY0>(xy(0));write<Register::VZ0>(uint32_t(offset[2]+(vertices[0][2]>>4)));
+    write<Register::VXY1>(xy(1));write<Register::VZ1>(uint32_t(offset[2]+(vertices[1][2]>>4)));
+    write<Register::VXY2>(xy(2));write<Register::VZ2>(uint32_t(offset[2]+(vertices[2][2]>>4)));
+    Kernels::rtpt();
+    if(readRaw<Register::FLAG>() & gte_projection_flags)return false;
+    screen[0]=readRaw<Register::SXY0>();screen[1]=readRaw<Register::SXY1>();screen[2]=readRaw<Register::SXY2>();
+    depth[0]=int32_t(readRaw<Register::SZ1>());depth[1]=int32_t(readRaw<Register::SZ2>());depth[2]=int32_t(readRaw<Register::SZ3>());
+    return true;
+}
 }

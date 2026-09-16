@@ -184,6 +184,14 @@ struct PolygonEmitter {
   inline int classify(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c) {
     if (a.outcode & b.outcode & c.outcode) return 0;
     if (!(a.visible && b.visible && c.visible)) return 2;
+    // Inside all six planes, projected spans are bounded by the viewport.
+    // Keep wide/near-plane cases on the checked path below.
+    if (epok::display_width <= 1023 && epok::display_height <= 511 && !(a.outcode | b.outcode | c.outcode)) {
+      const int32_t area = epok::screen_area(a, b, c);
+      if (area == 0) return 0;
+      if (editable && area < 0) { ++epok::mesh_stats.backfaces; return 0; }
+      return 1;
+    }
     int min_x = a.screen.x, max_x = min_x, min_y = a.screen.y, max_y = min_y;
     if (b.screen.x < min_x) min_x = b.screen.x; if (b.screen.x > max_x) max_x = b.screen.x;
     if (b.screen.y < min_y) min_y = b.screen.y; if (b.screen.y > max_y) max_y = b.screen.y;
@@ -814,6 +822,7 @@ void GameScene::frame() {
       EPOK_DETAIL_BEGIN(setup);
       ++epok::mesh_stats.tested_chunks;
       const int cached_bounds = bounds_cache_active ? visibility.cached_bounds(chunk_ordinal) : -1;
+      bool fully_inside_chunk = false;
       if (cached_bounds == 0) {
         EPOK_DETAIL_END(setup, setup_scanlines);
         continue;
@@ -868,6 +877,7 @@ void GameScene::frame() {
           continue;
         }
         if (bounds_cache_active) visibility.remember_bounds(chunk_ordinal, true);
+        fully_inside_chunk = narrow_view && epok::chunk_fully_inside(center, extent, projection_focal_pixels);
       }
       ++epok::mesh_stats.visible_chunks;
       // This chunk consumes its raw view before the cursor can advance. The
@@ -1038,7 +1048,34 @@ void GameScene::frame() {
           gte_geometry = epok::load_projection_matrix(model_view);
           object_matrix_loaded = false;
         }
-        for (size_t v = 0; v < mesh.vertex_count; ++v) {
+        size_t v = 0;
+        if (gte_geometry && fully_inside_chunk && object_retained && !object_any_dynamic) {
+          for (; v + 2 < mesh.vertex_count; v += 3) {
+            uint32_t screens[3];int32_t depths[3];
+            if (epok::project_geometry_triple(mesh_vertices+v,origin8,screens,depths)) {
+              for (unsigned i=0;i<3;++i) {
+                auto& out=projected_vertices[v+i];
+                out.camera[0]=out.camera[1]=0;out.camera[2]=depths[i];out.screen.packed=screens[i];
+                out.outcode=0;out.visible=true;out.fog=fog_enabled?epok::fog_amount(depths[i],fog_start,fog_end):0;
+#ifdef EPOK_VALIDATE_GTE
+                ProjectedVertex reference{};uint32_t flags;
+                epok::project_geometry_vertex(mesh_vertices[v+i],origin8,reference.camera,reference.screen.packed,flags);
+                finish_projection(reference,flags);
+                if(reference.screen.packed!=out.screen.packed || reference.camera[2]!=out.camera[2] ||
+                   reference.outcode || !reference.visible || reference.fog!=out.fog)
+                  ++performance_work.gte_validation_errors;
+#endif
+              }
+            } else {
+              for (unsigned i=0;i<3;++i) {
+                auto& out=projected_vertices[v+i];uint32_t flags;
+                epok::project_geometry_vertex(mesh_vertices[v+i],origin8,out.camera,out.screen.packed,flags);
+                finish_projection(out,flags);
+              }
+            }
+          }
+        }
+        for (; v < mesh.vertex_count; ++v) {
           auto &out = projected_vertices[v];
           uint32_t flags = epok::gte_projection_flags;
           if (gte_geometry) {
