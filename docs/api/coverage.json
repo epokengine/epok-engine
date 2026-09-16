@@ -1,16 +1,16 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 73,
-    "types": 288,
-    "callables": 942,
-    "properties": 1514
+    "headers": 75,
+    "types": 358,
+    "callables": 1221,
+    "properties": 1868
   },
   "psyqo": {
     "headers": 53,
-    "types": 160,
-    "callables": 944,
-    "properties": 539
+    "types": 168,
+    "callables": 894,
+    "properties": 551
   },
   "modules": [
     {
@@ -20,16 +20,18 @@
       "callables": 14,
       "types": 0,
       "properties": 0,
-      "source_sha256": "621bb422ff9c246af2271f7f83cd306854db2bc0114b3224c25d1396b2163824",
-      "diagnostics": []
+      "source_sha256": "c367cdbc7268eaf8acd0864143515f59e777c7fcbfbbc9bd7a5f01f7b4e0abb0",
+      "diagnostics": [
+        "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok-api-epok.cpp:1:10: fatal error: 'array' file not found"
+      ]
     },
     {
       "family": "epok",
       "header": "actor_tables.hpp",
       "slug": "actor-tables",
       "callables": 12,
-      "types": 8,
-      "properties": 46,
+      "types": 9,
+      "properties": 52,
       "source_sha256": "4f6ea3ea311109f5233ed4e950e7b4688bde084c350160137c6057c80f6fcba4",
       "diagnostics": []
     },
@@ -60,7 +62,7 @@
       "callables": 46,
       "types": 0,
       "properties": 0,
-      "source_sha256": "b520c13ad209b94d04b93c67d9dab3659090e646068a3d163931161dfbceae01",
+      "source_sha256": "412c2ccb9f6872da03b2591fe26e4ffcea21f2b5ae681a9489a70a24d24da3d8",
       "diagnostics": []
     },
     {
@@ -70,7 +72,7 @@
       "callables": 0,
       "types": 0,
       "properties": 0,
-      "source_sha256": "fc92bf4bb462dad21af467c4c2af558e1b31fbdd7ab8c54d29e28e41ae0c1a95",
+      "source_sha256": "ee1a39ac49b78a350e82a27dc58c006dd9d660b731bd231fb4a07a370096344b",
       "diagnostics": []
     },
     {
@@ -80,7 +82,7 @@
       "callables": 0,
       "types": 0,
       "properties": 0,
-      "source_sha256": "014c63d15ae58256b2864b0138ea5a3285dd5c48bfbd91c54b318ac3d2769ed5",
+      "source_sha256": "7c58d011cc05295e4a766380ed4371d2ec17cdf60dbb316408ee79a615944255",
       "diagnostics": []
     },
     {
@@ -88,9 +90,9 @@
       "header": "blueprint_runtime.hpp",
       "slug": "blueprint-runtime",
       "callables": 64,
-      "types": 11,
-      "properties": 29,
-      "source_sha256": "0dcff95a8914fe9b681ce6409009d1decdae15903f3a274825736640d05dc60e",
+      "types": 12,
+      "properties": 34,
+      "source_sha256": "fe07fc333b0e40aa98b1c3ca95e8ab47aa5dab3dc3e3de151621af64ff807831",
       "diagnostics": []
     },
     {
@@ -100,7 +102,7 @@
       "callables": 6,
       "types": 1,
       "properties": 0,
-      "source_sha256": "79fc528159ed08bf2f09433f1bd1d7cfe0e9522898eebd23dfa6d0ed42b0e56c",
+      "source_sha256": "502f33dc41318686ece632b04d6b000222b11c50eaf5c6e15d42c13a6d23e664",
       "diagnostics": []
     },
     {
@@ -110,7 +112,7 @@
       "callables": 0,
       "types": 0,
       "properties": 0,
-      "source_sha256": "7b6fadb96017af1fb676b7f1d59655bd2130858b6f2a0bcdc415e50a424391eb",
+      "source_sha256": "b614e62fe0aadc4c70f2ed90aa6baeeb6115ee49f62589c9cedabb39ccd19c97",
       "diagnostics": []
     },
     {
@@ -118,9 +120,9 @@
       "header": "collision.hpp",
       "slug": "collision",
       "callables": 16,
-      "types": 7,
-      "properties": 31,
-      "source_sha256": "c9138730021482e156e7cce568d31a73d1be1a365281c27b9a09f2732f32528a",
+      "types": 9,
+      "properties": 48,
+      "source_sha256": "a221bee86f9fdd9f58312c130374cc391e199db24a28a6d739f06b3e0d3d7864",
       "diagnostics": []
     },
     {
@@ -131,9 +133,7 @@
       "types": 0,
       "properties": 0,
       "source_sha256": "248812fcce435923067bd3a3be06db76c638b47476a289bf3844005d465db514",
-      "diagnostics": [
-        "D:\\GitProjects\\GameEngines\\Epok\\EpokEngine\\runtime\\debug_hud.hpp:2:10: fatal error: 'debug-hud.hh' file not found"
-      ]
+      "diagnostics": []
     },
     {
       "family": "epok",
@@ -159,10 +159,10 @@
       "family": "epok",
       "header": "epok.hpp",
       "slug": "epok",
-      "callables": 41,
-      "types": 36,
-      "properties": 197,
-      "source_sha256": "da772d542787e61d6e924e97834a143e654aaa35a840cc5676194e04a3811245",
+      "callables": 52,
+      "types": 50,
+      "properties": 311,
+      "source_sha256": "bf8225886c0317238ba335c7af53837b0d780b06f74b19fe6e0bc1c1ae6f8aaa",
       "diagnostics": []
     },
     {
@@ -187,6 +187,16 @@
     },
     {
       "family": "epok",
+      "header": "gameplay_api.hpp",
+      "slug": "gameplay-api",
+      "callables": 66,
+      "types": 27,
+      "properties": 93,
+      "source_sha256": "2e76e11cbda5e367299029adb0e8b70a100a4e410bde510449be3f8cbb751f7a",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
       "header": "gte_geometry.hpp",
       "slug": "gte-geometry",
       "callables": 5,
@@ -200,9 +210,9 @@
       "header": "hud.hpp",
       "slug": "hud",
       "callables": 8,
-      "types": 1,
-      "properties": 0,
-      "source_sha256": "3b84032c64ea58803cb979a6ffdbb4363a7f4ad0070e61d9f31bd4aa72ca89f0",
+      "types": 2,
+      "properties": 1,
+      "source_sha256": "7ccd5a2722759f6505e160c16833c18588fe87e504412aad5db77b9039f79d73",
       "diagnostics": []
     },
     {
@@ -212,17 +222,17 @@
       "callables": 5,
       "types": 3,
       "properties": 9,
-      "source_sha256": "9e420ce82efd76079c59affc5786a752da42c75372ab6dbbfa935e1841eb0c65",
+      "source_sha256": "79904537bc9eebdf1440c09c8ed6cc052b87dd5da39984cfa42c8036d76b2027",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "input.hpp",
       "slug": "input",
-      "callables": 12,
-      "types": 2,
-      "properties": 17,
-      "source_sha256": "8b3530e253a322cd05981d3d2874804b56fe2d90490352886811d8b90099b60c",
+      "callables": 14,
+      "types": 4,
+      "properties": 31,
+      "source_sha256": "a29e88f64c3b03332e45c50c9c1ef6cf0c297c4787b5d226639b9a018e2c0105",
       "diagnostics": []
     },
     {
@@ -270,8 +280,8 @@
       "header": "instrument_synth.hpp",
       "slug": "instrument-synth",
       "callables": 35,
-      "types": 6,
-      "properties": 30,
+      "types": 8,
+      "properties": 45,
       "source_sha256": "fd8adee76ed5f736d9066beebd1890e9ccca11d00a466e2da4c74130f0f9fcb4",
       "diagnostics": []
     },
@@ -282,7 +292,7 @@
       "callables": 3,
       "types": 0,
       "properties": 1,
-      "source_sha256": "ab537cb86fb1a5aabee636ec711132dffeff57cbc551e2d71d6bfc55c0f5d779",
+      "source_sha256": "4acab904c8b924ccd380d598637be43408ac7a509967cb143b8ce6beed77e3d0",
       "diagnostics": []
     },
     {
@@ -292,7 +302,7 @@
       "callables": 16,
       "types": 5,
       "properties": 12,
-      "source_sha256": "56e34f1d878dcbd2a1c2949e54cee5e6d3d25a46702257ca4285c8d4af63e3ac",
+      "source_sha256": "6c715a5c34a8167726a18d439f5977a24574e6eff72e527334f5ea7031fc4c55",
       "diagnostics": []
     },
     {
@@ -303,6 +313,16 @@
       "types": 1,
       "properties": 0,
       "source_sha256": "c2557b1077694762230b42cecdd7fac562a7e4294541690b4e33689c725a4579",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "lua_runtime.hpp",
+      "slug": "lua-runtime",
+      "callables": 0,
+      "types": 0,
+      "properties": 0,
+      "source_sha256": "ef268258d268106b7a66516cd050ca3f5486342d3303f0d5ee152537e8f5cb6a",
       "diagnostics": []
     },
     {
@@ -330,8 +350,8 @@
       "header": "motion_interpolation.hpp",
       "slug": "motion-interpolation",
       "callables": 13,
-      "types": 1,
-      "properties": 0,
+      "types": 2,
+      "properties": 7,
       "source_sha256": "0798b8ed2bb7d379efdc5d1766168e596d570c903dd1c98596fc8c561e318ae1",
       "diagnostics": []
     },
@@ -341,7 +361,7 @@
       "slug": "music",
       "callables": 10,
       "types": 2,
-      "properties": 25,
+      "properties": 24,
       "source_sha256": "84f35ad30c430db3ad392c56b8b7cd3fe85578c28e2dfb70bf8331a42745cc7f",
       "diagnostics": []
     },
@@ -349,10 +369,10 @@
       "family": "epok",
       "header": "object_model.hpp",
       "slug": "object-model",
-      "callables": 150,
-      "types": 46,
-      "properties": 133,
-      "source_sha256": "82b0105fd8362fb2fe2568ae62c65463dec2f198ed089e0d431eee6c730d7a34",
+      "callables": 297,
+      "types": 47,
+      "properties": 143,
+      "source_sha256": "b73aa1805129cf7dbc51729d7fa96ca854ede4ecc4b394f5a8846f823c0ee38e",
       "diagnostics": []
     },
     {
@@ -360,8 +380,8 @@
       "header": "palette.hpp",
       "slug": "palette",
       "callables": 2,
-      "types": 1,
-      "properties": 0,
+      "types": 2,
+      "properties": 4,
       "source_sha256": "70158d8896728b39759bea97bcaf8fad01ac0ef6afe14bf4efd77a8c5cf0431f",
       "diagnostics": []
     },
@@ -370,7 +390,7 @@
       "header": "palette_types.hpp",
       "slug": "palette-types",
       "callables": 4,
-      "types": 3,
+      "types": 2,
       "properties": 12,
       "source_sha256": "ff3e249638384816b9aeab84b2b56b71c39f65aef7935ac30757868b0f238084",
       "diagnostics": []
@@ -381,8 +401,8 @@
       "slug": "particle-effect-runtime",
       "callables": 22,
       "types": 7,
-      "properties": 44,
-      "source_sha256": "f695afa17ba3182414562baff62a5bb7634bc65b496f598d07d6e46a92ca6f58",
+      "properties": 43,
+      "source_sha256": "f23f2c74a3ae50cc7586b251fcb71740173696c9eaa9e640402fff7086f8f5ea",
       "diagnostics": []
     },
     {
@@ -392,7 +412,7 @@
       "callables": 14,
       "types": 1,
       "properties": 13,
-      "source_sha256": "a3badfb37ce85829b61c4da6f9ae9141bf6dea94dd7aba1ef7ae166a350c0dca",
+      "source_sha256": "b16d19409cebe43bc9eff047c80fb976e1017191ad8c4553873a6973eba2fc10",
       "diagnostics": []
     },
     {
@@ -410,9 +430,9 @@
       "header": "particles.hpp",
       "slug": "particles",
       "callables": 10,
-      "types": 2,
-      "properties": 20,
-      "source_sha256": "c18398479212194b8d0012399c1ed05bd9ebabc3a18d47a939577a0f534ff303",
+      "types": 3,
+      "properties": 23,
+      "source_sha256": "07dad5f6b5b55b05e631ca17c7c60571f9ef99a5ba050d30a7cbfc2465a03ba4",
       "diagnostics": []
     },
     {
@@ -462,7 +482,7 @@
       "callables": 3,
       "types": 1,
       "properties": 9,
-      "source_sha256": "5725175eff23d20df873b62f60195c3494439b2e5c5008165158d27d6eb0f5ca",
+      "source_sha256": "e709fe841b827c24e595d69daa2a70e2eb50e98607b1c8c65ad5f8f5d26aa464",
       "diagnostics": []
     },
     {
@@ -471,7 +491,7 @@
       "slug": "sequence-clock",
       "callables": 3,
       "types": 0,
-      "properties": 3,
+      "properties": 2,
       "source_sha256": "847b3cb6ee8f2435397c5b4d0e3445258186c4ed4b10118fd971bab1f4600816",
       "diagnostics": []
     },
@@ -521,7 +541,7 @@
       "slug": "sequence-service",
       "callables": 28,
       "types": 6,
-      "properties": 83,
+      "properties": 79,
       "source_sha256": "88c64d663f2da49e30e5296111973c379bbc768dfa0919eb579cbba0224838dd",
       "diagnostics": []
     },
@@ -560,19 +580,19 @@
       "header": "shadows.hpp",
       "slug": "shadows",
       "callables": 1,
-      "types": 1,
-      "properties": 0,
-      "source_sha256": "643c46149b0e2527c342a2276e612bbcefb62f1e8a0d76eb84967272ff4ae6f6",
+      "types": 2,
+      "properties": 3,
+      "source_sha256": "f06f1f2cca746b401ff27dee711166172c8a513f2a280ffa4423f44b3d2723e4",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "skeletal.hpp",
       "slug": "skeletal",
-      "callables": 2,
-      "types": 1,
-      "properties": 4,
-      "source_sha256": "713c186758e07df9c32d39008a691a41b12d0c40e2749b6b4df362c1fd4d2b89",
+      "callables": 17,
+      "types": 2,
+      "properties": 5,
+      "source_sha256": "96b7b3db56cb7ee2211c3fcc9598b87c04d3d096a581081f22fc7ef2729cfdf8",
       "diagnostics": []
     },
     {
@@ -580,7 +600,7 @@
       "header": "sprite_types.hpp",
       "slug": "sprite-types",
       "callables": 8,
-      "types": 7,
+      "types": 6,
       "properties": 41,
       "source_sha256": "5024d28805d8f7b1c6b90c13ef633a6ee5bc18c10d16d632fe4229349ea4982d",
       "diagnostics": []
@@ -609,10 +629,10 @@
       "family": "epok",
       "header": "streaming.hpp",
       "slug": "streaming",
-      "callables": 34,
+      "callables": 36,
       "types": 6,
-      "properties": 33,
-      "source_sha256": "428e28975351720d31809e41fe33018fd30cd780bc151082775b2e1ffcb599e3",
+      "properties": 37,
+      "source_sha256": "71f172c62212e2f11f9dd3235e9cd0819650abc97c005d4e9fc5d911faa6ad33",
       "diagnostics": []
     },
     {
@@ -620,8 +640,8 @@
       "header": "streaming_pool.hpp",
       "slug": "streaming-pool",
       "callables": 13,
-      "types": 1,
-      "properties": 8,
+      "types": 2,
+      "properties": 13,
       "source_sha256": "a8d8cfe15cd65701265fbcd66698a6555cb84e77b3b3c5feb25022334c01b7de",
       "diagnostics": []
     },
@@ -672,17 +692,17 @@
       "callables": 3,
       "types": 6,
       "properties": 20,
-      "source_sha256": "3d9e3a357b2e828792349b15efa01bccc9684b1a2727442e3ee95dd812f60463",
+      "source_sha256": "5a63662524140e445de2f17d1a4f1875895afe071ac545c7c94644c01ffd7b5f",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "timeline_runtime.hpp",
       "slug": "timeline-runtime",
-      "callables": 28,
-      "types": 11,
-      "properties": 63,
-      "source_sha256": "1048a46ece6d14cfaa99773fa7e5ee8b933b0cfe95eed16b33aea9693a80cbf0",
+      "callables": 32,
+      "types": 12,
+      "properties": 79,
+      "source_sha256": "5bb7273dab79f3c5d3597ad9b828eaacd05b0db5e9eb4e423af149e075f9f870",
       "diagnostics": []
     },
     {
@@ -692,7 +712,7 @@
       "callables": 9,
       "types": 1,
       "properties": 11,
-      "source_sha256": "6c764c02ee5c607bc73b023db1f9ea51b3b5769ce73028f4b6b8c332cfeab509",
+      "source_sha256": "5463447b61300f688458fdff67e78ea91e88ded6592f2d994134680895bee074",
       "diagnostics": []
     },
     {
@@ -700,8 +720,8 @@
       "header": "transform_cache.hpp",
       "slug": "transform-cache",
       "callables": 3,
-      "types": 1,
-      "properties": 2,
+      "types": 2,
+      "properties": 9,
       "source_sha256": "6dd2171c177fdce549eee9950232bd90353c3cf1f3821b7a5c355ff7c33b8cdb",
       "diagnostics": []
     },
@@ -719,10 +739,10 @@
       "family": "epok",
       "header": "utility.hpp",
       "slug": "utility",
-      "callables": 23,
-      "types": 7,
-      "properties": 10,
-      "source_sha256": "e02c3ff83d2c3b639ccec3498b3c64e0ca7d3017046b07596b6998e64c01dc33",
+      "callables": 55,
+      "types": 16,
+      "properties": 37,
+      "source_sha256": "fccc098ff797101ca1d294e77f18149491bca5a42408e4139b963cf9869db250",
       "diagnostics": []
     },
     {
@@ -740,8 +760,8 @@
       "header": "world2d.hpp",
       "slug": "world2d",
       "callables": 45,
-      "types": 11,
-      "properties": 46,
+      "types": 13,
+      "properties": 55,
       "source_sha256": "fe74d215c3d452c6f155dd67a8d335cb080696a8a9ba067d05c8e5e215821bbe",
       "diagnostics": []
     },
@@ -752,8 +772,10 @@
       "callables": 3,
       "types": 0,
       "properties": 0,
-      "source_sha256": "5b19345dd6bf70a175acc1cb3a7c6fbcdb0022ffb01580df696b244a4ecf667a",
-      "diagnostics": []
+      "source_sha256": "acbf938b97f5127ab28e44027cd951d98e1cbb3d2f5549b597c3225f92b69ee2",
+      "diagnostics": [
+        "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok-api-psyqo.cpp:1:10: fatal error: 'array' file not found"
+      ]
     },
     {
       "family": "psyqo",
@@ -762,7 +784,7 @@
       "callables": 11,
       "types": 8,
       "properties": 50,
-      "source_sha256": "5f63abafb4bf2088a5defab28199533933342002a075579bb4824acf5164bc6f",
+      "source_sha256": "5a3b169e4312a3f64c59c82982bf4c8e2e5529d186a0edbfb4e5c62e3435d27a",
       "diagnostics": []
     },
     {
@@ -772,17 +794,17 @@
       "callables": 10,
       "types": 2,
       "properties": 0,
-      "source_sha256": "e00cb603b3ec340d1bab954f5d08f0784bf2f7c95dd3a80f902a9ff91b263169",
+      "source_sha256": "59e2297eddab172affba94c0d4570f31097de473198fbcdc0c4e088e830f0717",
       "diagnostics": []
     },
     {
       "family": "psyqo",
       "header": "bezier.hh",
       "slug": "bezier",
-      "callables": 2,
+      "callables": 1,
       "types": 0,
       "properties": 0,
-      "source_sha256": "ba065d2b46fa7577753347b7635dbc6fdb400d8966aa98360b4a0eb24e8fea4c",
+      "source_sha256": "4795bffc23bfcda70fbe4161a3dafa86f0b9e40e0320314f23d60b131cc6fd9f",
       "diagnostics": []
     },
     {
@@ -792,7 +814,7 @@
       "callables": 4,
       "types": 2,
       "properties": 0,
-      "source_sha256": "55576de7d254eafff169e8a6e502183fba1d61bac6dd24813ca64c0bac75b5ea",
+      "source_sha256": "4116cc0d741a612e91cdc7750cb61590e4d8b097e87d6fdf039b12b405092985",
       "diagnostics": []
     },
     {
@@ -802,7 +824,7 @@
       "callables": 5,
       "types": 1,
       "properties": 0,
-      "source_sha256": "3883c7e6f5c40bdbd5873b3412d776e2e58168519e3303594d8ce40cf6431640",
+      "source_sha256": "2a40ac87dba7bb3256989215e25e3f820d3ab5b1e14551b15d63e4b2362c5116",
       "diagnostics": []
     },
     {
@@ -812,7 +834,7 @@
       "callables": 1,
       "types": 1,
       "properties": 2,
-      "source_sha256": "d4bbc519796057574b8540014173c10f9696645ec30533b11875ff5df7f15295",
+      "source_sha256": "d0bef3a74991d841f24fbb3424e15af0e4cb0fc864825124adc70cac13533c02",
       "diagnostics": []
     },
     {
@@ -822,7 +844,7 @@
       "callables": 64,
       "types": 11,
       "properties": 4,
-      "source_sha256": "ce7021ca34ed9186cab2de88af715834ea932fa33d1320fc0fa1c13e8f608927",
+      "source_sha256": "127dfe7e33d82f145c70372d340546ed5082a0239381fb2f0753f73a365ab2e9",
       "diagnostics": []
     },
     {
@@ -832,37 +854,37 @@
       "callables": 3,
       "types": 1,
       "properties": 0,
-      "source_sha256": "833eb86fa8381bb9c887f2ab6940b6c4935cba3a89219615997a2740dd29cf0a",
+      "source_sha256": "e1ddf0920150d7d0801747b7179471a0731afe4854a235a4a1aad9a7a8db82e0",
       "diagnostics": []
     },
     {
       "family": "psyqo",
       "header": "cdrom.hh",
       "slug": "cdrom",
-      "callables": 5,
-      "types": 2,
+      "callables": 10,
+      "types": 3,
       "properties": 3,
-      "source_sha256": "8daaf45a94ee293b31f2e15c4d179784b8b07f18b737804e7fad40d569d54ae7",
+      "source_sha256": "926077f0496ff80c9b68f9b6e9be73631e5adb36e569fd17659c42970d6520c9",
       "diagnostics": []
     },
     {
       "family": "psyqo",
       "header": "coroutine.hh",
       "slug": "coroutine",
-      "callables": 34,
-      "types": 7,
-      "properties": 2,
-      "source_sha256": "7a125eb582d4189954e1d5ce0dc6d6353ae98440219b28a2cc71f7407beeaac6",
+      "callables": 44,
+      "types": 9,
+      "properties": 7,
+      "source_sha256": "1f7fb1de89183cdd2ca5fe9a3505769cc0aee95ee45e31f9db4bdabefd07be1d",
       "diagnostics": []
     },
     {
       "family": "psyqo",
       "header": "fixed-point.hh",
       "slug": "fixed-point",
-      "callables": 50,
+      "callables": 49,
       "types": 2,
       "properties": 3,
-      "source_sha256": "44a1a263832936c119e11fa3f251b3eaae4f25a35cc20f09ceb91489ea3aed8d",
+      "source_sha256": "0744776790428769a46aadba405a47c8799dd8e3489ee7b9bf30512198d18116",
       "diagnostics": []
     },
     {
@@ -870,9 +892,9 @@
       "header": "font.hh",
       "slug": "font",
       "callables": 18,
-      "types": 2,
-      "properties": 0,
-      "source_sha256": "1c4caa5e62043e54c602c1e4614a9773b1087209dc68df6512b52efb1f32e4a3",
+      "types": 3,
+      "properties": 4,
+      "source_sha256": "9ad21d9f5b178a170ef0508c0a9d249ea34739a14b711665b267e49557030306",
       "diagnostics": []
     },
     {
@@ -882,7 +904,7 @@
       "callables": 0,
       "types": 1,
       "properties": 0,
-      "source_sha256": "1aaac3d0e196d360964d58c8cbcf306c997c59e53d787218f0a38f2e366d0945",
+      "source_sha256": "91eadfeb28d120f1505b88afc81e9140a0f75198c7e83d3f578a68d664e40949",
       "diagnostics": []
     },
     {
@@ -892,17 +914,17 @@
       "callables": 16,
       "types": 6,
       "properties": 9,
-      "source_sha256": "65c0711723982de3dc2503eb842631447579df7a97270572b8cb046a2d5674e4",
+      "source_sha256": "0792b35bd2b100716cf8e637a424363c1742023440bda6a2620b827eb3033f21",
       "diagnostics": []
     },
     {
       "family": "psyqo",
       "header": "gpu.hh",
       "slug": "gpu",
-      "callables": 46,
-      "types": 7,
-      "properties": 16,
-      "source_sha256": "4b1efadbb6ffcf7df63ef5a77fdec7889a4a85f34a92306f521cf70128c6cc88",
+      "callables": 51,
+      "types": 10,
+      "properties": 26,
+      "source_sha256": "b41653e8941308284d22a258f255389744e81903a23b9a968289e6e380fead72",
       "diagnostics": []
     },
     {
@@ -912,7 +934,7 @@
       "callables": 74,
       "types": 5,
       "properties": 15,
-      "source_sha256": "ba52957196576fd9de1eee900f3ddc0df289f31ccb0a031e2128d8925ad926eb",
+      "source_sha256": "24dfed0d597d79c91c5bf6ab381f3f9b702f4affa42b2fd41e8a2f6571d369dd",
       "diagnostics": []
     },
     {
@@ -922,17 +944,17 @@
       "callables": 11,
       "types": 0,
       "properties": 0,
-      "source_sha256": "702a65748070a1c4ee48b94e8eef331d564dd247bfbe1b72524780816d50a6d8",
+      "source_sha256": "37cf9b034bb4e4d7e938370397b8ff5dc8501129a7afd5756fe6bc59c06c2ea1",
       "diagnostics": []
     },
     {
       "family": "psyqo",
       "header": "gte-registers.hh",
       "slug": "gte-registers",
-      "callables": 101,
+      "callables": 33,
       "types": 4,
       "properties": 79,
-      "source_sha256": "f01f1ccf76ef9a8a45035a7a9a171ac4b70e9d0b9a266c3786cff97340c45142",
+      "source_sha256": "d0d655ed9e63fc8dd1dd99da4874c9d9b83bbaaa2c284f819e2b55bd0dce3e63",
       "diagnostics": []
     },
     {
@@ -941,8 +963,8 @@
       "slug": "hardware-cdrom",
       "callables": 4,
       "types": 3,
-      "properties": 44,
-      "source_sha256": "44dc588834f4a37613200a1d5004658afe4a97375d6ddd453d0550136d1760a4",
+      "properties": 36,
+      "source_sha256": "d8a4609c31942703ee3051608f55257557e10bcd0000361f3b293e663f026659",
       "diagnostics": []
     },
     {
@@ -952,7 +974,7 @@
       "callables": 5,
       "types": 2,
       "properties": 16,
-      "source_sha256": "f8566fa5bed48bb1863fa1c407ef8a95fa039df490c279e87247f5ddbcf5dcb0",
+      "source_sha256": "80114be57797b3b6625e793fea092318d6ec25e585c353bce243d2452e8690e2",
       "diagnostics": []
     },
     {
@@ -962,7 +984,7 @@
       "callables": 0,
       "types": 0,
       "properties": 2,
-      "source_sha256": "0f4d3494ee554ad4c19ba2cdf61807da0dce1416fe5e1887ae2b8bcf8fe9714a",
+      "source_sha256": "6ce14f50220c6873fb696ec1a0adbbdab888e7afe4442444c56ad4a98992a72a",
       "diagnostics": []
     },
     {
@@ -972,7 +994,7 @@
       "callables": 41,
       "types": 3,
       "properties": 3,
-      "source_sha256": "27b5a6c1a9741ff4f881c3d1389a479fb3e3ad01c02b52d1bcd541c4f6482a71",
+      "source_sha256": "dd506023172470e82f273582bb6ec50795194fe169068ef6a4bf005861c3fea4",
       "diagnostics": []
     },
     {
@@ -982,7 +1004,7 @@
       "callables": 0,
       "types": 0,
       "properties": 3,
-      "source_sha256": "82db90d57087e7808a10610ea69485985902c3fe4c22f0ba28856d4e01467eeb",
+      "source_sha256": "930f29a5e1f1d9667068e7e273f0792bd479bb4f62217b5b31fd10222e138223",
       "diagnostics": []
     },
     {
@@ -992,7 +1014,7 @@
       "callables": 0,
       "types": 2,
       "properties": 27,
-      "source_sha256": "1896e339261d0604b683f2583ed489883c98c1de9f831d676690ed1044d8d846",
+      "source_sha256": "8cfd38b48d8d4b3eb6ca037c86d356a20377f1d968f5e43c5acccef769e66362",
       "diagnostics": []
     },
     {
@@ -1002,7 +1024,7 @@
       "callables": 5,
       "types": 1,
       "properties": 0,
-      "source_sha256": "d8aed45348032adba61fd670fd50456d0e5c6680d6f59c8480199f194de38f89",
+      "source_sha256": "f9bd9c160424334cfbf0d42631e31a11fed14257f29e904a473e3bc40c795471",
       "diagnostics": []
     },
     {
@@ -1012,7 +1034,7 @@
       "callables": 18,
       "types": 6,
       "properties": 11,
-      "source_sha256": "963cc66d156c8e24a878c00b74a8be8f2efd60e7f47166581d45df087328581e",
+      "source_sha256": "b8aaa6c8dccd0aa4f8e2cfb0e6dc7bf0b198ac0970e96e0f0aca766b9edb4efe",
       "diagnostics": []
     },
     {
@@ -1022,7 +1044,7 @@
       "callables": 29,
       "types": 4,
       "properties": 23,
-      "source_sha256": "fa7b498634dc73182a2820870210372a6ca6130030d2238787a6a1eb124f0047",
+      "source_sha256": "980d814130f6fa84af169a6eacbdb05b98d78b7a3e30c592da88b9eee7b3bce8",
       "diagnostics": []
     },
     {
@@ -1032,7 +1054,7 @@
       "callables": 0,
       "types": 1,
       "properties": 1,
-      "source_sha256": "d2dfb7816dca5c395e71d47e4542032abfb35ec147091f96abae90797dd0c511",
+      "source_sha256": "719e051216541652a43369eac24a034537e01379fcd96d719763fe140c70d2c0",
       "diagnostics": []
     },
     {
@@ -1040,9 +1062,9 @@
       "header": "memory-card-filesystem.hh",
       "slug": "memory-card-filesystem",
       "callables": 20,
-      "types": 7,
-      "properties": 8,
-      "source_sha256": "b4d4294289aab2901158dc5995631661baa13aed7b083c5db96e13f1aee33008",
+      "types": 8,
+      "properties": 9,
+      "source_sha256": "88c72ddd2a0c536894770f7d922221b96e62bf2f63a195367962e5dbbeeb1fa8",
       "diagnostics": []
     },
     {
@@ -1052,7 +1074,7 @@
       "callables": 23,
       "types": 6,
       "properties": 24,
-      "source_sha256": "a28c36417279187dfa3c11fbb15c4620684fae5cc46a7207915cceb3544b2277",
+      "source_sha256": "919e817851cea4833701bb43b33ee61dbd0d8992c619adb9a62a284562da973c",
       "diagnostics": []
     },
     {
@@ -1062,7 +1084,7 @@
       "callables": 13,
       "types": 2,
       "properties": 6,
-      "source_sha256": "16fda296b6343b01acf86301ec7e6fea62d2c70b259b4cd6ce7b03f69d8afd1d",
+      "source_sha256": "eeab8ba53aafd830d68d3bd081352afc4eba50643f786c73055d9e87aa9c18e7",
       "diagnostics": []
     },
     {
@@ -1072,7 +1094,7 @@
       "callables": 4,
       "types": 3,
       "properties": 1,
-      "source_sha256": "be6e402f91c979cd9fb983d7c3cbd71d493914eb8df83b9a6964a733d5bd98a3",
+      "source_sha256": "fb2abe3b651ae0ac1802d642622452c76278a28a0a780e9394a21073f2ec4d85",
       "diagnostics": []
     },
     {
@@ -1082,7 +1104,7 @@
       "callables": 0,
       "types": 0,
       "properties": 0,
-      "source_sha256": "9a8e01b9376ec8aa71a2445963f22d2ab7698da9087e5e1900ef70439abdc9ec",
+      "source_sha256": "9671f6a5ea0c42f3e132cdb24be7d115f215cad451e30da2cf987a10d27eb285",
       "diagnostics": []
     },
     {
@@ -1092,7 +1114,7 @@
       "callables": 27,
       "types": 13,
       "properties": 39,
-      "source_sha256": "7ca36138380b2eec16267dc78dbc59d58469af27bd24a4e22dd2713b05a9f58b",
+      "source_sha256": "a540ccdd85f67ec77a8fcbbd3db07ad0934802e0a030e1dbc4b9f043c80644c0",
       "diagnostics": []
     },
     {
@@ -1102,7 +1124,7 @@
       "callables": 14,
       "types": 9,
       "properties": 9,
-      "source_sha256": "9a14a42894ff63ad0ef3c36b8f8d0ebcb32422a9d02691e1f85f7d736ce64e8d",
+      "source_sha256": "231b25d46766d0725508782fd35bd38dda7a10ce90762b1435fa1894101627b4",
       "diagnostics": []
     },
     {
@@ -1112,7 +1134,7 @@
       "callables": 23,
       "types": 5,
       "properties": 8,
-      "source_sha256": "ffb34c6c2aa8fe608147646271f650b467bbff3decb6292c292ce35046d36a57",
+      "source_sha256": "5474b45bc489b6b0f9e1937dd226a31660308979674ca6d8c8a2f5f0c8559025",
       "diagnostics": []
     },
     {
@@ -1122,7 +1144,7 @@
       "callables": 4,
       "types": 2,
       "properties": 1,
-      "source_sha256": "6d379c32fe2e9560312ec0d7ee87f822ed70fb807e39fe82331b8ab43b53657b",
+      "source_sha256": "811e979c8ff6deaa5a5506ba98de9820d4c34cff781ccb9b3d7588db1bd69eb3",
       "diagnostics": []
     },
     {
@@ -1132,7 +1154,7 @@
       "callables": 60,
       "types": 4,
       "properties": 34,
-      "source_sha256": "87076c5514d03d4108240a39133285112310e3aa0d58074c26d9873279707d83",
+      "source_sha256": "6d6a548d596c11fd8952210fc2323c9e0811d23098d5605b7176c08284ea3794",
       "diagnostics": []
     },
     {
@@ -1142,7 +1164,7 @@
       "callables": 20,
       "types": 4,
       "properties": 9,
-      "source_sha256": "05671399d83438c0a97b41d6ed3332713a061d424a3149377392a39bcaa78a5e",
+      "source_sha256": "1f89f4575b6ec9fe7cd635426d4c0809b0476f6c4ad90dd98ea31f4466470c9d",
       "diagnostics": []
     },
     {
@@ -1152,7 +1174,7 @@
       "callables": 20,
       "types": 4,
       "properties": 13,
-      "source_sha256": "621328710619dfa86bef3de01c4ad6d1b9f75791906bb02b1f295564a29836c5",
+      "source_sha256": "e8128a2472a0240561b83b9dad1a38d6b7176c6e6a87ed40bd5614a4a267e0d6",
       "diagnostics": []
     },
     {
@@ -1162,7 +1184,7 @@
       "callables": 54,
       "types": 4,
       "properties": 26,
-      "source_sha256": "142923b72b5f8bbd033009150bc413643ed4373bb650fd73be21b0fc87691a0c",
+      "source_sha256": "ff96808585474725c3bf265ae8d727b6d1ba73d441f11776e559b1781de5494e",
       "diagnostics": []
     },
     {
@@ -1172,7 +1194,7 @@
       "callables": 0,
       "types": 0,
       "properties": 0,
-      "source_sha256": "ee935f504b99e961aea6ffe37610892e899071471f717bfd0b57bbe345ea2192",
+      "source_sha256": "c4d925cac60320a2707c9b205ff796d84254fa0f33b884e979a859c657e71a0f",
       "diagnostics": []
     },
     {
@@ -1182,7 +1204,7 @@
       "callables": 4,
       "types": 4,
       "properties": 4,
-      "source_sha256": "dff686aac2ea9a7e16463c53a5f573fa6fe092f977510c9cdc95f321dbcd716d",
+      "source_sha256": "8383a64abf1760c197ad1d16094fe34735e27bad770d244cfa327cf857e833c3",
       "diagnostics": []
     },
     {
@@ -1192,7 +1214,7 @@
       "callables": 0,
       "types": 1,
       "properties": 2,
-      "source_sha256": "db09c6682d74428ccc51db03b864f110a7fb747c529a2049b1a5fd502a68f6ba",
+      "source_sha256": "f290f1a3528a705d68db15e693d10eff20a999ebce12b07739a5cdeb80da59f5",
       "diagnostics": []
     },
     {
@@ -1202,7 +1224,7 @@
       "callables": 4,
       "types": 5,
       "properties": 25,
-      "source_sha256": "c8e8c8f5acf72254268e45ae9db2348ed03dace81d8a5c15a210b2bee9dd3a56",
+      "source_sha256": "7ad74559b1ab0e1fab1d305b3446fdd381a180888ae082eafc34e2d1a76d4c17",
       "diagnostics": []
     },
     {
@@ -1212,7 +1234,7 @@
       "callables": 7,
       "types": 2,
       "properties": 0,
-      "source_sha256": "7eed20a89f172355ef42ca8184e073b511d6588b526f85397041e5f290b114bc",
+      "source_sha256": "e55da603d0f10631619e4b1c5b2c4f1330978a7c7f42ee2698cd8e7cd328b815",
       "diagnostics": []
     },
     {
@@ -1222,7 +1244,7 @@
       "callables": 30,
       "types": 1,
       "properties": 3,
-      "source_sha256": "957083db0d5809e72185161e085d9fcd78c61a0a6daabcb03947c50b4eeebccf",
+      "source_sha256": "0c4297f30fdbef451f9e257679d6d25a1bcc97dfd5cd302d8dfba27fddc9d0cc",
       "diagnostics": []
     },
     {
@@ -1232,7 +1254,7 @@
       "callables": 7,
       "types": 2,
       "properties": 10,
-      "source_sha256": "f868e78a108130119ecd2ffde35d4d600aef472f49c57a39c387a5e64c852451",
+      "source_sha256": "2a408ed57192442c7c8da38259144c273924c6d2dca0e9d38e77fcf99fcfeb1b",
       "diagnostics": []
     },
     {
@@ -1242,7 +1264,7 @@
       "callables": 1,
       "types": 0,
       "properties": 0,
-      "source_sha256": "b7a7fd7c44bfa5c5801d22242eea0b9f2f6c5e9d13e269bb14250e37743c28d8",
+      "source_sha256": "19f052572fca618850bbb9d51993e5513ea777e41fd4be7e8d65029b2b29d5f1",
       "diagnostics": []
     },
     {
@@ -1252,7 +1274,7 @@
       "callables": 19,
       "types": 3,
       "properties": 0,
-      "source_sha256": "5c4b5c5467be9e0704eef116ae2dda8ce0cbc1c0c511e63d62d1f218ae24165e",
+      "source_sha256": "37ca7d3f87c039b5391fab5a14db5c416de9537be3138b09982b35c04f140a8e",
       "diagnostics": []
     },
     {
@@ -1262,7 +1284,7 @@
       "callables": 5,
       "types": 1,
       "properties": 0,
-      "source_sha256": "e82032435da4d0841b75807b003b9b02828069aa2d64e6290698811df0f0eafa",
+      "source_sha256": "f9f0a4894b26e23af29961e9c889e7b5f406cf15a0697e1a582742774f10eb4d",
       "diagnostics": []
     },
     {
@@ -1272,7 +1294,7 @@
       "callables": 25,
       "types": 3,
       "properties": 4,
-      "source_sha256": "4a00cb2404873d69227d75a9d575f72fc09cf18c5b2e33ecad3ebb96f56a87e2",
+      "source_sha256": "1bbfde5a4003533bea42e6e7e2fbddcd11aebc25f00025359c2d7ad83704b538",
       "diagnostics": []
     }
   ]

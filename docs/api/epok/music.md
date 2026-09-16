@@ -40,7 +40,7 @@ inline void music_error(uint32_t code)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `code` | `uint32_t` | Input | Value supplied for `code`. See the exact type and module contract. |
+| `code` | `int` | Input | Value supplied for `code`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -52,7 +52,7 @@ inline void music_error(uint32_t code)
 #include "music.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t code
+// int code
 
 epok::music_error(code);
 ```
@@ -319,7 +319,7 @@ void start(uint32_t sector, eastl::function<void(bool)> &&callback)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `sector` | `uint32_t` | Input | Value supplied for `sector`. See the exact type and module contract. |
+| `sector` | `int` | Input | Value supplied for `sector`. See the exact type and module contract. |
 | `callback` | `eastl::function<void (bool)> &&` | Consumed or moved input | Value supplied for `callback`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -332,7 +332,7 @@ void start(uint32_t sector, eastl::function<void(bool)> &&callback)
 #include "music.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t sector
+// int sector
 // eastl::function<void (bool)> && callback
 
 epok::XAAction& object = /* obtain a valid instance */;

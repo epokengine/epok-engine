@@ -65,7 +65,7 @@ This module covers compiled Blueprint execution and object interaction. It docum
 bool burst_effect(effects::Handle,uint32_t)
 ```
 
-- **Declared at:** [line 15](../../../runtime/blueprint_api.hpp#L15)
+- **Declared at:** [line 17](../../../runtime/blueprint_api.hpp#L17)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -73,7 +73,7 @@ bool burst_effect(effects::Handle,uint32_t)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `arg1` | `effects::Handle` | Input | Value supplied for `arg1`. See the exact type and module contract. |
-| `arg2` | `uint32_t` | Input | Value supplied for `arg2`. See the exact type and module contract. |
+| `arg2` | `int` | Input | Value supplied for `arg2`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -86,7 +86,7 @@ bool burst_effect(effects::Handle,uint32_t)
 
 // Assume these named values have been initialized with valid data:
 // effects::Handle arg1
-// uint32_t arg2
+// int arg2
 
 auto result = epok::bp::api::burst_effect(arg1, arg2);
 ```
@@ -107,7 +107,7 @@ auto result = epok::bp::api::burst_effect(arg1, arg2);
 inline ObjectId cast(ClassId type,ObjectId target)
 ```
 
-- **Declared at:** [line 73](../../../runtime/blueprint_api.hpp#L73)
+- **Declared at:** [line 75](../../../runtime/blueprint_api.hpp#L75)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -149,7 +149,7 @@ auto result = epok::bp::api::cast(type, target);
 inline void destroy(ObjectId target)
 ```
 
-- **Declared at:** [line 68](../../../runtime/blueprint_api.hpp#L68)
+- **Declared at:** [line 70](../../../runtime/blueprint_api.hpp#L70)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -189,7 +189,7 @@ epok::bp::api::destroy(target);
 timeline::Handle effect_sequence(effects::Handle)
 ```
 
-- **Declared at:** [line 18](../../../runtime/blueprint_api.hpp#L18)
+- **Declared at:** [line 20](../../../runtime/blueprint_api.hpp#L20)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -229,15 +229,15 @@ auto result = epok::bp::api::effect_sequence(arg1);
 inline bool held(uint32_t button,uint32_t port)
 ```
 
-- **Declared at:** [line 63](../../../runtime/blueprint_api.hpp#L63)
+- **Declared at:** [line 65](../../../runtime/blueprint_api.hpp#L65)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `button` | `uint32_t` | Input | Value supplied for `button`. See the exact type and module contract. |
-| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `button` | `int` | Input | Value supplied for `button`. See the exact type and module contract. |
+| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -249,8 +249,8 @@ inline bool held(uint32_t button,uint32_t port)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t button
-// uint32_t port
+// int button
+// int port
 
 auto result = epok::bp::api::held(button, port);
 ```
@@ -271,7 +271,7 @@ auto result = epok::bp::api::held(button, port);
 inline Transform make_transform(const Vector<3>& position,const Vector<3>& rotation,const Vector<3>& scale)
 ```
 
-- **Declared at:** [line 22](../../../runtime/blueprint_api.hpp#L22)
+- **Declared at:** [line 24](../../../runtime/blueprint_api.hpp#L24)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -315,7 +315,7 @@ auto result = epok::bp::api::make_transform(position, rotation, scale);
 bool pause_effect(effects::Handle)
 ```
 
-- **Declared at:** [line 16](../../../runtime/blueprint_api.hpp#L16)
+- **Declared at:** [line 18](../../../runtime/blueprint_api.hpp#L18)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -355,7 +355,7 @@ auto result = epok::bp::api::pause_effect(arg1);
 bool pause_sequence(timeline::Handle)
 ```
 
-- **Declared at:** [line 11](../../../runtime/blueprint_api.hpp#L11)
+- **Declared at:** [line 13](../../../runtime/blueprint_api.hpp#L13)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -395,7 +395,7 @@ auto result = epok::bp::api::pause_sequence(arg1);
 inline void play_audio(ObjectId target)
 ```
 
-- **Declared at:** [line 69](../../../runtime/blueprint_api.hpp#L69)
+- **Declared at:** [line 71](../../../runtime/blueprint_api.hpp#L71)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -435,7 +435,7 @@ epok::bp::api::play_audio(target);
 effects::Handle play_effect_component(DataHandle)
 ```
 
-- **Declared at:** [line 13](../../../runtime/blueprint_api.hpp#L13)
+- **Declared at:** [line 15](../../../runtime/blueprint_api.hpp#L15)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -475,7 +475,7 @@ auto result = epok::bp::api::play_effect_component(arg1);
 inline effects::Handle play_effect_component(ObjectId target)
 ```
 
-- **Declared at:** [line 75](../../../runtime/blueprint_api.hpp#L75)
+- **Declared at:** [line 77](../../../runtime/blueprint_api.hpp#L77)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -515,7 +515,7 @@ auto result = epok::bp::api::play_effect_component(target);
 inline timeline::Handle play_sequence_component(ObjectId target)
 ```
 
-- **Declared at:** [line 74](../../../runtime/blueprint_api.hpp#L74)
+- **Declared at:** [line 76](../../../runtime/blueprint_api.hpp#L76)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -555,7 +555,7 @@ auto result = epok::bp::api::play_sequence_component(target);
 timeline::Handle play_sequence_component(DataHandle)
 ```
 
-- **Declared at:** [line 9](../../../runtime/blueprint_api.hpp#L9)
+- **Declared at:** [line 11](../../../runtime/blueprint_api.hpp#L11)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -595,7 +595,7 @@ auto result = epok::bp::api::play_sequence_component(arg1);
 PlaybackSnapshot playback_snapshot(const PlaybackWait&)
 ```
 
-- **Declared at:** [line 19](../../../runtime/blueprint_api.hpp#L19)
+- **Declared at:** [line 21](../../../runtime/blueprint_api.hpp#L21)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -635,7 +635,7 @@ auto result = epok::bp::api::playback_snapshot(arg1);
 inline Vector<3> position(ObjectId target)
 ```
 
-- **Declared at:** [line 25](../../../runtime/blueprint_api.hpp#L25)
+- **Declared at:** [line 27](../../../runtime/blueprint_api.hpp#L27)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -675,7 +675,7 @@ auto result = epok::bp::api::position(target);
 inline Vector<2> position_2d(ObjectId target)
 ```
 
-- **Declared at:** [line 50](../../../runtime/blueprint_api.hpp#L50)
+- **Declared at:** [line 52](../../../runtime/blueprint_api.hpp#L52)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -715,15 +715,15 @@ auto result = epok::bp::api::position_2d(target);
 inline bool pressed(uint32_t button,uint32_t port)
 ```
 
-- **Declared at:** [line 64](../../../runtime/blueprint_api.hpp#L64)
+- **Declared at:** [line 66](../../../runtime/blueprint_api.hpp#L66)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `button` | `uint32_t` | Input | Value supplied for `button`. See the exact type and module contract. |
-| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `button` | `int` | Input | Value supplied for `button`. See the exact type and module contract. |
+| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -735,8 +735,8 @@ inline bool pressed(uint32_t button,uint32_t port)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t button
-// uint32_t port
+// int button
+// int port
 
 auto result = epok::bp::api::pressed(button, port);
 ```
@@ -757,7 +757,7 @@ auto result = epok::bp::api::pressed(button, port);
 inline Vector<2> rect_position(ObjectId target)
 ```
 
-- **Declared at:** [line 59](../../../runtime/blueprint_api.hpp#L59)
+- **Declared at:** [line 61](../../../runtime/blueprint_api.hpp#L61)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -797,7 +797,7 @@ auto result = epok::bp::api::rect_position(target);
 inline Vector<2> rect_size(ObjectId target)
 ```
 
-- **Declared at:** [line 61](../../../runtime/blueprint_api.hpp#L61)
+- **Declared at:** [line 63](../../../runtime/blueprint_api.hpp#L63)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -837,15 +837,15 @@ auto result = epok::bp::api::rect_size(target);
 inline bool released(uint32_t button,uint32_t port)
 ```
 
-- **Declared at:** [line 65](../../../runtime/blueprint_api.hpp#L65)
+- **Declared at:** [line 67](../../../runtime/blueprint_api.hpp#L67)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `button` | `uint32_t` | Input | Value supplied for `button`. See the exact type and module contract. |
-| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `button` | `int` | Input | Value supplied for `button`. See the exact type and module contract. |
+| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -857,8 +857,8 @@ inline bool released(uint32_t button,uint32_t port)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t button
-// uint32_t port
+// int button
+// int port
 
 auto result = epok::bp::api::released(button, port);
 ```
@@ -879,14 +879,14 @@ auto result = epok::bp::api::released(button, port);
 inline bool request_scene(uint32_t index)
 ```
 
-- **Declared at:** [line 66](../../../runtime/blueprint_api.hpp#L66)
+- **Declared at:** [line 68](../../../runtime/blueprint_api.hpp#L68)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `uint32_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -898,7 +898,7 @@ inline bool request_scene(uint32_t index)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t index
+// int index
 
 auto result = epok::bp::api::request_scene(index);
 ```
@@ -919,7 +919,7 @@ auto result = epok::bp::api::request_scene(index);
 bool resume_effect(effects::Handle)
 ```
 
-- **Declared at:** [line 17](../../../runtime/blueprint_api.hpp#L17)
+- **Declared at:** [line 19](../../../runtime/blueprint_api.hpp#L19)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -959,7 +959,7 @@ auto result = epok::bp::api::resume_effect(arg1);
 bool resume_sequence(timeline::Handle)
 ```
 
-- **Declared at:** [line 12](../../../runtime/blueprint_api.hpp#L12)
+- **Declared at:** [line 14](../../../runtime/blueprint_api.hpp#L14)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -999,7 +999,7 @@ auto result = epok::bp::api::resume_sequence(arg1);
 inline Vector<3> rotation(ObjectId target)
 ```
 
-- **Declared at:** [line 33](../../../runtime/blueprint_api.hpp#L33)
+- **Declared at:** [line 35](../../../runtime/blueprint_api.hpp#L35)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1039,7 +1039,7 @@ auto result = epok::bp::api::rotation(target);
 inline Fixed rotation_2d(ObjectId target)
 ```
 
-- **Declared at:** [line 57](../../../runtime/blueprint_api.hpp#L57)
+- **Declared at:** [line 59](../../../runtime/blueprint_api.hpp#L59)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1048,7 +1048,7 @@ inline Fixed rotation_2d(ObjectId target)
 | --- | --- | --- | --- |
 | `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 
-**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
 
@@ -1079,7 +1079,7 @@ auto result = epok::bp::api::rotation_2d(target);
 inline Vector<3> scale(ObjectId target)
 ```
 
-- **Declared at:** [line 41](../../../runtime/blueprint_api.hpp#L41)
+- **Declared at:** [line 43](../../../runtime/blueprint_api.hpp#L43)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1119,7 +1119,7 @@ auto result = epok::bp::api::scale(target);
 inline Vector<2> scale_2d(ObjectId target)
 ```
 
-- **Declared at:** [line 53](../../../runtime/blueprint_api.hpp#L53)
+- **Declared at:** [line 55](../../../runtime/blueprint_api.hpp#L55)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1159,7 +1159,7 @@ auto result = epok::bp::api::scale_2d(target);
 inline void set_active(ObjectId target,bool active)
 ```
 
-- **Declared at:** [line 67](../../../runtime/blueprint_api.hpp#L67)
+- **Declared at:** [line 69](../../../runtime/blueprint_api.hpp#L69)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1201,7 +1201,7 @@ epok::bp::api::set_active(target, active);
 inline void set_audio_clip(ObjectId target,uint64_t clip)
 ```
 
-- **Declared at:** [line 83](../../../runtime/blueprint_api.hpp#L83)
+- **Declared at:** [line 85](../../../runtime/blueprint_api.hpp#L85)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1243,7 +1243,7 @@ epok::bp::api::set_audio_clip(target, clip);
 inline void set_position(ObjectId target,const Vector<3>& value)
 ```
 
-- **Declared at:** [line 29](../../../runtime/blueprint_api.hpp#L29)
+- **Declared at:** [line 31](../../../runtime/blueprint_api.hpp#L31)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1285,7 +1285,7 @@ epok::bp::api::set_position(target, value);
 inline void set_position_2d(ObjectId target,const Vector<2>& value)
 ```
 
-- **Declared at:** [line 51](../../../runtime/blueprint_api.hpp#L51)
+- **Declared at:** [line 53](../../../runtime/blueprint_api.hpp#L53)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1327,7 +1327,7 @@ epok::bp::api::set_position_2d(target, value);
 inline void set_rect_position(ObjectId target,const Vector<2>& value)
 ```
 
-- **Declared at:** [line 60](../../../runtime/blueprint_api.hpp#L60)
+- **Declared at:** [line 62](../../../runtime/blueprint_api.hpp#L62)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1369,7 +1369,7 @@ epok::bp::api::set_rect_position(target, value);
 inline void set_rect_size(ObjectId target,const Vector<2>& value)
 ```
 
-- **Declared at:** [line 62](../../../runtime/blueprint_api.hpp#L62)
+- **Declared at:** [line 64](../../../runtime/blueprint_api.hpp#L64)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1411,7 +1411,7 @@ epok::bp::api::set_rect_size(target, value);
 inline void set_rotation(ObjectId target,const Vector<3>& value)
 ```
 
-- **Declared at:** [line 37](../../../runtime/blueprint_api.hpp#L37)
+- **Declared at:** [line 39](../../../runtime/blueprint_api.hpp#L39)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1453,7 +1453,7 @@ epok::bp::api::set_rotation(target, value);
 inline void set_rotation_2d(ObjectId target,Fixed value)
 ```
 
-- **Declared at:** [line 58](../../../runtime/blueprint_api.hpp#L58)
+- **Declared at:** [line 60](../../../runtime/blueprint_api.hpp#L60)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1461,7 +1461,7 @@ inline void set_rotation_2d(ObjectId target,Fixed value)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
-| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1474,7 +1474,7 @@ inline void set_rotation_2d(ObjectId target,Fixed value)
 
 // Assume these named values have been initialized with valid data:
 // ObjectId target
-// Fixed value
+// int value
 
 epok::bp::api::set_rotation_2d(target, value);
 ```
@@ -1495,7 +1495,7 @@ epok::bp::api::set_rotation_2d(target, value);
 inline void set_scale(ObjectId target,const Vector<3>& value)
 ```
 
-- **Declared at:** [line 45](../../../runtime/blueprint_api.hpp#L45)
+- **Declared at:** [line 47](../../../runtime/blueprint_api.hpp#L47)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1537,7 +1537,7 @@ epok::bp::api::set_scale(target, value);
 inline void set_scale_2d(ObjectId target,const Vector<2>& value)
 ```
 
-- **Declared at:** [line 54](../../../runtime/blueprint_api.hpp#L54)
+- **Declared at:** [line 56](../../../runtime/blueprint_api.hpp#L56)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1579,7 +1579,7 @@ epok::bp::api::set_scale_2d(target, value);
 inline void set_texture(ObjectId target,uint64_t texture)
 ```
 
-- **Declared at:** [line 76](../../../runtime/blueprint_api.hpp#L76)
+- **Declared at:** [line 78](../../../runtime/blueprint_api.hpp#L78)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1621,7 +1621,7 @@ epok::bp::api::set_texture(target, texture);
 inline ObjectId spawn(ClassId type,ObjectId parent)
 ```
 
-- **Declared at:** [line 71](../../../runtime/blueprint_api.hpp#L71)
+- **Declared at:** [line 73](../../../runtime/blueprint_api.hpp#L73)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1663,7 +1663,7 @@ auto result = epok::bp::api::spawn(type, parent);
 inline ObjectId spawn_class(ClassId base,ClassId type,ObjectId parent)
 ```
 
-- **Declared at:** [line 72](../../../runtime/blueprint_api.hpp#L72)
+- **Declared at:** [line 74](../../../runtime/blueprint_api.hpp#L74)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1707,7 +1707,7 @@ auto result = epok::bp::api::spawn_class(base, type, parent);
 inline void stop_audio(ObjectId target)
 ```
 
-- **Declared at:** [line 70](../../../runtime/blueprint_api.hpp#L70)
+- **Declared at:** [line 72](../../../runtime/blueprint_api.hpp#L72)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1747,7 +1747,7 @@ epok::bp::api::stop_audio(target);
 bool stop_effect(effects::Handle)
 ```
 
-- **Declared at:** [line 14](../../../runtime/blueprint_api.hpp#L14)
+- **Declared at:** [line 16](../../../runtime/blueprint_api.hpp#L16)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1787,7 +1787,7 @@ auto result = epok::bp::api::stop_effect(arg1);
 bool stop_sequence(timeline::Handle)
 ```
 
-- **Declared at:** [line 10](../../../runtime/blueprint_api.hpp#L10)
+- **Declared at:** [line 12](../../../runtime/blueprint_api.hpp#L12)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1827,7 +1827,7 @@ auto result = epok::bp::api::stop_sequence(arg1);
 inline Transform transform(ObjectId target)
 ```
 
-- **Declared at:** [line 21](../../../runtime/blueprint_api.hpp#L21)
+- **Declared at:** [line 23](../../../runtime/blueprint_api.hpp#L23)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1867,7 +1867,7 @@ auto result = epok::bp::api::transform(target);
 inline bool valid(ObjectId target)
 ```
 
-- **Declared at:** [line 20](../../../runtime/blueprint_api.hpp#L20)
+- **Declared at:** [line 22](../../../runtime/blueprint_api.hpp#L22)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1907,7 +1907,7 @@ auto result = epok::bp::api::valid(target);
 int asset_index(uint64_t asset,uint32_t kind)
 ```
 
-- **Declared at:** [line 4](../../../runtime/blueprint_api.hpp#L4)
+- **Declared at:** [line 6](../../../runtime/blueprint_api.hpp#L6)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1915,7 +1915,7 @@ int asset_index(uint64_t asset,uint32_t kind)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `asset` | `uint64_t` | Input | Value supplied for `asset`. See the exact type and module contract. |
-| `kind` | `uint32_t` | Input | Value supplied for `kind`. See the exact type and module contract. |
+| `kind` | `int` | Input | Value supplied for `kind`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -1928,7 +1928,7 @@ int asset_index(uint64_t asset,uint32_t kind)
 
 // Assume these named values have been initialized with valid data:
 // uint64_t asset
-// uint32_t kind
+// int kind
 
 auto result = epok::bp::asset_index(asset, kind);
 ```

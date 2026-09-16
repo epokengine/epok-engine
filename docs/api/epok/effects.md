@@ -33,7 +33,7 @@ template<class Color>inline Color fog_color(Color color,int32_t depth)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `color` | `Color` | Input | Value supplied for `color`. See the exact type and module contract. |
-| `depth` | `int32_t` | Input | Value supplied for `depth`. See the exact type and module contract. |
+| `depth` | `int` | Input | Value supplied for `depth`. See the exact type and module contract. |
 
 **Returns.** Returns `Color`. Check the purpose and failure notes before using the value.
 
@@ -49,7 +49,7 @@ template<class Color>inline Color fog_color(Color color,int32_t depth)
 
 // Assume these named values have been initialized with valid data:
 // Color color
-// int32_t depth
+// int depth
 
 auto result = epok::fog_color<Color>(color, depth);
 ```
@@ -80,8 +80,8 @@ template<class Emit>void scroll_triangle(const UvVertex* input,const int32_t* sp
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `input` | `const UvVertex *` | Input | Value supplied for `input`. See the exact type and module contract. |
-| `speed` | `const int32_t *` | Input | Value supplied for `speed`. See the exact type and module contract. |
-| `ticks` | `uint32_t` | Input | Value supplied for `ticks`. See the exact type and module contract. |
+| `speed` | `const int *` | Input | Value supplied for `speed`. See the exact type and module contract. |
+| `ticks` | `int` | Input | Value supplied for `ticks`. See the exact type and module contract. |
 | `emit` | `Emit` | Input | Value supplied for `emit`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -98,8 +98,8 @@ template<class Emit>void scroll_triangle(const UvVertex* input,const int32_t* sp
 
 // Assume these named values have been initialized with valid data:
 // const UvVertex * input
-// const int32_t * speed
-// uint32_t ticks
+// const int * speed
+// int ticks
 // Emit emit
 
 epok::scroll_triangle<Emit>(input, speed, ticks, emit);

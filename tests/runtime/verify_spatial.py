@@ -11,6 +11,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = [ROOT / "tests/runtime/spatial.cpp", ROOT / "tests/runtime/transform_cache.cpp", ROOT / "tests/runtime/lifecycle.cpp", ROOT / "tests/runtime/memory_card.cpp", ROOT / "tests/runtime/utility.cpp", ROOT / "tests/runtime/palette.cpp"]
+SOURCES.append(ROOT / "tests/runtime/gameplay_api.cpp")
 SOURCES.append(ROOT / "tests/runtime/frustum.cpp")
 SOURCES.append(ROOT / "tests/runtime/visibility.cpp")
 SOURCES.append(ROOT / "tests/runtime/polygon.cpp")

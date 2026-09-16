@@ -12,6 +12,9 @@
 #include "../../runtime/epok.hpp"
 
 namespace epok {
+// This isolated object-model fixture does not include lifecycle.hpp, which owns
+// the cooked ActorData table and the production DataHandle resolver.
+ActorData* DataHandle::get() const { return nullptr; }
 // Audio service stub. `plays`/`stops` count per source, so "played exactly once" is a
 // property of the individual AudioSource, not of the process.
 struct AudioProbe { unsigned plays = 0, stops = 0; bool playing = false; };

@@ -2,7 +2,7 @@
 
 > **Header:** `"psyqo/fixed-point.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh)
 
-This module covers the fixed point module. It documents 50 public callables declared directly in this header.
+This module covers the fixed point module. It documents 49 public callables declared directly in this header.
 
 PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
@@ -24,7 +24,6 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 - [`psyqo::FixedPoint::FixedPoint<precisionBits, T, Scale>`](#psyqo-fixedpoint-fixedpoint-precisionbits-t-scale-7) — Construct a new Fixed Point number from a different fixed point number.
 - [`psyqo::FixedPoint::floor`](#psyqo-fixedpoint-floor-1) — Returns the floor of the fixed point number.
 - [`psyqo::FixedPoint::integer`](#psyqo-fixedpoint-integer-1) — Returns the integer part of the fixed point number.
-- [`psyqo::FixedPoint::integer`](#psyqo-fixedpoint-integer-2) — Performs `integer` as part of the fixed point module.
 - [`psyqo::FixedPoint::operator!`](#psyqo-fixedpoint-operator-1) — Performs `operator !` as part of the fixed point module.
 - [`psyqo::FixedPoint::operator*`](#psyqo-fixedpoint-operator-2) — Performs `operator *` as part of the fixed point module.
 - [`psyqo::FixedPoint::operator*`](#psyqo-fixedpoint-operator-3) — Performs `operator *` as part of the fixed point module.
@@ -300,7 +299,7 @@ constexpr FixedPoint(T raw, Raw) : value(raw)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `raw` | `T` | Input | Value supplied for `raw`. See the exact type and module contract. |
+| `raw` | `int` | Input | Value supplied for `raw`. See the exact type and module contract. |
 | `arg2` | `Raw` | Input | Value supplied for `arg2`. See the exact type and module contract. |
 
 **Use it when.** You need the fixed point module and the preconditions in the declaration are already satisfied.
@@ -311,7 +310,7 @@ constexpr FixedPoint(T raw, Raw) : value(raw)
 #include "psyqo/fixed-point.hh"
 
 // Assume these named values have been initialized with valid data:
-// T raw
+// int raw
 // Raw arg2
 
 psyqo::FixedPoint value(raw, arg2);
@@ -378,8 +377,8 @@ explicit constexpr FixedPoint(T integer, T fraction) : value(integer * scale + f
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `integer` | `T` | Input | Value supplied for `integer`. See the exact type and module contract. |
-| `fraction` | `T` | Input | Value supplied for `fraction`. See the exact type and module contract. |
+| `integer` | `int` | Input | Value supplied for `integer`. See the exact type and module contract. |
+| `fraction` | `int` | Input | Value supplied for `fraction`. See the exact type and module contract. |
 
 **Use it when.** You need the fixed point module and the preconditions in the declaration are already satisfied.
 
@@ -389,8 +388,8 @@ explicit constexpr FixedPoint(T integer, T fraction) : value(integer * scale + f
 #include "psyqo/fixed-point.hh"
 
 // Assume these named values have been initialized with valid data:
-// T integer
-// T fraction
+// int integer
+// int fraction
 
 psyqo::FixedPoint value(integer, fraction);
 ```
@@ -418,7 +417,7 @@ template <unsigned otherPrecisionBits = 12, std::integral U = int32_t> explicit 
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `other` | `FixedPoint<otherPrecisionBits, U>` | Input | Value supplied for `other`. See the exact type and module contract. |
+| `other` | `int` | Input | Value supplied for `other`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -433,7 +432,7 @@ template <unsigned otherPrecisionBits = 12, std::integral U = int32_t> explicit 
 // otherPrecisionBits, U
 
 // Assume these named values have been initialized with valid data:
-// FixedPoint<otherPrecisionBits, U> other
+// int other
 
 psyqo::FixedPoint& object = /* obtain a valid instance */;
 
@@ -514,42 +513,6 @@ template <size_t factor = 1> constexpr T integer() const
 psyqo::FixedPoint& object = /* obtain a valid instance */;
 
 auto result = object.integer<factor>();
-```
-
-**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. Template dispatch is resolved at compile time and normally adds no runtime indirection.
-
-**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size.
-
-<a id="psyqo-fixedpoint-integer-2"></a>
-
-## `psyqo::FixedPoint::integer`
-
-**Purpose.** Performs `integer` as part of the fixed point module.
-
-**Exact declaration**
-
-```cpp
-template <std::integral U> constexpr U integer() const
-```
-
-- **Declared at:** [line 210](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L210)
-- **Kind:** `function template`; qualifiers: `const, template`
-
-**Returns.** Returns `U`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the fixed point module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/fixed-point.hh"
-
-// Replace these template arguments with types or values accepted by the declaration:
-// U
-
-psyqo::FixedPoint& object = /* obtain a valid instance */;
-
-auto result = object.integer<U>();
 ```
 
 **Why choose it.** The method is `const`, so it does not mutate the object through this API surface. Template dispatch is resolved at compile time and normally adds no runtime indirection.
@@ -650,7 +613,7 @@ template <std::integral U> constexpr FixedPoint operator*(U other) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `other` | `U` | Input | Value supplied for `other`. See the exact type and module contract. |
+| `other` | `int` | Input | Value supplied for `other`. See the exact type and module contract. |
 
 **Returns.** Returns `FixedPoint<precisionBits, T, Scale>`. Check the purpose and failure notes before using the value.
 
@@ -665,7 +628,7 @@ template <std::integral U> constexpr FixedPoint operator*(U other) const
 // U
 
 // Assume these named values have been initialized with valid data:
-// U other
+// int other
 
 psyqo::FixedPoint& object = /* obtain a valid instance */;
 
@@ -737,7 +700,7 @@ template <std::integral U> constexpr FixedPoint& operator*=(U other)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `other` | `U` | Input | Value supplied for `other`. See the exact type and module contract. |
+| `other` | `int` | Input | Value supplied for `other`. See the exact type and module contract. |
 
 **Returns.** Returns `FixedPoint<precisionBits, T, Scale> &`. Check the purpose and failure notes before using the value.
 
@@ -752,7 +715,7 @@ template <std::integral U> constexpr FixedPoint& operator*=(U other)
 // U
 
 // Assume these named values have been initialized with valid data:
-// U other
+// int other
 
 psyqo::FixedPoint& object = /* obtain a valid instance */;
 
@@ -824,7 +787,7 @@ template <std::integral U> constexpr FixedPoint operator+(U other) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `other` | `U` | Input | Value supplied for `other`. See the exact type and module contract. |
+| `other` | `int` | Input | Value supplied for `other`. See the exact type and module contract. |
 
 **Returns.** Returns `FixedPoint<precisionBits, T, Scale>`. Check the purpose and failure notes before using the value.
 
@@ -839,7 +802,7 @@ template <std::integral U> constexpr FixedPoint operator+(U other) const
 // U
 
 // Assume these named values have been initialized with valid data:
-// U other
+// int other
 
 psyqo::FixedPoint& object = /* obtain a valid instance */;
 
@@ -986,7 +949,7 @@ template <std::integral U> constexpr FixedPoint& operator+=(U other)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `other` | `U` | Input | Value supplied for `other`. See the exact type and module contract. |
+| `other` | `int` | Input | Value supplied for `other`. See the exact type and module contract. |
 
 **Returns.** Returns `FixedPoint<precisionBits, T, Scale> &`. Check the purpose and failure notes before using the value.
 
@@ -1001,7 +964,7 @@ template <std::integral U> constexpr FixedPoint& operator+=(U other)
 // U
 
 // Assume these named values have been initialized with valid data:
-// U other
+// int other
 
 psyqo::FixedPoint& object = /* obtain a valid instance */;
 
@@ -1106,7 +1069,7 @@ template <std::integral U> constexpr FixedPoint operator-(U other) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `other` | `U` | Input | Value supplied for `other`. See the exact type and module contract. |
+| `other` | `int` | Input | Value supplied for `other`. See the exact type and module contract. |
 
 **Returns.** Returns `FixedPoint<precisionBits, T, Scale>`. Check the purpose and failure notes before using the value.
 
@@ -1121,7 +1084,7 @@ template <std::integral U> constexpr FixedPoint operator-(U other) const
 // U
 
 // Assume these named values have been initialized with valid data:
-// U other
+// int other
 
 psyqo::FixedPoint& object = /* obtain a valid instance */;
 
@@ -1268,7 +1231,7 @@ template <std::integral U> constexpr FixedPoint& operator-=(U other)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `other` | `U` | Input | Value supplied for `other`. See the exact type and module contract. |
+| `other` | `int` | Input | Value supplied for `other`. See the exact type and module contract. |
 
 **Returns.** Returns `FixedPoint<precisionBits, T, Scale> &`. Check the purpose and failure notes before using the value.
 
@@ -1283,7 +1246,7 @@ template <std::integral U> constexpr FixedPoint& operator-=(U other)
 // U
 
 // Assume these named values have been initialized with valid data:
-// U other
+// int other
 
 psyqo::FixedPoint& object = /* obtain a valid instance */;
 
@@ -1355,7 +1318,7 @@ template <std::integral U> constexpr FixedPoint operator/(U other) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `other` | `U` | Input | Value supplied for `other`. See the exact type and module contract. |
+| `other` | `int` | Input | Value supplied for `other`. See the exact type and module contract. |
 
 **Returns.** Returns `FixedPoint<precisionBits, T, Scale>`. Check the purpose and failure notes before using the value.
 
@@ -1370,7 +1333,7 @@ template <std::integral U> constexpr FixedPoint operator/(U other) const
 // U
 
 // Assume these named values have been initialized with valid data:
-// U other
+// int other
 
 psyqo::FixedPoint& object = /* obtain a valid instance */;
 
@@ -1442,7 +1405,7 @@ template <std::integral U> constexpr FixedPoint& operator/=(U other)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `other` | `U` | Input | Value supplied for `other`. See the exact type and module contract. |
+| `other` | `int` | Input | Value supplied for `other`. See the exact type and module contract. |
 
 **Returns.** Returns `FixedPoint<precisionBits, T, Scale> &`. Check the purpose and failure notes before using the value.
 
@@ -1457,7 +1420,7 @@ template <std::integral U> constexpr FixedPoint& operator/=(U other)
 // U
 
 // Assume these named values have been initialized with valid data:
-// U other
+// int other
 
 psyqo::FixedPoint& object = /* obtain a valid instance */;
 
@@ -1779,7 +1742,7 @@ T raw() const
 - **Declared at:** [line 126](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/fixed-point.hh#L126)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `T`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the fixed point module and the preconditions in the declaration are already satisfied.
 
@@ -1816,11 +1779,11 @@ constexpr int32_t dDiv(int32_t a, int32_t b, unsigned scale)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `int32_t` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `b` | `int32_t` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `a` | `int` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `int` | Input | Value supplied for `b`. See the exact type and module contract. |
 | `scale` | `unsigned int` | Input | Value supplied for `scale`. See the exact type and module contract. |
 
-**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the fixed point module and the preconditions in the declaration are already satisfied.
 
@@ -1830,8 +1793,8 @@ constexpr int32_t dDiv(int32_t a, int32_t b, unsigned scale)
 #include "psyqo/fixed-point.hh"
 
 // Assume these named values have been initialized with valid data:
-// int32_t a
-// int32_t b
+// int a
+// int b
 // unsigned int scale
 
 auto result = psyqo::FixedPointInternals::dDiv(a, b, scale);
@@ -1861,10 +1824,10 @@ constexpr uint32_t iDiv(uint64_t rem, uint32_t base, unsigned scale)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `rem` | `uint64_t` | Input | Value supplied for `rem`. See the exact type and module contract. |
-| `base` | `uint32_t` | Input | Value supplied for `base`. See the exact type and module contract. |
+| `base` | `int` | Input | Value supplied for `base`. See the exact type and module contract. |
 | `scale` | `unsigned int` | Input | Value supplied for `scale`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the fixed point module and the preconditions in the declaration are already satisfied.
 
@@ -1875,7 +1838,7 @@ constexpr uint32_t iDiv(uint64_t rem, uint32_t base, unsigned scale)
 
 // Assume these named values have been initialized with valid data:
 // uint64_t rem
-// uint32_t base
+// int base
 // unsigned int scale
 
 auto result = psyqo::FixedPointInternals::iDiv(rem, base, scale);
@@ -1904,7 +1867,7 @@ void printInt(uint32_t value, const eastl::function<void(char)>&, unsigned scale
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `uint32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
 | `arg2` | `const eastl::function<void (char)> &` | Callback | Value supplied for `arg2`. See the exact type and module contract. |
 | `scale` | `unsigned int` | Input | Value supplied for `scale`. See the exact type and module contract. |
 
@@ -1918,7 +1881,7 @@ void printInt(uint32_t value, const eastl::function<void(char)>&, unsigned scale
 #include "psyqo/fixed-point.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t value
+// int value
 // const eastl::function<void (char)> & arg2
 // unsigned int scale
 
@@ -1948,7 +1911,7 @@ template <unsigned precisionBits = 12, std::integral T = int32_t, unsigned scale
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `U` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `a` | `int` | Input | Value supplied for `a`. See the exact type and module contract. |
 | `b` | `FixedPoint<precisionBits, T, scale>` | Input | Value supplied for `b`. See the exact type and module contract. |
 
 **Returns.** Returns `FixedPoint<precisionBits, T, scale>`. Check the purpose and failure notes before using the value.
@@ -1964,7 +1927,7 @@ template <unsigned precisionBits = 12, std::integral T = int32_t, unsigned scale
 // precisionBits, T, scale, U
 
 // Assume these named values have been initialized with valid data:
-// U a
+// int a
 // FixedPoint<precisionBits, T, scale> b
 
 auto result = psyqo::operator*<precisionBits, T, scale, U>(a, b);
@@ -1993,7 +1956,7 @@ template <unsigned precisionBits = 12, std::integral T = int32_t, unsigned scale
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `U` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `a` | `int` | Input | Value supplied for `a`. See the exact type and module contract. |
 | `b` | `FixedPoint<precisionBits, T, scale>` | Input | Value supplied for `b`. See the exact type and module contract. |
 
 **Returns.** Returns `FixedPoint<precisionBits, T, scale>`. Check the purpose and failure notes before using the value.
@@ -2009,7 +1972,7 @@ template <unsigned precisionBits = 12, std::integral T = int32_t, unsigned scale
 // precisionBits, T, scale, U
 
 // Assume these named values have been initialized with valid data:
-// U a
+// int a
 // FixedPoint<precisionBits, T, scale> b
 
 auto result = psyqo::operator+<precisionBits, T, scale, U>(a, b);
@@ -2038,7 +2001,7 @@ template <unsigned precisionBits = 12, std::integral T = int32_t, unsigned scale
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `U` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `a` | `int` | Input | Value supplied for `a`. See the exact type and module contract. |
 | `b` | `FixedPoint<precisionBits, T, scale>` | Input | Value supplied for `b`. See the exact type and module contract. |
 
 **Returns.** Returns `FixedPoint<precisionBits, T, scale>`. Check the purpose and failure notes before using the value.
@@ -2054,7 +2017,7 @@ template <unsigned precisionBits = 12, std::integral T = int32_t, unsigned scale
 // precisionBits, T, scale, U
 
 // Assume these named values have been initialized with valid data:
-// U a
+// int a
 // FixedPoint<precisionBits, T, scale> b
 
 auto result = psyqo::operator-<precisionBits, T, scale, U>(a, b);
@@ -2083,7 +2046,7 @@ template <unsigned precisionBits = 12, std::integral T = int32_t, unsigned scale
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `U` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `a` | `int` | Input | Value supplied for `a`. See the exact type and module contract. |
 | `b` | `FixedPoint<precisionBits, T, scale>` | Input | Value supplied for `b`. See the exact type and module contract. |
 
 **Returns.** Returns `FixedPoint<precisionBits, T, scale>`. Check the purpose and failure notes before using the value.
@@ -2099,7 +2062,7 @@ template <unsigned precisionBits = 12, std::integral T = int32_t, unsigned scale
 // precisionBits, T, scale, U
 
 // Assume these named values have been initialized with valid data:
-// U a
+// int a
 // FixedPoint<precisionBits, T, scale> b
 
 auto result = psyqo::operator/<precisionBits, T, scale, U>(a, b);

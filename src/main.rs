@@ -97,6 +97,7 @@ mod native;
 mod native_metadata;
 mod obj_import;
 mod object_model;
+mod operation;
 mod palette;
 mod particle_effect;
 mod particle_effect_editor;

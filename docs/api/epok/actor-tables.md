@@ -6,7 +6,7 @@ This module covers the actor tables module. It documents 12 public callables dec
 
 ## Declared types
 
-`epok::ActorComponentRecord`, `epok::ActorPrototype`, `epok::ActorRecord`, `epok::ActorStats`, `epok::ActorTable`, `epok::SceneLevel`, `epok::SceneReferenceRecord`, `epok::SceneRefKind`
+`epok::ActorComponentRecord`, `epok::ActorPrototype`, `epok::ActorRecord`, `epok::ActorStats`, `epok::ActorTable`, `epok::SceneLevel`, `epok::SceneLevel::Context`, `epok::SceneReferenceRecord`, `epok::SceneRefKind`
 
 ## Callable index
 
@@ -117,7 +117,7 @@ inline size_t dispatch_slot_trigger(DataHandle self,DataHandle other,TriggerPhas
 | `other` | `DataHandle` | Input | Value supplied for `other`. See the exact type and module contract. |
 | `phase` | `TriggerPhase` | Input | Value supplied for `phase`. See the exact type and module contract. |
 
-**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the actor tables module and the preconditions in the declaration are already satisfied.
 
@@ -159,9 +159,9 @@ inline size_t load_actor_bank(const ActorTable& table,ActorData* slots,size_t co
 | --- | --- | --- | --- |
 | `table` | `const ActorTable &` | Input | Value supplied for `table`. See the exact type and module contract. |
 | `slots` | `ActorData *` | Input/output; inspect the function contract | Value supplied for `slots`. See the exact type and module contract. |
-| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
 
-**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the actor tables module and the preconditions in the declaration are already satisfied.
 
@@ -173,7 +173,7 @@ inline size_t load_actor_bank(const ActorTable& table,ActorData* slots,size_t co
 // Assume these named values have been initialized with valid data:
 // const ActorTable & table
 // ActorData * slots
-// size_t count
+// int count
 
 auto result = epok::load_actor_bank(table, slots, count);
 ```
@@ -250,7 +250,7 @@ size_t bind_scene_references(const ActorTable& table,ObjectId owner)
 | `table` | `const ActorTable &` | Input | Value supplied for `table`. See the exact type and module contract. |
 | `owner` | `ObjectId` | Input | Value supplied for `owner`. See the exact type and module contract. |
 
-**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the actor tables module and the preconditions in the declaration are already satisfied.
 
@@ -377,9 +377,9 @@ size_t load_bank(const ActorTable& table,ActorData* slots,size_t count)
 | --- | --- | --- | --- |
 | `table` | `const ActorTable &` | Input | Value supplied for `table`. See the exact type and module contract. |
 | `slots` | `ActorData *` | Input/output; inspect the function contract | Value supplied for `slots`. See the exact type and module contract. |
-| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
 
-**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the actor tables module and the preconditions in the declaration are already satisfied.
 
@@ -391,7 +391,7 @@ size_t load_bank(const ActorTable& table,ActorData* slots,size_t count)
 // Assume these named values have been initialized with valid data:
 // const ActorTable & table
 // ActorData * slots
-// size_t count
+// int count
 
 epok::SceneLevel& object = /* obtain a valid instance */;
 

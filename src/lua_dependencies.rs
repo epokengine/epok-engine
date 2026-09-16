@@ -7,7 +7,7 @@ use crate::{
     lua_asset::LuaFile,
     lua_compile::Compilation,
     reflection_schema as schema,
-    settings::{LUA_FRONTEND_VERSION, LUA_PROFILE_VERSION, LuaExecution},
+    settings::{LUA_FRONTEND_VERSION, LuaExecution, LuaProfile},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -175,6 +175,7 @@ pub fn capture(
     registry: &Registry,
     artifacts: &crate::script_backend::Artifacts,
     mode: LuaExecution,
+    profile: LuaProfile,
 ) -> Result<Footprints, String> {
     let shared = artifacts
         .files
@@ -190,7 +191,7 @@ pub fn capture(
             (format!("lua:{id}"), semantic(file)),
             ("lua-compiler".into(), COMPILER_VERSION.to_string()),
             ("lua-mode".into(), mode.signature()),
-            ("lua-profile".into(), LUA_PROFILE_VERSION.to_string()),
+            ("lua-profile".into(), profile.signature()),
             ("lua-frontend".into(), LUA_FRONTEND_VERSION.to_string()),
             (
                 "reflection-schema".into(),

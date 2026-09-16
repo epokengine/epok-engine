@@ -29,8 +29,8 @@ inline bool descendant(size_t child,size_t ancestor)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `child` | `size_t` | Input | Value supplied for `child`. See the exact type and module contract. |
-| `ancestor` | `size_t` | Input | Value supplied for `ancestor`. See the exact type and module contract. |
+| `child` | `int` | Input | Value supplied for `child`. See the exact type and module contract. |
+| `ancestor` | `int` | Input | Value supplied for `ancestor`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -42,8 +42,8 @@ inline bool descendant(size_t child,size_t ancestor)
 #include "lifecycle.hpp"
 
 // Assume these named values have been initialized with valid data:
-// size_t child
-// size_t ancestor
+// int child
+// int ancestor
 
 auto result = epok::descendant(child, ancestor);
 ```
@@ -111,9 +111,9 @@ inline uint32_t next_generation(uint32_t n)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `n` | `uint32_t` | Input | Value supplied for `n`. See the exact type and module contract. |
+| `n` | `int` | Input | Value supplied for `n`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need entity creation, activation and destruction and the preconditions in the declaration are already satisfied.
 
@@ -123,7 +123,7 @@ inline uint32_t next_generation(uint32_t n)
 #include "lifecycle.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t n
+// int n
 
 auto result = epok::next_generation(n);
 ```

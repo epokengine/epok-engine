@@ -38,7 +38,7 @@ unsigned advance(uint32_t now)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `now` | `uint32_t` | Input | Value supplied for `now`. See the exact type and module contract. |
+| `now` | `int` | Input | Value supplied for `now`. See the exact type and module contract. |
 
 **Returns.** Returns `unsigned int`. Check the purpose and failure notes before using the value.
 
@@ -50,7 +50,7 @@ unsigned advance(uint32_t now)
 #include "time.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t now
+// int now
 
 epok::Time& object = /* obtain a valid instance */;
 
@@ -109,7 +109,7 @@ uint32_t interpolation_raw() const
 - **Declared at:** [line 31](../../../runtime/time.hpp#L31)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
 
@@ -142,7 +142,7 @@ uint32_t interpolation_thousandths() const
 - **Declared at:** [line 30](../../../runtime/time.hpp#L30)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
 
@@ -212,7 +212,7 @@ void reset(uint32_t now)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `now` | `uint32_t` | Input | Value supplied for `now`. See the exact type and module contract. |
+| `now` | `int` | Input | Value supplied for `now`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -224,7 +224,7 @@ void reset(uint32_t now)
 #include "time.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t now
+// int now
 
 epok::Time& object = /* obtain a valid instance */;
 
@@ -296,7 +296,7 @@ void synchronize(uint32_t now)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `now` | `uint32_t` | Input | Value supplied for `now`. See the exact type and module contract. |
+| `now` | `int` | Input | Value supplied for `now`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -308,7 +308,7 @@ void synchronize(uint32_t now)
 #include "time.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t now
+// int now
 
 epok::Time& object = /* obtain a valid instance */;
 

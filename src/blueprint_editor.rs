@@ -3251,6 +3251,18 @@ impl BlueprintEditor {
         ] {
             candidates.push((name.into(), NodeKind::Builtin { operation }));
         }
+        for operation in registry.operations.values() {
+            candidates.push((
+                format!(
+                    "Gameplay API / {} / {}",
+                    operation.category,
+                    display_port(&operation.name)
+                ),
+                NodeKind::Operation {
+                    operation: operation.id.clone(),
+                },
+            ));
+        }
         for class in registry.classes.values() {
             candidates.push((
                 format!("Spawn / Class reference ({})", class.cpp_name),
@@ -4220,6 +4232,10 @@ fn output_type(
                 _ => crate::blueprint_ir::builtin_signature(operation).1,
             })
         }
+        NodeKind::Operation { operation } => registry
+            .operation(operation)
+            .and_then(|operation| operation.outputs.first())
+            .map(|output| output.value_type.clone()),
         _ => None,
     }
 }
@@ -4248,32 +4264,50 @@ fn node_sockets_with_assets(
     } else {
         None
     };
+    let operation_labels = if let NodeKind::Operation { operation } = &node.kind {
+        registry
+            .operation(operation)
+            .map(|operation| {
+                operation
+                    .parameters
+                    .iter()
+                    .map(|parameter| (parameter.id.clone(), display_port(&parameter.name)))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    } else {
+        vec![]
+    };
     let mut push = |pin: &str, output: bool, ty: SocketType| {
         pins.push(Socket {
             node: node.id.clone(),
             pin: pin.into(),
             output,
             ty,
-            label: binding_slots
-                .and_then(|slots| {
-                    slots
-                        .iter()
-                        .find(|slot| crate::blueprint_playback::pin(slot) == pin)
+            label: operation_labels
+                .iter()
+                .find(|(id, _)| id == pin)
+                .map(|(_, label)| label.clone())
+                .or_else(|| {
+                    binding_slots
+                        .and_then(|slots| {
+                            slots
+                                .iter()
+                                .find(|slot| crate::blueprint_playback::pin(slot) == pin)
+                        })
+                        .map(|slot| {
+                            format!(
+                                "{} ({})",
+                                slot.name,
+                                if slot.required {
+                                    "required"
+                                } else {
+                                    "optional"
+                                }
+                            )
+                        })
                 })
-                .map_or_else(
-                    || event_pin_label(graph, node, pin),
-                    |slot| {
-                        format!(
-                            "{} ({})",
-                            slot.name,
-                            if slot.required {
-                                "required"
-                            } else {
-                                "optional"
-                            }
-                        )
-                    },
-                ),
+                .unwrap_or_else(|| event_pin_label(graph, node, pin)),
         })
     };
     let pure = matches!(
@@ -4288,6 +4322,8 @@ fn node_sockets_with_assets(
         || matches!(&node.kind,NodeKind::Call{function} if function_by_id(doc,registry,function).is_some_and(|f|f.pure))
         || matches!(&node.kind,NodeKind::CallOn{class,function} if crate::blueprint_ir::call_on_function(registry,class,function).is_ok_and(|f|f.pure))
         || matches!(&node.kind,NodeKind::Builtin{operation} if crate::blueprint_ir::builtin_signature(operation).2);
+    let pure = pure
+        || matches!(&node.kind,NodeKind::Operation{operation} if registry.operation(operation).is_some_and(|operation| matches!(operation.effect, schema::OperationEffect::PureValue | schema::OperationEffect::StateRead)));
     if !pure && !matches!(node.kind, NodeKind::Entry) {
         push("exec", false, SocketType::Exec);
     }
@@ -4394,6 +4430,35 @@ fn node_sockets_with_assets(
                         &crate::blueprint_playback::pin(slot),
                         false,
                         SocketType::Value(slot.target.clone()),
+                    );
+                }
+            }
+        }
+        NodeKind::Operation { operation } => {
+            if let Some(operation) = registry.operation(operation) {
+                match &operation.receiver {
+                    schema::ReceiverKind::Instance { class } => push(
+                        "__target",
+                        false,
+                        SocketType::Value(schema::Type::ObjectRef {
+                            class: Some(class.clone()),
+                        }),
+                    ),
+                    schema::ReceiverKind::Value { cpp_name } => push(
+                        "__target",
+                        false,
+                        SocketType::Value(schema::Type::Record {
+                            cpp_name: cpp_name.clone(),
+                            fields: vec![],
+                        }),
+                    ),
+                    schema::ReceiverKind::Service { .. } => {}
+                }
+                for parameter in &operation.parameters {
+                    push(
+                        &parameter.id,
+                        false,
+                        SocketType::Value(parameter.value_type.clone()),
                     );
                 }
             }
@@ -4551,6 +4616,10 @@ fn node_label(node: &Node, doc: &BlueprintAsset, registry: &Registry) -> String 
             ),
             _ => display_port(&format!("{operation:?}")),
         },
+        NodeKind::Operation { operation } => registry
+            .operation(operation)
+            .map(|operation| display_port(&operation.name))
+            .unwrap_or_else(|| "Missing gameplay operation".into()),
     }
 }
 fn playback_label(
@@ -4673,10 +4742,21 @@ fn node_header(node: &Node, graph: &Graph, doc: &BlueprintAsset, registry: &Regi
         NodeKind::Builtin { operation } if crate::blueprint_ir::builtin_signature(operation).2 => {
             [0.24, 0.34, 0.18, 1.]
         }
+        NodeKind::Operation { operation }
+            if registry.operation(operation).is_some_and(|operation| {
+                matches!(
+                    operation.effect,
+                    schema::OperationEffect::PureValue | schema::OperationEffect::StateRead
+                )
+            }) =>
+        {
+            [0.24, 0.34, 0.18, 1.]
+        }
         NodeKind::Call { .. }
         | NodeKind::CallOn { .. }
         | NodeKind::CallParent
         | NodeKind::SetVariable { .. }
+        | NodeKind::Operation { .. }
         | NodeKind::Builtin { .. } => [0.15, 0.27, 0.34, 1.],
         NodeKind::Timeline { .. } | NodeKind::StopTimeline { .. } | NodeKind::Delay => {
             [0.35, 0.27, 0.13, 1.]
@@ -5618,6 +5698,7 @@ mod tests {
             timeline: None,
             event: false,
             pure: false,
+            resource_demands: vec![],
             abstract_method: false,
             final_method: false,
             access: "public".into(),

@@ -199,15 +199,11 @@ pub fn convert(e: &mut Editor, id: uuid::Uuid, name: &str) -> Result<(), String>
         path.clone(),
         asset.clone(),
     ));
-    let native = crate::blueprint::Registry {
-        classes: e
-            .class_registry
-            .classes
-            .iter()
-            .filter(|(_, c)| c.provider.id != "blueprint")
-            .map(|(id, c)| (id.clone(), c.clone()))
-            .collect(),
-    };
+    let mut native = e.class_registry.clone();
+    native
+        .classes
+        .retain(|_, class| class.provider.id != "blueprint");
+    native.normalize_functions();
     crate::blueprint_compile::compile(&e.root, &native, &files).map_err(|errors| {
         errors
             .iter()

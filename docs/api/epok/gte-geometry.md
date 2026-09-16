@@ -119,9 +119,9 @@ inline void load_projection_screen(int32_t focal,int32_t centre_x,int32_t centre
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `focal` | `int32_t` | Input | Value supplied for `focal`. See the exact type and module contract. |
-| `centre_x` | `int32_t` | Input | Value supplied for `centre_x`. See the exact type and module contract. |
-| `centre_y` | `int32_t` | Input | Value supplied for `centre_y`. See the exact type and module contract. |
+| `focal` | `int` | Input | Value supplied for `focal`. See the exact type and module contract. |
+| `centre_x` | `int` | Input | Value supplied for `centre_x`. See the exact type and module contract. |
+| `centre_y` | `int` | Input | Value supplied for `centre_y`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -133,9 +133,9 @@ inline void load_projection_screen(int32_t focal,int32_t centre_x,int32_t centre
 #include "gte_geometry.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int32_t focal
-// int32_t centre_x
-// int32_t centre_y
+// int focal
+// int centre_x
+// int centre_y
 
 epok::load_projection_screen(focal, centre_x, centre_y);
 ```
@@ -165,11 +165,11 @@ inline void project_geometry_vertex(const int16_t* vertex,const int32_t* offset,
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `vertex` | `const int16_t *` | Input | Value supplied for `vertex`. See the exact type and module contract. |
-| `offset` | `const int32_t *` | Input | Value supplied for `offset`. See the exact type and module contract. |
-| `camera` | `int32_t *` | Input/output; inspect the function contract | Value supplied for `camera`. See the exact type and module contract. |
-| `screen` | `uint32_t &` | Input/output; inspect the function contract | Value supplied for `screen`. See the exact type and module contract. |
-| `flags` | `uint32_t &` | Input/output; inspect the function contract | Value supplied for `flags`. See the exact type and module contract. |
+| `vertex` | `const int *` | Input | Value supplied for `vertex`. See the exact type and module contract. |
+| `offset` | `const int *` | Input | Value supplied for `offset`. See the exact type and module contract. |
+| `camera` | `int *` | Input/output; inspect the function contract | Value supplied for `camera`. See the exact type and module contract. |
+| `screen` | `int &` | Input/output; inspect the function contract | Value supplied for `screen`. See the exact type and module contract. |
+| `flags` | `int &` | Input/output; inspect the function contract | Value supplied for `flags`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -181,11 +181,11 @@ inline void project_geometry_vertex(const int16_t* vertex,const int32_t* offset,
 #include "gte_geometry.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int16_t * vertex
-// const int32_t * offset
-// int32_t * camera
-// uint32_t & screen
-// uint32_t & flags
+// const int * vertex
+// const int * offset
+// int * camera
+// int & screen
+// int & flags
 
 epok::project_geometry_vertex(vertex, offset, camera, screen, flags);
 ```
@@ -213,8 +213,8 @@ inline void transform_geometry_vertex(const int16_t* vertex,int32_t* camera)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `vertex` | `const int16_t *` | Input | Value supplied for `vertex`. See the exact type and module contract. |
-| `camera` | `int32_t *` | Input/output; inspect the function contract | Value supplied for `camera`. See the exact type and module contract. |
+| `vertex` | `const int *` | Input | Value supplied for `vertex`. See the exact type and module contract. |
+| `camera` | `int *` | Input/output; inspect the function contract | Value supplied for `camera`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -226,8 +226,8 @@ inline void transform_geometry_vertex(const int16_t* vertex,int32_t* camera)
 #include "gte_geometry.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int16_t * vertex
-// int32_t * camera
+// const int * vertex
+// int * camera
 
 epok::transform_geometry_vertex(vertex, camera);
 ```

@@ -1228,6 +1228,7 @@ struct Lower<'a> {
     file: &'a Path,
     class: &'a schema::Class,
     registry: &'a Registry,
+    profile: crate::settings::LuaProfile,
     /// Every reachable property, by authored name, with its reflected member id.
     properties: BTreeMap<String, schema::Property>,
     /// Every method callable on `self`, by name.
@@ -1241,6 +1242,9 @@ struct Lower<'a> {
     /// Dense builtin call-site counter for the whole class; the VM binding
     /// dispatches on it, so it must be assigned exactly once per site.
     site: u32,
+    /// Dense v2 catalog-operation sites. Kept separate from legacy builtin
+    /// sites so old graphs/chunks retain their established dispatch numbers.
+    operation_site: u32,
     /// Set while lowering a call statement, whose result is thrown away. It is
     /// the only position a builtin returning a playback handle may appear in.
     discarding: bool,
@@ -1341,10 +1345,30 @@ impl<'a> Lower<'a> {
             ast::Expr::Bool(..) => Some(Type::Bool),
             ast::Expr::Number { integer, .. } => (!integer).then_some(Type::Fixed),
             ast::Expr::Name { name, .. } => self.slot(name).and_then(|id| self.state(id).0),
-            ast::Expr::Field { base, name, .. } => self.intrinsic_type(base, name).or_else(|| {
-                self.place_property(base, name)
-                    .map(|p| p.value_type.clone())
-            }),
+            ast::Expr::Field { base, name, .. } => self
+                .intrinsic_type(base, name)
+                .or_else(|| {
+                    self.place_property(base, name)
+                        .map(|p| p.value_type.clone())
+                })
+                .or_else(|| {
+                    self.hint(base)
+                        .and_then(|value_type| value_type.member_wire_offset(name))
+                        .map(|(_, value_type)| value_type)
+                })
+                .or_else(|| {
+                    self.hint(base)
+                        .and_then(|value_type| {
+                            self.foreign_property_operation(&value_type, name, false)
+                                .ok()
+                        })
+                        .and_then(|operation| {
+                            operation
+                                .outputs
+                                .first()
+                                .map(|output| output.value_type.clone())
+                        })
+                }),
             ast::Expr::Unary { op, operand, .. } => match op {
                 UnOp::Not => Some(Type::Bool),
                 UnOp::Neg => self.hint(operand),
@@ -1366,7 +1390,9 @@ impl<'a> Lower<'a> {
                 if matches!(&**base, ast::Expr::Name { name, .. } if name == "self") {
                     self.methods.get(name).map(|f| f.returns.clone())
                 } else {
-                    self.parent_methods.get(name).map(|f| f.returns.clone())
+                    self.hint(base)
+                        .and_then(|value_type| self.foreign_function(&value_type, name).ok())
+                        .map(|function| function.returns)
                 }
             }
             ast::Expr::Call { base, args, span } if super_path(base).is_some() => {
@@ -1379,10 +1405,15 @@ impl<'a> Lower<'a> {
                 Some("to_int") => Some(Type::Int32),
                 // A builtin's return is fixed by its signature, so it can type a
                 // bare literal on the other side of an operator.
-                Some(name) => adapter(name).map(|(operation, _, _)| {
-                    let _ = (args, span);
-                    crate::blueprint_ir::builtin_signature(&operation).1
-                }),
+                Some(name) => self
+                    .service_operation(name)
+                    .map(Self::operation_return)
+                    .or_else(|| {
+                        adapter(name).map(|(operation, _, _)| {
+                            let _ = (args, span);
+                            crate::blueprint_ir::builtin_signature(&operation).1
+                        })
+                    }),
                 None => None,
             },
             _ => None,
@@ -1542,6 +1573,56 @@ impl<'a> Lower<'a> {
             ast::Expr::Field { base, name, span } if on_self(base) && name == SELF_REFERENCE => {
                 self.self_reference(*span)
             }
+            ast::Expr::Field { base, name, span }
+                if !on_self(base)
+                    && self.hint(base).is_some_and(|value_type| {
+                        !value_type.members().is_empty()
+                            && (self.profile != crate::settings::LuaProfile::LegacyV1
+                                || matches!(value_type, Type::Record { .. }))
+                    }) =>
+            {
+                let value = self.expr(base, None, pending, false)?;
+                if self.profile == crate::settings::LuaProfile::LegacyV1 {
+                    self.report(*span, profile::TRANSFORM_RECORD);
+                    return None;
+                }
+                let Some((index, value_type)) = value.value_type().member_wire_offset(name) else {
+                    self.report(*span, format!("Unknown member {name}"));
+                    return None;
+                };
+                Some(ir::Expr::Member {
+                    base: Box::new(value),
+                    name: name.clone(),
+                    index,
+                    value_type,
+                })
+            }
+            ast::Expr::Field { base, name, span }
+                if !on_self(base)
+                    && self.hint(base).is_some_and(|value_type| {
+                        matches!(
+                            value_type,
+                            Type::ObjectRef { .. }
+                                | Type::ActorRef { .. }
+                                | Type::ComponentRef { .. }
+                        )
+                    }) =>
+            {
+                if self.profile == crate::settings::LuaProfile::LegacyV1 {
+                    self.report(*span, RECEIVERS);
+                    return None;
+                }
+                let receiver_type = self.hint(base)?;
+                let operation = match self.foreign_property_operation(&receiver_type, name, false) {
+                    Ok(value) => value,
+                    Err(message) => {
+                        self.report(*span, message);
+                        return None;
+                    }
+                };
+                let receiver = self.expr(base, Some(&receiver_type), pending, false)?;
+                self.operation_call(operation, Some(receiver), &[], *span, pending, false)
+            }
             ast::Expr::Field { .. } => {
                 let place = self.place(expr)?;
                 let value_type = place.value_type(&self.locals)?;
@@ -1609,6 +1690,12 @@ impl<'a> Lower<'a> {
         let value_type = match (expected, integer) {
             (Some(Type::Fixed), _) => Type::Fixed,
             (Some(ty @ (Type::Int32 | Type::UInt32)), true) => ty.clone(),
+            (Some(ty @ Type::Enum { variants, .. }), true)
+                if value.fract() == 0.0
+                    && variants.values().any(|variant| *variant == value as i64) =>
+            {
+                ty.clone()
+            }
             (Some(ty), _) => {
                 self.report(span, format!("Numeric literal is not {}", ty.label()));
                 return None;
@@ -1801,6 +1888,9 @@ impl<'a> Lower<'a> {
         root: bool,
     ) -> Option<ir::Expr> {
         let name = builtin(base).unwrap_or_default();
+        if let Some(operation) = self.service_operation(&name).cloned() {
+            return self.operation_call(operation, None, args, span, pending, root);
+        }
         let (kind, operand_type) = match name.as_str() {
             "to_fixed" => (ir::Conversion::IntToFixed, Type::Int32),
             "to_int" => (ir::Conversion::FixedToInt, Type::Fixed),
@@ -1831,6 +1921,175 @@ impl<'a> Lower<'a> {
         Some(ir::Expr::Convert {
             kind,
             operand: Box::new(operand),
+        })
+    }
+
+    fn service_operation(&self, path: &str) -> Option<&schema::Operation> {
+        self.registry
+            .function_libraries
+            .values()
+            .flat_map(|library| library.operations.iter())
+            .find(|operation| {
+                let category = operation
+                    .category
+                    .chars()
+                    .map(|character| {
+                        if character.is_ascii_alphanumeric() {
+                            character.to_ascii_lowercase()
+                        } else {
+                            '_'
+                        }
+                    })
+                    .collect::<String>();
+                let namespace = operation
+                    .namespace
+                    .rsplit("::")
+                    .next()
+                    .unwrap_or(&operation.namespace)
+                    .trim_end_matches("Library")
+                    .chars()
+                    .map(|character| {
+                        if character.is_ascii_alphanumeric() {
+                            character.to_ascii_lowercase()
+                        } else {
+                            '_'
+                        }
+                    })
+                    .collect::<String>();
+                path == format!("{category}.{}", operation.name)
+                    || path == format!("{namespace}.{}", operation.name)
+            })
+    }
+
+    fn operation_return(operation: &schema::Operation) -> Type {
+        operation
+            .outputs
+            .first()
+            .map(|output| output.value_type.clone())
+            .unwrap_or(Type::Void)
+    }
+
+    fn operation_call(
+        &mut self,
+        operation: schema::Operation,
+        receiver: Option<ir::Expr>,
+        args: &[ast::Expr],
+        span: Span,
+        pending: &mut ir::Block,
+        root: bool,
+    ) -> Option<ir::Expr> {
+        if self.profile == crate::settings::LuaProfile::LegacyV1 {
+            self.report(
+                span,
+                "Gameplay service calls require the epok-lua Gameplay v2 profile",
+            );
+            return None;
+        }
+        if operation.outputs.len() > 1 {
+            self.report(
+                span,
+                format!("{} has unsupported multiple outputs", operation.name),
+            );
+            return None;
+        }
+        if args.len() != operation.parameters.len() {
+            self.report(
+                span,
+                format!(
+                    "epok.{} expects {} argument(s)",
+                    operation.name,
+                    operation.parameters.len()
+                ),
+            );
+            return None;
+        }
+        let receiver_words = usize::from(receiver.is_some());
+        if operation.parameters.len() + receiver_words > 8 {
+            self.report(
+                span,
+                format!(
+                    "{} exceeds the eight-value Lua call boundary",
+                    operation.name
+                ),
+            );
+            return None;
+        }
+        let mut lowered = Vec::with_capacity(args.len());
+        for (written, parameter) in args.iter().zip(&operation.parameters) {
+            if parameter.direction == schema::Direction::MutableReference {
+                self.report(
+                    written.span(),
+                    format!(
+                        "Mutable argument {} requires an assignable value",
+                        parameter.name
+                    ),
+                );
+                return None;
+            }
+            if parameter.value_type.wire_words() > 32 {
+                self.report(
+                    written.span(),
+                    format!(
+                        "Argument {} exceeds the 32-word Lua value limit",
+                        parameter.name
+                    ),
+                );
+                return None;
+            }
+            let value = self.expr(written, Some(&parameter.value_type), pending, false)?;
+            if !crate::blueprint_ir::assignable(
+                value.value_type(),
+                &parameter.value_type,
+                self.registry,
+            ) {
+                self.report(
+                    written.span(),
+                    format!(
+                        "Argument {} is not {}",
+                        parameter.name,
+                        parameter.value_type.label()
+                    ),
+                );
+                return None;
+            }
+            lowered.push(value);
+        }
+        let returns = Self::operation_return(&operation);
+        if returns.wire_words() > 32 {
+            self.report(
+                span,
+                format!("{} exceeds the 32-word Lua value limit", returns.label()),
+            );
+            return None;
+        }
+        let pure = matches!(
+            operation.effect,
+            schema::OperationEffect::PureValue | schema::OperationEffect::StateRead
+        );
+        let site = self.operation_site;
+        self.operation_site += 1;
+        let call = ir::Expr::CallOperation {
+            site,
+            operation,
+            receiver: receiver.map(Box::new),
+            args: lowered,
+            returns: returns.clone(),
+            pure,
+        };
+        if root || pure || returns == Type::Void {
+            return Some(call);
+        }
+        let temporary = self.temporary(&returns);
+        pending.push(ir::Statement::new(
+            ir::StatementKind::Local {
+                target: temporary,
+                value: call,
+            },
+            span,
+        ));
+        Some(ir::Expr::Read {
+            place: ir::Place::Local(temporary),
+            value_type: returns,
         })
     }
 
@@ -2155,10 +2414,114 @@ impl<'a> Lower<'a> {
         root: bool,
     ) -> Option<ir::Expr> {
         if !on_self(base) {
-            self.report(base.span(), RECEIVERS);
-            return None;
+            if self.profile == crate::settings::LuaProfile::LegacyV1 {
+                self.report(base.span(), RECEIVERS);
+                return None;
+            }
+            let Some(receiver_type) = self.hint(base) else {
+                self.report(base.span(), "Foreign receiver has no static reference type");
+                return None;
+            };
+            let function = match self.foreign_function(&receiver_type, name) {
+                Ok(function) => function,
+                Err(message) => {
+                    self.report(span, message);
+                    return None;
+                }
+            };
+            let Some(operation) = self.registry.operation(&function.id).cloned() else {
+                self.report(
+                    span,
+                    format!("Method {name} has no gameplay operation descriptor"),
+                );
+                return None;
+            };
+            // Receiver lowering happens before argument lowering in
+            // `operation_call`. Nested receiver calls are materialized in
+            // `pending`, so the receiver is evaluated exactly once.
+            let receiver = self.expr(base, Some(&receiver_type), pending, false)?;
+            return self.operation_call(operation, Some(receiver), args, span, pending, root);
         }
         self.invoke(false, name, args, span, pending, root)
+    }
+
+    fn foreign_function(&self, receiver: &Type, name: &str) -> Result<schema::Function, String> {
+        let class_id = match receiver {
+            Type::ObjectRef { class: Some(class) }
+            | Type::ActorRef { class: Some(class) }
+            | Type::ComponentRef { class: Some(class) } => class,
+            Type::ObjectRef { class: None }
+            | Type::ActorRef { class: None }
+            | Type::ComponentRef { class: None } => {
+                return Err("Foreign receiver must have a concrete reflected class".into());
+            }
+            _ => return Err("Foreign receiver is not an object reference".into()),
+        };
+        let class = self
+            .registry
+            .named(class_id)
+            .ok_or_else(|| format!("Unknown receiver class {class_id}"))?;
+        let mut visible = BTreeMap::<String, schema::Function>::new();
+        for ancestor in self.registry.ancestry(&class.cpp_name) {
+            for function in &ancestor.functions {
+                for overridden in &function.overrides {
+                    visible.remove(overridden);
+                }
+                visible.insert(function.id.clone(), function.clone());
+            }
+        }
+        let mut matches = visible.into_values().filter(|function| {
+            function.name == name && function.callable && function.access == "public"
+        });
+        let function = matches
+            .next()
+            .ok_or_else(|| format!("Unknown public method {name} on {}", class.cpp_name))?;
+        if matches.next().is_some() {
+            return Err(format!(
+                "Method {name} is overloaded on {}; use a uniquely named facade",
+                class.cpp_name
+            ));
+        }
+        Ok(function)
+    }
+
+    fn foreign_property_operation(
+        &self,
+        receiver: &Type,
+        name: &str,
+        write: bool,
+    ) -> Result<schema::Operation, String> {
+        let class_id = match receiver {
+            Type::ObjectRef { class: Some(class) }
+            | Type::ActorRef { class: Some(class) }
+            | Type::ComponentRef { class: Some(class) } => class,
+            Type::ObjectRef { class: None }
+            | Type::ActorRef { class: None }
+            | Type::ComponentRef { class: None } => {
+                return Err(
+                    "Foreign property receiver must have a concrete reflected class".into(),
+                );
+            }
+            _ => return Err("Foreign property receiver is not an object reference".into()),
+        };
+        let class = self
+            .registry
+            .named(class_id)
+            .ok_or_else(|| format!("Unknown receiver class {class_id}"))?;
+        let property = self
+            .registry
+            .properties(&class.cpp_name)
+            .into_iter()
+            .find(|property| property.name == name)
+            .ok_or_else(|| format!("Unknown property {name} on {}", class.cpp_name))?;
+        if write && !property.editable {
+            return Err(format!("Property {name} is read-only"));
+        }
+        let id = format!("{}:{}", property.id, if write { "set" } else { "get" });
+        self.registry
+            .operation(&id)
+            .cloned()
+            .ok_or_else(|| format!("Property {name} has no gameplay operation descriptor"))
     }
 
     /// `<Class>.super.<method>(self, ...)`: the lexically qualified parent
@@ -2294,12 +2657,19 @@ impl<'a> Lower<'a> {
         })
     }
 
-    /// Profile v1 moves one 32-bit value at a time (contract §10.1). A whole
-    /// vector is not one of them in any mode, so the diagnostic belongs here
-    /// rather than in a backend: `self.position.x` is the supported spelling.
+    /// Profile v1 moves one 32-bit value at a time. Gameplay v2 retains whole
+    /// vectors and records in generated native/VM storage.
     fn scalar(&mut self, value_type: &Type, span: Span) -> bool {
-        if matches!(value_type, Type::Vector { .. }) {
+        if matches!(value_type, Type::Vector { .. })
+            && self.profile == crate::settings::LuaProfile::LegacyV1
+        {
             self.report(span, profile::VECTOR_VALUE);
+            return false;
+        }
+        if matches!(value_type, Type::Record { .. })
+            && self.profile == crate::settings::LuaProfile::LegacyV1
+        {
+            self.report(span, profile::TRANSFORM_RECORD);
             return false;
         }
         true
@@ -2326,7 +2696,9 @@ impl<'a> Lower<'a> {
                     let (id, value_type) = (property.id.clone(), property.value_type.clone());
                     // Asset and class handles are 64-bit native fields. They stay
                     // Inspector-editable, but no profile v1 body reads or writes one.
-                    if matches!(value_type, Type::AssetRef { .. } | Type::ClassRef { .. }) {
+                    if matches!(value_type, Type::AssetRef { .. } | Type::ClassRef { .. })
+                        && self.profile == crate::settings::LuaProfile::LegacyV1
+                    {
                         self.report(*span, profile::REFERENCE_VALUE);
                         return None;
                     }
@@ -2418,6 +2790,51 @@ impl<'a> Lower<'a> {
                 value,
                 span,
             } => {
+                if let ast::Expr::Field { base, name, .. } = target
+                    && !on_self(base)
+                    && self.hint(base).is_some_and(|value_type| {
+                        matches!(
+                            value_type,
+                            Type::ObjectRef { .. }
+                                | Type::ActorRef { .. }
+                                | Type::ComponentRef { .. }
+                        )
+                    })
+                {
+                    if self.profile == crate::settings::LuaProfile::LegacyV1 {
+                        self.report(*span, RECEIVERS);
+                        return;
+                    }
+                    let Some(receiver_type) = self.hint(base) else {
+                        return;
+                    };
+                    let operation =
+                        match self.foreign_property_operation(&receiver_type, name, true) {
+                            Ok(value) => value,
+                            Err(message) => {
+                                self.report(*span, message);
+                                return;
+                            }
+                        };
+                    let mut pending = vec![];
+                    let Some(receiver) = self.expr(base, Some(&receiver_type), &mut pending, false)
+                    else {
+                        return;
+                    };
+                    let Some(call) = self.operation_call(
+                        operation,
+                        Some(receiver),
+                        std::slice::from_ref(value),
+                        *span,
+                        &mut pending,
+                        true,
+                    ) else {
+                        return;
+                    };
+                    out.extend(pending);
+                    out.push(ir::Statement::new(ir::StatementKind::Evaluate(call), *span));
+                    return;
+                }
                 let Some(place) = self.place(target) else {
                     return;
                 };
@@ -2443,10 +2860,12 @@ impl<'a> Lower<'a> {
                 let vector_target = declared
                     .as_ref()
                     .is_some_and(|ty| matches!(ty, Type::Vector { .. }));
-                if vector_target {
+                if vector_target && self.profile == crate::settings::LuaProfile::LegacyV1 {
                     self.report(*span, profile::VECTOR_VALUE);
                 }
-                if vector_target || !self.scalar(&actual, *span) {
+                if (vector_target && self.profile == crate::settings::LuaProfile::LegacyV1)
+                    || !self.scalar(&actual, *span)
+                {
                     return;
                 }
                 match (&place, declared) {
@@ -2910,6 +3329,22 @@ pub fn lower_class(
     class: &schema::Class,
     registry: &Registry,
 ) -> Result<ir::ClassIr, Vec<Diagnostic>> {
+    lower_class_with_profile(
+        decl,
+        chunk,
+        class,
+        registry,
+        crate::settings::LuaProfile::LegacyV1,
+    )
+}
+
+pub fn lower_class_with_profile(
+    decl: &Declaration,
+    chunk: &ast::Chunk,
+    class: &schema::Class,
+    registry: &Registry,
+    profile: crate::settings::LuaProfile,
+) -> Result<ir::ClassIr, Vec<Diagnostic>> {
     let parent_cpp_name = decl.extends.clone();
     let mut properties = BTreeMap::new();
     for ancestor in registry.ancestry(&parent_cpp_name) {
@@ -2943,12 +3378,14 @@ pub fn lower_class(
         file: &decl.file,
         class,
         registry,
+        profile,
         properties,
         methods,
         parent_methods,
         transform,
         parent_cpp_name: parent_cpp_name.clone(),
         site: 0,
+        operation_site: 0,
         discarding: false,
         shape,
         own,

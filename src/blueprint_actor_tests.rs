@@ -21,6 +21,7 @@ fn event_function(id: &str, name: &str, parameters: Vec<schema::Parameter>) -> s
         timeline: None,
         event: true,
         pure: false,
+        resource_demands: vec![],
         abstract_method: false,
         final_method: false,
         access: "public".into(),

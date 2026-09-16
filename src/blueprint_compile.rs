@@ -87,12 +87,20 @@ fn receiver_artifacts(
     files: &[AssetFile],
     artifacts: &mut Artifacts,
 ) -> Result<bool, Vec<Diagnostic>> {
-    let mut targets = BTreeMap::new();
+    let mut targets: BTreeMap<
+        (String, String),
+        (
+            &AssetFile,
+            schema::Type,
+            Vec<(schema::Type, schema::Direction)>,
+            String,
+        ),
+    > = BTreeMap::new();
     for file in files {
         for graph in &file.asset.functions {
             for node in graph.compilation_nodes() {
                 if let asset::NodeKind::CallOn { class, function } = &node.kind {
-                    let f = ir::call_on_function(registry, class, function).map_err(|e| {
+                    let f = ir::call_on_function(registry, &class, &function).map_err(|e| {
                         vec![Diagnostic {
                             asset: file.path.clone(),
                             graph: Some(graph.id.clone()),
@@ -100,7 +108,43 @@ fn receiver_artifacts(
                             message: e,
                         }]
                     })?;
-                    targets.insert((class.clone(), function.clone()), (file, f));
+                    targets.insert(
+                        (class.clone(), function.clone()),
+                        (
+                            file,
+                            f.returns.clone(),
+                            f.parameters
+                                .iter()
+                                .map(|p| (p.value_type.clone(), p.direction.clone()))
+                                .collect(),
+                            format!("method:{}", f.name),
+                        ),
+                    );
+                } else if let asset::NodeKind::Operation { operation } = &node.kind {
+                    let Some(value) = registry.operation(operation) else {
+                        continue;
+                    };
+                    let schema::ReceiverKind::Instance { class } = &value.receiver else {
+                        continue;
+                    };
+                    let returns = value
+                        .outputs
+                        .first()
+                        .map(|output| output.value_type.clone())
+                        .unwrap_or(schema::Type::Void);
+                    targets.insert(
+                        (class.clone(), value.id.clone()),
+                        (
+                            file,
+                            returns,
+                            value
+                                .parameters
+                                .iter()
+                                .map(|p| (p.value_type.clone(), p.direction.clone()))
+                                .collect(),
+                            value.native_target.clone(),
+                        ),
+                    );
                 }
             }
         }
@@ -146,14 +190,15 @@ fn receiver_artifacts(
         source.push_str(&format!("#include \"{}.hpp\"\n", file.asset.id));
     }
     source.push_str("namespace {uint32_t epok_receiver_depth=0;struct UqReceiverDepth {bool entered;UqReceiverDepth():entered(epok_receiver_depth<32){if(entered)++epok_receiver_depth;}~UqReceiverDepth(){if(entered)--epok_receiver_depth;}};}\n");
-    for ((class_id, function_id), (file, function)) in targets {
+    for ((class_id, function_id), (file, return_type, target_parameters, native_target)) in targets
+    {
         let class = &registry.classes[&class_id];
-        let returns = ir::cpp_type(&function.returns).map_err(|e| vec![diagnostic(file, e)])?;
+        let returns = ir::cpp_type(&return_type).map_err(|e| vec![diagnostic(file, e)])?;
         let mut parameters = vec!["epok::ObjectId epok_receiver".to_string()];
         let mut arguments = vec![];
-        for (index, p) in function.parameters.iter().enumerate() {
-            let ty = ir::cpp_type(&p.value_type).map_err(|e| vec![diagnostic(file, e)])?;
-            let ty = match p.direction {
+        for (index, (value_type, direction)) in target_parameters.iter().enumerate() {
+            let ty = ir::cpp_type(value_type).map_err(|e| vec![diagnostic(file, e)])?;
+            let ty = match direction {
                 schema::Direction::Value => ty,
                 schema::Direction::ConstReference => format!("const {ty}&"),
                 schema::Direction::MutableReference => format!("{ty}&"),
@@ -167,18 +212,35 @@ fn receiver_artifacts(
             parameters.join(",")
         );
         header.push_str(&format!("{signature};\n"));
-        let fallback = if function.returns == schema::Type::Void {
+        let fallback = if return_type == schema::Type::Void {
             "return;".to_string()
         } else {
             "return {};".to_string()
         };
         let class_hash = crate::blueprint_refs::compact_id(&class_id);
-        let invoke = format!(
-            "return static_cast<{}*>(epok_object)->{}({});",
-            class.cpp_name,
-            function.name,
-            arguments.join(",")
-        );
+        let target = format!("static_cast<{}*>(epok_object)", class.cpp_name);
+        let invoke = if let Some(name) = native_target.strip_prefix("property:get:") {
+            if let schema::Type::Vector { length } = return_type {
+                format!(
+                    "{returns} epok_value{{}};for(unsigned i=0;i<{length};++i)epok_value[i]={target}->{name}[i];return epok_value;"
+                )
+            } else {
+                format!("return {target}->{name};")
+            }
+        } else if let Some(name) = native_target.strip_prefix("property:set:") {
+            if let Some((schema::Type::Vector { length }, _)) = target_parameters.first() {
+                format!(
+                    "for(unsigned i=0;i<{length};++i){target}->{name}[i]=epok_argument_0[i];return;"
+                )
+            } else {
+                format!("{target}->{name}=epok_argument_0;return;")
+            }
+        } else {
+            let name = native_target
+                .strip_prefix("method:")
+                .unwrap_or_else(|| native_target.rsplit("::").next().unwrap_or(&native_target));
+            format!("return {target}->{name}({});", arguments.join(","))
+        };
         source.push_str(&format!("{signature}{{UqReceiverDepth epok_depth;if(!epok_depth.entered){{{fallback}}}if(!epok::bp::is_a(epok_receiver,{class_hash}ULL)){{{fallback}}}auto* epok_object=epok::bp::object(epok_receiver);if(!epok_object){{{fallback}}}if(!epok::active_object_registry){{{fallback}}}epok::ObjectDispatchScope epok_scope(*epok::active_object_registry);{invoke}}}\n"));
     }
     artifacts.files.insert(
@@ -681,6 +743,7 @@ fn declarations(file: &AssetFile, registry: &Registry) -> Result<schema::Class, 
                 timeline: graph.timeline,
                 event: true,
                 pure: false,
+                resource_demands: vec![],
                 abstract_method: false,
                 final_method: false,
                 access: "public".into(),
@@ -1271,6 +1334,7 @@ fn register_declarations(
         let class = declarations(file, &registry).map_err(|e| vec![e])?;
         registry.classes.insert(class.id.clone(), class);
     }
+    registry.normalize_functions();
     Ok(registry)
 }
 
@@ -1372,6 +1436,19 @@ pub fn compile(
     let resource_dependencies = validate_resources(root, &registry, files)?;
     let mut scripts = vec![];
     let mut artifacts = Artifacts::default();
+    for node in files
+        .iter()
+        .flat_map(|file| file.asset.functions.iter())
+        .flat_map(|graph| graph.compilation_nodes())
+    {
+        if let asset::NodeKind::Operation { operation } = &node.kind
+            && let Some(declaration) = registry.operation(operation)
+        {
+            artifacts
+                .runtime_capabilities
+                .extend(declaration.resource_demands.iter().cloned());
+        }
+    }
     let (direct_timelines, direct_effects) =
         crate::blueprint_playback::references(files).map_err(|message| {
             vec![diagnostic(
@@ -2112,6 +2189,7 @@ mod tests {
                 timeline: None,
                 event: true,
                 pure: false,
+                resource_demands: vec![],
                 abstract_method: false,
                 final_method: false,
                 access: "public".into(),

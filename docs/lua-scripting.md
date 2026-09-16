@@ -5,11 +5,13 @@ reflected C++ class: it inherits properties, overrides reflected events, and is
 published into the same class registry as C++ and Blueprint classes, so all
 three can see and call each other.
 
-Lua authoring uses one versioned language profile, **`epok-lua` v1**, and one
-project-wide execution setting that chooses how method bodies are implemented on
-the console. The same scripts are authored once; the setting selects whether
-they are compiled to native MIPS or interpreted by a Lua VM linked into the
-game. See [The Lua VM runtime](lua-vm-runtime.md) for what a VM build contains.
+Lua authoring has two versioned language profiles. **Gameplay v2** is the default
+for new projects and adds catalog services, typed foreign receivers, composite
+records/vectors and full-width handles. **Legacy v1** preserves the original
+scalar-only source and VM ABI for existing projects until they are explicitly
+upgraded. A separate project-wide execution setting chooses whether the same
+source is compiled to native MIPS or interpreted by a Lua VM. See [The Lua VM
+runtime](lua-vm-runtime.md) for what a VM build contains.
 
 `epok-lua` is **not general Lua compatibility**. It is a small statically typed
 subset with a closed set of constructs, listed in full below. Source outside the
@@ -164,9 +166,9 @@ value that is neither a literal nor a constructor — an expression such as
 are reserved: a property of one of those names would shadow an intrinsic and is
 rejected. A property that shadows an inherited member is rejected too.
 
-Only components of vectors cross the boundary in a body, so a `Vector2` or
-`Vector3` property is declared and edited whole but read and written as
-`.x`, `.y`, `.z`.
+Gameplay v2 can copy a `Vector2` or `Vector3` whole and can read/write its
+`.x`, `.y`, `.z` members. Legacy v1 retains the original component-only body
+access.
 
 ### Functions
 
@@ -185,7 +187,7 @@ end
 
 | Method | What it is |
 | --- | --- |
-| One of the five lifecycle names (`begin_play`, `tick`, `end_play`, `on_enable`, `on_disable`) | An override; the signature comes from the reflected parent, so no annotation is needed. |
+| One of the six lifecycle names (`begin_play`, `tick`, `end_play`, `on_enable`, `on_disable`, `on_frame`) | An override; the signature comes from the reflected parent, so no annotation is needed. |
 | Marked `---@override` | An override of any other reflected parent event; the signature comes from the parent. |
 | Annotated with `---@param` / `---@return` | A new callable other classes and Blueprints may call. |
 | No parameters and no annotations | A new `void` callable. |
@@ -848,3 +850,21 @@ the chunk payloads are already inside the generated
   classes extend.
 - [Blueprints](blueprints.md) — the visual authoring provider that shares the
   same registry, Inspector and inheritance rules.
+## Gameplay profile 2
+
+New projects use the Gameplay v2 profile. It keeps the bounded, statically typed
+language while adding catalog service calls, typed calls on another actor/component,
+Vector2/Vector3 and registered record values, nested member reads, full-width
+sequence/effect handles and a versioned multiword VM call boundary. The same source
+runs in `native_cpp`, `vm_bytecode` and `vm_source` modes.
+
+Service spelling follows the generated completion file, for example
+`epok.time.snapshot()`, `epok.collision.raycast_segment(...)` and
+`epok.memory_card.loaded_word(index)`. Composite results are owned snapshots and may
+be stored in locals/properties for later member reads. Foreign property reads and
+writes lower to the same catalog Get/Set operation used by Blueprint.
+
+Existing projects remain on Legacy v1 unless their project setting is changed.
+The v1 receiver, whole-record and handle limitations documented below continue to
+describe that compatibility profile, not Gameplay v2. See
+[Gameplay API](gameplay-api.md) for the public groups and capacity contracts.

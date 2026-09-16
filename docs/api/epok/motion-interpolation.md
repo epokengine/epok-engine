@@ -6,7 +6,7 @@ This module covers the motion interpolation module. It documents 13 public calla
 
 ## Declared types
 
-`epok::MotionInterpolation`
+`epok::MotionInterpolation`, `epok::MotionInterpolation::History`
 
 ## Callable index
 
@@ -44,7 +44,7 @@ template<class Objects> void after_tick(const Objects& objects,size_t count)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `objects` | `const Objects &` | Input | Value supplied for `objects`. See the exact type and module contract. |
-| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -60,7 +60,7 @@ template<class Objects> void after_tick(const Objects& objects,size_t count)
 
 // Assume these named values have been initialized with valid data:
 // const Objects & objects
-// size_t count
+// int count
 
 epok::MotionInterpolation& object = /* obtain a valid instance */;
 
@@ -91,7 +91,7 @@ template<class Objects> void after_tick(const Objects&,size_t)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `arg1` | `const Objects &` | Input | Value supplied for `arg1`. See the exact type and module contract. |
-| `arg2` | `size_t` | Input | Value supplied for `arg2`. See the exact type and module contract. |
+| `arg2` | `int` | Input | Value supplied for `arg2`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -107,7 +107,7 @@ template<class Objects> void after_tick(const Objects&,size_t)
 
 // Assume these named values have been initialized with valid data:
 // const Objects & arg1
-// size_t arg2
+// int arg2
 
 epok::MotionInterpolation& object = /* obtain a valid instance */;
 
@@ -138,7 +138,7 @@ template<class Objects> void before_tick(const Objects& objects,size_t count)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `objects` | `const Objects &` | Input | Value supplied for `objects`. See the exact type and module contract. |
-| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -154,7 +154,7 @@ template<class Objects> void before_tick(const Objects& objects,size_t count)
 
 // Assume these named values have been initialized with valid data:
 // const Objects & objects
-// size_t count
+// int count
 
 epok::MotionInterpolation& object = /* obtain a valid instance */;
 
@@ -185,7 +185,7 @@ template<class Objects> void before_tick(const Objects&,size_t)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `arg1` | `const Objects &` | Input | Value supplied for `arg1`. See the exact type and module contract. |
-| `arg2` | `size_t` | Input | Value supplied for `arg2`. See the exact type and module contract. |
+| `arg2` | `int` | Input | Value supplied for `arg2`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -201,7 +201,7 @@ template<class Objects> void before_tick(const Objects&,size_t)
 
 // Assume these named values have been initialized with valid data:
 // const Objects & arg1
-// size_t arg2
+// int arg2
 
 epok::MotionInterpolation& object = /* obtain a valid instance */;
 
@@ -297,7 +297,7 @@ template<class Transform> Transform local(size_t i,const Transform& value) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `i` | `size_t` | Input | Value supplied for `i`. See the exact type and module contract. |
+| `i` | `int` | Input | Value supplied for `i`. See the exact type and module contract. |
 | `value` | `const Transform &` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** Returns `Transform`. Check the purpose and failure notes before using the value.
@@ -313,7 +313,7 @@ template<class Transform> Transform local(size_t i,const Transform& value) const
 // Transform
 
 // Assume these named values have been initialized with valid data:
-// size_t i
+// int i
 // const Transform & value
 
 epok::MotionInterpolation& object = /* obtain a valid instance */;
@@ -344,7 +344,7 @@ template<class Transform> Transform local(size_t,const Transform& value) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `size_t` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+| `arg1` | `int` | Input | Value supplied for `arg1`. See the exact type and module contract. |
 | `value` | `const Transform &` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** Returns `Transform`. Check the purpose and failure notes before using the value.
@@ -360,7 +360,7 @@ template<class Transform> Transform local(size_t,const Transform& value) const
 // Transform
 
 // Assume these named values have been initialized with valid data:
-// size_t arg1
+// int arg1
 // const Transform & value
 
 epok::MotionInterpolation& object = /* obtain a valid instance */;
@@ -421,11 +421,11 @@ template<class Objects> const std::array<Affine<Number>,Capacity>& prepare(const
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `objects` | `const Objects &` | Input | Value supplied for `objects`. See the exact type and module contract. |
-| `world` | `const std::array<Affine<Number>, Capacity> &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `fraction` | `unsigned int` | Input | Value supplied for `fraction`. See the exact type and module contract. |
 
-**Returns.** Returns `const std::array<Affine<Number>, Capacity> &`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `const int &`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the motion interpolation module and the preconditions in the declaration are already satisfied.
 
@@ -439,8 +439,8 @@ template<class Objects> const std::array<Affine<Number>,Capacity>& prepare(const
 
 // Assume these named values have been initialized with valid data:
 // const Objects & objects
-// const std::array<Affine<Number>, Capacity> & world
-// size_t count
+// const int & world
+// int count
 // unsigned int fraction
 
 epok::MotionInterpolation& object = /* obtain a valid instance */;
@@ -472,11 +472,11 @@ template<class Objects> const std::array<Affine<Number>,Capacity>& prepare(const
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `arg1` | `const Objects &` | Input | Value supplied for `arg1`. See the exact type and module contract. |
-| `world` | `const std::array<Affine<Number>, Capacity> &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `arg3` | `size_t` | Input | Value supplied for `arg3`. See the exact type and module contract. |
+| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `arg3` | `int` | Input | Value supplied for `arg3`. See the exact type and module contract. |
 | `arg4` | `unsigned int` | Input | Value supplied for `arg4`. See the exact type and module contract. |
 
-**Returns.** Returns `const std::array<Affine<Number>, Capacity> &`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `const int &`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the motion interpolation module and the preconditions in the declaration are already satisfied.
 
@@ -490,8 +490,8 @@ template<class Objects> const std::array<Affine<Number>,Capacity>& prepare(const
 
 // Assume these named values have been initialized with valid data:
 // const Objects & arg1
-// const std::array<Affine<Number>, Capacity> & world
-// size_t arg3
+// const int & world
+// int arg3
 // unsigned int arg4
 
 epok::MotionInterpolation& object = /* obtain a valid instance */;
@@ -525,7 +525,7 @@ template<class Objects,class Predicate> void select(const Objects& objects,size_
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `objects` | `const Objects &` | Input | Value supplied for `objects`. See the exact type and module contract. |
-| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `participant` | `Predicate` | Input | Value supplied for `participant`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -542,7 +542,7 @@ template<class Objects,class Predicate> void select(const Objects& objects,size_
 
 // Assume these named values have been initialized with valid data:
 // const Objects & objects
-// size_t count
+// int count
 // Predicate participant
 
 epok::MotionInterpolation& object = /* obtain a valid instance */;
@@ -574,7 +574,7 @@ template<class Objects,class Predicate> void select(const Objects&,size_t,Predic
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `arg1` | `const Objects &` | Input | Value supplied for `arg1`. See the exact type and module contract. |
-| `arg2` | `size_t` | Input | Value supplied for `arg2`. See the exact type and module contract. |
+| `arg2` | `int` | Input | Value supplied for `arg2`. See the exact type and module contract. |
 | `arg3` | `Predicate` | Input | Value supplied for `arg3`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -591,7 +591,7 @@ template<class Objects,class Predicate> void select(const Objects&,size_t,Predic
 
 // Assume these named values have been initialized with valid data:
 // const Objects & arg1
-// size_t arg2
+// int arg2
 // Predicate arg3
 
 epok::MotionInterpolation& object = /* obtain a valid instance */;

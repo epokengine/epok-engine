@@ -227,14 +227,11 @@ fn create_with_owner(
         return Err(format!("A class named {name} already exists."));
     }
     candidates.push(asset::AssetFile::file(path.clone(), draft.clone()));
-    let native_registry = crate::blueprint::Registry {
-        classes: registry
-            .classes
-            .iter()
-            .filter(|(_, class)| class.provider.id != "blueprint")
-            .map(|(id, class)| (id.clone(), class.clone()))
-            .collect(),
-    };
+    let mut native_registry = registry.clone();
+    native_registry
+        .classes
+        .retain(|_, class| class.provider.id != "blueprint");
+    native_registry.normalize_functions();
     let compiled = crate::blueprint_compile::compile(root, &native_registry, &candidates).map_err(
         |errors| {
             errors

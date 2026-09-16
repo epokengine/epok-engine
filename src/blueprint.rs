@@ -5,6 +5,11 @@ use std::{collections::BTreeMap, path::Path};
 #[derive(Clone, Debug)]
 pub struct Registry {
     pub classes: BTreeMap<String, schema::Class>,
+    /// One compiler-facing operation catalog for instance methods and static
+    /// function libraries. Frontends never maintain independent signatures.
+    pub operations: BTreeMap<String, schema::Operation>,
+    pub function_libraries: BTreeMap<String, schema::FunctionLibrary>,
+    pub value_types: BTreeMap<String, schema::ValueDeclaration>,
 }
 impl Registry {
     /// Native overrides inherit exposure from their original declaration even
@@ -15,7 +20,18 @@ impl Registry {
                 .classes
                 .values()
                 .flat_map(|class| class.functions.iter())
-                .map(|f| (f.id.clone(), (f.callable, f.event, f.pure, f.timeline)))
+                .map(|f| {
+                    (
+                        f.id.clone(),
+                        (
+                            f.callable,
+                            f.event,
+                            f.pure,
+                            f.timeline,
+                            f.resource_demands.clone(),
+                        ),
+                    )
+                })
                 .collect::<BTreeMap<_, _>>();
             let mut changed = false;
             for f in self
@@ -24,13 +40,20 @@ impl Registry {
                 .flat_map(|class| class.functions.iter_mut())
             {
                 for parent in &f.overrides {
-                    if let Some(&(callable, event, pure, timeline)) = flags.get(parent) {
+                    if let Some((callable, event, pure, timeline, resource_demands)) =
+                        flags.get(parent)
+                    {
                         let before = (f.callable, f.event, f.pure, f.timeline);
-                        f.callable |= callable;
-                        f.event |= event;
-                        f.pure |= pure;
-                        f.timeline = f.timeline.or(timeline);
-                        changed |= before != (f.callable, f.event, f.pure, f.timeline);
+                        let before_demands = f.resource_demands.clone();
+                        f.callable |= *callable;
+                        f.event |= *event;
+                        f.pure |= *pure;
+                        f.timeline = f.timeline.or(*timeline);
+                        f.resource_demands.extend(resource_demands.iter().cloned());
+                        f.resource_demands.sort();
+                        f.resource_demands.dedup();
+                        changed |= before != (f.callable, f.event, f.pure, f.timeline)
+                            || before_demands != f.resource_demands;
                     }
                 }
             }
@@ -38,11 +61,176 @@ impl Registry {
                 break;
             }
         }
+        self.rebuild_operations();
     }
     pub fn new() -> Self {
         Self {
             classes: BTreeMap::new(),
+            operations: BTreeMap::new(),
+            function_libraries: BTreeMap::new(),
+            value_types: BTreeMap::new(),
         }
+    }
+    fn operation_parameter(
+        operation: &str,
+        index: usize,
+        parameter: &schema::Parameter,
+    ) -> schema::OperationParameter {
+        schema::OperationParameter {
+            id: format!("{operation}:parameter:{index}"),
+            name: parameter.name.clone(),
+            value_type: parameter.value_type.clone(),
+            direction: parameter.direction.clone(),
+            default: None,
+        }
+    }
+    fn operation_demands(
+        class: &schema::Class,
+        declared: impl IntoIterator<Item = String>,
+    ) -> Vec<String> {
+        let mut demands = class
+            .component
+            .as_ref()
+            .map(|contract| contract.capabilities.iter().cloned().collect::<Vec<_>>())
+            .unwrap_or_default();
+        demands.extend(declared);
+        demands.sort();
+        demands.dedup();
+        demands
+    }
+    fn instance_operation(class: &schema::Class, function: &schema::Function) -> schema::Operation {
+        let outputs = (function.returns != schema::Type::Void)
+            .then(|| schema::OperationOutput {
+                id: format!("{}:result", function.id),
+                name: "result".into(),
+                value_type: function.returns.clone(),
+            })
+            .into_iter()
+            .collect();
+        schema::Operation {
+            version: 1,
+            id: function.id.clone(),
+            namespace: class.cpp_name.clone(),
+            name: function.name.clone(),
+            category: class.cpp_name.clone(),
+            search_terms: vec![function.name.replace('_', " ")],
+            receiver: schema::ReceiverKind::Instance {
+                class: class.id.clone(),
+            },
+            native_target: format!("{}::{}", class.cpp_name, function.name),
+            parameters: function
+                .parameters
+                .iter()
+                .enumerate()
+                .map(|(index, parameter)| Self::operation_parameter(&function.id, index, parameter))
+                .collect(),
+            outputs,
+            effect: if function.pure {
+                schema::OperationEffect::StateRead
+            } else {
+                schema::OperationEffect::Mutation
+            },
+            can_destroy_receiver: matches!(function.name.as_str(), "destroy" | "destroy_actor"),
+            valid_domains: class.domain.into_iter().collect(),
+            component_requirements: class
+                .component
+                .as_ref()
+                .map(|contract| contract.requires.clone())
+                .unwrap_or_default(),
+            resource_demands: Self::operation_demands(
+                class,
+                function.resource_demands.iter().cloned(),
+            ),
+            error_contract:
+                "Invalid/stale receivers return the type default and perform no mutation".into(),
+            complexity: "O(1) unless the native declaration documents a bounded traversal".into(),
+            source: function.source.clone(),
+        }
+    }
+    fn property_operation(
+        class: &schema::Class,
+        property: &schema::Property,
+        write: bool,
+    ) -> schema::Operation {
+        let suffix = if write { "set" } else { "get" };
+        let id = format!("{}:{suffix}", property.id);
+        schema::Operation {
+            version: 1,
+            id: id.clone(),
+            namespace: class.cpp_name.clone(),
+            name: format!("{suffix}_{}", property.name),
+            category: class.cpp_name.clone(),
+            search_terms: vec![property.name.replace('_', " ")],
+            receiver: schema::ReceiverKind::Instance {
+                class: class.id.clone(),
+            },
+            native_target: format!("property:{suffix}:{}", property.name),
+            parameters: if write {
+                vec![schema::OperationParameter {
+                    id: format!("{id}:parameter:0"),
+                    name: "value".into(),
+                    value_type: property.value_type.clone(),
+                    direction: schema::Direction::Value,
+                    default: None,
+                }]
+            } else {
+                vec![]
+            },
+            outputs: if write {
+                vec![]
+            } else {
+                vec![schema::OperationOutput {
+                    id: format!("{id}:result"),
+                    name: "result".into(),
+                    value_type: property.value_type.clone(),
+                }]
+            },
+            effect: if write {
+                schema::OperationEffect::Mutation
+            } else {
+                schema::OperationEffect::StateRead
+            },
+            can_destroy_receiver: false,
+            valid_domains: class.domain.into_iter().collect(),
+            component_requirements: class
+                .component
+                .as_ref()
+                .map(|value| value.requires.clone())
+                .unwrap_or_default(),
+            resource_demands: Self::operation_demands(class, std::iter::empty()),
+            error_contract:
+                "Invalid/stale receivers return the type default and perform no mutation".into(),
+            complexity: "O(1) direct reflected field access".into(),
+            source: property.source.clone(),
+        }
+    }
+    fn rebuild_operations(&mut self) {
+        self.operations.clear();
+        for library in self.function_libraries.values() {
+            for operation in &library.operations {
+                self.operations
+                    .insert(operation.id.clone(), operation.clone());
+            }
+        }
+        for class in self.classes.values() {
+            for function in &class.functions {
+                if function.callable {
+                    let operation = Self::instance_operation(class, function);
+                    self.operations.insert(operation.id.clone(), operation);
+                }
+            }
+            for property in &class.properties {
+                let getter = Self::property_operation(class, property, false);
+                self.operations.insert(getter.id.clone(), getter);
+                if property.editable {
+                    let setter = Self::property_operation(class, property, true);
+                    self.operations.insert(setter.id.clone(), setter);
+                }
+            }
+        }
+    }
+    pub fn operation(&self, id: &str) -> Option<&schema::Operation> {
+        self.operations.get(id)
     }
     pub fn eligible_parents(&self) -> impl Iterator<Item = &schema::Class> {
         self.classes
@@ -128,8 +316,17 @@ pub fn native_registry(root: &Path, scripts: &[Script]) -> Result<Registry, Stri
     let mut registry = registry_from_catalog(root, scripts);
     // Native script chains omit non-behaviour SDK targets such as EffectLayer.
     // Merge the same authoritative Clang manifest, including those declarations.
-    for class in crate::reflection::discover(root)?.classes {
+    let manifest = crate::reflection::discover(root)?;
+    for class in manifest.classes {
         registry.classes.insert(class.id.clone(), class);
+    }
+    for library in manifest.function_libraries {
+        registry
+            .function_libraries
+            .insert(library.id.clone(), library);
+    }
+    for value in manifest.value_types {
+        registry.value_types.insert(value.id.clone(), value);
     }
     registry.normalize_functions();
     Ok(registry)

@@ -80,6 +80,15 @@ scene banks of (actors + components) plus 32 dynamic slots. Exhausting it increm
 
 Additional fields report mesh chunks tested/visible, backfaces, clipped polygons, emitted triangles, frame work before and after mesh rendering (`prepare`, `finish`), retained triangles and retained-packet rebuilds. Skeletal fields report pose/decode `skeletal_scanlines`, evaluated `skeletal_bone_matrices`, CPU-skinned vertices and decoded baked vertices; a culled character contributes zero to all four. `skeletal_decoded_vertices` counts coordinates-per-vertex that a clip frame actually supplied: a baked character whose animator has no valid clip, or whose clip carries no encoded vertex frames, renders its bind pose without decoding anything and adds nothing to that counter, although the attempt still shows up in `skeletal_scanlines`. `skeletal_bone_matrices` and `skeletal_cpu_vertices` stay zero for baked characters, and `skeletal_cpu_vertices` stays zero for an all-unlit rigid character, which poses bones and projects each position once instead of skinning on the CPU. With `EPOK_PROFILE_DETAIL=1`, per-quad shade/fog/emit timers, chunk setup and camera/sprite/HUD timers are also populated. Release builds leave those detail fields at zero. Reading extra timers adds work, so detail-build timings are not release measurements.
 
+Explicit gameplay skeletal queries have separate counters available through
+`epok::ResourceLibrary::skeletal_queries()`: calls, requested vertices, evaluated
+bones, decoded compressed/raw bytes and failures. Clear them with
+`clear_skeletal_queries()` around a measured interval. These counters are not
+renderer counters: an off-screen explicit query legitimately adds query work
+while the renderer remains at zero. A compressed baked single-vertex query uses
+a cooked 16-vertex seek sidecar and decodes at most one block; a rigid batch
+poses the bounded bone set once and never borrows renderer scratch.
+
 The descriptive `streamed_chunks` counter is collected only with
 `EPOK_PROFILE_DETAIL=1` (`tools/profile_runtime.py --detail`). Ordinary builds
 store `UINT32_MAX` in its existing field; profiler JSON exposes this as `null`
@@ -135,6 +144,12 @@ generated scene header, the `.ps-exe` size, the build's memory report and the
 texture VRAM allocation. Results land in a new timestamped directory under
 `artifacts/performance/skeletal/`, as `results.json` plus a `report.md` with the
 tables, the environment and the fixture hashes.
+
+The report also records which optional query tables are present in each cooked
+scene (`skin_portable_to_cooked`, `skin_vertex_seek`, baked `skin_bones` and
+`skin_tracks`). A render-only game must contain none of the query-only tables.
+When vertex or bone operations are reachable, their bytes are included in the
+ordinary skeletal budget rather than hidden in a separate allocation.
 
 Method, and what to keep if you write your own comparison: hold the camera,
 resolution, transforms and clip selection fixed and change one variable per
