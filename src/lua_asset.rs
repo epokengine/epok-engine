@@ -22,10 +22,17 @@ use std::{
 };
 
 /// The authoring language profile. Bumping it invalidates compiled artifacts.
-pub const PROFILE_VERSION: u32 = 1;
+pub const PROFILE_VERSION: u32 = 2;
 /// Reflected events every `epok::Object` descendant may override without
 /// repeating the signature in the metadata table.
-pub const LIFECYCLE: &[&str] = &["begin_play", "tick", "end_play", "on_enable", "on_disable"];
+pub const LIFECYCLE: &[&str] = &[
+    "begin_play",
+    "tick",
+    "end_play",
+    "on_enable",
+    "on_disable",
+    "on_frame",
+];
 
 pub fn provider() -> schema::Extension {
     schema::Extension {
@@ -1118,6 +1125,7 @@ pub fn declarations(
                 timeline: None,
                 event: true,
                 pure: false,
+                resource_demands: vec![],
                 abstract_method: false,
                 final_method: false,
                 access: "public".into(),
@@ -1388,6 +1396,7 @@ EnemyLogic.ready = true
             timeline: None,
             event: true,
             pure: false,
+            resource_demands: vec![],
             abstract_method: false,
             final_method: false,
             access: "public".into(),

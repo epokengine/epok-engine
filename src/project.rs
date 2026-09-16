@@ -172,6 +172,25 @@ pub fn scene_header_with_registry(
     layout_scene: &Scene,
     class_registry: &crate::blueprint::Registry,
 ) -> Result<String, String> {
+    scene_header_with_registry_for(
+        scene,
+        catalog,
+        resources,
+        emit_resources,
+        layout_scene,
+        class_registry,
+        crate::skeletal_compile::QueryDemand::ALL,
+    )
+}
+pub fn scene_header_with_registry_for(
+    scene: &Scene,
+    catalog: &[scripts::Script],
+    resources: &Scene,
+    emit_resources: bool,
+    layout_scene: &Scene,
+    class_registry: &crate::blueprint::Registry,
+    skeletal_queries: crate::skeletal_compile::QueryDemand,
+) -> Result<String, String> {
     scene.validate()?;
     let mut prepared = scene.clone();
     prepared.sync_actor_components();
@@ -271,7 +290,12 @@ pub fn scene_header_with_registry(
                 skeletal_assets.entry(c.asset)
         {
             entry.insert(i);
-            text.push_str(&crate::skeletal_compile::header_with_pages(e, i, &pages)?);
+            text.push_str(&crate::skeletal_compile::header_with_pages_for(
+                e,
+                i,
+                &pages,
+                skeletal_queries,
+            )?);
         }
     }
     text.push_str("}\n");
@@ -632,8 +656,18 @@ fn stage_with_playback(
     )?;
     write_changed(&build.join("debug-hud.hh"), debug.header().as_bytes())?;
     let lua = crate::settings::lua_execution(root)?;
-    playback.scene_input("scene-lua-settings".into(), lua.signature())?;
-    write_changed(&build.join("lua-config.hh"), lua.header().as_bytes())?;
+    let lua_profile = crate::settings::lua_profile(root)?;
+    playback.scene_input(
+        "scene-lua-settings".into(),
+        crate::scene_dependencies::hash((lua, lua_profile, lua_profile.version())),
+    )?;
+    let mut lua_config = lua.header();
+    lua_config.push_str(&format!(
+        "#define EPOK_LUA_PROFILE {}\n#define EPOK_LUA_ABI_VERSION {}\n",
+        lua_profile.version(),
+        lua_profile.version()
+    ));
+    write_changed(&build.join("lua-config.hh"), lua_config.as_bytes())?;
     let profile = input.and_then(|i| i.play.as_ref());
     if let Some(signature) = input.and_then(|i| i.play_settings_signature.as_ref()) {
         playback.scene_input("scene-play-settings".into(), signature.clone())?;
@@ -861,7 +895,16 @@ fn stage_with_playback(
     } else {
         &blueprint_registry
     };
-    let generated = crate::scene_bank::header_with_templates(
+    let mut artifacts = crate::script_backend::prepare_all(root, &scripts::native_catalog(root)?)?;
+    let skeletal_queries = crate::skeletal_compile::QueryDemand {
+        vertices: artifacts
+            .runtime_capabilities
+            .contains("skeletal-vertex-query"),
+        bones: artifacts
+            .runtime_capabilities
+            .contains("skeletal-bone-query"),
+    };
+    let generated = crate::scene_bank::header_with_templates_for(
         &banks,
         &catalog,
         stream.as_ref(),
@@ -870,6 +913,7 @@ fn stage_with_playback(
         &timelines,
         &effects,
         class_registry,
+        skeletal_queries,
     )?;
     resource_scenes.push(referenced);
     let audio_outputs = if profile.is_some_and(|p| p.target == crate::play::Target::Serial) {
@@ -954,7 +998,6 @@ fn stage_with_playback(
             }
         }
     }
-    let mut artifacts = crate::script_backend::prepare_all(root, &scripts::native_catalog(root)?)?;
     if !direct_timelines.is_empty() || !direct_effects.is_empty() {
         let path = PathBuf::from("scripts/generated/playback_calls.cpp");
         let source = format!(
@@ -990,9 +1033,13 @@ fn stage_with_playback(
         .map(|p| p.to_string_lossy().replace('\\', "/"))
         .collect::<Vec<_>>();
     // An explicit source list ensures removed scripts are not linked from the cache.
-    let blueprint_flags = if !effects.is_empty() {
+    let needs_effects = !effects.is_empty() || artifacts.runtime_capabilities.contains("effect");
+    let needs_timelines = !timelines.is_empty()
+        || artifacts.runtime_capabilities.contains("timeline")
+        || needs_effects;
+    let blueprint_flags = if needs_effects {
         "CPPFLAGS += -DEPOK_BLUEPRINTS -DEPOK_TIMELINES -DEPOK_EFFECTS\n"
-    } else if !timelines.is_empty() {
+    } else if needs_timelines {
         "CPPFLAGS += -DEPOK_BLUEPRINTS -DEPOK_TIMELINES\n"
     } else if artifacts.runtime_capabilities.contains("blueprint") {
         "CPPFLAGS += -DEPOK_BLUEPRINTS\n"
@@ -1041,6 +1088,10 @@ pub fn stage_runtime(build: &Path) -> Result<(), String> {
 }
 pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
     static SOURCES: &[(&str, &[u8])] = &[
+        (
+            "gameplay_api.hpp",
+            include_bytes!("../runtime/gameplay_api.hpp").as_slice(),
+        ),
         (
             "object_model.hpp",
             include_bytes!("../runtime/object_model.hpp").as_slice(),
@@ -1429,7 +1480,6 @@ fn actor_table_with_registry(
         depth
     });
     let slot = |id: uuid::Uuid| order.iter().position(|i| scene.actors[*i].id == id);
-    let entity_index = |id: uuid::Uuid| scene.actors.iter().position(|entity| entity.id == id);
     let mut components_text = String::new();
     let mut applies = String::new();
     let mut rows = Vec::new();
@@ -1633,8 +1683,7 @@ fn actor_table_with_registry(
             0
         }
     };
-    let (reference_text, reference_fields) =
-        scene_reference_table(scene, &model, &order, &entity_index)?;
+    let (reference_text, reference_fields) = scene_reference_table(scene, &model, &order)?;
     let mut text = applies;
     text.push_str(&components_text);
     text.push_str(&reference_text);
@@ -1670,7 +1719,6 @@ fn scene_reference_table(
     scene: &Scene,
     model: &crate::object_model::Model,
     order: &[usize],
-    entity_index: &dyn Fn(uuid::Uuid) -> Option<usize>,
 ) -> Result<(String, String), String> {
     let references = crate::blueprint_compile::map_scene_references(Path::new(&scene.name), scene)?;
     if references.is_empty() {
@@ -1827,7 +1875,12 @@ mod tests {
             assert!(sources.contains(mode.cppflags()), "{mode:?}: {sources}");
             assert_eq!(
                 std::fs::read_to_string(build.join("lua-config.hh")).unwrap(),
-                mode.header()
+                format!(
+                    "{}#define EPOK_LUA_PROFILE {}\n#define EPOK_LUA_ABI_VERSION {}\n",
+                    mode.header(),
+                    manifest.lua_profile.version(),
+                    manifest.lua_profile.version()
+                )
             );
             // Only the selected mode's runtime is linked; an AOT build links no
             // interpreter and the two VM packagings never share an archive.

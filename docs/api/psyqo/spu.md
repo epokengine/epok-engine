@@ -41,10 +41,10 @@ static void dmaWrite(uint32_t spuAddress, const void* ramAddress, size_t dataSiz
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `spuAddress` | `uint32_t` | Input | The destination address in sound RAM. Must be 8 byte aligned, and the transfer has to fit within `SOUND_RAM_SIZE`. |
+| `spuAddress` | `int` | Input | The destination address in sound RAM. Must be 8 byte aligned, and the transfer has to fit within `SOUND_RAM_SIZE`. |
 | `ramAddress` | `const void *` | Input | The source address in main RAM. Must be 4 byte aligned. |
-| `dataSize` | `size_t` | Input | The number of bytes to transfer. Must be a non-zero multiple of `ADPCM_BLOCK_SIZE`. |
-| `blockSize` | `size_t` | Input | The DMA block size in bytes, or 0 to pick the largest one dividing `dataSize`. Must be a multiple of 4 and no larger than `MAX_DMA_BLOCK_SIZE`. |
+| `dataSize` | `int` | Input | The number of bytes to transfer. Must be a non-zero multiple of `ADPCM_BLOCK_SIZE`. |
+| `blockSize` | `int` | Input | The DMA block size in bytes, or 0 to pick the largest one dividing `dataSize`. Must be a multiple of 4 and no larger than `MAX_DMA_BLOCK_SIZE`. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -56,10 +56,10 @@ static void dmaWrite(uint32_t spuAddress, const void* ramAddress, size_t dataSiz
 #include "psyqo/spu.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t spuAddress
+// int spuAddress
 // const void * ramAddress
-// size_t dataSize
-// size_t blockSize
+// int dataSize
+// int blockSize
 
 psyqo::SPU::dmaWrite(spuAddress, ramAddress, dataSize, blockSize);
 ```
@@ -89,9 +89,9 @@ void dmaWrite(uint32_t spuAddress, const void* ramAddress, size_t dataSize, east
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `spuAddress` | `uint32_t` | Input | The destination address in sound RAM. Must be 8 byte aligned, and the transfer has to fit within `SOUND_RAM_SIZE`. |
+| `spuAddress` | `int` | Input | The destination address in sound RAM. Must be 8 byte aligned, and the transfer has to fit within `SOUND_RAM_SIZE`. |
 | `ramAddress` | `const void *` | Input | The source address in main RAM. Must be 4 byte aligned, and has to stay alive until the callback fires. |
-| `dataSize` | `size_t` | Input | The number of bytes to transfer. Must be a non-zero multiple of `ADPCM_BLOCK_SIZE`. |
+| `dataSize` | `int` | Input | The number of bytes to transfer. Must be a non-zero multiple of `ADPCM_BLOCK_SIZE`. |
 | `callback` | `eastl::function<void ()> &&` | Consumed or moved input | The function to call once the transfer has completed. |
 | `dmaCallback` | `DMA::DmaCallback` | Callback | Whether to call it from the interrupt handler, or from the main loop. |
 
@@ -105,9 +105,9 @@ void dmaWrite(uint32_t spuAddress, const void* ramAddress, size_t dataSize, east
 #include "psyqo/spu.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t spuAddress
+// int spuAddress
 // const void * ramAddress
-// size_t dataSize
+// int dataSize
 // eastl::function<void ()> && callback
 // DMA::DmaCallback dmaCallback
 
@@ -135,7 +135,7 @@ static uint32_t getNextFreeChannel()
 - **Declared at:** [line 139](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/spu.hh#L139)
 - **Kind:** `cxx method`; qualifiers: `static`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need SPU RAM, voices, ADSR and sound transfer and the preconditions in the declaration are already satisfied.
 
@@ -238,8 +238,8 @@ static void playADPCM(uint8_t channelId, uint32_t spuRamAddress, const ChannelPl
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `channelId` | `uint8_t` | Input | The channel to play on, 0 to 23. |
-| `spuRamAddress` | `uint32_t` | Input | The address of the sample in sound RAM. Must be 8 byte aligned and within `SOUND_RAM_SIZE`. |
+| `channelId` | `int` | Input | The channel to play on, 0 to 23. |
+| `spuRamAddress` | `int` | Input | The address of the sample in sound RAM. Must be 8 byte aligned and within `SOUND_RAM_SIZE`. |
 | `config` | `const ChannelPlaybackConfig &` | Input | The volume, sample rate and ADSR settings to use. |
 | `hardCut` | `bool` | Input | Whether to key the channel off before keying it back on. |
 
@@ -253,8 +253,8 @@ static void playADPCM(uint8_t channelId, uint32_t spuRamAddress, const ChannelPl
 #include "psyqo/spu.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint8_t channelId
-// uint32_t spuRamAddress
+// int channelId
+// int spuRamAddress
 // const ChannelPlaybackConfig & config
 // bool hardCut
 
@@ -284,7 +284,7 @@ static void silenceChannels(uint32_t channelMask)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `channelMask` | `uint32_t` | Input | A bitmask of the channels to silence. |
+| `channelMask` | `int` | Input | A bitmask of the channels to silence. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -296,7 +296,7 @@ static void silenceChannels(uint32_t channelMask)
 #include "psyqo/spu.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t channelMask
+// int channelMask
 
 psyqo::SPU::silenceChannels(channelMask);
 ```

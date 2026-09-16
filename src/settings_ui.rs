@@ -293,6 +293,16 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                             }
                         });
                         ui.text_wrapped(if m.lua_execution.is_vm(){"The same scripts run through the PsyQo Lua interpreter, which is linked into the game and reserves a static memory budget."}else{m.lua_execution.describe()});
+                        row(ui,"Lua Language Profile","The source-language and value ABI contract. Existing projects stay on v1 until changed explicitly.",||{
+                            ui.set_next_item_width(-1.);
+                            if let Some(_combo)=ui.begin_combo("##lua-profile",m.lua_profile.label()){
+                                for profile in crate::settings::LuaProfile::ALL {
+                                    if ui.selectable_config(profile.label()).selected(m.lua_profile==profile).build(){m.lua_profile=profile;}
+                                    if ui.is_item_hovered(){ui.tooltip_text(profile.describe());}
+                                }
+                            }
+                        });
+                        ui.text_wrapped(m.lua_profile.describe());
                         });
                     }
                     if (state.project_page==1 && q.is_empty()) || (!q.is_empty() && matches(&q,"Maps Build startup scene build compilation asset report generate play target content data transition fade loading text image")) {

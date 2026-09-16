@@ -255,11 +255,24 @@ pub fn inspector(
     false
 }
 pub fn class_is_a(registry: &Registry, class: &str, base: &str) -> bool {
-    registry.classes.get(class).is_some_and(|class| {
+    // Serialized Blueprint references carry stable class ids, while Lua's
+    // author-facing typed-reference constructors use readable C++ names. Both
+    // spellings describe the same reflected class and must pass through the
+    // same compatibility check before cooking an ObjectId.
+    let class = registry
+        .classes
+        .get(class)
+        .or_else(|| registry.named(class));
+    let base = registry
+        .classes
+        .get(base)
+        .or_else(|| registry.named(base))
+        .map_or(base, |class| class.id.as_str());
+    class.is_some_and(|class| {
         registry
             .ancestry(&class.cpp_name)
             .iter()
-            .any(|c| c.id == base)
+            .any(|candidate| candidate.id == base)
     })
 }
 /// Called only for a deliberate duplicate operation; never guess reference intent from strings.
@@ -387,5 +400,56 @@ fn assignment_in(
             crate::script_values::assignment(target, value, ty)
         }
         _ => crate::script_values::assignment(target, value, ty),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::reflection_schema as schema;
+    use std::path::PathBuf;
+
+    fn class(id: &str, cpp_name: &str, parent: Option<&str>) -> schema::Class {
+        schema::Class {
+            id: id.into(),
+            provider: schema::native_provider(),
+            backend: schema::native_backend(),
+            cpp_name: cpp_name.into(),
+            parent: parent.map(str::to_owned),
+            abstract_class: false,
+            final_class: false,
+            blueprintable: true,
+            timeline_component: None,
+            family: None,
+            domain: None,
+            placement: schema::Placement::default(),
+            component: None,
+            default_components: vec![],
+            explicit_abstract: false,
+            properties: vec![],
+            functions: vec![],
+            source: schema::Location {
+                file: PathBuf::from("typed-reference-test.hpp"),
+                line: 1,
+                column: 1,
+            },
+        }
+    }
+
+    #[test]
+    fn typed_reference_compatibility_accepts_stable_ids_and_cpp_names() {
+        let mut registry = Registry::new();
+        let base = class("base-id", "epok::Base", None);
+        let child = class("child-id", "epok::Child", Some("base-id"));
+        registry.classes.insert(base.id.clone(), base);
+        registry.classes.insert(child.id.clone(), child);
+
+        for derived in ["child-id", "epok::Child"] {
+            for ancestor in ["base-id", "epok::Base"] {
+                assert!(class_is_a(&registry, derived, ancestor));
+            }
+        }
+        assert!(!class_is_a(&registry, "base-id", "child-id"));
+        assert!(!class_is_a(&registry, "missing", "base-id"));
     }
 }

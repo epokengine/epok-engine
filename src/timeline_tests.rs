@@ -225,6 +225,7 @@ fn add_event(a: &mut TimelineAsset, r: &mut Registry) {
         timeline: Some(schema::TimelineCall::CrossingEvent),
         event: false,
         pure: false,
+        resource_demands: vec![],
         abstract_method: false,
         final_method: false,
         access: "public".into(),

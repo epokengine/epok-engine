@@ -1,0 +1,89 @@
+version: 5
+id: 63f96d61-5fd4-4e7e-8daa-052510688418
+name: BP_GameplayParity
+parent: fc24ce9b-558c-49de-bc35-e040f350e486
+defaults: {}
+variables: []
+functions:
+- id: 37c9fcaf-44c2-4829-90d1-349392b82fb5
+  name: on_frame
+  override_id: 5c57d8df-b3f0-42f9-a46e-77ce16248221
+  parameters:
+  - name: frame_microseconds
+    value_type:
+      kind: uint32
+    direction: value
+  returns:
+    kind: void
+  entry: 103b9293-4f83-4a23-8f8f-18adf6fc1552
+  nodes:
+  - id: 103b9293-4f83-4a23-8f8f-18adf6fc1552
+    inputs: {}
+    kind:
+      kind: entry
+    outputs:
+      next:
+      - e6846bf9-9f33-4f61-96d0-c1cb1b9ab23d
+  - id: e6846bf9-9f33-4f61-96d0-c1cb1b9ab23d
+    inputs:
+      596f008d-3b03-41b2-a0ea-5dc278af6c15:parameter:0:
+        kind: literal
+        value: true
+        value_type:
+          kind: bool
+    kind:
+      kind: operation
+      operation: 596f008d-3b03-41b2-a0ea-5dc278af6c15
+    outputs:
+      next:
+      - da2d18c5-4b4e-4597-9bb0-f62b1cf5ac19
+  - id: da2d18c5-4b4e-4597-9bb0-f62b1cf5ac19
+    inputs:
+      596f008d-3b03-41b2-a0ea-5dc278af6c15:parameter:0:
+        kind: literal
+        value: false
+        value_type:
+          kind: bool
+    kind:
+      kind: operation
+      operation: 596f008d-3b03-41b2-a0ea-5dc278af6c15
+    outputs:
+      next:
+      - 1587c333-c6f9-455d-890f-f8b2bc7dce41
+  - id: 1587c333-c6f9-455d-890f-f8b2bc7dce41
+    inputs: {}
+    kind:
+      kind: operation
+      operation: c9819ed2-77b9-4a3d-801d-aa24d72f7ff2
+    outputs:
+      next:
+      - 1587c333-c6f9-455d-890f-f8b2bc7dce42
+  - id: 1587c333-c6f9-455d-890f-f8b2bc7dce42
+    inputs:
+      5acc07ae-8b3d-4f61-b7a7-a1ac96eb7788:parameter:0:
+        kind: literal
+        value: 0
+        value_type:
+          kind: uint32
+      5acc07ae-8b3d-4f61-b7a7-a1ac96eb7788:parameter:1:
+        kind: literal
+        value: 131073
+        value_type:
+          kind: uint32
+    kind:
+      kind: operation
+      operation: 5acc07ae-8b3d-4f61-b7a7-a1ac96eb7788
+    outputs: {}
+template:
+  construction: []
+  actors: []
+  overrides: {}
+  references: []
+layout:
+  positions:
+    103b9293-4f83-4a23-8f8f-18adf6fc1552: [0, 0]
+    e6846bf9-9f33-4f61-96d0-c1cb1b9ab23d: [220, 0]
+    da2d18c5-4b4e-4597-9bb0-f62b1cf5ac19: [440, 0]
+    1587c333-c6f9-455d-890f-f8b2bc7dce41: [660, 0]
+    1587c333-c6f9-455d-890f-f8b2bc7dce42: [880, 0]
+  comments: {}

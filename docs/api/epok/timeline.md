@@ -28,7 +28,7 @@ This module covers fixed-step simulation time and frame timing. It documents 3 p
 inline bool poll_marker(const Marker* markers, uint16_t count, uint16_t& cursor, int32_t tick, uint16_t& id)
 ```
 
-- **Declared at:** [line 57](../../../runtime/timeline.hpp#L57)
+- **Declared at:** [line 60](../../../runtime/timeline.hpp#L60)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -36,10 +36,10 @@ inline bool poll_marker(const Marker* markers, uint16_t count, uint16_t& cursor,
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `markers` | `const Marker *` | Input | Value supplied for `markers`. See the exact type and module contract. |
-| `count` | `uint16_t` | Input | Value supplied for `count`. See the exact type and module contract. |
-| `cursor` | `uint16_t &` | Input/output; inspect the function contract | Value supplied for `cursor`. See the exact type and module contract. |
-| `tick` | `int32_t` | Input | Value supplied for `tick`. See the exact type and module contract. |
-| `id` | `uint16_t &` | Input/output; inspect the function contract | Value supplied for `id`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `cursor` | `int &` | Input/output; inspect the function contract | Value supplied for `cursor`. See the exact type and module contract. |
+| `tick` | `int` | Input | Value supplied for `tick`. See the exact type and module contract. |
+| `id` | `int &` | Input/output; inspect the function contract | Value supplied for `id`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -52,10 +52,10 @@ inline bool poll_marker(const Marker* markers, uint16_t count, uint16_t& cursor,
 
 // Assume these named values have been initialized with valid data:
 // const Marker * markers
-// uint16_t count
-// uint16_t & cursor
-// int32_t tick
-// uint16_t & id
+// int count
+// int & cursor
+// int tick
+// int & id
 
 auto result = epok::timeline::poll_marker(markers, count, cursor, tick, id);
 ```
@@ -86,9 +86,9 @@ inline int32_t sample(Curve curve, int32_t tick)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `curve` | `Curve` | Input | Value supplied for `curve`. See the exact type and module contract. |
-| `tick` | `int32_t` | Input | Value supplied for `tick`. See the exact type and module contract. |
+| `tick` | `int` | Input | Value supplied for `tick`. See the exact type and module contract. |
 
-**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Ticks and values are raw Q12. Do not quantize alpha before interpolation.
 
@@ -99,7 +99,7 @@ inline int32_t sample(Curve curve, int32_t tick)
 
 // Assume these named values have been initialized with valid data:
 // Curve curve
-// int32_t tick
+// int tick
 
 auto result = epok::timeline::sample(curve, tick);
 ```
@@ -129,7 +129,7 @@ constexpr int32_t saturate(int64_t value)
 | --- | --- | --- | --- |
 | `value` | `int64_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
 

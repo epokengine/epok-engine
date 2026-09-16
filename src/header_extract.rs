@@ -330,7 +330,7 @@ fn value_type_at_depth(
                     .ok_or_else(|| error(field, "Anonymous struct fields are unsupported"))?;
                 fields.push(schema::RecordField {
                     name,
-                    value_type: value_type_at_depth(ty, field, depth + 1)?,
+                    value_type: object_reference(value_type_at_depth(ty, field, depth + 1)?),
                 });
             }
             if fields.is_empty() || fields.len() > 32 {
@@ -630,7 +630,7 @@ fn property(entity: Actor<'_>) -> Result<schema::Property, String> {
     })
 }
 
-fn function(entity: Actor<'_>) -> Result<schema::Function, String> {
+fn function(entity: Actor<'_>, allow_static: bool) -> Result<schema::Function, String> {
     let options = annotations(entity, "EPOK_FUNCTION:");
     let access = entity.get_accessibility();
     let timeline = if options.iter().any(|v| v == "TimelineCallable") {
@@ -649,10 +649,17 @@ fn function(entity: Actor<'_>) -> Result<schema::Function, String> {
             "Timeline calls require a public void instance function",
         ));
     }
-    if entity.is_variadic() || entity.is_static_method() || access == Some(Accessibility::Private) {
+    if entity.is_variadic()
+        || (entity.is_static_method() != allow_static)
+        || access == Some(Accessibility::Private)
+    {
         return Err(error(
             entity,
-            "Reflected functions must be public/protected, non-static, and non-variadic",
+            if allow_static {
+                "Function-library operations must be public/protected static, non-variadic methods"
+            } else {
+                "Reflected functions must be public/protected, non-static, and non-variadic"
+            },
         ));
     }
     let event = options
@@ -665,7 +672,7 @@ fn function(entity: Actor<'_>) -> Result<schema::Function, String> {
         ));
     }
     let pure = options.iter().any(|v| v == "Pure" || v == "BlueprintPure");
-    if pure && !entity.is_const_method() {
+    if pure && !allow_static && !entity.is_const_method() {
         return Err(error(entity, "Pure functions must be const"));
     }
     Ok(schema::Function {
@@ -686,6 +693,14 @@ fn function(entity: Actor<'_>) -> Result<schema::Function, String> {
         timeline,
         event,
         pure,
+        resource_demands: options
+            .iter()
+            .filter_map(|option| option.strip_prefix("Capability="))
+            .flat_map(|value| value.trim_matches('"').split('|'))
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .collect(),
         abstract_method: entity.is_pure_virtual_method(),
         final_method: entity
             .get_children()
@@ -819,9 +834,9 @@ fn class(entity: Actor<'_>) -> Result<schema::Class, String> {
                     "EPOK_FUNCTION must annotate a non-template method",
                 ));
             }
-            functions.push(function(child)?);
+            functions.push(function(child, false)?);
         } else if child.get_kind() == K::Method && reflected_method(child) {
-            functions.push(function(child)?);
+            functions.push(function(child, false)?);
         } else if child.get_kind() == K::Method && child.is_pure_virtual_method() {
             return Err(error(
                 child,
@@ -870,6 +885,170 @@ fn class(entity: Actor<'_>) -> Result<schema::Class, String> {
     })
 }
 
+fn function_library(entity: Actor<'_>) -> Result<schema::FunctionLibrary, String> {
+    if !matches!(entity.get_kind(), K::ClassDecl | K::StructDecl) || !entity.is_definition() {
+        return Err(error(
+            entity,
+            "EPOK_FUNCTION_LIBRARY must annotate a namespace-scope class or struct definition",
+        ));
+    }
+    let children = entity.get_children();
+    if children.iter().any(|child| {
+        matches!(child.get_kind(), K::BaseSpecifier | K::FieldDecl)
+            || (child.get_kind() == K::Method && annotations(*child, "EPOK_FUNCTION:").is_empty())
+    }) {
+        return Err(error(
+            entity,
+            "Function libraries contain annotated static operations only; fields, bases and unannotated methods are unsupported",
+        ));
+    }
+    let library_id = id(entity, "EPOK_FUNCTION_LIBRARY:")?;
+    let cpp_name = qualified(entity);
+    let options = annotations(entity, "EPOK_FUNCTION_LIBRARY:");
+    let category = options
+        .iter()
+        .find_map(|option| option.strip_prefix("Category="))
+        .map(|value| value.trim_matches('"').to_owned())
+        .unwrap_or_else(|| cpp_name.clone());
+    let resource_demands = options
+        .iter()
+        .filter_map(|option| option.strip_prefix("Capability="))
+        .flat_map(|value| value.trim_matches('"').split('|'))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    let mut operations = Vec::new();
+    for child in children
+        .into_iter()
+        .filter(|child| !annotations(*child, "EPOK_FUNCTION:").is_empty())
+    {
+        if child.get_kind() != K::Method {
+            return Err(error(
+                child,
+                "EPOK_FUNCTION in a function library must annotate a static method",
+            ));
+        }
+        let reflected = function(child, true)?;
+        let function_options = annotations(child, "EPOK_FUNCTION:");
+        let mut operation_demands = resource_demands.clone();
+        operation_demands.extend(
+            function_options
+                .iter()
+                .filter_map(|option| option.strip_prefix("Capability="))
+                .flat_map(|value| value.trim_matches('"').split('|'))
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned),
+        );
+        operation_demands.sort();
+        operation_demands.dedup();
+        if reflected.event || reflected.abstract_method || reflected.final_method {
+            return Err(error(
+                child,
+                "Function-library operations cannot be events, abstract or final",
+            ));
+        }
+        let parameters = reflected
+            .parameters
+            .iter()
+            .enumerate()
+            .map(|(index, parameter)| schema::OperationParameter {
+                id: format!("{}:parameter:{index}", reflected.id),
+                name: parameter.name.clone(),
+                value_type: parameter.value_type.clone(),
+                direction: parameter.direction.clone(),
+                default: None,
+            })
+            .collect();
+        let outputs = (reflected.returns != schema::Type::Void)
+            .then(|| schema::OperationOutput {
+                id: format!("{}:result", reflected.id),
+                name: "result".into(),
+                value_type: reflected.returns.clone(),
+            })
+            .into_iter()
+            .collect();
+        operations.push(schema::Operation {
+            version: 1,
+            id: reflected.id,
+            namespace: cpp_name.clone(),
+            name: reflected.name.clone(),
+            category: category.clone(),
+            search_terms: vec![reflected.name.replace('_', " ")],
+            receiver: schema::ReceiverKind::Service {
+                library: library_id.clone(),
+            },
+            native_target: format!("{cpp_name}::{}", reflected.name),
+            parameters,
+            outputs,
+            effect: if function_options.iter().any(|value| value == "PureValue") {
+                schema::OperationEffect::PureValue
+            } else if function_options
+                .iter()
+                .any(|value| value == "EventConsumption")
+            {
+                schema::OperationEffect::EventConsumption
+            } else if function_options.iter().any(|value| value == "AsyncRequest") {
+                schema::OperationEffect::AsyncRequest
+            } else if function_options
+                .iter()
+                .any(|value| value == "ResourceAcquisition")
+            {
+                schema::OperationEffect::ResourceAcquisition
+            } else if reflected.pure {
+                schema::OperationEffect::StateRead
+            } else {
+                schema::OperationEffect::Mutation
+            },
+            can_destroy_receiver: false,
+            valid_domains: BTreeSet::new(),
+            component_requirements: vec![],
+            resource_demands: operation_demands,
+            error_contract: "Invalid inputs return the declared default and do not mutate state"
+                .into(),
+            complexity: "O(1) unless documented by the service".into(),
+            source: reflected.source,
+        });
+    }
+    if operations.is_empty() {
+        return Err(error(
+            entity,
+            "Function libraries require at least one EPOK_FUNCTION operation",
+        ));
+    }
+    Ok(schema::FunctionLibrary {
+        id: library_id,
+        cpp_name,
+        operations,
+        source: location(entity),
+    })
+}
+
+fn value_declaration(entity: Actor<'_>) -> Result<schema::ValueDeclaration, String> {
+    if !matches!(entity.get_kind(), K::StructDecl) || !entity.is_definition() {
+        return Err(error(
+            entity,
+            "EPOK_VALUE must annotate a namespace-scope plain struct definition",
+        ));
+    }
+    let value_type = value_type(
+        entity
+            .get_type()
+            .ok_or_else(|| error(entity, "Value declaration type unavailable"))?,
+        entity,
+    )?;
+    if !matches!(value_type, schema::Type::Record { .. }) {
+        return Err(error(entity, "EPOK_VALUE requires a registered record"));
+    }
+    Ok(schema::ValueDeclaration {
+        id: id(entity, "EPOK_VALUE:")?,
+        cpp_name: qualified(entity),
+        value_type,
+        source: location(entity),
+    })
+}
+
 pub fn extract(
     unit: &clang::TranslationUnit<'_>,
     source: &std::path::Path,
@@ -877,6 +1056,8 @@ pub fn extract(
     fn visit(
         entity: Actor<'_>,
         classes: &mut Vec<schema::Class>,
+        function_libraries: &mut Vec<schema::FunctionLibrary>,
+        value_types: &mut Vec<schema::ValueDeclaration>,
         dependencies: &mut BTreeSet<std::path::PathBuf>,
     ) -> Result<(), String> {
         if entity.get_kind() == K::InclusionDirective
@@ -906,21 +1087,57 @@ pub fn extract(
                 classes.push(class(entity)?);
             }
         }
+        if !annotations(entity, "EPOK_FUNCTION_LIBRARY:").is_empty() {
+            if entity.get_semantic_parent().is_some_and(|parent| {
+                matches!(
+                    parent.get_kind(),
+                    K::ClassDecl | K::StructDecl | K::ClassTemplate
+                )
+            }) {
+                return Err(error(entity, "Nested function libraries are unsupported"));
+            }
+            function_libraries.push(function_library(entity)?);
+        }
+        if !annotations(entity, "EPOK_VALUE:").is_empty() {
+            if entity.get_semantic_parent().is_some_and(|parent| {
+                matches!(
+                    parent.get_kind(),
+                    K::ClassDecl | K::StructDecl | K::ClassTemplate
+                )
+            }) {
+                return Err(error(entity, "Nested registered values are unsupported"));
+            }
+            value_types.push(value_declaration(entity)?);
+        }
         if matches!(
             entity.get_kind(),
             K::TranslationUnit | K::Namespace | K::ClassDecl | K::StructDecl | K::ClassTemplate
         ) {
             for child in entity.get_children() {
-                visit(child, classes, dependencies)?;
+                visit(
+                    child,
+                    classes,
+                    function_libraries,
+                    value_types,
+                    dependencies,
+                )?;
             }
         }
         Ok(())
     }
     let mut classes = Vec::new();
+    let mut function_libraries = Vec::new();
+    let mut value_types = Vec::new();
     let mut dependencies = BTreeSet::new();
     dependencies.insert(source.into());
     for entity in unit.get_entity().get_children() {
-        visit(entity, &mut classes, &mut dependencies)?;
+        visit(
+            entity,
+            &mut classes,
+            &mut function_libraries,
+            &mut value_types,
+            &mut dependencies,
+        )?;
     }
     let mut ids = BTreeSet::new();
     for class in &classes {
@@ -931,6 +1148,21 @@ pub fn extract(
             if !ids.insert(id) {
                 return Err(format!("Duplicate reflected identity {id}"));
             }
+        }
+    }
+    for library in &function_libraries {
+        if !ids.insert(&library.id) {
+            return Err(format!("Duplicate reflected identity {}", library.id));
+        }
+        for operation in &library.operations {
+            if !ids.insert(&operation.id) {
+                return Err(format!("Duplicate reflected identity {}", operation.id));
+            }
+        }
+    }
+    for value in &value_types {
+        if !ids.insert(&value.id) {
+            return Err(format!("Duplicate reflected identity {}", value.id));
         }
     }
     let dependencies = dependencies
@@ -946,6 +1178,8 @@ pub fn extract(
         clang_version: schema::CLANG_VERSION.into(),
         target: "mipsel-none-elf/mips1/o32/little-endian".into(),
         classes,
+        function_libraries,
+        value_types,
         dependencies,
     })
 }
@@ -1150,6 +1384,76 @@ mod tests {
             .find(|f| f.name == "adopt")
             .expect("adopt");
         assert_eq!(adopt.parameters[0].value_type, reference);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    #[ignore = "Requires pinned libclang; run with LIBCLANG_PATH configured"]
+    fn function_libraries_and_registered_values_are_extracted_and_validated() {
+        let clang = clang::Clang::new().unwrap();
+        let index = clang::Index::new(&clang, false, false);
+        let path = std::env::temp_dir().join(format!(
+            "epok-operation-contract-{}.hpp",
+            uuid::Uuid::new_v4()
+        ));
+        let prefix = concat!(
+            "#define LIB(...) __attribute__((annotate(\"EPOK_FUNCTION_LIBRARY:\" #__VA_ARGS__)))\n",
+            "#define VALUE(...) __attribute__((annotate(\"EPOK_VALUE:\" #__VA_ARGS__)))\n",
+            "#define PURE(...) __attribute__((annotate(\"EPOK_FUNCTION:BlueprintPure,\" #__VA_ARGS__)))\n",
+        );
+        let valid = format!(
+            "{prefix}namespace epok {{\n\
+             struct VALUE(Id=\"11111111-1111-4111-8111-111111111111\") Pair {{ int left; unsigned right; }};\n\
+             struct LIB(Category=\"Utility\", Id=\"22222222-2222-4222-8222-222222222222\") Utility {{\n\
+               PURE(Id=\"33333333-3333-4333-8333-333333333333\") static Pair make(int left, unsigned right) {{ return {{left,right}}; }}\n\
+               PURE(Id=\"44444444-4444-4444-8444-444444444444\") static int read(Pair pair) {{ return pair.left; }}\n\
+             }}; }}\n"
+        );
+        std::fs::write(&path, valid).unwrap();
+        let parse = || {
+            index
+                .parser(&path)
+                .arguments(&["-x", "c++", "-std=c++20"])
+                .parse()
+                .unwrap()
+        };
+        let manifest = super::extract(&parse(), &path).unwrap();
+        assert_eq!(manifest.function_libraries.len(), 1);
+        assert_eq!(manifest.value_types.len(), 1);
+        let library = &manifest.function_libraries[0];
+        assert_eq!(library.cpp_name, "epok::Utility");
+        assert_eq!(library.operations.len(), 2);
+        assert!(matches!(
+            library.operations[0].receiver,
+            schema::ReceiverKind::Service { .. }
+        ));
+        assert!(matches!(
+            library.operations[0].outputs[0].value_type,
+            schema::Type::Record { .. }
+        ));
+
+        let invalid = [
+            format!(
+                "{prefix}struct LIB(Id=\"55555555-5555-4555-8555-555555555555\") Bad {{ int state; PURE(Id=\"66666666-6666-4666-8666-666666666666\") static int read() {{ return 0; }} }};"
+            ),
+            format!(
+                "{prefix}struct LIB(Id=\"55555555-5555-4555-8555-555555555555\") Bad {{ PURE(Id=\"66666666-6666-4666-8666-666666666666\") static int read(int* value) {{ return *value; }} }};"
+            ),
+            format!(
+                "{prefix}struct VALUE(Id=\"55555555-5555-4555-8555-555555555555\") Bad {{ private: int hidden; }};"
+            ),
+        ];
+        for source in invalid {
+            std::fs::write(&path, source).unwrap();
+            let error = super::extract(&parse(), &path).unwrap_err();
+            let normalized = error.to_ascii_lowercase();
+            assert!(
+                normalized.contains("unsupported")
+                    || normalized.contains("only")
+                    || normalized.contains("public mutable"),
+                "{error}"
+            );
+        }
         std::fs::remove_file(path).unwrap();
     }
 }

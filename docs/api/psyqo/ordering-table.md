@@ -74,7 +74,7 @@ template <Fragment Frag> void insert(Frag& frag, int32_t z)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `frag` | `Frag &` | Input/output; inspect the function contract | The fragment to insert. |
-| `z` | `int32_t` | Input | The Z value of the fragment. |
+| `z` | `int` | Input | The Z value of the fragment. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -90,7 +90,7 @@ template <Fragment Frag> void insert(Frag& frag, int32_t z)
 
 // Assume these named values have been initialized with valid data:
 // Frag & frag
-// int32_t z
+// int z
 
 psyqo::OrderingTable& object = /* obtain a valid instance */;
 
@@ -150,7 +150,7 @@ static void clear(psyqo::Fragments::ChainEntry* table, size_t size)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `table` | `psyqo::Fragments::ChainEntry *` | Input/output; inspect the function contract | Value supplied for `table`. See the exact type and module contract. |
-| `size` | `size_t` | Input | Value supplied for `size`. See the exact type and module contract. |
+| `size` | `int` | Input | Value supplied for `size`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -163,7 +163,7 @@ static void clear(psyqo::Fragments::ChainEntry* table, size_t size)
 
 // Assume these named values have been initialized with valid data:
 // psyqo::Fragments::ChainEntry * table
-// size_t size
+// int size
 
 psyqo::OrderingTableBase::clear(table, size);
 ```

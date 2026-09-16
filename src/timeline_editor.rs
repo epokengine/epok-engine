@@ -509,7 +509,12 @@ impl TimelineEditor {
         let before = self.asset.clone();
         let mut actions = crate::sequencer::Actions::default();
         if let Some(asset) = &self.asset {
-            crate::timeline_scene_preview::resolve_bindings(asset, scene, registry, &mut self.bindings);
+            crate::timeline_scene_preview::resolve_bindings(
+                asset,
+                scene,
+                registry,
+                &mut self.bindings,
+            );
         }
         ui.window(title)
             .opened(&mut visible)
@@ -539,7 +544,14 @@ impl TimelineEditor {
                     imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS,
                 );
                 if let Some(a) = self.asset.as_mut() {
-                    actions = self.sequencer.draw(ui, a, registry, &mut self.tick, scene, &mut self.bindings);
+                    actions = self.sequencer.draw(
+                        ui,
+                        a,
+                        registry,
+                        &mut self.tick,
+                        scene,
+                        &mut self.bindings,
+                    );
                 }
             });
         if self.sequencer.gesture {
@@ -598,13 +610,24 @@ impl TimelineEditor {
             self.sequencer.status = "Scene preview off · Authored scene restored".into();
             return;
         }
-        if let Some(error) = self.registry_error.as_ref().or(self.catalog_error.as_ref()).or(self.source_error.as_ref()) {
+        if let Some(error) = self
+            .registry_error
+            .as_ref()
+            .or(self.catalog_error.as_ref())
+            .or(self.source_error.as_ref())
+        {
             self.sequencer.status = format!("Preview unavailable: {error}");
             self.sequencer.playing = false;
             return;
         }
         let asset = self.asset.as_ref().unwrap();
-        self.scene_preview = crate::timeline_scene_preview::evaluate(asset, &self.bindings, scene, registry, self.tick);
+        self.scene_preview = crate::timeline_scene_preview::evaluate(
+            asset,
+            &self.bindings,
+            scene,
+            registry,
+            self.tick,
+        );
         self.sequencer.status = self.scene_preview.message.clone();
     }
     fn draw_details(
@@ -842,12 +865,16 @@ mod tests {
         let saved_scene = serde_json::to_vec(&scene).unwrap();
         let mut editor = TimelineEditor::default();
         editor.open(&path).unwrap();
-        assert!(!editor.layout, "Opening an asset must not activate the exclusive layout");
+        assert!(
+            !editor.layout,
+            "Opening an asset must not activate the exclusive layout"
+        );
         let mut ctx = crate::gui::tests::imgui_context();
         ctx.set_ini_filename(None);
         ctx.io_mut().display_size = [1440., 1100.];
         ctx.io_mut().delta_time = 1. / 60.;
-        ctx.fonts().add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        ctx.fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
         ctx.fonts().build_rgba32_texture();
         let frame = |ctx: &mut imgui::Context, editor: &mut TimelineEditor| {
             editor.draw(ctx.frame(), &root, &registry, &scene, &Default::default());
@@ -857,15 +884,20 @@ mod tests {
             let point = CONTROLS.with(|c| c.borrow()[label]);
             ctx.io_mut().add_mouse_pos_event(point);
             frame(ctx, editor);
-            ctx.io_mut().add_mouse_button_event(imgui::MouseButton::Left, true);
+            ctx.io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, true);
             frame(ctx, editor);
-            ctx.io_mut().add_mouse_button_event(imgui::MouseButton::Left, false);
+            ctx.io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, false);
             frame(ctx, editor);
         };
         frame(&mut ctx, &mut editor);
         frame(&mut ctx, &mut editor);
         for lane in 0..3 {
-            assert!(CONTROLS.with(|c| c.borrow().contains_key(&format!("Value:{}:Some({lane})", asset.tracks[0].id))));
+            assert!(CONTROLS.with(|c| {
+                c.borrow()
+                    .contains_key(&format!("Value:{}:Some({lane})", asset.tracks[0].id))
+            }));
         }
         click(&mut ctx, &mut editor, "End");
         let preview = editor.scene_preview.scene.as_ref().unwrap();
@@ -876,26 +908,44 @@ mod tests {
         frame(&mut ctx, &mut editor);
         assert!(editor.sequencer.playing);
         assert!(editor.tick > 0 && editor.tick < asset.duration_ticks);
-        assert_ne!(editor.scene_preview.scene.as_ref().unwrap().actors[0].position, [4., 5., -2.]);
+        assert_ne!(
+            editor.scene_preview.scene.as_ref().unwrap().actors[0].position,
+            [4., 5., -2.]
+        );
         click(&mut ctx, &mut editor, "Play");
         assert!(!editor.sequencer.playing);
-        click(&mut ctx, &mut editor, &format!("Key:1:{}:Some(0)", asset.tracks[0].id));
+        click(
+            &mut ctx,
+            &mut editor,
+            &format!("Key:1:{}:Some(0)", asset.tracks[0].id),
+        );
         assert_eq!(editor.tick, asset.duration_ticks);
         let point = CONTROLS.with(|c| c.borrow()[&format!("Value:{}:Some(0)", asset.tracks[0].id)]);
         ctx.io_mut().add_mouse_pos_event(point);
         frame(&mut ctx, &mut editor);
-        ctx.io_mut().add_mouse_button_event(imgui::MouseButton::Left, true);
+        ctx.io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, true);
         frame(&mut ctx, &mut editor);
         ctx.io_mut().add_mouse_pos_event([point[0] + 30., point[1]]);
         frame(&mut ctx, &mut editor);
         ctx.io_mut().add_mouse_pos_event([point[0] + 60., point[1]]);
         frame(&mut ctx, &mut editor);
-        ctx.io_mut().add_mouse_button_event(imgui::MouseButton::Left, false);
+        ctx.io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, false);
         frame(&mut ctx, &mut editor);
-        assert!(editor.dirty(), "The channel value must be editable in the track row");
-        assert_ne!(editor.scene_preview.scene.as_ref().unwrap().actors[0].position[0], 4.);
+        assert!(
+            editor.dirty(),
+            "The channel value must be editable in the track row"
+        );
+        assert_ne!(
+            editor.scene_preview.scene.as_ref().unwrap().actors[0].position[0],
+            4.
+        );
         click(&mut ctx, &mut editor, "Undo");
-        assert_eq!(editor.scene_preview.scene.as_ref().unwrap().actors[0].position[0], 4.);
+        assert_eq!(
+            editor.scene_preview.scene.as_ref().unwrap().actors[0].position[0],
+            4.
+        );
         click(&mut ctx, &mut editor, "Scene preview");
         assert!(editor.scene_preview.scene.is_none());
         assert_eq!(serde_json::to_vec(&scene).unwrap(), saved_scene);

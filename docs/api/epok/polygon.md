@@ -41,11 +41,11 @@ inline uint32_t blend_fog(uint32_t packed, uint32_t amount, const uint8_t* fog)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `packed` | `uint32_t` | Input | Value supplied for `packed`. See the exact type and module contract. |
-| `amount` | `uint32_t` | Input | Value supplied for `amount`. See the exact type and module contract. |
-| `fog` | `const uint8_t *` | Input | Value supplied for `fog`. See the exact type and module contract. |
+| `packed` | `int` | Input | Value supplied for `packed`. See the exact type and module contract. |
+| `amount` | `int` | Input | Value supplied for `amount`. See the exact type and module contract. |
+| `fog` | `const int *` | Input | Value supplied for `fog`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
 
@@ -55,9 +55,9 @@ inline uint32_t blend_fog(uint32_t packed, uint32_t amount, const uint8_t* fog)
 #include "polygon.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t packed
-// uint32_t amount
-// const uint8_t * fog
+// int packed
+// int amount
+// const int * fog
 
 auto result = epok::blend_fog(packed, amount, fog);
 ```
@@ -85,9 +85,9 @@ static int bucket(int32_t za, int32_t zb, int32_t zc)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `za` | `int32_t` | Input | Value supplied for `za`. See the exact type and module contract. |
-| `zb` | `int32_t` | Input | Value supplied for `zb`. See the exact type and module contract. |
-| `zc` | `int32_t` | Input | Value supplied for `zc`. See the exact type and module contract. |
+| `za` | `int` | Input | Value supplied for `za`. See the exact type and module contract. |
+| `zb` | `int` | Input | Value supplied for `zb`. See the exact type and module contract. |
+| `zc` | `int` | Input | Value supplied for `zc`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -99,9 +99,9 @@ static int bucket(int32_t za, int32_t zb, int32_t zc)
 #include "polygon.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int32_t za
-// int32_t zb
-// int32_t zc
+// int za
+// int zb
+// int zc
 
 auto result = epok::CameraUnits::bucket(za, zb, zc);
 ```
@@ -133,7 +133,7 @@ template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int 
 | --- | --- | --- | --- |
 | `buffers` | `ClipVertex (&)[2][12]` | Input/output; inspect the function contract | Value supplied for `buffers`. See the exact type and module contract. |
 | `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
-| `planes` | `uint8_t` | Input | Value supplied for `planes`. See the exact type and module contract. |
+| `planes` | `int` | Input | Value supplied for `planes`. See the exact type and module contract. |
 | `from` | `int &` | Input/output; inspect the function contract | Value supplied for `from`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
@@ -151,7 +151,7 @@ template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int 
 // Assume these named values have been initialized with valid data:
 // ClipVertex (&)[2][12] buffers
 // int count
-// uint8_t planes
+// int planes
 // int & from
 
 auto result = epok::clip_polygon<Units>(buffers, count, planes, from);
@@ -181,9 +181,9 @@ inline int32_t floor_div(int64_t numerator, int32_t divisor)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `numerator` | `int64_t` | Input | Value supplied for `numerator`. See the exact type and module contract. |
-| `divisor` | `int32_t` | Input | Value supplied for `divisor`. See the exact type and module contract. |
+| `divisor` | `int` | Input | Value supplied for `divisor`. See the exact type and module contract. |
 
-**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
 
@@ -194,7 +194,7 @@ inline int32_t floor_div(int64_t numerator, int32_t divisor)
 
 // Assume these named values have been initialized with valid data:
 // int64_t numerator
-// int32_t divisor
+// int divisor
 
 auto result = epok::floor_div(numerator, divisor);
 ```
@@ -224,11 +224,11 @@ inline uint16_t fog_amount(int32_t depth, int32_t start, int32_t end)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `depth` | `int32_t` | Input | Value supplied for `depth`. See the exact type and module contract. |
-| `start` | `int32_t` | Input | Value supplied for `start`. See the exact type and module contract. |
-| `end` | `int32_t` | Input | Value supplied for `end`. See the exact type and module contract. |
+| `depth` | `int` | Input | Value supplied for `depth`. See the exact type and module contract. |
+| `start` | `int` | Input | Value supplied for `start`. See the exact type and module contract. |
+| `end` | `int` | Input | Value supplied for `end`. See the exact type and module contract. |
 
-**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Depth and range share one unit; the range must be positive.
 
@@ -238,9 +238,9 @@ inline uint16_t fog_amount(int32_t depth, int32_t start, int32_t end)
 #include "polygon.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int32_t depth
-// int32_t start
-// int32_t end
+// int depth
+// int start
+// int end
 
 auto result = epok::fog_amount(depth, start, end);
 ```
@@ -268,9 +268,9 @@ inline uint32_t modulate_channel(uint32_t c)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `c` | `uint32_t` | Input | Value supplied for `c`. See the exact type and module contract. |
+| `c` | `int` | Input | Value supplied for `c`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
 
@@ -280,7 +280,7 @@ inline uint32_t modulate_channel(uint32_t c)
 #include "polygon.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t c
+// int c
 
 auto result = epok::modulate_channel(c);
 ```
@@ -308,9 +308,9 @@ inline uint32_t modulate_color(uint32_t packed)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `packed` | `uint32_t` | Input | Value supplied for `packed`. See the exact type and module contract. |
+| `packed` | `int` | Input | Value supplied for `packed`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
 
@@ -320,7 +320,7 @@ inline uint32_t modulate_color(uint32_t packed)
 #include "polygon.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t packed
+// int packed
 
 auto result = epok::modulate_color(packed);
 ```
@@ -348,11 +348,11 @@ inline uint32_t pack_color(uint32_t r, uint32_t g, uint32_t b)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `r` | `uint32_t` | Input | Value supplied for `r`. See the exact type and module contract. |
-| `g` | `uint32_t` | Input | Value supplied for `g`. See the exact type and module contract. |
-| `b` | `uint32_t` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `r` | `int` | Input | Value supplied for `r`. See the exact type and module contract. |
+| `g` | `int` | Input | Value supplied for `g`. See the exact type and module contract. |
+| `b` | `int` | Input | Value supplied for `b`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
 
@@ -362,9 +362,9 @@ inline uint32_t pack_color(uint32_t r, uint32_t g, uint32_t b)
 #include "polygon.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t r
-// uint32_t g
-// uint32_t b
+// int r
+// int g
+// int b
 
 auto result = epok::pack_color(r, g, b);
 ```
@@ -437,10 +437,10 @@ inline uint32_t scale_channel(uint32_t a, uint32_t b)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `uint32_t` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `b` | `uint32_t` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `a` | `int` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `int` | Input | Value supplied for `b`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
 
@@ -450,8 +450,8 @@ inline uint32_t scale_channel(uint32_t a, uint32_t b)
 #include "polygon.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t a
-// uint32_t b
+// int a
+// int b
 
 auto result = epok::scale_channel(a, b);
 ```
@@ -483,7 +483,7 @@ inline int32_t screen_area(const ProjectedVertex& a, const ProjectedVertex& b, c
 | `b` | `const ProjectedVertex &` | Input | Value supplied for `b`. See the exact type and module contract. |
 | `c` | `const ProjectedVertex &` | Input | Value supplied for `c`. See the exact type and module contract. |
 
-**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
 

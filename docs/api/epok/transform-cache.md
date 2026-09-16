@@ -6,7 +6,7 @@ This module covers the transform cache module. It documents 3 public callables d
 
 ## Declared types
 
-`epok::TransformCache`
+`epok::TransformCache`, `epok::TransformCache::Entry`
 
 ## Callable index
 
@@ -66,9 +66,9 @@ uint32_t revision(size_t index) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the transform cache module and the preconditions in the declaration are already satisfied.
 
@@ -78,7 +78,7 @@ uint32_t revision(size_t index) const
 #include "transform_cache.hpp"
 
 // Assume these named values have been initialized with valid data:
-// size_t index
+// int index
 
 epok::TransformCache& object = /* obtain a valid instance */;
 
@@ -110,7 +110,7 @@ template<class Objects,class Matrices,class MakeLocal> void sync(const Objects& 
 | --- | --- | --- | --- |
 | `objects` | `const Objects &` | Input | Value supplied for `objects`. See the exact type and module contract. |
 | `world` | `Matrices &` | Input/output; inspect the function contract | Value supplied for `world`. See the exact type and module contract. |
-| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `make_local` | `MakeLocal` | Input | Value supplied for `make_local`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -128,7 +128,7 @@ template<class Objects,class Matrices,class MakeLocal> void sync(const Objects& 
 // Assume these named values have been initialized with valid data:
 // const Objects & objects
 // Matrices & world
-// size_t count
+// int count
 // MakeLocal make_local
 
 epok::TransformCache& object = /* obtain a valid instance */;

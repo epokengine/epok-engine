@@ -11,6 +11,34 @@ The skeletal pipeline imports a real FBX on the desktop, previews its clips and 
 
 The sample is original MIT-licensed geometry: 96 vertices, 144 triangles, 10 authored bones (12 nodes including transform helpers), and Idle/Walk clips. Its source is `resources/models/EpokMannequin.fbx`; the reproducible Blender authoring script is `tests/fixtures/create_skeletal_fixture.py`. Blender is not required to use or test the importer.
 
+## Gameplay sampling
+
+The reflected `Mesh3DComponent` API controls clip playback and samples owned
+results in C++, Blueprint and Lua Gameplay profile 2. `vertex_count`,
+`bone_count` and `clip_count` expose the current model. `sample_vertex` and the
+four-index `sample_vertices` batch accept portable imported vertex indices,
+`Bind`/`Current` pose and `Model`/`World` space. `sample_bone` returns the parent,
+three affine basis vectors, translation and sampled frame. Always inspect the
+result's `success`/`error`; a zero position is valid data.
+
+Sampling is synchronous at the current animator state. Ordinary simulation
+`tick` runs before the animator advances, so a query there can precede the pose
+rendered later in that frame. Sampling never advances playback. Stop resets the
+animator ticks and pauses the selected clip; request `Bind` explicitly when bind
+pose is required.
+
+Rigid queries preserve imported indices through a cooked remap. Baked compressed
+queries use optional 16-vertex seek tables, and baked bone queries retain optional
+hierarchy/track sidecars. Those tables are absent unless a reachable Blueprint,
+Lua or observed native operation demands them. Explicit queries work off-screen
+and their cost is reported separately from renderer pose/decode counters.
+
+Open the model window's **Gameplay query references** section to select and copy
+a portable vertex or bone index. It shows the bind Q12 position, strongest bone,
+parent and topology identity, so authoring never depends on generated
+`skin_vertices_*` table order. A topology-changing reimport requires references
+to be reviewed against the displayed identity.
+
 ## Portable resources
 
 Each import occupies `assets/<source>.imported/`:

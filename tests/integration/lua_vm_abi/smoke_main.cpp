@@ -102,8 +102,14 @@ const ClassBinding class_bindings[] = {{
     8,
     get_field,
     set_field,
+    nullptr,
+    nullptr,
     self_call,
     super_call,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
 }};
 const uint32_t class_binding_count = 1;
 }  // namespace lua

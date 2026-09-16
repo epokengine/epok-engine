@@ -131,6 +131,101 @@ pub fn unpack(expression: &str, ty: &Type) -> Result<String, String> {
     })
 }
 
+fn wire_pack(target: &str, expression: &str, ty: &Type, offset: usize) -> Result<String, String> {
+    Ok(match ty {
+        Type::Void => String::new(),
+        Type::Record { .. } => {
+            let mut text = String::new();
+            let mut at = offset;
+            for field in ty.members() {
+                text.push_str(&wire_pack(
+                    target,
+                    &format!("({expression}).{}", field.name),
+                    &field.value_type,
+                    at,
+                )?);
+                at += field.value_type.wire_words();
+            }
+            text
+        }
+        Type::Vector { length } => {
+            let mut text = String::new();
+            for index in 0..*length {
+                text.push_str(&wire_pack(
+                    target,
+                    &format!("({expression})[{index}]"),
+                    &Type::Fixed,
+                    offset + index,
+                )?);
+            }
+            text
+        }
+        Type::AssetRef { .. } | Type::ClassRef { .. } => format!(
+            "{target}.words[{offset}]=int32_t(uint32_t(uint64_t({expression})));{target}.words[{}]=int32_t(uint32_t(uint64_t({expression})>>32));\n",
+            offset + 1
+        ),
+        Type::SequenceHandle | Type::EffectHandle | Type::EffectLayerRef { .. } => format!(
+            "{target}.words[{offset}]=int32_t(uint32_t(({expression}).index));{target}.words[{}]=int32_t(uint32_t(({expression}).generation));\n",
+            offset + 1
+        ),
+        _ => format!("{target}.words[{offset}]={};\n", pack(expression, ty)?),
+    })
+}
+
+fn wire_unpack(expression: &str, ty: &Type, offset: usize) -> Result<String, String> {
+    Ok(match ty {
+        Type::Record { cpp_name, .. } => {
+            bir::cpp_type(ty)?;
+            let mut at = offset;
+            let mut values = Vec::new();
+            for field in ty.members() {
+                values.push(wire_unpack(expression, &field.value_type, at)?);
+                at += field.value_type.wire_words();
+            }
+            format!("{cpp_name}{{{}}}", values.join(","))
+        }
+        Type::Vector { length } => {
+            let values = (0..*length)
+                .map(|index| wire_unpack(expression, &Type::Fixed, offset + index))
+                .collect::<Result<Vec<_>, _>>()?;
+            format!("{{{}}}", values.join(","))
+        }
+        Type::AssetRef { .. } | Type::ClassRef { .. } => format!(
+            "(uint64_t(uint32_t({expression}.words[{}]))|(uint64_t(uint32_t({expression}.words[{}]))<<32))",
+            offset,
+            offset + 1
+        ),
+        Type::SequenceHandle | Type::EffectHandle | Type::EffectLayerRef { .. } => {
+            let cpp = bir::cpp_type(ty)?;
+            format!(
+                "{cpp}{{uint16_t(uint32_t({expression}.words[{offset}])),uint32_t({expression}.words[{}])}}",
+                offset + 1
+            )
+        }
+        Type::Void => "{}".into(),
+        _ => unpack(&format!("{expression}.words[{offset}]"), ty)?,
+    })
+}
+
+fn wire_dispatch_case(slot: usize, call: &str, returns: &Type) -> Result<String, String> {
+    let words = returns.wire_words();
+    if words > 32 {
+        return Err(format!(
+            "{} exceeds the 32-word Lua ABI v2 limit",
+            returns.label()
+        ));
+    }
+    if *returns == Type::Void {
+        return Ok(format!(
+            "case {slot}: {call}; return epok::lua::WireValue{{}};\n"
+        ));
+    }
+    let packed = wire_pack("epok_wire", "epok_result", returns, 0)?;
+    Ok(format!(
+        "case {slot}: {{ const auto epok_result={call}; epok::lua::WireValue epok_wire{{}}; epok_wire.count={words};\n{packed}return epok_wire; }}\n"
+    ))
+}
+
 // ------------------------------------------------------ intrinsic access ----
 
 /// Getter and setter an intrinsic transform place lowers to. They are the very
@@ -204,6 +299,125 @@ fn self_actor(registry: &Registry, cpp_name: &str) -> &'static str {
         schema::ClassFamily::Component => "this->get_owner()",
         _ => "this",
     }
+}
+
+pub fn operation_call_name(operation: &str) -> String {
+    use sha2::{Digest, Sha256};
+    format!(
+        "epok_lua_operation_{:x}",
+        Sha256::digest(operation.as_bytes())
+    )
+}
+
+/// Generate one typed, bounds-checked adapter for every reachable foreign
+/// receiver operation. Definitions live in a translation unit that includes
+/// `scene.hh`, after every generated class is complete, avoiding header cycles
+/// between mutually-calling Lua/Blueprint classes.
+pub fn emit_operation_adapters(
+    classes: &[(schema::Class, ClassIr)],
+    registry: &Registry,
+) -> Result<(String, Option<String>), String> {
+    let mut operations = BTreeMap::<String, schema::Operation>::new();
+    for (_, ir) in classes {
+        for expression in crate::lua_vm::operation_sites(ir)? {
+            let Expr::CallOperation { operation, .. } = expression else {
+                continue;
+            };
+            if matches!(operation.receiver, schema::ReceiverKind::Instance { .. }) {
+                operations.insert(operation.id.clone(), operation);
+            }
+        }
+    }
+    let mut header = String::from(
+        "// Generated typed Lua foreign-receiver adapters.\n#pragma once\n#include \"epok.hpp\"\n",
+    );
+    if operations.is_empty() {
+        return Ok((header, None));
+    }
+    let mut source = String::from(
+        "// Generated Lua receiver calls; target classes are complete in scene.hh.\n#include \"scene.hh\"\n#include \"lua_calls.hpp\"\nnamespace { uint32_t epok_lua_receiver_depth=0; struct EpokLuaReceiverDepth { bool entered; EpokLuaReceiverDepth():entered(epok_lua_receiver_depth<32){if(entered)++epok_lua_receiver_depth;} ~EpokLuaReceiverDepth(){if(entered)--epok_lua_receiver_depth;} }; }\n",
+    );
+    for operation in operations.values() {
+        let schema::ReceiverKind::Instance { class } = &operation.receiver else {
+            continue;
+        };
+        let target = registry
+            .classes
+            .get(class)
+            .ok_or_else(|| format!("Unknown receiver class {class}"))?;
+        let returns = operation
+            .outputs
+            .first()
+            .map(|output| output.value_type.clone())
+            .unwrap_or(Type::Void);
+        if operation.outputs.len() > 1 {
+            return Err(format!("{} has multiple unwrapped outputs", operation.name));
+        }
+        let mut parameters = vec!["epok::ObjectId epok_receiver".to_string()];
+        let mut arguments = Vec::new();
+        for (index, parameter) in operation.parameters.iter().enumerate() {
+            let ty = bir::cpp_type(&parameter.value_type)?;
+            let ty = match parameter.direction {
+                schema::Direction::Value => ty,
+                schema::Direction::ConstReference => format!("const {ty}&"),
+                schema::Direction::MutableReference => format!("{ty}&"),
+            };
+            parameters.push(format!("{ty} epok_argument_{index}"));
+            arguments.push(format!("epok_argument_{index}"));
+        }
+        let signature = format!(
+            "{} {}({})",
+            bir::cpp_type(&returns)?,
+            operation_call_name(&operation.id),
+            parameters.join(",")
+        );
+        header.push_str(&format!("{signature};\n"));
+        let fallback = if returns == Type::Void {
+            "return;"
+        } else {
+            "return {};"
+        };
+        let object = format!("static_cast<{}*>(epok_object)", target.cpp_name);
+        let invoke = if let Some(name) = operation.native_target.strip_prefix("property:get:") {
+            if let Type::Vector { length } = &returns {
+                let ty = bir::cpp_type(&returns)?;
+                format!(
+                    "{ty} epok_value{{}};for(unsigned i=0;i<{length};++i)epok_value[i]={object}->{name}[i];return epok_value;"
+                )
+            } else {
+                format!("return {object}->{name};")
+            }
+        } else if let Some(name) = operation.native_target.strip_prefix("property:set:") {
+            if let Some(schema::OperationParameter {
+                value_type: Type::Vector { length },
+                ..
+            }) = operation.parameters.first()
+            {
+                format!(
+                    "for(unsigned i=0;i<{length};++i){object}->{name}[i]=epok_argument_0[i];return;"
+                )
+            } else {
+                format!("{object}->{name}=epok_argument_0;return;")
+            }
+        } else if returns == Type::Void {
+            format!(
+                "{object}->{}({});return;",
+                operation.name,
+                arguments.join(",")
+            )
+        } else {
+            format!(
+                "return {object}->{}({});",
+                operation.name,
+                arguments.join(",")
+            )
+        };
+        source.push_str(&format!(
+            "{signature}{{EpokLuaReceiverDepth epok_depth;if(!epok_depth.entered){{{fallback}}}if(!epok::active_object_registry){{{fallback}}}auto* epok_object=epok::active_object_registry->get(epok_receiver);if(!epok_object||!epok_object->is_a({}ULL)){{{fallback}}}epok::ObjectDispatchScope epok_scope(*epok::active_object_registry);{invoke}}}\n",
+            crate::blueprint_refs::compact_id(class)
+        ));
+    }
+    Ok((header, Some(source)))
 }
 
 // ---------------------------------------------------------- native bodies ----
@@ -310,6 +524,9 @@ impl Emitter<'_> {
                     Conversion::FixedToInt => format!("epok::bp::to_int({operand})"),
                 }
             }
+            Expr::Member { base, name, .. } => {
+                format!("({}).{name}", self.expr(base)?)
+            }
             Expr::CallSelf { name, args, .. } => {
                 format!("this->{name}({})", self.arguments(args)?)
             }
@@ -335,6 +552,36 @@ impl Emitter<'_> {
                     &lowered,
                     &bir::SelfReceiver::this(self.self_actor),
                 )?
+            }
+            Expr::CallOperation {
+                operation,
+                receiver,
+                args,
+                ..
+            } => {
+                let arguments = self.arguments(args)?;
+                match &operation.receiver {
+                    schema::ReceiverKind::Service { .. } => {
+                        format!("{}({arguments})", operation.native_target)
+                    }
+                    schema::ReceiverKind::Instance { .. } => {
+                        let receiver = receiver
+                            .as_deref()
+                            .ok_or_else(|| format!("{} has no receiver", operation.name))?;
+                        let receiver = self.expr(receiver)?;
+                        let separator = if arguments.is_empty() { "" } else { "," };
+                        format!(
+                            "{}({receiver}{separator}{arguments})",
+                            operation_call_name(&operation.id)
+                        )
+                    }
+                    schema::ReceiverKind::Value { .. } => {
+                        return Err(format!(
+                            "{} value-receiver lowering is not defined",
+                            operation.name
+                        ));
+                    }
+                }
             }
             Expr::MakeVector {
                 components, length, ..
@@ -503,18 +750,48 @@ fn native_body(
 fn vm_body(method: &MethodIr, class_index: u32, slot: usize) -> Result<String, String> {
     let returns = &method.function.returns;
     let void = *returns == Type::Void;
+    let wide = returns.wire_words() > 1
+        || method
+            .function
+            .parameters
+            .iter()
+            .any(|parameter| parameter.value_type.wire_words() > 1);
     let mut out = format!(
         "epok::lua::Frame f(*this, kEpokLuaClass_{class_index}, /*slot*/ {slot});\nif (!f.bound()) return{};\n",
         default_return(returns)
     );
     for (i, parameter) in method.function.parameters.iter().enumerate() {
-        out.push_str(&format!(
-            "f.arg({});\n",
-            pack(&format!("epok_p{i}"), &parameter.value_type)?
-        ));
+        if parameter.value_type.wire_words() > 1 {
+            let words = parameter.value_type.wire_words();
+            if words > 32 {
+                return Err(format!(
+                    "{} exceeds the 32-word Lua ABI v2 limit",
+                    parameter.value_type.label()
+                ));
+            }
+            out.push_str(&format!(
+                "epok::lua::WireValue epok_argument_{i}{{}};epok_argument_{i}.count={words};\n{}f.arg(epok_argument_{i});\n",
+                wire_pack(
+                    &format!("epok_argument_{i}"),
+                    &format!("epok_p{i}"),
+                    &parameter.value_type,
+                    0
+                )?
+            ));
+        } else {
+            out.push_str(&format!(
+                "f.arg({});\n",
+                pack(&format!("epok_p{i}"), &parameter.value_type)?
+            ));
+        }
     }
     if void {
         out.push_str("f.call(0);\n");
+    } else if wide {
+        out.push_str(&format!(
+            "if (!f.call(1)) return {{}};\nconst auto epok_result=f.ret_wire();\nreturn {};\n",
+            wire_unpack("epok_result", returns, 0)?
+        ));
     } else {
         out.push_str(&format!(
             "if (!f.call(1)) return {{}};\nreturn {};\n",
@@ -539,7 +816,7 @@ pub fn emit_class(
         .ok_or_else(|| format!("Unknown parent {}", ir.parent_cpp_name))?;
     let source = project_relative(&class.source.file);
     let mut text = format!(
-        "// Generated from Lua class {} ({source}). Do not edit.\n#pragma once\n#include \"{}\"\n#include \"blueprint_runtime.hpp\"\n#include \"blueprint_api.hpp\"\n",
+        "// Generated from Lua class {} ({source}). Do not edit.\n#pragma once\n#include \"{}\"\n#include \"blueprint_runtime.hpp\"\n#include \"blueprint_api.hpp\"\n#include \"lua_calls.hpp\"\n",
         class.id,
         parent_include(parent)?
     );
@@ -626,7 +903,7 @@ pub fn emit_bindings(
     chunk_symbols: &BTreeMap<String, String>,
 ) -> Result<String, String> {
     let mut text = String::from(
-        "// Generated Lua class bindings. Do not edit.\n#include \"scene.hh\"\n#include \"lua_runtime.hpp\"\n#include \"blueprint_api.hpp\"\n",
+        "// Generated Lua class bindings. Do not edit.\n#include \"scene.hh\"\n#include \"lua_runtime.hpp\"\n#include \"blueprint_api.hpp\"\n#include \"lua_calls.hpp\"\n",
     );
     let mut rows = String::new();
     for (index, (class, ir)) in classes.iter().enumerate() {
@@ -643,10 +920,35 @@ pub fn emit_bindings(
         // `lua_vm::field_slots` is the single slot numbering both emitters use;
         // an intrinsic slot lowers to the same `epok::bp::api` call the native
         // bodies emit, so the two execution paths address one transform.
-        let slots = crate::lua_vm::field_slots(&class.cpp_name, registry);
+        let slots = crate::lua_vm::field_slots_for_ir(ir, registry);
         let transform = crate::lua_vm::intrinsic_access(registry, &class.cpp_name);
         let (mut get, mut set) = (String::new(), String::new());
+        let (mut wide_get, mut wide_set) = (String::new(), String::new());
         for (slot, field) in slots.iter().enumerate() {
+            if field.value_type.wire_words() > 1 {
+                let SlotKey::Property {
+                    component: None, ..
+                } = &field.key
+                else {
+                    return Err(format!("{name} has an invalid composite field slot"));
+                };
+                let access = format!("self.{}", field.name);
+                wide_get.push_str(&wire_dispatch_case(slot, &access, &field.value_type)?);
+                let value = wire_unpack("value", &field.value_type, 0)?;
+                if let Type::Vector { length } = &field.value_type {
+                    wide_set.push_str(&format!(
+                        "case {slot}: {{ const auto epok_value={value};{}return; }}\n",
+                        (0..*length)
+                            .map(|component| format!(
+                                "{access}[{component}]=epok_value[{component}];"
+                            ))
+                            .collect::<String>()
+                    ));
+                } else {
+                    wide_set.push_str(&format!("case {slot}: {access}={value};return;\n"));
+                }
+                continue;
+            }
             let (read, write) = match &field.key {
                 SlotKey::Property { component, .. } => {
                     let access = match component {
@@ -694,8 +996,14 @@ pub fn emit_bindings(
         text.push_str(&format!(
             "static void epok_lua_set_{index}(epok::Object& o, uint32_t slot, int32_t value) {{\nauto& self=static_cast<{name}&>(o);(void)self;(void)value;\nswitch(slot) {{\n{set}default: return;\n}}\n}}\n"
         ));
-        // Own methods first, then every inherited function, so a Lua body can
-        // call an inherited native callable through the same dispatch switch.
+        text.push_str(&format!(
+            "static epok::lua::WireValue epok_lua_wide_get_{index}(epok::Object& o, uint32_t slot) {{\nauto& self=static_cast<{name}&>(o);(void)self;\nswitch(slot) {{\n{wide_get}default: return {{}};\n}}\n}}\n"
+        ));
+        text.push_str(&format!(
+            "static void epok_lua_wide_set_{index}(epok::Object& o, uint32_t slot, const epok::lua::WireValue& value) {{\nauto& self=static_cast<{name}&>(o);(void)self;(void)value;\nswitch(slot) {{\n{wide_set}default: return;\n}}\n}}\n"
+        ));
+        // Own methods first, then only inherited functions referenced by this
+        // class's typed IR. Unused engine APIs retain no binding cases.
         let methods = crate::lua_vm::method_slots(ir, registry);
         // A method the parent does not declare has no qualified parent call to
         // emit: `self.Parent::report()` would not compile for a method this
@@ -706,28 +1014,59 @@ pub fn emit_bindings(
             .flat_map(|c| c.functions.iter().map(|f| f.name.as_str()))
             .collect();
         let (mut self_cases, mut super_cases) = (String::new(), String::new());
+        let (mut wide_self_cases, mut wide_super_cases) = (String::new(), String::new());
         for (slot, function) in methods.iter().enumerate() {
+            let name = &function.name;
+            let wide = function.returns.wire_words() > 1
+                || function
+                    .parameters
+                    .iter()
+                    .any(|parameter| parameter.value_type.wire_words() > 1);
             let args = function
                 .parameters
                 .iter()
                 .enumerate()
-                .map(|(i, p)| unpack(&format!("args[{i}]"), &p.value_type))
+                .map(|(i, p)| {
+                    if wide {
+                        wire_unpack(&format!("args[{i}]"), &p.value_type, 0)
+                    } else {
+                        unpack(&format!("args[{i}]"), &p.value_type)
+                    }
+                })
                 .collect::<Result<Vec<_>, String>>()?
                 .join(", ");
-            let name = &function.name;
-            let mut targets = vec![(&mut self_cases, format!("self.{name}"))];
+            let mut targets = if wide {
+                vec![(&mut wide_self_cases, format!("self.{name}"))]
+            } else {
+                vec![(&mut self_cases, format!("self.{name}"))]
+            };
             if inherited.contains(name.as_str()) {
-                targets.push((
-                    &mut super_cases,
-                    format!("self.{}::{name}", ir.parent_cpp_name),
-                ));
+                if wide {
+                    targets.push((
+                        &mut wide_super_cases,
+                        format!("self.{}::{name}", ir.parent_cpp_name),
+                    ));
+                } else {
+                    targets.push((
+                        &mut super_cases,
+                        format!("self.{}::{name}", ir.parent_cpp_name),
+                    ));
+                }
             }
             for (cases, receiver) in targets {
-                cases.push_str(&dispatch_case(
-                    slot,
-                    &format!("{receiver}({args})"),
-                    &function.returns,
-                )?);
+                if wide {
+                    cases.push_str(&wire_dispatch_case(
+                        slot,
+                        &format!("{receiver}({args})"),
+                        &function.returns,
+                    )?);
+                } else {
+                    cases.push_str(&dispatch_case(
+                        slot,
+                        &format!("{receiver}({args})"),
+                        &function.returns,
+                    )?);
+                }
             }
         }
         let dispatch = |suffix: &str, receiver: &str, cases: &str| {
@@ -740,6 +1079,21 @@ pub fn emit_bindings(
             "super_call",
             "qualified parent dispatch",
             &super_cases,
+        ));
+        let wide_dispatch = |suffix: &str, receiver: &str, cases: &str| {
+            format!(
+                "static epok::lua::WireValue epok_lua_{suffix}_{index}(epok::Object& o, uint32_t slot, const epok::lua::WireValue* args, uint32_t argc) {{\nauto& self=static_cast<{name}&>(o);(void)self;(void)args;(void)argc;\nswitch(slot) {{\n{cases}default: return {{}};\n}}\n}}\n// {receiver}\n"
+            )
+        };
+        text.push_str(&wide_dispatch(
+            "wide_self_call",
+            "wide virtual dispatch",
+            &wide_self_cases,
+        ));
+        text.push_str(&wide_dispatch(
+            "wide_super_call",
+            "wide qualified parent dispatch",
+            &wide_super_cases,
         ));
         // Builtin call sites. The case body is the same `builtin_cpp` lowering
         // the native backend emits, so a VM build reaches the identical
@@ -785,6 +1139,68 @@ pub fn emit_bindings(
         text.push_str(&format!(
             "static int32_t epok_lua_builtin_{index}(epok::Object& o, uint32_t site, const int32_t* args, uint32_t argc) {{\nauto& self=static_cast<{name}&>(o);(void)self;(void)args;(void)argc;\nswitch(site) {{\n{builtin_cases}default: return 0;\n}}\n}}\n"
         ));
+        let operation_sites = crate::lua_vm::operation_sites(ir)?;
+        let mut operation_cases = String::new();
+        for (site, expr) in operation_sites.iter().enumerate() {
+            let Expr::CallOperation {
+                operation,
+                receiver,
+                args,
+                returns,
+                ..
+            } = expr
+            else {
+                return Err(format!(
+                    "{name}: operation site {site} is not a catalog call"
+                ));
+            };
+            if args.len() != operation.parameters.len() {
+                return Err(format!("{} operation argument count drift", operation.name));
+            }
+            let receiver_words = usize::from(receiver.is_some());
+            let lowered = operation
+                .parameters
+                .iter()
+                .enumerate()
+                .map(|(argument, parameter)| {
+                    wire_unpack(
+                        &format!("args[{}]", argument + receiver_words),
+                        &parameter.value_type,
+                        0,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let call = match &operation.receiver {
+                schema::ReceiverKind::Service { .. } => {
+                    if receiver.is_some() {
+                        return Err(format!("{} service has a receiver value", operation.name));
+                    }
+                    format!("{}({})", operation.native_target, lowered.join(","))
+                }
+                schema::ReceiverKind::Instance { .. } => {
+                    let receiver = receiver.as_deref().ok_or_else(|| {
+                        format!("{} instance call has no receiver", operation.name)
+                    })?;
+                    let target = wire_unpack("args[0]", receiver.value_type(), 0)?;
+                    let separator = if lowered.is_empty() { "" } else { "," };
+                    format!(
+                        "{}({target}{separator}{})",
+                        operation_call_name(&operation.id),
+                        lowered.join(",")
+                    )
+                }
+                schema::ReceiverKind::Value { .. } => {
+                    return Err(format!(
+                        "{} value-receiver lowering is not defined",
+                        operation.name
+                    ));
+                }
+            };
+            operation_cases.push_str(&wire_dispatch_case(site, &call, returns)?);
+        }
+        text.push_str(&format!(
+            "static epok::lua::WireValue epok_lua_operation_{index}(epok::Object& o, uint32_t site, const epok::lua::WireValue* args, uint32_t argc) {{\nauto& self=static_cast<{name}&>(o);(void)self;(void)args;(void)argc;\nswitch(site) {{\n{operation_cases}default: return {{}};\n}}\n}}\n"
+        ));
         let names = methods
             .iter()
             .map(|f| format!("\"{}\"", f.name))
@@ -794,7 +1210,7 @@ pub fn emit_bindings(
             "static const char* const epok_lua_methods_{index}[] = {{{names}}};\n"
         ));
         rows.push_str(&format!(
-            "{{UINT64_C({}), \"{name}\", {symbol}, size_t({symbol}_size), epok_lua_methods_{index}, {}, epok_lua_get_{index}, epok_lua_set_{index}, epok_lua_self_call_{index}, epok_lua_super_call_{index}, epok_lua_builtin_{index}}},\n",
+            "{{UINT64_C({}), \"{name}\", {symbol}, size_t({symbol}_size), epok_lua_methods_{index}, {}, epok_lua_get_{index}, epok_lua_set_{index}, epok_lua_wide_get_{index}, epok_lua_wide_set_{index}, epok_lua_self_call_{index}, epok_lua_super_call_{index}, epok_lua_wide_self_call_{index}, epok_lua_wide_super_call_{index}, epok_lua_builtin_{index}, epok_lua_operation_{index}}},\n",
             crate::blueprint_refs::compact_id(&class.id),
             methods.len()
         ));
@@ -938,7 +1354,7 @@ end
             "case 4: epok::bp::api::set_texture(epok::ObjectId{uint16_t(uint32_t(args[0])&0xffffu),uint16_t(uint32_t(args[0])>>16)},self.skin); return 0;".into(),
             "case 6: { const auto epok_result = epok::bp::api::held(uint32_t(args[0]),uint32_t(args[1])); return ((epok_result)?1:0); }".into(),
             "epok_lua_builtin_0(epok::Object& o, uint32_t site".into(),
-            "epok_lua_super_call_0, epok_lua_builtin_0}".into(),
+            "epok_lua_super_call_0, epok_lua_wide_self_call_0, epok_lua_wide_super_call_0, epok_lua_builtin_0, epok_lua_operation_0}".into(),
         ] {
             assert!(text.contains(&expected), "missing {expected:?} in\n{text}");
         }
@@ -1183,21 +1599,11 @@ end
         assert!(bindings.contains(&format!(
             "case {tick}: self.epok::ActorComponent::tick(epok::Fixed(args[0],epok::Fixed::RAW)); return 0;\n"
         )), "{bindings}");
-        // Inherited reflected callables need slots too: a Lua body reaches
-        // `self:hit(...)` through the same `__epok_call` switch, and without a
-        // slot the class could call nothing its own chunk did not declare.
+        // Unreferenced inherited callables do not consume a native dispatch
+        // case merely because the registry advertises them.
         let methods = crate::lua_vm::method_slots(&ir, &registry);
-        let hit = methods.iter().position(|f| f.name == "hit").unwrap();
-        assert!(
-            hit >= ir.methods.len(),
-            "inherited slots follow own methods"
-        );
-        assert!(
-            bindings.contains(&format!(
-                "case {hit}: self.hit(epok::Fixed(args[0],epok::Fixed::RAW)); return 0;\n"
-            )),
-            "{bindings}"
-        );
+        assert!(methods.iter().all(|f| f.name != "hit"), "{methods:?}");
+        assert!(!bindings.contains("self.hit("), "{bindings}");
         // `absorb` is introduced by this class, so there is no parent member to
         // qualify; emitting a super case for it would not compile.
         let super_switch = bindings.split("epok_lua_super_call_0").nth(1).unwrap();

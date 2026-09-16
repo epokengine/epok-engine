@@ -27,6 +27,9 @@ inline void install_actor_service_hooks(){
 }
 #endif
 size_t current_scene(){return scene_stats.active;}
+uint32_t scene_transition_count(){return scene_stats.transitions;}
+uint32_t scene_rejected_count(){return scene_stats.rejected;}
+bool scene_waiting(){return scene_stats.waiting;}
 bool scene_loading(){return pending_scene>=0
 #ifdef EPOK_TRANSITIONS
     ||transition.busy()

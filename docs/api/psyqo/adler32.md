@@ -33,9 +33,9 @@ uint32_t adler32(uint8_t* buffer, unsigned length, uint32_t sum = 1)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `buffer` | `uint8_t *` | Input/output; inspect the function contract | The buffer to checksum. |
+| `buffer` | `int *` | Input/output; inspect the function contract | The buffer to checksum. |
 | `length` | `unsigned int` | Input | Value supplied for `length`. See the exact type and module contract. |
-| `sum` | `uint32_t` | Input | The previous sum to continue the checksum for. |
+| `sum` | `int` | Input | The previous sum to continue the checksum for. |
 
 **Returns.** The adler32 checksum of the buffer.
 
@@ -47,9 +47,9 @@ uint32_t adler32(uint8_t* buffer, unsigned length, uint32_t sum = 1)
 #include "psyqo/adler32.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint8_t * buffer
+// int * buffer
 // unsigned int length
-// uint32_t sum
+// int sum
 
 auto result = psyqo::adler32(buffer, length, sum);
 ```
@@ -79,9 +79,9 @@ uint32_t adler32_bytes(uint8_t* buffer, unsigned length, uint32_t sum = 1)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `buffer` | `uint8_t *` | Input/output; inspect the function contract | The buffer to checksum. |
+| `buffer` | `int *` | Input/output; inspect the function contract | The buffer to checksum. |
 | `length` | `unsigned int` | Input | Value supplied for `length`. See the exact type and module contract. |
-| `sum` | `uint32_t` | Input | The previous sum to continue the checksum for. |
+| `sum` | `int` | Input | The previous sum to continue the checksum for. |
 
 **Returns.** The adler32 checksum of the buffer.
 
@@ -93,9 +93,9 @@ uint32_t adler32_bytes(uint8_t* buffer, unsigned length, uint32_t sum = 1)
 #include "psyqo/adler32.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint8_t * buffer
+// int * buffer
 // unsigned int length
-// uint32_t sum
+// int sum
 
 auto result = psyqo::adler32_bytes(buffer, length, sum);
 ```
@@ -125,9 +125,9 @@ uint32_t adler32_words(uint32_t* buffer, unsigned length, uint32_t sum = 1)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `buffer` | `uint32_t *` | Input/output; inspect the function contract | The buffer to checksum. |
+| `buffer` | `int *` | Input/output; inspect the function contract | The buffer to checksum. |
 | `length` | `unsigned int` | Input | Value supplied for `length`. See the exact type and module contract. |
-| `sum` | `uint32_t` | Input | The previous sum to continue the checksum for. |
+| `sum` | `int` | Input | The previous sum to continue the checksum for. |
 
 **Returns.** The adler32 checksum of the buffer.
 
@@ -139,9 +139,9 @@ uint32_t adler32_words(uint32_t* buffer, unsigned length, uint32_t sum = 1)
 #include "psyqo/adler32.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t * buffer
+// int * buffer
 // unsigned int length
-// uint32_t sum
+// int sum
 
 auto result = psyqo::adler32_words(buffer, length, sum);
 ```

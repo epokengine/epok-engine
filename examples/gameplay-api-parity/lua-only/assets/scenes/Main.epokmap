@@ -1,0 +1,77 @@
+version: 6
+name: Main
+actors:
+- active: true
+  class:
+    class_id: 33a484f4-60dc-48f0-a117-f75fdff7ca86
+    name: GameplayDemo
+  components:
+  - class:
+      class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
+      name: epok::SceneComponent3D
+    id: 08491e7d-ab83-4ac0-a075-78022ae0ee91
+    name: Transform
+    overrides:
+    - position
+    - rotation
+    - scale
+    properties:
+      position: [0.0, 0.0, 0.0]
+      rotation: [0.0, 0.0, 0.0]
+      scale: [1.0, 1.0, 1.0]
+    root: true
+  - class:
+      class_id: 580f99b1-c905-4f96-b34f-807c51335ba0
+      name: epok::Mesh3DComponent
+    id: d75ab30a-0a8f-4d65-9f13-a06075140201
+    name: Mesh
+    overrides: []
+    properties: {}
+    root: false
+  - class:
+      class_id: 7f0eb028-5301-4ac7-b93b-5665fab12b20
+      name: epok::AudioComponent
+    id: d75ab30a-0a8f-4d65-9f13-a06075140202
+    name: Audio
+    overrides: []
+    properties: {}
+    root: false
+  - class:
+      class_id: 1d067605-c408-40b8-b2c2-718b8cf0c601
+      name: epok::ParticleEmitterComponent
+    id: d75ab30a-0a8f-4d65-9f13-a06075140203
+    name: Particles
+    overrides: []
+    properties: {}
+    root: false
+  id: 3139b922-e5be-4574-b637-ea29da75de73
+  name: Gameplay Demo
+  overrides: [target, mesh, audio, particles]
+  properties:
+    target: 3139b922-e5be-4574-b637-ea29da75de74
+    mesh: d75ab30a-0a8f-4d65-9f13-a06075140201
+    audio: d75ab30a-0a8f-4d65-9f13-a06075140202
+    particles: d75ab30a-0a8f-4d65-9f13-a06075140203
+- active: true
+  class:
+    class_id: fc24ce9b-558c-49de-bc35-e040f350e486
+    name: epok::Actor3D
+  components:
+  - class:
+      class_id: ed73d249-b6cb-4a3c-a0e8-696de55e286f
+      name: epok::SceneComponent3D
+    id: d75ab30a-0a8f-4d65-9f13-a06075140206
+    name: Transform
+    overrides:
+    - position
+    - rotation
+    - scale
+    properties:
+      position: [2.0, 0.0, 0.0]
+      rotation: [0.0, 0.0, 0.0]
+      scale: [1.0, 1.0, 1.0]
+    root: true
+  id: 3139b922-e5be-4574-b637-ea29da75de74
+  name: Target Actor
+  overrides: []
+  properties: {}

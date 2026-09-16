@@ -501,6 +501,90 @@ fn seam_actor(model: Model) -> crate::scene::Actor {
     actor
 }
 
+fn animated_seam_model(storage: skeletal::AnimationStorage) -> Model {
+    let mut model = seam_model(false, None);
+    let id = Uuid::from_u128(4);
+    let mut moved = identity_pose();
+    moved.translation[0] = 128;
+    model.mesh.animation_storage = storage;
+    model.mesh.clips.push(id);
+    model.clips.push((
+        id,
+        skeletal::Clip {
+            skeleton: model.mesh.skeleton,
+            name: "Move".into(),
+            fps: 30,
+            frames: 2,
+            tracks: vec![vec![identity_pose(), moved]],
+        },
+    ));
+    model
+}
+
+#[test]
+fn optional_skeletal_query_tables_follow_the_operation_demand() {
+    use crate::skeletal_compile::{QueryDemand, header_with_pages_for};
+
+    let render_only = header_with_pages_for(
+        &seam_actor(animated_seam_model(
+            skeletal::AnimationStorage::BakedVertices,
+        )),
+        7,
+        &|_| None,
+        QueryDemand::NONE,
+    )
+    .unwrap();
+    assert!(render_only.contains("skin_vertex_frames_7_0"));
+    assert!(render_only.contains("skin_vertex_data_7_0"));
+    assert!(!render_only.contains("skin_vertex_seek_7_"));
+    assert!(!render_only.contains("skin_bones_7"));
+    assert!(!render_only.contains("skin_tracks_7_"));
+    assert!(render_only.contains("nullptr,0,skin_clips_7,1,SkeletalStorage::BakedVertices"));
+
+    let vertices = header_with_pages_for(
+        &seam_actor(animated_seam_model(
+            skeletal::AnimationStorage::BakedVertices,
+        )),
+        8,
+        &|_| None,
+        QueryDemand {
+            vertices: true,
+            bones: false,
+        },
+    )
+    .unwrap();
+    assert!(vertices.contains("skin_vertex_seek_8_"));
+    assert!(!vertices.contains("skin_bones_8"));
+    assert!(!vertices.contains("skin_tracks_8_"));
+
+    let bones = header_with_pages_for(
+        &seam_actor(animated_seam_model(
+            skeletal::AnimationStorage::BakedVertices,
+        )),
+        9,
+        &|_| None,
+        QueryDemand {
+            vertices: false,
+            bones: true,
+        },
+    )
+    .unwrap();
+    assert!(!bones.contains("skin_vertex_seek_9_"));
+    assert!(bones.contains("skin_bones_9"));
+    assert!(bones.contains("skin_tracks_9_0"));
+
+    let rigid = header_with_pages_for(
+        &seam_actor(animated_seam_model(skeletal::AnimationStorage::RigidGte)),
+        10,
+        &|_| None,
+        QueryDemand::NONE,
+    )
+    .unwrap();
+    assert!(!rigid.contains("skin_portable_to_cooked_10"));
+    assert!(rigid.contains("skin_bones_10"));
+    assert!(rigid.contains("skin_tracks_10_0"));
+}
+
 #[test]
 fn skeletal_picking_follows_pose_surfaces_activity_and_inherited_transforms() {
     let mut model = seam_model(false, None);

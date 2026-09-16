@@ -122,7 +122,7 @@ void draw(ActorData* entities,size_t count,int* first,int* next)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `entities` | `ActorData *` | Input/output; inspect the function contract | Value supplied for `entities`. See the exact type and module contract. |
-| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `first` | `int *` | Input/output; inspect the function contract | Value supplied for `first`. See the exact type and module contract. |
 | `next` | `int *` | Input/output; inspect the function contract | Value supplied for `next`. See the exact type and module contract. |
 
@@ -137,7 +137,7 @@ void draw(ActorData* entities,size_t count,int* first,int* next)
 
 // Assume these named values have been initialized with valid data:
 // ActorData * entities
-// size_t count
+// int count
 // int * first
 // int * next
 
@@ -169,7 +169,7 @@ inline int pixel(Fixed v)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `v` | `Fixed` | Input | Value supplied for `v`. See the exact type and module contract. |
+| `v` | `int` | Input | Value supplied for `v`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -181,7 +181,7 @@ inline int pixel(Fixed v)
 #include "hud_core.hpp"
 
 // Assume these named values have been initialized with valid data:
-// Fixed v
+// int v
 
 auto result = epok::hud_core::pixel(v);
 ```

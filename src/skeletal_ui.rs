@@ -14,6 +14,8 @@ pub struct State {
     playing: bool,
     pub animate_scene: bool,
     show_bones: bool,
+    selected_vertex: i32,
+    selected_bone: i32,
     yaw: f32,
     last: Option<Instant>,
     scene_accumulator: f32,
@@ -427,6 +429,38 @@ pub fn window(ui: &Ui, e: &mut Editor) {
                 for (i, b) in m.skeleton.bones.iter().enumerate() {
                     ui.text(format!("{i}: {}  (parent {})", b.name, b.parent));
                 }
+            }
+            if let Some(_tree) = ui.tree_node("Gameplay query references") {
+                crate::gui::muted(
+                    ui,
+                    "Portable indices are stable across PSX storage formats for this imported topology.",
+                );
+                let vertex_max = m.mesh.vertices.len().saturating_sub(1) as i32;
+                if ui.input_int("Portable vertex", &mut s.selected_vertex).build() {
+                    s.selected_vertex = s.selected_vertex.clamp(0, vertex_max);
+                }
+                s.selected_vertex = s.selected_vertex.clamp(0, vertex_max);
+                if let Some(vertex) = m.mesh.vertices.get(s.selected_vertex as usize) {
+                    ui.text(format!(
+                        "Bind Q12: [{}, {}, {}]   strongest bone: {}",
+                        vertex.position[0], vertex.position[1], vertex.position[2], vertex.bone
+                    ));
+                    if ui.button("Copy vertex index") {
+                        ui.set_clipboard_text(s.selected_vertex.to_string());
+                    }
+                }
+                let bone_max = m.skeleton.bones.len().saturating_sub(1) as i32;
+                if ui.input_int("Bone", &mut s.selected_bone).build() {
+                    s.selected_bone = s.selected_bone.clamp(0, bone_max);
+                }
+                s.selected_bone = s.selected_bone.clamp(0, bone_max);
+                if let Some(bone) = m.skeleton.bones.get(s.selected_bone as usize) {
+                    ui.text(format!("{}   parent {}", bone.name, bone.parent));
+                    if ui.button("Copy bone index") {
+                        ui.set_clipboard_text(s.selected_bone.to_string());
+                    }
+                }
+                ui.text(format!("Topology identity: {}", c.asset));
             }
             if let Some(_tree) = ui.tree_node("Materials") {
                 crate::gui::muted(

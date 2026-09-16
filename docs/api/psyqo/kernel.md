@@ -62,7 +62,7 @@ static inline void abort(const char* msg, std::source_location location = std::s
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `msg` | `const char *` | Input | Value supplied for `msg`. See the exact type and module contract. |
-| `location` | `std::source_location` | Input | Value supplied for `location`. See the exact type and module contract. |
+| `location` | `int` | Input | Value supplied for `location`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -75,7 +75,7 @@ static inline void abort(const char* msg, std::source_location location = std::s
 
 // Assume these named values have been initialized with valid data:
 // const char * msg
-// std::source_location location
+// int location
 
 psyqo::Kernel::abort(msg, location);
 ```
@@ -105,7 +105,7 @@ inline void assert(bool condition, const char* message, std::source_location loc
 | --- | --- | --- | --- |
 | `condition` | `bool` | Input | Value supplied for `condition`. See the exact type and module contract. |
 | `message` | `const char *` | Input | Value supplied for `message`. See the exact type and module contract. |
-| `location` | `std::source_location` | Input | Value supplied for `location`. See the exact type and module contract. |
+| `location` | `int` | Input | Value supplied for `location`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -119,7 +119,7 @@ inline void assert(bool condition, const char* message, std::source_location loc
 // Assume these named values have been initialized with valid data:
 // bool condition
 // const char * message
-// std::source_location location
+// int location
 
 psyqo::Kernel::assert(condition, message, location);
 ```
@@ -393,7 +393,7 @@ void abort(const char* msg, std::source_location location = std::source_location
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `msg` | `const char *` | Input | Value supplied for `msg`. See the exact type and module contract. |
-| `location` | `std::source_location` | Input | Value supplied for `location`. See the exact type and module contract. |
+| `location` | `int` | Input | Value supplied for `location`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -406,7 +406,7 @@ void abort(const char* msg, std::source_location location = std::source_location
 
 // Assume these named values have been initialized with valid data:
 // const char * msg
-// std::source_location location
+// int location
 
 psyqo::Kernel::Internal::abort(msg, location);
 ```
@@ -545,8 +545,8 @@ void crashHandler(uint32_t exceptionCode, uint32_t* kernelRegisters)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `exceptionCode` | `uint32_t` | Input | Value supplied for `exceptionCode`. See the exact type and module contract. |
-| `kernelRegisters` | `uint32_t *` | Input/output; inspect the function contract | Value supplied for `kernelRegisters`. See the exact type and module contract. |
+| `exceptionCode` | `int` | Input | Value supplied for `exceptionCode`. See the exact type and module contract. |
+| `kernelRegisters` | `int *` | Input/output; inspect the function contract | Value supplied for `kernelRegisters`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -558,8 +558,8 @@ void crashHandler(uint32_t exceptionCode, uint32_t* kernelRegisters)
 #include "psyqo/kernel.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t exceptionCode
-// uint32_t * kernelRegisters
+// int exceptionCode
+// int * kernelRegisters
 
 psyqo::Kernel::Internal::crashHandler(exceptionCode, kernelRegisters);
 ```
@@ -583,7 +583,7 @@ static inline uint32_t getCop0Status()
 - **Declared at:** [line 65](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/kernel.hh#L65)
 - **Kind:** `function decl`; qualifiers: `static`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need PSX kernel ownership, interrupts and low-level services and the preconditions in the declaration are already satisfied.
 
@@ -689,7 +689,7 @@ static inline void setCop0Status(uint32_t r)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `r` | `uint32_t` | Input | Value supplied for `r`. See the exact type and module contract. |
+| `r` | `int` | Input | Value supplied for `r`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -701,7 +701,7 @@ static inline void setCop0Status(uint32_t r)
 #include "psyqo/kernel.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t r
+// int r
 
 psyqo::Kernel::Internal::setCop0Status(r);
 ```
@@ -762,12 +762,12 @@ uint32_t openEvent(uint32_t classId, uint32_t spec, uint32_t mode, eastl::functi
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `classId` | `uint32_t` | Input | Value supplied for `classId`. See the exact type and module contract. |
-| `spec` | `uint32_t` | Input | Value supplied for `spec`. See the exact type and module contract. |
-| `mode` | `uint32_t` | Input | Value supplied for `mode`. See the exact type and module contract. |
+| `classId` | `int` | Input | Value supplied for `classId`. See the exact type and module contract. |
+| `spec` | `int` | Input | Value supplied for `spec`. See the exact type and module contract. |
+| `mode` | `int` | Input | Value supplied for `mode`. See the exact type and module contract. |
 | `lambda` | `eastl::function<void ()> &&` | Consumed or moved input | Value supplied for `lambda`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** This enables the application to register a C++ lambda for the kernel's OpenEvent call. This will allocate an internal slot, with currently no mechanism to free it. This means that calling `closeEvent` on the resulting event will leak resources. If psyqo took over the kernel, this function will no longer work.
 
@@ -777,9 +777,9 @@ uint32_t openEvent(uint32_t classId, uint32_t spec, uint32_t mode, eastl::functi
 #include "psyqo/kernel.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t classId
-// uint32_t spec
-// uint32_t mode
+// int classId
+// int spec
+// int mode
 // eastl::function<void ()> && lambda
 
 auto result = psyqo::Kernel::openEvent(classId, spec, mode, lambda);
@@ -936,7 +936,7 @@ void queuePsyqoBreakHandler(eastl::function<bool(uint32_t)>&& handler)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `handler` | `eastl::function<bool (uint32_t)> &&` | Consumed or moved input | The handler to call when a break occurs. |
+| `handler` | `int &&` | Consumed or moved input | The handler to call when a break occurs. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -948,7 +948,7 @@ void queuePsyqoBreakHandler(eastl::function<bool(uint32_t)>&& handler)
 #include "psyqo/kernel.hh"
 
 // Assume these named values have been initialized with valid data:
-// eastl::function<bool (uint32_t)> && handler
+// int && handler
 
 psyqo::Kernel::queuePsyqoBreakHandler(handler);
 ```
@@ -1023,7 +1023,7 @@ void setBreakHandler(unsigned category, eastl::function<bool(uint32_t)>&& handle
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `category` | `unsigned int` | Input | The category to handle. |
-| `handler` | `eastl::function<bool (uint32_t)> &&` | Consumed or moved input | Value supplied for `handler`. See the exact type and module contract. |
+| `handler` | `int &&` | Consumed or moved input | Value supplied for `handler`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1036,7 +1036,7 @@ void setBreakHandler(unsigned category, eastl::function<bool(uint32_t)>&& handle
 
 // Assume these named values have been initialized with valid data:
 // unsigned int category
-// eastl::function<bool (uint32_t)> && handler
+// int && handler
 
 psyqo::Kernel::setBreakHandler(category, handler);
 ```

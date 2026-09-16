@@ -8,7 +8,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 
 ## Declared types
 
-`psyqo::SimplePad`, `psyqo::SimplePad::Button`, `psyqo::SimplePad::Event`, `psyqo::SimplePad::Event::(unnamed enum at D:\GitProjects\GameEngines\Epok\EpokEngine\third_party\nugget\psyqo\simplepad.hh:71:9)`, `psyqo::SimplePad::Pad`
+`psyqo::SimplePad`, `psyqo::SimplePad::Button`, `psyqo::SimplePad::Event`, `psyqo::SimplePad::Event::(unnamed enum at /Users/francisco.rivero/GithubProjects/p/epok-engine/third_party/nugget/psyqo/simplepad.hh:71:9)`, `psyqo::SimplePad::Pad`
 
 ## Callable index
 

@@ -46,11 +46,11 @@ inline int32_t clamp(int32_t v,int32_t low,int32_t high)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `v` | `int32_t` | Input | Value supplied for `v`. See the exact type and module contract. |
-| `low` | `int32_t` | Input | Value supplied for `low`. See the exact type and module contract. |
-| `high` | `int32_t` | Input | Value supplied for `high`. See the exact type and module contract. |
+| `v` | `int` | Input | Value supplied for `v`. See the exact type and module contract. |
+| `low` | `int` | Input | Value supplied for `low`. See the exact type and module contract. |
+| `high` | `int` | Input | Value supplied for `high`. See the exact type and module contract. |
 
-**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the lighting module and the preconditions in the declaration are already satisfied.
 
@@ -60,9 +60,9 @@ inline int32_t clamp(int32_t v,int32_t low,int32_t high)
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int32_t v
-// int32_t low
-// int32_t high
+// int v
+// int low
+// int high
 
 auto result = epok::lighting_detail::clamp(v, low, high);
 ```
@@ -90,7 +90,7 @@ inline Vector direction(const Affine<Fixed>& m)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `m` | `const Affine<Fixed> &` | Input | Value supplied for `m`. See the exact type and module contract. |
+| `m` | `const int &` | Input | Value supplied for `m`. See the exact type and module contract. |
 
 **Returns.** Returns `Vector`. Check the purpose and failure notes before using the value.
 
@@ -102,7 +102,7 @@ inline Vector direction(const Affine<Fixed>& m)
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const Affine<Fixed> & m
+// const int & m
 
 auto result = epok::lighting_detail::direction(m);
 ```
@@ -130,7 +130,7 @@ inline Vector face_normal(const Affine<Fixed>& m,int face)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `m` | `const Affine<Fixed> &` | Input | Value supplied for `m`. See the exact type and module contract. |
+| `m` | `const int &` | Input | Value supplied for `m`. See the exact type and module contract. |
 | `face` | `int` | Input | Value supplied for `face`. See the exact type and module contract. |
 
 **Returns.** Returns `Vector`. Check the purpose and failure notes before using the value.
@@ -143,7 +143,7 @@ inline Vector face_normal(const Affine<Fixed>& m,int face)
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const Affine<Fixed> & m
+// const int & m
 // int face
 
 auto result = epok::lighting_detail::face_normal(m, face);
@@ -172,8 +172,8 @@ inline Vector mesh_normal(const Affine<Fixed>& m,const int16_t* normal)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `m` | `const Affine<Fixed> &` | Input | Value supplied for `m`. See the exact type and module contract. |
-| `normal` | `const int16_t *` | Input | Value supplied for `normal`. See the exact type and module contract. |
+| `m` | `const int &` | Input | Value supplied for `m`. See the exact type and module contract. |
+| `normal` | `const int *` | Input | Value supplied for `normal`. See the exact type and module contract. |
 
 **Returns.** Returns `Vector`. Check the purpose and failure notes before using the value.
 
@@ -185,8 +185,8 @@ inline Vector mesh_normal(const Affine<Fixed>& m,const int16_t* normal)
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const Affine<Fixed> & m
-// const int16_t * normal
+// const int & m
+// const int * normal
 
 auto result = epok::lighting_detail::mesh_normal(m, normal);
 ```
@@ -214,7 +214,7 @@ inline psyqo::Color mesh_shade(const Affine<Fixed> &world, const MeshQuad &face,
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `world` | `const Affine<Fixed> &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
 | `face` | `const MeshQuad &` | Input | Value supplied for `face`. See the exact type and module contract. |
 | `tint` | `const Material &` | Input | Value supplied for `tint`. See the exact type and module contract. |
 | `enabled` | `bool` | Input | Value supplied for `enabled`. See the exact type and module contract. |
@@ -230,7 +230,7 @@ inline psyqo::Color mesh_shade(const Affine<Fixed> &world, const MeshQuad &face,
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const Affine<Fixed> & world
+// const int & world
 // const MeshQuad & face
 // const Material & tint
 // bool enabled
@@ -264,7 +264,7 @@ inline psyqo::Color mesh_shade_local(const int16_t* normal, const Material& face
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `normal` | `const int16_t *` | Input | Value supplied for `normal`. See the exact type and module contract. |
+| `normal` | `const int *` | Input | Value supplied for `normal`. See the exact type and module contract. |
 | `face_material` | `const Material &` | Input | Value supplied for `face_material`. See the exact type and module contract. |
 | `tint` | `const Material &` | Input | Value supplied for `tint`. See the exact type and module contract. |
 
@@ -278,7 +278,7 @@ inline psyqo::Color mesh_shade_local(const int16_t* normal, const Material& face
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int16_t * normal
+// const int * normal
 // const Material & face_material
 // const Material & tint
 
@@ -310,8 +310,8 @@ inline psyqo::Color mesh_shade_normal(const Affine<Fixed> &world, const int16_t*
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `world` | `const Affine<Fixed> &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `normal` | `const int16_t *` | Input | Value supplied for `normal`. See the exact type and module contract. |
+| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `normal` | `const int *` | Input | Value supplied for `normal`. See the exact type and module contract. |
 | `face_material` | `const Material &` | Input | Value supplied for `face_material`. See the exact type and module contract. |
 | `tint` | `const Material &` | Input | Value supplied for `tint`. See the exact type and module contract. |
 | `enabled` | `bool` | Input | Value supplied for `enabled`. See the exact type and module contract. |
@@ -327,8 +327,8 @@ inline psyqo::Color mesh_shade_normal(const Affine<Fixed> &world, const int16_t*
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const Affine<Fixed> & world
-// const int16_t * normal
+// const int & world
+// const int * normal
 // const Material & face_material
 // const Material & tint
 // bool enabled
@@ -360,8 +360,8 @@ Vector apply(const Affine<Fixed>& m,const int16_t* normal)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `m` | `const Affine<Fixed> &` | Input | Value supplied for `m`. See the exact type and module contract. |
-| `normal` | `const int16_t *` | Input | Value supplied for `normal`. See the exact type and module contract. |
+| `m` | `const int &` | Input | Value supplied for `m`. See the exact type and module contract. |
+| `normal` | `const int *` | Input | Value supplied for `normal`. See the exact type and module contract. |
 
 **Returns.** Returns `Vector`. Check the purpose and failure notes before using the value.
 
@@ -373,8 +373,8 @@ Vector apply(const Affine<Fixed>& m,const int16_t* normal)
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const Affine<Fixed> & m
-// const int16_t * normal
+// const int & m
+// const int * normal
 
 epok::lighting_detail::MeshNormalTransform& object = /* obtain a valid instance */;
 
@@ -444,10 +444,10 @@ inline uint32_t pair(int32_t a,int32_t b)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `int32_t` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `b` | `int32_t` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `a` | `int` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `int` | Input | Value supplied for `b`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the lighting module and the preconditions in the declaration are already satisfied.
 
@@ -457,8 +457,8 @@ inline uint32_t pair(int32_t a,int32_t b)
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int32_t a
-// int32_t b
+// int a
+// int b
 
 auto result = epok::lighting_detail::pair(a, b);
 ```
@@ -488,7 +488,7 @@ inline uint32_t sqrt64(uint64_t v)
 | --- | --- | --- | --- |
 | `v` | `uint64_t` | Input | Value supplied for `v`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the lighting module and the preconditions in the declaration are already satisfied.
 
@@ -561,7 +561,7 @@ bool localize(const Affine<Fixed>& world)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `world` | `const Affine<Fixed> &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -573,7 +573,7 @@ bool localize(const Affine<Fixed>& world)
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const Affine<Fixed> & world
+// const int & world
 
 epok::LightingRenderer& object = /* obtain a valid instance */;
 
@@ -603,9 +603,9 @@ void prepare(const std::array<ActorData,N>& objects,const std::array<Affine<Fixe
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `objects` | `const std::array<ActorData, N> &` | Input | Value supplied for `objects`. See the exact type and module contract. |
-| `world` | `const std::array<Affine<Fixed>, N> &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `object_count` | `size_t` | Input | Value supplied for `object_count`. See the exact type and module contract. |
+| `objects` | `const int &` | Input | Value supplied for `objects`. See the exact type and module contract. |
+| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `object_count` | `int` | Input | Value supplied for `object_count`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -617,9 +617,9 @@ void prepare(const std::array<ActorData,N>& objects,const std::array<Affine<Fixe
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const std::array<ActorData, N> & objects
-// const std::array<Affine<Fixed>, N> & world
-// size_t object_count
+// const int & objects
+// const int & world
+// int object_count
 
 epok::LightingRenderer& object = /* obtain a valid instance */;
 
@@ -649,7 +649,7 @@ void reset_owner(size_t index)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -661,7 +661,7 @@ void reset_owner(size_t index)
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// size_t index
+// int index
 
 epok::LightingRenderer& object = /* obtain a valid instance */;
 
@@ -691,12 +691,12 @@ std::array<psyqo::Color,6> shade(size_t object,const std::array<ActorData,N>& ob
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `object` | `size_t` | Input | Value supplied for `object`. See the exact type and module contract. |
-| `objects` | `const std::array<ActorData, N> &` | Input | Value supplied for `objects`. See the exact type and module contract. |
-| `world` | `const std::array<Affine<Fixed>, N> &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `object` | `int` | Input | Value supplied for `object`. See the exact type and module contract. |
+| `objects` | `const int &` | Input | Value supplied for `objects`. See the exact type and module contract. |
+| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
 | `generic` | `bool` | Input | Value supplied for `generic`. See the exact type and module contract. |
 
-**Returns.** Returns `std::array<psyqo::Color, 6>`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the lighting module and the preconditions in the declaration are already satisfied.
 
@@ -706,9 +706,9 @@ std::array<psyqo::Color,6> shade(size_t object,const std::array<ActorData,N>& ob
 #include "lighting.hpp"
 
 // Assume these named values have been initialized with valid data:
-// size_t object
-// const std::array<ActorData, N> & objects
-// const std::array<Affine<Fixed>, N> & world
+// int object
+// const int & objects
+// const int & world
 // bool generic
 
 epok::LightingRenderer& object = /* obtain a valid instance */;

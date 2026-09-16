@@ -37,16 +37,194 @@ pub struct Artifacts {
     pub blueprint_set: Option<String>,
     pub blueprint_footprints: crate::blueprint_dependencies::Footprints,
 }
+
+fn cpp_without_comments(source: &str) -> String {
+    let bytes = source.as_bytes();
+    let mut output = bytes.to_vec();
+    let mut index = 0;
+    let mut quote = None;
+    while index < bytes.len() {
+        if let Some(delimiter) = quote {
+            if bytes[index] == b'\\' {
+                index = (index + 2).min(bytes.len());
+                continue;
+            }
+            if bytes[index] == delimiter {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        if matches!(bytes[index], b'\'' | b'"') {
+            quote = Some(bytes[index]);
+            index += 1;
+            continue;
+        }
+        if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'/') {
+            let start = index;
+            index += 2;
+            while index < bytes.len() && bytes[index] != b'\n' {
+                index += 1;
+            }
+            output[start..index].fill(b' ');
+            continue;
+        }
+        if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
+            let start = index;
+            index += 2;
+            while index + 1 < bytes.len() && !(bytes[index] == b'*' && bytes[index + 1] == b'/') {
+                index += 1;
+            }
+            index = (index + 2).min(bytes.len());
+            for byte in &mut output[start..index] {
+                if *byte != b'\n' {
+                    *byte = b' ';
+                }
+            }
+            continue;
+        }
+        index += 1;
+    }
+    String::from_utf8(output).expect("comment masking preserves UTF-8 bytes")
+}
+
+fn cpp_without_literals(source: &str) -> String {
+    let bytes = source.as_bytes();
+    let mut output = bytes.to_vec();
+    let mut index = 0;
+    while index < bytes.len() {
+        if !matches!(bytes[index], b'\'' | b'"') {
+            index += 1;
+            continue;
+        }
+        let delimiter = bytes[index];
+        output[index] = b' ';
+        index += 1;
+        while index < bytes.len() {
+            let escaped = bytes[index] == b'\\';
+            let end = bytes[index] == delimiter;
+            if output[index] != b'\n' {
+                output[index] = b' ';
+            }
+            index += 1;
+            if escaped && index < bytes.len() {
+                if output[index] != b'\n' {
+                    output[index] = b' ';
+                }
+                index += 1;
+            } else if end {
+                break;
+            }
+        }
+    }
+    String::from_utf8(output).expect("literal masking preserves UTF-8 bytes")
+}
+
+fn identifier_calls(source: &str, name: &str) -> bool {
+    let bytes = source.as_bytes();
+    let mut offset = 0;
+    while let Some(found) = source[offset..].find(name) {
+        let start = offset + found;
+        let end = start + name.len();
+        let boundary =
+            start == 0 || !bytes[start - 1].is_ascii_alphanumeric() && bytes[start - 1] != b'_';
+        let mut next = end;
+        while bytes.get(next).is_some_and(u8::is_ascii_whitespace) {
+            next += 1;
+        }
+        if boundary && bytes.get(next) == Some(&b'(') {
+            return true;
+        }
+        offset = end;
+    }
+    false
+}
+
+fn native_requirements(source: &str) -> Result<BTreeSet<String>, String> {
+    let mut requirements = BTreeSet::new();
+    let without_comments = cpp_without_comments(source);
+    let code = cpp_without_literals(&without_comments);
+    // These spellings are deliberately conservative. Native source cannot be
+    // proven unreachable on the host, so any recognized call retains its
+    // corresponding cooker data/service implementation.
+    for (name, capability) in [
+        ("sample_vertex", "skeletal-vertex-query"),
+        ("sample_vertices", "skeletal-vertex-query"),
+        ("skeletal_sample_vertex", "skeletal-vertex-query"),
+        ("skeletal_sample_vertices", "skeletal-vertex-query"),
+        ("sample_bone", "skeletal-bone-query"),
+        ("skeletal_sample_bone", "skeletal-bone-query"),
+        ("geometry_state", "mesh-streaming"),
+        ("request_geometry", "mesh-streaming"),
+        ("sample_geometry_vertex", "mesh-streaming"),
+        ("mesh_geometry_state", "mesh-streaming"),
+        ("request_mesh_geometry", "mesh-streaming"),
+        ("sample_mesh_vertex", "mesh-streaming"),
+        ("PlaybackLibrary::play_sequence", "timeline"),
+        ("PlaybackLibrary::play_effect", "effect"),
+    ] {
+        if identifier_calls(&code, name) {
+            requirements.insert(capability.to_string());
+        }
+    }
+    // Opaque native libraries can declare requirements without teaching this
+    // scanner their call syntax. The macro expands to no target code.
+    let macro_name = "EPOK_NATIVE_REQUIREMENTS";
+    let mut offset = 0;
+    while let Some(found) = code[offset..].find(macro_name) {
+        let start = offset + found;
+        let end = start + macro_name.len();
+        let bytes = code.as_bytes();
+        let boundary =
+            start == 0 || !bytes[start - 1].is_ascii_alphanumeric() && bytes[start - 1] != b'_';
+        let mut open = end;
+        while bytes.get(open).is_some_and(u8::is_ascii_whitespace) {
+            open += 1;
+        }
+        if !boundary || bytes.get(open) != Some(&b'(') {
+            offset = end;
+            continue;
+        }
+        let close = code[open + 1..]
+            .find(')')
+            .map(|value| open + 1 + value)
+            .ok_or("Unterminated EPOK_NATIVE_REQUIREMENTS declaration")?;
+        let body = &without_comments[open + 1..close];
+        for value in body.split(',') {
+            let value = value.trim().trim_matches('"');
+            if value.is_empty()
+                || !value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+            {
+                return Err(format!("Invalid native capability requirement '{value}'"));
+            }
+            requirements.insert(value.to_string());
+        }
+        offset = close + 1;
+    }
+    Ok(requirements)
+}
+
 pub fn prepare_native(root: &Path) -> Result<Artifacts, String> {
     let mut artifacts = Artifacts::default();
     let files = crate::staging_files::native_files(root)?;
     artifacts.native_set = Some(crate::staging_files::native_set(root, &files)?);
+    let mut requirement_sources = BTreeMap::<String, Vec<String>>::new();
     for path in files {
         let relative = Path::new("scripts").join(
             path.strip_prefix(root.join("assets/scripts"))
                 .map_err(|e| e.to_string())?,
         );
         let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+        let text = String::from_utf8_lossy(&bytes);
+        for requirement in native_requirements(&text)? {
+            artifacts.runtime_capabilities.insert(requirement.clone());
+            requirement_sources
+                .entry(requirement)
+                .or_default()
+                .push(crate::staging_files::native_key(root, &path)?);
+        }
         artifacts.native_inputs.insert(
             relative.clone(),
             (
@@ -61,6 +239,14 @@ pub fn prepare_native(root: &Path) -> Result<Artifacts, String> {
         }
     }
     artifacts.runtime_capabilities.insert("native".into());
+    artifacts.files.insert(
+        PathBuf::from("scripts/generated/native-requirements.json"),
+        crate::document::to_vec(&serde_json::json!({
+            "version": 1,
+            "requirements": requirement_sources,
+        }))
+        .map_err(|error| error.to_string())?,
+    );
     Ok(artifacts)
 }
 pub fn prepare_all(root: &Path, native: &[Script]) -> Result<Artifacts, String> {
@@ -320,6 +506,46 @@ pub fn validate_invocation(
 mod tests {
     use super::*;
     #[test]
+    fn native_requirement_observation_is_lexical_and_supports_explicit_metadata() {
+        let requirements = native_requirements(
+            r#"
+            // mesh.sample_bone(0);
+            const char* ignored = "sample_vertices(";
+            mesh.sample_vertex (4);
+            mesh.request_geometry();
+            epok::PlaybackLibrary::play_effect(component);
+            EPOK_NATIVE_REQUIREMENTS("skeletal-bone-query", "custom-2d")
+            "#,
+        )
+        .unwrap();
+        assert_eq!(
+            requirements,
+            BTreeSet::from([
+                "custom-2d".into(),
+                "effect".into(),
+                "mesh-streaming".into(),
+                "skeletal-bone-query".into(),
+                "skeletal-vertex-query".into(),
+            ])
+        );
+        assert!(
+            native_requirements("/* sample_vertex(0); */")
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            native_requirements("EPOK_NATIVE_REQUIREMENTS(\"Bad Name\")")
+                .unwrap_err()
+                .contains("Invalid native capability")
+        );
+        assert!(
+            native_requirements("EPOK_NATIVE_REQUIREMENTS(\"broken\"")
+                .unwrap_err()
+                .contains("Unterminated")
+        );
+    }
+
+    #[test]
     fn script_manifests_are_portable_and_regenerate_v1_without_changing_sources() {
         let fixture = crate::workspace::tests::temp("portable-script-manifest");
         let mut outputs = vec![];
@@ -517,6 +743,7 @@ mod tests {
             timeline: None,
             event: false,
             pure: false,
+            resource_demands: vec![],
             abstract_method: false,
             final_method: false,
             access: "public".into(),

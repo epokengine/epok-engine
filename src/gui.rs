@@ -3072,7 +3072,13 @@ fn scene_view(
             let pixel = crate::picking::texture_pixel(mouse, position, factor, uv);
             e.selected_asset = None;
             if !crate::mesh_editor::pick(e, pixel, ui.io().key_ctrl) {
-                let scene = e.timeline_editor.scene_preview.scene.as_ref().filter(|_| e.timeline_editor.open && !e.playing).unwrap_or(&e.scene);
+                let scene = e
+                    .timeline_editor
+                    .scene_preview
+                    .scene
+                    .as_ref()
+                    .filter(|_| e.timeline_editor.open && !e.playing)
+                    .unwrap_or(&e.scene);
                 e.selected = crate::picking::pick(scene, &e.view, pixel);
             }
             e.view_dirty = true;

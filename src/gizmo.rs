@@ -221,7 +221,12 @@ pub fn draw(
     if e.tool == 0 || e.playing {
         return;
     }
-    let preview = e.timeline_editor.scene_preview.scene.as_ref().filter(|_| e.timeline_editor.open);
+    let preview = e
+        .timeline_editor
+        .scene_preview
+        .scene
+        .as_ref()
+        .filter(|_| e.timeline_editor.open);
     let scene = preview.unwrap_or(&e.scene);
     let entity = &scene.actors[index];
     let center = entity.position;
@@ -276,7 +281,11 @@ pub fn draw(
     } else {
         None
     };
-    if !previewing && ui.is_window_hovered() && !ui.io().key_alt && ui.is_mouse_clicked(imgui::MouseButton::Left) {
+    if !previewing
+        && ui.is_window_hovered()
+        && !ui.io().key_alt
+        && ui.is_mouse_clicked(imgui::MouseButton::Left)
+    {
         e.drag_axis = hover;
     }
     let draw = ui.get_window_draw_list();
@@ -330,7 +339,10 @@ pub fn draw(
             }
         },
     );
-    if previewing { e.drag_axis = None; return; }
+    if previewing {
+        e.drag_axis = None;
+        return;
+    }
     if let Some(axis) = e.drag_axis
         && ui.is_mouse_dragging(imgui::MouseButton::Left)
     {

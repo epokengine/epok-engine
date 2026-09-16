@@ -46,6 +46,8 @@ MANNEQUIN = ROOT / "resources/models/EpokMannequin.fbx"
 
 SKELETAL_FIELDS = ["skeletal_scanlines", "skeletal_bone_matrices",
                    "skeletal_cpu_vertices", "skeletal_decoded_vertices"]
+QUERY_FIELDS = ["query_calls", "query_vertices", "query_bones",
+                "query_decoded_bytes", "query_failures"]
 # Frame metrics summarised per workload. Timing scopes overlap: render includes
 # vertex and polygon time, and skeletal time is inside them. Never add them up.
 REPORTED = ["frame_microseconds", "frame_scanlines", "render_scanlines",
@@ -149,11 +151,80 @@ def memory_facts(folder):
 
 def build_facts(folder):
     facts = textured.header_facts(folder)
-    facts.pop("text")
+    header = facts.pop("text")
+    sidecars = {
+        "portable_remap": "skin_portable_to_cooked_" in header,
+        "baked_seek_tables": header.count("skin_vertex_seek_"),
+        "bone_hierarchies": header.count("skin_bones_"),
+        "bone_track_tables": header.count("skin_tracks_"),
+    }
     exe = folder / ".epok/build/epok.ps-exe"
-    return dict(header=facts, budget=budget_line(folder),
+    return dict(header=facts, budget=budget_line(folder), sidecars=sidecars,
                 ps_exe_bytes=exe.stat().st_size if exe.is_file() else None,
                 ps_exe_sha256=digest(exe), memory=memory_facts(folder))
+
+
+QUERY_ACTOR_ID = "d44ec70b-fbd4-4e7d-98f8-acdeebfd4910"
+
+
+def install_query_actor(folder):
+    """Install a benchmark-only native oracle. Its volatile probe exposes the
+    runtime's cumulative query counters without changing production state."""
+    header = r'''#pragma once
+#include "epok.hpp"
+extern "C" { extern volatile uint32_t skeletal_query_probe[6]; }
+class EPOK_CLASS(Blueprintable, Id="d44ec70b-fbd4-4e7d-98f8-acdeebfd4910") SkeletalQueryActor : public epok::Actor3D {
+public:
+    EPOK_PROPERTY(EditAnywhere, Id="308ad24a-e55a-48ec-a2ac-795cf8a7afbf") uint32_t query_mode=0;
+    EPOK_PROPERTY(EditAnywhere, Id="2dab174e-13d0-4848-88cb-fd32e848a1bf") uint32_t query_count=0;
+    void tick(epok::Fixed) override;
+};
+'''
+    source = r'''#include "SkeletalQueryActor.hpp"
+extern "C" { volatile uint32_t skeletal_query_probe[6]={}; }
+void SkeletalQueryActor::tick(epok::Fixed) {
+    auto* actor=data();
+    const auto* model=actor?actor->animator.model:nullptr;
+    const uint32_t vertices=model&&model->geometry?uint32_t(model->geometry->vertex_count):0;
+    const uint32_t bones=model?uint32_t(model->bone_count):0;
+    uint32_t checksum=0;
+    if(query_mode==1&&vertices){
+        const auto value=epok::skeletal_sample_vertex(actor,vertices-1,epok::PoseKind::Current,epok::CoordinateSpace::Model);
+        checksum+=uint32_t(value.position[0].raw())+value.success;
+    }else if(query_mode==2&&vertices){
+        epok::VertexIndexBatch4 batch{};batch.count=4;batch.index0=vertices-1;batch.index1=0;batch.index2=vertices-1;batch.index3=vertices>1?1:0;
+        const auto value=epok::skeletal_sample_vertices(actor,batch,epok::PoseKind::Current,epok::CoordinateSpace::Model);
+        checksum+=uint32_t(value.sample0.position[0].raw())+value.sample0.success+value.sample3.success;
+    }else if(query_mode==3&&vertices){
+        const uint32_t count=query_count<vertices?query_count:vertices;
+        for(uint32_t index=0;index<count;++index){const auto value=epok::skeletal_sample_vertex(actor,(index*7)%vertices,epok::PoseKind::Current,epok::CoordinateSpace::Model);checksum+=uint32_t(value.position[0].raw())+value.success;}
+    }else if(query_mode==4&&vertices){
+        for(uint32_t index=0;index<vertices;++index){const auto value=epok::skeletal_sample_vertex(actor,index,epok::PoseKind::Current,epok::CoordinateSpace::Model);checksum+=uint32_t(value.position[0].raw())+value.success;}
+    }else if(query_mode==5&&bones){
+        const uint32_t count=query_count<bones?query_count:bones;
+        for(uint32_t index=0;index<count;++index){const auto value=epok::skeletal_sample_bone(actor,(index*5)%bones,epok::PoseKind::Current,epok::CoordinateSpace::World);checksum+=uint32_t(value.position[0].raw())+value.success;}
+    }
+    const auto stats=epok::ResourceLibrary::skeletal_queries();
+    skeletal_query_probe[0]=stats.calls;skeletal_query_probe[1]=stats.vertices;
+    skeletal_query_probe[2]=stats.bones;skeletal_query_probe[3]=stats.decoded_bytes;
+    skeletal_query_probe[4]=stats.failures;skeletal_query_probe[5]+=checksum;
+}
+'''
+    documents.write_text(folder / "assets/scripts/SkeletalQueryActor.hpp", header)
+    documents.write_text(folder / "assets/scripts/SkeletalQueryActor.cpp", source)
+
+
+def configure_query_actors(folder, mode, count):
+    path = folder / "assets/scenes/Main.epokmap"
+    scene = documents.loads(path.read_text())
+    for actor in scene["actors"]:
+        if not any(c["class"]["name"].endswith("Mesh3DComponent")
+                   for c in actor["components"]):
+            continue
+        actor["class"] = {"class_id": QUERY_ACTOR_ID, "name": "SkeletalQueryActor"}
+        actor["properties"] = {"query_mode": mode, "query_count": count}
+        actor["overrides"] = ["query_mode", "query_count"]
+    documents.write_text(path, json.dumps(scene, indent=2))
 
 
 def sample_run(harness, folder, label, seconds, warmup, index):
@@ -164,6 +235,8 @@ def sample_run(harness, folder, label, seconds, warmup, index):
     stats = symbol_address(symbol_text, "epok::performance_stats")
     clock = symbol_address(symbol_text, "epok::time")
     lighting = symbol_address(symbol_text, "epok::lighting_stats")
+    query_probe = (symbol_address(symbol_text, "skeletal_query_probe")
+                   if "skeletal_query_probe" in symbol_text else None)
     match = re.search(r"\.bss\._ZN4epok17performance_statsE\s+0x[0-9a-fA-F]+\s+0x([0-9a-fA-F]+)",
                       symbol_text)
     extra = max(0, min(len(EXTRA_FIELDS), int(match[1], 16) // 4 - len(FIELDS))) if match else 0
@@ -187,6 +260,10 @@ def sample_run(harness, folder, label, seconds, warmup, index):
                         row["frame_microseconds"] = struct.unpack_from("<I", ram, clock + 24)[0]
                         row["dropped_steps"] = struct.unpack_from("<I", ram, clock + 20)[0]
                         row["dropped_triangles"] = struct.unpack_from("<6I", ram, lighting)[5]
+                        if query_probe is not None:
+                            query = struct.unpack_from("<6I", ram, query_probe)
+                            row.update(dict(zip(QUERY_FIELDS, query[:5])))
+                            row["query_checksum"] = query[5]
                         row["present_wait_estimate_us"] = max(
                             0, row["frame_microseconds"] - row["frame_scanlines"] * 64)
                         row["warm"] = now - first_sample >= warmup
@@ -205,6 +282,19 @@ def sample_run(harness, folder, label, seconds, warmup, index):
     warm = [row for row in rows if row["warm"]]
     assert len(warm) >= 10, f"Too few warm samples for {label} run {index}: {len(warm)}"
     return rows, warm
+
+
+def query_rates(rows):
+    """Convert cumulative counters to per-completed-frame work. Debugger polls
+    may skip frames, so every delta is divided by its actual frame distance."""
+    rates = []
+    for before, after in zip(rows, rows[1:]):
+        frames = after["frame"] - before["frame"]
+        if frames <= 0 or not all(field in after for field in QUERY_FIELDS):
+            continue
+        rates.append({field: (after[field] - before[field]) / frames
+                      for field in QUERY_FIELDS})
+    return rates
 
 
 def summarise(rows, fields=REPORTED):
@@ -270,6 +360,24 @@ def workload_definitions():
         dict(key="N", title="Original mannequin, 1 instance, baked",
              project="mannequin_baked", camera=SOLO_CAMERA, placement=SOLO_PLACEMENT,
              clips=[None], storage="BakedVertices", visible=True),
+        dict(key="Q1R", title="Rigid visible, one current-model vertex query/frame",
+             project="query_rigid", camera=SOLO_CAMERA, placement=SOLO_PLACEMENT,
+             clips=["Clip00"], storage="RigidGte", visible=True, query_mode=1, query_count=1),
+        dict(key="Q4R", title="Rigid visible, unsorted/repeated four-vertex batch/frame",
+             project="query_rigid", camera=SOLO_CAMERA, placement=SOLO_PLACEMENT,
+             clips=["Clip00"], storage="RigidGte", visible=True, query_mode=2, query_count=4),
+        dict(key="QMR", title="Rigid visible, 32 sparse current vertices/frame",
+             project="query_rigid", camera=SOLO_CAMERA, placement=SOLO_PLACEMENT,
+             clips=["Clip00"], storage="RigidGte", visible=True, query_mode=3, query_count=32),
+        dict(key="QAB", title="Baked visible, all current vertices/frame",
+             project="query_baked", camera=SOLO_CAMERA, placement=SOLO_PLACEMENT,
+             clips=["Clip00"], storage="BakedVertices", visible=True, query_mode=4, query_count=0),
+        dict(key="QBB", title="Baked visible, sparse world bone queries/frame",
+             project="query_baked", camera=SOLO_CAMERA, placement=SOLO_PLACEMENT,
+             clips=["Clip00"], storage="BakedVertices", visible=True, query_mode=5, query_count=8),
+        dict(key="QCR", title="Rigid culled, explicit vertex query/frame",
+             project="query_rigid", camera=SOLO_CAMERA, placement=[(0.0, 0.0, -9.0)],
+             clips=["Clip00"], storage="RigidGte", visible=False, query_mode=1, query_count=1),
     ]
 
 
@@ -282,6 +390,8 @@ PROJECTS = {
     "many_baked": dict(model=SEQUENCES, storage="baked-vertices", textured=True, lit=False),
     "mannequin_rigid": dict(model=MANNEQUIN, storage="rigid-gte", textured=False, lit=False),
     "mannequin_baked": dict(model=MANNEQUIN, storage="baked-vertices", textured=False, lit=False),
+    "query_rigid": dict(model=CHARACTER, storage="rigid-gte", textured=True, lit=False, query=True),
+    "query_baked": dict(model=CHARACTER, storage="baked-vertices", textured=True, lit=False, query=True),
 }
 
 
@@ -291,6 +401,8 @@ def prepare_project(harness, key, stamp):
     slots = ("Body", "Trim") if spec["textured"] else ()
     project = textured.create_project(harness, folder, spec["model"], spec["storage"],
                                       textured_slots=slots)
+    if spec.get("query"):
+        install_query_actor(folder)
     project["slots"] = material_slots(folder)
     project["lit_slots"] = set_material_lighting(folder, False) if spec["lit"] else []
     project["spec"] = {k: (str(v) if isinstance(v, Path) else v) for k, v in spec.items()}
@@ -397,6 +509,27 @@ def write_report(report, out):
               "The animation budget limit reported by the cooker is "
               f"{next(iter(measured.values()))['build']['budget']['animation_limit_bytes']}"
               " B per model.", ""]
+    lines += ["## Query sidecars", "",
+              table(["Key", "portable remap", "baked seek tables", "bone hierarchies",
+                     "bone track tables"],
+                    [[k, w["build"]["sidecars"]["portable_remap"],
+                      w["build"]["sidecars"]["baked_seek_tables"],
+                      w["build"]["sidecars"]["bone_hierarchies"],
+                      w["build"]["sidecars"]["bone_track_tables"]]
+                     for k, w in measured.items()]),
+              "These are linked cooker tables, not inferred API availability. A no-query "
+              "build must report no portable remap/seek/baked bone sidecars; rigid rendering "
+              "retains its normal bone hierarchy and tracks.", ""]
+    queried = {k: w for k, w in measured.items() if w.get("query_combined")}
+    if queried:
+        lines += ["## Explicit query work (median per completed frame)", "",
+                  table(["Key", "calls", "vertices", "bones", "decoded bytes", "failures"],
+                        [[k, *[w["query_combined"][field]["median"]
+                               for field in QUERY_FIELDS]]
+                         for k, w in queried.items()]),
+                  "Counters are runtime measurements from the benchmark-only native oracle. "
+                  "They are deltas of cumulative counters divided by the actual completed-frame "
+                  "distance between debugger samples.", ""]
     headroom = []
     for k, w in measured.items():
         memory = w["build"]["memory"] or {}
@@ -497,6 +630,9 @@ def main():
             placements = [(f"Character{i}", available[name][0], list(position))
                           for i, (name, position) in enumerate(zip(names, workload["placement"]))]
             textured.compose_scene(project, placements, camera_position=workload["camera"])
+            if "query_mode" in workload:
+                configure_query_actors(project["folder"], workload["query_mode"],
+                                       workload["query_count"])
             harness.run("--project", project["folder"], "--build-psx",
                         log=f"build-{key}.log")
             entry["build"] = build_facts(project["folder"])
@@ -506,8 +642,14 @@ def main():
             for index in range(args.runs):
                 rows, warm = sample_run(harness, project["folder"], key,
                                         args.seconds, args.warmup, index)
+                rates = query_rates(warm)
                 runs.append(dict(total_samples=len(rows), warm=summarise(warm),
+                                 query=summarise(rates, QUERY_FIELDS) if rates else None,
                                  frame_first=rows[0]["frame"], frame_last=rows[-1]["frame"]))
+                if "query_mode" in workload:
+                    assert rates and any(row["query_calls"] > 0 for row in rates), \
+                        f"Query workload {key} recorded no explicit query calls"
+                    entry.setdefault("query_rows", []).extend(rates)
                 if workload["visible"]:
                     assert any(row["skeletal_scanlines"] > 0 for row in warm), \
                         f"Visible workload {key} recorded no skeletal work"
@@ -521,6 +663,8 @@ def main():
                 entry.setdefault("warm_rows", []).extend(warm)
             entry["runs"] = runs
             entry["combined"] = summarise(entry.pop("warm_rows"))
+            if entry.get("query_rows"):
+                entry["query_combined"] = summarise(entry.pop("query_rows"), QUERY_FIELDS)
             entry["run_medians"] = [run["warm"]["frame_microseconds"]["median"]
                                     for run in runs]
             entry["status"] = "measured"

@@ -1,9 +1,11 @@
 //! Persistent Actor and ActorComponent documents and structural validation.
 #![allow(dead_code)]
 
+#[cfg(test)]
+use crate::reflection_schema::Domain;
 use crate::{
     object_model::{self, Diagnostic, Model},
-    reflection_schema::{ClassFamily, Domain},
+    reflection_schema::ClassFamily,
     scene::Scene,
 };
 use serde::{Deserialize, Serialize};
@@ -817,7 +819,6 @@ pub(crate) mod tests {
     use crate::reflection_schema::{
         self as schema, Cardinality, ComponentContract, Extension, Location, Placement,
     };
-    use crate::scene::Actor;
     use serde_json::json as j;
     use std::fs;
 
@@ -907,6 +908,7 @@ pub(crate) mod tests {
                 timeline: None,
                 event: true,
                 pure: false,
+                resource_demands: vec![],
                 abstract_method: false,
                 final_method: false,
                 access: "public".into(),
@@ -1398,7 +1400,7 @@ pub(crate) mod tests {
     #[test]
     fn duplicate_and_delete_branch_carry_and_drop_the_actors_of_the_branch() {
         let mut scene = Scene::default();
-        let mut hero = actor3d("Hero");
+        let hero = actor3d("Hero");
         let mut child = actor3d("Child");
         child.logical_parent = Some(hero.id);
         child.attach = Some(Attachment {

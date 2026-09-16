@@ -110,7 +110,7 @@ inline void geometry(uint16_t, bool)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `uint16_t` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+| `arg1` | `int` | Input | Value supplied for `arg1`. See the exact type and module contract. |
 | `arg2` | `bool` | Input | Value supplied for `arg2`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -123,7 +123,7 @@ inline void geometry(uint16_t, bool)
 #include "debug_hud.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t arg1
+// int arg1
 // bool arg2
 
 epok::debug_hud::geometry(arg1, arg2);
