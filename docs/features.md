@@ -228,18 +228,31 @@ emulator validation are pending on an SDK machine. See
 - **FBX skeletal import.** Import a mesh, armature and clips as a UUID-linked
   ModelSource package, inspect the skeleton, preview clips and place a character.
   The PSX profile supports up to 64 bones, 512 vertices and 1,024 triangles with
-  one rigid bone per vertex and quantized 30 Hz clips. Each model can compile to
-  bone-grouped direct GTE skinning or compressed baked vertex frames; conservative
-  animation envelopes cull characters before pose/decode work. See
-  [Skeletal characters](skeletal.md).
+  one rigid bone per vertex, quantized 30 Hz clips and up to 32 clips per model.
+  Each model can compile to bone-grouped direct GTE skinning or compressed baked
+  vertex frames; conservative animation envelopes cull characters before
+  pose/decode work. See [Skeletal characters](skeletal.md).
+- **Textured skeletal characters.** Each skeletal triangle carries optional
+  per-corner texture coordinates that keep atlas seams distinct without
+  duplicating shared cooked positions, cooked through the same texture-page helper
+  as static meshes. Assign a texture and edit material state in the model window;
+  legacy untextured models remain readable and render unchanged.
 
 ## Timelines and sequenced effects
 
 - **Timeline assets and scene directors.** Create reusable typed sequences or
   attach an automatic Timeline component to an entity. Assets have stable UUIDs,
   configurable timebase/loop/restore behavior, slots, tracks, markers and events.
-- **Property tracks.** Q12 curves support Linear, Step, Smoothstep, Ease In and
-  Ease Out interpolation. Typed adapters read/apply native or Blueprint component
+- **Native sequencer.** A dedicated Scene/Sequencer layout edits a Timeline asset
+  in place with a frame ruler, searchable track tree, snapping, box selection,
+  multi-key editing, reverse and looping transport, a curve editor and a live
+  scene-camera preview that scrubs onto a disposable scene clone. The preview
+  auto-binds only unambiguous targets and never mutates the authored scene.
+- **Property tracks and sections.** Q12 curves support Linear, Step, Smoothstep,
+  Ease In and Ease Out interpolation and up to 256 keys. A property track may be
+  split into non-overlapping sections, each with a source offset and a rational
+  playback rate for time remapping, and vector properties expand into per-lane
+  X/Y/Z/W channels. Typed adapters read/apply native or Blueprint component
   properties and validate required component availability.
 - **Event tracks.** Invoke reflected functions with cooked typed arguments.
   Marker/event dispatch handles multiple crossings and bounded diagnostics.
@@ -280,6 +293,13 @@ See [HUD and 2D entities](hud.md).
   `AudioSource` with clip, volume, pitch, looping, autoplay and runtime controls.
   The bank observes typed clip selections rather than unrelated transform/data
   changes.
+- **Native music sequences (Epok Pulse).** Convert a MIDI and SoundFont into a
+  resident `MusicSequence` and cook it entirely on the host into a bounded,
+  absolute-timestamped SPU command stream, so the console only dispatches register
+  commands to the hardware voices. A software-synthesizer reference driver remains
+  selectable, a Target Preview auditions the cooked result, and a sequence can be
+  rendered to a PCM WAV as a bridge to streamed disc audio. Import automatically
+  fits the sample bank to the PSX budget.
 - **XA background music.** Encode/interleave disc XA, generate the disc manifest
   and drive asynchronous ISO/CD playback with loop/end/error state.
 - **Transition audio.** Scene transitions multiply authored audio gain during
@@ -289,6 +309,12 @@ See [HUD and 2D entities](hud.md).
 
 ## Native C++ gameplay and reflection
 
+- **Unified gameplay API.** A single engine-owned facade defines every public
+  gameplay operation once in annotated C++, and the registry derives Blueprint
+  nodes, Lua definitions, native adapters and VM bindings from it. Values,
+  lifecycle order, failure handling and skeletal sampling behave identically on
+  the C++, Blueprint and Lua (native, VM bytecode and VM source) surfaces, and
+  each operation's capability requirements are tracked into the cook manifest.
 - **C++20 Actors and components.** Create project classes, derive from eligible
   native or generated classes and implement reflected lifecycle/event methods.
   Exported classes compile directly into the MIPS executable.
@@ -376,7 +402,8 @@ Start with [Your first Blueprint](blueprints-tutorial.md), then use the
 
 - **Controller input.** Two ports expose connected, held, pressed, released and
   frame-edge state for the standard PSX buttons. The embedded Game view owns focus
-  and releases buttons when focus is lost.
+  and releases buttons when focus is lost. An opt-in analog-controller mode adds
+  signed Q12 stick axes for both sticks with an exact center and no dead zone.
 - **Measured fixed step.** Host frame time feeds a fixed 60 Hz simulation with
   bounded catch-up, pause, single-step, tick counters and interpolation data.
 - **AABB collision.** Collider layers/masks, solid and trigger modes, overlap,
