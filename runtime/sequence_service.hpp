@@ -1,4 +1,7 @@
 #pragma once
+#ifdef EPOK_NATIVE_SEQUENCES_ONLY
+#include "native_music_runtime.hpp"
+#else
 // PSX musical service. Four bounded start mailboxes, 24 deferred hardware starts.
 // The IRQ reads parameter snapshots, never dereferences AudioSource or invokes gameplay.
 #include "audio.hpp"
@@ -37,6 +40,9 @@ struct Physical {
     uint16_t off_ticks=0;
     uint16_t left=0,right=0,pitch=0,library_zone=0;
     uint8_t envelope=0,key=0,velocity=0;
+    const native_music::Tone* native_tone=nullptr;
+    uint16_t native_pitch=0,native_left=0,native_right=0;
+    uint8_t native_lane=0;
     bool pending=false,looping=false,library=false,released=false,reverb_send=false;
     void reset_metadata(){
         zone=nullptr;generation=off_us=started_us=level=step=remaining_ms=due_us=0;
@@ -44,11 +50,13 @@ struct Physical {
         last_cents=INT32_MAX;last_source_pitch=off_ticks=left=right=pitch=library_zone=0;
         last_source_volume=last_synth_gain=UINT16_MAX;last_pan=INT16_MAX;
         envelope=key=velocity=0;pending=looping=library=released=reverb_send=false;
+        native_tone=nullptr;native_pitch=native_left=native_right=0;native_lane=0;
     }
 };
 inline Physical physical[24];
 inline instrument::reverb::Resource<> reverb_resource;
 inline uint32_t now_us=0,fraction_us=0;
+inline uint32_t native_keyoffs=0;
 inline uint16_t service_starts=0;
 inline bool allocation_current=false;
 inline uint32_t allocation_free_mask=0;
@@ -80,6 +88,11 @@ struct Instance {
     uint8_t index=0;
     Phase phase=Phase::Free;
     Parameters parameters;
+    uint32_t native_cursor=0,native_clock=0,native_loop_cursor=0,native_loop_time=0;
+    int8_t native_lanes[24];
+    void native_begin(){native_cursor=native_clock=native_loop_cursor=native_loop_time=0;for(auto& lane:native_lanes)lane=-1;}
+    void native_advance(uint32_t elapsed);
+    void native_parameters(int voice);
     bool defer_note(const sequence::Event&,uint32_t cursor){
         if(!asset || kernel.events!=asset->events() || !asset->prepared || !asset->prepared->event_map || cursor>=asset->prepared->event_capacity)return false;
         const auto layers=asset->prepared->event_map[cursor].count;
@@ -100,7 +113,10 @@ struct Instance {
         allocation_current=false;
         for(uint32_t mask=note_voices[note];mask;mask&=mask-1){const int i=first_voice(mask);
             if(!owns(i,note))continue;
-            reverb_resource.clear_voice(uint8_t(i));audio_keyoff(i);audio_voices[i]={};physical[i].reset_metadata();
+            reverb_resource.clear_voice(uint8_t(i));
+            if(physical[i].native_tone){native_keyoffs|=1u<<i;native_lanes[physical[i].native_lane]=-1;}
+            else audio_keyoff(i);
+            audio_voices[i]={};physical[i].reset_metadata();
         }
         note_voices[note]=0;
     }
@@ -108,8 +124,11 @@ struct Instance {
         allocation_current=false;
         const auto note=audio_voices[i].note;
         note_voices[note]&=~(1u<<i);
-        reverb_resource.clear_voice(uint8_t(i));audio_keyoff(i);audio_voices[i]={};physical[i].reset_metadata();
-        if(voice(note)<0)kernel.retire(note);
+        reverb_resource.clear_voice(uint8_t(i));
+        if(physical[i].native_tone){native_keyoffs|=1u<<i;native_lanes[physical[i].native_lane]=-1;}
+        else audio_keyoff(i);
+        audio_voices[i]={};physical[i].reset_metadata();
+        if(!asset->is_native() && voice(note)<0)kernel.retire(note);
     }
     bool advance_library(int number);
     void release_library(uint16_t note);
@@ -168,7 +187,8 @@ inline Instance instances[4];
 
 inline void retire(Instance& instance) {
     allocation_current=false;
-    instance.kernel.stop(instance);
+    if(instance.asset && instance.asset->is_native()){for(unsigned n=0;n<sequence::Kernel::MaxVoices;++n)if(instance.note_voices[n])instance.cut(uint16_t(n));}
+    else instance.kernel.stop(instance);
     if(reverb_resource.active() && reverb_resource.owner()==instance.index && reverb_resource.generation()==instance.generation)reverb_resource.release(instance.index,instance.generation);
     instance.owner=nullptr;instance.phase=Phase::Retiring;instance.retire_us=now_us;
 }
@@ -177,7 +197,7 @@ inline void stolen(int i) {
     if(voice.sequence<0)return;
     auto& instance=instances[voice.sequence];
     const auto note=voice.note;
-    instance.cut(note);instance.kernel.retire(note);++music_sequence_stats.steals;
+    instance.cut(note);if(!instance.asset->is_native())instance.kernel.retire(note);++music_sequence_stats.steals;
 }
 inline void next_envelope(Physical& v) {
     if(v.envelope==0){
@@ -226,6 +246,7 @@ inline bool Instance::start(uint16_t note,const sequence::Note& n,const sequence
 }
 
 #include "sequence_instrument_service.hpp"
+#include "native_music_service.hpp"
 
 inline void sequence_voice_stolen(int voice){psx_audio::stolen(voice);}
 inline bool sequence_is_playing(const AudioSource* source){
@@ -258,7 +279,8 @@ inline void sequence_play(AudioSource* source){
         }
         // Initialize the unpublished mailbox on the main thread. Clearing the
         // bounded FIFO ledger is preparation work, not note-on IRQ work.
-        i.kernel.begin_validated(i.asset->events(),i.asset->count(),i.asset->ppqn(),i.asset->bank->is_library()?sequence::Kernel::MaxVoices:i.asset->voices());
+        if(i.asset->is_native())i.native_begin();
+        else i.kernel.begin_validated(i.asset->events(),i.asset->count(),i.asset->ppqn(),i.asset->bank->is_library()?sequence::Kernel::MaxVoices:i.asset->voices());
         ++i.asset->bank->pins;i.phase=psx_audio::Phase::Queued;return;
     }
     ++music_sequence_stats.capacity_errors;music_sequence_stats.error=2;
@@ -270,7 +292,9 @@ inline void sequence_update_sources(){
         const auto previous=i.parameters;
         i.parameters=sequence_parameters(i.owner);
         if(previous.volume!=i.parameters.volume || previous.pitch!=i.parameters.pitch){
-            if(i.asset->bank->is_library()){
+            if(i.asset->is_native()){
+                for(int p=0;p<24;++p)if(audio_voices[p].sequence==i.index && psx_audio::physical[p].generation==i.generation)i.native_parameters(p);
+            }else if(i.asset->bank->is_library()){
                 for(int p=0;p<24;++p)if(audio_voices[p].sequence==i.index && psx_audio::physical[p].generation==i.generation)
                     i.update_library(p,i.kernel.channels[i.kernel.notes[audio_voices[p].note].channel],false);
             }else for(uint16_t n=0;n<i.kernel.limit;++n)if(i.kernel.notes[n].active)i.update(n,i.kernel.channels[i.kernel.notes[n].channel]);
@@ -278,6 +302,7 @@ inline void sequence_update_sources(){
         if(previous.priority!=i.parameters.priority)
             for(auto& v:audio_voices)if(v.sequence==i.index)v.priority=i.parameters.priority;
     }
+    psx_audio::native_flush_keyoffs();
 }
 
 inline void sequence_service(uint32_t elapsed_us){
@@ -295,6 +320,12 @@ inline void sequence_service(uint32_t elapsed_us){
         auto& i=instances[av.sequence];auto& v=physical[n];
         if(v.generation!=i.generation || i.phase!=Phase::Active){i.cut(av.note);continue;}
         if(v.pending || (started&(1u<<n)))continue;
+        if(v.native_tone){
+            // Envelopes advance entirely in the SPU. Only a release which
+            // preceded deferred key-on needs a one-time hardware command.
+            if(v.released && !v.envelope){native_keyoffs|=1u<<n;v.envelope=1;}
+            continue;
+        }
         if(v.library){
             // ENDX remains set after any loop end; UntilRelease therefore uses
             // the software envelope to retire its tail, never that sticky bit.
@@ -337,12 +368,13 @@ inline void sequence_service(uint32_t elapsed_us){
         }
         if(i.phase!=Phase::Active)continue;
         ++music_sequence_stats.active_sequences;
+        if(i.asset->is_native()){i.native_advance(delta);continue;}
         const auto loops=i.kernel.loops;
         i.kernel.advance(delta,i);music_sequence_stats.loops+=i.kernel.loops-loops;
         if(i.kernel.error!=sequence::Error::None){music_sequence_stats.error=uint32_t(i.kernel.error)+3;retire(i);}
         else if(!i.kernel.running && !i.kernel.active()){++music_sequence_stats.ends;retire(i);}
     }
-    sequence_flush_starts();
+    native_flush_keyoffs();sequence_flush_starts();
 }
 inline void sequence_clock_fault(){
     ++music_sequence_stats.clock_faults;music_sequence_stats.error=7;
@@ -384,7 +416,7 @@ inline bool sequence_prepare(){
     SPU_CTRL=0xc000;
     for(uint8_t j=0;j<4;++j)instances[j].index=j;
     for(size_t n=0;n<audio_count;++n){
-        const auto* sequence=audio_bank[n].sequence;if(!sequence || !sequence->bank->is_library())continue;
+        const auto* sequence=audio_bank[n].sequence;if(!sequence || sequence->is_native() || !sequence->bank->is_library())continue;
 #ifndef EPOK_SEQUENCE_HOST_TEST
         if(!sequence->prepared){music_sequence_stats.error=12;return false;}
 #endif
@@ -395,3 +427,4 @@ inline bool sequence_prepare(){
     music_sequence_stats.ready=1;return true;
 }
 }
+#endif

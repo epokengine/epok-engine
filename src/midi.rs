@@ -316,6 +316,20 @@ fn parse_track(
                             ));
                             (None, None)
                         }
+                        // SMF sequencer-specific data is opaque authoring metadata. It
+                        // does not describe a note, controller, tempo, or any other
+                        // operation that Epok would reproduce. Preserve it in the
+                        // source ledger, but do not make a normal MIDI unplayable just
+                        // because its DAW wrote a private three-byte marker at tick 0.
+                        0x7f => {
+                            diagnostic = Some((
+                                format!(
+                                    "Sequencer-specific meta 0x7F ({len} bytes), preserved in source"
+                                ),
+                                false,
+                            ));
+                            (None, None)
+                        }
                         _ => {
                             diagnostic = Some((
                                 format!(
@@ -494,6 +508,26 @@ mod tests {
                 channel: 0,
                 value: 12288
             }));
+    }
+
+    #[test]
+    fn sequencer_specific_metadata_is_advisory_in_musical_v2() {
+        let ir = parse(&smf(
+            96,
+            &[&[
+                0, 0xff, 0x7f, 3, 1, 2, 3, 0, 0x90, 60, 100, 96, 0x80, 60, 0, 0, 0xff, 0x2f, 0,
+            ]],
+        ))
+        .unwrap();
+        assert!(
+            ir.events
+                .iter()
+                .any(|event| matches!(event.kind, EventKind::NoteOn { .. }))
+        );
+        assert!(ir.diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("Sequencer-specific meta 0x7F") && !diagnostic.unsupported
+        }));
+        assert!(ir.playback_blockers.is_empty());
     }
     #[test]
     fn musical_merge_rpn_banks_and_wire_ledger_are_deterministic() {

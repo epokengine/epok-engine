@@ -3,6 +3,7 @@
 // EPSQ v1/v2 share the 40-byte header and 12-byte event layout.
 #include "sequence_kernel.hpp"
 #include "instrument_bank.hpp"
+#include "native_music_data.hpp"
 
 namespace epok::psx_audio {
 inline uint16_t read16(const uint8_t* p) { return uint16_t(p[0]) | uint16_t(p[1]) << 8; }
@@ -66,6 +67,8 @@ struct Sequence {
     uint32_t size;
     Bank* bank;
     instrument::preparation::Cache* prepared=nullptr;
+    bool is_native()const{return data && size>=40 && read16(data+4)==3;}
+    native_music::View native()const{return {data,size};}
     uint16_t ppqn() const { return read16(data + 8); }
     uint16_t voices() const { return read16(data + 10); }
     uint32_t count() const { return read32(data + 12); }
@@ -73,6 +76,7 @@ struct Sequence {
     bool valid() const {
         if (!data || uintptr_t(data) % 4 || size < 40 || size > 256 * 1024) return false;
         const uint16_t version = read16(data + 4);
+        if(version==3)return bank && bank->valid() && data[0]=='E' && data[1]=='P' && data[2]=='S' && data[3]=='Q' && native().valid(bank->sample_count());
         if (!bank || !bank->valid() ||
             data[0] != 'E' || data[1] != 'P' || data[2] != 'S' || data[3] != 'Q' ||
             (version != 1 && version != 2) || read16(data + 6) != 40 || !ppqn() || ppqn() > 32767 || !voices() || voices() > 24 ||

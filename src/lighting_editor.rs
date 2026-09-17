@@ -180,6 +180,13 @@ pub fn mesh(ui: &imgui::Ui, entity: &mut Actor) {
         }
     }
     ui.checkbox("Cast Baked Shadows", &mut entity.lighting.cast_shadows);
+    ui.checkbox(
+        "Background Pass (PS1)",
+        &mut entity.lighting.background_pass,
+    );
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Draw before all ordinary 3D geometry. Only enable for a base surface such as a ground plane that must stay behind every world object. This is not a general depth-sort fix.");
+    }
     let mut n = i32::from(entity.lighting.subdivisions);
     if crate::gui::Drag::new(crate::gui::field(ui, "Subdivisions"))
         .range(1, 8)

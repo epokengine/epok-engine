@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
 const RAM: u64 = 2 * 1024 * 1024;
+/// Space that must remain after statically linked data for the runtime heap,
+/// call stacks, and interrupt-time transient allocations.
+pub const MIN_RUNTIME_HEADROOM: u64 = 64 * 1024;
 const MANIFEST: &str = "memory-inputs.json";
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -84,6 +87,23 @@ pub struct Report {
     pub files: Space,
     pub warnings: Vec<String>,
 }
+
+/// Reject a linked image which fits technically but leaves too little RAM to
+/// initialise PsyQo and the game safely. The linker cannot account for this
+/// dynamic memory, so this is checked from its post-link allocation report.
+fn runtime_headroom_error(used: u64) -> Option<String> {
+    let available = RAM.saturating_sub(used);
+    if available >= MIN_RUNTIME_HEADROOM {
+        return None;
+    }
+    Some(format!(
+        "PSX main RAM leaves only {available} bytes after static allocations; at least {MIN_RUNTIME_HEADROOM} bytes are required for the runtime heap and stacks. Reduce in-memory assets (for example MusicSequence sample-bank budget), enable streaming/disc audio, or simplify the scene."
+    ))
+}
+pub fn validate_runtime_headroom(report: &Report) -> Result<(), String> {
+    runtime_headroom_error(report.ram.used).map_or(Ok(()), Err)
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Hint {
     token: String,
@@ -850,6 +870,11 @@ pub fn analyze(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn runtime_headroom_rejects_a_linked_image_that_only_barely_fits() {
+        assert!(runtime_headroom_error(RAM - MIN_RUNTIME_HEADROOM).is_none());
+        assert!(runtime_headroom_error(RAM - MIN_RUNTIME_HEADROOM + 1).is_some());
+    }
     #[test]
     fn staging_manifest_follows_unsaved_current_and_whole_game_inputs() {
         use crate::{

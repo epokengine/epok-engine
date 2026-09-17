@@ -640,27 +640,18 @@ fn execute(
         disc.as_deref(),
         automatic_report,
     )?;
-    let mut generated_report = None;
+    // The linker's fit check does not reserve heap, stack, or PsyQo callback
+    // state. Always inspect the linked image before declaring a PSX build safe.
+    let _ = tx.send(Event::Stage("Validating PSX runtime memory budget".into()));
+    let generated_report =
+        crate::memory::analyze(root, &build, summary.profile.clone(), debug, &config)?;
+    crate::memory::validate_runtime_headroom(&generated_report)?;
     if analyze || automatic_report {
-        let _ = tx.send(Event::Stage("Generating asset and memory report".into()));
-        match crate::memory::analyze(root, &build, summary.profile.clone(), debug, &config) {
-            Ok(report) => {
-                summary.verify_inputs(root)?;
-                summary.record_report(root)?;
-                generated_report = Some(report);
-            }
-            Err(error) if analyze => return Err(error),
-            Err(error) => {
-                let _ = tx.send(Event::Log(format!(
-                    "Build succeeded, but asset report generation failed: {error}"
-                )));
-            }
-        }
+        summary.verify_inputs(root)?;
+        summary.record_report(root)?;
     }
     summary.save(root)?;
-    if let Some(report) = generated_report {
-        let _ = tx.send(Event::MemoryReport(Box::new(report)));
-    }
+    let _ = tx.send(Event::MemoryReport(Box::new(generated_report)));
     let _ = tx.send(Event::Log(format!("Build sizes: {}", summary.status())));
     let _ = tx.send(Event::BuildSummary(Box::new(summary)));
     let _ = tx.send(Event::Built(disc.clone().unwrap_or_else(|| exe.clone())));

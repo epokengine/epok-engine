@@ -55,6 +55,24 @@ pub struct ImportForm {
     pub queue_key: Option<String>,
 }
 
+/// Performs the bounded, read-only source classification used by the sequence
+/// import form.  Keeping it here makes opening/reopening a form and pressing
+/// its refresh control use exactly the same snapshot/source rules.
+pub fn inspect_sequence_source(
+    root: &std::path::Path,
+    source: &str,
+    existing: Option<&Record>,
+    snapshot: bool,
+    explicit: Option<crate::sequence::SourceProfile>,
+) -> Result<crate::sequence::SourceCatalog, String> {
+    let bytes = if snapshot {
+        assets::Package::load(&existing.ok_or("No sequence snapshot")?.path)?.source
+    } else {
+        assets::read_bounded(&assets::inside(root, source)?)?
+    };
+    crate::sequence::catalog_source(&bytes, explicit)
+}
+
 enum Prepared {
     Audio(Candidate),
     ReferenceBank(Candidate),
@@ -429,6 +447,26 @@ impl Manager {
                     .to_string_lossy()
                     .into_owned()
             });
+        let sequence = (detected == Some(assets::Kind::MusicSequence)
+            || (detected.is_none()
+                && std::path::Path::new(&item.source)
+                    .extension()
+                    .is_some_and(|e| {
+                        matches!(
+                            e.to_ascii_lowercase().to_str(),
+                            Some("mid" | "midi" | "seq" | "sep")
+                        )
+                    })))
+        .then(|| {
+            existing
+                .as_ref()
+                .and_then(|r| r.meta.settings.sequence().ok())
+                .cloned()
+                .unwrap_or_default()
+        });
+        let sequence_catalog = sequence.as_ref().map(|_| {
+            inspect_sequence_source(&self.root, &item.source, existing.as_ref(), false, None)
+        });
         self.form = Some(ImportForm {
             model,
             model_storage: existing
@@ -445,23 +483,7 @@ impl Manager {
                 .as_ref()
                 .map(|r| r.meta.settings.audio().cloned().unwrap_or_default())
                 .unwrap_or_default(),
-            sequence: (detected == Some(assets::Kind::MusicSequence)
-                || (detected.is_none()
-                    && std::path::Path::new(&item.source)
-                        .extension()
-                        .is_some_and(|e| {
-                            matches!(
-                                e.to_ascii_lowercase().to_str(),
-                                Some("mid" | "midi" | "seq" | "sep")
-                            )
-                        })))
-            .then(|| {
-                existing
-                    .as_ref()
-                    .and_then(|r| r.meta.settings.sequence().ok())
-                    .cloned()
-                    .unwrap_or_default()
-            }),
+            sequence,
             bank: existing
                 .as_ref()
                 .and_then(|r| r.meta.settings.sound_bank().ok())
@@ -493,7 +515,7 @@ impl Manager {
                 .and_then(|p| p.get(1))
                 .map(|p| p.path.clone())
                 .unwrap_or_default(),
-            sequence_catalog: None,
+            sequence_catalog,
             existing,
             snapshot: false,
             queue_key: Some(item.key()),
@@ -509,6 +531,10 @@ impl Manager {
             .ok()
             .flatten()
             .map_or_else(|| record.meta.source.clone(), |s| s.path.clone());
+        let sequence = record.meta.settings.sequence().ok().cloned();
+        let sequence_catalog = sequence
+            .as_ref()
+            .map(|_| inspect_sequence_source(&self.root, &source, Some(record), snapshot, None));
         self.form = Some(ImportForm {
             model: record.meta.kind == assets::Kind::ModelSource,
             model_storage: match &record.meta.settings {
@@ -519,13 +545,13 @@ impl Manager {
             source,
             destination: assets::path_string(&self.root, &record.path),
             settings: record.meta.settings.audio().cloned().unwrap_or_default(),
-            sequence: record.meta.settings.sequence().ok().cloned(),
+            sequence,
             bank: record.meta.settings.sound_bank().ok().cloned(),
             bank_companion: crate::bank_compat::parts(record)
                 .and_then(|p| p.get(1))
                 .map(|p| p.path.clone())
                 .unwrap_or_default(),
-            sequence_catalog: None,
+            sequence_catalog,
             existing: Some(record.clone()),
             snapshot,
             queue_key: None,
@@ -726,6 +752,30 @@ impl Manager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opening_a_midi_import_form_runs_source_preflight_first() {
+        let root = crate::workspace::tests::temp("midi-import-preflight");
+        std::fs::create_dir_all(root.join("assets")).unwrap();
+        std::fs::write(root.join("assets/song.mid"), crate::midi::fixture()).unwrap();
+        let mut manager = Manager::new(root.clone());
+        manager.index = assets::scan(&root, &mut Default::default());
+        let source = manager.index.sources["assets/song.mid"].clone();
+        manager.begin_pending(&Pending {
+            source: source.path,
+            hash: source.hash,
+            existing: None,
+            status: Status::Pending,
+        });
+        let form = manager.form.as_ref().unwrap();
+        let catalog = form.sequence_catalog.as_ref().unwrap().as_ref().unwrap();
+        assert_eq!(catalog.profile, None);
+        assert_eq!(catalog.midi_format, Some(0));
+        assert!(catalog.songs[0].playback_blockers.is_empty());
+        drop(manager);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn sony_pair_watcher_groups_vb_changes_and_preserves_unknown_metadata() {
         let root = crate::workspace::tests::temp("sony-pair-watcher");

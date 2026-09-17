@@ -447,11 +447,12 @@ inline void initialize_components(){
             ));
         }
         text.push_str(&format!(
-            "objects[{i}].lighting=MeshLighting{{true,ReceiveLighting::{:?},{},{},{}}};\n",
+            "objects[{i}].lighting=MeshLighting{{true,ReceiveLighting::{:?},{},{},{},{}}};\n",
             e.lighting.receive,
             e.lighting.static_geometry,
             e.lighting.cast_shadows,
-            e.lighting.subdivisions
+            e.lighting.subdivisions,
+            e.lighting.background_pass
         ));
         if crate::lighting::baked(e) {
             text.push_str(&format!(
@@ -1291,6 +1292,18 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/sequence_data.hpp").as_slice(),
         ),
         (
+            "native_music_data.hpp",
+            include_bytes!("../runtime/native_music_data.hpp").as_slice(),
+        ),
+        (
+            "native_music_service.hpp",
+            include_bytes!("../runtime/native_music_service.hpp").as_slice(),
+        ),
+        (
+            "native_music_runtime.hpp",
+            include_bytes!("../runtime/native_music_runtime.hpp").as_slice(),
+        ),
+        (
             "sequence_tables.hpp",
             include_bytes!("../runtime/sequence_tables.hpp").as_slice(),
         ),
@@ -1849,6 +1862,18 @@ fn property_setters(
 mod tests {
     use super::*;
     use crate::scene::ClassDefaults;
+    #[test]
+    fn background_pass_only_exports_for_selected_actor() {
+        let mut scene = Scene::default();
+        scene.actors[3].lighting.background_pass = true;
+        let header = scene_header(&scene, &[]).unwrap();
+        assert!(header.contains(
+            "objects[3].lighting=MeshLighting{true,ReceiveLighting::Realtime,false,true,1,true};"
+        ));
+        assert!(header.contains(
+            "objects[1].lighting=MeshLighting{true,ReceiveLighting::Realtime,false,true,1,false};"
+        ));
+    }
     #[test]
     fn lua_execution_mode_rewrites_sources_and_restores_on_return() {
         use crate::settings::LuaExecution;

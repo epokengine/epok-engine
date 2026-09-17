@@ -1317,9 +1317,18 @@ impl Editor {
                 format!("Deleted {count} actors.")
             },
         ) {
-            self.selected_actor = self
+            let selected = self
                 .selected_actor
                 .filter(|selected| !removed.contains(selected));
+            self.select_actor(selected);
+            if self
+                .actor_rename
+                .as_ref()
+                .is_some_and(|(actor, _)| removed.contains(actor))
+            {
+                self.actor_rename = None;
+                self.actor_rename_focus = false;
+            }
         }
     }
     /// Changes an actor's logical parent. `parent` `None` moves it to the map
@@ -3752,9 +3761,11 @@ mod tests {
         // Delete takes the branch and clears what pointed into it.
         editor.delete_actor(copy);
         assert_eq!(editor.scene.actors.len(), before);
+        editor.select_actor(Some(hero));
         editor.delete_actor(hero);
         assert!(editor.scene.actors.is_empty());
         assert!(editor.selected_actor.is_none());
+        assert!(editor.selected.is_none());
         // Deleting nothing is refused rather than recorded as an empty step.
         let before = editor.scene.clone();
         editor.delete_actor(hero);

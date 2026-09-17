@@ -95,6 +95,7 @@ mod music;
 mod music_conversion_ui;
 mod native;
 mod native_metadata;
+mod native_music;
 mod obj_import;
 mod object_model;
 mod operation;
@@ -139,6 +140,7 @@ mod script_values;
 mod scripts;
 mod sequence;
 mod sequence_compat;
+mod sequence_export;
 mod sequence_ir;
 mod sequence_preview;
 mod sequence_stream;
@@ -301,6 +303,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--import-obj",
             "--import-texture",
             "--reimport-asset",
+            "--duplicate-music-sequence",
+            "--render-music-sequence",
             "--scan-assets",
             "--inspect-audio-source",
             "--reflect",
@@ -499,6 +503,64 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .find(|v| v[0] == flag)
             .map(|v| v[1].as_str())
     };
+    if let Some(sequence) = value("--render-music-sequence") {
+        let output =
+            value("--output").ok_or("--render-music-sequence requires --output assets/path.wav")?;
+        let rendered = sequence_export::render_source_wav(
+            &root,
+            &assets::inside(&root, sequence)?,
+            &assets::inside(&root, output)?,
+        )?;
+        println!(
+            "Rendered MusicSequence source WAV: {output} ({} frames, {} Hz, {} channels)",
+            rendered.frames, rendered.rate, rendered.channels
+        );
+        return Ok(());
+    }
+    if let Some(sequence) = value("--duplicate-music-sequence") {
+        let source_path = assets::inside(&root, sequence)?;
+        let destination = value("--asset")
+            .ok_or("--duplicate-music-sequence requires --asset assets/path.epokasset")?;
+        let destination_path = assets::inside(&root, destination)?;
+        if source_path == destination_path {
+            return Err("The compact MusicSequence needs a new asset destination".into());
+        }
+        let index = assets::scan(&root, &mut Default::default());
+        let source_package = assets::Package::load(&source_path)?;
+        if source_package.meta.kind != assets::Kind::MusicSequence {
+            return Err("--duplicate-music-sequence requires a MusicSequence asset".into());
+        }
+        let source_record = index.resolve(source_package.meta.id)?;
+        let mut settings = source_package.meta.settings.sequence()?.clone();
+        let mut recipe = psx_music_settings::Recipe::from_settings(&settings)?;
+        recipe.preset = psx_music_settings::Preset::Custom;
+        recipe.bank_budget_bytes = value("--bank-budget")
+            .ok_or("--duplicate-music-sequence requires --bank-budget <SPU bytes>")?
+            .parse()?;
+        recipe.optimization.minimum_sample_rate = value("--minimum-sample-rate")
+            .map(str::parse)
+            .transpose()?
+            .unwrap_or(400);
+        recipe.optimization.allow_lower_rate = true;
+        recipe.optimization.max_candidates = 32;
+        recipe.store(&mut settings)?;
+        let candidate = sequence::prepare(
+            &root,
+            &source_record.meta.source,
+            destination,
+            settings,
+            None,
+            false,
+        )?;
+        let fitted =
+            psx_music_settings::Recipe::from_settings(candidate.package.meta.settings.sequence()?)?;
+        let id = assets::commit(candidate)?;
+        println!(
+            "Duplicated compact MusicSequence {id}: {} byte PSX bank budget, fitted maximum {} Hz",
+            fitted.bank_budget_bytes, fitted.max_sample_rate
+        );
+        return Ok(());
+    }
     if let Some(source) = value("--inspect-audio-source") {
         let explicit_profile = value("--sequence-profile")
             .map(sequence::SourceProfile::from_id)

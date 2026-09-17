@@ -190,6 +190,8 @@ pub struct Rendering {
     pub height: u16,
     /// Static meshes keep their GPU packets across frames (see docs/performance.md).
     pub retained_geometry: bool,
+    /// GPU ordered dithering for 3D geometry only; HUD remains undithered.
+    pub dither_3d: bool,
     pub motion_interpolation: bool,
     pub precomputed_visibility: bool,
     pub streaming_geometry: bool,
@@ -203,6 +205,7 @@ impl Default for Rendering {
             width: 640,
             height: 480,
             retained_geometry: true,
+            dither_3d: false,
             motion_interpolation: true,
             precomputed_visibility: false,
             streaming_geometry: false,
@@ -253,11 +256,12 @@ impl Rendering {
     pub fn header(self) -> Result<String, String> {
         self.validate()?;
         Ok(format!(
-            "// Generated from Project Settings.\n#pragma once\nnamespace epok {{\ninline constexpr int display_width = {};\ninline constexpr int display_height = {};\ninline constexpr bool display_interlaced = {};\ninline constexpr bool retained_geometry = {};\ninline constexpr bool motion_interpolation = {};\ninline constexpr bool precomputed_visibility = {};\ninline constexpr bool streaming_geometry = {};\ninline constexpr unsigned streaming_pool_pages = {};\ninline constexpr bool streaming_prefetch_enabled = {};\n}}\n",
+            "// Generated from Project Settings.\n#pragma once\nnamespace epok {{\ninline constexpr int display_width = {};\ninline constexpr int display_height = {};\ninline constexpr bool display_interlaced = {};\ninline constexpr bool retained_geometry = {};\ninline constexpr bool dither_3d = {};\ninline constexpr bool motion_interpolation = {};\ninline constexpr bool precomputed_visibility = {};\ninline constexpr bool streaming_geometry = {};\ninline constexpr unsigned streaming_pool_pages = {};\ninline constexpr bool streaming_prefetch_enabled = {};\n}}\n",
             self.width,
             self.height,
             self.height == 480,
             self.retained_geometry,
+            self.dither_3d,
             self.motion_interpolation,
             self.precomputed_visibility,
             self.streaming_geometry,
@@ -446,6 +450,21 @@ pub fn configure_emulator(portable: &Path, preferences: &Preferences) -> Result<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_dithering_is_opt_in_and_reaches_generated_header() {
+        let legacy: super::Rendering =
+            serde_json::from_str(r#"{"width":320,"height":240}"#).unwrap();
+        assert!(!legacy.dither_3d);
+        assert!(legacy.header().unwrap().contains("dither_3d = false"));
+        let enabled = super::Rendering {
+            dither_3d: true,
+            ..legacy
+        };
+        let restored: super::Rendering =
+            serde_json::from_value(serde_json::to_value(enabled).unwrap()).unwrap();
+        assert_eq!(enabled, restored);
+        assert!(restored.header().unwrap().contains("dither_3d = true"));
+    }
     #[test]
     fn game_view_scaling_fills_an_axis_or_stretches_without_cropping() {
         use super::GameScale::*;

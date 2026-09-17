@@ -54,6 +54,12 @@ pub fn identity(inputs: &BTreeMap<String, String>) -> String {
         let mut digest = Sha256::new();
         for source in [
             include_bytes!("psx_sequence.rs").as_slice(),
+            include_bytes!("native_music.rs").as_slice(),
+            include_bytes!("../native/native_music.cpp").as_slice(),
+            include_bytes!("../native/spu_envelope.hpp").as_slice(),
+            include_bytes!("../runtime/native_music_data.hpp").as_slice(),
+            include_bytes!("../runtime/native_music_service.hpp").as_slice(),
+            include_bytes!("../runtime/native_music_runtime.hpp").as_slice(),
             include_bytes!("sequence_stream.rs").as_slice(),
             include_bytes!("sequence_ir.rs").as_slice(),
             include_bytes!("midi.rs").as_slice(),
@@ -149,6 +155,7 @@ pub struct Report {
     pub package_bytes: u64,
     pub voice_limit: u16,
     pub peak_polyphony: u32,
+    pub native_driver: Option<crate::native_music::Stats>,
     pub warnings: Vec<String>,
 }
 #[derive(Serialize, Deserialize)]
@@ -178,6 +185,7 @@ pub struct Cooked {
 
 #[derive(Default)]
 pub struct Staged {
+    pub native_only: bool,
     pub declarations: String,
     pub descriptors: BTreeMap<Uuid, String>,
     pub inputs: BTreeMap<String, String>,
@@ -190,7 +198,10 @@ pub fn stage(
     build: &Path,
     index: &assets::Index,
 ) -> Result<Staged, String> {
-    let mut staged = Staged::default();
+    let mut staged = Staged {
+        native_only: true,
+        ..Staged::default()
+    };
     let mut banks = BTreeMap::new();
     let mut reports = BTreeMap::new();
     let mut reverb = None;
@@ -223,6 +234,7 @@ pub fn stage(
             ));
         }
         let cooked = cook(root, &package, index)?;
+        staged.native_only &= cooked.report.payload_version == 3;
         // Cooking a large library gives reimport time to commit a new revision.
         // Verify every selected asset again before emitting any scene output.
         let cancelled = std::sync::atomic::AtomicBool::new(false);
@@ -799,7 +811,7 @@ pub fn cook_cancelled(
             .validate_sequence(&ir, index)?;
         bank(root, record, index)?
     };
-    let (events, payload) = if library {
+    let (events, mut payload) = if library {
         library_payload(&ir, settings, bank.id)?
     } else {
         sequence_payload(&ir, settings, bank.id)?
@@ -809,7 +821,24 @@ pub fn cook_cancelled(
     } else {
         0
     };
-    let (prepared_start_states, prepared_start_references) = if library {
+    let native_driver = if library
+        && crate::psx_music_settings::Recipe::from_settings(settings)?.driver
+            == crate::psx_music_settings::Driver::NativeSpu
+    {
+        let (compiled, stats) = crate::native_music::compile(
+            &events,
+            ir.ppqn,
+            settings.voices(),
+            &bank.payload,
+            bank.id,
+            cancelled,
+        )?;
+        payload = compiled;
+        Some(stats)
+    } else {
+        None
+    };
+    let (prepared_start_states, prepared_start_references) = if library && native_driver.is_none() {
         crate::instrument_preview::prepared_count(&events, ir.ppqn, &bank.payload)?
     } else {
         (0, 0)
@@ -826,7 +855,9 @@ pub fn cook_cancelled(
     let sample_bytes = bank.samples.iter().map(|s| s.bytes.len()).sum();
     let report = Report {
         target: "psx",
-        profile: if library {
+        profile: if native_driver.is_some() {
+            "psx-native-spu-v3"
+        } else if library {
             crate::psx_music_settings::PROFILE
         } else if payload_version == 1 {
             PROFILE
@@ -847,7 +878,14 @@ pub fn cook_cancelled(
         package_bytes: package.bytes()?.len() as u64 + bank.package_bytes,
         voice_limit: settings.voices(),
         peak_polyphony: ir.peak_polyphony,
-        warnings: bank.warnings.clone(),
+        native_driver,
+        warnings: {
+            let mut warnings = bank.warnings.clone();
+            if let Some(stats) = native_driver {
+                warnings.push(format!("Epok Pulse: hardware ADSR rates/sustain are quantized; delay is omitted and hold is folded into decay ({} affected note layers). Pitch/gain modulation is compiled at up to 250 Hz. {} commands, {} tone templates, {} automation commands, {} offline steals. Source Preview preserves original SoundFont behavior.",stats.adapted,stats.commands,stats.tones,stats.automation,stats.steals));
+            }
+            warnings
+        },
     };
     let cache = root.join(".epok/imported").join(identity(&inputs));
     if cancelled.load(std::sync::atomic::Ordering::Relaxed) {

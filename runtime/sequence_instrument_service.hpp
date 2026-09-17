@@ -236,22 +236,22 @@ inline uint32_t sequence_flush_starts(){
 #endif
         }
         const auto* zone=v.library?&i.asset->bank->library().zone(v.library_zone):nullptr;
-        const auto sample_index=v.library?zone->sample:v.zone->sample;
+        const auto sample_index=v.native_tone?v.native_tone->sample:(v.library?zone->sample:v.zone->sample);
         const auto& sample=i.asset->bank->sample(sample_index);
         auto& hw=SPU_VOICES[n];hw.sampleStartAddr=i.asset->bank->addresses[sample_index];
-        const bool tail=v.library && v.released && zone->loop_mode==3;
+        const bool tail=v.released && (v.native_tone?v.native_tone->loop==3:(v.library && zone->loop_mode==3));
         hw.sampleRepeatAddr=hw.sampleStartAddr+uint16_t((tail?sample.loop_end:sample.loop_start)/28*2);
-        hw.adsrLo=0x000f;hw.adsrHi=0;hw.sampleRate=v.pitch;
+        hw.adsrLo=v.native_tone?v.native_tone->adsr1:0x000f;hw.adsrHi=v.native_tone?v.native_tone->adsr2:0;hw.sampleRate=v.pitch;
         // Library gain already includes its software envelope; only the v1
         // backend still has a separate legacy level to multiply here.
-        hw.volumeLeft=v.library?v.left:uint16_t(uint32_t(v.left)*(v.level>>16)/32767);
-        hw.volumeRight=v.library?v.right:uint16_t(uint32_t(v.right)*(v.level>>16)/32767);
+        hw.volumeLeft=(v.library || v.native_tone)?v.left:uint16_t(uint32_t(v.left)*(v.level>>16)/32767);
+        hw.volumeRight=(v.library || v.native_tone)?v.right:uint16_t(uint32_t(v.right)*(v.level>>16)/32767);
         ++sequence_timing_stats.key_ons;
         v.pending=false;v.started_us=now_us;started|=1u<<n;
-        // Give a new note its first envelope step at the next 1 kHz service,
+        // Give a new note its first envelope step at the next 250 Hz service,
         // then reduce steady modulation traffic independently of note timing.
         v.synthesis_us=now_us;v.control_due_us=now_us+1000;
-        if(v.library)reverb_resource.send(uint8_t(n),v.reverb_send);
+        if(v.library || v.native_tone)reverb_resource.send(uint8_t(n),v.reverb_send);
     }
     // KON is a shared write-only latch, not a per-voice command queue. Submit
     // all prepared voices together so a later write cannot replace an earlier

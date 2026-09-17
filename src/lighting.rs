@@ -58,6 +58,8 @@ pub struct MeshLighting {
     pub static_geometry: bool,
     pub cast_shadows: bool,
     pub subdivisions: u8,
+    /// Opt-in native draw pass for a base surface known to be behind the world.
+    pub background_pass: bool,
 }
 impl Default for MeshLighting {
     fn default() -> Self {
@@ -66,6 +68,7 @@ impl Default for MeshLighting {
             static_geometry: false,
             cast_shadows: true,
             subdivisions: 1,
+            background_pass: false,
         }
     }
 }
@@ -252,7 +255,7 @@ pub fn fingerprint(scene: &Scene) -> u64 {
         .filter(|(_, e)| e.kind == "Mesh")
         .map(|(i, e)| {
             (
-                i,
+                e.id,
                 scene.world_matrix(i).0,
                 &e.lighting,
                 &e.material,
@@ -269,11 +272,13 @@ pub fn fingerprint(scene: &Scene) -> u64 {
             e.light
                 .as_ref()
                 .filter(|l| l.mode != LightMode::Realtime)
-                .map(|l| (i, scene.world_matrix(i).0, l))
+                .map(|l| (e.id, scene.world_matrix(i).0, l))
         })
         .collect();
     let mut hash = Fnv(14695981039346656037);
-    serde_json::to_vec(&(2, &scene.environment, scene.actors.len(), meshes, lights))
+    // Version 3 keys geometry and baked lights by stable actor identity rather
+    // than hierarchy position. Empty actors therefore do not invalidate a bake.
+    serde_json::to_vec(&(3, &scene.environment, meshes, lights))
         .unwrap_or_default()
         .hash(&mut hash);
     hash.finish()
@@ -285,19 +290,52 @@ pub fn valid_bake(scene: &Scene) -> bool {
         .is_some_and(|b| bake_matches(scene, b, fingerprint(scene)))
 }
 fn bake_matches(scene: &Scene, bake: &Bake, fingerprint: u64) -> bool {
-    bake.fingerprint == fingerprint
-        && bake.colors.len() == scene.actors.len()
-        && (bake.actor_ids.is_empty()
-            || bake
-                .actor_ids
+    if bake.fingerprint != fingerprint {
+        return false;
+    }
+    if bake.actor_ids.is_empty() {
+        // Version-1 caches used positional color entries. Keep their stricter
+        // validation until a new bake is written with identity entries.
+        return bake.colors.len() == scene.actors.len()
+            && bake
+                .colors
                 .iter()
-                .copied()
-                .eq(scene.actors.iter().map(|e| e.id)))
-        && bake
-            .colors
+                .zip(&scene.actors)
+                .all(|(c, e)| c.len() == if baked(e) { quad_count(e) * 4 } else { 0 });
+    }
+    if bake.actor_ids.len() != bake.colors.len() {
+        return false;
+    }
+    // A saved bake has a color entry for every actor, including empty entries.
+    // Actors without baked geometry can safely be added or removed: their empty
+    // entries neither receive nor cast baked lighting. Geometry is matched by
+    // UUID, so a removal cannot transfer colors to a later actor.
+    let current = |id| scene.actors.iter().find(|actor| actor.id == id);
+    bake.actor_ids
+        .iter()
+        .copied()
+        .zip(&bake.colors)
+        .all(|(id, colors)| match current(id) {
+            Some(actor) => {
+                colors.len()
+                    == if baked(actor) {
+                        quad_count(actor) * 4
+                    } else {
+                        0
+                    }
+            }
+            None => colors.is_empty(),
+        })
+        && scene
+            .actors
             .iter()
-            .zip(&scene.actors)
-            .all(|(c, e)| c.len() == if baked(e) { quad_count(e) * 4 } else { 0 })
+            .filter(|actor| baked(actor))
+            .all(|actor| {
+                bake.actor_ids
+                    .iter()
+                    .position(|id| *id == actor.id)
+                    .is_some_and(|index| bake.colors[index].len() == quad_count(actor) * 4)
+            })
 }
 pub fn baked(e: &Actor) -> bool {
     e.kind == "Mesh"
@@ -587,6 +625,19 @@ pub fn modulate(light: [u8; 3], color: [f32; 3]) -> [u8; 3] {
 pub(crate) mod tests {
     use super::*;
 
+    #[test]
+    fn background_pass_is_opt_in_and_round_trips() {
+        let legacy: MeshLighting = serde_json::from_str(r#"{"static_geometry":true}"#).unwrap();
+        assert!(!legacy.background_pass);
+        let opted_in = MeshLighting {
+            background_pass: true,
+            ..legacy
+        };
+        let stored = serde_json::to_value(&opted_in).unwrap();
+        let restored: MeshLighting = serde_json::from_value(stored).unwrap();
+        assert_eq!(restored, opted_in);
+    }
+
     pub(crate) fn shadow_scene() -> Scene {
         let mut scene = Scene::default();
         scene.environment.ambient = [0.1; 3];
@@ -669,6 +720,21 @@ pub(crate) mod tests {
                 .preview_colors(floor, vertices)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn adding_or_removing_an_empty_actor_keeps_a_current_bake() {
+        let mut scene = shadow_scene();
+        assert!(valid_bake(&scene));
+
+        let mut actor = Actor::cube("Music Controller".into());
+        actor.kind = "Actor3D".into();
+        let id = actor.id;
+        scene.actors.insert(0, actor);
+        assert!(valid_bake(&scene));
+
+        scene.actors.retain(|actor| actor.id != id);
+        assert!(valid_bake(&scene));
     }
 
     #[test]

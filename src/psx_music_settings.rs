@@ -5,6 +5,14 @@ use std::collections::BTreeMap;
 
 pub const PROFILE: &str = "psx-library-v2";
 pub const MAX_RATE: u32 = 44100;
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Driver {
+    /// SPU ADSR plus editor-compiled sparse pitch/gain automation.
+    #[default]
+    NativeSpu,
+    /// Original runtime SoundFont envelopes; useful for fidelity comparisons.
+    SoftwareReference,
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Preset {
@@ -50,6 +58,7 @@ pub enum Selection {
 #[serde(default)]
 pub struct Recipe {
     pub version: u32,
+    pub driver: Driver,
     pub preset: Preset,
     /// A maximum, never an instruction to upsample a lower-rate source.
     pub max_sample_rate: u32,
@@ -98,6 +107,7 @@ impl Default for Recipe {
     fn default() -> Self {
         Self {
             version: 1,
+            driver: Driver::NativeSpu,
             preset: Preset::Balanced,
             max_sample_rate: 22050,
             encoder_effort: crate::spu_encoder::Effort::Fast,

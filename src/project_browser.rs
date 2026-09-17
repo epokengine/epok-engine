@@ -73,6 +73,8 @@ pub struct State {
     new_collection: bool,
     request_rename: bool,
     request_import: bool,
+    import_modal: bool,
+    close_import_modal: bool,
     request_delete: bool,
     pending_scene: Option<PathBuf>,
     request_scene: bool,
@@ -1932,6 +1934,9 @@ fn dialogs(ui: &Ui, e: &mut Editor, s: &mut State) {
     ] {
         if *flag {
             ui.open_popup(title);
+            if title == "Import Content" {
+                s.import_modal = true;
+            }
             *flag = false;
             s.error = None;
         }
@@ -2000,39 +2005,55 @@ fn dialogs(ui: &Ui, e: &mut Editor, s: &mut State) {
     ui.modal_popup_config("Import Content")
         .always_auto_resize(true)
         .build(|| {
-            ui.text(format!("Destination: {}", e.assets.folder));
-            ui.text_disabled("Drop files from Explorer onto this panel, or choose a source file.");
-            ui.set_next_item_width(400.);
-            ui.input_text("Source file", &mut s.import_path).build();
-            ui.same_line();
-            if ui.button("Browse...") {
-                match pick_files() {
-                    Ok(paths) => {
-                        for path in paths {
-                            import(e, s, &path);
-                        }
-                    }
-                    Err(error) => s.error = Some(error),
-                }
-            }
-            if let Some(error) = &s.error {
-                ui.text_wrapped(error);
-            }
-            if ui.button("Close") {
+            if s.close_import_modal {
+                s.close_import_modal = false;
+                s.import_modal = false;
                 ui.close_current_popup();
-            }
-            ui.same_line();
-            if ui.button("Import") {
-                let path = PathBuf::from(s.import_path.trim().trim_matches('"'));
-                if import(e, s, &path) {
+            } else {
+                ui.text(format!("Destination: {}", e.assets.folder));
+                ui.text_disabled(
+                    "Drop files from Explorer onto this panel, or choose a source file.",
+                );
+                ui.set_next_item_width(400.);
+                ui.input_text("Source file", &mut s.import_path).build();
+                ui.same_line();
+                if ui.button("Browse...") {
+                    match pick_files() {
+                        Ok(paths) => {
+                            let mut imported = false;
+                            for path in paths {
+                                imported |= import(e, s, &path);
+                            }
+                            if imported {
+                                s.import_modal = false;
+                                ui.close_current_popup();
+                            }
+                        }
+                        Err(error) => s.error = Some(error),
+                    }
+                }
+                if let Some(error) = &s.error {
+                    ui.text_wrapped(error);
+                }
+                if ui.button("Close") {
+                    s.import_modal = false;
                     ui.close_current_popup();
                 }
-            }
-            ui.same_line();
-            if ui.button("Review pending imports") {
-                e.assets.window = true;
-                e.assets.focus_tab = Some(0);
-                ui.close_current_popup();
+                ui.same_line();
+                if ui.button("Import") {
+                    let path = PathBuf::from(s.import_path.trim().trim_matches('"'));
+                    if import(e, s, &path) {
+                        s.import_modal = false;
+                        ui.close_current_popup();
+                    }
+                }
+                ui.same_line();
+                if ui.button("Review pending imports") {
+                    e.assets.window = true;
+                    e.assets.focus_tab = Some(0);
+                    s.import_modal = false;
+                    ui.close_current_popup();
+                }
             }
         });
 }
@@ -2459,11 +2480,15 @@ fn import(e: &mut Editor, s: &mut State, source: &Path) -> bool {
     }
 }
 pub fn external_drop(e: &mut Editor, path: PathBuf) {
-    if !e.project_browser.hovered {
+    if !e.project_browser.hovered && !e.project_browser.import_modal {
         return;
     }
     let mut s = std::mem::take(&mut e.project_browser);
-    import(e, &mut s, &path);
+    if import(e, &mut s, &path) && s.import_modal {
+        // The OS delivers drops between ImGui frames, so request the owning
+        // modal to close on its next frame after the file has been copied.
+        s.close_import_modal = true;
+    }
     e.project_browser = s;
 }
 /// Assign Project content to the object displayed in Inspector.

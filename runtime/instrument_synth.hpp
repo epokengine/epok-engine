@@ -82,6 +82,11 @@ public:
     void reset();
     // The immutable prepared source must outlive this voice, like its bank.
     void copy_initial(const State& source);
+    // Editor compiler access: SPU handles the volume envelope; bake only the
+    // remaining modulation into sparse register commands before shipping.
+    struct HardwareParameters {uint32_t delay,attack,hold,decay,release;uint16_t sustain,gain;};
+    HardwareParameters hardware_parameters() const;
+    Output hardware_output();
 
 private:
     enum class Phase : uint8_t { Delay, Attack, Hold, Decay, Sustain, Release, Done };
@@ -892,6 +897,17 @@ inline const Output& State::advance(uint32_t microseconds) {
     return output_;
 }
 
+inline State::HardwareParameters State::hardware_parameters() const {
+    return {volume_parameters_.delay,volume_parameters_.attack,volume_parameters_.hold,
+        volume_parameters_.decay,volume_parameters_.release,
+        detail::attenuation_gain_q15(volume_parameters_.sustain_q16),static_gain_q15_};
+}
+inline Output State::hardware_output() {
+    const auto saved=output_;const auto level=volume_envelope_.level;const auto phase=volume_envelope_.phase;
+    volume_envelope_.level=32768;volume_envelope_.phase=Phase::Sustain;
+    refresh_output();const auto result=output_;
+    volume_envelope_.level=level;volume_envelope_.phase=phase;output_=saved;return result;
+}
 inline void State::refresh_output() {
     using namespace detail;
     if (!started_ || error_ != Error::None || volume_envelope_.phase == Phase::Done) {

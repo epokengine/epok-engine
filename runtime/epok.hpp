@@ -59,7 +59,7 @@ enum class LightType { Directional, Point };
 enum class LightMode { Baked, Realtime, Mixed };
 enum class ReceiveLighting { Baked, Realtime };
 struct Light { bool enabled=false;LightType type=LightType::Directional;LightMode mode=LightMode::Realtime;uint8_t color[3]={255,255,255};Fixed intensity=0.8,range=8.0;int priority=0; };
-struct MeshLighting { bool enabled=true;ReceiveLighting receive=ReceiveLighting::Realtime;bool static_geometry=false,cast_shadows=true;uint8_t subdivisions=1; };
+struct MeshLighting { bool enabled=true;ReceiveLighting receive=ReceiveLighting::Realtime;bool static_geometry=false,cast_shadows=true;uint8_t subdivisions=1;bool background_pass=false; };
 struct BlobShadow {bool enabled=false;Fixed radius=0.6,strength=0.25,distance=3.0;};
 struct LightingEnvironment { Fixed ambient[3]={0.3,0.3,0.3};bool point_lights=true; };
 extern LightingEnvironment lighting_environment;

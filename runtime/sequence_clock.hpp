@@ -6,9 +6,13 @@
 #include "psyqo/kernel.hh"
 
 namespace epok {
-// Timer 0 requests approximately 1 kHz. Timer 2 measures actual elapsed CPU/8
-// ticks (4.2336 MHz), retaining the fractional microsecond remainder. Timer 1
-// remains the GPU's existing HSync counter and is read only as a wrap guard.
+// Timer 0 runs at system clock: target 64000 gives ~529 Hz. Stay below
+// 0xffff: target/overflow coincidence is mishandled by some emulator cores.
+// Only Timer 2 supports system clock / 8. Setting TM_CLK_DIV8 on Timer 0
+// silently selects system clock and previously produced ~2000 IRQ/s, not 250.
+// Timer 2 measures actual elapsed CPU/8 ticks (4.2336 MHz), retaining the
+// fractional microsecond remainder. Timer 1 remains the GPU's existing HSync
+// counter and is read only as a wrap guard.
 inline uint16_t sequence_previous_ticks=0,sequence_previous_lines=0;
 inline uint32_t sequence_fraction=0;
 inline uint16_t sequence_hsync(){
@@ -55,7 +59,7 @@ inline bool sequence_clock_start(){
         if(event==0xffffffffu){music_sequence_stats.error=10;music_sequence_stats.ready=0;return false;}
         syscall_enableEvent(event);syscall_enableTimerIRQ(0);syscall_setTimerAutoAck(0,1);
     }
-    COUNTERS[0].target=33866;
+    COUNTERS[0].target=64000;
     COUNTERS[0].mode=TM_RESET_TARGET|TM_IRQ_TARGET|TM_IRQ_REPEAT;
     return true;
 }

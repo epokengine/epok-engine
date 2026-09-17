@@ -219,7 +219,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
             let height=(available[1]-60.).max(200.);
             ui.child_window(format!("nav-{title}")).size([215.,height]).build(||{
                 ui.text_disabled(if preferences{"GENERAL"}else{"PROJECT"});
-                let pages: &[(&str,&str)]=if preferences{&[("Viewports","grid camera speed navigation"),("Play","game integer scale filter emulator serial NOTPSXSerial nops COM fast"),("Integrations / MCP","server integrations mcp connection port key"),("Dependencies","tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")]}else{&[("Description","name project scripting lua execution native VM bytecode source interpreter"),("Maps & Build","startup scene build compilation asset report generate play target content data transition fade loading text image"),("Rendering","resolution display video NTSC interlaced progressive pixels retained packets visibility geometry static movement position interpolation smoothing camera experimental FPS performance"),("Streaming","geometry pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance"),("Debug","HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime performance") ]};
+                let pages: &[(&str,&str)]=if preferences{&[("Viewports","grid camera speed navigation"),("Play","game integer scale filter emulator serial NOTPSXSerial nops COM fast"),("Integrations / MCP","server integrations mcp connection port key"),("Dependencies","tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")]}else{&[("Description","name project scripting lua execution native VM bytecode source interpreter"),("Maps & Build","startup scene build compilation asset report generate play target content data transition fade loading text image"),("Rendering","resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera experimental FPS performance"),("Streaming","geometry pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance"),("Debug","HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime performance") ]};
                 let page=if preferences{&mut state.preferences_page}else{&mut state.project_page};
                 let query=if preferences{&state.preferences_search}else{&state.project_search};
                 for (i,(label,keywords)) in pages.iter().enumerate(){
@@ -236,7 +236,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                 ui.set_next_item_width(-1.);ui.input_text("##search",query).hint("Search settings...").build();
                 ui.spacing();
                 let q=query.clone();
-                let keywords=if preferences{"Viewports grid camera speed navigation Play game integer scale filter emulator serial NOTPSXSerial nops COM fast Integrations MCP server connection port key Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang"}else{"Description name project scripting lua execution native VM bytecode source interpreter Maps Build startup scene build compilation asset report generate play target content data transition fade loading text image Rendering resolution display video NTSC interlaced progressive pixels retained packets visibility geometry static movement position interpolation smoothing camera Streaming pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance Debug HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime"};
+                let keywords=if preferences{"Viewports grid camera speed navigation Play game integer scale filter emulator serial NOTPSXSerial nops COM fast Integrations MCP server connection port key Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang"}else{"Description name project scripting lua execution native VM bytecode source interpreter Maps Build startup scene build compilation asset report generate play target content data transition fade loading text image Rendering resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera Streaming pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance Debug HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime"};
                 if !matches(&q,keywords){ui.text_disabled("No settings match your search.");}
                 if preferences {
                     if (state.preferences_page==3 && q.is_empty()) || (!q.is_empty() && matches(&q,"Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")) { e.dependencies.page(ui, e.job.is_some() || e.assets.busy || e.bake_job.is_some()); }
@@ -332,7 +332,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                             ui.input_text_multiline("##scene-banks",&mut state.scene_paths,[-1.,100.]).build();
                         });
                     }
-                    if (state.project_page==2 && q.is_empty()) || (!q.is_empty() && matches(&q,"Rendering resolution display video NTSC interlaced progressive pixels retained packets geometry static visibility experimental FPS performance movement position interpolation smoothing camera")) {
+                    if (state.project_page==2 && q.is_empty()) || (!q.is_empty() && matches(&q,"Rendering resolution display video NTSC interlaced progressive pixels retained packets geometry static visibility experimental FPS performance movement position interpolation smoothing camera dithering RGB555 banding")) {
                         ui.text("Engine  >  Rendering");
                         ui.text_wrapped("Configure the native PlayStation output. Changes apply to the next build and standalone export.");
                         section(ui,"Default Display",||{
@@ -354,6 +354,9 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                             });
                         });
                         section(ui,"Geometry",||{
+                            row(ui,"3D Dithering","Reduce RGB555 color banding in shaded 3D geometry using the PS1 GPU's ordered dithering. Adds a fine pixel pattern. HUD and text remain undithered. Applies on the next native build.",||{
+                                ui.checkbox("##dither-3d",&mut m.rendering.dither_3d);
+                            });
                             row(ui,"Retained Packets","Reuse prepared geometry between frames to reduce CPU work. Uses additional RAM. Lighting and material changes refresh the cached data automatically.",||{
                                 let mut on=m.rendering.retained_geometry;
                                 if ui.checkbox("##retained-geometry",&mut on){m.rendering.retained_geometry=on;}
