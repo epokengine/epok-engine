@@ -11,6 +11,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = [ROOT / "tests/runtime/spatial.cpp", ROOT / "tests/runtime/transform_cache.cpp", ROOT / "tests/runtime/lifecycle.cpp", ROOT / "tests/runtime/memory_card.cpp", ROOT / "tests/runtime/utility.cpp", ROOT / "tests/runtime/palette.cpp"]
+SOURCES.append(ROOT / "tests/runtime/gameplay_api.cpp")
 SOURCES.append(ROOT / "tests/runtime/frustum.cpp")
 SOURCES.append(ROOT / "tests/runtime/visibility.cpp")
 SOURCES.append(ROOT / "tests/runtime/polygon.cpp")
@@ -35,6 +36,9 @@ SOURCES.append(ROOT / "tests/runtime/instrument_allocator.cpp")
 SOURCES.append(ROOT / "tests/runtime/instrument_synth.cpp")
 SOURCES.append(ROOT / "tests/runtime/instrument_preview.cpp")
 SOURCES.append(ROOT / "tests/runtime/instrument_service.cpp")
+SOURCES.append(ROOT / "tests/runtime/native_music_service.cpp")
+SOURCES.append(ROOT / "tests/runtime/native_music_mixed.cpp")
+SOURCES.append(ROOT / "tests/runtime/native_envelope.cpp")
 SOURCES.append(ROOT / "tests/runtime/instrument_reverb.cpp")
 SOURCES.append(ROOT / "tests/runtime/instrument_source_preview.cpp")
 SOURCES.append(ROOT / "tests/runtime/spu_transfer.cpp")
@@ -79,7 +83,7 @@ with tempfile.TemporaryDirectory(prefix="epok-spatial-") as temp:
     audio = path / "audio-runtime"
     (audio / "common/hardware").mkdir(parents=True)
     shutil.copyfile(ROOT / "runtime/audio.hpp", audio / "audio.hpp")
-    for name in ("spu_transfer.hpp", "sequence_service.hpp", "sequence_instrument_service.hpp", "sequence_data.hpp", "sequence_kernel.hpp", "sequence_lock.hpp", "sequence_tables.hpp", "instrument_bank.hpp", "instrument_allocator.hpp", "instrument_synth.hpp", "instrument_preparation.hpp", "instrument_reverb.hpp"):
+    for name in ("spu_transfer.hpp", "sequence_service.hpp", "native_music_runtime.hpp", "sequence_instrument_service.hpp", "sequence_data.hpp", "native_music_data.hpp", "native_music_service.hpp", "sequence_kernel.hpp", "sequence_lock.hpp", "sequence_tables.hpp", "instrument_bank.hpp", "instrument_allocator.hpp", "instrument_synth.hpp", "instrument_preparation.hpp", "instrument_reverb.hpp"):
         shutil.copyfile(ROOT / "runtime" / name, audio / name)
     shutil.copyfile(ROOT / "tests/runtime/audio_transport_stub.hpp", audio / "epok.hpp")
     for name in ("dma.h", "spu.h", "hwregs.h"):

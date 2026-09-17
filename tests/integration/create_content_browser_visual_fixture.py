@@ -19,9 +19,9 @@ def main():
         raise SystemExit("Choose a new destination. Existing projects are never overwritten.")
     editor = args.editor.resolve()
     subprocess.run([str(editor), "--create-project", str(destination), "--name", "QAGame"], cwd=REPO, check=True)
-    for name in ("AI", "Alembic", "Animation", "Blueprints", "Characters", "Cloth", "Cloth_Test", "Core", "Curves"):
+    for name in ("Navigation", "Alembic", "Animation", "Blueprints", "Characters", "Cloth", "Cloth_Test", "Core", "Curves"):
         (destination / "assets" / name).mkdir()
-    for name in ("AI", "Animation", "Blueprints", "Characters", "Cloth", "Cloth_Test", "Core"):
+    for name in ("Navigation", "Animation", "Blueprints", "Characters", "Cloth", "Cloth_Test", "Core"):
         (destination / "assets" / name / "Examples").mkdir()
     command = [str(editor), "--project", str(destination), "--window-size", args.size, "--screenshot-content-browser"]
     if args.screenshot:

@@ -20,6 +20,23 @@ a `epok::Button` (`Cross`, `Start`, `Up`, `Left`, etc.). A disconnection release
 all held buttons. Edges are buffered until a simulation update runs and delivered
 once, including when several fixed updates catch up during a rendered frame.
 
+`input.analog(port)` reports whether the current packet contains analog axes.
+`input.axis_raw(Axis::LeftX/LeftY/RightX/RightY, port)` returns signed Q12 values
+from -4096 to +4096, with positive X right and positive Y up. The centered ADC
+value 128 maps exactly to zero; both endpoints reach full magnitude. Digital
+controllers, disconnected ports and invalid arguments return zero. Axis state
+is sampled independently of button edges and remains available on catch-up ticks.
+The input layer does not impose a dead zone: controllers should apply a radial
+dead zone and limit diagonal magnitude before deriving movement speed.
+
+Analog stick (0x53) and analog pad (0x73) packets are supported on both ports.
+The controller or emulator must be configured to send analog packets; digital
+keyboard button overrides do not synthesize variable stick values.
+The Play dropdown's **Analog controller (port 1)** option selects an analog pad
+and enables analog mode for that emulator session. It is saved with the project,
+defaults off for existing projects, and preserves machine-local button bindings.
+It does not send configuration commands to a physical console controller.
+
 The runtime measures PsyQo GPU time in microseconds and advances simulation at
 60 Hz. Catch-up is bounded to eight steps per rendered frame; excess steps are
 dropped and counted by `epok::time.dropped_steps`. Q12 `dt` alternates between

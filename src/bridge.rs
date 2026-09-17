@@ -53,10 +53,11 @@ impl Bridge {
         std::fs::write(
             &script,
             format!(
-                "EPOK_PORT={}\nEPOK_TOKEN={token:?}\nEPOK_DEBUG_CONFIG={:?}\n{}",
+                "EPOK_PORT={}\nEPOK_TOKEN={token:?}\nEPOK_DEBUG_CONFIG={:?}\nEPOK_ANALOG_CONTROLLER={}\n{}",
                 listener.local_addr().unwrap().port(),
                 root.join(".epok/emulator/blueprint-debug.lua")
                     .to_string_lossy(),
+                crate::play::Profile::load(root)?.analog_controller,
                 include_str!("../integrations/pcsx-redux/bridge.lua")
             ),
         )

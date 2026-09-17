@@ -221,9 +221,17 @@ pub fn draw(
     if e.tool == 0 || e.playing {
         return;
     }
-    let entity = &e.scene.actors[index];
+    let preview = e
+        .timeline_editor
+        .scene_preview
+        .scene
+        .as_ref()
+        .filter(|_| e.timeline_editor.open);
+    let scene = preview.unwrap_or(&e.scene);
+    let entity = &scene.actors[index];
     let center = entity.position;
-    let parent = e.scene.parent_matrix(index);
+    let parent = scene.parent_matrix(index);
+    let previewing = preview.is_some();
     let view = e.view;
     let screen = |p| {
         let p = viewport::project(&view, parent.point(p));
@@ -273,7 +281,11 @@ pub fn draw(
     } else {
         None
     };
-    if ui.is_window_hovered() && !ui.io().key_alt && ui.is_mouse_clicked(imgui::MouseButton::Left) {
+    if !previewing
+        && ui.is_window_hovered()
+        && !ui.io().key_alt
+        && ui.is_mouse_clicked(imgui::MouseButton::Left)
+    {
         e.drag_axis = hover;
     }
     let draw = ui.get_window_draw_list();
@@ -327,6 +339,10 @@ pub fn draw(
             }
         },
     );
+    if previewing {
+        e.drag_axis = None;
+        return;
+    }
     if let Some(axis) = e.drag_axis
         && ui.is_mouse_dragging(imgui::MouseButton::Left)
     {

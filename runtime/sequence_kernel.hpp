@@ -248,6 +248,7 @@ struct Kernel {
             }
             if (++processed > MaxServiceEvents || commands > MaxServiceCommands) { fail(Error::ServiceOverflow); break; }
             event_time = due; tick = e.tick; ++cursor;
+            if constexpr(requires { backend.event(e); })backend.event(e);
             auto& channel = channels[e.channel];
             switch (e.op) {
                 case NoteOn: {

@@ -81,15 +81,23 @@ impl View {
         self.pitch = default.pitch;
     }
     pub fn frame_bounds(&mut self, low: [f32; 3], high: [f32; 3]) {
+        self.frame_bounds_in_panel(low, high, [960., 600.]);
+    }
+    pub fn frame_bounds_in_panel(&mut self, low: [f32; 3], high: [f32; 3], panel: [f32; 2]) {
         self.center = std::array::from_fn(|i| (low[i] + high[i]) * 0.5);
         let radius = (0..3)
             .map(|i| ((high[i] - low[i]) * 0.5).powi(2))
             .sum::<f32>()
             .sqrt()
             .max(0.1);
-        // Fit a bounding sphere in the narrower half of the offset projection,
-        // with padding and enough clearance for the one-unit near plane.
-        let cotangent = 870. * self.zoom / (258. * 0.85);
+        // Fit a bounding sphere with padding and near-plane clearance.
+        let panel = panel.map(|v| if v.is_finite() { v.max(1.) } else { 600. });
+        let factor = (panel[0] / 960.).max(panel[1] / 600.);
+        // Account for both the render texture and the panel's cropped region.
+        let half_width = panel[0] / factor * 0.5;
+        let lower_margin = panel[1] / factor * 0.5;
+        let margin = half_width.min(lower_margin).max(1.) * 0.85;
+        let cotangent = 870. * self.zoom / margin;
         self.distance = (radius * (1. + cotangent * cotangent).sqrt())
             .max(radius + 1.05)
             .clamp(1.05, 10000.);
@@ -130,7 +138,7 @@ impl View {
     pub fn unproject(&self, pixel: [f32; 2], depth: f32) -> [f32; 3] {
         let [right, up, forward] = self.basis();
         let x = (pixel[0] - 480.) * depth / (870. * self.zoom);
-        let y = (342. - pixel[1]) * depth / (870. * self.zoom);
+        let y = (300. - pixel[1]) * depth / (870. * self.zoom);
         std::array::from_fn(|i| {
             self.center[i] + right[i] * x + up[i] * y + forward[i] * (depth - self.distance)
         })
@@ -243,7 +251,7 @@ pub fn project(view: &View, p: [f32; 3]) -> [f32; 3] {
     let scale = h as f32 * 1.45 * view.zoom / depth.max(1.);
     [
         w as f32 * 0.5 + x * scale,
-        h as f32 * 0.57 - y * scale,
+        h as f32 * 0.5 - y * scale,
         depth,
     ]
 }
@@ -308,7 +316,7 @@ pub fn render(
         .actors
         .iter()
         .enumerate()
-        .filter(|(_, e)| e.kind == "Mesh")
+        .filter(|(i, e)| e.kind == "Mesh" && scene.is_active(*i))
     {
         let world = scene.world_matrix(index);
         let offline = crate::lighting::baked(entity);
@@ -322,6 +330,13 @@ pub fn render(
             let p = world_points.map(project);
             if p.iter().any(|v| v[2] <= 1.) {
                 continue;
+            }
+            if (entity.editable_mesh.is_some() || entity.skeletal_mesh.is_some()) && !wire {
+                let area = (p[1][0] - p[0][0]) * (p[2][1] - p[0][1])
+                    - (p[1][1] - p[0][1]) * (p[2][0] - p[0][0]);
+                if area <= 0. {
+                    continue;
+                }
             }
             let n = crate::lighting::transform_normal(world, q.normal);
             let colors: [[u8; 3]; 4] = std::array::from_fn(|v| {
@@ -355,8 +370,10 @@ pub fn render(
         } else {
             [79, 94, 111]
         };
-        for i in 0..4 {
-            canvas.line(p[i], p[(i + 1) % 4], outline);
+        if wire || (selected && !game) {
+            for i in 0..4 {
+                canvas.line(p[i], p[(i + 1) % 4], outline);
+            }
         }
     }
     if !game
@@ -448,7 +465,7 @@ mod tests {
             view.look([80., -25.], true);
             assert_eq!(view.center, pivot);
             let p = project(&view, pivot);
-            assert!((p[0] - 480.).abs() < 0.001 && (p[1] - 342.).abs() < 0.001);
+            assert!((p[0] - 480.).abs() < 0.001 && (p[1] - 300.).abs() < 0.001);
             let eye = view.unproject([480., 342.], 0.);
             view.look([-50., 30.], false);
             for (a, b) in eye.into_iter().zip(view.unproject([480., 342.], 0.)) {
@@ -539,6 +556,36 @@ mod tests {
                         for i in 0..3 {
                             assert!((world[i] - corner[i]).abs() < 0.001);
                         }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn framing_respects_cropped_portrait_and_wide_panels() {
+        for panel in [[240., 900.], [1500., 240.], [960., 600.], [1500., 100.]] {
+            let factor = (panel[0] / 960_f32).max(panel[1] / 600.);
+            let half = [panel[0] / factor * 0.5, panel[1] / factor * 0.5];
+            for zoom in [0.3, 0.85, 3.5] {
+                let mut view = View {
+                    zoom,
+                    ..Default::default()
+                };
+                view.frame_bounds_in_panel([-1., -2., -0.5], [1., 2., 0.5], panel);
+                for yaw in [0., 1., 2.5] {
+                    view.yaw = yaw;
+                    for mask in 0..8 {
+                        let point = [
+                            if mask & 1 == 0 { -1. } else { 1. },
+                            if mask & 2 == 0 { -2. } else { 2. },
+                            if mask & 4 == 0 { -0.5 } else { 0.5 },
+                        ];
+                        let p = project(&view, point);
+                        assert!(p[2] > 1.);
+                        assert!(
+                            (p[0] - 480.).abs() < half[0] && (p[1] - 300.).abs() < half[1],
+                            "{panel:?}: {p:?}"
+                        );
                     }
                 }
             }

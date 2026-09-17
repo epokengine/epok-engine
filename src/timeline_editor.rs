@@ -53,7 +53,13 @@ pub struct TimelineEditor {
     pub message: String,
     pub bindings: timeline::Bindings,
     pub effect_preview: crate::particle_effect_preview::View,
+    pub scene_preview: crate::timeline_scene_preview::Preview,
     tick: i32,
+    pub sequencer: crate::sequencer::View,
+    pub layout: bool,
+    pub font: Option<imgui::FontId>,
+    details: bool,
+    gesture_before: Option<Document>,
 }
 fn bytes(a: &Document) -> Vec<u8> {
     match a {
@@ -65,6 +71,11 @@ fn bytes(a: &Document) -> Vec<u8> {
 pub(crate) fn button(ui: &imgui::Ui, label: &str) -> bool {
     let pressed = ui.button(label);
     #[cfg(test)]
+    record_control(ui, label);
+    pressed
+}
+#[cfg(test)]
+pub(crate) fn record_control(ui: &imgui::Ui, label: &str) {
     CONTROLS.with(|controls| {
         let a = ui.item_rect_min();
         let b = ui.item_rect_max();
@@ -72,7 +83,6 @@ pub(crate) fn button(ui: &imgui::Ui, label: &str) -> bool {
             .borrow_mut()
             .insert(label.into(), [(a[0] + b[0]) / 2., (a[1] + b[1]) / 2.]);
     });
-    pressed
 }
 fn event_key(function: &crate::reflection_schema::Function, tick: i32) -> timeline::EventKey {
     timeline::EventKey {
@@ -295,6 +305,8 @@ impl TimelineEditor {
             Document::Timeline(timeline::load(path)?)
         };
         let registry_error = self.registry_error.take();
+        let font = self.font;
+        let layout = self.layout;
         *self = Self {
             registry_error,
             open: true,
@@ -302,6 +314,8 @@ impl TimelineEditor {
             revision: crate::assets::hash(&raw),
             saved: bytes(&asset),
             asset: Some(asset),
+            font,
+            layout,
             ..Default::default()
         };
         Ok(())
@@ -370,7 +384,10 @@ impl TimelineEditor {
             }
             self.undo.push(before);
             self.redo.clear();
-            self.tick = 0;
+            self.sequencer.playing = false;
+            self.tick = self
+                .tick
+                .min(self.asset.as_ref().map_or(0, |a| a.duration_ticks));
             if let Some(cache) = &mut self.cache {
                 cache.stale = true;
             }
@@ -381,7 +398,10 @@ impl TimelineEditor {
             if let Some(current) = self.asset.replace(previous) {
                 self.redo.push(current);
             }
-            self.tick = 0;
+            self.sequencer.playing = false;
+            self.tick = self
+                .tick
+                .min(self.asset.as_ref().map_or(0, |a| a.duration_ticks));
             if let Some(c) = &mut self.cache {
                 c.stale = true;
             }
@@ -392,7 +412,10 @@ impl TimelineEditor {
             if let Some(current) = self.asset.replace(next) {
                 self.undo.push(current);
             }
-            self.tick = 0;
+            self.sequencer.playing = false;
+            self.tick = self
+                .tick
+                .min(self.asset.as_ref().map_or(0, |a| a.duration_ticks));
             if let Some(c) = &mut self.cache {
                 c.stale = true;
             }
@@ -452,6 +475,169 @@ impl TimelineEditor {
         scene: &crate::scene::Scene,
         index: &crate::assets::Index,
     ) {
+        if matches!(self.asset, Some(Document::Effect(_))) {
+            self.draw_details(ui, root, registry, scene, index);
+            return;
+        }
+        self.focused = false;
+        if !self.open {
+            self.scene_preview.clear();
+            return;
+        }
+        if self
+            .checked_at
+            .is_none_or(|time| time.elapsed().as_secs_f32() >= 1.)
+        {
+            self.checked_at = Some(std::time::Instant::now());
+            self.source_error=self.path.as_ref().and_then(|path|match fs::read(path) {
+                Ok(bytes) if crate::assets::hash(&bytes)==self.revision=>None,
+                _=>Some("Source changed externally or is missing. Save is guarded; reload to use current disk data.".into()),
+            });
+        }
+        let mut visible = true;
+        let title = format!(
+            "\u{f008}  Sequencer{}###TimelineEditor",
+            if self.dirty() { " *" } else { "" }
+        );
+        let display = ui.io().display_size;
+        let _padding = ui.push_style_var(imgui::StyleVar::WindowPadding([0., 0.]));
+        let _round = ui.push_style_var(imgui::StyleVar::WindowRounding(0.));
+        let _bg = ui.push_style_color(imgui::StyleColor::WindowBg, [0.115, 0.112, 0.112, 1.]);
+        let _title =
+            ui.push_style_color(imgui::StyleColor::TitleBgActive, [0.16, 0.155, 0.155, 1.]);
+        let _font = self.font.map(|font| ui.push_font(font));
+        let before = self.asset.clone();
+        let mut actions = crate::sequencer::Actions::default();
+        if let Some(asset) = &self.asset {
+            crate::timeline_scene_preview::resolve_bindings(
+                asset,
+                scene,
+                registry,
+                &mut self.bindings,
+            );
+        }
+        ui.window(title)
+            .opened(&mut visible)
+            .position(
+                [0., display[1] * 0.537],
+                if self.layout {
+                    imgui::Condition::Always
+                } else {
+                    imgui::Condition::FirstUseEver
+                },
+            )
+            .size(
+                [display[0], display[1] * 0.463],
+                if self.layout {
+                    imgui::Condition::Always
+                } else {
+                    imgui::Condition::FirstUseEver
+                },
+            )
+            .movable(!self.layout)
+            .resizable(!self.layout)
+            .scroll_bar(false)
+            .scrollable(false)
+            .build(|| {
+                ui.set_window_font_scale(if self.font.is_some() { 1. } else { 0.87 });
+                self.focused = ui.is_window_focused_with_flags(
+                    imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS,
+                );
+                if let Some(a) = self.asset.as_mut() {
+                    actions = self.sequencer.draw(
+                        ui,
+                        a,
+                        registry,
+                        &mut self.tick,
+                        scene,
+                        &mut self.bindings,
+                    );
+                }
+            });
+        if self.sequencer.gesture {
+            if self.gesture_before.is_none() {
+                self.gesture_before = before;
+            }
+        } else if let Some(before) = self.gesture_before.take().or(before) {
+            self.checkpoint(before);
+        }
+        if actions.save {
+            self.message = match self.save() {
+                Ok(()) => "Asset saved".into(),
+                Err(e) => e,
+            };
+        }
+        if actions.undo {
+            self.undo();
+        }
+        if actions.redo {
+            self.redo();
+        }
+        if actions.validate {
+            self.validate(root, registry);
+        }
+        if actions.details {
+            self.details = !self.details;
+        }
+        if !self.message.is_empty() || self.source_error.is_some() {
+            // Status is available without consuming a row in the editing canvas.
+            if ui.is_window_hovered() && ui.io().key_alt {
+                ui.tooltip_text(self.source_error.as_deref().unwrap_or(&self.message));
+            }
+        }
+        if self.details {
+            let focused = self.focused;
+            self.draw_details(ui, root, registry, scene, index);
+            self.focused |= focused;
+        }
+        if !visible {
+            if self.dirty() {
+                self.message = "Save or Discard / Reload the timeline before closing".into();
+                self.details = true;
+            } else {
+                self.open = false;
+                self.focused = false;
+            }
+        }
+        self.refresh_scene_preview(scene, registry);
+    }
+    pub fn refresh_scene_preview(&mut self, scene: &crate::scene::Scene, registry: &Registry) {
+        self.scene_preview.clear();
+        if !self.open || !matches!(self.asset, Some(Document::Timeline(_))) {
+            return;
+        }
+        if !self.sequencer.preview_scene {
+            self.sequencer.status = "Scene preview off · Authored scene restored".into();
+            return;
+        }
+        if let Some(error) = self
+            .registry_error
+            .as_ref()
+            .or(self.catalog_error.as_ref())
+            .or(self.source_error.as_ref())
+        {
+            self.sequencer.status = format!("Preview unavailable: {error}");
+            self.sequencer.playing = false;
+            return;
+        }
+        let asset = self.asset.as_ref().unwrap();
+        self.scene_preview = crate::timeline_scene_preview::evaluate(
+            asset,
+            &self.bindings,
+            scene,
+            registry,
+            self.tick,
+        );
+        self.sequencer.status = self.scene_preview.message.clone();
+    }
+    fn draw_details(
+        &mut self,
+        ui: &imgui::Ui,
+        root: &Path,
+        registry: &Registry,
+        scene: &crate::scene::Scene,
+        index: &crate::assets::Index,
+    ) {
         self.focused = false;
         if !self.open {
             self.effect_preview.clear();
@@ -469,13 +655,18 @@ impl TimelineEditor {
         }
         let mut visible = true;
         let title = format!(
-            "{}{}###TimelineEditor",
+            "{}{}###{}",
             if matches!(self.asset, Some(Document::Effect(_))) {
                 "Particle Effect"
             } else {
-                "Timeline"
+                "Sequence Details"
             },
-            if self.dirty() { " *" } else { "" }
+            if self.dirty() { " *" } else { "" },
+            if matches!(self.asset, Some(Document::Effect(_))) {
+                "TimelineEditor"
+            } else {
+                "TimelineDetails"
+            }
         );
         ui.window(title).opened(&mut visible).size([900.,760.],imgui::Condition::FirstUseEver).build(||{
             self.focused=ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS);
@@ -496,7 +687,7 @@ impl TimelineEditor {
                     self.registry_error.as_deref().or(self.catalog_error.as_deref()).or(self.source_error.as_deref()));
             } else { self.effect_preview.clear(); }
             ui.child_window("Timeline and effect authoring").size([0.,0.]).build(|| {
-            ui.text_disabled("Q12 property preview. Scene playback uses the PSX Game view.");
+            ui.text_disabled("Scrub or play to preview camera / transform tracks in Scene. Events run in Game.");
             let Some(before)=self.asset.clone() else{return};
             let document=self.asset.as_mut().unwrap();
             if let Document::Effect(effect)=document {crate::particle_effect_editor::layers(ui,effect,registry,scene,index);}
@@ -527,7 +718,7 @@ impl TimelineEditor {
                             && let Some(_combo)=ui.begin_combo("Add property track","Select animatable property"){
                                 for p in registry.properties(&c.cpp_name).into_iter().filter(|p|p.timeline.is_some()){
                                     if ui.selectable(&p.name) && a.tracks.len()+a.events.len()<timeline::TRACK_LIMIT {
-                                        a.tracks.push(timeline::Track{id:Uuid::new_v4(),name:p.name.clone(),slot:s.id,property:p.id.clone(),value_type:p.value_type.clone(),priority:0,
+                                        a.tracks.push(timeline::Track{sections:vec![],id:Uuid::new_v4(),name:p.name.clone(),slot:s.id,property:p.id.clone(),value_type:p.value_type.clone(),priority:0,
                                             blend:timeline::Blend::Absolute,restore:timeline::Restore::LeaveFinal,interpolation:if matches!(p.value_type,crate::reflection_schema::Type::Bool|crate::reflection_schema::Type::Enum{..}){timeline::Interpolation::Step}else{timeline::Interpolation::Linear},
                                             keys:vec![timeline::Key{id:Uuid::new_v4(),tick:0,value:p.default.clone(),extra:Default::default()},timeline::Key{id:Uuid::new_v4(),tick:a.duration_ticks,value:p.default.clone(),extra:Default::default()}],extra:Default::default()});
                                     }
@@ -542,12 +733,10 @@ impl TimelineEditor {
                                 }
                             }
                         }
-                    if matches!(s.target,crate::reflection_schema::Type::ObjectRef{..}) {
-                    let current=self.bindings.get(&s.id).copied().flatten();
-                    let preview=current.and_then(|id|scene.actors.iter().find(|e|e.id==id)).map_or("Empty / missing",|e|e.name.as_str());
-                    if let Some(_combo)=ui.begin_combo("Test scene binding",preview){
-                        if ui.selectable("None"){self.bindings.insert(s.id,None);}
-                        for e in &scene.actors{if ui.selectable(format!("{}##{}",e.name,e.id)){self.bindings.insert(s.id,Some(e.id));}}
+                    if matches!(s.target,crate::reflection_schema::Type::ObjectRef{..}|crate::reflection_schema::Type::ActorRef{..}|crate::reflection_schema::Type::ComponentRef{..}) {
+                    let mut value = self.bindings.get(&s.id).copied().flatten().map_or(serde_json::Value::Null, |id| serde_json::json!(id));
+                    if crate::blueprint_refs::inspector(ui,"Scene preview target",&mut value,&s.target,scene,registry,index) {
+                        self.bindings.insert(s.id,value.as_str().and_then(|id|Uuid::parse_str(id).ok()));
                     }
                     ui.text_disabled("Test bindings are preview-only and are not saved to the reusable asset.");
                     if ui.small_button("Remove slot"){remove=Some(i);}
@@ -582,6 +771,7 @@ impl TimelineEditor {
                     }
                     let mut additive=t.blend==timeline::Blend::Additive;
                     if ui.checkbox("Additive",&mut additive){t.blend=if additive{timeline::Blend::Additive}else{timeline::Blend::Absolute};}
+                    if t.sections.is_empty() {
                     let mut delete=None;
                     for (k,key) in t.keys.iter_mut().enumerate(){
                         let _key=ui.push_id(key.id.to_string());
@@ -596,6 +786,9 @@ impl TimelineEditor {
                     }
                     if let Some(k)=delete{t.keys.remove(k);}
                     if ui.small_button("Add key") && t.keys.len()<timeline::KEY_LIMIT{t.keys.push(timeline::Key{id:Uuid::new_v4(),tick:a.duration_ticks/2,value:crate::script_values::default_value(&t.value_type),extra:Default::default()});}
+                    } else {
+                        ui.text_disabled(format!("{} section(s), {} independent channel(s). Edit them in the Sequencer section panel.",t.sections.len(),t.sections.iter().map(|s|s.channels.len()).sum::<usize>()));
+                    }
                     ui.same_line();if ui.small_button("Remove track"){remove=Some(i);}
                     ui.separator();
                 }
@@ -626,7 +819,8 @@ impl TimelineEditor {
             if let Some(cache)=&mut self.cache{cache.stale=signature.is_none_or(|s|cache.compiled.as_ref().is_none_or(|c|&c.signature!=s));}
             ui.slider("Preview tick",0,duration,&mut self.tick);
             match &compiled {
-                Ok(c)=>for ((id,values),t) in c.sample_values(self.tick).into_iter().zip(&c.tracks){
+                Ok(c)=>for (id,values) in c.sample_values(self.tick){
+                    let Some(t)=c.tracks.iter().find(|t|t.id==id)else{continue;};
                     let values=values[..t.channels.len()].iter().map(|value|match &t.value_type{
                         crate::reflection_schema::Type::Fixed|crate::reflection_schema::Type::Vector{..}=>format!("{:.4}",f64::from(*value)/4096.),
                         crate::reflection_schema::Type::UInt32=>(*value as u32).to_string(),
@@ -643,6 +837,10 @@ impl TimelineEditor {
             });
         });
         if !visible {
+            if !matches!(self.asset, Some(Document::Effect(_))) {
+                self.details = false;
+                return;
+            }
             if self.dirty() {
                 self.message = "Save or Discard / Reload the timeline before closing".into();
             } else {
@@ -656,6 +854,108 @@ impl TimelineEditor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "Owns an ImGui context; run explicitly and serially"]
+    fn sequencer_preserves_layout_and_previews_camera_without_editing_the_map() {
+        let root = std::env::temp_dir().join(format!("epok-camera-ui-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let (asset, registry, scene) = crate::timeline_scene_preview::tests::fixture();
+        let path = root.join("Camera.timeline.json");
+        fs::write(&path, serde_json::to_vec_pretty(&asset).unwrap()).unwrap();
+        let saved_scene = serde_json::to_vec(&scene).unwrap();
+        let mut editor = TimelineEditor::default();
+        editor.open(&path).unwrap();
+        assert!(
+            !editor.layout,
+            "Opening an asset must not activate the exclusive layout"
+        );
+        let mut ctx = crate::gui::tests::imgui_context();
+        ctx.set_ini_filename(None);
+        ctx.io_mut().display_size = [1440., 1100.];
+        ctx.io_mut().delta_time = 1. / 60.;
+        ctx.fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        ctx.fonts().build_rgba32_texture();
+        let frame = |ctx: &mut imgui::Context, editor: &mut TimelineEditor| {
+            editor.draw(ctx.frame(), &root, &registry, &scene, &Default::default());
+            ctx.render();
+        };
+        let click = |ctx: &mut imgui::Context, editor: &mut TimelineEditor, label: &str| {
+            let point = CONTROLS.with(|c| c.borrow()[label]);
+            ctx.io_mut().add_mouse_pos_event(point);
+            frame(ctx, editor);
+            ctx.io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, true);
+            frame(ctx, editor);
+            ctx.io_mut()
+                .add_mouse_button_event(imgui::MouseButton::Left, false);
+            frame(ctx, editor);
+        };
+        frame(&mut ctx, &mut editor);
+        frame(&mut ctx, &mut editor);
+        for lane in 0..3 {
+            assert!(CONTROLS.with(|c| {
+                c.borrow()
+                    .contains_key(&format!("Value:{}:Some({lane})", asset.tracks[0].id))
+            }));
+        }
+        click(&mut ctx, &mut editor, "End");
+        let preview = editor.scene_preview.scene.as_ref().unwrap();
+        assert_eq!(preview.actors[0].position, [4., 5., -2.]);
+        assert_eq!(preview.actors[0].rotation, [0., 90., 0.]);
+        assert_eq!(preview.actors[0].camera_fov, 60.);
+        click(&mut ctx, &mut editor, "Play");
+        frame(&mut ctx, &mut editor);
+        assert!(editor.sequencer.playing);
+        assert!(editor.tick > 0 && editor.tick < asset.duration_ticks);
+        assert_ne!(
+            editor.scene_preview.scene.as_ref().unwrap().actors[0].position,
+            [4., 5., -2.]
+        );
+        click(&mut ctx, &mut editor, "Play");
+        assert!(!editor.sequencer.playing);
+        click(
+            &mut ctx,
+            &mut editor,
+            &format!("Key:1:{}:Some(0)", asset.tracks[0].id),
+        );
+        assert_eq!(editor.tick, asset.duration_ticks);
+        let point = CONTROLS.with(|c| c.borrow()[&format!("Value:{}:Some(0)", asset.tracks[0].id)]);
+        ctx.io_mut().add_mouse_pos_event(point);
+        frame(&mut ctx, &mut editor);
+        ctx.io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, true);
+        frame(&mut ctx, &mut editor);
+        ctx.io_mut().add_mouse_pos_event([point[0] + 30., point[1]]);
+        frame(&mut ctx, &mut editor);
+        ctx.io_mut().add_mouse_pos_event([point[0] + 60., point[1]]);
+        frame(&mut ctx, &mut editor);
+        ctx.io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, false);
+        frame(&mut ctx, &mut editor);
+        assert!(
+            editor.dirty(),
+            "The channel value must be editable in the track row"
+        );
+        assert_ne!(
+            editor.scene_preview.scene.as_ref().unwrap().actors[0].position[0],
+            4.
+        );
+        click(&mut ctx, &mut editor, "Undo");
+        assert_eq!(
+            editor.scene_preview.scene.as_ref().unwrap().actors[0].position[0],
+            4.
+        );
+        click(&mut ctx, &mut editor, "Scene preview");
+        assert!(editor.scene_preview.scene.is_none());
+        assert_eq!(serde_json::to_vec(&scene).unwrap(), saved_scene);
+        assert!(!editor.dirty());
+        editor.open = false;
+        frame(&mut ctx, &mut editor);
+        assert!(editor.scene_preview.scene.is_none());
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     #[ignore = "Owns an ImGui context; run explicitly and serially"]
     fn effect_controls_undo_the_whole_document_and_save_embedded_timeline() {

@@ -74,9 +74,10 @@ static void continuations() {
     first.advance(0.0);
     assert(first.poll(result) && result.node == 1);
     assert(first.delay(1, 1.0, a) && first.delay(2, 1.0, a));
+    assert(first.contains(1) && first.contains(2) && !first.contains(3));
     assert(!first.delay(3, 1.0, a) && first.dropped == 1);
-    first.cancel(1); assert(first.size() == 1 && first.cancelled == 1);
-    first.cancel_owner(a); assert(first.size() == 0 && first.cancelled == 2);
+    first.cancel(1); assert(first.size() == 1 && !first.contains(1) && first.contains(2) && first.cancelled == 1);
+    first.cancel_owner(a); assert(first.size() == 0 && !first.contains(2) && first.cancelled == 2);
     assert(first.delay(5, 0.0, a)); first.advance(0.0);
     test_invalidate(0); // Destruction between advance and poll is checked.
     assert(!first.poll(result) && first.cancelled == 3);

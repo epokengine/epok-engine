@@ -10,52 +10,7 @@ use std::{
 };
 use uuid::Uuid;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CompiledTrack {
-    pub id: Uuid,
-    pub slot: Uuid,
-    pub property: String,
-    pub class: String,
-    pub field: String,
-    pub priority: i16,
-    pub restore: timeline::Restore,
-    pub channels: Vec<Vec<(i32, i32)>>,
-    pub value_type: crate::reflection_schema::Type,
-    pub interpolation: timeline::Interpolation,
-    pub blend: timeline::Blend,
-    pub key_ids: Vec<Uuid>,
-}
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Compiled {
-    pub asset: Uuid,
-    pub duration_ticks: i32,
-    pub loop_mode: timeline::LoopMode,
-    pub slots: Vec<timeline::Slot>,
-    pub tracks: Vec<CompiledTrack>,
-    pub markers: Vec<(i32, Uuid)>,
-    pub events: Vec<CompiledEvent>,
-    pub dependencies: BTreeMap<String, String>,
-    pub signature: String,
-}
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CompiledEvent {
-    pub track: Uuid,
-    pub key: Uuid,
-    pub slot: Uuid,
-    pub tick: i32,
-    pub class: String,
-    pub function: String,
-    pub method: String,
-    pub call: crate::reflection_schema::TimelineCall,
-    pub arguments: Vec<CookedArgument>,
-}
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CookedArgument {
-    pub value_type: crate::reflection_schema::Type,
-    pub lanes: [i32; 4],
-    pub resource: Option<Uuid>,
-    pub slot: Option<Uuid>,
-}
+pub use crate::timeline_ir::*;
 /// Resolve only dependency IDs emitted by this compiler, through the existing
 /// registry. These fingerprints deliberately exclude unrelated class members.
 pub fn reflection_dependency(key: &str, registry: &Registry) -> Option<String> {
@@ -63,7 +18,7 @@ pub fn reflection_dependency(key: &str, registry: &Registry) -> Option<String> {
         return Some(crate::reflection_schema::SCHEMA_VERSION.to_string());
     }
     if key == "timeline-compiler" {
-        return Some("5".into());
+        return Some("7".into());
     }
     let (kind, tail) = key.split_once(':')?;
     let value = match kind {
@@ -174,7 +129,7 @@ pub fn compile(asset: &TimelineAsset, registry: &Registry) -> Result<Compiled, V
             "reflection-schema".into(),
             crate::reflection_schema::SCHEMA_VERSION.to_string(),
         ),
-        ("timeline-compiler".into(), "5".into()),
+        ("timeline-compiler".into(), "7".into()),
     ]);
     for slot in &asset.slots {
         let id = slot.class_id().expect("validated slot class");
@@ -207,7 +162,9 @@ pub fn compile(asset: &TimelineAsset, registry: &Registry) -> Result<Compiled, V
             .map(|k| (k.tick, k.id))
             .collect::<Vec<_>>();
         key_ids.sort();
-        tracks.push(CompiledTrack {
+        let base = CompiledTrack {
+            range: None,
+            interpolation_modes: vec![],
             id: track.id,
             slot: track.slot,
             property: track.property.clone(),
@@ -222,7 +179,55 @@ pub fn compile(asset: &TimelineAsset, registry: &Registry) -> Result<Compiled, V
             interpolation: track.interpolation,
             blend: track.blend,
             key_ids: key_ids.into_iter().map(|(_, id)| id).collect(),
-        });
+        };
+        if track.sections.is_empty() {
+            tracks.push(base);
+        } else {
+            for section in &track.sections {
+                let mut cooked = base.clone();
+                cooked.id = section.id;
+                cooked.range = Some(SectionTiming {
+                    start: section.start_tick,
+                    end: section.end_tick,
+                    offset: section.source_offset_tick,
+                    numerator: section.rate_numerator,
+                    denominator: section.rate_denominator,
+                });
+                let mut channels = section.channels.iter().collect::<Vec<_>>();
+                channels.sort_by_key(|c| c.lane);
+                cooked.channels = channels
+                    .iter()
+                    .map(|c| {
+                        let mut keys = c
+                            .keys
+                            .iter()
+                            .map(|k| {
+                                (
+                                    k.tick,
+                                    timeline::pack(
+                                        &k.value,
+                                        crate::timeline_section::scalar_type(&track.value_type),
+                                    )
+                                    .unwrap()[0],
+                                )
+                            })
+                            .collect::<Vec<_>>();
+                        keys.sort_by_key(|k| k.0);
+                        keys
+                    })
+                    .collect();
+                cooked.interpolation_modes = channels.iter().map(|c| c.interpolation).collect();
+                cooked.key_ids = channels
+                    .iter()
+                    .flat_map(|c| {
+                        let mut keys = c.keys.iter().collect::<Vec<_>>();
+                        keys.sort_by_key(|k| (k.tick, k.id));
+                        keys.into_iter().map(|k| k.id)
+                    })
+                    .collect();
+                tracks.push(cooked);
+            }
+        }
     }
     tracks.sort_by_key(|t| (t.priority, t.blend == timeline::Blend::Additive, t.id));
     let mut markers = asset
@@ -364,13 +369,14 @@ impl Compiled {
     pub fn sample(&self, tick: i32) -> Vec<(Uuid, i32)> {
         self.tracks
             .iter()
+            .filter(|t| t.active(tick.clamp(0, self.duration_ticks), self.duration_ticks))
             .map(|t| {
                 (
                     t.id,
                     crate::timeline_curve::sample_mode(
                         &t.channels[0],
-                        tick.clamp(0, self.duration_ticks),
-                        t.interpolation as u8,
+                        t.source_tick(tick.clamp(0, self.duration_ticks)),
+                        t.mode(0) as u8,
                         matches!(t.value_type, crate::reflection_schema::Type::UInt32),
                     ),
                 )
@@ -380,13 +386,14 @@ impl Compiled {
     pub fn sample_values(&self, tick: i32) -> Vec<(Uuid, [i32; 4])> {
         self.tracks
             .iter()
+            .filter(|t| t.active(tick.clamp(0, self.duration_ticks), self.duration_ticks))
             .map(|t| {
                 let mut out = [0; 4];
                 for (i, keys) in t.channels.iter().enumerate() {
                     out[i] = crate::timeline_curve::sample_mode(
                         keys,
-                        tick.clamp(0, self.duration_ticks),
-                        t.interpolation as u8,
+                        t.source_tick(tick.clamp(0, self.duration_ticks)),
+                        t.mode(i) as u8,
                         matches!(t.value_type, crate::reflection_schema::Type::UInt32),
                     );
                 }
@@ -422,7 +429,7 @@ impl Compiled {
                         "{{track_{}_{i},{},Interpolation::{:?},{}}}",
                         t.id.simple(),
                         keys.len(),
-                        t.interpolation,
+                        t.mode(i),
                         matches!(t.value_type, crate::reflection_schema::Type::UInt32)
                     )
                 })

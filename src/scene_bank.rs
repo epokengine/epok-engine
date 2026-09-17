@@ -239,6 +239,29 @@ pub fn header_with_templates(
     effects: &[crate::particle_effect_scene::Prepared],
     class_registry: &crate::blueprint::Registry,
 ) -> Result<String, String> {
+    header_with_templates_for(
+        scenes,
+        catalog,
+        streaming,
+        templates,
+        referenced,
+        timelines,
+        effects,
+        class_registry,
+        crate::skeletal_compile::QueryDemand::ALL,
+    )
+}
+pub fn header_with_templates_for(
+    scenes: &[Scene],
+    catalog: &[Script],
+    streaming: Option<&crate::streaming::Bundle>,
+    templates: &[crate::blueprint_spawn::CookedTemplate],
+    referenced: Option<&Scene>,
+    timelines: &[crate::timeline_scene::Prepared],
+    effects: &[crate::particle_effect_scene::Prepared],
+    class_registry: &crate::blueprint::Registry,
+    skeletal_queries: crate::skeletal_compile::QueryDemand,
+) -> Result<String, String> {
     if scenes.is_empty() || scenes.len() > 16 {
         return Err("Scene registry needs 1..16 scenes".into());
     }
@@ -325,13 +348,14 @@ pub fn header_with_templates(
     let mut headers = Vec::new();
     let mut render_capacity = 0;
     for (bank, s) in scenes.iter().enumerate() {
-        let mut h = crate::project::scene_header_with_registry(
+        let mut h = crate::project::scene_header_with_registry_for(
             s,
             catalog,
             &shared,
             false,
             if global_layout { &shared } else { s },
             class_registry,
+            skeletal_queries,
         )?;
         if let Some(streaming) = streaming {
             h = streaming.rewrite(bank, &h)?;
@@ -492,13 +516,6 @@ pub fn header_with_templates(
         out += &format!(
             "namespace epok {{inline void load_bank_{i}(){{\nobject_count=authored_count=scene_{i}::authored_count;\nfor(size_t j=0;j<objects.size();++j){{auto generation=objects[j].generation+1;if(!generation)generation=1;objects[j]=j<object_count?scene_{i}::initial_objects[j]:ActorData{{}};objects[j].generation=generation;objects[j].alive=j<object_count;}}\ntransform_order={{scene_{i}::transform_order.data(),scene_{i}::transform_order.size()}};\n"
         );
-        if !timelines.is_empty() {
-            out += &crate::timeline_scene::setup(
-                s,
-                timelines,
-                &crate::blueprint::registry_from_catalog(std::path::Path::new(""), catalog),
-            )?;
-        }
         if !effects.is_empty() {
             out += &crate::particle_effect_scene::setup(
                 s,
@@ -513,6 +530,13 @@ pub fn header_with_templates(
             "actor_template_lookup=&find_cooked_actor_template;\nactivate_texture_bank(bank_textures_{i});\nscene_{i}::initialize_components();\nload_actor_bank(scene_{i}::actor_table,objects.data(),object_count);\n"
         );
         if !timelines.is_empty() {
+            // BoundTarget stores ObjectIds, which only exist after actors and
+            // components have been instantiated (not when ActorData is copied).
+            out += &crate::timeline_scene::setup(
+                s,
+                timelines,
+                &crate::blueprint::registry_from_catalog(std::path::Path::new(""), catalog),
+            )?;
             out += "epok::timeline::start_components();\n";
         }
         out += "}}\n";

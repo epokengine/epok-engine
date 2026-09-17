@@ -6,11 +6,12 @@ from pathlib import Path as _Path
 _sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "tools"))
 import epok_documents as documents
 from project_paths import project_manifest
-import copy, json, pathlib, re, shutil, struct, subprocess, time, urllib.request, uuid
+import copy, json, os, pathlib, re, shutil, struct, subprocess, time, urllib.request, uuid
 ROOT=pathlib.Path(__file__).resolve().parents[2]
-EXE=ROOT/'target/debug/epok-editor.exe'
+# Only Windows builds carry the .exe suffix; macOS and Linux use the bare name.
+EXE=ROOT/'target/debug'/('epok-editor.exe' if os.name=='nt' else 'epok-editor')
 ART=ROOT/'artifacts'
-FLAGS=subprocess.CREATE_NO_WINDOW if hasattr(subprocess,'CREATE_NO_WINDOW') else 0
+FLAGS=getattr(subprocess,'CREATE_NO_WINDOW',0)
 def package(path):
  b=path.read_bytes();ms,ss=struct.unpack_from('<II',b,8);return json.loads(b[16:16+ms]),b[16+ms:]
 def run(*args):

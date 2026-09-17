@@ -16,7 +16,7 @@ fn linear(c:vec3<f32>) -> vec3<f32> {
     let depth=camera.orbit.x+z*cp-p.y*sp;
     let near=1.0; let far=20000.0;
     // Same camera and 960x600 reference coordinates as viewport::project / gizmos.
-    let clip=vec4<f32>(x*1.8125*zoom,y*2.9*zoom-0.14*depth,(depth-near)*far/(far-near),depth);
+    let clip=vec4<f32>(x*1.8125*zoom,y*2.9*zoom,(depth-near)*far/(far-near),depth);
     return Output(clip,v.color,v.tex.xy,i32(v.tex.z),i32(v.tex.w));
 }
 @fragment fn fragment(v:Output) -> @location(0) vec4<f32> {

@@ -89,7 +89,12 @@ fn commit_song(
     .unwrap()
 }
 
-fn replace_recipe(root: &Path, existing: &assets::Record, bank: Uuid, recipe: Recipe) -> Uuid {
+fn replace_recipe(
+    root: &Path,
+    existing: &assets::Record,
+    bank: Uuid,
+    recipe: Recipe,
+) -> Result<Uuid, String> {
     let mut settings = sequence::Settings {
         sound_bank: Some(bank),
         ..Default::default()
@@ -99,18 +104,14 @@ fn replace_recipe(root: &Path, existing: &assets::Record, bank: Uuid, recipe: Re
         serde_json::json!(["keep", 29]),
     );
     recipe.store(&mut settings).unwrap();
-    assets::commit(
-        sequence::prepare(
-            root,
-            "assets/missing.mid",
-            "assets/song.epokasset",
-            settings,
-            Some(existing),
-            true,
-        )
-        .unwrap(),
-    )
-    .unwrap()
+    assets::commit(sequence::prepare(
+        root,
+        "assets/missing.mid",
+        "assets/song.epokasset",
+        settings,
+        Some(existing),
+        true,
+    )?)
 }
 
 fn cooked(
@@ -292,6 +293,81 @@ fn sequence_selection_and_recipe_are_part_of_library_derivative_identity() {
 }
 
 #[test]
+fn import_automatically_fits_a_soundfont_recipe_to_the_psx_budget() {
+    let root = crate::workspace::tests::temp("psx-library-asset-auto-fit");
+    fs::create_dir_all(root.join("assets")).unwrap();
+    fs::write(root.join("assets/library.sf2"), crate::sf2::tone_fixture()).unwrap();
+    let bank = assets::commit(
+        crate::soundfont_asset::prepare(
+            &root,
+            "assets/library.sf2",
+            "assets/library.epokasset",
+            Default::default(),
+            None,
+            false,
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let midi = crate::midi::fixture();
+    fs::write(root.join("assets/song.mid"), &midi).unwrap();
+    let ir = crate::midi::parse(&midi).unwrap();
+    let library = assets::Package::load(&root.join("assets/library.epokasset")).unwrap();
+    let cancelled = AtomicBool::new(false);
+    let prepared = crate::psx_library::prepare_selection(
+        &library.source,
+        &ir,
+        &[],
+        crate::psx_music_settings::Selection::Reachable,
+        &cancelled,
+    )
+    .unwrap();
+    let mut high = Recipe::default();
+    high.preset = Preset::Custom;
+    let high_bytes = crate::psx_library::cook(&prepared, &high, &cancelled)
+        .unwrap()
+        .report
+        .sample_spu_bytes;
+    let mut low = high.clone();
+    low.max_sample_rate = low.optimization.minimum_sample_rate;
+    let low_bytes = crate::psx_library::cook(&prepared, &low, &cancelled)
+        .unwrap()
+        .report
+        .sample_spu_bytes;
+    assert!(low_bytes < high_bytes);
+
+    let mut settings = sequence::Settings {
+        sound_bank: Some(bank),
+        ..Default::default()
+    };
+    high.bank_budget_bytes = ((high_bytes + low_bytes) / 2) as u32;
+    high.store(&mut settings).unwrap();
+    let song = assets::commit(
+        sequence::prepare(
+            &root,
+            "assets/song.mid",
+            "assets/song.epokasset",
+            settings,
+            None,
+            false,
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let package = assets::Package::load(&root.join("assets/song.epokasset")).unwrap();
+    let fitted = Recipe::from_settings(package.meta.settings.sequence().unwrap()).unwrap();
+    assert!(fitted.max_sample_rate < 22_050);
+    assert!(
+        cooked(&root, song, bank, &cancelled)
+            .unwrap()
+            .library
+            .unwrap()
+            .report
+            .fits_sample_budget
+    );
+}
+
+#[test]
 fn failed_budget_cancellation_and_stale_library_records_publish_nothing() {
     let fixture = fixture("psx-library-asset-failures");
     let index = assets::scan(&fixture.root, &mut Default::default());
@@ -299,19 +375,9 @@ fn failed_budget_cancellation_and_stale_library_records_publish_nothing() {
     let mut impossible = Recipe::default();
     impossible.preset = Preset::Custom;
     impossible.bank_budget_bytes = 1;
-    assert_eq!(
-        replace_recipe(&fixture.root, &original, fixture.bank, impossible),
-        fixture.song
-    );
-    let budget_error = match cooked(
-        &fixture.root,
-        fixture.song,
-        fixture.bank,
-        &AtomicBool::new(false),
-    ) {
-        Ok(_) => panic!("an impossible resident budget must not publish a bank"),
-        Err(error) => error,
-    };
+    let budget_error = replace_recipe(&fixture.root, &original, fixture.bank, impossible)
+        .err()
+        .expect("an impossible resident budget must stop import before publishing");
     assert!(budget_error.contains("require") || budget_error.contains("budget"));
     assert!(!fixture.root.join(".epok/imported").exists());
 

@@ -141,6 +141,18 @@ pub fn menu(ui: &imgui::Ui, profile: &mut Profile, root: &std::path::Path) {
         #[cfg(test)]
         tests::record(ui, &format!("data:{source:?}"));
     }
+    ui.separator();
+    if ui
+        .menu_item_config("Analog controller (port 1)")
+        .selected(profile.analog_controller)
+        .enabled(profile.target != Target::Serial)
+        .build()
+    {
+        profile.analog_controller = !profile.analog_controller;
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Enable both sticks on the first emulated pad. Physical pads use their own analog mode.");
+    }
 }
 
 fn content_menu(ui: &imgui::Ui, profile: &mut Profile, root: &std::path::Path) {

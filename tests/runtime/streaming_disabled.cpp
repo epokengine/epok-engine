@@ -13,6 +13,8 @@ int main() {
   }
   epok::streaming_prepare();
   epok::streaming_tick();
+  assert(!epok::streaming_request_page(0));
+  assert(epok::mesh_geometry_state(&mesh)==epok::MeshDataState::Unavailable);
   assert(!epok::streaming_prefetch(0));
   assert(!epok::streaming_acquire(0, gpu));
   assert(epok::streaming_warmup(nullptr, 0, gpu));

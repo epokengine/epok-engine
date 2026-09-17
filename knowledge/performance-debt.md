@@ -1,6 +1,6 @@
 # Performance technical debt
 
-Audience: AI agents and Epok engine developers. This is an implementation
+Audience: maintainers and Epok engine developers. This is an implementation
 backlog and acceptance handoff, not an engine user guide. Keep this material in
 `knowledge/`; `docs/` describes how game developers use the engine.
 

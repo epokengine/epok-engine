@@ -366,19 +366,19 @@ fn import_dialog(ui: &Ui, m: &mut Manager) {
             .size([680.,380.],Condition::FirstUseEver).size_constraints([520.,300.],[1600.,1000.]).build(||{
             let form=m.form.as_mut().unwrap();
             ui.text("FBX -> PlayStation skeletal assets");
-            ui.text_wrapped("512 vertices / 1024 triangles / 64 bones and helpers. Strongest weight per vertex. Clips sampled at 30 Hz; flat diffuse colors.");
+            ui.text_wrapped("512 vertices / 1024 triangles / 64 bones and helpers. Strongest weight per vertex. Clips sampled at 30 Hz. Texture coordinates are imported; assign Texture assets to the material slots afterwards.");
             ui.disabled(m.busy,||{
                 ui.disabled(form.snapshot,||{ui.input_text(crate::gui::field(ui, "Source"),&mut form.source).build();});
                 ui.disabled(form.existing.is_some(),||{ui.input_text(crate::gui::field(ui, "Model asset"),&mut form.destination).build();});
                 let storage_label = match form.model_storage {
-                    crate::skeletal::AnimationStorage::RigidGte => "Rigid bones (fastest)",
+                    crate::skeletal::AnimationStorage::RigidGte => "Rigid bones (smallest)",
                     crate::skeletal::AnimationStorage::BakedVertices => "Baked vertex frames",
                 };
                 if let Some(_combo) = ui.begin_combo(
                     crate::gui::field(ui, "PSX animation"),
                     storage_label,
                 ) {
-                    if ui.selectable_config("Rigid bones (fastest)")
+                    if ui.selectable_config("Rigid bones (smallest)")
                         .selected(form.model_storage == crate::skeletal::AnimationStorage::RigidGte)
                         .build()
                     {
@@ -527,12 +527,9 @@ fn portable_audio_dialog(ui: &Ui, m: &mut Manager) {
             if let Some(settings) = &mut form.sequence {
                 ui.text("MusicSequence");
                 if ui.button("Inspect source (Auto)") {
-                    form.sequence_catalog=Some((|| {
-                        let bytes=if form.snapshot {
-                            assets::Package::load(&form.existing.as_ref().ok_or("No sequence snapshot")?.path)?.source
-                        } else { assets::read_bounded(&assets::inside(&m.root,&form.source)?)? };
-                        crate::sequence::catalog_source(&bytes,None)
-                    })());
+                    form.sequence_catalog=Some(crate::asset_manager::inspect_sequence_source(
+                        &m.root, &form.source, form.existing.as_ref(), form.snapshot, None,
+                    ));
                 }
                 #[cfg(test)]
                 interaction::track(ui, "inspect-sequence-source");
@@ -543,12 +540,9 @@ fn portable_audio_dialog(ui: &Ui, m: &mut Manager) {
                 ] {
                     ui.same_line();
                     if ui.small_button(label) {
-                        form.sequence_catalog=Some((|| {
-                            let bytes=if form.snapshot {
-                                assets::Package::load(&form.existing.as_ref().ok_or("No sequence snapshot")?.path)?.source
-                            } else { assets::read_bounded(&assets::inside(&m.root,&form.source)?)? };
-                            crate::sequence::catalog_source(&bytes,Some(profile))
-                        })());
+                        form.sequence_catalog=Some(crate::asset_manager::inspect_sequence_source(
+                            &m.root, &form.source, form.existing.as_ref(), form.snapshot, Some(profile),
+                        ));
                     }
                 }
                 if let Some(selection)=&settings.source_selection { ui.text(format!("Source profile: {}; song ID {:?}; ordinal {:?}",selection.profile.id(),selection.song_id,selection.song_index)); }
@@ -556,7 +550,18 @@ fn portable_audio_dialog(ui: &Ui, m: &mut Manager) {
                     match catalog {
                         Err(error)=>ui.text_wrapped(error),
                         Ok(catalog)=>{
-                            ui.text(format!("Detected: {}; {} independent songs",catalog.profile.map(|p|p.id()).unwrap_or("Standard MIDI"),catalog.songs.len()));
+                            let detected=if let Some(profile)=catalog.profile {
+                                profile.id().to_owned()
+                            } else {
+                                format!("Standard MIDI format {}",catalog.midi_format.unwrap_or_default())
+                            };
+                            ui.text(format!("Detected: {detected}; {} independent songs",catalog.songs.len()));
+                            for song in &catalog.songs {
+                                if !song.playback_blockers.is_empty() {
+                                    ui.text_colored([1.,0.55,0.3,1.],format!("Song {}: Musical v2 unavailable",song.id));
+                                    for blocker in &song.playback_blockers { ui.text_wrapped(blocker); }
+                                }
+                            }
                             if let Some(profile)=catalog.profile {
                                 let source_song_menu=ui.begin_combo("Source song","Choose an explicit song");
                                 #[cfg(test)]
@@ -584,21 +589,34 @@ fn portable_audio_dialog(ui: &Ui, m: &mut Manager) {
                         }
                     }
                 }
+                let midi_v2_blockers=form.sequence_catalog.as_ref()
+                    .and_then(|catalog|catalog.as_ref().ok())
+                    .filter(|catalog|catalog.profile.is_none())
+                    .map(|catalog|catalog.songs.iter().flat_map(|song|song.playback_blockers.iter().cloned()).collect::<Vec<_>>())
+                    .unwrap_or_default();
                 let roles = [crate::audio_import::AudioRole::Sfx, crate::audio_import::AudioRole::Music, crate::audio_import::AudioRole::Ambience, crate::audio_import::AudioRole::Dialogue];
                 let mut role = roles.iter().position(|r| *r == settings.role).unwrap_or(1);
                 if ui.combo_simple_string("Role", &mut role, &["SFX", "Music", "Ambience", "Dialogue"]) { settings.role = roles[role]; }
                 crate::music_conversion_ui::help(ui,"role","Selects the audio mixer role. It is independent of event loading and instrument-bank residency.");
-                load_mode(ui, "Event Load Mode", &mut settings.load_mode);
-                crate::music_conversion_ui::help(ui,"event-load","Resident loads sequence events in RAM; Auto currently chooses Resident. Stream uses the target event-stream path and requires its build prerequisites. Instrument samples have separate bank residency.");
+                sequence_load_mode(ui, &mut settings.load_mode);
+                crate::music_conversion_ui::help(ui,"event-load","Sequence events support Auto or Resident. The current PSX profile does not support streamed event lists; instrument samples have separate bank residency.");
                 ui.text_wrapped("Auto resolves to Resident events. Bank residency is selected independently in the SoundBank.");
                 bank_selector(ui, "SoundBank", &mut settings.sound_bank, &m.index, "Project Default SoundBank");
                 crate::music_conversion_ui::help(ui,"sound-bank","MIDI stores notes and instrument numbers, not recordings. Select a SoundFont library to resolve bank, program and drum-key mappings, or use the project default.");
                 if ui.button("Install reference instrument library") { install_reference = true; }
                 crate::music_conversion_ui::help(ui,"reference-library","Installs the bundled MIT-licensed FluidR3Mono GM 2.315 source and SoundBank in assets/AudioLibraries, then selects it for this sequence. Existing different files are never overwritten. The converter selects the required instruments automatically.");
                 if settings.source_selection.is_none() {
-                    let mut profile = usize::from(settings.midi_profile == crate::midi::MidiProfile::MusicalV2);
-                    if ui.combo_simple_string("MIDI interpretation", &mut profile, &["Legacy v1", "Musical v2"]) {
-                        settings.midi_profile = if profile == 0 { crate::midi::MidiProfile::LegacyV1 } else { crate::midi::MidiProfile::MusicalV2 };
+                    if midi_v2_blockers.is_empty() {
+                        let mut profile = usize::from(settings.midi_profile == crate::midi::MidiProfile::MusicalV2);
+                        if ui.combo_simple_string("MIDI interpretation", &mut profile, &["Legacy v1", "Musical v2"]) {
+                            settings.midi_profile = if profile == 0 { crate::midi::MidiProfile::LegacyV1 } else { crate::midi::MidiProfile::MusicalV2 };
+                        }
+                    } else {
+                        // This source was parsed before the form opened. Do not offer a
+                        // profile which cannot play it; Legacy still makes its explicit
+                        // unsupported-event acknowledgement available below.
+                        settings.midi_profile = crate::midi::MidiProfile::LegacyV1;
+                        ui.text_disabled("MIDI interpretation: Legacy v1 (Musical v2 is unavailable for this source)");
                     }
                     crate::music_conversion_ui::help(ui,"midi-profile","Legacy preserves the original fixed bend range and unsupported-event policy. Musical v2 interprets source RPN tuning, pitch-bend sensitivity and bank selection. Applying this choice recooks the original MIDI and preserves its asset identity.");
                 }
@@ -665,6 +683,25 @@ fn load_mode(ui: &Ui, label: &str, value: &mut crate::audio_import::LoadMode) {
     let modes = [LoadMode::Auto, LoadMode::Resident, LoadMode::Stream];
     let mut selected = modes.iter().position(|m| *m == *value).unwrap_or(0);
     if ui.combo_simple_string(label, &mut selected, &["Auto", "Resident", "Stream"]) {
+        *value = modes[selected];
+    }
+}
+
+/// A MusicSequence is a compact resident event list in the currently shipped
+/// PSX profile.  Do not expose the sampled-audio Stream option and wait until
+/// validation to tell authors it cannot work.
+fn sequence_load_mode(ui: &Ui, value: &mut crate::audio_import::LoadMode) {
+    use crate::audio_import::LoadMode;
+    if *value == LoadMode::Stream {
+        *value = LoadMode::Resident;
+        ui.text_colored(
+            [1., 0.65, 0.3, 1.],
+            "Stream is unavailable for MIDI event data; changed to Resident.",
+        );
+    }
+    let modes = [LoadMode::Auto, LoadMode::Resident];
+    let mut selected = modes.iter().position(|mode| *mode == *value).unwrap_or(1);
+    if ui.combo_simple_string("Event Load Mode", &mut selected, &["Auto", "Resident"]) {
         *value = modes[selected];
     }
 }

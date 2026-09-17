@@ -32,6 +32,36 @@ static void input_and_clock() {
     input.sample(1,true,1<<3);input.begin_tick();assert(input.held(epok::Button::Start,1));
     input.sample(1,false,0xffff);input.begin_tick();assert(input.released(epok::Button::Start,1));assert(!input.connected(1));
     assert(!input.held(epok::Button::Cross,2));
+    input.sample(0,true,0,true,255,0,0,255);
+    assert(input.analog()&&input.axis_raw(epok::Axis::LeftX)==4096);
+    assert(input.axis_raw(epok::Axis::LeftY)==4096);
+    assert(input.axis_raw(epok::Axis::RightX)==-4096&&input.axis_raw(epok::Axis::RightY)==-4096);
+    input.sample(1,true,0,true,128,128,128,128);
+    assert(input.analog(1)&&input.axis_raw(epok::Axis::LeftX,1)==0);
+    assert(input.axis_raw(epok::Axis::LeftY,1)==0&&input.axis_raw(epok::Axis(8))==0);
+    input.sample(0,true,0,false,0,0,0,0);
+    assert(!input.analog()&&input.axis_raw(epok::Axis::LeftX)==0);
+    input.sample(1,false,0,true,255,0,0,255);
+    assert(!input.analog(1)&&input.axis_raw(epok::Axis::LeftY,1)==0);
+    assert(input.axis_raw(epok::Axis::LeftX,2)==0);
+    struct AnalogPad {
+        enum class Pad {First=0,Second=4};enum class Button {First=0};
+        bool isPadConnected(Pad)const{return true;}
+        bool isButtonPressed(Pad,Button)const{return false;}
+        uint8_t getPadType(Pad p)const{return p==Pad::First?0x73:0x53;}
+        uint8_t getAdc(Pad p,unsigned i)const{
+            assert(p==Pad::First||p==Pad::Second);
+            const uint8_t values[4]={0,255,255,0};return values[i];
+        }
+    } pad;
+    input.poll(pad,4);
+    for(unsigned port=0;port<2;++port){
+        assert(input.analog(port));
+        assert(input.axis_raw(epok::Axis::LeftX,port)==4096);
+        assert(input.axis_raw(epok::Axis::LeftY,port)==4096);
+        assert(input.axis_raw(epok::Axis::RightX,port)==-4096);
+        assert(input.axis_raw(epok::Axis::RightY,port)==-4096);
+    }
     epok::Time time;time.reset(0);assert(time.advance(16000)==0);assert(time.advance(16667)==1);assert(time.advance(33334)==1);
     assert(time.advance(1000000)==8);assert(time.dropped_steps==50);
     time.set_paused(true);assert(time.advance(2000000)==0);time.set_paused(false);assert(time.advance(2016667)==1);

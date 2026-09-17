@@ -21,6 +21,7 @@ fn event_function(id: &str, name: &str, parameters: Vec<schema::Parameter>) -> s
         timeline: None,
         event: true,
         pure: false,
+        resource_demands: vec![],
         abstract_method: false,
         final_method: false,
         access: "public".into(),
@@ -308,6 +309,9 @@ fn authored_tick_graph_keeps_its_body_behind_the_synthesized_pump() {
     assert_eq!(text.matches("void tick(epok::Fixed dt) override").count(), 1);
     assert_eq!(text.matches("void epok_graph_tick(epok::Fixed dt)").count(), 1);
     assert!(text.contains("this->epok_graph_tick(dt);"));
+    // A normal Delay rejects Tick re-entry while its latent frame is active,
+    // matching Unreal's Delay node instead of restarting the countdown each frame.
+    assert!(text.contains("if(epok_tasks.contains("));
     // The parent is dispatched by the authored graph (or not at all), never twice.
     assert!(!text.contains("epok::Actor3D::tick(dt);"));
 }

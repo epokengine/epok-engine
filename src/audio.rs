@@ -305,6 +305,9 @@ pub fn stage_with_music(
         bank = String::from(
             "// Generated from UUID asset references.\n#pragma once\n#define EPOK_HAS_SEQUENCES 1\n#include \"sequence_data.hpp\"\n#include \"audio.hpp\"\nnamespace epok {\n",
         );
+        if sequences.native_only {
+            bank.insert_str(0, "#define EPOK_NATIVE_SEQUENCES_ONLY 1\n");
+        }
         bank.push_str(&sequences.declarations);
     }
     let mut size = sequences.spu_bytes;

@@ -43,7 +43,9 @@ impl ServerHandler for Proxy {
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let preferences = crate::settings::Preferences::load()?;
     if !preferences.mcp.enabled {
-        return Err("Enable MCP in the running editor's Preferences > AI / MCP first.".into());
+        return Err(
+            "Enable MCP in the running editor's Preferences > Integrations / MCP first.".into(),
+        );
     }
     tokio::runtime::Builder::new_current_thread()
         .enable_all()

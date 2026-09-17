@@ -6,14 +6,15 @@ pub fn sample(keys: &[(i32, i32)], tick: i32) -> i32 {
 /// Interpolation wire codes match reflection_schema::Interpolation and timeline.hpp.
 /// All easing uses bounded Q12 integer alpha; division truncates toward zero.
 pub fn sample_mode(keys: &[(i32, i32)], tick: i32, mode: u8, unsigned: bool) -> i32 {
-    if keys.is_empty() || keys.len() > 4 {
+    if keys.is_empty() || keys.len() > 256 {
         return 0;
     }
     if tick <= keys[0].0 {
         return keys[0].1;
     }
-    for pair in keys.windows(2) {
-        let [(a, x), (b, y)] = [pair[0], pair[1]];
+    let next = keys.partition_point(|key| key.0 <= tick);
+    if next < keys.len() {
+        let [(a, x), (b, y)] = [keys[next - 1], keys[next]];
         if tick < b {
             let span = i64::from(b) - i64::from(a);
             if span <= 0 {
@@ -57,6 +58,16 @@ pub fn sample_mode(keys: &[(i32, i32)], tick: i32, mode: u8, unsigned: bool) -> 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn full_profile_keys_support_random_access_without_changing_interpolation() {
+        let keys = (0..256)
+            .map(|i| (i * 17, i * 51 - 4096))
+            .collect::<Vec<_>>();
+        for tick in (0..4336).rev() {
+            assert_eq!(super::sample(&keys, tick), tick * 3 - 4096);
+        }
+        assert_eq!(super::sample(&keys, i32::MAX), keys[255].1);
+    }
     #[test]
     fn easing_discrete_and_unsigned_values_keep_their_declared_domain() {
         let keys = [(0, 0), (4096, 4096)];

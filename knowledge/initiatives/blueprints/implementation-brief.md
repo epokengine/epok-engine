@@ -18,7 +18,7 @@ Begin implementing the Blueprint system in Epok. Deliver the first working found
 Repository: D:/GitProjects/GameEngines/PSX/Epok
 Design: D:/GitProjects/GameEngines/PSX/Epok/knowledge/initiatives/blueprints/research.md
 
-Read the applicable AGENTS.md instructions, C:/Users/Adolfo/.codex/RTK.md, CONTRIBUTING.md, the design document, and the architecture, scripting, runtime-services, and testing guides. Revalidate the design against the current code. Preserve all existing uncommitted work, including streaming and rendering changes. Keep documentation, comments, diagnostics, and UI text in English.
+Read the applicable AGENTS.md instructions, local RTK instructions, CONTRIBUTING.md, the design document, and the architecture, scripting, runtime-services, and testing guides. Revalidate the design against the current code. Preserve all existing uncommitted work, including streaming and rendering changes. Keep documentation, comments, diagnostics, and UI text in English.
 
 Implement Phase 1 (classes and reflection), performing the focused Phase 0 feasibility checks needed to validate it. The long-term goal is class Blueprints with inheritance, defaults, event overrides, Call Parent, and graphs compiled to native C++ for PSX. Do not attempt full feature parity in this milestone.
 

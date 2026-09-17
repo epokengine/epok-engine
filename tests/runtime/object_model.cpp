@@ -97,6 +97,17 @@ struct ProbeUI : UIActor {
     static constexpr uint64_t static_class_id = 0x1003;
     uint64_t class_id() const override { return static_class_id; }
 };
+struct FrameOnly : ActorComponent { void on_frame(uint32_t) override {} };
+struct InheritedTick : ProbeComponent {};
+static_assert(std::is_same_v<decltype(&Mesh3DComponent::tick),decltype(&ActorComponent::tick)>);
+static_assert(!std::is_same_v<decltype(&InheritedTick::tick),decltype(&ActorComponent::tick)>);
+static_assert(std::is_same_v<decltype(&FrameOnly::frame_update),decltype(&ActorComponent::frame_update)>);
+static_assert(!std::is_same_v<decltype(&FrameOnly::on_frame),decltype(&ActorComponent::on_frame)>);
+class PrivateTick : public ActorComponent { void tick(Fixed) override {} };
+struct OverloadedTick : ActorComponent { void tick(Fixed) override {} void tick(int) {} };
+static_assert(!ComponentCallbacks<Mesh3DComponent>::tick && !ComponentCallbacks<Mesh3DComponent>::frame);
+static_assert(ComponentCallbacks<InheritedTick>::tick && ComponentCallbacks<FrameOnly>::frame);
+static_assert(ComponentCallbacks<PrivateTick>::tick && ComponentCallbacks<OverloadedTick>::tick);
 }  // namespace
 
 // ---- cooked class table ------------------------------------------------------------
@@ -432,6 +443,35 @@ void compact_identities() {
     assert(World::static_class_id == UINT64_C(6971179517075037215));
 }
 
+void family_queries_and_pending_release() {
+    reset();
+    const auto id = spawn(ProbeActor::static_class_id, "FamilyProbe");
+    auto* actor = registry_storage.resolve<Actor>(id);
+    assert(actor && registry_storage.resolve<Object>(id));
+    assert(registry_storage.resolve<ProbeActor>(id));
+    assert(!registry_storage.resolve<ProbeUI>(id));
+    assert(!registry_storage.resolve<ActorComponent>(id));
+    assert(!registry_storage.resolve<Level>(id));
+    assert(!registry_storage.resolve<World>(id));
+    const auto root = actor->root_id();
+    assert(registry_storage.resolve<ActorComponent>(root));
+    assert(!registry_storage.resolve<Actor>(root));
+    assert(registry_storage.pending_releases == 0);
+    for (unsigned i = 0; i < 100; ++i) registry_storage.finish_release();
+    assert(registry_storage.pending_releases == 0);
+    {
+        ObjectDispatchScope scope(registry_storage);
+        assert(registry_storage.release(root));
+        assert(registry_storage.pending_releases == 1);
+        assert(!registry_storage.resolve<ActorComponent>(root));
+        registry_storage.finish_release();
+        assert(registry_storage.pending_releases == 1);
+    }
+    assert(registry_storage.pending_releases == 0);
+    assert(!registry_storage.resolve<ActorComponent>(root));
+    reset();
+}
+
 void size_report() {
     std::printf("Object model sizes (host, %zu-bit pointers):\n", sizeof(void*) * 8);
     std::printf("  Object %zu  Actor %zu  Actor3D %zu  Actor2D %zu  UIActor %zu  SceneScriptActor %zu\n",
@@ -454,6 +494,7 @@ int main() {
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
     compact_identities();
+    family_queries_and_pending_release();
     identity_and_storage();
     lifecycle_order();
     end_play_once();

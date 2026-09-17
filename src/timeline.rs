@@ -9,11 +9,11 @@ use std::{
 };
 use uuid::Uuid;
 
-pub const VERSION: u32 = 2;
+pub const VERSION: u32 = 3;
 pub const ASSET_LIMIT: usize = 32;
 pub const SLOT_LIMIT: usize = 8;
 pub const TRACK_LIMIT: usize = 16;
-pub const KEY_LIMIT: usize = 4;
+pub const KEY_LIMIT: usize = 256;
 pub const MARKER_LIMIT: usize = 64;
 pub const EVENT_LIMIT: usize = 64;
 type Extra = BTreeMap<String, serde_json::Value>;
@@ -86,6 +86,9 @@ pub struct Track {
     pub blend: Blend,
     pub restore: Restore,
     pub interpolation: Interpolation,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sections: Vec<crate::timeline_section::Section>,
+    #[serde(default)]
     pub keys: Vec<Key>,
     #[serde(flatten)]
     pub extra: Extra,
@@ -263,12 +266,24 @@ impl TimelineAsset {
             .chain(self.slots.iter().map(|x| x.id))
             .chain(self.tracks.iter().map(|x| x.id))
             .chain(self.tracks.iter().flat_map(|t| t.keys.iter().map(|k| k.id)))
+            .chain(
+                self.tracks
+                    .iter()
+                    .flat_map(|t| t.sections.iter())
+                    .flat_map(|s| {
+                        std::iter::once(s.id).chain(
+                            s.channels.iter().flat_map(|c| {
+                                std::iter::once(c.id).chain(c.keys.iter().map(|k| k.id))
+                            }),
+                        )
+                    }),
+            )
             .chain(self.markers.iter().map(|x| x.id))
             .chain(self.events.iter().map(|e| e.id))
             .chain(self.events.iter().flat_map(|e| e.keys.iter().map(|k| k.id)))
     }
     pub fn migrate(&mut self) -> Result<(), String> {
-        if ![1, VERSION].contains(&self.version) {
+        if ![1, 2, VERSION].contains(&self.version) {
             return Err(format!(
                 "Unsupported timeline version {}; original preserved",
                 self.version
@@ -311,6 +326,13 @@ impl TimelineAsset {
         for t in &mut a.tracks {
             t.name.clear();
             t.keys.sort_by_key(|k| (k.tick, k.id));
+            t.sections.sort_by_key(|s| (s.start_tick, s.id));
+            for section in &mut t.sections {
+                section.channels.sort_by_key(|c| c.lane);
+                for channel in &mut section.channels {
+                    channel.keys.sort_by_key(|k| (k.tick, k.id));
+                }
+            }
         }
         for m in &mut a.markers {
             m.name.clear();
@@ -340,6 +362,22 @@ impl TimelineAsset {
                 self.tracks
                     .iter()
                     .flat_map(|t| t.keys.iter().map(|k| (k.id, &k.extra))),
+            )
+            .chain(
+                self.tracks
+                    .iter()
+                    .flat_map(|t| t.sections.iter())
+                    .flat_map(|s| s.channels.iter())
+                    .flat_map(|c| c.keys.iter().map(|k| (k.id, &k.extra))),
+            )
+            .chain(
+                self.tracks
+                    .iter()
+                    .flat_map(|t| t.sections.iter())
+                    .flat_map(|s| {
+                        std::iter::once((s.id, &s.extra))
+                            .chain(s.channels.iter().map(|c| (c.id, &c.extra)))
+                    }),
             )
             .chain(self.markers.iter().map(|m| (m.id, &m.extra)))
         {
@@ -420,8 +458,11 @@ impl TimelineAsset {
                     }
                 }
             }
-            if !(2..=KEY_LIMIT).contains(&track.keys.len()) {
-                report(track.id, "A curve requires 2–4 keys".into());
+            for (item, error) in crate::timeline_section::validate(track, self.duration_ticks) {
+                report(item, error);
+            }
+            if track.sections.is_empty() && !(2..=KEY_LIMIT).contains(&track.keys.len()) {
+                report(track.id, "A curve requires 2–256 keys".into());
             }
             let mut keys = track.keys.iter().collect::<Vec<_>>();
             keys.sort_by_key(|k| (k.tick, k.id));
@@ -439,6 +480,18 @@ impl TimelineAsset {
                     report(key.id, error);
                 }
             }
+        }
+        if self
+            .tracks
+            .iter()
+            .map(|t| t.sections.len().max(1))
+            .sum::<usize>()
+            > TRACK_LIMIT
+        {
+            report(
+                self.id,
+                "Cooked property sections exceed the 16-entry PSX profile".into(),
+            );
         }
         for (i, track) in self.tracks.iter().enumerate() {
             for other in &self.tracks[..i] {
@@ -459,6 +512,12 @@ impl TimelineAsset {
                     && track.priority == other.priority
                     && track.blend == Blend::Absolute
                     && other.blend == Blend::Absolute
+                    && track.ranges(self.duration_ticks).iter().any(|a| {
+                        other
+                            .ranges(self.duration_ticks)
+                            .iter()
+                            .any(|b| a.0 < b.1 && b.0 < a.1)
+                    })
                 {
                     // Tracks hold endpoint values outside their keys, so they overlap
                     // for the entire sequence, including before their first key.
@@ -658,6 +717,12 @@ impl TimelineAsset {
                     && track.priority == other.priority
                     && track.blend == Blend::Absolute
                     && other.blend == Blend::Absolute
+                    && track.ranges(self.duration_ticks).iter().any(|a| {
+                        other
+                            .ranges(self.duration_ticks)
+                            .iter()
+                            .any(|b| a.0 < b.1 && b.0 < a.1)
+                    })
                 {
                     errors.push(Diagnostic {
                         asset: self.id,

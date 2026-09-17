@@ -48,11 +48,21 @@ int main(){
     director.advance(dt(0),1);assert(calls==1);
     director.advance(dt(25),1);assert(calls==2&&observed[1]==100&&value()==42);
     assert(director.state(h)==State::Completed&&director.stats.completed==1&&director.stats.active==0);
+
+    // A section writes only inside its half-open range and final root sample.
+    // Its root capture remains the restoration source across inactive gaps.
+    reset();const Property section_property[]={{1,0,1,false,true,curves,read,write,25,75,0,1,1}};
+    auto section_asset=asset;section_asset.properties=section_property;section_asset.signal_count=0;
+    h=director.play(section_asset,owner,binding,1);
+    assert(director.seek(h,10,1)&&value()==42);
+    assert(director.seek(h,50,1)&&value()==25);
+    assert(director.seek(h,80,1)&&value()==25);
+    director.stop(h);assert(value()==25);
     auto next=director.play(asset,owner,binding,1);assert(next.generation!=h.generation&&director.state(h)==State::Invalid);
     director.advance(dt(20),1);test_set_active(0,false);
     director.advance(dt(30),1);assert(director.tick(next)==20);
     test_set_active(0,true);director.pause(next,true);director.advance(dt(30),1);assert(director.tick(next)==20);
-    director.pause(next,false);director.advance(dt(30),2);assert(director.state(next)==State::Cancelled&&value()==42);
+    director.pause(next,false);director.advance(dt(30),2);assert(director.state(next)==State::Cancelled&&value()==20);
 
     // Optional target destruction/reuse never writes into the replacement slot.
     reset();auto optional=asset;const Target optional_targets[]={{false,accepts}};optional.targets=optional_targets;
@@ -64,9 +74,9 @@ int main(){
 
     // A callback can destroy its owner or cancel playback; later signals stop.
     reset();h=director.play(asset,owner,binding,1);current_handle=h;action=1;director.advance(dt(100),1);
-    assert(calls==1&&value()==42&&director.state(h)==State::Cancelled);
+    assert(calls==1&&value()==50&&director.state(h)==State::Cancelled);
     reset();h=director.play(asset,owner,binding,1);current_handle=h;action=2;director.advance(dt(100),1);
-    assert(calls==1&&director.state(h)==State::Cancelled&&value()==42);
+    assert(calls==1&&director.state(h)==State::Cancelled&&value()==50);
     reset();h=director.play(asset,owner,binding,1);current_handle=h;action=3;director.advance(dt(100),1);assert(calls==2);
 
     // Loop remainder survives an ordinary wrap. Large dt is deliberately bounded.
@@ -75,24 +85,35 @@ int main(){
     assert(director.tick(h)==50&&director.marker(h,0)==2&&director.marker(h,1)==2&&calls==3);
     director.advance(dt(1000),1);assert(director.tick(h)==50&&director.stats.clamped_ticks==900);
     assert(director.marker(h,0)==3&&director.marker(h,1)==3);
-    director.cancel_all();assert(value()==42);
+    director.cancel_all();assert(value()==50);
 
-    // Seek samples values, skips crossing events/markers, and only reconstructs
-    // explicitly idempotent actions. Subsequent advance does not replay old keys.
+    // Absolute seek is silent in either direction and while paused. Idempotent
+    // events are not treated as reversible. Advance crosses only new keys.
     reset();h=director.play(asset,owner,binding,1);assert(director.seek(h,75,1));assert(value()==75&&calls==0&&director.marker(h,0)==0);
-    assert(!director.seek(h,25,1)&&director.tick(h)==75&&value()==75&&calls==0);
+    assert(director.seek(h,25,1)&&director.tick(h)==25&&value()==25&&calls==0);
+    director.pause(h,true);assert(director.seek(h,75,1)&&value()==75&&calls==0);director.pause(h,false);
     director.advance(dt(25),1);assert(calls==1&&observed[0]==100);director.cancel_all();
     reset();auto seek_asset=asset;const Event actions[]={{0,0,true,nullptr,event}};seek_asset.events=actions;
-    h=director.play(seek_asset,owner,binding,1);assert(director.seek(h,75,1));assert(calls==1);director.cancel_all();
+    h=director.play(seek_asset,owner,binding,1);assert(director.seek(h,75,1));assert(calls==0);director.cancel_all();
+
+    // Reverse traverses [new,current), including zero but excluding the old
+    // endpoint. Signals at one tick have a stable reverse order.
+    reset();h=director.play(asset,owner,binding,1);assert(director.seek(h,75,1));assert(director.reverse(h,true));
+    director.advance(dt(50),1);assert(director.tick(h)==25&&value()==25&&calls==1&&observed[0]==50);
+    assert(director.marker(h,0)==0&&director.marker(h,1)==1);
+    director.advance(dt(25),1);assert(director.state(h)==State::Completed&&value()==42&&director.marker(h,0)==1);
 
     // Absolute plus additive tracks use one captured baseline and do not drift.
     reset();const Key delta_keys[]={{0,0},{100,10}};const Curve delta_curves[]={{delta_keys,2}};
     const Property blended[]={{1,0,1,false,true,curves,read,write},{1,0,1,true,true,delta_curves,read,write}};
     auto blended_asset=asset;blended_asset.properties=blended;blended_asset.property_count=2;blended_asset.signal_count=0;
-    h=director.play(blended_asset,owner,binding,1);director.advance(dt(50),1);assert(value()==55);director.advance(dt(25),1);assert(value()==82);director.stop(h);assert(value()==42);
+    h=director.play(blended_asset,owner,binding,1);director.advance(dt(50),1);assert(value()==55);director.advance(dt(25),1);assert(value()==82);director.stop(h);assert(value()==82);
 
     // Cross-instance property claims and the instance pool both fail predictably.
     reset();h=director.play(asset,owner,binding,1);assert(director.state(director.play(asset,owner,binding,1))==State::Invalid&&director.stats.conflicts>0);
+    auto* aliased_actor=test_registry.resolve<Actor3D>(test_actors[1]);assert(aliased_actor);
+    const BoundTarget aliased_binding[]={aliased_actor->root.id()};
+    assert(director.state(director.play(asset,test_actors[0],aliased_binding,1))==State::Invalid&&director.stats.conflicts>1);
     auto empty=asset;empty.property_count=0;empty.signal_count=0;auto second=director.play(empty,owner,binding,1);
     assert(director.state(second)==State::Playing);assert(director.state(director.play(empty,owner,binding,1))==State::Invalid);
     director.cancel_all();assert(director.stats.active==0);

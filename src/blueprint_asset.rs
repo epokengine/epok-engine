@@ -248,6 +248,11 @@ pub enum NodeKind {
     Builtin {
         operation: Builtin,
     },
+    /// Catalog-generated gameplay operation. The stable operation UUID is the
+    /// serialized identity; pins are regenerated from immutable parameter IDs.
+    Operation {
+        operation: String,
+    },
     Return,
 }
 pub fn pin_id(node: &str, port: &str) -> String {

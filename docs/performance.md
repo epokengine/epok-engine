@@ -78,7 +78,16 @@ scene banks of (actors + components) plus 32 dynamic slots. Exhausting it increm
 `rejected`, never overwrites memory. `epok::level_actor_capacity` (64) and
 `epok::actor_component_capacity` (8) bound one level and one actor respectively.
 
-Additional fields report mesh chunks tested/visible, backfaces, clipped polygons, emitted triangles, frame work before and after mesh rendering (`prepare`, `finish`), retained triangles and retained-packet rebuilds. Skeletal fields report pose/decode `skeletal_scanlines`, evaluated `skeletal_bone_matrices`, CPU-skinned vertices and decoded baked vertices; a culled character contributes zero to all four. With `EPOK_PROFILE_DETAIL=1`, per-quad shade/fog/emit timers, chunk setup and camera/sprite/HUD timers are also populated. Release builds leave those detail fields at zero. Reading extra timers adds work, so detail-build timings are not release measurements.
+Additional fields report mesh chunks tested/visible, backfaces, clipped polygons, emitted triangles, frame work before and after mesh rendering (`prepare`, `finish`), retained triangles and retained-packet rebuilds. Skeletal fields report pose/decode `skeletal_scanlines`, evaluated `skeletal_bone_matrices`, CPU-skinned vertices and decoded baked vertices; a culled character contributes zero to all four. `skeletal_decoded_vertices` counts coordinates-per-vertex that a clip frame actually supplied: a baked character whose animator has no valid clip, or whose clip carries no encoded vertex frames, renders its bind pose without decoding anything and adds nothing to that counter, although the attempt still shows up in `skeletal_scanlines`. `skeletal_bone_matrices` and `skeletal_cpu_vertices` stay zero for baked characters, and `skeletal_cpu_vertices` stays zero for an all-unlit rigid character, which poses bones and projects each position once instead of skinning on the CPU. With `EPOK_PROFILE_DETAIL=1`, per-quad shade/fog/emit timers, chunk setup and camera/sprite/HUD timers are also populated. Release builds leave those detail fields at zero. Reading extra timers adds work, so detail-build timings are not release measurements.
+
+Explicit gameplay skeletal queries have separate counters available through
+`epok::ResourceLibrary::skeletal_queries()`: calls, requested vertices, evaluated
+bones, decoded compressed/raw bytes and failures. Clear them with
+`clear_skeletal_queries()` around a measured interval. These counters are not
+renderer counters: an off-screen explicit query legitimately adds query work
+while the renderer remains at zero. A compressed baked single-vertex query uses
+a cooked 16-vertex seek sidecar and decodes at most one block; a rigid batch
+poses the bounded bone set once and never borrows renderer scratch.
 
 The descriptive `streamed_chunks` counter is collected only with
 `EPOK_PROFILE_DETAIL=1` (`tools/profile_runtime.py --detail`). Ordinary builds
@@ -123,6 +132,61 @@ disabled by default and may lower FPS or stall frames. See
 [Geometry streaming](streaming.md) for usage and [Project Settings](settings.md)
 for defaults and ranges. Lower triangle budgets save RAM but can omit triangles;
 inspect dropped-triangle counters when changing the budget.
+
+## Skeletal characters
+
+`tools/benchmark_skeletal.py` measures skeletal workloads repeatably. It builds
+one project per configuration (storage mode, texture assignment, material
+lighting, instance count, on screen or behind the camera), runs each build
+several times in the configured emulator, samples completed-frame
+`performance_stats`, and records the cooked `// skeletal budget:` line from the
+generated scene header, the `.ps-exe` size, the build's memory report and the
+texture VRAM allocation. Results land in a new timestamped directory under
+`artifacts/performance/skeletal/`, as `results.json` plus a `report.md` with the
+tables, the environment and the fixture hashes.
+
+The report also records which optional query tables are present in each cooked
+scene (`skin_portable_to_cooked`, `skin_vertex_seek`, baked `skin_bones` and
+`skin_tracks`). A render-only game must contain none of the query-only tables.
+When vertex or bone operations are reachable, their bytes are included in the
+ordinary skeletal budget rather than hidden in a separate allocation.
+
+Method, and what to keep if you write your own comparison: hold the camera,
+resolution, transforms and clip selection fixed and change one variable per
+pair; discard the first seconds of each run as warm-up; repeat each workload at
+least three times and report the median, the 95th percentile, the maximum and
+the sample count rather than one number. Compare storage modes with
+`frame_scanlines` and `render_scanlines`: rigid bone evaluation is timed inside
+the vertex scope while baked decoding is timed in visible-chunk setup, so
+`vertex_scanlines` is not comparable between them, and the scanline unit is
+about 64 microseconds, which is the resolution of any difference. Assert culling
+with the skeletal counters themselves (all four read zero for an off-screen
+character), not with a lower-bound validation flag.
+
+Findings from the fixtures currently in `resources/models`, at 320x240 with up
+to eight instances, which are a small measured sample and not a general ranking:
+
+* Neither storage mode is simply faster. Baked vertex frames had the lower frame
+  and render time than rigid bones in every controlled pair measured, by roughly
+  a tenth at one instance and under a fifth at eight, while rigid bones stored
+  far fewer bytes and its payload grew much more slowly with clip count. Treat
+  the choice as a time-for-space trade and measure the model you ship.
+* Keep skeletal materials unlit. A lit material routes the model to the
+  compatible CPU rigid path, which cost about half as much again per frame as
+  the same model on the GTE path and was the only configuration that reported
+  CPU-skinned vertices. That effect was larger than the storage-mode difference.
+* Characters placed outside the view cost nothing measurable: all four skeletal
+  counters stayed at zero and the frame cost matched the scene without them.
+* Clip count changes size, not frame time, because one clip plays at a time.
+* In these workloads the limiting resource was frame CPU time, not RAM,
+  executable size, VRAM or the primitive budget, and most of that time was
+  per-vertex projection and per-polygon work rather than pose evaluation or
+  decoding. Check which resource is actually limiting before optimizing one.
+
+These are emulator measurements of specific scenes: they are not physical
+console timings, and the editor viewport's own frame rate is a host measurement
+that says nothing about runtime performance. Re-measure after runtime or cooker
+changes instead of relying on the recorded numbers.
 
 ## Compilation and measurement
 

@@ -94,7 +94,9 @@ unchanged for the original event subset; extended operations require EPSQ v2.
 
 SMPTE is rejected. SysEx, aftertouch, unknown RPN/NRPN, unsupported controllers
 and unknown meta events appear in the report and block Musical v2 playback until
-resolved in the source. **Ignore reported unsupported MIDI events** is available
+resolved in the source. Sequencer-specific meta `0x7F` is retained as opaque
+authoring metadata but is advisory: it does not describe playable music and does
+not block preview or conversion. **Ignore reported unsupported MIDI events** is available
 only for the Legacy v1 interpretation. The original event ledger retains track,
 tick, offset and message data; the legacy exception cannot bypass source-integrity
 or bank-fidelity blockers.
@@ -325,6 +327,33 @@ Target Preview decodes the actual EPSB samples and EPSQ sequence, with linear ho
 interpolation and no wet Room reverb; PSX playback renders the hardware result.
 Draft audition before saving and broader fidelity/stress acceptance remain pending.
 
+### Epok Pulse music driver
+
+**Music driver → Epok Pulse** is the default for SoundFont-derived sequences.
+The editor compiles MIDI ordering, pedals, tuning and modulation to EPSQ v3:
+timestamped SPU commands and deduplicated instrument-start templates. The SPU
+performs ADSR and sample playback; the console does not evaluate a SoundFont
+envelope or LFO on every audio interrupt. Pitch/gain automation is evaluated
+offline at 250 Hz plus MIDI event boundaries and emitted only when it changes.
+EPSB v2 sample banks and the existing AudioComponent/Blueprint play API remain.
+
+Epok Pulse is an original driver. Native-only builds omit the old software
+synthesizer's per-voice states and MIDI FIFO storage.
+Projects mixing native sequences with legacy/reference sequences keep both paths.
+
+Hardware ADSR is an explicit target adaptation, not an exact SoundFont renderer:
+rates/sustain levels are quantized, delay is omitted, and hold is folded into
+decay. The cook and Target Preview report affected layers and offline voice steals.
+Controllers that retime an already-playing volume envelope fail conversion rather
+than silently losing their effect. **Software reference** preserves the previous
+runtime path for fidelity comparisons. Source Preview remains unchanged.
+
+EPSQ v3 is limited to 256 KiB, 32,768 commands and ten minutes per authored pass;
+loops can repeat indefinitely. Excessive automation fails with a conversion
+diagnostic. Target Preview uses the cooked command stream and a hardware-envelope
+model; Gaussian interpolation, key-on delay, SFX contention and wet reverb still
+require emulator/hardware verification. The authored source snapshot is preserved.
+
 For Ironwood's `opening_02`, the delivered recipe is Custom, maximum 10,208 Hz,
 450 ms release cap, Dry, 6 dB headroom, 21 physical music voices and 4,672 bytes
 reserved for other resident samples. These are explicit target adaptations, not
@@ -335,6 +364,8 @@ MusicSequence UUID. See [delivery evidence and pending work](architecture/psx-mi
 ## Background music (BGM / XA)
 
 Choose **Load Mode: Stream** to decode the source to PCM, apply trimming/normalization and convert it to 4-bit XA-ADPCM at 37,800 or 18,900 Hz, mono or stereo. This applies to every Role. This is rendered audio: importing MP3 does not recover instruments, MIDI or a sequenced soundtrack. Lossy MP3-to-XA conversion adds another compression stage; WAV/FLAC are preferable masters when available.
+
+A `MusicSequence` itself is always resident, so it cannot become an XA stream by changing its load mode. To make a disc version of a MIDI, render its **Source** interpretation with its assigned SoundBank to a WAV, then import that WAV as a separate streamed BGM AudioClip. This keeps the compact sequence available for EXE builds while the rendered master supplies the CD build. The render is deterministic from the saved sequence snapshot and SoundBank; it is not a recording of the editor audio device.
 
 The same source can produce independent SFX and BGM assets with different destinations/settings. The original source snapshot and UUID stay in the package, including after reimport, moves or cache deletion. Version-1 WAV packages remain readable with their original SFX defaults.
 
@@ -365,6 +396,9 @@ epok-editor.exe --project "D:/Games/My Game" --reimport-asset assets/Audio/Hit.e
 epok-editor.exe --project "D:/Games/My Game" --reimport-asset assets/Audio/Hit.epokasset --import-audio assets/Audio/NewHit.wav
 epok-editor.exe --project "D:/Games/My Game" --reimport-asset assets/Audio/Hit.epokasset --snapshot --rate 22050
 epok-editor.exe --project "D:/Games/My Game" --import-audio assets/Audio/Theme.mp3 --audio-usage bgm --rate 37800 --channels 2 --loop
+epok-editor.exe --project "D:/Games/My Game" --render-music-sequence assets/Audio/Theme.epokasset --output assets/Audio/Theme-disc.wav
+epok-editor.exe --project "D:/Games/My Game" --import-audio assets/Audio/Theme-disc.wav --asset assets/Audio/Theme-disc.epokasset --audio-usage bgm --loop
+epok-editor.exe --project "D:/Games/My Game" --duplicate-music-sequence assets/Audio/Theme.epokasset --asset assets/Audio/Theme-compact.epokasset --bank-budget 110000 --minimum-sample-rate 400
 epok-editor.exe --project "D:/Games/My Game" --import-audio assets/Audio/Theme.mp3 --asset assets/Audio/Stinger.epokasset --audio-usage sfx --trim-start 2 --trim-end 3
 epok-editor.exe --project "D:/Games/My Game" --scan-assets
 ```

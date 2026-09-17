@@ -110,15 +110,46 @@ pub fn render_target(
     let (events, _) = crate::psx_sequence::library_payload(ir, settings, uuid::Uuid::nil())?;
     let payload = crate::psx_library_wire::encode(cooked)?;
     let (frames, loops) = layout(ir, settings, cooked.zones.iter().map(|z| &z.voice))?;
-    let (mut pcm, stats) = crate::instrument_preview::render(
-        &events,
-        ir.ppqn,
-        &payload,
-        &cooked.samples,
-        settings.voices(),
-        frames,
-        cancelled,
-    )?;
+    let (mut pcm, stats) = if cooked.report.recipe.driver
+        == crate::psx_music_settings::Driver::NativeSpu
+    {
+        let (stream, compilation) = crate::native_music::compile(
+            &events,
+            ir.ppqn,
+            settings.voices(),
+            &payload,
+            uuid::Uuid::nil(),
+            cancelled,
+        )?;
+        let (mut audio, mut stats) = crate::instrument_preview::render_native(
+            &events,
+            ir.ppqn,
+            &payload,
+            &cooked.samples,
+            settings.voices(),
+            frames,
+            cancelled,
+            &stream,
+        )?;
+        stats.steals = compilation.steals;
+        audio.report = Some(format!(
+            "{} Offline voice steals: {}; delay/hold envelope adaptations: {}. Source Preview retains the authored SoundFont envelope.",
+            audio.report.take().unwrap_or_default(),
+            compilation.steals,
+            compilation.adapted
+        ));
+        (audio, stats)
+    } else {
+        crate::instrument_preview::render(
+            &events,
+            ir.ppqn,
+            &payload,
+            &cooked.samples,
+            settings.voices(),
+            frames,
+            cancelled,
+        )?
+    };
     set_timeline(&mut pcm, ir, loops, frames);
     pcm.report = Some(format!(
         "{} Samples: {} SPU bytes; global reverb reservation: {} bytes; bank main RAM: {} bytes. Observed logical/physical peaks: {}/{}; denied notes: {}; steals: {}; clipped output samples: {}. Reverb wet audio is not simulated; use an emulator capture for Room. {} explicit conversion adaptations.",

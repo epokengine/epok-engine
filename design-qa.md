@@ -7,9 +7,9 @@ panel structure, not pixel-identical reference UI or external API compatibility.
 
 ## Visual truth and comparison
 
-- Graph reference: `C:/Users/Adolfo/AppData/Local/Temp/codex-clipboard-5b44f137-58eb-48a0-9f7a-10163088fb4e.png`
+- Graph reference: user-supplied temporary image, not distributed with the repository
   (694 x 361, graph only).
-- Full-editor reference: `C:/Users/Adolfo/AppData/Local/Temp/codex-clipboard-6fd13a45-ca5d-479d-8fab-cdf37412be42.png`
+- Full-editor reference: user-supplied temporary image, not distributed with the repository
   (1583 x 950).
 - Final implementation: `docs/images/blueprint-editor.png` (1581 x 917, lossless native-render PNG).
 - Native Windows content size: 1581 x 917. No CSS viewport or browser scaling;
@@ -57,7 +57,7 @@ No actionable P0/P1/P2 finding remains for the supplied visual targets.
   colors and semantic headers. Small node color differences are user-authorized.
   The first graph reference defines the lighter grid; the later reference adds
   the panel structure rather than replacing that graph reference.
-- Image quality: genuine unchanged editor capture, not an AI image or mock.
+- Image quality: genuine unchanged editor capture, not synthetic imagery or a mock.
   Native editable geometry and shipped icon-font assets, no screenshot backdrop.
 - Content: the displayed classes, helper, inherited variables and components are
   real Epok assets. Compile succeeds. No external gameplay APIs are advertised.

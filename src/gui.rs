@@ -567,6 +567,18 @@ fn draw_workspace(
         crate::asset_ui::windows(ui, e);
         return;
     }
+    if e.timeline_editor.layout && e.timeline_editor.open {
+        e.view_dirty = true;
+        e.scene_look = false;
+        scene_view(ui, e, scene, hud_texture, image_size);
+        e.timeline_editor
+            .draw(ui, &e.root, &e.class_registry, &e.scene, &e.assets.index);
+        if ui.is_key_pressed(imgui::Key::Escape) && !ui.io().want_text_input {
+            e.timeline_editor.layout = false;
+            e.reset_layout = true;
+        }
+        return;
+    }
     let size = ui.io().display_size;
     let menu_height = ui.frame_height();
     let toolbar_height = 40.;
@@ -715,14 +727,6 @@ fn draw_workspace(
     });
     if !background && !text_input_active(ui) && !e.game_capture {
         crate::mesh_editor::shortcuts(ui, e);
-        if !e.mesh_editor.open
-            && !e.blueprint_editor.focused
-            && !e.timeline_editor.focused
-            && !e.project_browser.focused
-            && ui.is_key_pressed(imgui::Key::F2)
-        {
-            e.action("rename");
-        }
         if ui.io().key_ctrl && ui.is_key_pressed(imgui::Key::S) {
             e.save_all();
         }
@@ -813,6 +817,13 @@ fn draw_workspace(
                 ui.open_popup("layout-menu");
             }
             ui.popup("layout-menu", || {
+                if ui
+                    .menu_item_config("Sequencer")
+                    .enabled(e.timeline_editor.open)
+                    .build()
+                {
+                    e.timeline_editor.layout = true;
+                }
                 if ui.menu_item("Default") {
                     e.reset_layout = true;
                 }
@@ -989,8 +1000,10 @@ fn draw_workspace(
     lua_creation_dialog(ui, e);
     crate::blueprint_workflow::draw(ui, e);
     crate::actor_workflow::draw(ui, e);
+    e.view_dirty |= e.timeline_editor.scene_preview.scene.is_some();
     e.timeline_editor
         .draw(ui, &e.root, &e.class_registry, &e.scene, &e.assets.index);
+    e.view_dirty |= e.timeline_editor.scene_preview.scene.is_some();
     if e.close_requested {
         ui.open_popup("Unsaved scene");
         e.close_requested = false;
@@ -1287,17 +1300,14 @@ fn hierarchy_node(
     if ui.is_item_hovered() {
         ui.tooltip_text(&e.scene.actors[index].name);
     }
-    if ui.is_item_hovered()
-        && !ui.is_item_toggled_open()
-        && ui.is_mouse_double_clicked(imgui::MouseButton::Left)
-    {
-        e.begin_rename(index);
-    }
     if ui.is_item_clicked() && !ui.is_item_toggled_open() {
         e.selected_asset = None;
         e.selected_actor = None;
         e.selected = Some(index);
         e.view_dirty = true;
+        if ui.is_mouse_double_clicked(imgui::MouseButton::Left) {
+            e.action("frame-selected");
+        }
     }
     if !e.playing {
         if let Some(_source) = ui
@@ -1357,7 +1367,8 @@ fn hierarchy_node(
     }
     if e.rename.as_ref().is_some_and(|(i, _)| *i == index) {
         ui.set_next_item_width(-1.);
-        if e.rename_focus {
+        let focus_requested = e.rename_focus;
+        if focus_requested {
             ui.set_keyboard_focus_here();
             e.rename_focus = false;
         }
@@ -1369,10 +1380,8 @@ fn hierarchy_node(
             .auto_select_all(true)
             .enter_returns_true(true)
             .build();
-        let blur = ui.is_item_deactivated();
-        let cancel = ui.is_key_pressed(imgui::Key::Escape);
-        if submit || blur || cancel {
-            e.finish_rename(!cancel);
+        if let Some(commit) = hierarchy_rename_finished(ui, submit, focus_requested) {
+            e.finish_rename(commit);
         }
     }
     if let Some(_node) = node {
@@ -1456,6 +1465,7 @@ struct ActorResult {
     duplicate: Option<uuid::Uuid>,
     delete: Option<uuid::Uuid>,
     rename: Option<uuid::Uuid>,
+    rename_input_drawn: bool,
 }
 fn actor_node(
     ui: &imgui::Ui,
@@ -1494,6 +1504,8 @@ fn actor_node(
         flags |= imgui::TreeNodeFlags::SELECTED;
     }
     let node = ui.tree_node_config(label).flags(flags).push();
+    #[cfg(test)]
+    record_script_control(ui, &format!("Hierarchy actor {id}"));
     if ui.is_item_hovered() {
         if cx.resolved[index] {
             ui.tooltip_text(&e.scene.actors[index].class.name);
@@ -1504,14 +1516,11 @@ fn actor_node(
             ));
         }
     }
-    if ui.is_item_hovered()
-        && !ui.is_item_toggled_open()
-        && ui.is_mouse_double_clicked(imgui::MouseButton::Left)
-    {
-        out.rename = Some(id);
-    }
     if ui.is_item_clicked() && !ui.is_item_toggled_open() {
         e.select_actor(Some(id));
+        if ui.is_mouse_double_clicked(imgui::MouseButton::Left) {
+            e.action("frame-selected");
+        }
     }
     if !e.playing {
         if let Some(_source) = ui
@@ -1533,9 +1542,11 @@ fn actor_node(
     if let Some(_popup) = ui.begin_popup_context_item() {
         e.select_actor(Some(id));
         ui.disabled(e.playing, || {
-            if ui.menu_item("Rename") {
+            if ui.menu_item_config("Rename").shortcut("F2").build() {
                 out.rename = Some(id);
             }
+            #[cfg(test)]
+            record_script_control(ui, "Hierarchy Rename");
             ui.separator();
             if ui.menu_item("Duplicate") {
                 out.duplicate = Some(id);
@@ -1564,8 +1575,10 @@ fn actor_node(
         .as_ref()
         .is_some_and(|(other, _)| *other == id)
     {
+        out.rename_input_drawn = true;
         ui.set_next_item_width(-1.);
-        if e.actor_rename_focus {
+        let focus_requested = e.actor_rename_focus;
+        if focus_requested {
             ui.set_keyboard_focus_here();
             e.actor_rename_focus = false;
         }
@@ -1577,10 +1590,10 @@ fn actor_node(
             .auto_select_all(true)
             .enter_returns_true(true)
             .build();
-        let blur = ui.is_item_deactivated();
-        let cancel = ui.is_key_pressed(imgui::Key::Escape);
-        if submit || blur || cancel {
-            e.finish_actor_rename(!cancel);
+        #[cfg(test)]
+        record_script_control(ui, "Hierarchy rename input");
+        if let Some(commit) = hierarchy_rename_finished(ui, submit, focus_requested) {
+            e.finish_actor_rename(commit);
         }
     }
     if let Some(_node) = node {
@@ -1589,11 +1602,35 @@ fn actor_node(
         }
     }
 }
+/// A navigation control can clear text focus after this field was drawn, so a
+/// one-frame deactivation event alone cannot reliably close the edit session.
+fn hierarchy_rename_finished(ui: &imgui::Ui, submit: bool, focus_requested: bool) -> Option<bool> {
+    let cancel = ui.is_key_pressed(imgui::Key::Escape);
+    let outside_click = [
+        imgui::MouseButton::Left,
+        imgui::MouseButton::Right,
+        imgui::MouseButton::Middle,
+    ]
+    .into_iter()
+    .any(|button| ui.is_mouse_clicked(button))
+        && !ui.is_item_hovered();
+    let blur =
+        !focus_requested && (ui.is_item_deactivated() || !ui.is_window_focused() || outside_click);
+    (submit || cancel || blur).then_some(!cancel)
+}
 fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
     let actors = placeable_actor_classes(e);
     ui.window("\u{eb86} Hierarchy###Hierarchy").build(|| {
         let mut out = HierarchyResult::default();
         let mut actor_out = ActorResult::default();
+        if ui.is_window_focused()
+            && !text_input_active(ui)
+            && !e.playing
+            && !e.game_capture
+            && ui.is_key_pressed(imgui::Key::F2)
+        {
+            e.action("rename");
+        }
         if ui.button("\u{ea60} \u{eab4}") {
             ui.open_popup("create-object");
         }
@@ -1613,6 +1650,8 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
         ui.input_text("##hierarchy-search", &mut e.search)
             .hint(format!("{SEARCH} All"))
             .build();
+        #[cfg(test)]
+        record_script_control(ui, "Hierarchy search");
         ui.separator();
         let mut scene_config = ui
             .tree_node_config(format!(
@@ -1710,6 +1749,10 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
         }
         if let Some(id) = actor_out.rename {
             e.begin_actor_rename(id);
+        } else if e.actor_rename.is_some() && !actor_out.rename_input_drawn && !e.actor_rename_focus
+        {
+            // Collapsing or filtering the branch must also end its hidden edit.
+            e.finish_actor_rename(true);
         }
         if let Some((child, parent)) = actor_out.reparent {
             e.reparent_actor(child, parent);
@@ -2862,64 +2905,84 @@ fn scene_view(
             imgui::sys::igSetNextWindowCollapsed(false, imgui::sys::ImGuiCond_Always as i32);
         }
     }
-    ui.window("\u{eb29} Scene###Scene").build(|| {
-        for mode in crate::scene_view_mode::SceneViewMode::ALL {
-            if mode != crate::scene_view_mode::SceneViewMode::ALL[0] {
-                ui.same_line();
+    let compact = e.timeline_editor.layout && e.timeline_editor.open;
+    let mut window = ui.window("\u{eb29} Scene###Scene");
+    if compact {
+        window = window
+            .position([0., 0.], Condition::Always)
+            .size(
+                [ui.io().display_size[0], ui.io().display_size[1] * 0.537],
+                Condition::Always,
+            )
+            .title_bar(false)
+            .resizable(false)
+            .movable(false)
+            .scroll_bar(false)
+            .scrollable(false);
+    }
+    let _compact_padding =
+        compact.then(|| ui.push_style_var(imgui::StyleVar::WindowPadding([0., 0.])));
+    window.build(|| {
+        if !compact {
+            for mode in crate::scene_view_mode::SceneViewMode::ALL {
+                if mode != crate::scene_view_mode::SceneViewMode::ALL[0] {
+                    ui.same_line();
+                }
+                if ui.radio_button_bool(mode.label(), e.scene_view_mode == mode) {
+                    e.set_scene_view_mode(mode);
+                }
             }
-            if ui.radio_button_bool(mode.label(), e.scene_view_mode == mode) {
-                e.set_scene_view_mode(mode);
+            inline(ui, "Shaded");
+            match e.scene_view_mode {
+                crate::scene_view_mode::SceneViewMode::UI => {
+                    ui.text("Canvas / HUD");
+                    ui.separator();
+                    crate::hud_editor::view(ui, e, hud_texture);
+                    return;
+                }
+                crate::scene_view_mode::SceneViewMode::TwoD => {
+                    // The 3D simulation and preview state are untouched: switching
+                    // back to 3D resumes exactly where the author left it.
+                    world2d_view(ui, e);
+                    return;
+                }
+                crate::scene_view_mode::SceneViewMode::ThreeD => {}
             }
-        }
-        inline(ui, "Shaded");
-        match e.scene_view_mode {
-            crate::scene_view_mode::SceneViewMode::UI => {
-                ui.text("Canvas / HUD");
-                ui.separator();
-                crate::hud_editor::view(ui, e, hud_texture);
-                return;
+            if ui.button("Shaded  \u{eab4}") {
+                ui.open_popup("shading");
             }
-            crate::scene_view_mode::SceneViewMode::TwoD => {
-                // The 3D simulation and preview state are untouched: switching
-                // back to 3D resumes exactly where the author left it.
-                world2d_view(ui, e);
-                return;
-            }
-            crate::scene_view_mode::SceneViewMode::ThreeD => {}
-        }
-        if ui.button("Shaded  \u{eab4}") {
-            ui.open_popup("shading");
-        }
-        ui.popup("shading", || {
-            if ui.menu_item_config("Shaded").selected(!e.wire).build() {
-                e.wire = false;
+            ui.popup("shading", || {
+                if ui.menu_item_config("Shaded").selected(!e.wire).build() {
+                    e.wire = false;
+                    e.view_dirty = true;
+                }
+                if ui.menu_item_config("Wireframe").selected(e.wire).build() {
+                    e.wire = true;
+                    e.view_dirty = true;
+                }
+            });
+            inline(ui, "Grid");
+            if ui.checkbox("Grid", &mut e.grid) {
                 e.view_dirty = true;
             }
-            if ui.menu_item_config("Wireframe").selected(e.wire).build() {
-                e.wire = true;
-                e.view_dirty = true;
+            inline(ui, "Reset View");
+            if ui.button("Reset View") {
+                e.action("reset-view");
             }
-        });
-        inline(ui, "Grid");
-        if ui.checkbox("Grid", &mut e.grid) {
-            e.view_dirty = true;
+            inline_width(ui, 125.);
+            ui.set_next_item_width(70.);
+            crate::gui::Drag::new("Speed")
+                .speed(0.1)
+                .range(0.1, 100.)
+                .build(ui, &mut e.view.fly_speed);
+            muted(ui, "RMB + WASD: fly | Q/E: down/up | Alt + LMB: orbit");
+            crate::lighting_editor::preview_status(ui, e);
+            ui.separator();
         }
-        inline(ui, "Reset View");
-        if ui.button("Reset View") {
-            e.action("reset-view");
-        }
-        inline_width(ui, 125.);
-        ui.set_next_item_width(70.);
-        crate::gui::Drag::new("Speed")
-            .speed(0.1)
-            .range(0.1, 100.)
-            .build(ui, &mut e.view.fly_speed);
-        muted(ui, "RMB + WASD: fly | Q/E: down/up | Alt + LMB: orbit");
-        crate::lighting_editor::preview_status(ui, e);
-        ui.separator();
         let position = ui.cursor_screen_pos();
         let available = ui.content_region_avail().map(|v| v.max(1.));
         // Fill the Scene panel, preserving projection aspect by cropping the preview texture.
+        e.scene_panel_size = available;
         let factor = (available[0] / image_size[0]).max(available[1] / image_size[1]);
         let uv = [
             available[0] / (image_size[0] * factor),
@@ -3009,7 +3072,14 @@ fn scene_view(
             let pixel = crate::picking::texture_pixel(mouse, position, factor, uv);
             e.selected_asset = None;
             if !crate::mesh_editor::pick(e, pixel, ui.io().key_ctrl) {
-                e.selected = crate::picking::pick(&e.scene, &e.view, pixel);
+                let scene = e
+                    .timeline_editor
+                    .scene_preview
+                    .scene
+                    .as_ref()
+                    .filter(|_| e.timeline_editor.open && !e.playing)
+                    .unwrap_or(&e.scene);
+                e.selected = crate::picking::pick(scene, &e.view, pixel);
             }
             e.view_dirty = true;
             e.reveal_selected = e.selected.is_some();
@@ -3185,6 +3255,284 @@ fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) 
 #[cfg(test)]
 mod interaction_tests {
     use super::*;
+
+    #[test]
+    fn hierarchy_double_click_frames_and_rename_respects_focus_and_outside_clicks() {
+        let mut context = crate::gui::tests::imgui_context();
+        configure_input(context.io_mut());
+        context.io_mut().display_size = [900., 650.];
+        context.io_mut().delta_time = 1. / 60.;
+        context.io_mut().config_flags |= imgui::ConfigFlags::NAV_ENABLE_KEYBOARD;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][###Hierarchy]\nPos=10,10\nSize=360,600\nCollapsed=0\n");
+        let mut editor = Editor::new(crate::workspace::tests::temp("hierarchy-navigation"));
+        editor.auto_build = false;
+        let index = 1;
+        let actor = editor.scene.actors[index].id;
+        editor.scene.actors[index].position = [8., 3., -2.];
+        let mut child = crate::scene::Actor::cube("Nested actor".into());
+        child.logical_parent = Some(actor);
+        let child_id = child.id;
+        editor.scene.actors.push(child);
+        editor.scene.sync_actor_components();
+        editor.select_actor(None);
+        let mut other_text = String::new();
+
+        fn frame(ctx: &mut imgui::Context, e: &mut Editor, other_text: &mut String) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            let ui = ctx.frame();
+            hierarchy(ui, e);
+            ui.window("Other panel")
+                .position([400., 10.], Condition::Always)
+                .size([400., 500.], Condition::Always)
+                .build(|| {
+                    ui.input_text("Other text", other_text).build();
+                    record_script_control(ui, "Other text");
+                });
+            ctx.render();
+        }
+        fn click_at(
+            ctx: &mut imgui::Context,
+            e: &mut Editor,
+            other_text: &mut String,
+            point: [f32; 2],
+            button: imgui::MouseButton,
+        ) {
+            ctx.io_mut().add_mouse_pos_event(point);
+            frame(ctx, e, other_text);
+            ctx.io_mut().add_mouse_button_event(button, true);
+            frame(ctx, e, other_text);
+            ctx.io_mut().add_mouse_button_event(button, false);
+            frame(ctx, e, other_text);
+        }
+        fn key(ctx: &mut imgui::Context, e: &mut Editor, other_text: &mut String, key: imgui::Key) {
+            ctx.io_mut().add_key_event(key, true);
+            frame(ctx, e, other_text);
+            ctx.io_mut().add_key_event(key, false);
+            frame(ctx, e, other_text);
+            frame(ctx, e, other_text);
+        }
+        let point = |label: &str| SCRIPT_BUTTONS.with(|buttons| buttons.borrow()[label]);
+        for _ in 0..3 {
+            frame(&mut context, &mut editor, &mut other_text);
+        }
+        let row = point(&format!("Hierarchy actor {actor}"));
+        let before = editor.view.center;
+        click_at(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            row,
+            imgui::MouseButton::Left,
+        );
+        assert_eq!(editor.selected, Some(index));
+        assert_eq!(editor.view.center, before, "Single click only selects");
+        click_at(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            row,
+            imgui::MouseButton::Left,
+        );
+        assert_eq!(
+            editor.view.center,
+            editor.scene.world_matrix(index).point([0.; 3])
+        );
+        assert!(
+            editor.actor_rename.is_none(),
+            "Double click frames, never renames"
+        );
+        assert!(editor.rename.is_none());
+
+        key(&mut context, &mut editor, &mut other_text, imgui::Key::R);
+        assert!(
+            editor.actor_rename.is_none(),
+            "R is not a Hierarchy rename shortcut"
+        );
+        key(&mut context, &mut editor, &mut other_text, imgui::Key::F2);
+        assert!(editor.actor_rename.is_some());
+        assert!(context.io().want_text_input);
+        for c in "Renamed actor".chars() {
+            context.io_mut().add_input_character(c);
+        }
+        frame(&mut context, &mut editor, &mut other_text);
+        // An ordinary click into another input commits and gives that field focus.
+        let other_input = point("Other text");
+        click_at(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            other_input,
+            imgui::MouseButton::Left,
+        );
+        assert!(editor.actor_rename.is_none());
+        assert_eq!(editor.scene.actors[index].name, "Renamed actor");
+        context.io_mut().add_input_character('x');
+        frame(&mut context, &mut editor, &mut other_text);
+        assert_eq!(
+            other_text, "x",
+            "Dismissal must not consume the destination click"
+        );
+        key(&mut context, &mut editor, &mut other_text, imgui::Key::F2);
+        assert!(
+            editor.actor_rename.is_none(),
+            "Another text field owns its keyboard input"
+        );
+        click_at(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            [500., 300.],
+            imgui::MouseButton::Left,
+        );
+        key(&mut context, &mut editor, &mut other_text, imgui::Key::F2);
+        assert!(editor.actor_rename.is_none(), "F2 requires Hierarchy focus");
+
+        click_at(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            row,
+            imgui::MouseButton::Left,
+        );
+        editor.playing = true;
+        key(&mut context, &mut editor, &mut other_text, imgui::Key::F2);
+        assert!(editor.actor_rename.is_none(), "Play prohibits rename");
+        editor.playing = false;
+        let search = point("Hierarchy search");
+        click_at(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            search,
+            imgui::MouseButton::Left,
+        );
+        key(&mut context, &mut editor, &mut other_text, imgui::Key::F2);
+        assert!(
+            editor.actor_rename.is_none(),
+            "Hierarchy search owns its text keys"
+        );
+
+        click_at(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            row,
+            imgui::MouseButton::Left,
+        );
+        key(&mut context, &mut editor, &mut other_text, imgui::Key::F2);
+        for c in "Discard this".chars() {
+            context.io_mut().add_input_character(c);
+        }
+        frame(&mut context, &mut editor, &mut other_text);
+        key(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            imgui::Key::Escape,
+        );
+        assert!(editor.actor_rename.is_none());
+        assert_eq!(editor.scene.actors[index].name, "Renamed actor");
+        key(&mut context, &mut editor, &mut other_text, imgui::Key::F2);
+        for c in "   ".chars() {
+            context.io_mut().add_input_character(c);
+        }
+        frame(&mut context, &mut editor, &mut other_text);
+        click_at(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            [120., 480.],
+            imgui::MouseButton::Left,
+        );
+        assert!(
+            editor.actor_rename.is_none(),
+            "Empty rename still dismisses"
+        );
+        assert_eq!(editor.scene.actors[index].name, "Renamed actor");
+
+        // The context command stays available and does not dismiss on its opening click.
+        click_at(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            row,
+            imgui::MouseButton::Right,
+        );
+        frame(&mut context, &mut editor, &mut other_text);
+        let rename_menu = point("Hierarchy Rename");
+        click_at(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            rename_menu,
+            imgui::MouseButton::Left,
+        );
+        frame(&mut context, &mut editor, &mut other_text);
+        frame(&mut context, &mut editor, &mut other_text);
+        frame(&mut context, &mut editor, &mut other_text);
+        assert!(editor.actor_rename.is_some());
+        assert!(
+            context.io().want_text_input,
+            "The context command focuses its input; pending={}, active={}, controls={:?}",
+            editor.actor_rename_focus,
+            unsafe { imgui::sys::igGetActiveID() },
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow().keys().cloned().collect::<Vec<_>>())
+        );
+        for c in "Context name".chars() {
+            context.io_mut().add_input_character(c);
+        }
+        frame(&mut context, &mut editor, &mut other_text);
+        key(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            imgui::Key::Enter,
+        );
+        assert!(editor.actor_rename.is_none());
+        assert_eq!(editor.scene.actors[index].name, "Context name");
+
+        key(&mut context, &mut editor, &mut other_text, imgui::Key::F2);
+        assert!(editor.actor_rename.is_some());
+        // A later-rendered navigation panel may clear the active ID after this
+        // input's draw call, leaving no deactivation event on the following frame.
+        unsafe {
+            imgui::sys::igClearActiveID();
+            imgui::sys::igSetWindowFocus_Str(c"Other panel".as_ptr());
+        }
+        frame(&mut context, &mut editor, &mut other_text);
+        assert!(
+            editor.actor_rename.is_none(),
+            "Lost window focus must close rename"
+        );
+        frame(&mut context, &mut editor, &mut other_text);
+        let leaf = point(&format!("Hierarchy actor {child_id}"));
+        editor.view.center = [500.; 3];
+        click_at(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            leaf,
+            imgui::MouseButton::Left,
+        );
+        click_at(
+            &mut context,
+            &mut editor,
+            &mut other_text,
+            leaf,
+            imgui::MouseButton::Left,
+        );
+        assert_eq!(editor.selected_actor, Some(child_id));
+        assert_ne!(
+            editor.view.center, [500.; 3],
+            "Leaf rows also frame on double click"
+        );
+        assert!(editor.actor_rename.is_none());
+    }
+
     #[test]
     fn build_menu_runs_lighting_in_background_and_clears_the_stale_warning() {
         let mut context = crate::gui::tests::imgui_context();
@@ -4295,6 +4643,9 @@ mod interaction_tests {
         assert_eq!(created.kind, "Empty");
         assert_eq!(created.parent, None);
         // F2 editing goes through the actual text input, including keyboard focus.
+        unsafe {
+            imgui::sys::igSetWindowFocus_Str(c"\u{eb86} Hierarchy###Hierarchy".as_ptr());
+        }
         frame(&mut context, &mut editor, &mut initial);
         context.io_mut().add_key_event(imgui::Key::F2, true);
         frame(&mut context, &mut editor, &mut initial);

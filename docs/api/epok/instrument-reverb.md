@@ -48,9 +48,9 @@ static uint16_t read16(uintptr_t address)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `address` | `uintptr_t` | Input | Value supplied for `address`. See the exact type and module contract. |
+| `address` | `int` | Input | Value supplied for `address`. See the exact type and module contract. |
 
-**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument reverb module and the preconditions in the declaration are already satisfied.
 
@@ -60,7 +60,7 @@ static uint16_t read16(uintptr_t address)
 #include "instrument_reverb.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uintptr_t address
+// int address
 
 auto result = epok::instrument::reverb::PsxHardware::read16(address);
 ```
@@ -88,8 +88,8 @@ static void write16(uintptr_t address, uint16_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `address` | `uintptr_t` | Input | Value supplied for `address`. See the exact type and module contract. |
-| `value` | `uint16_t` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `address` | `int` | Input | Value supplied for `address`. See the exact type and module contract. |
+| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -101,8 +101,8 @@ static void write16(uintptr_t address, uint16_t value)
 #include "instrument_reverb.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uintptr_t address
-// uint16_t value
+// int address
+// int value
 
 epok::instrument::reverb::PsxHardware::write16(address, value);
 ```
@@ -130,8 +130,8 @@ static bool zero_spu(uint32_t address, uint32_t bytes)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `address` | `uint32_t` | Input | Value supplied for `address`. See the exact type and module contract. |
-| `bytes` | `uint32_t` | Input | Value supplied for `bytes`. See the exact type and module contract. |
+| `address` | `int` | Input | Value supplied for `address`. See the exact type and module contract. |
+| `bytes` | `int` | Input | Value supplied for `bytes`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -143,8 +143,8 @@ static bool zero_spu(uint32_t address, uint32_t bytes)
 #include "instrument_reverb.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t address
-// uint32_t bytes
+// int address
+// int bytes
 
 auto result = epok::instrument::reverb::PsxHardware::zero_spu(address, bytes);
 ```
@@ -172,8 +172,8 @@ Error acquire(uint16_t owner, uint32_t generation)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `uint16_t` | Input | Value supplied for `owner`. See the exact type and module contract. |
-| `generation` | `uint32_t` | Input | Value supplied for `generation`. See the exact type and module contract. |
+| `owner` | `int` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `generation` | `int` | Input | Value supplied for `generation`. See the exact type and module contract. |
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
 
@@ -185,8 +185,8 @@ Error acquire(uint16_t owner, uint32_t generation)
 #include "instrument_reverb.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t owner
-// uint32_t generation
+// int owner
+// int generation
 
 epok::instrument::reverb::Resource& object = /* obtain a valid instance */;
 
@@ -249,7 +249,7 @@ void clear_voice(uint8_t physical_voice)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `physical_voice` | `uint8_t` | Input | Value supplied for `physical_voice`. See the exact type and module contract. |
+| `physical_voice` | `int` | Input | Value supplied for `physical_voice`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -261,7 +261,7 @@ void clear_voice(uint8_t physical_voice)
 #include "instrument_reverb.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint8_t physical_voice
+// int physical_voice
 
 epok::instrument::reverb::Resource& object = /* obtain a valid instance */;
 
@@ -287,7 +287,7 @@ uint32_t generation() const
 - **Declared at:** [line 160](../../../runtime/instrument_reverb.hpp#L160)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument reverb module and the preconditions in the declaration are already satisfied.
 
@@ -320,7 +320,7 @@ uint16_t owner() const
 - **Declared at:** [line 159](../../../runtime/instrument_reverb.hpp#L159)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument reverb module and the preconditions in the declaration are already satisfied.
 
@@ -357,9 +357,9 @@ Error prepare(uint32_t sample_upload_end, Preset preset, uint16_t depth_q15)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `sample_upload_end` | `uint32_t` | Input | Value supplied for `sample_upload_end`. See the exact type and module contract. |
+| `sample_upload_end` | `int` | Input | Value supplied for `sample_upload_end`. See the exact type and module contract. |
 | `preset` | `Preset` | Input | Value supplied for `preset`. See the exact type and module contract. |
-| `depth_q15` | `uint16_t` | Input | Value supplied for `depth_q15`. See the exact type and module contract. |
+| `depth_q15` | `int` | Input | Value supplied for `depth_q15`. See the exact type and module contract. |
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
 
@@ -371,9 +371,9 @@ Error prepare(uint32_t sample_upload_end, Preset preset, uint16_t depth_q15)
 #include "instrument_reverb.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t sample_upload_end
+// int sample_upload_end
 // Preset preset
-// uint16_t depth_q15
+// int depth_q15
 
 epok::instrument::reverb::Resource& object = /* obtain a valid instance */;
 
@@ -469,8 +469,8 @@ Error reap(uint16_t owner, uint32_t generation)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `uint16_t` | Input | Value supplied for `owner`. See the exact type and module contract. |
-| `generation` | `uint32_t` | Input | Value supplied for `generation`. See the exact type and module contract. |
+| `owner` | `int` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `generation` | `int` | Input | Value supplied for `generation`. See the exact type and module contract. |
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
 
@@ -482,8 +482,8 @@ Error reap(uint16_t owner, uint32_t generation)
 #include "instrument_reverb.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t owner
-// uint32_t generation
+// int owner
+// int generation
 
 epok::instrument::reverb::Resource& object = /* obtain a valid instance */;
 
@@ -513,8 +513,8 @@ Error release(uint16_t owner, uint32_t generation)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `uint16_t` | Input | Value supplied for `owner`. See the exact type and module contract. |
-| `generation` | `uint32_t` | Input | Value supplied for `generation`. See the exact type and module contract. |
+| `owner` | `int` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `generation` | `int` | Input | Value supplied for `generation`. See the exact type and module contract. |
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
 
@@ -526,8 +526,8 @@ Error release(uint16_t owner, uint32_t generation)
 #include "instrument_reverb.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t owner
-// uint32_t generation
+// int owner
+// int generation
 
 epok::instrument::reverb::Resource& object = /* obtain a valid instance */;
 
@@ -553,7 +553,7 @@ uint32_t reserved_begin() const
 - **Declared at:** [line 162](../../../runtime/instrument_reverb.hpp#L162)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument reverb module and the preconditions in the declaration are already satisfied.
 
@@ -586,7 +586,7 @@ uint32_t reserved_bytes() const
 - **Declared at:** [line 163](../../../runtime/instrument_reverb.hpp#L163)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument reverb module and the preconditions in the declaration are already satisfied.
 
@@ -623,7 +623,7 @@ Error send(uint8_t physical_voice, bool enabled)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `physical_voice` | `uint8_t` | Input | Value supplied for `physical_voice`. See the exact type and module contract. |
+| `physical_voice` | `int` | Input | Value supplied for `physical_voice`. See the exact type and module contract. |
 | `enabled` | `bool` | Input | Value supplied for `enabled`. See the exact type and module contract. |
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
@@ -636,7 +636,7 @@ Error send(uint8_t physical_voice, bool enabled)
 #include "instrument_reverb.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint8_t physical_voice
+// int physical_voice
 // bool enabled
 
 epok::instrument::reverb::Resource& object = /* obtain a valid instance */;
@@ -663,7 +663,7 @@ uint32_t send_mask() const
 - **Declared at:** [line 161](../../../runtime/instrument_reverb.hpp#L161)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument reverb module and the preconditions in the declaration are already satisfied.
 

@@ -75,7 +75,7 @@ struct Context {
     timeline::Target targets[8];
     timeline::Property properties[16];
     timeline::Curve curves[16][4];
-    timeline::Key keys[16][4][4];
+    timeline::Key keys[16][4][timeline::key_limit];
     timeline::Event events[64];
     timeline::Argument arguments[64];
     timeline::Signal signals[128];
@@ -117,11 +117,11 @@ extern "C" uint32_t epok_preview_track(void* pointer,const PreviewTrack* input){
     auto* value=context(pointer);if(!value||value->started||!input||value->track_count>=16||input->slot>=8||input->field>8||input->interpolation>4)return 0;
     const bool vector=input->field==4||input->field==5||input->field==7;
     if(!input->channels||input->channels>4||(input->field!=8&&input->channels!=(vector?3u:1u)))return 0;
-    for(unsigned c=0;c<input->channels;++c)if(!input->lengths[c]||input->lengths[c]>4)return 0;
+    for(unsigned c=0;c<input->channels;++c)if(!input->lengths[c]||input->lengths[c]>timeline::key_limit)return 0;
     const auto index=value->track_count++;auto& property=value->properties[index];
-    property={input->property,uint16_t(input->slot),uint8_t(input->channels),input->additive!=0,input->restore!=0,value->curves[index],nullptr,nullptr};
+    property={input->property,uint16_t(input->slot),uint8_t(input->channels),input->additive!=0,input->restore!=0,value->curves[index],nullptr,nullptr,input->start,input->end,input->offset,input->numerator,input->denominator};
     for(unsigned c=0;c<input->channels;++c){for(unsigned k=0;k<input->lengths[c];++k)value->keys[index][c][k]={input->keys[c][k].tick,input->keys[c][k].value};
-        value->curves[index][c]={value->keys[index][c],uint16_t(input->lengths[c]),timeline::Interpolation(input->interpolation),false};}
+        value->curves[index][c]={value->keys[index][c],uint16_t(input->lengths[c]),timeline::Interpolation(input->modes[c]),false};}
     switch(input->field){
 #define EPOK_PREVIEW_FIELD(N) case N:property.read=read<N>;property.write=write<N>;break;
         EPOK_PREVIEW_FIELD(0) EPOK_PREVIEW_FIELD(1) EPOK_PREVIEW_FIELD(2) EPOK_PREVIEW_FIELD(3)

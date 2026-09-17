@@ -186,6 +186,22 @@ pub fn controls(
         recipe.select_preset(preset);
     }
     let before = recipe.clone();
+    choice(
+        ui,
+        "Music driver",
+        &mut recipe.driver,
+        &[
+            (
+                crate::psx_music_settings::Driver::NativeSpu,
+                "Epok Pulse (recommended)",
+            ),
+            (
+                crate::psx_music_settings::Driver::SoftwareReference,
+                "SoundFont software reference",
+            ),
+        ],
+        "Epok Pulse compiles MIDI controls in the editor and uses hardware ADSR. Envelope rates/sustain are quantized; delay is omitted and hold joins decay. Target Preview auditions this adaptation. Software reference preserves the previous envelope behavior at a higher CPU cost.",
+    );
     if ui.collapsing_header("Advanced conversion", imgui::TreeNodeFlags::empty()) {
         integer(
             ui,
@@ -308,13 +324,13 @@ pub fn controls(
             "Reserve the project's other banks and SFX here. Analysis uses this explicit reservation; the full build independently checks the complete included asset set. A single-song report does not prove the entire game fits.",
         );
         ui.checkbox(
-            "Optimizer may lower sample rate",
+            "Automatically fit sample budget on import",
             &mut recipe.optimization.allow_lower_rate,
         );
         help(
             ui,
             "optimizer-rate",
-            "Allows Optimize to budget to propose a smaller maximum rate. It does not change settings until you adopt the proposal, and never deletes notes, layers or instruments, or changes residency.",
+            "When enabled, importing or reimporting a sequence with a SoundFont automatically saves the highest tested rate that fits its PSX sample budget. It never deletes notes, layers or instruments, and does not change residency. Disable it to make an over-budget conversion fail before publishing.",
         );
         integer(
             ui,
@@ -322,7 +338,7 @@ pub fn controls(
             &mut recipe.optimization.minimum_sample_rate,
             400,
             44100,
-            "Lowest rate the bounded optimizer may try. Set a quality floor you are willing to compare. Failure to fit at this floor is reported; no hidden fallback is applied.",
+            "Lowest rate the bounded automatic fit may try. It is a quality floor: if no candidate at or above it fits, import stops before publishing an unusable target recipe.",
         );
         small_integer(
             ui,
@@ -365,7 +381,7 @@ pub fn controls(
         if ui.button("Analyze conversion"){request=Some(false);}
         help(ui,"analyze","Converts a read-only draft in a cancellable worker and reports exact cooked sizes and adaptations. It publishes no sequence or bank. Voice peaks and PSX timing still require playback measurements.");
         ui.same_line();if ui.button("Optimize to budget"){request=Some(true);}
-        help(ui,"optimize","Searches within your limits and shows a proposed recipe. Adopting the proposal only updates this draft; Save settings / Reimport publishes it.");
+        help(ui,"optimize","Previews the automatic import decision without publishing it. Adopting the proposal updates this editable draft; Save settings / Reimport publishes it.");
     });
     if state.job.is_some() {
         ui.text("Converting draft...");
@@ -479,7 +495,7 @@ pub fn controls(
             help(
                 ui,
                 "adopt-proposal",
-                "Updates the editable recipe only. Review it and save to publish; the optimizer never silently overwrites your settings.",
+                "Updates the editable recipe only. Import/reimport also applies this same fit automatically when the automatic-fit setting is enabled.",
             );
         }
         if ui.collapsing_header("Conversion details", imgui::TreeNodeFlags::empty()) {

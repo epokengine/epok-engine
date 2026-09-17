@@ -124,6 +124,13 @@ local function debug_frame()
 end
 EPOK_VSYNC_LISTENER = PCSX.Events.createEventListener('GPU::Vsync', function() vsyncs = vsyncs + 1 end)
 local pad = PCSX.SIO0.slots[1].pads[1]
+-- An explicit project Play option. Existing pad bindings and other projects stay unchanged.
+if EPOK_ANALOG_CONTROLLER then
+    PCSX.settings.pads[1].DeviceType = 'Analog'
+    PCSX.settings.pads[1].Connected = true
+    pad.map()
+    pad.setAnalogMode(true)
+end
 local buttons = {'SELECT','L3','R3','START','UP','RIGHT','DOWN','LEFT',
                  'L2','R2','L1','R1','TRIANGLE','CIRCLE','CROSS','SQUARE'}
 local function release()

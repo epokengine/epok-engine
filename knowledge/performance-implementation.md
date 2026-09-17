@@ -1,6 +1,6 @@
 # Performance implementation and acceptance contracts
 
-Internal context for AI agents and engine maintainers. User-facing configuration
+Internal context for contributors and engine maintainers. User-facing configuration
 belongs in [Project Settings](../docs/settings.md); open work and priorities are
 tracked in [Performance technical debt](performance-debt.md).
 

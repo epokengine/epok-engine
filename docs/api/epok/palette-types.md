@@ -6,7 +6,7 @@ This module covers CLUT animation and palette ownership. It documents 4 public c
 
 ## Declared types
 
-`epok::Fixed`, `epok::PaletteAnimator`, `epok::PaletteStats`
+`epok::PaletteAnimator`, `epok::PaletteStats`
 
 ## Callable index
 
@@ -34,7 +34,7 @@ void advance(Fixed dt)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
+| `dt` | `int` | Input | Value supplied for `dt`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -46,7 +46,7 @@ void advance(Fixed dt)
 #include "palette_types.hpp"
 
 // Assume these named values have been initialized with valid data:
-// Fixed dt
+// int dt
 
 epok::PaletteAnimator& object = /* obtain a valid instance */;
 
@@ -76,8 +76,8 @@ void apply(const uint16_t* source,uint16_t* destination)const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `source` | `const uint16_t *` | Input | Value supplied for `source`. See the exact type and module contract. |
-| `destination` | `uint16_t *` | Input/output; inspect the function contract | Value supplied for `destination`. See the exact type and module contract. |
+| `source` | `const int *` | Input | Value supplied for `source`. See the exact type and module contract. |
+| `destination` | `int *` | Input/output; inspect the function contract | Value supplied for `destination`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -89,8 +89,8 @@ void apply(const uint16_t* source,uint16_t* destination)const
 #include "palette_types.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const uint16_t * source
-// uint16_t * destination
+// const int * source
+// int * destination
 
 epok::PaletteAnimator& object = /* obtain a valid instance */;
 
@@ -153,9 +153,9 @@ uint16_t source_index(uint16_t index)const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `uint16_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
 
-**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need CLUT animation and palette ownership and the preconditions in the declaration are already satisfied.
 
@@ -165,7 +165,7 @@ uint16_t source_index(uint16_t index)const
 #include "palette_types.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t index
+// int index
 
 epok::PaletteAnimator& object = /* obtain a valid instance */;
 

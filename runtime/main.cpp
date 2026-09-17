@@ -158,7 +158,7 @@ struct MaterialState {
     texture = material.texture; blend = material.blend; tex = epok::texture(material.texture);
     if (!tex) { command = 0x30000000u; return; }
     const auto clut = epok::texture_clut(*tex);
-    const auto page = epok::texture_page(*tex, material.blend);
+    const auto page = epok::texture_page(*tex, material.blend, epok::dither_3d);
     uint16_t clut_bits, page_bits;
     __builtin_memcpy(&clut_bits, &clut, 2); __builtin_memcpy(&page_bits, &page, 2);
     clut16 = uint32_t(clut_bits) << 16; tpage16 = uint32_t(page_bits) << 16;
@@ -173,7 +173,7 @@ struct MaterialState {
 };
 inline uint32_t color_bits(psyqo::Color c) { return c.packed & 0x00ffffffu; }
 struct PolygonEmitter {
-  psyqo::OrderingTable<buckets>& table;
+  psyqo::OrderingTable<buckets>* table;
   psyqo::Fragments::SimpleFragment<psyqo::Prim::GouraudTriangle>* gouraud;
   psyqo::Fragments::SimpleFragment<psyqo::Prim::GouraudTexturedTriangle>* textured;
   // Per-frame packets take slots from the top; retained packets own the bottom.
@@ -184,6 +184,14 @@ struct PolygonEmitter {
   inline int classify(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c) {
     if (a.outcode & b.outcode & c.outcode) return 0;
     if (!(a.visible && b.visible && c.visible)) return 2;
+    // Inside all six planes, projected spans are bounded by the viewport.
+    // Keep wide/near-plane cases on the checked path below.
+    if (epok::display_width <= 1023 && epok::display_height <= 511 && !(a.outcode | b.outcode | c.outcode)) {
+      const int32_t area = epok::screen_area(a, b, c);
+      if (area == 0) return 0;
+      if (editable && area < 0) { ++epok::mesh_stats.backfaces; return 0; }
+      return 1;
+    }
     int min_x = a.screen.x, max_x = min_x, min_y = a.screen.y, max_y = min_y;
     if (b.screen.x < min_x) min_x = b.screen.x; if (b.screen.x > max_x) max_x = b.screen.x;
     if (b.screen.y < min_y) min_y = b.screen.y; if (b.screen.y > max_y) max_y = b.screen.y;
@@ -210,17 +218,17 @@ struct PolygonEmitter {
       w[0] = q.command | ca; w[1] = a.screen.packed; w[2] = uva | q.clut16;
       w[3] = cb; w[4] = b.screen.packed; w[5] = uvb | q.tpage16;
       w[6] = cc; w[7] = c.screen.packed; w[8] = uvc;
-      table.insert(f, depth);
+      table->insert(f, depth);
       return;
     }
     auto& f = gouraud[--next_dynamic];
     uint32_t* w = reinterpret_cast<uint32_t*>(&f.primitive);
     w[0] = 0x30000000u | ca; w[1] = a.screen.packed; w[2] = cb; w[3] = b.screen.packed; w[4] = cc; w[5] = c.screen.packed;
-    table.insert(f, depth);
+    table->insert(f, depth);
   }
   // Retained slot: screen words every frame, colour words only when they changed.
   inline void retained_emit(uint32_t slot, const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c,
-                            const epok::RetainedQuad& rec, const uint32_t* colors, int ia, int ib, int ic) {
+                            const epok::RetainedQuad& rec, const uint32_t* colors, int corner_a, int ib, int ic) {
     const int depth = Units::bucket(a.camera[2], b.camera[2], c.camera[2]) + rec.depth_bias;
     if (depth < 0 || depth >= buckets) return;
     ++emitted; ++retained_emitted;
@@ -228,15 +236,15 @@ struct PolygonEmitter {
       auto& f = textured[slot];
       uint32_t* w = reinterpret_cast<uint32_t*>(&f.primitive);
       w[1] = a.screen.packed; w[4] = b.screen.packed; w[7] = c.screen.packed;
-      if (colors) { w[0] = rec.command | colors[ia]; w[3] = colors[ib]; w[6] = colors[ic]; }
-      table.insert(f, depth);
+      if (colors) { w[0] = rec.command | colors[corner_a]; w[3] = colors[ib]; w[6] = colors[ic]; }
+      table->insert(f, depth);
       return;
     }
     auto& f = gouraud[slot];
     uint32_t* w = reinterpret_cast<uint32_t*>(&f.primitive);
     w[1] = a.screen.packed; w[3] = b.screen.packed; w[5] = c.screen.packed;
-    if (colors) { w[0] = 0x30000000u | colors[ia]; w[2] = colors[ib]; w[4] = colors[ic]; }
-    table.insert(f, depth);
+    if (colors) { w[0] = 0x30000000u | colors[corner_a]; w[2] = colors[ib]; w[4] = colors[ic]; }
+    table->insert(f, depth);
   }
   // Software clipping stays out of line so the per-quad loop remains compact.
   // Colors here are the fogged 0..255 values; modulation happens after clipping.
@@ -411,6 +419,9 @@ class GameScene final : public psyqo::Scene {
   }
   void frame() override;
   psyqo::OrderingTable<buckets> ordering[2];
+  // Separate packets, not a depth bias: base surfaces cannot overwrite the world.
+  psyqo::OrderingTable<buckets> background_ordering[2];
+  psyqo::Fragments::SimpleFragment<psyqo::Prim::TPage> geometry_pages[2], hud_pages[2];
   epok::FrameClear<epok::display_width,epok::display_height> clear;
   psyqo::Fragments::SimpleFragment<psyqo::Prim::GouraudTriangle>
       triangles[2][capacity];
@@ -438,6 +449,10 @@ class Game final : public psyqo::Application {
 #endif
     epok::music_prepare();
     epok::streaming_prepare();
+    // PsyQo callback trampolines live in writable RAM. GPU, pad, memory-card
+    // and sequence setup assign their lambdas after PsyQo's early cache flush;
+    // flush again before interrupts can dispatch one of those RAM stubs.
+    syscall_flushCache();
   }
   void createScene() override { pushScene(&scene); }
   GameScene scene;
@@ -536,6 +551,7 @@ void GameScene::frame() {
   if(advanced_motion)motion.after_tick(epok::objects,epok::object_count);
   if(epok::time.paused()||epok::scene_loading()||steps==epok::Time::max_steps)motion.clear();
   epok::streaming_tick();
+  epok::streaming_service_gameplay_requests();
   epok::music_tick();
   if(epok::transition.loading()){
     clear.draw(gpu(),psyqo::Color{{.r=0,.g=0,.b=0}});
@@ -592,12 +608,15 @@ void GameScene::frame() {
       horizontal_pixels == projection_focal_pixels ? epok::projection_focal : epok::projection_focal * Fixed(horizontal_pixels) / Fixed(projection_focal_pixels),
       epok::projection_focal};
   epok::load_projection_screen(projection_focal_pixels, epok::display_width / 2, epok::display_height / 2);
-  PolygonEmitter emitter{table, triangles[parity], textured_triangles[parity]};
+  PolygonEmitter emitter{&table, triangles[parity], textured_triangles[parity]};
+  bool background_active=false;
   epok::StreamPageCursor stream_cursor;
   for (size_t index = 0; index < epok::object_count; ++index) {
     const auto &object = epok::objects[index];
     if (!object.mesh || !epok::is_active_slot(index))
       continue;
+    emitter.table=object.lighting.background_pass?&background_ordering[parity]:&table;
+    background_active|=object.lighting.background_pass;
     const bool use_bake =
         !object.material.unlit && object.lighting.enabled &&
         object.lighting.receive == epok::ReceiveLighting::Baked &&
@@ -745,14 +764,14 @@ void GameScene::frame() {
         }
         static constexpr int corners[2][3] = {{0, 1, 2}, {0, 2, 3}};
         for (int t = 0; t < 2; ++t) {
-          const int ia = corners[t][0], ib = corners[t][1], ic = corners[t][2];
+          const int corner_a = corners[t][0], ib = corners[t][1], ic = corners[t][2];
           if (textured) {
             uint32_t* w = reinterpret_cast<uint32_t*>(&tex_frags[slot + t].primitive);
-            w[0] = rec.command | final[ia]; w[2] = uv[ia] | build_material.clut16; w[3] = final[ib];
+            w[0] = rec.command | final[corner_a]; w[2] = uv[corner_a] | build_material.clut16; w[3] = final[ib];
             w[5] = uv[ib] | build_material.tpage16; w[6] = final[ic]; w[8] = uv[ic];
           } else {
             uint32_t* w = reinterpret_cast<uint32_t*>(&gou_frags[slot + t].primitive);
-            w[0] = 0x30000000u | final[ia]; w[2] = final[ib]; w[4] = final[ic];
+            w[0] = 0x30000000u | final[corner_a]; w[2] = final[ib]; w[4] = final[ic];
           }
         }
       }
@@ -813,6 +832,7 @@ void GameScene::frame() {
       EPOK_DETAIL_BEGIN(setup);
       ++epok::mesh_stats.tested_chunks;
       const int cached_bounds = bounds_cache_active ? visibility.cached_bounds(chunk_ordinal) : -1;
+      bool fully_inside_chunk = false;
       if (cached_bounds == 0) {
         EPOK_DETAIL_END(setup, setup_scanlines);
         continue;
@@ -867,6 +887,7 @@ void GameScene::frame() {
           continue;
         }
         if (bounds_cache_active) visibility.remember_bounds(chunk_ordinal, true);
+        fully_inside_chunk = narrow_view && epok::chunk_fully_inside(center, extent, projection_focal_pixels);
       }
       ++epok::mesh_stats.visible_chunks;
       // This chunk consumes its raw view before the cursor can advance. The
@@ -884,7 +905,22 @@ void GameScene::frame() {
         continue;
       }
       const auto& mesh = bounds_mesh;
-      if(baked_vertices&&!baked_vertices_ready){const uint16_t begin=COUNTERS[1].value;epok::skeletal_detail::scratch.decode_vertices(*object.animator.model,object.animator);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);performance_work.skeletal_decoded_vertices+=mesh.vertex_count;baked_vertices_ready=true;}
+      if(baked_vertices&&!baked_vertices_ready){
+        // decode_vertices() returns the bind positions untouched when the animator
+        // has no valid clip or the clip carries no encoded vertex frames (see
+        // runtime/skeletal.hpp). Mirror that condition here so the counter reports
+        // coordinates that were actually decoded from a clip frame, not the
+        // per-vertex cost of a model that is only showing its bind pose.
+        const auto& animator=object.animator;const auto& model=*animator.model;
+        const epok::AnimationClip* const decoded_clip=
+            animator.clip>=0&&size_t(animator.clip)<model.clip_count?&model.clips[animator.clip]:nullptr;
+        const bool frame_decoded=decoded_clip&&decoded_clip->vertex_frames&&decoded_clip->vertex_data;
+        const uint16_t begin=COUNTERS[1].value;
+        epok::skeletal_detail::scratch.decode_vertices(model,animator);
+        performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);
+        if(frame_decoded)performance_work.skeletal_decoded_vertices+=mesh.vertex_count;
+        baked_vertices_ready=true;
+      }
       if(cpu_rigid&&!skeletal_pose_ready){const uint16_t begin=COUNTERS[1].value;epok::skeletal_detail::scratch.pose(*object.animator.model,object.animator);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);performance_work.skeletal_bone_matrices+=object.animator.model->bone_count;performance_work.skeletal_cpu_vertices+=mesh.vertex_count;skeletal_pose_ready=true;}
       const auto* mesh_vertices = (baked_vertices||cpu_rigid)?epok::skeletal_detail::scratch.geometry.vertices:mesh_view.vertices;
       const auto* mesh_quads = mesh_view.quads;
@@ -1022,7 +1058,34 @@ void GameScene::frame() {
           gte_geometry = epok::load_projection_matrix(model_view);
           object_matrix_loaded = false;
         }
-        for (size_t v = 0; v < mesh.vertex_count; ++v) {
+        size_t v = 0;
+        if (gte_geometry && fully_inside_chunk && object_retained && !object_any_dynamic) {
+          for (; v + 2 < mesh.vertex_count; v += 3) {
+            uint32_t screens[3];int32_t depths[3];
+            if (epok::project_geometry_triple(mesh_vertices+v,origin8,screens,depths)) {
+              for (unsigned i=0;i<3;++i) {
+                auto& out=projected_vertices[v+i];
+                out.camera[0]=out.camera[1]=0;out.camera[2]=depths[i];out.screen.packed=screens[i];
+                out.outcode=0;out.visible=true;out.fog=fog_enabled?epok::fog_amount(depths[i],fog_start,fog_end):0;
+#ifdef EPOK_VALIDATE_GTE
+                ProjectedVertex reference{};uint32_t flags;
+                epok::project_geometry_vertex(mesh_vertices[v+i],origin8,reference.camera,reference.screen.packed,flags);
+                finish_projection(reference,flags);
+                if(reference.screen.packed!=out.screen.packed || reference.camera[2]!=out.camera[2] ||
+                   reference.outcode || !reference.visible || reference.fog!=out.fog)
+                  ++performance_work.gte_validation_errors;
+#endif
+              }
+            } else {
+              for (unsigned i=0;i<3;++i) {
+                auto& out=projected_vertices[v+i];uint32_t flags;
+                epok::project_geometry_vertex(mesh_vertices[v+i],origin8,out.camera,out.screen.packed,flags);
+                finish_projection(out,flags);
+              }
+            }
+          }
+        }
+        for (; v < mesh.vertex_count; ++v) {
           auto &out = projected_vertices[v];
           uint32_t flags = epok::gte_projection_flags;
           if (gte_geometry) {
@@ -1221,7 +1284,7 @@ void GameScene::frame() {
   EPOK_DETAIL_BEGIN(sprite);
   stream_cursor.release();
   blobs.draw(parity, table, epok::objects, render_world, epok::object_count, view);
-  sprites.begin();
+  sprites.begin(epok::dither_3d);
   for(size_t i=0;i<epok::object_count;++i)if(epok::objects[i].sprite.enabled&&epok::is_active_slot(i)) {
     const auto& object=epok::objects[i];
     if(!object.sprite.unlit&&object.lighting.enabled&&!object.material.unlit)lighting.shade(i,epok::objects,render_world,true);
@@ -1248,7 +1311,18 @@ void GameScene::frame() {
     if(!sprite.unlit&&epok::objects[i].lighting.enabled&&!epok::objects[i].material.unlit)lighting.shade(i,epok::objects,render_world,true);
     sprites.draw(parity,table,sprite,matrix,view,epok::objects[i].lighting.enabled&&!epok::objects[i].material.unlit);
   });
+  if constexpr(epok::dither_3d) {
+    auto& page=geometry_pages[parity];page.primitive.attr.setDithering(true);
+    epok::configure_display_field<epok::display_interlaced>(page.primitive.attr);
+    gpu().chain(page);
+  }
+  if(background_active)gpu().chain(background_ordering[parity]);
   gpu().chain(table);
+  if constexpr(epok::dither_3d) {
+    auto& page=hud_pages[parity];page.primitive.attr.setDithering(false);
+    epok::configure_display_field<epok::display_interlaced>(page.primitive.attr);
+    gpu().chain(page);
+  }
   EPOK_DETAIL_END(sprite, sprite_scanlines);
   EPOK_DETAIL_BEGIN(hud);
   hud.draw(gpu(), epok::objects, epok::object_count);
@@ -1345,7 +1419,10 @@ void remove_runtime_owner(size_t index) {
 }
 #ifdef EPOK_EFFECTS
 Affine<Fixed> effect_world(DataHandle owner){refresh_world();return owner.get()?world[owner.index]:Affine<Fixed>::identity();}
-Affine<Fixed> effect_matrix(const Transform& transform){return local_matrix(transform);}
+// The 3D helper lives in this translation unit's anonymous namespace. Qualify
+// it explicitly: `epok::local_matrix` is the unrelated 2D overload exported by
+// world2d.hpp and otherwise wins lookup from inside namespace epok.
+Affine<Fixed> effect_matrix(const Transform& transform){return ::local_matrix(transform);}
 void remove_effect_particles(EffectLayerHandle owner){particles.remove_layer(owner);}
 #endif
 SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask,const ActorData* ignore,bool triggers) {
@@ -1361,6 +1438,17 @@ bool collider_aabb(const ActorData& entity,Aabb& output) {
   refresh_collisions();int index=entity_index(&entity);
   auto box=index<0?nullptr:collision_world.bounds(size_t(index));if(!box)return false;
   output=*box;return true;
+}
+bool skeletal_world_point(const ActorData& entity,const Fixed* model,Fixed* output) {
+  refresh_world();const int index=entity_index(&entity);
+  if(index<0||size_t(index)>=object_count||!model||!output)return false;
+  world[size_t(index)].point(model,output);return true;
+}
+WorldAffineSample gameplay_world_affine(const ActorData* entity) {
+  WorldAffineSample result;if(!entity)return result;refresh_world();const int index=entity_index(entity);
+  if(index<0||size_t(index)>=object_count)return result;const auto& value=world[size_t(index)];result.success=true;
+  for(int row=0;row<3;++row){result.basis_x[row]=value.values[row][0];result.basis_y[row]=value.values[row][1];result.basis_z[row]=value.values[row][2];result.position[row]=value.values[row][3];}
+  return result;
 }
 SpatialHit query_ground(const ActorData& entity,Fixed distance,uint32_t mask) {
   refresh_collisions();int index=entity_index(&entity);
@@ -1382,4 +1470,7 @@ MoveResult move_and_slide(ActorData& entity,const Fixed* displacement,uint32_t m
   return result;
 }
 }
-int main() { epok::serial_debug::capture(); return game.run(); }
+int main() {
+  epok::serial_debug::capture();
+  return game.run();
+}

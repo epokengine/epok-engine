@@ -6,7 +6,7 @@ This module covers the instrument synth module. It documents 35 public callables
 
 ## Declared types
 
-`epok::instrument::synth::Controls`, `epok::instrument::synth::detail::AttenuationTable`, `epok::instrument::synth::detail::OctaveTable`, `epok::instrument::synth::Error`, `epok::instrument::synth::Output`, `epok::instrument::synth::State`
+`epok::instrument::synth::Controls`, `epok::instrument::synth::detail::AttenuationTable`, `epok::instrument::synth::detail::OctaveTable`, `epok::instrument::synth::Error`, `epok::instrument::synth::Output`, `epok::instrument::synth::State`, `epok::instrument::synth::State::EnvelopeParameters`, `epok::instrument::synth::State::EnvelopeState`
 
 ## Callable index
 
@@ -171,9 +171,9 @@ inline uint32_t attenuation_for_gain_q16(uint16_t gain)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `gain` | `uint16_t` | Input | Value supplied for `gain`. See the exact type and module contract. |
+| `gain` | `int` | Input | Value supplied for `gain`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument synth module and the preconditions in the declaration are already satisfied.
 
@@ -183,7 +183,7 @@ inline uint32_t attenuation_for_gain_q16(uint16_t gain)
 #include "instrument_synth.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t gain
+// int gain
 
 auto result = epok::instrument::synth::detail::attenuation_for_gain_q16(gain);
 ```
@@ -213,7 +213,7 @@ inline uint16_t attenuation_gain_q15(int64_t centibels_q16)
 | --- | --- | --- | --- |
 | `centibels_q16` | `int64_t` | Input | Value supplied for `centibels_q16`. See the exact type and module contract. |
 
-**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument synth module and the preconditions in the declaration are already satisfied.
 
@@ -538,9 +538,9 @@ inline constexpr uint16_t gain_at_whole_centibel(uint32_t centibels)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `centibels` | `uint32_t` | Input | Value supplied for `centibels`. See the exact type and module contract. |
+| `centibels` | `int` | Input | Value supplied for `centibels`. See the exact type and module contract. |
 
-**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument synth module and the preconditions in the declaration are already satisfied.
 
@@ -550,7 +550,7 @@ inline constexpr uint16_t gain_at_whole_centibel(uint32_t centibels)
 #include "instrument_synth.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t centibels
+// int centibels
 
 auto result = epok::instrument::synth::detail::gain_at_whole_centibel(centibels);
 ```
@@ -619,7 +619,7 @@ inline bool local_bank_span(const BankView& bank, uint16_t zone_index, const Zon
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `bank` | `const BankView &` | Input | Value supplied for `bank`. See the exact type and module contract. |
-| `zone_index` | `uint16_t` | Input | Value supplied for `zone_index`. See the exact type and module contract. |
+| `zone_index` | `int` | Input | Value supplied for `zone_index`. See the exact type and module contract. |
 | `zone` | `const Zone *&` | Input | Value supplied for `zone`. See the exact type and module contract. |
 | `modulations` | `const Modulation *&` | Input | Value supplied for `modulations`. See the exact type and module contract. |
 
@@ -634,7 +634,7 @@ inline bool local_bank_span(const BankView& bank, uint16_t zone_index, const Zon
 
 // Assume these named values have been initialized with valid data:
 // const BankView & bank
-// uint16_t zone_index
+// int zone_index
 // const Zone *& zone
 // const Modulation *& modulations
 
@@ -778,7 +778,7 @@ inline int64_t scale_q15(int64_t value, int32_t factor)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `value` | `int64_t` | Input | Value supplied for `value`. See the exact type and module contract. |
-| `factor` | `int32_t` | Input | Value supplied for `factor`. See the exact type and module contract. |
+| `factor` | `int` | Input | Value supplied for `factor`. See the exact type and module contract. |
 
 **Returns.** Returns `int64_t`. Check the purpose and failure notes before using the value.
 
@@ -791,7 +791,7 @@ inline int64_t scale_q15(int64_t value, int32_t factor)
 
 // Assume these named values have been initialized with valid data:
 // int64_t value
-// int32_t factor
+// int factor
 
 auto result = epok::instrument::synth::detail::scale_q15(value, factor);
 ```
@@ -819,7 +819,7 @@ inline bool source_changed(uint16_t source,const Controls& a,const Controls& b)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `source` | `uint16_t` | Input | Value supplied for `source`. See the exact type and module contract. |
+| `source` | `int` | Input | Value supplied for `source`. See the exact type and module contract. |
 | `a` | `const Controls &` | Input | Value supplied for `a`. See the exact type and module contract. |
 | `b` | `const Controls &` | Input | Value supplied for `b`. See the exact type and module contract. |
 
@@ -833,7 +833,7 @@ inline bool source_changed(uint16_t source,const Controls& a,const Controls& b)
 #include "instrument_synth.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t source
+// int source
 // const Controls & a
 // const Controls & b
 
@@ -863,9 +863,9 @@ inline int64_t source_q30(uint16_t bits, uint8_t key, uint8_t velocity, const Co
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `bits` | `uint16_t` | Input | Value supplied for `bits`. See the exact type and module contract. |
-| `key` | `uint8_t` | Input | Value supplied for `key`. See the exact type and module contract. |
-| `velocity` | `uint8_t` | Input | Value supplied for `velocity`. See the exact type and module contract. |
+| `bits` | `int` | Input | Value supplied for `bits`. See the exact type and module contract. |
+| `key` | `int` | Input | Value supplied for `key`. See the exact type and module contract. |
+| `velocity` | `int` | Input | Value supplied for `velocity`. See the exact type and module contract. |
 | `controls` | `const Controls &` | Input | Value supplied for `controls`. See the exact type and module contract. |
 | `valid` | `bool &` | Input/output; inspect the function contract | Value supplied for `valid`. See the exact type and module contract. |
 
@@ -879,9 +879,9 @@ inline int64_t source_q30(uint16_t bits, uint8_t key, uint8_t velocity, const Co
 #include "instrument_synth.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint16_t bits
-// uint8_t key
-// uint8_t velocity
+// int bits
+// int key
+// int velocity
 // const Controls & controls
 // bool & valid
 
@@ -912,7 +912,7 @@ inline uint64_t time_microseconds(int64_t timecents_q16, int32_t maximum, bool z
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `timecents_q16` | `int64_t` | Input | Value supplied for `timecents_q16`. See the exact type and module contract. |
-| `maximum` | `int32_t` | Input | Value supplied for `maximum`. See the exact type and module contract. |
+| `maximum` | `int` | Input | Value supplied for `maximum`. See the exact type and module contract. |
 | `zero_sentinel` | `bool` | Input | Value supplied for `zero_sentinel`. See the exact type and module contract. |
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -926,7 +926,7 @@ inline uint64_t time_microseconds(int64_t timecents_q16, int32_t maximum, bool z
 
 // Assume these named values have been initialized with valid data:
 // int64_t timecents_q16
-// int32_t maximum
+// int maximum
 // bool zero_sentinel
 
 auto result = epok::instrument::synth::detail::time_microseconds(timecents_q16, maximum, zero_sentinel);
@@ -957,7 +957,7 @@ inline int32_t triangle_q15(uint64_t phase_q48)
 | --- | --- | --- | --- |
 | `phase_q48` | `uint64_t` | Input | Value supplied for `phase_q48`. See the exact type and module contract. |
 
-**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument synth module and the preconditions in the declaration are already satisfied.
 
@@ -1028,7 +1028,7 @@ const Output& advance(uint32_t microseconds)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `microseconds` | `uint32_t` | Input | Value supplied for `microseconds`. See the exact type and module contract. |
+| `microseconds` | `int` | Input | Value supplied for `microseconds`. See the exact type and module contract. |
 
 **Returns.** Returns `const Output &`. Check the purpose and failure notes before using the value.
 
@@ -1040,7 +1040,7 @@ const Output& advance(uint32_t microseconds)
 #include "instrument_synth.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t microseconds
+// int microseconds
 
 epok::instrument::synth::State& object = /* obtain a valid instance */;
 
@@ -1247,9 +1247,9 @@ Error start(const BankView& bank, uint16_t zone_index, uint8_t key, uint8_t velo
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `bank` | `const BankView &` | Input | Value supplied for `bank`. See the exact type and module contract. |
-| `zone_index` | `uint16_t` | Input | Value supplied for `zone_index`. See the exact type and module contract. |
-| `key` | `uint8_t` | Input | Value supplied for `key`. See the exact type and module contract. |
-| `velocity` | `uint8_t` | Input | Value supplied for `velocity`. See the exact type and module contract. |
+| `zone_index` | `int` | Input | Value supplied for `zone_index`. See the exact type and module contract. |
+| `key` | `int` | Input | Value supplied for `key`. See the exact type and module contract. |
+| `velocity` | `int` | Input | Value supplied for `velocity`. See the exact type and module contract. |
 | `controls` | `const Controls &` | Input | Value supplied for `controls`. See the exact type and module contract. |
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
@@ -1263,9 +1263,9 @@ Error start(const BankView& bank, uint16_t zone_index, uint8_t key, uint8_t velo
 
 // Assume these named values have been initialized with valid data:
 // const BankView & bank
-// uint16_t zone_index
-// uint8_t key
-// uint8_t velocity
+// int zone_index
+// int key
+// int velocity
 // const Controls & controls
 
 epok::instrument::synth::State& object = /* obtain a valid instance */;
@@ -1299,9 +1299,9 @@ Error start_validated(const BankView& bank, uint16_t zone_index, uint8_t key, ui
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `bank` | `const BankView &` | Input | Value supplied for `bank`. See the exact type and module contract. |
-| `zone_index` | `uint16_t` | Input | Value supplied for `zone_index`. See the exact type and module contract. |
-| `key` | `uint8_t` | Input | Value supplied for `key`. See the exact type and module contract. |
-| `velocity` | `uint8_t` | Input | Value supplied for `velocity`. See the exact type and module contract. |
+| `zone_index` | `int` | Input | Value supplied for `zone_index`. See the exact type and module contract. |
+| `key` | `int` | Input | Value supplied for `key`. See the exact type and module contract. |
+| `velocity` | `int` | Input | Value supplied for `velocity`. See the exact type and module contract. |
 | `controls` | `const Controls &` | Input | Value supplied for `controls`. See the exact type and module contract. |
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
@@ -1315,9 +1315,9 @@ Error start_validated(const BankView& bank, uint16_t zone_index, uint8_t key, ui
 
 // Assume these named values have been initialized with valid data:
 // const BankView & bank
-// uint16_t zone_index
-// uint8_t key
-// uint8_t velocity
+// int zone_index
+// int key
+// int velocity
 // const Controls & controls
 
 epok::instrument::synth::State& object = /* obtain a valid instance */;
@@ -1352,9 +1352,9 @@ Error start_voice(const Zone& zone, const Modulation* modulations, uint16_t modu
 | --- | --- | --- | --- |
 | `zone` | `const Zone &` | Input | Value supplied for `zone`. See the exact type and module contract. |
 | `modulations` | `const Modulation *` | Input | Value supplied for `modulations`. See the exact type and module contract. |
-| `modulation_count` | `uint16_t` | Input | Value supplied for `modulation_count`. See the exact type and module contract. |
-| `key` | `uint8_t` | Input | Value supplied for `key`. See the exact type and module contract. |
-| `velocity` | `uint8_t` | Input | Value supplied for `velocity`. See the exact type and module contract. |
+| `modulation_count` | `int` | Input | Value supplied for `modulation_count`. See the exact type and module contract. |
+| `key` | `int` | Input | Value supplied for `key`. See the exact type and module contract. |
+| `velocity` | `int` | Input | Value supplied for `velocity`. See the exact type and module contract. |
 | `controls` | `const Controls &` | Input | Value supplied for `controls`. See the exact type and module contract. |
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
@@ -1369,9 +1369,9 @@ Error start_voice(const Zone& zone, const Modulation* modulations, uint16_t modu
 // Assume these named values have been initialized with valid data:
 // const Zone & zone
 // const Modulation * modulations
-// uint16_t modulation_count
-// uint8_t key
-// uint8_t velocity
+// int modulation_count
+// int key
+// int velocity
 // const Controls & controls
 
 epok::instrument::synth::State& object = /* obtain a valid instance */;

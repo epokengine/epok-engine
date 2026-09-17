@@ -6,6 +6,16 @@ namespace epok {
 inline bool chunk_bounds_isolated_x(const int32_t rows[3][3]) {
     return rows[0][1]==0 && rows[0][2]==0 && rows[1][0]==0 && rows[2][0]==0;
 }
+// Q12 bounds. A margin also covers Q12->Q8 GTE input and translation rounding.
+// The near guard avoids the GTE H/2 divide-overflow interval at 320x240.
+inline bool chunk_fully_inside(const int32_t* center,const int32_t* extent,int32_t focal) {
+    constexpr int32_t margin=256;
+    const int64_t near_z=int64_t(center[2])-extent[2],far_z=int64_t(center[2])+extent[2];
+    if(near_z<(focal/2+1)*16+margin || near_z<1024+margin || far_z>=128*4096-margin)return false;
+    const int64_t x=int64_t(center[0]<0?-int64_t(center[0]):center[0])+extent[0];
+    const int64_t y=int64_t(center[1]<0?-int64_t(center[1]):center[1])+extent[1];
+    return int64_t(near_z)-x>margin && 3*int64_t(near_z)-4*y>margin*7;
+}
 // Call only when every coefficient has magnitude <16384 and each input vector
 // component has magnitude <131072, as checked by the renderer's narrow path.
 // Keep each product's signed Q12 shift separate: shifting a sum would change

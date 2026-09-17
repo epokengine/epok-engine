@@ -4,6 +4,7 @@ pub use crate::sequence_compat::Profile as SourceProfile;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::atomic::AtomicBool;
 use uuid::Uuid;
 
 /// Persisted explicit choice. Sony supplies song IDs; converted SEQ/SEP supplies only an
@@ -65,6 +66,10 @@ pub struct SourceSong {
 pub struct SourceCatalog {
     /// None is MIDI; Some identifies a fully structurally verified compatibility format.
     pub profile: Option<SourceProfile>,
+    /// Present only for a Standard MIDI File, so the import form can describe the
+    /// source before offering playback-specific settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub midi_format: Option<u16>,
     pub songs: Vec<SourceSong>,
 }
 
@@ -77,9 +82,11 @@ pub fn catalog_source(
         if explicit.is_some() {
             return Err("MIDI source does not match the selected compatibility profile".into());
         }
+        let header = crate::midi::probe(bytes)?;
         let ir = crate::midi::parse(bytes)?;
         return Ok(SourceCatalog {
             profile: None,
+            midi_format: Some(header.format),
             songs: vec![SourceSong {
                 id: 0,
                 ordinal: 0,
@@ -89,7 +96,11 @@ pub fn catalog_source(
                 ppqn: ir.ppqn,
                 duration_micros: ir.duration_micros,
                 events: ir.events.len(),
-                playback_blockers: vec![],
+                playback_blockers: ir
+                    .playback_blockers
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.clone())
+                    .collect(),
                 source_loop: None,
             }],
         });
@@ -101,6 +112,7 @@ pub fn catalog_source(
     let container = crate::sequence_compat::parse(bytes, profile)?;
     Ok(SourceCatalog {
         profile: Some(profile),
+        midi_format: None,
         songs: container
             .entries
             .into_iter()
@@ -346,10 +358,31 @@ pub fn prepare(
     root: &Path,
     source: &str,
     destination: &str,
-    settings: Settings,
+    mut settings: Settings,
     existing: Option<&crate::assets::Record>,
     snapshot: bool,
 ) -> Result<crate::assets::Candidate, String> {
+    // A MIDI carries notes but a SoundFont determines the actual PSX sample
+    // demand. Do this before committing the package so the first Target Preview
+    // and the staged build share a viable recipe, rather than asking the user to
+    // discover and apply an optimizer proposal after an over-budget import.
+    let bytes = if snapshot {
+        existing
+            .map(|record| crate::assets::Package::load(&record.path).map(|package| package.source))
+            .transpose()?
+            .ok_or("No imported source snapshot")?
+    } else {
+        crate::assets::read_bounded(&crate::assets::inside(root, source)?)?
+    };
+    // Musical v2 has no "ignore unsupported" escape hatch. Clear a legacy
+    // persisted toggle during import so its settings cannot imply otherwise.
+    if bytes.starts_with(b"MThd")
+        && settings.source_selection.is_none()
+        && settings.midi_profile == crate::midi::MidiProfile::MusicalV2
+    {
+        settings.ignore_unsupported = false;
+    }
+    fit_psx_library_recipe(root, &bytes, &mut settings)?;
     crate::assets::prepare_portable(
         root,
         source,
@@ -358,6 +391,53 @@ pub fn prepare(
         existing,
         snapshot,
     )
+}
+
+/// Persist the highest PSX sample-rate candidate which fits this sequence's
+/// selected SoundFont. No work is required for a sequence without a resolved
+/// library bank: it can still be imported and assigned a bank later.
+fn fit_psx_library_recipe(
+    root: &Path,
+    bytes: &[u8],
+    settings: &mut Settings,
+) -> Result<(), String> {
+    let recipe = crate::psx_music_settings::Recipe::from_settings(settings)?;
+    let index = crate::assets::scan(root, &mut Default::default());
+    let Ok(record) = resolve_bank(root, settings, &index) else {
+        return Ok(());
+    };
+    let package = crate::assets::Package::load(&record.path)?;
+    let bank = package.meta.settings.sound_bank()?;
+    if bank.library.is_none() {
+        return Ok(());
+    }
+    bank.validate()?;
+    let ir = decode_source(bytes, settings)?;
+    settings.validate_playback(&ir)?;
+    let cancelled = AtomicBool::new(false);
+    let prepared = crate::psx_library::prepare_selection(
+        &package.source,
+        &ir,
+        &settings.instrument_mappings,
+        recipe.selection,
+        &cancelled,
+    )?;
+    let proposal = crate::psx_music_optimizer::propose(&prepared, &recipe, &cancelled)?;
+    if let Some(proposed) = proposal.proposed_recipe {
+        proposed.store(settings)?;
+        return Ok(());
+    }
+    if proposal.original_report.fits_sample_budget {
+        return Ok(());
+    }
+    Err(format!(
+        "PSX music conversion needs {} bytes but {} are available. Automatic rate fitting could not find a valid recipe: {}",
+        proposal.original_report.sample_spu_bytes,
+        recipe.available_bytes(),
+        proposal
+            .reason
+            .unwrap_or_else(|| "no candidate fits the configured limits".into())
+    ))
 }
 
 pub fn resolve_bank<'a>(
@@ -610,6 +690,34 @@ mod compatibility_tests {
 mod tests {
     use super::*;
     use crate::{assets, sound_bank};
+
+    #[test]
+    fn musical_v2_import_clears_the_legacy_ignore_toggle() {
+        let root = crate::workspace::tests::temp("musical-v2-clears-ignore");
+        std::fs::create_dir_all(root.join("assets")).unwrap();
+        std::fs::write(root.join("assets/song.mid"), crate::midi::fixture()).unwrap();
+        let candidate = prepare(
+            &root,
+            "assets/song.mid",
+            "assets/song.epokasset",
+            Settings {
+                ignore_unsupported: true,
+                ..Default::default()
+            },
+            None,
+            false,
+        )
+        .unwrap();
+        assert!(
+            !candidate
+                .package
+                .meta
+                .settings
+                .sequence()
+                .unwrap()
+                .ignore_unsupported
+        );
+    }
 
     #[test]
     fn midi_interpretation_migration_preserves_old_settings_until_explicit_upgrade() {

@@ -2,14 +2,16 @@
 
 > **Header:** `"input.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/input.hpp)
 
-This module covers controller sampling and simulation-tick input edges. It documents 12 public callables declared directly in this header.
+This module covers controller sampling and simulation-tick input edges. It documents 14 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::Button`, `epok::Input`
+`epok::Axis`, `epok::Button`, `epok::Input`, `epok::Input::State`
 
 ## Callable index
 
+- [`epok::Input::analog`](#epok-input-analog-1) — Performs `analog` as part of controller sampling and simulation-tick input edges.
+- [`epok::Input::axis_raw`](#epok-input-axis-raw-1) — Performs `axis raw` as part of controller sampling and simulation-tick input edges.
 - [`epok::Input::begin_tick`](#epok-input-begin-tick-1) — Begins tick as part of controller sampling and simulation-tick input edges.
 - [`epok::Input::connected`](#epok-input-connected-1) — Performs `connected` as part of controller sampling and simulation-tick input edges.
 - [`epok::Input::discard_edges`](#epok-input-discard-edges-1) — Performs `discard edges` as part of controller sampling and simulation-tick input edges.
@@ -23,6 +25,92 @@ This module covers controller sampling and simulation-tick input edges. It docum
 - [`epok::Input::reset`](#epok-input-reset-1) — Resets reset as part of controller sampling and simulation-tick input edges.
 - [`epok::Input::sample`](#epok-input-sample-1) — Sampling accumulates edges until a simulation tick consumes them.
 
+<a id="epok-input-analog-1"></a>
+
+## `epok::Input::analog`
+
+**Purpose.** Performs `analog` as part of controller sampling and simulation-tick input edges.
+
+**Exact declaration**
+
+```cpp
+bool analog(unsigned port=0) const
+```
+
+- **Declared at:** [line 18](../../../runtime/input.hpp#L18)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `port` | `unsigned int` | Input | Value supplied for `port`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need controller sampling and simulation-tick input edges and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "input.hpp"
+
+// Assume these named values have been initialized with valid data:
+// unsigned int port
+
+epok::Input& object = /* obtain a valid instance */;
+
+auto result = object.analog(port);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
+<a id="epok-input-axis-raw-1"></a>
+
+## `epok::Input::axis_raw`
+
+**Purpose.** Performs `axis raw` as part of controller sampling and simulation-tick input edges.
+
+**Exact declaration**
+
+```cpp
+int16_t axis_raw(Axis axis,unsigned port=0) const
+```
+
+- **Declared at:** [line 19](../../../runtime/input.hpp#L19)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `axis` | `Axis` | Input | Value supplied for `axis`. See the exact type and module contract. |
+| `port` | `unsigned int` | Input | Value supplied for `port`. See the exact type and module contract. |
+
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need controller sampling and simulation-tick input edges and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "input.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Axis axis
+// unsigned int port
+
+epok::Input& object = /* obtain a valid instance */;
+
+auto result = object.axis_raw(axis, port);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-input-begin-tick-1"></a>
 
 ## `epok::Input::begin_tick`
@@ -35,7 +123,7 @@ This module covers controller sampling and simulation-tick input edges. It docum
 void begin_tick()
 ```
 
-- **Declared at:** [line 40](../../../runtime/input.hpp#L40)
+- **Declared at:** [line 62](../../../runtime/input.hpp#L62)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -68,7 +156,7 @@ object.begin_tick();
 bool connected(unsigned port=0) const
 ```
 
-- **Declared at:** [line 15](../../../runtime/input.hpp#L15)
+- **Declared at:** [line 17](../../../runtime/input.hpp#L17)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -110,7 +198,7 @@ auto result = object.connected(port);
 void discard_edges()
 ```
 
-- **Declared at:** [line 44](../../../runtime/input.hpp#L44)
+- **Declared at:** [line 66](../../../runtime/input.hpp#L66)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -143,7 +231,7 @@ object.discard_edges();
 void end_tick()
 ```
 
-- **Declared at:** [line 43](../../../runtime/input.hpp#L43)
+- **Declared at:** [line 65](../../../runtime/input.hpp#L65)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -176,7 +264,7 @@ object.end_tick();
 bool frame_pressed(Button b,unsigned port=0) const
 ```
 
-- **Declared at:** [line 19](../../../runtime/input.hpp#L19)
+- **Declared at:** [line 25](../../../runtime/input.hpp#L25)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -220,7 +308,7 @@ auto result = object.frame_pressed(b, port);
 bool frame_released(Button b,unsigned port=0) const
 ```
 
-- **Declared at:** [line 20](../../../runtime/input.hpp#L20)
+- **Declared at:** [line 26](../../../runtime/input.hpp#L26)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -264,7 +352,7 @@ auto result = object.frame_released(b, port);
 bool held(Button b,unsigned port=0) const
 ```
 
-- **Declared at:** [line 16](../../../runtime/input.hpp#L16)
+- **Declared at:** [line 22](../../../runtime/input.hpp#L22)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -308,7 +396,7 @@ auto result = object.held(b, port);
 template<class PadReader> void poll(const PadReader& pad,unsigned second_port=1)
 ```
 
-- **Declared at:** [line 31](../../../runtime/input.hpp#L31)
+- **Declared at:** [line 46](../../../runtime/input.hpp#L46)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -355,7 +443,7 @@ object.poll<PadReader>(pad, second_port);
 bool pressed(Button b,unsigned port=0) const
 ```
 
-- **Declared at:** [line 17](../../../runtime/input.hpp#L17)
+- **Declared at:** [line 23](../../../runtime/input.hpp#L23)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -399,7 +487,7 @@ auto result = object.pressed(b, port);
 bool released(Button b,unsigned port=0) const
 ```
 
-- **Declared at:** [line 18](../../../runtime/input.hpp#L18)
+- **Declared at:** [line 24](../../../runtime/input.hpp#L24)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -443,7 +531,7 @@ auto result = object.released(b, port);
 void reset()
 ```
 
-- **Declared at:** [line 45](../../../runtime/input.hpp#L45)
+- **Declared at:** [line 67](../../../runtime/input.hpp#L67)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -475,10 +563,10 @@ object.reset();
 **Exact declaration**
 
 ```cpp
-void sample(unsigned port,bool connected,uint16_t held)
+void sample(unsigned port,bool connected,uint16_t held,bool analog=false, uint8_t left_x=128,uint8_t left_y=128,uint8_t right_x=128,uint8_t right_y=128)
 ```
 
-- **Declared at:** [line 23](../../../runtime/input.hpp#L23)
+- **Declared at:** [line 29](../../../runtime/input.hpp#L29)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -487,7 +575,12 @@ void sample(unsigned port,bool connected,uint16_t held)
 | --- | --- | --- | --- |
 | `port` | `unsigned int` | Input | Value supplied for `port`. See the exact type and module contract. |
 | `connected` | `bool` | Input | Value supplied for `connected`. See the exact type and module contract. |
-| `held` | `uint16_t` | Input | Value supplied for `held`. See the exact type and module contract. |
+| `held` | `int` | Input | Value supplied for `held`. See the exact type and module contract. |
+| `analog` | `bool` | Input | Value supplied for `analog`. See the exact type and module contract. |
+| `left_x` | `int` | Input | Value supplied for `left_x`. See the exact type and module contract. |
+| `left_y` | `int` | Input | Value supplied for `left_y`. See the exact type and module contract. |
+| `right_x` | `int` | Input | Value supplied for `right_x`. See the exact type and module contract. |
+| `right_y` | `int` | Input | Value supplied for `right_y`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -501,11 +594,16 @@ void sample(unsigned port,bool connected,uint16_t held)
 // Assume these named values have been initialized with valid data:
 // unsigned int port
 // bool connected
-// uint16_t held
+// int held
+// bool analog
+// int left_x
+// int left_y
+// int right_x
+// int right_y
 
 epok::Input& object = /* obtain a valid instance */;
 
-object.sample(port, connected, held);
+object.sample(port, connected, held, analog, left_x, left_y, right_x, right_y);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to controller sampling and simulation-tick input edges. No exception-based error path is implied by the signature.

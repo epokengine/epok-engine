@@ -36,7 +36,7 @@ El primer resultado completo debe permitir que el usuario:
 Instrucciones obligatorias del repositorio
 ==========================================
 
-1. Lee primero C:\Users\Adolfo\.codex\RTK.md y obedece sus instrucciones. Todos
+1. Lee primero las instrucciones locales de RTK y obedece sus instrucciones. Todos
    los comandos de shell deben comenzar con `rtk`.
 2. Lee completos los dos documentos de arquitectura indicados antes de editar.
 3. Busca y obedece cualquier AGENTS.md aplicable.

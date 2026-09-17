@@ -51,6 +51,27 @@ bytes and are converted by PsyQo for the BIOS title field. Optional `CardIcon`
 data supplies 1–3 16×16 4bpp frames and a 16-color BGR555 palette; the default is a
 plain white icon. The project's payload remains opaque to the engine.
 
+## Blueprint and Lua gameplay API
+
+The reflected `Memory Card` function library exposes the same asynchronous
+service without passing pointers through a script boundary. `snapshot()` returns
+the state, operation, errors, accepted request, completed request, payload byte
+count and file count. `probe`, `list`, `read` and both write forms return whether
+the request was accepted; completion remains asynchronous and is observed from
+`on_frame` while the simulation is paused.
+
+For general payloads, call `clear_staged_payload()`, fill any of the 1024
+little-endian words with `set_staged_word(index, value)`, then call
+`write_staged(slot, bytes, port)`. The payload remains bounded to 4096 bytes.
+After a successful read, `loaded_word(index)` copies up to four available bytes
+and returns zero beyond the completed payload. The eight-word `write`/`payload`
+record remains as a compact compatibility convenience. Slots 0–7 map to the
+engine-owned names `SAVE0`–`SAVE7`; projects needing Sony-style names or custom
+icons continue to use the native service directly.
+
+Staged words contain persistent file data, never object references, pointers or
+playback handles. Put an explicit format/version word in custom save layouts.
+
 ## Interrupted write recovery
 
 Each logical save alternates between physical files `baseName-A` and

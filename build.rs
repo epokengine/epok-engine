@@ -35,6 +35,8 @@ fn main() {
     println!("cargo:rerun-if-changed=native/sequence_preview.h");
     println!("cargo:rerun-if-changed=native/instrument_preview.cpp");
     println!("cargo:rerun-if-changed=native/instrument_preview.h");
+    println!("cargo:rerun-if-changed=native/native_music.cpp");
+    println!("cargo:rerun-if-changed=native/spu_envelope.hpp");
     println!("cargo:rerun-if-changed=native/instrument_source_preview.cpp");
     println!("cargo:rerun-if-changed=native/instrument_source_preview.h");
     cc::Build::new()
@@ -44,6 +46,7 @@ fn main() {
         .include("runtime")
         .file("native/sequence_preview.cpp")
         .file("native/instrument_preview.cpp")
+        .file("native/native_music.cpp")
         .file("native/instrument_source_preview.cpp")
         .compile("epok_sequence_preview");
     lua_cooker();

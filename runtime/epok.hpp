@@ -1,4 +1,7 @@
 #pragma once
+#ifndef EPOK_NATIVE_REQUIREMENTS
+#define EPOK_NATIVE_REQUIREMENTS(...)
+#endif
 #include "effects.hpp"
 #include "transition.hpp"
 #include "sprite_types.hpp"
@@ -24,10 +27,14 @@
 #define EPOK_CLASS(...) __attribute__((annotate("EPOK_CLASS:" #__VA_ARGS__)))
 #define EPOK_PROPERTY(...) __attribute__((annotate("EPOK_PROPERTY:" #__VA_ARGS__)))
 #define EPOK_FUNCTION(...) __attribute__((annotate("EPOK_FUNCTION:" #__VA_ARGS__)))
+#define EPOK_FUNCTION_LIBRARY(...) __attribute__((annotate("EPOK_FUNCTION_LIBRARY:" #__VA_ARGS__)))
+#define EPOK_VALUE(...) __attribute__((annotate("EPOK_VALUE:" #__VA_ARGS__)))
 #else
 #define EPOK_CLASS(...)
 #define EPOK_PROPERTY(...)
 #define EPOK_FUNCTION(...)
+#define EPOK_FUNCTION_LIBRARY(...)
+#define EPOK_VALUE(...)
 #endif
 
 namespace epok {
@@ -52,7 +59,7 @@ enum class LightType { Directional, Point };
 enum class LightMode { Baked, Realtime, Mixed };
 enum class ReceiveLighting { Baked, Realtime };
 struct Light { bool enabled=false;LightType type=LightType::Directional;LightMode mode=LightMode::Realtime;uint8_t color[3]={255,255,255};Fixed intensity=0.8,range=8.0;int priority=0; };
-struct MeshLighting { bool enabled=true;ReceiveLighting receive=ReceiveLighting::Realtime;bool static_geometry=false,cast_shadows=true;uint8_t subdivisions=1; };
+struct MeshLighting { bool enabled=true;ReceiveLighting receive=ReceiveLighting::Realtime;bool static_geometry=false,cast_shadows=true;uint8_t subdivisions=1;bool background_pass=false; };
 struct BlobShadow {bool enabled=false;Fixed radius=0.6,strength=0.25,distance=3.0;};
 struct LightingEnvironment { Fixed ambient[3]={0.3,0.3,0.3};bool point_lights=true; };
 extern LightingEnvironment lighting_environment;
@@ -85,6 +92,9 @@ struct PerformanceStats {
            skeletal_cpu_vertices=0,skeletal_decoded_vertices=0;
 };
 extern PerformanceStats performance_stats;
+struct SkeletalQueryStats {
+    uint32_t calls=0,vertices=0,bones=0,decoded_bytes=0,failures=0;
+};
 struct Canvas { bool enabled=false; };
 struct RectTransform {
     bool enabled=false;
@@ -129,10 +139,76 @@ extern MeshStats mesh_stats;
 struct BonePose {int16_t translation[3],rotation[4],scale[3];};
 struct Bone {int16_t parent;BonePose bind;};
 struct BoneTrack {const BonePose* poses;bool constant;};
-struct VertexFrame {uint32_t offset;bool raw;};
+struct VertexFrame {uint32_t offset;const uint32_t* seek;bool raw;};
 struct AnimationClip {const BoneTrack* tracks;const VertexFrame* vertex_frames;const uint8_t* vertex_data;uint16_t frames;const char* name;};
 enum class SkeletalStorage:uint8_t {CpuRigid,RigidGte,BakedVertices};
-struct SkeletalMesh {const MeshGeometry* geometry;const uint8_t* vertex_bones;const uint16_t* bone_vertices;const Bone* bones;size_t bone_count;const AnimationClip* clips;size_t clip_count;SkeletalStorage storage;};
+struct SkeletalMesh {const MeshGeometry* geometry;const uint8_t* vertex_bones;const uint16_t* bone_vertices;const uint16_t* portable_to_cooked;const Bone* bones;size_t bone_count;const AnimationClip* clips;size_t clip_count;SkeletalStorage storage;};
+
+enum class PoseKind:uint32_t { Bind=0, Current=1 };
+enum class CoordinateSpace:uint32_t { Model=0, World=1 };
+enum class MeshDataState:uint32_t { Unavailable=0, Pending=1, Ready=2, Failed=3 };
+enum class MeshVertexError:uint32_t {
+    None=0,MissingGeometry=1,InvalidVertex=2,Pending=3,
+    StreamFailed=4,InvalidCoordinateSpace=5,WorldUnavailable=6
+};
+enum class SkeletalError:uint32_t {
+    None=0, MissingModel=1, InvalidVertex=2, InvalidBone=3,
+    MissingPoseData=4, InvalidCoordinateSpace=5, WorldUnavailable=6
+};
+struct EPOK_VALUE(Id="85ef1110-f14f-4fe0-a02e-e92c895c29bd") VertexSample {
+    bool success=false;
+    SkeletalError error=SkeletalError::MissingModel;
+    Fixed position[3]={};
+    uint32_t sampled_frame=0;
+};
+struct EPOK_VALUE(Id="55740603-1504-4684-a984-eb168601f871") MeshVertexSample {
+    bool success=false;
+    MeshVertexError error=MeshVertexError::MissingGeometry;
+    MeshDataState data_state=MeshDataState::Unavailable;
+    Fixed position[3]={};
+};
+struct EPOK_VALUE(Id="c95e7523-ed82-4f5c-8700-e38573d25ac0") BoneSample {
+    bool success=false;
+    SkeletalError error=SkeletalError::MissingModel;
+    Fixed basis_x[3]={},basis_y[3]={},basis_z[3]={},position[3]={};
+    uint32_t sampled_frame=0;
+    int32_t parent=-1;
+};
+struct EPOK_VALUE(Id="6ac7a61e-2b83-4264-b720-2e5a09cac329") VertexIndexBatch4 {
+    uint32_t count=0,index0=0,index1=0,index2=0,index3=0;
+};
+struct EPOK_VALUE(Id="9d3678b0-a22e-4e30-9d65-68615882e39c") VertexSamples4 {
+    uint32_t count=0,total=0;
+    VertexSample sample0{},sample1{},sample2{},sample3{};
+};
+struct EPOK_VALUE(Id="34b2149d-75f4-4652-8c1b-d3cb9f4ce11c") SkeletalPlaybackState {
+    bool valid=false,enabled=false,playing=false,looping=false;
+    int32_t clip=-1;
+    uint32_t ticks=0,sampled_frame=0;
+};
+struct EPOK_VALUE(Id="dd720731-b284-4889-bb65-ccf49db8733e") SpritePlaybackState {
+    bool valid=false,enabled=false,playing=false,completed=false;
+    uint32_t clip=0,frame=0,clip_count=0,pending_events=0,dropped_events=0;
+};
+struct EPOK_VALUE(Id="1266de44-df43-4b72-af35-2acbb1142d9f") ParticleEmitterState {
+    bool valid=false,enabled=false,playing=false,continuous=false;
+    uint32_t pending=0,max_particles=0;
+};
+struct EPOK_VALUE(Id="2aee8bea-55df-4392-8c65-32ac4353befa") PaletteAnimationState {
+    bool valid=false,enabled=false,reverse=false;
+    uint32_t texture=0,first=0,last=0,offset=0;
+    Fixed speed=0.0;
+};
+struct EPOK_VALUE(Id="82cfcc57-9cff-4e54-b6e7-c75c7f34f070") MaterialSnapshot {
+    bool valid=false,unlit=false;
+    uint32_t red=0,green=0,blue=0,texture=0,blend=0;
+    int32_t depth_bias=0;
+    Fixed uv_x=0.0,uv_y=0.0;
+};
+struct EPOK_VALUE(Id="57fed44f-f01b-4b2d-a9ec-12ec21cfb96d") WorldAffineSample {
+    bool success=false;
+    Fixed basis_x[3]={},basis_y[3]={},basis_z[3]={},position[3]={};
+};
 struct Animator {
     bool enabled=false;const SkeletalMesh* model=nullptr;int clip=-1;uint32_t ticks=0;bool playing=true,looping=true;
     bool play(int index,bool loop=true){if(!model||index<0||size_t(index)>=model->clip_count)return false;clip=index;ticks=0;playing=true;looping=loop;return true;}
@@ -197,6 +273,9 @@ bool request_scene(size_t index,const TransitionOptions& options);
 bool request_scene(const char* name,const TransitionOptions& options);
 size_t current_scene();
 bool scene_loading();
+uint32_t scene_transition_count();
+uint32_t scene_rejected_count();
+bool scene_waiting();
 bool set_active_camera(ActorData* camera);
 DataHandle active_camera();
 bool camera_project(const Fixed* world_point,Fixed* screen_xy);
@@ -210,6 +289,14 @@ MoveResult move_and_slide(ActorData& entity,const Fixed* world_displacement,uint
 // Call after an intentional teleport/cut to snap visual position history.
 void reset_motion_interpolation();
 bool collider_aabb(const ActorData& entity,Aabb& output);
+VertexSample skeletal_sample_vertex(const ActorData* entity,uint32_t vertex,PoseKind pose,CoordinateSpace space);
+VertexSamples4 skeletal_sample_vertices(const ActorData* entity,VertexIndexBatch4 indices,PoseKind pose,CoordinateSpace space);
+BoneSample skeletal_sample_bone(const ActorData* entity,uint32_t bone,PoseKind pose,CoordinateSpace space);
+bool skeletal_world_point(const ActorData& entity,const Fixed* model,Fixed* world);
+MeshDataState mesh_geometry_state(const MeshGeometry* geometry);
+bool request_mesh_geometry(const MeshGeometry* geometry);
+MeshVertexSample sample_mesh_vertex(const ActorData* entity,uint32_t vertex,CoordinateSpace space);
+WorldAffineSample gameplay_world_affine(const ActorData* entity);
 void reset_runtime_services();
 void remove_runtime_owner(size_t index);
 #ifdef EPOK_EDITOR_PREVIEW
@@ -221,4 +308,12 @@ inline uint32_t blueprint_scene_generation=1;
 
 }
 #include "effect_types.hpp"
+#ifndef EPOK_INCLUDE_FROM_OBJECT_MODEL
 #include "object_model.hpp"
+#ifndef EPOK_INCLUDE_FROM_UTILITY
+#include "utility.hpp"
+#endif
+#if !defined(EPOK_INCLUDE_FROM_GAMEPLAY_API) && !defined(EPOK_INCLUDE_FROM_SKELETAL) && !defined(EPOK_INCLUDE_FROM_BLUEPRINT_API) && !defined(EPOK_INCLUDE_FROM_BLUEPRINT_RUNTIME)
+#include "gameplay_api.hpp"
+#endif
+#endif

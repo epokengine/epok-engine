@@ -30,10 +30,47 @@ pub fn debug_hud(root: &Path) -> Result<DebugHud, String> {
 
 /// `epok-lua` language profile revision. One profile serves every execution
 /// mode; bumping it invalidates staged execution artifacts in all of them.
-pub const LUA_PROFILE_VERSION: u32 = 1;
+pub const LUA_PROFILE_VERSION: u32 = 2;
 /// Shared frontend/lowering revision. Bumped when parsing, inference or the
 /// typed IR changes output for unchanged sources.
-pub const LUA_FRONTEND_VERSION: u32 = 1;
+pub const LUA_FRONTEND_VERSION: u32 = 2;
+
+/// Source-language contract, independent from the selected execution backend.
+/// Missing fields deserialize as v1 so opening an older project never silently
+/// broadens the programs it accepts; newly created projects select v2.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LuaProfile {
+    #[default]
+    LegacyV1,
+    GameplayV2,
+}
+impl LuaProfile {
+    pub const ALL: [Self; 2] = [Self::LegacyV1, Self::GameplayV2];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::LegacyV1 => "Legacy v1",
+            Self::GameplayV2 => "Gameplay v2",
+        }
+    }
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::LegacyV1 => "Preserves the original scalar-only language and VM ABI.",
+            Self::GameplayV2 => {
+                "Enables typed gameplay services, composite results and foreign receivers."
+            }
+        }
+    }
+    pub fn version(self) -> u32 {
+        match self {
+            Self::LegacyV1 => 1,
+            Self::GameplayV2 => LUA_PROFILE_VERSION,
+        }
+    }
+    pub fn signature(self) -> String {
+        crate::scene_dependencies::hash((self, self.version(), LUA_FRONTEND_VERSION))
+    }
+}
 
 /// Exactly one Lua execution mode per project. Explicit and reproducible; it is
 /// never switched automatically. Only the selected mode's runtime is linked.
@@ -142,6 +179,9 @@ pub fn lua_execution(root: &Path) -> Result<LuaExecution, String> {
     crate::workspace::optional_manifest(root)
         .map(|m| m.map(|m| m.lua_execution).unwrap_or_default())
 }
+pub fn lua_profile(root: &Path) -> Result<LuaProfile, String> {
+    crate::workspace::optional_manifest(root).map(|m| m.map(|m| m.lua_profile).unwrap_or_default())
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -150,6 +190,8 @@ pub struct Rendering {
     pub height: u16,
     /// Static meshes keep their GPU packets across frames (see docs/performance.md).
     pub retained_geometry: bool,
+    /// GPU ordered dithering for 3D geometry only; HUD remains undithered.
+    pub dither_3d: bool,
     pub motion_interpolation: bool,
     pub precomputed_visibility: bool,
     pub streaming_geometry: bool,
@@ -163,6 +205,7 @@ impl Default for Rendering {
             width: 640,
             height: 480,
             retained_geometry: true,
+            dither_3d: false,
             motion_interpolation: true,
             precomputed_visibility: false,
             streaming_geometry: false,
@@ -213,11 +256,12 @@ impl Rendering {
     pub fn header(self) -> Result<String, String> {
         self.validate()?;
         Ok(format!(
-            "// Generated from Project Settings.\n#pragma once\nnamespace epok {{\ninline constexpr int display_width = {};\ninline constexpr int display_height = {};\ninline constexpr bool display_interlaced = {};\ninline constexpr bool retained_geometry = {};\ninline constexpr bool motion_interpolation = {};\ninline constexpr bool precomputed_visibility = {};\ninline constexpr bool streaming_geometry = {};\ninline constexpr unsigned streaming_pool_pages = {};\ninline constexpr bool streaming_prefetch_enabled = {};\n}}\n",
+            "// Generated from Project Settings.\n#pragma once\nnamespace epok {{\ninline constexpr int display_width = {};\ninline constexpr int display_height = {};\ninline constexpr bool display_interlaced = {};\ninline constexpr bool retained_geometry = {};\ninline constexpr bool dither_3d = {};\ninline constexpr bool motion_interpolation = {};\ninline constexpr bool precomputed_visibility = {};\ninline constexpr bool streaming_geometry = {};\ninline constexpr unsigned streaming_pool_pages = {};\ninline constexpr bool streaming_prefetch_enabled = {};\n}}\n",
             self.width,
             self.height,
             self.height == 480,
             self.retained_geometry,
+            self.dither_3d,
             self.motion_interpolation,
             self.precomputed_visibility,
             self.streaming_geometry,
@@ -406,6 +450,21 @@ pub fn configure_emulator(portable: &Path, preferences: &Preferences) -> Result<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_dithering_is_opt_in_and_reaches_generated_header() {
+        let legacy: super::Rendering =
+            serde_json::from_str(r#"{"width":320,"height":240}"#).unwrap();
+        assert!(!legacy.dither_3d);
+        assert!(legacy.header().unwrap().contains("dither_3d = false"));
+        let enabled = super::Rendering {
+            dither_3d: true,
+            ..legacy
+        };
+        let restored: super::Rendering =
+            serde_json::from_value(serde_json::to_value(enabled).unwrap()).unwrap();
+        assert_eq!(enabled, restored);
+        assert!(restored.header().unwrap().contains("dither_3d = true"));
+    }
     #[test]
     fn game_view_scaling_fills_an_axis_or_stretches_without_cropping() {
         use super::GameScale::*;

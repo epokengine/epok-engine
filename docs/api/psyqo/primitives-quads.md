@@ -222,7 +222,7 @@ uint32_t getCommandWord() const
 - **Declared at:** [line 195](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L195)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** A GP0 polygon's first word is the command in bits 31-24 and vertex A's colour in 23-0, and the GTE's RGBC register has an 8 bit CODE field that it fuses into every colour it produces - which is exactly what that field is for. Load this into CODE before an nc* command and the colour FIFO hands back finished first words; then store them with setColorAPacked and the whole thing is a word store instead of a read-modify-write per vertex.
 
@@ -545,7 +545,7 @@ GouraudQuad& setColorAPacked(uint32_t packed)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `packed` | `uint32_t` | Input | Value supplied for `packed`. See the exact type and module contract. |
+| `packed` | `int` | Input | Value supplied for `packed`. See the exact type and module contract. |
 
 **Returns.** Returns `GouraudQuad &`. Check the purpose and failure notes before using the value.
 
@@ -557,7 +557,7 @@ GouraudQuad& setColorAPacked(uint32_t packed)
 #include "psyqo/primitives/quads.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t packed
+// int packed
 
 psyqo::Prim::GouraudQuad& object = /* obtain a valid instance */;
 
@@ -1077,7 +1077,7 @@ uint32_t getCommandWord() const
 - **Declared at:** [line 336](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/quads.hh#L336)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Meant for the GTE's RGBC CODE field, which gets fused into every colour the GTE emits. Preload it and the colour FIFO hands back finished first words. See `GouraudQuad::getCommandWord` for the full round trip.
 
@@ -1400,7 +1400,7 @@ GouraudTexturedQuad& setColorAPacked(uint32_t packed)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `packed` | `uint32_t` | Input | Value supplied for `packed`. See the exact type and module contract. |
+| `packed` | `int` | Input | Value supplied for `packed`. See the exact type and module contract. |
 
 **Returns.** Returns `GouraudTexturedQuad &`. Check the purpose and failure notes before using the value.
 
@@ -1412,7 +1412,7 @@ GouraudTexturedQuad& setColorAPacked(uint32_t packed)
 #include "psyqo/primitives/quads.hh"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t packed
+// int packed
 
 psyqo::Prim::GouraudTexturedQuad& object = /* obtain a valid instance */;
 

@@ -55,9 +55,10 @@ public:
 template<size_t Capacity=2048>class SpriteRenderer {
     psyqo::Fragments::SimpleFragment<psyqo::Prim::TexturedTriangle> primitives[2][Capacity];
     size_t used=0;
+    bool dithering=false;
     sprite_detail::PlaneCache planes;
 public:
-    void begin(){used=0;sprite_stats={};planes.clear();}
+    void begin(bool dither=false){used=0;dithering=dither;sprite_stats={};planes.clear();}
     // LightingRenderer::shade(owner,objects,world,true) must prepare GTE before a lit draw.
     template<class Table>void draw(int parity,Table& table,const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixed>& view,bool receive_lighting=true){
         if(!sprite.enabled)return;const auto* tex=texture(sprite.texture);if(!tex){++sprite_stats.culled;return;}
@@ -85,7 +86,7 @@ public:
         ++sprite_stats.submitted;
         // One depth bucket for the complete quad avoids diagonal ordering seams.
         int depth=int(depth_sum/(count*1024))+sprite.depth_bias;if(depth<0)depth=0;if(depth>511)depth=511;
-        for(int i=1;i+1<count;++i){int64_t area=int64_t(points[i].x-points[0].x)*(points[i+1].y-points[0].y)-int64_t(points[i].y-points[0].y)*(points[i+1].x-points[0].x);if(!area)continue;if(used>=Capacity){++sprite_stats.dropped;continue;}auto& f=primitives[parity][used++];auto& p=f.primitive;p.setColor(color);if(sprite.blend==BlendMode::Cutout)p.setOpaque();else p.setSemiTrans();p.pointA=points[0];p.pointB=points[i];p.pointC=points[i+1];p.uvA={.u=uint8_t(buffers[from][0].uv[0]/4096),.v=uint8_t(buffers[from][0].uv[1]/4096)};p.uvB={.u=uint8_t(buffers[from][i].uv[0]/4096),.v=uint8_t(buffers[from][i].uv[1]/4096)};p.uvC={.u=uint8_t(buffers[from][i+1].uv[0]/4096),.v=uint8_t(buffers[from][i+1].uv[1]/4096)};p.clutIndex=texture_clut(*tex);p.tpage=texture_page(*tex,sprite.blend);table.insert(f,depth);++sprite_stats.triangles;sprite_stats.estimated_pixels+=uint32_t((area<0?-area:area)/2);}
+        for(int i=1;i+1<count;++i){int64_t area=int64_t(points[i].x-points[0].x)*(points[i+1].y-points[0].y)-int64_t(points[i].y-points[0].y)*(points[i+1].x-points[0].x);if(!area)continue;if(used>=Capacity){++sprite_stats.dropped;continue;}auto& f=primitives[parity][used++];auto& p=f.primitive;p.setColor(color);if(sprite.blend==BlendMode::Cutout)p.setOpaque();else p.setSemiTrans();p.pointA=points[0];p.pointB=points[i];p.pointC=points[i+1];p.uvA={.u=uint8_t(buffers[from][0].uv[0]/4096),.v=uint8_t(buffers[from][0].uv[1]/4096)};p.uvB={.u=uint8_t(buffers[from][i].uv[0]/4096),.v=uint8_t(buffers[from][i].uv[1]/4096)};p.uvC={.u=uint8_t(buffers[from][i+1].uv[0]/4096),.v=uint8_t(buffers[from][i+1].uv[1]/4096)};p.clutIndex=texture_clut(*tex);p.tpage=texture_page(*tex,sprite.blend,dithering);table.insert(f,depth);++sprite_stats.triangles;sprite_stats.estimated_pixels+=uint32_t((area<0?-area:area)/2);}
     }
 };
 }

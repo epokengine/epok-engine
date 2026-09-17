@@ -82,6 +82,24 @@ static void verify_narrow_chunk_bounds() {
 }
 int main(){
     verify_narrow_chunk_bounds();
+    const int32_t inside[3]={0,0,8*4096},size[3]={4096,4096,4096};
+    assert(epok::chunk_fully_inside(inside,size,160));
+    const int32_t near[3]={0,0,1200},empty[3]={};
+    assert(!epok::chunk_fully_inside(near,empty,160));
+    const int32_t edge[3]={8*4096,0,8*4096},far[3]={0,0,128*4096};
+    assert(!epok::chunk_fully_inside(edge,size,160));
+    assert(!epok::chunk_fully_inside(far,empty,160));
+    const int32_t extreme[3]={INT32_MIN,INT32_MAX,INT32_MAX},huge[3]={INT32_MAX,INT32_MAX,INT32_MAX};
+    assert(!epok::chunk_fully_inside(extreme,huge,160));
+    for(int x=-12;x<=12;++x)for(int y=-12;y<=12;++y)for(int z=1;z<24;++z){
+        const int32_t center[3]={x*4096,y*4096,z*4096};
+        if(!epok::chunk_fully_inside(center,size,160))continue;
+        // Quantization perturbations up to the guard must never escape a plane.
+        for(int corner=0;corner<8;++corner){
+            int32_t p[3];for(int a=0;a<3;++a)p[a]=center[a]+((corner&(1<<a))?1:-1)*(size[a]+128);
+            assert(epok::frustum_outcode(p[0],p[1],p[2])==0);
+        }
+    }
     using epok::frustum_outcode;
     assert(frustum_outcode(0,0,1024)==0);
     assert(frustum_outcode(0,0,1023)&1);

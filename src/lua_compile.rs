@@ -215,6 +215,7 @@ pub fn compile(
     let order = declaration_order(native, files, &blueprint_names(root))?;
     let claimed = claimed(root, native).map_err(|e| fail(&anywhere, top, e))?;
     let registry = register(native, &order, &claimed)?;
+    let profile = crate::settings::lua_profile(root).map_err(|e| fail(&anywhere, top, e))?;
     registry.model().map_err(|d| {
         fail(
             &anywhere,
@@ -238,7 +239,7 @@ pub fn compile(
                 continue;
             }
         };
-        match crate::lua_frontend::lower_class(d, &chunk, &class, &registry) {
+        match crate::lua_frontend::lower_class_with_profile(d, &chunk, &class, &registry, profile) {
             Ok(ir) => match script_ir::validate(&ir) {
                 Ok(()) => classes.push((class, ir)),
                 Err(message) => errors.push(Diagnostic::new(&d.file, d.span, message)),
@@ -252,8 +253,30 @@ pub fn compile(
 
     let mut artifacts = Artifacts::default();
     artifacts.runtime_capabilities.insert("lua".into());
+    for (_, ir) in &classes {
+        for expression in crate::lua_vm::operation_sites(ir).map_err(|e| fail(&anywhere, top, e))? {
+            if let crate::script_ir::Expr::CallOperation { operation, .. } = expression {
+                artifacts
+                    .runtime_capabilities
+                    .extend(operation.resource_demands);
+            }
+        }
+    }
     for file in files {
         artifacts.dependencies.insert(file.path.clone());
+    }
+    let (call_header, call_source) = lua_aot::emit_operation_adapters(&classes, &registry)
+        .map_err(|e| fail(&anywhere, top, e))?;
+    artifacts.files.insert(
+        PathBuf::from("scripts/generated/lua/lua_calls.hpp"),
+        call_header.into_bytes(),
+    );
+    if let Some(call_source) = call_source {
+        let path = PathBuf::from("scripts/generated/lua/lua_calls.cpp");
+        artifacts
+            .files
+            .insert(path.clone(), call_source.into_bytes());
+        artifacts.native_sources.push(path);
     }
     // A VM mode never silently degrades to AOT: a packaging failure is the
     // compilation's failure, reported with its real cause.
@@ -337,8 +360,9 @@ pub fn compile(
         .iter()
         .map(|e| (e.declaration.id.clone(), e.file))
         .collect::<Vec<_>>();
-    let footprints = crate::lua_dependencies::capture(&sources, &registry, &artifacts, mode)
-        .map_err(|e| fail(&anywhere, top, e))?;
+    let footprints =
+        crate::lua_dependencies::capture(&sources, &registry, &artifacts, mode, profile)
+            .map_err(|e| fail(&anywhere, top, e))?;
     Ok(Compilation {
         scripts,
         registry,

@@ -255,11 +255,24 @@ pub fn inspector(
     false
 }
 pub fn class_is_a(registry: &Registry, class: &str, base: &str) -> bool {
-    registry.classes.get(class).is_some_and(|class| {
+    // Serialized Blueprint references carry stable class ids, while Lua's
+    // author-facing typed-reference constructors use readable C++ names. Both
+    // spellings describe the same reflected class and must pass through the
+    // same compatibility check before cooking an ObjectId.
+    let class = registry
+        .classes
+        .get(class)
+        .or_else(|| registry.named(class));
+    let base = registry
+        .classes
+        .get(base)
+        .or_else(|| registry.named(base))
+        .map_or(base, |class| class.id.as_str());
+    class.is_some_and(|class| {
         registry
             .ancestry(&class.cpp_name)
             .iter()
-            .any(|c| c.id == base)
+            .any(|candidate| candidate.id == base)
     })
 }
 /// Called only for a deliberate duplicate operation; never guess reference intent from strings.
@@ -280,6 +293,30 @@ pub fn assignment(
     ty: &Type,
     scene: &Scene,
     registry: &Registry,
+) -> Result<String, String> {
+    assignment_in(target, value, ty, scene, registry, None)
+}
+
+/// Bind a service after actor creation, outside an ActorTable apply callback.
+/// `data` names the original scene-order ActorData pointer (including spawned slots).
+pub fn data_slot_assignment(
+    target: &str,
+    value: &Value,
+    ty: &Type,
+    scene: &Scene,
+    registry: &Registry,
+    data: impl Fn(usize) -> String,
+) -> Result<String, String> {
+    assignment_in(target, value, ty, scene, registry, Some(&data))
+}
+
+fn assignment_in(
+    target: &str,
+    value: &Value,
+    ty: &Type,
+    scene: &Scene,
+    registry: &Registry,
+    data: Option<&dyn Fn(usize) -> String>,
 ) -> Result<String, String> {
     match ty {
         Type::ObjectRef { class } | Type::ActorRef { class } | Type::ComponentRef { class }
@@ -309,13 +346,23 @@ pub fn assignment(
             for (slot, index) in order.iter().enumerate() {
                 let actor = &scene.actors[*index];
                 let found = if actor.id == id && !matches!(ty, Type::ComponentRef { .. }) {
-                    Some((&actor.class, format!("actors[{slot}]")))
+                    Some((
+                        &actor.class,
+                        data.map_or_else(
+                            || format!("actors[{slot}]"),
+                            |data| format!("epok::actor_for_slot({})", data(*index)),
+                        ),
+                    ))
                 } else if !matches!(ty, Type::ActorRef { .. }) {
                     actor.components.iter().position(|c| c.id == id).map(|i| {
                         (
                             &actor.components[i].class,
-                            format!(
-                                "registry.resolve<epok::Actor>(actors[{slot}])->component_id({i})"
+                            data.map_or_else(
+                                || format!("registry.resolve<epok::Actor>(actors[{slot}])->component_id({i})"),
+                                |data| {
+                                    let pointer = data(*index);
+                                    format!("(({pointer}) && ({pointer})->owner ? ({pointer})->owner->component_id({i}) : epok::ObjectId{{}})")
+                                },
                             ),
                         )
                     })
@@ -353,5 +400,56 @@ pub fn assignment(
             crate::script_values::assignment(target, value, ty)
         }
         _ => crate::script_values::assignment(target, value, ty),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::reflection_schema as schema;
+    use std::path::PathBuf;
+
+    fn class(id: &str, cpp_name: &str, parent: Option<&str>) -> schema::Class {
+        schema::Class {
+            id: id.into(),
+            provider: schema::native_provider(),
+            backend: schema::native_backend(),
+            cpp_name: cpp_name.into(),
+            parent: parent.map(str::to_owned),
+            abstract_class: false,
+            final_class: false,
+            blueprintable: true,
+            timeline_component: None,
+            family: None,
+            domain: None,
+            placement: schema::Placement::default(),
+            component: None,
+            default_components: vec![],
+            explicit_abstract: false,
+            properties: vec![],
+            functions: vec![],
+            source: schema::Location {
+                file: PathBuf::from("typed-reference-test.hpp"),
+                line: 1,
+                column: 1,
+            },
+        }
+    }
+
+    #[test]
+    fn typed_reference_compatibility_accepts_stable_ids_and_cpp_names() {
+        let mut registry = Registry::new();
+        let base = class("base-id", "epok::Base", None);
+        let child = class("child-id", "epok::Child", Some("base-id"));
+        registry.classes.insert(base.id.clone(), base);
+        registry.classes.insert(child.id.clone(), child);
+
+        for derived in ["child-id", "epok::Child"] {
+            for ancestor in ["base-id", "epok::Base"] {
+                assert!(class_is_a(&registry, derived, ancestor));
+            }
+        }
+        assert!(!class_is_a(&registry, "base-id", "child-id"));
+        assert!(!class_is_a(&registry, "missing", "base-id"));
     }
 }

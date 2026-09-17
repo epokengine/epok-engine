@@ -6,7 +6,7 @@
 // reflection stay on the host. The director (not this stateless kernel) owns
 // lifetime, activation, restoration and the existing DataHandle checks.
 namespace epok::timeline {
-inline constexpr size_t key_limit = 4;
+inline constexpr size_t key_limit = 256;
 struct Key { int32_t tick, value; };
 enum class Interpolation:uint8_t {Linear,Step,Smoothstep,EaseIn,EaseOut};
 struct Curve { const Key* keys; uint16_t count; Interpolation interpolation=Interpolation::Linear; bool unsigned_values=false; };
@@ -22,7 +22,10 @@ constexpr int32_t saturate(int64_t value) {
 inline int32_t sample(Curve curve, int32_t tick) {
     if (!curve.keys || !curve.count || curve.count > key_limit) return 0;
     if (tick <= curve.keys[0].tick) return curve.keys[0].value;
-    for (uint16_t i = 1; i < curve.count; ++i) {
+    uint16_t low=1,high=curve.count;
+    while(low<high){const auto mid=uint16_t(low+(high-low)/2);if(curve.keys[mid].tick<=tick)low=mid+1;else high=mid;}
+    if (low < curve.count) {
+        const auto i=low;
         const auto& a = curve.keys[i - 1];
         const auto& b = curve.keys[i];
         if (tick < b.tick) {

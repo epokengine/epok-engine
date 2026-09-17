@@ -51,7 +51,7 @@ This source repository does not vendor those Rust packages. Binary distributions
 - Dear ImGui: https://github.com/ocornut/imgui
 - Rust bindings: https://github.com/imgui-rs/imgui-rs
 - wgpu: https://github.com/gfx-rs/wgpu
-- Official Rust MCP SDK (rmcp): https://github.com/modelcontextprotocol/rust-sdk - linked into the desktop editor for local AI connections; not included in PSX games.
+- Official Rust MCP SDK (rmcp): https://github.com/modelcontextprotocol/rust-sdk - linked into the desktop editor for local client connections; not included in PSX games.
 
 ## Audio import and disc tools
 

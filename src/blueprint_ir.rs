@@ -564,11 +564,10 @@ pub fn cpp_type(ty: &Type) -> Result<String, String> {
             }
             cpp_name.clone()
         }
-        Type::Vector { .. } => {
-            return Err(
-                "Vectors require bounded array storage, not scalar parameters/returns".into(),
-            );
+        Type::Vector { length } if *length == 2 || *length == 3 => {
+            format!("epok::bp::Vector<{length}>")
         }
+        Type::Vector { .. } => return Err("Only bounded Vector2/Vector3 values are public".into()),
     })
 }
 pub fn literal(value: &serde_json::Value, ty: &Type) -> Result<String, String> {
@@ -713,6 +712,132 @@ struct Lower<'a, 'b> {
     data_budget: usize,
 }
 impl Lower<'_, '_> {
+    fn operation_definition(&self, id: &str) -> Result<schema::Operation, Error> {
+        self.context
+            .registry
+            .operation(id)
+            .cloned()
+            .ok_or_else(|| err(id, format!("Unknown gameplay operation {id}")))
+    }
+    fn operation(
+        &mut self,
+        node: &Node,
+        operation: &schema::Operation,
+    ) -> Result<Expression, Error> {
+        let mut evaluation = String::new();
+        let mut cpp = Vec::with_capacity(operation.parameters.len() + 1);
+        let receiver: crate::operation::Receiver<Expression> = match &operation.receiver {
+            schema::ReceiverKind::Service { library } => crate::operation::Receiver::Service {
+                library: library.clone(),
+            },
+            schema::ReceiverKind::Instance { class } => {
+                let value = self.input(node, "__target")?;
+                let expected = Type::ObjectRef {
+                    class: Some(class.clone()),
+                };
+                if !assignable(&value.value_type, &expected, self.context.registry) {
+                    return Err(err(
+                        &node.id,
+                        "Receiver requires a compatible typed ObjectRef; use checked Cast first",
+                    ));
+                }
+                evaluation.push_str(&format!("auto epok_receiver=({});", value.cpp));
+                cpp.push("epok_receiver".into());
+                crate::operation::Receiver::Instance {
+                    value: value.clone(),
+                    value_type: value.value_type.clone(),
+                }
+            }
+            schema::ReceiverKind::Value { cpp_name } => {
+                let value = self.input(node, "__target")?;
+                let expected = Type::Record {
+                    cpp_name: cpp_name.clone(),
+                    fields: vec![],
+                };
+                if value.value_type.label() != expected.label() {
+                    return Err(err(&node.id, "Value receiver has an incompatible type"));
+                }
+                evaluation.push_str(&format!("const auto& epok_receiver=({});", value.cpp));
+                cpp.push("epok_receiver".into());
+                crate::operation::Receiver::Value {
+                    value: value.clone(),
+                    value_type: value.value_type.clone(),
+                }
+            }
+        };
+        if operation.outputs.len() > 1 {
+            return Err(err(
+                &node.id,
+                "Multiple operation outputs require a result record",
+            ));
+        }
+        let mut lowered = Vec::with_capacity(operation.parameters.len());
+        for (index, parameter) in operation.parameters.iter().enumerate() {
+            let value = self.input(node, &parameter.id)?;
+            if !assignable(
+                &value.value_type,
+                &parameter.value_type,
+                self.context.registry,
+            ) {
+                return Err(err(
+                    &node.id,
+                    format!(
+                        "Operation input {} requires {}",
+                        parameter.name,
+                        parameter.value_type.label()
+                    ),
+                ));
+            }
+            if parameter.direction == schema::Direction::MutableReference && !value.lvalue {
+                return Err(err(
+                    &node.id,
+                    format!(
+                        "Operation input {} requires mutable storage",
+                        parameter.name
+                    ),
+                ));
+            }
+            let binding = match parameter.direction {
+                schema::Direction::Value => "auto",
+                schema::Direction::ConstReference => "const auto&",
+                schema::Direction::MutableReference => "auto&",
+            };
+            evaluation.push_str(&format!("{binding} epok_argument_{index}=({});", value.cpp));
+            cpp.push(format!("epok_argument_{index}"));
+            lowered.push(crate::operation::Argument {
+                parameter_id: parameter.id.clone(),
+                value,
+                value_type: parameter.value_type.clone(),
+            });
+        }
+        let resolved = crate::operation::ResolvedCall::from_operation(
+            operation,
+            receiver,
+            lowered,
+            crate::script_ir::Span::default(),
+        )
+        .map_err(|message| err(&node.id, message))?;
+        let target = match &operation.receiver {
+            schema::ReceiverKind::Service { .. } => operation.native_target.clone(),
+            schema::ReceiverKind::Instance { class } => call_on_name(class, &operation.id),
+            schema::ReceiverKind::Value { .. } => operation.native_target.clone(),
+        };
+        let returns = operation
+            .outputs
+            .first()
+            .map(|output| output.value_type.clone())
+            .unwrap_or(Type::Void);
+        let cpp_type = cpp_type(&returns).map_err(|message| err(&node.id, message))?;
+        let _ = resolved;
+        Ok(Expression {
+            value_type: returns,
+            cpp: format!(
+                "([&]() -> {cpp_type} {{{evaluation}return {target}({});}}())",
+                cpp.join(",")
+            ),
+            lvalue: false,
+        })
+    }
     fn checked_literal(
         &self,
         node: &str,
@@ -1212,6 +1337,32 @@ impl Lower<'_, '_> {
                     ))
                 }
             }
+            NodeKind::Operation { operation } => {
+                let definition = self.operation_definition(operation)?;
+                let returns = definition
+                    .outputs
+                    .first()
+                    .map(|output| output.value_type.clone())
+                    .unwrap_or(Type::Void);
+                let pure = matches!(
+                    definition.effect,
+                    schema::OperationEffect::PureValue | schema::OperationEffect::StateRead
+                );
+                if pure {
+                    self.operation(n, &definition)
+                } else if returns != Type::Void && self.available.contains(id) {
+                    Ok(Expression {
+                        value_type: returns,
+                        cpp: temporary(id),
+                        lvalue: true,
+                    })
+                } else {
+                    Err(err(
+                        id,
+                        "Impure operation result requires prior execution on every incoming path",
+                    ))
+                }
+            }
             NodeKind::CallOn { class, function } => {
                 let f = call_on_function(self.context.registry, class, function)
                     .map_err(|e| err(id, e))?;
@@ -1652,6 +1803,31 @@ impl Lower<'_, '_> {
                 }
                 out.push(Statement::CheckOwner(self.signature.returns.clone()));
             }
+            NodeKind::Operation { operation } => {
+                let definition = self.operation_definition(operation)?;
+                if matches!(
+                    definition.effect,
+                    schema::OperationEffect::PureValue | schema::OperationEffect::StateRead
+                ) {
+                    return Err(err(id, "Pure operation cannot consume execution links"));
+                }
+                let value = self.operation(node, &definition)?;
+                if value.value_type != Type::Void {
+                    self.available.insert(id.into());
+                    self.temporaries
+                        .insert(temporary(id), value.value_type.clone());
+                    out.push(Statement::Evaluate(format!(
+                        "{}={}",
+                        temporary(id),
+                        value.cpp
+                    )));
+                } else {
+                    out.push(Statement::Evaluate(value.cpp));
+                }
+                if definition.can_destroy_receiver {
+                    out.push(Statement::CheckOwner(self.signature.returns.clone()));
+                }
+            }
             NodeKind::Return => {
                 let value = if self.signature.returns == Type::Void {
                     None
@@ -1900,6 +2076,21 @@ pub fn lower(
                 }
                 names
             }
+            NodeKind::Operation { operation } => context
+                .registry
+                .operation(operation)
+                .map(|operation| {
+                    let mut inputs = operation
+                        .parameters
+                        .iter()
+                        .map(|parameter| parameter.id.clone())
+                        .collect::<Vec<_>>();
+                    if !matches!(operation.receiver, schema::ReceiverKind::Service { .. }) {
+                        inputs.insert(0, "__target".into());
+                    }
+                    inputs
+                })
+                .unwrap_or_default(),
             _ => vec![],
         };
         if let Some(name) = n.inputs.keys().find(|name| !allowed.contains(name) && !name.split_once('.').is_some_and(|(root, path)| {

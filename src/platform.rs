@@ -51,7 +51,7 @@ pub fn run(
     startup_mark("hub and dependency discovery");
     let args = std::env::args().collect::<Vec<_>>();
     let content_capture = args.iter().any(|arg| arg == "--screenshot-content-browser");
-    let minimum_size = if content_capture {
+    let minimum_size = if content_capture || args.iter().any(|arg| arg == "--sequencer-layout") {
         [640, 300]
     } else {
         [1024, 720]
@@ -197,6 +197,31 @@ pub fn run(
             },
         ]);
     }
+    let sequencer_font = imgui.fonts().add_font(&[
+        imgui::FontSource::TtfData {
+            data: include_bytes!("../resources/editor/Roboto-Regular.ttf"),
+            size_pixels: 13.,
+            config: None,
+        },
+        imgui::FontSource::TtfData {
+            data: include_bytes!("../resources/editor/codicon.ttf"),
+            size_pixels: 17.,
+            config: Some(imgui::FontConfig {
+                glyph_ranges: imgui::FontGlyphRanges::from_slice(&[0xea60, 0xedff, 0]),
+                glyph_min_advance_x: 17.,
+                ..Default::default()
+            }),
+        },
+        imgui::FontSource::TtfData {
+            data: include_bytes!("../resources/editor/fa-solid-900.ttf"),
+            size_pixels: 16.,
+            config: Some(imgui::FontConfig {
+                glyph_ranges: imgui::FontGlyphRanges::from_slice(&[0xf000, 0xf8ff, 0]),
+                glyph_min_advance_x: 16.,
+                ..Default::default()
+            }),
+        },
+    ]);
     gui::theme(imgui.style_mut());
     let asset_font = imgui.fonts().add_font(&[
         imgui::FontSource::TtfData {
@@ -533,6 +558,7 @@ pub fn run(
                 if let Some(editor) = session.as_mut() {
                 editor.raw_look=look_captured.then_some(std::mem::take(&mut raw_motion));
                 editor.project_browser.font = Some(browser_font);
+                editor.timeline_editor.font = Some(sequencer_font);
                 gui::draw(
                     ui,
                     editor,
@@ -584,7 +610,7 @@ pub fn run(
                     }
                 }
                 // Apply UI input first: camera and transforms reach the texture in this frame.
-                if let Some(editor) = session.as_mut().filter(|e| e.view_dirty || scene_gpu::SceneGpu::animated(&e.scene)) {
+                if let Some(editor) = session.as_mut().filter(|e| e.view_dirty || e.timeline_editor.open || scene_gpu::SceneGpu::animated(&e.scene)) {
                     if editor.scene_2d() {
                         let preview_scene=editor.hud_simulation.session.as_ref().map_or(&editor.scene,|s|&s.scene);
                         let size=preview_scene.display_size.map(u32::from);

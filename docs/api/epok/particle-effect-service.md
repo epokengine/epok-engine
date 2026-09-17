@@ -46,7 +46,7 @@ Affine<Fixed> effect_matrix(const Transform&)
 | --- | --- | --- | --- |
 | `arg1` | `const Transform &` | Input | Value supplied for `arg1`. See the exact type and module contract. |
 
-**Returns.** Returns `Affine<Fixed>`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need runtime effects and their deterministic playback state and the preconditions in the declaration are already satisfied.
 
@@ -86,7 +86,7 @@ Affine<Fixed> effect_world(DataHandle)
 | --- | --- | --- | --- |
 | `arg1` | `DataHandle` | Input | Value supplied for `arg1`. See the exact type and module contract. |
 
-**Returns.** Returns `Affine<Fixed>`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need runtime effects and their deterministic playback state and the preconditions in the declaration are already satisfied.
 
@@ -124,7 +124,7 @@ inline void advance(Fixed dt)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
+| `dt` | `int` | Input | Value supplied for `dt`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -136,7 +136,7 @@ inline void advance(Fixed dt)
 #include "particle_effect_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// Fixed dt
+// int dt
 
 epok::effects::advance(dt);
 ```
@@ -239,7 +239,7 @@ inline Component* configure(DataHandle owner,const Asset& asset,bool enabled,boo
 | `asset` | `const Asset &` | Input | Value supplied for `asset`. See the exact type and module contract. |
 | `enabled` | `bool` | Input | Value supplied for `enabled`. See the exact type and module contract. |
 | `automatic` | `bool` | Input | Value supplied for `automatic`. See the exact type and module contract. |
-| `seed` | `uint32_t` | Input | Value supplied for `seed`. See the exact type and module contract. |
+| `seed` | `int` | Input | Value supplied for `seed`. See the exact type and module contract. |
 
 **Returns.** Returns `Component *`. Check the purpose and failure notes before using the value.
 
@@ -255,7 +255,7 @@ inline Component* configure(DataHandle owner,const Asset& asset,bool enabled,boo
 // const Asset & asset
 // bool enabled
 // bool automatic
-// uint32_t seed
+// int seed
 
 auto result = epok::effects::configure(owner, asset, enabled, automatic, seed);
 ```
@@ -458,7 +458,7 @@ inline Handle spawn(const Asset& asset,const Transform& transform,uint32_t seed=
 | --- | --- | --- | --- |
 | `asset` | `const Asset &` | Input | Value supplied for `asset`. See the exact type and module contract. |
 | `transform` | `const Transform &` | Input | Value supplied for `transform`. See the exact type and module contract. |
-| `seed` | `uint32_t` | Input | Value supplied for `seed`. See the exact type and module contract. |
+| `seed` | `int` | Input | Value supplied for `seed`. See the exact type and module contract. |
 | `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 | `bindings` | `const timeline::BoundTarget *` | Input | Value supplied for `bindings`. See the exact type and module contract. |
 
@@ -474,7 +474,7 @@ inline Handle spawn(const Asset& asset,const Transform& transform,uint32_t seed=
 // Assume these named values have been initialized with valid data:
 // const Asset & asset
 // const Transform & transform
-// uint32_t seed
+// int seed
 // DataHandle owner
 // const timeline::BoundTarget * bindings
 

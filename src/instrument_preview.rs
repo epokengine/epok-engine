@@ -32,6 +32,17 @@ pub struct Stats {
 }
 
 unsafe extern "C" {
+    fn epok_native_preview_create(
+        stream: *const u8,
+        length: u32,
+        bank: *const u8,
+        size: u32,
+        samples: *const NativePcm,
+        count: u32,
+    ) -> *mut c_void;
+    fn epok_native_preview_destroy(handle: *mut c_void);
+    fn epok_native_preview_render(handle: *mut c_void, output: *mut i16, frames: u32) -> i32;
+    fn epok_native_preview_stats(handle: *const c_void) -> Stats;
     fn epok_instrument_prepared_count(
         events: *const Event,
         count: u32,
@@ -79,10 +90,16 @@ pub fn prepared_count(events: &[Event], ppqn: u16, bank: &[u8]) -> Result<(u16, 
     Ok((count as u16, references))
 }
 
-struct Native(*mut c_void);
+struct Native(*mut c_void, bool);
 impl Drop for Native {
     fn drop(&mut self) {
-        unsafe { epok_instrument_destroy(self.0) }
+        unsafe {
+            if self.1 {
+                epok_native_preview_destroy(self.0)
+            } else {
+                epok_instrument_destroy(self.0)
+            }
+        }
     }
 }
 
@@ -108,6 +125,48 @@ pub fn render(
     voice_limit: u16,
     output_frames: usize,
     cancelled_flag: &AtomicBool,
+) -> Result<(Pcm, Stats), String> {
+    render_impl(
+        events,
+        ppqn,
+        bank_bytes,
+        samples,
+        voice_limit,
+        output_frames,
+        cancelled_flag,
+        None,
+    )
+}
+pub fn render_native(
+    events: &[Event],
+    ppqn: u16,
+    bank_bytes: &[u8],
+    samples: &[psx_library::Sample],
+    voice_limit: u16,
+    output_frames: usize,
+    cancelled_flag: &AtomicBool,
+    stream: &[u8],
+) -> Result<(Pcm, Stats), String> {
+    render_impl(
+        events,
+        ppqn,
+        bank_bytes,
+        samples,
+        voice_limit,
+        output_frames,
+        cancelled_flag,
+        Some(stream),
+    )
+}
+fn render_impl(
+    events: &[Event],
+    ppqn: u16,
+    bank_bytes: &[u8],
+    samples: &[psx_library::Sample],
+    voice_limit: u16,
+    output_frames: usize,
+    cancelled_flag: &AtomicBool,
+    compiled: Option<&[u8]>,
 ) -> Result<(Pcm, Stats), String> {
     cancelled(cancelled_flag)?;
     if events.is_empty()
@@ -167,19 +226,33 @@ pub fn render(
         })
         .collect::<Vec<_>>();
 
-    let native = Native(unsafe {
-        epok_instrument_create(
-            events.as_ptr(),
-            events.len() as u32,
-            ppqn,
-            voice_limit,
-            bank_bytes.as_ptr(),
-            bank_bytes.len() as u32,
-            native_samples.as_ptr(),
-            native_samples.len() as u32,
-            RATE,
-        )
-    });
+    let native = Native(
+        unsafe {
+            if let Some(stream) = compiled {
+                epok_native_preview_create(
+                    stream.as_ptr(),
+                    stream.len() as u32,
+                    bank_bytes.as_ptr(),
+                    bank_bytes.len() as u32,
+                    native_samples.as_ptr(),
+                    native_samples.len() as u32,
+                )
+            } else {
+                epok_instrument_create(
+                    events.as_ptr(),
+                    events.len() as u32,
+                    ppqn,
+                    voice_limit,
+                    bank_bytes.as_ptr(),
+                    bank_bytes.len() as u32,
+                    native_samples.as_ptr(),
+                    native_samples.len() as u32,
+                    RATE,
+                )
+            }
+        },
+        compiled.is_some(),
+    );
     if native.0.is_null() {
         return Err("Cannot initialize EPSB v2 target instrument preview; verify its wire payload and decoded target PCM".into());
     }
@@ -194,7 +267,11 @@ pub fn render(
     for chunk in pcm.samples.chunks_mut(4096 * 2) {
         cancelled(cancelled_flag)?;
         let error = unsafe {
-            epok_instrument_render(native.0, chunk.as_mut_ptr(), (chunk.len() / 2) as u32)
+            if native.1 {
+                epok_native_preview_render(native.0, chunk.as_mut_ptr(), (chunk.len() / 2) as u32)
+            } else {
+                epok_instrument_render(native.0, chunk.as_mut_ptr(), (chunk.len() / 2) as u32)
+            }
         };
         if error != 0 {
             return Err(format!(
@@ -203,7 +280,16 @@ pub fn render(
         }
     }
     cancelled(cancelled_flag)?;
-    let stats = unsafe { epok_instrument_stats(native.0) };
+    let stats = unsafe {
+        if native.1 {
+            epok_native_preview_stats(native.0)
+        } else {
+            epok_instrument_stats(native.0)
+        }
+    };
+    if native.1 {
+        pcm.report=Some("Epok Pulse target preview: decoded cooked SPU ADPCM, compiled register commands and quantized hardware ADSR model. Linear host interpolation; no Gaussian interpolation, key-on latency or SFX contention.".into());
+    }
     if stats.error != 0 {
         return Err(format!(
             "Target instrument preview reported diagnostic {}",

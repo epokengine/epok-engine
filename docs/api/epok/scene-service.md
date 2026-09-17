@@ -99,7 +99,7 @@ auto result = epok::music_retains_audio_source(source);
 inline bool scene_tick(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 56](../../../runtime/scene_service.hpp#L56)
+- **Declared at:** [line 59](../../../runtime/scene_service.hpp#L59)
 - **Kind:** `function decl`
 
 **Parameters**

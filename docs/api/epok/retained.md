@@ -40,10 +40,10 @@ bool allocate(size_t index,const MeshGeometry* geometry,size_t quads,uint32_t li
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
 | `geometry` | `const MeshGeometry *` | Input | Value supplied for `geometry`. See the exact type and module contract. |
-| `quads` | `size_t` | Input | Value supplied for `quads`. See the exact type and module contract. |
-| `limit_slot` | `uint32_t` | Input | Value supplied for `limit_slot`. See the exact type and module contract. |
+| `quads` | `int` | Input | Value supplied for `quads`. See the exact type and module contract. |
+| `limit_slot` | `int` | Input | Value supplied for `limit_slot`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -55,10 +55,10 @@ bool allocate(size_t index,const MeshGeometry* geometry,size_t quads,uint32_t li
 #include "retained.hpp"
 
 // Assume these named values have been initialized with valid data:
-// size_t index
+// int index
 // const MeshGeometry * geometry
-// size_t quads
-// uint32_t limit_slot
+// int quads
+// int limit_slot
 
 epok::RetainedGeometry& object = /* obtain a valid instance */;
 
@@ -88,9 +88,9 @@ uint32_t first_slot(size_t index) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the retained module and the preconditions in the declaration are already satisfied.
 
@@ -100,7 +100,7 @@ uint32_t first_slot(size_t index) const
 #include "retained.hpp"
 
 // Assume these named values have been initialized with valid data:
-// size_t index
+// int index
 
 epok::RetainedGeometry& object = /* obtain a valid instance */;
 
@@ -130,7 +130,7 @@ void forget(size_t index)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -142,7 +142,7 @@ void forget(size_t index)
 #include "retained.hpp"
 
 // Assume these named values have been initialized with valid data:
-// size_t index
+// int index
 
 epok::RetainedGeometry& object = /* obtain a valid instance */;
 
@@ -172,7 +172,7 @@ RetainedQuad* quads(size_t index)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** Returns `RetainedQuad *`. Check the purpose and failure notes before using the value.
 
@@ -184,7 +184,7 @@ RetainedQuad* quads(size_t index)
 #include "retained.hpp"
 
 // Assume these named values have been initialized with valid data:
-// size_t index
+// int index
 
 epok::RetainedGeometry& object = /* obtain a valid instance */;
 
@@ -243,7 +243,7 @@ uint32_t slot_top() const
 - **Declared at:** [line 58](../../../runtime/retained.hpp#L58)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the retained module and the preconditions in the declaration are already satisfied.
 
@@ -280,7 +280,7 @@ State& state(size_t index)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** Returns `State &`. Check the purpose and failure notes before using the value.
 
@@ -292,7 +292,7 @@ State& state(size_t index)
 #include "retained.hpp"
 
 // Assume these named values have been initialized with valid data:
-// size_t index
+// int index
 
 epok::RetainedGeometry& object = /* obtain a valid instance */;
 

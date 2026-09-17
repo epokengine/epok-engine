@@ -196,13 +196,8 @@ impl Document {
                 return Err("A face collapses at PSX Q12 precision; increase its size".into());
             }
             let n = face_normal(p);
-            let span = (0..3)
-                .map(|c| {
-                    p.iter().map(|v| v[c]).fold(f32::NEG_INFINITY, f32::max)
-                        - p.iter().map(|v| v[c]).fold(f32::INFINITY, f32::min)
-                })
-                .fold(0_f32, f32::max);
-            compiled += ((span / 4.).ceil().max(1.) as usize).pow(2);
+            let [nx, ny] = crate::mesh_compile::subdivisions(p);
+            compiled += nx * ny;
             if compiled > 3500 {
                 return Err(
                     "Compiled geometry exceeds 7000 triangles after large-surface subdivision"
@@ -693,6 +688,15 @@ pub(crate) mod tests {
                     });
                     assert_eq!(actual, quads[i].points[k]);
                     for axis in 0..3 {
+                        // Chunk repartitioning must preserve every GTE input,
+                        // including negative and fractional authored coordinates.
+                        assert_eq!(
+                            ((c.origin[axis] * 4096.) as i32 >> 4)
+                                + (i32::from(c.vertices[*vertex as usize][axis]) >> 4),
+                            (quads[i].points[k][axis] * 4096.).round() as i32 >> 4
+                        );
+                    }
+                    for axis in 0..3 {
                         assert!(
                             (i32::from(c.vertices[*vertex as usize][axis]) - c.center[axis]).abs()
                                 <= c.extent[axis]
@@ -706,5 +710,70 @@ pub(crate) mod tests {
         assert!(!quads.iter().any(|q| q.material.color == [1., 0., 0.]));
         let header = crate::mesh_compile::header(&e, 0).unwrap();
         assert!(header.contains("{0,0,255}"));
+    }
+    #[test]
+    fn long_thin_faces_subdivide_only_along_the_long_axis() {
+        let mut doc = Document::default();
+        doc.vertices = vec![[0., 0., 0.], [32., 0., 0.], [32., 0., 0.5], [0., 0., 0.5]];
+        doc.faces.push(Face {
+            id: Uuid::new_v4(),
+            vertices: [0, 1, 2, 3],
+            group: doc.groups[0].id,
+            material: doc.materials[0].id,
+            uv: default_uv(),
+        });
+        doc.validate().unwrap();
+        assert_eq!(
+            crate::mesh_compile::subdivisions(doc.points(&doc.faces[0])),
+            [8, 1]
+        );
+        let mut e = Actor::cube("Thin cap".into());
+        let mut mesh = Component::new(Uuid::new_v4());
+        mesh.document = Some(Arc::new(doc));
+        let quads = crate::mesh_compile::quads(&e, &mesh);
+        assert_eq!(quads.len(), 8);
+        for (i, q) in quads.iter().enumerate() {
+            assert_eq!(q.points[0], [i as f32 * 4., 0., 0.]);
+            assert_eq!(q.points[2], [(i + 1) as f32 * 4., 0., 0.5]);
+            assert_eq!(q.uv[0], [i as f32 / 8., 0.]);
+            assert_eq!(q.uv[2], [(i + 1) as f32 / 8., 1.]);
+        }
+        crate::mesh_compile::chunks(&quads).unwrap();
+        e.editable_mesh = Some(mesh);
+        assert!(crate::mesh_compile::header(&e, 0).is_ok());
+    }
+    #[test]
+    fn wide_chunk_groups_split_without_changing_quantized_vertices() {
+        let e = Actor::cube("Chunk bounds".into());
+        let mut mesh = Component::new(Uuid::new_v4());
+        mesh.document = Some(Arc::new(shape("Plane")));
+        let template = crate::mesh_compile::quads(&e, &mesh).remove(0);
+        let mut quads = vec![template.clone(), template];
+        // Both centroids occupy cell zero, but their union exceeds signed Q12.
+        quads[0].points = [[-6., 0., 0.], [2., 0., 0.], [2., 0., 1.], [2., 0., 1.]];
+        quads[1].points = [
+            [5.999, 0., 0.],
+            [13.999, 0., 0.],
+            [5.999, 0., 1.],
+            [5.999, 0., 1.],
+        ];
+        for q in &mut quads {
+            q.points = q.points.map(|p| p.map(|v| (v * 4096.).round() / 4096.));
+        }
+        let chunks = crate::mesh_compile::chunks(&quads).unwrap();
+        assert_eq!(chunks.len(), 2);
+        for chunk in chunks {
+            for (indices, face) in chunk.faces {
+                for (corner, index) in indices.into_iter().enumerate() {
+                    for axis in 0..3 {
+                        let origin = (chunk.origin[axis] * 4096.) as i32;
+                        let local = i32::from(chunk.vertices[usize::from(index)][axis]);
+                        let world = (quads[face].points[corner][axis] * 4096.) as i32;
+                        assert_eq!(origin + local, world);
+                        assert_eq!((origin >> 4) + (local >> 4), world >> 4);
+                    }
+                }
+            }
+        }
     }
 }

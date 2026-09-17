@@ -59,7 +59,9 @@ pub struct SceneGpu {
     edges: Vertices,
     grid: Vertices,
     cached_scene: Option<Scene>,
+    cached_skeletal_poses: SkeletalPoseKey,
     cached_selected: Option<usize>,
+    cached_wire: bool,
     cached_phase: f32,
     cached_fog_center: [f32; 3],
     cached_fog_distance: f32,
@@ -75,6 +77,42 @@ struct RenderInput<'a> {
     effect: Option<&'a [crate::particle_effect_preview::Quad]>,
     background: Option<[f32; 3]>,
 }
+/// Runtime-only skeletal state that changes the generated vertex buffer.
+///
+/// `Scene` equality deliberately serializes the document before comparing it,
+/// so its transient `skeletal_mesh.time` field is omitted. Keep the sampled
+/// pose separate from the document cache: animation can then refresh the
+/// Scene View without becoming an authored scene edit.
+type SkeletalPoseKey = Vec<Option<(usize, Option<usize>)>>;
+
+fn skeletal_pose_key(scene: &Scene) -> SkeletalPoseKey {
+    scene
+        .actors
+        .iter()
+        .enumerate()
+        .map(|(index, actor)| {
+            if !scene.is_active(index) {
+                return None;
+            }
+            let component = actor.skeletal_mesh.as_ref()?;
+            let model = component.model.as_ref()?;
+            let frame = component
+                .clip
+                .and_then(|id| model.clips.iter().find(|(key, _)| *key == id))
+                .map(|(_, clip)| {
+                    let frame =
+                        (component.time.max(0.) * clip.fps as f32 + 0.0001).floor() as usize;
+                    if component.looping {
+                        frame % (clip.frames as usize - 1).max(1)
+                    } else {
+                        frame.min(clip.frames as usize - 1)
+                    }
+                });
+            Some((std::sync::Arc::as_ptr(model) as usize, frame))
+        })
+        .collect()
+}
+
 impl SceneGpu {
     pub fn animated(scene: &Scene) -> bool {
         crate::effects::animated(scene)
@@ -180,7 +218,7 @@ impl SceneGpu {
             bind_group_layouts: &[&layout],
             push_constant_ranges: &[],
         });
-        let make_pipeline = |topology, background, shadow: bool, blend: usize| {
+        let make_pipeline = |topology, background, shadow: bool, blend: usize, cull: bool| {
             const ATTRIBUTES: [wgpu::VertexAttribute; 3] =
                 wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x4];
             let buffers = [wgpu::VertexBufferLayout {
@@ -207,7 +245,8 @@ impl SceneGpu {
                 },
                 primitive: wgpu::PrimitiveState {
                     topology,
-                    cull_mode: None,
+                    front_face: wgpu::FrontFace::Cw,
+                    cull_mode: cull.then_some(wgpu::Face::Back),
                     ..Default::default()
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
@@ -323,29 +362,46 @@ impl SceneGpu {
         grid.upload(device, queue, &data);
         Self {
             preview_started: std::time::Instant::now(),
-            mesh_pipelines: (0..5)
-                .map(|b| make_pipeline(wgpu::PrimitiveTopology::TriangleList, false, false, b))
+            mesh_pipelines: (0..10)
+                .map(|b| {
+                    make_pipeline(
+                        wgpu::PrimitiveTopology::TriangleList,
+                        false,
+                        false,
+                        b % 5,
+                        b >= 5,
+                    )
+                })
                 .collect(),
             draw_ranges: vec![],
             textures,
             cached_angles: [f32::NAN; 2],
-            line_pipeline: make_pipeline(wgpu::PrimitiveTopology::LineList, false, false, 0),
+            line_pipeline: make_pipeline(wgpu::PrimitiveTopology::LineList, false, false, 0, false),
             background_pipeline: make_pipeline(
                 wgpu::PrimitiveTopology::TriangleList,
                 true,
                 false,
                 0,
+                false,
             ),
             camera,
             bind_group,
             depth,
             mesh: Vertices::new(device),
             shadows: Vertices::new(device),
-            shadow_pipeline: make_pipeline(wgpu::PrimitiveTopology::TriangleList, false, true, 0),
+            shadow_pipeline: make_pipeline(
+                wgpu::PrimitiveTopology::TriangleList,
+                false,
+                true,
+                0,
+                false,
+            ),
             edges: Vertices::new(device),
             grid,
             cached_scene: None,
+            cached_skeletal_poses: vec![],
             cached_selected: None,
+            cached_wire: false,
             cached_phase: 0.,
             cached_fog_center: [0.; 3],
             cached_fog_distance: 12.,
@@ -366,7 +422,13 @@ impl SceneGpu {
             encoder,
             target,
             RenderInput {
-                scene: &editor.scene,
+                scene: editor
+                    .timeline_editor
+                    .scene_preview
+                    .scene
+                    .as_ref()
+                    .filter(|_| editor.timeline_editor.open && !editor.playing)
+                    .unwrap_or(&editor.scene),
                 view: &editor.view,
                 selected: editor.selected,
                 mesh: &editor.mesh_editor,
@@ -445,10 +507,13 @@ impl SceneGpu {
         let view = input.view;
         let selected = input.selected;
         let preview_time = self.preview_time(scene, view.phase);
+        let skeletal_poses = skeletal_pose_key(scene);
         if input.effect.is_some()
             || self.cached_scene.as_ref() != Some(scene)
+            || self.cached_skeletal_poses != skeletal_poses
             || self.cached_angles != [view.yaw, view.pitch]
             || self.cached_selected != selected
+            || self.cached_wire != input.wire
             || self.cached_phase != preview_time
             || (scene.fog.enabled
                 && (self.cached_fog_center != view.center
@@ -462,6 +527,7 @@ impl SceneGpu {
                 input.mesh,
                 view,
                 input.effect.unwrap_or_default(),
+                input.wire,
             );
             self.cached_fog_center = view.center;
             self.cached_fog_distance = view.distance;
@@ -521,7 +587,9 @@ impl SceneGpu {
             }
             self.shadows.upload(device, queue, &shadows);
             self.cached_scene = Some(scene.clone());
+            self.cached_skeletal_poses = skeletal_poses;
             self.cached_selected = selected;
+            self.cached_wire = input.wire;
             self.cached_phase = preview_time;
             self.cached_mesh_revision = input.mesh.revision;
         }
@@ -623,7 +691,7 @@ fn geometry(
     state: &crate::mesh_editor::State,
     view: &crate::viewport::View,
 ) -> GeometryBuffers {
-    geometry_with_effects(scene, selected, phase, state, view, &[])
+    geometry_with_effects(scene, selected, phase, state, view, &[], false)
 }
 fn geometry_with_effects(
     scene: &Scene,
@@ -632,6 +700,7 @@ fn geometry_with_effects(
     state: &crate::mesh_editor::State,
     view: &crate::viewport::View,
     effects: &[crate::particle_effect_preview::Quad],
+    wire: bool,
 ) -> GeometryBuffers {
     let (yaw, pitch, view_center) = (view.yaw, view.pitch, view.center);
     let mut triangles = Vec::new();
@@ -640,6 +709,7 @@ fn geometry_with_effects(
         colors: [[u8; 3]; 4],
         uv: [[f32; 2]; 4],
         material: crate::scene::Material,
+        cull: bool,
     }
     let mut draws = Vec::<Draw>::new();
     let mut edges = Vec::new();
@@ -699,9 +769,12 @@ fn geometry_with_effects(
                 colors,
                 uv: q.uv,
                 material: q.material.clone(),
+                cull: e.editable_mesh.is_some() || e.skeletal_mesh.is_some(),
             });
         }
-        for q in crate::lighting::quads(e) {
+        for q in quads.iter().filter(|_| {
+            wire || selected == Some(index) || (state.open && state.target == Some(index))
+        }) {
             let p = q.points.map(|v| world.point(v));
             let color = if state.open
                 && state.target == Some(index)
@@ -868,6 +941,7 @@ fn geometry_with_effects(
         };
         draws.push(Draw {
             points: q.points,
+            cull: false,
             colors: [crate::lighting::modulate(light, sprite.color); 4],
             uv: crate::sprites::uv(sprite, size.0, size.1),
             material: crate::scene::Material {
@@ -895,6 +969,7 @@ fn geometry_with_effects(
     let mut ranges = Vec::<(u32, u32, usize)>::new();
     for d in draws {
         let mode = d.material.blend as usize;
+        let pipeline = mode + if d.cull { 5 } else { 0 };
         let start = (triangles.len() / 40) as u32;
         let layer = d
             .material
@@ -929,10 +1004,10 @@ fn geometry_with_effects(
             ));
         }
         let count = (emitted.len() * 3) as u32;
-        if let Some(last) = ranges.last_mut().filter(|r| r.2 == mode) {
+        if let Some(last) = ranges.last_mut().filter(|r| r.2 == pipeline) {
             last.1 += count;
         } else {
-            ranges.push((start, count, mode));
+            ranges.push((start, count, pipeline));
         }
         for v in emitted.into_iter().flatten() {
             let uv = if layer == 0 {
@@ -1012,6 +1087,167 @@ pub fn profile(project: crate::workspace::Project) -> Result<(), Box<dyn std::er
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn skeletal_pose_cache_tracks_transient_animation_time() {
+        use std::sync::Arc;
+
+        let skeleton = uuid::Uuid::new_v4();
+        let clip = uuid::Uuid::new_v4();
+        let model = Arc::new(crate::skeletal::Model {
+            mesh: crate::skeletal::Mesh {
+                skeleton,
+                vertices: vec![],
+                triangles: vec![],
+                materials: vec![],
+                clips: vec![clip],
+                animation_storage: Default::default(),
+            },
+            skeleton: crate::skeletal::Skeleton { bones: vec![] },
+            clips: vec![(
+                clip,
+                crate::skeletal::Clip {
+                    skeleton,
+                    name: "Move".into(),
+                    fps: 30,
+                    frames: 2,
+                    tracks: vec![],
+                },
+            )],
+            materials: vec![],
+        });
+        let mut actor = crate::scene::Actor::cube("Character".into());
+        let mut component = crate::skeletal::Component::new(uuid::Uuid::new_v4());
+        component.clip = Some(clip);
+        component.looping = false;
+        component.model = Some(model);
+        actor.skeletal_mesh = Some(component);
+        let before = crate::scene::Scene {
+            actors: vec![actor],
+            ..Default::default()
+        };
+        let mut after = before.clone();
+        after.actors[0].skeletal_mesh.as_mut().unwrap().time = 1. / 30.;
+
+        assert_eq!(before, after, "document equality omits preview time");
+        assert_ne!(
+            super::skeletal_pose_key(&before),
+            super::skeletal_pose_key(&after),
+            "the GPU cache must still rebuild for a different sampled pose"
+        );
+    }
+
+    #[test]
+    #[ignore = "requires a graphics adapter"]
+    fn scene_preview_culls_reversed_faces_and_keeps_shaded_surfaces_clean() {
+        use super::*;
+        let instance = wgpu::Instance::default();
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Scene culling regression"),
+            size: SIZE,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let target = texture.create_view(&Default::default());
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Scene culling pixels"),
+            size: 960 * 600 * 4,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut renderer = SceneGpu::new(&device, &queue);
+        let view = crate::viewport::View {
+            yaw: 0.,
+            pitch: 0.,
+            center: [0.; 3],
+            distance: 4.,
+            ..Default::default()
+        };
+        for (reverse, active, expected_red) in [
+            (false, true, true),
+            (true, true, false),
+            (false, false, false),
+        ] {
+            let mut doc = crate::mesh::Document::default();
+            doc.materials[0].material.color = [1., 0., 0.];
+            doc.materials[0].material.unlit = true;
+            let mut points = [[-1., -1., 0.], [-1., 1., 0.], [1., 1., 0.], [1., -1., 0.]];
+            if reverse {
+                points.reverse();
+            }
+            doc.add_face(points, doc.groups[0].id, doc.materials[0].id);
+            let mut actor = crate::scene::Actor::cube("Surface".into());
+            actor.active = active;
+            actor.editable_mesh = Some(crate::mesh::Component {
+                document: Some(std::sync::Arc::new(doc)),
+                ..crate::mesh::Component::new(uuid::Uuid::new_v4())
+            });
+            let scene = Scene {
+                actors: vec![actor],
+                ..Default::default()
+            };
+            let state = crate::mesh_editor::State::default();
+            assert!(
+                geometry(&scene, None, 0., &state, &view).1.is_empty(),
+                "Shaded does not draw unsolicited wire edges"
+            );
+            if active {
+                assert!(!geometry(&scene, Some(0), 0., &state, &view).1.is_empty());
+            }
+            let mut encoder = device.create_command_encoder(&Default::default());
+            renderer.render_input(
+                &device,
+                &queue,
+                &mut encoder,
+                &target,
+                RenderInput {
+                    scene: &scene,
+                    view: &view,
+                    selected: None,
+                    mesh: &state,
+                    wire: false,
+                    grid: false,
+                    effect: None,
+                    background: Some([0.; 3]),
+                },
+            );
+            encoder.copy_texture_to_buffer(
+                texture.as_image_copy(),
+                wgpu::TexelCopyBufferInfo {
+                    buffer: &buffer,
+                    layout: wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(960 * 4),
+                        rows_per_image: Some(600),
+                    },
+                },
+                SIZE,
+            );
+            queue.submit(Some(encoder.finish()));
+            let (tx, rx) = std::sync::mpsc::channel();
+            buffer
+                .slice(..)
+                .map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
+            device.poll(wgpu::PollType::Wait).unwrap();
+            rx.recv().unwrap().unwrap();
+            let bytes = buffer.slice(..).get_mapped_range();
+            let pixel = &bytes[(300 * 960 + 480) * 4..(300 * 960 + 480) * 4 + 3];
+            assert_eq!(
+                pixel[0] > 200 && pixel[1] < 20 && pixel[2] < 20,
+                expected_red,
+                "{reverse}/{active}: {pixel:?}"
+            );
+            drop(bytes);
+            buffer.unmap();
+        }
+    }
+
     #[test]
     fn static_toggle_keeps_last_baked_shadows_in_both_renderers() {
         let mut scene = crate::lighting::tests::shadow_scene();

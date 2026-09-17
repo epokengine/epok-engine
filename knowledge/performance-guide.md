@@ -7,7 +7,7 @@
 > comparisons now pass. Matched-state moving tests still contain small phase
 > regressions; visibility and streaming remain experimental and off by default.
 
-Handoff document for the AI or person continuing to optimize Epok's native
+Handoff document for the contributor continuing to optimize Epok's native
 runtime. It records the completed work, the rendering path, known pitfalls, the
 measurement and verification workflow, and remaining work with proposed designs
 and priorities. The focus is the engine: any game project can serve as a test

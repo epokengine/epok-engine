@@ -342,3 +342,15 @@ wires. Its visual language does not imply external API or asset compatibility.
 Lua is a separately reserved provider. The reusable TimelineAsset and VFX editors
 are available alongside the older scalar Blueprint Timeline node; see
 [Using the VFX editor](vfx-editor.md) for their authoring workflow.
+## Catalog gameplay operations
+
+Blueprint's action menu includes engine gameplay operations generated from the
+same reflected catalog used by C++ and Lua. Function-library entries are grouped
+by category; instance entries have a typed `Target` pin; properties appear as
+generated Get/Set operations. Registered records can be split and recombined, and
+the compiler materializes a stateful query once before fan-out reads its fields.
+
+Legacy builtin nodes retain their UUIDs and serialized pins. They are compatibility
+aliases, so old graphs load without being rewritten while new graphs can use the
+catalog operations. See [Gameplay API](gameplay-api.md) for service groups, bounded
+results and skeletal sampling semantics.

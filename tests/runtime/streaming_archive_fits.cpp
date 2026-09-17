@@ -10,6 +10,7 @@ static void reset() {
   stream_entry = {};
   stream_lookup_started = stream_lookup_pending = stream_ready = stream_failed = stream_read_pending = false;
   stream_warm_scene = false;
+  stream_gameplay_request_count = 0;
   music_active = music_requested = music_lookup = music_ready = music_boot_failed = music_data_owner = false;
   fake_cd::pending = {};
   fake_cd::idle = fake_cd::read_ok = true;

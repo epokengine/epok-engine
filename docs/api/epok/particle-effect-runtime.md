@@ -52,7 +52,7 @@ void advance(Fixed dt,bool paused=false)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
+| `dt` | `int` | Input | Value supplied for `dt`. See the exact type and module contract. |
 | `paused` | `bool` | Input | Value supplied for `paused`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -65,7 +65,7 @@ void advance(Fixed dt,bool paused=false)
 #include "particle_effect_runtime.hpp"
 
 // Assume these named values have been initialized with valid data:
-// Fixed dt
+// int dt
 // bool paused
 
 epok::effects::Pool& object = /* obtain a valid instance */;
@@ -97,7 +97,7 @@ bool burst(Handle h,uint32_t count)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `h` | `Handle` | Input | Value supplied for `h`. See the exact type and module contract. |
-| `count` | `uint32_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -110,7 +110,7 @@ bool burst(Handle h,uint32_t count)
 
 // Assume these named values have been initialized with valid data:
 // Handle h
-// uint32_t count
+// int count
 
 epok::effects::Pool& object = /* obtain a valid instance */;
 
@@ -228,7 +228,7 @@ EffectLayerHandle layer(Handle h,uint16_t index)const
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `h` | `Handle` | Input | Value supplied for `h`. See the exact type and module contract. |
-| `index` | `uint16_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** Returns `EffectLayerHandle`. Check the purpose and failure notes before using the value.
 
@@ -241,7 +241,7 @@ EffectLayerHandle layer(Handle h,uint16_t index)const
 
 // Assume these named values have been initialized with valid data:
 // Handle h
-// uint16_t index
+// int index
 
 epok::effects::Pool& object = /* obtain a valid instance */;
 
@@ -314,7 +314,7 @@ bool move(Handle h,const Affine<Fixed>& world)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `h` | `Handle` | Input | Value supplied for `h`. See the exact type and module contract. |
-| `world` | `const Affine<Fixed> &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -327,7 +327,7 @@ bool move(Handle h,const Affine<Fixed>& world)
 
 // Assume these named values have been initialized with valid data:
 // Handle h
-// const Affine<Fixed> & world
+// const int & world
 
 epok::effects::Pool& object = /* obtain a valid instance */;
 
@@ -558,7 +558,7 @@ void prepare(uint32_t scene)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `scene` | `uint32_t` | Input | Value supplied for `scene`. See the exact type and module contract. |
+| `scene` | `int` | Input | Value supplied for `scene`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -570,7 +570,7 @@ void prepare(uint32_t scene)
 #include "particle_effect_runtime.hpp"
 
 // Assume these named values have been initialized with valid data:
-// uint32_t scene
+// int scene
 
 epok::effects::Pool& object = /* obtain a valid instance */;
 
@@ -718,11 +718,11 @@ Handle spawn(const Asset& asset,const Affine<Fixed>& world,uint32_t scene, const
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `asset` | `const Asset &` | Input | Value supplied for `asset`. See the exact type and module contract. |
-| `world` | `const Affine<Fixed> &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `scene` | `uint32_t` | Input | Value supplied for `scene`. See the exact type and module contract. |
+| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `scene` | `int` | Input | Value supplied for `scene`. See the exact type and module contract. |
 | `external` | `const timeline::BoundTarget *` | Input | Value supplied for `external`. See the exact type and module contract. |
 | `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
-| `seed` | `uint32_t` | Input | Value supplied for `seed`. See the exact type and module contract. |
+| `seed` | `int` | Input | Value supplied for `seed`. See the exact type and module contract. |
 | `initialize` | `LayerInitializer` | Input | Value supplied for `initialize`. See the exact type and module contract. |
 
 **Returns.** Returns `Handle`. Check the purpose and failure notes before using the value.
@@ -736,11 +736,11 @@ Handle spawn(const Asset& asset,const Affine<Fixed>& world,uint32_t scene, const
 
 // Assume these named values have been initialized with valid data:
 // const Asset & asset
-// const Affine<Fixed> & world
-// uint32_t scene
+// const int & world
+// int scene
 // const timeline::BoundTarget * external
 // DataHandle owner
-// uint32_t seed
+// int seed
 // LayerInitializer initialize
 
 epok::effects::Pool& object = /* obtain a valid instance */;

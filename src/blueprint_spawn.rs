@@ -297,10 +297,17 @@ fn object_class_table_with_capacities(
         } else {
             String::new()
         };
+        let callbacks = if class.family == crate::reflection_schema::ClassFamily::Component {
+            format!(
+                ",0,nullptr,epok::ComponentCallbacks<{name}>::tick,epok::ComponentCallbacks<{name}>::frame"
+            )
+        } else {
+            String::new()
+        };
         rows.push((
             id,
             format!(
-                "{{UINT64_C({id}),UINT64_C({parent}),epok::ObjectFamily::{family},epok::ObjectDomain::{domain},{owners},{flags},{storage}{defaults}}},\n"
+                "{{UINT64_C({id}),UINT64_C({parent}),epok::ObjectFamily::{family},epok::ObjectDomain::{domain},{owners},{flags},{storage}{defaults}{callbacks}}},\n"
             ),
         ));
     }
@@ -485,6 +492,8 @@ mod tests {
             "{{UINT64_C({actor3d_id}),UINT64_C({actor_id}),epok::ObjectFamily::Actor,epok::ObjectDomain::World3D,0,6,&epok::object_construct<epok::Actor3D>,&epok::object_destruct,sizeof(epok::Actor3D),alignof(epok::Actor3D),&epok::ObjectPool<epok::Actor3D,4>::acquire,&epok::ObjectPool<epok::Actor3D,4>::release}},"
         )));
         // Component: owners mask World3D|World2D|UI = 7, Multiple cardinality = flag 32.
+        assert!(text.contains("epok::ComponentCallbacks<epok::AudioComponent>::tick"));
+        assert!(text.contains("epok::ComponentCallbacks<epok::AudioComponent>::frame"));
         assert!(text.contains(&format!(
             "{{UINT64_C({audio_id}),UINT64_C({}),epok::ObjectFamily::Component,epok::ObjectDomain::None,7,32,",
             crate::blueprint_refs::compact_id(om::ACTOR_COMPONENT_ID)
