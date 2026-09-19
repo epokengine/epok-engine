@@ -57,6 +57,7 @@ mod hud_editor;
 mod hud_native;
 mod hud_simulation;
 mod import_settings;
+mod inspector_theme;
 mod instrument_dsp;
 mod instrument_ir;
 mod instrument_modulation;
@@ -1422,6 +1423,16 @@ fn prepare_editor(editor: &mut editor::Editor) {
             mesh_editor::open(editor, record, None);
             editor.selected = editor.mesh_editor.target;
         }
+    }
+    if args.iter().any(|a| a == "--screenshot-inspector") {
+        editor.selected = editor
+            .scene
+            .actors
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, actor)| actor.components.len())
+            .map(|(index, _)| index)
+            .or(editor.selected);
     }
     if args.iter().any(|a| a == "--screenshot-lighting") {
         editor.lighting_window = true;

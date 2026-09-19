@@ -83,10 +83,15 @@ pub fn blobs(scene: &Scene) -> Vec<Blob> {
     out
 }
 pub fn inspector(ui: &imgui::Ui, e: &mut crate::scene::Actor) {
-    if let Some(b) = &mut e.blob_shadow
-        && crate::gui::heading(ui, "Blob Shadow")
-    {
-        ui.checkbox("Enabled##blob", &mut b.enabled);
+    if e.blob_shadow.is_none() {
+        return;
+    }
+    let mut remove = false;
+    let open = crate::gui::section(ui, "Blob Shadow", || {
+        remove = ui.menu_item("Remove Blob Shadow");
+    });
+    if open && let Some(b) = &mut e.blob_shadow {
+        crate::gui::toggle(ui, "Enabled##blob", &mut b.enabled);
         crate::gui::Drag::new(crate::gui::field(ui, "Radius##blob"))
             .speed(0.01)
             .range(0.01, 8.)
@@ -100,8 +105,8 @@ pub fn inspector(ui: &imgui::Ui, e: &mut crate::scene::Actor) {
             .range(0.01, 32.)
             .build(ui, &mut b.distance);
         ui.text_wrapped("Soft subtractive shadow on horizontal, axis-aligned Ground meshes. Maximum 32 visible blobs.");
-        if ui.small_button("Remove Blob Shadow") {
-            e.blob_shadow = None;
-        }
+    }
+    if remove {
+        e.blob_shadow = None;
     }
 }

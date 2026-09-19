@@ -205,6 +205,9 @@ pub struct Editor {
     pub project_browser: crate::project_browser::State,
     pub selected_asset: Option<PathBuf>,
     pub asset_inspector: crate::asset_inspector::State,
+    /// The proportional face the property editor draws with, supplied once the
+    /// platform layer has built the font atlas.
+    pub inspector_font: Option<imgui::FontId>,
     pub drag_axis: Option<usize>,
     pub scene_click: crate::picking::ClickGesture,
     pub scene_panel_size: [f32; 2],
@@ -656,6 +659,7 @@ impl Editor {
             project_browser: crate::project_browser::State::default(),
             selected_asset: None,
             asset_inspector: Default::default(),
+            inspector_font: None,
             drag_axis: None,
             scene_click: Default::default(),
             scene_panel_size: [960., 600.],

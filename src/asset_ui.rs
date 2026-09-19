@@ -986,13 +986,22 @@ fn texture_inspector(ui: &Ui, m: &mut Manager, r: &assets::Record) {
 }
 
 pub fn component(ui: &Ui, e: &Editor, entity: &mut crate::scene::Actor) {
-    let Some(audio) = &mut entity.audio else {
-        return;
-    };
-    ui.separator();
-    if !crate::gui::heading(ui, "Audio Source") {
+    if entity.audio.is_none() {
         return;
     }
+    ui.separator();
+    let mut remove = false;
+    let open = crate::gui::section(ui, "Audio Source", || {
+        remove = ui.menu_item("Remove Audio Source");
+    });
+    if remove {
+        entity.audio = None;
+        return;
+    }
+    if !open {
+        return;
+    }
+    let audio = entity.audio.as_mut().unwrap();
     let label = audio
         .clip
         .map(|id| {
@@ -1041,7 +1050,7 @@ pub fn component(ui: &Ui, e: &Editor, entity: &mut crate::scene::Actor) {
     if music {
         crate::gui::muted(ui, "XA: one CD stream; pitch is fixed at 1.0.");
     }
-    ui.checkbox("Play on start", &mut audio.play_on_start);
+    crate::gui::toggle(ui, "Play on start", &mut audio.play_on_start);
     crate::gui::Drag::new(crate::gui::field(ui, "Priority"))
         .range(0, 255)
         .build(ui, &mut audio.priority);
@@ -1053,9 +1062,6 @@ pub fn component(ui: &Ui, e: &Editor, entity: &mut crate::scene::Actor) {
             "Higher priority wins when all 24 SPU voices are busy."
         },
     );
-    if ui.small_button("Remove Audio Source") {
-        entity.audio = None;
-    }
 }
 
 #[cfg(test)]

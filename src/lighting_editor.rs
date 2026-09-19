@@ -99,9 +99,13 @@ pub fn create(e: &mut Editor, kind: LightType, child: bool) {
     e.changed();
 }
 pub fn inspector(ui: &imgui::Ui, entity: &mut Actor) {
-    if let Some(light) = &mut entity.light {
-        if crate::gui::heading(ui, "Light") {
-            ui.checkbox("Enabled##light", &mut light.enabled);
+    if entity.light.is_some() {
+        let mut remove = false;
+        let open = crate::gui::section(ui, "Light", || {
+            remove = ui.menu_item("Remove Light");
+        });
+        if open && let Some(light) = &mut entity.light {
+            crate::gui::toggle(ui, "Enabled##light", &mut light.enabled);
             let mut kind = usize::from(light.kind == LightType::Point);
             if ui.combo_simple_string(
                 crate::gui::field(ui, "Type"),
@@ -141,7 +145,7 @@ pub fn inspector(ui: &imgui::Ui, entity: &mut Actor) {
                 .range(-100, 100)
                 .build(ui, &mut light.priority);
             if light.mode != LightMode::Realtime {
-                ui.checkbox("Bake Shadows", &mut light.shadows);
+                crate::gui::toggle(ui, "Bake Shadows", &mut light.shadows);
             }
             ui.text_wrapped(
                 "Realtime: 1 directional + 1 local light per object. Shadows are baked only.",
@@ -149,9 +153,9 @@ pub fn inspector(ui: &imgui::Ui, entity: &mut Actor) {
             if light.kind == LightType::Directional {
                 crate::gui::muted(ui, "Transform +Z is the light's travel direction.");
             }
-            if ui.small_button("Remove Light") {
-                entity.light = None;
-            }
+        }
+        if remove {
+            entity.light = None;
         }
         ui.separator();
     }
@@ -179,8 +183,9 @@ pub fn mesh(ui: &imgui::Ui, entity: &mut Actor) {
             entity.lighting.static_geometry = true;
         }
     }
-    ui.checkbox("Cast Baked Shadows", &mut entity.lighting.cast_shadows);
-    ui.checkbox(
+    crate::gui::toggle(ui, "Cast Baked Shadows", &mut entity.lighting.cast_shadows);
+    crate::gui::toggle(
+        ui,
         "Background Pass (PS1)",
         &mut entity.lighting.background_pass,
     );
@@ -208,7 +213,7 @@ pub fn window(ui: &imgui::Ui, e: &mut Editor) {
             ui.color_edit3(crate::gui::field(ui, "Ambient"),&mut e.scene.environment.ambient);
             crate::gui::Drag::new(crate::gui::field(ui, "Baked AO Strength")).speed(0.01).range(0.,1.).build(ui,&mut e.scene.environment.ao_strength);
             crate::gui::Drag::new(crate::gui::field(ui, "AO Distance")).speed(0.05).range(0.01,32.).build(ui,&mut e.scene.environment.ao_distance);
-            ui.checkbox("Realtime Point Lights",&mut e.scene.environment.point_lights);
+            crate::gui::toggle(ui, "Realtime Point Lights",&mut e.scene.environment.point_lights);
             crate::effects::inspector(ui,&mut e.scene.fog);
         });
         if old!=e.scene.environment{e.changed();}

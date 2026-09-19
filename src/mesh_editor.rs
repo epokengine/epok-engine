@@ -472,10 +472,10 @@ pub(crate) fn assign_mesh(
     Ok(())
 }
 
-pub fn filter(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
-    if !crate::gui::heading(ui, "Mesh Filter") {
-        return;
-    }
+/// The actor's mesh: the read-only engine cube or a project mesh asset. Epok has
+/// one mesh component, so this is the first row of whichever renderer section is
+/// showing rather than a section of its own.
+pub fn selector(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
     let current = entity
         .editable_mesh
         .as_ref()
@@ -543,17 +543,29 @@ pub fn filter(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
     if entity.editable_mesh.is_none() && entity.skeletal_mesh.is_none() {
         ui.text_disabled("Engine mesh (read-only)");
     }
-    ui.separator();
 }
 
 pub fn component(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
-    let Some(m) = &mut entity.editable_mesh else {
-        return;
-    };
-    ui.separator();
-    if !crate::gui::heading(ui, "Mesh Renderer") {
+    if entity.editable_mesh.is_none() {
         return;
     }
+    ui.separator();
+    let mut remove = false;
+    let expanded = crate::gui::section(ui, "Mesh Renderer", || {
+        remove = ui.menu_item("Remove Editable Mesh");
+    });
+    if remove {
+        entity.editable_mesh = None;
+        entity.kind = "Empty".into();
+        return;
+    }
+    if !expanded {
+        return;
+    }
+    selector(ui, e, entity);
+    let Some(m) = entity.editable_mesh.as_mut() else {
+        return;
+    };
     if let Some(error) = &m.error {
         ui.text_wrapped(error);
     }
@@ -603,10 +615,6 @@ pub fn component(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
         {
             ui.text_wrapped("Overrides for removed material slots are retained for undo/recovery.");
         }
-    }
-    if button(ui, "Remove Editable Mesh") {
-        entity.editable_mesh = None;
-        entity.kind = "Empty".into();
     }
 }
 pub fn pick(e: &mut Editor, pixel: [f32; 2], extend: bool) -> bool {

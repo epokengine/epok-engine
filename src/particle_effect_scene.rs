@@ -149,15 +149,22 @@ pub fn inspector(
     editor: &mut crate::editor::Editor,
     entity: &mut crate::scene::Actor,
 ) {
-    let Some(component) = &mut entity.particle_effect else {
-        return;
-    };
-    if !ui.collapsing_header(
-        "Particle Effect Component",
-        imgui::TreeNodeFlags::DEFAULT_OPEN,
-    ) {
+    if entity.particle_effect.is_none() {
         return;
     }
+    let mut remove = false;
+    let open = crate::gui::section(ui, "Particle Effect Component", || {
+        remove = ui.menu_item("Remove Particle Effect Component");
+    });
+    if remove {
+        entity.particle_effect = None;
+        ui.separator();
+        return;
+    }
+    if !open {
+        return;
+    }
+    let component = entity.particle_effect.as_mut().unwrap();
     if editor
         .effect_inspector
         .checked
@@ -179,9 +186,9 @@ pub fn inspector(
     if let Some(error) = &editor.effect_inspector.error {
         ui.text_wrapped(format!("Effect catalog has errors: {error}"));
     }
-    ui.checkbox("Enabled##effect", &mut component.enabled);
-    ui.checkbox("Play on start##effect", &mut component.play_on_start);
-    crate::gui::Drag::new("Seed override").build(ui, &mut component.seed);
+    crate::gui::toggle(ui, "Enabled##effect", &mut component.enabled);
+    crate::gui::toggle(ui, "Play on start##effect", &mut component.play_on_start);
+    crate::gui::Drag::new(crate::gui::field(ui, "Seed override")).build(ui, &mut component.seed);
     ui.text_disabled("Zero uses the asset seed.");
     let preview = editor
         .effect_inspector
@@ -196,7 +203,7 @@ pub fn inspector(
             },
             |(_, a)| a.name.clone(),
         );
-    if let Some(_combo) = ui.begin_combo("Effect asset", preview) {
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Effect asset"), preview) {
         if ui.selectable("None") {
             component.asset = None;
         }
@@ -332,9 +339,6 @@ pub fn inspector(
         {
             ui.text_wrapped(diagnostic.to_string());
         }
-    }
-    if ui.small_button("Remove Particle Effect Component") {
-        entity.particle_effect = None;
     }
     if let Some(path) = open
         && let Err(error) = editor.timeline_editor.open(&path)

@@ -376,7 +376,7 @@ fn add_component_menu(ui: &imgui::Ui, editor: &mut Editor, actor: uuid::Uuid) ->
     });
     added
 }
-pub(crate) fn gray(v: u8) -> [f32; 4] {
+pub(crate) const fn gray(v: u8) -> [f32; 4] {
     let f = v as f32 / 255.;
     [f, f, f, 1.]
 }
@@ -446,6 +446,15 @@ pub(crate) fn field(ui: &imgui::Ui, label: &str) -> String {
     let start = ui.cursor_pos()[0];
     let width = ui.content_region_avail()[0];
     ui.align_text_to_frame_padding();
+    // The property editor keeps its two columns at any panel width, shortening a
+    // long label rather than pushing its value onto a second line.
+    if crate::inspector_theme::active() && width >= 170. {
+        let column = crate::inspector_theme::label_column(width);
+        clipped(ui, visible, column - 8.);
+        ui.same_line_with_pos(start + column);
+        ui.set_next_item_width(-1.);
+        return format!("##{label}");
+    }
     ui.text_wrapped(visible);
     let label_width = (width * 0.38).clamp(100., 170.);
     if width >= 340. && ui.calc_text_size(visible)[0] < label_width - 8. {
@@ -453,6 +462,16 @@ pub(crate) fn field(ui: &imgui::Ui, label: &str) -> String {
     }
     ui.set_next_item_width(-1.);
     format!("##{label}")
+}
+
+/// A property row whose value is a toggle: the label keeps the row's left column
+/// and the box lines up with the other values.
+pub(crate) fn toggle(ui: &imgui::Ui, label: &str, value: &mut bool) -> bool {
+    if !crate::inspector_theme::active() {
+        return ui.checkbox(label, value);
+    }
+    let id = field(ui, label);
+    ui.checkbox(id, value)
 }
 
 /// Continue a toolbar row only when the next control fits inside this panel.
@@ -486,6 +505,7 @@ pub(crate) fn clipped(ui: &imgui::Ui, text: &str, width: f32) {
     }
 }
 fn icon(ui: &imgui::Ui, glyph: &str, id: &str, tip: &str, active: bool) -> bool {
+    let panel = crate::inspector_theme::active();
     let _color = ui.push_style_color(
         C::Button,
         if active {
@@ -494,7 +514,14 @@ fn icon(ui: &imgui::Ui, glyph: &str, id: &str, tip: &str, active: bool) -> bool 
             gray(49)
         },
     );
-    let result = ui.button_with_size(format!("{glyph}##{id}"), [28., 21.]);
+    // In the property editor the state toggles are part of a row, so they take
+    // its height instead of their own.
+    let size = if panel {
+        [26., ui.frame_height()]
+    } else {
+        [28., 21.]
+    };
+    let result = ui.button_with_size(format!("{glyph}##{id}"), size);
     if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
         ui.tooltip_text(tip);
     }
@@ -1946,6 +1973,14 @@ fn edit_class_button(
 }
 
 fn actor_header(ui: &imgui::Ui, actor: &mut crate::scene::Actor, glyph: &str) -> bool {
+    if crate::inspector_theme::active() {
+        return crate::inspector_theme::strip(ui, || actor_identity(ui, actor, glyph));
+    }
+    actor_identity(ui, actor, glyph)
+}
+
+/// The selected object's icon, its state toggles and its name.
+fn actor_identity(ui: &imgui::Ui, actor: &mut crate::scene::Actor, glyph: &str) -> bool {
     ui.align_text_to_frame_padding();
     ui.text(glyph);
     ui.same_line();
@@ -2020,7 +2055,16 @@ fn entity_actor_inspector(ui: &imgui::Ui, e: &mut Editor, entity: usize) {
             continue;
         }
         let _id = ui.push_id(component.id.to_string());
-        if heading(ui, &format!("{CODE} {} (Actor Component)", component.name)) {
+        let mut remove = false;
+        let open = section(
+            ui,
+            &format!("{CODE} {} (Actor Component)", component.name),
+            || {
+                let _disabled = ui.begin_disabled(component.inherited);
+                remove = script_menu_item(ui, "Remove Component");
+            },
+        );
+        if open {
             ui.text_disabled(&component.class.name);
             edit_class_button(ui, e, &component.class);
             if let Some(action) = reflected_property_table(
@@ -2043,10 +2087,9 @@ fn entity_actor_inspector(ui: &imgui::Ui, e: &mut Editor, entity: usize) {
                 apply_property_action(action, &mut target.properties, &mut target.overrides);
                 e.changed();
             }
-            let _disabled = ui.begin_disabled(component.inherited);
-            if script_button(ui, "Remove Component") {
-                e.remove_actor_component(actor.id, component.id);
-            }
+        }
+        if remove {
+            e.remove_actor_component(actor.id, component.id);
         }
     }
     ui.separator();
@@ -2387,9 +2430,74 @@ fn scene_blueprint_settings(ui: &imgui::Ui, e: &mut Editor) {
         }
     }
 }
+/// A section header that carries the section's own commands. They open from the
+/// affordance at the header's right end or by right-clicking the header itself,
+/// which keeps destructive commands out of the section's body.
+pub(crate) fn section(ui: &imgui::Ui, text: &str, commands: impl FnOnce()) -> bool {
+    let open = heading(ui, text);
+    let header = [ui.item_rect_min(), ui.item_rect_max()];
+    let visible = text.split("##").next().unwrap_or(text);
+    let menu = format!("{visible}-commands");
+    let mut requested = ui.is_item_clicked_with_button(imgui::MouseButton::Right);
+    requested |= section_commands(ui, visible, header);
+    #[cfg(test)]
+    record_script_control(ui, &format!("{visible} menu"));
+    if requested {
+        ui.open_popup(&menu);
+    }
+    ui.popup(&menu, commands);
+    open
+}
+
+/// The three dots that open a section's commands, at the right end of its header.
+fn section_commands(ui: &imgui::Ui, id: &str, header: [[f32; 2]; 2]) -> bool {
+    let [min, max] = header;
+    let resume = ui.cursor_screen_pos();
+    let height = max[1] - min[1];
+    let width = height.min(18.);
+    let left = max[0] - width - 2.;
+    ui.set_cursor_screen_pos([left, min[1]]);
+    let pressed = ui.invisible_button(format!("##commands-{id}"), [width, height]);
+    let hovered = ui.is_item_hovered();
+    let draw = ui.get_window_draw_list();
+    if hovered {
+        draw.add_rect(
+            [left, min[1] + 2.],
+            [left + width, max[1] - 2.],
+            ui.style_color(C::ButtonHovered),
+        )
+        .filled(true)
+        .rounding(2.)
+        .build();
+    }
+    let color = ui.style_color(if hovered { C::Text } else { C::TextDisabled });
+    let center = [left + width * 0.5, (min[1] + max[1]) * 0.5];
+    for step in [-4., 0., 4.] {
+        draw.add_circle([center[0], center[1] + step], 1.4, color)
+            .filled(true)
+            .build();
+    }
+    ui.set_cursor_screen_pos(resume);
+    pressed
+}
+
+/// A command in a section menu, recorded like a button so the harness can drive it.
+pub(crate) fn script_menu_item(ui: &imgui::Ui, label: &str) -> bool {
+    let pressed = ui.menu_item(label);
+    #[cfg(test)]
+    record_script_control(ui, label);
+    pressed
+}
+
 pub(crate) fn heading(ui: &imgui::Ui, text: &str) -> bool {
+    if crate::inspector_theme::active() {
+        return crate::inspector_theme::band(ui, text);
+    }
     let _color = ui.push_style_color(C::Header, gray(43));
-    ui.collapsing_header(text, imgui::TreeNodeFlags::DEFAULT_OPEN)
+    ui.collapsing_header(
+        text,
+        imgui::TreeNodeFlags::DEFAULT_OPEN | imgui::TreeNodeFlags::ALLOW_ITEM_OVERLAP,
+    )
 }
 fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
     let _id = ui.push_id(label);
@@ -2397,9 +2505,14 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
     let width = ui.content_region_avail()[0];
     ui.align_text_to_frame_padding();
     ui.text(label);
-    let value_width = if width >= 320. {
-        ui.same_line_with_pos(left + 86.);
-        width - 86.
+    let column = if crate::inspector_theme::active() {
+        crate::inspector_theme::label_column(width)
+    } else {
+        86.
+    };
+    let value_width = if width >= 170. {
+        ui.same_line_with_pos(left + column);
+        width - column
     } else {
         width
     };
@@ -2426,7 +2539,10 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
 }
 pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
     crate::lighting_editor::window(ui, e);
+    let _style = crate::inspector_theme::scope(ui, e.inspector_font);
     ui.window("\u{ea74} Inspector###Inspector").build(|| {
+        // Properties are inset from the panel edges; only section bands reach them.
+        ui.indent_by(crate::inspector_theme::INDENT);
         if e.selected_asset.is_some() {
             crate::asset_inspector::draw(ui, e);
             return;
@@ -2456,9 +2572,12 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             ui.separator();
             entity_actor_inspector(ui, e, index);
             crate::hud_editor::inspector(ui, &mut entity);
+            let mut reset_transform = false;
             if entity.rect.is_none()
                 && entity.canvas.is_none()
-                && heading(ui, &format!("{MOVE} Transform"))
+                && section(ui, &format!("{MOVE} Transform"), || {
+                    reset_transform = ui.menu_item("Reset Transform");
+                })
             {
                 let _ = field(ui, "Parent");
                 ui.set_next_item_width(-1.);
@@ -2474,13 +2593,11 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                 vector(ui, "Position", &mut entity.position);
                 vector(ui, "Rotation", &mut entity.rotation);
                 vector(ui, "Scale", &mut entity.scale);
-                if let Some(_popup) = ui.begin_popup_context_window()
-                    && ui.menu_item("Reset Transform")
-                {
-                    entity.position = [0.; 3];
-                    entity.rotation = [0.; 3];
-                    entity.scale = [1.; 3];
-                }
+            }
+            if reset_transform {
+                entity.position = [0.; 3];
+                entity.rotation = [0.; 3];
+                entity.scale = [1.; 3];
             }
             ui.separator();
             crate::lighting_editor::inspector(ui, &mut entity);
@@ -2488,14 +2605,22 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             crate::sprites_editor::inspector(ui, e, &mut entity);
             crate::collision_editor::inspector(ui, &mut entity);
             crate::palette::inspector(ui, e, &mut entity);
-            if entity.kind == "Mesh" {
-                crate::mesh_editor::filter(ui, e, &mut entity);
-            }
             if entity.kind == "Mesh"
                 && entity.editable_mesh.is_none()
                 && entity.skeletal_mesh.is_none()
             {
-                if heading(ui, "\u{eb5c} Mesh Renderer") {
+                let mut reset_material = false;
+                let mut remove_renderer = false;
+                let renderer = section(ui, "\u{eb5c} Mesh Renderer", || {
+                    reset_material = ui.menu_item("Reset Material");
+                    remove_renderer = ui.menu_item("Remove Mesh Renderer");
+                });
+                if renderer {
+                    crate::mesh_editor::selector(ui, e, &mut entity);
+                }
+                // Choosing a project mesh hands the actor to that mesh's own
+                // renderer section, so the engine cube's rows stop here.
+                if renderer && entity.editable_mesh.is_none() && entity.skeletal_mesh.is_none() {
                     let _ = field(ui, "Material");
                     ui.text("PSX Material (instance)");
                     ui.align_text_to_frame_padding();
@@ -2504,13 +2629,12 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                     ui.color_edit3("##material-color", &mut entity.material.color);
                     crate::texture::picker(ui, &e.assets.index, &mut entity.material);
                     crate::lighting_editor::mesh(ui, &mut entity);
-                    if ui.small_button("Reset Material") {
-                        entity.material = Default::default();
-                    }
-                    inline(ui, "Remove Mesh Renderer");
-                    if ui.small_button("Remove Mesh Renderer") {
-                        entity.kind = "Empty".into();
-                    }
+                }
+                if reset_material {
+                    entity.material = Default::default();
+                }
+                if remove_renderer {
+                    entity.kind = "Empty".into();
                 }
                 ui.separator();
             } else if entity.kind == "Camera" && heading(ui, &format!("{CAMERA} Camera")) {
@@ -4084,10 +4208,12 @@ mod interaction_tests {
             frame(context, editor, wizard);
             frame(context, editor, wizard);
             let point = SCRIPT_BUTTONS.with(|buttons| {
-                *buttons
-                    .borrow()
-                    .get(label)
-                    .unwrap_or_else(|| panic!("Missing control {label}"))
+                *buttons.borrow().get(label).unwrap_or_else(|| {
+                    panic!(
+                        "Missing control {label}; have {:?}",
+                        buttons.borrow().keys().collect::<Vec<_>>()
+                    )
+                })
             });
             context.io_mut().add_mouse_pos_event(point);
             frame(context, editor, wizard);
@@ -4137,6 +4263,13 @@ mod interaction_tests {
         assert_eq!(
             editor.blueprint_editor.asset.as_ref().unwrap().name,
             "BP_Box"
+        );
+        // The component's commands live in its section menu, not in its body.
+        click(
+            &mut context,
+            &mut editor,
+            &format!("{CODE} BP_Box (Actor Component) menu"),
+            false,
         );
         click(&mut context, &mut editor, "Remove Component", false);
         assert!(

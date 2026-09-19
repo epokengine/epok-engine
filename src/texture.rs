@@ -400,7 +400,7 @@ pub fn picker(ui: &imgui::Ui, index: &assets::Index, material: &mut Material) ->
         .and_then(|id| index.resolve(id).ok())
         .map(|r| r.meta.source.as_str())
         .unwrap_or("None");
-    if let Some(_c) = ui.begin_combo("Texture", label) {
+    if let Some(_c) = ui.begin_combo(crate::gui::field(ui, "Texture"), label) {
         if ui.selectable("None") {
             material.texture = None;
             changed = true;
@@ -415,7 +415,10 @@ pub fn picker(ui: &imgui::Ui, index: &assets::Index, material: &mut Material) ->
             }
         }
     }
-    if let Some(_c) = ui.begin_combo("Blend", format!("{:?}", material.blend)) {
+    if let Some(_c) = ui.begin_combo(
+        crate::gui::field(ui, "Blend"),
+        format!("{:?}", material.blend),
+    ) {
         for v in [
             BlendMode::Cutout,
             BlendMode::Average,
@@ -429,10 +432,10 @@ pub fn picker(ui: &imgui::Ui, index: &assets::Index, material: &mut Material) ->
             }
         }
     }
-    changed |= crate::gui::Drag::new("Depth bias")
+    changed |= crate::gui::Drag::new(crate::gui::field(ui, "Depth bias"))
         .range(-64, 64)
         .build(ui, &mut material.depth_bias);
-    changed |= crate::gui::Drag::new("UV scroll / second")
+    changed |= crate::gui::Drag::new(crate::gui::field(ui, "UV scroll / second"))
         .range(-4., 4.)
         .speed(0.01)
         .build_array(ui, &mut material.uv_scroll);

@@ -134,17 +134,26 @@ pub fn inspector(ui: &imgui::Ui, editor: &crate::editor::Editor, entity: &mut cr
     if entity.palette_animator.is_none() {
         return;
     }
-    if !crate::gui::heading(ui, "Palette Animator") {
+    let mut remove = false;
+    let open = crate::gui::section(ui, "Palette Animator", || {
+        remove = ui.menu_item("Remove Palette Animator");
+    });
+    if remove {
+        entity.palette_animator = None;
+        ui.separator();
+        return;
+    }
+    if !open {
         return;
     }
     let a = entity.palette_animator.as_mut().unwrap();
-    ui.checkbox("Enabled##palette", &mut a.enabled);
+    crate::gui::toggle(ui, "Enabled##palette", &mut a.enabled);
     let label = a
         .texture
         .and_then(|id| editor.assets.index.resolve(id).ok())
         .map(|r| r.meta.source.as_str())
         .unwrap_or("None");
-    if let Some(_combo) = ui.begin_combo("Texture##palette", label) {
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Texture##palette"), label) {
         if ui.selectable("None") {
             a.texture = None;
         }
@@ -160,18 +169,18 @@ pub fn inspector(ui: &imgui::Ui, editor: &crate::editor::Editor, entity: &mut cr
         }
     }
     let mut range = [i32::from(a.first), i32::from(a.last)];
-    if crate::gui::Drag::new("First / Last##palette")
+    if crate::gui::Drag::new(crate::gui::field(ui, "First / Last##palette"))
         .range(1, 255)
         .build_array(ui, &mut range)
     {
         a.first = range[0].clamp(1, 254) as u8;
         a.last = range[1].clamp(i32::from(a.first) + 1, 255) as u8;
     }
-    crate::gui::Drag::new("Steps per second##palette")
+    crate::gui::Drag::new(crate::gui::field(ui, "Steps per second##palette"))
         .range(0.01, 60.)
         .speed(0.1)
         .build(ui, &mut a.speed);
-    ui.checkbox("Reverse##palette", &mut a.reverse);
+    crate::gui::toggle(ui, "Reverse##palette", &mut a.reverse);
     ui.text_wrapped("Cycles quantized colors for every use of this texture. Index 0 remains transparent. One enabled animator per texture.");
     if let Some(data) = a.texture.and_then(|id| editor.scene.textures.get(&id)) {
         let available = data
@@ -181,9 +190,6 @@ pub fn inspector(ui: &imgui::Ui, editor: &crate::editor::Editor, entity: &mut cr
             .take_while(|color| **color != 0)
             .count();
         ui.text(format!("Palette colors available: 1–{available}"));
-    }
-    if ui.small_button("Remove Palette Animator") {
-        entity.palette_animator = None;
     }
     ui.separator();
 }

@@ -222,6 +222,33 @@ pub fn run(
             }),
         },
     ]);
+    // The property editor draws at a smaller, proportional size than the rest of
+    // the editor so a narrow panel still fits a label and its value on one row.
+    let inspector_font = imgui.fonts().add_font(&[
+        imgui::FontSource::TtfData {
+            data: include_bytes!("../resources/editor/Roboto-Regular.ttf"),
+            size_pixels: 13.,
+            config: None,
+        },
+        imgui::FontSource::TtfData {
+            data: include_bytes!("../resources/editor/codicon.ttf"),
+            size_pixels: 14.,
+            config: Some(imgui::FontConfig {
+                glyph_ranges: imgui::FontGlyphRanges::from_slice(&[0xea60, 0xedff, 0]),
+                glyph_min_advance_x: 14.,
+                ..Default::default()
+            }),
+        },
+        imgui::FontSource::TtfData {
+            data: include_bytes!("../resources/editor/fa-solid-900.ttf"),
+            size_pixels: 12.,
+            config: Some(imgui::FontConfig {
+                glyph_ranges: imgui::FontGlyphRanges::from_slice(&[0xf000, 0xf8ff, 0]),
+                glyph_min_advance_x: 13.,
+                ..Default::default()
+            }),
+        },
+    ]);
     gui::theme(imgui.style_mut());
     let asset_font = imgui.fonts().add_font(&[
         imgui::FontSource::TtfData {
@@ -559,6 +586,7 @@ pub fn run(
                 editor.raw_look=look_captured.then_some(std::mem::take(&mut raw_motion));
                 editor.project_browser.font = Some(browser_font);
                 editor.timeline_editor.font = Some(sequencer_font);
+                editor.inspector_font = Some(inspector_font);
                 gui::draw(
                     ui,
                     editor,

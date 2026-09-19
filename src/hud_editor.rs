@@ -12,7 +12,7 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
     if let Some(c) = &mut e.canvas
         && heading(ui, "Canvas")
     {
-        ui.checkbox("Enabled##canvas", &mut c.enabled);
+        crate::gui::toggle(ui, "Enabled##canvas", &mut c.enabled);
         ui.text("Screen Space - Overlay");
         crate::gui::muted(
             ui,
@@ -57,10 +57,12 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
     let mut remove_image = false;
     let mut remove_text = false;
     let mut remove_progress = false;
-    if let Some(c) = &mut e.image
-        && heading(ui, "Image")
-    {
-        ui.checkbox("Enabled##image", &mut c.enabled);
+    let image_open = e.image.is_some()
+        && crate::gui::section(ui, "Image", || {
+            remove_image = ui.menu_item("Remove Image");
+        });
+    if image_open && let Some(c) = &mut e.image {
+        crate::gui::toggle(ui, "Enabled##image", &mut c.enabled);
         ui.color_edit3(crate::gui::field(ui, "Color##image"), &mut c.color);
         let mut asset = c.texture.map_or_else(String::new, |id| id.to_string());
         if ui
@@ -74,7 +76,7 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
             }
         }
         let mut region = c.region.map(i32::from);
-        if crate::gui::Drag::new("Atlas x/y/w/h##image")
+        if crate::gui::Drag::new(crate::gui::field(ui, "Atlas x/y/w/h##image"))
             .speed(1.)
             .build_array(ui, &mut region)
         {
@@ -82,40 +84,41 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
         }
         crate::gui::muted(ui, "Atlas pixels; zero width/height uses the full texture.");
         let mut borders = c.borders.map(i32::from);
-        if crate::gui::Drag::new("Slice left/top/right/bottom")
+        if crate::gui::Drag::new(crate::gui::field(ui, "Slice left/top/right/bottom"))
             .speed(1.)
             .build_array(ui, &mut borders)
         {
             c.borders = borders.map(|v| v.clamp(0, 256) as u16);
         }
-        remove_image = ui.small_button("Remove Image");
     }
-    if let Some(c) = &mut e.text
-        && heading(ui, "Text")
-    {
-        ui.checkbox("Enabled##text", &mut c.enabled);
+    let text_open = e.text.is_some()
+        && crate::gui::section(ui, "Text", || {
+            remove_text = ui.menu_item("Remove Text");
+        });
+    if text_open && let Some(c) = &mut e.text {
+        crate::gui::toggle(ui, "Enabled##text", &mut c.enabled);
         ui.set_next_item_width(-1.);
         ui.input_text_multiline("##hud-text", &mut c.text, [-1., 80.])
             .build();
-        ui.checkbox("Wrap text##hud", &mut c.wrap);
+        crate::gui::toggle(ui, "Wrap text##hud", &mut c.wrap);
         ui.color_edit3(crate::gui::field(ui, "Color##text"), &mut c.color);
         crate::gui::muted(
             ui,
             "8 x 16 bitmap; Spanish glyphs, multiline, 511 UTF-8 bytes.",
         );
-        remove_text = ui.small_button("Remove Text");
     }
-    if let Some(c) = &mut e.progress
-        && heading(ui, "Progress Bar")
-    {
-        ui.checkbox("Enabled##progress", &mut c.enabled);
+    let progress_open = e.progress.is_some()
+        && crate::gui::section(ui, "Progress Bar", || {
+            remove_progress = ui.menu_item("Remove Progress Bar");
+        });
+    if progress_open && let Some(c) = &mut e.progress {
+        crate::gui::toggle(ui, "Enabled##progress", &mut c.enabled);
         ui.slider(crate::gui::field(ui, "Value"), 0., 1., &mut c.value);
         ui.color_edit3(crate::gui::field(ui, "Fill##progress"), &mut c.color);
         ui.color_edit3(
             crate::gui::field(ui, "Background##progress"),
             &mut c.background,
         );
-        remove_progress = ui.small_button("Remove Progress Bar");
     }
     if remove_image {
         e.image = None;

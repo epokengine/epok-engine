@@ -1,8 +1,8 @@
 # Blockout and EditableMesh
 
-Use **GameObject > Blockout mesh** to create an entity, a mesh component and its editable asset under `assets/Meshes/`. The Inspector's **Mesh Filter > Mesh** selects a project mesh or the read-only **Engine / Cube**. Add a `Mesh3DComponent` through **Add Component** when an actor has no mesh. **Edit geometry...** opens the dockable Blockout panel for a project mesh; selecting a mesh package in Project opens the same tool. An asset without an instance offers **Add instance to scene**.
+Use **GameObject > Blockout mesh** to create an entity, a mesh component and its editable asset under `assets/Meshes/`. The Inspector's **Mesh Renderer > Mesh** selects a project mesh or the read-only **Engine / Cube**. Add a `Mesh3DComponent` through **Add Component** when an actor has no mesh. **Edit geometry...** opens the dockable Blockout panel for a project mesh; selecting a mesh package in Project opens the same tool. An asset without an instance offers **Add instance to scene**.
 
-Import OBJ models through **Project > Import...** or drop an OBJ onto the Project browser. The importer creates a mesh package in the current project folder without changing the selected actor. Material libraries are read beside the source OBJ; referenced PNG textures must already be imported into the corresponding project folder. Assign the resulting package through **Mesh Filter**. Engine geometry cannot be edited.
+Import OBJ models through **Project > Import...** or drop an OBJ onto the Project browser. The importer creates a mesh package in the current project folder without changing the selected actor. Material libraries are read beside the source OBJ; referenced PNG textures must already be imported into the corresponding project folder. Assign the resulting package through **Mesh Renderer > Mesh**. Engine geometry cannot be edited.
 
 ## Build and organize a room
 
