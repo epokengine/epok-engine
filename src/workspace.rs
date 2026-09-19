@@ -1,7 +1,9 @@
 //! Game project identity and lifetime. No editor sources belong in this directory.
 use crate::{project::write_changed, scene::Scene};
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
+    cmp::Ordering,
     fs,
     path::{Component, Path, PathBuf},
 };
@@ -13,6 +15,16 @@ pub const LEGACY_MANIFEST: &str = "ProjectSettings/project.json";
 #[allow(dead_code)]
 pub const MANIFEST: &str = LEGACY_MANIFEST;
 pub const FORMAT: u32 = 1;
+
+/// Whether a project's editor revision may be opened by this build. Older
+/// projects are deliberately held here until the author explicitly accepts
+/// the manifest upgrade in the Hub.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EditorVersion {
+    Current,
+    Older(String),
+    CurrentOrNewer(String),
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -177,7 +189,64 @@ pub fn read_manifest(root: &Path) -> Result<Manifest, String> {
     read_manifest_at(&root, &path)
 }
 
+/// Read just the editor revision for the Hub. This intentionally does not
+/// reject a project solely because it was authored by another editor build;
+/// the Hub needs to show its actual version and offer an explicit upgrade.
+pub fn project_editor_version(path: &Path) -> Result<String, String> {
+    let (root, manifest_path) = resolve(path)?;
+    Ok(read_manifest_document(&root, &manifest_path)?.editor_version)
+}
+
+pub fn editor_version(path: &Path) -> Result<EditorVersion, String> {
+    let (root, manifest_path) = resolve(path)?;
+    let manifest = read_manifest_document(&root, &manifest_path)?;
+    editor_version_for(&manifest.editor_version)
+}
+
+/// Update only the manifest's editor revision after an author has confirmed
+/// the action in the Hub. The original descriptor is copied into
+/// `.epok/migrations` first, so cancelling the migration is never the only
+/// way to preserve the prior project state.
+pub fn upgrade_editor_version(path: &Path) -> Result<PathBuf, String> {
+    let (root, manifest_path) = resolve(path)?;
+    let _lock = lock_root(&root)?;
+    let mut manifest = read_manifest_document(&root, &manifest_path)?;
+    let previous = manifest.editor_version.clone();
+    match editor_version_for(&previous)? {
+        EditorVersion::Older(_) => {}
+        EditorVersion::Current => {
+            return Err("This project already uses the current Epok version.".into());
+        }
+        EditorVersion::CurrentOrNewer(version) => {
+            return Err(format!(
+                "Project requires Epok {version}; this editor is {}.",
+                env!("CARGO_PKG_VERSION")
+            ));
+        }
+    }
+    // Do not publish a new descriptor if its startup scene cannot be read.
+    Scene::load_unresolved(&scene_path(&root, &manifest)?)?;
+    let backup = backup_manifest(&root, &manifest_path, &previous)?;
+    manifest.editor_version = env!("CARGO_PKG_VERSION").into();
+    crate::settings::save_document(&manifest_path, &manifest)?;
+    Ok(backup)
+}
+
 fn read_manifest_at(root: &Path, path: &Path) -> Result<Manifest, String> {
+    let manifest = read_manifest_document(root, path)?;
+    // Projects at another revision must be upgraded through the Hub. Keeping
+    // this check here protects headless and programmatic open paths too.
+    if manifest.editor_version != env!("CARGO_PKG_VERSION") {
+        return Err(format!(
+            "Project requires Epok {}; this editor is {}.",
+            manifest.editor_version,
+            env!("CARGO_PKG_VERSION")
+        ));
+    }
+    Ok(manifest)
+}
+
+fn read_manifest_document(root: &Path, path: &Path) -> Result<Manifest, String> {
     let manifest: Manifest = crate::document::from_slice(
         &fs::read(path).map_err(|e| format!("Not an Epok project ({}): {e}", path.display()))?,
     )
@@ -186,14 +255,6 @@ fn read_manifest_at(root: &Path, path: &Path) -> Result<Manifest, String> {
         return Err(format!(
             "Unsupported project format {} (this editor supports {FORMAT}).",
             manifest.format_version
-        ));
-    }
-    // No silent upgrades while Epok's serialization/runtime API is experimental.
-    if manifest.editor_version != env!("CARGO_PKG_VERSION") {
-        return Err(format!(
-            "Project requires Epok {}; this editor is {}.",
-            manifest.editor_version,
-            env!("CARGO_PKG_VERSION")
         ));
     }
     validate_name(&manifest.name)?;
@@ -205,6 +266,49 @@ fn read_manifest_at(root: &Path, path: &Path) -> Result<Manifest, String> {
     }
     scene_path(root, &manifest)?;
     Ok(manifest)
+}
+
+fn editor_version_for(version: &str) -> Result<EditorVersion, String> {
+    if version == env!("CARGO_PKG_VERSION") {
+        return Ok(EditorVersion::Current);
+    }
+    let project = Version::parse(version).map_err(|error| {
+        format!("Project editor version {version:?} is not a valid semantic version: {error}")
+    })?;
+    let current = Version::parse(env!("CARGO_PKG_VERSION"))
+        .expect("the editor package version must be valid semantic version");
+    Ok(match project.cmp(&current) {
+        Ordering::Less => EditorVersion::Older(version.into()),
+        Ordering::Equal | Ordering::Greater => EditorVersion::CurrentOrNewer(version.into()),
+    })
+}
+
+fn backup_manifest(root: &Path, manifest: &Path, version: &str) -> Result<PathBuf, String> {
+    let directory = root.join(".epok/migrations");
+    fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    let safe_version = version
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || character == '.' || character == '-' {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let backup = directory.join(format!(
+        "{}-editor-{}-{}.backup",
+        manifest.file_name().unwrap_or_default().to_string_lossy(),
+        safe_version,
+        uuid::Uuid::new_v4()
+    ));
+    fs::copy(manifest, &backup).map_err(|error| {
+        format!(
+            "Could not back up {} before upgrading: {error}",
+            manifest.display()
+        )
+    })?;
+    Ok(backup)
 }
 
 pub fn save_manifest(root: &Path, manifest: &Manifest) -> Result<(), String> {
@@ -688,6 +792,42 @@ pub(crate) mod tests {
         )
         .unwrap();
         assert!(Project::open(&root).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn older_editor_versions_require_an_explicit_recoverable_upgrade() {
+        let root = temp("editor-version-upgrade");
+        let project = create(&root, "Versioned Game", Template::Basic).unwrap();
+        let mut manifest = project.manifest.clone();
+        drop(project);
+        manifest.editor_version = "0.2.0".into();
+        let descriptor = manifest_path(&root).unwrap();
+        write_changed(&descriptor, &serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let before = fs::read(&descriptor).unwrap();
+
+        assert_eq!(
+            project_editor_version(&root).unwrap(),
+            "0.2.0",
+            "The Hub must be able to show an older descriptor revision."
+        );
+        assert_eq!(
+            editor_version(&root).unwrap(),
+            EditorVersion::Older("0.2.0".into())
+        );
+        assert!(
+            Project::open(&root).is_err(),
+            "Opening cannot upgrade silently."
+        );
+
+        let backup = upgrade_editor_version(&root).unwrap();
+        assert_eq!(fs::read(&backup).unwrap(), before);
+        assert!(backup.starts_with(fs::canonicalize(&root).unwrap().join(".epok/migrations")));
+        assert_eq!(
+            read_manifest(&root).unwrap().editor_version,
+            env!("CARGO_PKG_VERSION")
+        );
+        assert!(Project::open(&root).is_ok());
+        assert!(upgrade_editor_version(&root).is_err());
         fs::remove_dir_all(root).unwrap();
     }
     #[test]

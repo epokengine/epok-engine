@@ -12,11 +12,13 @@ endif
 NUGGET_DIR ?= ../../third_party/nugget
 include $(NUGGET_DIR)/psyqo/psyqo.mk
 
-# The scene traversal/renderer benefits from speed optimization on MIPS. Keep
-# PsyQo and user scripts on their existing build settings; permit A/B profiling.
+# Speed-optimize scene traversal and gameplay on MIPS, keeping the SDK compact.
+# Overrides permit A/B profiling; the final executable still passes the RAM gate.
 EPOK_RUNTIME_OPT ?= -O2
+EPOK_SCRIPT_OPT ?= -O2
 ifeq ($(BUILD),Release)
 main.o main.dep: CPPFLAGS += $(EPOK_RUNTIME_OPT)
+$(SCRIPT_SRCS:.cpp=.o) $(SCRIPT_SRCS:.cpp=.dep): CPPFLAGS += $(EPOK_SCRIPT_OPT)
 endif
 main.o: Makefile
 

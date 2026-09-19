@@ -6,6 +6,10 @@ use std::{fs, path::Path};
 fn default_fov() -> f32 {
     90.
 }
+pub const DEFAULT_CAMERA_SKY_COLOR: [f32; 3] = [33. / 255., 40. / 255., 52. / 255.];
+fn default_camera_sky_color() -> [f32; 3] {
+    DEFAULT_CAMERA_SKY_COLOR
+}
 fn default_active() -> bool {
     true
 }
@@ -108,6 +112,11 @@ pub struct BuiltinData {
     pub blueprint_instance: Option<crate::blueprint_templates::Instance>,
     #[serde(default = "default_fov")]
     pub camera_fov: f32,
+    /// Flat clear colour used whenever this camera is active. It deliberately
+    /// starts at the runtime's historic blue-grey clear so old projects render
+    /// exactly as they did before this camera setting existed.
+    #[serde(default = "default_camera_sky_color")]
+    pub camera_sky_color: [f32; 3],
     #[serde(default = "default_active")]
     pub active: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -165,6 +174,7 @@ impl BuiltinData {
             blueprint_instance: None,
             active: true,
             camera_fov: 90.,
+            camera_sky_color: default_camera_sky_color(),
             sprite: None,
             sprite_animator: None,
             particle_emitter: None,
@@ -212,6 +222,8 @@ pub struct Scene {
     pub environment: crate::lighting::Settings,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bake: Option<crate::lighting::Bake>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub navigation: Option<crate::navigation::Bake>,
     /// The map's own Blueprint, one `SceneScriptActor` subclass per scene.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scene_script: Option<crate::actor_document::SceneScript>,
@@ -232,6 +244,8 @@ struct SceneDocument {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     bake: Option<crate::lighting::Bake>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    navigation: Option<crate::navigation::Bake>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     scene_script: Option<crate::actor_document::SceneScript>,
 }
 impl From<Scene> for SceneDocument {
@@ -245,6 +259,7 @@ impl From<Scene> for SceneDocument {
             hud_budget: scene.hud_budget,
             environment: scene.environment,
             bake: scene.bake,
+            navigation: scene.navigation,
             scene_script: scene.scene_script,
         }
     }
@@ -259,6 +274,7 @@ impl From<SceneDocument> for Scene {
             hud_budget: doc.hud_budget,
             environment: doc.environment,
             bake: doc.bake,
+            navigation: doc.navigation,
             scene_script: doc.scene_script,
             textures: Default::default(),
             display_size: legacy_display_size(),
@@ -300,6 +316,7 @@ impl Default for Scene {
             fog: Default::default(),
             environment: Default::default(),
             bake: None,
+            navigation: None,
             display_size: legacy_display_size(),
             textures: Default::default(),
             version: crate::actor_document::SCENE_VERSION,
@@ -674,6 +691,13 @@ impl Scene {
             if !e.camera_fov.is_finite() || !(25. ..=120.).contains(&e.camera_fov) {
                 return Err("Camera horizontal FOV must be 25..120 degrees".into());
             }
+            if !e
+                .camera_sky_color
+                .iter()
+                .all(|channel| channel.is_finite() && (0. ..=1.).contains(channel))
+            {
+                return Err("Camera sky color channels must be between 0.0 and 1.0".into());
+            }
             if e.position
                 .iter()
                 .chain(&e.rotation)
@@ -931,6 +955,17 @@ mod tests {
         assert_eq!(decoded, s);
         s.actors[2].material.color[0] = f32::NAN;
         assert!(s.validate().is_err());
+    }
+    #[test]
+    fn camera_sky_color_round_trips_and_rejects_invalid_channels() {
+        let mut scene = Scene::default();
+        assert_eq!(scene.actors[0].camera_sky_color, DEFAULT_CAMERA_SKY_COLOR);
+        scene.actors[0].camera_sky_color = [0.15, 0.35, 0.8];
+        let restored: Scene =
+            serde_json::from_value(serde_json::to_value(&scene).unwrap()).unwrap();
+        assert_eq!(restored.actors[0].camera_sky_color, [0.15, 0.35, 0.8]);
+        scene.actors[0].camera_sky_color[1] = 1.01;
+        assert!(scene.validate().unwrap_err().contains("sky color"));
     }
     #[test]
     fn scene_roundtrip_preserves_transforms() {

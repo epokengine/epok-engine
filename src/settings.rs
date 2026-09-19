@@ -192,6 +192,8 @@ pub struct Rendering {
     pub retained_geometry: bool,
     /// GPU ordered dithering for 3D geometry only; HUD remains undithered.
     pub dither_3d: bool,
+    /// Double-buffered sprite/VFX triangle pool, independent of 3D mesh packets.
+    pub sprite_triangle_budget: u16,
     pub motion_interpolation: bool,
     pub precomputed_visibility: bool,
     pub streaming_geometry: bool,
@@ -206,6 +208,7 @@ impl Default for Rendering {
             height: 480,
             retained_geometry: true,
             dither_3d: false,
+            sprite_triangle_budget: 2048,
             motion_interpolation: true,
             precomputed_visibility: false,
             streaming_geometry: false,
@@ -229,6 +232,9 @@ impl Rendering {
         (640, 480),
     ];
     pub fn validate(self) -> Result<(), String> {
+        if !(64..=2048).contains(&self.sprite_triangle_budget) {
+            return Err("Sprite triangle budget must be between 64 and 2048.".into());
+        }
         if !(2..=8).contains(&self.streaming_pool_pages) {
             return Err("Geometry streaming pool must contain 2..8 pages of 64 KiB.".into());
         }
@@ -255,7 +261,7 @@ impl Rendering {
     }
     pub fn header(self) -> Result<String, String> {
         self.validate()?;
-        Ok(format!(
+        let mut header = format!(
             "// Generated from Project Settings.\n#pragma once\nnamespace epok {{\ninline constexpr int display_width = {};\ninline constexpr int display_height = {};\ninline constexpr bool display_interlaced = {};\ninline constexpr bool retained_geometry = {};\ninline constexpr bool dither_3d = {};\ninline constexpr bool motion_interpolation = {};\ninline constexpr bool precomputed_visibility = {};\ninline constexpr bool streaming_geometry = {};\ninline constexpr unsigned streaming_pool_pages = {};\ninline constexpr bool streaming_prefetch_enabled = {};\n}}\n",
             self.width,
             self.height,
@@ -267,7 +273,9 @@ impl Rendering {
             self.streaming_geometry,
             self.streaming_pool_pages,
             self.streaming_prefetch
-        ))
+        );
+        header.push_str(&format!("namespace epok {{ inline constexpr unsigned sprite_triangle_budget = {}; }}\n", self.sprite_triangle_budget));
+        Ok(header)
     }
 }
 pub fn rendering(root: &Path) -> Result<Rendering, String> {
@@ -450,6 +458,19 @@ pub fn configure_emulator(portable: &Path, preferences: &Preferences) -> Result<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn sprite_pool_budget_is_bounded_and_preserves_legacy_default() {
+        let mut config: super::Rendering = serde_json::from_str("{}").unwrap();
+        assert_eq!(config.sprite_triangle_budget, 2048);
+        config.sprite_triangle_budget = 512;
+        assert!(config.header().unwrap().contains("sprite_triangle_budget = 512"));
+        let decoded: super::Rendering = serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+        assert_eq!(decoded, config);
+        for invalid in [0, 63, 2049] {
+            config.sprite_triangle_budget = invalid;
+            assert!(config.header().is_err());
+        }
+    }
     #[test]
     fn native_dithering_is_opt_in_and_reaches_generated_header() {
         let legacy: super::Rendering =

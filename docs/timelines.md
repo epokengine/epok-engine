@@ -151,8 +151,9 @@ property/event tracks, four keys per curve, 64 event keys, and 64 markers. These
 independent of the runtime's eight director instances and eight components.
 Pool exhaustion skips the new request and increments dropped-work diagnostics.
 Existing particle limits
-remain 64 emitters, 128 particles per emitter, 256 globally, and 2048 sprite
-triangles per frame.
+remain 64 emitters, 128 particles per emitter and 256 globally. The native sprite
+triangle budget defaults to 2048 per frame and is configurable from 64 to 2048
+in Project Settings → Rendering → Geometry.
 
 ## Identity, editing, and validation
 

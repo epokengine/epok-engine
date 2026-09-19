@@ -52,6 +52,11 @@ fn main() {
     lua_cooker();
     println!("cargo:rerun-if-changed=resources/branding/epok.ico");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        // The debug editor constructs large by-value UI state during startup.
+        // Reserve host stack space; this does not affect PSX stack/RAM budgets.
+        if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+            println!("cargo:rustc-link-arg-bin=epok-editor=/STACK:16777216");
+        }
         winresource::WindowsResource::new()
             .set_icon("resources/branding/epok.ico")
             .set("ProductName", "Epok Engine")

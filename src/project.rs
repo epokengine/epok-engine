@@ -205,6 +205,8 @@ pub fn scene_header_with_registry_for(
         text.push_str(&format!("#include \"scripts/{}\"\n", script.header_path()));
     }
     text.push_str("namespace epok {\n");
+    let (navigation_table, navigation_init) = crate::navigation::cpp(scene)?;
+    text.push_str(&navigation_table);
     if emit_resources {
         text.push_str(&crate::texture::header(resources)?);
     }
@@ -436,8 +438,9 @@ inline void initialize_components(){
         text.push_str(&format!("objects[{i}].active={};\n", e.active));
         if e.kind == "Camera" {
             text.push_str(&format!(
-                "objects[{i}].camera_settings={{true,{}}};\n",
-                fixed(e.camera_fov)
+                "objects[{i}].camera_settings={{true,{},{{{}}}}};\n",
+                fixed(e.camera_fov),
+                color(&e.camera_sky_color)
             ));
         }
         if e.editable_mesh.is_none() && e.skeletal_mesh.is_none() {
@@ -530,6 +533,7 @@ inline void initialize_components(){
     text.push_str(&sprite_init);
     text.push_str(&crate::particles::generate(scene, &texture_ids));
     text.push_str(&crate::collision::cpp_setup(scene));
+    text.push_str(&navigation_init);
     text.push_str(&crate::palette::cpp_setup(scene));
     text.push_str(&crate::effects::cpp_setup(scene));
     text.push_str("}\n");
@@ -726,7 +730,10 @@ fn stage_with_playback(
     let catalog = scripts::catalog(root).inspect_err(|_| {
         let _ = fs::remove_dir_all(build.join("scripts/generated/lua"));
     })?;
-    let blueprint_registry = crate::blueprint::registry_from_catalog(root, &catalog);
+    // Resource selection must see engine components too, not only classes
+    // inherited by project scripts. Otherwise their numeric properties are
+    // conservatively mistaken for unresolved audio inputs during staging.
+    let blueprint_registry = crate::blueprint::native_registry(root, &catalog)?;
     // Template refresh can replace resource defaults. Observe the submitted
     // document with the same types used to select the actual cooked resources.
     playback.scene_audio_source(root, authored.0, authored.1, &blueprint_registry)?;
@@ -1089,6 +1096,8 @@ pub fn stage_runtime(build: &Path) -> Result<(), String> {
 }
 pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
     static SOURCES: &[(&str, &[u8])] = &[
+        ("navigation.hpp", include_bytes!("../runtime/navigation.hpp").as_slice()),
+        ("navigation_components.hpp", include_bytes!("../runtime/navigation_components.hpp").as_slice()),
         (
             "gameplay_api.hpp",
             include_bytes!("../runtime/gameplay_api.hpp").as_slice(),
@@ -1250,6 +1259,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "sprites.hpp",
             include_bytes!("../runtime/sprites.hpp").as_slice(),
+        ),
+        (
+            "sprite_math.hpp",
+            include_bytes!("../runtime/sprite_math.hpp").as_slice(),
         ),
         (
             "sprite_types.hpp",
@@ -1862,6 +1875,17 @@ fn property_setters(
 mod tests {
     use super::*;
     use crate::scene::ClassDefaults;
+    #[test]
+    fn camera_sky_color_exports_to_the_runtime_clear_setting() {
+        let mut scene = Scene::default();
+        scene.actors[0].camera_sky_color = [0.25, 0.5, 1.];
+        let header = scene_header(&scene, &[]).unwrap();
+        assert!(
+            header.contains(
+                "objects[0].camera_settings={true,Fixed(368640, Fixed::RAW),{64,128,255}};"
+            )
+        );
+    }
     #[test]
     fn background_pass_only_exports_for_selected_actor() {
         let mut scene = Scene::default();

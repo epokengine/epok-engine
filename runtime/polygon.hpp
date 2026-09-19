@@ -14,6 +14,17 @@ struct ProjectedVertex {
     uint8_t outcode = 0;
     bool visible = false;
 };
+// Interior/no-fog submission needs only screen XY and depth. 128 entries fit
+// in the PSX scratchpad, versus 51 full clipping vertices. Never pass this
+// representation to a clipper or a camera-space lighting calculation.
+struct CompactProjectedVertex {
+    psyqo::Vertex screen;
+    struct Depth {
+        uint16_t value;
+        int32_t operator[](size_t axis) const{return axis==2?value:0;}
+    } camera;
+};
+static_assert(sizeof(CompactProjectedVertex)==8);
 // Per-quad attributes prepared once, then copied per emitted triangle.
 struct QuadPacket {
     uint32_t final_color[4];   // packed 0x00BBGGRR; modulated (128 = 1.0) when textured
@@ -63,12 +74,18 @@ inline uint32_t blend_fog(uint32_t packed, uint32_t amount, const uint8_t* fog) 
     return pack_color(r, g, b);
 }
 // Screen area sign in the GPU's coordinate system; zero for degenerate triangles.
-inline int32_t screen_area(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c) {
+template<class Vertex> inline int32_t screen_area(const Vertex& a, const Vertex& b, const Vertex& c) {
     return (int32_t(b.screen.x) - a.screen.x) * (int32_t(c.screen.y) - a.screen.y) -
            (int32_t(b.screen.y) - a.screen.y) * (int32_t(c.screen.x) - a.screen.x);
 }
 // Floor division for a positive divisor, matching the GTE's arithmetic shift.
 inline int32_t floor_div(int64_t numerator, int32_t divisor) {
+    // Clipped Q8 coordinates times the pixel focal length fit a native word.
+    // Use the R3000 DIV quotient/remainder instead of libgcc's 64-bit divide.
+    if(numerator>=INT32_MIN&&numerator<=INT32_MAX){
+        const auto n=int32_t(numerator);
+        return n/divisor-(n%divisor<0?1:0);
+    }
     return numerator >= 0 ? int32_t(numerator / divisor) : -int32_t((-numerator + divisor - 1) / divisor);
 }
 // CPU perspective for clipped or fallback vertices, rounding like the GTE so
@@ -91,6 +108,14 @@ struct ClipVertex {
     int32_t color[3];
     int32_t uv[2];   // 16.16 texture pixels
 };
+inline uint32_t clip_fraction16(uint32_t numerator,uint32_t denominator) {
+    if(numerator==denominator)return 65536;
+    if(numerator<=65535)return (numerator<<16)/denominator;
+    uint32_t fraction=0;
+    for(int bit=0;bit<16;++bit){numerator<<=1;fraction<<=1;
+        if(numerator>=denominator){numerator-=denominator;fraction|=1;}}
+    return fraction;
+}
 // Sutherland-Hodgman against the frustum planes named by `planes` (bit i =
 // plane i of frustum_outcode). Returns the vertex count in buffers[from].
 template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from) {
@@ -110,30 +135,26 @@ template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int 
         int next = 0;
         auto* input = buffers[from];
         auto* output = buffers[1 - from];
-        ClipVertex previous = input[count - 1];
-        int32_t pd = distance(previous);
+        const ClipVertex* previous = &input[count - 1];
+        int32_t pd = distance(*previous);
         for (int i = 0; i < count; ++i) {
-            const ClipVertex current = input[i];
+            const ClipVertex& current = input[i];
             const int32_t cd = distance(current);
             if ((pd >= 0) != (cd >= 0)) {
-                uint32_t numerator = pd < 0 ? -pd : pd, denominator = pd - cd < 0 ? cd - pd : pd - cd, fraction = 0;
-                if (numerator == denominator) fraction = 65536;
-                else for (int bit = 0; bit < 16; ++bit) {
-                    numerator <<= 1; fraction <<= 1;
-                    if (numerator >= denominator) { numerator -= denominator; fraction |= 1; }
-                }
+                const uint32_t numerator = pd < 0 ? -pd : pd, denominator = pd - cd < 0 ? cd - pd : pd - cd;
+                const uint32_t fraction=clip_fraction16(numerator,denominator);
                 ClipVertex intersection;
                 for (int d = 0; d < 3; ++d) {
-                    intersection.p[d] = previous.p[d] + int32_t((int64_t(current.p[d] - previous.p[d]) * fraction) >> 16);
-                    intersection.color[d] = previous.color[d] + int32_t((int64_t(current.color[d] - previous.color[d]) * fraction) >> 16);
+                    intersection.p[d] = previous->p[d] + int32_t((int64_t(current.p[d] - previous->p[d]) * fraction) >> 16);
+                    intersection.color[d] = previous->color[d] + int32_t((int64_t(current.color[d] - previous->color[d]) * fraction) >> 16);
                 }
-                for (int d = 0; d < 2; ++d) intersection.uv[d] = previous.uv[d] + int32_t((int64_t(current.uv[d] - previous.uv[d]) * fraction) >> 16);
+                for (int d = 0; d < 2; ++d) intersection.uv[d] = previous->uv[d] + int32_t((int64_t(current.uv[d] - previous->uv[d]) * fraction) >> 16);
                 if (plane == 0) intersection.p[2] = Units::near;
                 else if (plane == 1) intersection.p[2] = Units::far - 1;
                 if (next < 12) output[next++] = intersection;
             }
             if (cd >= 0 && next < 12) output[next++] = current;
-            previous = current; pd = cd;
+            previous = &current; pd = cd;
         }
         count = next;
         from = 1 - from;

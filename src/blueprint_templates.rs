@@ -179,7 +179,7 @@ fn audio_members_signature(
         let parts=path.split('/').collect::<Vec<_>>();
         let property=parts.iter().position(|p|*p=="properties").and_then(|i|parts.get(i+1)).copied();
         let selected=match property {
-            Some("position"|"rotation"|"scale"|"material"|"lighting"|"camera_fov"|"sprite"|"sprite_animator"|"particle_emitter"|"collider"|"palette_animator"|"skeletal_mesh"|"editable_mesh"|"canvas"|"rect"|"image"|"text"|"progress"|"light"|"blob_shadow")=>return None,
+            Some("position"|"rotation"|"scale"|"material"|"lighting"|"camera_fov"|"camera_sky_color"|"sprite"|"sprite_animator"|"particle_emitter"|"collider"|"palette_animator"|"skeletal_mesh"|"editable_mesh"|"canvas"|"rect"|"image"|"text"|"progress"|"light"|"blob_shadow")=>return None,
             Some("audio")=>{
                 if parts.last()==Some(&"audio") {value.get("clip").cloned().unwrap_or(Value::Null)}
                 else if parts.last()==Some(&"clip"){value.clone()}else{return None}

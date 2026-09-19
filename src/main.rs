@@ -96,6 +96,7 @@ mod music;
 mod music_conversion_ui;
 mod native;
 mod native_metadata;
+mod navigation;
 mod native_music;
 mod obj_import;
 mod object_model;
@@ -291,6 +292,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--analyze-memory",
             "--generate-asset-report",
             "--bake-lighting",
+            "--bake-navigation",
             "--add-actor",
             "--profile-scene",
             "--profile-scene-cpu",
@@ -1251,6 +1253,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Baked lighting saved: {}", path.display());
         return Ok(());
     }
+    if args.iter().any(|a| a == "--bake-navigation") {
+        let path = args.windows(2).find(|v|v[0]=="--scene").map(|v|root.join(&v[1])).map_or_else(||workspace::startup_scene(&root),Ok)?;
+        let mut scene = scene::Scene::load(&path)?;
+        scene.navigation = Some(navigation::bake(&scene)?);
+        scene.save(&path)?;
+        println!("Navigation baked: {} nodes, {}", scene.navigation.as_ref().unwrap().nodes.len(),path.display());
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--profile-scene") {
         return scene_gpu::profile(project);
     }
@@ -1294,7 +1304,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             pipeline::Job::report(root.clone(), summary)
         } else {
             let analyze = args.iter().any(|a| a == "--analyze-memory");
-            let mut scene = scene_dependencies::Input::load(&workspace::startup_scene(&root)?)?;
+            let scene_path = args.windows(2).find(|v|v[0]=="--scene").map(|v|root.join(&v[1])).map_or_else(||workspace::startup_scene(&root),Ok)?;
+            let mut scene = scene_dependencies::Input::load(&scene_path)?;
             if analyze || args.iter().any(|a| a == "--use-play-profile") {
                 scene = play::saved_input(
                     &root,

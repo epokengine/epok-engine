@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstdio>
 #include "../../runtime/epok.hpp"
+#include "../../runtime/retained.hpp"
 
 namespace epok {
 const ClassDescriptor object_classes[1] = {};
@@ -69,6 +70,20 @@ static void skeletal_queries() {
     auto stats=epok::ResourceLibrary::skeletal_queries();
     assert(stats.calls==4&&stats.vertices==7&&stats.failures==2);
 
+    // Portable IDs survive many-to-one cooking, including IDs beyond the
+    // cooked geometry count (weapon sockets use authored vertex indices).
+    const uint16_t duplicates[4]={1,0,1,0};
+    rigid.portable_to_cooked=duplicates;rigid.portable_vertex_count=4;
+    auto duplicate=epok::skeletal_sample_vertex(&actor,2,epok::PoseKind::Bind,epok::CoordinateSpace::Model);
+    assert(duplicate.success&&duplicate.position[0].raw()==8192);
+    indices.index0=2;indices.index1=3;indices.index2=4;indices.index3=2;
+    batch=epok::skeletal_sample_vertices(&actor,indices,epok::PoseKind::Bind,epok::CoordinateSpace::Model);
+    assert(batch.sample0.success&&batch.sample0.position[0].raw()==8192);
+    assert(batch.sample1.success&&batch.sample1.position[0].raw()==0);
+    assert(!batch.sample2.success&&batch.sample2.error==epok::SkeletalError::InvalidVertex);
+    assert(batch.sample3.success&&batch.sample3.position[0].raw()==8192);
+    rigid.portable_to_cooked=portable_to_cooked;rigid.portable_vertex_count=0;
+
     const uint8_t encoded[6]={0,0,0,1,0,0};
     const uint32_t seek[1]={0};
     const epok::VertexFrame frame[1]={{0,seek,false}};
@@ -90,6 +105,64 @@ static void skeletal_queries() {
     assert(baked_vertex.success&&baked_vertex.position[0].raw()==16);
     auto bone=epok::skeletal_sample_bone(&actor,0,epok::PoseKind::Current,epok::CoordinateSpace::Model);
     assert(bone.success&&bone.parent==-1&&bone.basis_x[0].raw()==4096);
+}
+
+static void skeletal_matrix_fast_paths() {
+    using epok::Fixed;
+    uint32_t rng=7;
+    auto next=[&](){rng=rng*1664525u+1013904223u;return rng;};
+    for(int sample=0;sample<10000;++sample){
+        auto p=identity_pose();
+        for(int k=0;k<4;++k)p.rotation[k]=int16_t(int(next()%8193)-4096);
+        if(sample%3==0)p.rotation[0]=p.rotation[1]=p.rotation[2]=0;
+        for(int k=0;k<3;++k){p.translation[k]=int16_t(next());p.scale[k]=sample%2?4096:int16_t(next());}
+        Fixed x(p.rotation[0],Fixed::RAW),y(p.rotation[1],Fixed::RAW),z(p.rotation[2],Fixed::RAW),w(p.rotation[3],Fixed::RAW),two=2.0,one=1.0;
+        epok::Affine<Fixed> ref;
+        ref.values[0][0]=one-two*(y*y+z*z);ref.values[0][1]=two*(x*y-z*w);ref.values[0][2]=two*(x*z+y*w);
+        ref.values[1][0]=two*(x*y+z*w);ref.values[1][1]=one-two*(x*x+z*z);ref.values[1][2]=two*(y*z-x*w);
+        ref.values[2][0]=two*(x*z-y*w);ref.values[2][1]=two*(y*z+x*w);ref.values[2][2]=one-two*(x*x+y*y);
+        for(int r=0;r<3;++r){for(int c=0;c<3;++c)ref.values[r][c]*=Fixed(p.scale[c],Fixed::RAW);ref.values[r][3]=Fixed(int32_t(p.translation[r])*16,Fixed::RAW);}
+        const auto result=epok::skeletal_detail::pose_matrix(p);
+        for(int r=0;r<3;++r)for(int c=0;c<4;++c)assert(result.values[r][c].raw()==ref.values[r][c].raw());
+    }
+}
+
+static void animated_packet_retention() {
+    assert(epok::retain_mesh_packets(true,false,false));
+    assert(!epok::retain_mesh_packets(true,true,false));
+    assert(!epok::retain_mesh_packets(true,false,true));
+    assert(epok::retain_mesh_packets(false,true,true));
+    epok::RetainedGeometry<3,4> pool;
+    epok::MeshGeometry geometry{};
+    epok::MeshQuad faces[2]{};
+    geometry.editable=true;geometry.quads=faces;geometry.quad_count=2;
+    faces[0].material.unlit=faces[1].material.unlit=true;
+    assert(epok::mesh_faces_unlit(&geometry));
+    faces[1].material.unlit=false;assert(!epok::mesh_faces_unlit(&geometry));
+    faces[1].material.unlit=true;
+    epok::MeshGeometry tail{};geometry.next=&tail;
+    assert(!epok::mesh_faces_unlit(&geometry));geometry.next=nullptr;
+    assert(!epok::mesh_faces_unlit(nullptr));
+    epok::MeshMaterialCache materials;
+    assert(!materials.faces_unlit(nullptr));
+    assert(materials.faces_unlit(&geometry));
+    assert(materials.faces_unlit(&geometry));
+    assert(!materials.faces_unlit(&tail)); // a different model invalidates
+    assert(materials.faces_unlit(&geometry));
+    materials={}; // scene/bank storage may reuse the same address
+    faces[1].material.unlit=false;
+    assert(!materials.faces_unlit(&geometry));
+    faces[1].material.unlit=true;
+    assert(pool.allocate(0,&geometry,3,8));
+    assert(pool.slot_top()==6);
+    assert(pool.allocate(0,&geometry,3,8)); // new poses do not allocate again
+    assert(pool.slot_top()==6);
+    assert(!pool.allocate(1,&geometry,2,8)); // safe dynamic fallback
+    auto& state=pool.state(0);
+    state.key[0].valid=state.key[1].valid=true;
+    assert(state.key[0]==state.key[1]);
+    ++state.key[0].color[0];assert(!(state.key[0]==state.key[1]));
+    pool.forget(0);assert(!state.key[0].valid&&!state.key[1].valid);
 }
 
 static void persistent_utilities() {
@@ -155,6 +228,8 @@ int main() {
     auto focus=epok::FocusLibrary::snapshot();
     assert(!focus.valid&&focus.count==0&&!focus.current.valid());
     skeletal_queries();
+    skeletal_matrix_fast_paths();
+    animated_packet_retention();
     persistent_utilities();
     std::puts("Gameplay libraries: typed records, input/time, math, bounded payload and focus pass.");
 }

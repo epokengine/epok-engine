@@ -42,10 +42,11 @@ using Fixed = psyqo::FixedPoint<12>;
 using Collider=ColliderT<Fixed>;
 using Aabb=AabbT<Fixed>;
 using SpatialHit=SpatialHitT<Fixed>;
+using RaycastQuery=RaycastQueryT<Fixed>;
 using MoveResult=MoveResultT<Fixed>;
 // All script transforms are local to the object's parent.
 struct Transform { Fixed position[3]; Fixed rotation[3]; Fixed scale[3]; };
-struct CameraSettings {bool enabled=false;Fixed field_of_view=90.0;};
+struct CameraSettings {bool enabled=false;Fixed field_of_view=90.0;uint8_t sky_color[3]={33,40,52};};
 inline Fixed projection_focal=1.0;
 struct AudioSource {
     bool enabled=false; int clip=-1; Fixed volume=1.0,pitch=1.0; bool play_on_start=true;uint8_t priority=128;
@@ -142,7 +143,7 @@ struct BoneTrack {const BonePose* poses;bool constant;};
 struct VertexFrame {uint32_t offset;const uint32_t* seek;bool raw;};
 struct AnimationClip {const BoneTrack* tracks;const VertexFrame* vertex_frames;const uint8_t* vertex_data;uint16_t frames;const char* name;};
 enum class SkeletalStorage:uint8_t {CpuRigid,RigidGte,BakedVertices};
-struct SkeletalMesh {const MeshGeometry* geometry;const uint8_t* vertex_bones;const uint16_t* bone_vertices;const uint16_t* portable_to_cooked;const Bone* bones;size_t bone_count;const AnimationClip* clips;size_t clip_count;SkeletalStorage storage;};
+struct SkeletalMesh {const MeshGeometry* geometry;const uint8_t* vertex_bones;const uint16_t* bone_vertices;const uint16_t* portable_to_cooked;const Bone* bones;size_t bone_count;const AnimationClip* clips;size_t clip_count;SkeletalStorage storage;size_t portable_vertex_count=0;};
 
 enum class PoseKind:uint32_t { Bind=0, Current=1 };
 enum class CoordinateSpace:uint32_t { Model=0, World=1 };
@@ -221,6 +222,10 @@ struct ActorData {
     Canvas canvas;RectTransform rect;Image image;Text text;ProgressBar progress;char name[129]={};
     const MeshGeometry* geometry=nullptr;
     Animator animator;
+    // Optional additive pitch applied at one skeletal branch. Stop bones cancel
+    // the inherited pitch before branches such as the legs. This belongs to the
+    // visual instance rather than Animator so animation playback ABI stays stable.
+    int16_t aim_bone=-1;int16_t aim_stop_bones[2]={-1,-1};Fixed aim_pitch=0.0;
     Sprite sprite;SpriteAnimator sprite_animator;ParticleEmitter particle_emitter;
     PaletteAnimator palette_animator;
     Light light;MeshLighting lighting;BlobShadow blob_shadow;AudioSource audio;const uint8_t (*baked_colors)[3]=nullptr;size_t baked_color_count=0;
@@ -282,6 +287,9 @@ bool camera_project(const Fixed* world_point,Fixed* screen_xy);
 void activate_texture_bank(const Texture* textures);
 // Spatial queries use world coordinates. Ray displacement defines a finite segment.
 SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false);
+// One synchronized world snapshot for independent queries. Apply gameplay
+// mutations AFTER this call; results[i] belongs to queries[i]. No allocations.
+void raycast_batch(const RaycastQuery* queries,SpatialHit* results,size_t count,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=false);
 size_t overlap(const Aabb& box,DataHandle* output,size_t capacity,uint32_t mask=0xffffffffu,const ActorData* ignore=nullptr,bool triggers=true);
 SpatialHit query_ground(const ActorData& entity,Fixed distance,uint32_t mask=0xffffffffu);
 inline DataHandle hit_entity(const SpatialHit& hit) { return hit.entity<0?DataHandle{}:DataHandle{uint16_t(hit.entity),hit.generation}; }
@@ -310,6 +318,7 @@ inline uint32_t blueprint_scene_generation=1;
 #include "effect_types.hpp"
 #ifndef EPOK_INCLUDE_FROM_OBJECT_MODEL
 #include "object_model.hpp"
+#include "navigation_components.hpp"
 #ifndef EPOK_INCLUDE_FROM_UTILITY
 #include "utility.hpp"
 #endif

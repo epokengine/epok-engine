@@ -88,7 +88,7 @@ pub fn declaration_registry(root: &Path) -> Result<crate::blueprint::Registry, S
     let files = crate::blueprint_asset::load_all(root)?;
     let lua = crate::lua_asset::load_all(root)?;
     if files.is_empty() && lua.is_empty() {
-        return Ok(crate::blueprint::registry_from_catalog(root, &scripts));
+        return crate::blueprint::native_registry(root, &scripts);
     }
     let mut native = crate::blueprint::native_registry(root, &scripts)?;
     if !lua.is_empty() {

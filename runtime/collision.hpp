@@ -21,6 +21,7 @@ template<class Number> struct ColliderT {
     uint8_t slope_axis=0;
 };
 template<class Number> struct AabbT { Number min[3],max[3]; };
+template<class Number> struct RaycastQueryT {Number origin[3],displacement[3];};
 template<class Number> struct SpatialHitT {
     int entity=-1;uint32_t generation=0;Number fraction=1.0,point[3]={},normal[3]={};bool started_inside=false;
     explicit operator bool() const { return entity>=0; }
@@ -116,6 +117,7 @@ template<class Number,size_t Capacity,size_t PairCapacity=256> class CollisionWo
     }
 public:
     uint32_t dropped_trigger_pairs=0;
+    bool has_trigger_pairs() const{return previous_count!=0;}
     void clear() { for(auto& e:entries){e.enabled=false;e.cached=false;}previous_count=0;dropped_trigger_pairs=0;limit=trigger_count=0; }
     void begin_sync() { for(size_t i=0;i<limit;++i)entries[i].enabled=false;limit=trigger_count=0; }
     void note_enabled(size_t index) { if(index>=limit)limit=index+1;if(entries[index].trigger)++trigger_count; }
@@ -165,6 +167,11 @@ public:
             }
         }
         return hit;
+    }
+    void raycast_batch(const RaycastQueryT<Number>* queries,SpatialHitT<Number>* results,size_t count,
+                       uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=false) const {
+        if(!queries||!results)return;
+        for(size_t i=0;i<count;++i)results[i]=raycast(queries[i].origin,queries[i].displacement,mask,ignore,triggers);
     }
     // Downward box sweep uses the complete footprint, including ledges missed by
     // a center ray. distance must be nonnegative; normal points upwards.
@@ -230,12 +237,17 @@ public:
                 int64_t t;int axis,sign;bool inside;
                 if(segment(center,remaining,expanded,t,axis,sign,true,inside)&&axis>=0&&t<best) { best=t;best_axis=axis;best_sign=sign;best_entity=int(i); }
             }
-            int64_t fraction=best_entity<0?one:best;
+            // The common unobstructed step needs neither a Q24 multiply nor
+            // another pass. This is exactly fraction==one in the path below.
+            if(best_entity<0){
+                for(int k=0;k<3;++k)result.displacement[k]+=remaining[k];
+                break;
+            }
+            int64_t fraction=best;
             for(int k=0;k<3;++k) {
                 auto moved=raw(int32_t(int64_t(remaining[k].raw())*fraction/one));
                 box.min[k]+=moved;box.max[k]+=moved;result.displacement[k]+=moved;remaining[k]-=moved;
             }
-            if(best_entity<0)break;
             auto skin=raw(best_sign);box.min[best_axis]+=skin;box.max[best_axis]+=skin;result.displacement[best_axis]+=skin;remaining[best_axis]=raw(0);
             result.blocked=true;result.entity=best_entity;result.generation=entries[size_t(best_entity)].generation;result.normal[best_axis]=raw(best_sign*4096);
             if(best_axis==1&&best_sign>0)result.grounded=true;

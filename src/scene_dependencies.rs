@@ -11,6 +11,7 @@ pub fn signature(scene: &Scene) -> String {
     // invalidate the very Play that produced it; authored lighting is included.
     let mut source = scene.clone();
     source.bake = None;
+    source.navigation = None;
     hash(source)
 }
 pub fn hash(value: impl serde::Serialize) -> String {

@@ -678,6 +678,7 @@ dependencies = [
  "raw-window-handle",
  "reqwest",
  "rmcp",
+ "semver",
  "serde",
  "serde_ignored",
  "serde_json",

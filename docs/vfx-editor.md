@@ -165,7 +165,9 @@ Check the preview's alive/peak particles, dropped work, events and markers.
 Test the intended number of simultaneous effects with geometry and HUD in Play.
 The shared limits are eight effect instances, eight director instances, eight
 layers per effect, 64 emitter sources, 128 particles per emitter, 256 global
-particles and 2048 sprite triangles per frame. Scene emitters share these pools.
+particles and by default 2048 sprite triangles per frame. The native sprite
+budget is configurable from 64 to 2048 in Project Settings → Rendering → Geometry;
+the editor preview keeps its default pool. Scene emitters share these pools.
 These limits bound storage; they do not promise a particular frame rate.
 
 Normal completion hides sprite layers and lets particles drain for a bounded

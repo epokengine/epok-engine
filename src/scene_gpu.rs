@@ -416,26 +416,27 @@ impl SceneGpu {
         target: &wgpu::TextureView,
         editor: &crate::editor::Editor,
     ) {
+        let scene = editor
+            .timeline_editor
+            .scene_preview
+            .scene
+            .as_ref()
+            .filter(|_| editor.timeline_editor.open && !editor.playing)
+            .unwrap_or(&editor.scene);
         self.render_input(
             device,
             queue,
             encoder,
             target,
             RenderInput {
-                scene: editor
-                    .timeline_editor
-                    .scene_preview
-                    .scene
-                    .as_ref()
-                    .filter(|_| editor.timeline_editor.open && !editor.playing)
-                    .unwrap_or(&editor.scene),
+                scene,
                 view: &editor.view,
                 selected: editor.selected,
                 mesh: &editor.mesh_editor,
                 wire: editor.wire,
                 grid: editor.grid,
                 effect: None,
-                background: None,
+                background: active_camera_sky(scene),
             },
         );
     }
@@ -668,6 +669,14 @@ impl SceneGpu {
             pass.draw(0..self.edges.count, 0..1);
         }
     }
+}
+
+fn active_camera_sky(scene: &crate::scene::Scene) -> Option<[f32; 3]> {
+    scene
+        .actors
+        .iter()
+        .find(|actor| actor.kind == "Camera" && actor.active)
+        .map(|actor| actor.camera_sky_color)
 }
 fn vertex(out: &mut Vec<u8>, p: [f32; 3], color: [u8; 3]) {
     for v in p
@@ -910,6 +919,9 @@ fn geometry_with_effects(
             line(&mut edges, origin, corners[j], [80, 185, 245]);
             line(&mut edges, corners[j], corners[(j + 1) % 4], [80, 185, 245]);
         }
+    }
+    for (a,b,color) in crate::navigation::debug_lines(scene, selected) {
+        line(&mut edges,a,b,color);
     }
     let (sy, cy) = yaw.sin_cos();
     let (sp, cp) = pitch.sin_cos();

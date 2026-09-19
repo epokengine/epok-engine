@@ -242,7 +242,15 @@ pub struct Placement {
 pub fn layout(scene: &Scene) -> Result<Vec<(Uuid, Placement)>, String> {
     let mut cursor = [[0u16; 2]; 3];
     let mut result = vec![];
-    for (i, id) in ids(scene).into_iter().enumerate() {
+    // Pack tall atlases first: a short VFX strip must not fragment the only
+    // three 256-high pages and reject three full-size character atlases.
+    // Keep texture indices/CLUT identities in the original resource order.
+    let ordered_ids = ids(scene);
+    let mut packing_order: Vec<_> = ordered_ids.iter().copied().enumerate().collect();
+    packing_order.sort_by_key(|(i, id)| {
+        (std::cmp::Reverse(scene.textures.get(id).map_or(0, |t| t.height)), *i)
+    });
+    for (i, id) in packing_order {
         if i >= 32 {
             return Err("VRAM palette budget exceeded (32 textures)".into());
         }
@@ -276,6 +284,7 @@ pub fn layout(scene: &Scene) -> Result<Vec<(Uuid, Placement)>, String> {
         }
         result.push((id,place.ok_or("Texture VRAM exhausted; reduce atlas height/count. Framebuffers and font are reserved.")?));
     }
+    result.sort_by_key(|(id, _)| ordered_ids.iter().position(|v| v == id).unwrap());
     Ok(result)
 }
 pub fn symbol(id: Uuid) -> String {
@@ -457,6 +466,28 @@ mod tests {
                 .unwrap();
         }
         bytes
+    }
+    #[test]
+    fn small_effect_atlas_does_not_fragment_full_height_pages() {
+        let mut scene = Scene::default();
+        scene.actors.clear();
+        for (i, height) in [64, 256, 256, 256].into_iter().enumerate() {
+            let id = Uuid::from_u128(i as u128 + 1);
+            let mut a = crate::scene::Actor::cube(format!("texture {i}"));
+            a.material.texture = Some(id);
+            scene.actors.push(a);
+            let mut texture = decode(&png()).unwrap();
+            texture.width = 256;
+            texture.height = height;
+            scene.textures.insert(id, std::sync::Arc::new(texture));
+        }
+        let packed = layout(&scene).unwrap();
+        assert_eq!(packed.iter().map(|(id, _)| *id).collect::<Vec<_>>(), ids(&scene));
+        assert_eq!(packed[0].1.y, 256);
+        for (i, (_, p)) in packed.iter().enumerate() {
+            assert_eq!(p.clut_y, 480 + i as u16);
+            if i != 0 { assert_eq!(p.y, 0); }
+        }
     }
     #[test]
     fn palette_preserves_opaque_black_cutout_and_odd_rows() {

@@ -9,7 +9,9 @@ const PLAY: &str = "\u{eb2c}";
 const PAUSE: &str = "\u{ead1}";
 const STOP: &str = "\u{ead7}";
 const SEARCH: &str = "\u{ea6d}";
-const ACTOR: &str = "\u{eb5b}";
+// The bundled editor font has the cube glyph but not this icon-font's Actor
+// codepoint. Reuse the verified glyph so hierarchy rows never degrade to `?`.
+const ACTOR: &str = CUBE;
 
 pub fn configure_input(io: &mut imgui::Io) {
     // Scene/HUD handles are drawn over images rather than ImGui buttons.
@@ -104,6 +106,12 @@ fn build_menu(ui: &imgui::Ui, e: &mut Editor) {
         }
         #[cfg(test)]
         record_script_control(ui, "Build Lighting");
+        if ui.menu_item_config("Bake Navigation").enabled(enabled).build() {
+            crate::navigation::editor_bake(e);
+        }
+        if ui.menu_item_config("Add Navigation Bake Volume").enabled(enabled).build() {
+            crate::navigation::create_volume(e);
+        }
         ui.separator();
         if ui
             .menu_item_config("Package PSX Disc...")
@@ -750,8 +758,13 @@ fn draw_workspace(
         ui.menu("Help", || {
             ui.text("Epok | PSX editor");
             ui.text("Rust / Dear ImGui / PsyQo");
+            ui.separator();
+            if ui.menu_item("About Epok...") {
+                e.about_requested = true;
+            }
         });
     });
+    about_dialog(ui, e);
     if !background && !text_input_active(ui) && !e.game_capture {
         crate::mesh_editor::shortcuts(ui, e);
         if ui.io().key_ctrl && ui.is_key_pressed(imgui::Key::S) {
@@ -1052,6 +1065,25 @@ fn draw_workspace(
             }
             ui.same_line();
             if ui.button("Cancel") {
+                ui.close_current_popup();
+            }
+        });
+}
+
+fn about_dialog(ui: &imgui::Ui, editor: &mut Editor) {
+    if std::mem::take(&mut editor.about_requested) {
+        ui.open_popup("About Epok");
+    }
+    ui.modal_popup_config("About Epok")
+        .always_auto_resize(true)
+        .build(|| {
+            ui.text("Epok Engine");
+            ui.separator();
+            ui.text(format!("Version {}", env!("CARGO_PKG_VERSION")));
+            ui.text_disabled("Visual editor for original PlayStation games");
+            ui.text_disabled("Built with Rust, Dear ImGui and PsyQo.");
+            ui.dummy([0., 6.]);
+            if ui.button("Close") {
                 ui.close_current_popup();
             }
         });
@@ -1650,7 +1682,7 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
     ui.window("\u{eb86} Hierarchy###Hierarchy").build(|| {
         let mut out = HierarchyResult::default();
         let mut actor_out = ActorResult::default();
-        if ui.is_window_focused()
+        if ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS)
             && !text_input_active(ui)
             && !e.playing
             && !e.game_capture
@@ -1680,82 +1712,86 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
         #[cfg(test)]
         record_script_control(ui, "Hierarchy search");
         ui.separator();
-        let mut scene_config = ui
-            .tree_node_config(format!(
-                "{CUBE} {}{}###scene-root",
-                e.scene.name,
-                if e.dirty { " *" } else { "" }
-            ))
-            .flags(imgui::TreeNodeFlags::DEFAULT_OPEN | imgui::TreeNodeFlags::SPAN_AVAIL_WIDTH);
-        if e.reveal_selected || !e.search.is_empty() {
-            scene_config = scene_config.opened(true, Condition::Always);
-        }
-        let scene_node = scene_config.push();
-        // The map root is the document itself, not an instance: it is neither
-        // selectable nor a reparent target. Clicking it opens Map Settings.
-        if ui.is_item_hovered() {
-            ui.tooltip_text("Map root — click to open Map Settings");
-        }
-        if ui.is_item_clicked() && !ui.is_item_toggled_open() {
-            out.open_map_settings = true;
-        }
-        if let Some(_popup) = ui.begin_popup_context_item() {
-            ui.disabled(e.playing, || {
-                let mut actor_class = None;
-                if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
-                    out.root_action = Some(command);
-                }
-                if actor_class.is_some() {
-                    out.actor_class = actor_class;
-                }
-                ui.separator();
-                if ui.menu_item("Map Settings...") {
-                    out.open_map_settings = true;
-                }
-            });
-        }
-        if let Some(_scene) = scene_node {
-            let actor_cx = actor_context(e);
-            if !actor_cx.roots.is_empty() {
-                for root in actor_cx.roots.clone() {
-                    actor_node(ui, e, root, &actor_cx, &mut actor_out);
+        // The tree owns scrolling; the creation controls and search field stay
+        // in the parent window so filtering remains available at every depth.
+        ui.child_window("Hierarchy tree").size([0., 0.]).build(|| {
+            let mut scene_config = ui
+                .tree_node_config(format!(
+                    "{CUBE} {}{}###scene-root",
+                    e.scene.name,
+                    if e.dirty { " *" } else { "" }
+                ))
+                .flags(imgui::TreeNodeFlags::DEFAULT_OPEN | imgui::TreeNodeFlags::SPAN_AVAIL_WIDTH);
+            if e.reveal_selected || !e.search.is_empty() {
+                scene_config = scene_config.opened(true, Condition::Always);
+            }
+            let scene_node = scene_config.push();
+            // The map root is the document itself, not an instance: it is neither
+            // selectable nor a reparent target. Clicking it opens Map Settings.
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Map root — click to open Map Settings");
+            }
+            if ui.is_item_clicked() && !ui.is_item_toggled_open() {
+                out.open_map_settings = true;
+            }
+            if let Some(_popup) = ui.begin_popup_context_item() {
+                ui.disabled(e.playing, || {
+                    let mut actor_class = None;
+                    if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
+                        out.root_action = Some(command);
+                    }
+                    if actor_class.is_some() {
+                        out.actor_class = actor_class;
+                    }
+                    ui.separator();
+                    if ui.menu_item("Map Settings...") {
+                        out.open_map_settings = true;
+                    }
+                });
+            }
+            if let Some(_scene) = scene_node {
+                let actor_cx = actor_context(e);
+                if !actor_cx.roots.is_empty() {
+                    for root in actor_cx.roots.clone() {
+                        actor_node(ui, e, root, &actor_cx, &mut actor_out);
+                    }
                 }
             }
-        }
-        ui.invisible_button(
-            "hierarchy-root-drop",
-            [
-                ui.content_region_avail()[0].max(1.),
-                ui.content_region_avail()[1].max(24.),
-            ],
-        );
-        if !e.playing
-            && let Some(target) = ui.drag_drop_target()
-        {
-            if let Some(Ok(payload)) =
-                target.accept_payload::<usize, _>("EPOK_ENTITY", imgui::DragDropFlags::empty())
-                && payload.delivery
+            ui.invisible_button(
+                "hierarchy-root-drop",
+                [
+                    ui.content_region_avail()[0].max(1.),
+                    ui.content_region_avail()[1].max(24.),
+                ],
+            );
+            if !e.playing
+                && let Some(target) = ui.drag_drop_target()
             {
-                out.reparent = Some((payload.data, None, true));
-            } else if let Some(Ok(payload)) =
-                target.accept_payload::<usize, _>("EPOK_ACTOR", imgui::DragDropFlags::empty())
-                && payload.delivery
-                && let Some(child) = e.scene.actors.get(payload.data).map(|a| a.id)
-            {
-                actor_out.reparent = Some((child, None));
+                if let Some(Ok(payload)) =
+                    target.accept_payload::<usize, _>("EPOK_ENTITY", imgui::DragDropFlags::empty())
+                    && payload.delivery
+                {
+                    out.reparent = Some((payload.data, None, true));
+                } else if let Some(Ok(payload)) =
+                    target.accept_payload::<usize, _>("EPOK_ACTOR", imgui::DragDropFlags::empty())
+                    && payload.delivery
+                    && let Some(child) = e.scene.actors.get(payload.data).map(|a| a.id)
+                {
+                    actor_out.reparent = Some((child, None));
+                }
             }
-        }
-        if let Some(_popup) = ui.begin_popup_context_item() {
-            ui.disabled(e.playing, || {
-                let mut actor_class = None;
-                if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
-                    out.root_action = Some(command);
-                }
-                if actor_class.is_some() {
-                    out.actor_class = actor_class;
-                }
-            });
-        }
+            if let Some(_popup) = ui.begin_popup_context_item() {
+                ui.disabled(e.playing, || {
+                    let mut actor_class = None;
+                    if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
+                        out.root_action = Some(command);
+                    }
+                    if actor_class.is_some() {
+                        out.actor_class = actor_class;
+                    }
+                });
+            }
+        });
         e.reveal_selected = false;
         if out.open_map_settings {
             e.map_settings = true;
@@ -1790,7 +1826,7 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
         if let Some(id) = actor_out.delete {
             e.delete_actor(id);
         }
-        if ui.is_window_focused()
+        if ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS)
             && !ui.io().want_text_input
             && ui.is_key_pressed(imgui::Key::Delete)
         {
@@ -2644,6 +2680,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                     .range(25., 120.)
                     .speed(0.25)
                     .build(ui, &mut entity.camera_fov);
+                ui.color_edit3(field(ui, "Sky Color"), &mut entity.camera_sky_color);
                 let _ = field(ui, "Target");
                 ui.text_disabled(format!(
                     "{} x {} / NTSC",

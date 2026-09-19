@@ -13,6 +13,12 @@ fn gray(value: u8) -> [f32; 4] {
     [v, v, v, 1.]
 }
 
+#[derive(Clone)]
+struct PendingUpgrade {
+    path: PathBuf,
+    from: String,
+}
+
 pub struct Hub {
     pub dependencies: crate::dependencies::State,
     name: String,
@@ -21,6 +27,7 @@ pub struct Hub {
     template: Template,
     creating: bool,
     open_requested: bool,
+    pending_upgrade: Option<PendingUpgrade>,
     search: String,
     alphabetical: bool,
     recent: Vec<workspace::Recent>,
@@ -40,12 +47,7 @@ impl Hub {
         let recent = recent.unwrap_or_default();
         let versions = recent
             .iter()
-            .map(|r| {
-                (
-                    r.path.clone(),
-                    workspace::read_manifest(&r.path).map(|m| m.editor_version),
-                )
-            })
+            .map(|r| (r.path.clone(), workspace::project_editor_version(&r.path)))
             .collect();
         Self {
             dependencies: crate::dependencies::State::new(&workspace::editor_home()),
@@ -58,6 +60,7 @@ impl Hub {
             template: Template::Basic,
             creating: false,
             open_requested: false,
+            pending_upgrade: None,
             search: String::new(),
             alphabetical: false,
             error,
@@ -258,6 +261,7 @@ impl Hub {
                     ui.open_popup("Open project folder");
                 }
                 self.open_dialog(ui, &mut result);
+                self.upgrade_dialog(ui, &mut result);
             });
         self.dependencies.hub_window(ui);
         if self.dependencies.busy() {
@@ -371,8 +375,7 @@ impl Hub {
                         .size([row_width - 46., 65.])
                         .build()
                     {
-                        result =
-                            self.activate(Ok(crate::loading::Request::Open(recent.path.clone())));
+                        result = self.request_open(recent.path.clone());
                     }
                     #[cfg(test)]
                     if i == 0 {
@@ -451,8 +454,7 @@ impl Hub {
                     }
                     ui.popup("Project options", || {
                         if ui.menu_item("Open project") {
-                            result = self
-                                .activate(Ok(crate::loading::Request::Open(recent.path.clone())));
+                            result = self.request_open(recent.path.clone());
                         }
                         if ui.menu_item("Open project folder") {
                             crate::project_browser::reveal(&recent.path);
@@ -617,9 +619,7 @@ impl Hub {
             }
             ui.same_line();
             if primary_button(ui, "Open project", [140., 36.]) {
-                *result = self.activate(Ok(crate::loading::Request::Open(PathBuf::from(
-                    self.open_path.trim(),
-                ))));
+                *result = self.request_open(PathBuf::from(self.open_path.trim()));
                 if result.is_some() {
                     ui.close_current_popup();
                 }
@@ -641,6 +641,62 @@ impl Hub {
             }
         }
     }
+
+    fn request_open(&mut self, path: PathBuf) -> Option<crate::loading::Request> {
+        match workspace::editor_version(&path) {
+            Ok(workspace::EditorVersion::Older(from)) => {
+                self.error = None;
+                self.pending_upgrade = Some(PendingUpgrade { path, from });
+                None
+            }
+            Ok(workspace::EditorVersion::Current | workspace::EditorVersion::CurrentOrNewer(_))
+            | Err(_) => self.activate(Ok(crate::loading::Request::Open(path))),
+        }
+    }
+
+    fn upgrade_dialog(&mut self, ui: &Ui, result: &mut Option<crate::loading::Request>) {
+        if self.pending_upgrade.is_some() {
+            ui.open_popup("Upgrade project?");
+        }
+        ui.modal_popup_config("Upgrade project?")
+            .always_auto_resize(true)
+            .build(|| {
+                let Some(upgrade) = self.pending_upgrade.clone() else {
+                    ui.close_current_popup();
+                    return;
+                };
+                ui.text(format!("{} was created with Epok {}.", upgrade.path.display(), upgrade.from));
+                ui.text_wrapped(format!(
+                    "Upgrade its project descriptor to Epok {} before opening? A copy of the current descriptor will be kept in .epok/migrations.",
+                    env!("CARGO_PKG_VERSION")
+                ));
+                ui.dummy([0., 4.]);
+                if ui.button("Cancel") {
+                    self.pending_upgrade = None;
+                    ui.close_current_popup();
+                }
+                ui.same_line();
+                if primary_button(ui, "Upgrade and open", [150., 36.]) {
+                    match workspace::upgrade_editor_version(&upgrade.path) {
+                        Ok(_) => {
+                            self.versions.insert(
+                                upgrade.path.clone(),
+                                Ok(env!("CARGO_PKG_VERSION").into()),
+                            );
+                            *result = self.activate(Ok(crate::loading::Request::Open(upgrade.path)));
+                            self.pending_upgrade = None;
+                            ui.close_current_popup();
+                        }
+                        Err(error) => {
+                            self.pending_upgrade = None;
+                            self.error = Some(error);
+                            ui.close_current_popup();
+                        }
+                    }
+                }
+            });
+    }
+
     fn activate(
         &mut self,
         project: Result<crate::loading::Request, String>,

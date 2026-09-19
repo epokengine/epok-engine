@@ -2,6 +2,9 @@
 //! from the bundled mig68000 font; its attribution travels with every export.
 pub const EXTRA: &str = "áéíóúüñÁÉÍÓÚÜÑ¿¡";
 pub const MAX_BYTES: usize = 511;
+const DEBUG: &str = " 0123456789.FPSCUGTE";
+const DEBUG_U: usize = 120;
+const DEBUG_Y: usize = 48;
 pub fn index(c: char) -> Option<usize> {
     if (' '..='~').contains(&c) {
         Some(c as usize - 32)
@@ -62,6 +65,35 @@ pub fn validate(text: &str) -> Result<(), String> {
     }
     Ok(())
 }
+
+// Five visible columns in a six-pixel cell. Bit zero is the leftmost pixel.
+// The profiler needs only this small alphabet, so it fits in the unused tail of
+// the regular 8x16 atlas without consuming another texture page or CLUT.
+fn debug_glyph(c: char) -> Option<[u8; 7]> {
+    Some(match c {
+        ' ' => [0, 0, 0, 0, 0, 0, 0],
+        '0' => [14, 17, 17, 17, 17, 17, 14],
+        '1' => [4, 6, 4, 4, 4, 4, 14],
+        '2' => [14, 17, 16, 8, 4, 2, 31],
+        '3' => [14, 16, 16, 14, 16, 16, 14],
+        '4' => [8, 12, 10, 9, 31, 8, 8],
+        '5' => [31, 1, 1, 15, 16, 16, 15],
+        '6' => [14, 1, 1, 15, 17, 17, 14],
+        '7' => [31, 16, 8, 4, 2, 2, 2],
+        '8' => [14, 17, 17, 14, 17, 17, 14],
+        '9' => [14, 17, 17, 30, 16, 16, 14],
+        '.' => [0, 0, 0, 0, 0, 6, 6],
+        'F' => [31, 1, 1, 15, 1, 1, 1],
+        'P' => [15, 17, 17, 15, 1, 1, 1],
+        'S' => [14, 17, 1, 14, 16, 17, 14],
+        'C' => [14, 17, 1, 1, 1, 17, 14],
+        'U' => [17, 17, 17, 17, 17, 17, 14],
+        'G' => [14, 17, 1, 29, 17, 17, 14],
+        'T' => [31, 4, 4, 4, 4, 4, 4],
+        'E' => [31, 1, 1, 15, 1, 1, 31],
+        _ => return None,
+    })
+}
 /// Positions in glyph cells, with character wrapping and explicit newlines.
 #[cfg(test)]
 pub fn layout(text: &str, columns: usize, rows: usize, wrap: bool) -> Vec<(usize, usize, char)> {
@@ -105,10 +137,23 @@ pub fn header() -> String {
             }
         }
     }
+    for (i, c) in DEBUG.chars().enumerate() {
+        let rows = debug_glyph(c).unwrap();
+        for (y, bits) in rows.iter().enumerate() {
+            for x in 0..5 {
+                if bits & (1 << x) != 0 {
+                    let px = DEBUG_U + i * 6 + x;
+                    let py = DEBUG_Y + y;
+                    words[py * 64 + px / 4] |= 1 << ((px % 4) * 4);
+                }
+            }
+        }
+    }
     // Palette in the first transparent space glyph, outside all drawn ink.
     words[1] = 0x7fff;
     format!(
-        "#pragma once\n#include <stdint.h>\nnamespace epok {{\nalignas(4) inline constexpr uint16_t hud_font_pixels[4096]={{{}}};\n}}\n",
+        "#pragma once\n#include <stdint.h>\nnamespace epok {{\ninline constexpr char debug_font_characters[]=\"{DEBUG}\";\ninline constexpr unsigned debug_font_u={DEBUG_U},debug_font_v={},debug_font_width=5,debug_font_height=7,debug_font_advance=6;\nalignas(4) inline constexpr uint16_t hud_font_pixels[4096]={{{}}};\n}}\n",
+        192 + DEBUG_Y,
         words
             .iter()
             .map(u16::to_string)

@@ -423,6 +423,7 @@ fn draw_inner(
             crate::gui::Drag::new("Field of view")
                 .range(25., 120.)
                 .build(ui, &mut entity.camera_fov);
+            ui.color_edit3("Sky color", &mut entity.camera_sky_color);
         }
         crate::collision_editor::inspector(ui, &mut entity);
         if entity.audio.is_none() && ui.small_button("Add Audio Source") {

@@ -73,7 +73,12 @@ constexpr size_t scratch_vertex_capacity = 1024 / sizeof(epok::ProjectedVertex);
 // access, and the classifier and the emitter re-read each one for every quad that
 // shares it. The 1 KiB scratchpad answers in a single cycle and a chunk's vertices
 // fit in it; larger chunks keep the RAM array. File scope avoids a static guard.
-__attribute__((section(".scratchpad"))) epok::ProjectedVertex scratch_vertices[scratch_vertex_capacity];
+union ProjectionScratch {
+  epok::ProjectedVertex full[scratch_vertex_capacity];
+  epok::CompactProjectedVertex compact[1024/sizeof(epok::CompactProjectedVertex)];
+  ProjectionScratch() {}
+};
+__attribute__((section(".scratchpad"))) ProjectionScratch projection_scratch;
 constexpr size_t capacity = epok::render_capacity;
 // If the entire archive fits, loaded pages cannot be evicted by another valid
 // page. Retain whole objects eagerly, like resident geometry, without testing
@@ -99,7 +104,7 @@ epok::MotionInterpolation<Fixed,epok::objects.size(),epok::motion_interpolation>
 psyqo::AdvancedPad pad;
 epok::PsyqoMemoryCardDriver card_driver;
 epok::CollisionWorld<Fixed,epok::objects.size()> collision_world;
-epok::SpriteRenderer<> sprites;
+epok::SpriteRenderer<epok::sprite_triangle_budget> sprites;
 epok::ParticlePool particles;
 epok::PaletteRenderer palettes;
 epok::HudRenderer hud;
@@ -111,33 +116,61 @@ epok::BlobRenderer blobs;
 epok::LightingRenderer<epok::objects.size()> lighting;
 // Retained GPU packets for static meshes, one record per scene quad.
 epok::RetainedGeometry<epok::objects.size(), epok::retained_geometry ? epok::retained_quad_capacity : 1> retained;
+std::array<epok::MeshMaterialCache,epok::objects.size()> mesh_material_cache;
 std::array<epok::StreamObjectBinding, epok::stream_archive_fits ? epok::objects.size() : 0> stream_bindings{};
 epok::DataHandle camera_override;
 
 // Degrees in the editor and scripts; fixed point throughout the PSX runtime.
-void rotate(Fixed *p, const Fixed *degrees) {
-  for (int axis = 0; axis < 3; ++axis) {
-    int32_t wrapped = degrees[axis].raw();
-    if (!wrapped)continue;
+bool rotation_terms(Fixed degrees,Fixed& sine,Fixed& cosine) {
+    int32_t wrapped = degrees.raw();
+    if (!wrapped)return false;
     // Angles rarely exceed a turn: subtract instead of a hardware division.
     constexpr int32_t turn = 360 * 4096;
     if (wrapped >= turn || wrapped <= -turn) wrapped %= turn;
     if (wrapped < 0)
       wrapped += turn;
-    if (!wrapped)continue;
+    if (!wrapped)return false;
     // wrapped / 720 exactly, via a rounded-up 32-bit reciprocal.
     psyqo::Angle angle(int32_t((uint64_t(uint32_t(wrapped)) * 5965233u) >> 32), psyqo::Angle::RAW);
-    auto s = trig.sin(angle), c = trig.cos(angle);
-    int a = (axis + 1) % 3, b = (axis + 2) % 3;
-    auto pa = p[a] * c - p[b] * s;
-    p[b] = p[a] * s + p[b] * c;
-    p[a] = pa;
-  }
+    sine=trig.sin(angle);cosine=trig.cos(angle);return true;
 }
 // Mesh vertices are projected by the GTE in Q8 camera units (see gte_geometry.hpp).
 using Units = epok::CameraQ8;
 using epok::ProjectedVertex;
 using epok::QuadPacket;
+#ifdef EPOK_VALIDATE_GTE
+// Cumulative failures: compact XY/depth/frustum, rigid/mesh triples, camera,
+// screen, reserved; followed by the last camera XYZ and flags/outcode.
+uint32_t gte_validation_diagnostic[12]={};
+#endif
+__attribute__((noinline,optimize("O3"))) bool project_compact_vertices(const int16_t (*vertices)[3],size_t count,
+    const int32_t* origin,epok::CompactProjectedVertex* out) {
+  size_t v=0;
+  for(;v+2<count;v+=3){
+    uint32_t screens[3];int32_t depths[3];
+    if(!epok::project_geometry_triple(vertices+v,origin,screens,depths))return false;
+    for(unsigned i=0;i<3;++i){out[v+i].screen.packed=screens[i];out[v+i].camera.value=uint16_t(depths[i]);}
+  }
+  for(;v<count;++v){
+    int32_t camera[3];uint32_t flags;
+    epok::project_geometry_vertex(vertices[v],origin,camera,out[v].screen.packed,flags);
+    if(flags&epok::gte_projection_flags)return false;
+    out[v].camera.value=uint16_t(camera[2]);
+  }
+#ifdef EPOK_VALIDATE_GTE
+  for(size_t i=0;i<count;++i){
+    ProjectedVertex reference{};uint32_t flags;
+    epok::project_geometry_vertex(vertices[i],origin,reference.camera,reference.screen.packed,flags);
+    const auto code=epok::frustum_outcode32<Units::near,Units::far>(reference.camera[0],reference.camera[1],reference.camera[2]);
+    if(reference.screen.packed!=out[i].screen.packed||reference.camera[2]!=out[i].camera[2]||code){
+      ++performance_work.gte_validation_errors;
+      ++gte_validation_diagnostic[reference.screen.packed!=out[i].screen.packed?0:reference.camera[2]!=out[i].camera[2]?1:2];
+      for(int c=0;c<3;++c)gte_validation_diagnostic[8+c]=uint32_t(reference.camera[c]);gte_validation_diagnostic[11]=code;
+    }
+  }
+#endif
+  return true;
+}
 #ifdef EPOK_PROFILE_DETAIL
 #define EPOK_DETAIL_BEGIN(name) const uint16_t name##_begin = COUNTERS[1].value
 #define EPOK_DETAIL_END(name, field) performance_work.field += uint16_t(COUNTERS[1].value - name##_begin)
@@ -205,7 +238,7 @@ struct PolygonEmitter {
   }
   // Three visible vertices within the hardware span limits, already checked for
   // degeneracy and facing. Colors are final packet values, UVs are u | v << 8.
-  inline void direct(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c,
+  template<class Vertex> inline void direct(const Vertex& a, const Vertex& b, const Vertex& c,
                      uint32_t ca, uint32_t cb, uint32_t cc, uint32_t uva, uint32_t uvb, uint32_t uvc,
                      const QuadPacket& q) {
     const int depth = Units::bucket(a.camera[2], b.camera[2], c.camera[2]) + q.depth_bias;
@@ -227,7 +260,7 @@ struct PolygonEmitter {
     table->insert(f, depth);
   }
   // Retained slot: screen words every frame, colour words only when they changed.
-  inline void retained_emit(uint32_t slot, const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c,
+  template<class Vertex> inline void retained_emit(uint32_t slot, const Vertex& a, const Vertex& b, const Vertex& c,
                             const epok::RetainedQuad& rec, const uint32_t* colors, int corner_a, int ib, int ic) {
     const int depth = Units::bucket(a.camera[2], b.camera[2], c.camera[2]) + rec.depth_bias;
     if (depth < 0 || depth >= buckets) return;
@@ -246,9 +279,90 @@ struct PolygonEmitter {
     if (colors) { w[0] = 0x30000000u | colors[corner_a]; w[2] = colors[ib]; w[4] = colors[ic]; }
     table->insert(f, depth);
   }
+  // Keep the common interior/no-fog loop out of the large general renderer.
+  // Besides removing repeated clip tests, this bounds register pressure and
+  // instruction-cache traffic on the R3000A. Packet colours/UVs stay retained.
+  __attribute__((noinline)) void restore_retained_colors(epok::RetainedQuad& rec,uint32_t slot,uint8_t parity_bit) {
+    static constexpr int corners[2][3]={{0,1,2},{0,2,3}};
+    for(int t=0;t<2;++t){
+      if(rec.textured){
+        auto* w=reinterpret_cast<uint32_t*>(&textured[slot+t].primitive);
+        w[0]=rec.command|epok::modulate_color(rec.shaded[corners[t][0]]);
+        w[3]=epok::modulate_color(rec.shaded[corners[t][1]]);w[6]=epok::modulate_color(rec.shaded[corners[t][2]]);
+      }else{
+        auto* w=reinterpret_cast<uint32_t*>(&gouraud[slot+t].primitive);
+        w[0]=0x30000000u|rec.shaded[corners[t][0]];w[2]=rec.shaded[corners[t][1]];w[4]=rec.shaded[corners[t][2]];
+      }
+    }
+    rec.fogged&=uint8_t(~parity_bit);
+  }
+  template<class Vertex> __attribute__((noinline,optimize("O3"))) void retained_interior(const epok::MeshQuad* quads,
+      epok::RetainedQuad* records,size_t count,uint32_t slot_base,
+      const Vertex* vertices,uint8_t parity_bit) {
+    uint32_t drawn=0,rejected=0;
+    for(size_t q=0;q<count;++q){
+      auto& rec=records[q];const auto* indices=quads[q].indices;
+      if(rec.fogged&parity_bit)restore_retained_colors(rec,slot_base+uint32_t(q)*2,parity_bit);
+      auto triangle=[&](uint16_t ia,uint16_t ib,uint16_t ic,uint32_t slot){
+        if(ia==ib||ib==ic||ia==ic)return;
+        const auto& a=vertices[ia];const auto& b=vertices[ib];const auto& c=vertices[ic];
+        const int32_t area=epok::screen_area(a,b,c);
+        if(!area)return;
+        if(editable&&area<0){++rejected;return;}
+        const int depth=Units::bucket(a.camera[2],b.camera[2],c.camera[2])+rec.depth_bias;
+        if(depth<0||depth>=buckets)return;
+        if(rec.textured){
+          auto& f=textured[slot];auto* w=reinterpret_cast<uint32_t*>(&f.primitive);
+          w[1]=a.screen.packed;w[4]=b.screen.packed;w[7]=c.screen.packed;
+          table->insert(f,depth);
+        }else{
+          auto& f=gouraud[slot];auto* w=reinterpret_cast<uint32_t*>(&f.primitive);
+          w[1]=a.screen.packed;w[3]=b.screen.packed;w[5]=c.screen.packed;
+          table->insert(f,depth);
+        }
+        ++drawn;
+      };
+      triangle(indices[0],indices[1],indices[2],slot_base+uint32_t(q)*2);
+      triangle(indices[0],indices[2],indices[3],slot_base+uint32_t(q)*2+1);
+    }
+    emitted+=drawn;retained_emitted+=drawn;epok::mesh_stats.backfaces+=rejected;
+  }
+  // Boundary chunks still contain mostly ordinary, unclipped triangles. Keep
+  // that loop compact as well; resolve UVs/materials only for an actual clip.
+  __attribute__((noinline,optimize("O3"))) void retained_boundary(const epok::MeshQuad* quads,
+      epok::RetainedQuad* records,size_t count,uint32_t slot_base,
+      const ProjectedVertex* vertices,uint8_t parity_bit,const epok::Material& fallback) {
+    MaterialState material;
+    for(size_t q=0;q<count;++q){
+      auto& rec=records[q];if(rec.dynamic)continue;
+      const auto& quad=quads[q];const auto* ix=quad.indices;
+      const auto& a=vertices[ix[0]];const auto& b=vertices[ix[1]];
+      const auto& c=vertices[ix[2]];const auto& d=vertices[ix[3]];
+      if(a.outcode&b.outcode&c.outcode&d.outcode)continue;
+      const int first=(ix[0]==ix[1]||ix[1]==ix[2]||ix[0]==ix[2])?0:classify(a,b,c);
+      const int second=(ix[0]==ix[2]||ix[2]==ix[3]||ix[0]==ix[3])?0:classify(a,c,d);
+      if(!first&&!second)continue;
+      const uint32_t slot=slot_base+uint32_t(q)*2;
+      if(rec.fogged&parity_bit)restore_retained_colors(rec,slot,parity_bit);
+      if(first!=2&&second!=2){
+        if(first)retained_emit(slot,a,b,c,rec,nullptr,0,1,2);
+        if(second)retained_emit(slot+1,a,c,d,rec,nullptr,0,2,3);
+        continue;
+      }
+      material.update(editable?quad.material:fallback);
+      QuadPacket packet;packet.textured=rec.textured;packet.command=rec.command;
+      packet.clut16=material.clut16;packet.tpage16=material.tpage16;packet.depth_bias=rec.depth_bias;
+      uint32_t uv[4]={};
+      if(rec.textured)for(int v=0;v<4;++v)uv[v]=quad.packed_uv?quad.uvw[v]:material.uv(quad.uv[v][0],quad.uv[v][1]);
+      if(first==1)retained_emit(slot,a,b,c,rec,nullptr,0,1,2);
+      else if(first==2)clipped(a,b,c,rec.shaded[0],rec.shaded[1],rec.shaded[2],uv[0],uv[1],uv[2],packet);
+      if(second==1)retained_emit(slot+1,a,c,d,rec,nullptr,0,2,3);
+      else if(second==2)clipped(a,c,d,rec.shaded[0],rec.shaded[2],rec.shaded[3],uv[0],uv[2],uv[3],packet);
+    }
+  }
   // Software clipping stays out of line so the per-quad loop remains compact.
   // Colors here are the fogged 0..255 values; modulation happens after clipping.
-  __attribute__((noinline)) void clipped(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c,
+  __attribute__((noinline,optimize("O3"))) void clipped(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c,
                                          uint32_t ca, uint32_t cb, uint32_t cc, uint32_t uva, uint32_t uvb, uint32_t uvc,
                                          const QuadPacket& q) {
     const uint8_t planes = a.outcode | b.outcode | c.outcode;
@@ -303,38 +417,27 @@ struct PolygonEmitter {
 Matrix local_matrix(const epok::Transform &transform) {
   ++performance_work.local_matrices;
   Matrix out;
-  for (int c = 0; c < 3; ++c) {
-    Fixed axis[3] = {};
-    axis[c] = transform.scale[c];
-    rotate(axis, transform.rotation);
-    for (int r = 0; r < 3; ++r)
-      out.values[r][c] = axis[r];
+  for(int c=0;c<3;++c)out.values[c][c]=transform.scale[c];
+  for(int axis=0;axis<3;++axis){
+    Fixed sine,cosine;
+    if(rotation_terms(transform.rotation[axis],sine,cosine))out.rotate_rows(axis,sine,cosine);
   }
   for (int r = 0; r < 3; ++r)
     out.values[r][3] = transform.position[r];
   return out;
 }
 Matrix inverse_local(const epok::Transform &transform) {
-  Matrix out;
-  for (int c = 0; c < 4; ++c) {
-    Fixed p[3] = {};
-    if (c < 3)
-      p[c] = 1.0;
-    else
-      for (int r = 0; r < 3; ++r)
-        p[r] = -transform.position[r];
-    for (int axis = 2; axis >= 0; --axis) {
-      Fixed inverse[3] = {};
-      inverse[axis] = -transform.rotation[axis];
-      rotate(p, inverse);
-    }
-    for (int r = 0; r < 3; ++r) {
-      // Editor validates positive scale. Avoid division by zero if a script
-      // sets zero.
-      out.values[r][c] = transform.scale[r].raw() == 0
-                             ? Fixed(0, Fixed::RAW)
-                             : p[r] / transform.scale[r];
-    }
+  Matrix out=Matrix::identity();
+  for(int r=0;r<3;++r)out.values[r][3]=-transform.position[r];
+  for(int axis=2;axis>=0;--axis){
+    Fixed sine,cosine;
+    if(rotation_terms(-transform.rotation[axis],sine,cosine))out.rotate_rows(axis,sine,cosine,4);
+  }
+  for(int r=0;r<3;++r){
+    // Unit scale is exact and avoids twelve software 64-bit divisions for a
+    // normal camera. Preserve the existing zero-scale fallback for scripts.
+    if(transform.scale[r]==Fixed(1.0))continue;
+    for(int c=0;c<4;++c)out.values[r][c]=transform.scale[r].raw()==0?Fixed(0,Fixed::RAW):out.values[r][c]/transform.scale[r];
   }
   return out;
 }
@@ -368,13 +471,50 @@ void refresh_world() {
   transform_cache.sync(epok::objects,world,epok::object_count,local_matrix);
   performance_work.world_matrices+=transform_cache.world_rebuilds;
 }
-void refresh_collisions() {
+void refresh_world_for(size_t index) {
+  ScanlineScope timer{performance_work.world_scanlines};++performance_work.world_syncs;
+  bool selected[epok::objects.size()]={};int current=int(index);unsigned depth=0;
+  while(current>=0&&size_t(current)<epok::object_count&&depth++<33){
+    if(selected[current])break;selected[current]=true;current=epok::objects[size_t(current)].parent;
+  }
+  transform_cache.sync(epok::objects,world,epok::object_count,local_matrix,selected);
+  performance_work.world_matrices+=transform_cache.world_rebuilds;
+}
+__attribute__((noinline,optimize("O3"))) void refresh_collisions() {
   ScanlineScope timer{performance_work.collision_scanlines};
-  refresh_world();collision_world.begin_sync();
+  // Scripts can write transforms directly. Still inspect every active collider
+  // and all its parents, but do not inspect nine scalars of unrelated render,
+  // audio, camera, VFX or reserved slots at every physics query.
+  bool selected[epok::objects.size()]={};
+  uint16_t colliders[epok::objects.size()];size_t collider_count=0;bool roots_only=true;
   for(size_t index=0;index<epok::object_count;++index) {
     const auto& object=epok::objects[index];
-    if(object.collider.enabled&&epok::is_active_slot(index))
-      performance_work.collider_bounds+=collision_world.set_cached(index,object.collider,world[index],transform_cache.revision(index),true,object.generation);
+    if(!object.collider.enabled||!epok::is_active_slot(index))continue;
+    colliders[collider_count++]=uint16_t(index);roots_only&=object.parent<0;
+  }
+  if(!roots_only)for(size_t n=0;n<collider_count;++n){
+    const size_t index=colliders[n];
+    int ancestor=int(index);unsigned depth=0;
+    while(ancestor>=0&&size_t(ancestor)<epok::object_count&&depth++<33){
+      if(selected[ancestor])break;
+      selected[ancestor]=true;ancestor=epok::objects[ancestor].parent;
+    }
+  }
+  {
+    ScanlineScope world_timer{performance_work.world_scanlines};
+    ++performance_work.world_syncs;
+    if(roots_only){
+      transform_cache.local_rebuilds=transform_cache.world_rebuilds=0;
+      for(size_t n=0;n<collider_count;++n){const size_t index=colliders[n];
+        transform_cache.sync_root(epok::objects[index],world[index],index,local_matrix);}
+    }else transform_cache.sync(epok::objects,world,epok::object_count,local_matrix,selected);
+    performance_work.world_matrices+=transform_cache.world_rebuilds;
+  }
+  collision_world.begin_sync();
+  for(size_t n=0;n<collider_count;++n) {
+    const size_t index=colliders[n];
+    const auto& object=epok::objects[index];
+    performance_work.collider_bounds+=collision_world.set_cached(index,object.collider,world[index],transform_cache.revision(index),true,object.generation);
   }
 }
 void dispatch_trigger(const epok::TriggerEvent& event) {
@@ -388,6 +528,7 @@ class GameScene final : public psyqo::Scene {
     // before the first bank load, so no component-owned AudioSource can be recycled
     // while the XA consumer still points at it.
     epok::install_actor_service_hooks();
+    epok::nav::move_actor=&epok::move_and_slide;
 #if defined(EPOK_LUA_MODE) && EPOK_LUA_MODE != 0
     // The VM opens its arena, loads every class chunk and caches the method
     // functions before any script can be constructed.
@@ -505,6 +646,7 @@ void GameScene::frame() {
     return (o.mesh||o.sprite.enabled||o.camera||o.camera_settings.enabled||o.light.enabled||o.blob_shadow.enabled)&&epok::is_active_slot(i);
   });
   bool advanced_motion=false;
+  if(!epok::time.paused()&&!epok::scene_loading())epok::nav::world.tick();
   for(unsigned step=0;step<steps&&!epok::time.paused()&&!epok::scene_loading();++step) {
     motion.before_tick(epok::objects,epok::object_count);advanced_motion=true;
     epok::time.begin_tick();epok::input.begin_tick();
@@ -522,9 +664,14 @@ void GameScene::frame() {
       epok::bp::observe_playback();
   #endif
     epok::level.tick(dt);
-    refresh_collisions();collision_world.update_triggers(dispatch_trigger);
+    bool needs_triggers=collision_world.has_trigger_pairs();
+    for(size_t i=0;i<epok::object_count&&!needs_triggers;++i)
+      needs_triggers=epok::objects[i].collider.enabled&&epok::objects[i].collider.trigger&&epok::is_active_slot(i);
+    if(needs_triggers){refresh_collisions();collision_world.update_triggers(dispatch_trigger);}
     bool has_emitters=false;
-    for(size_t i=0;i<epok::object_count;++i)if(epok::is_active_slot(i)) {
+    for(size_t i=0;i<epok::object_count;++i)if(
+        (epok::objects[i].particle_emitter.enabled||epok::objects[i].animator.enabled||
+         epok::objects[i].sprite_animator.enabled||epok::objects[i].palette_animator.enabled)&&epok::is_active_slot(i)) {
       has_emitters|=epok::objects[i].particle_emitter.enabled;
       epok::objects[i].animator.advance();
       epok::objects[i].sprite_animator.advance(dt,epok::objects[i].sprite);
@@ -574,7 +721,12 @@ void GameScene::frame() {
       uint16_t(COUNTERS[1].value - lights_begin);
   int parity = gpu().getParity();
   auto &table = ordering[parity];
-  clear.draw(gpu(),psyqo::Color{{.r = 33, .g = 40, .b = 52}});
+  const auto* clear_camera=camera_entity();
+  const auto* sky_color=clear_camera?clear_camera->camera_settings.sky_color:nullptr;
+  const uint8_t sky_r=sky_color?sky_color[0]:33;
+  const uint8_t sky_g=sky_color?sky_color[1]:40;
+  const uint8_t sky_b=sky_color?sky_color[2]:52;
+  clear.draw(gpu(),psyqo::Color{{.r = sky_r, .g = sky_g, .b = sky_b}});
   Matrix view = camera_view(true);
   EPOK_DETAIL_END(camera, camera_scanlines);
   static constexpr int16_t vertices[8][3] = {
@@ -585,7 +737,11 @@ void GameScene::frame() {
       {{0, 1, 2, 3}, 0}, {{5, 4, 7, 6}, 1}, {{4, 0, 3, 7}, 2},
       {{1, 5, 6, 2}, 3}, {{3, 2, 6, 7}, 4}, {{4, 5, 1, 0}, 5}};
   static constexpr epok::MeshGeometry default_cube = {vertices, 8, faces, 6};
-  ProjectedVertex projected_vertices_ram[512];
+  union ProjectionRam {
+    ProjectedVertex full[512];epok::CompactProjectedVertex compact[512];
+    ProjectionRam() {}
+  } projection_ram;
+  auto* projected_vertices_ram=projection_ram.full;
   const uint16_t render_begin=COUNTERS[1].value;
   performance_work.prepare_scanlines=uint16_t(render_begin-prepare_begin);
   epok::mesh_stats = {};
@@ -632,8 +788,9 @@ void GameScene::frame() {
     auto object_view=view.compose(render_world[index]);
     for(int r=0;r<2;++r)for(int c=0;c<4;++c)object_view.values[r][c]*=row_scale[r];
     MaterialState material_state;
-    const bool object_lit = !object.material.unlit && object.lighting.enabled;
     const epok::MeshGeometry* const geometry_root = skeletal ? object.animator.model->geometry : (object.geometry ? object.geometry : &default_cube);
+    const bool object_lit = !object.material.unlit && object.lighting.enabled &&
+        !(skeletal && mesh_material_cache[index].faces_unlit(geometry_root));
     if constexpr (epok::stream_archive_fits) if (!skeletal &&
         !epok::streaming_bind_object(geometry_root, stream_bindings[index], gpu())) {
       // Binding is atomic at object granularity: never draw a partial chain.
@@ -643,12 +800,14 @@ void GameScene::frame() {
       }
       continue;
     }
-    // Retained packets: static geometry whose packet words survive across frames.
+    // Unlit animated meshes also have immutable UV/material packet words.
+    // Only projected coordinates change with a pose. Lit/baked-colour skins
+    // stay on the dynamic path because their corner colours may change.
     bool object_retained = false, retained_checked = false, object_any_dynamic = false, stream_metadata_validated = false;
     epok::RetainedQuad* object_records = nullptr;
     uint32_t object_first_slot = 0, quad_base = 0;
     if constexpr (epok::retained_geometry) {
-      if (!skeletal) {
+      if (epok::retain_mesh_packets(skeletal,object_lit,use_bake)) {
         const auto& state = retained.state(index);
         bool allocated = state.allocated && state.geometry == geometry_root;
         if (!allocated) {
@@ -921,7 +1080,7 @@ void GameScene::frame() {
         if(frame_decoded)performance_work.skeletal_decoded_vertices+=mesh.vertex_count;
         baked_vertices_ready=true;
       }
-      if(cpu_rigid&&!skeletal_pose_ready){const uint16_t begin=COUNTERS[1].value;epok::skeletal_detail::scratch.pose(*object.animator.model,object.animator);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);performance_work.skeletal_bone_matrices+=object.animator.model->bone_count;performance_work.skeletal_cpu_vertices+=mesh.vertex_count;skeletal_pose_ready=true;}
+      if(cpu_rigid&&!skeletal_pose_ready){const uint16_t begin=COUNTERS[1].value;epok::skeletal_detail::scratch.pose(*object.animator.model,object.animator,object.aim_bone,object.aim_stop_bones,object.aim_pitch);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);performance_work.skeletal_bone_matrices+=object.animator.model->bone_count;performance_work.skeletal_cpu_vertices+=mesh.vertex_count;skeletal_pose_ready=true;}
       const auto* mesh_vertices = (baked_vertices||cpu_rigid)?epok::skeletal_detail::scratch.geometry.vertices:mesh_view.vertices;
       const auto* mesh_quads = mesh_view.quads;
       if constexpr (epok::stream_page_count > 0) {
@@ -946,7 +1105,10 @@ void GameScene::frame() {
           }
         }
       }
-      if (!use_bake && !shaded) {
+      // Editable unlit faces do not consume the GTE light registers or the cube
+      // face colours. Do not select lights and build matrices just to discard
+      // them (especially for imported unlit characters with a default actor tint).
+      if (!use_bake && !shaded && (object_lit || !mesh.editable)) {
         const uint16_t begin = COUNTERS[1].value;
         face_colors =
             lighting.shade(index, epok::objects, render_world, mesh.editable);
@@ -962,7 +1124,7 @@ void GameScene::frame() {
         key.baked = object.baked_colors; key.baked_count = object.baked_color_count;
         key.generation = object.generation;
         key.light_signature = (object_lit && !use_bake) ? lighting.signature : 0;
-        for (int r = 0; r < 3; ++r) for (int c = 0; c < 3; ++c) key.basis[r * 3 + c] = world[index].values[r][c].raw();
+        for (int r = 0; r < 3; ++r) for (int c = 0; c < 3; ++c) key.basis[r * 3 + c] = skeletal ? 0 : world[index].values[r][c].raw();
         for (int c = 0; c < 3; ++c) key.color[c] = object.material.color[c];
         key.unlit = object.material.unlit; key.texture = object.material.texture; key.blend = object.material.blend;
         key.depth_bias = object.material.depth_bias; key.uv_scroll[0] = object.material.uv_scroll[0]; key.uv_scroll[1] = object.material.uv_scroll[1];
@@ -997,7 +1159,7 @@ void GameScene::frame() {
       EPOK_DETAIL_END(setup, setup_scanlines);
       const uint16_t vertex_begin=COUNTERS[1].value;
       ProjectedVertex* const projected_vertices =
-          mesh.vertex_count <= scratch_vertex_capacity ? scratch_vertices : projected_vertices_ram;
+          mesh.vertex_count <= scratch_vertex_capacity ? projection_scratch.full : projected_vertices_ram;
       auto finish_projection=[&](ProjectedVertex& out,uint32_t flags){
         const int32_t z = out.camera[2];
         out.outcode = epok::frustum_outcode32<Units::near, Units::far>(out.camera[0], out.camera[1], z);
@@ -1007,24 +1169,74 @@ void GameScene::frame() {
           epok::project_cpu<Units, epok::display_width, epok::display_height>(out);
       };
       bool gte_geometry=true;
+      bool skeletal_triples=skeletal && fully_inside_chunk && epok::display_width<=1023 && epok::display_height<=511;
+      if(skeletal_triples&&object_retained)skeletal_triples=!object_any_dynamic;
+      else if(skeletal_triples)for(size_t q=0;q<mesh.quad_count;++q)
+        if((mesh.editable?mesh_quads[q].material:object.material).uv_scroll[0]||(mesh.editable?mesh_quads[q].material:object.material).uv_scroll[1]){skeletal_triples=false;break;}
+      const bool compact_eligible=fully_inside_chunk&&object_retained&&!object_any_dynamic&&!fog_enabled&&
+          epok::display_width<=1023&&epok::display_height<=511;
+      auto* compact=mesh.vertex_count<=128?projection_scratch.compact:projection_ram.compact;
+      auto draw_compact=[&](){
+        performance_work.gte_vertices+=mesh.vertex_count;epok::mesh_stats.transformed_vertices+=mesh.vertex_count;
+        performance_work.vertex_scanlines+=uint16_t(COUNTERS[1].value-vertex_begin);
+        epok::debug_hud::geometry(vertex_begin,true);
+        const uint16_t begin=COUNTERS[1].value;emitter.editable=mesh.editable;
+        emitter.retained_interior(mesh_quads,object_records+chunk_quad_base,mesh.quad_count,
+            object_first_slot+chunk_quad_base*2,compact,uint8_t(1u<<parity));
+        performance_work.polygon_scanlines+=uint16_t(COUNTERS[1].value-begin);
+      };
       if(rigid_gte){
-        if(!skeletal_pose_ready){const uint16_t begin=COUNTERS[1].value;epok::skeletal_detail::scratch.pose_bones(*object.animator.model,object.animator);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);performance_work.skeletal_bone_matrices+=object.animator.model->bone_count;skeletal_pose_ready=true;}
+        if(!skeletal_pose_ready){const uint16_t begin=COUNTERS[1].value;epok::skeletal_detail::scratch.pose_bones(*object.animator.model,object.animator,object.aim_bone,object.aim_stop_bones,object.aim_pitch);performance_work.skeletal_scanlines+=uint16_t(COUNTERS[1].value-begin);performance_work.skeletal_bone_matrices+=object.animator.model->bone_count;skeletal_pose_ready=true;}
         const int32_t origin8[3]={0,0,0};
+        if(compact_eligible){
+          bool valid=true;
+          for(size_t bone=0;bone<object.animator.model->bone_count;++bone){
+            const size_t first=object.animator.model->bone_vertices[bone],last=object.animator.model->bone_vertices[bone+1];
+            if(first==last)continue;
+            const auto bone_view=object_view.compose(epok::skeletal_detail::scratch.bones[bone]);
+            if(!epok::load_projection_matrix(bone_view)||!project_compact_vertices(mesh_vertices+first,last-first,origin8,compact+first)){valid=false;break;}
+          }
+          object_matrix_loaded=false;
+          if(valid){draw_compact();continue;}
+        }
         size_t gte_count=0,software_count=0;
+        // Interior non-scrolling faces consume screen/depth only. Boundary,
+        // overflow and UV-scroll paths retain full camera coordinates.
         for(size_t bone=0;bone<object.animator.model->bone_count;++bone){
           const size_t first=object.animator.model->bone_vertices[bone];
           const size_t last=object.animator.model->bone_vertices[bone+1];
           if(first==last)continue;
           Matrix bone_view=object_view.compose(epok::skeletal_detail::scratch.bones[bone]);
           const bool bone_gte=epok::load_projection_matrix(bone_view);
-          for(size_t v=first;v<last;++v){
+          size_t v=first;
+          if(bone_gte && skeletal_triples)for(;v+2<last;v+=3){
+            uint32_t screens[3];int32_t depths[3];
+            if(epok::project_geometry_triple(mesh_vertices+v,origin8,screens,depths)){
+              for(unsigned i=0;i<3;++i){
+                auto& out=projected_vertices[v+i];
+                out.camera[0]=out.camera[1]=0;out.camera[2]=depths[i];out.screen.packed=screens[i];
+                out.outcode=0;out.visible=true;out.fog=fog_enabled?epok::fog_amount(depths[i],fog_start,fog_end):0;
+#ifdef EPOK_VALIDATE_GTE
+                ProjectedVertex reference{};uint32_t flags;
+                epok::project_geometry_vertex(mesh_vertices[v+i],origin8,reference.camera,reference.screen.packed,flags);
+                finish_projection(reference,flags);
+                if(reference.screen.packed!=out.screen.packed||reference.camera[2]!=out.camera[2]||reference.outcode||!reference.visible||reference.fog!=out.fog)
+                  {++performance_work.gte_validation_errors;++gte_validation_diagnostic[3];}
+#endif
+              }
+            }else for(unsigned i=0;i<3;++i){
+              auto& out=projected_vertices[v+i];uint32_t flags;
+              epok::project_geometry_vertex(mesh_vertices[v+i],origin8,out.camera,out.screen.packed,flags);finish_projection(out,flags);
+            }
+          }
+          for(;v<last;++v){
             auto& out=projected_vertices[v];uint32_t flags=epok::gte_projection_flags;
             if(bone_gte)epok::project_geometry_vertex(mesh_vertices[v],origin8,out.camera,out.screen.packed,flags);
             else{Fixed local[3],p[3];for(int c=0;c<3;++c)local[c]=Fixed(mesh_vertices[v][c],Fixed::RAW);bone_view.point(local,p);for(int c=0;c<3;++c)out.camera[c]=p[c].raw()>>4;}
 #ifdef EPOK_VALIDATE_GTE
             if(bone_gte){
               Fixed local[3],p[3];for(int c=0;c<3;++c)local[c]=Fixed(mesh_vertices[v][c],Fixed::RAW);bone_view.point(local,p);
-              for(int c=0;c<3;++c){const int64_t difference=int64_t(out.camera[c])*16-p[c].raw();const uint32_t delta=uint32_t(difference<0?-difference:difference);if(delta>performance_work.gte_max_delta)performance_work.gte_max_delta=delta;if(delta>128)++performance_work.gte_validation_errors;}
+              for(int c=0;c<3;++c){const int64_t difference=int64_t(out.camera[c])*16-p[c].raw();const uint32_t delta=uint32_t(difference<0?-difference:difference);if(delta>performance_work.gte_max_delta)performance_work.gte_max_delta=delta;if(delta>128){++performance_work.gte_validation_errors;++gte_validation_diagnostic[5];}}
             }
 #endif
             finish_projection(out,flags);
@@ -1058,8 +1270,11 @@ void GameScene::frame() {
           gte_geometry = epok::load_projection_matrix(model_view);
           object_matrix_loaded = false;
         }
+        if(gte_geometry&&compact_eligible&&project_compact_vertices(mesh_vertices,mesh.vertex_count,origin8,compact)){
+          draw_compact();continue;
+        }
         size_t v = 0;
-        if (gte_geometry && fully_inside_chunk && object_retained && !object_any_dynamic) {
+        if (gte_geometry && fully_inside_chunk && ((object_retained && !object_any_dynamic) || skeletal_triples)) {
           for (; v + 2 < mesh.vertex_count; v += 3) {
             uint32_t screens[3];int32_t depths[3];
             if (epok::project_geometry_triple(mesh_vertices+v,origin8,screens,depths)) {
@@ -1073,7 +1288,7 @@ void GameScene::frame() {
                 finish_projection(reference,flags);
                 if(reference.screen.packed!=out.screen.packed || reference.camera[2]!=out.camera[2] ||
                    reference.outcode || !reference.visible || reference.fog!=out.fog)
-                  ++performance_work.gte_validation_errors;
+                  {++performance_work.gte_validation_errors;++gte_validation_diagnostic[4];}
 #endif
               }
             } else {
@@ -1105,7 +1320,7 @@ void GameScene::frame() {
             const int64_t difference=int64_t(out.camera[c])*16-p[c].raw();
             const uint32_t delta=uint32_t(difference<0?-difference:difference);
             if(delta>performance_work.gte_max_delta)performance_work.gte_max_delta=delta;
-            if(delta>128)++performance_work.gte_validation_errors;
+            if(delta>128){++performance_work.gte_validation_errors;++gte_validation_diagnostic[5];}
           }
           if (!(flags & epok::gte_projection_flags) && out.camera[2] >= Units::near && out.camera[2] < Units::far) {
             // The GTE's Newton-Raphson reciprocal carries about 16 bits, so its
@@ -1116,7 +1331,15 @@ void GameScene::frame() {
             const int dx = reference.screen.x - out.screen.x, dy = reference.screen.y - out.screen.y;
             const uint32_t delta = uint32_t((dx < 0 ? -dx : dx) > (dy < 0 ? -dy : dy) ? (dx < 0 ? -dx : dx) : (dy < 0 ? -dy : dy));
             if (delta > performance_work.gte_screen_max_delta) performance_work.gte_screen_max_delta = delta;
-            if (delta > 2 || !reference.visible) ++performance_work.gte_validation_errors;
+            // The CPU fallback's conservative guard band excludes -1024;
+            // the GTE can produce -1024 without a saturation flag. For these
+            // already depth-valid, flag-free points, compare coordinates, not
+            // the fallback's guard-band policy. Frustum/triangle clipping is
+            // still performed by the normal renderer below.
+            if (delta > 2) {
+              ++performance_work.gte_validation_errors;++gte_validation_diagnostic[6];
+              for(int c=0;c<3;++c)gte_validation_diagnostic[8+c]=uint32_t(out.camera[c]);gte_validation_diagnostic[11]=flags;
+            }
           }
           }
 #endif
@@ -1129,7 +1352,13 @@ void GameScene::frame() {
       epok::debug_hud::geometry(vertex_begin, gte_geometry);
       const uint16_t polygon_begin=COUNTERS[1].value;
       emitter.editable = mesh.editable;
-      if (object_retained) {
+      if (object_retained && fully_inside_chunk && !object_any_dynamic && !fog_enabled && epok::display_width<=1023 && epok::display_height<=511) {
+        emitter.retained_interior(mesh_quads,object_records+chunk_quad_base,mesh.quad_count,
+            object_first_slot+chunk_quad_base*2,projected_vertices,uint8_t(1u<<parity));
+      } else if (object_retained && !fog_enabled) {
+        emitter.retained_boundary(mesh_quads,object_records+chunk_quad_base,mesh.quad_count,
+            object_first_slot+chunk_quad_base*2,projected_vertices,uint8_t(1u<<parity),object.material);
+      } else if (object_retained) {
         epok::RetainedQuad* records = object_records + chunk_quad_base;
         const uint32_t slot_base = object_first_slot + chunk_quad_base * 2;
         const uint8_t parity_bit = uint8_t(1u << parity);
@@ -1398,6 +1627,7 @@ void reset_runtime_services() {
   epok::streaming_scene_changed();
   transform_cache.clear();
   retained.reset();
+  for(auto& cache:mesh_material_cache)cache={};
   if constexpr (epok::stream_archive_fits) for (auto &binding : stream_bindings) binding = {};
   hud.invalidate();
   palettes.clear();
@@ -1428,6 +1658,10 @@ void remove_effect_particles(EffectLayerHandle owner){particles.remove_layer(own
 SpatialHit raycast(const Fixed* origin,const Fixed* displacement,uint32_t mask,const ActorData* ignore,bool triggers) {
   refresh_collisions();return collision_world.raycast(origin,displacement,mask,entity_index(ignore),triggers);
 }
+void raycast_batch(const RaycastQuery* queries,SpatialHit* results,size_t count,uint32_t mask,const ActorData* ignore,bool triggers) {
+  if(!queries||!results||!count)return;
+  refresh_collisions();collision_world.raycast_batch(queries,results,count,mask,entity_index(ignore),triggers);
+}
 size_t overlap(const Aabb& box,DataHandle* output,size_t capacity,uint32_t mask,const ActorData* ignore,bool triggers) {
   refresh_collisions();uint16_t indices[objects.size()];
   size_t count=collision_world.overlap(box,indices,objects.size(),mask,entity_index(ignore),triggers);
@@ -1440,8 +1674,9 @@ bool collider_aabb(const ActorData& entity,Aabb& output) {
   output=*box;return true;
 }
 bool skeletal_world_point(const ActorData& entity,const Fixed* model,Fixed* output) {
-  refresh_world();const int index=entity_index(&entity);
+  const int index=entity_index(&entity);
   if(index<0||size_t(index)>=object_count||!model||!output)return false;
+  refresh_world_for(size_t(index));
   world[size_t(index)].point(model,output);return true;
 }
 WorldAffineSample gameplay_world_affine(const ActorData* entity) {
@@ -1460,6 +1695,10 @@ MoveResult move_and_slide(ActorData& entity,const Fixed* displacement,uint32_t m
   auto box=index<0?nullptr:collision_world.bounds(size_t(index));
   if(!box) { MoveResult result;result.unresolved_overlap=true;return result; }
   auto result=collision_world.move_and_slide(*box,displacement,mask&entity.collider.mask,index);
+  if(entity.parent<0){
+    for(int r=0;r<3;++r)entity.transform.position[r]+=result.displacement[r];
+    return result;
+  }
   // A world displacement is a vector: transform only the inverse parent basis.
   Matrix inverse=Matrix::identity();int parent=entity.parent;unsigned depth=0;
   while(parent>=0&&size_t(parent)<object_count&&depth++<32) {

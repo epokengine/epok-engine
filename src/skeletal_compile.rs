@@ -173,18 +173,25 @@ struct RigidOrder {
 
 /// The GTE path changes its matrix once per contiguous bone range. Reorder the
 /// generated target vertices without changing the portable asset identity.
+/// UVs belong to polygon corners, so identical bone/position pairs can share
+/// one transform even when FBX split them at normal or UV seams.
 fn rigid_order(m: &Model) -> RigidOrder {
     let mut order = (0..m.mesh.vertices.len()).collect::<Vec<_>>();
     order.sort_by_key(|&i| (m.mesh.vertices[i].bone, i));
     let mut remap = vec![0_u16; order.len()];
-    let vertices = order
-        .iter()
-        .enumerate()
-        .map(|(new, &old)| {
-            remap[old] = new as u16;
-            m.mesh.vertices[old].clone()
-        })
-        .collect::<Vec<_>>();
+    let mut vertices = Vec::new();
+    let mut unique = std::collections::BTreeMap::new();
+    for old in order {
+        let vertex = &m.mesh.vertices[old];
+        let cooked = *unique
+            .entry((vertex.bone, vertex.position))
+            .or_insert_with(|| {
+                let index = vertices.len() as u16;
+                vertices.push(vertex.clone());
+                index
+            });
+        remap[old] = cooked;
+    }
     let triangles = m
         .mesh
         .triangles
@@ -340,7 +347,7 @@ pub const MESH_QUAD_BYTES: usize = 72;
 /// three `int32_t[3]` boxes, two pointers, `stream_page` and two `uint16_t`.
 pub const MESH_GEOMETRY_BYTES: usize = 72;
 /// `SkeletalMesh` — eight words plus the `SkeletalStorage` byte padded to a word.
-pub const SKELETAL_MESH_BYTES: usize = 36;
+pub const SKELETAL_MESH_BYTES: usize = 40;
 /// `Animator` — `enabled` padded to a word, model pointer, clip, ticks, and the
 /// `playing`/`looping` pair padded to a word.
 pub const ANIMATOR_BYTES: usize = 20;
@@ -471,7 +478,12 @@ fn measure(m: &Model, demand: QueryDemand) -> Result<(Budget, Vec<EncodedVertexC
         scratch_bytes: SCRATCH_BYTES,
         ..Default::default()
     };
-    let mut geometry = checked(m.mesh.vertices.len().checked_mul(VERTEX_BYTES))?;
+    let cooked_vertices = if baked {
+        m.mesh.vertices.len()
+    } else {
+        rigid_order(m).vertices.len()
+    };
+    let mut geometry = checked(cooked_vertices.checked_mul(VERTEX_BYTES))?;
     geometry = checked(
         m.mesh
             .triangles
@@ -483,7 +495,7 @@ fn measure(m: &Model, demand: QueryDemand) -> Result<(Budget, Vec<EncodedVertexC
     if !baked {
         // One bone index and one portable-to-cooked uint16 per vertex, plus
         // the per-bone range table (bones + 1).
-        geometry = checked(geometry.checked_add(m.mesh.vertices.len()))?;
+        geometry = checked(geometry.checked_add(cooked_vertices))?;
         if demand.vertices {
             geometry = checked(
                 m.mesh
@@ -865,7 +877,7 @@ pub fn header_with_pages_for(
         } else {
             "nullptr".into()
         };
-        writeln!(s,"inline constexpr SkeletalMesh skin_{id}={{&skin_geometry_{id},skin_weights_{id},skin_bone_vertices_{id},{remap},skin_bones_{id},{},{clips},{},SkeletalStorage::{mode}}};",m.skeleton.bones.len(),m.clips.len()).unwrap();
+        writeln!(s,"inline constexpr SkeletalMesh skin_{id}={{&skin_geometry_{id},skin_weights_{id},skin_bone_vertices_{id},{remap},skin_bones_{id},{},{clips},{},SkeletalStorage::{mode},{}}};",m.skeleton.bones.len(),m.clips.len(),m.mesh.vertices.len()).unwrap();
     }
     Ok(s)
 }

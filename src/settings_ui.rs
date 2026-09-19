@@ -354,6 +354,10 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                             });
                         });
                         section(ui,"Geometry",||{
+                            row(ui,"Sprite Triangle Budget","Fixed, double-buffered sprite/VFX packet pool. Lower values save RAM; excess triangles are counted as dropped. 64..2048, applies on next build. Includes particles, not mesh triangles or HUD.",||{
+                                let mut value=i32::from(m.rendering.sprite_triangle_budget);
+                                if ui.input_int("##sprite-triangle-budget",&mut value).build(){m.rendering.sprite_triangle_budget=value.clamp(64,2048) as u16;}
+                            });
                             row(ui,"3D Dithering","Reduce RGB555 color banding in shaded 3D geometry using the PS1 GPU's ordered dithering. Adds a fine pixel pattern. HUD and text remain undithered. Applies on the next native build.",||{
                                 ui.checkbox("##dither-3d",&mut m.rendering.dither_3d);
                             });
