@@ -66,6 +66,9 @@ pub struct SceneGpu {
     cached_fog_center: [f32; 3],
     cached_fog_distance: f32,
     cached_mesh_revision: u64,
+    navigation_preview: crate::navigation::Preview,
+    navigation_fill: Vertices,
+    navigation_edges: Vertices,
 }
 struct RenderInput<'a> {
     scene: &'a Scene,
@@ -114,6 +117,9 @@ fn skeletal_pose_key(scene: &Scene) -> SkeletalPoseKey {
 }
 
 impl SceneGpu {
+    pub fn navigation_status(&self) -> Option<Result<usize,String>> {
+        self.navigation_preview.status()
+    }
     pub fn animated(scene: &Scene) -> bool {
         crate::effects::animated(scene)
             || scene.actors.iter().enumerate().any(|(index, e)| {
@@ -406,6 +412,9 @@ impl SceneGpu {
             cached_fog_center: [0.; 3],
             cached_fog_distance: 12.,
             cached_mesh_revision: 0,
+            navigation_preview: Default::default(),
+            navigation_fill: Vertices::new(device),
+            navigation_edges: Vertices::new(device),
         }
     }
     pub fn render(
@@ -521,6 +530,21 @@ impl SceneGpu {
                     || self.cached_fog_distance != view.distance))
             || self.cached_mesh_revision != input.mesh.revision
         {
+            self.navigation_preview.update(scene,selected);
+            let mut nav_fill=Vec::new();
+            for quad in &self.navigation_preview.patches {
+                for index in [0,1,2,0,2,3] {
+                    // The existing average-alpha pipeline gives a translucent
+                    // unlit green overlay without modifying scene materials.
+                    for f in quad[index].into_iter().chain([0.12,0.85,0.28]).chain([0.,0.,0.,1.]) {
+                        nav_fill.extend_from_slice(&f.to_le_bytes());
+                    }
+                }
+            }
+            let mut nav_lines=Vec::new();
+            for &(a,b,color) in &self.navigation_preview.lines {line(&mut nav_lines,a,b,color);}
+            self.navigation_fill.upload(device,queue,&nav_fill);
+            self.navigation_edges.upload(device,queue,&nav_lines);
             let (mesh, edges, ranges) = geometry_with_effects(
                 scene,
                 selected,
@@ -659,6 +683,11 @@ impl SceneGpu {
             pass.set_vertex_buffer(0, self.shadows.buffer.slice(..));
             pass.draw(0..self.shadows.count, 0..1);
         }
+        if self.navigation_fill.count > 0 {
+            pass.set_pipeline(&self.mesh_pipelines[1]);
+            pass.set_vertex_buffer(0,self.navigation_fill.buffer.slice(..));
+            pass.draw(0..self.navigation_fill.count,0..1);
+        }
         pass.set_pipeline(&self.line_pipeline);
         if input.grid {
             pass.set_vertex_buffer(0, self.grid.buffer.slice(..));
@@ -667,6 +696,10 @@ impl SceneGpu {
         if self.edges.count > 0 {
             pass.set_vertex_buffer(0, self.edges.buffer.slice(..));
             pass.draw(0..self.edges.count, 0..1);
+        }
+        if self.navigation_edges.count > 0 {
+            pass.set_vertex_buffer(0,self.navigation_edges.buffer.slice(..));
+            pass.draw(0..self.navigation_edges.count,0..1);
         }
     }
 }
@@ -919,9 +952,6 @@ fn geometry_with_effects(
             line(&mut edges, origin, corners[j], [80, 185, 245]);
             line(&mut edges, corners[j], corners[(j + 1) % 4], [80, 185, 245]);
         }
-    }
-    for (a,b,color) in crate::navigation::debug_lines(scene, selected) {
-        line(&mut edges,a,b,color);
     }
     let (sy, cy) = yaw.sin_cos();
     let (sp, cp) = pitch.sin_cos();

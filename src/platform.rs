@@ -654,7 +654,10 @@ pub fn run(
                         let phase=scene_renderer.preview_time(&editor.scene,editor.view.phase);
                         let pixels=editor.hud_simulation.pixels.clone().unwrap_or_else(||crate::hud::render_at(preview_scene,phase));
                         renderer.textures.get(hud_texture_id).unwrap().write(&queue,&pixels,size[0],size[1]);
-                    } else {scene_renderer.render(&device, &queue, &mut encoder, &scene_target, editor);}
+                    } else {
+                        scene_renderer.render(&device, &queue, &mut encoder, &scene_target, editor);
+                        editor.navigation_preview_status=scene_renderer.navigation_status();
+                    }
                     editor.view_dirty = false;
                 }
                 frame_mark("scene render");

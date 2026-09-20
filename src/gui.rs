@@ -3138,6 +3138,13 @@ fn scene_view(
                 .build(ui, &mut e.view.fly_speed);
             muted(ui, "RMB + WASD: fly | Q/E: down/up | Alt + LMB: orbit");
             crate::lighting_editor::preview_status(ui, e);
+            if crate::navigation::selected_volume(&e.scene,e.selected).is_some() {
+                match &e.navigation_preview_status {
+                    Some(Ok(count)) => ui.text_colored([0.35,0.95,0.5,1.],format!("Navigation preview: {count} points | Green: walkable area")),
+                    Some(Err(error)) => ui.text_colored([1.,0.5,0.3,1.],format!("Navigation preview: {error}")),
+                    None => ui.text_disabled("Generating navigation preview..."),
+                }
+            }
             ui.separator();
         }
         let position = ui.cursor_screen_pos();

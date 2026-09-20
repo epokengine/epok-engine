@@ -529,6 +529,7 @@ class GameScene final : public psyqo::Scene {
     // while the XA consumer still points at it.
     epok::install_actor_service_hooks();
     epok::nav::move_actor=&epok::move_and_slide;
+    epok::nav::bounds_actor=&epok::collider_aabb;
 #if defined(EPOK_LUA_MODE) && EPOK_LUA_MODE != 0
     // The VM opens its arena, loads every class chunk and caches the method
     // functions before any script can be constructed.

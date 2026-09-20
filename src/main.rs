@@ -97,6 +97,7 @@ mod music_conversion_ui;
 mod native;
 mod native_metadata;
 mod navigation;
+mod navigation_geometry;
 mod native_music;
 mod obj_import;
 mod object_model;
@@ -1448,6 +1449,9 @@ fn prepare_editor(editor: &mut editor::Editor) {
     if args.iter().any(|a| a == "--screenshot-lighting") {
         editor.lighting_window = true;
         editor.selected = editor.scene.actors.iter().position(|e| e.light.is_some());
+    }
+    if args.iter().any(|a| a == "--screenshot-navigation") {
+        editor.selected = (0..editor.scene.actors.len()).find(|&i| navigation::selected_volume(&editor.scene,Some(i)).is_some());
     }
     if args.iter().any(|a| a == "--screenshot-hud") {
         editor.set_scene_2d(true);
