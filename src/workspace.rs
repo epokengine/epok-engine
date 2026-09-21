@@ -434,14 +434,127 @@ pub fn validate_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Template {
     Basic,
     Sample,
     ThirdPerson,
 }
+impl Template {
+    pub const ALL: [Self; 3] = [Self::Basic, Self::Sample, Self::ThirdPerson];
+    /// The spelling `--template` accepts and the preview file stem.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Basic => "basic",
+            Self::Sample => "sample",
+            Self::ThirdPerson => "third-person",
+        }
+    }
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|t| t.key() == value)
+    }
+}
 
+/// Which authoring system writes the starter gameplay a template generates.
+/// It chooses what is written once, at creation; it is never a project mode,
+/// so a created project keeps all three systems available side by side.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GameplayFlavor {
+    #[default]
+    Cpp,
+    Blueprint,
+    Lua,
+}
+impl GameplayFlavor {
+    pub const ALL: [Self; 3] = [Self::Cpp, Self::Blueprint, Self::Lua];
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Cpp => "cpp",
+            Self::Blueprint => "blueprint",
+            Self::Lua => "lua",
+        }
+    }
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::Cpp => "C++",
+            Self::Blueprint => "Blueprint",
+            Self::Lua => "Lua",
+        }
+    }
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::Cpp => "Native component source owned by the project.",
+            Self::Blueprint => "A visual graph authored in the project.",
+            Self::Lua => {
+                "Lua source authored in the project, built with the project's Lua execution setting."
+            }
+        }
+    }
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|f| f.key() == value)
+    }
+}
+
+/// The hardware a new project targets. One variant today; the field exists so
+/// creation, templates and the Hub never have to be rewritten to gain a second.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TargetPlatform {
+    #[default]
+    PlayStation,
+}
+impl TargetPlatform {
+    pub const ALL: [Self; 1] = [Self::PlayStation];
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::PlayStation => "PlayStation",
+        }
+    }
+}
+
+/// Template, gameplay flavor and target platform are independent axes of one
+/// creation request; none of them multiplies the others into new template values.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CreateOptions {
+    pub template: Template,
+    pub gameplay: GameplayFlavor,
+    pub target: TargetPlatform,
+}
+impl CreateOptions {
+    pub fn new(template: Template) -> Self {
+        Self {
+            template,
+            gameplay: GameplayFlavor::default(),
+            target: TargetPlatform::default(),
+        }
+    }
+    pub fn with_gameplay(self, gameplay: GameplayFlavor) -> Self {
+        Self { gameplay, ..self }
+    }
+}
+
+/// Command-line spellings of the two choices. The target is not an option yet:
+/// there is one, and inventing a flag for it would imply otherwise.
+pub fn creation_options(template: &str, gameplay: &str) -> Result<CreateOptions, String> {
+    let template = Template::parse(template).ok_or_else(|| {
+        format!("Unknown template: {template}. Use basic, sample or third-person.")
+    })?;
+    let gameplay = GameplayFlavor::parse(gameplay).ok_or_else(|| {
+        format!("Unknown gameplay flavor: {gameplay}. Use cpp, blueprint or lua.")
+    })?;
+    Ok(CreateOptions::new(template).with_gameplay(gameplay))
+}
+
+/// Creation with the historic signature: C++ starter gameplay for a PlayStation
+/// project. Existing callers and old automation keep working unchanged.
 pub fn create(destination: &Path, name: &str, template: Template) -> Result<Project, String> {
+    create_with_options(destination, name, CreateOptions::new(template))
+}
+
+pub fn create_with_options(
+    destination: &Path,
+    name: &str,
+    options: CreateOptions,
+) -> Result<Project, String> {
     validate_name(name)?;
     // Claim a NEW directory exclusively. Never merge into or overwrite existing content.
     let parent = destination
@@ -454,12 +567,29 @@ pub fn create(destination: &Path, name: &str, template: Template) -> Result<Proj
             destination.display()
         )
     })?;
+    // Everything after the exclusive claim is transactional: a half-written
+    // project is removed rather than left behind to be opened by mistake.
+    match populate(destination, name, options) {
+        Ok(project) => Ok(project),
+        Err(error) => {
+            let _ = fs::remove_dir_all(destination);
+            Err(error)
+        }
+    }
+}
+
+fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Project, String> {
+    let CreateOptions {
+        template, gameplay, ..
+    } = options;
     for directory in ["assets/scenes", "assets/scripts", "ProjectSettings"] {
         fs::create_dir_all(destination.join(directory)).map_err(|e| e.to_string())?;
     }
     let scene = match template {
-        Template::ThirdPerson => crate::third_person::create(destination)?,
+        Template::ThirdPerson => crate::third_person::create(destination, gameplay)?,
         Template::Basic => {
+            // Basic stays basic: no starter behaviour in any flavor, so nothing
+            // here depends on the selection beyond the descriptor it records.
             let mut scene = Scene {
                 name: "Main".into(),
                 ..Scene::default()
@@ -467,29 +597,7 @@ pub fn create(destination: &Path, name: &str, template: Template) -> Result<Proj
             scene.actors.truncate(1);
             scene
         }
-        Template::Sample => {
-            let mut scene = Scene::default();
-            scene.name = "SampleScene".into();
-            scene.actors[1]
-                .components
-                .push(crate::actor_document::ComponentInstance::new(
-                    uuid::Uuid::new_v4(),
-                    crate::actor_document::ClassReference::new(
-                        "Spinner",
-                        "a997b0f2-b3ac-45c2-9d75-9ec11dc890af",
-                    ),
-                    "Spinner",
-                ));
-            write_changed(
-                &destination.join("assets/scripts/Spinner.hpp"),
-                include_bytes!("../templates/Spinner.hpp"),
-            )?;
-            write_changed(
-                &destination.join("assets/scripts/Spinner.cpp"),
-                b"#include \"Spinner.hpp\"\n",
-            )?;
-            scene
-        }
+        Template::Sample => crate::sample_template::create(destination, gameplay)?,
     };
     let manifest = Manifest {
         format_version: FORMAT,
@@ -637,6 +745,63 @@ pub fn update_recent(path: &Path, project: &Path, name: Option<&str>) -> Result<
 
 #[cfg(test)]
 pub(crate) mod tests {
+
+    #[test]
+    fn the_command_line_names_every_template_and_flavor() {
+        for template in Template::ALL {
+            for flavor in GameplayFlavor::ALL {
+                let options = creation_options(template.key(), flavor.key()).unwrap();
+                assert_eq!(options.template, template);
+                assert_eq!(options.gameplay, flavor);
+                assert_eq!(options.target, TargetPlatform::PlayStation);
+            }
+        }
+        // The historic invocation keeps generating C++, with or without the flag.
+        assert_eq!(
+            creation_options("third-person", "cpp").unwrap(),
+            CreateOptions::new(Template::ThirdPerson)
+        );
+        assert!(creation_options("roguelike", "cpp").is_err());
+        assert!(
+            creation_options("basic", "rust")
+                .unwrap_err()
+                .contains("cpp, blueprint or lua")
+        );
+    }
+
+    /// A creation that cannot finish leaves no folder behind: an abandoned one
+    /// would be offered by the Hub as a real project. The first case never
+    /// reaches the template; the second fails inside it, after the folder has
+    /// already been claimed, and is rolled back.
+    #[test]
+    #[cfg(unix)]
+    fn a_failed_creation_claims_nothing() {
+        use std::os::unix::fs::PermissionsExt;
+        let parent =
+            std::env::temp_dir().join(format!("epok-transaction-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&parent).unwrap();
+        let destination = parent.join("Blocked");
+        fs::set_permissions(&parent, fs::Permissions::from_mode(0o555)).unwrap();
+        assert!(create(&destination, "Blocked", Template::Basic).is_err());
+        assert!(!destination.exists());
+        fs::set_permissions(&parent, fs::Permissions::from_mode(0o755)).unwrap();
+
+        // The same failure one step later: the folder exists and the template
+        // cannot write its scene into it.
+        let claimed = parent.join("Half written");
+        fs::create_dir(&claimed).unwrap();
+        fs::set_permissions(&claimed, fs::Permissions::from_mode(0o555)).unwrap();
+        assert!(
+            populate(
+                &claimed,
+                "Half written",
+                CreateOptions::new(Template::ThirdPerson)
+            )
+            .is_err()
+        );
+        fs::set_permissions(&claimed, fs::Permissions::from_mode(0o755)).unwrap();
+        fs::remove_dir_all(parent).unwrap();
+    }
     use super::*;
     pub fn temp(label: &str) -> PathBuf {
         std::env::temp_dir().join(format!(

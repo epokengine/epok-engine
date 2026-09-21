@@ -50,6 +50,9 @@ pub fn run(
     let mut hub = crate::hub::Hub::new(startup_error);
     startup_mark("hub and dependency discovery");
     let args = std::env::args().collect::<Vec<_>>();
+    if args.iter().any(|arg| arg == "--screenshot-new-project") {
+        hub.open_new_project();
+    }
     let content_capture = args.iter().any(|arg| arg == "--screenshot-content-browser");
     let minimum_size = if content_capture || args.iter().any(|arg| arg == "--sequencer-layout") {
         [640, 300]
@@ -353,6 +356,22 @@ pub fn run(
     lockup_texture.write(&queue, &lockup_pixels, lockup_width, lockup_height);
     let lockup_texture_id = renderer.textures.insert(lockup_texture);
     hub.lockup = Some(lockup_texture_id);
+    // Template artwork is renderer-owned like the branding above, so it stays
+    // alive for the Hub's lifetime and a project never loads it from disk. A
+    // preview that fails to decode leaves its slot empty and the card falls
+    // back to a plain tile rather than stopping the editor from starting.
+    for (slot, info) in crate::project_templates::CATALOG.iter().enumerate() {
+        if let Some((pixels, width, height)) = info.preview() {
+            hub.previews[slot] = Some(upload_rgba(
+                &device,
+                &queue,
+                &mut renderer,
+                &pixels,
+                width,
+                height,
+            ));
+        }
+    }
     let (splash_pixels, splash_width, splash_height) = crate::branding::splash_pixels()?;
     let splash_texture = imgui_wgpu::Texture::new(
         &device,
@@ -1011,6 +1030,39 @@ pub fn run(
     })?;
     Ok(())
 }
+/// One RGBA image registered with the UI renderer, which owns it from here on.
+/// Everything the Hub draws as an image goes through this: branding, template
+/// artwork and anything a later view needs from `resources/`.
+fn upload_rgba(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    renderer: &mut imgui_wgpu::Renderer,
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+) -> imgui::TextureId {
+    let texture = imgui_wgpu::Texture::new(
+        device,
+        &*renderer,
+        imgui_wgpu::TextureConfig {
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+            sampler_desc: wgpu::SamplerDescriptor {
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    texture.write(queue, pixels, width, height);
+    renderer.textures.insert(texture)
+}
+
 fn mouse_button(button: WinitMouseButton) -> Option<crate::controls::MouseButton> {
     match button {
         WinitMouseButton::Left => Some(crate::controls::MouseButton::Left),

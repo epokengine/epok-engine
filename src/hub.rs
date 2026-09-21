@@ -1,6 +1,7 @@
 use crate::{
     editor::Editor,
-    workspace::{self, Template},
+    project_templates,
+    workspace::{self, CreateOptions, GameplayFlavor, TargetPlatform, Template},
 };
 use imgui::{Condition, StyleColor as C, StyleVar as V, Ui, WindowFlags as W};
 use std::{collections::HashMap, path::PathBuf};
@@ -25,6 +26,8 @@ pub struct Hub {
     location: String,
     open_path: String,
     template: Template,
+    gameplay: GameplayFlavor,
+    target: TargetPlatform,
     creating: bool,
     open_requested: bool,
     pending_upgrade: Option<PendingUpgrade>,
@@ -36,8 +39,15 @@ pub struct Hub {
     fonts: Option<[imgui::FontId; 3]>,
     pub logo: Option<imgui::TextureId>,
     pub lockup: Option<imgui::TextureId>,
+    /// Renderer-owned template artwork, in `Template::ALL` order. `None` is a
+    /// preview that could not be decoded; the card falls back to a plain tile.
+    pub previews: [Option<imgui::TextureId>; Template::ALL.len()],
+    /// Hit targets the interaction test clicks: 0 Create, 1 Open in the popup,
+    /// 2 New project, 3 Open project, 4 Projects, 5 the first recent row,
+    /// 6-8 the template cards, 9-11 the gameplay flavors, 12 Cancel and
+    /// 13 the target platform tile.
     #[cfg(test)]
-    buttons: [[f32; 2]; 6],
+    buttons: [[f32; 2]; 14],
     pub error: Option<String>,
 }
 impl Hub {
@@ -58,6 +68,8 @@ impl Hub {
                 .into(),
             open_path: String::new(),
             template: Template::Basic,
+            gameplay: GameplayFlavor::default(),
+            target: TargetPlatform::default(),
             creating: false,
             open_requested: false,
             pending_upgrade: None,
@@ -70,9 +82,17 @@ impl Hub {
             fonts: None,
             logo: None,
             lockup: None,
+            previews: [None; Template::ALL.len()],
             #[cfg(test)]
-            buttons: [[0.; 2]; 6],
+            buttons: [[0.; 2]; 14],
         }
+    }
+
+    /// Opens on the template browser instead of the project list. Visual QA of
+    /// the New Project view needs it, because nothing else reaches that view
+    /// without a click.
+    pub fn open_new_project(&mut self) {
+        self.creating = true;
     }
 
     /// Separate Hub typography; the dense editor keeps its own font and style.
@@ -107,10 +127,12 @@ impl Hub {
         let fonts = self.fonts;
         let logo = self.logo;
         let lockup = self.lockup;
+        let previews = self.previews;
         *self = Self::new(None);
         self.fonts = fonts;
         self.logo = logo;
         self.lockup = lockup;
+        self.previews = previews;
     }
 
     fn heading(&self, ui: &Ui, text: &str, large: bool) {
@@ -486,107 +508,321 @@ impl Hub {
     fn create_view(&mut self, ui: &Ui) -> Option<crate::loading::Request> {
         let mut result = None;
         self.heading(ui, "New project", true);
-        ui.text_disabled("Choose a starting point for your PlayStation game.");
-        ui.dummy([0., 8.]);
-        self.heading(ui, "Template", false);
-        let card_width = (ui.content_region_avail()[0] - 24.) / 3.;
-        for (i, (template, title, description)) in [
-            (Template::Basic, "Basic PSX", "An empty scene and a camera."),
-            (
-                Template::Sample,
-                "Sample game",
-                "Demo scene with C++ behaviours.",
-            ),
-            (
-                Template::ThirdPerson,
-                "Third Person",
-                "Animated player and orbit camera.",
-            ),
-        ]
-        .into_iter()
-        .enumerate()
+        ui.text_disabled("Pick a starting point, then choose how its gameplay is written.");
+        ui.dummy([0., 1.]);
+
+        let available = ui.content_region_avail();
+        // The project fields and the actions stay visible at every Hub size, so
+        // the browser above them is what gives room back when the window
+        // shrinks. The reservation is measured from the current style rather
+        // than guessed, because a different Hub font would move every row.
+        let line = ui.text_line_height_with_spacing();
+        let field = ui.frame_height() + 12.;
+        let footer =
+            14. + 2. * field + line + 54. + if self.error.is_some() { 3. * line } else { 0. };
+        let browser = (available[1] - footer).max(210.);
+        let details = (available[0] * 0.46).clamp(268., 470.);
+        let cards = (available[0] - details - 12.).max(190.);
+
+        let top = ui.cursor_pos();
         {
-            if i > 0 {
-                ui.same_line_with_spacing(0., 12.);
-            }
-            let selected = self.template == template;
-            let _border = ui.push_style_color(C::Border, if selected { BLUE } else { gray(53) });
-            let _background = ui.push_style_color(
-                C::ChildBg,
-                if selected {
-                    [0.08, 0.15, 0.22, 1.]
-                } else {
-                    gray(30)
-                },
-            );
-            ui.child_window(title)
-                .border(true)
-                .size([card_width, 136.])
-                .build(|| {
-                    let _header = ui.push_style_color(C::Header, [0.; 4]);
-                    if ui
-                        .selectable_config(title)
-                        .selected(selected)
-                        .size([0., 30.])
-                        .build()
-                    {
-                        self.template = template;
-                    }
-                    ui.text_wrapped(description);
-                    if ui.is_window_hovered() && ui.is_mouse_clicked(imgui::MouseButton::Left) {
-                        self.template = template;
-                    }
-                });
+            // The cards are their own frames, so the list itself carries no
+            // padding: three of them fit before the column has to scroll.
+            let _padding = ui.push_style_var(V::WindowPadding([0., 0.]));
+            let _spacing = ui.push_style_var(V::ItemSpacing([10., 8.]));
+            ui.child_window("Template cards")
+                .size([cards, browser])
+                .build(|| self.template_cards(ui));
         }
-        if self.template == Template::ThirdPerson {
-            let _muted = ui.push_style_color(C::Text, MUTED);
-            ui.text_wrapped(
-                "Optimized arena, animated locomotion, jumping, collision and camera control.",
-            );
-        }
-        ui.dummy([0., 8.]);
-        self.heading(ui, "Project details", false);
-        ui.text("Project name");
-        ui.set_next_item_width(-1.);
-        ui.input_text("##Project name", &mut self.name)
-            .hint("My game")
-            .build();
+        ui.set_cursor_pos([top[0] + cards + 12., top[1]]);
+        ui.child_window("Template details")
+            .border(true)
+            .size([details, browser])
+            .build(|| self.template_details(ui));
+
+        ui.set_cursor_pos([top[0], top[1] + browser + 8.]);
+        ui.separator();
+        let label = 116.;
+        ui.align_text_to_frame_padding();
         ui.text("Location");
+        ui.same_line_with_pos(top[0] + label);
         ui.set_next_item_width((ui.content_region_avail()[0] - 116.).max(120.));
         ui.input_text("##Project location", &mut self.location)
             .build();
         ui.same_line();
-        if ui.button_with_size("Browse...", [106., 35.]) {
+        if ui.button_with_size("Browse...", [106., ui.frame_height()]) {
             match pick_folder() {
                 Ok(Some(path)) => self.location = path.to_string_lossy().into(),
                 Err(e) => self.error = Some(e),
                 _ => {}
             }
         }
-        let path = PathBuf::from(self.location.trim()).join(&self.name);
-        ui.text_disabled("PROJECT FOLDER");
-        ui.text_wrapped(path.to_string_lossy());
-        ui.dummy([0., 6.]);
-        ui.separator();
+        ui.align_text_to_frame_padding();
+        ui.text("Name");
+        ui.same_line_with_pos(top[0] + label);
+        ui.set_next_item_width(-1.);
+        let committed = ui
+            .input_text("##Project name", &mut self.name)
+            .hint("My game")
+            .enter_returns_true(true)
+            .build();
+        let path = PathBuf::from(self.location.trim()).join(self.name.trim());
+        let invalid = self.creation_error();
+        let _muted = ui.push_style_color(C::Text, MUTED);
+        ui.text_wrapped(match &invalid {
+            Some(_) => "PROJECT FOLDER  —  unavailable".to_string(),
+            None => format!("PROJECT FOLDER  {}", path.display()),
+        });
+        drop(_muted);
+        if let Some(problem) = &invalid {
+            let _color = ui.push_style_color(C::Text, [1., 0.69, 0.40, 1.]);
+            ui.text_wrapped(problem.as_str());
+        }
+        ui.dummy([0., 2.]);
         if ui.button_with_size("Cancel", [100., 38.]) {
             self.creating = false;
         }
-        ui.same_line();
-        if primary_button(ui, "Create project", [160., 38.]) {
-            let creation = if self.location.trim().is_empty() {
-                Err("Choose a project location.".into())
-            } else {
-                workspace::create(&path, &self.name, self.template)
-            };
-            result = self
-                .activate(creation.map(|project| crate::loading::Request::Created(project.into())));
+        #[cfg(test)]
+        {
+            self.buttons[12] = button_center(ui);
         }
+        ui.same_line();
+        let ready = invalid.is_none();
+        let create = {
+            let _disabled = ui.begin_disabled(!ready);
+            primary_button(ui, "Create project", [160., 38.])
+        };
         #[cfg(test)]
         {
             self.buttons[0] = button_center(ui);
         }
+        // Enter creates from the name field. A popup owns the keyboard while it
+        // is up, so the field cannot commit behind the open or upgrade dialog,
+        // and the pending upgrade is checked anyway because it has its own
+        // default action.
+        let entered = committed && self.pending_upgrade.is_none();
+        if ready && (create || entered) {
+            let options = CreateOptions {
+                template: self.template,
+                gameplay: self.gameplay,
+                target: self.target,
+            };
+            let creation = workspace::create_with_options(&path, self.name.trim(), options);
+            result = self
+                .activate(creation.map(|project| crate::loading::Request::Created(project.into())));
+        }
         self.error_banner(ui);
         result
+    }
+
+    /// The actionable reason Create is unavailable, or `None` when it is ready.
+    fn creation_error(&self) -> Option<String> {
+        if self.location.trim().is_empty() {
+            return Some("Choose a project location.".into());
+        }
+        if let Err(problem) = workspace::validate_name(self.name.trim()) {
+            return Some(problem);
+        }
+        if !project_templates::info(self.template).supports(self.gameplay) {
+            return Some(format!(
+                "{} has no {} starter yet. Choose another gameplay flavor.",
+                project_templates::info(self.template).title,
+                self.gameplay.title()
+            ));
+        }
+        None
+    }
+
+    fn template_cards(&mut self, ui: &Ui) {
+        for (index, info) in project_templates::CATALOG.iter().enumerate() {
+            let selected = self.template == info.template;
+            let origin = ui.cursor_screen_pos();
+            let width = ui.content_region_avail()[0].max(160.);
+            let height = 76.;
+            // One invisible button behind the whole card: the thumbnail, the
+            // title and the blank space all select, and keyboard navigation
+            // reaches the card because it is a real item.
+            let pressed = ui.invisible_button(info.title, [width, height]);
+            let hovered = ui.is_item_hovered();
+            #[cfg(test)]
+            {
+                self.buttons[6 + index] = button_center(ui);
+            }
+            let end = [origin[0] + width, origin[1] + height];
+            let draw = ui.get_window_draw_list();
+            draw.add_rect(
+                origin,
+                end,
+                if selected {
+                    [0.08, 0.15, 0.22, 1.]
+                } else if hovered {
+                    gray(34)
+                } else {
+                    gray(28)
+                },
+            )
+            .filled(true)
+            .rounding(8.)
+            .build();
+            draw.add_rect(origin, end, if selected { BLUE } else { gray(53) })
+                .rounding(8.)
+                .thickness(if selected { 2. } else { 1. })
+                .build();
+            // 16:9 thumbnail, letterboxed into a fixed box so the row height
+            // never changes when the Hub is resized.
+            let thumb = [origin[0] + 8., origin[1] + 8.];
+            let thumb_end = [thumb[0] + 107., thumb[1] + 60.];
+            match self.previews[index] {
+                Some(texture) => draw.add_image(texture, thumb, thumb_end).build(),
+                None => draw
+                    .add_rect(thumb, thumb_end, gray(40))
+                    .filled(true)
+                    .rounding(4.)
+                    .build(),
+            }
+            let text = [thumb_end[0] + 12., origin[1] + 16.];
+            draw.add_text(text, TEXT, info.title);
+            draw.add_text([text[0], text[1] + 24.], MUTED, info.summary);
+            drop(draw);
+            if pressed {
+                self.template = info.template;
+            }
+        }
+    }
+
+    fn template_details(&mut self, ui: &Ui) {
+        let info = project_templates::info(self.template);
+        let slot = project_templates::CATALOG
+            .iter()
+            .position(|entry| entry.template == self.template)
+            .unwrap_or(0);
+        let top = ui.cursor_pos();
+        let panel = ui.content_region_avail();
+        // The defaults own a fixed strip at the bottom of the panel and scroll
+        // inside it, so the gameplay selector is reachable at every Hub size
+        // however long the explanation under it wraps.
+        let defaults = (panel[1] * 0.34).clamp(126., 196.);
+        let width = panel[0].max(120.);
+        let preview = (width * 9. / 16.).min((panel[1] * 0.30).max(68.));
+        let origin = ui.cursor_screen_pos();
+        ui.dummy([width, preview]);
+        let end = [origin[0] + width, origin[1] + preview];
+        let draw = ui.get_window_draw_list();
+        match self.previews[slot] {
+            // Letterboxed into the panel's width: the aspect never changes when
+            // the Hub is resized, so neither does the composition.
+            Some(texture) => {
+                let scaled = preview * 16. / 9.;
+                let inset = ((width - scaled) * 0.5).max(0.);
+                draw.add_image(
+                    texture,
+                    [origin[0] + inset, origin[1]],
+                    [end[0] - inset, end[1]],
+                )
+                .build()
+            }
+            None => {
+                draw.add_rect(origin, end, gray(34))
+                    .filled(true)
+                    .rounding(6.)
+                    .build();
+                draw.add_text(
+                    [origin[0] + 14., origin[1] + preview * 0.5 - 8.],
+                    MUTED,
+                    "Preview unavailable",
+                );
+            }
+        }
+        drop(draw);
+        let prose = (panel[1] - defaults - preview - 14.).max(40.);
+        {
+            // Prose is denser than the surrounding controls, so a short panel
+            // still shows the whole description before the list scrolls.
+            let _spacing = ui.push_style_var(V::ItemSpacing([10., 4.]));
+            ui.child_window("Template summary")
+                .size([0., prose])
+                .build(|| {
+                    self.heading(ui, info.title, false);
+                    ui.text_wrapped(info.description);
+                    ui.dummy([0., 2.]);
+                    let _muted = ui.push_style_color(C::Text, MUTED);
+                    for feature in info.features {
+                        ui.text_wrapped(format!("-  {feature}"));
+                    }
+                });
+        }
+        ui.set_cursor_pos([top[0], top[1] + panel[1] - defaults]);
+        ui.separator();
+        ui.child_window("Project defaults")
+            .size([0., 0.])
+            .build(|| self.project_defaults(ui, info));
+    }
+
+    /// Gameplay flavor and target platform. The controls come first so they
+    /// stay visible even when the explanation below them wraps.
+    fn project_defaults(&mut self, ui: &Ui, info: &project_templates::Info) {
+        let _spacing = ui.push_style_var(V::ItemSpacing([10., 6.]));
+        ui.text_disabled("PROJECT DEFAULTS  ·  GAMEPLAY");
+        let segment = ((ui.content_region_avail()[0] - 16.) / 3.).max(52.);
+        for (slot, flavor) in GameplayFlavor::ALL.into_iter().enumerate() {
+            if slot > 0 {
+                ui.same_line_with_spacing(0., 8.);
+            }
+            let selected = self.gameplay == flavor;
+            let supported = info.supports(flavor);
+            let _colors = [
+                (C::Button, if selected { BLUE } else { gray(35) }),
+                (
+                    C::ButtonHovered,
+                    if selected {
+                        [0.05, 0.48, 0.88, 1.]
+                    } else {
+                        gray(49)
+                    },
+                ),
+                (
+                    C::ButtonActive,
+                    if selected {
+                        [0.02, 0.33, 0.65, 1.]
+                    } else {
+                        gray(58)
+                    },
+                ),
+                (C::Border, if selected { BLUE } else { gray(53) }),
+                (C::Text, if selected { [1.; 4] } else { TEXT }),
+            ]
+            .map(|(c, value)| ui.push_style_color(c, value));
+            let _disabled = ui.begin_disabled(!supported);
+            if ui.button_with_size(flavor.title(), [segment, 34.]) {
+                self.gameplay = flavor;
+            }
+            #[cfg(test)]
+            {
+                self.buttons[9 + slot] = button_center(ui);
+            }
+        }
+        ui.align_text_to_frame_padding();
+        ui.text_disabled("TARGET");
+        ui.same_line();
+        // One target today. It is a selectable tile rather than a label so the
+        // row already looks like the list it will become.
+        let _colors = [
+            (C::Button, [0.08, 0.15, 0.22, 1.]),
+            (C::ButtonHovered, [0.08, 0.15, 0.22, 1.]),
+            (C::ButtonActive, [0.08, 0.15, 0.22, 1.]),
+            (C::Border, BLUE),
+        ]
+        .map(|(c, value)| ui.push_style_color(c, value));
+        if ui.button_with_size(self.target.title(), [(segment * 1.4).max(108.), 30.]) {
+            self.target = TargetPlatform::PlayStation;
+        }
+        #[cfg(test)]
+        {
+            self.buttons[13] = button_center(ui);
+        }
+        drop(_colors);
+        let _muted = ui.push_style_color(C::Text, MUTED);
+        ui.text_wrapped(info.gameplay_note(self.gameplay));
     }
 
     fn open_dialog(&mut self, ui: &Ui, result: &mut Option<crate::loading::Request>) {
@@ -888,6 +1124,57 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     // Creation goes through the real button, shared service, editor constructor and recent registry.
     click(context, &mut hub, 2);
     assert!(hub.creating);
+
+    // The whole card selects, not only its title: the click lands on the body,
+    // to the right of the thumbnail and below the text.
+    for (slot, template) in Template::ALL.into_iter().enumerate() {
+        click(context, &mut hub, 6 + slot);
+        assert_eq!(hub.template, template, "card {slot} did not select");
+    }
+    for (slot, flavor) in workspace::GameplayFlavor::ALL.into_iter().enumerate() {
+        click(context, &mut hub, 9 + slot);
+        assert_eq!(hub.gameplay, flavor, "flavor {slot} did not select");
+    }
+    // One target, and selecting it is a no-op rather than a hidden state change.
+    click(context, &mut hub, 13);
+    assert_eq!(hub.target, workspace::TargetPlatform::PlayStation);
+    assert_eq!(workspace::TargetPlatform::ALL.len(), 1);
+
+    // A preview that cannot be decoded renders the fallback tile instead of
+    // taking the Hub down with it, and the whole view still lays out at the
+    // smallest window Epok supports.
+    hub.previews = [None; Template::ALL.len()];
+    frame(context, &mut hub);
+    let full = context.io().display_size;
+    context.io_mut().display_size = [1024., 720.];
+    frame(context, &mut hub);
+    frame(context, &mut hub);
+    context.io_mut().display_size = full;
+    frame(context, &mut hub);
+
+    // Neither an empty location nor an unusable name may create anything.
+    let location = std::mem::take(&mut hub.location);
+    assert!(click(context, &mut hub, 0).is_none());
+    assert!(hub.creation_error().is_some());
+    hub.location = location;
+    let name = std::mem::replace(&mut hub.name, "  ".into());
+    assert!(click(context, &mut hub, 0).is_none());
+    hub.name = "bad/name".into();
+    assert!(click(context, &mut hub, 0).is_none());
+    assert!(!parent.join("bad").exists());
+    hub.name = name;
+
+    // Cancel returns to the project list with the selections untouched.
+    click(context, &mut hub, 12);
+    assert!(!hub.creating);
+    assert_eq!(hub.template, Template::ThirdPerson);
+    assert_eq!(hub.gameplay, workspace::GameplayFlavor::Lua);
+    click(context, &mut hub, 2);
+    assert!(hub.creating);
+    hub.template = Template::Basic;
+    hub.gameplay = workspace::GameplayFlavor::Cpp;
+    assert!(hub.creation_error().is_none());
+
     let mut editor =
         click(context, &mut hub, 0).expect("Create project button should open the editor");
     assert_eq!(editor.scene.actors.len(), 1);

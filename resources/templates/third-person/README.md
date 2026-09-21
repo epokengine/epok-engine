@@ -17,3 +17,11 @@ The hierarchy is grouped under World, with separate Environment and Gameplay bra
 Level meshes remain editable, while their optimized packages keep the console build small.
 Generated files and caches live under `.epok/`, are excluded from version control and are
 recreated when required.
+
+## Gameplay source
+
+<!--GAMEPLAY-->
+
+The gameplay flavor chosen when the project was created only decided which starter
+implementation was written. Nothing is locked: C++ classes, Blueprints and Lua scripts
+can be added to this project at any time and used together in the same scene.
