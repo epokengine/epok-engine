@@ -6,7 +6,7 @@ This module covers the sequence service module. It documents 1 public callable d
 
 ## Declared types
 
-`epok::(unnamed struct at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/sequence_service.hpp:18:8)`, `epok::(unnamed struct at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/sequence_service.hpp:24:8)`, `epok::psx_audio::(unnamed enum at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/sequence_service.hpp:28:12)`, `epok::psx_audio::(unnamed struct at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/sequence_service.hpp:29:8)`, `epok::psx_audio::(unnamed struct at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/sequence_service.hpp:31:8)`, `epok::psx_audio::(unnamed struct at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/sequence_service.hpp:81:8)`
+`epok::(unnamed struct at runtime/sequence_service.hpp:18:8)`, `epok::(unnamed struct at runtime/sequence_service.hpp:24:8)`, `epok::psx_audio::(unnamed enum at runtime/sequence_service.hpp:28:12)`, `epok::psx_audio::(unnamed struct at runtime/sequence_service.hpp:29:8)`, `epok::psx_audio::(unnamed struct at runtime/sequence_service.hpp:31:8)`, `epok::psx_audio::(unnamed struct at runtime/sequence_service.hpp:81:8)`
 
 ## Callable index
 

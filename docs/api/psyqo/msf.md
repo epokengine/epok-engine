@@ -8,7 +8,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 
 ## Declared types
 
-`psyqo::MSF`, `psyqo::MSF::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/third_party/nugget/psyqo/msf.hh:62:5)::(unnamed struct at /Users/francisco.rivero/GithubProjects/p/epok-engine/third_party/nugget/psyqo/msf.hh:63:9)`
+`psyqo::MSF`, `psyqo::MSF::(unnamed union at third_party/nugget/psyqo/msf.hh:62:5)::(unnamed struct at third_party/nugget/psyqo/msf.hh:63:9)`
 
 ## Callable index
 

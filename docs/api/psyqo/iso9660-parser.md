@@ -8,7 +8,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 
 ## Declared types
 
-`psyqo::ISO9660Parser`, `psyqo::ISO9660Parser::DirEntry`, `psyqo::ISO9660Parser::DirEntry::(unnamed enum at /Users/francisco.rivero/GithubProjects/p/epok-engine/third_party/nugget/psyqo/iso9660-parser.hh:60:9)`, `psyqo::ISO9660Parser::GetDirentryAwaiter`, `psyqo::ISO9660Parser::InitializeAwaiter`, `psyqo::ISO9660Parser::ReadRequest`
+`psyqo::ISO9660Parser`, `psyqo::ISO9660Parser::DirEntry`, `psyqo::ISO9660Parser::DirEntry::(unnamed enum at third_party/nugget/psyqo/iso9660-parser.hh:60:9)`, `psyqo::ISO9660Parser::GetDirentryAwaiter`, `psyqo::ISO9660Parser::InitializeAwaiter`, `psyqo::ISO9660Parser::ReadRequest`
 
 ## Callable index
 

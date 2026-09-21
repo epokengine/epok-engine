@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -1029,7 +1030,30 @@ def build_catalog(modules: list[Module], nugget_revision: str) -> dict:
     }
 
 
-def write_if_changed(path: Path, content: str) -> None:
+def path_scrubber(engine: Path, nugget: Path) -> Callable[[str], str]:
+    """Build the rewrite that keeps generated text independent of the checkout.
+
+    Clang spells unnamed declarations and diagnostics with the absolute path of
+    the file they came from, so the raw text carries whichever directory the
+    generator happened to run in. Nugget is rewritten first and to its committed
+    location, so a pinned checkout supplied through --psyqo-root reads the same
+    as one initialized in place.
+    """
+    prefixes = (
+        (f"{nugget.as_posix()}/", "third_party/nugget/"),
+        (f"{engine.as_posix()}/", ""),
+    )
+
+    def scrub(text: str) -> str:
+        for absolute, relative in prefixes:
+            text = text.replace(absolute, relative)
+        return text
+
+    return scrub
+
+
+def write_if_changed(path: Path, content: str, scrub: Callable[[str], str]) -> None:
+    content = scrub(content)
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists() or path.read_text(encoding="utf-8") != content:
         path.write_text(content, encoding="utf-8", newline="\n")
@@ -1057,6 +1081,7 @@ def main() -> int:
     epok_headers = sorted((engine / "runtime").glob("*.hpp"))
     psyqo_headers = sorted(path for path in psyqo_root.rglob("*.hh") if "examples" not in path.parts)
     nugget = psyqo_root.parent
+    scrub = path_scrubber(engine, nugget)
     epok_modules = parse_family(cindex, "epok", epok_headers, engine / "runtime", engine, nugget, nugget_revision)
     psyqo_modules = parse_family(cindex, "psyqo", psyqo_headers, psyqo_root, engine, nugget, nugget_revision)
     output = engine / "docs" / "api"
@@ -1064,11 +1089,11 @@ def main() -> int:
     if temporary.exists():
         shutil.rmtree(temporary)
     temporary.mkdir(parents=True)
-    write_if_changed(temporary / "index.md", render_root_index(epok_modules, psyqo_modules, nugget_revision))
-    write_if_changed(temporary / "epok.md", render_family_index("epok", epok_modules, nugget_revision))
-    write_if_changed(temporary / "psyqo.md", render_family_index("psyqo", psyqo_modules, nugget_revision))
+    write_if_changed(temporary / "index.md", render_root_index(epok_modules, psyqo_modules, nugget_revision), scrub)
+    write_if_changed(temporary / "epok.md", render_family_index("epok", epok_modules, nugget_revision), scrub)
+    write_if_changed(temporary / "psyqo.md", render_family_index("psyqo", psyqo_modules, nugget_revision), scrub)
     for module in epok_modules + psyqo_modules:
-        write_if_changed(temporary / module.family / f"{module.slug}.md", render_module(module, nugget_revision))
+        write_if_changed(temporary / module.family / f"{module.slug}.md", render_module(module, nugget_revision), scrub)
     coverage = {
         "nugget_revision": nugget_revision,
         "epok": {
@@ -1097,9 +1122,9 @@ def main() -> int:
             for module in epok_modules + psyqo_modules
         ],
     }
-    write_if_changed(temporary / "coverage.json", json.dumps(coverage, indent=2) + "\n")
+    write_if_changed(temporary / "coverage.json", json.dumps(coverage, indent=2) + "\n", scrub)
     catalog = build_catalog(epok_modules + psyqo_modules, nugget_revision)
-    write_if_changed(temporary / "catalog.json", json.dumps(catalog, indent=2) + "\n")
+    write_if_changed(temporary / "catalog.json", json.dumps(catalog, indent=2) + "\n", scrub)
     if args.check:
         existing = sorted(path.relative_to(output) for path in output.rglob("*") if path.is_file()) if output.exists() else []
         generated = sorted(path.relative_to(temporary) for path in temporary.rglob("*") if path.is_file())

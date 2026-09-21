@@ -2,10 +2,10 @@
   "schema_version": 2,
   "initiative": "gameplay-api-parity",
   "baseline": {
-    "commit": "599bec1f44c4ee1a2442518c534ca3931ffa8ff0",
-    "branch": "gameplay-facade-fog-tweens",
+    "commit": "4490d2c5d8d1c3e214c362f34382c2d8ec0bf796",
+    "branch": "develop",
     "catalog": "docs/api/catalog.json",
-    "catalog_sha256": "8ca1b498205c78f451e369f0009154e3a7a5f2137f0ffd20ddeaa635e4a39dba",
+    "catalog_sha256": "68945baddc4a6e7a5d1882612f3d9bfa49a2511449b51bf6579eeca00a64c559",
     "catalog_schema": 1,
     "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
     "source_hashes": {
@@ -98,7 +98,7 @@
     }
   },
   "frozen_denominator": {
-    "candidate_keys_sha256": "92041864b669c1a4d97654138632c48904d85f8bf7661d3332a4f642bb7bd2bf",
+    "candidate_keys_sha256": "a185e9b4f5733343cb9b841d42de6d41cdaa5abcaf60c21a388b7ded986b71c0",
     "count": 3310,
     "policy": "append-only; replacement/removal requires an explicit migration record",
     "migrations": []
@@ -195862,16 +195862,16 @@
       "status": "implemented"
     },
     {
-      "id": "gameplay-api:ec6653b5-066a-5288-8c97-9144ad44532a",
-      "candidate_key": "field:epok::StreamMeshLease::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/streaming.hpp:516:3)::mesh_",
+      "id": "gameplay-api:654f549b-0804-5d6f-85f0-f5a086634fb7",
+      "candidate_key": "field:epok::StreamMeshLease::(unnamed union at runtime/streaming.hpp:516:3)::mesh_",
       "category": "static_editable_meshes",
       "declaration_kind": "field",
-      "qualified": "epok::StreamMeshLease::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/streaming.hpp:516:3)::mesh_",
+      "qualified": "epok::StreamMeshLease::(unnamed union at runtime/streaming.hpp:516:3)::mesh_",
       "module": "streaming",
       "declarations": [
         {
           "kind": "field",
-          "qualified": "epok::StreamMeshLease::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/streaming.hpp:516:3)::mesh_",
+          "qualified": "epok::StreamMeshLease::(unnamed union at runtime/streaming.hpp:516:3)::mesh_",
           "source": "runtime/streaming.hpp",
           "line": 516,
           "signature": "mutable MeshGeometry mesh_; }",
@@ -195880,7 +195880,7 @@
           "value": null
         }
       ],
-      "declaration_hash": "c052618dbe50f80e364eb0099f22ae75ad8a44c4fd8ba9b54807eb93f52d7705",
+      "declaration_hash": "af1c088ce470154ecf9153eccb454a8ca7c8cf55a82452e772f5dd50bf0260d0",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "mutable MeshGeometry mesh_; }",
@@ -195895,7 +195895,7 @@
         "returns": "MeshGeometry"
       },
       "owner_domain": {
-        "owner": "epok::StreamMeshLease::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/streaming.hpp:516:3)",
+        "owner": "epok::StreamMeshLease::(unnamed union at runtime/streaming.hpp:516:3)",
         "domain": "streaming"
       },
       "lifecycle_phase": "valid receiver/service lifetime",
@@ -195925,10 +195925,10 @@
         }
       },
       "example_ids": [
-        "gameplay-parity-catalog:gameplay-api:ec6653b5-066a-5288-8c97-9144ad44532a"
+        "gameplay-parity-catalog:gameplay-api:654f549b-0804-5d6f-85f0-f5a086634fb7"
       ],
       "test_ids": [
-        "gameplay-parity-conformance:gameplay-api:ec6653b5-066a-5288-8c97-9144ad44532a"
+        "gameplay-parity-conformance:gameplay-api:654f549b-0804-5d6f-85f0-f5a086634fb7"
       ],
       "cost_evidence": [
         "shared-inline-native-lowering",
@@ -210074,16 +210074,16 @@
       "status": "implemented"
     },
     {
-      "id": "gameplay-api:c710cb9b-5e84-525c-af27-74fe22d73434",
-      "candidate_key": "field:epok::bp::PlaybackWait::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/playback_types.hpp:33:5)::effect",
+      "id": "gameplay-api:56bb5348-f776-5565-ab43-b25fb8a33216",
+      "candidate_key": "field:epok::bp::PlaybackWait::(unnamed union at runtime/playback_types.hpp:33:5)::effect",
       "category": "timelines_sequences",
       "declaration_kind": "field",
-      "qualified": "epok::bp::PlaybackWait::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/playback_types.hpp:33:5)::effect",
+      "qualified": "epok::bp::PlaybackWait::(unnamed union at runtime/playback_types.hpp:33:5)::effect",
       "module": "playback-types",
       "declarations": [
         {
           "kind": "field",
-          "qualified": "epok::bp::PlaybackWait::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/playback_types.hpp:33:5)::effect",
+          "qualified": "epok::bp::PlaybackWait::(unnamed union at runtime/playback_types.hpp:33:5)::effect",
           "source": "runtime/playback_types.hpp",
           "line": 33,
           "signature": "effects::Handle effect;}",
@@ -210092,7 +210092,7 @@
           "value": null
         }
       ],
-      "declaration_hash": "3717921457d901f8682665456d3e14b6ec6e4371e7bd1eaeb60e27a35f406219",
+      "declaration_hash": "8703ae9a9174391dcc07a14142619c7a4ee91b0a23c55a47eb77416673b61192",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "effects::Handle effect;}",
@@ -210107,7 +210107,7 @@
         "returns": "effects::Handle"
       },
       "owner_domain": {
-        "owner": "epok::bp::PlaybackWait::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/playback_types.hpp:33:5)",
+        "owner": "epok::bp::PlaybackWait::(unnamed union at runtime/playback_types.hpp:33:5)",
         "domain": "playback-types"
       },
       "lifecycle_phase": "level lifetime; explicit playback handle lifetime",
@@ -210137,10 +210137,10 @@
         }
       },
       "example_ids": [
-        "gameplay-parity-catalog:gameplay-api:c710cb9b-5e84-525c-af27-74fe22d73434"
+        "gameplay-parity-catalog:gameplay-api:56bb5348-f776-5565-ab43-b25fb8a33216"
       ],
       "test_ids": [
-        "gameplay-parity-conformance:gameplay-api:c710cb9b-5e84-525c-af27-74fe22d73434"
+        "gameplay-parity-conformance:gameplay-api:56bb5348-f776-5565-ab43-b25fb8a33216"
       ],
       "cost_evidence": [
         "shared-inline-native-lowering",
@@ -210150,16 +210150,16 @@
       "status": "implemented"
     },
     {
-      "id": "gameplay-api:2a8cb575-c2d7-54df-9db5-56082513b09f",
-      "candidate_key": "field:epok::bp::PlaybackWait::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/playback_types.hpp:33:5)::sequence",
+      "id": "gameplay-api:95f3f343-717b-55f9-829e-9f2402e23a86",
+      "candidate_key": "field:epok::bp::PlaybackWait::(unnamed union at runtime/playback_types.hpp:33:5)::sequence",
       "category": "timelines_sequences",
       "declaration_kind": "field",
-      "qualified": "epok::bp::PlaybackWait::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/playback_types.hpp:33:5)::sequence",
+      "qualified": "epok::bp::PlaybackWait::(unnamed union at runtime/playback_types.hpp:33:5)::sequence",
       "module": "playback-types",
       "declarations": [
         {
           "kind": "field",
-          "qualified": "epok::bp::PlaybackWait::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/playback_types.hpp:33:5)::sequence",
+          "qualified": "epok::bp::PlaybackWait::(unnamed union at runtime/playback_types.hpp:33:5)::sequence",
           "source": "runtime/playback_types.hpp",
           "line": 33,
           "signature": "timeline::Handle sequence;effects::H",
@@ -210168,7 +210168,7 @@
           "value": null
         }
       ],
-      "declaration_hash": "7dee7d7b0abb78f0f8bc95fa511fcb847edb88a8a8590ebac0516ee724fbfe14",
+      "declaration_hash": "6c4242136396c690c47bd9cdc7f88be72bf9720ab8c1dd49cd09cb827d24ae77",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "timeline::Handle sequence;effects::H",
@@ -210183,7 +210183,7 @@
         "returns": "timeline::Handle"
       },
       "owner_domain": {
-        "owner": "epok::bp::PlaybackWait::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/playback_types.hpp:33:5)",
+        "owner": "epok::bp::PlaybackWait::(unnamed union at runtime/playback_types.hpp:33:5)",
         "domain": "playback-types"
       },
       "lifecycle_phase": "level lifetime; explicit playback handle lifetime",
@@ -210213,10 +210213,10 @@
         }
       },
       "example_ids": [
-        "gameplay-parity-catalog:gameplay-api:2a8cb575-c2d7-54df-9db5-56082513b09f"
+        "gameplay-parity-catalog:gameplay-api:95f3f343-717b-55f9-829e-9f2402e23a86"
       ],
       "test_ids": [
-        "gameplay-parity-conformance:gameplay-api:2a8cb575-c2d7-54df-9db5-56082513b09f"
+        "gameplay-parity-conformance:gameplay-api:95f3f343-717b-55f9-829e-9f2402e23a86"
       ],
       "cost_evidence": [
         "shared-inline-native-lowering",
@@ -259722,16 +259722,16 @@
       "status": "implemented"
     },
     {
-      "id": "gameplay-api:344a0893-a9ee-51a9-9702-64fcbf71e387",
-      "candidate_key": "field:epok::timeline::BoundTarget::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/timeline_runtime.hpp:14:5)::layer",
+      "id": "gameplay-api:5d8db281-3bb2-5c83-b8ed-7f629716335d",
+      "candidate_key": "field:epok::timeline::BoundTarget::(unnamed union at runtime/timeline_runtime.hpp:14:5)::layer",
       "category": "implementation_support",
       "declaration_kind": "field",
-      "qualified": "epok::timeline::BoundTarget::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/timeline_runtime.hpp:14:5)::layer",
+      "qualified": "epok::timeline::BoundTarget::(unnamed union at runtime/timeline_runtime.hpp:14:5)::layer",
       "module": "timeline-runtime",
       "declarations": [
         {
           "kind": "field",
-          "qualified": "epok::timeline::BoundTarget::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/timeline_runtime.hpp:14:5)::layer",
+          "qualified": "epok::timeline::BoundTarget::(unnamed union at runtime/timeline_runtime.hpp:14:5)::layer",
           "source": "runtime/timeline_runtime.hpp",
           "line": 14,
           "signature": "EffectLayerHandle layer;}",
@@ -259740,7 +259740,7 @@
           "value": null
         }
       ],
-      "declaration_hash": "525ffd5211289eb7db2f8b2b407b6dd56cd4d257eee4f8ac5996e2535881a538",
+      "declaration_hash": "6fa66253e3b3f10df5d06cb94f5b97f4e2edde88da402aabd668ab97ca3576c4",
       "disposition": "internal_implementation",
       "rationale": "Compiler, renderer, scheduler, storage, or backend machinery rather than a game-authored operation.",
       "canonical_public_declaration": "EffectLayerHandle layer;}",
@@ -259755,7 +259755,7 @@
         "returns": "EffectLayerHandle"
       },
       "owner_domain": {
-        "owner": "epok::timeline::BoundTarget::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/timeline_runtime.hpp:14:5)",
+        "owner": "epok::timeline::BoundTarget::(unnamed union at runtime/timeline_runtime.hpp:14:5)",
         "domain": "timeline-runtime"
       },
       "lifecycle_phase": "valid receiver/service lifetime",
@@ -259785,10 +259785,10 @@
         }
       },
       "example_ids": [
-        "gameplay-parity-catalog:gameplay-api:344a0893-a9ee-51a9-9702-64fcbf71e387"
+        "gameplay-parity-catalog:gameplay-api:5d8db281-3bb2-5c83-b8ed-7f629716335d"
       ],
       "test_ids": [
-        "gameplay-parity-conformance:gameplay-api:344a0893-a9ee-51a9-9702-64fcbf71e387"
+        "gameplay-parity-conformance:gameplay-api:5d8db281-3bb2-5c83-b8ed-7f629716335d"
       ],
       "cost_evidence": [
         "shared-inline-native-lowering",
@@ -259798,16 +259798,16 @@
       "status": "implemented"
     },
     {
-      "id": "gameplay-api:7715d7d2-191b-5c7b-998d-e596c38b2a09",
-      "candidate_key": "field:epok::timeline::BoundTarget::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/timeline_runtime.hpp:14:5)::object",
+      "id": "gameplay-api:95265863-69e4-5b01-9b9c-c375496c4e39",
+      "candidate_key": "field:epok::timeline::BoundTarget::(unnamed union at runtime/timeline_runtime.hpp:14:5)::object",
       "category": "implementation_support",
       "declaration_kind": "field",
-      "qualified": "epok::timeline::BoundTarget::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/timeline_runtime.hpp:14:5)::object",
+      "qualified": "epok::timeline::BoundTarget::(unnamed union at runtime/timeline_runtime.hpp:14:5)::object",
       "module": "timeline-runtime",
       "declarations": [
         {
           "kind": "field",
-          "qualified": "epok::timeline::BoundTarget::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/timeline_runtime.hpp:14:5)::object",
+          "qualified": "epok::timeline::BoundTarget::(unnamed union at runtime/timeline_runtime.hpp:14:5)::object",
           "source": "runtime/timeline_runtime.hpp",
           "line": 14,
           "signature": "ObjectId object;EffectLaye",
@@ -259816,7 +259816,7 @@
           "value": null
         }
       ],
-      "declaration_hash": "6cbe8d69643e7c07d7f11d3571f8a7a586f8050e16c42590f8385dd755f27ec8",
+      "declaration_hash": "bd664ac0b6a27e121cf0a89aa8dd3b6c64befe876c40bb8a7d5702e780faa4fa",
       "disposition": "internal_implementation",
       "rationale": "Compiler, renderer, scheduler, storage, or backend machinery rather than a game-authored operation.",
       "canonical_public_declaration": "ObjectId object;EffectLaye",
@@ -259831,7 +259831,7 @@
         "returns": "ObjectId"
       },
       "owner_domain": {
-        "owner": "epok::timeline::BoundTarget::(unnamed union at /Users/francisco.rivero/GithubProjects/p/epok-engine/runtime/timeline_runtime.hpp:14:5)",
+        "owner": "epok::timeline::BoundTarget::(unnamed union at runtime/timeline_runtime.hpp:14:5)",
         "domain": "timeline-runtime"
       },
       "lifecycle_phase": "valid receiver/service lifetime",
@@ -259861,10 +259861,10 @@
         }
       },
       "example_ids": [
-        "gameplay-parity-catalog:gameplay-api:7715d7d2-191b-5c7b-998d-e596c38b2a09"
+        "gameplay-parity-catalog:gameplay-api:95265863-69e4-5b01-9b9c-c375496c4e39"
       ],
       "test_ids": [
-        "gameplay-parity-conformance:gameplay-api:7715d7d2-191b-5c7b-998d-e596c38b2a09"
+        "gameplay-parity-conformance:gameplay-api:95265863-69e4-5b01-9b9c-c375496c4e39"
       ],
       "cost_evidence": [
         "shared-inline-native-lowering",

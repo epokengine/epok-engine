@@ -22,7 +22,7 @@
       "properties": 0,
       "source_sha256": "c367cdbc7268eaf8acd0864143515f59e777c7fcbfbbc9bd7a5f01f7b4e0abb0",
       "diagnostics": [
-        "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok-api-epok.cpp:1:10: fatal error: 'array' file not found"
+        ".epok-api-epok.cpp:1:10: fatal error: 'array' file not found"
       ]
     },
     {
@@ -844,7 +844,7 @@
       "properties": 0,
       "source_sha256": "acbf938b97f5127ab28e44027cd951d98e1cbb3d2f5549b597c3225f92b69ee2",
       "diagnostics": [
-        "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok-api-psyqo.cpp:1:10: fatal error: 'array' file not found"
+        ".epok-api-psyqo.cpp:1:10: fatal error: 'array' file not found"
       ]
     },
     {

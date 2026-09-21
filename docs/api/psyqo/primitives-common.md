@@ -8,7 +8,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 
 ## Declared types
 
-`psyqo::Color::(unnamed struct at /Users/francisco.rivero/GithubProjects/p/epok-engine/third_party/nugget/psyqo/primitives/common.hh:92:5)`, `psyqo::Prim::TPageAttr::ColorMode`, `psyqo::Prim::TPageAttr::SemiTrans`, `psyqo::Prim::Transparency`, `psyqo::PrimPieces::ClutIndex`, `psyqo::PrimPieces::PageInfo`, `psyqo::PrimPieces::TexInfo`, `psyqo::PrimPieces::TPageAttr`, `psyqo::PrimPieces::TPageLoc`, `psyqo::PrimPieces::UVCoords`, `psyqo::PrimPieces::UVCoordsPadded`, `psyqo::Rect`, `psyqo::Vertex::(anonymous struct at /Users/francisco.rivero/GithubProjects/p/epok-engine/third_party/nugget/psyqo/primitives/common.hh:48:5)`
+`psyqo::Color::(unnamed struct at third_party/nugget/psyqo/primitives/common.hh:92:5)`, `psyqo::Prim::TPageAttr::ColorMode`, `psyqo::Prim::TPageAttr::SemiTrans`, `psyqo::Prim::Transparency`, `psyqo::PrimPieces::ClutIndex`, `psyqo::PrimPieces::PageInfo`, `psyqo::PrimPieces::TexInfo`, `psyqo::PrimPieces::TPageAttr`, `psyqo::PrimPieces::TPageLoc`, `psyqo::PrimPieces::UVCoords`, `psyqo::PrimPieces::UVCoordsPadded`, `psyqo::Rect`, `psyqo::Vertex::(anonymous struct at third_party/nugget/psyqo/primitives/common.hh:48:5)`
 
 ## Callable index
 
