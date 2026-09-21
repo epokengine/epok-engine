@@ -608,7 +608,7 @@ void GameScene::frame() {
   performance_work.frame=epok::performance_stats.frame+1;
   const bool scene_changed=epok::scene_tick(gpu());
   if(scene_changed||epok::scene_loading())motion.clear();
-  epok::input.poll(pad,4); // AdvancedPad's physical ports are Pad1a=0, Pad2a=4.
+  epok::input.poll_multitap(pad); // AdvancedPad's Pad1a..Pad1d are 0..3.
 #ifdef EPOK_TRANSITIONS
   if(epok::stream_failed&&!epok::transition.loading())epok::transition.fail();
   if(epok::transition.phase==epok::TransitionPhase::Failed&&epok::input.frame_pressed(epok::Button::Start)){

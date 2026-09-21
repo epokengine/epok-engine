@@ -179,10 +179,10 @@ int main(){
     epok::nav::move_actor=&epok::move_and_slide;epok::nav::bounds_actor=&epok::collider_aabb;
     epok::initialize_components();if(epok::load_actor_bank(epok::actor_table,epok::objects.data(),epok::object_count)!=epok::actor_table.count)return 4;
     for(auto& object:epok::objects)if(epok::is_active(&object)&&object.audio.enabled&&object.audio.play_on_start&&!object.audio.is_playing())object.audio.play();frame();
-    uint32_t now=0,elapsed=0,buttons=0;
-    while(read32(elapsed)){uint32_t completed=0;if(!read32(buttons)||!read32(completed)||elapsed>100000||buttons>65535||completed>EPOK_NATIVE_PLAY_AUDIO_LIMIT)return 3;
+    uint32_t now=0,elapsed=0;uint32_t buttons[4]={},analog[4]={},axes[4]={};
+    while(read32(elapsed)){for(unsigned p=0;p<4;++p)if(!read32(buttons[p])||!read32(analog[p])||!read32(axes[p])||buttons[p]>65535||analog[p]>1)return 3;uint32_t completed=0;if(!read32(completed)||elapsed>100000||completed>EPOK_NATIVE_PLAY_AUDIO_LIMIT)return 3;
         for(uint32_t i=0;i<completed;++i){uint32_t low=0,high=0;if(!read32(low)||!read32(high))return 3;const auto* source=reinterpret_cast<const epok::AudioSource*>(uintptr_t(uint64_t(low)|(uint64_t(high)<<32)));auto found=epok::audio_playing.find(source);if(found!=epok::audio_playing.end())found->second=false;}
-        if(epok::requested_scene.empty()){now+=elapsed;epok::input.sample(0,true,uint16_t(buttons));const auto steps=epok::time.advance(now);epok::level.frame_update(epok::time.frame_microseconds);
+        if(epok::requested_scene.empty()){now+=elapsed;for(unsigned p=0;p<4;++p)epok::input.sample(p,true,uint16_t(buttons[p]),analog[p],uint8_t(axes[p]),uint8_t(axes[p]>>8),uint8_t(axes[p]>>16),uint8_t(axes[p]>>24));const auto steps=epok::time.advance(now);epok::level.frame_update(epok::time.frame_microseconds);
             if(epok::time.paused())epok::input.discard_edges();if(!epok::time.paused())epok::nav::world.tick();
             for(unsigned step=0;step<steps&&!epok::time.paused();++step){epok::time.begin_tick();epok::input.begin_tick();const Fixed dt(epok::time.delta_raw,Fixed::RAW);epok::level.tick(dt);
                 bool triggers=collision_world.has_trigger_pairs();for(size_t i=0;i<epok::object_count&&!triggers;++i)triggers=epok::objects[i].collider.enabled&&epok::objects[i].collider.trigger&&epok::is_active_slot(i);

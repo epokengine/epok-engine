@@ -15,7 +15,7 @@ The artwork is embedded, so it works outside the installation's working director
 
 ## Ownership and format
 
-**Third Person** adds an editable arena with grey platforms, ramps, blue cubes and a static mannequin. It is currently a level placeholder; movement and collisions are not included. See [Third Person arena](third-person.md) for its layout and PSX rendering details. The command-line template name is `third-person`.
+**Third Person** adds an optimized editable arena, static blue cubes and an animated player with camera-relative movement, jumping, collision and an orbit camera. It intentionally excludes combat, NPCs and audio. See [Third Person template](third-person.md) for controls, hierarchy and rendering details. The command-line template name is `third-person`.
 
 ```text
 My Game/

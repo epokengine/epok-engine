@@ -15,7 +15,7 @@ use std::{
 };
 use winit::{
     dpi::LogicalSize,
-    event::{DeviceEvent, Event, WindowEvent},
+    event::{DeviceEvent, ElementState, Event, MouseButton as WinitMouseButton, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{CursorGrabMode, WindowAttributes},
 };
@@ -369,6 +369,33 @@ pub fn run(
     );
     splash_texture.write(&queue, &splash_pixels, splash_width, splash_height);
     let splash_texture_id = renderer.textures.insert(splash_texture);
+    let (controller_pixels, controller_width, controller_height) =
+        crate::branding::controller_pixels()?;
+    let controller_texture = imgui_wgpu::Texture::new(
+        &device,
+        &renderer,
+        imgui_wgpu::TextureConfig {
+            size: wgpu::Extent3d {
+                width: controller_width,
+                height: controller_height,
+                depth_or_array_layers: 1,
+            },
+            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+            sampler_desc: wgpu::SamplerDescriptor {
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    controller_texture.write(
+        &queue,
+        &controller_pixels,
+        controller_width,
+        controller_height,
+    );
+    let controller_texture_id = renderer.textures.insert(controller_texture);
     let texture = imgui_wgpu::Texture::new(
         &device,
         &renderer,
@@ -497,6 +524,9 @@ pub fn run(
     let mut startup_first_frame = true;
     startup_mark("remaining setup");
     let mut look_restore = winit::dpi::PhysicalPosition::new(0_f64, 0_f64);
+    // Gilrs is polled independently from Winit so generic XInput, DirectInput
+    // and SDL-style controllers can be captured and used by Native PC Play.
+    let mut gamepads = gilrs::Gilrs::new().ok();
     // A hidden Win32 window may not receive paint events. Show the compact
     // window after GPU setup so the event loop can present its first splash.
     window.set_visible(true);
@@ -507,6 +537,16 @@ pub fn run(
             platform.handle_event(imgui.io_mut(), &window, &event);
         }
         match event {
+            Event::WindowEvent { event: WindowEvent::KeyboardInput { event, .. }, .. } => {
+                if let Some(editor)=session.as_mut() {
+                    if let winit::keyboard::PhysicalKey::Code(code)=event.physical_key {
+                        editor.input_key(format!("{code:?}"),event.state==ElementState::Pressed);
+                    }
+                }
+            }
+            Event::WindowEvent { event: WindowEvent::MouseInput { state, button, .. }, .. } => {
+                if let Some(button)=mouse_button(button) && let Some(editor)=session.as_mut() { editor.input_mouse_button(button,state==ElementState::Pressed); }
+            }
             Event::WindowEvent { event: WindowEvent::DroppedFile(path), .. } => {
                 if let Some(editor) = session.as_mut().filter(|e| !e.critical_busy()) {
                     crate::project_browser::external_drop(editor, path);
@@ -515,8 +555,20 @@ pub fn run(
             Event::WindowEvent{event:WindowEvent::CursorMoved{position,..},..} if !look_captured => {look_restore=position;}
             Event::DeviceEvent {event:DeviceEvent::MouseMotion{delta},..} if look_captured => {
                 raw_motion[0]+=delta.0 as f32;raw_motion[1]+=delta.1 as f32;
+                if let Some(editor)=session.as_mut(){editor.input_mouse_motion([delta.0 as f32,delta.1 as f32]);}
+            }
+            Event::DeviceEvent {event:DeviceEvent::MouseMotion{delta},..} => {
+                if let Some(editor)=session.as_mut(){editor.input_mouse_motion([delta.0 as f32,delta.1 as f32]);}
             }
             Event::AboutToWait => {
+                if let (Some(gamepads),Some(editor))=(gamepads.as_mut(),session.as_mut()) {
+                    while let Some(event)=gamepads.next_event() { match event.event {
+                        gilrs::EventType::ButtonPressed(button,_)=>editor.input_gamepad_button(format!("{button:?}"),true),
+                        gilrs::EventType::ButtonReleased(button,_)=>editor.input_gamepad_button(format!("{button:?}"),false),
+                        gilrs::EventType::AxisChanged(axis,value,_)=>if let Some(axis)=gamepad_axis(axis){editor.input_gamepad_axis(axis,value)},
+                        _=>{}
+                    }}
+                }
                 if Instant::now()>=next_frame {
                     window.request_redraw();
                 }
@@ -718,6 +770,7 @@ pub fn run(
                 editor.project_browser.font = Some(browser_font);
                 editor.timeline_editor.font = Some(sequencer_font);
                 editor.inspector_font = Some(inspector_font);
+                editor.settings.controls.texture = Some(controller_texture_id);
                 gui::draw(
                     ui,
                     editor,
@@ -957,6 +1010,27 @@ pub fn run(
         }
     })?;
     Ok(())
+}
+fn mouse_button(button: WinitMouseButton) -> Option<crate::controls::MouseButton> {
+    match button {
+        WinitMouseButton::Left => Some(crate::controls::MouseButton::Left),
+        WinitMouseButton::Right => Some(crate::controls::MouseButton::Right),
+        WinitMouseButton::Middle => Some(crate::controls::MouseButton::Middle),
+        WinitMouseButton::Back => Some(crate::controls::MouseButton::Back),
+        WinitMouseButton::Forward => Some(crate::controls::MouseButton::Forward),
+        _ => None,
+    }
+}
+fn gamepad_axis(axis: gilrs::Axis) -> Option<crate::controls::GamepadAxis> {
+    match axis {
+        gilrs::Axis::LeftStickX => Some(crate::controls::GamepadAxis::LeftStickX),
+        gilrs::Axis::LeftStickY => Some(crate::controls::GamepadAxis::LeftStickY),
+        gilrs::Axis::RightStickX => Some(crate::controls::GamepadAxis::RightStickX),
+        gilrs::Axis::RightStickY => Some(crate::controls::GamepadAxis::RightStickY),
+        gilrs::Axis::LeftZ => Some(crate::controls::GamepadAxis::LeftTrigger),
+        gilrs::Axis::RightZ => Some(crate::controls::GamepadAxis::RightTrigger),
+        _ => None,
+    }
 }
 fn update_look_cursor(previous: bool, captured: bool, set_visible: impl FnOnce(bool)) {
     // ImGui caches its cursor choice. Hiding the OS cursor outside the backend

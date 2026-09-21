@@ -303,8 +303,14 @@ fn object_class_table_with_capacities(
                 ",0,nullptr,epok::ComponentCallbacks<{name}>::tick,epok::ComponentCallbacks<{name}>::frame"
             )
         } else if class.family == crate::reflection_schema::ClassFamily::Actor {
-            let prefix = if defaults.is_empty() { ",0,nullptr" } else { "" };
-            format!("{prefix},epok::ActorCallbacks<{name}>::tick,epok::ActorCallbacks<{name}>::frame")
+            let prefix = if defaults.is_empty() {
+                ",0,nullptr"
+            } else {
+                ""
+            };
+            format!(
+                "{prefix},epok::ActorCallbacks<{name}>::tick,epok::ActorCallbacks<{name}>::frame"
+            )
         } else {
             String::new()
         };

@@ -1,15 +1,19 @@
-# Third Person arena
+# Third Person
 
-An editable low-poly arena with grey platforms, ramps, blue cubes and a controllable mannequin.
-Open the scene, explore with right mouse + WASD, or edit a mesh through the Blockout panel.
-Play includes character movement, jumping, collision and an orbiting follow camera through
-the project-owned ThirdPersonController. The mannequin uses rigid boxes; skeletal animation
-is not attached.
+A lightweight playable third-person starter project. The scene contains an optimized
+low-poly arena, three static blue cubes and one animated player character.
 
-New projects use 320 x 240 progressive output with position interpolation enabled. This
-avoids interlaced motion artifacts on physical displays. Resolution remains editable in
-Edit > Project Settings > Rendering.
+## Controls
 
-All geometry is generated locally as Epok assets. Curves use a small number of flat
-segments, and the grid uses vertex-colored geometry. Each area has a separate editable
-mesh package and named face groups. Materials can also use imported textures.
+- Left stick or WASD: move relative to the camera.
+- Right stick or mouse: orbit and pitch the camera.
+- Cross or K: jump.
+
+The player transitions between idle, walk, run, jump, fall and land animations. The
+camera shortens its boom near level geometry. There is deliberately no combat,
+lock-on, NPC logic or audio in this template.
+
+The hierarchy is grouped under World, with separate Environment and Gameplay branches.
+Level meshes remain editable, while their optimized packages keep the console build small.
+Generated files and caches live under `.epok/`, are excluded from version control and are
+recreated when required.

@@ -251,7 +251,10 @@ pub fn layout(scene: &Scene) -> Result<Vec<(Uuid, Placement)>, String> {
     let ordered_ids = ids(scene);
     let mut packing_order: Vec<_> = ordered_ids.iter().copied().enumerate().collect();
     packing_order.sort_by_key(|(i, id)| {
-        (std::cmp::Reverse(scene.textures.get(id).map_or(0, |t| t.height)), *i)
+        (
+            std::cmp::Reverse(scene.textures.get(id).map_or(0, |t| t.height)),
+            *i,
+        )
     });
     for (i, id) in packing_order {
         if i >= 32 {
@@ -485,11 +488,16 @@ mod tests {
             scene.textures.insert(id, std::sync::Arc::new(texture));
         }
         let packed = layout(&scene).unwrap();
-        assert_eq!(packed.iter().map(|(id, _)| *id).collect::<Vec<_>>(), ids(&scene));
+        assert_eq!(
+            packed.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+            ids(&scene)
+        );
         assert_eq!(packed[0].1.y, 256);
         for (i, (_, p)) in packed.iter().enumerate() {
             assert_eq!(p.clut_y, 480 + i as u16);
-            if i != 0 { assert_eq!(p.y, 0); }
+            if i != 0 {
+                assert_eq!(p.y, 0);
+            }
         }
     }
     #[test]

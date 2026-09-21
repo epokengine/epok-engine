@@ -42,6 +42,8 @@ mod collision;
 mod collision_editor;
 mod console;
 mod content_preview;
+mod controls;
+mod controls_ui;
 mod dependencies;
 mod disc;
 mod document;
@@ -1261,11 +1263,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     if args.iter().any(|a| a == "--bake-navigation") {
-        let path = args.windows(2).find(|v|v[0]=="--scene").map(|v|root.join(&v[1])).map_or_else(||workspace::startup_scene(&root),Ok)?;
+        let path = args
+            .windows(2)
+            .find(|v| v[0] == "--scene")
+            .map(|v| root.join(&v[1]))
+            .map_or_else(|| workspace::startup_scene(&root), Ok)?;
         let mut scene = scene::Scene::load(&path)?;
         scene.navigation = Some(navigation::bake(&scene)?);
         scene.save(&path)?;
-        println!("Navigation baked: {} nodes, {}", scene.navigation.as_ref().unwrap().nodes.len(),path.display());
+        println!(
+            "Navigation baked: {} nodes, {}",
+            scene.navigation.as_ref().unwrap().nodes.len(),
+            path.display()
+        );
         return Ok(());
     }
     if args.iter().any(|a| a == "--profile-scene") {
@@ -1406,6 +1416,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn prepare_editor(editor: &mut editor::Editor) {
     let args = std::env::args().collect::<Vec<_>>();
+    if args.iter().any(|a| a == "--screenshot-controls") {
+        settings_ui::open_controls(editor);
+    }
     if let Some(relative) = args
         .windows(2)
         .find(|a| a[0] == "--inspect-asset")
@@ -1498,7 +1511,8 @@ fn prepare_editor(editor: &mut editor::Editor) {
         editor.selected = editor.scene.actors.iter().position(|e| e.light.is_some());
     }
     if args.iter().any(|a| a == "--screenshot-navigation") {
-        editor.selected = (0..editor.scene.actors.len()).find(|&i| navigation::selected_volume(&editor.scene,Some(i)).is_some());
+        editor.selected = (0..editor.scene.actors.len())
+            .find(|&i| navigation::selected_volume(&editor.scene, Some(i)).is_some());
     }
     if args.iter().any(|a| a == "--screenshot-hud") {
         editor.set_scene_2d(true);

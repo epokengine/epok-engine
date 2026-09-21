@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="975" viewBox="0 0 1000 650">
+  <!-- Original Epok controller artwork. Coordinates are shared with controls_ui.rs.
+       Render with resvg; no external fonts or images are required for the symbols. -->
+  <defs>
+    <linearGradient id="shell" x1="0" y1="0" x2="0.2" y2="1">
+      <stop stop-color="#e8e9ed"/><stop offset=".45" stop-color="#c7cbd2"/><stop offset="1" stop-color="#9299a5"/>
+    </linearGradient>
+    <linearGradient id="edge" x2="0" y2="1"><stop stop-color="#9ba4b2"/><stop offset="1" stop-color="#535d6d"/></linearGradient>
+    <linearGradient id="rubber" x2="0.3" y2="1"><stop stop-color="#454a55"/><stop offset=".5" stop-color="#262a33"/><stop offset="1" stop-color="#14171e"/></linearGradient>
+    <radialGradient id="cap" cx=".4" cy=".3" r=".75"><stop stop-color="#434953"/><stop offset=".8" stop-color="#292e37"/><stop offset="1" stop-color="#1b2028"/></radialGradient>
+    <radialGradient id="well"><stop offset=".75" stop-color="#878f9c"/><stop offset="1" stop-color="#b6bdc7"/></radialGradient>
+    <filter id="shadow" x="-.3" y="-.3" width="1.6" height="1.7"><feGaussianBlur stdDeviation="12"/></filter>
+    <path id="body" d="M 155,212 C 167,163 198,144 244,144 C 286,144 316,164 354,171 C 402,179 598,179 646,171 C 684,164 714,144 756,144 C 802,144 833,163 845,212 L 903,456 C 918,511 898,557 861,570 C 817,586 788,556 761,520 L 696,438 C 680,468 650,484 620,484 C 582,484 560,462 549,437 L 451,437 C 440,462 418,484 380,484 C 350,484 320,468 304,438 L 239,520 C 212,556 183,586 139,570 C 102,557 82,511 97,456 Z"/>
+    <g id="shoulder">
+      <path d="M 179,148 L 185,106 Q 187,87 207,87 L 269,87 Q 289,87 292,106 L 300,148 Z" fill="url(#rubber)" stroke="#707887" stroke-width="3"/>
+      <path d="M 178,152 Q 240,134 302,152 L 306,189 Q 240,178 174,189 Z" fill="url(#rubber)" stroke="#7a8392" stroke-width="3"/>
+      <path d="M 192,108 Q 238,100 281,108 M 188,160 Q 239,148 294,160" fill="none" stroke="#626a78" stroke-width="2"/>
+    </g>
+    <g id="stick">
+      <circle cy="6" r="76" fill="#66707e" opacity=".4"/>
+      <circle r="75" fill="url(#edge)" stroke="#e1e5ea" stroke-width="2"/>
+      <circle r="66" fill="url(#well)"/>
+      <ellipse cy="8" rx="55" ry="53" fill="#242933"/>
+      <circle r="55" fill="url(#rubber)" stroke="#161a23" stroke-width="3"/>
+      <circle cy="-5" r="48" fill="url(#cap)" stroke="#606875" stroke-width="2"/>
+      <circle cy="-5" r="40" fill="none" stroke="#7b8492" stroke-opacity=".25" stroke-width="1.5"/>
+      <path d="M -32,-34 Q -4,-53 28,-34" fill="none" stroke="#a5adba" stroke-opacity=".35" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <g id="face"><circle cy="3" r="30" fill="#737c8b"/><circle r="29" fill="url(#rubber)" stroke="#111721" stroke-width="2"/><path d="M -21,-16 Q 0,-32 21,-16" fill="none" stroke="#77808e" stroke-width="1.5"/></g>
+    <g id="dpad"><path d="M -18,-56 Q -18,-62 -12,-62 L 12,-62 Q 18,-62 18,-56 L 18,-24 L 0,-10 L -18,-24 Z" fill="url(#rubber)" stroke="#1b212b" stroke-width="2"/><path d="M -10,-37 L 0,-48 L 10,-37" fill="none" stroke="#9aa4b2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M -12,-54 L 12,-54" stroke="#7a8493" stroke-width="2"/></g>
+  </defs>
+  <use href="#body" transform="translate(0 20)" fill="#05090f" opacity=".65" filter="url(#shadow)"/>
+  <path d="M 489,177 L 489,141 Q 489,132 500,132 Q 511,132 511,141 L 511,177" fill="#303641" stroke="#6d7786" stroke-width="2"/>
+  <use href="#shoulder"/><use href="#shoulder" transform="translate(520 0)"/>
+  <use href="#body" transform="translate(0 7)" fill="url(#edge)" stroke="#515b6a" stroke-width="3"/>
+  <use href="#body" fill="url(#shell)" stroke="#dde3ec" stroke-width="2"/>
+  <path d="M 153,375 L 117,472 Q 101,526 142,548 M 847,375 L 883,472 Q 899,526 858,548" fill="none" stroke="#f3f5f8" stroke-opacity=".35" stroke-width="4" stroke-linecap="round"/>
+  <path d="M 351,184 Q 500,200 649,184" fill="none" stroke="#f8f9fb" stroke-opacity=".65" stroke-width="3"/>
+  <circle cx="247" cy="277" r="105" fill="url(#well)" stroke="#eef0f5" stroke-width="2"/>
+  <circle cx="753" cy="277" r="105" fill="url(#well)" stroke="#eef0f5" stroke-width="2"/>
+  <circle cx="247" cy="277" r="91" fill="#b7bdc7" stroke="#929ba9" stroke-width="1.5"/>
+  <circle cx="753" cy="277" r="91" fill="#b7bdc7" stroke="#929ba9" stroke-width="1.5"/>
+  <g transform="translate(247 277)"><use href="#dpad"/><use href="#dpad" transform="rotate(90)"/><use href="#dpad" transform="rotate(180)"/><use href="#dpad" transform="rotate(270)"/></g>
+  <g transform="translate(753 224)"><use href="#face"/><path d="M 0,-15 L 15,12 L -15,12 Z" fill="none" stroke="#6ac4b0" stroke-width="3" stroke-linejoin="round"/></g>
+  <g transform="translate(806 277)"><use href="#face"/><circle r="14" fill="none" stroke="#ee8690" stroke-width="3"/></g>
+  <g transform="translate(753 330)"><use href="#face"/><path d="M -11,-11 L 11,11 M 11,-11 L -11,11" fill="none" stroke="#8cafe8" stroke-width="3.5" stroke-linecap="round"/></g>
+  <g transform="translate(700 277)"><use href="#face"/><rect x="-12" y="-12" width="24" height="24" fill="none" stroke="#d69acb" stroke-width="3"/></g>
+  <g transform="translate(380 405)"><use href="#stick"/></g><g transform="translate(620 405)"><use href="#stick"/></g>
+  <g fill="#5e6879" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" letter-spacing="2">
+    <text x="446" y="274">SELECT</text><text x="554" y="274">START</text>
+    <text x="500" y="221" font-size="14" letter-spacing="4">E P O K</text>
+    <text x="500" y="241" font-size="10" font-weight="normal" letter-spacing="2">VIRTUAL CONTROLLER</text>
+    <text x="500" y="370" font-size="10" letter-spacing="1">ANALOG</text>
+  </g>
+  <rect x="424" y="289" width="43" height="19" rx="5" fill="#697382"/>
+  <rect x="425" y="286" width="41" height="19" rx="5" fill="url(#rubber)" stroke="#141a24" stroke-width="2"/>
+  <path d="M 540,285 Q 537,283 537,288 L 537,306 Q 537,311 542,308 L 569,299 Q 573,297 569,295 Z" fill="url(#rubber)" stroke="#141a24" stroke-width="2"/>
+  <rect x="480" y="340" width="40" height="15" rx="7.5" fill="url(#rubber)" stroke="#525c6b" stroke-width="2"/>
+  <rect x="495" y="382" width="10" height="5" rx="2" fill="#e36e58"/>
+  <g font-family="Arial,sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#e7ebf2"><text x="240" y="120">L2</text><text x="760" y="120">R2</text></g>
+  <!-- Front shoulder hints are visible above the shell, matching the two click regions. -->
+  <g fill="url(#rubber)" stroke="#8993a1" stroke-width="2"><path d="M 191,156 Q 240,141 289,156 L 286,177 Q 240,170 194,177 Z"/><path d="M 711,156 Q 760,141 809,156 L 806,177 Q 760,170 714,177 Z"/></g>
+  <g font-family="Arial,sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#e7ebf2"><text x="240" y="167">L1</text><text x="760" y="167">R1</text></g>
+</svg>

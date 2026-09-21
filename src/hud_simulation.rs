@@ -12,7 +12,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver},
     },
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 /// The two phases of the native preview, and the boundary between them.
@@ -670,6 +670,8 @@ pub(crate) fn build_runner(
         "runner"
     });
     if exe.is_file() {
+        touch_cache(&cache);
+        prune_native_cache(&base, &cache);
         return Ok(exe);
     }
     let mut common = Sha256::new();
@@ -805,7 +807,82 @@ pub(crate) fn build_runner(
             .or_else(|e| if exe.exists() { Ok(()) } else { Err(e) })
             .map_err(|e| e.to_string())?;
     }
+    // The immutable executable and object cache are the only reusable outputs.
+    // Keeping a complete generated source tree for every content hash caused
+    // long-lived projects to accumulate gigabytes of redundant staging data.
+    let _ = fs::remove_dir_all(&stage);
+    touch_cache(&cache);
+    prune_native_cache(&base, &cache);
     Ok(exe)
+}
+
+const NATIVE_CACHE_BUILDS: usize = 6;
+const NATIVE_OBJECT_FILES: usize = 128;
+const NATIVE_OBJECT_BYTES: u64 = 128 * 1024 * 1024;
+
+fn modified(path: &Path) -> SystemTime {
+    fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .unwrap_or(SystemTime::UNIX_EPOCH)
+}
+
+fn touch_cache(cache: &Path) {
+    // Content is irrelevant; replacing the marker records actual use without
+    // changing the immutable runner that the cache key certifies.
+    let _ = fs::write(cache.join("used"), format!("{:?}", SystemTime::now()));
+}
+
+fn prune_files(directory: &Path, max_files: usize, max_bytes: u64) {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+    let mut files = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .collect::<Vec<_>>();
+    files.sort_by_key(|path| std::cmp::Reverse(modified(path)));
+    let mut retained = 0usize;
+    let mut bytes = 0u64;
+    for path in files {
+        let size = fs::metadata(&path)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
+        if retained < max_files && bytes.saturating_add(size) <= max_bytes {
+            retained += 1;
+            bytes = bytes.saturating_add(size);
+        } else {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
+fn prune_native_cache(base: &Path, current: &Path) {
+    let runner = if cfg!(windows) {
+        "runner.exe"
+    } else {
+        "runner"
+    };
+    let Ok(entries) = fs::read_dir(base) else {
+        return;
+    };
+    let mut completed = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path != current && path.join(runner).is_file())
+        .collect::<Vec<_>>();
+    completed.sort_by_key(|path| std::cmp::Reverse(modified(&path.join("used"))));
+    for path in completed
+        .into_iter()
+        .skip(NATIVE_CACHE_BUILDS.saturating_sub(1))
+    {
+        let _ = fs::remove_dir_all(path);
+    }
+    prune_files(
+        &base.join("objects"),
+        NATIVE_OBJECT_FILES,
+        NATIVE_OBJECT_BYTES,
+    );
 }
 fn native_compile_error(runner: Runner, log: &Path) -> String {
     format!(
@@ -961,6 +1038,40 @@ mod tests {
         assert!(simulate.phase.runs_begin_play());
         // The runner never sets the Blueprint bit; the handshake reports false.
         assert!(!simulate.blueprint_support());
+    }
+    #[test]
+    fn native_cache_retention_is_bounded() {
+        let root = std::env::temp_dir().join(format!("epok-native-cache-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(root.join("objects")).unwrap();
+        let runner = if cfg!(windows) {
+            "runner.exe"
+        } else {
+            "runner"
+        };
+        for index in 0..10 {
+            let cache = root.join(format!("build-{index}"));
+            fs::create_dir_all(&cache).unwrap();
+            fs::write(cache.join(runner), b"runner").unwrap();
+            fs::write(cache.join("used"), index.to_string()).unwrap();
+        }
+        let current = root.join("build-9");
+        prune_native_cache(&root, &current);
+        let completed = fs::read_dir(&root)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| path.join(runner).is_file())
+            .count();
+        assert!(current.join(runner).is_file());
+        assert!(completed <= NATIVE_CACHE_BUILDS);
+
+        let objects = root.join("objects");
+        for index in 0..5 {
+            fs::write(objects.join(format!("{index}.obj")), [index as u8; 4]).unwrap();
+        }
+        prune_files(&objects, 2, 8);
+        assert_eq!(fs::read_dir(&objects).unwrap().count(), 2);
+        fs::remove_dir_all(root).unwrap();
     }
     #[test]
     fn blueprint_driven_scene_reports_its_own_diagnostic() {

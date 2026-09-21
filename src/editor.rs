@@ -125,6 +125,7 @@ pub struct Editor {
     instance_baseline: std::collections::BTreeMap<uuid::Uuid, (Actor, Option<uuid::Uuid>)>,
     pub mcp: crate::mcp::State,
     pub settings: crate::settings_ui::State,
+    pub controls: crate::controls::HostInput,
     pub dependencies: crate::dependencies::State,
     pub serial_ui: crate::serial_ui::State,
     pub job_stage: String,
@@ -222,7 +223,7 @@ pub struct Editor {
     pub rename: Option<(usize, String)>,
     pub rename_focus: bool,
     pub scene_navigation: bool,
-    pub navigation_preview_status: Option<Result<usize,String>>,
+    pub navigation_preview_status: Option<Result<usize, String>>,
     pub scene_look: bool,
     pub raw_look: Option<[f32; 2]>,
     pub scene_view_mode: crate::scene_view_mode::SceneViewMode,
@@ -276,8 +277,87 @@ impl Editor {
                 .store(buttons, std::sync::atomic::Ordering::Relaxed);
         }
         if let Some(bridge) = self.job.as_ref().and_then(|j| j.native.as_ref()) {
-            *bridge.buttons.lock().unwrap() = buttons;
+            bridge.pads.lock().unwrap()[0].buttons = buttons;
         }
+    }
+    pub fn set_controls(&self, mut pads: [crate::controls::PadState; 4]) {
+        pads[0].buttons |= self.mcp.buttons;
+        if let Some(bridge) = self.job.as_ref().and_then(|job| job.bridge.as_ref()) {
+            bridge
+                .buttons
+                .store(pads[0].buttons, std::sync::atomic::Ordering::Relaxed);
+        }
+        if let Some(bridge) = self.job.as_ref().and_then(|job| job.native.as_ref()) {
+            *bridge.pads.lock().unwrap() = pads;
+        }
+    }
+    pub fn input_key(&mut self, key: String, down: bool) {
+        if down {
+            if key == "Escape" {
+                self.settings.cancel_capture();
+            } else {
+                self.settings
+                    .capture_binding(crate::controls::Binding::Keyboard { key: key.clone() });
+            }
+        }
+        self.controls.key(key, down);
+    }
+    pub fn input_mouse_button(&mut self, button: crate::controls::MouseButton, down: bool) {
+        if down {
+            self.settings
+                .capture_binding(crate::controls::Binding::MouseButton { button });
+        }
+        self.controls.mouse_button(button, down);
+    }
+    pub fn input_mouse_motion(&mut self, delta: [f32; 2]) {
+        if delta[0].abs() > 0.01 || delta[1].abs() > 0.01 {
+            if delta[0].abs() > delta[1].abs() {
+                self.settings
+                    .capture_binding(crate::controls::Binding::MouseAxis {
+                        axis: crate::controls::MouseAxis::X,
+                    });
+            } else {
+                self.settings
+                    .capture_binding(crate::controls::Binding::MouseAxis {
+                        axis: crate::controls::MouseAxis::Y,
+                    });
+            }
+        }
+        self.controls.mouse_motion(delta);
+    }
+    pub fn input_gamepad_button(&mut self, button: String, down: bool) {
+        if down {
+            self.settings
+                .capture_binding(crate::controls::Binding::GamepadButton {
+                    button: button.clone(),
+                });
+        }
+        self.controls.gamepad_button(button, down);
+    }
+    pub fn input_gamepad_axis(&mut self, axis: crate::controls::GamepadAxis, value: f32) {
+        if value.abs() > 0.5 {
+            self.settings
+                .capture_binding(crate::controls::Binding::GamepadAxis {
+                    axis,
+                    positive: value > 0.,
+                });
+        }
+        self.controls.gamepad_axis(axis, value);
+    }
+    pub fn sample_controls(&mut self) -> [crate::controls::PadState; 4] {
+        let settings = self
+            .project
+            .as_ref()
+            .map(|project| &project.manifest.controls)
+            .or_else(|| {
+                self.settings
+                    .project
+                    .as_ref()
+                    .map(|project| &project.controls)
+            });
+        settings
+            .map(|settings| self.controls.sample(settings))
+            .unwrap_or_default()
     }
     pub fn open(project: crate::workspace::Project) -> Result<Self, String> {
         Self::open_prepared(PreparedProject::load(project, |_| {})?)
@@ -577,6 +657,7 @@ impl Editor {
             instance_baseline: Default::default(),
             mcp: Default::default(),
             settings: Default::default(),
+            controls: Default::default(),
             dependencies: crate::dependencies::State::new(&root),
             serial_ui: Default::default(),
             job_stage: String::new(),

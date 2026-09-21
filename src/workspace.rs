@@ -44,6 +44,9 @@ pub struct Manifest {
     pub rendering: crate::settings::Rendering,
     #[serde(default)]
     pub debug: crate::settings::DebugHud,
+    /// Desktop bindings for up to four virtual PlayStation pads.
+    #[serde(default)]
+    pub controls: crate::controls::Settings,
     /// Exactly one Lua execution mode per project; Play, Build and export all
     /// resolve this field. Never three booleans, never switched automatically.
     #[serde(default)]
@@ -507,6 +510,7 @@ pub fn create(destination: &Path, name: &str, template: Template) -> Result<Proj
             Default::default()
         },
         debug: Default::default(),
+        controls: Default::default(),
         lua_execution: Default::default(),
         lua_profile: crate::settings::LuaProfile::GameplayV2,
         default_sound_bank: None,

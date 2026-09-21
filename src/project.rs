@@ -1164,8 +1164,14 @@ pub fn stage_runtime(build: &Path) -> Result<(), String> {
 }
 pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
     static SOURCES: &[(&str, &[u8])] = &[
-        ("navigation.hpp", include_bytes!("../runtime/navigation.hpp").as_slice()),
-        ("navigation_components.hpp", include_bytes!("../runtime/navigation_components.hpp").as_slice()),
+        (
+            "navigation.hpp",
+            include_bytes!("../runtime/navigation.hpp").as_slice(),
+        ),
+        (
+            "navigation_components.hpp",
+            include_bytes!("../runtime/navigation_components.hpp").as_slice(),
+        ),
         (
             "gameplay_api.hpp",
             include_bytes!("../runtime/gameplay_api.hpp").as_slice(),

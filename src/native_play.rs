@@ -101,13 +101,13 @@ pub struct State {
 #[derive(Clone)]
 pub struct Bridge {
     pub state: Arc<Mutex<State>>,
-    pub buttons: Arc<Mutex<u16>>,
+    pub pads: Arc<Mutex<[crate::controls::PadState; 4]>>,
 }
 impl Bridge {
     pub fn new() -> Self {
         Self {
             state: Arc::new(Mutex::new(State::default())),
-            buttons: Arc::new(Mutex::new(0)),
+            pads: Arc::new(Mutex::new(Default::default())),
         }
     }
 }
@@ -329,7 +329,7 @@ impl Session {
     fn request(
         &mut self,
         elapsed: u32,
-        buttons: u16,
+        pads: [crate::controls::PadState; 4],
         completed: &[u64],
     ) -> Result<(), String> {
         if self.pending {
@@ -340,7 +340,16 @@ impl Session {
         }
         self.input
             .write_all(&elapsed.to_le_bytes())
-            .and_then(|_| self.input.write_all(&u32::from(buttons).to_le_bytes()))
+            .and_then(|_| {
+                for pad in pads {
+                    self.input
+                        .write_all(&u32::from(pad.buttons).to_le_bytes())?;
+                    self.input.write_all(&u32::from(pad.analog).to_le_bytes())?;
+                    self.input
+                        .write_all(&u32::from_le_bytes(pad.axes).to_le_bytes())?;
+                }
+                Ok(())
+            })
             .and_then(|_| {
                 self.input
                     .write_all(&(completed.len() as u32).to_le_bytes())
@@ -684,17 +693,17 @@ pub fn execute(
     bridge.state.lock().unwrap().connected = true;
     let mut paused = false;
     let mut next = Instant::now();
-    let mut sampled_buttons = 0;
+    let mut sampled_pads = [crate::controls::PadState::default(); 4];
     loop {
         let packet = session.receive(Duration::from_secs(5))?;
         let completed_audio = audio.update(&packet.audio)?;
         let (audio_voices, audio_pending) = audio.status();
-        let buttons = *bridge.buttons.lock().unwrap();
+        let pads = *bridge.pads.lock().unwrap();
         let requested = packet.requested_scene.clone();
         let frame = apply(
             input.scene.clone(),
             &packet,
-            sampled_buttons,
+            sampled_pads[0].buttons,
             audio_voices,
             audio_pending,
         );
@@ -734,7 +743,7 @@ pub fn execute(
             audio.reset();
             bridge.state.lock().unwrap().frame = None;
             paused = false;
-            sampled_buttons = 0;
+            sampled_pads = Default::default();
             next = Instant::now();
             let _ = tx.send(crate::pipeline::Event::Running(session.child.id()));
             let _ = tx.send(crate::pipeline::Event::Paused(false));
@@ -743,8 +752,8 @@ pub fn execute(
         if paused {
             audio.pause(true);
             std::thread::sleep(Duration::from_millis(10));
-            session.request(0, buttons, &completed_audio)?;
-            sampled_buttons = buttons;
+            session.request(0, pads, &completed_audio)?;
+            sampled_pads = pads;
             continue;
         }
         let elapsed =
@@ -753,8 +762,8 @@ pub fn execute(
         if next > Instant::now() {
             std::thread::sleep(next - Instant::now());
         }
-        session.request(elapsed, buttons, &completed_audio)?;
-        sampled_buttons = buttons;
+        session.request(elapsed, pads, &completed_audio)?;
+        sampled_pads = pads;
     }
 }
 

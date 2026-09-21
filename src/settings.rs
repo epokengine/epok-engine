@@ -274,7 +274,10 @@ impl Rendering {
             self.streaming_pool_pages,
             self.streaming_prefetch
         );
-        header.push_str(&format!("namespace epok {{ inline constexpr unsigned sprite_triangle_budget = {}; }}\n", self.sprite_triangle_budget));
+        header.push_str(&format!(
+            "namespace epok {{ inline constexpr unsigned sprite_triangle_budget = {}; }}\n",
+            self.sprite_triangle_budget
+        ));
         Ok(header)
     }
 }
@@ -463,8 +466,14 @@ mod tests {
         let mut config: super::Rendering = serde_json::from_str("{}").unwrap();
         assert_eq!(config.sprite_triangle_budget, 2048);
         config.sprite_triangle_budget = 512;
-        assert!(config.header().unwrap().contains("sprite_triangle_budget = 512"));
-        let decoded: super::Rendering = serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+        assert!(
+            config
+                .header()
+                .unwrap()
+                .contains("sprite_triangle_budget = 512")
+        );
+        let decoded: super::Rendering =
+            serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
         assert_eq!(decoded, config);
         for invalid in [0, 63, 2049] {
             config.sprite_triangle_budget = invalid;

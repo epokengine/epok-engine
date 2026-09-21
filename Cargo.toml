@@ -40,6 +40,7 @@ clang = { version = "=2.0.0", features = ["runtime", "clang_10_0"] }
 serialport = { version = "=4.10.1", default-features = false }
 portable-pty = "=0.9.0"
 reqwest = { version = "=0.13.4", default-features = false, features = ["blocking", "rustls"] }
+gilrs = "0.11"
 
 [[bin]]
 name = "epok-header-tool"

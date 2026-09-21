@@ -500,7 +500,7 @@ impl Hub {
             (
                 Template::ThirdPerson,
                 "Third Person",
-                "Platforms and ramps. Level placeholder.",
+                "Animated player and orbit camera.",
             ),
         ]
         .into_iter()
@@ -541,7 +541,7 @@ impl Hub {
         if self.template == Template::ThirdPerson {
             let _muted = ui.push_style_color(C::Text, MUTED);
             ui.text_wrapped(
-                "Editable arena with a static mannequin. Movement and collisions coming later.",
+                "Optimized arena, animated locomotion, jumping, collision and camera control.",
             );
         }
         ui.dummy([0., 8.]);

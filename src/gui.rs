@@ -106,10 +106,18 @@ fn build_menu(ui: &imgui::Ui, e: &mut Editor) {
         }
         #[cfg(test)]
         record_script_control(ui, "Build Lighting");
-        if ui.menu_item_config("Bake Navigation").enabled(enabled).build() {
+        if ui
+            .menu_item_config("Bake Navigation")
+            .enabled(enabled)
+            .build()
+        {
             crate::navigation::editor_bake(e);
         }
-        if ui.menu_item_config("Add Navigation Bake Volume").enabled(enabled).build() {
+        if ui
+            .menu_item_config("Add Navigation Bake Volume")
+            .enabled(enabled)
+            .build()
+        {
             crate::navigation::create_volume(e);
         }
         ui.separator();
@@ -3151,10 +3159,15 @@ fn scene_view(
                 .build(ui, &mut e.view.fly_speed);
             muted(ui, "RMB + WASD: fly | Q/E: down/up | Alt + LMB: orbit");
             crate::lighting_editor::preview_status(ui, e);
-            if crate::navigation::selected_volume(&e.scene,e.selected).is_some() {
+            if crate::navigation::selected_volume(&e.scene, e.selected).is_some() {
                 match &e.navigation_preview_status {
-                    Some(Ok(count)) => ui.text_colored([0.35,0.95,0.5,1.],format!("Navigation preview: {count} points | Green: walkable area")),
-                    Some(Err(error)) => ui.text_colored([1.,0.5,0.3,1.],format!("Navigation preview: {error}")),
+                    Some(Ok(count)) => ui.text_colored(
+                        [0.35, 0.95, 0.5, 1.],
+                        format!("Navigation preview: {count} points | Green: walkable area"),
+                    ),
+                    Some(Err(error)) => {
+                        ui.text_colored([1., 0.5, 0.3, 1.], format!("Navigation preview: {error}"))
+                    }
                     None => ui.text_disabled("Generating navigation preview..."),
                 }
             }
@@ -3441,34 +3454,8 @@ fn game_view(
                     String::new()
                 });
             }
-            let mut mask = 0;
-            if e.game_capture && e.game_error.is_none() {
-                for (key, bit) in [
-                    (imgui::Key::Backspace, 0),
-                    (imgui::Key::Enter, 3),
-                    (imgui::Key::UpArrow, 4),
-                    (imgui::Key::RightArrow, 5),
-                    (imgui::Key::DownArrow, 6),
-                    (imgui::Key::LeftArrow, 7),
-                    (imgui::Key::W, 4),
-                    (imgui::Key::D, 5),
-                    (imgui::Key::S, 6),
-                    (imgui::Key::A, 7),
-                    (imgui::Key::Alpha1, 8),
-                    (imgui::Key::Alpha3, 9),
-                    (imgui::Key::Q, 10),
-                    (imgui::Key::E, 11),
-                    (imgui::Key::I, 12),
-                    (imgui::Key::L, 13),
-                    (imgui::Key::K, 14),
-                    (imgui::Key::J, 15),
-                ] {
-                    if ui.is_key_down(key) {
-                        mask |= 1 << bit;
-                    }
-                }
-            }
-            e.set_buttons(mask);
+            let pads=if e.game_capture && e.game_error.is_none(){e.sample_controls()}else{e.controls.clear_motion();Default::default()};
+            e.set_controls(pads);
         } else {
             ui.dummy([0., region[1] * 0.35]);
             ui.text_wrapped(if e.playing {

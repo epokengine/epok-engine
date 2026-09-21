@@ -133,7 +133,7 @@ system `PATH`; the local compiler build can take several minutes.
 3. Press **Play** to compile and run the game.
 4. Use **Pause**, **Step** and **Stop** to inspect it. Save scene changes with **Ctrl+S**.
 
-For level building, choose the **Third Person** template and edit its platforms and ramps with Blockout. The template provides an editable arena; game behaviours define character movement and camera following.
+Choose the **Third Person** template for an optimized editable arena and an animated player with camera-relative movement, jumping, collision and an orbit camera.
 
 See [Getting started](docs/getting-started.md) for configuration and troubleshooting.
 
