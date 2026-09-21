@@ -536,6 +536,7 @@ pub fn create(e: &mut Editor) -> Result<(), String> {
     let mut component = terrain::Component::new(id);
     component.document = Some(Arc::new(doc));
     component.atlas = terrain::BUILTIN_ATLAS_GRID;
+    component.autotile = true;
     component.material.texture = Some(atlas);
     actor.terrain = Some(component);
     actor.lighting.static_geometry = true;
@@ -740,6 +741,10 @@ fn surface_panel(ui: &Ui, e: &mut Editor) {
     ) {
         e.terrain_editor.brush.tile_rotation = rotation.min(4) as u8;
     }
+    let mut autotile = next.autotile;
+    if ui.checkbox(crate::gui::field(ui, "Autotile borders"), &mut autotile) {
+        next.autotile = autotile;
+    }
     let mut merge = i32::from(next.merge);
     if crate::gui::Drag::new(crate::gui::field(ui, "Merge flat cells"))
         .speed(0.05)
@@ -779,10 +784,45 @@ fn surface_panel(ui: &Ui, e: &mut Editor) {
 /// a tile by its position is what makes an atlas legible; a tile number is
 /// not. Tiles of the engine's own atlas are named in their tooltip.
 fn tile_picker(ui: &Ui, e: &mut Editor, component: &terrain::Component) {
-    let cols = component.atlas[0].max(1);
-    let rows = component.atlas[1].max(1);
     let builtin = component.material.texture == Some(terrain::BUILTIN_ATLAS_ID)
         && component.atlas == terrain::BUILTIN_ATLAS_GRID;
+    if component.autotile {
+        // One button per material row: the baker picks the tile within it.
+        ui.text("Paint material");
+        for material in 0..component.atlas[1].max(1) {
+            if material > 0 {
+                ui.same_line();
+            }
+            let tip = if builtin {
+                format!(
+                    "{} (borders resolve themselves)",
+                    terrain::builtin_material_label(material)
+                )
+            } else {
+                format!("Material row {material}")
+            };
+            if crate::gui::icon(
+                ui,
+                &material.to_string(),
+                &format!("terrain-material-{material}"),
+                &tip,
+                e.terrain_editor.brush.tile == material,
+            ) {
+                e.terrain_editor.brush.tile = material;
+            }
+        }
+        crate::gui::muted(
+            ui,
+            if builtin {
+                "0 grass, 1 dirt, 2 stone, 3 water. Edges and corners are chosen from the neighbours; brush 7 paints."
+            } else {
+                "One material per atlas row. Edges and corners are chosen from the neighbours; brush 7 paints."
+            },
+        );
+        return;
+    }
+    let cols = component.atlas[0].max(1);
+    let rows = component.atlas[1].max(1);
     ui.text("Paint tile");
     for row in 0..rows {
         for col in 0..cols {
@@ -790,16 +830,11 @@ fn tile_picker(ui: &Ui, e: &mut Editor, component: &terrain::Component) {
                 ui.same_line();
             }
             let tile = row * cols + col;
-            let tip = if builtin {
-                terrain::builtin_tile_label(tile)
-            } else {
-                format!("Tile {tile}")
-            };
             if crate::gui::icon(
                 ui,
                 &tile.to_string(),
                 &format!("terrain-tile-{tile}"),
-                &tip,
+                &format!("Tile {tile}"),
                 e.terrain_editor.brush.tile == tile,
             ) {
                 e.terrain_editor.brush.tile = tile;
@@ -808,11 +843,7 @@ fn tile_picker(ui: &Ui, e: &mut Editor, component: &terrain::Component) {
     }
     crate::gui::muted(
         ui,
-        if builtin {
-            "Rows: grass, dirt, stone, water. Brush 7 paints the selected tile."
-        } else {
-            "Tiles are row-major in the texture. Brush 7 paints the selected tile."
-        },
+        "Tiles are row-major in the texture. Brush 7 paints the selected tile.",
     );
 }
 

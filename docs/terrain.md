@@ -66,18 +66,45 @@ written into the project at `assets/Terrain/EpokTerrainAtlas.png` the first
 time a terrain is created, and behaves like any imported texture afterwards:
 inspect it, reimport it, or replace it in place with your own art.
 
-It holds sixteen 64-pixel tiles in one 256-pixel page, in rows of four:
+It holds sixteen 64-pixel tiles in one 256-pixel page, one material per row:
 
-| Row | Tiles | Material |
+| Row | Material | Columns |
 | --- | --- | --- |
-| 0 | 0–3 | Grass (tile 0 is the default) |
-| 1 | 4–7 | Dirt, for paths |
-| 2 | 8–11 | Stone |
-| 3 | 12–15 | Water |
+| 0 | Grass, the base | Four variants |
+| 1 | Dirt, for paths | Fill, edge, corner, inner corner |
+| 2 | Stone | Fill, edge, corner, inner corner |
+| 3 | Water | Fill, edge, corner, inner corner |
 
-Four variants per material give the paint scatter something to work with. The
-Surface tab shows the atlas as a clickable grid laid out like the texture, and
-names the rows when the terrain uses the bundled atlas.
+## Autotiling
+
+With **Autotile borders** on, the painted byte is a material row and the baker
+picks the column and the rotation from each cell's four edge neighbours. You
+paint a path; its borders resolve themselves.
+
+The transition tiles are painted art, not a runtime blend: the console has no
+multitexturing, so a material can only change at a cell boundary and the
+gradient has to live inside the tile. That is why an autotiled atlas must be
+four tiles wide, with row 0 as the base every overlay transitions onto.
+
+Rotation follows the renderer. At rotation 0 a tile is seen with its top edge
+toward -Z, and each step turns it a quarter clockwise, so the base material
+sits to the north, east, south or west. Transition art is drawn with the base
+at the top, and at the top-right for the corner shapes.
+
+Four shapes per material is a deliberate reduction, and two cases fall outside
+it. A cell whose opposite neighbours both differ is a one-cell strip, and an
+isolated cell has no border at all; both stay filled rather than take a
+mis-rotated border. A cell surrounded by its own material but with several
+differing diagonals can only show one inner corner. Widen the feature by a
+cell where that matters.
+
+Merging compares resolved tiles, not painted materials, so two cells of one
+material that resolved to different borders never merge into one stretched
+quad.
+
+Turn autotiling off for an atlas of your own that is not laid out this way;
+the painted byte is then the tile index, and the Surface tab shows the whole
+atlas as a clickable grid laid out like the texture.
 
 One material covers the whole terrain, so the ground is a single texture page.
 Painting picks a tile inside that texture's atlas rather than swapping

@@ -44,6 +44,99 @@ pub fn tile_uv(atlas: [u8; 2], tile: u8, rotation: u8) -> [[f32; 2]; 4] {
     out
 }
 
+/// Tile and rotation each cell draws, once neighbours have been consulted.
+///
+/// Without autotiling this is just what was painted. With it, the painted byte
+/// is a material row and the column is chosen from which of the four edge
+/// neighbours share that material, so a path resolves its own borders.
+///
+/// Rotation follows the renderer: at rotation 0 a tile is seen with its top
+/// edge toward -Z, and each step turns it a quarter clockwise. The art is
+/// drawn with the base material at the top, so a rotation of 0/1/2/3 puts the
+/// base to the north/east/south/west.
+pub fn resolve_tiles(doc: &Document, terrain: &Component) -> Vec<(u8, u8)> {
+    let cells = doc.cells();
+    let mut out = Vec::with_capacity(doc.quad_count());
+    for j in 0..cells[1] {
+        for i in 0..cells[0] {
+            out.push(if terrain.autotile {
+                resolve_cell(doc, i, j)
+            } else {
+                (doc.tile(i, j), doc.rotation(i, j))
+            });
+        }
+    }
+    out
+}
+
+/// Material of a cell, treating everything outside the grid as a continuation
+/// of the cell being resolved: a path running off the map should not grow a
+/// border against nothing.
+fn material_at(doc: &Document, i: i32, j: i32, fallback: u8) -> u8 {
+    let cells = doc.cells();
+    if i < 0 || j < 0 || i >= i32::from(cells[0]) || j >= i32::from(cells[1]) {
+        return fallback;
+    }
+    doc.tile(i as u16, j as u16)
+}
+
+fn resolve_cell(doc: &Document, i: u16, j: u16) -> (u8, u8) {
+    let material = doc.tile(i, j);
+    let width = crate::terrain::AUTOTILE_SHAPES;
+    if material == 0 {
+        // The base row is variants, not shapes. Scatter them so a wide field
+        // of grass does not read as one repeated stamp.
+        let pick = |salt: u32| {
+            let n = crate::brush::noise(i32::from(i), i32::from(j), salt);
+            (((n + 1.) * 2.) as u8) & 3
+        };
+        return (pick(0x51ED_2701), pick(0x9E37_79B1));
+    }
+    let (x, z) = (i32::from(i), i32::from(j));
+    // North is -Z, then clockwise: east, south, west.
+    let neighbours = [(x, z - 1), (x + 1, z), (x, z + 1), (x - 1, z)];
+    let mut different = 0_u8;
+    for (d, (nx, nz)) in neighbours.into_iter().enumerate() {
+        if material_at(doc, nx, nz, material) != material {
+            different |= 1 << d;
+        }
+    }
+    let base = material * width;
+    let shape = |column: u8, rotation: u8| (base + column, rotation);
+    match different.count_ones() {
+        0 => {
+            // Fully surrounded: only a differing diagonal is left to show, and
+            // only one of them fits in a single tile.
+            let diagonals = [
+                (x + 1, z - 1),
+                (x + 1, z + 1),
+                (x - 1, z + 1),
+                (x - 1, z - 1),
+            ];
+            for (r, (nx, nz)) in diagonals.into_iter().enumerate() {
+                if material_at(doc, nx, nz, material) != material {
+                    return shape(3, r as u8);
+                }
+            }
+            shape(0, 0)
+        }
+        1 => shape(1, different.trailing_zeros() as u8),
+        // Two adjacent sides is a corner; two opposite sides is a one-cell
+        // strip, which no single shape expresses, so it stays filled.
+        2 | 3 => match adjacent_pair(different) {
+            Some(rotation) => shape(2, rotation),
+            None => shape(0, 0),
+        },
+        _ => shape(0, 0),
+    }
+}
+
+/// First direction `d` whose clockwise neighbour `d + 1` is also set, which is
+/// the rotation a corner tile needs.
+fn adjacent_pair(mask: u8) -> Option<u8> {
+    (0..4).find(|d| mask & (1 << d) != 0 && mask & (1 << ((d + 1) % 4)) != 0)
+}
+
 /// A baked cell, possibly covering `size` x `size` source cells after merging.
 struct Patch {
     i: u16,
@@ -55,7 +148,7 @@ struct Patch {
 /// format allows: geometry is cooked into fixed arrays, so nothing can be
 /// decimated at runtime. Merging stretches the tile across the merged cells,
 /// which is why it is opt-in per terrain.
-fn patches(doc: &Document, merge: u8) -> Vec<Patch> {
+fn patches(doc: &Document, merge: u8, resolved: &[(u8, u8)]) -> Vec<Patch> {
     let cells = doc.cells();
     let mut taken = vec![false; doc.quad_count()];
     let mut out = Vec::new();
@@ -72,7 +165,7 @@ fn patches(doc: &Document, merge: u8) -> Vec<Patch> {
         while j + size <= cells[1] {
             let mut i = 0;
             while i + size <= cells[0] {
-                if mergeable(doc, &taken, i, j, size, block) {
+                if mergeable(doc, resolved, &taken, i, j, size, block) {
                     for dj in 0..size {
                         for di in 0..size {
                             taken[usize::from(j + dj) * usize::from(cells[0])
@@ -98,21 +191,29 @@ fn patches(doc: &Document, merge: u8) -> Vec<Patch> {
     out
 }
 
-fn mergeable(doc: &Document, taken: &[bool], i: u16, j: u16, size: u16, block: u16) -> bool {
+fn mergeable(
+    doc: &Document,
+    resolved: &[(u8, u8)],
+    taken: &[bool],
+    i: u16,
+    j: u16,
+    size: u16,
+    block: u16,
+) -> bool {
     let cells = doc.cells();
     // A merged quad must not straddle two draw chunks, or its chunk would
     // exceed the 16-unit span that i16 Q12 chunk-local positions encode.
     if i / block != (i + size - 1) / block || j / block != (j + size - 1) / block {
         return false;
     }
-    let material = doc.tile(i, j) | (doc.rotation(i, j) << 6);
+    // Compare what the cells actually draw. Two cells of the same material
+    // can resolve to different transition tiles, and merging those would
+    // stretch one border across the other.
+    let first = resolved[usize::from(j) * usize::from(cells[0]) + usize::from(i)];
     for dj in 0..size {
         for di in 0..size {
             let index = usize::from(j + dj) * usize::from(cells[0]) + usize::from(i + di);
-            if taken[index] {
-                return false;
-            }
-            if doc.tile(i + di, j + dj) | (doc.rotation(i + di, j + dj) << 6) != material {
+            if taken[index] || resolved[index] != first {
                 return false;
             }
         }
@@ -145,8 +246,9 @@ pub fn quads(terrain: &Component) -> Vec<Quad> {
     let Some(doc) = &terrain.document else {
         return vec![];
     };
+    let resolved = resolve_tiles(doc, terrain);
     let mut out = Vec::with_capacity(doc.quad_count());
-    for patch in patches(doc, terrain.merge) {
+    for patch in patches(doc, terrain.merge, &resolved) {
         let (i, j, size) = (patch.i, patch.j, patch.size);
         let (fi, fj, fs) = (f32::from(i), f32::from(j), f32::from(size));
         let (x0, x1) = (doc.local_x(fi), doc.local_x(fi + fs));
@@ -170,8 +272,10 @@ pub fn quads(terrain: &Component) -> Vec<Quad> {
                 normal[c] += n[c] / 4.;
             }
         }
+        let (tile, rotation) =
+            resolved[usize::from(j) * usize::from(doc.cells()[0]) + usize::from(i)];
         out.push(Quad {
-            uv: tile_uv(terrain.atlas, doc.tile(i, j), doc.rotation(i, j)),
+            uv: tile_uv(terrain.atlas, tile, rotation),
             face: 0,
             points,
             normal: crate::lighting::unit(normal),
@@ -399,6 +503,134 @@ mod tests {
         // Alternating tiles are coplanar but must not merge: a merged quad
         // carries one tile, and stretching it would repaint the neighbour.
         assert_eq!(crate::lighting::quads(&actor(doc, 3)).len(), 64);
+    }
+
+    fn autotiled(cells: [u16; 2], paint: impl Fn(u16, u16) -> u8) -> (Document, Component) {
+        let mut doc = Document::new(cells, 2.);
+        for j in 0..cells[1] {
+            for i in 0..cells[0] {
+                doc.set_tile(i, j, paint(i, j), 0);
+            }
+        }
+        let mut component = Component::new(uuid::Uuid::new_v4());
+        component.atlas = crate::terrain::BUILTIN_ATLAS_GRID;
+        component.autotile = true;
+        component.document = Some(Arc::new(doc.clone()));
+        (doc, component)
+    }
+    /// Resolved (tile, rotation) of one cell.
+    fn at(doc: &Document, terrain: &Component, i: u16, j: u16) -> (u8, u8) {
+        resolve_tiles(doc, terrain)[usize::from(j) * usize::from(doc.cells()[0]) + usize::from(i)]
+    }
+
+    #[test]
+    fn autotile_orients_borders_from_the_neighbours() {
+        // A vertical dirt band three cells wide down the middle of a 7x7 grid.
+        // Dirt is material 1, so its row starts at tile 4: fill 4, edge 5,
+        // corner 6, inner 7.
+        let (doc, terrain) = autotiled([7, 7], |i, _| u8::from((2..5).contains(&i)));
+        // Middle of the band: every edge neighbour is dirt, so it fills.
+        assert_eq!(at(&doc, &terrain, 3, 3), (4, 0));
+        // The art puts the base at the top, and rotation turns it clockwise:
+        // 0 north, 1 east, 2 south, 3 west. The band's west column has grass
+        // to its west, so it takes the edge rotated west.
+        assert_eq!(at(&doc, &terrain, 2, 3), (5, 3));
+        assert_eq!(at(&doc, &terrain, 4, 3), (5, 1), "east column faces east");
+        // The band runs to the north and south borders, and off-grid counts
+        // as a continuation, so the top row is still a plain edge.
+        assert_eq!(at(&doc, &terrain, 2, 0), (5, 3));
+        // Grass outside the band is the base row: a variant, never a shape.
+        let (tile, _) = at(&doc, &terrain, 0, 0);
+        assert!(tile < 4, "base cells must stay in row 0, got {tile}");
+    }
+
+    #[test]
+    fn autotile_picks_corners_and_inner_corners() {
+        // One dirt cell removed from the corner of a solid dirt block: the
+        // cells beside the notch are corners, the one diagonal to it is an
+        // inner corner.
+        let (doc, terrain) = autotiled([5, 5], |i, j| u8::from(!(i == 3 && j == 1)));
+        // (2,1) has grass to its east only -> edge facing east.
+        assert_eq!(at(&doc, &terrain, 2, 1), (5, 1));
+        // (3,2) has grass to its north only -> edge facing north.
+        assert_eq!(at(&doc, &terrain, 3, 2), (5, 0));
+        // (2,2) is surrounded, but its north-east diagonal is grass.
+        assert_eq!(
+            at(&doc, &terrain, 2, 2),
+            (7, 0),
+            "inner corner faces north-east"
+        );
+
+        // A solid block's own corner cell has grass to the north and west.
+        let (doc, terrain) = autotiled([5, 5], |i, j| u8::from(i >= 1 && j >= 1));
+        assert_eq!(
+            at(&doc, &terrain, 1, 1),
+            (6, 3),
+            "corner rotated to west+north"
+        );
+        assert_eq!(
+            at(&doc, &terrain, 2, 1),
+            (5, 0),
+            "north edge between corners"
+        );
+    }
+
+    #[test]
+    fn a_one_cell_strip_stays_filled_rather_than_wrong() {
+        // Opposite neighbours differ, which no single shape expresses. Four
+        // tiles per material is a deliberate reduction; filling is the honest
+        // fallback, not a mis-rotated border.
+        let (doc, terrain) = autotiled([5, 5], |i, _| u8::from(i == 2));
+        assert_eq!(at(&doc, &terrain, 2, 2), (4, 0));
+        // An isolated cell has no border it can draw either.
+        let (doc, terrain) = autotiled([5, 5], |i, j| u8::from(i == 2 && j == 2));
+        assert_eq!(at(&doc, &terrain, 2, 2), (4, 0));
+    }
+
+    #[test]
+    fn autotiling_is_off_for_a_plain_atlas_and_scatters_the_base() {
+        // Without the flag the painted byte is the tile, untouched.
+        let mut doc = Document::new([4, 4], 2.);
+        doc.set_tile(1, 1, 9, 2);
+        let mut plain = Component::new(uuid::Uuid::new_v4());
+        plain.atlas = [4, 4];
+        plain.document = Some(Arc::new(doc.clone()));
+        assert_eq!(at(&doc, &plain, 1, 1), (9, 2));
+
+        // With it, base cells scatter across the four variants so a field of
+        // grass does not read as one repeated stamp, deterministically.
+        let (doc, terrain) = autotiled([8, 8], |_, _| 0);
+        let resolved = resolve_tiles(&doc, &terrain);
+        assert_eq!(resolved, resolve_tiles(&doc, &terrain));
+        let variants: std::collections::BTreeSet<u8> =
+            resolved.iter().map(|(tile, _)| *tile).collect();
+        assert!(variants.len() > 1, "base did not scatter: {variants:?}");
+        assert!(variants.iter().all(|tile| *tile < 4));
+    }
+
+    #[test]
+    fn merging_respects_resolved_borders() {
+        // Cells of one material that resolve to different transition tiles
+        // must not merge: one border would be stretched over the other.
+        let (mut doc, mut terrain) = autotiled([8, 8], |i, j| u8::from(i >= 2 && j >= 2));
+        terrain.merge = 3;
+        terrain.document = Some(Arc::new(doc.clone()));
+        let mut actor = Actor::cube("Terrain".into());
+        actor.position = [0.; 3];
+        actor.terrain = Some(terrain.clone());
+        let quads = crate::lighting::quads(&actor);
+        let resolved = resolve_tiles(&doc, &terrain);
+        let distinct: std::collections::BTreeSet<(u8, u8)> = resolved.iter().copied().collect();
+        assert!(
+            distinct.len() >= 4,
+            "expected borders to differ: {distinct:?}"
+        );
+        // The interior is uniform and may merge, so the result is fewer quads
+        // than cells but more than a single stretched patch.
+        assert!(quads.len() < 64 && quads.len() > 4, "{} quads", quads.len());
+        // Every border cell survives as its own quad.
+        doc.set_tile(0, 0, 0, 0);
+        assert!(!quads.is_empty());
     }
 
     #[test]

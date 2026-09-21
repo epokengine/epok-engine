@@ -37,30 +37,31 @@ pub const MAX_TILES: u8 = 64;
 /// The terrain atlas every project starts with, so a new terrain draws ground
 /// instead of flat grey and a path can be painted without sourcing art first.
 ///
-/// Sixteen 64-pixel tiles in one 256-pixel page, four per material, in rows:
-/// grass, dirt, stone, water. Sixty-four pixels is what a PSX ground tile
-/// actually was, and four variants per material give the paint scatter
-/// something to work with.
+/// Sixteen 64-pixel tiles in one 256-pixel page, laid out for the baker to
+/// resolve: row 0 is grass in four variants, and rows 1-3 are dirt, stone and
+/// water, each as fill, edge, corner and inner corner over grass. Sixty-four
+/// pixels is what a PSX ground tile actually was.
 const BUILTIN_ATLAS_PNG: &[u8] = include_bytes!("../resources/terrain/EpokTerrainAtlas.png");
 /// Fixed so the atlas keeps one identity across every project that adopts it,
 /// and so the editor can recognise it and name its rows.
 pub const BUILTIN_ATLAS_ID: Uuid = Uuid::from_u128(0xe7a3_f1c2_5b48_4d96_9f10_2c6d_84b7_a350);
 pub const BUILTIN_ATLAS_GRID: [u8; 2] = [4, 4];
+/// Tiles a material row holds when the baker resolves them: fill, edge,
+/// corner, inner corner.
+pub const AUTOTILE_SHAPES: u8 = 4;
 pub const BUILTIN_ATLAS_SOURCE: &str = "assets/Terrain/EpokTerrainAtlas.png";
 const BUILTIN_ATLAS_ASSET: &str = "assets/Terrain/EpokTerrainAtlas.epokasset";
 
 /// Material a tile of the bundled atlas belongs to. Meaningless for a custom
 /// atlas, which is why callers check the texture id first.
-pub fn builtin_tile_label(tile: u8) -> String {
-    let row = tile / BUILTIN_ATLAS_GRID[0];
-    let name = match row {
+pub fn builtin_material_label(material: u8) -> &'static str {
+    match material {
         0 => "Grass",
         1 => "Dirt",
         2 => "Stone",
         3 => "Water",
-        _ => "Tile",
-    };
-    format!("{name} {}", tile % BUILTIN_ATLAS_GRID[0] + 1)
+        _ => "Material",
+    }
 }
 
 /// Write the bundled atlas into a project the first time it is needed.
@@ -649,6 +650,15 @@ pub struct Component {
     /// stretches the tile across the merged cells.
     #[serde(default)]
     pub merge: u8,
+    /// Read the painted byte as a material row rather than a tile, and let the
+    /// baker pick the tile and rotation from each cell's neighbours.
+    ///
+    /// The atlas must then be laid out four tiles wide, one material per row:
+    /// row 0 is the base in four variants, and every later row is an overlay
+    /// as fill, edge, corner and inner corner over that base. Painting a path
+    /// is then painting a material, and its borders resolve themselves.
+    #[serde(default)]
+    pub autotile: bool,
     #[serde(skip)]
     pub document: Option<Arc<Document>>,
     #[serde(skip)]
@@ -668,6 +678,7 @@ impl Component {
             atlas: default_atlas(),
             collision: default_collision(),
             merge: 0,
+            autotile: false,
             document: None,
             error: None,
         }
@@ -676,6 +687,15 @@ impl Component {
         u16::from(self.atlas[0].max(1))
             .saturating_mul(u16::from(self.atlas[1].max(1)))
             .min(u16::from(MAX_TILES)) as u8
+    }
+    /// Values a brush may paint: materials when the baker resolves tiles,
+    /// otherwise raw tiles.
+    pub fn paintable(&self) -> u8 {
+        if self.autotile {
+            self.atlas[1].max(1)
+        } else {
+            self.tiles()
+        }
     }
     pub fn validate(&self) -> Result<(), String> {
         if !(1..=8).contains(&self.atlas[0]) || !(1..=8).contains(&self.atlas[1]) {
@@ -686,6 +706,11 @@ impl Component {
         }
         if self.merge > 3 {
             return Err("Terrain merge level must be between 0 and 3".into());
+        }
+        if self.autotile && self.atlas[0] != AUTOTILE_SHAPES {
+            return Err(format!(
+                "An autotiled atlas must be {AUTOTILE_SHAPES} tiles wide: fill, edge, corner and inner corner per material row"
+            ));
         }
         crate::texture::validate_material(&self.material)?;
         Ok(())
@@ -766,13 +791,14 @@ pub fn validate_scene(scene: &Scene) -> Result<(), String> {
             doc.validate()
                 .and_then(|()| doc.cook_limits())
                 .map_err(|error| format!("{}: {error}", e.name))?;
-            let tiles = t.tiles();
+            let paintable = t.paintable();
+            let noun = if t.autotile { "material" } else { "atlas tile" };
             let cells = doc.cells();
             for j in 0..cells[1] {
                 for i in 0..cells[0] {
-                    if doc.tile(i, j) >= tiles {
+                    if doc.tile(i, j) >= paintable {
                         return Err(format!(
-                            "{}: cell {i},{j} paints atlas tile {} but the atlas holds {tiles}",
+                            "{}: cell {i},{j} paints {noun} {} but the atlas offers {paintable}",
                             e.name,
                             doc.tile(i, j)
                         ));
@@ -1144,18 +1170,32 @@ mod tests {
         );
         // Idempotent: a second terrain in the same project reuses it.
         assert_eq!(ensure_builtin_atlas(&root).unwrap(), id);
-        // Rows are named so the tile grid can label them.
-        assert_eq!(builtin_tile_label(0), "Grass 1");
-        assert_eq!(builtin_tile_label(4), "Dirt 1");
-        assert_eq!(builtin_tile_label(11), "Stone 4");
-        assert_eq!(builtin_tile_label(15), "Water 4");
-        // Every tile of the bundled grid is addressable by a brush.
+        // Rows are materials, and the picker names them.
+        assert_eq!(builtin_material_label(0), "Grass");
+        assert_eq!(builtin_material_label(1), "Dirt");
+        assert_eq!(builtin_material_label(2), "Stone");
+        assert_eq!(builtin_material_label(3), "Water");
+        // The bundled atlas is laid out for the baker to resolve: four
+        // materials, each a row of fill, edge, corner and inner corner.
         let component = Component {
             atlas: BUILTIN_ATLAS_GRID,
+            autotile: true,
             ..Component::new(Uuid::new_v4())
         };
         component.validate().unwrap();
         assert_eq!(component.tiles(), 16);
+        assert_eq!(
+            component.paintable(),
+            4,
+            "a brush paints materials, not tiles"
+        );
+        // An atlas that is not four shapes wide cannot be resolved.
+        let narrow = Component {
+            atlas: [3, 3],
+            autotile: true,
+            ..Component::new(Uuid::new_v4())
+        };
+        assert!(narrow.validate().unwrap_err().contains("tiles wide"));
         std::fs::remove_dir_all(root).unwrap();
     }
 
