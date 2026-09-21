@@ -66,6 +66,11 @@ particular) also changes the generated API reference. Regenerate it with
 bindings installed, and commit the regenerated `docs/api/` output; the committed
 files record declaration line numbers, so even a pure insertion above an existing
 member makes `--check` fail until they are regenerated. Never hand-edit them.
+The generator parses the runtime the way the target builds it, freestanding
+against the pinned `mipsel-none-elf` toolchain's own headers, so host setup must
+have installed that compiler or `--target-compiler` must point at it. It refuses
+to run without one rather than produce a reference from a translation unit that
+has no standard headers.
 
 After SDK setup, `python tools/extract_hud_font.py --check` verifies that the committed editor HUD font matches the pinned PsyQo font. Omit `--check` to regenerate the bitmap when intentionally updating that resource.
 

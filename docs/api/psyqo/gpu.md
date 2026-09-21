@@ -2,13 +2,13 @@
 
 > **Header:** `"psyqo/gpu.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gpu.hh)
 
-This module covers GPU setup, command submission and frame synchronization. It documents 51 public callables declared directly in this header.
+This module covers GPU setup, command submission and frame synchronization. It documents 46 public callables declared directly in this header.
 
 PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
-`psyqo::GPU`, `psyqo::GPU::ColorMode`, `psyqo::GPU::Configuration`, `psyqo::GPU::Interlace`, `psyqo::GPU::MiscSetting`, `psyqo::GPU::Resolution`, `psyqo::GPU::ScheduledOTC`, `psyqo::GPU::Timer`, `psyqo::GPU::TimerAwaiter`, `psyqo::GPU::VideoMode`
+`psyqo::GPU`, `psyqo::GPU::ColorMode`, `psyqo::GPU::Configuration`, `psyqo::GPU::Interlace`, `psyqo::GPU::MiscSetting`, `psyqo::GPU::Resolution`, `psyqo::GPU::VideoMode`
 
 ## Callable index
 
@@ -45,11 +45,6 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 - [`psyqo::GPU::sendFragment`](#psyqo-gpu-sendfragment-2) — Sends a fragment to the GPU as a non-blocking call.
 - [`psyqo::GPU::sendPrimitive`](#psyqo-gpu-sendprimitive-1) — Sends a primitive to the GPU. This is a blocking call.
 - [`psyqo::GPU::sendRaw`](#psyqo-gpu-sendraw-1) — Sends a raw 32 bits value to the Data register of the GPU.
-- [`psyqo::GPU::TimerAwaiter::await_ready`](#psyqo-gpu-timerawaiter-await-ready-1) — Performs `await ready` as part of GPU setup, command submission and frame synchronization.
-- [`psyqo::GPU::TimerAwaiter::await_resume`](#psyqo-gpu-timerawaiter-await-resume-1) — Performs `await resume` as part of GPU setup, command submission and frame synchronization.
-- [`psyqo::GPU::TimerAwaiter::await_suspend`](#psyqo-gpu-timerawaiter-await-suspend-1) — Performs `await suspend` as part of GPU setup, command submission and frame synchronization.
-- [`psyqo::GPU::TimerAwaiter::TimerAwaiter`](#psyqo-gpu-timerawaiter-timerawaiter-1) — Constructs `psyqo::GPU::TimerAwaiter` for GPU setup, command submission and frame synchronization.
-- [`psyqo::GPU::TimerAwaiter::~TimerAwaiter`](#psyqo-gpu-timerawaiter-timerawaiter-2) — Releases the resources owned by `psyqo::GPU::TimerAwaiter`.
 - [`psyqo::GPU::uploadToVRAM`](#psyqo-gpu-uploadtovram-1) — Uploads a buffer to the VRAM as a blocking call.
 - [`psyqo::GPU::uploadToVRAM`](#psyqo-gpu-uploadtovram-2) — Uploads a buffer to the VRAM as a non-blocking call.
 - [`psyqo::GPU::waitChainIdle`](#psyqo-gpu-waitchainidle-1) — Waits until the background DMA transfer operation initiated by a frame flip is complete.
@@ -85,8 +80,8 @@ unsigned armPeriodicTimer(uint32_t period, eastl::function<void(uint32_t)> &&cal
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `period` | `int` | Input | The period of the timer in microseconds. |
-| `callback` | `int &&` | Consumed or moved input | The callback function to be called when the timer expires. |
+| `period` | `uint32_t` | Input | The period of the timer in microseconds. |
+| `callback` | `eastl::function<void (uint32_t)> &&` | Consumed or moved input | The callback function to be called when the timer expires. |
 
 **Returns.** The id of the created timer.
 
@@ -98,8 +93,8 @@ unsigned armPeriodicTimer(uint32_t period, eastl::function<void(uint32_t)> &&cal
 #include "psyqo/gpu.hh"
 
 // Assume these named values have been initialized with valid data:
-// int period
-// int && callback
+// uint32_t period
+// eastl::function<void (uint32_t)> && callback
 
 psyqo::GPU& object = /* obtain a valid instance */;
 
@@ -131,8 +126,8 @@ uintptr_t armTimer(uint32_t deadline, eastl::function<void(uint32_t)> &&callback
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `deadline` | `int` | Input | The deadline of the timer in microseconds. |
-| `callback` | `int &&` | Consumed or moved input | The callback function to be called when the timer expires. |
+| `deadline` | `uint32_t` | Input | The deadline of the timer in microseconds. |
+| `callback` | `eastl::function<void (uint32_t)> &&` | Consumed or moved input | The callback function to be called when the timer expires. |
 
 **Returns.** The id of the created timer.
 
@@ -144,8 +139,8 @@ uintptr_t armTimer(uint32_t deadline, eastl::function<void(uint32_t)> &&callback
 #include "psyqo/gpu.hh"
 
 // Assume these named values have been initialized with valid data:
-// int deadline
-// int && callback
+// uint32_t deadline
+// eastl::function<void (uint32_t)> && callback
 
 psyqo::GPU& object = /* obtain a valid instance */;
 
@@ -177,7 +172,7 @@ void cancelTimer(uintptr_t id)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `id` | `int` | Input | The id of the timer to cancel. |
+| `id` | `uintptr_t` | Input | The id of the timer to cancel. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -189,7 +184,7 @@ void cancelTimer(uintptr_t id)
 #include "psyqo/gpu.hh"
 
 // Assume these named values have been initialized with valid data:
-// int id
+// uintptr_t id
 
 psyqo::GPU& object = /* obtain a valid instance */;
 
@@ -364,8 +359,8 @@ void changeTimerPeriod(uintptr_t id, uint32_t period, bool reset = false)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `id` | `int` | Input | The id of the timer to change. |
-| `period` | `int` | Input | The new period of the timer. |
+| `id` | `uintptr_t` | Input | The id of the timer to change. |
+| `period` | `uint32_t` | Input | The new period of the timer. |
 | `reset` | `bool` | Input | The timer's deadline will be adjusted to the new period if false. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -378,8 +373,8 @@ void changeTimerPeriod(uintptr_t id, uint32_t period, bool reset = false)
 #include "psyqo/gpu.hh"
 
 // Assume these named values have been initialized with valid data:
-// int id
-// int period
+// uintptr_t id
+// uint32_t period
 // bool reset
 
 psyqo::GPU& object = /* obtain a valid instance */;
@@ -456,7 +451,7 @@ TimerAwaiter delay(uint32_t microseconds)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `microseconds` | `int` | Input | Value supplied for `microseconds`. See the exact type and module contract. |
+| `microseconds` | `uint32_t` | Input | Value supplied for `microseconds`. See the exact type and module contract. |
 
 **Returns.** TimerAwaiter The awaitable object to be used with the `co_await` keyword.
 
@@ -468,7 +463,7 @@ TimerAwaiter delay(uint32_t microseconds)
 #include "psyqo/gpu.hh"
 
 // Assume these named values have been initialized with valid data:
-// int microseconds
+// uint32_t microseconds
 
 psyqo::GPU& object = /* obtain a valid instance */;
 
@@ -610,7 +605,7 @@ uint32_t getFrameCount() const
 - **Declared at:** [line 125](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gpu.hh#L125)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** This returns the internal frame counter being kept by the GPU class. The 32 bits value will wrap around when it reaches 2^32 frames, which is 2 years, 3 months, 7 days, 6 hours, 6 minutes and 28.27 seconds when running constantly at a 60Hz refresh rate. This counter will be incremented during the frame flip operation by the appropriate number of hardware frames which have passed since the last frame flip. In other words, this counter monotonically increases by one for each vsync event that occurred during the last rendering.
 
@@ -1029,7 +1024,7 @@ void pauseTimer(uintptr_t id)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `id` | `int` | Input | The id of the timer to pause. |
+| `id` | `uintptr_t` | Input | The id of the timer to pause. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1041,7 +1036,7 @@ void pauseTimer(uintptr_t id)
 #include "psyqo/gpu.hh"
 
 // Assume these named values have been initialized with valid data:
-// int id
+// uintptr_t id
 
 psyqo::GPU& object = /* obtain a valid instance */;
 
@@ -1150,7 +1145,7 @@ void resumeTimer(uintptr_t id)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `id` | `int` | Input | The id of the timer to resume. |
+| `id` | `uintptr_t` | Input | The id of the timer to resume. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1162,7 +1157,7 @@ void resumeTimer(uintptr_t id)
 #include "psyqo/gpu.hh"
 
 // Assume these named values have been initialized with valid data:
-// int id
+// uintptr_t id
 
 psyqo::GPU& object = /* obtain a valid instance */;
 
@@ -1416,7 +1411,7 @@ static void sendRaw(uint32_t data)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `data` | `int` | Input | Value supplied for `data`. See the exact type and module contract. |
+| `data` | `uint32_t` | Input | Value supplied for `data`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1428,186 +1423,9 @@ static void sendRaw(uint32_t data)
 #include "psyqo/gpu.hh"
 
 // Assume these named values have been initialized with valid data:
-// int data
+// uint32_t data
 
 psyqo::GPU::sendRaw(data);
-```
-
-**Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
-
-**Trade-offs and warnings.** Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call.
-
-<a id="psyqo-gpu-timerawaiter-await-ready-1"></a>
-
-## `psyqo::GPU::TimerAwaiter::await_ready`
-
-**Purpose.** Performs `await ready` as part of GPU setup, command submission and frame synchronization.
-
-**Exact declaration**
-
-```cpp
-constexpr bool await_ready() const
-```
-
-- **Declared at:** [line 83](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gpu.hh#L83)
-- **Kind:** `cxx method`; qualifiers: `const`
-
-**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need GPU setup, command submission and frame synchronization and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/gpu.hh"
-
-psyqo::GPU::TimerAwaiter& object = /* obtain a valid instance */;
-
-auto result = object.await_ready();
-```
-
-**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions. The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
-
-**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call.
-
-<a id="psyqo-gpu-timerawaiter-await-resume-1"></a>
-
-## `psyqo::GPU::TimerAwaiter::await_resume`
-
-**Purpose.** Performs `await resume` as part of GPU setup, command submission and frame synchronization.
-
-**Exact declaration**
-
-```cpp
-void await_resume()
-```
-
-- **Declared at:** [line 87](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gpu.hh#L87)
-- **Kind:** `cxx method`
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need GPU setup, command submission and frame synchronization and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/gpu.hh"
-
-psyqo::GPU::TimerAwaiter& object = /* obtain a valid instance */;
-
-object.await_resume();
-```
-
-**Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
-
-**Trade-offs and warnings.** Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call.
-
-<a id="psyqo-gpu-timerawaiter-await-suspend-1"></a>
-
-## `psyqo::GPU::TimerAwaiter::await_suspend`
-
-**Purpose.** Performs `await suspend` as part of GPU setup, command submission and frame synchronization.
-
-**Exact declaration**
-
-```cpp
-void await_suspend(std::coroutine_handle<> handle)
-```
-
-- **Declared at:** [line 84](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gpu.hh#L84)
-- **Kind:** `cxx method`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `handle` | `int` | Input | Value supplied for `handle`. See the exact type and module contract. |
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need GPU setup, command submission and frame synchronization and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/gpu.hh"
-
-// Assume these named values have been initialized with valid data:
-// int handle
-
-psyqo::GPU::TimerAwaiter& object = /* obtain a valid instance */;
-
-object.await_suspend(handle);
-```
-
-**Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
-
-**Trade-offs and warnings.** Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call.
-
-<a id="psyqo-gpu-timerawaiter-timerawaiter-1"></a>
-
-## `psyqo::GPU::TimerAwaiter::TimerAwaiter`
-
-**Purpose.** Constructs `psyqo::GPU::TimerAwaiter` for GPU setup, command submission and frame synchronization.
-
-**Exact declaration**
-
-```cpp
-TimerAwaiter(GPU &gpu, uint32_t deadline) : m_gpu
-```
-
-- **Declared at:** [line 81](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gpu.hh#L81)
-- **Kind:** `constructor`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `gpu` | `GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
-| `deadline` | `int` | Input | Value supplied for `deadline`. See the exact type and module contract. |
-
-**Use it when.** You need GPU setup, command submission and frame synchronization and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/gpu.hh"
-
-// Assume these named values have been initialized with valid data:
-// GPU & gpu
-// int deadline
-
-psyqo::GPU::TimerAwaiter value(gpu, deadline);
-```
-
-**Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
-
-**Trade-offs and warnings.** Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
-
-<a id="psyqo-gpu-timerawaiter-timerawaiter-2"></a>
-
-## `psyqo::GPU::TimerAwaiter::~TimerAwaiter`
-
-**Purpose.** Releases the resources owned by `psyqo::GPU::TimerAwaiter`.
-
-**Exact declaration**
-
-```cpp
-~TimerAwaiter()
-```
-
-- **Declared at:** [line 82](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/gpu.hh#L82)
-- **Kind:** `destructor`
-
-**Use it when.** You need GPU setup, command submission and frame synchronization and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/gpu.hh"
-
-// `psyqo::GPU::TimerAwaiter` cleans up when its owning scope ends.
 ```
 
 **Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
@@ -1635,7 +1453,7 @@ void uploadToVRAM(const uint16_t *data, Rect region)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `data` | `const int *` | Input | The pixels to upload. Must be a contiguous array of 16-bpp pixels, with the number of pixels being equal to the area specified by the `region` parameter. |
+| `data` | `const uint16_t *` | Input | The pixels to upload. Must be a contiguous array of 16-bpp pixels, with the number of pixels being equal to the area specified by the `region` parameter. |
 | `region` | `Rect` | Input | The region in VRAM to upload the pixels to. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1648,7 +1466,7 @@ void uploadToVRAM(const uint16_t *data, Rect region)
 #include "psyqo/gpu.hh"
 
 // Assume these named values have been initialized with valid data:
-// const int * data
+// const uint16_t * data
 // Rect region
 
 psyqo::GPU& object = /* obtain a valid instance */;
@@ -1681,7 +1499,7 @@ void uploadToVRAM(const uint16_t *data, Rect region, eastl::function<void()> &&c
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `data` | `const int *` | Input | The pixels to upload. Must be a contiguous array of 16-bpp pixels, with the number of pixels being equal to the area specified by the `region` parameter. |
+| `data` | `const uint16_t *` | Input | The pixels to upload. Must be a contiguous array of 16-bpp pixels, with the number of pixels being equal to the area specified by the `region` parameter. |
 | `region` | `Rect` | Input | The region in VRAM to upload the pixels to. |
 | `callback` | `eastl::function<void ()> &&` | Consumed or moved input | The callback to call upon completion. |
 | `dmaCallback` | `DMA::DmaCallback` | Callback | `DMA::FROM_MAIN_LOOP` or `DMA::FROM_ISR`. |
@@ -1696,7 +1514,7 @@ void uploadToVRAM(const uint16_t *data, Rect region, eastl::function<void()> &&c
 #include "psyqo/gpu.hh"
 
 // Assume these named values have been initialized with valid data:
-// const int * data
+// const uint16_t * data
 // Rect region
 // eastl::function<void ()> && callback
 // DMA::DmaCallback dmaCallback
@@ -1830,7 +1648,7 @@ consteval uint32_t operator""_ms(long double value)
 | --- | --- | --- | --- |
 | `value` | `long double` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need GPU setup, command submission and frame synchronization and the preconditions in the declaration are already satisfied.
 
@@ -1870,7 +1688,7 @@ consteval uint32_t operator""_ms(unsigned long long int value)
 | --- | --- | --- | --- |
 | `value` | `unsigned long long` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need GPU setup, command submission and frame synchronization and the preconditions in the declaration are already satisfied.
 
@@ -1910,7 +1728,7 @@ consteval uint32_t operator""_ns(long double value)
 | --- | --- | --- | --- |
 | `value` | `long double` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need GPU setup, command submission and frame synchronization and the preconditions in the declaration are already satisfied.
 
@@ -1952,7 +1770,7 @@ consteval uint32_t operator""_ns(unsigned long long int value)
 | --- | --- | --- | --- |
 | `value` | `unsigned long long` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** These operators can be used to specify time units suitable for the GPU's `armTimer` and `armPeriodicTimer` methods. For example, `gpu().armPeriodicTimer(1_s, callback)` will create a timer that fires every second.
 
@@ -1992,7 +1810,7 @@ consteval uint32_t operator""_s(long double value)
 | --- | --- | --- | --- |
 | `value` | `long double` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need GPU setup, command submission and frame synchronization and the preconditions in the declaration are already satisfied.
 
@@ -2032,7 +1850,7 @@ consteval uint32_t operator""_s(unsigned long long int value)
 | --- | --- | --- | --- |
 | `value` | `unsigned long long` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need GPU setup, command submission and frame synchronization and the preconditions in the declaration are already satisfied.
 
@@ -2072,7 +1890,7 @@ consteval uint32_t operator""_us(long double value)
 | --- | --- | --- | --- |
 | `value` | `long double` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need GPU setup, command submission and frame synchronization and the preconditions in the declaration are already satisfied.
 
@@ -2112,7 +1930,7 @@ consteval uint32_t operator""_us(unsigned long long int value)
 | --- | --- | --- | --- |
 | `value` | `unsigned long long` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need GPU setup, command submission and frame synchronization and the preconditions in the declaration are already satisfied.
 

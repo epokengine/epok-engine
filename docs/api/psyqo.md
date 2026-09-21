@@ -2,7 +2,7 @@
 
 The complete callable surface found in the pinned `psyqo/` headers at Nugget `6186b131aacc5853a9161fb076ed34ffe504552d`. High-level modules come first; hardware and internal modules are clearly marked.
 
-**Coverage:** 53 headers · 894 public callables.
+**Coverage:** 53 headers · 944 public callables.
 
 ## Modules
 
@@ -11,22 +11,22 @@ The complete callable surface found in the pinned `psyqo/` headers at Nugget `61
 | [Adler32](psyqo/adler32.md) | `adler32.hh` | 3 | Pinned PsyQo API |
 | [Advancedpad](psyqo/advancedpad.md) | `advancedpad.hh` | 11 | Pinned PsyQo API |
 | [Application](psyqo/application.md) | `application.hh` | 10 | Pinned PsyQo API |
-| [Bezier](psyqo/bezier.md) | `bezier.hh` | 1 | Pinned PsyQo API |
+| [Bezier](psyqo/bezier.md) | `bezier.hh` | 2 | Pinned PsyQo API |
 | [Buffer](psyqo/buffer.md) | `buffer.hh` | 4 | Pinned PsyQo API |
 | [Bump Allocator](psyqo/bump-allocator.md) | `bump-allocator.hh` | 5 | Pinned PsyQo API |
-| [Cdrom](psyqo/cdrom.md) | `cdrom.hh` | 10 | Pinned PsyQo API |
+| [Cdrom](psyqo/cdrom.md) | `cdrom.hh` | 5 | Pinned PsyQo API |
 | [Cdrom Commandbuffer](psyqo/cdrom-commandbuffer.md) | `cdrom-commandbuffer.hh` | 1 | Pinned PsyQo API |
 | [Cdrom Device](psyqo/cdrom-device.md) | `cdrom-device.hh` | 64 | Pinned PsyQo API |
 | [Cdrom Pcdrv](psyqo/cdrom-pcdrv.md) | `cdrom-pcdrv.hh` | 3 | Pinned PsyQo API |
-| [Coroutine](psyqo/coroutine.md) | `coroutine.hh` | 44 | Pinned PsyQo API |
-| [Fixed Point](psyqo/fixed-point.md) | `fixed-point.hh` | 49 | Pinned PsyQo API |
+| [Coroutine](psyqo/coroutine.md) | `coroutine.hh` | 34 | Pinned PsyQo API |
+| [Fixed Point](psyqo/fixed-point.md) | `fixed-point.hh` | 50 | Pinned PsyQo API |
 | [Font](psyqo/font.md) | `font.hh` | 18 | Pinned PsyQo API |
 | [Fragment Concept](psyqo/fragment-concept.md) | `fragment-concept.hh` | 0 | Pinned PsyQo API |
 | [Fragments](psyqo/fragments.md) | `fragments.hh` | 16 | Pinned PsyQo API |
-| [Gpu](psyqo/gpu.md) | `gpu.hh` | 51 | Pinned PsyQo API |
+| [Gpu](psyqo/gpu.md) | `gpu.hh` | 46 | Pinned PsyQo API |
 | [Gte Kernels](psyqo/gte-kernels.md) | `gte-kernels.hh` | 74 | Pinned PsyQo API |
 | [Gte Math](psyqo/gte-math.md) | `gte-math.hh` | 11 | Pinned PsyQo API |
-| [Gte Registers](psyqo/gte-registers.md) | `gte-registers.hh` | 33 | Pinned PsyQo API |
+| [Gte Registers](psyqo/gte-registers.md) | `gte-registers.hh` | 101 | Pinned PsyQo API |
 | [Iso9660 Parser](psyqo/iso9660-parser.md) | `iso9660-parser.hh` | 18 | Pinned PsyQo API |
 | [Kernel](psyqo/kernel.md) | `kernel.hh` | 29 | Pinned PsyQo API |
 | [Matrix](psyqo/matrix.md) | `matrix.hh` | 0 | Pinned PsyQo API |

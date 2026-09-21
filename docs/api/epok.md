@@ -2,7 +2,7 @@
 
 Epok's gameplay-facing and engine-runtime callables. Start here for entities, input, collision, audio, scenes, timelines, effects and resource budgets.
 
-**Coverage:** 82 headers · 1305 public callables.
+**Coverage:** 82 headers · 1314 public callables.
 
 ## Modules
 
@@ -42,7 +42,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Motion Interpolation](epok/motion-interpolation.md) | `motion_interpolation.hpp` | 13 | Epok runtime API |
 | [Music](epok/music.md) | `music.hpp` | 10 | Epok runtime API |
 | [Native Music Data](epok/native-music-data.md) | `native_music_data.hpp` | 7 | Epok runtime API |
-| [Native Music Runtime](epok/native-music-runtime.md) | `native_music_runtime.hpp` | 21 | Epok runtime API |
+| [Native Music Runtime](epok/native-music-runtime.md) | `native_music_runtime.hpp` | 0 | Epok runtime API |
 | [Native Music Service](epok/native-music-service.md) | `native_music_service.hpp` | 1 | Epok runtime API |
 | [Navigation](epok/navigation.md) | `navigation.hpp` | 17 | Epok runtime API |
 | [Navigation Components](epok/navigation-components.md) | `navigation_components.hpp` | 21 | Epok runtime API |
@@ -60,7 +60,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Sequence Instrument Service](epok/sequence-instrument-service.md) | `sequence_instrument_service.hpp` | 3 | Epok runtime API |
 | [Sequence Kernel](epok/sequence-kernel.md) | `sequence_kernel.hpp` | 23 | Epok runtime API |
 | [Sequence Lock](epok/sequence-lock.md) | `sequence_lock.hpp` | 2 | Epok runtime API |
-| [Sequence Service](epok/sequence-service.md) | `sequence_service.hpp` | 1 | Epok runtime API |
+| [Sequence Service](epok/sequence-service.md) | `sequence_service.hpp` | 31 | Epok runtime API |
 | [Sequence Tables](epok/sequence-tables.md) | `sequence_tables.hpp` | 0 | Epok runtime API |
 | [Serial Debug](epok/serial-debug.md) | `serial_debug.hpp` | 2 | Epok runtime API |
 | [Serial Kernel](epok/serial-kernel.md) | `serial_kernel.hpp` | 5 | Epok runtime API |

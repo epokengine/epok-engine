@@ -8,7 +8,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 
 ## Declared types
 
-`psyqo::Color::(unnamed struct at third_party/nugget/psyqo/primitives/common.hh:92:5)`, `psyqo::Prim::TPageAttr::ColorMode`, `psyqo::Prim::TPageAttr::SemiTrans`, `psyqo::Prim::Transparency`, `psyqo::PrimPieces::ClutIndex`, `psyqo::PrimPieces::PageInfo`, `psyqo::PrimPieces::TexInfo`, `psyqo::PrimPieces::TPageAttr`, `psyqo::PrimPieces::TPageLoc`, `psyqo::PrimPieces::UVCoords`, `psyqo::PrimPieces::UVCoordsPadded`, `psyqo::Rect`, `psyqo::Vertex::(anonymous struct at third_party/nugget/psyqo/primitives/common.hh:48:5)`
+`psyqo::Color::(anonymous struct at third_party/nugget/psyqo/primitives/common.hh:92:5)`, `psyqo::Prim::TPageAttr::ColorMode`, `psyqo::Prim::TPageAttr::SemiTrans`, `psyqo::Prim::Transparency`, `psyqo::PrimPieces::ClutIndex`, `psyqo::PrimPieces::PageInfo`, `psyqo::PrimPieces::TexInfo`, `psyqo::PrimPieces::TPageAttr`, `psyqo::PrimPieces::TPageLoc`, `psyqo::PrimPieces::UVCoords`, `psyqo::PrimPieces::UVCoordsPadded`, `psyqo::Rect`, `psyqo::Vertex::(anonymous struct at third_party/nugget/psyqo/primitives/common.hh:48:5)`
 
 ## Callable index
 
@@ -126,8 +126,8 @@ ClutIndex(uint16_t x, uint16_t y) : i
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `x` | `uint16_t` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `uint16_t` | Input | Value supplied for `y`. See the exact type and module contract. |
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
 
@@ -137,8 +137,8 @@ ClutIndex(uint16_t x, uint16_t y) : i
 #include "psyqo/primitives/common.hh"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
+// uint16_t x
+// uint16_t y
 
 psyqo::PrimPieces::ClutIndex value(x, y);
 ```
@@ -336,7 +336,7 @@ uint8_t getPageX() const
 - **Declared at:** [line 249](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/common.hh#L249)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint8_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
 
@@ -369,7 +369,7 @@ uint8_t getPageY() const
 - **Declared at:** [line 250](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/common.hh#L250)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint8_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need typed PlayStation GPU primitives and the preconditions in the declaration are already satisfied.
 
@@ -757,7 +757,7 @@ TPageAttr& setPageX(uint8_t x)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `x` | `uint8_t` | Input | Value supplied for `x`. See the exact type and module contract. |
 
 **Returns.** Returns `TPageAttr &`. Check the purpose and failure notes before using the value.
 
@@ -769,7 +769,7 @@ TPageAttr& setPageX(uint8_t x)
 #include "psyqo/primitives/common.hh"
 
 // Assume these named values have been initialized with valid data:
-// int x
+// uint8_t x
 
 psyqo::PrimPieces::TPageAttr& object = /* obtain a valid instance */;
 
@@ -799,7 +799,7 @@ TPageAttr& setPageY(uint8_t y)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `y` | `uint8_t` | Input | Value supplied for `y`. See the exact type and module contract. |
 
 **Returns.** Returns `TPageAttr &`. Check the purpose and failure notes before using the value.
 
@@ -811,7 +811,7 @@ TPageAttr& setPageY(uint8_t y)
 #include "psyqo/primitives/common.hh"
 
 // Assume these named values have been initialized with valid data:
-// int y
+// uint8_t y
 
 psyqo::PrimPieces::TPageAttr& object = /* obtain a valid instance */;
 
@@ -946,7 +946,7 @@ TPageLoc& setPageX(uint8_t x)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `x` | `uint8_t` | Input | Value supplied for `x`. See the exact type and module contract. |
 
 **Returns.** Returns `TPageLoc &`. Check the purpose and failure notes before using the value.
 
@@ -958,7 +958,7 @@ TPageLoc& setPageX(uint8_t x)
 #include "psyqo/primitives/common.hh"
 
 // Assume these named values have been initialized with valid data:
-// int x
+// uint8_t x
 
 psyqo::PrimPieces::TPageLoc& object = /* obtain a valid instance */;
 
@@ -988,7 +988,7 @@ TPageLoc& setPageY(uint8_t y)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `y` | `uint8_t` | Input | Value supplied for `y`. See the exact type and module contract. |
 
 **Returns.** Returns `TPageLoc &`. Check the purpose and failure notes before using the value.
 
@@ -1000,7 +1000,7 @@ TPageLoc& setPageY(uint8_t y)
 #include "psyqo/primitives/common.hh"
 
 // Assume these named values have been initialized with valid data:
-// int y
+// uint8_t y
 
 psyqo::PrimPieces::TPageLoc& object = /* obtain a valid instance */;
 

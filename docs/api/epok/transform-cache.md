@@ -6,7 +6,7 @@ This module covers the transform cache module. It documents 4 public callables d
 
 ## Declared types
 
-`epok::TransformCache`, `epok::TransformCache::Entry`
+`epok::TransformCache`
 
 ## Callable index
 
@@ -67,9 +67,9 @@ uint32_t revision(size_t index) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the transform cache module and the preconditions in the declaration are already satisfied.
 
@@ -79,7 +79,7 @@ uint32_t revision(size_t index) const
 #include "transform_cache.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// size_t index
 
 epok::TransformCache& object = /* obtain a valid instance */;
 
@@ -111,7 +111,7 @@ template<class Objects,class Matrices,class MakeLocal> void sync(const Objects& 
 | --- | --- | --- | --- |
 | `objects` | `const Objects &` | Input | Value supplied for `objects`. See the exact type and module contract. |
 | `world` | `Matrices &` | Input/output; inspect the function contract | Value supplied for `world`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `make_local` | `MakeLocal` | Input | Value supplied for `make_local`. See the exact type and module contract. |
 | `selected` | `const bool *` | Input | Value supplied for `selected`. See the exact type and module contract. |
 
@@ -130,7 +130,7 @@ template<class Objects,class Matrices,class MakeLocal> void sync(const Objects& 
 // Assume these named values have been initialized with valid data:
 // const Objects & objects
 // Matrices & world
-// int count
+// size_t count
 // MakeLocal make_local
 // const bool * selected
 
@@ -166,7 +166,7 @@ template<class Object,class MakeLocal> void sync_root(const Object& object,Affin
 | --- | --- | --- | --- |
 | `object` | `const Object &` | Input | Value supplied for `object`. See the exact type and module contract. |
 | `world` | `Affine<Number> &` | Input/output; inspect the function contract | Value supplied for `world`. See the exact type and module contract. |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 | `make_local` | `MakeLocal` | Input | Value supplied for `make_local`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -184,7 +184,7 @@ template<class Object,class MakeLocal> void sync_root(const Object& object,Affin
 // Assume these named values have been initialized with valid data:
 // const Object & object
 // Affine<Number> & world
-// int index
+// size_t index
 // MakeLocal make_local
 
 epok::TransformCache& object = /* obtain a valid instance */;

@@ -8,7 +8,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 
 ## Declared types
 
-`psyqo::MSF`, `psyqo::MSF::(unnamed union at third_party/nugget/psyqo/msf.hh:62:5)::(unnamed struct at third_party/nugget/psyqo/msf.hh:63:9)`
+`psyqo::MSF`, `psyqo::MSF::(anonymous union at third_party/nugget/psyqo/msf.hh:62:5)::(anonymous struct at third_party/nugget/psyqo/msf.hh:63:9)`
 
 ## Callable index
 
@@ -45,9 +45,9 @@ constexpr uint8_t btoi(uint8_t b)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `b` | `int` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `b` | `uint8_t` | Input | Value supplied for `b`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint8_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the msf module and the preconditions in the declaration are already satisfied.
 
@@ -57,7 +57,7 @@ constexpr uint8_t btoi(uint8_t b)
 #include "psyqo/msf.hh"
 
 // Assume these named values have been initialized with valid data:
-// int b
+// uint8_t b
 
 auto result = psyqo::btoi(b);
 ```
@@ -85,9 +85,9 @@ constexpr uint8_t itob(uint8_t i)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `i` | `int` | Input | Value supplied for `i`. See the exact type and module contract. |
+| `i` | `uint8_t` | Input | Value supplied for `i`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint8_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the msf module and the preconditions in the declaration are already satisfied.
 
@@ -97,7 +97,7 @@ constexpr uint8_t itob(uint8_t i)
 #include "psyqo/msf.hh"
 
 // Assume these named values have been initialized with valid data:
-// int i
+// uint8_t i
 
 auto result = psyqo::itob(i);
 ```
@@ -125,7 +125,7 @@ constexpr void fromBCD(const uint8_t *src)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `src` | `const int *` | Input | Value supplied for `src`. See the exact type and module contract. |
+| `src` | `const uint8_t *` | Input | Value supplied for `src`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -137,7 +137,7 @@ constexpr void fromBCD(const uint8_t *src)
 #include "psyqo/msf.hh"
 
 // Assume these named values have been initialized with valid data:
-// const int * src
+// const uint8_t * src
 
 psyqo::MSF& object = /* obtain a valid instance */;
 
@@ -196,9 +196,9 @@ MSF(uint8_t m, uint8_t s, uint8_t f) : m
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `m` | `int` | Input | Value supplied for `m`. See the exact type and module contract. |
-| `s` | `int` | Input | Value supplied for `s`. See the exact type and module contract. |
-| `f` | `int` | Input | Value supplied for `f`. See the exact type and module contract. |
+| `m` | `uint8_t` | Input | Value supplied for `m`. See the exact type and module contract. |
+| `s` | `uint8_t` | Input | Value supplied for `s`. See the exact type and module contract. |
+| `f` | `uint8_t` | Input | Value supplied for `f`. See the exact type and module contract. |
 
 **Use it when.** You need the msf module and the preconditions in the declaration are already satisfied.
 
@@ -208,9 +208,9 @@ MSF(uint8_t m, uint8_t s, uint8_t f) : m
 #include "psyqo/msf.hh"
 
 // Assume these named values have been initialized with valid data:
-// int m
-// int s
-// int f
+// uint8_t m
+// uint8_t s
+// uint8_t f
 
 psyqo::MSF value(m, s, f);
 ```
@@ -238,7 +238,7 @@ explicit MSF(uint32_t lba)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `lba` | `int` | Input | Value supplied for `lba`. See the exact type and module contract. |
+| `lba` | `uint32_t` | Input | Value supplied for `lba`. See the exact type and module contract. |
 
 **Use it when.** You need the msf module and the preconditions in the declaration are already satisfied.
 
@@ -248,7 +248,7 @@ explicit MSF(uint32_t lba)
 #include "psyqo/msf.hh"
 
 // Assume these named values have been initialized with valid data:
-// int lba
+// uint32_t lba
 
 psyqo::MSF value(lba);
 ```
@@ -468,7 +468,7 @@ constexpr void toBCD(uint8_t *dst) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `dst` | `int *` | Input/output; inspect the function contract | Value supplied for `dst`. See the exact type and module contract. |
+| `dst` | `uint8_t *` | Input/output; inspect the function contract | Value supplied for `dst`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -480,7 +480,7 @@ constexpr void toBCD(uint8_t *dst) const
 #include "psyqo/msf.hh"
 
 // Assume these named values have been initialized with valid data:
-// int * dst
+// uint8_t * dst
 
 psyqo::MSF& object = /* obtain a valid instance */;
 
@@ -506,7 +506,7 @@ constexpr uint32_t toLBA() const
 - **Declared at:** [line 50](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/msf.hh#L50)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the msf module and the preconditions in the declaration are already satisfied.
 

@@ -96,7 +96,7 @@ inline uint32_t sequence_flush_starts()
 - **Declared at:** [line 221](../../../runtime/sequence_instrument_service.hpp#L221)
 - **Kind:** `function decl`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the sequence instrument service module and the preconditions in the declaration are already satisfied.
 

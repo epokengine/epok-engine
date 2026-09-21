@@ -30,9 +30,9 @@ inline bool interior(int32_t x,int32_t y,int32_t z)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `x` | `int32_t` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `int32_t` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `int32_t` | Input | Value supplied for `z`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -44,9 +44,9 @@ inline bool interior(int32_t x,int32_t y,int32_t z)
 #include "sprite_math.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
-// int z
+// int32_t x
+// int32_t y
+// int32_t z
 
 auto result = epok::sprite_detail::interior(x, y, z);
 ```
@@ -74,11 +74,11 @@ inline int32_t project_ratio(int32_t coordinate,int scale,int32_t depth)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `coordinate` | `int` | Input | Value supplied for `coordinate`. See the exact type and module contract. |
+| `coordinate` | `int32_t` | Input | Value supplied for `coordinate`. See the exact type and module contract. |
 | `scale` | `int` | Input | Value supplied for `scale`. See the exact type and module contract. |
-| `depth` | `int` | Input | Value supplied for `depth`. See the exact type and module contract. |
+| `depth` | `int32_t` | Input | Value supplied for `depth`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need sprites, flipbooks and screen-facing rendering and the preconditions in the declaration are already satisfied.
 
@@ -88,9 +88,9 @@ inline int32_t project_ratio(int32_t coordinate,int scale,int32_t depth)
 #include "sprite_math.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int coordinate
+// int32_t coordinate
 // int scale
-// int depth
+// int32_t depth
 
 auto result = epok::sprite_detail::project_ratio(coordinate, scale, depth);
 ```

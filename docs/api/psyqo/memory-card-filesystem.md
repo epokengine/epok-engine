@@ -8,7 +8,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 
 ## Declared types
 
-`psyqo::GPU`, `psyqo::MemoryCardFileSystem`, `psyqo::MemoryCardFileSystem::Error`, `psyqo::MemoryCardFileSystem::FileEntry`, `psyqo::MemoryCardFileSystem::FileInfo`, `psyqo::MemoryCardFileSystem::Frame`, `psyqo::MemoryCardFileSystem::Icon`, `psyqo::MemoryCardFileSystem::Port`
+`psyqo::GPU`, `psyqo::MemoryCardFileSystem`, `psyqo::MemoryCardFileSystem::Error`, `psyqo::MemoryCardFileSystem::FileEntry`, `psyqo::MemoryCardFileSystem::FileInfo`, `psyqo::MemoryCardFileSystem::Icon`, `psyqo::MemoryCardFileSystem::Port`
 
 ## Callable index
 
@@ -421,7 +421,7 @@ void getFreeBlockCount(Port port, uint32_t *outFreeBlocks, eastl::function<void(
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
-| `outFreeBlocks` | `int *` | Input/output; inspect the function contract | Value supplied for `outFreeBlocks`. See the exact type and module contract. |
+| `outFreeBlocks` | `uint32_t *` | Input/output; inspect the function contract | Value supplied for `outFreeBlocks`. See the exact type and module contract. |
 | `callback` | `eastl::function<void (Error)> &&` | Consumed or moved input | Value supplied for `callback`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -435,7 +435,7 @@ void getFreeBlockCount(Port port, uint32_t *outFreeBlocks, eastl::function<void(
 
 // Assume these named values have been initialized with valid data:
 // Port port
-// int * outFreeBlocks
+// uint32_t * outFreeBlocks
 // eastl::function<void (Error)> && callback
 
 psyqo::MemoryCardFileSystem& object = /* obtain a valid instance */;
@@ -468,7 +468,7 @@ Error getFreeBlockCountBlocking(GPU &gpu, Port port, uint32_t *outFreeBlocks)
 | --- | --- | --- | --- |
 | `gpu` | `GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
-| `outFreeBlocks` | `int *` | Input/output; inspect the function contract | Value supplied for `outFreeBlocks`. See the exact type and module contract. |
+| `outFreeBlocks` | `uint32_t *` | Input/output; inspect the function contract | Value supplied for `outFreeBlocks`. See the exact type and module contract. |
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
 
@@ -482,7 +482,7 @@ Error getFreeBlockCountBlocking(GPU &gpu, Port port, uint32_t *outFreeBlocks)
 // Assume these named values have been initialized with valid data:
 // GPU & gpu
 // Port port
-// int * outFreeBlocks
+// uint32_t * outFreeBlocks
 
 psyqo::MemoryCardFileSystem& object = /* obtain a valid instance */;
 
@@ -547,8 +547,8 @@ void listFiles(Port port, FileEntry *out, uint32_t maxEntries, uint32_t *outCoun
 | --- | --- | --- | --- |
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
 | `out` | `FileEntry *` | Input/output; inspect the function contract | An array to receive up to `maxEntries` entries. |
-| `maxEntries` | `int` | Input | Value supplied for `maxEntries`. See the exact type and module contract. |
-| `outCount` | `int *` | Input/output; inspect the function contract | Receives the number of files found (may exceed `maxEntries`, in which case only `maxEntries` were written). |
+| `maxEntries` | `uint32_t` | Input | Value supplied for `maxEntries`. See the exact type and module contract. |
+| `outCount` | `uint32_t *` | Input/output; inspect the function contract | Receives the number of files found (may exceed `maxEntries`, in which case only `maxEntries` were written). |
 | `callback` | `eastl::function<void (Error)> &&` | Consumed or moved input | Value supplied for `callback`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -563,8 +563,8 @@ void listFiles(Port port, FileEntry *out, uint32_t maxEntries, uint32_t *outCoun
 // Assume these named values have been initialized with valid data:
 // Port port
 // FileEntry * out
-// int maxEntries
-// int * outCount
+// uint32_t maxEntries
+// uint32_t * outCount
 // eastl::function<void (Error)> && callback
 
 psyqo::MemoryCardFileSystem& object = /* obtain a valid instance */;
@@ -598,8 +598,8 @@ Error listFilesBlocking(GPU &gpu, Port port, FileEntry *out, uint32_t maxEntries
 | `gpu` | `GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
 | `out` | `FileEntry *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
-| `maxEntries` | `int` | Input | Value supplied for `maxEntries`. See the exact type and module contract. |
-| `outCount` | `int *` | Input/output; inspect the function contract | Value supplied for `outCount`. See the exact type and module contract. |
+| `maxEntries` | `uint32_t` | Input | Value supplied for `maxEntries`. See the exact type and module contract. |
+| `outCount` | `uint32_t *` | Input/output; inspect the function contract | Value supplied for `outCount`. See the exact type and module contract. |
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
 
@@ -614,8 +614,8 @@ Error listFilesBlocking(GPU &gpu, Port port, FileEntry *out, uint32_t maxEntries
 // GPU & gpu
 // Port port
 // FileEntry * out
-// int maxEntries
-// int * outCount
+// uint32_t maxEntries
+// uint32_t * outCount
 
 psyqo::MemoryCardFileSystem& object = /* obtain a valid instance */;
 
@@ -688,8 +688,8 @@ void readFile(Port port, const char *name, void *buffer, uint32_t maxLen, uint32
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
 | `name` | `const char *` | Input | Value supplied for `name`. See the exact type and module contract. |
 | `buffer` | `void *` | Input/output; inspect the function contract | Receives up to `maxLen` payload bytes. |
-| `maxLen` | `int` | Input | Value supplied for `maxLen`. See the exact type and module contract. |
-| `outLen` | `int *` | Input/output; inspect the function contract | Receives the number of payload bytes available (capped at `maxLen`). |
+| `maxLen` | `uint32_t` | Input | Value supplied for `maxLen`. See the exact type and module contract. |
+| `outLen` | `uint32_t *` | Input/output; inspect the function contract | Receives the number of payload bytes available (capped at `maxLen`). |
 | `callback` | `eastl::function<void (Error)> &&` | Consumed or moved input | Value supplied for `callback`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -705,8 +705,8 @@ void readFile(Port port, const char *name, void *buffer, uint32_t maxLen, uint32
 // Port port
 // const char * name
 // void * buffer
-// int maxLen
-// int * outLen
+// uint32_t maxLen
+// uint32_t * outLen
 // eastl::function<void (Error)> && callback
 
 psyqo::MemoryCardFileSystem& object = /* obtain a valid instance */;
@@ -741,8 +741,8 @@ Error readFileBlocking(GPU &gpu, Port port, const char *name, void *buffer, uint
 | `port` | `Port` | Input | Value supplied for `port`. See the exact type and module contract. |
 | `name` | `const char *` | Input | Value supplied for `name`. See the exact type and module contract. |
 | `buffer` | `void *` | Input/output; inspect the function contract | Value supplied for `buffer`. See the exact type and module contract. |
-| `maxLen` | `int` | Input | Value supplied for `maxLen`. See the exact type and module contract. |
-| `outLen` | `int *` | Input/output; inspect the function contract | Value supplied for `outLen`. See the exact type and module contract. |
+| `maxLen` | `uint32_t` | Input | Value supplied for `maxLen`. See the exact type and module contract. |
+| `outLen` | `uint32_t *` | Input/output; inspect the function contract | Value supplied for `outLen`. See the exact type and module contract. |
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
 
@@ -758,8 +758,8 @@ Error readFileBlocking(GPU &gpu, Port port, const char *name, void *buffer, uint
 // Port port
 // const char * name
 // void * buffer
-// int maxLen
-// int * outLen
+// uint32_t maxLen
+// uint32_t * outLen
 
 psyqo::MemoryCardFileSystem& object = /* obtain a valid instance */;
 
@@ -894,7 +894,7 @@ void writeFile(Port port, const char *name, const char *title, const Icon &icon,
 | `title` | `const char *` | Input | The save title, as a UTF-8 string, encoded to the 64-byte Shift-JIS field the BIOS manager displays, with printable ASCII promoted to its fullwidth form. Must stay valid until the callback fires. |
 | `icon` | `const Icon &` | Input | The save icon. Copied, so it need not outlive the call. |
 | `data` | `const void *` | Input | The payload bytes. Must stay valid until the callback fires. |
-| `dataLen` | `int` | Input | The number of payload bytes. |
+| `dataLen` | `uint32_t` | Input | The number of payload bytes. |
 | `callback` | `eastl::function<void (Error)> &&` | Consumed or moved input | Value supplied for `callback`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -912,7 +912,7 @@ void writeFile(Port port, const char *name, const char *title, const Icon &icon,
 // const char * title
 // const Icon & icon
 // const void * data
-// int dataLen
+// uint32_t dataLen
 // eastl::function<void (Error)> && callback
 
 psyqo::MemoryCardFileSystem& object = /* obtain a valid instance */;
@@ -949,7 +949,7 @@ Error writeFileBlocking(GPU &gpu, Port port, const char *name, const char *title
 | `title` | `const char *` | Input | Value supplied for `title`. See the exact type and module contract. |
 | `icon` | `const Icon &` | Input | Value supplied for `icon`. See the exact type and module contract. |
 | `data` | `const void *` | Input | Value supplied for `data`. See the exact type and module contract. |
-| `dataLen` | `int` | Input | Value supplied for `dataLen`. See the exact type and module contract. |
+| `dataLen` | `uint32_t` | Input | Value supplied for `dataLen`. See the exact type and module contract. |
 
 **Returns.** Returns `Error`. Check the purpose and failure notes before using the value.
 
@@ -967,7 +967,7 @@ Error writeFileBlocking(GPU &gpu, Port port, const char *name, const char *title
 // const char * title
 // const Icon & icon
 // const void * data
-// int dataLen
+// uint32_t dataLen
 
 psyqo::MemoryCardFileSystem& object = /* obtain a valid instance */;
 

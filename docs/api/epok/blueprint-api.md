@@ -73,7 +73,7 @@ bool burst_effect(effects::Handle,uint32_t)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `arg1` | `effects::Handle` | Input | Value supplied for `arg1`. See the exact type and module contract. |
-| `arg2` | `int` | Input | Value supplied for `arg2`. See the exact type and module contract. |
+| `arg2` | `uint32_t` | Input | Value supplied for `arg2`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -86,7 +86,7 @@ bool burst_effect(effects::Handle,uint32_t)
 
 // Assume these named values have been initialized with valid data:
 // effects::Handle arg1
-// int arg2
+// uint32_t arg2
 
 auto result = epok::bp::api::burst_effect(arg1, arg2);
 ```
@@ -236,8 +236,8 @@ inline bool held(uint32_t button,uint32_t port)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `button` | `int` | Input | Value supplied for `button`. See the exact type and module contract. |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `button` | `uint32_t` | Input | Value supplied for `button`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -249,8 +249,8 @@ inline bool held(uint32_t button,uint32_t port)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int button
-// int port
+// uint32_t button
+// uint32_t port
 
 auto result = epok::bp::api::held(button, port);
 ```
@@ -722,8 +722,8 @@ inline bool pressed(uint32_t button,uint32_t port)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `button` | `int` | Input | Value supplied for `button`. See the exact type and module contract. |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `button` | `uint32_t` | Input | Value supplied for `button`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -735,8 +735,8 @@ inline bool pressed(uint32_t button,uint32_t port)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int button
-// int port
+// uint32_t button
+// uint32_t port
 
 auto result = epok::bp::api::pressed(button, port);
 ```
@@ -844,8 +844,8 @@ inline bool released(uint32_t button,uint32_t port)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `button` | `int` | Input | Value supplied for `button`. See the exact type and module contract. |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `button` | `uint32_t` | Input | Value supplied for `button`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -857,8 +857,8 @@ inline bool released(uint32_t button,uint32_t port)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int button
-// int port
+// uint32_t button
+// uint32_t port
 
 auto result = epok::bp::api::released(button, port);
 ```
@@ -886,7 +886,7 @@ inline bool request_scene(uint32_t index)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `uint32_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -898,7 +898,7 @@ inline bool request_scene(uint32_t index)
 #include "blueprint_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// uint32_t index
 
 auto result = epok::bp::api::request_scene(index);
 ```
@@ -1048,7 +1048,7 @@ inline Fixed rotation_2d(ObjectId target)
 | --- | --- | --- | --- |
 | `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
 
@@ -1461,7 +1461,7 @@ inline void set_rotation_2d(ObjectId target,Fixed value)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `target` | `ObjectId` | Input | Value supplied for `target`. See the exact type and module contract. |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1474,7 +1474,7 @@ inline void set_rotation_2d(ObjectId target,Fixed value)
 
 // Assume these named values have been initialized with valid data:
 // ObjectId target
-// int value
+// Fixed value
 
 epok::bp::api::set_rotation_2d(target, value);
 ```
@@ -1915,7 +1915,7 @@ int asset_index(uint64_t asset,uint32_t kind)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `asset` | `uint64_t` | Input | Value supplied for `asset`. See the exact type and module contract. |
-| `kind` | `int` | Input | Value supplied for `kind`. See the exact type and module contract. |
+| `kind` | `uint32_t` | Input | Value supplied for `kind`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -1928,7 +1928,7 @@ int asset_index(uint64_t asset,uint32_t kind)
 
 // Assume these named values have been initialized with valid data:
 // uint64_t asset
-// int kind
+// uint32_t kind
 
 auto result = epok::bp::asset_index(asset, kind);
 ```

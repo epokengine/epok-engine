@@ -371,7 +371,7 @@ template <std::integral U> constexpr Vector operator*(U rhs) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `rhs` | `int` | Input | Value supplied for `rhs`. See the exact type and module contract. |
+| `rhs` | `U` | Input | Value supplied for `rhs`. See the exact type and module contract. |
 
 **Returns.** Returns `Vector<N, precisionBits, T>`. Check the purpose and failure notes before using the value.
 
@@ -386,7 +386,7 @@ template <std::integral U> constexpr Vector operator*(U rhs) const
 // U
 
 // Assume these named values have been initialized with valid data:
-// int rhs
+// U rhs
 
 psyqo::Vector& object = /* obtain a valid instance */;
 
@@ -458,7 +458,7 @@ template <std::integral U> constexpr Vector& operator*=(U rhs)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `rhs` | `int` | Input | Value supplied for `rhs`. See the exact type and module contract. |
+| `rhs` | `U` | Input | Value supplied for `rhs`. See the exact type and module contract. |
 
 **Returns.** Returns `Vector<N, precisionBits, T> &`. Check the purpose and failure notes before using the value.
 
@@ -473,7 +473,7 @@ template <std::integral U> constexpr Vector& operator*=(U rhs)
 // U
 
 // Assume these named values have been initialized with valid data:
-// int rhs
+// U rhs
 
 psyqo::Vector& object = /* obtain a valid instance */;
 
@@ -746,7 +746,7 @@ template <std::integral U> constexpr Vector operator/(U rhs) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `rhs` | `int` | Input | Value supplied for `rhs`. See the exact type and module contract. |
+| `rhs` | `U` | Input | Value supplied for `rhs`. See the exact type and module contract. |
 
 **Returns.** Returns `Vector<N, precisionBits, T>`. Check the purpose and failure notes before using the value.
 
@@ -761,7 +761,7 @@ template <std::integral U> constexpr Vector operator/(U rhs) const
 // U
 
 // Assume these named values have been initialized with valid data:
-// int rhs
+// U rhs
 
 psyqo::Vector& object = /* obtain a valid instance */;
 
@@ -833,7 +833,7 @@ template <std::integral U> constexpr Vector& operator/=(U rhs)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `rhs` | `int` | Input | Value supplied for `rhs`. See the exact type and module contract. |
+| `rhs` | `U` | Input | Value supplied for `rhs`. See the exact type and module contract. |
 
 **Returns.** Returns `Vector<N, precisionBits, T> &`. Check the purpose and failure notes before using the value.
 
@@ -848,7 +848,7 @@ template <std::integral U> constexpr Vector& operator/=(U rhs)
 // U
 
 // Assume these named values have been initialized with valid data:
-// int rhs
+// U rhs
 
 psyqo::Vector& object = /* obtain a valid instance */;
 

@@ -66,10 +66,10 @@ inline const uint8_t *streaming_acquire(uint32_t page, psyqo::GPU &gpu)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 | `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 
-**Returns.** Returns `const int *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `const uint8_t *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need bounded CD or PC geometry-page streaming and the preconditions in the declaration are already satisfied.
 
@@ -79,7 +79,7 @@ inline const uint8_t *streaming_acquire(uint32_t page, psyqo::GPU &gpu)
 #include "streaming.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 // psyqo::GPU & gpu
 
 auto result = epok::streaming_acquire(page, gpu);
@@ -108,7 +108,7 @@ inline int streaming_acquire_slot(uint32_t page, psyqo::GPU &gpu)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 | `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
@@ -121,7 +121,7 @@ inline int streaming_acquire_slot(uint32_t page, psyqo::GPU &gpu)
 #include "streaming.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 // psyqo::GPU & gpu
 
 auto result = epok::streaming_acquire_slot(page, gpu);
@@ -150,7 +150,7 @@ __attribute__((noinline)) #endif inline int streaming_acquire_slot_slow(uint32_t
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 | `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
@@ -163,7 +163,7 @@ __attribute__((noinline)) #endif inline int streaming_acquire_slot_slow(uint32_t
 #include "streaming.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 // psyqo::GPU & gpu
 
 auto result = epok::streaming_acquire_slot_slow(page, gpu);
@@ -355,7 +355,7 @@ inline bool streaming_prefetch(uint32_t page)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -367,7 +367,7 @@ inline bool streaming_prefetch(uint32_t page)
 #include "streaming.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 
 auto result = epok::streaming_prefetch(page);
 ```
@@ -457,7 +457,7 @@ inline void streaming_release(uint32_t page)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -469,7 +469,7 @@ inline void streaming_release(uint32_t page)
 #include "streaming.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 
 epok::streaming_release(page);
 ```
@@ -499,7 +499,7 @@ inline bool streaming_request_page(uint32_t page)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -511,7 +511,7 @@ inline bool streaming_request_page(uint32_t page)
 #include "streaming.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 
 auto result = epok::streaming_request_page(page);
 ```
@@ -585,10 +585,10 @@ inline const uint8_t *streaming_resolve_stable(uint32_t page, psyqo::GPU &gpu)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 | `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 
-**Returns.** Returns `const int *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `const uint8_t *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** FixedSlots enforces immutable page identity even for reservations made outside this backend. Failures remain global: a cached pointer must not bypass a later read error.
 
@@ -598,7 +598,7 @@ inline const uint8_t *streaming_resolve_stable(uint32_t page, psyqo::GPU &gpu)
 #include "streaming.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 // psyqo::GPU & gpu
 
 auto result = epok::streaming_resolve_stable(page, gpu);
@@ -689,7 +689,7 @@ inline bool streaming_start_read(uint32_t page)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -701,7 +701,7 @@ inline bool streaming_start_read(uint32_t page)
 #include "streaming.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 
 auto result = epok::streaming_start_read(page);
 ```
@@ -764,8 +764,8 @@ inline bool streaming_warmup(const uint32_t *pages, size_t count, psyqo::GPU &gp
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `pages` | `const int *` | Input | Value supplied for `pages`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `pages` | `const uint32_t *` | Input | Value supplied for `pages`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -778,8 +778,8 @@ inline bool streaming_warmup(const uint32_t *pages, size_t count, psyqo::GPU &gp
 #include "streaming.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * pages
-// int count
+// const uint32_t * pages
+// size_t count
 // psyqo::GPU & gpu
 
 auto result = epok::streaming_warmup(pages, count, gpu);
@@ -811,7 +811,7 @@ template <class ActorData, class Active> inline bool streaming_warmup_scene(cons
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `objects` | `const ActorData *` | Input | Value supplied for `objects`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `active` | `Active &&` | Consumed or moved input | Value supplied for `active`. See the exact type and module contract. |
 | `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 
@@ -829,7 +829,7 @@ template <class ActorData, class Active> inline bool streaming_warmup_scene(cons
 
 // Assume these named values have been initialized with valid data:
 // const ActorData * objects
-// int count
+// size_t count
 // Active && active
 // psyqo::GPU & gpu
 
@@ -1080,7 +1080,7 @@ auto vertices() const -> const int16_t (*)[3]
 - **Declared at:** [line 563](../../../runtime/streaming.hpp#L563)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `const int16_t (*)[3]`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need bounded CD or PC geometry-page streaming and the preconditions in the declaration are already satisfied.
 
@@ -1146,10 +1146,10 @@ const uint8_t *borrow(uint32_t page, psyqo::GPU &gpu)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 | `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 
-**Returns.** Returns `const int *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `const uint8_t *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need bounded CD or PC geometry-page streaming and the preconditions in the declaration are already satisfied.
 
@@ -1159,7 +1159,7 @@ const uint8_t *borrow(uint32_t page, psyqo::GPU &gpu)
 #include "streaming.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 // psyqo::GPU & gpu
 
 epok::StreamPageCursor& object = /* obtain a valid instance */;
@@ -1265,7 +1265,7 @@ bool release_borrow(uint32_t page)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1277,7 +1277,7 @@ bool release_borrow(uint32_t page)
 #include "streaming.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 
 epok::StreamPageCursor& object = /* obtain a valid instance */;
 

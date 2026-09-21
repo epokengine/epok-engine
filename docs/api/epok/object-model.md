@@ -629,7 +629,7 @@ size_t component_count() const
 - **Declared at:** [line 451](../../../runtime/object_model.hpp#L451)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -666,7 +666,7 @@ ObjectId component_id(size_t index) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
 
@@ -678,7 +678,7 @@ ObjectId component_id(size_t index) const
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// size_t index
 
 epok::Actor& object = /* obtain a valid instance */;
 
@@ -849,7 +849,7 @@ virtual void frame_update(uint32_t frame_microseconds)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `frame_microseconds` | `int` | Input | Value supplied for `frame_microseconds`. See the exact type and module contract. |
+| `frame_microseconds` | `uint32_t` | Input | Value supplied for `frame_microseconds`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -861,7 +861,7 @@ virtual void frame_update(uint32_t frame_microseconds)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int frame_microseconds
+// uint32_t frame_microseconds
 
 epok::Actor& object = /* obtain a valid instance */;
 
@@ -1058,7 +1058,7 @@ virtual void on_frame(uint32_t frame_microseconds)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `frame_microseconds` | `int` | Input | Value supplied for `frame_microseconds`. See the exact type and module contract. |
+| `frame_microseconds` | `uint32_t` | Input | Value supplied for `frame_microseconds`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1070,7 +1070,7 @@ virtual void on_frame(uint32_t frame_microseconds)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int frame_microseconds
+// uint32_t frame_microseconds
 
 epok::Actor& object = /* obtain a valid instance */;
 
@@ -1259,7 +1259,7 @@ virtual void tick(Fixed delta_seconds)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `delta_seconds` | `int` | Input | Value supplied for `delta_seconds`. See the exact type and module contract. |
+| `delta_seconds` | `Fixed` | Input | Value supplied for `delta_seconds`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1271,7 +1271,7 @@ virtual void tick(Fixed delta_seconds)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int delta_seconds
+// Fixed delta_seconds
 
 epok::Actor& object = /* obtain a valid instance */;
 
@@ -1508,7 +1508,7 @@ virtual void frame_update(uint32_t frame_microseconds)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `frame_microseconds` | `int` | Input | Value supplied for `frame_microseconds`. See the exact type and module contract. |
+| `frame_microseconds` | `uint32_t` | Input | Value supplied for `frame_microseconds`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1520,7 +1520,7 @@ virtual void frame_update(uint32_t frame_microseconds)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int frame_microseconds
+// uint32_t frame_microseconds
 
 epok::ActorComponent& object = /* obtain a valid instance */;
 
@@ -1682,7 +1682,7 @@ virtual void on_frame(uint32_t frame_microseconds)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `frame_microseconds` | `int` | Input | Value supplied for `frame_microseconds`. See the exact type and module contract. |
+| `frame_microseconds` | `uint32_t` | Input | Value supplied for `frame_microseconds`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1694,7 +1694,7 @@ virtual void on_frame(uint32_t frame_microseconds)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int frame_microseconds
+// uint32_t frame_microseconds
 
 epok::ActorComponent& object = /* obtain a valid instance */;
 
@@ -1876,7 +1876,7 @@ virtual void tick(Fixed delta_seconds)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `delta_seconds` | `int` | Input | Value supplied for `delta_seconds`. See the exact type and module contract. |
+| `delta_seconds` | `Fixed` | Input | Value supplied for `delta_seconds`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1888,7 +1888,7 @@ virtual void tick(Fixed delta_seconds)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int delta_seconds
+// Fixed delta_seconds
 
 epok::ActorComponent& object = /* obtain a valid instance */;
 
@@ -2193,7 +2193,7 @@ int32_t clip() const
 - **Declared at:** [line 616](../../../runtime/object_model.hpp#L616)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -2435,7 +2435,7 @@ Fixed pitch() const
 - **Declared at:** [line 620](../../../runtime/object_model.hpp#L620)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -2534,7 +2534,7 @@ uint32_t priority() const
 - **Declared at:** [line 622](../../../runtime/object_model.hpp#L622)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -2606,7 +2606,7 @@ void set_clip(int32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `int32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -2618,7 +2618,7 @@ void set_clip(int32_t value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// int32_t value
 
 epok::AudioComponent& object = /* obtain a valid instance */;
 
@@ -2690,7 +2690,7 @@ void set_pitch(Fixed value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -2702,7 +2702,7 @@ void set_pitch(Fixed value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// Fixed value
 
 epok::AudioComponent& object = /* obtain a valid instance */;
 
@@ -2774,7 +2774,7 @@ void set_priority(uint32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `uint32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -2786,7 +2786,7 @@ void set_priority(uint32_t value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// uint32_t value
 
 epok::AudioComponent& object = /* obtain a valid instance */;
 
@@ -2816,7 +2816,7 @@ void set_volume(Fixed value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -2828,7 +2828,7 @@ void set_volume(Fixed value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// Fixed value
 
 epok::AudioComponent& object = /* obtain a valid instance */;
 
@@ -2887,7 +2887,7 @@ Fixed volume() const
 - **Declared at:** [line 618](../../../runtime/object_model.hpp#L618)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -2957,9 +2957,9 @@ void configure(Fixed radius,Fixed strength,Fixed distance)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `radius` | `int` | Input | Value supplied for `radius`. See the exact type and module contract. |
-| `strength` | `int` | Input | Value supplied for `strength`. See the exact type and module contract. |
-| `distance` | `int` | Input | Value supplied for `distance`. See the exact type and module contract. |
+| `radius` | `Fixed` | Input | Value supplied for `radius`. See the exact type and module contract. |
+| `strength` | `Fixed` | Input | Value supplied for `strength`. See the exact type and module contract. |
+| `distance` | `Fixed` | Input | Value supplied for `distance`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -2971,9 +2971,9 @@ void configure(Fixed radius,Fixed strength,Fixed distance)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int radius
-// int strength
-// int distance
+// Fixed radius
+// Fixed strength
+// Fixed distance
 
 epok::BlobShadowComponent& object = /* obtain a valid instance */;
 
@@ -3206,7 +3206,7 @@ Fixed field_of_view() const
 - **Declared at:** [line 733](../../../runtime/object_model.hpp#L733)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -3318,7 +3318,7 @@ void set_field_of_view(Fixed value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -3330,7 +3330,7 @@ void set_field_of_view(Fixed value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// Fixed value
 
 epok::Camera3DComponent& object = /* obtain a valid instance */;
 
@@ -3596,7 +3596,7 @@ uint32_t layer() const
 - **Declared at:** [line 760](../../../runtime/object_model.hpp#L760)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -3629,7 +3629,7 @@ uint32_t mask() const
 - **Declared at:** [line 762](../../../runtime/object_model.hpp#L762)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -3666,9 +3666,9 @@ void set_center(Fixed x,Fixed y,Fixed z)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `Fixed` | Input | Value supplied for `z`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -3680,9 +3680,9 @@ void set_center(Fixed x,Fixed y,Fixed z)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
-// int z
+// Fixed x
+// Fixed y
+// Fixed z
 
 epok::Collider3DComponent& object = /* obtain a valid instance */;
 
@@ -3754,9 +3754,9 @@ void set_half_extents(Fixed x,Fixed y,Fixed z)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `Fixed` | Input | Value supplied for `z`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -3768,9 +3768,9 @@ void set_half_extents(Fixed x,Fixed y,Fixed z)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
-// int z
+// Fixed x
+// Fixed y
+// Fixed z
 
 epok::Collider3DComponent& object = /* obtain a valid instance */;
 
@@ -3800,7 +3800,7 @@ void set_layer(uint32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `uint32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -3812,7 +3812,7 @@ void set_layer(uint32_t value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// uint32_t value
 
 epok::Collider3DComponent& object = /* obtain a valid instance */;
 
@@ -3842,7 +3842,7 @@ void set_mask(uint32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `uint32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -3854,7 +3854,7 @@ void set_mask(uint32_t value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// uint32_t value
 
 epok::Collider3DComponent& object = /* obtain a valid instance */;
 
@@ -3999,10 +3999,10 @@ constexpr uint32_t sha256_rotr(uint32_t value, unsigned bits)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `uint32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 | `bits` | `unsigned int` | Input | Value supplied for `bits`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -4012,7 +4012,7 @@ constexpr uint32_t sha256_rotr(uint32_t value, unsigned bits)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// uint32_t value
 // unsigned int bits
 
 auto result = epok::detail::sha256_rotr(value, bits);
@@ -4048,7 +4048,7 @@ inline size_t dispatch_trigger(Level& level, ObjectId actor, DataHandle other, T
 | `other` | `DataHandle` | Input | Value supplied for `other`. See the exact type and module contract. |
 | `phase` | `TriggerPhase` | Input | Value supplied for `phase`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Inactive, unstarted and doomed actors receive nothing.
 
@@ -4228,9 +4228,9 @@ void set_color(uint32_t red,uint32_t green,uint32_t blue)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `red` | `int` | Input | Value supplied for `red`. See the exact type and module contract. |
-| `green` | `int` | Input | Value supplied for `green`. See the exact type and module contract. |
-| `blue` | `int` | Input | Value supplied for `blue`. See the exact type and module contract. |
+| `red` | `uint32_t` | Input | Value supplied for `red`. See the exact type and module contract. |
+| `green` | `uint32_t` | Input | Value supplied for `green`. See the exact type and module contract. |
+| `blue` | `uint32_t` | Input | Value supplied for `blue`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -4242,9 +4242,9 @@ void set_color(uint32_t red,uint32_t green,uint32_t blue)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int red
-// int green
-// int blue
+// uint32_t red
+// uint32_t green
+// uint32_t blue
 
 epok::ImageComponent& object = /* obtain a valid instance */;
 
@@ -4316,10 +4316,10 @@ void set_region(uint32_t x,uint32_t y,uint32_t width,uint32_t height)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `width` | `int` | Input | Value supplied for `width`. See the exact type and module contract. |
-| `height` | `int` | Input | Value supplied for `height`. See the exact type and module contract. |
+| `x` | `uint32_t` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `uint32_t` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `width` | `uint32_t` | Input | Value supplied for `width`. See the exact type and module contract. |
+| `height` | `uint32_t` | Input | Value supplied for `height`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -4331,10 +4331,10 @@ void set_region(uint32_t x,uint32_t y,uint32_t width,uint32_t height)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
-// int width
-// int height
+// uint32_t x
+// uint32_t y
+// uint32_t width
+// uint32_t height
 
 epok::ImageComponent& object = /* obtain a valid instance */;
 
@@ -4364,7 +4364,7 @@ void set_texture(int32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `int32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -4376,7 +4376,7 @@ void set_texture(int32_t value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// int32_t value
 
 epok::ImageComponent& object = /* obtain a valid instance */;
 
@@ -4488,7 +4488,7 @@ ObjectId actor_at(size_t index) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
 
@@ -4500,7 +4500,7 @@ ObjectId actor_at(size_t index) const
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// size_t index
 
 epok::Level& object = /* obtain a valid instance */;
 
@@ -4526,7 +4526,7 @@ size_t actor_count() const
 - **Declared at:** [line 917](../../../runtime/object_model.hpp#L917)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -4817,7 +4817,7 @@ void frame_update(uint32_t elapsed)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `elapsed` | `int` | Input | Value supplied for `elapsed`. See the exact type and module contract. |
+| `elapsed` | `uint32_t` | Input | Value supplied for `elapsed`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -4829,7 +4829,7 @@ void frame_update(uint32_t elapsed)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int elapsed
+// uint32_t elapsed
 
 epok::Level& object = /* obtain a valid instance */;
 
@@ -4906,9 +4906,9 @@ template<class T> size_t get_components(const Actor& owner, T** out, size_t capa
 | --- | --- | --- | --- |
 | `owner` | `const Actor &` | Input | Value supplied for `owner`. See the exact type and module contract. |
 | `out` | `T **` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
-| `capacity` | `int` | Input | Value supplied for `capacity`. See the exact type and module contract. |
+| `capacity` | `size_t` | Input | Value supplied for `capacity`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -4923,7 +4923,7 @@ template<class T> size_t get_components(const Actor& owner, T** out, size_t capa
 // Assume these named values have been initialized with valid data:
 // const Actor & owner
 // T ** out
-// int capacity
+// size_t capacity
 
 epok::Level& object = /* obtain a valid instance */;
 
@@ -5200,11 +5200,11 @@ size_t spawn_batch(const ActorSpawnRequest* requests, size_t count, ObjectId* ou
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `requests` | `const ActorSpawnRequest *` | Input | Value supplied for `requests`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `out` | `ObjectId *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
 | `prepare` | `ActorPrepareFn` | Input | Value supplied for `prepare`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** On any failure every reservation of this batch is released, so a half-built actor never keeps orphan components.
 
@@ -5215,7 +5215,7 @@ size_t spawn_batch(const ActorSpawnRequest* requests, size_t count, ObjectId* ou
 
 // Assume these named values have been initialized with valid data:
 // const ActorSpawnRequest * requests
-// int count
+// size_t count
 // ObjectId * out
 // ActorPrepareFn prepare
 
@@ -5280,7 +5280,7 @@ void tick(Fixed delta)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `delta` | `int` | Input | Value supplied for `delta`. See the exact type and module contract. |
+| `delta` | `Fixed` | Input | Value supplied for `delta`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -5292,7 +5292,7 @@ void tick(Fixed delta)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int delta
+// Fixed delta
 
 epok::Level& object = /* obtain a valid instance */;
 
@@ -5417,7 +5417,7 @@ Fixed intensity() const
 - **Declared at:** [line 744](../../../runtime/object_model.hpp#L744)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -5454,9 +5454,9 @@ void set_color(uint32_t red,uint32_t green,uint32_t blue)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `red` | `int` | Input | Value supplied for `red`. See the exact type and module contract. |
-| `green` | `int` | Input | Value supplied for `green`. See the exact type and module contract. |
-| `blue` | `int` | Input | Value supplied for `blue`. See the exact type and module contract. |
+| `red` | `uint32_t` | Input | Value supplied for `red`. See the exact type and module contract. |
+| `green` | `uint32_t` | Input | Value supplied for `green`. See the exact type and module contract. |
+| `blue` | `uint32_t` | Input | Value supplied for `blue`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -5468,9 +5468,9 @@ void set_color(uint32_t red,uint32_t green,uint32_t blue)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int red
-// int green
-// int blue
+// uint32_t red
+// uint32_t green
+// uint32_t blue
 
 epok::Light3DComponent& object = /* obtain a valid instance */;
 
@@ -5542,7 +5542,7 @@ void set_intensity(Fixed value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -5554,7 +5554,7 @@ void set_intensity(Fixed value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// Fixed value
 
 epok::Light3DComponent& object = /* obtain a valid instance */;
 
@@ -5626,7 +5626,7 @@ void set_range(Fixed value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -5638,7 +5638,7 @@ void set_range(Fixed value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// Fixed value
 
 epok::Light3DComponent& object = /* obtain a valid instance */;
 
@@ -5706,7 +5706,7 @@ uint32_t bone_count() const
 - **Declared at:** [line 671](../../../runtime/object_model.hpp#L671)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -5772,7 +5772,7 @@ uint32_t clip_count() const
 - **Declared at:** [line 674](../../../runtime/object_model.hpp#L674)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -5974,7 +5974,7 @@ bool play_clip(uint32_t clip,bool looping)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `clip` | `int` | Input | Value supplied for `clip`. See the exact type and module contract. |
+| `clip` | `uint32_t` | Input | Value supplied for `clip`. See the exact type and module contract. |
 | `looping` | `bool` | Input | Value supplied for `looping`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -5987,7 +5987,7 @@ bool play_clip(uint32_t clip,bool looping)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int clip
+// uint32_t clip
 // bool looping
 
 epok::Mesh3DComponent& object = /* obtain a valid instance */;
@@ -6047,7 +6047,7 @@ uint32_t quad_count() const
 - **Declared at:** [line 700](../../../runtime/object_model.hpp#L700)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -6150,7 +6150,7 @@ BoneSample sample_bone(uint32_t bone,PoseKind pose,CoordinateSpace space)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `bone` | `int` | Input | Value supplied for `bone`. See the exact type and module contract. |
+| `bone` | `uint32_t` | Input | Value supplied for `bone`. See the exact type and module contract. |
 | `pose` | `PoseKind` | Input | Value supplied for `pose`. See the exact type and module contract. |
 | `space` | `CoordinateSpace` | Input | Value supplied for `space`. See the exact type and module contract. |
 
@@ -6164,7 +6164,7 @@ BoneSample sample_bone(uint32_t bone,PoseKind pose,CoordinateSpace space)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int bone
+// uint32_t bone
 // PoseKind pose
 // CoordinateSpace space
 
@@ -6196,7 +6196,7 @@ MeshVertexSample sample_geometry_vertex(uint32_t vertex,CoordinateSpace space)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `vertex` | `int` | Input | Value supplied for `vertex`. See the exact type and module contract. |
+| `vertex` | `uint32_t` | Input | Value supplied for `vertex`. See the exact type and module contract. |
 | `space` | `CoordinateSpace` | Input | Value supplied for `space`. See the exact type and module contract. |
 
 **Returns.** Returns `MeshVertexSample`. Check the purpose and failure notes before using the value.
@@ -6209,7 +6209,7 @@ MeshVertexSample sample_geometry_vertex(uint32_t vertex,CoordinateSpace space)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int vertex
+// uint32_t vertex
 // CoordinateSpace space
 
 epok::Mesh3DComponent& object = /* obtain a valid instance */;
@@ -6240,7 +6240,7 @@ VertexSample sample_vertex(uint32_t vertex,PoseKind pose,CoordinateSpace space)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `vertex` | `int` | Input | Value supplied for `vertex`. See the exact type and module contract. |
+| `vertex` | `uint32_t` | Input | Value supplied for `vertex`. See the exact type and module contract. |
 | `pose` | `PoseKind` | Input | Value supplied for `pose`. See the exact type and module contract. |
 | `space` | `CoordinateSpace` | Input | Value supplied for `space`. See the exact type and module contract. |
 
@@ -6254,7 +6254,7 @@ VertexSample sample_vertex(uint32_t vertex,PoseKind pose,CoordinateSpace space)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int vertex
+// uint32_t vertex
 // PoseKind pose
 // CoordinateSpace space
 
@@ -6416,9 +6416,9 @@ void set_material_color(uint32_t red,uint32_t green,uint32_t blue)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `red` | `int` | Input | Value supplied for `red`. See the exact type and module contract. |
-| `green` | `int` | Input | Value supplied for `green`. See the exact type and module contract. |
-| `blue` | `int` | Input | Value supplied for `blue`. See the exact type and module contract. |
+| `red` | `uint32_t` | Input | Value supplied for `red`. See the exact type and module contract. |
+| `green` | `uint32_t` | Input | Value supplied for `green`. See the exact type and module contract. |
+| `blue` | `uint32_t` | Input | Value supplied for `blue`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -6430,9 +6430,9 @@ void set_material_color(uint32_t red,uint32_t green,uint32_t blue)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int red
-// int green
-// int blue
+// uint32_t red
+// uint32_t green
+// uint32_t blue
 
 epok::Mesh3DComponent& object = /* obtain a valid instance */;
 
@@ -6462,7 +6462,7 @@ void set_material_depth_bias(int32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `int32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -6474,7 +6474,7 @@ void set_material_depth_bias(int32_t value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// int32_t value
 
 epok::Mesh3DComponent& object = /* obtain a valid instance */;
 
@@ -6504,7 +6504,7 @@ void set_material_texture(int32_t texture)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `texture` | `int` | Input | Value supplied for `texture`. See the exact type and module contract. |
+| `texture` | `int32_t` | Input | Value supplied for `texture`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -6516,7 +6516,7 @@ void set_material_texture(int32_t texture)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int texture
+// int32_t texture
 
 epok::Mesh3DComponent& object = /* obtain a valid instance */;
 
@@ -6588,8 +6588,8 @@ void set_uv_scroll(Fixed x,Fixed y)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -6601,8 +6601,8 @@ void set_uv_scroll(Fixed x,Fixed y)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
+// Fixed x
+// Fixed y
 
 epok::Mesh3DComponent& object = /* obtain a valid instance */;
 
@@ -6694,7 +6694,7 @@ uint32_t vertex_count() const
 - **Declared at:** [line 668](../../../runtime/object_model.hpp#L668)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -7074,7 +7074,7 @@ constexpr uint8_t object_domain_bit(ObjectDomain domain)
 | --- | --- | --- | --- |
 | `domain` | `ObjectDomain` | Input | Value supplied for `domain`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint8_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** None never appears in an owners mask.
 
@@ -7476,7 +7476,7 @@ static size_t live()
 - **Declared at:** [line 232](../../../runtime/object_model.hpp#L232)
 - **Kind:** `cxx method`; qualifiers: `static`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -7791,7 +7791,7 @@ size_t live() const
 - **Declared at:** [line 375](../../../runtime/object_model.hpp#L375)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -7828,9 +7828,9 @@ static uint16_t next_generation(uint16_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `uint16_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -7840,7 +7840,7 @@ static uint16_t next_generation(uint16_t value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// uint16_t value
 
 auto result = epok::ObjectRegistry::next_generation(value);
 ```
@@ -7907,7 +7907,7 @@ constexpr ObjectRegistry(ObjectSlot* table, uint16_t count) : slots(table), capa
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `table` | `ObjectSlot *` | Input/output; inspect the function contract | Value supplied for `table`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `uint16_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -7918,7 +7918,7 @@ constexpr ObjectRegistry(ObjectSlot* table, uint16_t count) : slots(table), capa
 
 // Assume these named values have been initialized with valid data:
 // ObjectSlot * table
-// int count
+// uint16_t count
 
 epok::ObjectRegistry value(table, count);
 ```
@@ -8266,10 +8266,10 @@ void configure(int32_t texture,uint32_t first,uint32_t last,Fixed speed,bool rev
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `texture` | `int` | Input | Value supplied for `texture`. See the exact type and module contract. |
-| `first` | `int` | Input | Value supplied for `first`. See the exact type and module contract. |
-| `last` | `int` | Input | Value supplied for `last`. See the exact type and module contract. |
-| `speed` | `int` | Input | Value supplied for `speed`. See the exact type and module contract. |
+| `texture` | `int32_t` | Input | Value supplied for `texture`. See the exact type and module contract. |
+| `first` | `uint32_t` | Input | Value supplied for `first`. See the exact type and module contract. |
+| `last` | `uint32_t` | Input | Value supplied for `last`. See the exact type and module contract. |
+| `speed` | `Fixed` | Input | Value supplied for `speed`. See the exact type and module contract. |
 | `reverse` | `bool` | Input | Value supplied for `reverse`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -8282,10 +8282,10 @@ void configure(int32_t texture,uint32_t first,uint32_t last,Fixed speed,bool rev
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int texture
-// int first
-// int last
-// int speed
+// int32_t texture
+// uint32_t first
+// uint32_t last
+// Fixed speed
 // bool reverse
 
 epok::PaletteAnimatorComponent& object = /* obtain a valid instance */;
@@ -8490,7 +8490,7 @@ void burst(uint32_t count)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `uint32_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -8502,7 +8502,7 @@ void burst(uint32_t count)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int count
+// uint32_t count
 
 epok::ParticleEmitterComponent& object = /* obtain a valid instance */;
 
@@ -8673,7 +8673,7 @@ void set_lifetime(Fixed value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -8685,7 +8685,7 @@ void set_lifetime(Fixed value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// Fixed value
 
 epok::ParticleEmitterComponent& object = /* obtain a valid instance */;
 
@@ -8715,7 +8715,7 @@ void set_max_particles(uint32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `uint32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -8727,7 +8727,7 @@ void set_max_particles(uint32_t value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// uint32_t value
 
 epok::ParticleEmitterComponent& object = /* obtain a valid instance */;
 
@@ -8757,7 +8757,7 @@ void set_rate(Fixed value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -8769,7 +8769,7 @@ void set_rate(Fixed value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// Fixed value
 
 epok::ParticleEmitterComponent& object = /* obtain a valid instance */;
 
@@ -8964,12 +8964,12 @@ void set_colors(uint32_t red,uint32_t green,uint32_t blue,uint32_t background_re
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `red` | `int` | Input | Value supplied for `red`. See the exact type and module contract. |
-| `green` | `int` | Input | Value supplied for `green`. See the exact type and module contract. |
-| `blue` | `int` | Input | Value supplied for `blue`. See the exact type and module contract. |
-| `background_red` | `int` | Input | Value supplied for `background_red`. See the exact type and module contract. |
-| `background_green` | `int` | Input | Value supplied for `background_green`. See the exact type and module contract. |
-| `background_blue` | `int` | Input | Value supplied for `background_blue`. See the exact type and module contract. |
+| `red` | `uint32_t` | Input | Value supplied for `red`. See the exact type and module contract. |
+| `green` | `uint32_t` | Input | Value supplied for `green`. See the exact type and module contract. |
+| `blue` | `uint32_t` | Input | Value supplied for `blue`. See the exact type and module contract. |
+| `background_red` | `uint32_t` | Input | Value supplied for `background_red`. See the exact type and module contract. |
+| `background_green` | `uint32_t` | Input | Value supplied for `background_green`. See the exact type and module contract. |
+| `background_blue` | `uint32_t` | Input | Value supplied for `background_blue`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -8981,12 +8981,12 @@ void set_colors(uint32_t red,uint32_t green,uint32_t blue,uint32_t background_re
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int red
-// int green
-// int blue
-// int background_red
-// int background_green
-// int background_blue
+// uint32_t red
+// uint32_t green
+// uint32_t blue
+// uint32_t background_red
+// uint32_t background_green
+// uint32_t background_blue
 
 epok::ProgressBarComponent& object = /* obtain a valid instance */;
 
@@ -9058,7 +9058,7 @@ void set_value(Fixed value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -9070,7 +9070,7 @@ void set_value(Fixed value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// Fixed value
 
 epok::ProgressBarComponent& object = /* obtain a valid instance */;
 
@@ -9096,7 +9096,7 @@ Fixed value() const
 - **Declared at:** [line 808](../../../runtime/object_model.hpp#L808)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -9340,10 +9340,10 @@ void set_anchors(Fixed min_x,Fixed min_y,Fixed max_x,Fixed max_y)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `min_x` | `int` | Input | Value supplied for `min_x`. See the exact type and module contract. |
-| `min_y` | `int` | Input | Value supplied for `min_y`. See the exact type and module contract. |
-| `max_x` | `int` | Input | Value supplied for `max_x`. See the exact type and module contract. |
-| `max_y` | `int` | Input | Value supplied for `max_y`. See the exact type and module contract. |
+| `min_x` | `Fixed` | Input | Value supplied for `min_x`. See the exact type and module contract. |
+| `min_y` | `Fixed` | Input | Value supplied for `min_y`. See the exact type and module contract. |
+| `max_x` | `Fixed` | Input | Value supplied for `max_x`. See the exact type and module contract. |
+| `max_y` | `Fixed` | Input | Value supplied for `max_y`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -9355,10 +9355,10 @@ void set_anchors(Fixed min_x,Fixed min_y,Fixed max_x,Fixed max_y)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int min_x
-// int min_y
-// int max_x
-// int max_y
+// Fixed min_x
+// Fixed min_y
+// Fixed max_x
+// Fixed max_y
 
 epok::RectTransformComponent& object = /* obtain a valid instance */;
 
@@ -9430,8 +9430,8 @@ void set_pivot(Fixed x,Fixed y)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -9443,8 +9443,8 @@ void set_pivot(Fixed x,Fixed y)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
+// Fixed x
+// Fixed y
 
 epok::RectTransformComponent& object = /* obtain a valid instance */;
 
@@ -9474,8 +9474,8 @@ void set_position(Fixed x,Fixed y)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -9487,8 +9487,8 @@ void set_position(Fixed x,Fixed y)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
+// Fixed x
+// Fixed y
 
 epok::RectTransformComponent& object = /* obtain a valid instance */;
 
@@ -9518,8 +9518,8 @@ void set_size(Fixed x,Fixed y)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -9531,8 +9531,8 @@ void set_size(Fixed x,Fixed y)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
+// Fixed x
+// Fixed y
 
 epok::RectTransformComponent& object = /* obtain a valid instance */;
 
@@ -9666,7 +9666,7 @@ Fixed position_x() const
 - **Declared at:** [line 575](../../../runtime/object_model.hpp#L575)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -9699,7 +9699,7 @@ Fixed position_y() const
 - **Declared at:** [line 576](../../../runtime/object_model.hpp#L576)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -9732,7 +9732,7 @@ Fixed rotation() const
 - **Declared at:** [line 577](../../../runtime/object_model.hpp#L577)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -9769,8 +9769,8 @@ void set_position(Fixed x,Fixed y)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -9782,8 +9782,8 @@ void set_position(Fixed x,Fixed y)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
+// Fixed x
+// Fixed y
 
 epok::SceneComponent2D& object = /* obtain a valid instance */;
 
@@ -9813,7 +9813,7 @@ void set_rotation(Fixed value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -9825,7 +9825,7 @@ void set_rotation(Fixed value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// Fixed value
 
 epok::SceneComponent2D& object = /* obtain a valid instance */;
 
@@ -9855,8 +9855,8 @@ void set_scale(Fixed x,Fixed y)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -9868,8 +9868,8 @@ void set_scale(Fixed x,Fixed y)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
+// Fixed x
+// Fixed y
 
 epok::SceneComponent2D& object = /* obtain a valid instance */;
 
@@ -10148,9 +10148,9 @@ void set_local_position(Fixed x,Fixed y,Fixed z)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `Fixed` | Input | Value supplied for `z`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -10162,9 +10162,9 @@ void set_local_position(Fixed x,Fixed y,Fixed z)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
-// int z
+// Fixed x
+// Fixed y
+// Fixed z
 
 epok::SceneComponent3D& object = /* obtain a valid instance */;
 
@@ -10194,9 +10194,9 @@ void set_local_rotation(Fixed x,Fixed y,Fixed z)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `Fixed` | Input | Value supplied for `z`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -10208,9 +10208,9 @@ void set_local_rotation(Fixed x,Fixed y,Fixed z)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
-// int z
+// Fixed x
+// Fixed y
+// Fixed z
 
 epok::SceneComponent3D& object = /* obtain a valid instance */;
 
@@ -10240,9 +10240,9 @@ void set_local_scale(Fixed x,Fixed y,Fixed z)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `Fixed` | Input | Value supplied for `z`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -10254,9 +10254,9 @@ void set_local_scale(Fixed x,Fixed y,Fixed z)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
-// int z
+// Fixed x
+// Fixed y
+// Fixed z
 
 epok::SceneComponent3D& object = /* obtain a valid instance */;
 
@@ -10328,9 +10328,9 @@ void teleport(Fixed x,Fixed y,Fixed z)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `Fixed` | Input | Value supplied for `z`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -10342,9 +10342,9 @@ void teleport(Fixed x,Fixed y,Fixed z)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
-// int z
+// Fixed x
+// Fixed y
+// Fixed z
 
 epok::SceneComponent3D& object = /* obtain a valid instance */;
 
@@ -10572,7 +10572,7 @@ bool play_clip(uint32_t clip)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `clip` | `int` | Input | Value supplied for `clip`. See the exact type and module contract. |
+| `clip` | `uint32_t` | Input | Value supplied for `clip`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -10584,7 +10584,7 @@ bool play_clip(uint32_t clip)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int clip
+// uint32_t clip
 
 epok::Sprite3DComponent& object = /* obtain a valid instance */;
 
@@ -10643,7 +10643,7 @@ uint32_t poll_event()
 - **Declared at:** [line 717](../../../runtime/object_model.hpp#L717)
 - **Kind:** `cxx method`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -10713,9 +10713,9 @@ void set_color(uint32_t red,uint32_t green,uint32_t blue)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `red` | `int` | Input | Value supplied for `red`. See the exact type and module contract. |
-| `green` | `int` | Input | Value supplied for `green`. See the exact type and module contract. |
-| `blue` | `int` | Input | Value supplied for `blue`. See the exact type and module contract. |
+| `red` | `uint32_t` | Input | Value supplied for `red`. See the exact type and module contract. |
+| `green` | `uint32_t` | Input | Value supplied for `green`. See the exact type and module contract. |
+| `blue` | `uint32_t` | Input | Value supplied for `blue`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -10727,9 +10727,9 @@ void set_color(uint32_t red,uint32_t green,uint32_t blue)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int red
-// int green
-// int blue
+// uint32_t red
+// uint32_t green
+// uint32_t blue
 
 epok::Sprite3DComponent& object = /* obtain a valid instance */;
 
@@ -10845,8 +10845,8 @@ void set_size(Fixed x,Fixed y)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -10858,8 +10858,8 @@ void set_size(Fixed x,Fixed y)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
+// Fixed x
+// Fixed y
 
 epok::Sprite3DComponent& object = /* obtain a valid instance */;
 
@@ -10889,7 +10889,7 @@ void set_texture(int32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `int32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -10901,7 +10901,7 @@ void set_texture(int32_t value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// int32_t value
 
 epok::Sprite3DComponent& object = /* obtain a valid instance */;
 
@@ -11096,9 +11096,9 @@ void set_color(uint32_t red,uint32_t green,uint32_t blue)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `red` | `int` | Input | Value supplied for `red`. See the exact type and module contract. |
-| `green` | `int` | Input | Value supplied for `green`. See the exact type and module contract. |
-| `blue` | `int` | Input | Value supplied for `blue`. See the exact type and module contract. |
+| `red` | `uint32_t` | Input | Value supplied for `red`. See the exact type and module contract. |
+| `green` | `uint32_t` | Input | Value supplied for `green`. See the exact type and module contract. |
+| `blue` | `uint32_t` | Input | Value supplied for `blue`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -11110,9 +11110,9 @@ void set_color(uint32_t red,uint32_t green,uint32_t blue)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int red
-// int green
-// int blue
+// uint32_t red
+// uint32_t green
+// uint32_t blue
 
 epok::TextComponent& object = /* obtain a valid instance */;
 
@@ -11184,7 +11184,7 @@ void set_number(int32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `int32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -11196,7 +11196,7 @@ void set_number(int32_t value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// int32_t value
 
 epok::TextComponent& object = /* obtain a valid instance */;
 
@@ -11226,8 +11226,8 @@ bool set_text_word(uint32_t index,uint32_t packed)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
-| `packed` | `int` | Input | Value supplied for `packed`. See the exact type and module contract. |
+| `index` | `uint32_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `packed` | `uint32_t` | Input | Value supplied for `packed`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -11239,8 +11239,8 @@ bool set_text_word(uint32_t index,uint32_t packed)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
-// int packed
+// uint32_t index
+// uint32_t packed
 
 epok::TextComponent& object = /* obtain a valid instance */;
 
@@ -11270,7 +11270,7 @@ void set_unsigned(uint32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `uint32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -11282,7 +11282,7 @@ void set_unsigned(uint32_t value)
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// uint32_t value
 
 epok::TextComponent& object = /* obtain a valid instance */;
 
@@ -11354,9 +11354,9 @@ uint32_t text_word(uint32_t index) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `uint32_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
 
@@ -11366,7 +11366,7 @@ uint32_t text_word(uint32_t index) const
 #include "object_model.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// uint32_t index
 
 epok::TextComponent& object = /* obtain a valid instance */;
 

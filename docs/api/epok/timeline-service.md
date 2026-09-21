@@ -39,7 +39,7 @@ inline void advance(Fixed dt)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `dt` | `int` | Input | Value supplied for `dt`. See the exact type and module contract. |
+| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -51,7 +51,7 @@ inline void advance(Fixed dt)
 #include "timeline_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int dt
+// Fixed dt
 
 epok::timeline::advance(dt);
 ```

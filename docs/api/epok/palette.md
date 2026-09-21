@@ -6,7 +6,7 @@ This module covers CLUT animation and palette ownership. It documents 2 public c
 
 ## Declared types
 
-`epok::PaletteRenderer`, `epok::PaletteRenderer::State`
+`epok::PaletteRenderer`
 
 ## Callable index
 
@@ -69,7 +69,7 @@ template<class Objects> void upload(psyqo::GPU& gpu,const Objects& objects,size_
 | --- | --- | --- | --- |
 | `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 | `objects` | `const Objects &` | Input | Value supplied for `objects`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -86,7 +86,7 @@ template<class Objects> void upload(psyqo::GPU& gpu,const Objects& objects,size_
 // Assume these named values have been initialized with valid data:
 // psyqo::GPU & gpu
 // const Objects & objects
-// int count
+// size_t count
 
 epok::PaletteRenderer& object = /* obtain a valid instance */;
 

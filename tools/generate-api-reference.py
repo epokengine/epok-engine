@@ -80,6 +80,21 @@ INTERNAL_EPOK_HEADERS = {
     "transform_cache.hpp",
 }
 
+# Runtime headers that the engine never includes on their own. The umbrella
+# translation unit reaches them the way a real build does, through the header
+# that owns them, and documents them from the configuration that compiles them.
+# Including them directly instead produces a translation unit the engine never
+# compiles: the declarations they own become redefinitions of the owning
+# header's, and Clang keeps a redefined tag as an unnamed one, so the owning
+# header's types lose their names.
+DEPENDENT_EPOK_HEADERS = {
+    # The body sequence_service.hpp selects with EPOK_NATIVE_SEQUENCES_ONLY.
+    # It redeclares that header's sequence state for native-only projects.
+    "native_music_runtime.hpp",
+    # Included inside namespace epok, so its members only resolve there.
+    "native_music_service.hpp",
+}
+
 
 @dataclass
 class Parameter:
@@ -180,6 +195,56 @@ def find_clang_binding(engine: Path, explicit: str | None) -> Path:
             "libclang Python bindings were not found. Run host setup or pass "
             "--clang-python <directory containing clang/cindex.py>."
         ) from error
+
+
+def find_target_compiler(engine: Path, explicit: str | None) -> Path:
+    candidates = [Path(explicit).resolve()] if explicit else []
+    candidates.extend(sorted(engine.glob(".tools/**/bin/mipsel-none-elf-g++")))
+    located = shutil.which("mipsel-none-elf-g++")
+    if located:
+        candidates.append(Path(located).resolve())
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise SystemExit(
+        "The pinned mipsel-none-elf compiler was not found; without it the parse "
+        "has no standard headers and silently mis-reads the runtime. Run host "
+        "setup or pass --target-compiler <path to mipsel-none-elf-g++>."
+    )
+
+
+def freestanding_arguments(compiler: Path) -> tuple[list[str], list[Path]]:
+    """Give the host parse exactly the headers the target build compiles against.
+
+    The runtime is built bare metal with `-nostdlib -ffreestanding`, so the only
+    standard headers it may legitimately see are the pinned toolchain's
+    freestanding C set and its header-only C++ library. Host SDK headers are a
+    different ABI, and the libc++ shipped beside them needs a newer Clang than
+    the pinned libclang, so they are shut out entirely. Asking the compiler for
+    its own search list keeps the set exact instead of guessed.
+    """
+    listing = subprocess.run(
+        [str(compiler), "-std=c++20", "-ffreestanding", "-x", "c++", "-E", "-v", "-"],
+        input="", capture_output=True, text=True, check=True,
+    ).stderr
+    roots: list[Path] = []
+    collecting = False
+    for line in listing.splitlines():
+        if line.startswith("#include <...> search starts here:"):
+            collecting = True
+        elif line.startswith("End of search list."):
+            break
+        elif collecting:
+            directory = Path(line.strip())
+            if directory.is_dir():
+                roots.append(directory.resolve())
+    if not roots:
+        raise SystemExit(f"{compiler} reported no include search list to parse against.")
+    arguments = ["-target", "mipsel-none-elf", "-ffreestanding", "-fno-exceptions", "-fno-rtti",
+                 "-nostdinc", "-nostdinc++"]
+    for directory in roots:
+        arguments.extend(["-isystem", str(directory)])
+    return arguments, roots
 
 
 def clean_comment(raw: str | None) -> tuple[str, str, str, dict[str, str], list[str]]:
@@ -437,7 +502,7 @@ def parse_module(cindex, family: str, header: Path, base: Path, engine: Path, nu
     )
 
 
-def parse_family(cindex, family: str, headers: list[Path], base: Path, engine: Path, nugget: Path, nugget_revision: str) -> list[Module]:
+def parse_family(cindex, family: str, headers: list[Path], base: Path, engine: Path, nugget: Path, nugget_revision: str, freestanding: list[str]) -> list[Module]:
     """Parse one umbrella translation unit, then assign declarations to headers."""
     runtime = engine / "runtime"
     include_args = [
@@ -446,11 +511,16 @@ def parse_family(cindex, family: str, headers: list[Path], base: Path, engine: P
         f"-I{nugget / 'third_party' / 'EASTL' / 'include'}",
         f"-I{nugget / 'third_party' / 'EABase' / 'include' / 'Common'}",
         "-DEPOK_API_REFERENCE=1",
-        "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH=1",
+        # Report every error. A fatal one silences the rest, which is how a
+        # translation unit missing its standard headers reads as a single line.
+        "-ferror-limit=0",
+        *freestanding,
     ]
     umbrella = engine / f".epok-api-{family}.cpp"
     include_lines = []
     for header in headers:
+        if family == "epok" and header.name in DEPENDENT_EPOK_HEADERS:
+            continue
         relative = header.relative_to(base).as_posix()
         include_lines.append(f'#include "{"psyqo/" if family == "psyqo" else ""}{relative}"')
     unsaved = [(str(umbrella), "#include <array>\n" + "\n".join(include_lines) + "\n")]
@@ -492,6 +562,15 @@ inline constexpr char stream_archive_path[]="";
 """,
         "lua-config.hh": """#pragma once
 #define EPOK_LUA_MODE 0
+""",
+        # Every counter on, so the reference documents the debug HUD itself
+        # rather than the empty stubs a project without it compiles.
+        "debug-hud.hh": """#pragma once
+#define EPOK_DEBUG_FPS 1
+#define EPOK_DEBUG_CPU 1
+#define EPOK_DEBUG_GTE 1
+#define EPOK_DEBUG_GPU 1
+#define EPOK_DEBUG_SPU 1
 """,
     }
     for name, contents in generated_headers.items():
@@ -794,7 +873,9 @@ def render_module(module: Module, nugget_revision: str) -> str:
     if module.types:
         lines.extend(["## Declared types", "", ", ".join(f"`{name}`" for name in module.types), ""])
     lines.extend(["## Callable index", ""])
-    if not module.symbols:
+    if not module.symbols and module.source.name in DEPENDENT_EPOK_HEADERS:
+        lines.extend(["The engine never includes this header on its own, and the configuration this reference documents does not select it. Its declarations appear under the header that includes it.", ""])
+    elif not module.symbols:
         lines.extend(["This header declares no public callable symbols. It is retained in the reference because it defines types, constants or concepts used by neighboring modules.", ""])
     else:
         groups: dict[str, int] = {}
@@ -1030,16 +1111,18 @@ def build_catalog(modules: list[Module], nugget_revision: str) -> dict:
     }
 
 
-def path_scrubber(engine: Path, nugget: Path) -> Callable[[str], str]:
+def path_scrubber(engine: Path, nugget: Path, toolchain: list[Path]) -> Callable[[str], str]:
     """Build the rewrite that keeps generated text independent of the checkout.
 
     Clang spells unnamed declarations and diagnostics with the absolute path of
     the file they came from, so the raw text carries whichever directory the
     generator happened to run in. Nugget is rewritten first and to its committed
     location, so a pinned checkout supplied through --psyqo-root reads the same
-    as one initialized in place.
+    as one initialized in place. The target toolchain's header directories are
+    wherever host setup installed them, so they collapse to a fixed label.
     """
     prefixes = (
+        *((f"{root.as_posix()}/", "<target-toolchain>/") for root in toolchain),
         (f"{nugget.as_posix()}/", "third_party/nugget/"),
         (f"{engine.as_posix()}/", ""),
     )
@@ -1064,6 +1147,7 @@ def main() -> int:
     parser.add_argument("--engine", default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--psyqo-root", help="Override the pinned checkout's psyqo directory")
     parser.add_argument("--clang-python", help="Directory containing clang/cindex.py")
+    parser.add_argument("--target-compiler", help="Path to the pinned mipsel-none-elf-g++")
     parser.add_argument("--check", action="store_true", help="Fail if regeneration changes committed output")
     args = parser.parse_args()
     engine = Path(args.engine).resolve()
@@ -1075,15 +1159,16 @@ def main() -> int:
         sys.path.insert(0, str(binding))
     from clang import cindex
 
+    freestanding, toolchain = freestanding_arguments(find_target_compiler(engine, args.target_compiler))
     nugget_revision = run("git", "ls-tree", "HEAD", "third_party/nugget", cwd=engine).split()[2]
     # Load the shared library before parsing the two umbrella translation units.
     cindex.Index.create()
     epok_headers = sorted((engine / "runtime").glob("*.hpp"))
     psyqo_headers = sorted(path for path in psyqo_root.rglob("*.hh") if "examples" not in path.parts)
     nugget = psyqo_root.parent
-    scrub = path_scrubber(engine, nugget)
-    epok_modules = parse_family(cindex, "epok", epok_headers, engine / "runtime", engine, nugget, nugget_revision)
-    psyqo_modules = parse_family(cindex, "psyqo", psyqo_headers, psyqo_root, engine, nugget, nugget_revision)
+    scrub = path_scrubber(engine, nugget, toolchain)
+    epok_modules = parse_family(cindex, "epok", epok_headers, engine / "runtime", engine, nugget, nugget_revision, freestanding)
+    psyqo_modules = parse_family(cindex, "psyqo", psyqo_headers, psyqo_root, engine, nugget, nugget_revision, freestanding)
     output = engine / "docs" / "api"
     temporary = engine / ".epok-api-reference.tmp" if args.check else output
     if temporary.exists():

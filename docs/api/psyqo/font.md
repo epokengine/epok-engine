@@ -8,7 +8,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 
 ## Declared types
 
-`psyqo::Font`, `psyqo::FontBase`, `psyqo::FontBase::GlyphsFragmentPrologue`
+`psyqo::Font`, `psyqo::FontBase`
 
 ## Callable index
 
@@ -229,7 +229,7 @@ void chainvprintf(GPU& gpu, Vertex pos, Color color, const char* format, va_list
 | `pos` | `Vertex` | Input | Value supplied for `pos`. See the exact type and module contract. |
 | `color` | `Color` | Input | Value supplied for `color`. See the exact type and module contract. |
 | `format` | `const char *` | Input | Value supplied for `format`. See the exact type and module contract. |
-| `ap` | `int` | Input | Value supplied for `ap`. See the exact type and module contract. |
+| `ap` | `va_list` | Input | Value supplied for `ap`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -245,7 +245,7 @@ void chainvprintf(GPU& gpu, Vertex pos, Color color, const char* format, va_list
 // Vertex pos
 // Color color
 // const char * format
-// int ap
+// va_list ap
 
 psyqo::FontBase& object = /* obtain a valid instance */;
 
@@ -628,7 +628,7 @@ static void unpackFont(GPU& gpu, const uint8_t* data, Vertex location, Vertex te
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `gpu` | `GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
-| `data` | `const int *` | Input | Value supplied for `data`. See the exact type and module contract. |
+| `data` | `const uint8_t *` | Input | Value supplied for `data`. See the exact type and module contract. |
 | `location` | `Vertex` | Input | Value supplied for `location`. See the exact type and module contract. |
 | `textureSize` | `Vertex` | Input | Value supplied for `textureSize`. See the exact type and module contract. |
 
@@ -643,7 +643,7 @@ static void unpackFont(GPU& gpu, const uint8_t* data, Vertex location, Vertex te
 
 // Assume these named values have been initialized with valid data:
 // GPU & gpu
-// const int * data
+// const uint8_t * data
 // Vertex location
 // Vertex textureSize
 
@@ -769,7 +769,7 @@ void vprintf(GPU& gpu, Vertex pos, Color color, const char* format, va_list ap)
 | `pos` | `Vertex` | Input | Value supplied for `pos`. See the exact type and module contract. |
 | `color` | `Color` | Input | Value supplied for `color`. See the exact type and module contract. |
 | `format` | `const char *` | Input | Value supplied for `format`. See the exact type and module contract. |
-| `ap` | `int` | Input | Value supplied for `ap`. See the exact type and module contract. |
+| `ap` | `va_list` | Input | Value supplied for `ap`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -785,7 +785,7 @@ void vprintf(GPU& gpu, Vertex pos, Color color, const char* format, va_list ap)
 // Vertex pos
 // Color color
 // const char * format
-// int ap
+// va_list ap
 
 psyqo::FontBase& object = /* obtain a valid instance */;
 
@@ -821,7 +821,7 @@ void vprintf(GPU& gpu, Vertex pos, Color color, eastl::function<void()>&& callba
 | `callback` | `eastl::function<void ()> &&` | Consumed or moved input | Value supplied for `callback`. See the exact type and module contract. |
 | `dmaCallback` | `DMA::DmaCallback` | Callback | Value supplied for `dmaCallback`. See the exact type and module contract. |
 | `format` | `const char *` | Input | Value supplied for `format`. See the exact type and module contract. |
-| `ap` | `int` | Input | Value supplied for `ap`. See the exact type and module contract. |
+| `ap` | `va_list` | Input | Value supplied for `ap`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -839,7 +839,7 @@ void vprintf(GPU& gpu, Vertex pos, Color color, eastl::function<void()>&& callba
 // eastl::function<void ()> && callback
 // DMA::DmaCallback dmaCallback
 // const char * format
-// int ap
+// va_list ap
 
 psyqo::FontBase& object = /* obtain a valid instance */;
 

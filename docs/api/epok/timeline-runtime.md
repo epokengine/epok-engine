@@ -6,7 +6,7 @@ This module covers fixed-step simulation time and frame timing. It documents 32 
 
 ## Declared types
 
-`epok::timeline::Asset`, `epok::timeline::BoundTarget`, `epok::timeline::Diagnostic`, `epok::timeline::Director`, `epok::timeline::Director::Instance`, `epok::timeline::Event`, `epok::timeline::Property`, `epok::timeline::Reason`, `epok::timeline::State`, `epok::timeline::Stats`, `epok::timeline::Target`, `epok::timeline::Value`
+`epok::timeline::Asset`, `epok::timeline::BoundTarget`, `epok::timeline::Diagnostic`, `epok::timeline::Director`, `epok::timeline::Event`, `epok::timeline::Property`, `epok::timeline::Reason`, `epok::timeline::State`, `epok::timeline::Stats`, `epok::timeline::Target`, `epok::timeline::Value`
 
 ## Callable index
 
@@ -553,8 +553,8 @@ void advance(Fixed dt,uint32_t scene,bool paused=false)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `dt` | `int` | Input | Value supplied for `dt`. See the exact type and module contract. |
-| `scene` | `int` | Input | Value supplied for `scene`. See the exact type and module contract. |
+| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
+| `scene` | `uint32_t` | Input | Value supplied for `scene`. See the exact type and module contract. |
 | `paused` | `bool` | Input | Value supplied for `paused`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -567,8 +567,8 @@ void advance(Fixed dt,uint32_t scene,bool paused=false)
 #include "timeline_runtime.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int dt
-// int scene
+// Fixed dt
+// uint32_t scene
 // bool paused
 
 epok::timeline::Director& object = /* obtain a valid instance */;
@@ -717,9 +717,9 @@ uint32_t marker(Handle h,uint16_t index)const
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `h` | `Handle` | Input | Value supplied for `h`. See the exact type and module contract. |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `uint16_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
 
@@ -730,7 +730,7 @@ uint32_t marker(Handle h,uint16_t index)const
 
 // Assume these named values have been initialized with valid data:
 // Handle h
-// int index
+// uint16_t index
 
 epok::timeline::Director& object = /* obtain a valid instance */;
 
@@ -763,7 +763,7 @@ uint32_t marker_revision(Handle h,uint64_t id)const
 | `h` | `Handle` | Input | Value supplied for `h`. See the exact type and module contract. |
 | `id` | `uint64_t` | Input | Value supplied for `id`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
 
@@ -851,7 +851,7 @@ Handle play(const Asset& asset,BoundTarget owner,const BoundTarget* targets,uint
 | `asset` | `const Asset &` | Input | Value supplied for `asset`. See the exact type and module contract. |
 | `owner` | `BoundTarget` | Input | Value supplied for `owner`. See the exact type and module contract. |
 | `targets` | `const BoundTarget *` | Input | Value supplied for `targets`. See the exact type and module contract. |
-| `scene` | `int` | Input | Value supplied for `scene`. See the exact type and module contract. |
+| `scene` | `uint32_t` | Input | Value supplied for `scene`. See the exact type and module contract. |
 
 **Returns.** Returns `Handle`. Check the purpose and failure notes before using the value.
 
@@ -866,7 +866,7 @@ Handle play(const Asset& asset,BoundTarget owner,const BoundTarget* targets,uint
 // const Asset & asset
 // BoundTarget owner
 // const BoundTarget * targets
-// int scene
+// uint32_t scene
 
 epok::timeline::Director& object = /* obtain a valid instance */;
 
@@ -899,7 +899,7 @@ Handle play(const Asset& asset,DataHandle owner,const DataHandle* targets,uint32
 | `asset` | `const Asset &` | Input | Value supplied for `asset`. See the exact type and module contract. |
 | `owner` | `DataHandle` | Input | Value supplied for `owner`. See the exact type and module contract. |
 | `targets` | `const DataHandle *` | Input | Value supplied for `targets`. See the exact type and module contract. |
-| `scene` | `int` | Input | Value supplied for `scene`. See the exact type and module contract. |
+| `scene` | `uint32_t` | Input | Value supplied for `scene`. See the exact type and module contract. |
 
 **Returns.** Returns `Handle`. Check the purpose and failure notes before using the value.
 
@@ -914,7 +914,7 @@ Handle play(const Asset& asset,DataHandle owner,const DataHandle* targets,uint32
 // const Asset & asset
 // DataHandle owner
 // const DataHandle * targets
-// int scene
+// uint32_t scene
 
 epok::timeline::Director& object = /* obtain a valid instance */;
 
@@ -1031,8 +1031,8 @@ bool seek(Handle h,int32_t tick,uint32_t scene)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `h` | `Handle` | Input | Value supplied for `h`. See the exact type and module contract. |
-| `tick` | `int` | Input | Value supplied for `tick`. See the exact type and module contract. |
-| `scene` | `int` | Input | Value supplied for `scene`. See the exact type and module contract. |
+| `tick` | `int32_t` | Input | Value supplied for `tick`. See the exact type and module contract. |
+| `scene` | `uint32_t` | Input | Value supplied for `scene`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1045,8 +1045,8 @@ bool seek(Handle h,int32_t tick,uint32_t scene)
 
 // Assume these named values have been initialized with valid data:
 // Handle h
-// int tick
-// int scene
+// int32_t tick
+// uint32_t scene
 
 epok::timeline::Director& object = /* obtain a valid instance */;
 
@@ -1208,7 +1208,7 @@ int32_t tick(Handle h)const
 | --- | --- | --- | --- |
 | `h` | `Handle` | Input | Value supplied for `h`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
 
@@ -1248,8 +1248,8 @@ bool active(int32_t tick,int32_t duration)const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `tick` | `int` | Input | Value supplied for `tick`. See the exact type and module contract. |
-| `duration` | `int` | Input | Value supplied for `duration`. See the exact type and module contract. |
+| `tick` | `int32_t` | Input | Value supplied for `tick`. See the exact type and module contract. |
+| `duration` | `int32_t` | Input | Value supplied for `duration`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1261,8 +1261,8 @@ bool active(int32_t tick,int32_t duration)const
 #include "timeline_runtime.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int tick
-// int duration
+// int32_t tick
+// int32_t duration
 
 epok::timeline::Property& object = /* obtain a valid instance */;
 
@@ -1292,9 +1292,9 @@ int32_t source_tick(int32_t tick)const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `tick` | `int` | Input | Value supplied for `tick`. See the exact type and module contract. |
+| `tick` | `int32_t` | Input | Value supplied for `tick`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
 
@@ -1304,7 +1304,7 @@ int32_t source_tick(int32_t tick)const
 #include "timeline_runtime.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int tick
+// int32_t tick
 
 epok::timeline::Property& object = /* obtain a valid instance */;
 

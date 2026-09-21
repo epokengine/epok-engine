@@ -156,8 +156,8 @@ inline psyqo::PrimPieces::UVCoords texture_uv(const Texture& t,int32_t u,int32_t
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `t` | `const Texture &` | Input | Value supplied for `t`. See the exact type and module contract. |
-| `u` | `int` | Input | Value supplied for `u`. See the exact type and module contract. |
-| `v` | `int` | Input | Value supplied for `v`. See the exact type and module contract. |
+| `u` | `int32_t` | Input | Value supplied for `u`. See the exact type and module contract. |
+| `v` | `int32_t` | Input | Value supplied for `v`. See the exact type and module contract. |
 
 **Returns.** Returns `psyqo::PrimPieces::UVCoords`. Check the purpose and failure notes before using the value.
 
@@ -170,8 +170,8 @@ inline psyqo::PrimPieces::UVCoords texture_uv(const Texture& t,int32_t u,int32_t
 
 // Assume these named values have been initialized with valid data:
 // const Texture & t
-// int u
-// int v
+// int32_t u
+// int32_t v
 
 auto result = epok::texture_uv(t, u, v);
 ```

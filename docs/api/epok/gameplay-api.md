@@ -108,8 +108,8 @@ static CollisionHitSample ground(ObjectId actor,Fixed distance,uint32_t mask)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `actor` | `ObjectId` | Input | Value supplied for `actor`. See the exact type and module contract. |
-| `distance` | `int` | Input | Value supplied for `distance`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `distance` | `Fixed` | Input | Value supplied for `distance`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 
 **Returns.** Returns `CollisionHitSample`. Check the purpose and failure notes before using the value.
 
@@ -122,8 +122,8 @@ static CollisionHitSample ground(ObjectId actor,Fixed distance,uint32_t mask)
 
 // Assume these named values have been initialized with valid data:
 // ObjectId actor
-// int distance
-// int mask
+// Fixed distance
+// uint32_t mask
 
 auto result = epok::CollisionLibrary::ground(actor, distance, mask);
 ```
@@ -153,7 +153,7 @@ static MoveSample move(ObjectId actor,GameplayVector3 displacement,uint32_t mask
 | --- | --- | --- | --- |
 | `actor` | `ObjectId` | Input | Value supplied for `actor`. See the exact type and module contract. |
 | `displacement` | `GameplayVector3` | Input | Value supplied for `displacement`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 
 **Returns.** Returns `MoveSample`. Check the purpose and failure notes before using the value.
 
@@ -167,7 +167,7 @@ static MoveSample move(ObjectId actor,GameplayVector3 displacement,uint32_t mask
 // Assume these named values have been initialized with valid data:
 // ObjectId actor
 // GameplayVector3 displacement
-// int mask
+// uint32_t mask
 
 auto result = epok::CollisionLibrary::move(actor, displacement, mask);
 ```
@@ -196,7 +196,7 @@ static ObjectBatch8 overlap_box(GameplayAabb bounds,uint32_t mask,ObjectId ignor
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `bounds` | `GameplayAabb` | Input | Value supplied for `bounds`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 | `ignore` | `ObjectId` | Input | Value supplied for `ignore`. See the exact type and module contract. |
 | `triggers` | `bool` | Input | Value supplied for `triggers`. See the exact type and module contract. |
 
@@ -211,7 +211,7 @@ static ObjectBatch8 overlap_box(GameplayAabb bounds,uint32_t mask,ObjectId ignor
 
 // Assume these named values have been initialized with valid data:
 // GameplayAabb bounds
-// int mask
+// uint32_t mask
 // ObjectId ignore
 // bool triggers
 
@@ -243,7 +243,7 @@ static CollisionHitSample raycast_segment(GameplayVector3 origin,GameplayVector3
 | --- | --- | --- | --- |
 | `origin` | `GameplayVector3` | Input | Value supplied for `origin`. See the exact type and module contract. |
 | `displacement` | `GameplayVector3` | Input | Value supplied for `displacement`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 | `ignore` | `ObjectId` | Input | Value supplied for `ignore`. See the exact type and module contract. |
 | `triggers` | `bool` | Input | Value supplied for `triggers`. See the exact type and module contract. |
 
@@ -259,7 +259,7 @@ static CollisionHitSample raycast_segment(GameplayVector3 origin,GameplayVector3
 // Assume these named values have been initialized with valid data:
 // GameplayVector3 origin
 // GameplayVector3 displacement
-// int mask
+// uint32_t mask
 // ObjectId ignore
 // bool triggers
 
@@ -369,7 +369,7 @@ inline const char* gameplay_card_slot_name(uint32_t slot)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `slot` | `int` | Input | Value supplied for `slot`. See the exact type and module contract. |
+| `slot` | `uint32_t` | Input | Value supplied for `slot`. See the exact type and module contract. |
 
 **Returns.** Returns `const char *`. Check the purpose and failure notes before using the value.
 
@@ -381,7 +381,7 @@ inline const char* gameplay_card_slot_name(uint32_t slot)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int slot
+// uint32_t slot
 
 auto result = epok::gameplay_card_slot_name(slot);
 ```
@@ -409,9 +409,9 @@ inline int16_t gameplay_i16(int32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `int32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
 
@@ -421,7 +421,7 @@ inline int16_t gameplay_i16(int32_t value)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// int32_t value
 
 auto result = epok::gameplay_i16(value);
 ```
@@ -445,7 +445,7 @@ inline uint32_t* gameplay_save_words()
 - **Declared at:** [line 118](../../../runtime/gameplay_api.hpp#L118)
 - **Kind:** `function decl`
 
-**Returns.** Returns `int *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
 
@@ -480,9 +480,9 @@ inline uint16_t gameplay_u16(uint32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `uint32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
 
@@ -492,7 +492,7 @@ inline uint16_t gameplay_u16(uint32_t value)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// uint32_t value
 
 auto result = epok::gameplay_u16(value);
 ```
@@ -520,9 +520,9 @@ inline uint8_t gameplay_u8(uint32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `uint32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint8_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
 
@@ -532,7 +532,7 @@ inline uint8_t gameplay_u8(uint32_t value)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// uint32_t value
 
 auto result = epok::gameplay_u8(value);
 ```
@@ -560,7 +560,7 @@ inline GameplayVector3 gameplay_vector(const Fixed* value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `const int *` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `const Fixed *` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** Returns `GameplayVector3`. Check the purpose and failure notes before using the value.
 
@@ -572,7 +572,7 @@ inline GameplayVector3 gameplay_vector(const Fixed* value)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * value
+// const Fixed * value
 
 auto result = epok::gameplay_vector(value);
 ```
@@ -601,7 +601,7 @@ inline void gameplay_vector(GameplayVector3 value,Fixed* output)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `value` | `GameplayVector3` | Input | Value supplied for `value`. See the exact type and module contract. |
-| `output` | `int *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
+| `output` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -614,7 +614,7 @@ inline void gameplay_vector(GameplayVector3 value,Fixed* output)
 
 // Assume these named values have been initialized with valid data:
 // GameplayVector3 value
-// int * output
+// Fixed * output
 
 epok::gameplay_vector(value, output);
 ```
@@ -726,7 +726,7 @@ static bool analog(uint32_t port)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -738,7 +738,7 @@ static bool analog(uint32_t port)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int port
+// uint32_t port
 
 auto result = epok::InputLibrary::analog(port);
 ```
@@ -767,7 +767,7 @@ static InputAxisSample axis(Axis axis,uint32_t port)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `axis` | `Axis` | Input | Value supplied for `axis`. See the exact type and module contract. |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `InputAxisSample`. Check the purpose and failure notes before using the value.
 
@@ -780,7 +780,7 @@ static InputAxisSample axis(Axis axis,uint32_t port)
 
 // Assume these named values have been initialized with valid data:
 // Axis axis
-// int port
+// uint32_t port
 
 auto result = epok::InputLibrary::axis(axis, port);
 ```
@@ -808,7 +808,7 @@ static bool connected(uint32_t port)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -820,7 +820,7 @@ static bool connected(uint32_t port)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int port
+// uint32_t port
 
 auto result = epok::InputLibrary::connected(port);
 ```
@@ -849,7 +849,7 @@ static bool frame_pressed(Button button,uint32_t port)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `button` | `Button` | Input | Value supplied for `button`. See the exact type and module contract. |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -862,7 +862,7 @@ static bool frame_pressed(Button button,uint32_t port)
 
 // Assume these named values have been initialized with valid data:
 // Button button
-// int port
+// uint32_t port
 
 auto result = epok::InputLibrary::frame_pressed(button, port);
 ```
@@ -891,7 +891,7 @@ static bool frame_released(Button button,uint32_t port)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `button` | `Button` | Input | Value supplied for `button`. See the exact type and module contract. |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -904,7 +904,7 @@ static bool frame_released(Button button,uint32_t port)
 
 // Assume these named values have been initialized with valid data:
 // Button button
-// int port
+// uint32_t port
 
 auto result = epok::InputLibrary::frame_released(button, port);
 ```
@@ -933,7 +933,7 @@ static bool held(Button button,uint32_t port)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `button` | `Button` | Input | Value supplied for `button`. See the exact type and module contract. |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -946,7 +946,7 @@ static bool held(Button button,uint32_t port)
 
 // Assume these named values have been initialized with valid data:
 // Button button
-// int port
+// uint32_t port
 
 auto result = epok::InputLibrary::held(button, port);
 ```
@@ -975,7 +975,7 @@ static bool pressed(Button button,uint32_t port)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `button` | `Button` | Input | Value supplied for `button`. See the exact type and module contract. |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -988,7 +988,7 @@ static bool pressed(Button button,uint32_t port)
 
 // Assume these named values have been initialized with valid data:
 // Button button
-// int port
+// uint32_t port
 
 auto result = epok::InputLibrary::pressed(button, port);
 ```
@@ -1017,7 +1017,7 @@ static bool released(Button button,uint32_t port)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `button` | `Button` | Input | Value supplied for `button`. See the exact type and module contract. |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1030,7 +1030,7 @@ static bool released(Button button,uint32_t port)
 
 // Assume these named values have been initialized with valid data:
 // Button button
-// int port
+// uint32_t port
 
 auto result = epok::InputLibrary::released(button, port);
 ```
@@ -1100,11 +1100,11 @@ static Fixed clamp(Fixed value,Fixed minimum,Fixed maximum)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
-| `minimum` | `int` | Input | Value supplied for `minimum`. See the exact type and module contract. |
-| `maximum` | `int` | Input | Value supplied for `maximum`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `minimum` | `Fixed` | Input | Value supplied for `minimum`. See the exact type and module contract. |
+| `maximum` | `Fixed` | Input | Value supplied for `maximum`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
 
@@ -1114,9 +1114,9 @@ static Fixed clamp(Fixed value,Fixed minimum,Fixed maximum)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
-// int minimum
-// int maximum
+// Fixed value
+// Fixed minimum
+// Fixed maximum
 
 auto result = epok::MathLibrary::clamp(value, minimum, maximum);
 ```
@@ -1144,11 +1144,11 @@ static Fixed lerp(Fixed from,Fixed to,Fixed alpha)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `from` | `int` | Input | Value supplied for `from`. See the exact type and module contract. |
-| `to` | `int` | Input | Value supplied for `to`. See the exact type and module contract. |
-| `alpha` | `int` | Input | Value supplied for `alpha`. See the exact type and module contract. |
+| `from` | `Fixed` | Input | Value supplied for `from`. See the exact type and module contract. |
+| `to` | `Fixed` | Input | Value supplied for `to`. See the exact type and module contract. |
+| `alpha` | `Fixed` | Input | Value supplied for `alpha`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
 
@@ -1158,9 +1158,9 @@ static Fixed lerp(Fixed from,Fixed to,Fixed alpha)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int from
-// int to
-// int alpha
+// Fixed from
+// Fixed to
+// Fixed alpha
 
 auto result = epok::MathLibrary::lerp(from, to, alpha);
 ```
@@ -1189,7 +1189,7 @@ static GameplayVector3 scale(GameplayVector3 value,Fixed amount)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `value` | `GameplayVector3` | Input | Value supplied for `value`. See the exact type and module contract. |
-| `amount` | `int` | Input | Value supplied for `amount`. See the exact type and module contract. |
+| `amount` | `Fixed` | Input | Value supplied for `amount`. See the exact type and module contract. |
 
 **Returns.** Returns `GameplayVector3`. Check the purpose and failure notes before using the value.
 
@@ -1202,7 +1202,7 @@ static GameplayVector3 scale(GameplayVector3 value,Fixed amount)
 
 // Assume these named values have been initialized with valid data:
 // GameplayVector3 value
-// int amount
+// Fixed amount
 
 auto result = epok::MathLibrary::scale(value, amount);
 ```
@@ -1230,9 +1230,9 @@ static Fixed smoothstep(Fixed alpha)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `alpha` | `int` | Input | Value supplied for `alpha`. See the exact type and module contract. |
+| `alpha` | `Fixed` | Input | Value supplied for `alpha`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
 
@@ -1242,7 +1242,7 @@ static Fixed smoothstep(Fixed alpha)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int alpha
+// Fixed alpha
 
 auto result = epok::MathLibrary::smoothstep(alpha);
 ```
@@ -1270,9 +1270,9 @@ static GameplayVector3 vector3(Fixed x,Fixed y,Fixed z)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `Fixed` | Input | Value supplied for `z`. See the exact type and module contract. |
 
 **Returns.** Returns `GameplayVector3`. Check the purpose and failure notes before using the value.
 
@@ -1284,9 +1284,9 @@ static GameplayVector3 vector3(Fixed x,Fixed y,Fixed z)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
-// int z
+// Fixed x
+// Fixed y
+// Fixed z
 
 auto result = epok::MathLibrary::vector3(x, y, z);
 ```
@@ -1345,7 +1345,7 @@ static CardFileSample file(uint32_t index)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `uint32_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** Returns `CardFileSample`. Check the purpose and failure notes before using the value.
 
@@ -1357,7 +1357,7 @@ static CardFileSample file(uint32_t index)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// uint32_t index
 
 auto result = epok::MemoryCardLibrary::file(index);
 ```
@@ -1385,7 +1385,7 @@ static bool list(uint32_t port)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1397,7 +1397,7 @@ static bool list(uint32_t port)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int port
+// uint32_t port
 
 auto result = epok::MemoryCardLibrary::list(port);
 ```
@@ -1425,9 +1425,9 @@ static uint32_t loaded_word(uint32_t index)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `uint32_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
 
@@ -1437,7 +1437,7 @@ static uint32_t loaded_word(uint32_t index)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// uint32_t index
 
 auto result = epok::MemoryCardLibrary::loaded_word(index);
 ```
@@ -1496,7 +1496,7 @@ static bool probe(uint32_t port)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1508,7 +1508,7 @@ static bool probe(uint32_t port)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int port
+// uint32_t port
 
 auto result = epok::MemoryCardLibrary::probe(port);
 ```
@@ -1536,8 +1536,8 @@ static bool read(uint32_t slot,uint32_t port)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `slot` | `int` | Input | Value supplied for `slot`. See the exact type and module contract. |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `slot` | `uint32_t` | Input | Value supplied for `slot`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1549,8 +1549,8 @@ static bool read(uint32_t slot,uint32_t port)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int slot
-// int port
+// uint32_t slot
+// uint32_t port
 
 auto result = epok::MemoryCardLibrary::read(slot, port);
 ```
@@ -1578,8 +1578,8 @@ static bool set_staged_word(uint32_t index,uint32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `index` | `uint32_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `value` | `uint32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1591,8 +1591,8 @@ static bool set_staged_word(uint32_t index,uint32_t value)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
-// int value
+// uint32_t index
+// uint32_t value
 
 auto result = epok::MemoryCardLibrary::set_staged_word(index, value);
 ```
@@ -1651,9 +1651,9 @@ static uint32_t staged_word(uint32_t index)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `uint32_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
 
@@ -1663,7 +1663,7 @@ static uint32_t staged_word(uint32_t index)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// uint32_t index
 
 auto result = epok::MemoryCardLibrary::staged_word(index);
 ```
@@ -1691,9 +1691,9 @@ static bool write(uint32_t slot,SavePayload8 payload,uint32_t port)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `slot` | `int` | Input | Value supplied for `slot`. See the exact type and module contract. |
+| `slot` | `uint32_t` | Input | Value supplied for `slot`. See the exact type and module contract. |
 | `payload` | `SavePayload8` | Input | Value supplied for `payload`. See the exact type and module contract. |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1705,9 +1705,9 @@ static bool write(uint32_t slot,SavePayload8 payload,uint32_t port)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int slot
+// uint32_t slot
 // SavePayload8 payload
-// int port
+// uint32_t port
 
 auto result = epok::MemoryCardLibrary::write(slot, payload, port);
 ```
@@ -1735,9 +1735,9 @@ static bool write_staged(uint32_t slot,uint32_t bytes,uint32_t port)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `slot` | `int` | Input | Value supplied for `slot`. See the exact type and module contract. |
-| `bytes` | `int` | Input | Value supplied for `bytes`. See the exact type and module contract. |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `slot` | `uint32_t` | Input | Value supplied for `slot`. See the exact type and module contract. |
+| `bytes` | `uint32_t` | Input | Value supplied for `bytes`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1749,9 +1749,9 @@ static bool write_staged(uint32_t slot,uint32_t bytes,uint32_t port)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int slot
-// int bytes
-// int port
+// uint32_t slot
+// uint32_t bytes
+// uint32_t port
 
 auto result = epok::MemoryCardLibrary::write_staged(slot, bytes, port);
 ```
@@ -1780,7 +1780,7 @@ static bool burst_effect(effects::Handle handle,uint32_t count)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `handle` | `effects::Handle` | Input | Value supplied for `handle`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `uint32_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1793,7 +1793,7 @@ static bool burst_effect(effects::Handle handle,uint32_t count)
 
 // Assume these named values have been initialized with valid data:
 // effects::Handle handle
-// int count
+// uint32_t count
 
 auto result = epok::PlaybackLibrary::burst_effect(handle, count);
 ```
@@ -2456,7 +2456,7 @@ static bool request(uint32_t index)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `uint32_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -2468,7 +2468,7 @@ static bool request(uint32_t index)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// uint32_t index
 
 auto result = epok::SceneLibrary::request(index);
 ```
@@ -2496,7 +2496,7 @@ static bool request_with_transition(uint32_t index,GameplayTransitionOptions val
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `uint32_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 | `value` | `GameplayTransitionOptions` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2509,7 +2509,7 @@ static bool request_with_transition(uint32_t index,GameplayTransitionOptions val
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// uint32_t index
 // GameplayTransitionOptions value
 
 auto result = epok::SceneLibrary::request_with_transition(index, value);
@@ -2536,7 +2536,7 @@ static uint32_t screen_fade()
 - **Declared at:** [line 236](../../../runtime/gameplay_api.hpp#L236)
 - **Kind:** `cxx method`; qualifiers: `static`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** The getter reports the authored amount; what is drawn is the larger of it and a running transition's opacity, which `transition_snapshot` already reports. The amount survives scene activation, so a game can fade out, request a scene and fade back in.
 
@@ -2651,7 +2651,7 @@ static void set_screen_fade(uint32_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `value` | `uint32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -2663,7 +2663,7 @@ static void set_screen_fade(uint32_t value)
 #include "gameplay_api.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
+// uint32_t value
 
 epok::SceneLibrary::set_screen_fade(value);
 ```
@@ -2856,7 +2856,7 @@ static Vector3TweenAdvanceSample vector_tween_advance(GameplayVector3TweenState 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `state` | `GameplayVector3TweenState` | Input | Value supplied for `state`. See the exact type and module contract. |
-| `delta_seconds` | `int` | Input | Value supplied for `delta_seconds`. See the exact type and module contract. |
+| `delta_seconds` | `Fixed` | Input | Value supplied for `delta_seconds`. See the exact type and module contract. |
 
 **Returns.** Returns `Vector3TweenAdvanceSample`. Check the purpose and failure notes before using the value.
 
@@ -2869,7 +2869,7 @@ static Vector3TweenAdvanceSample vector_tween_advance(GameplayVector3TweenState 
 
 // Assume these named values have been initialized with valid data:
 // GameplayVector3TweenState state
-// int delta_seconds
+// Fixed delta_seconds
 
 auto result = epok::UtilityVectorLibrary::vector_tween_advance(state, delta_seconds);
 ```
@@ -2939,11 +2939,11 @@ static GameplayVector3TweenState vector_tween_schedule(GameplayVector3 from,Game
 | --- | --- | --- | --- |
 | `from` | `GameplayVector3` | Input | Value supplied for `from`. See the exact type and module contract. |
 | `to` | `GameplayVector3` | Input | Value supplied for `to`. See the exact type and module contract. |
-| `seconds` | `int` | Input | Value supplied for `seconds`. See the exact type and module contract. |
+| `seconds` | `Fixed` | Input | Value supplied for `seconds`. See the exact type and module contract. |
 | `easing` | `Ease` | Input | Value supplied for `easing`. See the exact type and module contract. |
-| `delay_seconds` | `int` | Input | Value supplied for `delay_seconds`. See the exact type and module contract. |
+| `delay_seconds` | `Fixed` | Input | Value supplied for `delay_seconds`. See the exact type and module contract. |
 | `loop` | `TweenLoop` | Input | Value supplied for `loop`. See the exact type and module contract. |
-| `legs` | `int` | Input | Value supplied for `legs`. See the exact type and module contract. |
+| `legs` | `uint32_t` | Input | Value supplied for `legs`. See the exact type and module contract. |
 
 **Returns.** Returns `GameplayVector3TweenState`. Check the purpose and failure notes before using the value.
 
@@ -2957,11 +2957,11 @@ static GameplayVector3TweenState vector_tween_schedule(GameplayVector3 from,Game
 // Assume these named values have been initialized with valid data:
 // GameplayVector3 from
 // GameplayVector3 to
-// int seconds
+// Fixed seconds
 // Ease easing
-// int delay_seconds
+// Fixed delay_seconds
 // TweenLoop loop
-// int legs
+// uint32_t legs
 
 auto result = epok::UtilityVectorLibrary::vector_tween_schedule(from, to, seconds, easing, delay_seconds, loop, legs);
 ```
@@ -2991,7 +2991,7 @@ static GameplayVector3TweenState vector_tween_start(GameplayVector3 from,Gamepla
 | --- | --- | --- | --- |
 | `from` | `GameplayVector3` | Input | Value supplied for `from`. See the exact type and module contract. |
 | `to` | `GameplayVector3` | Input | Value supplied for `to`. See the exact type and module contract. |
-| `seconds` | `int` | Input | Value supplied for `seconds`. See the exact type and module contract. |
+| `seconds` | `Fixed` | Input | Value supplied for `seconds`. See the exact type and module contract. |
 | `easing` | `Ease` | Input | Value supplied for `easing`. See the exact type and module contract. |
 
 **Returns.** Returns `GameplayVector3TweenState`. Check the purpose and failure notes before using the value.
@@ -3006,7 +3006,7 @@ static GameplayVector3TweenState vector_tween_start(GameplayVector3 from,Gamepla
 // Assume these named values have been initialized with valid data:
 // GameplayVector3 from
 // GameplayVector3 to
-// int seconds
+// Fixed seconds
 // Ease easing
 
 auto result = epok::UtilityVectorLibrary::vector_tween_start(from, to, seconds, easing);

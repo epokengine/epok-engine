@@ -6,7 +6,7 @@ This module covers controller sampling and simulation-tick input edges. It docum
 
 ## Declared types
 
-`epok::Axis`, `epok::Button`, `epok::Input`, `epok::Input::State`
+`epok::Axis`, `epok::Button`, `epok::Input`
 
 ## Callable index
 
@@ -90,7 +90,7 @@ int16_t axis_raw(Axis axis,unsigned port=0) const
 | `axis` | `Axis` | Input | Value supplied for `axis`. See the exact type and module contract. |
 | `port` | `unsigned int` | Input | Value supplied for `port`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need controller sampling and simulation-tick input edges and the preconditions in the declaration are already satisfied.
 
@@ -623,12 +623,12 @@ void sample(unsigned port,bool connected,uint16_t held,bool analog=false, uint8_
 | --- | --- | --- | --- |
 | `port` | `unsigned int` | Input | Value supplied for `port`. See the exact type and module contract. |
 | `connected` | `bool` | Input | Value supplied for `connected`. See the exact type and module contract. |
-| `held` | `int` | Input | Value supplied for `held`. See the exact type and module contract. |
+| `held` | `uint16_t` | Input | Value supplied for `held`. See the exact type and module contract. |
 | `analog` | `bool` | Input | Value supplied for `analog`. See the exact type and module contract. |
-| `left_x` | `int` | Input | Value supplied for `left_x`. See the exact type and module contract. |
-| `left_y` | `int` | Input | Value supplied for `left_y`. See the exact type and module contract. |
-| `right_x` | `int` | Input | Value supplied for `right_x`. See the exact type and module contract. |
-| `right_y` | `int` | Input | Value supplied for `right_y`. See the exact type and module contract. |
+| `left_x` | `uint8_t` | Input | Value supplied for `left_x`. See the exact type and module contract. |
+| `left_y` | `uint8_t` | Input | Value supplied for `left_y`. See the exact type and module contract. |
+| `right_x` | `uint8_t` | Input | Value supplied for `right_x`. See the exact type and module contract. |
+| `right_y` | `uint8_t` | Input | Value supplied for `right_y`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -642,12 +642,12 @@ void sample(unsigned port,bool connected,uint16_t held,bool analog=false, uint8_
 // Assume these named values have been initialized with valid data:
 // unsigned int port
 // bool connected
-// int held
+// uint16_t held
 // bool analog
-// int left_x
-// int left_y
-// int right_x
-// int right_y
+// uint8_t left_x
+// uint8_t left_y
+// uint8_t right_x
+// uint8_t right_y
 
 epok::Input& object = /* obtain a valid instance */;
 

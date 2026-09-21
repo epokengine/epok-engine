@@ -96,10 +96,10 @@ inline Fixed ease(Fixed t,Ease kind)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `t` | `int` | Input | Value supplied for `t`. See the exact type and module contract. |
+| `t` | `Fixed` | Input | Value supplied for `t`. See the exact type and module contract. |
 | `kind` | `Ease` | Input | Value supplied for `kind`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Every curve returns exactly 0 at t=0 and exactly 4096 at t=1, which is what lets Tween::advance land on `to` the moment elapsed reaches duration. The In/Out halves double the argument before taking the power rather than scaling a truncated power afterwards: scaling afterwards costs an order of magnitude of accuracy by the fifth power. SmoothStep, InQuad and OutQuad keep their original expressions so already authored tweens keep their exact shape; OutQuad therefore truncates the whole product instead of only the square.
 
@@ -109,7 +109,7 @@ inline Fixed ease(Fixed t,Ease kind)
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int t
+// Fixed t
 // Ease kind
 
 auto result = epok::ease(t, kind);
@@ -256,8 +256,8 @@ void restore(const QueueEvent* input,size_t length,uint32_t dropped_count=0)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `input` | `const QueueEvent *` | Input | Value supplied for `input`. See the exact type and module contract. |
-| `length` | `int` | Input | Value supplied for `length`. See the exact type and module contract. |
-| `dropped_count` | `int` | Input | Value supplied for `dropped_count`. See the exact type and module contract. |
+| `length` | `size_t` | Input | Value supplied for `length`. See the exact type and module contract. |
+| `dropped_count` | `uint32_t` | Input | Value supplied for `dropped_count`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -270,8 +270,8 @@ void restore(const QueueEvent* input,size_t length,uint32_t dropped_count=0)
 
 // Assume these named values have been initialized with valid data:
 // const QueueEvent * input
-// int length
-// int dropped_count
+// size_t length
+// uint32_t dropped_count
 
 epok::EventQueue& object = /* obtain a valid instance */;
 
@@ -297,7 +297,7 @@ size_t size()const
 - **Declared at:** [line 108](../../../runtime/utility.hpp#L108)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -335,9 +335,9 @@ size_t snapshot(QueueEvent* output,size_t capacity)const
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `output` | `QueueEvent *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
-| `capacity` | `int` | Input | Value supplied for `capacity`. See the exact type and module contract. |
+| `capacity` | `size_t` | Input | Value supplied for `capacity`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -348,7 +348,7 @@ size_t snapshot(QueueEvent* output,size_t capacity)const
 
 // Assume these named values have been initialized with valid data:
 // QueueEvent * output
-// int capacity
+// size_t capacity
 
 epok::EventQueue& object = /* obtain a valid instance */;
 
@@ -573,7 +573,7 @@ size_t size()const
 - **Declared at:** [line 129](../../../runtime/utility.hpp#L129)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -682,8 +682,8 @@ static void layout(ObjectBatch8 actors,Fixed item_extent,Fixed spacing,bool vert
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `actors` | `ObjectBatch8` | Input | Value supplied for `actors`. See the exact type and module contract. |
-| `item_extent` | `int` | Input | Value supplied for `item_extent`. See the exact type and module contract. |
-| `spacing` | `int` | Input | Value supplied for `spacing`. See the exact type and module contract. |
+| `item_extent` | `Fixed` | Input | Value supplied for `item_extent`. See the exact type and module contract. |
+| `spacing` | `Fixed` | Input | Value supplied for `spacing`. See the exact type and module contract. |
 | `vertical` | `bool` | Input | Value supplied for `vertical`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -697,8 +697,8 @@ static void layout(ObjectBatch8 actors,Fixed item_extent,Fixed spacing,bool vert
 
 // Assume these named values have been initialized with valid data:
 // ObjectBatch8 actors
-// int item_extent
-// int spacing
+// Fixed item_extent
+// Fixed spacing
 // bool vertical
 
 epok::FocusLibrary::layout(actors, item_extent, spacing, vertical);
@@ -727,7 +727,7 @@ static bool move(int32_t direction,bool wrap)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `direction` | `int` | Input | Value supplied for `direction`. See the exact type and module contract. |
+| `direction` | `int32_t` | Input | Value supplied for `direction`. See the exact type and module contract. |
 | `wrap` | `bool` | Input | Value supplied for `wrap`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -740,7 +740,7 @@ static bool move(int32_t direction,bool wrap)
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int direction
+// int32_t direction
 // bool wrap
 
 auto result = epok::FocusLibrary::move(direction, wrap);
@@ -769,7 +769,7 @@ static GameplayEventQueue4 navigate(uint32_t port)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `port` | `int` | Input | Value supplied for `port`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
 
 **Returns.** Returns `GameplayEventQueue4`. Check the purpose and failure notes before using the value.
 
@@ -781,7 +781,7 @@ static GameplayEventQueue4 navigate(uint32_t port)
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int port
+// uint32_t port
 
 auto result = epok::FocusLibrary::navigate(port);
 ```
@@ -1112,9 +1112,9 @@ inline void layout_list(DataHandle* children,size_t count,Fixed item_extent,Fixe
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `children` | `DataHandle *` | Input/output; inspect the function contract | Value supplied for `children`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
-| `item_extent` | `int` | Input | Value supplied for `item_extent`. See the exact type and module contract. |
-| `spacing` | `int` | Input | Value supplied for `spacing`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `item_extent` | `Fixed` | Input | Value supplied for `item_extent`. See the exact type and module contract. |
+| `spacing` | `Fixed` | Input | Value supplied for `spacing`. See the exact type and module contract. |
 | `vertical` | `bool` | Input | Value supplied for `vertical`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1128,9 +1128,9 @@ inline void layout_list(DataHandle* children,size_t count,Fixed item_extent,Fixe
 
 // Assume these named values have been initialized with valid data:
 // DataHandle * children
-// int count
-// int item_extent
-// int spacing
+// size_t count
+// Fixed item_extent
+// Fixed spacing
 // bool vertical
 
 epok::layout_list(children, count, item_extent, spacing, vertical);
@@ -1159,11 +1159,11 @@ inline Fixed lerp(Fixed a,Fixed b,Fixed t)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `int` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `b` | `int` | Input | Value supplied for `b`. See the exact type and module contract. |
-| `t` | `int` | Input | Value supplied for `t`. See the exact type and module contract. |
+| `a` | `Fixed` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `Fixed` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `t` | `Fixed` | Input | Value supplied for `t`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -1173,9 +1173,9 @@ inline Fixed lerp(Fixed a,Fixed b,Fixed t)
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int a
-// int b
-// int t
+// Fixed a
+// Fixed b
+// Fixed t
 
 auto result = epok::lerp(a, b, t);
 ```
@@ -1203,7 +1203,7 @@ template<size_t N>void advance(Fixed dt,EventQueue<N>& queue,DataHandle source={
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `dt` | `int` | Input | Value supplied for `dt`. See the exact type and module contract. |
+| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
 | `queue` | `EventQueue<N> &` | Input/output; inspect the function contract | Value supplied for `queue`. See the exact type and module contract. |
 | `source` | `DataHandle` | Input | Value supplied for `source`. See the exact type and module contract. |
 
@@ -1220,7 +1220,7 @@ template<size_t N>void advance(Fixed dt,EventQueue<N>& queue,DataHandle source={
 // N
 
 // Assume these named values have been initialized with valid data:
-// int dt
+// Fixed dt
 // EventQueue<N> & queue
 // DataHandle source
 
@@ -1319,7 +1319,7 @@ bool start(const SequenceStep* data,size_t length)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `data` | `const SequenceStep *` | Input | Value supplied for `data`. See the exact type and module contract. |
-| `length` | `int` | Input | Value supplied for `length`. See the exact type and module contract. |
+| `length` | `size_t` | Input | Value supplied for `length`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1332,7 +1332,7 @@ bool start(const SequenceStep* data,size_t length)
 
 // Assume these named values have been initialized with valid data:
 // const SequenceStep * data
-// int length
+// size_t length
 
 epok::Sequence& object = /* obtain a valid instance */;
 
@@ -1395,9 +1395,9 @@ Fixed advance(Fixed dt)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `dt` | `int` | Input | Value supplied for `dt`. See the exact type and module contract. |
+| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -1407,7 +1407,7 @@ Fixed advance(Fixed dt)
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int dt
+// Fixed dt
 
 epok::Tween& object = /* obtain a valid instance */;
 
@@ -1435,7 +1435,7 @@ Fixed alpha() const
 - **Declared at:** [line 72](../../../runtime/utility.hpp#L72)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** A reversed leg mirrors the curve about both axes, which is the same shape with the endpoints swapped and keeps both turnarounds exact. Vector tweens read this value and lerp each component with it, so they agree with three scalar tweens raw unit for raw unit; a zero duration answers 1 so both forms report `to` whatever leg a record claims.
 
@@ -1534,7 +1534,7 @@ uint32_t cycles_remaining()const
 - **Declared at:** [line 96](../../../runtime/utility.hpp#L96)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -1567,7 +1567,7 @@ Fixed delay_value()const
 - **Declared at:** [line 95](../../../runtime/utility.hpp#L95)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -1600,7 +1600,7 @@ Fixed duration_value()const
 - **Declared at:** [line 93](../../../runtime/utility.hpp#L93)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -1666,7 +1666,7 @@ Fixed elapsed_value()const
 - **Declared at:** [line 93](../../../runtime/utility.hpp#L93)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -1699,7 +1699,7 @@ Fixed end_value()const
 - **Declared at:** [line 92](../../../runtime/utility.hpp#L92)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -1798,7 +1798,7 @@ Fixed ratio() const
 - **Declared at:** [line 66](../../../runtime/utility.hpp#L66)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -1835,16 +1835,16 @@ void restore(Fixed a,Fixed b,Fixed seconds,Fixed progress,Ease mode,bool active,
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `int` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `b` | `int` | Input | Value supplied for `b`. See the exact type and module contract. |
-| `seconds` | `int` | Input | Value supplied for `seconds`. See the exact type and module contract. |
-| `progress` | `int` | Input | Value supplied for `progress`. See the exact type and module contract. |
+| `a` | `Fixed` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `Fixed` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `seconds` | `Fixed` | Input | Value supplied for `seconds`. See the exact type and module contract. |
+| `progress` | `Fixed` | Input | Value supplied for `progress`. See the exact type and module contract. |
 | `mode` | `Ease` | Input | Value supplied for `mode`. See the exact type and module contract. |
 | `active` | `bool` | Input | Value supplied for `active`. See the exact type and module contract. |
 | `completion` | `bool` | Input | Value supplied for `completion`. See the exact type and module contract. |
-| `wait` | `int` | Input | Value supplied for `wait`. See the exact type and module contract. |
+| `wait` | `Fixed` | Input | Value supplied for `wait`. See the exact type and module contract. |
 | `loop` | `TweenLoop` | Input | Value supplied for `loop`. See the exact type and module contract. |
-| `legs` | `int` | Input | Value supplied for `legs`. See the exact type and module contract. |
+| `legs` | `uint32_t` | Input | Value supplied for `legs`. See the exact type and module contract. |
 | `reverse` | `bool` | Input | Value supplied for `reverse`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1857,16 +1857,16 @@ void restore(Fixed a,Fixed b,Fixed seconds,Fixed progress,Ease mode,bool active,
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int a
-// int b
-// int seconds
-// int progress
+// Fixed a
+// Fixed b
+// Fixed seconds
+// Fixed progress
 // Ease mode
 // bool active
 // bool completion
-// int wait
+// Fixed wait
 // TweenLoop loop
-// int legs
+// uint32_t legs
 // bool reverse
 
 epok::Tween& object = /* obtain a valid instance */;
@@ -1932,13 +1932,13 @@ bool schedule(Fixed a,Fixed b,Fixed seconds,Ease mode,Fixed wait,TweenLoop loop,
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `int` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `b` | `int` | Input | Value supplied for `b`. See the exact type and module contract. |
-| `seconds` | `int` | Input | Value supplied for `seconds`. See the exact type and module contract. |
+| `a` | `Fixed` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `Fixed` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `seconds` | `Fixed` | Input | Value supplied for `seconds`. See the exact type and module contract. |
 | `mode` | `Ease` | Input | Value supplied for `mode`. See the exact type and module contract. |
-| `wait` | `int` | Input | Value supplied for `wait`. See the exact type and module contract. |
+| `wait` | `Fixed` | Input | Value supplied for `wait`. See the exact type and module contract. |
 | `loop` | `TweenLoop` | Input | Value supplied for `loop`. See the exact type and module contract. |
-| `legs` | `int` | Input | Value supplied for `legs`. See the exact type and module contract. |
+| `legs` | `uint32_t` | Input | Value supplied for `legs`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1950,13 +1950,13 @@ bool schedule(Fixed a,Fixed b,Fixed seconds,Ease mode,Fixed wait,TweenLoop loop,
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int a
-// int b
-// int seconds
+// Fixed a
+// Fixed b
+// Fixed seconds
 // Ease mode
-// int wait
+// Fixed wait
 // TweenLoop loop
-// int legs
+// uint32_t legs
 
 epok::Tween& object = /* obtain a valid instance */;
 
@@ -1986,9 +1986,9 @@ bool start(Fixed a,Fixed b,Fixed seconds,Ease mode=Ease::Linear)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `int` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `b` | `int` | Input | Value supplied for `b`. See the exact type and module contract. |
-| `seconds` | `int` | Input | Value supplied for `seconds`. See the exact type and module contract. |
+| `a` | `Fixed` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `Fixed` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `seconds` | `Fixed` | Input | Value supplied for `seconds`. See the exact type and module contract. |
 | `mode` | `Ease` | Input | Value supplied for `mode`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2001,9 +2001,9 @@ bool start(Fixed a,Fixed b,Fixed seconds,Ease mode=Ease::Linear)
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int a
-// int b
-// int seconds
+// Fixed a
+// Fixed b
+// Fixed seconds
 // Ease mode
 
 epok::Tween& object = /* obtain a valid instance */;
@@ -2030,7 +2030,7 @@ Fixed start_value()const
 - **Declared at:** [line 92](../../../runtime/utility.hpp#L92)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -2096,7 +2096,7 @@ Fixed value() const
 - **Declared at:** [line 73](../../../runtime/utility.hpp#L73)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 
@@ -2215,10 +2215,10 @@ static Fixed ease(Fixed t,Ease easing)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `t` | `int` | Input | Value supplied for `t`. See the exact type and module contract. |
+| `t` | `Fixed` | Input | Value supplied for `t`. See the exact type and module contract. |
 | `easing` | `Ease` | Input | Value supplied for `easing`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** `t` is clamped to 0..1 and both endpoints are exact.
 
@@ -2228,7 +2228,7 @@ static Fixed ease(Fixed t,Ease easing)
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int t
+// Fixed t
 // Ease easing
 
 auto result = epok::UtilityLibrary::ease(t, easing);
@@ -2289,8 +2289,8 @@ static EventQueueMutation event_queue_emit(GameplayEventQueue4 state,uint32_t ki
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `state` | `GameplayEventQueue4` | Input | Value supplied for `state`. See the exact type and module contract. |
-| `kind` | `int` | Input | Value supplied for `kind`. See the exact type and module contract. |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `kind` | `uint32_t` | Input | Value supplied for `kind`. See the exact type and module contract. |
+| `value` | `int32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 | `source` | `ObjectId` | Input | Value supplied for `source`. See the exact type and module contract. |
 
 **Returns.** Returns `EventQueueMutation`. Check the purpose and failure notes before using the value.
@@ -2304,8 +2304,8 @@ static EventQueueMutation event_queue_emit(GameplayEventQueue4 state,uint32_t ki
 
 // Assume these named values have been initialized with valid data:
 // GameplayEventQueue4 state
-// int kind
-// int value
+// uint32_t kind
+// int32_t value
 // ObjectId source
 
 auto result = epok::UtilityLibrary::event_queue_emit(state, kind, value, source);
@@ -2375,7 +2375,7 @@ static TweenAdvanceSample tween_advance(GameplayTweenState state,Fixed delta_sec
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `state` | `GameplayTweenState` | Input | Value supplied for `state`. See the exact type and module contract. |
-| `delta_seconds` | `int` | Input | Value supplied for `delta_seconds`. See the exact type and module contract. |
+| `delta_seconds` | `Fixed` | Input | Value supplied for `delta_seconds`. See the exact type and module contract. |
 
 **Returns.** Returns `TweenAdvanceSample`. Check the purpose and failure notes before using the value.
 
@@ -2388,7 +2388,7 @@ static TweenAdvanceSample tween_advance(GameplayTweenState state,Fixed delta_sec
 
 // Assume these named values have been initialized with valid data:
 // GameplayTweenState state
-// int delta_seconds
+// Fixed delta_seconds
 
 auto result = epok::UtilityLibrary::tween_advance(state, delta_seconds);
 ```
@@ -2458,13 +2458,13 @@ static GameplayTweenState tween_schedule(Fixed from,Fixed to,Fixed seconds,Ease 
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `from` | `int` | Input | Value supplied for `from`. See the exact type and module contract. |
-| `to` | `int` | Input | Value supplied for `to`. See the exact type and module contract. |
-| `seconds` | `int` | Input | Value supplied for `seconds`. See the exact type and module contract. |
+| `from` | `Fixed` | Input | Value supplied for `from`. See the exact type and module contract. |
+| `to` | `Fixed` | Input | Value supplied for `to`. See the exact type and module contract. |
+| `seconds` | `Fixed` | Input | Value supplied for `seconds`. See the exact type and module contract. |
 | `easing` | `Ease` | Input | Value supplied for `easing`. See the exact type and module contract. |
-| `delay_seconds` | `int` | Input | Value supplied for `delay_seconds`. See the exact type and module contract. |
+| `delay_seconds` | `Fixed` | Input | Value supplied for `delay_seconds`. See the exact type and module contract. |
 | `loop` | `TweenLoop` | Input | Value supplied for `loop`. See the exact type and module contract. |
-| `legs` | `int` | Input | Value supplied for `legs`. See the exact type and module contract. |
+| `legs` | `uint32_t` | Input | Value supplied for `legs`. See the exact type and module contract. |
 
 **Returns.** Returns `GameplayTweenState`. Check the purpose and failure notes before using the value.
 
@@ -2476,13 +2476,13 @@ static GameplayTweenState tween_schedule(Fixed from,Fixed to,Fixed seconds,Ease 
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int from
-// int to
-// int seconds
+// Fixed from
+// Fixed to
+// Fixed seconds
 // Ease easing
-// int delay_seconds
+// Fixed delay_seconds
 // TweenLoop loop
-// int legs
+// uint32_t legs
 
 auto result = epok::UtilityLibrary::tween_schedule(from, to, seconds, easing, delay_seconds, loop, legs);
 ```
@@ -2510,9 +2510,9 @@ static GameplayTweenState tween_start(Fixed from,Fixed to,Fixed seconds,Ease eas
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `from` | `int` | Input | Value supplied for `from`. See the exact type and module contract. |
-| `to` | `int` | Input | Value supplied for `to`. See the exact type and module contract. |
-| `seconds` | `int` | Input | Value supplied for `seconds`. See the exact type and module contract. |
+| `from` | `Fixed` | Input | Value supplied for `from`. See the exact type and module contract. |
+| `to` | `Fixed` | Input | Value supplied for `to`. See the exact type and module contract. |
+| `seconds` | `Fixed` | Input | Value supplied for `seconds`. See the exact type and module contract. |
 | `easing` | `Ease` | Input | Value supplied for `easing`. See the exact type and module contract. |
 
 **Returns.** Returns `GameplayTweenState`. Check the purpose and failure notes before using the value.
@@ -2525,9 +2525,9 @@ static GameplayTweenState tween_start(Fixed from,Fixed to,Fixed seconds,Ease eas
 #include "utility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int from
-// int to
-// int seconds
+// Fixed from
+// Fixed to
+// Fixed seconds
 // Ease easing
 
 auto result = epok::UtilityLibrary::tween_start(from, to, seconds, easing);
@@ -2558,7 +2558,7 @@ static Fixed tween_value(GameplayTweenState state)
 | --- | --- | --- | --- |
 | `state` | `GameplayTweenState` | Input | Value supplied for `state`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the utility module and the preconditions in the declaration are already satisfied.
 

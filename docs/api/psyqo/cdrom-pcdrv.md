@@ -106,8 +106,8 @@ void readSectors(uint32_t sector, uint32_t count, void *buffer, eastl::function<
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `sector` | `int` | Input | Value supplied for `sector`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `sector` | `uint32_t` | Input | Value supplied for `sector`. See the exact type and module contract. |
+| `count` | `uint32_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `buffer` | `void *` | Input/output; inspect the function contract | Value supplied for `buffer`. See the exact type and module contract. |
 | `callback` | `eastl::function<void (bool)> &&` | Consumed or moved input | Value supplied for `callback`. See the exact type and module contract. |
 
@@ -121,8 +121,8 @@ void readSectors(uint32_t sector, uint32_t count, void *buffer, eastl::function<
 #include "psyqo/cdrom-pcdrv.hh"
 
 // Assume these named values have been initialized with valid data:
-// int sector
-// int count
+// uint32_t sector
+// uint32_t count
 // void * buffer
 // eastl::function<void (bool)> && callback
 

@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `f2bb5e25c30b9ee3c7ed1028c9b8e8918f5c1a51`. Frozen semantic candidate rows: **3312**.
+Baseline commit: `02bc4ab98f68cc50d3882620e114adc43aefa707`. Frozen semantic candidate rows: **3242**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -12,7 +12,7 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | --- | ---: |
 | `compatibility_alias` | 44 |
 | `hardware_backend` | 6 |
-| `internal_implementation` | 2796 |
+| `internal_implementation` | 2726 |
 | `public_gameplay` | 466 |
 
 ## Public gameplay gaps
@@ -29,26 +29,26 @@ A classified row is not necessarily implemented. The strict checker fails until 
 
 | Category | Rows |
 | --- | ---: |
-| `audio_music` | 70 |
+| `audio_music` | 182 |
 | `cameras_scenes` | 37 |
-| `collision_3d` | 74 |
-| `components_hierarchy` | 14 |
-| `gameplay_2d` | 100 |
-| `implementation_support` | 979 |
-| `input_time` | 61 |
-| `language_adapter` | 135 |
-| `materials_visuals` | 50 |
+| `collision_3d` | 55 |
+| `components_hierarchy` | 7 |
+| `gameplay_2d` | 91 |
+| `implementation_support` | 878 |
+| `input_time` | 51 |
+| `language_adapter` | 130 |
+| `materials_visuals` | 47 |
 | `math_values` | 6 |
 | `memory_card` | 70 |
-| `objects_actors` | 528 |
-| `particles_effects` | 186 |
+| `objects_actors` | 522 |
+| `particles_effects` | 169 |
 | `resources_diagnostics` | 58 |
 | `runtime_facade` | 548 |
 | `skeletal_animation` | 24 |
-| `sprites_palettes` | 76 |
+| `sprites_palettes` | 72 |
 | `static_editable_meshes` | 71 |
 | `timelines_sequences` | 72 |
-| `ui_text` | 34 |
+| `ui_text` | 33 |
 | `utilities_events` | 119 |
 
 ## Public gameplay rows

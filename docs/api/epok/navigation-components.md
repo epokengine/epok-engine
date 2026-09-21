@@ -52,8 +52,8 @@ inline bool move_walk(ActorData& data,const Fixed* delta,uint32_t mask)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `data` | `ActorData &` | Input/output; inspect the function contract | Value supplied for `data`. See the exact type and module contract. |
-| `delta` | `const int *` | Input | Value supplied for `delta`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `delta` | `const Fixed *` | Input | Value supplied for `delta`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -66,8 +66,8 @@ inline bool move_walk(ActorData& data,const Fixed* delta,uint32_t mask)
 
 // Assume these named values have been initialized with valid data:
 // ActorData & data
-// const int * delta
-// int mask
+// const Fixed * delta
+// uint32_t mask
 
 auto result = epok::nav::move_walk(data, delta, mask);
 ```
@@ -269,9 +269,9 @@ bool move_to(Fixed x,Fixed y,Fixed z)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `y` | `int` | Input | Value supplied for `y`. See the exact type and module contract. |
-| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `Fixed` | Input | Value supplied for `z`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -283,9 +283,9 @@ bool move_to(Fixed x,Fixed y,Fixed z)
 #include "navigation_components.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
-// int z
+// Fixed x
+// Fixed y
+// Fixed z
 
 epok::NavigationAgentComponent& object = /* obtain a valid instance */;
 
@@ -344,7 +344,7 @@ uint32_t status() const
 - **Declared at:** [line 111](../../../runtime/navigation_components.hpp#L111)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the navigation components module and the preconditions in the declaration are already satisfied.
 
@@ -414,7 +414,7 @@ void tick(Fixed dt) override
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `dt` | `int` | Input | Value supplied for `dt`. See the exact type and module contract. |
+| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -426,7 +426,7 @@ void tick(Fixed dt) override
 #include "navigation_components.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int dt
+// Fixed dt
 
 epok::NavigationAgentComponent& object = /* obtain a valid instance */;
 
@@ -729,7 +729,7 @@ void tick(Fixed) override
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `int` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+| `arg1` | `Fixed` | Input | Value supplied for `arg1`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -741,7 +741,7 @@ void tick(Fixed) override
 #include "navigation_components.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int arg1
+// Fixed arg1
 
 epok::NavigationObstacleComponent& object = /* obtain a valid instance */;
 

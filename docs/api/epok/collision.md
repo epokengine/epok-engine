@@ -6,7 +6,7 @@ This module covers bounded AABB collision queries and movement. It documents 18 
 
 ## Declared types
 
-`epok::AabbT`, `epok::ColliderT`, `epok::CollisionWorld`, `epok::CollisionWorld::Entry`, `epok::CollisionWorld::Pair`, `epok::MoveResultT`, `epok::RaycastQueryT`, `epok::SpatialHitT`, `epok::TriggerEvent`, `epok::TriggerPhase`
+`epok::AabbT`, `epok::ColliderT`, `epok::CollisionWorld`, `epok::MoveResultT`, `epok::RaycastQueryT`, `epok::SpatialHitT`, `epok::TriggerEvent`, `epok::TriggerPhase`
 
 ## Callable index
 
@@ -216,7 +216,7 @@ const AabbT<Number>* bounds(size_t index) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** Returns `const AabbT<Number> *`. Check the purpose and failure notes before using the value.
 
@@ -228,7 +228,7 @@ const AabbT<Number>* bounds(size_t index) const
 #include "collision.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// size_t index
 
 epok::CollisionWorld& object = /* obtain a valid instance */;
 
@@ -295,7 +295,7 @@ SpatialHitT<Number> ground(const AabbT<Number>& box,Number distance,uint32_t mas
 | --- | --- | --- | --- |
 | `box` | `const AabbT<Number> &` | Input | Value supplied for `box`. See the exact type and module contract. |
 | `distance` | `Number` | Input | Value supplied for `distance`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 | `ignore` | `int` | Input | Value supplied for `ignore`. See the exact type and module contract. |
 
 **Returns.** Returns `SpatialHitT<Number>`. Check the purpose and failure notes before using the value.
@@ -310,7 +310,7 @@ SpatialHitT<Number> ground(const AabbT<Number>& box,Number distance,uint32_t mas
 // Assume these named values have been initialized with valid data:
 // const AabbT<Number> & box
 // Number distance
-// int mask
+// uint32_t mask
 // int ignore
 
 epok::CollisionWorld& object = /* obtain a valid instance */;
@@ -376,7 +376,7 @@ MoveResultT<Number> move_and_slide(AabbT<Number> box,const Number* displacement,
 | --- | --- | --- | --- |
 | `box` | `AabbT<Number>` | Input | Value supplied for `box`. See the exact type and module contract. |
 | `displacement` | `const Number *` | Input | Value supplied for `displacement`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 | `ignore` | `int` | Input | Value supplied for `ignore`. See the exact type and module contract. |
 
 **Returns.** Returns `MoveResultT<Number>`. Check the purpose and failure notes before using the value.
@@ -391,7 +391,7 @@ MoveResultT<Number> move_and_slide(AabbT<Number> box,const Number* displacement,
 // Assume these named values have been initialized with valid data:
 // AabbT<Number> box
 // const Number * displacement
-// int mask
+// uint32_t mask
 // int ignore
 
 epok::CollisionWorld& object = /* obtain a valid instance */;
@@ -422,7 +422,7 @@ void note_enabled(size_t index)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -434,7 +434,7 @@ void note_enabled(size_t index)
 #include "collision.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// size_t index
 
 epok::CollisionWorld& object = /* obtain a valid instance */;
 
@@ -465,13 +465,13 @@ size_t overlap(const AabbT<Number>& box,uint16_t* output,size_t output_capacity,
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `box` | `const AabbT<Number> &` | Input | Value supplied for `box`. See the exact type and module contract. |
-| `output` | `int *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
-| `output_capacity` | `int` | Input | Value supplied for `output_capacity`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `output` | `uint16_t *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
+| `output_capacity` | `size_t` | Input | Value supplied for `output_capacity`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 | `ignore` | `int` | Input | Value supplied for `ignore`. See the exact type and module contract. |
 | `triggers` | `bool` | Input | Value supplied for `triggers`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need bounded AABB collision queries and movement and the preconditions in the declaration are already satisfied.
 
@@ -482,9 +482,9 @@ size_t overlap(const AabbT<Number>& box,uint16_t* output,size_t output_capacity,
 
 // Assume these named values have been initialized with valid data:
 // const AabbT<Number> & box
-// int * output
-// int output_capacity
-// int mask
+// uint16_t * output
+// size_t output_capacity
+// uint32_t mask
 // int ignore
 // bool triggers
 
@@ -518,7 +518,7 @@ SpatialHitT<Number> raycast(const Number* origin,const Number* delta,uint32_t ma
 | --- | --- | --- | --- |
 | `origin` | `const Number *` | Input | Value supplied for `origin`. See the exact type and module contract. |
 | `delta` | `const Number *` | Input | Value supplied for `delta`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 | `ignore` | `int` | Input | Value supplied for `ignore`. See the exact type and module contract. |
 | `triggers` | `bool` | Input | Value supplied for `triggers`. See the exact type and module contract. |
 
@@ -534,7 +534,7 @@ SpatialHitT<Number> raycast(const Number* origin,const Number* delta,uint32_t ma
 // Assume these named values have been initialized with valid data:
 // const Number * origin
 // const Number * delta
-// int mask
+// uint32_t mask
 // int ignore
 // bool triggers
 
@@ -568,8 +568,8 @@ void raycast_batch(const RaycastQueryT<Number>* queries,SpatialHitT<Number>* res
 | --- | --- | --- | --- |
 | `queries` | `const RaycastQueryT<Number> *` | Input | Value supplied for `queries`. See the exact type and module contract. |
 | `results` | `SpatialHitT<Number> *` | Input/output; inspect the function contract | Value supplied for `results`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 | `ignore` | `int` | Input | Value supplied for `ignore`. See the exact type and module contract. |
 | `triggers` | `bool` | Input | Value supplied for `triggers`. See the exact type and module contract. |
 
@@ -585,8 +585,8 @@ void raycast_batch(const RaycastQueryT<Number>* queries,SpatialHitT<Number>* res
 // Assume these named values have been initialized with valid data:
 // const RaycastQueryT<Number> * queries
 // SpatialHitT<Number> * results
-// int count
-// int mask
+// size_t count
+// uint32_t mask
 // int ignore
 // bool triggers
 
@@ -618,11 +618,11 @@ void set(size_t index,const ColliderT<Number>& collider,const Affine<Number>& ma
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 | `collider` | `const ColliderT<Number> &` | Input | Value supplied for `collider`. See the exact type and module contract. |
 | `matrix` | `const Affine<Number> &` | Input | Value supplied for `matrix`. See the exact type and module contract. |
 | `active` | `bool` | Input | Value supplied for `active`. See the exact type and module contract. |
-| `generation` | `int` | Input | Value supplied for `generation`. See the exact type and module contract. |
+| `generation` | `uint32_t` | Input | Value supplied for `generation`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -634,11 +634,11 @@ void set(size_t index,const ColliderT<Number>& collider,const Affine<Number>& ma
 #include "collision.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// size_t index
 // const ColliderT<Number> & collider
 // const Affine<Number> & matrix
 // bool active
-// int generation
+// uint32_t generation
 
 epok::CollisionWorld& object = /* obtain a valid instance */;
 
@@ -670,12 +670,12 @@ bool set_cached(size_t index,const ColliderT<Number>& collider,const Affine<Numb
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 | `collider` | `const ColliderT<Number> &` | Input | Value supplied for `collider`. See the exact type and module contract. |
 | `matrix` | `const Affine<Number> &` | Input | Value supplied for `matrix`. See the exact type and module contract. |
-| `revision` | `int` | Input | Value supplied for `revision`. See the exact type and module contract. |
+| `revision` | `uint32_t` | Input | Value supplied for `revision`. See the exact type and module contract. |
 | `active` | `bool` | Input | Value supplied for `active`. See the exact type and module contract. |
-| `generation` | `int` | Input | Value supplied for `generation`. See the exact type and module contract. |
+| `generation` | `uint32_t` | Input | Value supplied for `generation`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -687,12 +687,12 @@ bool set_cached(size_t index,const ColliderT<Number>& collider,const Affine<Numb
 #include "collision.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// size_t index
 // const ColliderT<Number> & collider
 // const Affine<Number> & matrix
-// int revision
+// uint32_t revision
 // bool active
-// int generation
+// uint32_t generation
 
 epok::CollisionWorld& object = /* obtain a valid instance */;
 

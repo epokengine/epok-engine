@@ -112,7 +112,7 @@ const Sample& sample(uint16_t i) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `i` | `int` | Input | Value supplied for `i`. See the exact type and module contract. |
+| `i` | `uint16_t` | Input | Value supplied for `i`. See the exact type and module contract. |
 
 **Returns.** Returns `const Sample &`. Check the purpose and failure notes before using the value.
 
@@ -124,7 +124,7 @@ const Sample& sample(uint16_t i) const
 #include "sequence_data.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int i
+// uint16_t i
 
 epok::psx_audio::Bank& object = /* obtain a valid instance */;
 
@@ -150,7 +150,7 @@ uint16_t sample_count() const
 - **Declared at:** [line 33](../../../runtime/sequence_data.hpp#L33)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the sequence data module and the preconditions in the declaration are already satisfied.
 
@@ -220,7 +220,7 @@ const Zone& zone(uint16_t i) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `i` | `int` | Input | Value supplied for `i`. See the exact type and module contract. |
+| `i` | `uint16_t` | Input | Value supplied for `i`. See the exact type and module contract. |
 
 **Returns.** Returns `const Zone &`. Check the purpose and failure notes before using the value.
 
@@ -232,7 +232,7 @@ const Zone& zone(uint16_t i) const
 #include "sequence_data.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int i
+// uint16_t i
 
 epok::psx_audio::Bank& object = /* obtain a valid instance */;
 
@@ -258,7 +258,7 @@ uint16_t zone_count() const
 - **Declared at:** [line 34](../../../runtime/sequence_data.hpp#L34)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the sequence data module and the preconditions in the declaration are already satisfied.
 
@@ -295,9 +295,9 @@ inline uint16_t read16(const uint8_t* p)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `p` | `const int *` | Input | Value supplied for `p`. See the exact type and module contract. |
+| `p` | `const uint8_t *` | Input | Value supplied for `p`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the sequence data module and the preconditions in the declaration are already satisfied.
 
@@ -307,7 +307,7 @@ inline uint16_t read16(const uint8_t* p)
 #include "sequence_data.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * p
+// const uint8_t * p
 
 auto result = epok::psx_audio::read16(p);
 ```
@@ -335,9 +335,9 @@ inline uint32_t read32(const uint8_t* p)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `p` | `const int *` | Input | Value supplied for `p`. See the exact type and module contract. |
+| `p` | `const uint8_t *` | Input | Value supplied for `p`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the sequence data module and the preconditions in the declaration are already satisfied.
 
@@ -347,7 +347,7 @@ inline uint32_t read32(const uint8_t* p)
 #include "sequence_data.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * p
+// const uint8_t * p
 
 auto result = epok::psx_audio::read32(p);
 ```
@@ -371,7 +371,7 @@ uint32_t count() const
 - **Declared at:** [line 74](../../../runtime/sequence_data.hpp#L74)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the sequence data module and the preconditions in the declaration are already satisfied.
 
@@ -503,7 +503,7 @@ uint16_t ppqn() const
 - **Declared at:** [line 72](../../../runtime/sequence_data.hpp#L72)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the sequence data module and the preconditions in the declaration are already satisfied.
 
@@ -569,7 +569,7 @@ uint16_t voices() const
 - **Declared at:** [line 73](../../../runtime/sequence_data.hpp#L73)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the sequence data module and the preconditions in the declaration are already satisfied.
 

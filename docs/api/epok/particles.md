@@ -6,7 +6,7 @@ This module covers bounded particle simulation and rendering. It documents 10 pu
 
 ## Declared types
 
-`epok::ParticlePool`, `epok::ParticlePool::Particle`, `epok::ParticlePool::Source`
+`epok::ParticlePool`, `epok::ParticlePool::Particle`
 
 ## Callable index
 
@@ -40,10 +40,10 @@ template<size_t N>void advance(std::array<ActorData,N>& objects,const std::array
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `objects` | `int &` | Input/output; inspect the function contract | Value supplied for `objects`. See the exact type and module contract. |
-| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
-| `dt` | `int` | Input | Value supplied for `dt`. See the exact type and module contract. |
+| `objects` | `std::array<ActorData, N> &` | Input/output; inspect the function contract | Value supplied for `objects`. See the exact type and module contract. |
+| `world` | `const std::array<Affine<Fixed>, N> &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -58,10 +58,10 @@ template<size_t N>void advance(std::array<ActorData,N>& objects,const std::array
 // N
 
 // Assume these named values have been initialized with valid data:
-// int & objects
-// const int & world
-// int count
-// int dt
+// std::array<ActorData, N> & objects
+// const std::array<Affine<Fixed>, N> & world
+// size_t count
+// Fixed dt
 
 epok::ParticlePool& object = /* obtain a valid instance */;
 
@@ -124,7 +124,7 @@ void begin(Fixed dt)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `dt` | `int` | Input | Value supplied for `dt`. See the exact type and module contract. |
+| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -136,7 +136,7 @@ void begin(Fixed dt)
 #include "particles.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int dt
+// Fixed dt
 
 epok::ParticlePool& object = /* obtain a valid instance */;
 
@@ -199,8 +199,8 @@ template<size_t N,class Emit>void each(const std::array<Affine<Fixed>,N>&,size_t
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `const int &` | Input | Value supplied for `arg1`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `arg1` | `const std::array<Affine<Fixed>, N> &` | Input | Value supplied for `arg1`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `emit` | `Emit` | Input | Value supplied for `emit`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -216,8 +216,8 @@ template<size_t N,class Emit>void each(const std::array<Affine<Fixed>,N>&,size_t
 // N, Emit
 
 // Assume these named values have been initialized with valid data:
-// const int & arg1
-// int count
+// const std::array<Affine<Fixed>, N> & arg1
+// size_t count
 // Emit emit
 
 epok::ParticlePool& object = /* obtain a valid instance */;
@@ -295,7 +295,7 @@ bool emitter(timeline::BoundTarget owner,ParticleEmitter& emitter,const Affine<F
 | --- | --- | --- | --- |
 | `owner` | `timeline::BoundTarget` | Input | Value supplied for `owner`. See the exact type and module contract. |
 | `emitter` | `ParticleEmitter &` | Input/output; inspect the function contract | Value supplied for `emitter`. See the exact type and module contract. |
-| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `world` | `const Affine<Fixed> &` | Input | Value supplied for `world`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -309,7 +309,7 @@ bool emitter(timeline::BoundTarget owner,ParticleEmitter& emitter,const Affine<F
 // Assume these named values have been initialized with valid data:
 // timeline::BoundTarget owner
 // ParticleEmitter & emitter
-// const int & world
+// const Affine<Fixed> & world
 
 epok::ParticlePool& object = /* obtain a valid instance */;
 
@@ -381,7 +381,7 @@ void remove_owner(size_t owner)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `owner` | `int` | Input | Value supplied for `owner`. See the exact type and module contract. |
+| `owner` | `size_t` | Input | Value supplied for `owner`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -393,7 +393,7 @@ void remove_owner(size_t owner)
 #include "particles.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int owner
+// size_t owner
 
 epok::ParticlePool& object = /* obtain a valid instance */;
 
@@ -423,9 +423,9 @@ template<size_t N>void scene_emitters(std::array<ActorData,N>& objects,const std
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `objects` | `int &` | Input/output; inspect the function contract | Value supplied for `objects`. See the exact type and module contract. |
-| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `objects` | `std::array<ActorData, N> &` | Input/output; inspect the function contract | Value supplied for `objects`. See the exact type and module contract. |
+| `world` | `const std::array<Affine<Fixed>, N> &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -440,9 +440,9 @@ template<size_t N>void scene_emitters(std::array<ActorData,N>& objects,const std
 // N
 
 // Assume these named values have been initialized with valid data:
-// int & objects
-// const int & world
-// int count
+// std::array<ActorData, N> & objects
+// const std::array<Affine<Fixed>, N> & world
+// size_t count
 
 epok::ParticlePool& object = /* obtain a valid instance */;
 

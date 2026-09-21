@@ -51,9 +51,9 @@ inline Affine<Fixed> aim_pitch_matrix(Fixed degrees)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `degrees` | `int` | Input | Value supplied for `degrees`. See the exact type and module contract. |
+| `degrees` | `Fixed` | Input | Value supplied for `degrees`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Affine<Fixed>`. Check the purpose and failure notes before using the value.
 
 **Use it when.** The controller clamps this to a practical upper-body range ([-35, 45] degrees).
 
@@ -63,7 +63,7 @@ inline Affine<Fixed> aim_pitch_matrix(Fixed degrees)
 #include "skeletal.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int degrees
+// Fixed degrees
 
 auto result = epok::skeletal_detail::aim_pitch_matrix(degrees);
 ```
@@ -92,12 +92,12 @@ inline Affine<Fixed> local_pose_matrix(const BonePose& pose,int16_t aim_bone,con
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `pose` | `const BonePose &` | Input | Value supplied for `pose`. See the exact type and module contract. |
-| `aim_bone` | `int` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
-| `aim_stop_bones` | `const int *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
-| `aim_pitch` | `int` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
-| `bone` | `int` | Input | Value supplied for `bone`. See the exact type and module contract. |
+| `aim_bone` | `int16_t` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
+| `aim_stop_bones` | `const int16_t *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
+| `aim_pitch` | `Fixed` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
+| `bone` | `size_t` | Input | Value supplied for `bone`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Affine<Fixed>`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need rigid skeletal animation and pose evaluation and the preconditions in the declaration are already satisfied.
 
@@ -108,10 +108,10 @@ inline Affine<Fixed> local_pose_matrix(const BonePose& pose,int16_t aim_bone,con
 
 // Assume these named values have been initialized with valid data:
 // const BonePose & pose
-// int aim_bone
-// const int * aim_stop_bones
-// int aim_pitch
-// int bone
+// int16_t aim_bone
+// const int16_t * aim_stop_bones
+// Fixed aim_pitch
+// size_t bone
 
 auto result = epok::skeletal_detail::local_pose_matrix(pose, aim_bone, aim_stop_bones, aim_pitch, bone);
 ```
@@ -141,7 +141,7 @@ inline Affine<Fixed> pose_matrix(const BonePose& p)
 | --- | --- | --- | --- |
 | `p` | `const BonePose &` | Input | Value supplied for `p`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Affine<Fixed>`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need rigid skeletal animation and pose evaluation and the preconditions in the declaration are already satisfied.
 
@@ -169,7 +169,7 @@ auto result = epok::skeletal_detail::pose_matrix(p);
 **Exact declaration**
 
 ```cpp
-void decode_vertices(const SkeletalMesh& model,const Animator& animator)
+__attribute__((noinline,optimize("O3"))) #endif void decode_vertices(const SkeletalMesh& model,const Animator& animator)
 ```
 
 - **Declared at:** [line 101](../../../runtime/skeletal.hpp#L101)
@@ -226,7 +226,7 @@ static uint32_t frame_index(const AnimationClip* clip,const Animator& animator)
 | `clip` | `const AnimationClip *` | Input | Value supplied for `clip`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need rigid skeletal animation and pose evaluation and the preconditions in the declaration are already satisfied.
 
@@ -267,9 +267,9 @@ void pose(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,co
 | --- | --- | --- | --- |
 | `model` | `const SkeletalMesh &` | Input | Value supplied for `model`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
-| `aim_bone` | `int` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
-| `aim_stop_bones` | `const int *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
-| `aim_pitch` | `int` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
+| `aim_bone` | `int16_t` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
+| `aim_stop_bones` | `const int16_t *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
+| `aim_pitch` | `Fixed` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -283,9 +283,9 @@ void pose(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,co
 // Assume these named values have been initialized with valid data:
 // const SkeletalMesh & model
 // const Animator & animator
-// int aim_bone
-// const int * aim_stop_bones
-// int aim_pitch
+// int16_t aim_bone
+// const int16_t * aim_stop_bones
+// Fixed aim_pitch
 
 epok::skeletal_detail::Scratch& object = /* obtain a valid instance */;
 
@@ -305,7 +305,7 @@ object.pose(model, animator, aim_bone, aim_stop_bones, aim_pitch);
 **Exact declaration**
 
 ```cpp
-void pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch)
+__attribute__((noinline,optimize("O3"))) #endif void pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch)
 ```
 
 - **Declared at:** [line 81](../../../runtime/skeletal.hpp#L81)
@@ -317,9 +317,9 @@ void pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_b
 | --- | --- | --- | --- |
 | `model` | `const SkeletalMesh &` | Input | Value supplied for `model`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
-| `aim_bone` | `int` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
-| `aim_stop_bones` | `const int *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
-| `aim_pitch` | `int` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
+| `aim_bone` | `int16_t` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
+| `aim_stop_bones` | `const int16_t *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
+| `aim_pitch` | `Fixed` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -333,9 +333,9 @@ void pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_b
 // Assume these named values have been initialized with valid data:
 // const SkeletalMesh & model
 // const Animator & animator
-// int aim_bone
-// const int * aim_stop_bones
-// int aim_pitch
+// int16_t aim_bone
+// const int16_t * aim_stop_bones
+// Fixed aim_pitch
 
 epok::skeletal_detail::Scratch& object = /* obtain a valid instance */;
 
@@ -409,7 +409,7 @@ inline bool apply_space(const ActorData& entity,CoordinateSpace space,Fixed* pos
 | --- | --- | --- | --- |
 | `entity` | `const ActorData &` | Input | Value supplied for `entity`. See the exact type and module contract. |
 | `space` | `CoordinateSpace` | Input | Value supplied for `space`. See the exact type and module contract. |
-| `position` | `int *` | Input/output; inspect the function contract | Value supplied for `position`. See the exact type and module contract. |
+| `position` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `position`. See the exact type and module contract. |
 | `error` | `SkeletalError &` | Input/output; inspect the function contract | Value supplied for `error`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -424,7 +424,7 @@ inline bool apply_space(const ActorData& entity,CoordinateSpace space,Fixed* pos
 // Assume these named values have been initialized with valid data:
 // const ActorData & entity
 // CoordinateSpace space
-// int * position
+// Fixed * position
 // SkeletalError & error
 
 auto result = epok::skeletal_query_detail::apply_space(entity, space, position, error);
@@ -455,9 +455,9 @@ inline bool baked_vertex(const SkeletalMesh& model,const Animator& animator,uint
 | --- | --- | --- | --- |
 | `model` | `const SkeletalMesh &` | Input | Value supplied for `model`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
-| `vertex` | `int` | Input | Value supplied for `vertex`. See the exact type and module contract. |
+| `vertex` | `uint32_t` | Input | Value supplied for `vertex`. See the exact type and module contract. |
 | `pose` | `PoseKind` | Input | Value supplied for `pose`. See the exact type and module contract. |
-| `output` | `int *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
+| `output` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -471,9 +471,9 @@ inline bool baked_vertex(const SkeletalMesh& model,const Animator& animator,uint
 // Assume these named values have been initialized with valid data:
 // const SkeletalMesh & model
 // const Animator & animator
-// int vertex
+// uint32_t vertex
 // PoseKind pose
-// int * output
+// Fixed * output
 
 auto result = epok::skeletal_query_detail::baked_vertex(model, animator, vertex, pose, output);
 ```
@@ -534,12 +534,12 @@ inline bool bone_matrix(const SkeletalMesh& model,const Animator& animator,int16
 | --- | --- | --- | --- |
 | `model` | `const SkeletalMesh &` | Input | Value supplied for `model`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
-| `aim_bone` | `int` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
-| `aim_stop_bones` | `const int *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
-| `aim_pitch` | `int` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
-| `bone` | `int` | Input | Value supplied for `bone`. See the exact type and module contract. |
+| `aim_bone` | `int16_t` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
+| `aim_stop_bones` | `const int16_t *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
+| `aim_pitch` | `Fixed` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
+| `bone` | `uint32_t` | Input | Value supplied for `bone`. See the exact type and module contract. |
 | `pose` | `PoseKind` | Input | Value supplied for `pose`. See the exact type and module contract. |
-| `output` | `int &` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
+| `output` | `Affine<Fixed> &` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -553,12 +553,12 @@ inline bool bone_matrix(const SkeletalMesh& model,const Animator& animator,int16
 // Assume these named values have been initialized with valid data:
 // const SkeletalMesh & model
 // const Animator & animator
-// int aim_bone
-// const int * aim_stop_bones
-// int aim_pitch
-// int bone
+// int16_t aim_bone
+// const int16_t * aim_stop_bones
+// Fixed aim_pitch
+// uint32_t bone
 // PoseKind pose
-// int & output
+// Affine<Fixed> & output
 
 auto result = epok::skeletal_query_detail::bone_matrix(model, animator, aim_bone, aim_stop_bones, aim_pitch, bone, pose, output);
 ```
@@ -588,12 +588,12 @@ inline bool model_vertex(const SkeletalMesh& model,const Animator& animator,int1
 | --- | --- | --- | --- |
 | `model` | `const SkeletalMesh &` | Input | Value supplied for `model`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
-| `aim_bone` | `int` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
-| `aim_stop_bones` | `const int *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
-| `aim_pitch` | `int` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
-| `portable` | `int` | Input | Value supplied for `portable`. See the exact type and module contract. |
+| `aim_bone` | `int16_t` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
+| `aim_stop_bones` | `const int16_t *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
+| `aim_pitch` | `Fixed` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
+| `portable` | `uint32_t` | Input | Value supplied for `portable`. See the exact type and module contract. |
 | `pose` | `PoseKind` | Input | Value supplied for `pose`. See the exact type and module contract. |
-| `output` | `int *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
+| `output` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
 | `error` | `SkeletalError &` | Input/output; inspect the function contract | Value supplied for `error`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -608,12 +608,12 @@ inline bool model_vertex(const SkeletalMesh& model,const Animator& animator,int1
 // Assume these named values have been initialized with valid data:
 // const SkeletalMesh & model
 // const Animator & animator
-// int aim_bone
-// const int * aim_stop_bones
-// int aim_pitch
-// int portable
+// int16_t aim_bone
+// const int16_t * aim_stop_bones
+// Fixed aim_pitch
+// uint32_t portable
 // PoseKind pose
-// int * output
+// Fixed * output
 // SkeletalError & error
 
 auto result = epok::skeletal_query_detail::model_vertex(model, animator, aim_bone, aim_stop_bones, aim_pitch, portable, pose, output, error);
@@ -644,9 +644,9 @@ inline bool pose_all(const SkeletalMesh& model,const Animator& animator,int16_t 
 | --- | --- | --- | --- |
 | `model` | `const SkeletalMesh &` | Input | Value supplied for `model`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
-| `aim_bone` | `int` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
-| `aim_stop_bones` | `const int *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
-| `aim_pitch` | `int` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
+| `aim_bone` | `int16_t` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
+| `aim_stop_bones` | `const int16_t *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
+| `aim_pitch` | `Fixed` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
 | `pose` | `PoseKind` | Input | Value supplied for `pose`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -661,9 +661,9 @@ inline bool pose_all(const SkeletalMesh& model,const Animator& animator,int16_t 
 // Assume these named values have been initialized with valid data:
 // const SkeletalMesh & model
 // const Animator & animator
-// int aim_bone
-// const int * aim_stop_bones
-// int aim_pitch
+// int16_t aim_bone
+// const int16_t * aim_stop_bones
+// Fixed aim_pitch
 // PoseKind pose
 
 auto result = epok::skeletal_query_detail::pose_all(model, animator, aim_bone, aim_stop_bones, aim_pitch, pose);
@@ -694,7 +694,7 @@ inline const BonePose* selected_pose(const SkeletalMesh& model,const Animator& a
 | --- | --- | --- | --- |
 | `model` | `const SkeletalMesh &` | Input | Value supplied for `model`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
-| `bone` | `int` | Input | Value supplied for `bone`. See the exact type and module contract. |
+| `bone` | `size_t` | Input | Value supplied for `bone`. See the exact type and module contract. |
 | `kind` | `PoseKind` | Input | Value supplied for `kind`. See the exact type and module contract. |
 
 **Returns.** Returns `const BonePose *`. Check the purpose and failure notes before using the value.
@@ -709,7 +709,7 @@ inline const BonePose* selected_pose(const SkeletalMesh& model,const Animator& a
 // Assume these named values have been initialized with valid data:
 // const SkeletalMesh & model
 // const Animator & animator
-// int bone
+// size_t bone
 // PoseKind kind
 
 auto result = epok::skeletal_query_detail::selected_pose(model, animator, bone, kind);
@@ -850,7 +850,7 @@ inline VertexSample skeletal_sample_vertex_impl(const ActorData* entity,uint32_t
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `entity` | `const ActorData *` | Input | Value supplied for `entity`. See the exact type and module contract. |
-| `vertex` | `int` | Input | Value supplied for `vertex`. See the exact type and module contract. |
+| `vertex` | `uint32_t` | Input | Value supplied for `vertex`. See the exact type and module contract. |
 | `pose` | `PoseKind` | Input | Value supplied for `pose`. See the exact type and module contract. |
 | `space` | `CoordinateSpace` | Input | Value supplied for `space`. See the exact type and module contract. |
 | `account_request` | `bool` | Input | Value supplied for `account_request`. See the exact type and module contract. |
@@ -866,7 +866,7 @@ inline VertexSample skeletal_sample_vertex_impl(const ActorData* entity,uint32_t
 
 // Assume these named values have been initialized with valid data:
 // const ActorData * entity
-// int vertex
+// uint32_t vertex
 // PoseKind pose
 // CoordinateSpace space
 // bool account_request

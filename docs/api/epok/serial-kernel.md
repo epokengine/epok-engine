@@ -35,7 +35,7 @@ static bool callback(uint32_t address)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `address` | `int` | Input | Value supplied for `address`. See the exact type and module contract. |
+| `address` | `uint32_t` | Input | Value supplied for `address`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -47,7 +47,7 @@ static bool callback(uint32_t address)
 #include "serial_kernel.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int address
+// uint32_t address
 
 auto result = epok::SerialKernelState::callback(address);
 ```
@@ -120,8 +120,8 @@ static bool ram(uint32_t address, uint32_t bytes)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `address` | `int` | Input | Value supplied for `address`. See the exact type and module contract. |
-| `bytes` | `int` | Input | Value supplied for `bytes`. See the exact type and module contract. |
+| `address` | `uint32_t` | Input | Value supplied for `address`. See the exact type and module contract. |
+| `bytes` | `uint32_t` | Input | Value supplied for `bytes`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -133,8 +133,8 @@ static bool ram(uint32_t address, uint32_t bytes)
 #include "serial_kernel.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int address
-// int bytes
+// uint32_t address
+// uint32_t bytes
 
 auto result = epok::SerialKernelState::ram(address, bytes);
 ```
@@ -162,7 +162,7 @@ static bool resident(uint32_t address)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `address` | `int` | Input | Value supplied for `address`. See the exact type and module contract. |
+| `address` | `uint32_t` | Input | Value supplied for `address`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -174,7 +174,7 @@ static bool resident(uint32_t address)
 #include "serial_kernel.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int address
+// uint32_t address
 
 auto result = epok::SerialKernelState::resident(address);
 ```

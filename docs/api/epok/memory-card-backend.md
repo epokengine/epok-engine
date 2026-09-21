@@ -71,7 +71,7 @@ void list(unsigned p,CardFile* output,uint32_t* count,void* owner,Completion com
 | --- | --- | --- | --- |
 | `p` | `unsigned int` | Input | Value supplied for `p`. See the exact type and module contract. |
 | `output` | `CardFile *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
-| `count` | `int *` | Input/output; inspect the function contract | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `uint32_t *` | Input/output; inspect the function contract | Value supplied for `count`. See the exact type and module contract. |
 | `owner` | `void *` | Input/output; inspect the function contract | Value supplied for `owner`. See the exact type and module contract. |
 | `complete` | `Completion` | Input | Value supplied for `complete`. See the exact type and module contract. |
 
@@ -87,7 +87,7 @@ void list(unsigned p,CardFile* output,uint32_t* count,void* owner,Completion com
 // Assume these named values have been initialized with valid data:
 // unsigned int p
 // CardFile * output
-// int * count
+// uint32_t * count
 // void * owner
 // Completion complete
 
@@ -201,8 +201,8 @@ void read(unsigned p,const char* name,void* buffer,uint32_t capacity,uint32_t* l
 | `p` | `unsigned int` | Input | Value supplied for `p`. See the exact type and module contract. |
 | `name` | `const char *` | Input | Value supplied for `name`. See the exact type and module contract. |
 | `buffer` | `void *` | Input/output; inspect the function contract | Value supplied for `buffer`. See the exact type and module contract. |
-| `capacity` | `int` | Input | Value supplied for `capacity`. See the exact type and module contract. |
-| `length` | `int *` | Input/output; inspect the function contract | Value supplied for `length`. See the exact type and module contract. |
+| `capacity` | `uint32_t` | Input | Value supplied for `capacity`. See the exact type and module contract. |
+| `length` | `uint32_t *` | Input/output; inspect the function contract | Value supplied for `length`. See the exact type and module contract. |
 | `owner` | `void *` | Input/output; inspect the function contract | Value supplied for `owner`. See the exact type and module contract. |
 | `complete` | `Completion` | Input | Value supplied for `complete`. See the exact type and module contract. |
 
@@ -219,8 +219,8 @@ void read(unsigned p,const char* name,void* buffer,uint32_t capacity,uint32_t* l
 // unsigned int p
 // const char * name
 // void * buffer
-// int capacity
-// int * length
+// uint32_t capacity
+// uint32_t * length
 // void * owner
 // Completion complete
 
@@ -257,7 +257,7 @@ void write(unsigned p,const char* name,const char* title,const CardIcon& icon,co
 | `title` | `const char *` | Input | Value supplied for `title`. See the exact type and module contract. |
 | `icon` | `const CardIcon &` | Input | Value supplied for `icon`. See the exact type and module contract. |
 | `data` | `const void *` | Input | Value supplied for `data`. See the exact type and module contract. |
-| `size` | `int` | Input | Value supplied for `size`. See the exact type and module contract. |
+| `size` | `uint32_t` | Input | Value supplied for `size`. See the exact type and module contract. |
 | `owner` | `void *` | Input/output; inspect the function contract | Value supplied for `owner`. See the exact type and module contract. |
 | `complete` | `Completion` | Input | Value supplied for `complete`. See the exact type and module contract. |
 
@@ -276,7 +276,7 @@ void write(unsigned p,const char* name,const char* title,const CardIcon& icon,co
 // const char * title
 // const CardIcon & icon
 // const void * data
-// int size
+// uint32_t size
 // void * owner
 // Completion complete
 

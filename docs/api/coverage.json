@@ -2,15 +2,15 @@
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
     "headers": 82,
-    "types": 395,
-    "callables": 1305,
-    "properties": 2056
+    "types": 378,
+    "callables": 1314,
+    "properties": 1973
   },
   "psyqo": {
     "headers": 53,
-    "types": 168,
-    "callables": 894,
-    "properties": 551
+    "types": 160,
+    "callables": 944,
+    "properties": 539
   },
   "modules": [
     {
@@ -21,17 +21,15 @@
       "types": 0,
       "properties": 0,
       "source_sha256": "c367cdbc7268eaf8acd0864143515f59e777c7fcbfbbc9bd7a5f01f7b4e0abb0",
-      "diagnostics": [
-        ".epok-api-epok.cpp:1:10: fatal error: 'array' file not found"
-      ]
+      "diagnostics": []
     },
     {
       "family": "epok",
       "header": "actor_tables.hpp",
       "slug": "actor-tables",
       "callables": 12,
-      "types": 9,
-      "properties": 52,
+      "types": 8,
+      "properties": 46,
       "source_sha256": "4f6ea3ea311109f5233ed4e950e7b4688bde084c350160137c6057c80f6fcba4",
       "diagnostics": []
     },
@@ -90,8 +88,8 @@
       "header": "blueprint_runtime.hpp",
       "slug": "blueprint-runtime",
       "callables": 65,
-      "types": 12,
-      "properties": 34,
+      "types": 11,
+      "properties": 29,
       "source_sha256": "96a9a2cb5e50a766c4879a2ddbb3c500598bd08b743f9c3ee275b75530f441b1",
       "diagnostics": []
     },
@@ -120,8 +118,8 @@
       "header": "collision.hpp",
       "slug": "collision",
       "callables": 18,
-      "types": 10,
-      "properties": 56,
+      "types": 8,
+      "properties": 37,
       "source_sha256": "e586f7c6935b5971ac08500bfe026ea46f6e333905bf9acdeaa36991474bcc03",
       "diagnostics": []
     },
@@ -130,8 +128,8 @@
       "header": "debug_hud.hpp",
       "slug": "debug-hud",
       "callables": 4,
-      "types": 0,
-      "properties": 0,
+      "types": 1,
+      "properties": 16,
       "source_sha256": "bd6c768da1e7b4728fbf53968671dc836feba360d7e356fa79d599faeea2c667",
       "diagnostics": []
     },
@@ -160,7 +158,7 @@
       "header": "epok.hpp",
       "slug": "epok",
       "callables": 53,
-      "types": 50,
+      "types": 56,
       "properties": 317,
       "source_sha256": "ac467445ff4cbe1245342f7181bd771a57d03e02c1a1f3c9b274969b21585f54",
       "diagnostics": []
@@ -220,8 +218,8 @@
       "header": "hud.hpp",
       "slug": "hud",
       "callables": 8,
-      "types": 2,
-      "properties": 1,
+      "types": 1,
+      "properties": 0,
       "source_sha256": "7ccd5a2722759f6505e160c16833c18588fe87e504412aad5db77b9039f79d73",
       "diagnostics": []
     },
@@ -240,8 +238,8 @@
       "header": "input.hpp",
       "slug": "input",
       "callables": 15,
-      "types": 4,
-      "properties": 31,
+      "types": 3,
+      "properties": 21,
       "source_sha256": "f1d8b49e13af877a7bf49095d2febc8373c9b58ccf28b1a1829c7ff54ea0867d",
       "diagnostics": []
     },
@@ -290,8 +288,8 @@
       "header": "instrument_synth.hpp",
       "slug": "instrument-synth",
       "callables": 37,
-      "types": 9,
-      "properties": 52,
+      "types": 7,
+      "properties": 37,
       "source_sha256": "bdadc8a8445bd7ea20b9bc7d572313f2f13995e326c326382f7576606067503e",
       "diagnostics": []
     },
@@ -360,8 +358,8 @@
       "header": "motion_interpolation.hpp",
       "slug": "motion-interpolation",
       "callables": 13,
-      "types": 2,
-      "properties": 7,
+      "types": 1,
+      "properties": 0,
       "source_sha256": "0798b8ed2bb7d379efdc5d1766168e596d570c903dd1c98596fc8c561e318ae1",
       "diagnostics": []
     },
@@ -371,7 +369,7 @@
       "slug": "music",
       "callables": 10,
       "types": 2,
-      "properties": 24,
+      "properties": 25,
       "source_sha256": "84f35ad30c430db3ad392c56b8b7cd3fe85578c28e2dfb70bf8331a42745cc7f",
       "diagnostics": []
     },
@@ -389,9 +387,9 @@
       "family": "epok",
       "header": "native_music_runtime.hpp",
       "slug": "native-music-runtime",
-      "callables": 21,
-      "types": 6,
-      "properties": 67,
+      "callables": 0,
+      "types": 0,
+      "properties": 0,
       "source_sha256": "9b2b2b220d66bf3fef5257dbcb916afb9e0ce62676c673c3945be0c50e4d7adf",
       "diagnostics": []
     },
@@ -411,7 +409,7 @@
       "slug": "navigation",
       "callables": 17,
       "types": 10,
-      "properties": 59,
+      "properties": 62,
       "source_sha256": "b0e5d8ee7a985306f27ebc2137bbd002f6fb7b25a5b026063d4dbfc9c43e93d2",
       "diagnostics": []
     },
@@ -431,7 +429,7 @@
       "slug": "object-model",
       "callables": 297,
       "types": 49,
-      "properties": 150,
+      "properties": 154,
       "source_sha256": "2f0db49f2105d7ee5777574897d5626148d37c77d05aa87e82b317a2b3879cf3",
       "diagnostics": []
     },
@@ -440,8 +438,8 @@
       "header": "palette.hpp",
       "slug": "palette",
       "callables": 2,
-      "types": 2,
-      "properties": 4,
+      "types": 1,
+      "properties": 0,
       "source_sha256": "70158d8896728b39759bea97bcaf8fad01ac0ef6afe14bf4efd77a8c5cf0431f",
       "diagnostics": []
     },
@@ -450,7 +448,7 @@
       "header": "palette_types.hpp",
       "slug": "palette-types",
       "callables": 4,
-      "types": 2,
+      "types": 3,
       "properties": 12,
       "source_sha256": "ff3e249638384816b9aeab84b2b56b71c39f65aef7935ac30757868b0f238084",
       "diagnostics": []
@@ -460,8 +458,8 @@
       "header": "particle_effect_runtime.hpp",
       "slug": "particle-effect-runtime",
       "callables": 22,
-      "types": 7,
-      "properties": 43,
+      "types": 6,
+      "properties": 29,
       "source_sha256": "f23f2c74a3ae50cc7586b251fcb71740173696c9eaa9e640402fff7086f8f5ea",
       "diagnostics": []
     },
@@ -490,8 +488,8 @@
       "header": "particles.hpp",
       "slug": "particles",
       "callables": 10,
-      "types": 3,
-      "properties": 23,
+      "types": 2,
+      "properties": 20,
       "source_sha256": "07dad5f6b5b55b05e631ca17c7c60571f9ef99a5ba050d30a7cbfc2465a03ba4",
       "diagnostics": []
     },
@@ -551,7 +549,7 @@
       "slug": "sequence-clock",
       "callables": 3,
       "types": 0,
-      "properties": 2,
+      "properties": 3,
       "source_sha256": "1d6090446ae27cdddadaa70fce588244e1e71847e434ad3a338e1447160fc738",
       "diagnostics": []
     },
@@ -599,9 +597,9 @@
       "family": "epok",
       "header": "sequence_service.hpp",
       "slug": "sequence-service",
-      "callables": 1,
+      "callables": 31,
       "types": 6,
-      "properties": 14,
+      "properties": 94,
       "source_sha256": "4b85a304830b176a625b18cde5c478aab213b28591eee68a9b3971b49897e882",
       "diagnostics": []
     },
@@ -640,8 +638,8 @@
       "header": "shadows.hpp",
       "slug": "shadows",
       "callables": 1,
-      "types": 2,
-      "properties": 3,
+      "types": 1,
+      "properties": 0,
       "source_sha256": "1cb27989e09d218a244cc2faf3c5a3f201148959f9b688384686bae27949171d",
       "diagnostics": []
     },
@@ -670,7 +668,7 @@
       "header": "sprite_types.hpp",
       "slug": "sprite-types",
       "callables": 8,
-      "types": 6,
+      "types": 7,
       "properties": 41,
       "source_sha256": "5024d28805d8f7b1c6b90c13ef633a6ee5bc18c10d16d632fe4229349ea4982d",
       "diagnostics": []
@@ -710,8 +708,8 @@
       "header": "streaming_pool.hpp",
       "slug": "streaming-pool",
       "callables": 13,
-      "types": 2,
-      "properties": 13,
+      "types": 1,
+      "properties": 8,
       "source_sha256": "a8d8cfe15cd65701265fbcd66698a6555cb84e77b3b3c5feb25022334c01b7de",
       "diagnostics": []
     },
@@ -770,8 +768,8 @@
       "header": "timeline_runtime.hpp",
       "slug": "timeline-runtime",
       "callables": 32,
-      "types": 12,
-      "properties": 79,
+      "types": 11,
+      "properties": 68,
       "source_sha256": "5bb7273dab79f3c5d3597ad9b828eaacd05b0db5e9eb4e423af149e075f9f870",
       "diagnostics": []
     },
@@ -790,8 +788,8 @@
       "header": "transform_cache.hpp",
       "slug": "transform-cache",
       "callables": 4,
-      "types": 2,
-      "properties": 11,
+      "types": 1,
+      "properties": 2,
       "source_sha256": "8513efcf4b86eaed3b272f8886d8980aebdbbe804f47335435873211d15bc248",
       "diagnostics": []
     },
@@ -830,8 +828,8 @@
       "header": "world2d.hpp",
       "slug": "world2d",
       "callables": 45,
-      "types": 13,
-      "properties": 55,
+      "types": 11,
+      "properties": 46,
       "source_sha256": "fe74d215c3d452c6f155dd67a8d335cb080696a8a9ba067d05c8e5e215821bbe",
       "diagnostics": []
     },
@@ -843,9 +841,7 @@
       "types": 0,
       "properties": 0,
       "source_sha256": "acbf938b97f5127ab28e44027cd951d98e1cbb3d2f5549b597c3225f92b69ee2",
-      "diagnostics": [
-        ".epok-api-psyqo.cpp:1:10: fatal error: 'array' file not found"
-      ]
+      "diagnostics": []
     },
     {
       "family": "psyqo",
@@ -871,7 +867,7 @@
       "family": "psyqo",
       "header": "bezier.hh",
       "slug": "bezier",
-      "callables": 1,
+      "callables": 2,
       "types": 0,
       "properties": 0,
       "source_sha256": "4795bffc23bfcda70fbe4161a3dafa86f0b9e40e0320314f23d60b131cc6fd9f",
@@ -931,8 +927,8 @@
       "family": "psyqo",
       "header": "cdrom.hh",
       "slug": "cdrom",
-      "callables": 10,
-      "types": 3,
+      "callables": 5,
+      "types": 2,
       "properties": 3,
       "source_sha256": "926077f0496ff80c9b68f9b6e9be73631e5adb36e569fd17659c42970d6520c9",
       "diagnostics": []
@@ -941,9 +937,9 @@
       "family": "psyqo",
       "header": "coroutine.hh",
       "slug": "coroutine",
-      "callables": 44,
-      "types": 9,
-      "properties": 7,
+      "callables": 34,
+      "types": 7,
+      "properties": 2,
       "source_sha256": "1f7fb1de89183cdd2ca5fe9a3505769cc0aee95ee45e31f9db4bdabefd07be1d",
       "diagnostics": []
     },
@@ -951,7 +947,7 @@
       "family": "psyqo",
       "header": "fixed-point.hh",
       "slug": "fixed-point",
-      "callables": 49,
+      "callables": 50,
       "types": 2,
       "properties": 3,
       "source_sha256": "0744776790428769a46aadba405a47c8799dd8e3489ee7b9bf30512198d18116",
@@ -962,8 +958,8 @@
       "header": "font.hh",
       "slug": "font",
       "callables": 18,
-      "types": 3,
-      "properties": 4,
+      "types": 2,
+      "properties": 0,
       "source_sha256": "9ad21d9f5b178a170ef0508c0a9d249ea34739a14b711665b267e49557030306",
       "diagnostics": []
     },
@@ -991,9 +987,9 @@
       "family": "psyqo",
       "header": "gpu.hh",
       "slug": "gpu",
-      "callables": 51,
-      "types": 10,
-      "properties": 26,
+      "callables": 46,
+      "types": 7,
+      "properties": 16,
       "source_sha256": "b41653e8941308284d22a258f255389744e81903a23b9a968289e6e380fead72",
       "diagnostics": []
     },
@@ -1021,7 +1017,7 @@
       "family": "psyqo",
       "header": "gte-registers.hh",
       "slug": "gte-registers",
-      "callables": 33,
+      "callables": 101,
       "types": 4,
       "properties": 79,
       "source_sha256": "d0d655ed9e63fc8dd1dd99da4874c9d9b83bbaaa2c284f819e2b55bd0dce3e63",
@@ -1033,7 +1029,7 @@
       "slug": "hardware-cdrom",
       "callables": 4,
       "types": 3,
-      "properties": 36,
+      "properties": 44,
       "source_sha256": "d8a4609c31942703ee3051608f55257557e10bcd0000361f3b293e663f026659",
       "diagnostics": []
     },
@@ -1132,8 +1128,8 @@
       "header": "memory-card-filesystem.hh",
       "slug": "memory-card-filesystem",
       "callables": 20,
-      "types": 8,
-      "properties": 9,
+      "types": 7,
+      "properties": 8,
       "source_sha256": "88c72ddd2a0c536894770f7d922221b96e62bf2f63a195367962e5dbbeeb1fa8",
       "diagnostics": []
     },

@@ -2,22 +2,17 @@
 
 > **Header:** `"psyqo/cdrom.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom.hh)
 
-This module covers the cdrom module. It documents 10 public callables declared directly in this header.
+This module covers the cdrom module. It documents 5 public callables declared directly in this header.
 
 PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
-`psyqo::CDRom`, `psyqo::CDRom::ReadRequest`, `psyqo::CDRom::ReadSectorsAwaiter`
+`psyqo::CDRom`, `psyqo::CDRom::ReadRequest`
 
 ## Callable index
 
 - [`psyqo::CDRom::readSectors`](#psyqo-cdrom-readsectors-1) — Read a sector from the CDRom.
-- [`psyqo::CDRom::ReadSectorsAwaiter::await_ready`](#psyqo-cdrom-readsectorsawaiter-await-ready-1) — Performs `await ready` as part of the cdrom module.
-- [`psyqo::CDRom::ReadSectorsAwaiter::await_resume`](#psyqo-cdrom-readsectorsawaiter-await-resume-1) — Performs `await resume` as part of the cdrom module.
-- [`psyqo::CDRom::ReadSectorsAwaiter::await_suspend`](#psyqo-cdrom-readsectorsawaiter-await-suspend-1) — Performs `await suspend` as part of the cdrom module.
-- [`psyqo::CDRom::ReadSectorsAwaiter::ReadSectorsAwaiter`](#psyqo-cdrom-readsectorsawaiter-readsectorsawaiter-1) — Constructs `psyqo::CDRom::ReadSectorsAwaiter` for the cdrom module.
-- [`psyqo::CDRom::ReadSectorsAwaiter::~ReadSectorsAwaiter`](#psyqo-cdrom-readsectorsawaiter-readsectorsawaiter-2) — Releases the resources owned by `psyqo::CDRom::ReadSectorsAwaiter`.
 - [`psyqo::CDRom::readSectorsForCoroutine`](#psyqo-cdrom-readsectorsforcoroutine-1) — Wrapper around the readSectors method for coroutines.
 - [`psyqo::CDRom::scheduleReadRequest`](#psyqo-cdrom-schedulereadrequest-1) — Schedule a read operation.
 - [`psyqo::CDRom::scheduleReadSectors`](#psyqo-cdrom-schedulereadsectors-1) — Schedule a read operation.
@@ -44,8 +39,8 @@ virtual void readSectors(uint32_t sector, uint32_t count, void *buffer, eastl::f
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `sector` | `int` | Input | The sector to read. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `sector` | `uint32_t` | Input | The sector to read. |
+| `count` | `uint32_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `buffer` | `void *` | Input/output; inspect the function contract | The buffer to read into. |
 | `callback` | `eastl::function<void (bool)> &&` | Consumed or moved input | The callback to call when the read is done. It will be called from the main thread when possible. Its one argument is a boolean indicating whether the read was successful. |
 
@@ -59,8 +54,8 @@ virtual void readSectors(uint32_t sector, uint32_t count, void *buffer, eastl::f
 #include "psyqo/cdrom.hh"
 
 // Assume these named values have been initialized with valid data:
-// int sector
-// int count
+// uint32_t sector
+// uint32_t count
 // void * buffer
 // eastl::function<void (bool)> && callback
 
@@ -72,190 +67,6 @@ object.readSectors(sector, count, buffer, callback);
 **Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
 
 **Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
-
-<a id="psyqo-cdrom-readsectorsawaiter-await-ready-1"></a>
-
-## `psyqo::CDRom::ReadSectorsAwaiter::await_ready`
-
-**Purpose.** Performs `await ready` as part of the cdrom module.
-
-**Exact declaration**
-
-```cpp
-constexpr bool await_ready() const
-```
-
-- **Declared at:** [line 51](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom.hh#L51)
-- **Kind:** `cxx method`; qualifiers: `const`
-
-**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the cdrom module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/cdrom.hh"
-
-psyqo::CDRom::ReadSectorsAwaiter& object = /* obtain a valid instance */;
-
-auto result = object.await_ready();
-```
-
-**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions. The API exposes the hardware service without hiding latency or bounded memory.
-
-**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
-
-<a id="psyqo-cdrom-readsectorsawaiter-await-resume-1"></a>
-
-## `psyqo::CDRom::ReadSectorsAwaiter::await_resume`
-
-**Purpose.** Performs `await resume` as part of the cdrom module.
-
-**Exact declaration**
-
-```cpp
-bool await_resume()
-```
-
-- **Declared at:** [line 59](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom.hh#L59)
-- **Kind:** `cxx method`
-
-**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the cdrom module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/cdrom.hh"
-
-psyqo::CDRom::ReadSectorsAwaiter& object = /* obtain a valid instance */;
-
-auto result = object.await_resume();
-```
-
-**Why choose it.** The boolean result makes success, availability or state explicit without exceptions. The API exposes the hardware service without hiding latency or bounded memory.
-
-**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
-
-<a id="psyqo-cdrom-readsectorsawaiter-await-suspend-1"></a>
-
-## `psyqo::CDRom::ReadSectorsAwaiter::await_suspend`
-
-**Purpose.** Performs `await suspend` as part of the cdrom module.
-
-**Exact declaration**
-
-```cpp
-template <typename U> void await_suspend(std::coroutine_handle<U> handle)
-```
-
-- **Declared at:** [line 53](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom.hh#L53)
-- **Kind:** `function template`; qualifiers: `template`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `handle` | `int` | Input | Value supplied for `handle`. See the exact type and module contract. |
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the cdrom module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/cdrom.hh"
-
-// Replace these template arguments with types or values accepted by the declaration:
-// U
-
-// Assume these named values have been initialized with valid data:
-// int handle
-
-psyqo::CDRom::ReadSectorsAwaiter& object = /* obtain a valid instance */;
-
-object.await_suspend<U>(handle);
-```
-
-**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection. The API exposes the hardware service without hiding latency or bounded memory.
-
-**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
-
-<a id="psyqo-cdrom-readsectorsawaiter-readsectorsawaiter-1"></a>
-
-## `psyqo::CDRom::ReadSectorsAwaiter::ReadSectorsAwaiter`
-
-**Purpose.** Constructs `psyqo::CDRom::ReadSectorsAwaiter` for the cdrom module.
-
-**Exact declaration**
-
-```cpp
-ReadSectorsAwaiter(uint32_t sector, uint32_t count, void *buffer, CDRom &cdrom)
-```
-
-- **Declared at:** [line 48](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom.hh#L48)
-- **Kind:** `constructor`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `sector` | `int` | Input | Value supplied for `sector`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
-| `buffer` | `void *` | Input/output; inspect the function contract | Value supplied for `buffer`. See the exact type and module contract. |
-| `cdrom` | `CDRom &` | Input/output; inspect the function contract | Value supplied for `cdrom`. See the exact type and module contract. |
-
-**Use it when.** You need the cdrom module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/cdrom.hh"
-
-// Assume these named values have been initialized with valid data:
-// int sector
-// int count
-// void * buffer
-// CDRom & cdrom
-
-psyqo::CDRom::ReadSectorsAwaiter value(sector, count, buffer, cdrom);
-```
-
-**Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
-
-**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
-
-<a id="psyqo-cdrom-readsectorsawaiter-readsectorsawaiter-2"></a>
-
-## `psyqo::CDRom::ReadSectorsAwaiter::~ReadSectorsAwaiter`
-
-**Purpose.** Releases the resources owned by `psyqo::CDRom::ReadSectorsAwaiter`.
-
-**Exact declaration**
-
-```cpp
-~ReadSectorsAwaiter()
-```
-
-- **Declared at:** [line 50](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/cdrom.hh#L50)
-- **Kind:** `destructor`
-
-**Use it when.** You need the cdrom module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/cdrom.hh"
-
-// `psyqo::CDRom::ReadSectorsAwaiter` cleans up when its owning scope ends.
-```
-
-**Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
-
-**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
 
 <a id="psyqo-cdrom-readsectorsforcoroutine-1"></a>
 
@@ -278,8 +89,8 @@ ReadSectorsAwaiter readSectorsForCoroutine(uint32_t sector, uint32_t count, void
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `sector` | `int` | Input | The sector to read. |
-| `count` | `int` | Input | The number of sectors to read. |
+| `sector` | `uint32_t` | Input | The sector to read. |
+| `count` | `uint32_t` | Input | The number of sectors to read. |
 | `buffer` | `void *` | Input/output; inspect the function contract | The buffer to read into. |
 
 **Returns.** ReadSectorsAwaiter The awaitable object to be used with the `co_await` keyword.
@@ -292,8 +103,8 @@ ReadSectorsAwaiter readSectorsForCoroutine(uint32_t sector, uint32_t count, void
 #include "psyqo/cdrom.hh"
 
 // Assume these named values have been initialized with valid data:
-// int sector
-// int count
+// uint32_t sector
+// uint32_t count
 // void * buffer
 
 psyqo::CDRom& object = /* obtain a valid instance */;
@@ -370,8 +181,8 @@ TaskQueue::Task scheduleReadSectors(uint32_t sector, uint32_t count, void *buffe
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `sector` | `int` | Input | The sector to read. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `sector` | `uint32_t` | Input | The sector to read. |
+| `count` | `uint32_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `buffer` | `void *` | Input/output; inspect the function contract | The buffer to read into. |
 
 **Returns.** A task that can be queued into a `TaskQueue`
@@ -384,8 +195,8 @@ TaskQueue::Task scheduleReadSectors(uint32_t sector, uint32_t count, void *buffe
 #include "psyqo/cdrom.hh"
 
 // Assume these named values have been initialized with valid data:
-// int sector
-// int count
+// uint32_t sector
+// uint32_t count
 // void * buffer
 
 psyqo::CDRom& object = /* obtain a valid instance */;

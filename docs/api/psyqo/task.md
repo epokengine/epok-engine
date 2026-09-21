@@ -97,7 +97,7 @@ static Task DelayedTask(uint32_t delay, GPU &)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `delay` | `int` | Input | The delay in microseconds. |
+| `delay` | `uint32_t` | Input | The delay in microseconds. |
 | `arg2` | `GPU &` | Input/output; inspect the function contract | Value supplied for `arg2`. See the exact type and module contract. |
 
 **Returns.** Returns `Task`. Check the purpose and failure notes before using the value.
@@ -110,7 +110,7 @@ static Task DelayedTask(uint32_t delay, GPU &)
 #include "psyqo/task.hh"
 
 // Assume these named values have been initialized with valid data:
-// int delay
+// uint32_t delay
 // GPU & arg2
 
 auto result = psyqo::TaskQueue::DelayedTask(delay, arg2);

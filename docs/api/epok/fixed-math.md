@@ -31,10 +31,10 @@ inline int32_t powq(int32_t t,int n)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `t` | `int` | Input | Value supplied for `t`. See the exact type and module contract. |
+| `t` | `int32_t` | Input | Value supplied for `t`. See the exact type and module contract. |
 | `n` | `int` | Input | Value supplied for `n`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Truncating once per multiply keeps the error inside two raw units up to the fifth power; scaling after the truncation does not.
 
@@ -44,7 +44,7 @@ inline int32_t powq(int32_t t,int n)
 #include "fixed_math.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int t
+// int32_t t
 // int n
 
 auto result = epok::fixed_math::powq(t, n);
@@ -75,9 +75,9 @@ inline int32_t q_sqrt(int32_t raw)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `raw` | `int` | Input | Value supplied for `raw`. See the exact type and module contract. |
+| `raw` | `int32_t` | Input | Value supplied for `raw`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Negatives clamp instead of wrapping.
 
@@ -87,7 +87,7 @@ inline int32_t q_sqrt(int32_t raw)
 #include "fixed_math.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int raw
+// int32_t raw
 
 auto result = epok::fixed_math::q_sqrt(raw);
 ```
@@ -119,7 +119,7 @@ inline uint32_t sqrt64(uint64_t v)
 | --- | --- | --- | --- |
 | `v` | `uint64_t` | Input | Value supplied for `v`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Restoring, two bits per step, no floats.
 

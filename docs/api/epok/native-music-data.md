@@ -37,9 +37,9 @@ inline uint16_t u16(const uint8_t* p)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `p` | `const int *` | Input | Value supplied for `p`. See the exact type and module contract. |
+| `p` | `const uint8_t *` | Input | Value supplied for `p`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need XA music streaming and playback state and the preconditions in the declaration are already satisfied.
 
@@ -49,7 +49,7 @@ inline uint16_t u16(const uint8_t* p)
 #include "native_music_data.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * p
+// const uint8_t * p
 
 auto result = epok::native_music::u16(p);
 ```
@@ -77,9 +77,9 @@ inline uint32_t u32(const uint8_t* p)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `p` | `const int *` | Input | Value supplied for `p`. See the exact type and module contract. |
+| `p` | `const uint8_t *` | Input | Value supplied for `p`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need XA music streaming and playback state and the preconditions in the declaration are already satisfied.
 
@@ -89,7 +89,7 @@ inline uint32_t u32(const uint8_t* p)
 #include "native_music_data.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * p
+// const uint8_t * p
 
 auto result = epok::native_music::u32(p);
 ```
@@ -146,7 +146,7 @@ uint32_t count()const
 - **Declared at:** [line 15](../../../runtime/native_music_data.hpp#L15)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need XA music streaming and playback state and the preconditions in the declaration are already satisfied.
 
@@ -212,7 +212,7 @@ uint16_t tones()const
 - **Declared at:** [line 16](../../../runtime/native_music_data.hpp#L16)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need XA music streaming and playback state and the preconditions in the declaration are already satisfied.
 
@@ -249,7 +249,7 @@ bool valid(uint16_t samples)const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `samples` | `int` | Input | Value supplied for `samples`. See the exact type and module contract. |
+| `samples` | `uint16_t` | Input | Value supplied for `samples`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -261,7 +261,7 @@ bool valid(uint16_t samples)const
 #include "native_music_data.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int samples
+// uint16_t samples
 
 epok::native_music::View& object = /* obtain a valid instance */;
 

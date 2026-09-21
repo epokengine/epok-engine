@@ -38,7 +38,7 @@ static volatile uint8_t& access(int index = 0)
 | --- | --- | --- | --- |
 | `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
 
-**Returns.** Returns `volatile int &`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `volatile uint8_t &`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the hardware/cdrom module and the preconditions in the declaration are already satisfied.
 

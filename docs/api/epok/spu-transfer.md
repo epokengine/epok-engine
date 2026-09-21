@@ -98,9 +98,9 @@ static uint16_t read(uintptr_t address)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `address` | `int` | Input | Value supplied for `address`. See the exact type and module contract. |
+| `address` | `uintptr_t` | Input | Value supplied for `address`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need SPU RAM, voices, ADSR and sound transfer and the preconditions in the declaration are already satisfied.
 
@@ -110,7 +110,7 @@ static uint16_t read(uintptr_t address)
 #include "spu_transfer.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int address
+// uintptr_t address
 
 auto result = epok::spu::Hardware::read(address);
 ```
@@ -139,7 +139,7 @@ static void start(const void* data,uint32_t bytes)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `data` | `const void *` | Input | Value supplied for `data`. See the exact type and module contract. |
-| `bytes` | `int` | Input | Value supplied for `bytes`. See the exact type and module contract. |
+| `bytes` | `uint32_t` | Input | Value supplied for `bytes`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -152,7 +152,7 @@ static void start(const void* data,uint32_t bytes)
 
 // Assume these named values have been initialized with valid data:
 // const void * data
-// int bytes
+// uint32_t bytes
 
 epok::spu::Hardware::start(data, bytes);
 ```
@@ -180,8 +180,8 @@ static void write(uintptr_t address,uint16_t value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `address` | `int` | Input | Value supplied for `address`. See the exact type and module contract. |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `address` | `uintptr_t` | Input | Value supplied for `address`. See the exact type and module contract. |
+| `value` | `uint16_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -193,8 +193,8 @@ static void write(uintptr_t address,uint16_t value)
 #include "spu_transfer.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int address
-// int value
+// uintptr_t address
+// uint16_t value
 
 epok::spu::Hardware::write(address, value);
 ```
@@ -225,9 +225,9 @@ template<class H=Hardware> bool upload(const void* data,uint32_t address,uint32_
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `data` | `const void *` | Input | Value supplied for `data`. See the exact type and module contract. |
-| `address` | `int` | Input | Value supplied for `address`. See the exact type and module contract. |
-| `bytes` | `int` | Input | Value supplied for `bytes`. See the exact type and module contract. |
-| `budget` | `int` | Input | Value supplied for `budget`. See the exact type and module contract. |
+| `address` | `uint32_t` | Input | Value supplied for `address`. See the exact type and module contract. |
+| `bytes` | `uint32_t` | Input | Value supplied for `bytes`. See the exact type and module contract. |
+| `budget` | `uint32_t` | Input | Value supplied for `budget`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -243,9 +243,9 @@ template<class H=Hardware> bool upload(const void* data,uint32_t address,uint32_
 
 // Assume these named values have been initialized with valid data:
 // const void * data
-// int address
-// int bytes
-// int budget
+// uint32_t address
+// uint32_t bytes
+// uint32_t budget
 
 epok::spu& object = /* obtain a valid instance */;
 

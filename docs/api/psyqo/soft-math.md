@@ -276,7 +276,7 @@ Matrix33 generateRotationMatrix33(Angle t, Axis a, const Trig<> &trig)
 | --- | --- | --- | --- |
 | `t` | `Angle` | Input | The angle to rotate by. |
 | `a` | `Axis` | Input | The axis to rotate around. |
-| `trig` | `const int &` | Input | A trigonometry object to use for sine and cosine calculations. |
+| `trig` | `const Trig<> &` | Input | A trigonometry object to use for sine and cosine calculations. |
 
 **Returns.** Matrix33 The rotation matrix.
 
@@ -290,7 +290,7 @@ Matrix33 generateRotationMatrix33(Angle t, Axis a, const Trig<> &trig)
 // Assume these named values have been initialized with valid data:
 // Angle t
 // Axis a
-// const int & trig
+// const Trig<> & trig
 
 auto result = psyqo::SoftMath::generateRotationMatrix33(t, a, trig);
 ```
@@ -320,7 +320,7 @@ static inline Matrix33 generateRotationMatrix33(Angle t, Axis a, const Trig<> *t
 | --- | --- | --- | --- |
 | `t` | `Angle` | Input | Value supplied for `t`. See the exact type and module contract. |
 | `a` | `Axis` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `trig` | `const int *` | Input | Value supplied for `trig`. See the exact type and module contract. |
+| `trig` | `const Trig<> *` | Input | Value supplied for `trig`. See the exact type and module contract. |
 
 **Returns.** Returns `Matrix33`. Check the purpose and failure notes before using the value.
 
@@ -334,7 +334,7 @@ static inline Matrix33 generateRotationMatrix33(Angle t, Axis a, const Trig<> *t
 // Assume these named values have been initialized with valid data:
 // Angle t
 // Axis a
-// const int * trig
+// const Trig<> * trig
 
 auto result = psyqo::SoftMath::generateRotationMatrix33(t, a, trig);
 ```
@@ -365,7 +365,7 @@ static inline void generateRotationMatrix33(Matrix33 *m, Angle t, Axis a, const 
 | `m` | `Matrix33 *` | Input/output; inspect the function contract | Value supplied for `m`. See the exact type and module contract. |
 | `t` | `Angle` | Input | Value supplied for `t`. See the exact type and module contract. |
 | `a` | `Axis` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `trig` | `const int *` | Input | Value supplied for `trig`. See the exact type and module contract. |
+| `trig` | `const Trig<> *` | Input | Value supplied for `trig`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -380,7 +380,7 @@ static inline void generateRotationMatrix33(Matrix33 *m, Angle t, Axis a, const 
 // Matrix33 * m
 // Angle t
 // Axis a
-// const int * trig
+// const Trig<> * trig
 
 psyqo::SoftMath::generateRotationMatrix33(m, t, a, trig);
 ```
@@ -411,7 +411,7 @@ void generateRotationMatrix33(Matrix33 *m, Angle t, Axis a, const Trig<> &trig)
 | `m` | `Matrix33 *` | Input/output; inspect the function contract | The matrix to store the result in. |
 | `t` | `Angle` | Input | The angle to rotate by. |
 | `a` | `Axis` | Input | The axis to rotate around. |
-| `trig` | `const int &` | Input | A trigonometry object to use for sine and cosine calculations. |
+| `trig` | `const Trig<> &` | Input | A trigonometry object to use for sine and cosine calculations. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -426,7 +426,7 @@ void generateRotationMatrix33(Matrix33 *m, Angle t, Axis a, const Trig<> &trig)
 // Matrix33 * m
 // Angle t
 // Axis a
-// const int & trig
+// const Trig<> & trig
 
 psyqo::SoftMath::generateRotationMatrix33(m, t, a, trig);
 ```
@@ -454,8 +454,8 @@ FixedPoint<> inverseSquareRoot(FixedPoint<> x, FixedPoint<> y)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | The number to compute the inverse square root of. |
-| `y` | `int` | Input | The approximative hint of the result. |
+| `x` | `FixedPoint<>` | Input | The number to compute the inverse square root of. |
+| `y` | `FixedPoint<>` | Input | The approximative hint of the result. |
 
 **Returns.** psyqo::FixedPoint<> The inverse square root.
 
@@ -467,8 +467,8 @@ FixedPoint<> inverseSquareRoot(FixedPoint<> x, FixedPoint<> y)
 #include "psyqo/soft-math.hh"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
+// FixedPoint<> x
+// FixedPoint<> y
 
 auto result = psyqo::SoftMath::inverseSquareRoot(x, y);
 ```
@@ -496,7 +496,7 @@ static inline FixedPoint<> inverseSquareRoot(FixedPoint<> x)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | The number to compute the inverse square root of. |
+| `x` | `FixedPoint<>` | Input | The number to compute the inverse square root of. |
 
 **Returns.** psyqo::FixedPoint<> The inverse square root.
 
@@ -508,7 +508,7 @@ static inline FixedPoint<> inverseSquareRoot(FixedPoint<> x)
 #include "psyqo/soft-math.hh"
 
 // Assume these named values have been initialized with valid data:
-// int x
+// FixedPoint<> x
 
 auto result = psyqo::SoftMath::inverseSquareRoot(x);
 ```
@@ -578,7 +578,7 @@ static inline FixedPoint<> matrixDeterminant3(const Matrix33 *m)
 | --- | --- | --- | --- |
 | `m` | `const Matrix33 *` | Input | Value supplied for `m`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `FixedPoint<>`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the soft math module and the preconditions in the declaration are already satisfied.
 
@@ -837,7 +837,7 @@ static inline FixedPoint<> matrixVecMul3z(const Matrix33 *m, const Vec3 *v)
 | `m` | `const Matrix33 *` | Input | Value supplied for `m`. See the exact type and module contract. |
 | `v` | `const Vec3 *` | Input | Value supplied for `v`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `FixedPoint<>`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the soft math module and the preconditions in the declaration are already satisfied.
 
@@ -1130,7 +1130,7 @@ static inline FixedPoint<> normOfVec3(const Vec3 *v)
 | --- | --- | --- | --- |
 | `v` | `const Vec3 *` | Input | Value supplied for `v`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `FixedPoint<>`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the soft math module and the preconditions in the declaration are already satisfied.
 
@@ -1169,7 +1169,7 @@ void project(const Vec3 *v, FixedPoint<> h, Vec2 *out)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `v` | `const Vec3 *` | Input | The vector to project. |
-| `h` | `int` | Input | The height of the plane. |
+| `h` | `FixedPoint<>` | Input | The height of the plane. |
 | `out` | `Vec2 *` | Input/output; inspect the function contract | The vector to store the result in. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1183,7 +1183,7 @@ void project(const Vec3 *v, FixedPoint<> h, Vec2 *out)
 
 // Assume these named values have been initialized with valid data:
 // const Vec3 * v
-// int h
+// FixedPoint<> h
 // Vec2 * out
 
 psyqo::SoftMath::project(v, h, out);
@@ -1213,7 +1213,7 @@ void scaleMatrix33(Matrix33 *m, FixedPoint<> s)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `m` | `Matrix33 *` | Input/output; inspect the function contract | The matrix to scale. |
-| `s` | `int` | Input | The scalar to scale by. |
+| `s` | `FixedPoint<>` | Input | The scalar to scale by. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1226,7 +1226,7 @@ void scaleMatrix33(Matrix33 *m, FixedPoint<> s)
 
 // Assume these named values have been initialized with valid data:
 // Matrix33 * m
-// int s
+// FixedPoint<> s
 
 psyqo::SoftMath::scaleMatrix33(m, s);
 ```
@@ -1254,8 +1254,8 @@ FixedPoint<> squareRoot(FixedPoint<> x, FixedPoint<> y)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | The number to compute the square root of. |
-| `y` | `int` | Input | The approximative hint of the result. |
+| `x` | `FixedPoint<>` | Input | The number to compute the square root of. |
+| `y` | `FixedPoint<>` | Input | The approximative hint of the result. |
 
 **Returns.** psyqo::FixedPoint<> The square root.
 
@@ -1267,8 +1267,8 @@ FixedPoint<> squareRoot(FixedPoint<> x, FixedPoint<> y)
 #include "psyqo/soft-math.hh"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int y
+// FixedPoint<> x
+// FixedPoint<> y
 
 auto result = psyqo::SoftMath::squareRoot(x, y);
 ```
@@ -1296,7 +1296,7 @@ static inline FixedPoint<> squareRoot(FixedPoint<> x)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | The number to compute the square root of. |
+| `x` | `FixedPoint<>` | Input | The number to compute the square root of. |
 
 **Returns.** psyqo::FixedPoint<> The square root.
 
@@ -1308,7 +1308,7 @@ static inline FixedPoint<> squareRoot(FixedPoint<> x)
 #include "psyqo/soft-math.hh"
 
 // Assume these named values have been initialized with valid data:
-// int x
+// FixedPoint<> x
 
 auto result = psyqo::SoftMath::squareRoot(x);
 ```

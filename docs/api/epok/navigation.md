@@ -43,7 +43,7 @@ uint16_t add_obstacle()
 - **Declared at:** [line 52](../../../runtime/navigation.hpp#L52)
 - **Kind:** `cxx method`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the navigation module and the preconditions in the declaration are already satisfied.
 
@@ -122,8 +122,8 @@ bool edge_open(uint16_t from,uint16_t to)const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `from` | `int` | Input | Value supplied for `from`. See the exact type and module contract. |
-| `to` | `int` | Input | Value supplied for `to`. See the exact type and module contract. |
+| `from` | `uint16_t` | Input | Value supplied for `from`. See the exact type and module contract. |
+| `to` | `uint16_t` | Input | Value supplied for `to`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -135,8 +135,8 @@ bool edge_open(uint16_t from,uint16_t to)const
 #include "navigation.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int from
-// int to
+// uint16_t from
+// uint16_t to
 
 epok::nav::World& object = /* obtain a valid instance */;
 
@@ -168,11 +168,11 @@ bool floor(int32_t x,int32_t z,int32_t near,int32_t reach,int32_t& y)const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `x` | `int` | Input | Value supplied for `x`. See the exact type and module contract. |
-| `z` | `int` | Input | Value supplied for `z`. See the exact type and module contract. |
-| `near` | `int` | Input | Value supplied for `near`. See the exact type and module contract. |
-| `reach` | `int` | Input | Value supplied for `reach`. See the exact type and module contract. |
-| `y` | `int &` | Input/output; inspect the function contract | Value supplied for `y`. See the exact type and module contract. |
+| `x` | `int32_t` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `z` | `int32_t` | Input | Value supplied for `z`. See the exact type and module contract. |
+| `near` | `int32_t` | Input | Value supplied for `near`. See the exact type and module contract. |
+| `reach` | `int32_t` | Input | Value supplied for `reach`. See the exact type and module contract. |
+| `y` | `int32_t &` | Input/output; inspect the function contract | Value supplied for `y`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -184,11 +184,11 @@ bool floor(int32_t x,int32_t z,int32_t near,int32_t reach,int32_t& y)const
 #include "navigation.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int x
-// int z
-// int near
-// int reach
-// int & y
+// int32_t x
+// int32_t z
+// int32_t near
+// int32_t reach
+// int32_t & y
 
 epok::nav::World& object = /* obtain a valid instance */;
 
@@ -261,7 +261,7 @@ void locate(Handle h,const int32_t* p)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `h` | `Handle` | Input | Value supplied for `h`. See the exact type and module contract. |
-| `p` | `const int *` | Input | Value supplied for `p`. See the exact type and module contract. |
+| `p` | `const int32_t *` | Input | Value supplied for `p`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -274,7 +274,7 @@ void locate(Handle h,const int32_t* p)
 
 // Assume these named values have been initialized with valid data:
 // Handle h
-// const int * p
+// const int32_t * p
 
 epok::nav::World& object = /* obtain a valid instance */;
 
@@ -305,7 +305,7 @@ void occupy(Handle h,uint16_t node)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `h` | `Handle` | Input | Value supplied for `h`. See the exact type and module contract. |
-| `node` | `int` | Input | Value supplied for `node`. See the exact type and module contract. |
+| `node` | `uint16_t` | Input | Value supplied for `node`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -318,7 +318,7 @@ void occupy(Handle h,uint16_t node)
 
 // Assume these named values have been initialized with valid data:
 // Handle h
-// int node
+// uint16_t node
 
 epok::nav::World& object = /* obtain a valid instance */;
 
@@ -392,7 +392,7 @@ void remove_obstacle(uint16_t id)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `id` | `int` | Input | Value supplied for `id`. See the exact type and module contract. |
+| `id` | `uint16_t` | Input | Value supplied for `id`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -404,7 +404,7 @@ void remove_obstacle(uint16_t id)
 #include "navigation.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int id
+// uint16_t id
 
 epok::nav::World& object = /* obtain a valid instance */;
 
@@ -435,7 +435,7 @@ void replan(Handle h,uint16_t avoid=invalid)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `h` | `Handle` | Input | Value supplied for `h`. See the exact type and module contract. |
-| `avoid` | `int` | Input | Value supplied for `avoid`. See the exact type and module contract. |
+| `avoid` | `uint16_t` | Input | Value supplied for `avoid`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -448,7 +448,7 @@ void replan(Handle h,uint16_t avoid=invalid)
 
 // Assume these named values have been initialized with valid data:
 // Handle h
-// int avoid
+// uint16_t avoid
 
 epok::nav::World& object = /* obtain a valid instance */;
 
@@ -478,8 +478,8 @@ Handle request(const int32_t* from,const int32_t* to)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `from` | `const int *` | Input | Value supplied for `from`. See the exact type and module contract. |
-| `to` | `const int *` | Input | Value supplied for `to`. See the exact type and module contract. |
+| `from` | `const int32_t *` | Input | Value supplied for `from`. See the exact type and module contract. |
+| `to` | `const int32_t *` | Input | Value supplied for `to`. See the exact type and module contract. |
 
 **Returns.** Returns `Handle`. Check the purpose and failure notes before using the value.
 
@@ -491,8 +491,8 @@ Handle request(const int32_t* from,const int32_t* to)
 #include "navigation.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * from
-// const int * to
+// const int32_t * from
+// const int32_t * to
 
 epok::nav::World& object = /* obtain a valid instance */;
 
@@ -523,8 +523,8 @@ bool reserve(Handle h,uint16_t from,uint16_t to)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `h` | `Handle` | Input | Value supplied for `h`. See the exact type and module contract. |
-| `from` | `int` | Input | Value supplied for `from`. See the exact type and module contract. |
-| `to` | `int` | Input | Value supplied for `to`. See the exact type and module contract. |
+| `from` | `uint16_t` | Input | Value supplied for `from`. See the exact type and module contract. |
+| `to` | `uint16_t` | Input | Value supplied for `to`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -537,8 +537,8 @@ bool reserve(Handle h,uint16_t from,uint16_t to)
 
 // Assume these named values have been initialized with valid data:
 // Handle h
-// int from
-// int to
+// uint16_t from
+// uint16_t to
 
 epok::nav::World& object = /* obtain a valid instance */;
 
@@ -610,9 +610,9 @@ bool set_obstacle(uint16_t id,const int32_t* lo,const int32_t* hi)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `id` | `int` | Input | Value supplied for `id`. See the exact type and module contract. |
-| `lo` | `const int *` | Input | Value supplied for `lo`. See the exact type and module contract. |
-| `hi` | `const int *` | Input | Value supplied for `hi`. See the exact type and module contract. |
+| `id` | `uint16_t` | Input | Value supplied for `id`. See the exact type and module contract. |
+| `lo` | `const int32_t *` | Input | Value supplied for `lo`. See the exact type and module contract. |
+| `hi` | `const int32_t *` | Input | Value supplied for `hi`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -624,9 +624,9 @@ bool set_obstacle(uint16_t id,const int32_t* lo,const int32_t* hi)
 #include "navigation.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int id
-// const int * lo
-// const int * hi
+// uint16_t id
+// const int32_t * lo
+// const int32_t * hi
 
 epok::nav::World& object = /* obtain a valid instance */;
 
@@ -689,8 +689,8 @@ const Traversal* traversal(uint16_t from,uint16_t to)const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `from` | `int` | Input | Value supplied for `from`. See the exact type and module contract. |
-| `to` | `int` | Input | Value supplied for `to`. See the exact type and module contract. |
+| `from` | `uint16_t` | Input | Value supplied for `from`. See the exact type and module contract. |
+| `to` | `uint16_t` | Input | Value supplied for `to`. See the exact type and module contract. |
 
 **Returns.** Returns `const Traversal *`. Check the purpose and failure notes before using the value.
 
@@ -702,8 +702,8 @@ const Traversal* traversal(uint16_t from,uint16_t to)const
 #include "navigation.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int from
-// int to
+// uint16_t from
+// uint16_t to
 
 epok::nav::World& object = /* obtain a valid instance */;
 

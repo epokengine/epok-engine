@@ -87,7 +87,7 @@ inline uint16_t sequence_hsync()
 - **Declared at:** [line 18](../../../runtime/sequence_clock.hpp#L18)
 - **Kind:** `function decl`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the sequence clock module and the preconditions in the declaration are already satisfied.
 
