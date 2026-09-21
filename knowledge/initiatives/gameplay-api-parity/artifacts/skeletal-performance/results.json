@@ -1,7 +1,7 @@
 {
   "engine_revision": "e3b56518175ddd633ccc962042a86d30d7275234",
   "worktree_dirty": true,
-  "editor": "/Users/francisco.rivero/GithubProjects/p/epok-engine/target/debug/epok-editor",
+  "editor": "target/debug/epok-editor",
   "editor_sha256": "eab9e9aec0feced6f760339d44ea44d48f128ec1aefe8745d5d7ebfc80f99948",
   "platform": {
     "system": "Darwin",
@@ -15,7 +15,7 @@
     "emulator": ".tools/macos/redux/PCSX-Redux.app/Contents/MacOS/pcsx-redux",
     "psxavenc": ".tools/macos/bin/psxavenc",
     "mkpsxiso": ".tools/macos/bin/mkpsxiso",
-    "libclang": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.tools/macos/libclang-18.1.1/lib",
+    "libclang": ".tools/macos/libclang-18.1.1/lib",
     "code": "",
     "web_port": 8077,
     "auto_build": true
@@ -53,9 +53,9 @@
   ],
   "projects": {
     "seam_rigid_plain": {
-      "folder": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/benchmark-seam_rigid_plain-1789533472461343000",
+      "folder": ".epok/benchmark-seam_rigid_plain-1789533472461343000",
       "spec": {
-        "model": "/Users/francisco.rivero/GithubProjects/p/epok-engine/resources/models/EpokSeamCharacter.fbx",
+        "model": "resources/models/EpokSeamCharacter.fbx",
         "storage": "rigid-gte",
         "textured": false,
         "lit": false
@@ -79,9 +79,9 @@
       }
     },
     "seam_rigid": {
-      "folder": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/benchmark-seam_rigid-1789533472461343000",
+      "folder": ".epok/benchmark-seam_rigid-1789533472461343000",
       "spec": {
-        "model": "/Users/francisco.rivero/GithubProjects/p/epok-engine/resources/models/EpokSeamCharacter.fbx",
+        "model": "resources/models/EpokSeamCharacter.fbx",
         "storage": "rigid-gte",
         "textured": true,
         "lit": false
@@ -105,9 +105,9 @@
       }
     },
     "seam_baked": {
-      "folder": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/benchmark-seam_baked-1789533472461343000",
+      "folder": ".epok/benchmark-seam_baked-1789533472461343000",
       "spec": {
-        "model": "/Users/francisco.rivero/GithubProjects/p/epok-engine/resources/models/EpokSeamCharacter.fbx",
+        "model": "resources/models/EpokSeamCharacter.fbx",
         "storage": "baked-vertices",
         "textured": true,
         "lit": false
@@ -131,9 +131,9 @@
       }
     },
     "seam_lit": {
-      "folder": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/benchmark-seam_lit-1789533472461343000",
+      "folder": ".epok/benchmark-seam_lit-1789533472461343000",
       "spec": {
-        "model": "/Users/francisco.rivero/GithubProjects/p/epok-engine/resources/models/EpokSeamCharacter.fbx",
+        "model": "resources/models/EpokSeamCharacter.fbx",
         "storage": "rigid-gte",
         "textured": true,
         "lit": true
@@ -160,9 +160,9 @@
       }
     },
     "query_rigid": {
-      "folder": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/benchmark-query_rigid-1789533472461343000",
+      "folder": ".epok/benchmark-query_rigid-1789533472461343000",
       "spec": {
-        "model": "/Users/francisco.rivero/GithubProjects/p/epok-engine/resources/models/EpokSeamCharacter.fbx",
+        "model": "resources/models/EpokSeamCharacter.fbx",
         "storage": "rigid-gte",
         "textured": true,
         "lit": false,
@@ -187,9 +187,9 @@
       }
     },
     "query_baked": {
-      "folder": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/benchmark-query_baked-1789533472461343000",
+      "folder": ".epok/benchmark-query_baked-1789533472461343000",
       "spec": {
-        "model": "/Users/francisco.rivero/GithubProjects/p/epok-engine/resources/models/EpokSeamCharacter.fbx",
+        "model": "resources/models/EpokSeamCharacter.fbx",
         "storage": "baked-vertices",
         "textured": true,
         "lit": false,

@@ -612,8 +612,8 @@
     }
   ],
   "environment": {
-    "editor": "/Users/francisco.rivero/GithubProjects/p/epok-engine/target/release/epok-editor",
-    "emulator": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.tools/macos/redux/PCSX-Redux.app/Contents/MacOS/PCSX-Redux",
+    "editor": "target/release/epok-editor",
+    "emulator": ".tools/macos/redux/PCSX-Redux.app/Contents/MacOS/PCSX-Redux",
     "nugget": "nugget"
   },
   "limitations": [

@@ -16,7 +16,7 @@ Revision `e3b56518175ddd633ccc962042a86d30d7275234` with an uncommitted working 
 | --- | --- |
 | Host | Darwin 25.4.0 arm64 |
 | Emulator | .tools/macos/redux/PCSX-Redux.app/Contents/MacOS/pcsx-redux |
-| Editor | `/Users/francisco.rivero/GithubProjects/p/epok-engine/target/debug/epok-editor` sha256 `eab9e9aec0feced6` |
+| Editor | `target/debug/epok-editor` sha256 `eab9e9aec0feced6` |
 | EpokSeamAtlas.png | 149 B, sha256 `2a16fb5dc8801208` |
 | EpokSeamCharacter.fbx | 16628 B, sha256 `cee331b34706a9aa` |
 | EpokManySequences.fbx | 58987 B, sha256 `baedc4131e9154fc` |

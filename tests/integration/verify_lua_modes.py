@@ -905,7 +905,9 @@ def main():
     report["passed"] = all(r["passed"] for r in RESULTS)
     output = _Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    # Recorded evidence is read on other machines, so it carries repository-
+    # relative paths rather than wherever this run happened to be checked out.
+    output.write_text(json.dumps(report, indent=2).replace(f"{ROOT}/", ""), encoding="utf-8")
 
     print("\n=== probe table (slot: expected | native_cpp | vm_bytecode | vm_source) ===")
     for row in report.get("probe", {}).get("table", []):
