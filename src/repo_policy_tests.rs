@@ -7,9 +7,14 @@
 //! test rather than a convention.
 use std::{path::Path, process::Command};
 
-/// The term list, which is the one tracked file the sweep skips: it necessarily
-/// spells every term it bans.
+/// The term list the sweep reads.
 const TERMS: &str = "tools/forbidden-terms.txt";
+
+/// The only tracked files the sweep skips, because enforcing the rule requires
+/// spelling the terms: the list itself, and this file, whose negative control
+/// plants them deliberately. Nothing else is exempt, so a term cannot be hidden
+/// by moving it somewhere quieter.
+const SPELLS_THE_TERMS: [&str; 2] = [TERMS, "src/repo_policy_tests.rs"];
 
 fn terms(root: &Path) -> Vec<String> {
     std::fs::read_to_string(root.join(TERMS))
@@ -57,7 +62,7 @@ fn forbidden_terms_are_absent_from_tracked_files() {
     assert!(!terms.is_empty(), "the term list must not be empty");
     let mut found = vec![];
     for path in tracked(root) {
-        if path == TERMS {
+        if SPELLS_THE_TERMS.contains(&path.as_str()) {
             continue;
         }
         for term in &terms {
@@ -78,6 +83,10 @@ fn forbidden_terms_are_absent_from_tracked_files() {
             }
         }
     }
+    assert!(
+        tracked(root).len() > 500,
+        "the sweep must cover the repository, not a handful of files"
+    );
     assert!(
         found.is_empty(),
         "tracked files name another product; describe the behaviour instead:\n{}",
