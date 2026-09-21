@@ -3,7 +3,7 @@
   "epok": {
     "headers": 82,
     "types": 395,
-    "callables": 1302,
+    "callables": 1303,
     "properties": 2056
   },
   "psyqo": {
@@ -239,10 +239,10 @@
       "family": "epok",
       "header": "input.hpp",
       "slug": "input",
-      "callables": 14,
+      "callables": 15,
       "types": 4,
       "properties": 31,
-      "source_sha256": "a29e88f64c3b03332e45c50c9c1ef6cf0c297c4787b5d226639b9a018e2c0105",
+      "source_sha256": "f1d8b49e13af877a7bf49095d2febc8373c9b58ccf28b1a1829c7ff54ea0867d",
       "diagnostics": []
     },
     {

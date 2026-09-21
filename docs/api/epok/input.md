@@ -2,7 +2,7 @@
 
 > **Header:** `"input.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/input.hpp)
 
-This module covers controller sampling and simulation-tick input edges. It documents 14 public callables declared directly in this header.
+This module covers controller sampling and simulation-tick input edges. It documents 15 public callables declared directly in this header.
 
 ## Declared types
 
@@ -20,6 +20,7 @@ This module covers controller sampling and simulation-tick input edges. It docum
 - [`epok::Input::frame_released`](#epok-input-frame-released-1) — Performs `frame released` as part of controller sampling and simulation-tick input edges.
 - [`epok::Input::held`](#epok-input-held-1) — Performs `held` as part of controller sampling and simulation-tick input edges.
 - [`epok::Input::poll`](#epok-input-poll-1) — Polls poll as part of controller sampling and simulation-tick input edges.
+- [`epok::Input::poll_multitap`](#epok-input-poll-multitap-1) — AdvancedPad indexes the four sockets of a multitap on the first physical port as 0..3 (the second physical port begins at 4).
 - [`epok::Input::pressed`](#epok-input-pressed-1) — Performs `pressed` as part of controller sampling and simulation-tick input edges.
 - [`epok::Input::released`](#epok-input-released-1) — Performs `released` as part of controller sampling and simulation-tick input edges.
 - [`epok::Input::reset`](#epok-input-reset-1) — Resets reset as part of controller sampling and simulation-tick input edges.
@@ -123,7 +124,7 @@ auto result = object.axis_raw(axis, port);
 void begin_tick()
 ```
 
-- **Declared at:** [line 62](../../../runtime/input.hpp#L62)
+- **Declared at:** [line 75](../../../runtime/input.hpp#L75)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -198,7 +199,7 @@ auto result = object.connected(port);
 void discard_edges()
 ```
 
-- **Declared at:** [line 66](../../../runtime/input.hpp#L66)
+- **Declared at:** [line 79](../../../runtime/input.hpp#L79)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -231,7 +232,7 @@ object.discard_edges();
 void end_tick()
 ```
 
-- **Declared at:** [line 65](../../../runtime/input.hpp#L65)
+- **Declared at:** [line 78](../../../runtime/input.hpp#L78)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -431,6 +432,53 @@ object.poll<PadReader>(pad, second_port);
 
 **Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-input-poll-multitap-1"></a>
+
+## `epok::Input::poll_multitap`
+
+**Purpose.** AdvancedPad indexes the four sockets of a multitap on the first physical port as 0..3 (the second physical port begins at 4).
+
+**Details.** Desktop profiles use the same logical Pad 1..4 numbering.
+
+**Exact declaration**
+
+```cpp
+template<class PadReader> void poll_multitap(const PadReader& pad)
+```
+
+- **Declared at:** [line 65](../../../runtime/input.hpp#L65)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `pad` | `const PadReader &` | Input | Value supplied for `pad`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** Desktop profiles use the same logical Pad 1..4 numbering.
+
+**Usage pattern**
+
+```cpp
+#include "input.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// PadReader
+
+// Assume these named values have been initialized with valid data:
+// const PadReader & pad
+
+epok::Input& object = /* obtain a valid instance */;
+
+object.poll_multitap<PadReader>(pad);
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-input-pressed-1"></a>
 
 ## `epok::Input::pressed`
@@ -531,7 +579,7 @@ auto result = object.released(b, port);
 void reset()
 ```
 
-- **Declared at:** [line 67](../../../runtime/input.hpp#L67)
+- **Declared at:** [line 80](../../../runtime/input.hpp#L80)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.

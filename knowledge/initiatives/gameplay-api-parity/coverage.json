@@ -2,10 +2,10 @@
   "schema_version": 2,
   "initiative": "gameplay-api-parity",
   "baseline": {
-    "commit": "274a530ff7fb866f792669c95bdde8d5d7cf1996",
-    "branch": "develop",
+    "commit": "599bec1f44c4ee1a2442518c534ca3931ffa8ff0",
+    "branch": "gameplay-facade-fog-tweens",
     "catalog": "docs/api/catalog.json",
-    "catalog_sha256": "7de9506d5cdefe94d5804aaadafad5502644ef11b07c408a139196aabe1d5666",
+    "catalog_sha256": "8ca1b498205c78f451e369f0009154e3a7a5f2137f0ffd20ddeaa635e4a39dba",
     "catalog_schema": 1,
     "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
     "source_hashes": {
@@ -31,7 +31,7 @@
       "runtime/gte_geometry.hpp": "bb3f385accbc850c7b9d526b93993e259e568ab6653a609aadcbe862b00848a9",
       "runtime/hud.hpp": "7ccd5a2722759f6505e160c16833c18588fe87e504412aad5db77b9039f79d73",
       "runtime/hud_core.hpp": "79904537bc9eebdf1440c09c8ed6cc052b87dd5da39984cfa42c8036d76b2027",
-      "runtime/input.hpp": "a29e88f64c3b03332e45c50c9c1ef6cf0c297c4787b5d226639b9a018e2c0105",
+      "runtime/input.hpp": "f1d8b49e13af877a7bf49095d2febc8373c9b58ccf28b1a1829c7ff54ea0867d",
       "runtime/instrument_allocator.hpp": "5987ee2bfd8e5d18593f205d8d00ccecda7349805f84fe4422a3605d41862fbd",
       "runtime/instrument_bank.hpp": "438af2f6f952c13a979777e82c5f31b2a520ab025d638cf8d6f29a70132ad7e4",
       "runtime/instrument_preparation.hpp": "e9708f8be2182a9a1610ce48e7a67ce325b410393c5c45398d318a6e95e82409",
@@ -98,8 +98,8 @@
     }
   },
   "frozen_denominator": {
-    "candidate_keys_sha256": "645e43b713dcb769e568c478f987ce97e3afa3e5dc738ec6a55e2c8b9372ad75",
-    "count": 3309,
+    "candidate_keys_sha256": "92041864b669c1a4d97654138632c48904d85f8bf7661d3332a4f642bb7bd2bf",
+    "count": 3310,
     "policy": "append-only; replacement/removal requires an explicit migration record",
     "migrations": []
   },
@@ -17526,7 +17526,7 @@
           "kind": "callable",
           "qualified": "epok::Input::begin_tick",
           "source": "runtime/input.hpp",
-          "line": 62,
+          "line": 75,
           "signature": "void begin_tick()",
           "result": "void",
           "parameters": [],
@@ -17536,7 +17536,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "24f85b55555c53c16233b1b27c606c682d7ae932a8c720b77e6c3a78830ee6ab",
+      "declaration_hash": "4926f7815e2f79e6f5152958be8a9e1e8cae957794120d4d7e478423ae17b09b",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "void begin_tick()",
@@ -17684,7 +17684,7 @@
           "kind": "callable",
           "qualified": "epok::Input::discard_edges",
           "source": "runtime/input.hpp",
-          "line": 66,
+          "line": 79,
           "signature": "void discard_edges()",
           "result": "void",
           "parameters": [],
@@ -17694,7 +17694,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "9a489d253cce0a1843f81bf6a46af5a927f6e157a7ea226fcc03bea6ecbfc904",
+      "declaration_hash": "7e50102cd978f4c5dbd608167d583931aa709ce312e898cf7cbaf526338bb070",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "void discard_edges()",
@@ -17757,7 +17757,7 @@
           "kind": "callable",
           "qualified": "epok::Input::end_tick",
           "source": "runtime/input.hpp",
-          "line": 65,
+          "line": 78,
           "signature": "void end_tick()",
           "result": "void",
           "parameters": [],
@@ -17767,7 +17767,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "880d51c8aa016cb927eeaa0d4f35ce1772e27b23c89b9cb0127e59e47818d0c2",
+      "declaration_hash": "9fb98082c0ff21c123db4737ec694bace49ecdbb1864b1f62a76287893fa87b3",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "void end_tick()",
@@ -18199,6 +18199,91 @@
       "status": "implemented"
     },
     {
+      "id": "gameplay-api:0ec32d65-af00-5d53-9dbc-200fcede8a6e",
+      "candidate_key": "callable:epok::Input::poll_multitap",
+      "category": "input_time",
+      "declaration_kind": "callable",
+      "qualified": "epok::Input::poll_multitap",
+      "module": "input",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::Input::poll_multitap",
+          "source": "runtime/input.hpp",
+          "line": 65,
+          "signature": "template<class PadReader> void poll_multitap(const PadReader& pad)",
+          "result": "void",
+          "parameters": [
+            {
+              "name": "pad",
+              "type": "const PadReader &",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": true,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "3d2b250ac6de682bdad40182e63c7d3134bfc0defe229f1be494743bd0262655",
+      "disposition": "internal_implementation",
+      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "canonical_public_declaration": "template<class PadReader> void poll_multitap(const PadReader& pad)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "pad",
+            "type": "const PadReader &",
+            "direction": "input"
+          }
+        ],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::Input",
+        "domain": "input"
+      },
+      "lifecycle_phase": "simulation tick or rendered-frame callback as declared",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:0ec32d65-af00-5d53-9dbc-200fcede8a6e"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:0ec32d65-af00-5d53-9dbc-200fcede8a6e"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
       "id": "gameplay-api:f5e420a9-3d60-5e71-b048-bf9d71c6269b",
       "candidate_key": "callable:epok::Input::pressed",
       "category": "input_time",
@@ -18400,7 +18485,7 @@
           "kind": "callable",
           "qualified": "epok::Input::reset",
           "source": "runtime/input.hpp",
-          "line": 67,
+          "line": 80,
           "signature": "void reset()",
           "result": "void",
           "parameters": [],
@@ -18410,7 +18495,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "cf7b1670f946d961dd554c2edf59b944910a689256416790b1403a45b58764bc",
+      "declaration_hash": "d7d8ac9ac8fbd85b3e3fab9419b9e70ed1d747b10cdec31b6c58d0c8472a375a",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "void reset()",
@@ -122304,8 +122389,8 @@
         }
       ],
       "declaration_hash": "c65529ce4513f03a976be0d233ea805b238973a2184156ef545e912727a1c5f6",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "int32_t parent=-1",
       "types_and_directions": {
         "parameters": [
@@ -122327,24 +122412,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -122456,8 +122541,8 @@
         }
       ],
       "declaration_hash": "5e1b85e3817fdd8346d290df46ceac4becc2089e94d2394297dc3d617528d436",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "uint32_t sampled_frame=0",
       "types_and_directions": {
         "parameters": [
@@ -122479,24 +122564,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -133780,8 +133865,8 @@
         }
       ],
       "declaration_hash": "7a6231f84b7473800184e1a418a6cb3ad47eaa4edf34e5e7254d50a05b18dc4d",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "Fixed fraction=1.0",
       "types_and_directions": {
         "parameters": [
@@ -133803,24 +133888,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -133932,8 +134017,8 @@
         }
       ],
       "declaration_hash": "5f4b93e616442abc667f787cce1c5f1ae8d74754e6a6669177e9c4d4ea48f995",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "GameplayVector3 point{},normal{}",
       "types_and_directions": {
         "parameters": [
@@ -133955,24 +134040,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -134008,8 +134093,8 @@
         }
       ],
       "declaration_hash": "b8211444095e864f28fd46fe029d018628969ee249e3fd3958ae1bcd50d2b674",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "GameplayVector3 point{},n",
       "types_and_directions": {
         "parameters": [
@@ -134031,24 +134116,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -141456,8 +141541,8 @@
         }
       ],
       "declaration_hash": "fae04f790099b03300d19035d2079f8d41402ab6d3e4f7ba18a16b26603d0ab2",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "Fixed zoom=1.0,rotation=0.0",
       "types_and_directions": {
         "parameters": [
@@ -141479,24 +141564,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -141532,8 +141617,8 @@
         }
       ],
       "declaration_hash": "8505e5cda4a432cc05f926e228cc1f8d0d0d50c36d679ae01544cc1144d930c5",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "int32_t viewport_x=0,viewport_y=0,viewport_width=320,viewport_height=240",
       "types_and_directions": {
         "parameters": [
@@ -141555,24 +141640,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -141608,8 +141693,8 @@
         }
       ],
       "declaration_hash": "e578e3d19034147a9bf4545e8bff5d0ded3f1ec62350ba49a8df8c719c242c22",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "int32_t viewport_x=0,viewport_y=0,viewport_width=320",
       "types_and_directions": {
         "parameters": [
@@ -141631,24 +141716,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -141684,8 +141769,8 @@
         }
       ],
       "declaration_hash": "ea9e8ab931faa5a968e92611e99051e09688468d4383c32d0ee4cf07e068661e",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "int32_t viewport_x=0,v",
       "types_and_directions": {
         "parameters": [
@@ -141707,24 +141792,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -141760,8 +141845,8 @@
         }
       ],
       "declaration_hash": "45420ebf588e5c4886fb2daa02be464a722338a73389b8db92635a39b3202fe4",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "int32_t viewport_x=0,viewport_y=0,v",
       "types_and_directions": {
         "parameters": [
@@ -141783,24 +141868,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -141836,8 +141921,8 @@
         }
       ],
       "declaration_hash": "63ac82b39ea33d543566c3c0c38a16b6fd29c2e3989595599a8222e853e17b3b",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "Fixed zoom=1.0",
       "types_and_directions": {
         "parameters": [
@@ -141859,24 +141944,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -156960,8 +157045,8 @@
         }
       ],
       "declaration_hash": "c30ed86829b3095c01caa43aa4e9ca60433bb9b88510db1df8e6dc1822b0ac2d",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "GameplayVector3 displacement{},n",
       "types_and_directions": {
         "parameters": [
@@ -156983,24 +157068,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -157112,8 +157197,8 @@
         }
       ],
       "declaration_hash": "febd576461d012603cf8a3d23ebf71a7a84339448bc39ebb6aeeb2dd2fdd70ad",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "GameplayVector3 displacement{},normal{}",
       "types_and_directions": {
         "parameters": [
@@ -157135,24 +157220,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -164180,8 +164265,8 @@
         }
       ],
       "declaration_hash": "e6731718520fe59fcdc8a6785614a138618f6e6e527120158ba29c2c814c2bc8",
-      "disposition": "public_gameplay",
-      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
+      "disposition": "internal_implementation",
+      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Destroyed = 5",
       "types_and_directions": {
         "parameters": [
@@ -164203,24 +164288,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "implemented",
-          "evidence": "canonical annotated C++ declaration"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "blueprint": {
-          "state": "implemented",
-          "evidence": "Blueprint catalog: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_native_cpp": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_vm_bytecode": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_vm_source": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         }
       },
       "example_ids": [
@@ -164256,8 +164341,8 @@
         }
       ],
       "declaration_hash": "ebaaf59efaf00740c092b6282bd77c4db312f650f7659fba5e5decbd548f1d86",
-      "disposition": "public_gameplay",
-      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
+      "disposition": "internal_implementation",
+      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "EndingPlay = 4",
       "types_and_directions": {
         "parameters": [
@@ -164279,24 +164364,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "implemented",
-          "evidence": "canonical annotated C++ declaration"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "blueprint": {
-          "state": "implemented",
-          "evidence": "Blueprint catalog: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_native_cpp": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_vm_bytecode": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_vm_source": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         }
       },
       "example_ids": [
@@ -164332,8 +164417,8 @@
         }
       ],
       "declaration_hash": "ae96cdb241c808add7abc1a063bb7eed7296e1a80c4c175b7603240093dc8814",
-      "disposition": "public_gameplay",
-      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
+      "disposition": "internal_implementation",
+      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Initialized = 2",
       "types_and_directions": {
         "parameters": [
@@ -164355,24 +164440,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "implemented",
-          "evidence": "canonical annotated C++ declaration"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "blueprint": {
-          "state": "implemented",
-          "evidence": "Blueprint catalog: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_native_cpp": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_vm_bytecode": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_vm_source": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         }
       },
       "example_ids": [
@@ -164408,8 +164493,8 @@
         }
       ],
       "declaration_hash": "2553122e5a8fa29a110a25d54cec6b3dffc2d7cb5bf12c18d193dd3b8e9964d0",
-      "disposition": "public_gameplay",
-      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
+      "disposition": "internal_implementation",
+      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Playing = 3",
       "types_and_directions": {
         "parameters": [
@@ -164431,24 +164516,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "implemented",
-          "evidence": "canonical annotated C++ declaration"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "blueprint": {
-          "state": "implemented",
-          "evidence": "Blueprint catalog: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_native_cpp": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_vm_bytecode": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_vm_source": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         }
       },
       "example_ids": [
@@ -164484,8 +164569,8 @@
         }
       ],
       "declaration_hash": "a4e661b9581e28bd2bfd392612f242c07de3f3849e3c4da0e586d33ec2668bfb",
-      "disposition": "public_gameplay",
-      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
+      "disposition": "internal_implementation",
+      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Reserved = 1",
       "types_and_directions": {
         "parameters": [
@@ -164507,24 +164592,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "implemented",
-          "evidence": "canonical annotated C++ declaration"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "blueprint": {
-          "state": "implemented",
-          "evidence": "Blueprint catalog: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_native_cpp": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_vm_bytecode": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_vm_source": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         }
       },
       "example_ids": [
@@ -164560,8 +164645,8 @@
         }
       ],
       "declaration_hash": "7276bbf5e27a368e1d151b611dfe763ede9f5b63bbb1482e144e3853dccd0a56",
-      "disposition": "public_gameplay",
-      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
+      "disposition": "internal_implementation",
+      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Unused = 0",
       "types_and_directions": {
         "parameters": [
@@ -164583,24 +164668,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "implemented",
-          "evidence": "canonical annotated C++ declaration"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "blueprint": {
-          "state": "implemented",
-          "evidence": "Blueprint catalog: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_native_cpp": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_vm_bytecode": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         },
         "lua_vm_source": {
-          "state": "implemented",
-          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
         }
       },
       "example_ids": [
@@ -205296,8 +205381,8 @@
         }
       ],
       "declaration_hash": "fa5c7c097cadea04ae52c3cfc9d8105dc22da3e176d6c6c19c3445ac9cb79e64",
-      "disposition": "internal_implementation",
-      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_VALUE declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "uint32_t sampled_frame=0",
       "types_and_directions": {
         "parameters": [
@@ -205319,24 +205404,24 @@
       "required_cooked_features_assets": [],
       "support": {
         "cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
         },
         "blueprint": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Blueprint catalog: registered value layout and split/member projection"
         },
         "lua_native_cpp": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: registered value layout and split/member projection"
         },
         "lua_vm_bytecode": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: registered value layout and split/member projection"
         },
         "lua_vm_source": {
-          "state": "not_applicable",
-          "evidence": "excluded from gameplay denominator"
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: registered value layout and split/member projection"
         }
       },
       "example_ids": [
@@ -217980,14 +218065,14 @@
           "kind": "field",
           "qualified": "epok::input",
           "source": "runtime/input.hpp",
-          "line": 69,
+          "line": 82,
           "signature": "inline Input input",
           "value_type": "Input",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "e5d65a38ecfecb22fe9fd7348b7205f01d640a1e0e80c525d02f06f222e43229",
+      "declaration_hash": "23a5c33972a7667dffea752da7f0f02ccf0a4924df3b498c00adf30e6fa15073",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "inline Input input",

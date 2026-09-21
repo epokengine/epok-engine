@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `274a530ff7fb866f792669c95bdde8d5d7cf1996`. Frozen semantic candidate rows: **3309**.
+Baseline commit: `599bec1f44c4ee1a2442518c534ca3931ffa8ff0`. Frozen semantic candidate rows: **3310**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -12,8 +12,8 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | --- | ---: |
 | `compatibility_alias` | 44 |
 | `hardware_backend` | 6 |
-| `internal_implementation` | 2803 |
-| `public_gameplay` | 456 |
+| `internal_implementation` | 2796 |
+| `public_gameplay` | 464 |
 
 ## Public gameplay gaps
 
@@ -35,7 +35,7 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `components_hierarchy` | 14 |
 | `gameplay_2d` | 100 |
 | `implementation_support` | 979 |
-| `input_time` | 60 |
+| `input_time` | 61 |
 | `language_adapter` | 135 |
 | `materials_visuals` | 50 |
 | `math_values` | 6 |
@@ -297,13 +297,18 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::BoneSample::basis_y` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::BoneSample::basis_z` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::BoneSample::error` | `epok` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::BoneSample::parent` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::BoneSample::position` | `epok` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::BoneSample::sampled_frame` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::BoneSample::success` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CardFileSample::blocks` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CardFileSample::name_hash` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CardFileSample::valid` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::actor` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHitSample::fraction` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::hit` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHitSample::normal` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHitSample::point` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::started_inside` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::EffectLayer::color` | `effect-types` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::EffectLayer::enabled` | `effect-types` | yes | yes | yes | yes | yes | `implemented` |
@@ -330,6 +335,12 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::GameplayAabb::maximum` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayAabb::minimum` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayCamera2D::position` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayCamera2D::rotation` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayCamera2D::viewport_height` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayCamera2D::viewport_width` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayCamera2D::viewport_x` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayCamera2D::viewport_y` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayCamera2D::zoom` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayEventQueue4::count` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayEventQueue4::dropped` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayEventQueue4::item0` | `utility` | yes | yes | yes | yes | yes | `implemented` |
@@ -397,7 +408,9 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::MeshVertexSample::success` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MoveSample::actor` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MoveSample::blocked` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveSample::displacement` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MoveSample::grounded` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MoveSample::normal` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MoveSample::unresolved_overlap` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MoveSample::valid` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ObjectBatch8::count` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -410,12 +423,6 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::ObjectBatch8::item6` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ObjectBatch8::item7` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ObjectBatch8::total` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
-| `epok::ObjectState::Destroyed` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
-| `epok::ObjectState::EndingPlay` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
-| `epok::ObjectState::Initialized` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
-| `epok::ObjectState::Playing` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
-| `epok::ObjectState::Reserved` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
-| `epok::ObjectState::Unused` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::PaletteAnimationState::enabled` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::PaletteAnimationState::first` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::PaletteAnimationState::last` | `epok` | yes | yes | yes | yes | yes | `implemented` |
@@ -499,6 +506,7 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::VertexIndexBatch4::index3` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::VertexSample::error` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::VertexSample::position` | `epok` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::VertexSample::sampled_frame` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::VertexSample::success` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::VertexSamples4::count` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::VertexSamples4::sample0` | `epok` | yes | yes | yes | yes | yes | `implemented` |

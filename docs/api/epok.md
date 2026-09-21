@@ -2,7 +2,7 @@
 
 Epok's gameplay-facing and engine-runtime callables. Start here for entities, input, collision, audio, scenes, timelines, effects and resource budgets.
 
-**Coverage:** 82 headers · 1302 public callables.
+**Coverage:** 82 headers · 1303 public callables.
 
 ## Modules
 
@@ -28,7 +28,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Gte Geometry](epok/gte-geometry.md) | `gte_geometry.hpp` | 6 | Epok runtime API |
 | [Hud](epok/hud.md) | `hud.hpp` | 8 | Epok runtime API |
 | [Hud Core](epok/hud-core.md) | `hud_core.hpp` | 5 | Epok runtime API |
-| [Input](epok/input.md) | `input.hpp` | 14 | Epok runtime API |
+| [Input](epok/input.md) | `input.hpp` | 15 | Epok runtime API |
 | [Instrument Allocator](epok/instrument-allocator.md) | `instrument_allocator.hpp` | 2 | Epok runtime API |
 | [Instrument Bank](epok/instrument-bank.md) | `instrument_bank.hpp` | 18 | Epok runtime API |
 | [Instrument Preparation](epok/instrument-preparation.md) | `instrument_preparation.hpp` | 13 | Epok runtime API |
