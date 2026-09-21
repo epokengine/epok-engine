@@ -23,7 +23,7 @@ unbounded or validated on every host and console. See [Known boundaries](#known-
   name, startup scene, Play profile and transition settings. Paths passed to the
   editor can be either the folder or descriptor. Canonical path resolution and
   a per-project lock prevent the same project being edited twice.
-- **Templates.** New-project choices are Basic, Sample game and Third Person.
+- **Templates.** New-project choices are Basic, Sample and Third Person, each with a C++, Blueprint or Lua gameplay flavor that decides only the starter implementation.
   Creation claims a new directory and never merges into existing content.
 - **Legacy migration and recovery.** Legacy manifests and JSON documents remain
   readable. Migration is explicit, keeps backups and has recovery choices for an
