@@ -4,6 +4,8 @@
 
 // Project-owned third-person movement, animation and an obstacle-aware orbit camera.
 // Gameplay remains intentionally small: no targeting, attacks, NPCs or audio.
+// The Blueprint and Lua flavors of this template implement the same behaviour
+// from the same engine operations, so the three are interchangeable.
 class EPOK_CLASS(Blueprintable, Owners=World3D, Id="9233f481-d27e-4765-a2d3-4dcfcb0cc910") ThirdPersonController : public epok::ActorComponent {
     epok::Fixed camera_yaw=0.0,camera_pitch=18.0,facing=0.0;
     epok::Fixed velocity[3]={0.0,0.0,0.0};
@@ -11,7 +13,9 @@ class EPOK_CLASS(Blueprintable, Owners=World3D, Id="9233f481-d27e-4765-a2d3-4dcf
     character_motion::AnimationState animation;
     epok::DataHandle visual_handle{},camera_handle{};
     int clips[6]={-1,-1,-1,-1,-1,-1};
-    uint32_t playback_phase=0;
+    // Locomotion cycle position in animator ticks, advanced by ground speed
+    // rather than by real time so walking and running never skate.
+    epok::Fixed playback_phase=0.0;
     character_motion::State playing_state=character_motion::State::Land;
     void start(epok::Transform& transform);
     void update(epok::Transform& transform,epok::Fixed dt);
