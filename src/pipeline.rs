@@ -484,11 +484,16 @@ fn execute(
             crate::build_inputs::prepare(root, &build, &config, &invocation, &mut |arguments| {
                 compile_command(invocation.command(arguments), tx, rx, &build_log)
             })?;
+        report(crate::scene_loading::Message::new(format!(
+            "PsyQo SDK: {}.",
+            native.sdk_preparation()
+        )));
         if native.requires_rebuild() {
             None
         } else {
             match receipt.reuse(root, &build) {
                 Ok(outputs) => {
+                    native.record_reused(&build)?;
                     let _ = tx.send(Event::Log(
                         "Reusing verified PSX build; no compilation or disc generation needed."
                             .into(),
@@ -586,6 +591,17 @@ fn execute(
         timing.stage("Preparing native dependencies", &mut report);
         let native =
             crate::build_inputs::prepare(root, &build, &config, &invocation, &mut run_make)?;
+        report(crate::scene_loading::Message::new(format!(
+            "PsyQo SDK: {}. Application rebuild: {}.",
+            native.sdk_preparation(),
+            if native.forces_full_recompile() {
+                "full"
+            } else if native.requires_rebuild() {
+                "incremental"
+            } else {
+                "not required"
+            }
+        )));
         timing.stage("Validating staged build inputs", &mut report);
         let ticket = crate::staging_files::BuildTicket::begin_native(root, &build)?;
         timing.stage("Compiling and linking game", &mut report);

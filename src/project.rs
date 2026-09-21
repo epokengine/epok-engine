@@ -640,6 +640,44 @@ fn stage_sources(
         }
     })
 }
+
+fn validate_play_data(
+    profile: Option<&crate::play::Profile>,
+    geometry: bool,
+    streamed_music: &[String],
+) -> Result<(), String> {
+    let Some(profile) = profile else {
+        return Ok(());
+    };
+    // Serial builds deliberately preserve clip indices but omit XA payloads.
+    let streamed_music = if profile.target == crate::play::Target::Serial {
+        &[][..]
+    } else {
+        streamed_music
+    };
+    if profile.data == crate::play::DataSource::Executable {
+        return match (geometry, streamed_music) {
+            (true, []) => Err("In executable cannot be used while Geometry Streaming is enabled. Disable Geometry Streaming or choose CD on demand / PC on demand.".into()),
+            (false, []) => Ok(()),
+            (false, music) => Err(format!(
+                "In executable cannot contain streamed XA music: {}. Select a resident MusicSequence asset or choose CD on demand.",
+                music.join(", ")
+            )),
+            (true, music) => Err(format!(
+                "In executable cannot contain streamed geometry or XA music: {}. Disable Geometry Streaming and select resident MusicSequence assets, or choose CD on demand.",
+                music.join(", ")
+            )),
+        };
+    }
+    if profile.data == crate::play::DataSource::Host && !streamed_music.is_empty() {
+        return Err(format!(
+            "PC on demand cannot play XA music because XA requires the physical CD decoder: {}. Select a resident MusicSequence asset or use CD on demand.",
+            streamed_music.join(", ")
+        ));
+    }
+    Ok(())
+}
+
 fn stage_with_playback(
     root: &Path,
     scene: &Scene,
@@ -924,25 +962,36 @@ fn stage_with_playback(
         skeletal_queries,
     )?;
     resource_scenes.push(referenced);
+    let shared_resources = crate::scene_bank::resources(&resource_scenes);
+    let streamed_music = crate::audio::clip_ids(&shared_resources)
+        .into_iter()
+        .map(|id| asset_index.resolve(id))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .filter_map(|record| {
+            if record.meta.kind != crate::assets::Kind::AudioClip {
+                return None;
+            }
+            record
+                .meta
+                .settings
+                .audio()
+                .ok()
+                .filter(|settings| settings.is_streamed())
+                .map(|_| record.meta.source.clone())
+        })
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    validate_play_data(profile, stream.is_some(), &streamed_music)?;
     let audio_outputs = if profile.is_some_and(|p| p.target == crate::play::Target::Serial) {
-        crate::audio::stage_with_music(
-            root,
-            &crate::scene_bank::resources(&resource_scenes),
-            build,
-            &asset_index,
-            false,
-        )?
+        crate::audio::stage_with_music(root, &shared_resources, build, &asset_index, false)?
     } else {
-        crate::audio::stage(
-            root,
-            &crate::scene_bank::resources(&resource_scenes),
-            build,
-            &asset_index,
-        )?
+        crate::audio::stage(root, &shared_resources, build, &asset_index)?
     };
     if let Some(profile) = profile {
         if profile.data == crate::play::DataSource::Executable && build.join("disc.xml").is_file() {
-            return Err("This build requires external geometry or XA music. Choose CD on demand / PC on demand, or disable Geometry Streaming and use resident sound effects.".into());
+            return Err("In executable staging unexpectedly produced external disc data; retry after cleaning the build output or report this as a build-system error.".into());
         }
         if profile.data == crate::play::DataSource::Host
             && fs::read_to_string(build.join("audio-bank.hh")).is_ok_and(|s| s.contains(".XA;1"))
@@ -960,7 +1009,6 @@ fn stage_with_playback(
             header.as_bytes(),
         )?;
     }
-    let shared_resources = crate::scene_bank::resources(&resource_scenes);
     crate::memory::stage(
         root,
         build,
@@ -1875,6 +1923,47 @@ fn property_setters(
 mod tests {
     use super::*;
     use crate::scene::ClassDefaults;
+
+    #[test]
+    fn play_data_rejects_external_content_with_actionable_diagnostics() {
+        let executable = crate::play::Profile::default();
+        let error = validate_play_data(
+            Some(&executable),
+            false,
+            &["assets/Audio/bgm/streamed.wav".into()],
+        )
+        .unwrap_err();
+        assert!(error.contains("streamed XA music"));
+        assert!(error.contains("assets/Audio/bgm/streamed.wav"));
+        assert!(error.contains("resident MusicSequence"));
+
+        let error = validate_play_data(Some(&executable), true, &[]).unwrap_err();
+        assert!(error.contains("Geometry Streaming"));
+
+        let host = crate::play::Profile {
+            data: crate::play::DataSource::Host,
+            ..Default::default()
+        };
+        let error = validate_play_data(Some(&host), false, &["music.wav".into()]).unwrap_err();
+        assert!(error.contains("physical CD decoder"));
+    }
+
+    #[test]
+    fn play_data_allows_disc_and_serial_xa_policy() {
+        let disc = crate::play::Profile {
+            data: crate::play::DataSource::Disc,
+            ..Default::default()
+        };
+        assert!(validate_play_data(Some(&disc), true, &["music.wav".into()]).is_ok());
+
+        let serial = crate::play::Profile {
+            target: crate::play::Target::Serial,
+            ..Default::default()
+        };
+        assert!(validate_play_data(Some(&serial), false, &["music.wav".into()]).is_ok());
+        assert!(validate_play_data(Some(&serial), true, &["music.wav".into()]).is_err());
+    }
+
     #[test]
     fn camera_sky_color_exports_to_the_runtime_clear_setting() {
         let mut scene = Scene::default();

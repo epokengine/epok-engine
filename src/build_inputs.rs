@@ -11,6 +11,7 @@ use std::{
 const REPORT: &str = "BuildInputs.epokcache";
 pub const REPORT_PREFIX: &str = "EPOK_NATIVE_INPUT:";
 const STAMP: &str = "BuildInputs.stamp";
+const INCREMENTAL_STATE: &str = "BuildInputs.incremental.epokcache";
 const CONFIGURATION: &str = "native-build:configuration";
 const ENVIRONMENT: &[&str] = &[
     "PATH",
@@ -254,6 +255,12 @@ fn prerequisites(text: &str) -> Result<Vec<String>, String> {
 struct Snapshot {
     inputs: Files,
     recipe: String,
+    /// Inputs already represented in Make's object dependency graph. Ordinary
+    /// edits to these files can use Make's per-translation-unit invalidation.
+    object_inputs: BTreeSet<String>,
+    /// Libraries are Make inputs to the link, but not to every object.
+    link_inputs: BTreeSet<String>,
+    paths: BTreeMap<String, PathBuf>,
 }
 impl Snapshot {
     fn capture(
@@ -274,11 +281,22 @@ impl Snapshot {
     ) -> Result<Self, String> {
         let recipe = crate::scene_dependencies::hash((&report.tools, &report.values));
         let mut paths = report.files;
-        paths.extend(report.libraries.iter().map(|value| build.join(value)));
+        let libraries = report
+            .libraries
+            .iter()
+            .map(|value| build.join(value))
+            .collect::<BTreeSet<_>>();
+        paths.extend(libraries.iter().cloned());
+        let mut object_paths = BTreeSet::new();
         for dependency in report.dependencies {
             let bytes = std::fs::read_to_string(&dependency)
                 .map_err(|e| format!("GCC dependency {}: {e}", dependency.display()))?;
-            paths.extend(prerequisites(&bytes)?.iter().map(|value| build.join(value)));
+            let prerequisites = prerequisites(&bytes)?
+                .iter()
+                .map(|value| build.join(value))
+                .collect::<BTreeSet<_>>();
+            object_paths.extend(prerequisites.iter().cloned());
+            paths.extend(prerequisites);
         }
         paths.insert(invocation.make.clone());
         for (name, tool) in &report.tools {
@@ -305,6 +323,9 @@ impl Snapshot {
             paths.insert(invocation.tool(&program)?);
         }
         let mut inputs = Files::from([(CONFIGURATION.into(), configuration(config))]);
+        let mut input_paths = BTreeMap::new();
+        let mut object_inputs = BTreeSet::new();
+        let mut link_inputs = BTreeSet::new();
         for path in paths {
             let key = crate::native_metadata::file_key(root, &path)?;
             let bytes = std::fs::read(&path)
@@ -313,9 +334,22 @@ impl Snapshot {
             if inputs.get(&key).is_some_and(|old| old != &hash) {
                 return Err("Native build input changed while reading its aliases".into());
             }
+            if object_paths.contains(&path) {
+                object_inputs.insert(key.clone());
+            }
+            if libraries.contains(&path) {
+                link_inputs.insert(key.clone());
+            }
+            input_paths.insert(key.clone(), path);
             inputs.insert(key, hash);
         }
-        Ok(Self { inputs, recipe })
+        Ok(Self {
+            inputs,
+            recipe,
+            object_inputs,
+            link_inputs,
+            paths: input_paths,
+        })
     }
     fn signature(&self) -> String {
         crate::scene_dependencies::hash((&self.inputs, &self.recipe))
@@ -328,6 +362,7 @@ impl Snapshot {
             self.inputs.insert(key.clone(), value.clone());
         }
         self.recipe = crate::scene_dependencies::hash((&self.recipe, &sdk.recipe));
+        self.paths.extend(sdk.paths.clone());
         Ok(())
     }
 }
@@ -335,6 +370,54 @@ impl Snapshot {
 const SDK_HELPER: &str = ".epok-build-inputs.dep";
 const SDK_HELPER_MARKER: &[u8] = b"# Epok generated SDK build-input adapter.\n";
 const SDK_ARCHIVE: &str = "sdk/libpsyqo.a";
+const SDK_CACHE_VERSION: u32 = 1;
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SdkCacheEntry {
+    version: u32,
+    snapshot: String,
+    archive: String,
+}
+
+fn sdk_cache(snapshot: &str) -> (PathBuf, PathBuf) {
+    let directory = crate::workspace::user_data().join("BuildCache/PsyQo");
+    (
+        directory.join(format!("{snapshot}.json")),
+        directory.join(format!("{snapshot}.a")),
+    )
+}
+
+fn cached_sdk(snapshot: &str) -> Option<Vec<u8>> {
+    let (record, archive) = sdk_cache(snapshot);
+    let entry: SdkCacheEntry = serde_json::from_slice(&std::fs::read(record).ok()?).ok()?;
+    let bytes = std::fs::read(archive).ok()?;
+    (entry.version == SDK_CACHE_VERSION
+        && entry.snapshot == snapshot
+        && entry.archive == crate::assets::hash(&bytes)
+        && bytes.starts_with(b"!<arch>\n"))
+    .then_some(bytes)
+}
+
+fn store_cached_sdk(snapshot: &str, bytes: &[u8]) {
+    let (record, archive) = sdk_cache(snapshot);
+    let Some(directory) = record.parent() else {
+        return;
+    };
+    if std::fs::create_dir_all(directory).is_err() {
+        return;
+    }
+    if crate::project::write_changed(&archive, bytes).is_err() {
+        return;
+    }
+    let entry = SdkCacheEntry {
+        version: SDK_CACHE_VERSION,
+        snapshot: snapshot.into(),
+        archive: crate::assets::hash(bytes),
+    };
+    if let Ok(bytes) = serde_json::to_vec(&entry) {
+        let _ = crate::project::write_changed(&record, &bytes);
+    }
+}
 
 fn make_path(path: &Path) -> String {
     let value = path.to_string_lossy().replace('\\', "/");
@@ -350,6 +433,7 @@ struct Sdk {
     arguments: Vec<OsString>,
     snapshot: Snapshot,
     archive_hash: String,
+    preparation: &'static str,
 }
 
 impl Sdk {
@@ -462,8 +546,12 @@ impl Sdk {
             snapshot: Snapshot {
                 inputs: Files::new(),
                 recipe: String::new(),
+                object_inputs: BTreeSet::new(),
+                link_inputs: BTreeSet::new(),
+                paths: BTreeMap::new(),
             },
             archive_hash: String::new(),
+            preparation: "reused project certificate",
         };
         let key = format!(
             "native-sdk:{}",
@@ -495,52 +583,85 @@ impl Sdk {
         });
         let certified_signature;
         if !reusable {
-            sdk.snapshot = sdk.capture(root, build, config, invocation, true, run)?;
-            std::fs::create_dir_all(archive.parent().unwrap()).map_err(|e| e.to_string())?;
-            let temporary = archive.with_file_name(format!("libpsyqo-{}.a", uuid::Uuid::new_v4()));
-            let output = make_path(&temporary);
-            if output.contains(['"', '$', '`', '\n', '\r']) {
-                return Err("SDK archive output path contains unsupported shell characters".into());
+            let snapshot_signature = sdk.snapshot.signature();
+            // A shared certificate can initialize a new/fresh project build,
+            // but must not hide a failed local certification. A stale local
+            // node deliberately requires one clean compile in this invocation.
+            let shared_reusable = before
+                .nodes
+                .get(&key)
+                .is_none_or(|node| node.stale.is_empty());
+            if let Some(bytes) = shared_reusable
+                .then(|| cached_sdk(&snapshot_signature))
+                .flatten()
+            {
+                std::fs::create_dir_all(archive.parent().unwrap()).map_err(|e| e.to_string())?;
+                if previous_archive.as_deref() != Some(&bytes) {
+                    crate::assets::atomic_write(
+                        &archive,
+                        &bytes,
+                        previous_archive
+                            .as_deref()
+                            .map(crate::assets::hash)
+                            .as_deref(),
+                    )?;
+                }
+                certified_signature = signature(&sdk.snapshot, &bytes);
+                sdk.archive_hash = crate::assets::hash(&bytes);
+                sdk.preparation = "reused shared certificate";
+            } else {
+                sdk.snapshot = sdk.capture(root, build, config, invocation, true, run)?;
+                std::fs::create_dir_all(archive.parent().unwrap()).map_err(|e| e.to_string())?;
+                let temporary =
+                    archive.with_file_name(format!("libpsyqo-{}.a", uuid::Uuid::new_v4()));
+                let output = make_path(&temporary);
+                if output.contains(['"', '$', '`', '\n', '\r']) {
+                    return Err(
+                        "SDK archive output path contains unsupported shell characters".into(),
+                    );
+                }
+                let mut arguments = sdk.arguments.clone();
+                let object_directory = format!(".epok-sdk-objects-{}", uuid::Uuid::new_v4());
+                std::fs::create_dir(sdk.directory.join(&object_directory))
+                    .map_err(|e| format!("SDK object directory: {e}"))?;
+                arguments.extend([
+                    "-B".into(),
+                    "epok-sdk-archive".into(),
+                    format!("EPOK_SDK_ARCHIVE_OUTPUT={output}").into(),
+                    format!("EPOK_SDK_OBJECT_DIRECTORY={object_directory}").into(),
+                ]);
+                run(&arguments)?;
+                let current = sdk.capture(root, build, config, invocation, true, run)?;
+                if current.signature() != sdk.snapshot.signature() {
+                    return Err(
+                        "SDK inputs changed during archive compilation; rebuild before Play".into(),
+                    );
+                }
+                let bytes =
+                    std::fs::read(&temporary).map_err(|e| format!("Missing SDK archive: {e}"))?;
+                if !bytes.starts_with(b"!<arch>\n") {
+                    return Err("SDK build did not produce an archive".into());
+                }
+                // Always construct a new archive: ar rcs on an old archive retains
+                // members whose source files have been removed from the Make list.
+                if previous_archive.as_deref() != Some(&bytes) {
+                    crate::assets::atomic_write(
+                        &archive,
+                        &bytes,
+                        previous_archive
+                            .as_deref()
+                            .map(crate::assets::hash)
+                            .as_deref(),
+                    )?;
+                }
+                certified_signature = signature(&sdk.snapshot, &bytes);
+                sdk.archive_hash = crate::assets::hash(&bytes);
+                sdk.preparation = "compiled and certified";
+                store_cached_sdk(&sdk.snapshot.signature(), &bytes);
+                // This unique archive was created by this invocation in its own
+                // output directory. Failed invocations retain it for diagnosis.
+                let _ = std::fs::remove_file(&temporary);
             }
-            let mut arguments = sdk.arguments.clone();
-            let object_directory = format!(".epok-sdk-objects-{}", uuid::Uuid::new_v4());
-            std::fs::create_dir(sdk.directory.join(&object_directory))
-                .map_err(|e| format!("SDK object directory: {e}"))?;
-            arguments.extend([
-                "-B".into(),
-                "epok-sdk-archive".into(),
-                format!("EPOK_SDK_ARCHIVE_OUTPUT={output}").into(),
-                format!("EPOK_SDK_OBJECT_DIRECTORY={object_directory}").into(),
-            ]);
-            run(&arguments)?;
-            let current = sdk.capture(root, build, config, invocation, true, run)?;
-            if current.signature() != sdk.snapshot.signature() {
-                return Err(
-                    "SDK inputs changed during archive compilation; rebuild before Play".into(),
-                );
-            }
-            let bytes =
-                std::fs::read(&temporary).map_err(|e| format!("Missing SDK archive: {e}"))?;
-            if !bytes.starts_with(b"!<arch>\n") {
-                return Err("SDK build did not produce an archive".into());
-            }
-            // Always construct a new archive: ar rcs on an old archive retains
-            // members whose source files have been removed from the Make list.
-            if previous_archive.as_deref() != Some(&bytes) {
-                crate::assets::atomic_write(
-                    &archive,
-                    &bytes,
-                    previous_archive
-                        .as_deref()
-                        .map(crate::assets::hash)
-                        .as_deref(),
-                )?;
-            }
-            certified_signature = signature(&sdk.snapshot, &bytes);
-            sdk.archive_hash = crate::assets::hash(&bytes);
-            // This unique archive was created by this invocation in its own
-            // output directory. Failed invocations retain it for diagnosis.
-            let _ = std::fs::remove_file(&temporary);
         } else {
             let bytes = previous_archive.as_ref().unwrap();
             certified_signature = signature(&sdk.snapshot, bytes);
@@ -565,6 +686,70 @@ pub struct Prepared {
     sdk: Sdk,
     key: String,
     rebuild: bool,
+    force_all: bool,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct IncrementalState {
+    version: u32,
+    signature: String,
+    recipe: String,
+    inputs: Files,
+}
+
+impl IncrementalState {
+    fn load(build: &Path) -> Option<Self> {
+        let state: Self =
+            serde_json::from_slice(&std::fs::read(build.join(INCREMENTAL_STATE)).ok()?).ok()?;
+        (state.version == 1).then_some(state)
+    }
+
+    fn save(build: &Path, snapshot: &Snapshot) -> Result<(), String> {
+        let state = Self {
+            version: 1,
+            signature: snapshot.signature(),
+            recipe: snapshot.recipe.clone(),
+            inputs: snapshot.inputs.clone(),
+        };
+        crate::project::write_changed(
+            &build.join(INCREMENTAL_STATE),
+            &serde_json::to_vec(&state).map_err(|e| e.to_string())?,
+        )
+    }
+
+    fn make_can_rebuild(&self, snapshot: &Snapshot, executable: &Path) -> bool {
+        if self.recipe != snapshot.recipe {
+            return false;
+        }
+        let Ok(output_time) = executable.metadata().and_then(|value| value.modified()) else {
+            return false;
+        };
+        let keys = self
+            .inputs
+            .keys()
+            .chain(snapshot.inputs.keys())
+            .collect::<BTreeSet<_>>();
+        let changed = keys
+            .into_iter()
+            .filter(|key| self.inputs.get(*key) != snapshot.inputs.get(*key));
+        let mut any = false;
+        for key in changed {
+            any = true;
+            if !snapshot.object_inputs.contains(key) && !snapshot.link_inputs.contains(key) {
+                return false;
+            }
+            let Some(path) = snapshot.paths.get(key) else {
+                return false;
+            };
+            let Ok(input_time) = path.metadata().and_then(|value| value.modified()) else {
+                return false;
+            };
+            if input_time <= output_time {
+                return false;
+            }
+        }
+        any
+    }
 }
 fn query_arguments(fresh_dependencies: bool) -> Vec<OsString> {
     fresh_dependencies
@@ -629,6 +814,9 @@ pub fn prepare(
             .nodes
             .get(&executable)
             .is_none_or(|node| !node.stale.is_empty() || node.signature.is_none());
+    let force_all = rebuild
+        && !IncrementalState::load(build)
+            .is_some_and(|state| state.make_can_rebuild(&snapshot, &build.join("epok.ps-exe")));
     crate::project::write_changed(&build.join(STAMP), signature.as_bytes())?;
     dag::transaction(root, |graph| {
         for (key, signature) in &snapshot.inputs {
@@ -643,15 +831,25 @@ pub fn prepare(
         sdk,
         key,
         rebuild,
+        force_all,
     })
 }
 impl Prepared {
     pub fn requires_rebuild(&self) -> bool {
         self.rebuild
     }
+    pub fn sdk_preparation(&self) -> &'static str {
+        self.sdk.preparation
+    }
+    pub fn forces_full_recompile(&self) -> bool {
+        self.force_all
+    }
+    pub fn record_reused(&self, build: &Path) -> Result<(), String> {
+        IncrementalState::save(build, &self.snapshot)
+    }
     pub fn arguments(&self) -> Vec<OsString> {
         let mut arguments = vec!["all".into(), format!("EPOK_INPUT_STAMP={STAMP}").into()];
-        if self.rebuild {
+        if self.force_all {
             arguments.extend(["-W".into(), STAMP.into()]);
         }
         application_arguments(arguments)
@@ -679,7 +877,7 @@ impl Prepared {
                     "Native build inputs changed during compilation; no executable launched".into(),
                 );
             }
-            Ok(())
+            IncrementalState::save(build, &self.snapshot)
         })();
         if let Err(error) = &result {
             crate::native_metadata::observe(root)?;
@@ -693,6 +891,75 @@ impl Prepared {
 mod tests {
     use super::*;
     use crate::staging_files::BuildTicket;
+
+    #[test]
+    fn incremental_state_uses_make_only_for_newer_known_inputs() {
+        let root =
+            std::env::temp_dir().join(format!("epok-incremental-policy-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let executable = root.join("epok.ps-exe");
+        let input = root.join("scene.hh");
+        std::fs::write(&executable, b"exe").unwrap();
+        std::fs::write(&input, b"new").unwrap();
+        let output_time = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(100);
+        let input_time = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(200);
+        std::fs::File::options()
+            .write(true)
+            .open(&executable)
+            .unwrap()
+            .set_times(std::fs::FileTimes::new().set_modified(output_time))
+            .unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&input)
+            .unwrap()
+            .set_times(std::fs::FileTimes::new().set_modified(input_time))
+            .unwrap();
+        let key = "input".to_owned();
+        let state = IncrementalState {
+            version: 1,
+            signature: "old".into(),
+            recipe: "recipe".into(),
+            inputs: Files::from([(key.clone(), "old".into())]),
+        };
+        let mut snapshot = Snapshot {
+            inputs: Files::from([(key.clone(), "new".into())]),
+            recipe: "recipe".into(),
+            object_inputs: BTreeSet::from([key.clone()]),
+            link_inputs: BTreeSet::new(),
+            paths: BTreeMap::from([(key.clone(), input.clone())]),
+        };
+        assert!(state.make_can_rebuild(&snapshot, &executable));
+
+        std::fs::File::options()
+            .write(true)
+            .open(&input)
+            .unwrap()
+            .set_times(std::fs::FileTimes::new().set_modified(output_time))
+            .unwrap();
+        assert!(
+            !state.make_can_rebuild(&snapshot, &executable),
+            "timestamp-preserving edits require the conservative full rebuild"
+        );
+        snapshot.object_inputs.clear();
+        snapshot.link_inputs.insert(key.clone());
+        std::fs::File::options()
+            .write(true)
+            .open(&input)
+            .unwrap()
+            .set_times(std::fs::FileTimes::new().set_modified(input_time))
+            .unwrap();
+        assert!(state.make_can_rebuild(&snapshot, &executable));
+        snapshot.link_inputs.clear();
+        assert!(
+            !state.make_can_rebuild(&snapshot, &executable),
+            "untracked compiler/configuration inputs must force every object"
+        );
+        snapshot.object_inputs.insert(key);
+        snapshot.recipe = "changed recipe".into();
+        assert!(!state.make_can_rebuild(&snapshot, &executable));
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn gcc_dependency_paths_preserve_spaces_hashes_dollars_and_drive_prefixes() {
@@ -828,6 +1095,15 @@ sdk_blob:
         }
         let archive = build.join(SDK_ARCHIVE);
         let first = std::fs::read(&archive).unwrap();
+        std::fs::remove_file(&archive).unwrap();
+        dag::transaction(&root, |graph| {
+            graph.nodes.remove("native-sdk:.epok/build");
+        })
+        .unwrap();
+        let shared_sdk = Sdk::prepare(&root, &build, &config, &invocation, &mut run).unwrap();
+        assert_eq!(shared_sdk.preparation, "reused shared certificate");
+        assert_eq!(builds.get(), 1, "a new build must reuse the shared SDK");
+        assert_eq!(std::fs::read(&archive).unwrap(), first);
         let time = std::fs::metadata(&archive).unwrap().modified().unwrap();
         Sdk::prepare(&root, &build, &config, &invocation, &mut run).unwrap();
         assert_eq!(
@@ -924,17 +1200,14 @@ sdk_blob:
         let header = external.join("Value #1.inc");
         let first_header = "#if __has_include(\"Shadow.inc\")\n#include \"Shadow.inc\"\n#else\n#define EPOK_TEST_VALUE 1\n#endif\n";
         std::fs::write(&header, first_header).unwrap();
-        std::fs::write(root.join("assets/scripts/Probe.hpp"), "#pragma once\n#include \"epok.hpp\"\nclass Probe:public epok::Behaviour { public: void update(epok::Transform&,epok::Fixed) override; };\n").unwrap();
-        std::fs::write(root.join("assets/scripts/Probe.cpp"), format!("#include \"Probe.hpp\"\n#include \"{}\"\nvoid Probe::update(epok::Transform& transform,epok::Fixed) {{ transform.position[0]=epok::Fixed(EPOK_TEST_VALUE); }}\n", header.to_string_lossy().replace('\\', "/"))).unwrap();
-        std::fs::write(
-            root.join("assets/scripts/Probe.epokscript"),
-            br#"{"name":"Probe","properties":[]}"#,
-        )
-        .unwrap();
+        let class_id = "069ca18c-c618-4af8-b8fb-c34fa044da7a";
+        std::fs::write(root.join("assets/scripts/Probe.hpp"), format!("#pragma once\n#include \"epok.hpp\"\nclass EPOK_CLASS(Blueprintable,Id=\"{class_id}\") Probe:public epok::Actor3D {{ public: EPOK_PROPERTY(EditAnywhere,Id=\"e7cded42-0b8a-4347-8a70-0caef7c101dd\") int32_t value=0; void tick(epok::Fixed) override; }};\n")).unwrap();
+        std::fs::write(root.join("assets/scripts/Probe.cpp"), format!("#include \"Probe.hpp\"\n#include \"{}\"\nvoid Probe::tick(epok::Fixed) {{ value=EPOK_TEST_VALUE; }}\n", header.to_string_lossy().replace('\\', "/"))).unwrap();
         let mut scene = crate::scene::Scene::default();
         scene.actors[0].set_class_defaults(
             &(crate::scene::ClassDefaults {
                 name: "Probe".into(),
+                class_id: Some(class_id.into()),
                 ..Default::default()
             }),
         );
@@ -984,6 +1257,7 @@ sdk_blob:
             };
         let initial = prepare(&root, &build, &config, &invocation, &mut run).unwrap();
         assert!(initial.rebuild);
+        assert!(initial.force_all);
         assert!(
             initial
                 .snapshot
@@ -1031,6 +1305,7 @@ sdk_blob:
             !pending.rebuild,
             "Unchanged validated inputs must permit Make reuse"
         );
+        assert!(!pending.force_all);
         let ticket = BuildTicket::begin(&root, &build).unwrap();
         compile(&pending, &mut run);
         let time = std::fs::metadata(&header).unwrap().modified().unwrap();
@@ -1049,6 +1324,10 @@ sdk_blob:
         assert!(ticket.complete(&root, &build, &original).is_err());
         let changed = prepare(&root, &build, &config, &invocation, &mut run).unwrap();
         assert!(changed.rebuild);
+        assert!(
+            changed.force_all,
+            "timestamp-preserving edits require a full application rebuild"
+        );
         let ticket = BuildTicket::begin(&root, &build).unwrap();
         let updated = compile(&changed, &mut run);
         assert_ne!(
@@ -1075,6 +1354,10 @@ sdk_blob:
         assert!(ticket.complete(&root, &build, &updated).is_err());
         let changed = prepare(&root, &build, &config, &invocation, &mut run).unwrap();
         assert!(changed.rebuild);
+        assert!(
+            !changed.force_all,
+            "a newly discovered, newer header can use Make's translation-unit dependency"
+        );
         assert!(
             changed
                 .snapshot
