@@ -3,7 +3,7 @@
   "epok": {
     "headers": 82,
     "types": 395,
-    "callables": 1303,
+    "callables": 1305,
     "properties": 2056
   },
   "psyqo": {
@@ -199,10 +199,10 @@
       "family": "epok",
       "header": "gameplay_api.hpp",
       "slug": "gameplay-api",
-      "callables": 75,
+      "callables": 77,
       "types": 31,
       "properties": 105,
-      "source_sha256": "a2d6c9bddea107ccbf7925bd8cda7a213ed8ba58a96181d4f6a484ff79b91e61",
+      "source_sha256": "0751ccbecf3809c4d326135a303acd072d3761fe5e795555ebb9f6aa17039edd",
       "diagnostics": []
     },
     {

@@ -119,6 +119,16 @@ function Guard:tick(delta_seconds)
         local axis = epok.utilities.tween_advance(
             epok.utilities.tween_start(-2.0, 6.0, 1.0, 15), 0.375)
         self:probe_f(94, axis.value)
+        -- The post-HUD screen fade, scene-global scalar state the setter clamps
+        -- instead of rejecting, so it reports nothing and the getter is the whole
+        -- observation. One slot carries the contract: 300 saturates to 255, 200
+        -- round trips, and the restore to 0 leaves the frame as it found it.
+        epok.scene.set_screen_fade(300)
+        local saturated = epok.scene.screen_fade()
+        epok.scene.set_screen_fade(200)
+        local held_fade = epok.scene.screen_fade()
+        epok.scene.set_screen_fade(0)
+        self:probe_u(95, saturated * 65536 + held_fade * 256 + epok.scene.screen_fade())
     end
     -- The class predicates, asked about a reference that is certainly live: the
     -- actor running the body. `self.ref` is the value the Blueprint Self node

@@ -2,13 +2,13 @@
 
 This reference is generated from the exact C++ headers shipped with Epok. It is the symbol-by-symbol companion to the workflow guides: use those guides to learn a system, then use this section while writing code.
 
-The [web API explorer](https://epokengine.github.io/docs/api/) presents the same snapshot like a scripting reference: browse 563 classes, structs, enums and aliases, 2197 callable overloads and 2600 public fields, constants and enum values. Every item has its own permanent page and usage snippet. The Markdown modules below remain the compact, header-oriented version for offline reading and repository reviews.
+The [web API explorer](https://epokengine.github.io/docs/api/) presents the same snapshot like a scripting reference: browse 563 classes, structs, enums and aliases, 2199 callable overloads and 2600 public fields, constants and enum values. Every item has its own permanent page and usage snippet. The Markdown modules below remain the compact, header-oriented version for offline reading and repository reviews.
 
 ## Choose the right layer
 
 | Layer | Start here | Public callables | Best for |
 | --- | --- | ---: | --- |
-| Epok runtime | [Browse Epok modules](epok.md) | 1303 | Normal game code, engine components and bounded runtime services |
+| Epok runtime | [Browse Epok modules](epok.md) | 1305 | Normal game code, engine components and bounded runtime services |
 | PsyQo | [Browse PsyQo modules](psyqo.md) | 894 | Lower-level GPU, GTE, SPU, CD-ROM, pad, task and kernel control |
 
 Prefer Epok when both layers solve the same problem. It preserves the editor/runtime contract and its resource accounting. Reach for PsyQo when you need hardware control Epok does not expose. That extra freedom is useful, but it also makes synchronization, packet lifetime and memory budgets your responsibility.

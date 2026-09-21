@@ -38,6 +38,15 @@ step, returns `false` and leaves the scene untouched, which is the same range th
 editor validator accepts. `end` is a Lua keyword, so the distances are named
 `start_distance` and `end_distance`.
 
+`scene.screen_fade()` and `scene.set_screen_fade(value)` read and write the
+post-HUD fade to black as a plain amount from 0 (clear) to 255 (opaque). Every
+input has one nearest valid amount, so the setter clamps above 255 instead of
+rejecting and reports nothing. The getter returns the authored amount, not the
+drawn one: what is drawn is the larger of it and a running transition's opacity,
+which `scene.transition_snapshot()` already reports, so a read-back can never
+disagree with the write that preceded it. The amount survives scene activation,
+which makes a fade out, a `scene.request(index)` and a fade back in one sequence.
+
 The `utilities` group adapts the native tween and event-queue kernels as owned
 values. `tween_advance` returns the updated tween plus its current value and
 completion edge. The four-entry event queue returns a new queue from `emit` or

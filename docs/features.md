@@ -205,8 +205,8 @@ emulator validation are pending on an SDK machine. See
   explicit triangle/resource counters. See [Lighting](lighting.md).
 - **Fog and screen fade.** Per-scene depth fog affects supported geometry and is
   authorable from C++, Blueprint and Lua through the `Scene` group, which rejects
-  an invalid distance range without mutating anything; the runtime also exposes a
-  full-screen fade used directly and by transitions.
+  an invalid distance range without mutating anything; the same group reads and
+  writes the full-screen fade, clamped to 0–255 and shared with transitions.
 - **Animated surfaces.** Material UV scrolling supports water-like motion, and
   palette animators cycle imported CLUT entries. See
   [Environment effects](environment-effects.md) and

@@ -217,6 +217,43 @@ static void scene_fog_range() {
     epok::fog_environment=epok::FogEnvironment{};
 }
 
+// The scripted screen-fade facade over the raw `epok::screen_fade` store. Unlike
+// the fog range every input has one nearest valid value, so the setter clamps and
+// reports nothing; the getter is the whole observation.
+static void scene_screen_fade_clamps_and_round_trips() {
+    epok::screen_fade=0;
+    assert(epok::SceneLibrary::screen_fade()==0);
+
+    // Every representable amount round-trips exactly, including both ends and
+    // the 255 the renderer special-cases into an opaque rectangle.
+    for(uint32_t amount=0;amount<=255;++amount){
+        epok::SceneLibrary::set_screen_fade(amount);
+        assert(epok::screen_fade==amount);
+        assert(epok::SceneLibrary::screen_fade()==amount);
+    }
+
+    // Above the range the setter clamps to opaque black rather than refusing,
+    // exactly as a transition's loading color clamps its channels.
+    for(uint32_t over:{uint32_t(256),uint32_t(300),uint32_t(4096),uint32_t(0xffffffffu)}){
+        epok::SceneLibrary::set_screen_fade(over);
+        assert(epok::screen_fade==255&&epok::SceneLibrary::screen_fade()==255);
+    }
+    // The low end is unsigned, so zero is the only floor there is to reach.
+    epok::SceneLibrary::set_screen_fade(0);
+    assert(epok::screen_fade==0&&epok::SceneLibrary::screen_fade()==0);
+
+    // The getter reports what was authored, not what is drawn. The drawn amount
+    // is the larger of this and the running transition's opacity, and that one
+    // is already observable through `transition_snapshot`.
+    epok::SceneLibrary::set_screen_fade(64);
+    epok::transition.opacity=200;
+    assert(epok::SceneLibrary::screen_fade()==64);
+    assert(epok::SceneLibrary::transition_snapshot().opacity==200);
+    epok::transition.opacity=0;
+    assert(epok::SceneLibrary::screen_fade()==64);
+    epok::screen_fade=0;
+}
+
 static void persistent_utilities() {
     auto tween=epok::UtilityLibrary::tween_start(0.0,10.0,2.0,epok::Ease::SmoothStep);
     auto halfway=epok::UtilityLibrary::tween_advance(tween,1.0);
@@ -330,7 +367,8 @@ int main() {
     skeletal_matrix_fast_paths();
     animated_packet_retention();
     scene_fog_range();
+    scene_screen_fade_clamps_and_round_trips();
     persistent_utilities();
     vector_tweens_track_scalar_tweens();
-    std::puts("Gameplay libraries: typed records, input/time, math, bounded payload, fog, tweens and focus pass.");
+    std::puts("Gameplay libraries: typed records, input/time, math, bounded payload, fog, screen fade, tweens and focus pass.");
 }

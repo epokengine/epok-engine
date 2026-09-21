@@ -227,6 +227,19 @@ struct EPOK_FUNCTION_LIBRARY(Category="Scene", Id="e018f41e-b530-46f2-9331-9cf15
         fog_environment.color[0]=gameplay_u8(value.red);fog_environment.color[1]=gameplay_u8(value.green);fog_environment.color[2]=gameplay_u8(value.blue);
         return true;
     }
+    // The post-HUD fade to black, 0 clear to 255 opaque, clamped rather than
+    // rejected because every amount above the range has one nearest valid value.
+    // The getter reports the authored amount; what is drawn is the larger of it
+    // and a running transition's opacity, which `transition_snapshot` already
+    // reports. The amount survives scene activation, so a game can fade out,
+    // request a scene and fade back in.
+    EPOK_FUNCTION(BlueprintPure, Id="91c95c93-f719-430c-b8e0-1c5863468be9") static uint32_t screen_fade(){return epok::screen_fade;}
+    EPOK_FUNCTION(BlueprintCallable, Id="2c441c7c-296e-4932-9b55-65a8f042a398") static void set_screen_fade(uint32_t value){
+        // `epok::` is load-bearing on both accessors: this library is in namespace
+        // epok, so an unqualified `screen_fade` in a member body finds the getter
+        // above rather than the store it reads.
+        epok::screen_fade=gameplay_u8(value);
+    }
     EPOK_FUNCTION(BlueprintPure, Id="42291949-a4c5-454e-a5d6-09c5c3b1f698") static ObjectId active_camera_actor(){return gameplay_actor_id(active_camera());}
     EPOK_FUNCTION(BlueprintCallable, Id="e36ec48c-b2fe-49a2-8935-894d346882f7") static bool set_camera(ObjectId actor){return set_active_camera(gameplay_actor_data(actor));}
     EPOK_FUNCTION(BlueprintCallable, Id="b56f74e0-f7cf-4703-98d7-574a3d3387df") static ProjectedPoint project(GameplayVector3 world){Fixed input[3],screen[2]={};gameplay_vector(world,input);ProjectedPoint result;result.success=camera_project(input,screen);if(result.success){result.x=screen[0];result.y=screen[1];}return result;}

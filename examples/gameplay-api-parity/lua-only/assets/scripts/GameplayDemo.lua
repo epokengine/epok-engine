@@ -28,6 +28,13 @@ function GameplayDemo:begin_play()
     -- false result here is a real failure rather than a rejected range.
     local fog = epok.scene.fog()
     self.was_paused = self.was_paused or not epok.scene.set_fog(fog)
+    -- The post-HUD screen fade through the same group. It clamps rather than
+    -- rejecting, so the round trip is read back instead of tested on a result:
+    -- 300 saturates to 255 and the demo hands the display back clear.
+    epok.scene.set_screen_fade(300)
+    local faded = epok.scene.screen_fade()
+    epok.scene.set_screen_fade(0)
+    self.was_paused = self.was_paused or faded ~= 255 or epok.scene.screen_fade() ~= 0
     local probe = epok.math.vector3(1.0, 2.0, 3.0)
     local doubled = epok.math.add(probe, probe)
     self.frames = self.frames + epok.to_int(doubled.x)

@@ -2,10 +2,10 @@
   "schema_version": 2,
   "initiative": "gameplay-api-parity",
   "baseline": {
-    "commit": "4490d2c5d8d1c3e214c362f34382c2d8ec0bf796",
+    "commit": "f2bb5e25c30b9ee3c7ed1028c9b8e8918f5c1a51",
     "branch": "develop",
     "catalog": "docs/api/catalog.json",
-    "catalog_sha256": "68945baddc4a6e7a5d1882612f3d9bfa49a2511449b51bf6579eeca00a64c559",
+    "catalog_sha256": "28127f0e48bc8a2774fc24e8ddcf80ed6260465e630675b34738b49338a32eec",
     "catalog_schema": 1,
     "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
     "source_hashes": {
@@ -27,7 +27,7 @@
       "runtime/fixed_math.hpp": "d5bf28107f11a801ab3f8f4ccfd7efefaff9a5c71cf0a6609f809db24eaf9276",
       "runtime/frame_clear.hpp": "0a5363b24087ee68021d555b95ab2d9c8d17aeb944d85296aa17620ebb1367f7",
       "runtime/frustum.hpp": "f3bd227116e42492949a57cefc40b6f390ff9b0af4b0469642587f6ca2a26f2f",
-      "runtime/gameplay_api.hpp": "a2d6c9bddea107ccbf7925bd8cda7a213ed8ba58a96181d4f6a484ff79b91e61",
+      "runtime/gameplay_api.hpp": "0751ccbecf3809c4d326135a303acd072d3761fe5e795555ebb9f6aa17039edd",
       "runtime/gte_geometry.hpp": "bb3f385accbc850c7b9d526b93993e259e568ab6653a609aadcbe862b00848a9",
       "runtime/hud.hpp": "7ccd5a2722759f6505e160c16833c18588fe87e504412aad5db77b9039f79d73",
       "runtime/hud_core.hpp": "79904537bc9eebdf1440c09c8ed6cc052b87dd5da39984cfa42c8036d76b2027",
@@ -98,8 +98,8 @@
     }
   },
   "frozen_denominator": {
-    "candidate_keys_sha256": "a185e9b4f5733343cb9b841d42de6d41cdaa5abcaf60c21a388b7ded986b71c0",
-    "count": 3310,
+    "candidate_keys_sha256": "a42428dc72879bfa1ba1fb5fbd3439b135b251ccfe9ff7151507d872c1e02faa",
+    "count": 3312,
     "policy": "append-only; replacement/removal requires an explicit migration record",
     "migrations": []
   },
@@ -23871,7 +23871,7 @@
           "kind": "callable",
           "qualified": "epok::MemoryCardLibrary::clear_staged_payload",
           "source": "runtime/gameplay_api.hpp",
-          "line": 264,
+          "line": 277,
           "signature": "static void clear_staged_payload()",
           "result": "void",
           "parameters": [],
@@ -23881,7 +23881,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "69e298ea7916d7494439d4164a13e0364f36825ba0ed6c068de34e196a4ae005",
+      "declaration_hash": "5ad2b5f209ea80db7bde82feffc851e41c19ac1cc77c50fbd4b085fe88fe9bd2",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static void clear_staged_payload()",
@@ -23944,7 +23944,7 @@
           "kind": "callable",
           "qualified": "epok::MemoryCardLibrary::file",
           "source": "runtime/gameplay_api.hpp",
-          "line": 263,
+          "line": 276,
           "signature": "static CardFileSample file(uint32_t index)",
           "result": "CardFileSample",
           "parameters": [
@@ -23960,7 +23960,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "092f400e7260a8e9bd160016d58f092f83bb04edacd0786d3f0fc04f9afec128",
+      "declaration_hash": "03c0b35c0aa387e3d2124639e75016af5bfc1620041061a68df090808a902c2d",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static CardFileSample file(uint32_t index)",
@@ -24029,7 +24029,7 @@
           "kind": "callable",
           "qualified": "epok::MemoryCardLibrary::list",
           "source": "runtime/gameplay_api.hpp",
-          "line": 259,
+          "line": 272,
           "signature": "static bool list(uint32_t port)",
           "result": "bool",
           "parameters": [
@@ -24045,7 +24045,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "daa7e9f2c2f1c8d8afb7f9c6aa0f2e43874a420e248efc10acad8b215711ba39",
+      "declaration_hash": "a819b272f69d9314588e6ef30abc14ab02d60fbb5bc59ca0fb15e97e87bd0b6b",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool list(uint32_t port)",
@@ -24114,7 +24114,7 @@
           "kind": "callable",
           "qualified": "epok::MemoryCardLibrary::loaded_word",
           "source": "runtime/gameplay_api.hpp",
-          "line": 268,
+          "line": 281,
           "signature": "static uint32_t loaded_word(uint32_t index)",
           "result": "int",
           "parameters": [
@@ -24130,7 +24130,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "c530994a9ef107711ba6153ae395c5b28ad09b3def17473f15db938d4ce903b6",
+      "declaration_hash": "66464e3c6ca6b2f2a415ae2a7295d4c594682af2757285251309990fbbeebde9",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static uint32_t loaded_word(uint32_t index)",
@@ -24199,7 +24199,7 @@
           "kind": "callable",
           "qualified": "epok::MemoryCardLibrary::payload",
           "source": "runtime/gameplay_api.hpp",
-          "line": 262,
+          "line": 275,
           "signature": "static SavePayload8 payload()",
           "result": "SavePayload8",
           "parameters": [],
@@ -24209,7 +24209,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "6fe7ab78cb464672d9d9e7f903fdd1ddb24d13ccc64b21ad36eee44ca7f86aa1",
+      "declaration_hash": "81bd0eca348c3c0d79f2b0c65410e92e7642b3eee3a6fb3c0e2a70227e50a971",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static SavePayload8 payload()",
@@ -24272,7 +24272,7 @@
           "kind": "callable",
           "qualified": "epok::MemoryCardLibrary::probe",
           "source": "runtime/gameplay_api.hpp",
-          "line": 258,
+          "line": 271,
           "signature": "static bool probe(uint32_t port)",
           "result": "bool",
           "parameters": [
@@ -24288,7 +24288,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "ea07fb6b0851a71df88177af5f098218f8939bf336873971037165bcd53c628d",
+      "declaration_hash": "d1bc7ea360271b381a8616c284fce8874d61e09008218fc52c2a39d17032bd69",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool probe(uint32_t port)",
@@ -24357,7 +24357,7 @@
           "kind": "callable",
           "qualified": "epok::MemoryCardLibrary::read",
           "source": "runtime/gameplay_api.hpp",
-          "line": 260,
+          "line": 273,
           "signature": "static bool read(uint32_t slot,uint32_t port)",
           "result": "bool",
           "parameters": [
@@ -24378,7 +24378,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "d9c9fe781c4d4452ae41048dedfaf6847e95500ff5e70d7176bda2368192bda5",
+      "declaration_hash": "26218b462cd2ef3b6baa7982f28d770d1209664016208e8ace30f8d0c3559ed2",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool read(uint32_t slot,uint32_t port)",
@@ -24452,7 +24452,7 @@
           "kind": "callable",
           "qualified": "epok::MemoryCardLibrary::set_staged_word",
           "source": "runtime/gameplay_api.hpp",
-          "line": 265,
+          "line": 278,
           "signature": "static bool set_staged_word(uint32_t index,uint32_t value)",
           "result": "bool",
           "parameters": [
@@ -24473,7 +24473,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "88e9538f4ad142d2c43a34e5c0a09aeae198c7e76194a044af4e40e200cf0a4d",
+      "declaration_hash": "c889558e332731e41a8d60bf8d49be2e9eab54a6a872db006b206d7268e629c8",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool set_staged_word(uint32_t index,uint32_t value)",
@@ -24547,7 +24547,7 @@
           "kind": "callable",
           "qualified": "epok::MemoryCardLibrary::snapshot",
           "source": "runtime/gameplay_api.hpp",
-          "line": 257,
+          "line": 270,
           "signature": "static MemoryCardSnapshot snapshot()",
           "result": "MemoryCardSnapshot",
           "parameters": [],
@@ -24557,7 +24557,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "ff03931e5b86044441ab018fa4bcac87c05b405c4304239c9a594fb44f942cf8",
+      "declaration_hash": "c7ec6e2ea2bcabec45f59be58198ee038ae7e494b3b060bab34a76edb40ccbe0",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static MemoryCardSnapshot snapshot()",
@@ -24620,7 +24620,7 @@
           "kind": "callable",
           "qualified": "epok::MemoryCardLibrary::staged_word",
           "source": "runtime/gameplay_api.hpp",
-          "line": 266,
+          "line": 279,
           "signature": "static uint32_t staged_word(uint32_t index)",
           "result": "int",
           "parameters": [
@@ -24636,7 +24636,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "aeb5b06e97c2b09c2528be60f43c4a2c0fbb8c687f093522cd71322d42dd458a",
+      "declaration_hash": "f6bb54c96b580ad09e8495e77c204bdb3063b222513a9ebc7cca73c3dbd48816",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static uint32_t staged_word(uint32_t index)",
@@ -24705,7 +24705,7 @@
           "kind": "callable",
           "qualified": "epok::MemoryCardLibrary::write",
           "source": "runtime/gameplay_api.hpp",
-          "line": 261,
+          "line": 274,
           "signature": "static bool write(uint32_t slot,SavePayload8 payload,uint32_t port)",
           "result": "bool",
           "parameters": [
@@ -24731,7 +24731,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "27e1ef56ab3e8da782a64fc2503c4e6d8bb2cad6b014ba1c6367fe9a44ccba55",
+      "declaration_hash": "c80645927af7ff3ea8aa2a16dab879ca138e6ce76c72e796971aaf079524eba2",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool write(uint32_t slot,SavePayload8 payload,uint32_t port)",
@@ -24810,7 +24810,7 @@
           "kind": "callable",
           "qualified": "epok::MemoryCardLibrary::write_staged",
           "source": "runtime/gameplay_api.hpp",
-          "line": 267,
+          "line": 280,
           "signature": "static bool write_staged(uint32_t slot,uint32_t bytes,uint32_t port)",
           "result": "bool",
           "parameters": [
@@ -24836,7 +24836,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "eaf2a64ac7409790616152dc344042d0cd28bf0f6fec6ca23dd637d4c83841b2",
+      "declaration_hash": "4292199a341f3dec1dce36dcb0ffabda7fd6e52fc765386891a4351bd9559774",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool write_staged(uint32_t slot,uint32_t bytes,uint32_t port)",
@@ -36111,7 +36111,7 @@
           "kind": "callable",
           "qualified": "epok::PlaybackLibrary::burst_effect",
           "source": "runtime/gameplay_api.hpp",
-          "line": 251,
+          "line": 264,
           "signature": "static bool burst_effect(effects::Handle handle,uint32_t count)",
           "result": "bool",
           "parameters": [
@@ -36132,7 +36132,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "76bc34f2747dbda15b2eaf3455a760d7fba77f07a823e642b9911b61ab0b95ac",
+      "declaration_hash": "2c70e925749bc2521bbe6f9a038a23d290d2ab1f3906015c29a5781236491822",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool burst_effect(effects::Handle handle,uint32_t count)",
@@ -36206,7 +36206,7 @@
           "kind": "callable",
           "qualified": "epok::PlaybackLibrary::effect_sequence",
           "source": "runtime/gameplay_api.hpp",
-          "line": 253,
+          "line": 266,
           "signature": "static timeline::Handle effect_sequence(effects::Handle handle)",
           "result": "timeline::Handle",
           "parameters": [
@@ -36222,7 +36222,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "c2ccd88267f9192552f2b83d93616e837f37a3852543bdc382ae4ce3249fca1d",
+      "declaration_hash": "608ed846c58b0411cc76bce999170a2781f24028f1d068f37b9ca316f7c66eb1",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static timeline::Handle effect_sequence(effects::Handle handle)",
@@ -36291,7 +36291,7 @@
           "kind": "callable",
           "qualified": "epok::PlaybackLibrary::effect_state",
           "source": "runtime/gameplay_api.hpp",
-          "line": 252,
+          "line": 265,
           "signature": "static GameplayPlaybackSnapshot effect_state(effects::Handle handle)",
           "result": "GameplayPlaybackSnapshot",
           "parameters": [
@@ -36307,7 +36307,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "1b9e2d9bd8de6178fc42c9d2a95c34412902f55ca7887fcee22a9cd0b0ef7df3",
+      "declaration_hash": "db117d3c4b78f2e85d9cb3b7500bddb03f52a9993f4a51d47f828815b10a9484",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static GameplayPlaybackSnapshot effect_state(effects::Handle handle)",
@@ -36376,7 +36376,7 @@
           "kind": "callable",
           "qualified": "epok::PlaybackLibrary::pause_effect",
           "source": "runtime/gameplay_api.hpp",
-          "line": 249,
+          "line": 262,
           "signature": "static bool pause_effect(effects::Handle handle)",
           "result": "bool",
           "parameters": [
@@ -36392,7 +36392,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "b5de517f7c2a0f125c722a62fc7a992659e9e1675c2f5be807cef896eb31dcbf",
+      "declaration_hash": "243838e041ad0d8ad8f15273f724df9acdcad4cac289a27919278a5a290922c9",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool pause_effect(effects::Handle handle)",
@@ -36461,7 +36461,7 @@
           "kind": "callable",
           "qualified": "epok::PlaybackLibrary::pause_sequence",
           "source": "runtime/gameplay_api.hpp",
-          "line": 244,
+          "line": 257,
           "signature": "static bool pause_sequence(timeline::Handle handle)",
           "result": "bool",
           "parameters": [
@@ -36477,7 +36477,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "877f9cc3bca1b70623ad417d8f8f5230203e669b951465002f4ecfa03d43dcaf",
+      "declaration_hash": "c3ed64e4128c3e0767b01f47bb2b2bfaf5bddad510b569338fdbad1d2db750f3",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool pause_sequence(timeline::Handle handle)",
@@ -36546,7 +36546,7 @@
           "kind": "callable",
           "qualified": "epok::PlaybackLibrary::play_effect",
           "source": "runtime/gameplay_api.hpp",
-          "line": 247,
+          "line": 260,
           "signature": "static effects::Handle play_effect(ObjectId component)",
           "result": "effects::Handle",
           "parameters": [
@@ -36562,7 +36562,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "9204667dc60698588797b4742d08400c4788a0459f9b2b18e6289fe1b84e5007",
+      "declaration_hash": "590b1c04134873d11867389f378d85a6e2dd76592a7ea4263d4bb716de9c074c",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static effects::Handle play_effect(ObjectId component)",
@@ -36631,7 +36631,7 @@
           "kind": "callable",
           "qualified": "epok::PlaybackLibrary::play_sequence",
           "source": "runtime/gameplay_api.hpp",
-          "line": 242,
+          "line": 255,
           "signature": "static timeline::Handle play_sequence(ObjectId component)",
           "result": "timeline::Handle",
           "parameters": [
@@ -36647,7 +36647,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "50536fd06cb264af7b157acddd6b924b9aa5ef35b208f979095619f3b7c76715",
+      "declaration_hash": "9bebd57273db723c7b4152c0ab9a8ee26f469447d0afbfd8ce7991746f4b9d1e",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static timeline::Handle play_sequence(ObjectId component)",
@@ -36716,7 +36716,7 @@
           "kind": "callable",
           "qualified": "epok::PlaybackLibrary::resume_effect",
           "source": "runtime/gameplay_api.hpp",
-          "line": 250,
+          "line": 263,
           "signature": "static bool resume_effect(effects::Handle handle)",
           "result": "bool",
           "parameters": [
@@ -36732,7 +36732,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "c3d3c0415e185e55241700a0d76a9d15f33ea0909ace1bc8e253733de3943a1b",
+      "declaration_hash": "09ff1ed82cad5b0219809bd2851a55456d3917ad1f55501c957fec39c8a4f3c1",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool resume_effect(effects::Handle handle)",
@@ -36801,7 +36801,7 @@
           "kind": "callable",
           "qualified": "epok::PlaybackLibrary::resume_sequence",
           "source": "runtime/gameplay_api.hpp",
-          "line": 245,
+          "line": 258,
           "signature": "static bool resume_sequence(timeline::Handle handle)",
           "result": "bool",
           "parameters": [
@@ -36817,7 +36817,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "ea4a8bcedb439dd6858f563da9aed6a8000d6689ebcdfee96ecb3814b605aa4f",
+      "declaration_hash": "e504c975442fe4f06b161253742ccd7f1b204ce313ba396934a17eadb8e539cd",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool resume_sequence(timeline::Handle handle)",
@@ -36886,7 +36886,7 @@
           "kind": "callable",
           "qualified": "epok::PlaybackLibrary::sequence_state",
           "source": "runtime/gameplay_api.hpp",
-          "line": 246,
+          "line": 259,
           "signature": "static GameplayPlaybackSnapshot sequence_state(timeline::Handle handle)",
           "result": "GameplayPlaybackSnapshot",
           "parameters": [
@@ -36902,7 +36902,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "36f68bc0a943ed2ae37308d4a0f2a12c27c4535c1ffedf050abefc5223c4f1c5",
+      "declaration_hash": "623457b24a662d86ca88455bad675464f8aa84ca9a6149438b372060b3c1aa6a",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static GameplayPlaybackSnapshot sequence_state(timeline::Handle handle)",
@@ -36971,7 +36971,7 @@
           "kind": "callable",
           "qualified": "epok::PlaybackLibrary::stop_effect",
           "source": "runtime/gameplay_api.hpp",
-          "line": 248,
+          "line": 261,
           "signature": "static bool stop_effect(effects::Handle handle)",
           "result": "bool",
           "parameters": [
@@ -36987,7 +36987,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "82c8599b74c0beba91d58618e8ba3ea44d5b1f96bafa7b9dda69e4d02ec13699",
+      "declaration_hash": "4fc2072bacc260cf3006d91c53f37fff8b86f32197187f0f1bae145dd2a2c8f6",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool stop_effect(effects::Handle handle)",
@@ -37056,7 +37056,7 @@
           "kind": "callable",
           "qualified": "epok::PlaybackLibrary::stop_sequence",
           "source": "runtime/gameplay_api.hpp",
-          "line": 243,
+          "line": 256,
           "signature": "static bool stop_sequence(timeline::Handle handle)",
           "result": "bool",
           "parameters": [
@@ -37072,7 +37072,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "fa35f4384adcfc7533107ae5ed8a37a700471acb5002f6e68f6395cee43f9d08",
+      "declaration_hash": "904c2a116fe1e7a2eda4fb6703177684d9b6c47303937925fa91dad1845cf094",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool stop_sequence(timeline::Handle handle)",
@@ -39349,7 +39349,7 @@
           "kind": "callable",
           "qualified": "epok::ResourceLibrary::clear_skeletal_queries",
           "source": "runtime/gameplay_api.hpp",
-          "line": 238,
+          "line": 251,
           "signature": "static void clear_skeletal_queries()",
           "result": "void",
           "parameters": [],
@@ -39359,7 +39359,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "3d6392c91c1d44ffbdcc3d789511048ca8255284679d576d2af951aba4a8d671",
+      "declaration_hash": "5d6bebb60ee19a28693ad2e0f15fd327ea57f1482b8a510879d38ca3deebded5",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static void clear_skeletal_queries()",
@@ -39422,7 +39422,7 @@
           "kind": "callable",
           "qualified": "epok::ResourceLibrary::skeletal_queries",
           "source": "runtime/gameplay_api.hpp",
-          "line": 237,
+          "line": 250,
           "signature": "static SkeletalQuerySnapshot skeletal_queries()",
           "result": "SkeletalQuerySnapshot",
           "parameters": [],
@@ -39432,7 +39432,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "db7054710cf0deeba1a4c1573d388f5f1f6c30b3d5068da9f3fb7ca79c528e9e",
+      "declaration_hash": "9e272bd1313097ec71e3375dc8606ef8c2980ce9f58a9a26270e79f7ae8c5437",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static SkeletalQuerySnapshot skeletal_queries()",
@@ -39495,7 +39495,7 @@
           "kind": "callable",
           "qualified": "epok::ResourceLibrary::snapshot",
           "source": "runtime/gameplay_api.hpp",
-          "line": 236,
+          "line": 249,
           "signature": "static ResourceSnapshot snapshot()",
           "result": "ResourceSnapshot",
           "parameters": [],
@@ -39505,7 +39505,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "1a243d4a97a521fa1c8db4b1f2cb125ab759ec1c834e0b0f177e59754fe0c3f5",
+      "declaration_hash": "24411468f64ae36f14e7d97ec148c515e5e65aed320f30c515a5e36127cfab65",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static ResourceSnapshot snapshot()",
@@ -42745,7 +42745,7 @@
           "kind": "callable",
           "qualified": "epok::SceneLibrary::active_camera_actor",
           "source": "runtime/gameplay_api.hpp",
-          "line": 230,
+          "line": 243,
           "signature": "static ObjectId active_camera_actor()",
           "result": "ObjectId",
           "parameters": [],
@@ -42755,7 +42755,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "b29bfb9210520a33ba80ba6c32c644086f93eebbf87fc92124bcba85e4bae2b1",
+      "declaration_hash": "a85051865dd8cf2845c99f49a1476703bec324d007bf8eeef60ec607c083f7b0",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static ObjectId active_camera_actor()",
@@ -42891,7 +42891,7 @@
           "kind": "callable",
           "qualified": "epok::SceneLibrary::project",
           "source": "runtime/gameplay_api.hpp",
-          "line": 232,
+          "line": 245,
           "signature": "static ProjectedPoint project(GameplayVector3 world)",
           "result": "ProjectedPoint",
           "parameters": [
@@ -42907,7 +42907,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "5960c001daae4c02b5f91fa70be9aa4d02d1abb26c6afaf5d61faf754ba4c103",
+      "declaration_hash": "788f2dd3d643925087c97bf71f241402f55595b62608fbd6d404c09f7f27724b",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static ProjectedPoint project(GameplayVector3 world)",
@@ -43145,6 +43145,79 @@
       "status": "implemented"
     },
     {
+      "id": "gameplay-api:9530a9f7-6a1c-5d78-86ef-f9149da03067",
+      "candidate_key": "callable:epok::SceneLibrary::screen_fade",
+      "category": "runtime_facade",
+      "declaration_kind": "callable",
+      "qualified": "epok::SceneLibrary::screen_fade",
+      "module": "gameplay-api",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::SceneLibrary::screen_fade",
+          "source": "runtime/gameplay_api.hpp",
+          "line": 236,
+          "signature": "static uint32_t screen_fade()",
+          "result": "int",
+          "parameters": [],
+          "static": true,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "17d84d967d7560635b7ec28da5bc1f8d61e5f22d61ad47343e548452197a686e",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
+      "canonical_public_declaration": "static uint32_t screen_fade()",
+      "types_and_directions": {
+        "parameters": [],
+        "returns": "int"
+      },
+      "owner_domain": {
+        "owner": "epok::SceneLibrary",
+        "domain": "gameplay-api"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
+        },
+        "blueprint": {
+          "state": "implemented",
+          "evidence": "Blueprint catalog: shared resolved-operation lowering"
+        },
+        "lua_native_cpp": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: shared resolved-operation lowering"
+        },
+        "lua_vm_bytecode": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: shared resolved-operation lowering"
+        },
+        "lua_vm_source": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: shared resolved-operation lowering"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:9530a9f7-6a1c-5d78-86ef-f9149da03067"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:9530a9f7-6a1c-5d78-86ef-f9149da03067"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
       "id": "gameplay-api:4f046363-ffab-5943-878b-83fad072ba7d",
       "candidate_key": "callable:epok::SceneLibrary::set_camera",
       "category": "runtime_facade",
@@ -43156,7 +43229,7 @@
           "kind": "callable",
           "qualified": "epok::SceneLibrary::set_camera",
           "source": "runtime/gameplay_api.hpp",
-          "line": 231,
+          "line": 244,
           "signature": "static bool set_camera(ObjectId actor)",
           "result": "bool",
           "parameters": [
@@ -43172,7 +43245,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "07e355467f035bd1bee00a8d77bbd4dc1153a17f2fbf53e6e38550fbd350ae76",
+      "declaration_hash": "12a464a23ddacca624a8b7635c1dfea465a44d2a5f4bc9efedfaceae262ddb76",
       "disposition": "public_gameplay",
       "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
       "canonical_public_declaration": "static bool set_camera(ObjectId actor)",
@@ -43306,6 +43379,91 @@
       ],
       "test_ids": [
         "gameplay-parity-conformance:gameplay-api:01c61c93-5b48-502b-9f5f-e4528416ac45"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:308c3741-61af-5325-a7da-27cf6cf6459c",
+      "candidate_key": "callable:epok::SceneLibrary::set_screen_fade",
+      "category": "runtime_facade",
+      "declaration_kind": "callable",
+      "qualified": "epok::SceneLibrary::set_screen_fade",
+      "module": "gameplay-api",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::SceneLibrary::set_screen_fade",
+          "source": "runtime/gameplay_api.hpp",
+          "line": 237,
+          "signature": "static void set_screen_fade(uint32_t value)",
+          "result": "void",
+          "parameters": [
+            {
+              "name": "value",
+              "type": "int",
+              "description": ""
+            }
+          ],
+          "static": true,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "56b9d7201ededa37a0ff79640326797bdcaf6dd66578199983b7e6fcf7590a75",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
+      "canonical_public_declaration": "static void set_screen_fade(uint32_t value)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "int",
+            "direction": "input"
+          }
+        ],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::SceneLibrary",
+        "domain": "gameplay-api"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
+        },
+        "blueprint": {
+          "state": "implemented",
+          "evidence": "Blueprint catalog: shared resolved-operation lowering"
+        },
+        "lua_native_cpp": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: shared resolved-operation lowering"
+        },
+        "lua_vm_bytecode": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: shared resolved-operation lowering"
+        },
+        "lua_vm_source": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: shared resolved-operation lowering"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:308c3741-61af-5325-a7da-27cf6cf6459c"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:308c3741-61af-5325-a7da-27cf6cf6459c"
       ],
       "cost_evidence": [
         "shared-inline-native-lowering",

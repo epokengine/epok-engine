@@ -323,6 +323,10 @@ def expected_probe():
     probe[93] = flerp(fixed(-2.0), fixed(6.0), ease(fixed(0.375), 15))
     probe[94] = probe[93]
 
+    # The screen fade, packed into one slot: the saturated write, a value that
+    # round trips, and the restore, which has to read back as zero.
+    probe[95] = 255 * 65536 + 200 * 256 + 0
+
     probe[48] = 0x4C4D4F31                     # magic
     probe[49] = 2                              # EnemyBase::begin_play, twice
     probe[50] = 4                              # EnemyBase::damage body, 4 times
@@ -369,6 +373,7 @@ SLOT_NAMES = {
     90: "builtin.scene.set_fog",
     91: "builtin.utilities.tween_schedule", 92: "builtin.utilities.ease",
     93: "builtin.utilities.vector_tween_advance", 94: "builtin.utilities.tween_advance",
+    95: "builtin.scene.set_screen_fade",
 }
 
 

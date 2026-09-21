@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `4490d2c5d8d1c3e214c362f34382c2d8ec0bf796`. Frozen semantic candidate rows: **3310**.
+Baseline commit: `f2bb5e25c30b9ee3c7ed1028c9b8e8918f5c1a51`. Frozen semantic candidate rows: **3312**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -13,7 +13,7 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `compatibility_alias` | 44 |
 | `hardware_backend` | 6 |
 | `internal_implementation` | 2796 |
-| `public_gameplay` | 464 |
+| `public_gameplay` | 466 |
 
 ## Public gameplay gaps
 
@@ -43,7 +43,7 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `objects_actors` | 528 |
 | `particles_effects` | 186 |
 | `resources_diagnostics` | 58 |
-| `runtime_facade` | 546 |
+| `runtime_facade` | 548 |
 | `skeletal_animation` | 24 |
 | `sprites_palettes` | 76 |
 | `static_editable_meshes` | 71 |
@@ -249,8 +249,10 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::SceneLibrary::project` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::request` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::request_with_transition` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SceneLibrary::screen_fade` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::set_camera` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::set_fog` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SceneLibrary::set_screen_fade` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::snapshot` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::transition_snapshot` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Sprite3DComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |

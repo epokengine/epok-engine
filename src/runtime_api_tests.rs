@@ -37,6 +37,11 @@ const SCENE_LIBRARY: &str = "e018f41e-b530-46f2-9331-9cf15f459fd2";
 const FOG_SETTINGS: &str = "8b4375d1-f9cf-431c-9194-b16612bcf12d";
 const FOG: &str = "5c70f7f6-3789-423e-83f1-608bc604bc2e";
 const SET_FOG: &str = "3de7b991-edcb-40e6-8739-ca4cc5e4039b";
+/// The post-HUD screen fade, which reached no authoring provider either while
+/// `epok::screen_fade` was a bare mutable global. These are the `Scene` group's
+/// accessors over it; there is no record, because the state is one scalar.
+const SCREEN_FADE: &str = "91c95c93-f719-430c-b8e0-1c5863468be9";
+const SET_SCREEN_FADE: &str = "2c441c7c-296e-4932-9b55-65a8f042a398";
 /// The deepened tween surface: the pure-value scalar plan, the easing catalogue on
 /// its own, and the Vector3 half. The Vector3 calls sit in a second library only
 /// because `GameplayVector3` is declared in `gameplay_api.hpp`; they share the
@@ -319,6 +324,85 @@ fn scene_fog_is_a_reflected_operation_pair_over_a_registered_record() {
     assert_eq!(setter.outputs.len(), 1);
     assert_eq!(setter.outputs[0].value_type, schema::Type::Bool);
     assert!(setter.resource_demands.is_empty(), "fog cooks no sidecar");
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+/// The screen fade is one scalar, so it is an annotated pair on the same `Scene`
+/// library over a plain `uint32_t` rather than a record of its own. The C++ member
+/// names are `screen_fade`/`set_screen_fade` and the backing global keeps its name,
+/// which only compiles because the bodies qualify it; this pins the spellings that
+/// every provider then lowers, none of which are Lua- or Blueprint-specific.
+#[test]
+#[ignore = "requires the pinned host extractor; stages a disposable project without building"]
+fn scene_screen_fade_is_a_reflected_operation_pair_over_a_scalar() {
+    let root = project("runtime-api-screen-fade");
+    let catalog = crate::scripts::catalog(&root).unwrap();
+    let registry = crate::blueprint::native_registry(&root, &catalog).unwrap();
+
+    let library = registry
+        .function_libraries
+        .get(SCENE_LIBRARY)
+        .expect("epok::SceneLibrary");
+    let operation = |name: &str| {
+        library
+            .operations
+            .iter()
+            .find(|o| o.name == name)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{} does not reflect {name}: {:?}",
+                    library.cpp_name,
+                    library
+                        .operations
+                        .iter()
+                        .map(|o| &o.name)
+                        .collect::<Vec<_>>()
+                )
+            })
+    };
+
+    // The getter is a state read of the authored amount. The drawn amount is the
+    // larger of it and the running transition's opacity, which `transition_snapshot`
+    // reports; reading back what was just written therefore cannot surprise.
+    let getter = operation("screen_fade");
+    assert_eq!(getter.id, SCREEN_FADE, "screen_fade identity drifted");
+    assert_eq!(getter.effect, schema::OperationEffect::StateRead);
+    assert_eq!(getter.category, "Scene");
+    assert_eq!(getter.native_target, "epok::SceneLibrary::screen_fade");
+    assert!(getter.parameters.is_empty());
+    assert_eq!(getter.outputs.len(), 1);
+    assert_eq!(getter.outputs[0].value_type, schema::Type::UInt32);
+
+    // The setter clamps into 0..255 instead of rejecting, so it has nothing to
+    // report and reflects no result pin at all.
+    let setter = operation("set_screen_fade");
+    assert_eq!(
+        setter.id, SET_SCREEN_FADE,
+        "set_screen_fade identity drifted"
+    );
+    assert_eq!(setter.effect, schema::OperationEffect::Mutation);
+    assert_eq!(setter.category, "Scene");
+    assert_eq!(setter.native_target, "epok::SceneLibrary::set_screen_fade");
+    assert_eq!(setter.parameters.len(), 1);
+    assert_eq!(setter.parameters[0].value_type, schema::Type::UInt32);
+    assert!(
+        setter.outputs.is_empty(),
+        "a clamping setter reports nothing"
+    );
+    assert!(
+        setter.resource_demands.is_empty(),
+        "the screen fade cooks no sidecar"
+    );
+
+    // An operation spelled like a Lua keyword is a lexer error, which would make
+    // it unreachable from all three Lua modes. The check is against the lexer's
+    // own list rather than a copy of it.
+    for spelling in [&getter.name, &setter.name] {
+        assert!(
+            !crate::lua_frontend::KEYWORDS.contains(&spelling.as_str()),
+            "{spelling} is a Lua keyword"
+        );
+    }
     std::fs::remove_dir_all(&root).unwrap();
 }
 
