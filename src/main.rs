@@ -134,6 +134,8 @@ mod psx_sequence;
 mod reflection;
 mod reflection_schema;
 #[cfg(test)]
+mod repo_policy_tests;
+#[cfg(test)]
 mod runtime_api_tests;
 mod scene;
 mod scene_bank;
