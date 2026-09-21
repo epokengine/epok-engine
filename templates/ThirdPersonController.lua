@@ -14,10 +14,13 @@ local ThirdPersonController = epok.ActorComponent:extend()
 --   Locomotion state 0 Idle  1 Walk  2 Run  3 JumpUp  4 JumpDown  5 Land
 
 -- Scene bindings. Typed references, filled in by the template when the project
--- is created, so renaming an actor never breaks the controller. A class may
--- declare sixteen properties in total, which is why the tuning below lives as
--- named literals in the methods that use it rather than as editable fields.
-ThirdPersonController.camera = epok.ActorRef(epok.Actor3D)
+-- is created, so renaming an actor never breaks the controller. `camera` is the
+-- camera's transform rather than the actor: writing it takes three scalars, so
+-- the controller never holds a whole vector and compiles in every Lua
+-- execution mode. A class may declare sixteen properties in total, which is
+-- why the tuning below lives as named literals in the methods that use it
+-- rather than as editable fields.
+ThirdPersonController.camera = epok.ComponentRef(epok.SceneComponent3D)
 ThirdPersonController.visual = epok.ComponentRef(epok.Mesh3DComponent)
 ThirdPersonController.idle_clip = epok.UInt32(0)
 ThirdPersonController.walk_clip = epok.UInt32(1)
@@ -48,7 +51,7 @@ function ThirdPersonController:begin_play()
     self.animation_state = 0
     self.playing_state = 5
     self.playback_phase = 0.0
-    epok.scene.set_camera(self.camera)
+    epok.scene.set_camera(self.camera:owner_id())
     self:place_camera()
 end
 
@@ -302,16 +305,9 @@ function ThirdPersonController:place_camera()
         end
         offset = epok.math.scale(offset, fraction)
     end
-    local placement = epok.position(self.camera)
-    placement.x = origin.x + offset.x
-    placement.y = origin.y + offset.y
-    placement.z = origin.z + offset.z
-    epok.set_position(self.camera, placement)
-    local facing = epok.rotation(self.camera)
-    facing.x = self.camera_pitch
-    facing.y = self.camera_yaw
-    facing.z = 0.0
-    epok.set_rotation(self.camera, facing)
+    self.camera:set_local_position(origin.x + offset.x, origin.y + offset.y,
+        origin.z + offset.z)
+    self.camera:set_local_rotation(self.camera_pitch, self.camera_yaw, 0.0)
 end
 
 return ThirdPersonController

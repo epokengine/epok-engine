@@ -427,8 +427,19 @@ fn install_gameplay(
     );
     if flavor != GameplayFlavor::Cpp {
         // Typed references, resolved once here. Neither generated controller
-        // looks an actor up by display name, so renaming one is safe.
-        let camera = scene.actors[gameplay.camera].id;
+        // looks an actor up by display name, so renaming one is safe. The Lua
+        // flavor binds the camera's transform rather than the camera, because
+        // writing a transform component takes three scalars and a Lua class
+        // that never holds a whole vector compiles in every execution mode.
+        let camera = match flavor {
+            GameplayFlavor::Lua => {
+                scene.actors[gameplay.camera]
+                    .root()
+                    .ok_or("Third Person template Camera actor has no transform")?
+                    .id
+            }
+            _ => scene.actors[gameplay.camera].id,
+        };
         let visual = scene.actors[gameplay.visual]
             .components
             .iter()
@@ -707,9 +718,13 @@ mod tests {
                     .iter()
                     .find(|actor| actor.name == "Camera")
                     .unwrap();
+                let bound = match flavor {
+                    GameplayFlavor::Lua => camera.root().unwrap().id,
+                    _ => camera.id,
+                };
                 assert_eq!(
                     controller.properties.get("camera").and_then(|v| v.as_str()),
-                    Some(camera.id.to_string().as_str())
+                    Some(bound.to_string().as_str())
                 );
                 let visual = scene
                     .actors

@@ -17,11 +17,14 @@ The template is the engine's reference comparison between its three authoring sy
 C++, Blueprint and Lua generate the same level, the same actors, the same transforms and
 colliders and the same animated character; only the class the Player binds differs.
 
-| Flavor | Generated source | Class the Player binds |
+| Flavor | Generated source | Console build |
 | --- | --- | --- |
-| C++ | `assets/scripts/ThirdPersonController.hpp` and `.cpp`, plus `CharacterMotion.hpp` and `CharacterClips.hpp` | The project's own native class |
-| Blueprint | `assets/Blueprints/ThirdPersonController.epokbp` | The project's own visual class |
-| Lua | `assets/scripts/ThirdPersonController.lua` | The project's own Lua class |
+| C++ | `assets/scripts/ThirdPersonController.hpp` and `.cpp`, plus `CharacterMotion.hpp` and `CharacterClips.hpp` | 522 KiB executable, 1.38 MiB static RAM |
+| Blueprint | `assets/Blueprints/ThirdPersonController.epokbp` | 552 KiB executable, 1.41 MiB static RAM |
+| Lua | `assets/scripts/ThirdPersonController.lua` | 540 KiB executable, 1.40 MiB static RAM |
+
+Those sizes are the whole game, not the controller: the arena, the character, the
+animation and the runtime are the rest of it.
 
 A project contains exactly one of them. The other two are never generated as a hidden
 fallback, and no flavor calls another's implementation: the Blueprint graph and the Lua
@@ -33,9 +36,14 @@ the other two systems afterwards and use them together in the same scene.
 
 The Lua flavor starts on the project's default Lua execution setting, the ahead-of-time
 native mode, which keeps the console build small while the source stays plain Lua.
-**Edit > Project Settings** switches the same scripts to the virtual machine. The
-Blueprint flavor compiles to native console code through the Blueprint backend; the
-source the author edits is the graph.
+**Edit > Project Settings** switches the same script to either virtual machine mode;
+all three produce a working console build of this controller. The Blueprint flavor
+compiles to native console code through the Blueprint backend; the source the author
+edits is the graph.
+
+The Lua controller binds the camera's transform component rather than the camera actor,
+and writes it with three scalars. That is what keeps it free of whole-vector locals,
+which the virtual machine's value boundary cannot carry.
 
 ### Shared behaviour
 

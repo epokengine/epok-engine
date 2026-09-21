@@ -778,6 +778,24 @@ impl Emitter<'_> {
                 value_type,
                 ..
             } => {
+                // The binding gives every component of a vector property a slot
+                // of its own, exactly as a write to one does; the whole array
+                // never crosses the boundary. A record is a single payload, so
+                // its members stay an offset into the value.
+                if let Expr::Read {
+                    place,
+                    value_type: base_type,
+                } = &**base
+                    && matches!(base_type, schema::Type::Vector { .. })
+                    && matches!(place, Place::Property { .. })
+                {
+                    let component = Place::VectorComponent {
+                        base: Box::new(place.clone()),
+                        index: *index,
+                    };
+                    let slot = self.field_slot(&component, span);
+                    return self.boundary_out(format!("__epok_getf(self, {slot})"), value_type);
+                }
                 let base = self.expr(base, span);
                 self.boundary_out(
                     format!(
