@@ -1,5 +1,5 @@
 format_version: 1
-editor_version: 0.2.0
+editor_version: 0.3.0
 name: Blueprint Gameplay Parity
 startup_scene: assets/scenes/Main.epokmap
 auto_build: false

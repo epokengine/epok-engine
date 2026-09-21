@@ -25,7 +25,7 @@ For example:
 
 ```yaml
 format_version: 1
-editor_version: 0.1.0
+editor_version: 0.3.0
 name: My Game
 startup_scene: assets/scenes/Main.epokmap
 auto_build: true
