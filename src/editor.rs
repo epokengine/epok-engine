@@ -92,6 +92,7 @@ impl PreparedProject {
         let assets = crate::assets::scan(&project.root, &mut asset_cache);
         mark("Resolving startup scene resources");
         let _ = crate::mesh::resolve(&mut scene, &assets);
+        let _ = crate::terrain::resolve(&mut scene, &assets);
         let _ = crate::skeletal::resolve(&mut scene, &assets);
         let _ = crate::texture::resolve(&mut scene, &assets);
         mark("Establishing source observation baseline");
@@ -136,6 +137,7 @@ pub struct Editor {
     pub active_play_target: crate::play::Target,
     pub skeletal_ui: crate::skeletal_ui::State,
     pub mesh_editor: crate::mesh_editor::State,
+    pub terrain_editor: crate::terrain_editor::State,
     pub assets: crate::asset_manager::Manager,
     pub scene_loading: Option<crate::scene_loading::Loading>,
     project: Option<crate::workspace::Project>,
@@ -414,6 +416,7 @@ impl Editor {
         // Publish their current provenance so old outputs remain stale, without
         // scheduling a build or stealing focus from Project during startup.
         let _ = crate::mesh::resolve(&mut self.scene, &self.assets.index);
+        let _ = crate::terrain::resolve(&mut self.scene, &self.assets.index);
         let _ = crate::skeletal::resolve(&mut self.scene, &self.assets.index);
         let _ = crate::texture::resolve(&mut self.scene, &self.assets.index);
         if let Ok(fingerprint) = project::source_fingerprint(&self.root) {
@@ -578,6 +581,7 @@ impl Editor {
             play_warning: None,
             active_play_target: Default::default(),
             mesh_editor: Default::default(),
+            terrain_editor: Default::default(),
             skeletal_ui: Default::default(),
             assets: crate::asset_manager::Manager::new(root.clone()),
             scene_loading: None,
@@ -867,6 +871,7 @@ impl Editor {
     pub fn reset_scene_tools(&mut self) {
         self.hud_simulation.stop();
         self.mesh_editor = Default::default();
+        self.terrain_editor = Default::default();
         self.skeletal_ui = Default::default();
         self.selected_asset = None;
         self.selected = None;
@@ -2375,6 +2380,7 @@ impl Editor {
                 "add",
                 "add-child",
                 "blockout-mesh",
+                "terrain-create",
                 "empty",
                 "child",
                 "duplicate",
@@ -2441,6 +2447,11 @@ impl Editor {
                 self.changed();
             }
             "blockout-mesh" => crate::mesh_editor::allocate_actor_data(self),
+            "terrain-create" => {
+                if let Err(error) = crate::terrain_editor::create(self) {
+                    self.log(error);
+                }
+            }
             "duplicate" => {
                 if let Some(i) = self.selected {
                     let original_ids = (0..self.scene.actors.len())
@@ -2689,10 +2700,12 @@ impl Editor {
             let fingerprint = self.assets.index.fingerprint();
             if self.asset_fingerprint.as_ref() != Some(&fingerprint) {
                 let _ = crate::mesh::resolve(&mut self.scene, &self.assets.index);
+                let _ = crate::terrain::resolve(&mut self.scene, &self.assets.index);
                 let _ = crate::skeletal::resolve(&mut self.scene, &self.assets.index);
                 let _ = crate::texture::resolve(&mut self.scene, &self.assets.index);
                 crate::skeletal_ui::synchronize(self);
                 crate::mesh_editor::synchronize(self);
+                crate::terrain_editor::synchronize(self);
                 self.view_dirty = true;
             }
             if self

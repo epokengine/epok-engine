@@ -187,6 +187,9 @@ pub fn ids(scene: &Scene) -> Vec<Uuid> {
                 ids.extend(d.materials.iter().filter_map(|m| m.material.texture));
             }
         }
+        if let Some(t) = &e.terrain {
+            ids.extend(t.material.texture);
+        }
         if let Some(model) = e.skeletal_mesh.as_ref().and_then(|m| m.model.as_ref()) {
             ids.extend(model.materials.iter().filter_map(|m| m.texture));
         }

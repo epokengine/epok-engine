@@ -93,6 +93,9 @@ impl Prepared {
         if let Err(error) = crate::mesh::resolve(&mut scene, &assets) {
             emit(Message::new(error));
         }
+        if let Err(error) = crate::terrain::resolve(&mut scene, &assets) {
+            emit(Message::new(error));
+        }
         progress.stage("Resolving skeletal meshes", &mut emit);
         if let Err(error) = crate::skeletal::resolve(&mut scene, &assets) {
             emit(Message::new(error));

@@ -512,7 +512,7 @@ pub(crate) fn clipped(ui: &imgui::Ui, text: &str, width: f32) {
         ui.tooltip_text(text);
     }
 }
-fn icon(ui: &imgui::Ui, glyph: &str, id: &str, tip: &str, active: bool) -> bool {
+pub(crate) fn icon(ui: &imgui::Ui, glyph: &str, id: &str, tip: &str, active: bool) -> bool {
     let panel = crate::inspector_theme::active();
     let _color = ui.push_style_color(
         C::Button,
@@ -711,6 +711,9 @@ fn draw_workspace(
             if let Some(class) = actor_class {
                 e.create_actor(&class);
             }
+            if ui.menu_item("Terrain") {
+                e.action("terrain-create");
+            }
         });
         build_menu(ui, e);
         ui.menu("Window", || {
@@ -767,6 +770,7 @@ fn draw_workspace(
     about_dialog(ui, e);
     if !background && !text_input_active(ui) && !e.game_capture {
         crate::mesh_editor::shortcuts(ui, e);
+        crate::terrain_editor::shortcuts(ui, e);
         if ui.io().key_ctrl && ui.is_key_pressed(imgui::Key::S) {
             e.save_all();
         }
@@ -1027,6 +1031,7 @@ fn draw_workspace(
     crate::play_ui::warning(ui, e);
     e.artifact_dependencies.draw(ui, &e.root);
     crate::mesh_editor::window(ui, e);
+    crate::terrain_editor::window(ui, e);
     crate::settings_ui::windows(ui, e);
     if !background && e.critical_busy() {
         return;
@@ -2643,6 +2648,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             crate::palette::inspector(ui, e, &mut entity);
             if entity.kind == "Mesh"
                 && entity.editable_mesh.is_none()
+                && entity.terrain.is_none()
                 && entity.skeletal_mesh.is_none()
             {
                 let mut reset_material = false;
@@ -2730,6 +2736,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                 }
             }
             crate::mesh_editor::component(ui, e, &mut entity);
+            crate::terrain_editor::component(ui, e, &mut entity);
             ui.dummy([0., 7.]);
             let width = ui.content_region_avail()[0];
             ui.set_cursor_pos([
@@ -3213,7 +3220,7 @@ fn scene_view(
             e.view.look(ui.io().mouse_delta, true);
             e.view_dirty = true;
         }
-        if !e.mesh_editor.open {
+        if !e.mesh_editor.open && !e.terrain_editor.sculpting() {
             crate::gizmo::draw(ui, e, position, available, factor, uv);
         }
         let mouse = ui.io().mouse_pos;
@@ -3230,14 +3237,20 @@ fn scene_view(
             && !ui.is_mouse_down(imgui::MouseButton::Middle)
             && ui.io().mouse_wheel == 0.
             && e.drag_axis.is_none();
-        if e.scene_click.update(
-            mouse,
-            ui.is_mouse_clicked(imgui::MouseButton::Left),
-            ui.is_mouse_released(imgui::MouseButton::Left),
-            ui.is_mouse_down(imgui::MouseButton::Left),
-            eligible,
-        ) {
-            let pixel = crate::picking::texture_pixel(mouse, position, factor, uv);
+        let pixel = crate::picking::texture_pixel(mouse, position, factor, uv);
+        // A brush needs press-drag-release, which the click gesture cannot
+        // express. While the terrain tool is stroking it owns the viewport, so
+        // selection and the gizmo never fight it for the same drag.
+        let sculpting = crate::terrain_editor::drag(ui, e, pixel, eligible);
+        if !sculpting
+            && e.scene_click.update(
+                mouse,
+                ui.is_mouse_clicked(imgui::MouseButton::Left),
+                ui.is_mouse_released(imgui::MouseButton::Left),
+                ui.is_mouse_down(imgui::MouseButton::Left),
+                eligible,
+            )
+        {
             e.selected_asset = None;
             if !crate::mesh_editor::pick(e, pixel, ui.io().key_ctrl) {
                 let scene = e
@@ -3257,11 +3270,12 @@ fn scene_view(
         }
         if ui.is_window_focused() && !ui.io().want_text_input && !right && !middle {
             crate::mesh_editor::geometry_shortcuts(ui, e);
+            crate::terrain_editor::brush_shortcuts(ui, e);
             for (i, key) in [imgui::Key::Q, imgui::Key::W, imgui::Key::E, imgui::Key::R]
                 .iter()
                 .enumerate()
             {
-                if !e.mesh_editor.open && ui.is_key_pressed(*key) {
+                if !e.mesh_editor.open && !e.terrain_editor.sculpting() && ui.is_key_pressed(*key) {
                     e.tool = i;
                 }
             }
@@ -4937,6 +4951,7 @@ mod interaction_tests {
         crate::asset_ui::interaction::verify(&mut context);
         crate::project_browser::verify_interactions(&mut context, font);
         crate::mesh_editor::verify_interactions(&mut context);
+        crate::terrain_editor::verify_interactions(&mut context);
         crate::settings_ui::verify_interactions(&mut context);
         crate::dependencies::verify_interactions(&mut context);
         crate::busy_ui::verify_interactions(&mut context);

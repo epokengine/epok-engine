@@ -69,12 +69,16 @@ pub struct SceneGpu {
     navigation_preview: crate::navigation::Preview,
     navigation_fill: Vertices,
     navigation_edges: Vertices,
+    cached_terrain_revision: u64,
+    brush_fill: Vertices,
+    brush_edges: Vertices,
 }
 struct RenderInput<'a> {
     scene: &'a Scene,
     view: &'a crate::viewport::View,
     selected: Option<usize>,
     mesh: &'a crate::mesh_editor::State,
+    terrain: &'a crate::terrain_editor::State,
     wire: bool,
     grid: bool,
     effect: Option<&'a [crate::particle_effect_preview::Quad]>,
@@ -415,6 +419,9 @@ impl SceneGpu {
             navigation_preview: Default::default(),
             navigation_fill: Vertices::new(device),
             navigation_edges: Vertices::new(device),
+            cached_terrain_revision: 0,
+            brush_fill: Vertices::new(device),
+            brush_edges: Vertices::new(device),
         }
     }
     pub fn render(
@@ -442,6 +449,7 @@ impl SceneGpu {
                 view: &editor.view,
                 selected: editor.selected,
                 mesh: &editor.mesh_editor,
+                terrain: &editor.terrain_editor,
                 wire: editor.wire,
                 grid: editor.grid,
                 effect: None,
@@ -470,6 +478,7 @@ impl SceneGpu {
                 view: &preview.camera,
                 selected: None,
                 mesh: &Default::default(),
+                terrain: &Default::default(),
                 wire: false,
                 grid: false,
                 effect: Some(&preview.quads),
@@ -498,6 +507,7 @@ impl SceneGpu {
                 view: &preview.camera,
                 selected: None,
                 mesh: &Default::default(),
+                terrain: &Default::default(),
                 wire: false,
                 grid: false,
                 effect: None,
@@ -529,6 +539,7 @@ impl SceneGpu {
                 && (self.cached_fog_center != view.center
                     || self.cached_fog_distance != view.distance))
             || self.cached_mesh_revision != input.mesh.revision
+            || self.cached_terrain_revision != input.terrain.revision
         {
             self.navigation_preview.update(scene,selected);
             let mut nav_fill=Vec::new();
@@ -617,7 +628,13 @@ impl SceneGpu {
             self.cached_wire = input.wire;
             self.cached_phase = preview_time;
             self.cached_mesh_revision = input.mesh.revision;
+            self.cached_terrain_revision = input.terrain.revision;
         }
+        // The brush cursor moves without the scene changing, so it lives
+        // outside the cache: a few hundred vertices rebuilt per render.
+        let (brush_fill, brush_ring) = brush_overlay(scene, input.terrain);
+        self.brush_fill.upload(device, queue, &brush_fill);
+        self.brush_edges.upload(device, queue, &brush_ring);
         let (s, c) = view.yaw.sin_cos();
         let (sp, cp) = view.pitch.sin_cos();
         let uniform = [
@@ -688,6 +705,11 @@ impl SceneGpu {
             pass.set_vertex_buffer(0,self.navigation_fill.buffer.slice(..));
             pass.draw(0..self.navigation_fill.count,0..1);
         }
+        if self.brush_fill.count > 0 {
+            pass.set_pipeline(&self.mesh_pipelines[1]);
+            pass.set_vertex_buffer(0, self.brush_fill.buffer.slice(..));
+            pass.draw(0..self.brush_fill.count, 0..1);
+        }
         pass.set_pipeline(&self.line_pipeline);
         if input.grid {
             pass.set_vertex_buffer(0, self.grid.buffer.slice(..));
@@ -700,6 +722,10 @@ impl SceneGpu {
         if self.navigation_edges.count > 0 {
             pass.set_vertex_buffer(0,self.navigation_edges.buffer.slice(..));
             pass.draw(0..self.navigation_edges.count,0..1);
+        }
+        if self.brush_edges.count > 0 {
+            pass.set_vertex_buffer(0, self.brush_edges.buffer.slice(..));
+            pass.draw(0..self.brush_edges.count, 0..1);
         }
     }
 }
@@ -723,6 +749,65 @@ fn vertex(out: &mut Vec<u8>, p: [f32; 3], color: [u8; 3]) {
 fn line(out: &mut Vec<u8>, a: [f32; 3], b: [f32; 3], color: [u8; 3]) {
     vertex(out, a, color);
     vertex(out, b, color);
+}
+/// Brush cursor projected onto the terrain: a disc tessellated in rings so
+/// every vertex sits on the sampled surface, and a bright rim. Brightness
+/// follows the brush falloff, so the disc shows where the stroke bites.
+fn brush_overlay(scene: &Scene, state: &crate::terrain_editor::State) -> (Vec<u8>, Vec<u8>) {
+    const SEGMENTS: usize = 48;
+    const RINGS: usize = 6;
+    /// Lift above the surface so the decal wins the depth test against the
+    /// terrain it is drawn on, without floating visibly.
+    const LIFT: f32 = 0.06;
+    let mut fill = Vec::new();
+    let mut ring = Vec::new();
+    let (Some(index), Some(local), Some(doc)) =
+        (state.target, state.cursor_local, state.doc.as_ref())
+    else {
+        return (fill, ring);
+    };
+    if !state.open || index >= scene.actors.len() {
+        return (fill, ring);
+    }
+    let world = scene.world_matrix(index);
+    let radius = state.brush.radius.max(0.05);
+    let at = |r: f32, theta: f32| -> [f32; 3] {
+        let x = local[0] + r * theta.cos();
+        let z = local[2] + r * theta.sin();
+        world.point([x, doc.sample(x, z) + LIFT, z])
+    };
+    let shade = |r: f32| -> [f32; 3] {
+        let k = 0.35 + 0.65 * state.brush.falloff.weight(r / radius);
+        [0.30 * k, 1.00 * k, 0.45 * k]
+    };
+    let push = |out: &mut Vec<u8>, p: [f32; 3], color: [f32; 3]| {
+        // Mode 1 is the translucent blend the navigation overlay uses.
+        for v in p.into_iter().chain(color).chain([0., 0., 0., 1.]) {
+            out.extend_from_slice(&v.to_le_bytes());
+        }
+    };
+    let angle = |s: usize| s as f32 / SEGMENTS as f32 * std::f32::consts::TAU;
+    for k in 0..RINGS {
+        let r0 = radius * k as f32 / RINGS as f32;
+        let r1 = radius * (k + 1) as f32 / RINGS as f32;
+        let (c0, c1) = (shade(r0), shade(r1));
+        for s in 0..SEGMENTS {
+            let (t0, t1) = (angle(s), angle(s + 1));
+            let (a, b, c, d) = (at(r0, t0), at(r1, t0), at(r1, t1), at(r0, t1));
+            for (p, color) in [(a, c0), (b, c1), (c, c1), (a, c0), (c, c1), (d, c0)] {
+                push(&mut fill, p, color);
+            }
+        }
+    }
+    for s in 0..SEGMENTS {
+        line(
+            &mut ring,
+            at(radius, angle(s)),
+            at(radius, angle(s + 1)),
+            [120, 255, 150],
+        );
+    }
+    (fill, ring)
 }
 type GeometryBuffers = (Vec<u8>, Vec<u8>, Vec<(u32, u32, usize)>);
 #[cfg(test)]
@@ -790,9 +875,13 @@ fn geometry_with_effects(
                 } else if offline {
                     lighting.sample(p[v], n, index, true, false)
                 } else {
-                    if e.editable_mesh.is_some() || e.skeletal_mesh.is_some() {
+                    if e.editable_mesh.is_some() || e.terrain.is_some() || e.skeletal_mesh.is_some()
+                    {
                         lighting.sample(center, n, index, false, false)
                     } else {
+                        // Only the built-in cube indexes the six precomputed
+                        // face colours; an authored surface carries its own
+                        // normal and has to be sampled with it.
                         face_colors[q.face]
                     }
                 };
@@ -811,7 +900,7 @@ fn geometry_with_effects(
                 colors,
                 uv: q.uv,
                 material: q.material.clone(),
-                cull: e.editable_mesh.is_some() || e.skeletal_mesh.is_some(),
+                cull: e.editable_mesh.is_some() || e.terrain.is_some() || e.skeletal_mesh.is_some(),
             });
         }
         for q in quads.iter().filter(|_| {
@@ -1178,6 +1267,181 @@ mod tests {
         );
     }
 
+    /// Diagnostic, not a gate: how long one preview rebuild takes for a scene
+    /// like the sample arena with a 32x32 terrain. Run explicitly:
+    /// `cargo test -- --ignored --nocapture profile_terrain_preview_rebuild`.
+    #[test]
+    #[ignore = "timing diagnostic; prints, asserts nothing"]
+    fn profile_terrain_preview_rebuild() {
+        use super::geometry;
+        use crate::scene::Scene;
+        let build = |cells: u16, baked: bool| {
+            let mut doc = crate::terrain::Document::new([cells, cells], 128. / f32::from(cells));
+            for j in 0..=cells {
+                for i in 0..=cells {
+                    doc.set_height(i, j, ((f32::from(i) * 0.4).sin() + (f32::from(j) * 0.3).cos()) * 2.);
+                }
+            }
+            let mut terrain = crate::scene::Actor::cube("Terrain".into());
+            terrain.position = [0.; 3];
+            let mut component = crate::terrain::Component::new(uuid::Uuid::new_v4());
+            component.document = Some(std::sync::Arc::new(doc));
+            terrain.terrain = Some(component);
+            terrain.lighting.receive = if baked {
+                crate::lighting::Receive::Baked
+            } else {
+                crate::lighting::Receive::Realtime
+            };
+            let mut actors = vec![terrain];
+            for k in 0..12 {
+                let mut b = crate::scene::Actor::cube(format!("Box {k}"));
+                b.position = [k as f32 * 3. - 18., 1., (k % 3) as f32 * 4.];
+                b.scale = [2., 2., 2.];
+                actors.push(b);
+            }
+            let mut sun = crate::scene::Actor::cube("Sun".into());
+            sun.kind = "Light".into();
+            sun.light = Some(Default::default());
+            actors.push(sun);
+            Scene { actors, ..Default::default() }
+        };
+        let view = crate::viewport::View::default();
+        let state = crate::mesh_editor::State::default();
+        for (cells, baked) in [(16, true), (32, true), (32, false), (48, true)] {
+            let scene = build(cells, baked);
+            let t = std::time::Instant::now();
+            let quads: usize = scene.actors.iter().map(crate::lighting::quad_count).sum();
+            let quads_ms = t.elapsed().as_secs_f64() * 1000.;
+            let t = std::time::Instant::now();
+            let (mesh, _, _) = geometry(&scene, Some(0), 0., &state, &view);
+            let rebuild_ms = t.elapsed().as_secs_f64() * 1000.;
+            println!(
+                "cells {cells:>2}x{cells:<2} baked={baked:<5} quads={quads:>5}  quads()={quads_ms:>7.2} ms  rebuild={rebuild_ms:>8.2} ms  ({} verts)",
+                mesh.len() / 40
+            );
+        }
+    }
+    #[test]
+    fn brush_decal_hugs_the_terrain_and_vanishes_when_idle() {
+        use super::brush_overlay;
+        use crate::scene::Scene;
+
+        let mut doc = crate::terrain::Document::new([8, 8], 2.);
+        // A plateau under the cursor, so a decal that ignored the surface
+        // would sit visibly below it.
+        for j in 2..=6 {
+            for i in 2..=6 {
+                doc.set_height(i, j, 5.);
+            }
+        }
+        let mut actor = crate::scene::Actor::cube("Terrain".into());
+        actor.position = [0., 1., 0.];
+        let mut component = crate::terrain::Component::new(uuid::Uuid::new_v4());
+        component.document = Some(std::sync::Arc::new(doc.clone()));
+        actor.terrain = Some(component);
+        let scene = Scene {
+            actors: vec![actor],
+            ..Default::default()
+        };
+        let mut state = crate::terrain_editor::State::default();
+        // Closed tool, no cursor: nothing is drawn.
+        assert_eq!(brush_overlay(&scene, &state), (vec![], vec![]));
+        state.open = true;
+        state.target = Some(0);
+        state.doc = Some(doc);
+        state.brush.radius = 2.;
+        state.cursor_local = Some([0., 5., 0.]);
+        let (fill, ring) = brush_overlay(&scene, &state);
+        assert!(!fill.is_empty() && !ring.is_empty());
+        assert_eq!(fill.len() % 40, 0);
+        assert_eq!(ring.len() % 40, 0);
+        // Every vertex sits just above the sampled surface in world space:
+        // plateau at 5 plus the actor's 1 unit, plus a small lift.
+        let heights: Vec<f32> = fill
+            .chunks_exact(40)
+            .map(|v| f32::from_le_bytes(v[4..8].try_into().unwrap()))
+            .collect();
+        assert!(
+            heights.iter().all(|y| (*y - 6.).abs() < 0.2),
+            "{:?}",
+            &heights[..4]
+        );
+        // Mode 1 is the translucent blend; the centre is brighter than the rim.
+        let mode = f32::from_le_bytes(fill[36..40].try_into().unwrap());
+        assert_eq!(mode, 1.);
+        let green: Vec<f32> = fill
+            .chunks_exact(40)
+            .map(|v| f32::from_le_bytes(v[16..20].try_into().unwrap()))
+            .collect();
+        let brightest = green.iter().cloned().fold(0., f32::max);
+        let dimmest = green.iter().cloned().fold(1., f32::min);
+        assert!(
+            brightest > dimmest + 0.3,
+            "falloff not visible: {brightest} vs {dimmest}"
+        );
+        // Closing the tool hides it again even with a stale cursor.
+        state.open = false;
+        assert_eq!(brush_overlay(&scene, &state), (vec![], vec![]));
+    }
+    #[test]
+    fn terrain_reaches_the_preview_like_any_authored_surface() {
+        use super::geometry;
+        use crate::scene::Scene;
+
+        // A missing terrain branch in a preview predicate does not fail a
+        // build: the ground silently vanishes, or is shaded from a cube face.
+        // Compare it against an editable mesh covering the same quads.
+        let view = crate::viewport::View {
+            distance: 64.,
+            ..Default::default()
+        };
+        let state = crate::mesh_editor::State::default();
+        let mut terrain_actor = crate::scene::Actor::cube("Terrain".into());
+        terrain_actor.position = [0.; 3];
+        let mut component = crate::terrain::Component::new(uuid::Uuid::new_v4());
+        component.document = Some(std::sync::Arc::new(crate::terrain::Document::new(
+            [4, 4],
+            2.,
+        )));
+        terrain_actor.terrain = Some(component);
+        let terrain_scene = Scene {
+            actors: vec![terrain_actor],
+            ..Default::default()
+        };
+        let (mesh, _, _) = geometry(&terrain_scene, None, 0., &state, &view);
+        assert!(!mesh.is_empty(), "terrain produced no preview geometry");
+
+        let mut doc = crate::mesh::Document::default();
+        for j in 0..4_i32 {
+            for i in 0..4_i32 {
+                let (x, z) = (i as f32 * 2. - 4., j as f32 * 2. - 4.);
+                doc.add_face(
+                    [
+                        [x, 0., z],
+                        [x, 0., z + 2.],
+                        [x + 2., 0., z + 2.],
+                        [x + 2., 0., z],
+                    ],
+                    doc.groups[0].id,
+                    doc.materials[0].id,
+                );
+            }
+        }
+        let mut mesh_actor = crate::scene::Actor::cube("Blockout".into());
+        mesh_actor.position = [0.; 3];
+        mesh_actor.editable_mesh = Some(crate::mesh::Component {
+            document: Some(std::sync::Arc::new(doc)),
+            ..crate::mesh::Component::new(uuid::Uuid::new_v4())
+        });
+        let mesh_scene = Scene {
+            actors: vec![mesh_actor],
+            ..Default::default()
+        };
+        let (reference, _, _) = geometry(&mesh_scene, None, 0., &state, &view);
+        // Same surface, same quads: the same preview vertices, and the same
+        // per-actor shading rather than a cube face colour.
+        assert_eq!(mesh, reference);
+    }
     #[test]
     #[ignore = "requires a graphics adapter"]
     fn scene_preview_culls_reversed_faces_and_keeps_shaded_surfaces_clean() {
@@ -1253,6 +1517,7 @@ mod tests {
                     view: &view,
                     selected: None,
                     mesh: &state,
+                    terrain: &crate::terrain_editor::State::default(),
                     wire: false,
                     grid: false,
                     effect: None,

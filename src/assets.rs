@@ -34,6 +34,7 @@ pub enum Kind {
     MusicSequence,
     SoundBank,
     EditableMesh,
+    Terrain,
     ModelSource,
     Skeleton,
     SkeletalMesh,
@@ -337,6 +338,7 @@ impl Package {
                 crate::import_settings::Settings::Audio(_)
                 | crate::import_settings::Settings::Authored,
             ) => {}
+            (Kind::Terrain, crate::import_settings::Settings::Authored) => {}
             (Kind::ModelSource, crate::import_settings::Settings::Fbx(s)) => s.validate()?,
             (
                 Kind::Skeleton | Kind::SkeletalMesh | Kind::AnimationClip | Kind::Material,
@@ -385,6 +387,9 @@ impl Package {
             }
             Kind::EditableMesh => {
                 crate::mesh::Document::parse(&self.source)?;
+            }
+            Kind::Terrain => {
+                crate::terrain::Document::parse(&self.source)?;
             }
         }
         Ok(())

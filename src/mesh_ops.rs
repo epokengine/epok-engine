@@ -294,3 +294,213 @@ mod tests {
         assert_eq!(doc, before);
     }
 }
+
+/// Displacement tolerance at which a bent quad is split. The validator rejects
+/// a face whose fourth corner leaves the plane by more than 0.001, so split a
+/// little earlier and never hand it an invalid document.
+const PLANAR: f32 = 0.0005;
+
+/// Apply a height brush to the vertices under it, then split every quad the
+/// displacement bent. Blockout faces must stay planar, so a sculpted quad
+/// becomes two triangles rather than an invalid face.
+///
+/// This is the same brush the terrain tool uses. Sculpting a subdivided Plane
+/// here and sculpting a height grid there feel identical because the falloff,
+/// strength and mode arithmetic are literally the same code.
+pub fn sculpt(
+    doc: &mut Document,
+    brush: &crate::brush::Brush,
+    center: [f32; 3],
+    selection: &BTreeSet<u32>,
+) -> Result<(), String> {
+    use crate::brush::Mode;
+    brush.validate()?;
+    if doc.vertices.is_empty() {
+        return Err("The mesh has no vertices to sculpt".into());
+    }
+    let under: Vec<(usize, f32)> = doc
+        .vertices
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| selection.is_empty() || selection.contains(&(*index as u32)))
+        .filter_map(|(index, v)| {
+            let weight = brush.weight(v[0] - center[0], v[2] - center[2]);
+            (weight > 0.).then_some((index, weight))
+        })
+        .collect();
+    if under.is_empty() {
+        return Err("No vertices under the brush. Widen the radius or move the brush.".into());
+    }
+    // Smooth pulls towards the mean of what the brush covers, which needs no
+    // adjacency and behaves the same whether the surface is a grid or not.
+    let mean = under
+        .iter()
+        .map(|(index, _)| doc.vertices[*index][1])
+        .sum::<f32>()
+        / under.len() as f32;
+    let mut moved = false;
+    for (index, weight) in under {
+        let current = doc.vertices[index][1];
+        let next = match brush.mode {
+            Mode::Smooth => current + (mean - current) * weight * brush.strength.min(1.),
+            Mode::Noise => {
+                let p = doc.vertices[index];
+                current
+                    + crate::brush::noise(
+                        (p[0] * 16.).round() as i32,
+                        (p[2] * 16.).round() as i32,
+                        brush.seed,
+                    ) * brush.strength
+                        * weight
+            }
+            Mode::Paint => current,
+            _ => current + brush.delta(weight, current),
+        };
+        let next = next.clamp(-128., 128.);
+        if next != current && next.is_finite() {
+            doc.vertices[index][1] = next;
+            moved = true;
+        }
+    }
+    if !moved {
+        return Ok(());
+    }
+    triangulate_bent(doc);
+    Ok(())
+}
+
+/// Split quads whose corners no longer share a plane. The first half keeps the
+/// original face id so a selection survives the split.
+fn triangulate_bent(doc: &mut Document) {
+    let mut splits = vec![];
+    for (index, f) in doc.faces.iter().enumerate() {
+        if f.vertices[2] == f.vertices[3] {
+            continue;
+        }
+        let p = doc.points(f);
+        let normal = face_normal(p);
+        if !normal.iter().all(|v| v.is_finite()) {
+            continue;
+        }
+        if dot(sub(p[3], p[0]), normal).abs() <= PLANAR {
+            continue;
+        }
+        let first = Face {
+            id: f.id,
+            vertices: [f.vertices[0], f.vertices[1], f.vertices[2], f.vertices[2]],
+            group: f.group,
+            material: f.material,
+            uv: [f.uv[0], f.uv[1], f.uv[2], f.uv[2]],
+        };
+        let second = Face {
+            id: Uuid::new_v4(),
+            vertices: [f.vertices[0], f.vertices[2], f.vertices[3], f.vertices[3]],
+            group: f.group,
+            material: f.material,
+            uv: [f.uv[0], f.uv[2], f.uv[3], f.uv[3]],
+        };
+        splits.push((index, first, second));
+    }
+    // Insert from the back so earlier indices stay valid.
+    for (index, first, second) in splits.into_iter().rev() {
+        doc.faces[index] = first;
+        doc.faces.insert(index + 1, second);
+    }
+}
+
+#[cfg(test)]
+mod sculpt_tests {
+    use super::*;
+    use crate::brush::{Brush, Mode};
+
+    fn plane(steps: usize) -> Document {
+        let mut doc = Document::default();
+        let group = doc.groups[0].id;
+        let slot = doc.materials[0].id;
+        doc.primitive("Plane", [0.; 3], [8., 1., 8.], steps, group, slot);
+        // A single Plane face is one quad; subdivide it so the brush has
+        // vertices to move, the way a terrain grid would.
+        for _ in 0..steps.min(3) {
+            let all = doc.faces.iter().map(|f| f.id).collect::<BTreeSet<_>>();
+            doc.split(&all);
+        }
+        doc
+    }
+
+    #[test]
+    fn sculpting_bends_a_plane_and_keeps_the_document_valid() {
+        let mut doc = plane(2);
+        doc.validate().unwrap();
+        let before = doc.faces.len();
+        let brush = Brush {
+            mode: Mode::Raise,
+            radius: 3.,
+            strength: 1.5,
+            ..Default::default()
+        };
+        sculpt(&mut doc, &brush, [0., 0., 0.], &BTreeSet::new()).unwrap();
+        // The centre rose.
+        assert!(doc.vertices.iter().any(|v| v[1] > 0.5));
+        // Bent quads became triangle pairs rather than invalid faces.
+        assert!(doc.faces.len() > before);
+        assert!(doc.faces.iter().any(|f| f.vertices[2] == f.vertices[3]));
+        doc.validate()
+            .unwrap_or_else(|e| panic!("sculpt produced an invalid document: {e}"));
+    }
+
+    #[test]
+    fn sculpting_only_touches_the_selection() {
+        let mut doc = plane(2);
+        let selection: BTreeSet<u32> = doc
+            .vertices
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| v[0] < 0.)
+            .map(|(i, _)| i as u32)
+            .collect();
+        assert!(!selection.is_empty());
+        let brush = Brush {
+            mode: Mode::Raise,
+            radius: 64.,
+            strength: 2.,
+            falloff: crate::brush::Falloff::Constant,
+            ..Default::default()
+        };
+        sculpt(&mut doc, &brush, [0., 0., 0.], &selection).unwrap();
+        for (index, v) in doc.vertices.iter().enumerate() {
+            if selection.contains(&(index as u32)) {
+                assert!(v[1] > 0.5, "selected vertex {index} did not move");
+            } else {
+                assert_eq!(v[1], 0., "unselected vertex {index} moved");
+            }
+        }
+    }
+
+    #[test]
+    fn a_brush_that_covers_nothing_reports_instead_of_silently_passing() {
+        let mut doc = plane(1);
+        let brush = Brush {
+            radius: 0.5,
+            ..Default::default()
+        };
+        let error = sculpt(&mut doc, &brush, [500., 0., 500.], &BTreeSet::new()).unwrap_err();
+        assert!(error.contains("No vertices under the brush"), "{error}");
+    }
+
+    #[test]
+    fn an_already_flat_smooth_leaves_the_topology_alone() {
+        let mut doc = plane(2);
+        let faces = doc.faces.len();
+        let brush = Brush {
+            mode: Mode::Smooth,
+            radius: 32.,
+            strength: 1.,
+            ..Default::default()
+        };
+        sculpt(&mut doc, &brush, [0., 0., 0.], &BTreeSet::new()).unwrap();
+        // Everything was already at the mean, so nothing moved and nothing
+        // had to be triangulated.
+        assert_eq!(doc.faces.len(), faces);
+        doc.validate().unwrap();
+    }
+}

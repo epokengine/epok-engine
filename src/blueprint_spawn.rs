@@ -37,6 +37,7 @@ pub fn prepare(
         };
         let mut scene = template.scene(binding, &registry)?;
         crate::mesh::resolve(&mut scene, index)?;
+        crate::terrain::resolve(&mut scene, index)?;
         crate::skeletal::resolve(&mut scene, index)?;
         crate::texture::resolve(&mut scene, index)?;
         crate::audio::validate_assets(&scene, index)?;

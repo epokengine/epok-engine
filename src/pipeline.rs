@@ -530,12 +530,20 @@ fn execute(
         ));
         let mut prepared = scene.clone();
         project::refresh_linked_scene(root, &mut prepared)?;
-        if prepared.actors.iter().any(|e| e.editable_mesh.is_some()) {
-            crate::mesh::resolve(
-                &mut prepared,
-                &crate::assets::scan(root, &mut Default::default()),
-            )?;
+        if prepared
+            .actors
+            .iter()
+            .any(|e| e.editable_mesh.is_some() || e.terrain.is_some())
+        {
+            let index = crate::assets::scan(root, &mut Default::default());
+            crate::mesh::resolve(&mut prepared, &index)?;
+            // The bake reads the terrain surface, so an unresolved grid would
+            // silently bake no colours for it rather than failing.
+            crate::terrain::resolve(&mut prepared, &index)?;
         }
+        // Report a terrain over its limits before the generic lighting budget
+        // does: this message names the actor and says which limit it is.
+        crate::terrain::validate_scene(&prepared)?;
         if !crate::lighting::valid_bake(&prepared) {
             let bake = crate::lighting::bake(&prepared)?;
             let _ = tx.send(Event::LightingBaked(bake.clone()));

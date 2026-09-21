@@ -34,6 +34,7 @@ mod blueprint_templates;
 mod blueprint_workflow;
 mod branding;
 mod bridge;
+mod brush;
 mod build_inputs;
 mod build_report;
 mod busy_ui;
@@ -168,6 +169,9 @@ mod sprites_editor;
 mod spu_encoder;
 mod staging_files;
 mod streaming;
+mod terrain;
+mod terrain_compile;
+mod terrain_editor;
 mod texture;
 mod third_person;
 mod timeline;
@@ -1434,6 +1438,28 @@ fn prepare_editor(editor: &mut editor::Editor) {
         if let Some(record) = record {
             mesh_editor::open(editor, record, None);
             editor.selected = editor.mesh_editor.target;
+        }
+    }
+    if args.iter().any(|a| a == "--screenshot-terrain") {
+        editor.assets.index = assets::scan(&editor.root, &mut Default::default());
+        let record = editor
+            .assets
+            .index
+            .usable()
+            .find(|r| r.meta.kind == assets::Kind::Terrain)
+            .cloned();
+        match record {
+            Some(record) => {
+                terrain_editor::open(editor, record, None);
+                editor.selected = editor.terrain_editor.target;
+            }
+            // Nothing to open yet: make one, so the capture always has a
+            // terrain to show rather than an empty panel.
+            None => {
+                if let Err(error) = terrain_editor::create(editor) {
+                    editor.log(error);
+                }
+            }
         }
     }
     if args.iter().any(|a| a == "--screenshot-inspector") {

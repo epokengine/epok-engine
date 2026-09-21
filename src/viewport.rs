@@ -331,7 +331,11 @@ pub fn render(
             if p.iter().any(|v| v[2] <= 1.) {
                 continue;
             }
-            if (entity.editable_mesh.is_some() || entity.skeletal_mesh.is_some()) && !wire {
+            if (entity.editable_mesh.is_some()
+                || entity.terrain.is_some()
+                || entity.skeletal_mesh.is_some())
+                && !wire
+            {
                 let area = (p[1][0] - p[0][0]) * (p[2][1] - p[0][1])
                     - (p[1][1] - p[0][1]) * (p[2][0] - p[0][0]);
                 if area <= 0. {

@@ -1,6 +1,6 @@
 # Assets, import and audio
 
-Authored **EditableMesh** assets use the same UUID package and move/conflict rules, with editable geometry as their embedded source. They open in [Blockout](blockout.md) and do not enter audio import/reimport. An entity references the asset UUID and optional material-slot overrides; saved-scene dependency checks include these references.
+Authored **EditableMesh** assets use the same UUID package and move/conflict rules, with editable geometry as their embedded source. They open in [Blockout](blockout.md) and do not enter audio import/reimport. **Terrain** assets follow the same rules with a compact binary height grid as their source, and open in [Terrain](terrain.md). An entity references the asset UUID and optional material-slot overrides; saved-scene dependency checks include these references.
 
 Imported assets are portable `.epokasset` files under the game's `assets/` directory. Each contains a UUID, importer settings, a source checksum and a complete snapshot of the original file. Scenes reference the UUID. No neighboring `.meta` file or editor database is required to recover an imported asset.
 

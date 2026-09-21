@@ -138,6 +138,8 @@ pub struct BuiltinData {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub editable_mesh: Option<crate::mesh::Component>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terrain: Option<crate::terrain::Component>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio: Option<crate::audio::AudioSource>,
     pub name: String,
     pub kind: String,
@@ -183,6 +185,7 @@ impl BuiltinData {
             collider: None,
             palette_animator: None,
             editable_mesh: None,
+            terrain: None,
             skeletal_mesh: None,
             audio: None,
             kind: "Mesh".into(),
@@ -737,6 +740,7 @@ impl Scene {
         let mut scene = Self::load_unresolved(path)?;
         if scene.actors.iter().any(|e| {
             e.editable_mesh.is_some()
+                || e.terrain.is_some()
                 || e.skeletal_mesh.is_some()
                 || e.material.texture.is_some()
                 || e.sprite.is_some()
@@ -746,6 +750,7 @@ impl Scene {
         {
             let index = crate::assets::scan(root, &mut Default::default());
             let _ = crate::mesh::resolve(&mut scene, &index);
+            let _ = crate::terrain::resolve(&mut scene, &index);
             let _ = crate::skeletal::resolve(&mut scene, &index);
             let _ = crate::texture::resolve(&mut scene, &index);
         }

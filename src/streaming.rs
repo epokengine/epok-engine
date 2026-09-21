@@ -210,13 +210,22 @@ pub fn compile_with_budget(
         let layout = crate::texture::layout(scene)?;
         let mut locations = BTreeMap::new();
         for (entity, e) in scene.actors.iter().enumerate().filter(|(_, e)| {
-            e.kind == "Mesh" && e.editable_mesh.is_some() && e.skeletal_mesh.is_none()
+            e.kind == "Mesh"
+                && (e.editable_mesh.is_some() || e.terrain.is_some())
+                && e.skeletal_mesh.is_none()
         }) {
             let qs = crate::lighting::quads(e);
             if qs.len() > 3500 {
                 return Err("Compiled mesh exceeds 7000 triangles".into());
             }
-            for (chunk_index, chunk) in crate::mesh_compile::chunks(&qs)?.into_iter().enumerate() {
+            // Terrain bins on cell indices, meshes on world centroids. Both
+            // must partition here exactly as the header emitter does, or the
+            // patched stream offsets would point at the wrong chunk.
+            let parts = match &e.terrain {
+                Some(terrain) => crate::terrain_compile::chunks(terrain, &qs)?,
+                None => crate::mesh_compile::chunks(&qs)?,
+            };
+            for (chunk_index, chunk) in parts.into_iter().enumerate() {
                 let vertex_bytes = chunk.vertices.len() * 6;
                 let quad_start = (vertex_bytes + 3) & !3;
                 let length = quad_start + chunk.faces.len() * QUAD_BYTES;

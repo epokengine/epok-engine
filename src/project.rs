@@ -285,6 +285,16 @@ pub fn scene_header_with_registry_for(
     {
         text.push_str(&crate::mesh_compile::header_with_pages(e, index, &pages)?);
     }
+    for (index, e) in scene
+        .actors
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| e.kind == "Mesh" && e.terrain.is_some())
+    {
+        text.push_str(&crate::terrain_compile::header_with_pages(
+            e, index, &pages,
+        )?);
+    }
     let mut skeletal_assets = std::collections::BTreeMap::new();
     for (i, e) in scene.actors.iter().enumerate() {
         if let Some(c) = &e.skeletal_mesh
@@ -329,11 +339,12 @@ pub fn scene_header_with_registry_for(
         }
         let vector = |v: &[f32; 3]| v.iter().map(|v| fixed(*v)).collect::<Vec<_>>().join(",");
         // EditableMesh owns its material slots; the legacy cube renderer's tint is unrelated.
-        let material = if e.editable_mesh.is_some() || e.skeletal_mesh.is_some() {
-            crate::scene::Material::default()
-        } else {
-            e.material.clone()
-        };
+        let material =
+            if e.editable_mesh.is_some() || e.terrain.is_some() || e.skeletal_mesh.is_some() {
+                crate::scene::Material::default()
+            } else {
+                e.material.clone()
+            };
         text.push_str(&format!(
             "{{{}, {}, {}, {}, {{{{{}}},{{{}}},{{{}}}}}, {{{{{}}}, {}}}}},\n",
             e.kind == "Camera",
@@ -427,7 +438,7 @@ inline void initialize_components(){
                     .map_or(-1, |v| v as i32);
                 let asset = skeletal_assets[&c.asset];
                 text.push_str(&format!("objects[{i}].animator=Animator{{true,&skin_{asset},{clip},0,{},{}}};objects[{i}].geometry=&skin_geometry_{asset};\n",c.play_on_start,c.looping));
-            } else if e.editable_mesh.is_some() {
+            } else if e.editable_mesh.is_some() || e.terrain.is_some() {
                 text.push_str(&format!("objects[{i}].geometry=&editable_{i}_0;\n"));
             } else {
                 let id = topologies[&(e.lighting.subdivisions, crate::lighting::tiled(e))];
@@ -443,7 +454,7 @@ inline void initialize_components(){
                 color(&e.camera_sky_color)
             ));
         }
-        if e.editable_mesh.is_none() && e.skeletal_mesh.is_none() {
+        if e.editable_mesh.is_none() && e.terrain.is_none() && e.skeletal_mesh.is_none() {
             text.push_str(&format!(
                 "objects[{i}].material={};\n",
                 crate::texture::material_cpp(&e.material)
@@ -533,6 +544,7 @@ inline void initialize_components(){
     text.push_str(&sprite_init);
     text.push_str(&crate::particles::generate(scene, &texture_ids));
     text.push_str(&crate::collision::cpp_setup(scene));
+    text.push_str(&crate::terrain_compile::collider_cpp(scene));
     text.push_str(&navigation_init);
     text.push_str(&crate::palette::cpp_setup(scene));
     text.push_str(&crate::effects::cpp_setup(scene));
@@ -754,6 +766,12 @@ fn stage_with_playback(
             &crate::assets::scan(root, &mut Default::default()),
         )?;
     }
+    if resolved.actors.iter().any(|e| e.terrain.is_some()) {
+        crate::terrain::resolve(
+            &mut resolved,
+            &crate::assets::scan(root, &mut Default::default()),
+        )?;
+    }
     crate::skeletal::resolve(
         &mut resolved,
         &crate::assets::scan(root, &mut Default::default()),
@@ -820,6 +838,8 @@ fn stage_with_playback(
         crate::blueprint_templates::refresh_instances(bank, &blueprint_files, &blueprint_registry)?;
         bank.display_size = scene.display_size;
         crate::mesh::resolve(bank, &asset_index)?;
+        crate::terrain::resolve(bank, &asset_index)?;
+        crate::terrain::validate_scene(bank)?;
         crate::skeletal::resolve(bank, &asset_index)?;
         crate::texture::resolve(bank, &asset_index)?;
         bank.validate()?;
@@ -832,7 +852,7 @@ fn stage_with_playback(
                 > 3500
         {
             return Err(format!(
-                "Scene {} exceeds 7000 resident triangles. Enable Engine > Streaming > Geometry Streaming for editable meshes, or reduce geometry/subdivisions.",
+                "Scene {} exceeds 7000 resident triangles. Enable Engine > Streaming > Geometry Streaming for editable meshes and terrain, or reduce cell counts, subdivisions and geometry.",
                 bank.name
             ));
         }

@@ -165,7 +165,7 @@ pub fn run(
                 data: include_bytes!("../resources/editor/fa-solid-900.ttf"),
                 size_pixels: 14.,
                 config: Some(imgui::FontConfig {
-                    glyph_ranges: imgui::FontGlyphRanges::from_slice(&[0xf256, 0xf256, 0]),
+                    glyph_ranges: imgui::FontGlyphRanges::from_slice(EDITOR_FA_GLYPHS),
                     ..Default::default()
                 }),
             },
@@ -191,7 +191,7 @@ pub fn run(
                 data: include_bytes!("../resources/editor/fa-solid-900.ttf"),
                 size_pixels: 14.,
                 config: Some(imgui::FontConfig {
-                    glyph_ranges: imgui::FontGlyphRanges::from_slice(&[0xf256, 0xf256, 0]),
+                    glyph_ranges: imgui::FontGlyphRanges::from_slice(EDITOR_FA_GLYPHS),
                     ..Default::default()
                 }),
             },
@@ -1221,3 +1221,23 @@ fn capture(
     std::fs::write(path, bytes)?;
     Ok(())
 }
+
+/// Font Awesome codepoints rasterized into the main UI font. The face is the
+/// full free set, so nothing has to be re-subset to add one: list it here and
+/// use it. Ranges are inclusive pairs, ascending, zero-terminated.
+const EDITOR_FA_GLYPHS: &[u32] = &[
+    0x25a0, 0x25a0, // square: constant falloff
+    0x25d0, 0x25d0, // circle-half-stroke: smooth falloff
+    0xf0aa, 0xf0ab, // circle-arrow-up / down: raise, lower
+    0xf140, 0xf140, // bullseye: set height
+    0xf1fc, 0xf1fc, // paintbrush: paint tile
+    0xf1fe, 0xf1fe, // chart-area: linear falloff
+    0xf256, 0xf256, // hand: select tool
+    0xf2ea, 0xf2ea, // rotate-left: undo
+    0xf2f9, 0xf2f9, // rotate-right: redo
+    0xf522, 0xf522, // dice: noise
+    0xf547, 0xf547, // ruler-horizontal: flatten
+    0xf6fc, 0xf6fc, // mountain: sharp falloff
+    0xf773, 0xf773, // water: smooth
+    0,
+];

@@ -191,23 +191,49 @@ fn inputs(scene: &Scene) -> Result<Inputs, String> {
             });
         }
         if component(a, SURFACE).is_some() {
-            let doc = a
-                .editable_mesh
-                .as_ref()
-                .and_then(|m| m.document.as_ref())
-                .ok_or_else(|| {
-                    format!(
-                        "{}: Navigation Surface needs a resolved EditableMesh",
+            if a.terrain.is_some() {
+                // Terrain walkability comes from the same quads the renderer
+                // draws, so a merged cell contributes one wide triangle pair
+                // rather than the cells it replaced. Slope filtering happens
+                // downstream, exactly as for an authored surface.
+                if a.terrain
+                    .as_ref()
+                    .and_then(|t| t.document.as_ref())
+                    .is_none()
+                {
+                    return Err(format!(
+                        "{}: Navigation Surface needs a resolved Terrain",
                         a.name
-                    )
-                })?;
-            for f in &doc.faces {
-                quad(
-                    doc.points(f).map(|p| scene.world_matrix(i).point(p)),
-                    &mut out.triangles,
-                );
+                    ));
+                }
+                for q in crate::lighting::quads(a) {
+                    quad(
+                        q.points.map(|p| scene.world_matrix(i).point(p)),
+                        &mut out.triangles,
+                    );
+                }
+            } else {
+                let doc = a
+                    .editable_mesh
+                    .as_ref()
+                    .and_then(|m| m.document.as_ref())
+                    .ok_or_else(|| {
+                        format!(
+                            "{}: Navigation Surface needs a resolved EditableMesh",
+                            a.name
+                        )
+                    })?;
+                for f in &doc.faces {
+                    quad(
+                        doc.points(f).map(|p| scene.world_matrix(i).point(p)),
+                        &mut out.triangles,
+                    );
+                }
             }
-            if a.collider.as_ref().is_some_and(|c| c.enabled && !c.trigger) {
+            // A terrain's own heightfield collider is a walkable surface, not
+            // an obstacle, so it is exempt from the box-collider rule.
+            let terrain_collision = a.terrain.as_ref().is_some_and(|t| t.collision);
+            if !terrain_collision && a.collider.as_ref().is_some_and(|c| c.enabled && !c.trigger) {
                 return Err(format!(
                     "{}: disable the box collider on a Navigation Surface; use separate obstacle colliders",
                     a.name
