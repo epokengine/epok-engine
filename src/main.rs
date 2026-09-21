@@ -97,9 +97,10 @@ mod music;
 mod music_conversion_ui;
 mod native;
 mod native_metadata;
+mod native_music;
+mod native_play;
 mod navigation;
 mod navigation_geometry;
-mod native_music;
 mod obj_import;
 mod object_model;
 mod operation;
@@ -294,6 +295,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         [
             "--build-psx",
             "--play-psx",
+            "--play-native",
             "--analyze-memory",
             "--generate-asset-report",
             "--bake-lighting",
@@ -1299,6 +1301,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.iter().any(|a| {
         a == "--build-psx"
             || a == "--play-psx"
+            || a == "--play-native"
             || a == "--analyze-memory"
             || a == "--generate-asset-report"
     }) {
@@ -1309,9 +1312,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             pipeline::Job::report(root.clone(), summary)
         } else {
             let analyze = args.iter().any(|a| a == "--analyze-memory");
-            let scene_path = args.windows(2).find(|v|v[0]=="--scene").map(|v|root.join(&v[1])).map_or_else(||workspace::startup_scene(&root),Ok)?;
+            let scene_path = args
+                .windows(2)
+                .find(|v| v[0] == "--scene")
+                .map(|v| root.join(&v[1]))
+                .map_or_else(|| workspace::startup_scene(&root), Ok)?;
+            let native = args.iter().any(|a| a == "--play-native");
             let mut scene = scene_dependencies::Input::load(&scene_path)?;
-            if analyze || args.iter().any(|a| a == "--use-play-profile") {
+            if native {
+                let mut profile = play::Profile::load(&root).unwrap_or_default();
+                profile.runtime = play::Runtime::NativePc;
+                profile.content = play::Content::CurrentScene;
+                scene = play::saved_input(&root, &scene_path, profile)?;
+            } else if analyze || args.iter().any(|a| a == "--use-play-profile") {
                 scene = play::saved_input(
                     &root,
                     &workspace::startup_scene(&root)?,
@@ -1324,7 +1337,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 pipeline::Job::start_with_debug(
                     root,
                     scene,
-                    args.iter().any(|a| a == "--play-psx"),
+                    args.iter()
+                        .any(|a| a == "--play-psx" || a == "--play-native"),
                     args.iter().any(|a| a == "--blueprint-debug"),
                 )
             }
@@ -1360,7 +1374,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(pipeline::Event::LightingBaked(_)) => println!("Vertex lighting ready"),
                 Ok(pipeline::Event::Built(p)) => println!("Built {}", p.display()),
                 Ok(pipeline::Event::Running(_)) => {
-                    println!("Emulator running");
+                    println!(
+                        "{}",
+                        if args.iter().any(|a| a == "--play-native") {
+                            "Native PC runtime running"
+                        } else {
+                            "Emulator running"
+                        }
+                    );
                     started = Some(Instant::now());
                 }
                 Ok(pipeline::Event::SerialConnected) => {
@@ -1509,7 +1530,11 @@ fn prepare_editor(editor: &mut editor::Editor) {
             .map(|c| c.name.clone())
             .unwrap_or_else(|| "ActorComponent".into());
     }
-    if args.iter().any(|a| a == "--screenshot-game") {
+    if args.iter().any(|a| a == "--screenshot-native-game") {
+        editor.play_profile.runtime = play::Runtime::NativePc;
+        editor.play_profile.content = play::Content::CurrentScene;
+        editor.build(true);
+    } else if args.iter().any(|a| a == "--screenshot-game") {
         editor.build(true);
     }
 }

@@ -134,6 +134,7 @@ pub struct Editor {
     pub preferences: crate::settings::Preferences,
     pub play_profile: crate::play::Profile,
     pub play_warning: Option<String>,
+    pub active_play_runtime: crate::play::Runtime,
     pub active_play_target: crate::play::Target,
     pub skeletal_ui: crate::skeletal_ui::State,
     pub mesh_editor: crate::mesh_editor::State,
@@ -189,6 +190,8 @@ pub struct Editor {
     pub job_stale: bool,
     job_target: Option<(bool, bool)>,
     restart_target: Option<(bool, bool)>,
+    native_play_cache: Option<(String, PathBuf)>,
+    native_play_request: Option<String>,
     pub search: String,
     pub close_requested: bool,
     pub should_close: bool,
@@ -198,6 +201,7 @@ pub struct Editor {
     pub focus_project: bool,
     pub last_error: Option<String>,
     pub game_frame: Option<std::sync::Arc<crate::bridge::Frame>>,
+    pub native_frame: Option<std::sync::Arc<crate::native_play::Frame>>,
     pub game_error: Option<String>,
     pub focus_game: bool,
     pub game_capture: bool,
@@ -265,11 +269,14 @@ impl Editor {
             || (self.job.is_some() && !self.playing)
     }
     pub fn set_buttons(&self, buttons: u16) {
+        let buttons = buttons | self.mcp.buttons;
         if let Some(bridge) = self.job.as_ref().and_then(|j| j.bridge.as_ref()) {
-            bridge.buttons.store(
-                buttons | self.mcp.buttons,
-                std::sync::atomic::Ordering::Relaxed,
-            );
+            bridge
+                .buttons
+                .store(buttons, std::sync::atomic::Ordering::Relaxed);
+        }
+        if let Some(bridge) = self.job.as_ref().and_then(|j| j.native.as_ref()) {
+            *bridge.buttons.lock().unwrap() = buttons;
         }
     }
     pub fn open(project: crate::workspace::Project) -> Result<Self, String> {
@@ -579,6 +586,7 @@ impl Editor {
             preferences: preferences.clone(),
             play_profile: crate::play::Profile::load(&root).unwrap_or_default(),
             play_warning: None,
+            active_play_runtime: Default::default(),
             active_play_target: Default::default(),
             mesh_editor: Default::default(),
             terrain_editor: Default::default(),
@@ -656,6 +664,9 @@ impl Editor {
             focus_project: true,
             last_error: None,
             game_frame: None,
+            native_frame: None,
+            native_play_cache: None,
+            native_play_request: None,
             game_error: None,
             focus_game: false,
             game_capture: false,
@@ -2140,6 +2151,7 @@ impl Editor {
             return;
         }
         if run
+            && self.play_profile.runtime == crate::play::Runtime::PlayStation
             && self.play_profile.target == crate::play::Target::Serial
             && !crate::serial_support::tools_installed()
         {
@@ -2160,12 +2172,13 @@ impl Editor {
         self.job_target = Some((run, physical_disc));
         if run {
             self.game_frame = None;
+            self.native_frame = None;
             self.game_error = None;
         }
         self.last_error = None;
         self.focus_console = true;
         self.pending_since = None;
-        let input = match crate::play::input(
+        let mut input = match crate::play::input(
             &self.root,
             self.scene_path(),
             self.scene.clone(),
@@ -2180,13 +2193,34 @@ impl Editor {
                 return;
             }
         };
+        self.native_play_request = None;
+        if run && self.play_profile.runtime == crate::play::Runtime::NativePc {
+            let key = crate::scene_dependencies::hash((
+                crate::scene_dependencies::signature(&input.scene),
+                self.source_revision,
+                self.assets.revision,
+                &input.play_settings_signature,
+            ));
+            input.native_play_cache = self
+                .native_play_cache
+                .as_ref()
+                .filter(|(cached, path)| cached == &key && path.is_file())
+                .map(|(_, path)| path.clone());
+            input.native_play_scene_ready = true;
+            input.native_play_catalog = Some(self.catalog.clone());
+            input.native_play_assets = Some(self.assets.index.clone());
+            self.native_play_request = Some(key);
+        }
+        self.active_play_runtime = self.play_profile.runtime;
         self.active_play_target = self.play_profile.target;
         self.console.force_follow();
         self.memory.building_scene_signature = crate::scene_dependencies::signature(&self.scene);
         self.memory.stale = true;
         self.memory.report_only = false;
         self.job_progress = None;
-        self.job_stage = if run && self.active_play_target == crate::play::Target::Serial {
+        self.job_stage = if run && self.active_play_runtime == crate::play::Runtime::NativePc {
+            "Building Native PC runtime"
+        } else if run && self.active_play_target == crate::play::Target::Serial {
             "Preparing PSX connection"
         } else {
             "Building PSX program"
@@ -2208,6 +2242,8 @@ impl Editor {
         });
         self.log(if physical_disc {
             "Packaging physical PSX disc..."
+        } else if run && self.active_play_runtime == crate::play::Runtime::NativePc {
+            "Building for Native PC Play..."
         } else if run {
             "Building for PSX Play..."
         } else {
@@ -2532,7 +2568,9 @@ impl Editor {
                         } else {
                             Control::Pause
                         });
-                        if self.active_play_target == crate::play::Target::Serial {
+                        if self.active_play_runtime == crate::play::Runtime::PlayStation
+                            && self.active_play_target == crate::play::Target::Serial
+                        {
                             self.serial_ui.command_pending = true;
                         }
                     }
@@ -2540,6 +2578,7 @@ impl Editor {
             }
             "serial-reset" | "serial-pause" | "serial-resume" => {
                 if self.playing
+                    && self.active_play_runtime == crate::play::Runtime::PlayStation
                     && self.active_play_target == crate::play::Target::Serial
                     && !self.serial_ui.command_pending
                     && let Some(job) = &self.job
@@ -2800,14 +2839,21 @@ impl Editor {
                     }
                 }
                 Event::Built(p) => {
+                    if self.active_play_runtime == crate::play::Runtime::NativePc
+                        && let Some(key) = self.native_play_request.clone()
+                    {
+                        self.native_play_cache = Some((key, p.clone()));
+                    }
                     self.external_watch.request_refresh();
                     self.source_dirty = true;
                     self.log(format!("Built {}", p.display()));
                 }
                 Event::Running(pid) => {
                     self.emulator_pid = Some(pid);
-                    self.emulator_visible = true;
-                    self.focus_game = self.active_play_target == crate::play::Target::Embedded;
+                    self.emulator_visible =
+                        self.active_play_runtime == crate::play::Runtime::PlayStation;
+                    self.focus_game = self.active_play_runtime == crate::play::Runtime::NativePc
+                        || self.active_play_target == crate::play::Target::Embedded;
                     self.playing = true;
                     self.paused = false;
                     if self.job_stale {
@@ -2815,7 +2861,13 @@ impl Editor {
                             job.control(Control::Stop);
                         }
                     } else {
-                        self.log("PCSX-Redux running. Connecting Game view...");
+                        self.log(
+                            if self.active_play_runtime == crate::play::Runtime::NativePc {
+                                "Native PC runtime running. Connecting Game view..."
+                            } else {
+                                "PCSX-Redux running. Connecting Game view..."
+                            },
+                        );
                     }
                 }
                 Event::SerialConnected => {
@@ -2829,7 +2881,9 @@ impl Editor {
                 }
                 Event::Paused(p) => {
                     self.paused = p;
-                    let target = if self.active_play_target == crate::play::Target::Serial {
+                    let target = if self.active_play_runtime == crate::play::Runtime::NativePc {
+                        "Native PC runtime"
+                    } else if self.active_play_target == crate::play::Target::Serial {
                         "PSX"
                     } else {
                         "Emulator"
@@ -2866,6 +2920,7 @@ impl Editor {
                     self.game_capture = false;
                     self.emulator_pid = None;
                     self.game_frame = None;
+                    self.native_frame = None;
                     if stale {
                         self.log(
                             "Previous build/Play stopped. Changed sources require a fresh build.",
@@ -2911,6 +2966,18 @@ impl Editor {
                     crate::native::emulator_window(pid, true);
                     self.emulator_visible = true;
                 }
+            }
+        }
+        if !self.job_stale
+            && let Some(native) = self.job.as_ref().and_then(|job| job.native.as_ref())
+        {
+            let state = native.state.lock().unwrap();
+            if let Some(frame) = &state.frame {
+                self.native_frame = Some(frame.clone());
+            }
+            if let Some(error) = &state.error {
+                self.game_error = Some(error.clone());
+                self.game_capture = false;
             }
         }
         // Camera navigation is read-only. Keep processing build/emulator events,
@@ -3136,6 +3203,10 @@ impl Editor {
     // Running games keep their launched snapshot. Cancel only an in-flight
     // build whose inputs changed; never schedule an automatic replacement.
     fn invalidate_running_build(&mut self) {
+        // Any accepted source/asset/settings invalidation also invalidates the
+        // zero-scan Native PC fast path. The immutable on-disk cache remains
+        // available to normal preparation if its full content hash still fits.
+        self.native_play_cache = None;
         self.memory.stale = true;
         self.pending_build = true;
         self.pending_since = Some(Instant::now());
@@ -3149,6 +3220,7 @@ impl Editor {
             self.set_buttons(0);
             self.game_capture = false;
             self.game_frame = None;
+            self.native_frame = None;
             self.game_error =
                 Some("Build inputs changed. Press Build or Play to try again.".into());
             self.log(
@@ -4727,6 +4799,183 @@ mod tests {
                 .unwrap()
                 .contains("Save or discard the open Timeline/ParticleEffect")
         );
+    }
+    #[test]
+    #[ignore = "requires EPOK_NATIVE_PROJECT and a native C++ compiler"]
+    fn native_pc_cached_replay_meets_budget_and_reset_relaunches() {
+        fn until(editor: &mut Editor, label: &str, ready: impl Fn(&Editor) -> bool) {
+            let started = Instant::now();
+            while !ready(editor) {
+                editor.tick();
+                assert!(
+                    started.elapsed() < Duration::from_secs(120),
+                    "{label}: {:?}",
+                    editor.logs
+                );
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+
+        let root = PathBuf::from(std::env::var_os("EPOK_NATIVE_PROJECT").unwrap());
+        let project = crate::workspace::Project::open(&root).unwrap();
+        let mut editor = Editor::open(project).unwrap();
+        editor.play_profile.runtime = crate::play::Runtime::NativePc;
+        editor.play_profile.content = crate::play::Content::CurrentScene;
+        editor.build(true);
+        until(&mut editor, "initial Native PC Play", |editor| {
+            editor.playing
+                && editor.native_frame.is_some()
+                && editor.source_scan.is_none()
+                && !editor.source_dirty
+        });
+        editor.action("play");
+        until(&mut editor, "stop initial Native PC Play", |editor| {
+            editor.job.is_none()
+        });
+
+        let started = Instant::now();
+        editor.build(true);
+        until(&mut editor, "cached Native PC Play", |editor| {
+            editor.playing && editor.native_frame.is_some()
+        });
+        let cached_start = started.elapsed();
+        println!("Cached Native PC Play: {cached_start:?}");
+        assert!(
+            cached_start < Duration::from_millis(750),
+            "cached Native PC Play took {cached_start:?}: {:?}",
+            editor.logs
+        );
+        assert!(
+            editor
+                .logs
+                .iter()
+                .any(|line| line.contains("Reusing current Native PC runtime"))
+        );
+
+        let cadence_start = Instant::now();
+        let first_frame = editor.native_frame.as_ref().unwrap().number;
+        while cadence_start.elapsed() < Duration::from_secs(1) {
+            editor.tick();
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        editor.tick();
+        let frames = editor.native_frame.as_ref().unwrap().number - first_frame;
+        let rate = frames as f64 / cadence_start.elapsed().as_secs_f64();
+        println!("Native PC snapshot cadence: {rate:.1} fps");
+        assert!(
+            rate >= 50.,
+            "Native PC snapshot cadence fell to {rate:.1} fps"
+        );
+
+        if std::env::var_os("EPOK_NATIVE_EXPECT_AUDIO").is_some() {
+            let audio_started = Instant::now();
+            until(&mut editor, "Native PC audio output", |editor| {
+                editor
+                    .native_frame
+                    .as_ref()
+                    .is_some_and(|frame| frame.audio_voices > 0)
+            });
+            println!(
+                "Native PC audio output ready: {:?}",
+                audio_started.elapsed()
+            );
+        }
+
+        if let (Some(buttons), Ok(expected_clip)) = (
+            std::env::var("EPOK_NATIVE_ANIMATION_INPUT")
+                .ok()
+                .and_then(|value| value.parse::<u16>().ok()),
+            std::env::var("EPOK_NATIVE_ANIMATION_CLIP"),
+        ) {
+            editor.set_buttons(buttons);
+            until(
+                &mut editor,
+                "Native PC animation clip transition",
+                |editor| {
+                    editor.native_frame.as_ref().is_some_and(|frame| {
+                        frame.scene.actors.iter().any(|actor| {
+                            actor.skeletal_mesh.as_ref().is_some_and(|component| {
+                                component.model.as_ref().is_some_and(|model| {
+                                    component.clip.is_some_and(|active| {
+                                        model.clips.iter().any(|(id, clip)| {
+                                            *id == active && clip.name.contains(&expected_clip)
+                                        })
+                                    })
+                                })
+                            })
+                        })
+                    })
+                },
+            );
+            editor.set_buttons(0);
+            println!("Native PC animation reached clip containing `{expected_clip}`");
+        }
+
+        let pid = editor.emulator_pid.unwrap();
+        editor
+            .job
+            .as_ref()
+            .unwrap()
+            .control(crate::pipeline::Control::Reset);
+        until(&mut editor, "reset Native PC Play", |editor| {
+            editor.playing && editor.emulator_pid.is_some_and(|reset| reset != pid)
+        });
+        editor.action("play");
+        until(&mut editor, "stop reset Native PC Play", |editor| {
+            editor.job.is_none()
+        });
+
+        if let Some(source) = std::env::var_os("EPOK_NATIVE_SOURCE").map(PathBuf::from) {
+            struct Restore {
+                path: PathBuf,
+                bytes: Vec<u8>,
+                modified: std::time::SystemTime,
+            }
+            impl Drop for Restore {
+                fn drop(&mut self) {
+                    let _ = std::fs::write(&self.path, &self.bytes);
+                    let _ = std::fs::File::options()
+                        .write(true)
+                        .open(&self.path)
+                        .and_then(|file| {
+                            file.set_times(std::fs::FileTimes::new().set_modified(self.modified))
+                        });
+                }
+            }
+            let restore = Restore {
+                bytes: std::fs::read(&source).unwrap(),
+                modified: std::fs::metadata(&source).unwrap().modified().unwrap(),
+                path: source.clone(),
+            };
+            let baseline = editor.fingerprint;
+            let mut changed = restore.bytes.clone();
+            changed.extend_from_slice(
+                format!("\n// Native PC iteration test {}\n", uuid::Uuid::new_v4()).as_bytes(),
+            );
+            std::fs::write(&source, changed).unwrap();
+            until(&mut editor, "observe Native PC C++ edit", |editor| {
+                editor.fingerprint != baseline
+                    && editor.source_scan.is_none()
+                    && editor.assets.revision == editor.source_revision
+            });
+            let started = Instant::now();
+            editor.build(true);
+            until(&mut editor, "incremental Native PC C++ Play", |editor| {
+                editor.playing && editor.native_frame.is_some()
+            });
+            let incremental = started.elapsed();
+            println!("Incremental Native PC C++ Play: {incremental:?}");
+            assert!(
+                incremental < Duration::from_secs(3),
+                "incremental Native PC C++ Play took {incremental:?}: {:?}",
+                editor.logs
+            );
+            editor.action("play");
+            until(&mut editor, "stop incremental Native PC Play", |editor| {
+                editor.job.is_none()
+            });
+            drop(restore);
+        }
     }
     #[test]
     #[ignore = "requires pinned MIPS tools and PCSX-Redux; owns port 8077 and rebuilds/restarts real Play"]

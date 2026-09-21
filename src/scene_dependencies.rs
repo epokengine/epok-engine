@@ -93,6 +93,14 @@ pub struct Input {
     pub play: Option<crate::play::Profile>,
     pub play_settings_signature: Option<String>,
     pub editor_override: Option<(PathBuf, Scene)>,
+    /// Same-session Native PC artifact proven current by the editor's scene,
+    /// source, asset and settings revisions. Never persisted across launches.
+    pub native_play_cache: Option<PathBuf>,
+    /// Editor-owned resolved scene/catalog snapshots. Headless inputs leave these
+    /// empty and perform the normal authoritative disk preparation.
+    pub native_play_scene_ready: bool,
+    pub native_play_catalog: Option<Vec<crate::scripts::Script>>,
+    pub native_play_assets: Option<crate::assets::Index>,
 }
 impl Input {
     /// Build resolution happens later, after template refresh. Capture the
@@ -106,6 +114,10 @@ impl Input {
             play: None,
             play_settings_signature: None,
             editor_override: None,
+            native_play_cache: None,
+            native_play_scene_ready: false,
+            native_play_catalog: None,
+            native_play_assets: None,
         })
     }
     pub fn editor(path: PathBuf, scene: Scene) -> Self {
@@ -116,6 +128,10 @@ impl Input {
             play: None,
             play_settings_signature: None,
             editor_override: None,
+            native_play_cache: None,
+            native_play_scene_ready: false,
+            native_play_catalog: None,
+            native_play_assets: None,
         }
     }
 }
@@ -128,6 +144,10 @@ impl From<Scene> for Input {
             play: None,
             play_settings_signature: None,
             editor_override: None,
+            native_play_cache: None,
+            native_play_scene_ready: false,
+            native_play_catalog: None,
+            native_play_assets: None,
         }
     }
 }

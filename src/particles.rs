@@ -273,6 +273,15 @@ pub fn preview(
     camera: [[f32; 3]; 3],
     seconds: f32,
 ) -> Vec<crate::sprites::PreviewQuad> {
+    if !scene.actors.iter().enumerate().any(|(index, actor)| {
+        scene.is_active(index)
+            && actor
+                .particle_emitter
+                .as_ref()
+                .is_some_and(|emitter| emitter.enabled && emitter.play_on_start)
+    }) {
+        return vec![];
+    }
     struct Cache {
         scene: crate::scene::Scene,
         pool: Pool,

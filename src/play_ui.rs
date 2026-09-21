@@ -1,7 +1,25 @@
-use crate::play::{Content, DataSource, Profile, Target};
+use crate::play::{Content, DataSource, Profile, Runtime, Target};
 
 pub fn controls(ui: &imgui::Ui, profile: &mut Profile, root: &std::path::Path, width: f32) -> bool {
     let before = profile.clone();
+    ui.set_next_item_width(width);
+    if let Some(_combo) = ui.begin_combo("##play-runtime", profile.runtime.label()) {
+        for runtime in Runtime::ALL {
+            if ui
+                .selectable_config(runtime.label())
+                .selected(profile.runtime == runtime)
+                .build()
+            {
+                profile.runtime = runtime;
+                profile.normalize();
+            }
+        }
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Gameplay runtime. Native PC and PlayStation use the same C++ gameplay and fixed 60 Hz clock.");
+    }
+    ui.same_line();
+    let _runner_disabled = ui.begin_disabled(profile.runtime != Runtime::PlayStation);
     ui.set_next_item_width(width);
     if let Some(_combo) = ui.begin_combo("##play-target", profile.target.label()) {
         for target in Target::ALL {
@@ -16,8 +34,9 @@ pub fn controls(ui: &imgui::Ui, profile: &mut Profile, root: &std::path::Path, w
         }
     }
     if ui.is_item_hovered() {
-        ui.tooltip_text("Play destination. Saved in this project.");
+        ui.tooltip_text("PlayStation runner. This choice is retained while Native PC is active.");
     }
+    drop(_runner_disabled);
     ui.same_line();
     ui.set_next_item_width(width);
     if let Some(_combo) = ui.begin_combo("##play-content", content_label(profile.content)) {
@@ -26,23 +45,25 @@ pub fn controls(ui: &imgui::Ui, profile: &mut Profile, root: &std::path::Path, w
     if ui.is_item_hovered() {
         ui.tooltip_text("Choose the scenes used by both Build and Play. Whole game starts at the project startup scene. Selected scenes lets you choose an initial scene.");
     }
-    ui.same_line();
-    ui.set_next_item_width(width);
-    if let Some(_combo) = ui.begin_combo("##play-data", profile.data.label()) {
-        for source in DataSource::ALL {
-            let disabled = profile.target == Target::Serial && source == DataSource::Disc;
-            let _disabled = ui.begin_disabled(disabled);
-            if ui
-                .selectable_config(source.label())
-                .selected(profile.data == source)
-                .build()
-            {
-                profile.data = source;
+    if profile.runtime == Runtime::PlayStation {
+        ui.same_line();
+        ui.set_next_item_width(width);
+        if let Some(_combo) = ui.begin_combo("##play-data", profile.data.label()) {
+            for source in DataSource::ALL {
+                let disabled = profile.target == Target::Serial && source == DataSource::Disc;
+                let _disabled = ui.begin_disabled(disabled);
+                if ui
+                    .selectable_config(source.label())
+                    .selected(profile.data == source)
+                    .build()
+                {
+                    profile.data = source;
+                }
             }
         }
-    }
-    if ui.is_item_hovered() {
-        ui.tooltip_text("Where external geometry is read. Enable Geometry Streaming in Project Settings to use on-demand pages. Scene banks, textures and scripts remain prelinked. CD is unavailable for Serial Play.");
+        if ui.is_item_hovered() {
+            ui.tooltip_text("Where external geometry is read. Enable Geometry Streaming in Project Settings to use on-demand pages. Scene banks, textures and scripts remain prelinked. CD is unavailable for Serial Play.");
+        }
     }
     *profile != before
 }
@@ -59,12 +80,21 @@ pub fn toolbar(ui: &imgui::Ui, e: &mut crate::editor::Editor) {
         ui.open_popup("play-options");
     }
     if ui.is_item_hovered() {
-        ui.tooltip_text(format!(
-            "Play options\n{} / {} / {}",
-            profile.target.label(),
-            content_label(profile.content),
-            profile.data.label()
-        ));
+        ui.tooltip_text(if profile.runtime == Runtime::NativePc {
+            format!(
+                "Play options\n{} / {}",
+                profile.runtime.label(),
+                content_label(profile.content)
+            )
+        } else {
+            format!(
+                "Play options\n{} / {} / {} / {}",
+                profile.runtime.label(),
+                profile.target.label(),
+                content_label(profile.content),
+                profile.data.label()
+            )
+        });
     }
     let anchor = [ui.item_rect_min()[0], ui.item_rect_max()[1] + 4.];
     if crate::busy_ui::popup_open("play-options") {
@@ -104,11 +134,26 @@ pub fn content_label(content: Content) -> &'static str {
 
 /// Check marks represent one mutually exclusive choice within each section.
 pub fn menu(ui: &imgui::Ui, profile: &mut Profile, root: &std::path::Path) {
-    ui.text_disabled("Destination");
+    ui.text_disabled("Runtime");
+    for runtime in Runtime::ALL {
+        if ui
+            .menu_item_config(runtime.label())
+            .selected(profile.runtime == runtime)
+            .build()
+        {
+            profile.runtime = runtime;
+            profile.normalize();
+        }
+        #[cfg(test)]
+        tests::record(ui, &format!("runtime:{runtime:?}"));
+    }
+    ui.separator();
+    ui.text_disabled("PlayStation runner");
     for target in Target::ALL {
         if ui
             .menu_item_config(target.label())
             .selected(profile.target == target)
+            .enabled(profile.runtime == Runtime::PlayStation)
             .build()
         {
             profile.target = target;
@@ -127,25 +172,27 @@ pub fn menu(ui: &imgui::Ui, profile: &mut Profile, root: &std::path::Path) {
     if let Some(_menu) = scenes_menu {
         content_menu(ui, profile, root);
     }
-    ui.separator();
-    ui.text_disabled("Data source");
-    for source in DataSource::ALL {
-        if ui
-            .menu_item_config(source.label())
-            .selected(profile.data == source)
-            .enabled(profile.target != Target::Serial || source != DataSource::Disc)
-            .build()
-        {
-            profile.data = source;
+    if profile.runtime == Runtime::PlayStation {
+        ui.separator();
+        ui.text_disabled("Data source");
+        for source in DataSource::ALL {
+            if ui
+                .menu_item_config(source.label())
+                .selected(profile.data == source)
+                .enabled(profile.target != Target::Serial || source != DataSource::Disc)
+                .build()
+            {
+                profile.data = source;
+            }
+            #[cfg(test)]
+            tests::record(ui, &format!("data:{source:?}"));
         }
-        #[cfg(test)]
-        tests::record(ui, &format!("data:{source:?}"));
     }
     ui.separator();
     if ui
         .menu_item_config("Analog controller (port 1)")
         .selected(profile.analog_controller)
-        .enabled(profile.target != Target::Serial)
+        .enabled(profile.runtime == Runtime::PlayStation && profile.target != Target::Serial)
         .build()
     {
         profile.analog_controller = !profile.analog_controller;

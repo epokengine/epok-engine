@@ -540,6 +540,7 @@ pub fn draw(
     e: &mut Editor,
     scene_textures: [imgui::TextureId; 3],
     game: Option<imgui::TextureId>,
+    game_overlay: Option<imgui::TextureId>,
     asset_font: imgui::FontId,
     image_size: [f32; 2],
     initial: &mut bool,
@@ -558,6 +559,7 @@ pub fn draw(
                 e,
                 scene_textures,
                 game,
+                game_overlay,
                 asset_font,
                 image_size,
                 initial,
@@ -572,6 +574,7 @@ pub fn draw(
             e,
             scene_textures,
             game,
+            game_overlay,
             asset_font,
             image_size,
             initial,
@@ -591,6 +594,7 @@ fn draw_workspace(
     e: &mut Editor,
     scene_textures: [imgui::TextureId; 3],
     game: Option<imgui::TextureId>,
+    game_overlay: Option<imgui::TextureId>,
     asset_font: imgui::FontId,
     image_size: [f32; 2],
     initial: &mut bool,
@@ -949,7 +953,7 @@ fn draw_workspace(
     crate::console::draw(ui, e);
     e.scene_look = false;
     scene_view(ui, e, scene, hud_texture, image_size);
-    game_view(ui, e, game);
+    game_view(ui, e, game, game_overlay);
     if std::mem::take(&mut e.focus_scene) || reset {
         unsafe {
             if reset {
@@ -989,7 +993,9 @@ fn draw_workspace(
             } else if e.paused {
                 "Paused".into()
             } else if e.playing {
-                if e.active_play_target == crate::play::Target::Serial {
+                if e.active_play_runtime == crate::play::Runtime::NativePc {
+                    "Playing on Native PC".into()
+                } else if e.active_play_target == crate::play::Target::Serial {
                     "Playing on PSX / serial".into()
                 } else {
                     "Playing on PCSX-Redux".into()
@@ -3312,11 +3318,19 @@ fn scene_view(
         }
     });
 }
-fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) {
+fn game_view(
+    ui: &imgui::Ui,
+    e: &mut Editor,
+    texture: Option<imgui::TextureId>,
+    overlay: Option<imgui::TextureId>,
+) {
     let mut visible = false;
     ui.window("\u{ec17} Game###Game").build(|| {
         visible = true;
-        if e.active_play_target == crate::play::Target::Serial && e.job.is_some() {
+        if e.active_play_runtime == crate::play::Runtime::PlayStation
+            && e.active_play_target == crate::play::Target::Serial
+            && e.job.is_some()
+        {
             ui.text_wrapped("PSX serial session. The picture is on the console's display; use its controller. Upload progress and TTY messages appear in Console.");
             ui.text_wrapped("Stop disconnects NOTPSXSerial. It does not reset or halt the console.");
             ui.disabled(!e.playing || e.serial_ui.command_pending, || {
@@ -3330,7 +3344,11 @@ fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) 
             ui.text_wrapped("Reset reboots the console; it does not automatically reload the game. Return to the Unirom loader before the next Play.");
             return;
         }
-        ui.text("PSX native / Point filter");
+        ui.text(if e.active_play_runtime == crate::play::Runtime::NativePc {
+            "Native PC / PSX limits / Point filter"
+        } else {
+            "PSX native / Point filter"
+        });
         inline_width(ui, 140.);
         ui.set_next_item_width(140.);
         if let Some(_combo) = ui.begin_combo("##game-scale", e.preferences.game_scale.label()) {
@@ -3341,28 +3359,47 @@ fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) 
                 }
             }
         }
-        inline(ui, "Debugger");
-        if ui.small_button("Debugger")
-            && let Some(pid) = e.emulator_pid
-        {
-            e.emulator_visible = true;
-            crate::native::emulator_window(pid, true);
+        if e.active_play_runtime == crate::play::Runtime::PlayStation {
+            inline(ui, "Debugger");
+            if ui.small_button("Debugger")
+                && let Some(pid) = e.emulator_pid
+            {
+                e.emulator_visible = true;
+                crate::native::emulator_window(pid, true);
+            }
+        } else if e.playing {
+            inline(ui, "Reset");
+            if ui.small_button("Reset")
+                && let Some(job) = &e.job
+            {
+                job.control(crate::pipeline::Control::Reset);
+            }
         }
         ui.separator();
         if let Some(error) = &e.game_error {
             ui.text_colored([1., 0.55, 0.4, 1.], format!("Video disconnected: {error}"));
         }
         let region = ui.content_region_avail();
-        if let (Some(frame), Some(texture)) = (&e.game_frame, texture) {
+        let dimensions = e
+            .native_frame
+            .as_ref()
+            .map(|frame| frame.hud_size)
+            .or_else(|| e.game_frame.as_ref().map(|frame| [frame.width, frame.height]));
+        if let (Some(dimensions), Some(texture)) = (dimensions, texture) {
             let footer_height = ui.text_line_height() + 8.;
             let image_height = (region[1] - footer_height).max(1.);
-            let size = e.preferences.game_scale.image_size([frame.width, frame.height], [region[0].max(1.), image_height]);
+            let size = e.preferences.game_scale.image_size(dimensions, [region[0].max(1.), image_height]);
             let p = ui.cursor_pos();
             ui.set_cursor_pos([
                 p[0] + (region[0] - size[0]) * 0.5,
                 p[1] + (image_height - size[1]) * 0.5,
             ]);
             imgui::Image::new(texture, size).build(ui);
+            if let Some(overlay) = overlay {
+                ui.get_window_draw_list()
+                    .add_image(overlay, ui.item_rect_min(), ui.item_rect_max())
+                    .build();
+            }
             if ui.is_item_clicked() {
                 e.game_capture = true;
             }
@@ -3374,8 +3411,8 @@ fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) 
                 ui,
                 &format!(
                     "{} x {}  |  {}",
-                    frame.width,
-                    frame.height,
+                    dimensions[0],
+                    dimensions[1],
                     if e.game_capture {
                         "Keyboard active - Esc releases"
                     } else {
@@ -3385,10 +3422,24 @@ fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) 
                 region[0],
             );
             if ui.is_item_hovered() {
-                ui.tooltip_text(format!(
-                    "Pad {:04X} / VBlank {} / Cycles {}",
-                    frame.buttons, frame.vsyncs, frame.cycles
-                ));
+                ui.tooltip_text(if let Some(frame) = &e.native_frame {
+                    format!(
+                        "Pad {:04X} / Frame {} / Actors {} / Audio {}/{} / HUD dropped {}",
+                        frame.buttons,
+                        frame.number,
+                        frame.actor_count,
+                        frame.audio_voices,
+                        frame.audio_pending,
+                        frame.stats[4]
+                    )
+                } else if let Some(frame) = &e.game_frame {
+                    format!(
+                        "Pad {:04X} / VBlank {} / Cycles {}",
+                        frame.buttons, frame.vsyncs, frame.cycles
+                    )
+                } else {
+                    String::new()
+                });
             }
             let mut mask = 0;
             if e.game_capture && e.game_error.is_none() {
@@ -3421,11 +3472,15 @@ fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) 
         } else {
             ui.dummy([0., region[1] * 0.35]);
             ui.text_wrapped(if e.playing {
-                "Connecting to the PSX display..."
+                if e.active_play_runtime == crate::play::Runtime::NativePc {
+                    "Connecting to the Native PC runtime..."
+                } else {
+                    "Connecting to the PSX display..."
+                }
             } else if e.job.is_some() {
-                "Compiling C++ scripts and scene..."
+                "Compiling C++ gameplay and scene..."
             } else {
-                "Press Play to run the scene on PlayStation."
+                "Press Play to run the selected runtime."
             });
         }
     });
@@ -4561,10 +4616,10 @@ mod interaction_tests {
             for mode in crate::settings::GameScale::ALL {
                 game.preferences.game_scale = mode;
                 for _ in 0..2 {
-                    game_view(context.frame(), &mut game, Some(texture));
+                    game_view(context.frame(), &mut game, Some(texture), None);
                     context.render();
                 }
-                game_view(context.frame(), &mut game, Some(texture));
+                game_view(context.frame(), &mut game, Some(texture), None);
                 let data = context.render();
                 let mut min = [f32::MAX; 2];
                 let mut max = [f32::MIN; 2];
@@ -4618,6 +4673,7 @@ mod interaction_tests {
                     imgui::TextureId::new(1000),
                     imgui::TextureId::new(1001),
                 ],
+                None,
                 None,
                 font,
                 [960., 600.],

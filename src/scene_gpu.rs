@@ -7,6 +7,11 @@ pub const SIZE: wgpu::Extent3d = wgpu::Extent3d {
     height: 600,
     depth_or_array_layers: 1,
 };
+pub const NATIVE_PLAY_SIZE: wgpu::Extent3d = wgpu::Extent3d {
+    width: 640,
+    height: 480,
+    depth_or_array_layers: 1,
+};
 pub const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 struct Vertices {
     buffer: wgpu::Buffer,
@@ -43,6 +48,7 @@ impl Vertices {
     }
 }
 pub struct SceneGpu {
+    size: wgpu::Extent3d,
     preview_started: std::time::Instant,
     mesh_pipelines: Vec<wgpu::RenderPipeline>,
     draw_ranges: Vec<(u32, u32, usize)>,
@@ -56,9 +62,14 @@ pub struct SceneGpu {
     bind_group: wgpu::BindGroup,
     depth: wgpu::TextureView,
     mesh: Vertices,
+    static_mesh: Vertices,
     edges: Vertices,
     grid: Vertices,
     cached_scene: Option<Scene>,
+    cached_revision: Option<u64>,
+    cached_textures: Option<Vec<(uuid::Uuid, usize, usize)>>,
+    static_draw_ranges: Vec<(u32, u32, usize)>,
+    static_mask: Option<Vec<bool>>,
     cached_skeletal_poses: SkeletalPoseKey,
     cached_selected: Option<usize>,
     cached_wire: bool,
@@ -83,6 +94,8 @@ struct RenderInput<'a> {
     grid: bool,
     effect: Option<&'a [crate::particle_effect_preview::Quad]>,
     background: Option<[f32; 3]>,
+    revision: Option<u64>,
+    split_static: bool,
 }
 /// Runtime-only skeletal state that changes the generated vertex buffer.
 ///
@@ -90,7 +103,7 @@ struct RenderInput<'a> {
 /// so its transient `skeletal_mesh.time` field is omitted. Keep the sampled
 /// pose separate from the document cache: animation can then refresh the
 /// Scene View without becoming an authored scene edit.
-type SkeletalPoseKey = Vec<Option<(usize, Option<usize>)>>;
+type SkeletalPoseKey = Vec<Option<(usize, Option<uuid::Uuid>, Option<usize>)>>;
 
 fn skeletal_pose_key(scene: &Scene) -> SkeletalPoseKey {
     scene
@@ -115,13 +128,38 @@ fn skeletal_pose_key(scene: &Scene) -> SkeletalPoseKey {
                         frame.min(clip.frames as usize - 1)
                     }
                 });
-            Some((std::sync::Arc::as_ptr(model) as usize, frame))
+            Some((
+                std::sync::Arc::as_ptr(model) as usize,
+                component.clip,
+                frame,
+            ))
+        })
+        .collect()
+}
+
+fn texture_key(scene: &Scene, seconds: f32) -> Vec<(uuid::Uuid, usize, usize)> {
+    crate::texture::ids(scene)
+        .into_iter()
+        .take(32)
+        .filter_map(|id| {
+            let data = scene.textures.get(&id)?;
+            let shift = scene.actors.iter().enumerate().find_map(|(index, actor)| {
+                actor.palette_animator.as_ref().and_then(|animator| {
+                    (scene.is_active(index) && animator.enabled && animator.texture == Some(id))
+                        .then(|| crate::palette::offset(animator, seconds))
+                })
+            });
+            Some((
+                id,
+                std::sync::Arc::as_ptr(data) as usize,
+                shift.unwrap_or(0),
+            ))
         })
         .collect()
 }
 
 impl SceneGpu {
-    pub fn navigation_status(&self) -> Option<Result<usize,String>> {
+    pub fn navigation_status(&self) -> Option<Result<usize, String>> {
         self.navigation_preview.status()
     }
     pub fn animated(scene: &Scene) -> bool {
@@ -142,6 +180,9 @@ impl SceneGpu {
             }
     }
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        Self::new_with_size(device, queue, SIZE)
+    }
+    pub fn new_with_size(device: &wgpu::Device, queue: &wgpu::Queue, size: wgpu::Extent3d) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Scene GPU shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("scene_gpu.wgsl").into()),
@@ -332,7 +373,7 @@ impl SceneGpu {
         let depth = device
             .create_texture(&wgpu::TextureDescriptor {
                 label: Some("Scene depth"),
-                size: SIZE,
+                size,
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
@@ -371,6 +412,7 @@ impl SceneGpu {
         );
         grid.upload(device, queue, &data);
         Self {
+            size,
             preview_started: std::time::Instant::now(),
             mesh_pipelines: (0..10)
                 .map(|b| {
@@ -398,6 +440,7 @@ impl SceneGpu {
             bind_group,
             depth,
             mesh: Vertices::new(device),
+            static_mesh: Vertices::new(device),
             shadows: Vertices::new(device),
             shadow_pipeline: make_pipeline(
                 wgpu::PrimitiveTopology::TriangleList,
@@ -409,6 +452,10 @@ impl SceneGpu {
             edges: Vertices::new(device),
             grid,
             cached_scene: None,
+            cached_revision: None,
+            cached_textures: None,
+            static_draw_ranges: vec![],
+            static_mask: None,
             cached_skeletal_poses: vec![],
             cached_selected: None,
             cached_wire: false,
@@ -454,6 +501,40 @@ impl SceneGpu {
                 grid: editor.grid,
                 effect: None,
                 background: active_camera_sky(scene),
+                revision: None,
+                split_static: false,
+            },
+        );
+    }
+    pub fn render_game(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        frame: &crate::native_play::Frame,
+    ) {
+        let view = frame.view();
+        self.render_input(
+            device,
+            queue,
+            encoder,
+            target,
+            RenderInput {
+                scene: &frame.scene,
+                view: &view,
+                selected: None,
+                mesh: &Default::default(),
+                terrain: &Default::default(),
+                wire: false,
+                grid: false,
+                effect: None,
+                background: frame
+                    .camera
+                    .and_then(|index| frame.scene.actors.get(index))
+                    .map(|actor| actor.camera_sky_color),
+                revision: Some(frame.number),
+                split_static: true,
             },
         );
     }
@@ -483,6 +564,8 @@ impl SceneGpu {
                 grid: false,
                 effect: Some(&preview.quads),
                 background: Some(preview.background),
+                revision: None,
+                split_static: false,
             },
         );
     }
@@ -512,6 +595,8 @@ impl SceneGpu {
                 grid: false,
                 effect: None,
                 background: Some([0.10, 0.11, 0.12]),
+                revision: None,
+                split_static: false,
             },
         );
     }
@@ -528,8 +613,13 @@ impl SceneGpu {
         let selected = input.selected;
         let preview_time = self.preview_time(scene, view.phase);
         let skeletal_poses = skeletal_pose_key(scene);
+        let scene_changed = if let Some(revision) = input.revision {
+            self.cached_revision != Some(revision)
+        } else {
+            self.cached_revision.is_some() || self.cached_scene.as_ref() != Some(scene)
+        };
         if input.effect.is_some()
-            || self.cached_scene.as_ref() != Some(scene)
+            || scene_changed
             || self.cached_skeletal_poses != skeletal_poses
             || self.cached_angles != [view.yaw, view.pitch]
             || self.cached_selected != selected
@@ -541,21 +631,48 @@ impl SceneGpu {
             || self.cached_mesh_revision != input.mesh.revision
             || self.cached_terrain_revision != input.terrain.revision
         {
-            self.navigation_preview.update(scene,selected);
-            let mut nav_fill=Vec::new();
+            self.navigation_preview.update(scene, selected);
+            let mut nav_fill = Vec::new();
             for quad in &self.navigation_preview.patches {
-                for index in [0,1,2,0,2,3] {
+                for index in [0, 1, 2, 0, 2, 3] {
                     // The existing average-alpha pipeline gives a translucent
                     // unlit green overlay without modifying scene materials.
-                    for f in quad[index].into_iter().chain([0.12,0.85,0.28]).chain([0.,0.,0.,1.]) {
+                    for f in quad[index]
+                        .into_iter()
+                        .chain([0.12, 0.85, 0.28])
+                        .chain([0., 0., 0., 1.])
+                    {
                         nav_fill.extend_from_slice(&f.to_le_bytes());
                     }
                 }
             }
-            let mut nav_lines=Vec::new();
-            for &(a,b,color) in &self.navigation_preview.lines {line(&mut nav_lines,a,b,color);}
-            self.navigation_fill.upload(device,queue,&nav_fill);
-            self.navigation_edges.upload(device,queue,&nav_lines);
+            let mut nav_lines = Vec::new();
+            for &(a, b, color) in &self.navigation_preview.lines {
+                line(&mut nav_lines, a, b, color);
+            }
+            self.navigation_fill.upload(device, queue, &nav_fill);
+            self.navigation_edges.upload(device, queue, &nav_lines);
+            let pass = if input.split_static {
+                if self.static_mask.is_none() {
+                    let mask = static_mesh_mask(scene);
+                    let (mesh, _, ranges) = geometry_with_effects(
+                        scene,
+                        selected,
+                        preview_time,
+                        input.mesh,
+                        view,
+                        &[],
+                        false,
+                        GeometryPass::Static(&mask),
+                    );
+                    self.static_mesh.upload(device, queue, &mesh);
+                    self.static_draw_ranges = ranges;
+                    self.static_mask = Some(mask);
+                }
+                GeometryPass::Dynamic(self.static_mask.as_deref().unwrap())
+            } else {
+                GeometryPass::All
+            };
             let (mesh, edges, ranges) = geometry_with_effects(
                 scene,
                 selected,
@@ -564,48 +681,53 @@ impl SceneGpu {
                 view,
                 input.effect.unwrap_or_default(),
                 input.wire,
+                pass,
             );
             self.cached_fog_center = view.center;
             self.cached_fog_distance = view.distance;
             self.draw_ranges = ranges;
             self.cached_angles = [view.yaw, view.pitch];
-            let mut layers = vec![(None, vec![255u8; 256 * 256 * 4])];
-            for id in crate::texture::ids(scene).into_iter().take(32) {
-                let mut bytes = vec![0; 256 * 256 * 4];
-                if let Some(t) = scene.textures.get(&id) {
-                    let palette_rgba = crate::palette::preview_rgba(scene, id, preview_time, t);
-                    for y in 0..t.height as usize {
-                        let len = t.width as usize * 4;
-                        bytes[y * 1024..y * 1024 + len]
-                            .copy_from_slice(&palette_rgba[y * len..y * len + len]);
+            let texture_key = texture_key(scene, preview_time);
+            if self.cached_textures.as_ref() != Some(&texture_key) {
+                let mut layers = vec![(None, vec![255u8; 256 * 256 * 4])];
+                for id in crate::texture::ids(scene).into_iter().take(32) {
+                    let mut bytes = vec![0; 256 * 256 * 4];
+                    if let Some(t) = scene.textures.get(&id) {
+                        let palette_rgba = crate::palette::preview_rgba(scene, id, preview_time, t);
+                        for y in 0..t.height as usize {
+                            let len = t.width as usize * 4;
+                            bytes[y * 1024..y * 1024 + len]
+                                .copy_from_slice(&palette_rgba[y * len..y * len + len]);
+                        }
                     }
+                    layers.push((Some(id), bytes));
                 }
-                layers.push((Some(id), bytes));
-            }
-            for (i, (_, bytes)) in layers.iter().enumerate() {
-                queue.write_texture(
-                    wgpu::TexelCopyTextureInfo {
-                        texture: &self.textures,
-                        mip_level: 0,
-                        origin: wgpu::Origin3d {
-                            x: 0,
-                            y: 0,
-                            z: i as u32,
+                for (i, (_, bytes)) in layers.iter().enumerate() {
+                    queue.write_texture(
+                        wgpu::TexelCopyTextureInfo {
+                            texture: &self.textures,
+                            mip_level: 0,
+                            origin: wgpu::Origin3d {
+                                x: 0,
+                                y: 0,
+                                z: i as u32,
+                            },
+                            aspect: wgpu::TextureAspect::All,
                         },
-                        aspect: wgpu::TextureAspect::All,
-                    },
-                    bytes,
-                    wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(1024),
-                        rows_per_image: Some(256),
-                    },
-                    wgpu::Extent3d {
-                        width: 256,
-                        height: 256,
-                        depth_or_array_layers: 1,
-                    },
-                );
+                        bytes,
+                        wgpu::TexelCopyBufferLayout {
+                            offset: 0,
+                            bytes_per_row: Some(1024),
+                            rows_per_image: Some(256),
+                        },
+                        wgpu::Extent3d {
+                            width: 256,
+                            height: 256,
+                            depth_or_array_layers: 1,
+                        },
+                    );
+                }
+                self.cached_textures = Some(texture_key);
             }
             self.mesh.upload(device, queue, &mesh);
             self.edges.upload(device, queue, &edges);
@@ -622,7 +744,8 @@ impl SceneGpu {
                 }
             }
             self.shadows.upload(device, queue, &shadows);
-            self.cached_scene = Some(scene.clone());
+            self.cached_scene = input.revision.is_none().then(|| scene.clone());
+            self.cached_revision = input.revision;
             self.cached_skeletal_poses = skeletal_poses;
             self.cached_selected = selected;
             self.cached_wire = input.wire;
@@ -647,7 +770,7 @@ impl SceneGpu {
             view.center[2],
             view.zoom,
             view.distance,
-            0.,
+            self.size.width as f32 / self.size.height as f32,
             0.,
             0.,
         ]
@@ -688,11 +811,20 @@ impl SceneGpu {
             pass.set_pipeline(&self.background_pipeline);
             pass.draw(0..3, 0..1);
         }
-        if !input.wire && self.mesh.count > 0 {
-            pass.set_vertex_buffer(0, self.mesh.buffer.slice(..));
-            for &(start, count, mode) in &self.draw_ranges {
-                pass.set_pipeline(&self.mesh_pipelines[mode]);
-                pass.draw(start..start + count, 0..1);
+        if !input.wire {
+            if input.split_static && self.static_mesh.count > 0 {
+                pass.set_vertex_buffer(0, self.static_mesh.buffer.slice(..));
+                for &(start, count, mode) in &self.static_draw_ranges {
+                    pass.set_pipeline(&self.mesh_pipelines[mode]);
+                    pass.draw(start..start + count, 0..1);
+                }
+            }
+            if self.mesh.count > 0 {
+                pass.set_vertex_buffer(0, self.mesh.buffer.slice(..));
+                for &(start, count, mode) in &self.draw_ranges {
+                    pass.set_pipeline(&self.mesh_pipelines[mode]);
+                    pass.draw(start..start + count, 0..1);
+                }
             }
         }
         if !input.wire && self.shadows.count > 0 {
@@ -702,8 +834,8 @@ impl SceneGpu {
         }
         if self.navigation_fill.count > 0 {
             pass.set_pipeline(&self.mesh_pipelines[1]);
-            pass.set_vertex_buffer(0,self.navigation_fill.buffer.slice(..));
-            pass.draw(0..self.navigation_fill.count,0..1);
+            pass.set_vertex_buffer(0, self.navigation_fill.buffer.slice(..));
+            pass.draw(0..self.navigation_fill.count, 0..1);
         }
         if self.brush_fill.count > 0 {
             pass.set_pipeline(&self.mesh_pipelines[1]);
@@ -720,8 +852,8 @@ impl SceneGpu {
             pass.draw(0..self.edges.count, 0..1);
         }
         if self.navigation_edges.count > 0 {
-            pass.set_vertex_buffer(0,self.navigation_edges.buffer.slice(..));
-            pass.draw(0..self.navigation_edges.count,0..1);
+            pass.set_vertex_buffer(0, self.navigation_edges.buffer.slice(..));
+            pass.draw(0..self.navigation_edges.count, 0..1);
         }
         if self.brush_edges.count > 0 {
             pass.set_vertex_buffer(0, self.brush_edges.buffer.slice(..));
@@ -810,6 +942,38 @@ fn brush_overlay(scene: &Scene, state: &crate::terrain_editor::State) -> (Vec<u8
     (fill, ring)
 }
 type GeometryBuffers = (Vec<u8>, Vec<u8>, Vec<(u32, u32, usize)>);
+struct Draw {
+    points: [[f32; 3]; 4],
+    colors: [[u8; 3]; 4],
+    uv: [[f32; 2]; 4],
+    material: crate::scene::Material,
+    cull: bool,
+}
+#[derive(Clone, Copy)]
+enum GeometryPass<'a> {
+    All,
+    Static(&'a [bool]),
+    Dynamic(&'a [bool]),
+}
+fn static_mesh_mask(scene: &Scene) -> Vec<bool> {
+    if scene.fog.enabled {
+        return vec![false; scene.actors.len()];
+    }
+    scene
+        .actors
+        .iter()
+        .map(|actor| {
+            actor.kind == "Mesh"
+                && actor.lighting.static_geometry
+                && actor.skeletal_mesh.is_none()
+                && crate::lighting::quads(actor).iter().all(|quad| {
+                    quad.material.blend == crate::texture::BlendMode::Cutout
+                        && quad.material.uv_scroll == [0.; 2]
+                        && (crate::lighting::baked(actor) || quad.material.unlit)
+                })
+        })
+        .collect()
+}
 #[cfg(test)]
 fn geometry(
     scene: &Scene,
@@ -818,7 +982,16 @@ fn geometry(
     state: &crate::mesh_editor::State,
     view: &crate::viewport::View,
 ) -> GeometryBuffers {
-    geometry_with_effects(scene, selected, phase, state, view, &[], false)
+    geometry_with_effects(
+        scene,
+        selected,
+        phase,
+        state,
+        view,
+        &[],
+        false,
+        GeometryPass::All,
+    )
 }
 fn geometry_with_effects(
     scene: &Scene,
@@ -828,25 +1001,25 @@ fn geometry_with_effects(
     view: &crate::viewport::View,
     effects: &[crate::particle_effect_preview::Quad],
     wire: bool,
+    pass: GeometryPass<'_>,
 ) -> GeometryBuffers {
     let (yaw, pitch, view_center) = (view.yaw, view.pitch, view.center);
-    let mut triangles = Vec::new();
-    struct Draw {
-        points: [[f32; 3]; 4],
-        colors: [[u8; 3]; 4],
-        uv: [[f32; 2]; 4],
-        material: crate::scene::Material,
-        cull: bool,
-    }
     let mut draws = Vec::<Draw>::new();
     let mut edges = Vec::new();
     let lighting = crate::lighting::Lighting::unshadowed(scene);
-    for (index, e) in scene
-        .actors
-        .iter()
-        .enumerate()
-        .filter(|(i, e)| e.kind == "Mesh" && scene.is_active(*i))
-    {
+    let mut shared_skeletal_quads = std::collections::HashMap::<
+        (usize, Option<uuid::Uuid>, Option<usize>),
+        std::sync::Arc<Vec<crate::lighting::Quad>>,
+    >::new();
+    for (index, e) in scene.actors.iter().enumerate().filter(|(i, e)| {
+        e.kind == "Mesh"
+            && scene.is_active(*i)
+            && match pass {
+                GeometryPass::All => true,
+                GeometryPass::Static(mask) => mask.get(*i).copied().unwrap_or(false),
+                GeometryPass::Dynamic(mask) => !mask.get(*i).copied().unwrap_or(false),
+            }
+    }) {
         let world = scene.world_matrix(index);
         let offline = crate::lighting::baked(e);
         let center = world.point([0.; 3]);
@@ -859,7 +1032,32 @@ fn geometry_with_effects(
                 false,
             )
         });
-        let quads = crate::lighting::quads(e);
+        let quads = if let Some(component) = &e.skeletal_mesh
+            && let Some(model) = &component.model
+        {
+            let frame = component
+                .clip
+                .and_then(|id| model.clips.iter().find(|(key, _)| *key == id))
+                .map(|(_, clip)| {
+                    let frame =
+                        (component.time.max(0.) * clip.fps as f32 + 0.0001).floor() as usize;
+                    if component.looping {
+                        frame % (clip.frames as usize - 1).max(1)
+                    } else {
+                        frame.min(clip.frames as usize - 1)
+                    }
+                });
+            shared_skeletal_quads
+                .entry((
+                    std::sync::Arc::as_ptr(model) as usize,
+                    component.clip,
+                    frame,
+                ))
+                .or_insert_with(|| std::sync::Arc::new(crate::lighting::quads(e)))
+                .clone()
+        } else {
+            std::sync::Arc::new(crate::lighting::quads(e))
+        };
         let cached = scene
             .bake
             .as_ref()
@@ -1049,41 +1247,43 @@ fn geometry_with_effects(
         [sy * sp, cp, cy * sp],
         [sy * cp, -sp, cy * cp],
     ];
-    for q in crate::sprites::preview(scene, camera, phase)
-        .into_iter()
-        .chain(crate::particles::preview(scene, camera, phase))
-        .chain(effects.iter().map(|q| crate::sprites::PreviewQuad {
-            owner: usize::MAX,
-            points: crate::sprites::corners(&q.sprite, q.world, camera),
-            sprite: q.sprite.clone(),
-        }))
-    {
-        let sprite = &q.sprite;
-        let size = sprite
-            .texture
-            .and_then(|id| scene.textures.get(&id))
-            .map_or((256, 256), |t| (t.width, t.height));
-        let n = crate::mesh::face_normal(q.points);
-        let center = std::array::from_fn(|c| q.points.iter().map(|p| p[c]).sum::<f32>() / 4.);
-        let light = if sprite.unlit || q.owner == usize::MAX {
-            [255; 3]
-        } else {
-            lighting.sample(center, n, q.owner, false, false)
-        };
-        draws.push(Draw {
-            points: q.points,
-            cull: false,
-            colors: [crate::lighting::modulate(light, sprite.color); 4],
-            uv: crate::sprites::uv(sprite, size.0, size.1),
-            material: crate::scene::Material {
-                uv_scroll: [0.; 2],
-                color: sprite.color,
-                unlit: sprite.unlit,
-                texture: sprite.texture,
-                blend: sprite.blend,
-                depth_bias: sprite.depth_bias,
-            },
-        });
+    if !matches!(pass, GeometryPass::Static(_)) {
+        for q in crate::sprites::preview(scene, camera, phase)
+            .into_iter()
+            .chain(crate::particles::preview(scene, camera, phase))
+            .chain(effects.iter().map(|q| crate::sprites::PreviewQuad {
+                owner: usize::MAX,
+                points: crate::sprites::corners(&q.sprite, q.world, camera),
+                sprite: q.sprite.clone(),
+            }))
+        {
+            let sprite = &q.sprite;
+            let size = sprite
+                .texture
+                .and_then(|id| scene.textures.get(&id))
+                .map_or((256, 256), |t| (t.width, t.height));
+            let n = crate::mesh::face_normal(q.points);
+            let center = std::array::from_fn(|c| q.points.iter().map(|p| p[c]).sum::<f32>() / 4.);
+            let light = if sprite.unlit || q.owner == usize::MAX {
+                [255; 3]
+            } else {
+                lighting.sample(center, n, q.owner, false, false)
+            };
+            draws.push(Draw {
+                points: q.points,
+                cull: false,
+                colors: [crate::lighting::modulate(light, sprite.color); 4],
+                uv: crate::sprites::uv(sprite, size.0, size.1),
+                material: crate::scene::Material {
+                    uv_scroll: [0.; 2],
+                    color: sprite.color,
+                    unlit: sprite.unlit,
+                    texture: sprite.texture,
+                    blend: sprite.blend,
+                    depth_bias: sprite.depth_bias,
+                },
+            });
+        }
     }
     let depth = |d: &Draw| {
         let p: [f32; 3] = std::array::from_fn(|c| d.points.iter().map(|p| p[c]).sum::<f32>() / 4.);
@@ -1096,32 +1296,53 @@ fn geometry_with_effects(
             .cmp(&b_trans)
             .then_with(|| depth(b).total_cmp(&depth(a)))
     });
+    let (triangles, ranges) = encode_draws(
+        &draws,
+        scene,
+        phase,
+        view_center,
+        view.distance,
+        [sy, cy, sp, cp],
+    );
+    (triangles, edges, ranges)
+}
+
+fn encode_draws(
+    draws: &[Draw],
+    scene: &Scene,
+    phase: f32,
+    view_center: [f32; 3],
+    view_distance: f32,
+    [sy, cy, sp, cp]: [f32; 4],
+) -> (Vec<u8>, Vec<(u32, u32, usize)>) {
     let ids = crate::texture::ids(scene);
+    let mut triangles = Vec::new();
     let mut ranges = Vec::<(u32, u32, usize)>::new();
-    for d in draws {
-        let mode = d.material.blend as usize;
-        let pipeline = mode + if d.cull { 5 } else { 0 };
+    for draw in draws {
+        let mode = draw.material.blend as usize;
+        let pipeline = mode + if draw.cull { 5 } else { 0 };
         let start = (triangles.len() / 40) as u32;
-        let layer = d
+        let layer = draw
             .material
             .texture
-            .and_then(|id| ids.iter().position(|v| *v == id))
-            .filter(|i| *i < 32)
-            .map_or(0, |i| i + 1);
-        let size = d
+            .and_then(|id| ids.iter().position(|candidate| *candidate == id))
+            .filter(|index| *index < 32)
+            .map_or(0, |index| index + 1);
+        let size = draw
             .material
             .texture
             .and_then(|id| scene.textures.get(&id))
-            .map_or((256, 256), |t| (t.width, t.height));
+            .map_or((256, 256), |texture| (texture.width, texture.height));
         let mut emitted = Vec::new();
         for triple in [[0, 1, 2], [0, 2, 3]] {
-            let input = triple.map(|i| {
-                let p: [f32; 3] = std::array::from_fn(|c| d.points[i][c] - view_center[c]);
-                let depth = view.distance + p[0] * sy * cp + p[2] * cy * cp - p[1] * sp;
+            let input = triple.map(|index| {
+                let point: [f32; 3] =
+                    std::array::from_fn(|axis| draw.points[index][axis] - view_center[axis]);
+                let depth = view_distance + point[0] * sy * cp + point[2] * cy * cp - point[1] * sp;
                 crate::effects::Vertex {
-                    point: d.points[i],
-                    color: crate::effects::fog_color(d.colors[i], depth, &scene.fog),
-                    uv: d.uv[i],
+                    point: draw.points[index],
+                    color: crate::effects::fog_color(draw.colors[index], depth, &scene.fog),
+                    uv: draw.uv[index],
                 }
             });
             emitted.extend(crate::effects::scroll_triangle(
@@ -1129,37 +1350,37 @@ fn geometry_with_effects(
                 if layer == 0 {
                     [0.; 2]
                 } else {
-                    d.material.uv_scroll
+                    draw.material.uv_scroll
                 },
                 phase,
             ));
         }
         let count = (emitted.len() * 3) as u32;
-        if let Some(last) = ranges.last_mut().filter(|r| r.2 == pipeline) {
+        if let Some(last) = ranges.last_mut().filter(|range| range.2 == pipeline) {
             last.1 += count;
         } else {
             ranges.push((start, count, pipeline));
         }
-        for v in emitted.into_iter().flatten() {
+        for vertex in emitted.into_iter().flatten() {
             let uv = if layer == 0 {
                 [0., 0.]
             } else {
                 [
-                    (v.uv[0].clamp(0., 1.) * size.0.saturating_sub(1) as f32 + 0.5) / 256.,
-                    (v.uv[1].clamp(0., 1.) * size.1.saturating_sub(1) as f32 + 0.5) / 256.,
+                    (vertex.uv[0].clamp(0., 1.) * size.0.saturating_sub(1) as f32 + 0.5) / 256.,
+                    (vertex.uv[1].clamp(0., 1.) * size.1.saturating_sub(1) as f32 + 0.5) / 256.,
                 ]
             };
-            for f in v
+            for value in vertex
                 .point
                 .into_iter()
-                .chain(v.color.map(|c| c as f32 / 255.))
+                .chain(vertex.color.map(|channel| channel as f32 / 255.))
                 .chain([uv[0], uv[1], layer as f32, mode as f32])
             {
-                triangles.extend_from_slice(&f.to_le_bytes());
+                triangles.extend_from_slice(&value.to_le_bytes());
             }
         }
     }
-    (triangles, edges, ranges)
+    (triangles, ranges)
 }
 
 /// Measures end-to-end offscreen submission + GPU completion; excludes UI and presentation.
@@ -1224,26 +1445,39 @@ mod tests {
 
         let skeleton = uuid::Uuid::new_v4();
         let clip = uuid::Uuid::new_v4();
+        let alternate = uuid::Uuid::new_v4();
         let model = Arc::new(crate::skeletal::Model {
             mesh: crate::skeletal::Mesh {
                 skeleton,
                 vertices: vec![],
                 triangles: vec![],
                 materials: vec![],
-                clips: vec![clip],
+                clips: vec![clip, alternate],
                 animation_storage: Default::default(),
             },
             skeleton: crate::skeletal::Skeleton { bones: vec![] },
-            clips: vec![(
-                clip,
-                crate::skeletal::Clip {
-                    skeleton,
-                    name: "Move".into(),
-                    fps: 30,
-                    frames: 2,
-                    tracks: vec![],
-                },
-            )],
+            clips: vec![
+                (
+                    clip,
+                    crate::skeletal::Clip {
+                        skeleton,
+                        name: "Move".into(),
+                        fps: 30,
+                        frames: 2,
+                        tracks: vec![],
+                    },
+                ),
+                (
+                    alternate,
+                    crate::skeletal::Clip {
+                        skeleton,
+                        name: "Alternate".into(),
+                        fps: 30,
+                        frames: 2,
+                        tracks: vec![],
+                    },
+                ),
+            ],
             materials: vec![],
         });
         let mut actor = crate::scene::Actor::cube("Character".into());
@@ -1264,6 +1498,13 @@ mod tests {
             super::skeletal_pose_key(&before),
             super::skeletal_pose_key(&after),
             "the GPU cache must still rebuild for a different sampled pose"
+        );
+        let mut switched = before.clone();
+        switched.actors[0].skeletal_mesh.as_mut().unwrap().clip = Some(alternate);
+        assert_ne!(
+            super::skeletal_pose_key(&before),
+            super::skeletal_pose_key(&switched),
+            "switching clips at the same sampled frame must rebuild geometry"
         );
     }
 
@@ -1522,6 +1763,8 @@ mod tests {
                     grid: false,
                     effect: None,
                     background: Some([0.; 3]),
+                    revision: None,
+                    split_static: false,
                 },
             );
             encoder.copy_texture_to_buffer(

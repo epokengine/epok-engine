@@ -171,8 +171,28 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
 }
 
 pub fn render(scene: &Scene, commands: &[Command], seconds: f32, fade: u8) -> Vec<u8> {
+    render_with_background(scene, commands, seconds, fade, true)
+}
+
+/// Transparent HUD layer for Native PC Play. Geometry is rendered by the host
+/// scene backend; this layer contains only console-quantized HUD pixels and fade.
+pub fn render_overlay(scene: &Scene, commands: &[Command], seconds: f32, fade: u8) -> Vec<u8> {
+    render_with_background(scene, commands, seconds, fade, false)
+}
+
+fn render_with_background(
+    scene: &Scene,
+    commands: &[Command],
+    seconds: f32,
+    fade: u8,
+    opaque_background: bool,
+) -> Vec<u8> {
     let [width, height] = scene.display_size.map(usize::from);
-    let mut pixels = [33, 40, 52, 255].repeat(width * height);
+    let mut pixels = if opaque_background {
+        [33, 40, 52, 255].repeat(width * height)
+    } else {
+        [0, 0, 0, fade].repeat(width * height)
+    };
     let ids = crate::texture::ids(scene);
     let textures: Vec<_> = ids
         .iter()
@@ -251,6 +271,7 @@ pub fn render(scene: &Scene, commands: &[Command], seconds: f32, fade: u8) -> Ve
                 if let Some(rgb) = result {
                     let offset = (y as usize * width + x as usize) * 4;
                     pixels[offset..offset + 3].copy_from_slice(&rgb);
+                    pixels[offset + 3] = 255;
                 }
             }
         }

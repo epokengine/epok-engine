@@ -427,9 +427,60 @@ pub fn run(
     );
     let hud_texture_id = renderer.textures.insert(hud_texture);
 
+    let native_game_texture = imgui_wgpu::Texture::new(
+        &device,
+        &renderer,
+        imgui_wgpu::TextureConfig {
+            size: scene_gpu::NATIVE_PLAY_SIZE,
+            format: Some(scene_gpu::FORMAT),
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC,
+            sampler_desc: wgpu::SamplerDescriptor {
+                mag_filter: wgpu::FilterMode::Nearest,
+                min_filter: wgpu::FilterMode::Nearest,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    let mut native_game_target = native_game_texture
+        .texture()
+        .create_view(&Default::default());
+    let native_game_texture_id = renderer.textures.insert(native_game_texture);
+    let mut native_game_renderer =
+        scene_gpu::SceneGpu::new_with_size(&device, &queue, scene_gpu::NATIVE_PLAY_SIZE);
+    let mut native_game_size = [
+        scene_gpu::NATIVE_PLAY_SIZE.width,
+        scene_gpu::NATIVE_PLAY_SIZE.height,
+    ];
+    let native_hud_texture = imgui_wgpu::Texture::new(
+        &device,
+        &renderer,
+        imgui_wgpu::TextureConfig {
+            size: wgpu::Extent3d {
+                width: 320,
+                height: 240,
+                depth_or_array_layers: 1,
+            },
+            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+            sampler_desc: wgpu::SamplerDescriptor {
+                mag_filter: wgpu::FilterMode::Nearest,
+                min_filter: wgpu::FilterMode::Nearest,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    let native_hud_texture_id = renderer.textures.insert(native_hud_texture);
+    let mut native_hud_size = [320, 240];
+    let mut native_sequence = 0;
+
     let mut game_texture = None;
     let mut game_sequence = 0;
-    let capture_game = args.iter().any(|arg| arg == "--screenshot-game");
+    let capture_game = args
+        .iter()
+        .any(|arg| arg == "--screenshot-game" || arg == "--screenshot-native-game");
     let capture_loading = args.iter().any(|arg| arg == "--screenshot-loading");
     let mut project_frames = 0;
     let started = Instant::now();
@@ -558,6 +609,77 @@ pub fn run(
                 } else {
                     game_sequence = 0;
                 }
+                if let Some(native) = &editor.native_frame {
+                    if native_game_size != native.hud_size {
+                        let size = wgpu::Extent3d {
+                            width: native.hud_size[0],
+                            height: native.hud_size[1],
+                            depth_or_array_layers: 1,
+                        };
+                        let texture = imgui_wgpu::Texture::new(
+                            &device,
+                            &renderer,
+                            imgui_wgpu::TextureConfig {
+                                size,
+                                format: Some(scene_gpu::FORMAT),
+                                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                                    | wgpu::TextureUsages::RENDER_ATTACHMENT
+                                    | wgpu::TextureUsages::COPY_SRC,
+                                sampler_desc: wgpu::SamplerDescriptor {
+                                    mag_filter: wgpu::FilterMode::Nearest,
+                                    min_filter: wgpu::FilterMode::Nearest,
+                                    ..Default::default()
+                                },
+                                ..Default::default()
+                            },
+                        );
+                        native_game_target = texture.texture().create_view(&Default::default());
+                        renderer.textures.replace(native_game_texture_id, texture);
+                        native_game_renderer = scene_gpu::SceneGpu::new_with_size(
+                            &device,
+                            &queue,
+                            size,
+                        );
+                        native_game_size = native.hud_size;
+                    }
+                    if native_sequence != native.number || native_hud_size != native.hud_size {
+                        if native_hud_size != native.hud_size {
+                            let texture = imgui_wgpu::Texture::new(
+                                &device,
+                                &renderer,
+                                imgui_wgpu::TextureConfig {
+                                    size: wgpu::Extent3d {
+                                        width: native.hud_size[0],
+                                        height: native.hud_size[1],
+                                        depth_or_array_layers: 1,
+                                    },
+                                    format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+                                    sampler_desc: wgpu::SamplerDescriptor {
+                                        mag_filter: wgpu::FilterMode::Nearest,
+                                        min_filter: wgpu::FilterMode::Nearest,
+                                        ..Default::default()
+                                    },
+                                    ..Default::default()
+                                },
+                            );
+                            renderer.textures.replace(native_hud_texture_id, texture);
+                            native_hud_size = native.hud_size;
+                        }
+                        renderer
+                            .textures
+                            .get(native_hud_texture_id)
+                            .unwrap()
+                            .write(
+                                &queue,
+                                &native.hud_rgba,
+                                native.hud_size[0],
+                                native.hud_size[1],
+                            );
+                        native_sequence = native.number;
+                    }
+                } else {
+                    native_sequence = 0;
+                }
                 }
                 let frame = match surface.get_current_texture() {
                     Ok(f) => f,
@@ -582,6 +704,15 @@ pub fn run(
                 }
                 let ui = imgui.frame();
                 let mut opened = None;
+                let native_visible = session
+                    .as_ref()
+                    .is_some_and(|editor| editor.native_frame.is_some());
+                let visible_game = if native_visible {
+                    Some(native_game_texture_id)
+                } else {
+                    game_texture.map(|(id, _)| id)
+                };
+                let visible_overlay = native_visible.then_some(native_hud_texture_id);
                 if let Some(editor) = session.as_mut() {
                 editor.raw_look=look_captured.then_some(std::mem::take(&mut raw_motion));
                 editor.project_browser.font = Some(browser_font);
@@ -591,7 +722,8 @@ pub fn run(
                     ui,
                     editor,
                     [texture_id,hud_texture_id,brand_texture_id],
-                    game_texture.map(|(id, _)| id),
+                    visible_game,
+                    visible_overlay,
                     asset_font,
                     [960., 600.],
                     &mut initial_layout,
@@ -614,6 +746,15 @@ pub fn run(
                     look_captured=capture_look;raw_motion=[0.;2];
                 }
                 let mut encoder = device.create_command_encoder(&Default::default());
+                if let Some(frame) = session.as_ref().and_then(|editor| editor.native_frame.as_ref()) {
+                    native_game_renderer.render_game(
+                        &device,
+                        &queue,
+                        &mut encoder,
+                        &native_game_target,
+                        frame,
+                    );
+                }
                 if let Some(editor) = session.as_mut().filter(|e| e.asset_inspector.visible && e.asset_inspector.details.as_ref().is_some_and(|d|d.scene.is_some())) {
                     if asset_renderer.is_none() {
                         let texture = imgui_wgpu::Texture::new(&device,&renderer,imgui_wgpu::TextureConfig {
@@ -711,7 +852,8 @@ pub fn run(
                                 let pixels=editor.hud_simulation.pixels.clone().unwrap_or_else(||crate::hud::render_at(preview_scene,scene_renderer.preview_time(preview_scene,editor.view.phase)));
                                 crate::mcp::png(size[0],size[1],&pixels)
                             },
-                            Some("game") => editor.game_frame.as_ref().ok_or("No emulator frame available. Start Play first.".to_string()).and_then(|f| crate::mcp::png(f.width, f.height, &f.rgba)),
+                            Some("game") if editor.native_frame.is_some() => capture_png(&device, &queue, renderer.textures.get(native_game_texture_id).unwrap().texture()),
+                            Some("game") => editor.game_frame.as_ref().ok_or("No game frame available. Start Play first.".to_string()).and_then(|f| crate::mcp::png(f.width, f.height, &f.rgba)),
                             _ => Err("Choose editor, scene, hud or game".into()),
                         };
                         crate::mcp::screenshot_reply(request, result);
@@ -724,6 +866,7 @@ pub fn run(
                             && if session.is_some() { project_started.elapsed() > Duration::from_secs(2) } else { started.elapsed() > Duration::from_secs(2) }))
                     && (!capture_game
                         || session.as_ref().and_then(|e| e.game_frame.as_ref()).is_some_and(|f| f.sequence > 90)
+                        || session.as_ref().and_then(|e| e.native_frame.as_ref()).is_some_and(|f| f.number > 90)
                         || project_started.elapsed() > Duration::from_secs(25))
                     && (!std::env::args().any(|a|a=="--screenshot-native-hud")
                         || session.as_ref().and_then(|e|e.hud_simulation.session.as_ref()).and_then(|s|s.frame.as_ref()).is_some()
