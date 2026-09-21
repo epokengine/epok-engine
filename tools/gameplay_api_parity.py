@@ -345,17 +345,22 @@ def reflected_contract(row: dict[str, Any]) -> str | None:
             return annotation
     if row["declaration_kind"] == "field":
         # Plain members of an EPOK_VALUE are the bounded result's inspectable
-        # fields. Stop at the previous completed type rather than using a broad
-        # module heuristic.
+        # fields. Resolve the record that actually encloses the member by brace
+        # depth: walking back, the enclosing scope is opened by the first line
+        # that leaves an unmatched "{". A member whose own initialiser closes a
+        # brace (``ObjectId actor{};``) is balanced and never mistaken for the
+        # end of the previous declaration, and a sibling declaration completed
+        # on one line is skipped rather than promoted.
         depth = 0
         for index in range(line, -1, -1):
             text = lines[index]
             depth += text.count("}") - text.count("{")
-            if depth > 0:
-                continue
-            if "EPOK_VALUE" in text and "struct" in text:
+            encloses = index == line or depth < 0
+            if encloses and "EPOK_VALUE" in text and "struct" in text:
                 return "EPOK_VALUE"
-            if index != line and ("};" in text or "EPOK_CLASS" in text):
+            if depth < 0:
+                # This line opened the member's scope; anything other than an
+                # annotated value record ends the search.
                 break
     return None
 
