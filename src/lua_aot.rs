@@ -524,8 +524,17 @@ impl Emitter<'_> {
                     Conversion::FixedToInt => format!("epok::bp::to_int({operand})"),
                 }
             }
-            Expr::Member { base, name, .. } => {
-                format!("({}).{name}", self.expr(base)?)
+            Expr::Member {
+                base, name, index, ..
+            } => {
+                // A record's components are named members; a vector's are a
+                // native `Fixed[N]`, so they are reached by index exactly as a
+                // write to the same component is.
+                if matches!(base.value_type(), Type::Vector { .. }) {
+                    format!("({})[{index}]", self.expr(base)?)
+                } else {
+                    format!("({}).{name}", self.expr(base)?)
+                }
             }
             Expr::CallSelf { name, args, .. } => {
                 format!("this->{name}({})", self.arguments(args)?)
@@ -1255,6 +1264,28 @@ pub(crate) mod tests {
             .expect("lowered body");
         (registry, ir)
     }
+    /// The profile new projects use, where a whole vector is a value and
+    /// reading one of its components takes the member path.
+    fn lower_v2(path: &str, source: &str, registry: &Registry) -> (Registry, ClassIr) {
+        let file = lua_asset::tests::fixture(path, source);
+        let declaration = lua_asset::extract(&file).expect("declaration");
+        let class = lua_asset::declarations(&declaration, &file, registry).expect("class");
+        let mut registry = registry.clone();
+        registry.classes.insert(class.id.clone(), class);
+        registry.normalize_functions();
+        let chunk = crate::lua_frontend::parse(&file).expect("chunk");
+        let class = registry.classes[&declaration.id].clone();
+        let ir = crate::lua_frontend::lower_class_with_profile(
+            &declaration,
+            &chunk,
+            &class,
+            &registry,
+            crate::settings::LuaProfile::GameplayV2,
+        )
+        .expect("lowered body");
+        (registry, ir)
+    }
+
     fn enemy_logic(body: &str) -> String {
         format!(
             "{}\n{body}\nreturn EnemyLogic\n",
@@ -1289,6 +1320,39 @@ pub(crate) mod tests {
         }
         // A native build never reaches the VM runtime or its class indices.
         assert!(!text.contains("lua_runtime.hpp") && !text.contains("kEpokLuaClass_"));
+    }
+
+    /// A vector property is a native `epok::Fixed[N]`, so reading one of its
+    /// components is an index. Emitting `.y` compiled as a member access and
+    /// only failed in the target compiler, long after the Lua frontend had
+    /// accepted the source.
+    #[test]
+    fn a_vector_property_component_is_read_by_index() {
+        let registry = lua_asset::tests::registry();
+        let source = enemy_logic(&format!(
+            "---@id 9a13c2d4-4f2f-4a0d-8f2a-4a1f2c3d4e5f\n\
+             EnemyLogic.velocity = epok.Vector3(0.0, 0.0, 0.0)\n\
+             {}function EnemyLogic:damage(amount)\n    \
+             self.velocity.y = self.velocity.y - amount\n    \
+             if self.velocity.y > amount then\n        self.health = amount\n    end\nend\n",
+            lua_asset::tests::DAMAGE
+        ));
+        let (registry, ir) = lower_v2("assets/scripts/EnemyLogic.lua", &source, &registry);
+        let class = registry.classes["956f4946-0c61-42f8-899e-2db063b42420"].clone();
+        let text = emit_class(&class, &ir, &registry, BodyMode::Native, None).unwrap();
+        assert!(text.contains("epok::Fixed velocity[3]{};\n"), "{text}");
+        assert!(
+            text.contains("this->velocity[1] = epok::bp::sub((this->velocity)[1], epok_p0);"),
+            "a vector component must be read and written by index in\n{text}"
+        );
+        assert!(
+            text.contains("((this->velocity)[1])>(epok_p0)"),
+            "a vector component read must be an index in\n{text}"
+        );
+        assert!(
+            !text.contains("velocity).y") && !text.contains("velocity.y"),
+            "{text}"
+        );
     }
 
     /// The body both backends must lower identically: one builtin of every
