@@ -893,7 +893,7 @@ object.unlink_key_note(slot);
 template<class Backend> void update(uint8_t channel, Backend& backend)
 ```
 
-- **Declared at:** [line 363](../../../runtime/sequence_kernel.hpp#L363)
+- **Declared at:** [line 364](../../../runtime/sequence_kernel.hpp#L364)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**

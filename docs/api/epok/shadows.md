@@ -21,10 +21,10 @@ This module covers static and blob shadow rendering. It documents 1 public calla
 **Exact declaration**
 
 ```cpp
-template<size_t N,typename Table>void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const Affine<Fixed>& view)
+template<size_t N,typename Table> #ifdef __mips__ __attribute__((noinline,optimize("O3"))) #endif void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const Affine<Fixed>& view)
 ```
 
-- **Declared at:** [line 12](../../../runtime/shadows.hpp#L12)
+- **Declared at:** [line 16](../../../runtime/shadows.hpp#L16)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**

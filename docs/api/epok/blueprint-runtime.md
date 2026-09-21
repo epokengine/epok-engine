@@ -2,7 +2,7 @@
 
 > **Header:** `"blueprint_runtime.hpp"` · **Tier:** Engine internal · **Source:** [open header](../../../runtime/blueprint_runtime.hpp)
 
-This module covers compiled Blueprint execution and object interaction. It documents 64 public callables declared directly in this header.
+This module covers compiled Blueprint execution and object interaction. It documents 65 public callables declared directly in this header.
 
 ## Declared types
 
@@ -17,6 +17,7 @@ This module covers compiled Blueprint execution and object interaction. It docum
 - [`epok::bp::Continuations::cancel_all`](#epok-bp-continuations-cancel-all-1) — Performs `cancel all` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::Continuations::cancel_owner`](#epok-bp-continuations-cancel-owner-1) — Performs `cancel owner` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::Continuations::clear`](#epok-bp-continuations-clear-1) — Clears clear as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::Continuations::contains`](#epok-bp-continuations-contains-1) — Performs `contains` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::Continuations::delay`](#epok-bp-continuations-delay-1) — Performs `delay` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::Continuations::poll`](#epok-bp-continuations-poll-1) — Polls poll as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::Continuations::reset`](#epok-bp-continuations-reset-1) — Resets reset as part of compiled Blueprint execution and object interaction.
@@ -176,7 +177,7 @@ auto result = object.add<Size>(a, b);
 void advance(Fixed dt, uint32_t scene_generation = 0, bool paused = false)
 ```
 
-- **Declared at:** [line 134](../../../runtime/blueprint_runtime.hpp#L134)
+- **Declared at:** [line 138](../../../runtime/blueprint_runtime.hpp#L138)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -222,7 +223,7 @@ object.advance(dt, scene_generation, paused);
 void cancel(uint32_t node)
 ```
 
-- **Declared at:** [line 166](../../../runtime/blueprint_runtime.hpp#L166)
+- **Declared at:** [line 170](../../../runtime/blueprint_runtime.hpp#L170)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -264,7 +265,7 @@ object.cancel(node);
 void cancel_all()
 ```
 
-- **Declared at:** [line 176](../../../runtime/blueprint_runtime.hpp#L176)
+- **Declared at:** [line 180](../../../runtime/blueprint_runtime.hpp#L180)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -297,7 +298,7 @@ object.cancel_all();
 void cancel_owner(ObjectId owner)
 ```
 
-- **Declared at:** [line 161](../../../runtime/blueprint_runtime.hpp#L161)
+- **Declared at:** [line 165](../../../runtime/blueprint_runtime.hpp#L165)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -339,7 +340,7 @@ object.cancel_owner(owner);
 void clear()
 ```
 
-- **Declared at:** [line 177](../../../runtime/blueprint_runtime.hpp#L177)
+- **Declared at:** [line 181](../../../runtime/blueprint_runtime.hpp#L181)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -359,6 +360,48 @@ object.clear();
 **Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
 
 **Trade-offs and warnings.** This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control.
+
+<a id="epok-bp-continuations-contains-1"></a>
+
+## `epok::bp::Continuations::contains`
+
+**Purpose.** Performs `contains` as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+bool contains(uint32_t node) const
+```
+
+- **Declared at:** [line 123](../../../runtime/blueprint_runtime.hpp#L123)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `node` | `int` | Input | Value supplied for `node`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_runtime.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int node
+
+epok::bp::Continuations& object = /* obtain a valid instance */;
+
+auto result = object.contains(node);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. This is classified as **Engine internal**. Prefer a higher-level Epok service unless you need this exact control.
 
 <a id="epok-bp-continuations-delay-1"></a>
 
@@ -420,7 +463,7 @@ auto result = object.delay(node, seconds, owner, scene_generation);
 bool poll(Continuation& result)
 ```
 
-- **Declared at:** [line 149](../../../runtime/blueprint_runtime.hpp#L149)
+- **Declared at:** [line 153](../../../runtime/blueprint_runtime.hpp#L153)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -462,7 +505,7 @@ auto result = object.poll(result);
 void reset()
 ```
 
-- **Declared at:** [line 171](../../../runtime/blueprint_runtime.hpp#L171)
+- **Declared at:** [line 175](../../../runtime/blueprint_runtime.hpp#L175)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -495,7 +538,7 @@ object.reset();
 bool signal(uint32_t node, uint32_t scene_generation = 0)
 ```
 
-- **Declared at:** [line 123](../../../runtime/blueprint_runtime.hpp#L123)
+- **Declared at:** [line 127](../../../runtime/blueprint_runtime.hpp#L127)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -539,7 +582,7 @@ auto result = object.signal(node, scene_generation);
 size_t size() const
 ```
 
-- **Declared at:** [line 178](../../../runtime/blueprint_runtime.hpp#L178)
+- **Declared at:** [line 182](../../../runtime/blueprint_runtime.hpp#L182)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
@@ -662,7 +705,7 @@ auto result = object.waiting(node);
 bool add(Breakpoint point)
 ```
 
-- **Declared at:** [line 280](../../../runtime/blueprint_runtime.hpp#L280)
+- **Declared at:** [line 284](../../../runtime/blueprint_runtime.hpp#L284)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -704,7 +747,7 @@ auto result = object.add(point);
 bool checkpoint(uint32_t class_id, uint32_t node_id, ObjectId owner)
 ```
 
-- **Declared at:** [line 287](../../../runtime/blueprint_runtime.hpp#L287)
+- **Declared at:** [line 291](../../../runtime/blueprint_runtime.hpp#L291)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -750,7 +793,7 @@ auto result = object.checkpoint(class_id, node_id, owner);
 void clear_breakpoints()
 ```
 
-- **Declared at:** [line 286](../../../runtime/blueprint_runtime.hpp#L286)
+- **Declared at:** [line 290](../../../runtime/blueprint_runtime.hpp#L290)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -783,7 +826,7 @@ object.clear_breakpoints();
 const Trace* location() const
 ```
 
-- **Declared at:** [line 310](../../../runtime/blueprint_runtime.hpp#L310)
+- **Declared at:** [line 314](../../../runtime/blueprint_runtime.hpp#L314)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `const Trace *`. Check the purpose and failure notes before using the value.
@@ -816,7 +859,7 @@ auto result = object.location();
 void pause()
 ```
 
-- **Declared at:** [line 306](../../../runtime/blueprint_runtime.hpp#L306)
+- **Declared at:** [line 310](../../../runtime/blueprint_runtime.hpp#L310)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -849,7 +892,7 @@ object.pause();
 bool paused() const
 ```
 
-- **Declared at:** [line 309](../../../runtime/blueprint_runtime.hpp#L309)
+- **Declared at:** [line 313](../../../runtime/blueprint_runtime.hpp#L313)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -882,7 +925,7 @@ auto result = object.paused();
 void reset()
 ```
 
-- **Declared at:** [line 311](../../../runtime/blueprint_runtime.hpp#L311)
+- **Declared at:** [line 315](../../../runtime/blueprint_runtime.hpp#L315)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -915,7 +958,7 @@ object.reset();
 void resume()
 ```
 
-- **Declared at:** [line 307](../../../runtime/blueprint_runtime.hpp#L307)
+- **Declared at:** [line 311](../../../runtime/blueprint_runtime.hpp#L311)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -948,7 +991,7 @@ object.resume();
 void step()
 ```
 
-- **Declared at:** [line 308](../../../runtime/blueprint_runtime.hpp#L308)
+- **Declared at:** [line 312](../../../runtime/blueprint_runtime.hpp#L312)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1882,7 +1925,7 @@ auto result = object.sub<Size>(a, b);
 TimelineSample advance(Fixed dt, uint32_t scene_generation = 0, bool paused = false)
 ```
 
-- **Declared at:** [line 217](../../../runtime/blueprint_runtime.hpp#L217)
+- **Declared at:** [line 221](../../../runtime/blueprint_runtime.hpp#L221)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1928,7 +1971,7 @@ auto result = object.advance(dt, scene_generation, paused);
 void cancel()
 ```
 
-- **Declared at:** [line 232](../../../runtime/blueprint_runtime.hpp#L232)
+- **Declared at:** [line 236](../../../runtime/blueprint_runtime.hpp#L236)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1961,7 +2004,7 @@ object.cancel();
 bool configure(const TimelineKey* data, size_t length)
 ```
 
-- **Declared at:** [line 200](../../../runtime/blueprint_runtime.hpp#L200)
+- **Declared at:** [line 204](../../../runtime/blueprint_runtime.hpp#L204)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2005,7 +2048,7 @@ auto result = object.configure(data, length);
 bool play(ObjectId source, uint32_t scene_generation = 0, bool loop = false)
 ```
 
-- **Declared at:** [line 209](../../../runtime/blueprint_runtime.hpp#L209)
+- **Declared at:** [line 213](../../../runtime/blueprint_runtime.hpp#L213)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2051,7 +2094,7 @@ auto result = object.play(source, scene_generation, loop);
 bool playing() const
 ```
 
-- **Declared at:** [line 234](../../../runtime/blueprint_runtime.hpp#L234)
+- **Declared at:** [line 238](../../../runtime/blueprint_runtime.hpp#L238)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2084,7 +2127,7 @@ auto result = object.playing();
 void reset()
 ```
 
-- **Declared at:** [line 233](../../../runtime/blueprint_runtime.hpp#L233)
+- **Declared at:** [line 237](../../../runtime/blueprint_runtime.hpp#L237)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2117,7 +2160,7 @@ object.reset();
 Fixed value() const
 ```
 
-- **Declared at:** [line 214](../../../runtime/blueprint_runtime.hpp#L214)
+- **Declared at:** [line 218](../../../runtime/blueprint_runtime.hpp#L218)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
@@ -2190,7 +2233,7 @@ auto result = epok::bp::to_int(value);
 inline void trace(uint32_t, uint32_t, ObjectId, TraceKind = TraceKind::Enter, int32_t = 0)
 ```
 
-- **Declared at:** [line 324](../../../runtime/blueprint_runtime.hpp#L324)
+- **Declared at:** [line 328](../../../runtime/blueprint_runtime.hpp#L328)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2238,7 +2281,7 @@ epok::bp::trace(arg1, arg2, arg3, arg4, arg5);
 void clear()
 ```
 
-- **Declared at:** [line 258](../../../runtime/blueprint_runtime.hpp#L258)
+- **Declared at:** [line 262](../../../runtime/blueprint_runtime.hpp#L262)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2271,7 +2314,7 @@ object.clear();
 bool poll(Trace& entry)
 ```
 
-- **Declared at:** [line 254](../../../runtime/blueprint_runtime.hpp#L254)
+- **Declared at:** [line 258](../../../runtime/blueprint_runtime.hpp#L258)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2313,7 +2356,7 @@ auto result = object.poll(entry);
 bool push(Trace entry)
 ```
 
-- **Declared at:** [line 250](../../../runtime/blueprint_runtime.hpp#L250)
+- **Declared at:** [line 254](../../../runtime/blueprint_runtime.hpp#L254)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2355,7 +2398,7 @@ auto result = object.push(entry);
 size_t size() const
 ```
 
-- **Declared at:** [line 259](../../../runtime/blueprint_runtime.hpp#L259)
+- **Declared at:** [line 263](../../../runtime/blueprint_runtime.hpp#L263)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.

@@ -33,6 +33,7 @@ MODULE_CONTEXT = {
     "camera": "camera selection, projection and shared render resources",
     "collision": "bounded AABB collision queries and movement",
     "effect": "runtime effects and their deterministic playback state",
+    "fixed-math": "shared Q12 integer math primitives",
     "font": "GPU text rendering with the built-in or uploaded font atlas",
     "gpu": "GPU setup, command submission and frame synchronization",
     "gte": "Geometry Transformation Engine math and register operations",

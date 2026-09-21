@@ -28,7 +28,7 @@ This module covers sprites, flipbooks and screen-facing rendering. It documents 
 inline Affine<Fixed> plane(const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixed>& view)
 ```
 
-- **Declared at:** [line 10](../../../runtime/sprites.hpp#L10)
+- **Declared at:** [line 11](../../../runtime/sprites.hpp#L11)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -72,7 +72,7 @@ auto result = epok::sprite_detail::plane(sprite, world, view);
 void clear()
 ```
 
-- **Declared at:** [line 26](../../../runtime/sprites.hpp#L26)
+- **Declared at:** [line 27](../../../runtime/sprites.hpp#L27)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -105,7 +105,7 @@ object.clear();
 void transform(const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixed>& view, Affine<Fixed>& model,Affine<Fixed>& camera)
 ```
 
-- **Declared at:** [line 27](../../../runtime/sprites.hpp#L27)
+- **Declared at:** [line 28](../../../runtime/sprites.hpp#L28)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -152,11 +152,17 @@ object.transform(sprite, world, view, model, camera);
 **Exact declaration**
 
 ```cpp
-void begin()
+void begin(bool dither=false)
 ```
 
-- **Declared at:** [line 60](../../../runtime/sprites.hpp#L60)
+- **Declared at:** [line 62](../../../runtime/sprites.hpp#L62)
 - **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `dither` | `bool` | Input | Value supplied for `dither`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -167,9 +173,12 @@ void begin()
 ```cpp
 #include "sprites.hpp"
 
+// Assume these named values have been initialized with valid data:
+// bool dither
+
 epok::SpriteRenderer& object = /* obtain a valid instance */;
 
-object.begin();
+object.begin(dither);
 ```
 
 **Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
@@ -188,7 +197,7 @@ object.begin();
 template<class Table>void draw(int parity,Table& table,const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixed>& view,bool receive_lighting=true)
 ```
 
-- **Declared at:** [line 62](../../../runtime/sprites.hpp#L62)
+- **Declared at:** [line 64](../../../runtime/sprites.hpp#L64)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**

@@ -37,7 +37,7 @@ All scripts are bound before any `start` callback. Authored component data and s
 
 See [input and collision](input-collision.md) for measured fixed-step simulation and pause controls. Include `utility.hpp` for these allocation-free helpers:
 
-- `Tween`: value interpolation with linear, smoothstep and quadratic easing; explicit cancel and one-shot completion. Apply its value to the property chosen by the game.
+- `Tween`: value interpolation over a seventeen-curve Q12 easing catalogue (linear, smoothstep, in/out/in-out quadratic, cubic, quartic and quintic, and the three circular curves); optional start delay; loop, ping-pong or single playback with a finite leg count or no bound; explicit cancel and one-shot completion. Apply its value to the property chosen by the game.
 - `EventQueue<N>`: bounded FIFO carrying an event kind, integer value and generation-checked source handle. Overflow increments `dropped`.
 - `Sequence`: owns up to 256 timed event steps, handles multiple crossed steps, completes once and can be cancelled.
 - `Focus<N>` and `layout_list`: generic UI navigation and layout; see [HUD](hud.md).

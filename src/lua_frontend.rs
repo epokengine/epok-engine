@@ -98,7 +98,9 @@ struct Token {
     tok: Tok,
     span: Span,
 }
-const KEYWORDS: &[&str] = &[
+/// The reserved words. Also read by the reflection tests: a record member or an
+/// enumerator spelled like one of these is unreachable from every Lua mode.
+pub(crate) const KEYWORDS: &[&str] = &[
     "and", "break", "do", "else", "elseif", "end", "false", "for", "function", "goto", "if", "in",
     "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while",
 ];

@@ -8,6 +8,7 @@
 #include "blueprint_api.hpp"
 #include "skeletal.hpp"
 #include "world2d.hpp"
+#include "utility.hpp"
 
 namespace epok {
 
@@ -63,6 +64,13 @@ struct EPOK_VALUE(Id="dd229750-b0fe-43e5-a20f-83c53f30130a") GameplayTransitionS
     uint32_t audio_gain=4096,opacity=0;
     bool busy=false,presented=false;
 };
+// Per-scene distance fog. Distances are named in full because `end` is a Lua
+// keyword and a record member has to stay readable in every execution mode.
+struct EPOK_VALUE(Id="8b4375d1-f9cf-431c-9194-b16612bcf12d") FogSettings {
+    bool enabled=false;
+    Fixed start_distance=12.0,end_distance=40.0;
+    uint32_t red=64,green=77,blue=102;
+};
 struct EPOK_VALUE(Id="0748249f-e8e3-4f29-9670-4ecdb4704448") ResourceSnapshot {
     uint32_t alive_slots=0,active_slots=0,slot_capacity=0,scene_banks=0;
     uint32_t textures=0,resident_texture_bytes=0,active_texture_bytes=0;
@@ -93,6 +101,13 @@ struct EPOK_VALUE(Id="f24065e1-e5b0-4608-8863-a20e708fd4df") GameplayPlaybackSna
 struct EPOK_VALUE(Id="93318a22-af5b-49d8-a114-aaf101faab5c") SkeletalQuerySnapshot {
     uint32_t calls=0,vertices=0,bones=0,decoded_bytes=0,failures=0;
 };
+// A Vector3 tween is one clock plus two endpoints. `timing` is an ordinary scalar
+// tween over 0..1, so `utilities.tween_value(timing)` is the interpolation
+// parameter the three components share and each component is exactly what a
+// scalar tween over that component would report. Nothing here duplicates the
+// clock, the easing catalogue, the delay or the loop plan.
+struct EPOK_VALUE(Id="c4306dbe-18ba-4f38-98bc-bdb558ed3667") GameplayVector3TweenState {GameplayVector3 from{},to{};GameplayTweenState timing{};};
+struct EPOK_VALUE(Id="872b1e73-f320-4bf9-a6c3-e77ea6e92371") Vector3TweenAdvanceSample {GameplayVector3TweenState state{};GameplayVector3 value{};bool completed=false;};
 
 inline GameplayVector3 gameplay_vector(const Fixed* value){return {value[0],value[1],value[2]};}
 inline void gameplay_vector(GameplayVector3 value,Fixed* output){output[0]=value.x;output[1]=value.y;output[2]=value.z;}
@@ -103,6 +118,8 @@ inline int16_t gameplay_i16(int32_t value){return int16_t(value<-32768?-32768:va
 inline uint32_t* gameplay_save_words(){alignas(4) static uint32_t words[MemoryCardService::max_payload/4]{};return words;}
 inline uint16_t gameplay_u16(uint32_t value){return uint16_t(value>65535?65535:value);}
 inline uint8_t gameplay_u8(uint32_t value){return uint8_t(value>255?255:value);}
+inline GameplayVector3TweenState gameplay_vector_tween(GameplayVector3 from,GameplayVector3 to,Tween timing){return {from,to,gameplay_tween_state(timing)};}
+inline GameplayVector3 gameplay_vector_tween_value(GameplayVector3TweenState state){const auto alpha=gameplay_tween(state.timing).alpha();return {lerp(state.from.x,state.to.x,alpha),lerp(state.from.y,state.to.y,alpha),lerp(state.from.z,state.to.z,alpha)};}
 
 struct EPOK_FUNCTION_LIBRARY(Category="Input", Id="d6963400-e105-4af5-826c-e4b2edfc09df") InputLibrary {
     EPOK_FUNCTION(BlueprintPure, Id="8c11a90e-5791-40f8-89d7-1092c6376b48")
@@ -153,6 +170,18 @@ struct EPOK_FUNCTION_LIBRARY(Category="Math", Id="895f8595-ac0d-4584-b749-df23ae
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="d32131a5-2c47-43f2-8907-35e40389cfb5") static GameplayVector3 scale(GameplayVector3 value,Fixed amount){return {value.x*amount,value.y*amount,value.z*amount};}
 };
 
+// The Vector3 half of the `utilities` group. It shares the category, and so the
+// script namespace and the Blueprint palette, with epok::UtilityLibrary; it lives
+// here only because GameplayVector3 is declared in this header. Like the scalar
+// calls it is pure value: the caller owns the state and hands it back each frame.
+struct EPOK_FUNCTION_LIBRARY(Category="Utilities", Id="07422ba3-cdbf-4384-bde6-19521f4e1c2c") UtilityVectorLibrary {
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="18823cc1-6141-40e6-8c2a-dc097bc32bfa") static GameplayVector3TweenState vector_tween_start(GameplayVector3 from,GameplayVector3 to,Fixed seconds,Ease easing){Tween timing;timing.start(0.0,1.0,seconds,easing);return gameplay_vector_tween(from,to,timing);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="5cd97b29-6570-4071-aede-8f095a2d59c6") static GameplayVector3TweenState vector_tween_schedule(GameplayVector3 from,GameplayVector3 to,Fixed seconds,Ease easing,Fixed delay_seconds,TweenLoop loop,uint32_t legs){Tween timing;timing.schedule(0.0,1.0,seconds,easing,delay_seconds,loop,legs);return gameplay_vector_tween(from,to,timing);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="ba4cbaf3-43a7-4476-aff8-c1cd48442c98") static Vector3TweenAdvanceSample vector_tween_advance(GameplayVector3TweenState state,Fixed delta_seconds){auto timing=gameplay_tween(state.timing);timing.advance(delta_seconds);Vector3TweenAdvanceSample result;result.state=gameplay_vector_tween(state.from,state.to,timing);result.completed=timing.completion_pending();result.value=gameplay_vector_tween_value(result.state);return result;}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="4e926f38-ba79-4cd8-9a64-aafd484d1c79") static GameplayVector3TweenState vector_tween_cancel(GameplayVector3TweenState state){auto timing=gameplay_tween(state.timing);timing.cancel();return gameplay_vector_tween(state.from,state.to,timing);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="9ffb6016-7a91-49ec-b8a6-315f6f5b91f0") static GameplayVector3 vector_tween_value(GameplayVector3TweenState state){return gameplay_vector_tween_value(state);}
+};
+
 struct EPOK_FUNCTION_LIBRARY(Category="World 2D", Id="624ed546-973a-40d1-8496-055eec580f18") World2DLibrary {
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="21b3ccb4-f31a-4e45-97f8-8df32e539768") static GameplayVector2 world_to_screen(GameplayCamera2D value,GameplayVector2 world){Camera2D camera;camera.position[0]=value.position.x;camera.position[1]=value.position.y;camera.zoom=value.zoom;camera.rotation=value.rotation;camera.viewport[0]=gameplay_i16(value.viewport_x);camera.viewport[1]=gameplay_i16(value.viewport_y);camera.viewport[2]=gameplay_i16(value.viewport_width);camera.viewport[3]=gameplay_i16(value.viewport_height);Fixed input[2]={world.x,world.y},output[2]={};epok::world_to_screen(camera,input,output);return {output[0],output[1]};}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="308085e2-43c4-473d-b225-24ef48aa4d1d") static GameplayVector2 screen_to_world(GameplayCamera2D value,GameplayVector2 screen){Camera2D camera;camera.position[0]=value.position.x;camera.position[1]=value.position.y;camera.zoom=value.zoom;camera.rotation=value.rotation;camera.viewport[0]=gameplay_i16(value.viewport_x);camera.viewport[1]=gameplay_i16(value.viewport_y);camera.viewport[2]=gameplay_i16(value.viewport_width);camera.viewport[3]=gameplay_i16(value.viewport_height);Fixed input[2]={screen.x,screen.y},output[2]={};epok::screen_to_world(camera,input,output);return {output[0],output[1]};}
@@ -186,6 +215,17 @@ struct EPOK_FUNCTION_LIBRARY(Category="Scene", Id="e018f41e-b530-46f2-9331-9cf15
 #else
         (void)value;return request_scene(index);
 #endif
+    }
+    EPOK_FUNCTION(BlueprintPure, Id="5c70f7f6-3789-423e-83f1-608bc604bc2e") static FogSettings fog(){const auto& value=fog_environment;return {value.enabled,Fixed(value.start,Fixed::RAW),Fixed(value.end,Fixed::RAW),value.color[0],value.color[1],value.color[2]};}
+    EPOK_FUNCTION(BlueprintCallable, Id="3de7b991-edcb-40e6-8739-ca4cc5e4039b") static bool set_fog(FogSettings value){
+        // The editor validator accepts 0 <= start < end <= 128 with a span of at
+        // least one Q12 step; an out-of-range range is rejected whole so a
+        // scripted scene cannot diverge from an authored one.
+        const int32_t start=value.start_distance.raw(),finish=value.end_distance.raw();
+        if(start<0||finish>128*4096||finish-start<1)return false;
+        fog_environment.enabled=value.enabled;fog_environment.start=start;fog_environment.end=finish;
+        fog_environment.color[0]=gameplay_u8(value.red);fog_environment.color[1]=gameplay_u8(value.green);fog_environment.color[2]=gameplay_u8(value.blue);
+        return true;
     }
     EPOK_FUNCTION(BlueprintPure, Id="42291949-a4c5-454e-a5d6-09c5c3b1f698") static ObjectId active_camera_actor(){return gameplay_actor_id(active_camera());}
     EPOK_FUNCTION(BlueprintCallable, Id="e36ec48c-b2fe-49a2-8935-894d346882f7") static bool set_camera(ObjectId actor){return set_active_camera(gameplay_actor_data(actor));}

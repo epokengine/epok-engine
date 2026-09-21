@@ -95,6 +95,30 @@ function Guard:tick(delta_seconds)
         -- result is the whole observation and nothing changes.
         self:probe_b(78, epok.request_scene(9))
         self:probe_b(79, epok.is_valid(self.ref))
+        -- Scene-global distance fog, a registered record crossing the call
+        -- boundary in both directions: reading the current settings and handing
+        -- them straight back is the round trip the setter has to accept.
+        local fog = epok.scene.fog()
+        self:probe_b(90, epok.scene.set_fog(fog))
+        -- The deepened tween surface, authored in Lua alone. A delayed, mirrored
+        -- plan stepped past its wait and one whole leg reads the reverse leg: the
+        -- forward curve with the endpoints swapped, which is 8.0 minus the forward
+        -- value. Enumerators are written as their stored numbers, so this is also
+        -- a check that InQuad is still 2 and PingPong is 2.
+        local plan = epok.utilities.tween_schedule(0.0, 8.0, 1.0, 2, 0.5, 2, 2)
+        local mirrored = epok.utilities.tween_advance(plan, 1.75)
+        self:probe_f(91, mirrored.value)
+        -- The easing catalogue on its own, on one of the appended curves.
+        self:probe_f(92, epok.utilities.ease(0.5, 13))
+        -- A Vector3 tween is one clock plus three lerps, so its X component and a
+        -- scalar tween over the same endpoints, driven identically, must agree.
+        local span = epok.utilities.vector_tween_start(
+            epok.math.vector3(-2.0, 0.5, 7.0), epok.math.vector3(6.0, -3.25, 7.0), 1.0, 15)
+        local moved = epok.utilities.vector_tween_advance(span, 0.375)
+        self:probe_f(93, moved.value.x)
+        local axis = epok.utilities.tween_advance(
+            epok.utilities.tween_start(-2.0, 6.0, 1.0, 15), 0.375)
+        self:probe_f(94, axis.value)
     end
     -- The class predicates, asked about a reference that is certainly live: the
     -- actor running the body. `self.ref` is the value the Blueprint Self node

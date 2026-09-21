@@ -31,11 +31,42 @@ gain without returning the native loading-text or image pointers. Builds without
 the optional transition renderer still perform the scene request and ignore the
 visual options deterministically.
 
+`scene.fog()` and `scene.set_fog(value)` read and write the scene's distance fog
+as a bounded `FogSettings` record. Tint channels are clamped to 8-bit values; a
+range outside `0 ≤ start_distance < end_distance ≤ 128`, or narrower than one Q12
+step, returns `false` and leaves the scene untouched, which is the same range the
+editor validator accepts. `end` is a Lua keyword, so the distances are named
+`start_distance` and `end_distance`.
+
 The `utilities` group adapts the native tween and event-queue kernels as owned
 values. `tween_advance` returns the updated tween plus its current value and
 completion edge. The four-entry event queue returns a new queue from `emit` or
 `poll`, including its deterministic overflow count. Store those returned records
 in the owning Blueprint/Lua class; no global “last result” is shared by scripts.
+
+`tween_schedule(from, to, seconds, easing, delay_seconds, loop, legs)` is the full
+plan: `delay_seconds` holds the first leg back without shortening it, `loop` selects
+`None`, `Restart` or `PingPong`, and `legs` counts the duration spans to play, with 0
+asking for no bound. An unbounded plan never reports completion. A ping-pong reverse
+leg is the forward curve with the endpoints swapped, so a two-leg plan ends exactly
+on `from`. Without a loop mode exactly one leg plays whatever `legs` says, which is
+also what a hand-built record with `cycles_remaining` left at 0 does.
+
+`ease(t, easing)` exposes the easing catalogue on its own. It holds seventeen Q12
+curves: `Linear`, `SmoothStep`, the In/Out/InOut families of `Quad`, `Cubic`, `Quart`
+and `Quint`, and `InCirc`/`OutCirc`/`InOutCirc`. `t` is clamped to `0..1`, both
+endpoints are exact, and no curve deviates from its real-valued reference by more
+than four raw Q12 units. There are no sine, exponential, elastic, back or bounce
+curves: the target has no fixed-point trigonometric primitive. Enumerators are
+appended, never reordered, because authored content stores the number.
+
+`vector_tween_start`, `vector_tween_schedule`, `vector_tween_advance`,
+`vector_tween_cancel` and `vector_tween_value` tween a `GameplayVector3` with the
+same timing, easing and loop semantics, so a position or a tint is one call instead
+of three. The record is two endpoints plus a `timing` member that is an ordinary
+scalar tween over `0..1`: its value is the interpolation parameter the three
+components share, and each component is exactly what a scalar tween over that
+component would report.
 
 ## Typed receivers and records
 

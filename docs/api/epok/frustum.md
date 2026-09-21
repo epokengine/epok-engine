@@ -2,11 +2,12 @@
 
 > **Header:** `"frustum.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/frustum.hpp)
 
-This module covers the frustum module. It documents 6 public callables declared directly in this header.
+This module covers the frustum module. It documents 7 public callables declared directly in this header.
 
 ## Callable index
 
 - [`epok::chunk_bounds_isolated_x`](#epok-chunk-bounds-isolated-x-1) — Detect once per object.
+- [`epok::chunk_fully_inside`](#epok-chunk-fully-inside-1) — Q12 bounds.
 - [`epok::frustum_outcode`](#epok-frustum-outcode-1) — Performs `frustum outcode` as part of the frustum module.
 - [`epok::frustum_outcode32`](#epok-frustum-outcode32-1) — Plain 32-bit variant for inputs bounded by 2^27 in magnitude (the GTE projection path guarantees this); 3z+4y then cannot overflow.
 - [`epok::frustum_outcode_units`](#epok-frustum-outcode-units-1) — Same six half-spaces as the polygon clipper, before perspective division.
@@ -55,6 +56,52 @@ auto result = epok::chunk_bounds_isolated_x(rows);
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
 
+<a id="epok-chunk-fully-inside-1"></a>
+
+## `epok::chunk_fully_inside`
+
+**Purpose.** Q12 bounds.
+
+**Details.** A margin also covers Q12->Q8 GTE input and translation rounding. The near guard avoids the GTE H/2 divide-overflow interval at 320x240.
+
+**Exact declaration**
+
+```cpp
+inline bool chunk_fully_inside(const int32_t* center,const int32_t* extent,int32_t focal)
+```
+
+- **Declared at:** [line 11](../../../runtime/frustum.hpp#L11)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `center` | `const int *` | Input | Value supplied for `center`. See the exact type and module contract. |
+| `extent` | `const int *` | Input | Value supplied for `extent`. See the exact type and module contract. |
+| `focal` | `int` | Input | Value supplied for `focal`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** A margin also covers Q12->Q8 GTE input and translation rounding. The near guard avoids the GTE H/2 divide-overflow interval at 320x240.
+
+**Usage pattern**
+
+```cpp
+#include "frustum.hpp"
+
+// Assume these named values have been initialized with valid data:
+// const int * center
+// const int * extent
+// int focal
+
+auto result = epok::chunk_fully_inside(center, extent, focal);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-frustum-outcode-1"></a>
 
 ## `epok::frustum_outcode`
@@ -67,7 +114,7 @@ auto result = epok::chunk_bounds_isolated_x(rows);
 inline uint8_t frustum_outcode(int32_t x,int32_t y,int32_t z)
 ```
 
-- **Declared at:** [line 50](../../../runtime/frustum.hpp#L50)
+- **Declared at:** [line 60](../../../runtime/frustum.hpp#L60)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -111,7 +158,7 @@ auto result = epok::frustum_outcode(x, y, z);
 template<int32_t Near,int32_t FarExclusive> inline uint8_t frustum_outcode32(int32_t x,int32_t y,int32_t z)
 ```
 
-- **Declared at:** [line 53](../../../runtime/frustum.hpp#L53)
+- **Declared at:** [line 63](../../../runtime/frustum.hpp#L63)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -160,7 +207,7 @@ auto result = epok::frustum_outcode32<Near, FarExclusive>(x, y, z);
 template<int32_t Near,int32_t FarExclusive> inline uint8_t frustum_outcode_units(int32_t x,int32_t y,int32_t z)
 ```
 
-- **Declared at:** [line 40](../../../runtime/frustum.hpp#L40)
+- **Declared at:** [line 50](../../../runtime/frustum.hpp#L50)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -209,7 +256,7 @@ auto result = epok::frustum_outcode_units<Near, FarExclusive>(x, y, z);
 template<class Point> bool gpu_clip_safe(const Point& a,const Point& b,const Point& c)
 ```
 
-- **Declared at:** [line 66](../../../runtime/frustum.hpp#L66)
+- **Declared at:** [line 76](../../../runtime/frustum.hpp#L76)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -256,7 +303,7 @@ auto result = epok::gpu_clip_safe<Point>(a, b, c);
 __attribute__((always_inline)) #endif inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[3][3], const int32_t translation[3],const int32_t vector[3], const int32_t extent[3],int32_t center[3],int32_t span[3], bool isolated_x)
 ```
 
-- **Declared at:** [line 16](../../../runtime/frustum.hpp#L16)
+- **Declared at:** [line 26](../../../runtime/frustum.hpp#L26)
 - **Kind:** `function decl`
 
 **Parameters**

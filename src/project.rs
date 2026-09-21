@@ -1469,6 +1469,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/lighting.hpp").as_slice(),
         ),
         (
+            "fixed_math.hpp",
+            include_bytes!("../runtime/fixed_math.hpp").as_slice(),
+        ),
+        (
             "shadows.hpp",
             include_bytes!("../runtime/shadows.hpp").as_slice(),
         ),

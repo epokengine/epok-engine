@@ -28,7 +28,7 @@ This module covers fixed-step simulation time and frame timing. It documents 3 p
 inline bool poll_marker(const Marker* markers, uint16_t count, uint16_t& cursor, int32_t tick, uint16_t& id)
 ```
 
-- **Declared at:** [line 60](../../../runtime/timeline.hpp#L60)
+- **Declared at:** [line 65](../../../runtime/timeline.hpp#L65)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -78,7 +78,7 @@ auto result = epok::timeline::poll_marker(markers, count, cursor, tick, id);
 inline int32_t sample(Curve curve, int32_t tick)
 ```
 
-- **Declared at:** [line 22](../../../runtime/timeline.hpp#L22)
+- **Declared at:** [line 23](../../../runtime/timeline.hpp#L23)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -120,7 +120,7 @@ auto result = epok::timeline::sample(curve, tick);
 constexpr int32_t saturate(int64_t value)
 ```
 
-- **Declared at:** [line 17](../../../runtime/timeline.hpp#L17)
+- **Declared at:** [line 18](../../../runtime/timeline.hpp#L18)
 - **Kind:** `function decl`
 
 **Parameters**

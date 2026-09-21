@@ -2,11 +2,11 @@
 
 > **Header:** `"instrument_synth.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/instrument_synth.hpp)
 
-This module covers the instrument synth module. It documents 35 public callables declared directly in this header.
+This module covers the instrument synth module. It documents 37 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::instrument::synth::Controls`, `epok::instrument::synth::detail::AttenuationTable`, `epok::instrument::synth::detail::OctaveTable`, `epok::instrument::synth::Error`, `epok::instrument::synth::Output`, `epok::instrument::synth::State`, `epok::instrument::synth::State::EnvelopeParameters`, `epok::instrument::synth::State::EnvelopeState`
+`epok::instrument::synth::Controls`, `epok::instrument::synth::detail::AttenuationTable`, `epok::instrument::synth::detail::OctaveTable`, `epok::instrument::synth::Error`, `epok::instrument::synth::Output`, `epok::instrument::synth::State`, `epok::instrument::synth::State::EnvelopeParameters`, `epok::instrument::synth::State::EnvelopeState`, `epok::instrument::synth::State::HardwareParameters`
 
 ## Callable index
 
@@ -37,6 +37,8 @@ This module covers the instrument synth module. It documents 35 public callables
 - [`epok::instrument::synth::State::advance`](#epok-instrument-synth-state-advance-1) — Performs `advance` as part of the instrument synth module.
 - [`epok::instrument::synth::State::copy_initial`](#epok-instrument-synth-state-copy-initial-1) — The immutable prepared source must outlive this voice, like its bank.
 - [`epok::instrument::synth::State::error`](#epok-instrument-synth-state-error-1) — Performs `error` as part of the instrument synth module.
+- [`epok::instrument::synth::State::hardware_output`](#epok-instrument-synth-state-hardware-output-1) — Performs `hardware output` as part of the instrument synth module.
+- [`epok::instrument::synth::State::hardware_parameters`](#epok-instrument-synth-state-hardware-parameters-1) — Performs `hardware parameters` as part of the instrument synth module.
 - [`epok::instrument::synth::State::output`](#epok-instrument-synth-state-output-1) — Performs `output` as part of the instrument synth module.
 - [`epok::instrument::synth::State::release`](#epok-instrument-synth-state-release-1) — Performs `release` as part of the instrument synth module.
 - [`epok::instrument::synth::State::reset`](#epok-instrument-synth-state-reset-1) — Resets reset as part of the instrument synth module.
@@ -120,7 +122,7 @@ auto result = object.valid();
 inline uint64_t advance_phase(uint64_t phase_q48, uint64_t rate_q48, uint64_t microseconds)
 ```
 
-- **Declared at:** [line 302](../../../runtime/instrument_synth.hpp#L302)
+- **Declared at:** [line 307](../../../runtime/instrument_synth.hpp#L307)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -164,7 +166,7 @@ auto result = epok::instrument::synth::detail::advance_phase(phase_q48, rate_q48
 inline uint32_t attenuation_for_gain_q16(uint16_t gain)
 ```
 
-- **Declared at:** [line 321](../../../runtime/instrument_synth.hpp#L321)
+- **Declared at:** [line 326](../../../runtime/instrument_synth.hpp#L326)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -204,7 +206,7 @@ auto result = epok::instrument::synth::detail::attenuation_for_gain_q16(gain);
 inline uint16_t attenuation_gain_q15(int64_t centibels_q16)
 ```
 
-- **Declared at:** [line 283](../../../runtime/instrument_synth.hpp#L283)
+- **Declared at:** [line 288](../../../runtime/instrument_synth.hpp#L288)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -244,7 +246,7 @@ auto result = epok::instrument::synth::detail::attenuation_gain_q15(centibels_q1
 constexpr AttenuationTable()
 ```
 
-- **Declared at:** [line 268](../../../runtime/instrument_synth.hpp#L268)
+- **Declared at:** [line 273](../../../runtime/instrument_synth.hpp#L273)
 - **Kind:** `constructor`
 
 **Use it when.** You need the instrument synth module and the preconditions in the declaration are already satisfied.
@@ -273,7 +275,7 @@ epok::instrument::synth::detail::AttenuationTable value();
 inline int64_t clamp(int64_t value, int64_t low, int64_t high)
 ```
 
-- **Declared at:** [line 172](../../../runtime/instrument_synth.hpp#L172)
+- **Declared at:** [line 177](../../../runtime/instrument_synth.hpp#L177)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -317,7 +319,7 @@ auto result = epok::instrument::synth::detail::clamp(value, low, high);
 inline int64_t concave(int64_t normalized)
 ```
 
-- **Declared at:** [line 197](../../../runtime/instrument_synth.hpp#L197)
+- **Declared at:** [line 202](../../../runtime/instrument_synth.hpp#L202)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -357,7 +359,7 @@ auto result = epok::instrument::synth::detail::concave(normalized);
 inline int64_t convex(int64_t normalized)
 ```
 
-- **Declared at:** [line 206](../../../runtime/instrument_synth.hpp#L206)
+- **Declared at:** [line 211](../../../runtime/instrument_synth.hpp#L211)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -397,7 +399,7 @@ auto result = epok::instrument::synth::detail::convex(normalized);
 template<size_t Bytes> inline void copy_block(void* destination,const void* source)
 ```
 
-- **Declared at:** [line 142](../../../runtime/instrument_synth.hpp#L142)
+- **Declared at:** [line 147](../../../runtime/instrument_synth.hpp#L147)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -444,7 +446,7 @@ object.copy_block<Bytes>(destination, source);
 template<class T> inline void copy_value(T& destination,const T& source)
 ```
 
-- **Declared at:** [line 156](../../../runtime/instrument_synth.hpp#L156)
+- **Declared at:** [line 161](../../../runtime/instrument_synth.hpp#L161)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -491,7 +493,7 @@ object.copy_value<T>(destination, source);
 inline uint64_t fast_pow2_cents_q30(int64_t cents_q16)
 ```
 
-- **Declared at:** [line 243](../../../runtime/instrument_synth.hpp#L243)
+- **Declared at:** [line 248](../../../runtime/instrument_synth.hpp#L248)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -531,7 +533,7 @@ auto result = epok::instrument::synth::detail::fast_pow2_cents_q30(cents_q16);
 inline constexpr uint16_t gain_at_whole_centibel(uint32_t centibels)
 ```
 
-- **Declared at:** [line 257](../../../runtime/instrument_synth.hpp#L257)
+- **Declared at:** [line 262](../../../runtime/instrument_synth.hpp#L262)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -571,7 +573,7 @@ auto result = epok::instrument::synth::detail::gain_at_whole_centibel(centibels)
 inline uint64_t lfo_rate_q48(int64_t frequency_cents_q16)
 ```
 
-- **Declared at:** [line 293](../../../runtime/instrument_synth.hpp#L293)
+- **Declared at:** [line 298](../../../runtime/instrument_synth.hpp#L298)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -611,7 +613,7 @@ auto result = epok::instrument::synth::detail::lfo_rate_q48(frequency_cents_q16)
 inline bool local_bank_span(const BankView& bank, uint16_t zone_index, const Zone*& zone, const Modulation*& modulations)
 ```
 
-- **Declared at:** [line 336](../../../runtime/instrument_synth.hpp#L336)
+- **Declared at:** [line 341](../../../runtime/instrument_synth.hpp#L341)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -657,7 +659,7 @@ auto result = epok::instrument::synth::detail::local_bank_span(bank, zone_index,
 constexpr OctaveTable()
 ```
 
-- **Declared at:** [line 237](../../../runtime/instrument_synth.hpp#L237)
+- **Declared at:** [line 242](../../../runtime/instrument_synth.hpp#L242)
 - **Kind:** `constructor`
 
 **Use it when.** You need the instrument synth module and the preconditions in the declaration are already satisfied.
@@ -688,7 +690,7 @@ epok::instrument::synth::detail::OctaveTable value();
 inline constexpr uint64_t pow2_cents_q30(int64_t cents_q16)
 ```
 
-- **Declared at:** [line 214](../../../runtime/instrument_synth.hpp#L214)
+- **Declared at:** [line 219](../../../runtime/instrument_synth.hpp#L219)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -728,7 +730,7 @@ auto result = epok::instrument::synth::detail::pow2_cents_q30(cents_q16);
 inline bool same_controls(const Controls& left, const Controls& right)
 ```
 
-- **Declared at:** [line 416](../../../runtime/instrument_synth.hpp#L416)
+- **Declared at:** [line 421](../../../runtime/instrument_synth.hpp#L421)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -770,7 +772,7 @@ auto result = epok::instrument::synth::detail::same_controls(left, right);
 inline int64_t scale_q15(int64_t value, int32_t factor)
 ```
 
-- **Declared at:** [line 316](../../../runtime/instrument_synth.hpp#L316)
+- **Declared at:** [line 321](../../../runtime/instrument_synth.hpp#L321)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -812,7 +814,7 @@ auto result = epok::instrument::synth::detail::scale_q15(value, factor);
 inline bool source_changed(uint16_t source,const Controls& a,const Controls& b)
 ```
 
-- **Declared at:** [line 427](../../../runtime/instrument_synth.hpp#L427)
+- **Declared at:** [line 432](../../../runtime/instrument_synth.hpp#L432)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -856,7 +858,7 @@ auto result = epok::instrument::synth::detail::source_changed(source, a, b);
 inline int64_t source_q30(uint16_t bits, uint8_t key, uint8_t velocity, const Controls& controls, bool& valid)
 ```
 
-- **Declared at:** [line 352](../../../runtime/instrument_synth.hpp#L352)
+- **Declared at:** [line 357](../../../runtime/instrument_synth.hpp#L357)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -904,7 +906,7 @@ auto result = epok::instrument::synth::detail::source_q30(bits, key, velocity, c
 inline uint64_t time_microseconds(int64_t timecents_q16, int32_t maximum, bool zero_sentinel)
 ```
 
-- **Declared at:** [line 275](../../../runtime/instrument_synth.hpp#L275)
+- **Declared at:** [line 280](../../../runtime/instrument_synth.hpp#L280)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -948,7 +950,7 @@ auto result = epok::instrument::synth::detail::time_microseconds(timecents_q16, 
 inline int32_t triangle_q15(uint64_t phase_q48)
 ```
 
-- **Declared at:** [line 308](../../../runtime/instrument_synth.hpp#L308)
+- **Declared at:** [line 313](../../../runtime/instrument_synth.hpp#L313)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1120,6 +1122,72 @@ Error error() const
 epok::instrument::synth::State& object = /* obtain a valid instance */;
 
 auto result = object.error();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-instrument-synth-state-hardware-output-1"></a>
+
+## `epok::instrument::synth::State::hardware_output`
+
+**Purpose.** Performs `hardware output` as part of the instrument synth module.
+
+**Exact declaration**
+
+```cpp
+Output hardware_output()
+```
+
+- **Declared at:** [line 89](../../../runtime/instrument_synth.hpp#L89)
+- **Kind:** `cxx method`
+
+**Returns.** Returns `Output`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the instrument synth module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "instrument_synth.hpp"
+
+epok::instrument::synth::State& object = /* obtain a valid instance */;
+
+auto result = object.hardware_output();
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the instrument synth module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-instrument-synth-state-hardware-parameters-1"></a>
+
+## `epok::instrument::synth::State::hardware_parameters`
+
+**Purpose.** Performs `hardware parameters` as part of the instrument synth module.
+
+**Exact declaration**
+
+```cpp
+HardwareParameters hardware_parameters() const
+```
+
+- **Declared at:** [line 88](../../../runtime/instrument_synth.hpp#L88)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `HardwareParameters`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the instrument synth module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "instrument_synth.hpp"
+
+epok::instrument::synth::State& object = /* obtain a valid instance */;
+
+auto result = object.hardware_parameters();
 ```
 
 **Why choose it.** The method is `const`, so it does not mutate the object through this API surface.

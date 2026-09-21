@@ -2,11 +2,11 @@
 
 > **Header:** `"gameplay_api.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/gameplay_api.hpp)
 
-This module covers the gameplay api module. It documents 66 public callables declared directly in this header.
+This module covers the gameplay api module. It documents 75 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::CardFileSample`, `epok::CollisionHitSample`, `epok::CollisionLibrary`, `epok::GameplayAabb`, `epok::GameplayCamera2D`, `epok::GameplayPlaybackSnapshot`, `epok::GameplayTransitionOptions`, `epok::GameplayTransitionSnapshot`, `epok::GameplayVector2`, `epok::GameplayVector3`, `epok::InputAxisSample`, `epok::InputLibrary`, `epok::MathLibrary`, `epok::MemoryCardLibrary`, `epok::MemoryCardSnapshot`, `epok::MoveSample`, `epok::PlaybackLibrary`, `epok::ProjectedPoint`, `epok::ResourceLibrary`, `epok::ResourceSnapshot`, `epok::SavePayload8`, `epok::SceneLibrary`, `epok::SceneSnapshot`, `epok::SkeletalQuerySnapshot`, `epok::TimeLibrary`, `epok::TimeSnapshot`, `epok::World2DLibrary`
+`epok::CardFileSample`, `epok::CollisionHitSample`, `epok::CollisionLibrary`, `epok::FogSettings`, `epok::GameplayAabb`, `epok::GameplayCamera2D`, `epok::GameplayPlaybackSnapshot`, `epok::GameplayTransitionOptions`, `epok::GameplayTransitionSnapshot`, `epok::GameplayVector2`, `epok::GameplayVector3`, `epok::GameplayVector3TweenState`, `epok::InputAxisSample`, `epok::InputLibrary`, `epok::MathLibrary`, `epok::MemoryCardLibrary`, `epok::MemoryCardSnapshot`, `epok::MoveSample`, `epok::PlaybackLibrary`, `epok::ProjectedPoint`, `epok::ResourceLibrary`, `epok::ResourceSnapshot`, `epok::SavePayload8`, `epok::SceneLibrary`, `epok::SceneSnapshot`, `epok::SkeletalQuerySnapshot`, `epok::TimeLibrary`, `epok::TimeSnapshot`, `epok::UtilityVectorLibrary`, `epok::Vector3TweenAdvanceSample`, `epok::World2DLibrary`
 
 ## Callable index
 
@@ -23,6 +23,8 @@ This module covers the gameplay api module. It documents 66 public callables dec
 - [`epok::gameplay_u8`](#epok-gameplay-u8-1) — Performs `gameplay u8` as part of the gameplay api module.
 - [`epok::gameplay_vector`](#epok-gameplay-vector-1) — Performs `gameplay vector` as part of the gameplay api module.
 - [`epok::gameplay_vector`](#epok-gameplay-vector-2) — Performs `gameplay vector` as part of the gameplay api module.
+- [`epok::gameplay_vector_tween`](#epok-gameplay-vector-tween-1) — Performs `gameplay vector tween` as part of the gameplay api module.
+- [`epok::gameplay_vector_tween_value`](#epok-gameplay-vector-tween-value-1) — Performs `gameplay vector tween value` as part of the gameplay api module.
 - [`epok::InputLibrary::analog`](#epok-inputlibrary-analog-1) — Performs `analog` as part of the gameplay api module.
 - [`epok::InputLibrary::axis`](#epok-inputlibrary-axis-1) — Performs `axis` as part of the gameplay api module.
 - [`epok::InputLibrary::connected`](#epok-inputlibrary-connected-1) — Performs `connected` as part of the gameplay api module.
@@ -65,15 +67,22 @@ This module covers the gameplay api module. It documents 66 public callables dec
 - [`epok::ResourceLibrary::skeletal_queries`](#epok-resourcelibrary-skeletal-queries-1) — Performs `skeletal queries` as part of the gameplay api module.
 - [`epok::ResourceLibrary::snapshot`](#epok-resourcelibrary-snapshot-1) — Performs `snapshot` as part of the gameplay api module.
 - [`epok::SceneLibrary::active_camera_actor`](#epok-scenelibrary-active-camera-actor-1) — Performs `active camera actor` as part of the gameplay api module.
+- [`epok::SceneLibrary::fog`](#epok-scenelibrary-fog-1) — Performs `fog` as part of the gameplay api module.
 - [`epok::SceneLibrary::project`](#epok-scenelibrary-project-1) — Performs `project` as part of the gameplay api module.
 - [`epok::SceneLibrary::request`](#epok-scenelibrary-request-1) — Requests request as part of the gameplay api module.
 - [`epok::SceneLibrary::request_with_transition`](#epok-scenelibrary-request-with-transition-1) — Requests with transition as part of the gameplay api module.
 - [`epok::SceneLibrary::set_camera`](#epok-scenelibrary-set-camera-1) — Sets camera as part of the gameplay api module.
+- [`epok::SceneLibrary::set_fog`](#epok-scenelibrary-set-fog-1) — Sets fog as part of the gameplay api module.
 - [`epok::SceneLibrary::snapshot`](#epok-scenelibrary-snapshot-1) — Performs `snapshot` as part of the gameplay api module.
 - [`epok::SceneLibrary::transition_snapshot`](#epok-scenelibrary-transition-snapshot-1) — Performs `transition snapshot` as part of the gameplay api module.
 - [`epok::TimeLibrary::paused`](#epok-timelibrary-paused-1) — Pauses d as part of the gameplay api module.
 - [`epok::TimeLibrary::set_paused`](#epok-timelibrary-set-paused-1) — Sets paused as part of the gameplay api module.
 - [`epok::TimeLibrary::snapshot`](#epok-timelibrary-snapshot-1) — Performs `snapshot` as part of the gameplay api module.
+- [`epok::UtilityVectorLibrary::vector_tween_advance`](#epok-utilityvectorlibrary-vector-tween-advance-1) — Performs `vector tween advance` as part of the gameplay api module.
+- [`epok::UtilityVectorLibrary::vector_tween_cancel`](#epok-utilityvectorlibrary-vector-tween-cancel-1) — Performs `vector tween cancel` as part of the gameplay api module.
+- [`epok::UtilityVectorLibrary::vector_tween_schedule`](#epok-utilityvectorlibrary-vector-tween-schedule-1) — Performs `vector tween schedule` as part of the gameplay api module.
+- [`epok::UtilityVectorLibrary::vector_tween_start`](#epok-utilityvectorlibrary-vector-tween-start-1) — Performs `vector tween start` as part of the gameplay api module.
+- [`epok::UtilityVectorLibrary::vector_tween_value`](#epok-utilityvectorlibrary-vector-tween-value-1) — Performs `vector tween value` as part of the gameplay api module.
 - [`epok::World2DLibrary::screen_to_world`](#epok-world2dlibrary-screen-to-world-1) — Performs `screen to world` as part of the gameplay api module.
 - [`epok::World2DLibrary::world_to_screen`](#epok-world2dlibrary-world-to-screen-1) — Performs `world to screen` as part of the gameplay api module.
 
@@ -89,7 +98,7 @@ This module covers the gameplay api module. It documents 66 public callables dec
 static CollisionHitSample ground(ObjectId actor,Fixed distance,uint32_t mask)
 ```
 
-- **Declared at:** [line 168](../../../runtime/gameplay_api.hpp#L168)
+- **Declared at:** [line 197](../../../runtime/gameplay_api.hpp#L197)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -133,7 +142,7 @@ auto result = epok::CollisionLibrary::ground(actor, distance, mask);
 static MoveSample move(ObjectId actor,GameplayVector3 displacement,uint32_t mask)
 ```
 
-- **Declared at:** [line 171](../../../runtime/gameplay_api.hpp#L171)
+- **Declared at:** [line 200](../../../runtime/gameplay_api.hpp#L200)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -177,7 +186,7 @@ auto result = epok::CollisionLibrary::move(actor, displacement, mask);
 static ObjectBatch8 overlap_box(GameplayAabb bounds,uint32_t mask,ObjectId ignore,bool triggers)
 ```
 
-- **Declared at:** [line 165](../../../runtime/gameplay_api.hpp#L165)
+- **Declared at:** [line 194](../../../runtime/gameplay_api.hpp#L194)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -223,7 +232,7 @@ auto result = epok::CollisionLibrary::overlap_box(bounds, mask, ignore, triggers
 static CollisionHitSample raycast_segment(GameplayVector3 origin,GameplayVector3 displacement,uint32_t mask,ObjectId ignore,bool triggers)
 ```
 
-- **Declared at:** [line 162](../../../runtime/gameplay_api.hpp#L162)
+- **Declared at:** [line 191](../../../runtime/gameplay_api.hpp#L191)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -271,7 +280,7 @@ auto result = epok::CollisionLibrary::raycast_segment(origin, displacement, mask
 inline ActorData* gameplay_actor_data(ObjectId id)
 ```
 
-- **Declared at:** [line 99](../../../runtime/gameplay_api.hpp#L99)
+- **Declared at:** [line 114](../../../runtime/gameplay_api.hpp#L114)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -311,7 +320,7 @@ auto result = epok::gameplay_actor_data(id);
 inline ObjectId gameplay_actor_id(DataHandle handle)
 ```
 
-- **Declared at:** [line 100](../../../runtime/gameplay_api.hpp#L100)
+- **Declared at:** [line 115](../../../runtime/gameplay_api.hpp#L115)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -351,7 +360,7 @@ auto result = epok::gameplay_actor_id(handle);
 inline const char* gameplay_card_slot_name(uint32_t slot)
 ```
 
-- **Declared at:** [line 101](../../../runtime/gameplay_api.hpp#L101)
+- **Declared at:** [line 116](../../../runtime/gameplay_api.hpp#L116)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -391,7 +400,7 @@ auto result = epok::gameplay_card_slot_name(slot);
 inline int16_t gameplay_i16(int32_t value)
 ```
 
-- **Declared at:** [line 102](../../../runtime/gameplay_api.hpp#L102)
+- **Declared at:** [line 117](../../../runtime/gameplay_api.hpp#L117)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -431,7 +440,7 @@ auto result = epok::gameplay_i16(value);
 inline uint32_t* gameplay_save_words()
 ```
 
-- **Declared at:** [line 103](../../../runtime/gameplay_api.hpp#L103)
+- **Declared at:** [line 118](../../../runtime/gameplay_api.hpp#L118)
 - **Kind:** `function decl`
 
 **Returns.** Returns `int *`. Check the purpose and failure notes before using the value.
@@ -462,7 +471,7 @@ auto result = epok::gameplay_save_words();
 inline uint16_t gameplay_u16(uint32_t value)
 ```
 
-- **Declared at:** [line 104](../../../runtime/gameplay_api.hpp#L104)
+- **Declared at:** [line 119](../../../runtime/gameplay_api.hpp#L119)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -502,7 +511,7 @@ auto result = epok::gameplay_u16(value);
 inline uint8_t gameplay_u8(uint32_t value)
 ```
 
-- **Declared at:** [line 105](../../../runtime/gameplay_api.hpp#L105)
+- **Declared at:** [line 120](../../../runtime/gameplay_api.hpp#L120)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -542,7 +551,7 @@ auto result = epok::gameplay_u8(value);
 inline GameplayVector3 gameplay_vector(const Fixed* value)
 ```
 
-- **Declared at:** [line 97](../../../runtime/gameplay_api.hpp#L97)
+- **Declared at:** [line 112](../../../runtime/gameplay_api.hpp#L112)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -582,7 +591,7 @@ auto result = epok::gameplay_vector(value);
 inline void gameplay_vector(GameplayVector3 value,Fixed* output)
 ```
 
-- **Declared at:** [line 98](../../../runtime/gameplay_api.hpp#L98)
+- **Declared at:** [line 113](../../../runtime/gameplay_api.hpp#L113)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -612,6 +621,90 @@ epok::gameplay_vector(value, output);
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-gameplay-vector-tween-1"></a>
+
+## `epok::gameplay_vector_tween`
+
+**Purpose.** Performs `gameplay vector tween` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+inline GameplayVector3TweenState gameplay_vector_tween(GameplayVector3 from,GameplayVector3 to,Tween timing)
+```
+
+- **Declared at:** [line 121](../../../runtime/gameplay_api.hpp#L121)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `from` | `GameplayVector3` | Input | Value supplied for `from`. See the exact type and module contract. |
+| `to` | `GameplayVector3` | Input | Value supplied for `to`. See the exact type and module contract. |
+| `timing` | `Tween` | Input | Value supplied for `timing`. See the exact type and module contract. |
+
+**Returns.** Returns `GameplayVector3TweenState`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// GameplayVector3 from
+// GameplayVector3 to
+// Tween timing
+
+auto result = epok::gameplay_vector_tween(from, to, timing);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-gameplay-vector-tween-value-1"></a>
+
+## `epok::gameplay_vector_tween_value`
+
+**Purpose.** Performs `gameplay vector tween value` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+inline GameplayVector3 gameplay_vector_tween_value(GameplayVector3TweenState state)
+```
+
+- **Declared at:** [line 122](../../../runtime/gameplay_api.hpp#L122)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `state` | `GameplayVector3TweenState` | Input | Value supplied for `state`. See the exact type and module contract. |
+
+**Returns.** Returns `GameplayVector3`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// GameplayVector3TweenState state
+
+auto result = epok::gameplay_vector_tween_value(state);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-inputlibrary-analog-1"></a>
 
 ## `epok::InputLibrary::analog`
@@ -624,7 +717,7 @@ epok::gameplay_vector(value, output);
 static bool analog(uint32_t port)
 ```
 
-- **Declared at:** [line 111](../../../runtime/gameplay_api.hpp#L111)
+- **Declared at:** [line 128](../../../runtime/gameplay_api.hpp#L128)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -664,7 +757,7 @@ auto result = epok::InputLibrary::analog(port);
 static InputAxisSample axis(Axis axis,uint32_t port)
 ```
 
-- **Declared at:** [line 123](../../../runtime/gameplay_api.hpp#L123)
+- **Declared at:** [line 140](../../../runtime/gameplay_api.hpp#L140)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -706,7 +799,7 @@ auto result = epok::InputLibrary::axis(axis, port);
 static bool connected(uint32_t port)
 ```
 
-- **Declared at:** [line 109](../../../runtime/gameplay_api.hpp#L109)
+- **Declared at:** [line 126](../../../runtime/gameplay_api.hpp#L126)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -746,7 +839,7 @@ auto result = epok::InputLibrary::connected(port);
 static bool frame_pressed(Button button,uint32_t port)
 ```
 
-- **Declared at:** [line 119](../../../runtime/gameplay_api.hpp#L119)
+- **Declared at:** [line 136](../../../runtime/gameplay_api.hpp#L136)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -788,7 +881,7 @@ auto result = epok::InputLibrary::frame_pressed(button, port);
 static bool frame_released(Button button,uint32_t port)
 ```
 
-- **Declared at:** [line 121](../../../runtime/gameplay_api.hpp#L121)
+- **Declared at:** [line 138](../../../runtime/gameplay_api.hpp#L138)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -830,7 +923,7 @@ auto result = epok::InputLibrary::frame_released(button, port);
 static bool held(Button button,uint32_t port)
 ```
 
-- **Declared at:** [line 113](../../../runtime/gameplay_api.hpp#L113)
+- **Declared at:** [line 130](../../../runtime/gameplay_api.hpp#L130)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -872,7 +965,7 @@ auto result = epok::InputLibrary::held(button, port);
 static bool pressed(Button button,uint32_t port)
 ```
 
-- **Declared at:** [line 115](../../../runtime/gameplay_api.hpp#L115)
+- **Declared at:** [line 132](../../../runtime/gameplay_api.hpp#L132)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -914,7 +1007,7 @@ auto result = epok::InputLibrary::pressed(button, port);
 static bool released(Button button,uint32_t port)
 ```
 
-- **Declared at:** [line 117](../../../runtime/gameplay_api.hpp#L117)
+- **Declared at:** [line 134](../../../runtime/gameplay_api.hpp#L134)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -956,7 +1049,7 @@ auto result = epok::InputLibrary::released(button, port);
 static GameplayVector3 add(GameplayVector3 a,GameplayVector3 b)
 ```
 
-- **Declared at:** [line 152](../../../runtime/gameplay_api.hpp#L152)
+- **Declared at:** [line 169](../../../runtime/gameplay_api.hpp#L169)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -998,7 +1091,7 @@ auto result = epok::MathLibrary::add(a, b);
 static Fixed clamp(Fixed value,Fixed minimum,Fixed maximum)
 ```
 
-- **Declared at:** [line 148](../../../runtime/gameplay_api.hpp#L148)
+- **Declared at:** [line 165](../../../runtime/gameplay_api.hpp#L165)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1042,7 +1135,7 @@ auto result = epok::MathLibrary::clamp(value, minimum, maximum);
 static Fixed lerp(Fixed from,Fixed to,Fixed alpha)
 ```
 
-- **Declared at:** [line 149](../../../runtime/gameplay_api.hpp#L149)
+- **Declared at:** [line 166](../../../runtime/gameplay_api.hpp#L166)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1086,7 +1179,7 @@ auto result = epok::MathLibrary::lerp(from, to, alpha);
 static GameplayVector3 scale(GameplayVector3 value,Fixed amount)
 ```
 
-- **Declared at:** [line 153](../../../runtime/gameplay_api.hpp#L153)
+- **Declared at:** [line 170](../../../runtime/gameplay_api.hpp#L170)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1128,7 +1221,7 @@ auto result = epok::MathLibrary::scale(value, amount);
 static Fixed smoothstep(Fixed alpha)
 ```
 
-- **Declared at:** [line 150](../../../runtime/gameplay_api.hpp#L150)
+- **Declared at:** [line 167](../../../runtime/gameplay_api.hpp#L167)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1168,7 +1261,7 @@ auto result = epok::MathLibrary::smoothstep(alpha);
 static GameplayVector3 vector3(Fixed x,Fixed y,Fixed z)
 ```
 
-- **Declared at:** [line 151](../../../runtime/gameplay_api.hpp#L151)
+- **Declared at:** [line 168](../../../runtime/gameplay_api.hpp#L168)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1212,7 +1305,7 @@ auto result = epok::MathLibrary::vector3(x, y, z);
 static void clear_staged_payload()
 ```
 
-- **Declared at:** [line 224](../../../runtime/gameplay_api.hpp#L224)
+- **Declared at:** [line 264](../../../runtime/gameplay_api.hpp#L264)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1243,7 +1336,7 @@ epok::MemoryCardLibrary::clear_staged_payload();
 static CardFileSample file(uint32_t index)
 ```
 
-- **Declared at:** [line 223](../../../runtime/gameplay_api.hpp#L223)
+- **Declared at:** [line 263](../../../runtime/gameplay_api.hpp#L263)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1283,7 +1376,7 @@ auto result = epok::MemoryCardLibrary::file(index);
 static bool list(uint32_t port)
 ```
 
-- **Declared at:** [line 219](../../../runtime/gameplay_api.hpp#L219)
+- **Declared at:** [line 259](../../../runtime/gameplay_api.hpp#L259)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1323,7 +1416,7 @@ auto result = epok::MemoryCardLibrary::list(port);
 static uint32_t loaded_word(uint32_t index)
 ```
 
-- **Declared at:** [line 228](../../../runtime/gameplay_api.hpp#L228)
+- **Declared at:** [line 268](../../../runtime/gameplay_api.hpp#L268)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1363,7 +1456,7 @@ auto result = epok::MemoryCardLibrary::loaded_word(index);
 static SavePayload8 payload()
 ```
 
-- **Declared at:** [line 222](../../../runtime/gameplay_api.hpp#L222)
+- **Declared at:** [line 262](../../../runtime/gameplay_api.hpp#L262)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `SavePayload8`. Check the purpose and failure notes before using the value.
@@ -1394,7 +1487,7 @@ auto result = epok::MemoryCardLibrary::payload();
 static bool probe(uint32_t port)
 ```
 
-- **Declared at:** [line 218](../../../runtime/gameplay_api.hpp#L218)
+- **Declared at:** [line 258](../../../runtime/gameplay_api.hpp#L258)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1434,7 +1527,7 @@ auto result = epok::MemoryCardLibrary::probe(port);
 static bool read(uint32_t slot,uint32_t port)
 ```
 
-- **Declared at:** [line 220](../../../runtime/gameplay_api.hpp#L220)
+- **Declared at:** [line 260](../../../runtime/gameplay_api.hpp#L260)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1476,7 +1569,7 @@ auto result = epok::MemoryCardLibrary::read(slot, port);
 static bool set_staged_word(uint32_t index,uint32_t value)
 ```
 
-- **Declared at:** [line 225](../../../runtime/gameplay_api.hpp#L225)
+- **Declared at:** [line 265](../../../runtime/gameplay_api.hpp#L265)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1518,7 +1611,7 @@ auto result = epok::MemoryCardLibrary::set_staged_word(index, value);
 static MemoryCardSnapshot snapshot()
 ```
 
-- **Declared at:** [line 217](../../../runtime/gameplay_api.hpp#L217)
+- **Declared at:** [line 257](../../../runtime/gameplay_api.hpp#L257)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `MemoryCardSnapshot`. Check the purpose and failure notes before using the value.
@@ -1549,7 +1642,7 @@ auto result = epok::MemoryCardLibrary::snapshot();
 static uint32_t staged_word(uint32_t index)
 ```
 
-- **Declared at:** [line 226](../../../runtime/gameplay_api.hpp#L226)
+- **Declared at:** [line 266](../../../runtime/gameplay_api.hpp#L266)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1589,7 +1682,7 @@ auto result = epok::MemoryCardLibrary::staged_word(index);
 static bool write(uint32_t slot,SavePayload8 payload,uint32_t port)
 ```
 
-- **Declared at:** [line 221](../../../runtime/gameplay_api.hpp#L221)
+- **Declared at:** [line 261](../../../runtime/gameplay_api.hpp#L261)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1633,7 +1726,7 @@ auto result = epok::MemoryCardLibrary::write(slot, payload, port);
 static bool write_staged(uint32_t slot,uint32_t bytes,uint32_t port)
 ```
 
-- **Declared at:** [line 227](../../../runtime/gameplay_api.hpp#L227)
+- **Declared at:** [line 267](../../../runtime/gameplay_api.hpp#L267)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1677,7 +1770,7 @@ auto result = epok::MemoryCardLibrary::write_staged(slot, bytes, port);
 static bool burst_effect(effects::Handle handle,uint32_t count)
 ```
 
-- **Declared at:** [line 211](../../../runtime/gameplay_api.hpp#L211)
+- **Declared at:** [line 251](../../../runtime/gameplay_api.hpp#L251)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1719,7 +1812,7 @@ auto result = epok::PlaybackLibrary::burst_effect(handle, count);
 static timeline::Handle effect_sequence(effects::Handle handle)
 ```
 
-- **Declared at:** [line 213](../../../runtime/gameplay_api.hpp#L213)
+- **Declared at:** [line 253](../../../runtime/gameplay_api.hpp#L253)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1759,7 +1852,7 @@ auto result = epok::PlaybackLibrary::effect_sequence(handle);
 static GameplayPlaybackSnapshot effect_state(effects::Handle handle)
 ```
 
-- **Declared at:** [line 212](../../../runtime/gameplay_api.hpp#L212)
+- **Declared at:** [line 252](../../../runtime/gameplay_api.hpp#L252)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1799,7 +1892,7 @@ auto result = epok::PlaybackLibrary::effect_state(handle);
 static bool pause_effect(effects::Handle handle)
 ```
 
-- **Declared at:** [line 209](../../../runtime/gameplay_api.hpp#L209)
+- **Declared at:** [line 249](../../../runtime/gameplay_api.hpp#L249)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1839,7 +1932,7 @@ auto result = epok::PlaybackLibrary::pause_effect(handle);
 static bool pause_sequence(timeline::Handle handle)
 ```
 
-- **Declared at:** [line 204](../../../runtime/gameplay_api.hpp#L204)
+- **Declared at:** [line 244](../../../runtime/gameplay_api.hpp#L244)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1879,7 +1972,7 @@ auto result = epok::PlaybackLibrary::pause_sequence(handle);
 static effects::Handle play_effect(ObjectId component)
 ```
 
-- **Declared at:** [line 207](../../../runtime/gameplay_api.hpp#L207)
+- **Declared at:** [line 247](../../../runtime/gameplay_api.hpp#L247)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1919,7 +2012,7 @@ auto result = epok::PlaybackLibrary::play_effect(component);
 static timeline::Handle play_sequence(ObjectId component)
 ```
 
-- **Declared at:** [line 202](../../../runtime/gameplay_api.hpp#L202)
+- **Declared at:** [line 242](../../../runtime/gameplay_api.hpp#L242)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1959,7 +2052,7 @@ auto result = epok::PlaybackLibrary::play_sequence(component);
 static bool resume_effect(effects::Handle handle)
 ```
 
-- **Declared at:** [line 210](../../../runtime/gameplay_api.hpp#L210)
+- **Declared at:** [line 250](../../../runtime/gameplay_api.hpp#L250)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1999,7 +2092,7 @@ auto result = epok::PlaybackLibrary::resume_effect(handle);
 static bool resume_sequence(timeline::Handle handle)
 ```
 
-- **Declared at:** [line 205](../../../runtime/gameplay_api.hpp#L205)
+- **Declared at:** [line 245](../../../runtime/gameplay_api.hpp#L245)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -2039,7 +2132,7 @@ auto result = epok::PlaybackLibrary::resume_sequence(handle);
 static GameplayPlaybackSnapshot sequence_state(timeline::Handle handle)
 ```
 
-- **Declared at:** [line 206](../../../runtime/gameplay_api.hpp#L206)
+- **Declared at:** [line 246](../../../runtime/gameplay_api.hpp#L246)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -2079,7 +2172,7 @@ auto result = epok::PlaybackLibrary::sequence_state(handle);
 static bool stop_effect(effects::Handle handle)
 ```
 
-- **Declared at:** [line 208](../../../runtime/gameplay_api.hpp#L208)
+- **Declared at:** [line 248](../../../runtime/gameplay_api.hpp#L248)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -2119,7 +2212,7 @@ auto result = epok::PlaybackLibrary::stop_effect(handle);
 static bool stop_sequence(timeline::Handle handle)
 ```
 
-- **Declared at:** [line 203](../../../runtime/gameplay_api.hpp#L203)
+- **Declared at:** [line 243](../../../runtime/gameplay_api.hpp#L243)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -2159,7 +2252,7 @@ auto result = epok::PlaybackLibrary::stop_sequence(handle);
 static void clear_skeletal_queries()
 ```
 
-- **Declared at:** [line 198](../../../runtime/gameplay_api.hpp#L198)
+- **Declared at:** [line 238](../../../runtime/gameplay_api.hpp#L238)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2190,7 +2283,7 @@ epok::ResourceLibrary::clear_skeletal_queries();
 static SkeletalQuerySnapshot skeletal_queries()
 ```
 
-- **Declared at:** [line 197](../../../runtime/gameplay_api.hpp#L197)
+- **Declared at:** [line 237](../../../runtime/gameplay_api.hpp#L237)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `SkeletalQuerySnapshot`. Check the purpose and failure notes before using the value.
@@ -2221,7 +2314,7 @@ auto result = epok::ResourceLibrary::skeletal_queries();
 static ResourceSnapshot snapshot()
 ```
 
-- **Declared at:** [line 196](../../../runtime/gameplay_api.hpp#L196)
+- **Declared at:** [line 236](../../../runtime/gameplay_api.hpp#L236)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `ResourceSnapshot`. Check the purpose and failure notes before using the value.
@@ -2252,7 +2345,7 @@ auto result = epok::ResourceLibrary::snapshot();
 static ObjectId active_camera_actor()
 ```
 
-- **Declared at:** [line 190](../../../runtime/gameplay_api.hpp#L190)
+- **Declared at:** [line 230](../../../runtime/gameplay_api.hpp#L230)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
@@ -2271,6 +2364,37 @@ auto result = epok::SceneLibrary::active_camera_actor();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-scenelibrary-fog-1"></a>
+
+## `epok::SceneLibrary::fog`
+
+**Purpose.** Performs `fog` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static FogSettings fog()
+```
+
+- **Declared at:** [line 219](../../../runtime/gameplay_api.hpp#L219)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Returns.** Returns `FogSettings`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+auto result = epok::SceneLibrary::fog();
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-scenelibrary-project-1"></a>
 
 ## `epok::SceneLibrary::project`
@@ -2283,7 +2407,7 @@ auto result = epok::SceneLibrary::active_camera_actor();
 static ProjectedPoint project(GameplayVector3 world)
 ```
 
-- **Declared at:** [line 192](../../../runtime/gameplay_api.hpp#L192)
+- **Declared at:** [line 232](../../../runtime/gameplay_api.hpp#L232)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -2323,7 +2447,7 @@ auto result = epok::SceneLibrary::project(world);
 static bool request(uint32_t index)
 ```
 
-- **Declared at:** [line 179](../../../runtime/gameplay_api.hpp#L179)
+- **Declared at:** [line 208](../../../runtime/gameplay_api.hpp#L208)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -2363,7 +2487,7 @@ auto result = epok::SceneLibrary::request(index);
 static bool request_with_transition(uint32_t index,GameplayTransitionOptions value)
 ```
 
-- **Declared at:** [line 180](../../../runtime/gameplay_api.hpp#L180)
+- **Declared at:** [line 209](../../../runtime/gameplay_api.hpp#L209)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -2405,7 +2529,7 @@ auto result = epok::SceneLibrary::request_with_transition(index, value);
 static bool set_camera(ObjectId actor)
 ```
 
-- **Declared at:** [line 191](../../../runtime/gameplay_api.hpp#L191)
+- **Declared at:** [line 231](../../../runtime/gameplay_api.hpp#L231)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -2433,6 +2557,46 @@ auto result = epok::SceneLibrary::set_camera(actor);
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
 
+<a id="epok-scenelibrary-set-fog-1"></a>
+
+## `epok::SceneLibrary::set_fog`
+
+**Purpose.** Sets fog as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static bool set_fog(FogSettings value)
+```
+
+- **Declared at:** [line 220](../../../runtime/gameplay_api.hpp#L220)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `FogSettings` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// FogSettings value
+
+auto result = epok::SceneLibrary::set_fog(value);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
 <a id="epok-scenelibrary-snapshot-1"></a>
 
 ## `epok::SceneLibrary::snapshot`
@@ -2445,7 +2609,7 @@ auto result = epok::SceneLibrary::set_camera(actor);
 static SceneSnapshot snapshot()
 ```
 
-- **Declared at:** [line 177](../../../runtime/gameplay_api.hpp#L177)
+- **Declared at:** [line 206](../../../runtime/gameplay_api.hpp#L206)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `SceneSnapshot`. Check the purpose and failure notes before using the value.
@@ -2476,7 +2640,7 @@ auto result = epok::SceneLibrary::snapshot();
 static GameplayTransitionSnapshot transition_snapshot()
 ```
 
-- **Declared at:** [line 178](../../../runtime/gameplay_api.hpp#L178)
+- **Declared at:** [line 207](../../../runtime/gameplay_api.hpp#L207)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `GameplayTransitionSnapshot`. Check the purpose and failure notes before using the value.
@@ -2507,7 +2671,7 @@ auto result = epok::SceneLibrary::transition_snapshot();
 static bool paused()
 ```
 
-- **Declared at:** [line 142](../../../runtime/gameplay_api.hpp#L142)
+- **Declared at:** [line 159](../../../runtime/gameplay_api.hpp#L159)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2538,7 +2702,7 @@ auto result = epok::TimeLibrary::paused();
 static void set_paused(bool paused)
 ```
 
-- **Declared at:** [line 144](../../../runtime/gameplay_api.hpp#L144)
+- **Declared at:** [line 161](../../../runtime/gameplay_api.hpp#L161)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -2578,7 +2742,7 @@ epok::TimeLibrary::set_paused(paused);
 static TimeSnapshot snapshot()
 ```
 
-- **Declared at:** [line 135](../../../runtime/gameplay_api.hpp#L135)
+- **Declared at:** [line 152](../../../runtime/gameplay_api.hpp#L152)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `TimeSnapshot`. Check the purpose and failure notes before using the value.
@@ -2597,6 +2761,226 @@ auto result = epok::TimeLibrary::snapshot();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-utilityvectorlibrary-vector-tween-advance-1"></a>
+
+## `epok::UtilityVectorLibrary::vector_tween_advance`
+
+**Purpose.** Performs `vector tween advance` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static Vector3TweenAdvanceSample vector_tween_advance(GameplayVector3TweenState state,Fixed delta_seconds)
+```
+
+- **Declared at:** [line 180](../../../runtime/gameplay_api.hpp#L180)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `state` | `GameplayVector3TweenState` | Input | Value supplied for `state`. See the exact type and module contract. |
+| `delta_seconds` | `int` | Input | Value supplied for `delta_seconds`. See the exact type and module contract. |
+
+**Returns.** Returns `Vector3TweenAdvanceSample`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// GameplayVector3TweenState state
+// int delta_seconds
+
+auto result = epok::UtilityVectorLibrary::vector_tween_advance(state, delta_seconds);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-utilityvectorlibrary-vector-tween-cancel-1"></a>
+
+## `epok::UtilityVectorLibrary::vector_tween_cancel`
+
+**Purpose.** Performs `vector tween cancel` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static GameplayVector3TweenState vector_tween_cancel(GameplayVector3TweenState state)
+```
+
+- **Declared at:** [line 181](../../../runtime/gameplay_api.hpp#L181)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `state` | `GameplayVector3TweenState` | Input | Value supplied for `state`. See the exact type and module contract. |
+
+**Returns.** Returns `GameplayVector3TweenState`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// GameplayVector3TweenState state
+
+auto result = epok::UtilityVectorLibrary::vector_tween_cancel(state);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-utilityvectorlibrary-vector-tween-schedule-1"></a>
+
+## `epok::UtilityVectorLibrary::vector_tween_schedule`
+
+**Purpose.** Performs `vector tween schedule` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static GameplayVector3TweenState vector_tween_schedule(GameplayVector3 from,GameplayVector3 to,Fixed seconds,Ease easing,Fixed delay_seconds,TweenLoop loop,uint32_t legs)
+```
+
+- **Declared at:** [line 179](../../../runtime/gameplay_api.hpp#L179)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `from` | `GameplayVector3` | Input | Value supplied for `from`. See the exact type and module contract. |
+| `to` | `GameplayVector3` | Input | Value supplied for `to`. See the exact type and module contract. |
+| `seconds` | `int` | Input | Value supplied for `seconds`. See the exact type and module contract. |
+| `easing` | `Ease` | Input | Value supplied for `easing`. See the exact type and module contract. |
+| `delay_seconds` | `int` | Input | Value supplied for `delay_seconds`. See the exact type and module contract. |
+| `loop` | `TweenLoop` | Input | Value supplied for `loop`. See the exact type and module contract. |
+| `legs` | `int` | Input | Value supplied for `legs`. See the exact type and module contract. |
+
+**Returns.** Returns `GameplayVector3TweenState`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// GameplayVector3 from
+// GameplayVector3 to
+// int seconds
+// Ease easing
+// int delay_seconds
+// TweenLoop loop
+// int legs
+
+auto result = epok::UtilityVectorLibrary::vector_tween_schedule(from, to, seconds, easing, delay_seconds, loop, legs);
+```
+
+**Why choose it.** The asynchronous shape lets the frame loop continue while hardware or queued work completes.
+
+**Trade-offs and warnings.** Captured data and buffers must remain valid until the callback or task has completed.
+
+<a id="epok-utilityvectorlibrary-vector-tween-start-1"></a>
+
+## `epok::UtilityVectorLibrary::vector_tween_start`
+
+**Purpose.** Performs `vector tween start` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static GameplayVector3TweenState vector_tween_start(GameplayVector3 from,GameplayVector3 to,Fixed seconds,Ease easing)
+```
+
+- **Declared at:** [line 178](../../../runtime/gameplay_api.hpp#L178)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `from` | `GameplayVector3` | Input | Value supplied for `from`. See the exact type and module contract. |
+| `to` | `GameplayVector3` | Input | Value supplied for `to`. See the exact type and module contract. |
+| `seconds` | `int` | Input | Value supplied for `seconds`. See the exact type and module contract. |
+| `easing` | `Ease` | Input | Value supplied for `easing`. See the exact type and module contract. |
+
+**Returns.** Returns `GameplayVector3TweenState`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// GameplayVector3 from
+// GameplayVector3 to
+// int seconds
+// Ease easing
+
+auto result = epok::UtilityVectorLibrary::vector_tween_start(from, to, seconds, easing);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-utilityvectorlibrary-vector-tween-value-1"></a>
+
+## `epok::UtilityVectorLibrary::vector_tween_value`
+
+**Purpose.** Performs `vector tween value` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static GameplayVector3 vector_tween_value(GameplayVector3TweenState state)
+```
+
+- **Declared at:** [line 182](../../../runtime/gameplay_api.hpp#L182)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `state` | `GameplayVector3TweenState` | Input | Value supplied for `state`. See the exact type and module contract. |
+
+**Returns.** Returns `GameplayVector3`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// GameplayVector3TweenState state
+
+auto result = epok::UtilityVectorLibrary::vector_tween_value(state);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-world2dlibrary-screen-to-world-1"></a>
 
 ## `epok::World2DLibrary::screen_to_world`
@@ -2609,7 +2993,7 @@ auto result = epok::TimeLibrary::snapshot();
 static GameplayVector2 screen_to_world(GameplayCamera2D value,GameplayVector2 screen)
 ```
 
-- **Declared at:** [line 158](../../../runtime/gameplay_api.hpp#L158)
+- **Declared at:** [line 187](../../../runtime/gameplay_api.hpp#L187)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -2651,7 +3035,7 @@ auto result = epok::World2DLibrary::screen_to_world(value, screen);
 static GameplayVector2 world_to_screen(GameplayCamera2D value,GameplayVector2 world)
 ```
 
-- **Declared at:** [line 157](../../../runtime/gameplay_api.hpp#L157)
+- **Declared at:** [line 186](../../../runtime/gameplay_api.hpp#L186)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**

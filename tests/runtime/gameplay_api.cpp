@@ -165,6 +165,58 @@ static void animated_packet_retention() {
     pool.forget(0);assert(!state.key[0].valid&&!state.key[1].valid);
 }
 
+// The scripted fog facade over the raw `fog_environment` store. The accepted range
+// is the editor validator's; src/effects.rs checks the same candidates against that
+// validator, so neither end of the facade can drift alone.
+static void scene_fog_range() {
+    epok::fog_environment=epok::FogEnvironment{};
+    const auto defaults=epok::SceneLibrary::fog();
+    assert(!defaults.enabled&&defaults.start_distance.raw()==12*4096&&defaults.end_distance.raw()==40*4096);
+    assert(defaults.red==64&&defaults.green==77&&defaults.blue==102);
+    // The record's own defaults are the authored scene defaults, so an untouched
+    // Blueprint/Lua pin writes back exactly what the editor would.
+    const epok::FogSettings declared;
+    assert(declared.enabled==defaults.enabled&&declared.start_distance.raw()==defaults.start_distance.raw());
+    assert(declared.end_distance.raw()==defaults.end_distance.raw());
+    assert(declared.red==defaults.red&&declared.green==defaults.green&&declared.blue==defaults.blue);
+
+    epok::FogSettings value;
+    value.enabled=true;value.start_distance=0.0;value.end_distance=128.0;
+    value.red=300;value.green=77;value.blue=0;
+    assert(epok::SceneLibrary::set_fog(value));
+    assert(epok::fog_environment.enabled&&epok::fog_environment.start==0&&epok::fog_environment.end==128*4096);
+    // Channels clamp exactly as a transition's loading color does.
+    assert(epok::fog_environment.color[0]==255&&epok::fog_environment.color[1]==77&&epok::fog_environment.color[2]==0);
+    const auto applied=epok::SceneLibrary::fog();
+    assert(applied.enabled&&applied.start_distance.raw()==0&&applied.end_distance.raw()==128*4096);
+    assert(applied.red==255&&applied.green==77&&applied.blue==0);
+
+    // One Q12 step is the narrowest accepted span.
+    epok::FogSettings narrow=value;
+    narrow.start_distance=5.0;narrow.end_distance=epok::Fixed(5*4096+1,epok::Fixed::RAW);
+    assert(epok::SceneLibrary::set_fog(narrow));
+    assert(epok::fog_environment.start==5*4096&&epok::fog_environment.end==5*4096+1);
+
+    // A rejected range applies nothing at all: the flag, both distances and the
+    // three channels keep the values the last accepted call left behind.
+    const epok::FogEnvironment before=epok::fog_environment;
+    epok::FogSettings rejected[4]={narrow,narrow,narrow,narrow};
+    rejected[0].start_distance=epok::Fixed(-1,epok::Fixed::RAW);
+    rejected[1].end_distance=epok::Fixed(128*4096+1,epok::Fixed::RAW);
+    rejected[2].end_distance=rejected[2].start_distance;
+    rejected[3].end_distance=1.0;
+    for(const auto& candidate:rejected){
+        epok::FogSettings copy=candidate;
+        copy.enabled=!before.enabled;copy.red=1;copy.green=2;copy.blue=3;
+        assert(!epok::SceneLibrary::set_fog(copy));
+        assert(epok::fog_environment.enabled==before.enabled);
+        assert(epok::fog_environment.start==before.start&&epok::fog_environment.end==before.end);
+        assert(epok::fog_environment.color[0]==before.color[0]&&epok::fog_environment.color[1]==before.color[1]);
+        assert(epok::fog_environment.color[2]==before.color[2]);
+    }
+    epok::fog_environment=epok::FogEnvironment{};
+}
+
 static void persistent_utilities() {
     auto tween=epok::UtilityLibrary::tween_start(0.0,10.0,2.0,epok::Ease::SmoothStep);
     auto halfway=epok::UtilityLibrary::tween_advance(tween,1.0);
@@ -185,6 +237,53 @@ static void persistent_utilities() {
     auto polled=epok::UtilityLibrary::event_queue_poll(overflow.state);
     assert(polled.valid&&polled.event.kind==1&&polled.event.value==10);
     assert(polled.state.count==3&&polled.state.dropped==1);
+}
+
+// The Vector3 tween is one clock plus two endpoints, so it has to agree with
+// three scalar tweens driven by the same plan raw unit for raw unit: on the
+// waiting leg, on the forward leg and on the mirrored ping-pong leg alike.
+static void vector_tweens_track_scalar_tweens() {
+    const epok::GameplayVector3 from{-2.0,0.5,7.0},to{6.0,-3.25,7.0};
+    const epok::Fixed starts[3]={from.x,from.y,from.z},ends[3]={to.x,to.y,to.z};
+    for(auto easing:{epok::Ease::Linear,epok::Ease::InOutQuint,epok::Ease::OutCirc,epok::Ease::SmoothStep}){
+        auto vector=epok::UtilityVectorLibrary::vector_tween_schedule(from,to,2.0,easing,0.5,epok::TweenLoop::PingPong,2);
+        epok::GameplayTweenState axes[3];
+        for(unsigned axis=0;axis<3;++axis)axes[axis]=epok::UtilityLibrary::tween_schedule(starts[axis],ends[axis],2.0,easing,0.5,epok::TweenLoop::PingPong,2);
+        // 0.5 of wait plus two 2.0 legs is exactly twelve steps of 0.375.
+        for(int step=0;step<12;++step){
+            const auto advanced=epok::UtilityVectorLibrary::vector_tween_advance(vector,0.375);
+            vector=advanced.state;
+            const epok::Fixed components[3]={advanced.value.x,advanced.value.y,advanced.value.z};
+            for(unsigned axis=0;axis<3;++axis){
+                const auto scalar=epok::UtilityLibrary::tween_advance(axes[axis],0.375);
+                axes[axis]=scalar.state;
+                assert(components[axis].raw()==scalar.value.raw());
+                assert(advanced.completed==scalar.completed);
+                assert(vector.timing.running==scalar.state.running);
+                assert(vector.timing.elapsed.raw()==scalar.state.elapsed.raw());
+                assert(vector.timing.reversed==scalar.state.reversed);
+            }
+            // The shared clock is an ordinary 0..1 tween, so its own value is the
+            // interpolation parameter the three components were lerped with.
+            const auto alpha=epok::UtilityLibrary::tween_value(vector.timing);
+            for(unsigned axis=0;axis<3;++axis)assert(epok::lerp(starts[axis],ends[axis],alpha).raw()==components[axis].raw());
+            assert(epok::UtilityVectorLibrary::vector_tween_value(vector).y.raw()==components[1].raw());
+        }
+        // Two mirrored legs end exactly back at the start, on every component.
+        assert(!vector.timing.running&&vector.timing.completion_pending);
+        const auto ended=epok::UtilityVectorLibrary::vector_tween_value(vector);
+        assert(ended.x.raw()==from.x.raw()&&ended.y.raw()==from.y.raw()&&ended.z.raw()==from.z.raw());
+    }
+    // The short form is the same plan without a wait or a loop, and cancelling
+    // keeps the endpoints and the reached value while clearing the playback.
+    auto plain=epok::UtilityVectorLibrary::vector_tween_start(from,to,1.0,epok::Ease::OutCubic);
+    assert(plain.timing.delay.raw()==0&&plain.timing.loop==epok::TweenLoop::None&&plain.timing.cycles_remaining==1);
+    const auto quarter=epok::UtilityVectorLibrary::vector_tween_advance(plain,0.25);
+    const auto cancelled=epok::UtilityVectorLibrary::vector_tween_cancel(quarter.state);
+    assert(!cancelled.timing.running&&!cancelled.timing.completion_pending);
+    const auto held=epok::UtilityVectorLibrary::vector_tween_value(cancelled);
+    assert(held.x.raw()==quarter.value.x.raw()&&held.z.raw()==from.z.raw());
+    assert(epok::UtilityVectorLibrary::vector_tween_advance(cancelled,9.0).value.x.raw()==held.x.raw());
 }
 
 int main() {
@@ -230,6 +329,8 @@ int main() {
     skeletal_queries();
     skeletal_matrix_fast_paths();
     animated_packet_retention();
+    scene_fog_range();
     persistent_utilities();
-    std::puts("Gameplay libraries: typed records, input/time, math, bounded payload and focus pass.");
+    vector_tweens_track_scalar_tweens();
+    std::puts("Gameplay libraries: typed records, input/time, math, bounded payload, fog, tweens and focus pass.");
 }

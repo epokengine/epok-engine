@@ -2,7 +2,7 @@
 
 > **Header:** `"skeletal.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/skeletal.hpp)
 
-This module covers rigid skeletal animation and pose evaluation. It documents 17 public callables declared directly in this header.
+This module covers rigid skeletal animation and pose evaluation. It documents 19 public callables declared directly in this header.
 
 ## Declared types
 
@@ -10,6 +10,8 @@ This module covers rigid skeletal animation and pose evaluation. It documents 17
 
 ## Callable index
 
+- [`epok::skeletal_detail::aim_pitch_matrix`](#epok-skeletal-detail-aim-pitch-matrix-1) — A small-angle quaternion approximation keeps additive aiming deterministic on host and MIPS without introducing a per-character trigonometry service.
+- [`epok::skeletal_detail::local_pose_matrix`](#epok-skeletal-detail-local-pose-matrix-1) — Performs `local pose matrix` as part of rigid skeletal animation and pose evaluation.
 - [`epok::skeletal_detail::pose_matrix`](#epok-skeletal-detail-pose-matrix-1) — Performs `pose matrix` as part of rigid skeletal animation and pose evaluation.
 - [`epok::skeletal_detail::Scratch::decode_vertices`](#epok-skeletal-detail-scratch-decode-vertices-1) — Performs `decode vertices` as part of rigid skeletal animation and pose evaluation.
 - [`epok::skeletal_detail::Scratch::frame_index`](#epok-skeletal-detail-scratch-frame-index-1) — Performs `frame index` as part of rigid skeletal animation and pose evaluation.
@@ -27,6 +29,96 @@ This module covers rigid skeletal animation and pose evaluation. It documents 17
 - [`epok::skeletal_query_detail::valid_pose`](#epok-skeletal-query-detail-valid-pose-1) — Performs `valid pose` as part of rigid skeletal animation and pose evaluation.
 - [`epok::skeletal_query_detail::valid_space`](#epok-skeletal-query-detail-valid-space-1) — Performs `valid space` as part of rigid skeletal animation and pose evaluation.
 - [`epok::skeletal_sample_vertex_impl`](#epok-skeletal-sample-vertex-impl-1) — Performs `skeletal sample vertex impl` as part of rigid skeletal animation and pose evaluation.
+
+<a id="epok-skeletal-detail-aim-pitch-matrix-1"></a>
+
+## `epok::skeletal_detail::aim_pitch_matrix`
+
+**Purpose.** A small-angle quaternion approximation keeps additive aiming deterministic on host and MIPS without introducing a per-character trigonometry service.
+
+**Details.** The controller clamps this to a practical upper-body range ([-35, 45] degrees).
+
+**Exact declaration**
+
+```cpp
+inline Affine<Fixed> aim_pitch_matrix(Fixed degrees)
+```
+
+- **Declared at:** [line 45](../../../runtime/skeletal.hpp#L45)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `degrees` | `int` | Input | Value supplied for `degrees`. See the exact type and module contract. |
+
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+
+**Use it when.** The controller clamps this to a practical upper-body range ([-35, 45] degrees).
+
+**Usage pattern**
+
+```cpp
+#include "skeletal.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int degrees
+
+auto result = epok::skeletal_detail::aim_pitch_matrix(degrees);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to rigid skeletal animation and pose evaluation. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-skeletal-detail-local-pose-matrix-1"></a>
+
+## `epok::skeletal_detail::local_pose_matrix`
+
+**Purpose.** Performs `local pose matrix` as part of rigid skeletal animation and pose evaluation.
+
+**Exact declaration**
+
+```cpp
+inline Affine<Fixed> local_pose_matrix(const BonePose& pose,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,size_t bone)
+```
+
+- **Declared at:** [line 58](../../../runtime/skeletal.hpp#L58)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `pose` | `const BonePose &` | Input | Value supplied for `pose`. See the exact type and module contract. |
+| `aim_bone` | `int` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
+| `aim_stop_bones` | `const int *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
+| `aim_pitch` | `int` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
+| `bone` | `int` | Input | Value supplied for `bone`. See the exact type and module contract. |
+
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need rigid skeletal animation and pose evaluation and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "skeletal.hpp"
+
+// Assume these named values have been initialized with valid data:
+// const BonePose & pose
+// int aim_bone
+// const int * aim_stop_bones
+// int aim_pitch
+// int bone
+
+auto result = epok::skeletal_detail::local_pose_matrix(pose, aim_bone, aim_stop_bones, aim_pitch, bone);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to rigid skeletal animation and pose evaluation. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
 <a id="epok-skeletal-detail-pose-matrix-1"></a>
 
@@ -80,7 +172,7 @@ auto result = epok::skeletal_detail::pose_matrix(p);
 void decode_vertices(const SkeletalMesh& model,const Animator& animator)
 ```
 
-- **Declared at:** [line 67](../../../runtime/skeletal.hpp#L67)
+- **Declared at:** [line 101](../../../runtime/skeletal.hpp#L101)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -124,7 +216,7 @@ object.decode_vertices(model, animator);
 static uint32_t frame_index(const AnimationClip* clip,const Animator& animator)
 ```
 
-- **Declared at:** [line 42](../../../runtime/skeletal.hpp#L42)
+- **Declared at:** [line 70](../../../runtime/skeletal.hpp#L70)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -163,10 +255,10 @@ auto result = epok::skeletal_detail::Scratch::frame_index(clip, animator);
 **Exact declaration**
 
 ```cpp
-void pose(const SkeletalMesh& model,const Animator& animator)
+void pose(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch)
 ```
 
-- **Declared at:** [line 83](../../../runtime/skeletal.hpp#L83)
+- **Declared at:** [line 117](../../../runtime/skeletal.hpp#L117)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -175,6 +267,9 @@ void pose(const SkeletalMesh& model,const Animator& animator)
 | --- | --- | --- | --- |
 | `model` | `const SkeletalMesh &` | Input | Value supplied for `model`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
+| `aim_bone` | `int` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
+| `aim_stop_bones` | `const int *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
+| `aim_pitch` | `int` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -188,10 +283,13 @@ void pose(const SkeletalMesh& model,const Animator& animator)
 // Assume these named values have been initialized with valid data:
 // const SkeletalMesh & model
 // const Animator & animator
+// int aim_bone
+// const int * aim_stop_bones
+// int aim_pitch
 
 epok::skeletal_detail::Scratch& object = /* obtain a valid instance */;
 
-object.pose(model, animator);
+object.pose(model, animator, aim_bone, aim_stop_bones, aim_pitch);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to rigid skeletal animation and pose evaluation. No exception-based error path is implied by the signature.
@@ -207,10 +305,10 @@ object.pose(model, animator);
 **Exact declaration**
 
 ```cpp
-void pose_bones(const SkeletalMesh& model,const Animator& animator)
+void pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch)
 ```
 
-- **Declared at:** [line 50](../../../runtime/skeletal.hpp#L50)
+- **Declared at:** [line 81](../../../runtime/skeletal.hpp#L81)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -219,6 +317,9 @@ void pose_bones(const SkeletalMesh& model,const Animator& animator)
 | --- | --- | --- | --- |
 | `model` | `const SkeletalMesh &` | Input | Value supplied for `model`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
+| `aim_bone` | `int` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
+| `aim_stop_bones` | `const int *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
+| `aim_pitch` | `int` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -232,10 +333,13 @@ void pose_bones(const SkeletalMesh& model,const Animator& animator)
 // Assume these named values have been initialized with valid data:
 // const SkeletalMesh & model
 // const Animator & animator
+// int aim_bone
+// const int * aim_stop_bones
+// int aim_pitch
 
 epok::skeletal_detail::Scratch& object = /* obtain a valid instance */;
 
-object.pose_bones(model, animator);
+object.pose_bones(model, animator, aim_bone, aim_stop_bones, aim_pitch);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to rigid skeletal animation and pose evaluation. No exception-based error path is implied by the signature.
@@ -254,7 +358,7 @@ object.pose_bones(model, animator);
 void skin_vertices(const SkeletalMesh& model)
 ```
 
-- **Declared at:** [line 59](../../../runtime/skeletal.hpp#L59)
+- **Declared at:** [line 90](../../../runtime/skeletal.hpp#L90)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -296,7 +400,7 @@ object.skin_vertices(model);
 inline bool apply_space(const ActorData& entity,CoordinateSpace space,Fixed* position,SkeletalError& error)
 ```
 
-- **Declared at:** [line 150](../../../runtime/skeletal.hpp#L150)
+- **Declared at:** [line 184](../../../runtime/skeletal.hpp#L184)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -342,7 +446,7 @@ auto result = epok::skeletal_query_detail::apply_space(entity, space, position, 
 inline bool baked_vertex(const SkeletalMesh& model,const Animator& animator,uint32_t vertex,PoseKind pose,Fixed* output)
 ```
 
-- **Declared at:** [line 126](../../../runtime/skeletal.hpp#L126)
+- **Declared at:** [line 160](../../../runtime/skeletal.hpp#L160)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -390,7 +494,7 @@ auto result = epok::skeletal_query_detail::baked_vertex(model, animator, vertex,
 inline BatchScratch& batch_scratch()
 ```
 
-- **Declared at:** [line 121](../../../runtime/skeletal.hpp#L121)
+- **Declared at:** [line 155](../../../runtime/skeletal.hpp#L155)
 - **Kind:** `function decl`
 
 **Returns.** Returns `BatchScratch &`. Check the purpose and failure notes before using the value.
@@ -418,10 +522,10 @@ auto result = epok::skeletal_query_detail::batch_scratch();
 **Exact declaration**
 
 ```cpp
-inline bool bone_matrix(const SkeletalMesh& model,const Animator& animator,uint32_t bone,PoseKind pose,Affine<Fixed>& output)
+inline bool bone_matrix(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t bone,PoseKind pose,Affine<Fixed>& output)
 ```
 
-- **Declared at:** [line 108](../../../runtime/skeletal.hpp#L108)
+- **Declared at:** [line 142](../../../runtime/skeletal.hpp#L142)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -430,6 +534,9 @@ inline bool bone_matrix(const SkeletalMesh& model,const Animator& animator,uint3
 | --- | --- | --- | --- |
 | `model` | `const SkeletalMesh &` | Input | Value supplied for `model`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
+| `aim_bone` | `int` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
+| `aim_stop_bones` | `const int *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
+| `aim_pitch` | `int` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
 | `bone` | `int` | Input | Value supplied for `bone`. See the exact type and module contract. |
 | `pose` | `PoseKind` | Input | Value supplied for `pose`. See the exact type and module contract. |
 | `output` | `int &` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
@@ -446,11 +553,14 @@ inline bool bone_matrix(const SkeletalMesh& model,const Animator& animator,uint3
 // Assume these named values have been initialized with valid data:
 // const SkeletalMesh & model
 // const Animator & animator
+// int aim_bone
+// const int * aim_stop_bones
+// int aim_pitch
 // int bone
 // PoseKind pose
 // int & output
 
-auto result = epok::skeletal_query_detail::bone_matrix(model, animator, bone, pose, output);
+auto result = epok::skeletal_query_detail::bone_matrix(model, animator, aim_bone, aim_stop_bones, aim_pitch, bone, pose, output);
 ```
 
 **Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
@@ -466,10 +576,10 @@ auto result = epok::skeletal_query_detail::bone_matrix(model, animator, bone, po
 **Exact declaration**
 
 ```cpp
-inline bool model_vertex(const SkeletalMesh& model,const Animator& animator,uint32_t portable,PoseKind pose,Fixed* output,SkeletalError& error)
+inline bool model_vertex(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t portable,PoseKind pose,Fixed* output,SkeletalError& error)
 ```
 
-- **Declared at:** [line 141](../../../runtime/skeletal.hpp#L141)
+- **Declared at:** [line 175](../../../runtime/skeletal.hpp#L175)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -478,6 +588,9 @@ inline bool model_vertex(const SkeletalMesh& model,const Animator& animator,uint
 | --- | --- | --- | --- |
 | `model` | `const SkeletalMesh &` | Input | Value supplied for `model`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
+| `aim_bone` | `int` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
+| `aim_stop_bones` | `const int *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
+| `aim_pitch` | `int` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
 | `portable` | `int` | Input | Value supplied for `portable`. See the exact type and module contract. |
 | `pose` | `PoseKind` | Input | Value supplied for `pose`. See the exact type and module contract. |
 | `output` | `int *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
@@ -495,12 +608,15 @@ inline bool model_vertex(const SkeletalMesh& model,const Animator& animator,uint
 // Assume these named values have been initialized with valid data:
 // const SkeletalMesh & model
 // const Animator & animator
+// int aim_bone
+// const int * aim_stop_bones
+// int aim_pitch
 // int portable
 // PoseKind pose
 // int * output
 // SkeletalError & error
 
-auto result = epok::skeletal_query_detail::model_vertex(model, animator, portable, pose, output, error);
+auto result = epok::skeletal_query_detail::model_vertex(model, animator, aim_bone, aim_stop_bones, aim_pitch, portable, pose, output, error);
 ```
 
 **Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
@@ -516,10 +632,10 @@ auto result = epok::skeletal_query_detail::model_vertex(model, animator, portabl
 **Exact declaration**
 
 ```cpp
-inline bool pose_all(const SkeletalMesh& model,const Animator& animator,PoseKind pose)
+inline bool pose_all(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,PoseKind pose)
 ```
 
-- **Declared at:** [line 122](../../../runtime/skeletal.hpp#L122)
+- **Declared at:** [line 156](../../../runtime/skeletal.hpp#L156)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -528,6 +644,9 @@ inline bool pose_all(const SkeletalMesh& model,const Animator& animator,PoseKind
 | --- | --- | --- | --- |
 | `model` | `const SkeletalMesh &` | Input | Value supplied for `model`. See the exact type and module contract. |
 | `animator` | `const Animator &` | Input | Value supplied for `animator`. See the exact type and module contract. |
+| `aim_bone` | `int` | Input | Value supplied for `aim_bone`. See the exact type and module contract. |
+| `aim_stop_bones` | `const int *` | Input | Value supplied for `aim_stop_bones`. See the exact type and module contract. |
+| `aim_pitch` | `int` | Input | Value supplied for `aim_pitch`. See the exact type and module contract. |
 | `pose` | `PoseKind` | Input | Value supplied for `pose`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -542,9 +661,12 @@ inline bool pose_all(const SkeletalMesh& model,const Animator& animator,PoseKind
 // Assume these named values have been initialized with valid data:
 // const SkeletalMesh & model
 // const Animator & animator
+// int aim_bone
+// const int * aim_stop_bones
+// int aim_pitch
 // PoseKind pose
 
-auto result = epok::skeletal_query_detail::pose_all(model, animator, pose);
+auto result = epok::skeletal_query_detail::pose_all(model, animator, aim_bone, aim_stop_bones, aim_pitch, pose);
 ```
 
 **Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
@@ -563,7 +685,7 @@ auto result = epok::skeletal_query_detail::pose_all(model, animator, pose);
 inline const BonePose* selected_pose(const SkeletalMesh& model,const Animator& animator,size_t bone,PoseKind kind)
 ```
 
-- **Declared at:** [line 98](../../../runtime/skeletal.hpp#L98)
+- **Declared at:** [line 132](../../../runtime/skeletal.hpp#L132)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -609,7 +731,7 @@ auto result = epok::skeletal_query_detail::selected_pose(model, animator, bone, 
 inline SkeletalQueryStats& stats()
 ```
 
-- **Declared at:** [line 95](../../../runtime/skeletal.hpp#L95)
+- **Declared at:** [line 129](../../../runtime/skeletal.hpp#L129)
 - **Kind:** `function decl`
 
 **Returns.** Returns `SkeletalQueryStats &`. Check the purpose and failure notes before using the value.
@@ -640,7 +762,7 @@ auto result = epok::skeletal_query_detail::stats();
 inline bool valid_pose(PoseKind pose)
 ```
 
-- **Declared at:** [line 96](../../../runtime/skeletal.hpp#L96)
+- **Declared at:** [line 130](../../../runtime/skeletal.hpp#L130)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -680,7 +802,7 @@ auto result = epok::skeletal_query_detail::valid_pose(pose);
 inline bool valid_space(CoordinateSpace space)
 ```
 
-- **Declared at:** [line 97](../../../runtime/skeletal.hpp#L97)
+- **Declared at:** [line 131](../../../runtime/skeletal.hpp#L131)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -720,7 +842,7 @@ auto result = epok::skeletal_query_detail::valid_space(space);
 inline VertexSample skeletal_sample_vertex_impl(const ActorData* entity,uint32_t vertex,PoseKind pose,CoordinateSpace space,bool account_request)
 ```
 
-- **Declared at:** [line 157](../../../runtime/skeletal.hpp#L157)
+- **Declared at:** [line 191](../../../runtime/skeletal.hpp#L191)
 - **Kind:** `function decl`
 
 **Parameters**

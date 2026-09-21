@@ -322,7 +322,7 @@ inline uint32_t blueprint_scene_generation=1;
 #ifndef EPOK_INCLUDE_FROM_UTILITY
 #include "utility.hpp"
 #endif
-#if !defined(EPOK_INCLUDE_FROM_GAMEPLAY_API) && !defined(EPOK_INCLUDE_FROM_SKELETAL) && !defined(EPOK_INCLUDE_FROM_BLUEPRINT_API) && !defined(EPOK_INCLUDE_FROM_BLUEPRINT_RUNTIME)
+#if !defined(EPOK_INCLUDE_FROM_GAMEPLAY_API) && !defined(EPOK_INCLUDE_FROM_SKELETAL) && !defined(EPOK_INCLUDE_FROM_BLUEPRINT_API) && !defined(EPOK_INCLUDE_FROM_BLUEPRINT_RUNTIME) && !defined(EPOK_INCLUDE_FROM_UTILITY)
 #include "gameplay_api.hpp"
 #endif
 #endif

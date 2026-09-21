@@ -2,7 +2,7 @@
 
 > **Header:** `"lighting.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/lighting.hpp)
 
-This module covers the lighting module. It documents 16 public callables declared directly in this header.
+This module covers the lighting module. It documents 15 public callables declared directly in this header.
 
 ## Declared types
 
@@ -20,7 +20,6 @@ This module covers the lighting module. It documents 16 public callables declare
 - [`epok::lighting_detail::MeshNormalTransform::apply`](#epok-lighting-detail-meshnormaltransform-apply-1) — Performs `apply` as part of the lighting module.
 - [`epok::lighting_detail::normalize`](#epok-lighting-detail-normalize-1) — Performs `normalize` as part of the lighting module.
 - [`epok::lighting_detail::pair`](#epok-lighting-detail-pair-1) — Performs `pair` as part of the lighting module.
-- [`epok::lighting_detail::sqrt64`](#epok-lighting-detail-sqrt64-1) — Performs `sqrt64` as part of the lighting module.
 - [`epok::LightingRenderer::clear`](#epok-lightingrenderer-clear-1) — Clears clear as part of the lighting module.
 - [`epok::LightingRenderer::localize`](#epok-lightingrenderer-localize-1) — Rotates the light matrix loaded by shade() into an object's local space when its world basis is a rotation with uniform scale (within 1/256).
 - [`epok::LightingRenderer::prepare`](#epok-lightingrenderer-prepare-1) — Performs `prepare` as part of the lighting module.
@@ -39,7 +38,7 @@ This module covers the lighting module. It documents 16 public callables declare
 inline int32_t clamp(int32_t v,int32_t low,int32_t high)
 ```
 
-- **Declared at:** [line 13](../../../runtime/lighting.hpp#L13)
+- **Declared at:** [line 14](../../../runtime/lighting.hpp#L14)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -83,7 +82,7 @@ auto result = epok::lighting_detail::clamp(v, low, high);
 inline Vector direction(const Affine<Fixed>& m)
 ```
 
-- **Declared at:** [line 17](../../../runtime/lighting.hpp#L17)
+- **Declared at:** [line 18](../../../runtime/lighting.hpp#L18)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -123,7 +122,7 @@ auto result = epok::lighting_detail::direction(m);
 inline Vector face_normal(const Affine<Fixed>& m,int face)
 ```
 
-- **Declared at:** [line 18](../../../runtime/lighting.hpp#L18)
+- **Declared at:** [line 19](../../../runtime/lighting.hpp#L19)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -165,7 +164,7 @@ auto result = epok::lighting_detail::face_normal(m, face);
 inline Vector mesh_normal(const Affine<Fixed>& m,const int16_t* normal)
 ```
 
-- **Declared at:** [line 61](../../../runtime/lighting.hpp#L61)
+- **Declared at:** [line 62](../../../runtime/lighting.hpp#L62)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -207,7 +206,7 @@ auto result = epok::lighting_detail::mesh_normal(m, normal);
 inline psyqo::Color mesh_shade(const Affine<Fixed> &world, const MeshQuad &face, const Material &tint, bool enabled,MeshNormalTransform* transform=nullptr)
 ```
 
-- **Declared at:** [line 84](../../../runtime/lighting.hpp#L84)
+- **Declared at:** [line 85](../../../runtime/lighting.hpp#L85)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -257,7 +256,7 @@ auto result = epok::lighting_detail::mesh_shade(world, face, tint, enabled, tran
 inline psyqo::Color mesh_shade_local(const int16_t* normal, const Material& face_material, const Material& tint)
 ```
 
-- **Declared at:** [line 90](../../../runtime/lighting.hpp#L90)
+- **Declared at:** [line 91](../../../runtime/lighting.hpp#L91)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -303,7 +302,7 @@ auto result = epok::lighting_detail::mesh_shade_local(normal, face_material, tin
 inline psyqo::Color mesh_shade_normal(const Affine<Fixed> &world, const int16_t* normal, const Material& face_material, const Material &tint, bool enabled,MeshNormalTransform* transform=nullptr)
 ```
 
-- **Declared at:** [line 66](../../../runtime/lighting.hpp#L66)
+- **Declared at:** [line 67](../../../runtime/lighting.hpp#L67)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -353,7 +352,7 @@ auto result = epok::lighting_detail::mesh_shade_normal(world, normal, face_mater
 Vector apply(const Affine<Fixed>& m,const int16_t* normal)
 ```
 
-- **Declared at:** [line 29](../../../runtime/lighting.hpp#L29)
+- **Declared at:** [line 30](../../../runtime/lighting.hpp#L30)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -397,7 +396,7 @@ auto result = object.apply(m, normal);
 inline Vector normalize(Vector in)
 ```
 
-- **Declared at:** [line 16](../../../runtime/lighting.hpp#L16)
+- **Declared at:** [line 17](../../../runtime/lighting.hpp#L17)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -437,7 +436,7 @@ auto result = epok::lighting_detail::normalize(in);
 inline uint32_t pair(int32_t a,int32_t b)
 ```
 
-- **Declared at:** [line 100](../../../runtime/lighting.hpp#L100)
+- **Declared at:** [line 101](../../../runtime/lighting.hpp#L101)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -467,46 +466,6 @@ auto result = epok::lighting_detail::pair(a, b);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
-<a id="epok-lighting-detail-sqrt64-1"></a>
-
-## `epok::lighting_detail::sqrt64`
-
-**Purpose.** Performs `sqrt64` as part of the lighting module.
-
-**Exact declaration**
-
-```cpp
-inline uint32_t sqrt64(uint64_t v)
-```
-
-- **Declared at:** [line 14](../../../runtime/lighting.hpp#L14)
-- **Kind:** `function decl`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `v` | `uint64_t` | Input | Value supplied for `v`. See the exact type and module contract. |
-
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the lighting module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "lighting.hpp"
-
-// Assume these named values have been initialized with valid data:
-// uint64_t v
-
-auto result = epok::lighting_detail::sqrt64(v);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the lighting module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
 <a id="epok-lightingrenderer-clear-1"></a>
 
 ## `epok::LightingRenderer::clear`
@@ -519,7 +478,7 @@ auto result = epok::lighting_detail::sqrt64(v);
 void clear()
 ```
 
-- **Declared at:** [line 124](../../../runtime/lighting.hpp#L124)
+- **Declared at:** [line 125](../../../runtime/lighting.hpp#L125)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -554,7 +513,7 @@ object.clear();
 bool localize(const Affine<Fixed>& world)
 ```
 
-- **Declared at:** [line 180](../../../runtime/lighting.hpp#L180)
+- **Declared at:** [line 181](../../../runtime/lighting.hpp#L181)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -596,7 +555,7 @@ auto result = object.localize(world);
 void prepare(const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t object_count)
 ```
 
-- **Declared at:** [line 128](../../../runtime/lighting.hpp#L128)
+- **Declared at:** [line 129](../../../runtime/lighting.hpp#L129)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -642,7 +601,7 @@ object.prepare(objects, world, object_count);
 void reset_owner(size_t index)
 ```
 
-- **Declared at:** [line 120](../../../runtime/lighting.hpp#L120)
+- **Declared at:** [line 121](../../../runtime/lighting.hpp#L121)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -684,7 +643,7 @@ object.reset_owner(index);
 std::array<psyqo::Color,6> shade(size_t object,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,bool generic=false)
 ```
 
-- **Declared at:** [line 134](../../../runtime/lighting.hpp#L134)
+- **Declared at:** [line 135](../../../runtime/lighting.hpp#L135)
 - **Kind:** `cxx method`
 
 **Parameters**

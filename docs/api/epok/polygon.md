@@ -2,17 +2,19 @@
 
 > **Header:** `"polygon.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/polygon.hpp)
 
-This module covers PSX polygon preparation, clipping and submission. It documents 11 public callables declared directly in this header.
+This module covers PSX polygon preparation, clipping and submission. It documents 13 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::CameraQ12`, `epok::CameraQ8`, `epok::CameraUnits`, `epok::ClipVertex`, `epok::ProjectedVertex`, `epok::QuadPacket`
+`epok::CameraQ12`, `epok::CameraQ8`, `epok::CameraUnits`, `epok::ClipVertex`, `epok::CompactProjectedVertex`, `epok::CompactProjectedVertex::Depth`, `epok::ProjectedVertex`, `epok::QuadPacket`
 
 ## Callable index
 
 - [`epok::blend_fog`](#epok-blend-fog-1) — Performs `blend fog` as part of PSX polygon preparation, clipping and submission.
 - [`epok::CameraUnits::bucket`](#epok-cameraunits-bucket-1) — Ordering table bucket from three depths: (za+zb+zc) / (3 << DepthShift), exact for the frustum range without an integer division.
+- [`epok::clip_fraction16`](#epok-clip-fraction16-1) — Performs `clip fraction16` as part of PSX polygon preparation, clipping and submission.
 - [`epok::clip_polygon`](#epok-clip-polygon-1) — Sutherland-Hodgman against the frustum planes named by `planes` (bit i = plane i of frustum_outcode).
+- [`epok::CompactProjectedVertex::Depth::operator[]`](#epok-compactprojectedvertex-depth-operator-1) — Performs `operator []` as part of PSX polygon preparation, clipping and submission.
 - [`epok::floor_div`](#epok-floor-div-1) — Floor division for a positive divisor, matching the GTE's arithmetic shift.
 - [`epok::fog_amount`](#epok-fog-amount-1) — Linear fog: 0 before start, 4096 at or beyond end.
 - [`epok::modulate_channel`](#epok-modulate-channel-1) — (c * 128 + 127) / 255 for c in 0..255, exact without a division.
@@ -34,7 +36,7 @@ This module covers PSX polygon preparation, clipping and submission. It document
 inline uint32_t blend_fog(uint32_t packed, uint32_t amount, const uint8_t* fog)
 ```
 
-- **Declared at:** [line 57](../../../runtime/polygon.hpp#L57)
+- **Declared at:** [line 68](../../../runtime/polygon.hpp#L68)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -78,7 +80,7 @@ auto result = epok::blend_fog(packed, amount, fog);
 static int bucket(int32_t za, int32_t zb, int32_t zc)
 ```
 
-- **Declared at:** [line 33](../../../runtime/polygon.hpp#L33)
+- **Declared at:** [line 44](../../../runtime/polygon.hpp#L44)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -110,6 +112,48 @@ auto result = epok::CameraUnits::bucket(za, zb, zc);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-clip-fraction16-1"></a>
+
+## `epok::clip_fraction16`
+
+**Purpose.** Performs `clip fraction16` as part of PSX polygon preparation, clipping and submission.
+
+**Exact declaration**
+
+```cpp
+inline uint32_t clip_fraction16(uint32_t numerator,uint32_t denominator)
+```
+
+- **Declared at:** [line 111](../../../runtime/polygon.hpp#L111)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `numerator` | `int` | Input | Value supplied for `numerator`. See the exact type and module contract. |
+| `denominator` | `int` | Input | Value supplied for `denominator`. See the exact type and module contract. |
+
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "polygon.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int numerator
+// int denominator
+
+auto result = epok::clip_fraction16(numerator, denominator);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to PSX polygon preparation, clipping and submission. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-clip-polygon-1"></a>
 
 ## `epok::clip_polygon`
@@ -124,7 +168,7 @@ auto result = epok::CameraUnits::bucket(za, zb, zc);
 template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from)
 ```
 
-- **Declared at:** [line 96](../../../runtime/polygon.hpp#L96)
+- **Declared at:** [line 121](../../../runtime/polygon.hpp#L121)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -161,6 +205,48 @@ auto result = epok::clip_polygon<Units>(buffers, count, planes, from);
 
 **Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-compactprojectedvertex-depth-operator-1"></a>
+
+## `epok::CompactProjectedVertex::Depth::operator[]`
+
+**Purpose.** Performs `operator []` as part of PSX polygon preparation, clipping and submission.
+
+**Exact declaration**
+
+```cpp
+int32_t operator[](size_t axis) const
+```
+
+- **Declared at:** [line 24](../../../runtime/polygon.hpp#L24)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `axis` | `int` | Input | Value supplied for `axis`. See the exact type and module contract. |
+
+**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "polygon.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int axis
+
+epok::CompactProjectedVertex::Depth& object = /* obtain a valid instance */;
+
+auto result = object.operator[](axis);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-floor-div-1"></a>
 
 ## `epok::floor_div`
@@ -173,7 +259,7 @@ auto result = epok::clip_polygon<Units>(buffers, count, planes, from);
 inline int32_t floor_div(int64_t numerator, int32_t divisor)
 ```
 
-- **Declared at:** [line 71](../../../runtime/polygon.hpp#L71)
+- **Declared at:** [line 82](../../../runtime/polygon.hpp#L82)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -217,7 +303,7 @@ auto result = epok::floor_div(numerator, divisor);
 inline uint16_t fog_amount(int32_t depth, int32_t start, int32_t end)
 ```
 
-- **Declared at:** [line 52](../../../runtime/polygon.hpp#L52)
+- **Declared at:** [line 63](../../../runtime/polygon.hpp#L63)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -261,7 +347,7 @@ auto result = epok::fog_amount(depth, start, end);
 inline uint32_t modulate_channel(uint32_t c)
 ```
 
-- **Declared at:** [line 44](../../../runtime/polygon.hpp#L44)
+- **Declared at:** [line 55](../../../runtime/polygon.hpp#L55)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -301,7 +387,7 @@ auto result = epok::modulate_channel(c);
 inline uint32_t modulate_color(uint32_t packed)
 ```
 
-- **Declared at:** [line 45](../../../runtime/polygon.hpp#L45)
+- **Declared at:** [line 56](../../../runtime/polygon.hpp#L56)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -341,7 +427,7 @@ auto result = epok::modulate_color(packed);
 inline uint32_t pack_color(uint32_t r, uint32_t g, uint32_t b)
 ```
 
-- **Declared at:** [line 42](../../../runtime/polygon.hpp#L42)
+- **Declared at:** [line 53](../../../runtime/polygon.hpp#L53)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -387,7 +473,7 @@ auto result = epok::pack_color(r, g, b);
 template<class Units, int Width, int Height> inline void project_cpu(ProjectedVertex& point)
 ```
 
-- **Declared at:** [line 77](../../../runtime/polygon.hpp#L77)
+- **Declared at:** [line 94](../../../runtime/polygon.hpp#L94)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -430,7 +516,7 @@ epok::project_cpu<Units, Width, Height>(point);
 inline uint32_t scale_channel(uint32_t a, uint32_t b)
 ```
 
-- **Declared at:** [line 49](../../../runtime/polygon.hpp#L49)
+- **Declared at:** [line 60](../../../runtime/polygon.hpp#L60)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -469,19 +555,19 @@ auto result = epok::scale_channel(a, b);
 **Exact declaration**
 
 ```cpp
-inline int32_t screen_area(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c)
+template<class Vertex> inline int32_t screen_area(const Vertex& a, const Vertex& b, const Vertex& c)
 ```
 
-- **Declared at:** [line 66](../../../runtime/polygon.hpp#L66)
-- **Kind:** `function decl`
+- **Declared at:** [line 77](../../../runtime/polygon.hpp#L77)
+- **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `const ProjectedVertex &` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `b` | `const ProjectedVertex &` | Input | Value supplied for `b`. See the exact type and module contract. |
-| `c` | `const ProjectedVertex &` | Input | Value supplied for `c`. See the exact type and module contract. |
+| `a` | `const Vertex &` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `const Vertex &` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `c` | `const Vertex &` | Input | Value supplied for `c`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -492,14 +578,17 @@ inline int32_t screen_area(const ProjectedVertex& a, const ProjectedVertex& b, c
 ```cpp
 #include "polygon.hpp"
 
-// Assume these named values have been initialized with valid data:
-// const ProjectedVertex & a
-// const ProjectedVertex & b
-// const ProjectedVertex & c
+// Replace these template arguments with types or values accepted by the declaration:
+// Vertex
 
-auto result = epok::screen_area(a, b, c);
+// Assume these named values have been initialized with valid data:
+// const Vertex & a
+// const Vertex & b
+// const Vertex & c
+
+auto result = epok::screen_area<Vertex>(a, b, c);
 ```
 
-**Why choose it.** It provides direct, allocation-conscious access to PSX polygon preparation, clipping and submission. No exception-based error path is implied by the signature.
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
 
-**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.

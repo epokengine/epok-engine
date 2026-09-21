@@ -214,6 +214,44 @@ mod tests {
             );
         }
     }
+    /// `epok::SceneLibrary::set_fog` accepts a Q12 range when `start >= 0`,
+    /// `end <= 128 * 4096` and `end - start >= 1`, and rejects anything else whole.
+    /// `scene_fog_range` in tests/runtime/gameplay_api.cpp asserts that against the
+    /// runtime setter; this asserts the identical decision against the editor
+    /// validator, so a scripted scene and an authored one cannot diverge. Tint is
+    /// deliberately not part of the agreement: the setter clamps channels into the
+    /// same 0..255 the editor's 0..1 quantizes to instead of refusing the call.
+    #[test]
+    fn fog_range_accepted_by_the_editor_matches_the_runtime_setter() {
+        let accepts = |start: f32, end: f32| {
+            let (s, e) = ((start * 4096.).round() as i32, (end * 4096.).round() as i32);
+            s >= 0 && e <= 128 * 4096 && e - s >= 1
+        };
+        let step = 1. / 4096.;
+        let mut scene = crate::scene::Scene::default();
+        for (start, end) in [
+            (0., 128.),
+            (12., 40.),
+            (5., 5. + step),
+            (-step, 40.),
+            (0., 128. + step),
+            (5., 5.),
+            (5., 1.),
+            (0., 0.),
+        ] {
+            scene.fog = Fog {
+                enabled: true,
+                start,
+                end,
+                color: [0., 0.5, 1.],
+            };
+            assert_eq!(
+                validate(&scene).is_ok(),
+                accepts(start, end),
+                "{start}..{end}"
+            );
+        }
+    }
     #[test]
     fn fog_endpoints_and_disabled_are_predictable() {
         let fog = Fog {

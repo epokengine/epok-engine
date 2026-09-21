@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `e3b56518175ddd633ccc962042a86d30d7275234`. Frozen semantic candidate rows: **3048**.
+Baseline commit: `274a530ff7fb866f792669c95bdde8d5d7cf1996`. Frozen semantic candidate rows: **3309**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -12,8 +12,8 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | --- | ---: |
 | `compatibility_alias` | 44 |
 | `hardware_backend` | 6 |
-| `internal_implementation` | 2567 |
-| `public_gameplay` | 431 |
+| `internal_implementation` | 2803 |
+| `public_gameplay` | 456 |
 
 ## Public gameplay gaps
 
@@ -29,27 +29,27 @@ A classified row is not necessarily implemented. The strict checker fails until 
 
 | Category | Rows |
 | --- | ---: |
-| `audio_music` | 163 |
-| `cameras_scenes` | 36 |
-| `collision_3d` | 64 |
+| `audio_music` | 70 |
+| `cameras_scenes` | 37 |
+| `collision_3d` | 74 |
 | `components_hierarchy` | 14 |
 | `gameplay_2d` | 100 |
-| `implementation_support` | 703 |
+| `implementation_support` | 979 |
 | `input_time` | 60 |
-| `language_adapter` | 134 |
-| `materials_visuals` | 51 |
-| `math_values` | 5 |
+| `language_adapter` | 135 |
+| `materials_visuals` | 50 |
+| `math_values` | 6 |
 | `memory_card` | 70 |
-| `objects_actors` | 521 |
+| `objects_actors` | 528 |
 | `particles_effects` | 186 |
 | `resources_diagnostics` | 58 |
-| `runtime_facade` | 518 |
-| `skeletal_animation` | 22 |
+| `runtime_facade` | 546 |
+| `skeletal_animation` | 24 |
 | `sprites_palettes` | 76 |
 | `static_editable_meshes` | 71 |
 | `timelines_sequences` | 72 |
 | `ui_text` | 34 |
-| `utilities_events` | 90 |
+| `utilities_events` | 119 |
 
 ## Public gameplay rows
 
@@ -245,10 +245,12 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::SceneComponent3D::teleport` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneComponent3D::world_affine` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::active_camera_actor` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SceneLibrary::fog` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::project` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::request` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::request_with_transition` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::set_camera` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::SceneLibrary::set_fog` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::snapshot` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::SceneLibrary::transition_snapshot` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Sprite3DComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -275,13 +277,20 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::TimeLibrary::paused` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TimeLibrary::set_paused` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TimeLibrary::snapshot` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::UtilityLibrary::ease` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::UtilityLibrary::event_queue_clear` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::UtilityLibrary::event_queue_emit` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::UtilityLibrary::event_queue_poll` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::UtilityLibrary::tween_advance` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::UtilityLibrary::tween_cancel` | `utility` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::UtilityLibrary::tween_schedule` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::UtilityLibrary::tween_start` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::UtilityLibrary::tween_value` | `utility` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::UtilityVectorLibrary::vector_tween_advance` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::UtilityVectorLibrary::vector_tween_cancel` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::UtilityVectorLibrary::vector_tween_schedule` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::UtilityVectorLibrary::vector_tween_start` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::UtilityVectorLibrary::vector_tween_value` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::World2DLibrary::screen_to_world` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::World2DLibrary::world_to_screen` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::BoneSample::basis_x` | `epok` | yes | yes | yes | yes | yes | `implemented` |
@@ -312,6 +321,12 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::FocusSnapshot::count` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusSnapshot::current` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusSnapshot::valid` | `utility` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FogSettings::blue` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FogSettings::enabled` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FogSettings::end_distance` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FogSettings::green` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FogSettings::red` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FogSettings::start_distance` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayAabb::maximum` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayAabb::minimum` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayCamera2D::position` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -337,10 +352,14 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::GameplayTransitionSnapshot::phase` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayTransitionSnapshot::presented` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayTweenState::completion_pending` | `utility` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayTweenState::cycles_remaining` | `utility` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayTweenState::delay` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayTweenState::duration` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayTweenState::easing` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayTweenState::elapsed` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayTweenState::from` | `utility` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayTweenState::loop` | `utility` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayTweenState::reversed` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayTweenState::running` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayTweenState::to` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayVector2::x` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -348,6 +367,9 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::GameplayVector3::x` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayVector3::y` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::GameplayVector3::z` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayVector3TweenState::from` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayVector3TweenState::timing` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::GameplayVector3TweenState::to` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputAxisSample::analog` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputAxisSample::connected` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputAxisSample::value` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -467,6 +489,9 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::TweenAdvanceSample::completed` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TweenAdvanceSample::state` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TweenAdvanceSample::value` | `utility` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Vector3TweenAdvanceSample::completed` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Vector3TweenAdvanceSample::state` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Vector3TweenAdvanceSample::value` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::VertexIndexBatch4::count` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::VertexIndexBatch4::index0` | `epok` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::VertexIndexBatch4::index1` | `epok` | yes | yes | yes | yes | yes | `implemented` |

@@ -1,6 +1,7 @@
 #pragma once
 #include "epok.hpp"
 #include "affine.hpp"
+#include "fixed_math.hpp"
 #include "psyqo/gte-registers.hh"
 #include "psyqo/gte-kernels.hh"
 #include "psyqo/primitives/common.hh"
@@ -11,7 +12,7 @@ extern LightingStats lighting_work;
 // No heap allocation, floats, or per-vertex point-light search on the target.
 namespace lighting_detail {
 inline int32_t clamp(int32_t v,int32_t low,int32_t high){return v<low?low:(v>high?high:v);}
-inline uint32_t sqrt64(uint64_t v){uint64_t result=0,bit=uint64_t(1)<<62;while(bit>v)bit>>=2;while(bit){if(v>=result+bit){v-=result+bit;result=(result>>1)+bit;}else result>>=1;bit>>=2;}return uint32_t(result);}
+using fixed_math::sqrt64; // One implementation, shared with the easing kernel.
 struct Vector { int32_t v[3]={}; };
 inline Vector normalize(Vector in){int32_t biggest=0;for(auto c:in.v){int32_t a=c<0?-c:c;if(a>biggest)biggest=a;}while(biggest>16384){biggest>>=1;for(auto& c:in.v)c>>=1;}uint32_t length=0;for(auto c:in.v)length+=c*c;auto n=sqrt64(length);if(!n)return {};for(auto& c:in.v)c=c*4096/int32_t(n);return in;}
 inline Vector direction(const Affine<Fixed>& m){return normalize({{-m.values[0][2].raw(),-m.values[1][2].raw(),-m.values[2][2].raw()}});}

@@ -203,8 +203,10 @@ emulator validation are pending on an SDK machine. See
   and shades geometry through the GTE-aware runtime path.
 - **Shadows.** Static bake occlusion and moving blob shadows are implemented with
   explicit triangle/resource counters. See [Lighting](lighting.md).
-- **Fog and screen fade.** Per-scene depth fog affects supported geometry; the
-  runtime also exposes a full-screen fade used directly and by transitions.
+- **Fog and screen fade.** Per-scene depth fog affects supported geometry and is
+  authorable from C++, Blueprint and Lua through the `Scene` group, which rejects
+  an invalid distance range without mutating anything; the runtime also exposes a
+  full-screen fade used directly and by transitions.
 - **Animated surfaces.** Material UV scrolling supports water-like motion, and
   palette animators cycle imported CLUT entries. See
   [Environment effects](environment-effects.md) and
@@ -329,8 +331,9 @@ See [HUD and 2D entities](hud.md).
   receive `on_enable`, then fixed-step `update`, and later `on_disable` /
   `on_destroy`. Default-constructible, assignable Behaviour state is restored on
   bank reload.
-- **Runtime utilities.** Allocation-free Tween easing, bounded EventQueue,
-  timed Sequence, UI Focus and list-layout helpers are included.
+- **Runtime utilities.** Allocation-free Tween easing over seventeen Q12 curves
+  with delay and loop plans, scalar and Vector3, bounded EventQueue, timed
+  Sequence, UI Focus and list-layout helpers are included.
 
 See [C++ scripting and exports](scripting.md).
 

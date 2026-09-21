@@ -504,6 +504,44 @@ pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, boo
 pub fn assignable(actual: &Type, expected: &Type, registry: &crate::blueprint::Registry) -> bool {
     actual == expected
         || match (actual, expected) {
+            // `Type::Enum` is structural and a graph stores the variants it saw when
+            // the literal was authored, so a reflected enum that gains an enumerator
+            // would otherwise stop matching its own pin in every saved graph. Accept
+            // the same enum when every stored name still carries the same number:
+            // the stored value was validated against the stored variants, so it is a
+            // value that still exists. A renumbered or removed enumerator still
+            // fails, which is what the compatibility rule actually protects.
+            (
+                Type::Enum {
+                    cpp_name: a,
+                    variants: stored,
+                },
+                Type::Enum {
+                    cpp_name: b,
+                    variants: current,
+                },
+            ) if a == b => stored
+                .iter()
+                .all(|(name, value)| current.get(name) == Some(value)),
+            // The same append-only rule for registered records, which a graph stores
+            // structurally whenever a record pin was promoted to a variable. Both
+            // directions are accepted because the C++ type is the same object either
+            // way and only the description is older; a reordered or retyped member
+            // still fails. The empty field list is a nominal marker used elsewhere
+            // and is deliberately left out of this rule.
+            (
+                Type::Record {
+                    cpp_name: a,
+                    fields: stored,
+                },
+                Type::Record {
+                    cpp_name: b,
+                    fields: current,
+                },
+            ) if a == b && !stored.is_empty() && !current.is_empty() => {
+                let shared = stored.len().min(current.len());
+                stored[..shared] == current[..shared]
+            }
             (Type::AssetRef { kind: a }, Type::AssetRef { kind: b })
                 if matches!(b.as_str(), "AudioClip" | "PlayableAudio")
                     && matches!(a.as_str(), "AudioClip" | "PlayableAudio" | "MusicSequence") =>
