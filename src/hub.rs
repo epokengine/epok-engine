@@ -118,8 +118,34 @@ impl Hub {
     fn dependencies_view(&mut self, ui: &Ui) {
         self.heading(ui, "Dependencies", true);
         ui.text_disabled("Tools the editor needs to build, convert and run games.");
-        ui.dummy([0., 6.]);
-        self.dependencies.hub_page(ui);
+        ui.dummy([0., 4.]);
+        // Tools belong to the platform they build for. One platform means one
+        // tab today; the bar is here so the second is a tab rather than a
+        // redesign of this pane.
+        let _tabs = [
+            (C::Tab, gray(24)),
+            (C::TabHovered, gray(40)),
+            (C::TabActive, gray(36)),
+        ]
+        .map(|(c, value)| ui.push_style_color(c, value));
+        if let Some(_bar) = ui.tab_bar("Dependency platforms") {
+            if let Some(_tab) = ui.tab_item(TargetPlatform::PlayStation.title()) {
+                self.dependencies.hub_page(ui);
+            }
+            // Reads as unavailable and behaves that way: the disabled stack
+            // takes the click, the muted colors say why before it is tried.
+            let _placeholder = [
+                (C::Text, MUTED),
+                (C::Tab, gray(21)),
+                (C::TabHovered, gray(21)),
+                (C::TabActive, gray(21)),
+            ]
+            .map(|(c, value)| ui.push_style_color(c, value));
+            let _disabled = ui.begin_disabled(true);
+            if let Some(_tab) = ui.tab_item("Coming soon...") {
+                ui.text_disabled("A second target platform will list its own tools here.");
+            }
+        }
     }
 
     /// Opens on the template browser instead of the project list. Visual QA of
