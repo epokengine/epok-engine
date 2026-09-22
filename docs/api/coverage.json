@@ -231,9 +231,7 @@
       "types": 1,
       "properties": 0,
       "source_sha256": "e613f276dd7357301536d40c430549f4efc44e12acf7cdb46cf19e893e4b83d3",
-      "diagnostics": [
-        "runtime/hud.hpp:5:10: fatal error: 'fonts.hh' file not found"
-      ]
+      "diagnostics": []
     },
     {
       "family": "epok",
