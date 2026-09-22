@@ -990,6 +990,18 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                     })
                     .unwrap_or_default(),
                 sequence_catalog: None,
+                font: if let Some(value) = a.get("font_settings") {
+                    Some(decode(value.clone())?)
+                } else {
+                    let lower = source.to_ascii_lowercase();
+                    (lower.ends_with(".ttf") || lower.ends_with(".otf")).then(|| {
+                        existing
+                            .as_ref()
+                            .and_then(|r| r.meta.settings.font().ok())
+                            .cloned()
+                            .unwrap_or_default()
+                    })
+                },
                 texture: source.to_ascii_lowercase().ends_with(".png"),
                 model,
                 model_storage,
@@ -1495,7 +1507,7 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
         (
             "asset_import",
             "Import an FBX or audio source already in assets/. FBX animation_storage selects RigidGte or BakedVertices. Destination must be .epokasset. Reimport requires current asset revision. Poll editor_state for completion.",
-            json!({"source":s,"destination":s,"revision":s,"animation_storage":{"enum":["RigidGte","BakedVertices"]},"audio_settings":o,"sequence_settings":o,"bank_settings":o,"vb_source":s}),
+            json!({"source":s,"destination":s,"revision":s,"animation_storage":{"enum":["RigidGte","BakedVertices"]},"audio_settings":o,"sequence_settings":o,"bank_settings":o,"font_settings":o,"vb_source":s}),
             vec!["source", "destination"],
             false,
         ),

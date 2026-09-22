@@ -52,6 +52,7 @@ mod effects;
 mod export;
 mod export_ui;
 mod file_watch;
+mod font_asset;
 mod gizmo;
 mod gui;
 mod hub;
@@ -314,6 +315,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--import-fbx",
             "--import-obj",
             "--import-texture",
+            "--import-font",
             "--reimport-asset",
             "--duplicate-music-sequence",
             "--render-music-sequence",
@@ -679,6 +681,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Ok(());
     }
+    if let Some(source) = value("--import-font") {
+        let destination = value("--asset").map(str::to_owned).unwrap_or_else(|| {
+            std::path::Path::new(source)
+                .with_extension("epokasset")
+                .to_string_lossy()
+                .into_owned()
+        });
+        let settings = value("--font-settings")
+            .map(|s| serde_json::from_str(s).map_err(|e| format!("--font-settings: {e}")))
+            .transpose()?
+            .unwrap_or_default();
+        println!(
+            "Imported Font: {}",
+            assets::commit(font_asset::prepare(
+                &root,
+                source,
+                &destination,
+                settings,
+                None,
+                false
+            )?)?
+        );
+        return Ok(());
+    }
     if let Some(path) = value("--reimport-asset") {
         let path = assets::inside(&root, path)?;
         let p = assets::Package::load(&path)?;
@@ -694,6 +720,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &root,
                     source,
                     &assets::path_string(&root, &path),
+                    Some(r),
+                    args.iter().any(|a| a == "--snapshot")
+                )?)?
+            );
+            return Ok(());
+        }
+        if p.meta.kind == assets::Kind::Font {
+            let index = assets::scan(&root, &mut Default::default());
+            let r = index.resolve(p.meta.id)?;
+            let source = index
+                .linked_source(r)?
+                .map_or(p.meta.source.as_str(), |s| s.path.as_str());
+            let settings = match value("--font-settings") {
+                Some(s) => serde_json::from_str(s).map_err(|e| format!("--font-settings: {e}"))?,
+                None => p.meta.settings.font()?.clone(),
+            };
+            println!(
+                "Reimported Font: {}",
+                assets::commit(font_asset::prepare(
+                    &root,
+                    source,
+                    &assets::path_string(&root, &path),
+                    settings,
                     Some(r),
                     args.iter().any(|a| a == "--snapshot")
                 )?)?

@@ -48,6 +48,7 @@ pub struct ImportForm {
     pub settings: Settings,
     pub sequence: Option<crate::sequence::Settings>,
     pub bank: Option<crate::sound_bank::Settings>,
+    pub font: Option<crate::import_settings::FontSettings>,
     pub bank_companion: String,
     pub sequence_catalog: Option<Result<crate::sequence::SourceCatalog, String>>,
     pub existing: Option<Record>,
@@ -106,6 +107,7 @@ pub struct Manager {
     pub error: Option<String>,
     pub messages: Vec<String>,
     pub music_conversion: crate::music_conversion_ui::State,
+    pub font_preview: crate::asset_ui::FontPreview,
     pub refresh_editor: bool,
     pub busy: bool,
     pub last_deleted: Option<PathBuf>,
@@ -148,6 +150,7 @@ impl Manager {
             error,
             messages: vec![],
             music_conversion: Default::default(),
+            font_preview: Default::default(),
             refresh_editor: false,
             busy: false,
             last_deleted: None,
@@ -432,7 +435,9 @@ impl Manager {
             },
             None => None,
         };
-        let model = item.source.to_ascii_lowercase().ends_with(".fbx");
+        let lower = item.source.to_ascii_lowercase();
+        let model = lower.ends_with(".fbx");
+        let font = lower.ends_with(".ttf") || lower.ends_with(".otf");
         let detected = assets::audio_source_kind(&self.root, &item.source);
         let soundfont = crate::soundfont_asset::has_source_header(&self.root.join(&item.source));
         let destination = existing
@@ -447,6 +452,13 @@ impl Manager {
                     .to_string_lossy()
                     .into_owned()
             });
+        let font = font.then(|| {
+            existing
+                .as_ref()
+                .and_then(|r| r.meta.settings.font().ok())
+                .cloned()
+                .unwrap_or_default()
+        });
         let sequence = (detected == Some(assets::Kind::MusicSequence)
             || (detected.is_none()
                 && std::path::Path::new(&item.source)
@@ -476,7 +488,7 @@ impl Manager {
                     _ => None,
                 })
                 .unwrap_or_default(),
-            texture: item.source.to_ascii_lowercase().ends_with(".png"),
+            texture: lower.ends_with(".png"),
             source: item.source.clone(),
             destination,
             settings: existing
@@ -509,6 +521,7 @@ impl Manager {
                         })
                     }
                 }),
+            font,
             bank_companion: existing
                 .as_ref()
                 .and_then(crate::bank_compat::parts)
@@ -547,6 +560,7 @@ impl Manager {
             settings: record.meta.settings.audio().cloned().unwrap_or_default(),
             sequence,
             bank: record.meta.settings.sound_bank().ok().cloned(),
+            font: record.meta.settings.font().ok().cloned(),
             bank_companion: crate::bank_compat::parts(record)
                 .and_then(|p| p.get(1))
                 .map(|p| p.path.clone())
@@ -573,6 +587,7 @@ impl Manager {
             settings: Default::default(),
             sequence: None,
             bank: Some(Default::default()),
+            font: None,
             bank_companion: String::new(),
             sequence_catalog: None,
             existing: None,
@@ -655,6 +670,7 @@ impl Manager {
         let texture = form.texture;
         let sequence = form.sequence.clone();
         let bank = form.bank.clone();
+        let font = form.font.clone();
         let bank_companion = form.bank_companion.clone();
         self.worker_key = form.queue_key.clone();
         let (tx, rx) = mpsc::channel();
@@ -673,6 +689,16 @@ impl Manager {
                     Some(model_storage),
                 )
                 .map(Prepared::Model)
+            } else if let Some(settings) = font {
+                crate::font_asset::prepare(
+                    &root,
+                    &source,
+                    &destination,
+                    settings,
+                    existing.as_ref(),
+                    snapshot,
+                )
+                .map(Prepared::Audio)
             } else if let Some(settings) = sequence {
                 crate::sequence::prepare(
                     &root,

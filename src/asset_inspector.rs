@@ -271,7 +271,7 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
                         "Drag to orbit · Wheel to zoom · Reset view to frame the model",
                     );
                 }
-            } else if kind == "Texture" {
+            } else if kind == "Texture" || kind == "Font" {
                 let revision = crate::content_preview::revision(&e.root, &e.assets.index, &path);
                 state.media.request(&path, revision);
                 if hovered {
@@ -455,6 +455,7 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             Kind::Skeleton => "Skeleton",
             Kind::AnimationClip => "Animation",
             Kind::Material => "Material",
+            Kind::Font => "Font",
         }
         .into();
         details.fields.extend([
@@ -763,6 +764,16 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             "Dimensions".into(),
             format!("{} × {}", reader.info().width, reader.info().height),
         ));
+    } else if details.kind == "Font" {
+        if let Some(r) = record {
+            let package = assets::Package::load(path)?;
+            let data = crate::font_asset::decode(&package.source, r.meta.settings.font()?)?;
+            details.fields.extend([
+                ("Atlas".into(), format!("{} × {}", data.width, data.height)),
+                ("Glyphs".into(), data.metrics.len().to_string()),
+                ("VRAM".into(), format!("{} bytes", data.vram_bytes())),
+            ]);
+        }
     } else if details.kind == "Audio" {
         let bytes = if record.is_some() {
             assets::Package::load(path)?.source
