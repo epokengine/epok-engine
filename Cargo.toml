@@ -1,6 +1,6 @@
 [package]
 name = "epok-editor"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 description = "Epok Engine visual editor for original PlayStation games"
 license = "MIT"
@@ -22,6 +22,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 notify = "=8.2.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+semver = "1"
 serde_yaml_ng = "=0.10.0"
 png = "0.17"
 sha2 = "0.10"
@@ -39,6 +40,7 @@ clang = { version = "=2.0.0", features = ["runtime", "clang_10_0"] }
 serialport = { version = "=4.10.1", default-features = false }
 portable-pty = "=0.9.0"
 reqwest = { version = "=0.13.4", default-features = false, features = ["blocking", "rustls"] }
+gilrs = "0.11"
 
 [[bin]]
 name = "epok-header-tool"

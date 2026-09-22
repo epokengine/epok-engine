@@ -205,6 +205,8 @@ pub fn scene_header_with_registry_for(
         text.push_str(&format!("#include \"scripts/{}\"\n", script.header_path()));
     }
     text.push_str("namespace epok {\n");
+    let (navigation_table, navigation_init) = crate::navigation::cpp(scene)?;
+    text.push_str(&navigation_table);
     if emit_resources {
         text.push_str(&crate::texture::header(resources)?);
     }
@@ -283,6 +285,16 @@ pub fn scene_header_with_registry_for(
     {
         text.push_str(&crate::mesh_compile::header_with_pages(e, index, &pages)?);
     }
+    for (index, e) in scene
+        .actors
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| e.kind == "Mesh" && e.terrain.is_some())
+    {
+        text.push_str(&crate::terrain_compile::header_with_pages(
+            e, index, &pages,
+        )?);
+    }
     let mut skeletal_assets = std::collections::BTreeMap::new();
     for (i, e) in scene.actors.iter().enumerate() {
         if let Some(c) = &e.skeletal_mesh
@@ -327,11 +339,12 @@ pub fn scene_header_with_registry_for(
         }
         let vector = |v: &[f32; 3]| v.iter().map(|v| fixed(*v)).collect::<Vec<_>>().join(",");
         // EditableMesh owns its material slots; the legacy cube renderer's tint is unrelated.
-        let material = if e.editable_mesh.is_some() || e.skeletal_mesh.is_some() {
-            crate::scene::Material::default()
-        } else {
-            e.material.clone()
-        };
+        let material =
+            if e.editable_mesh.is_some() || e.terrain.is_some() || e.skeletal_mesh.is_some() {
+                crate::scene::Material::default()
+            } else {
+                e.material.clone()
+            };
         text.push_str(&format!(
             "{{{}, {}, {}, {}, {{{{{}}},{{{}}},{{{}}}}}, {{{{{}}}, {}}}}},\n",
             e.kind == "Camera",
@@ -425,7 +438,7 @@ inline void initialize_components(){
                     .map_or(-1, |v| v as i32);
                 let asset = skeletal_assets[&c.asset];
                 text.push_str(&format!("objects[{i}].animator=Animator{{true,&skin_{asset},{clip},0,{},{}}};objects[{i}].geometry=&skin_geometry_{asset};\n",c.play_on_start,c.looping));
-            } else if e.editable_mesh.is_some() {
+            } else if e.editable_mesh.is_some() || e.terrain.is_some() {
                 text.push_str(&format!("objects[{i}].geometry=&editable_{i}_0;\n"));
             } else {
                 let id = topologies[&(e.lighting.subdivisions, crate::lighting::tiled(e))];
@@ -436,11 +449,12 @@ inline void initialize_components(){
         text.push_str(&format!("objects[{i}].active={};\n", e.active));
         if e.kind == "Camera" {
             text.push_str(&format!(
-                "objects[{i}].camera_settings={{true,{}}};\n",
-                fixed(e.camera_fov)
+                "objects[{i}].camera_settings={{true,{},{{{}}}}};\n",
+                fixed(e.camera_fov),
+                color(&e.camera_sky_color)
             ));
         }
-        if e.editable_mesh.is_none() && e.skeletal_mesh.is_none() {
+        if e.editable_mesh.is_none() && e.terrain.is_none() && e.skeletal_mesh.is_none() {
             text.push_str(&format!(
                 "objects[{i}].material={};\n",
                 crate::texture::material_cpp(&e.material)
@@ -530,6 +544,8 @@ inline void initialize_components(){
     text.push_str(&sprite_init);
     text.push_str(&crate::particles::generate(scene, &texture_ids));
     text.push_str(&crate::collision::cpp_setup(scene));
+    text.push_str(&crate::terrain_compile::collider_cpp(scene));
+    text.push_str(&navigation_init);
     text.push_str(&crate::palette::cpp_setup(scene));
     text.push_str(&crate::effects::cpp_setup(scene));
     text.push_str("}\n");
@@ -636,6 +652,44 @@ fn stage_sources(
         }
     })
 }
+
+fn validate_play_data(
+    profile: Option<&crate::play::Profile>,
+    geometry: bool,
+    streamed_music: &[String],
+) -> Result<(), String> {
+    let Some(profile) = profile else {
+        return Ok(());
+    };
+    // Serial builds deliberately preserve clip indices but omit XA payloads.
+    let streamed_music = if profile.target == crate::play::Target::Serial {
+        &[][..]
+    } else {
+        streamed_music
+    };
+    if profile.data == crate::play::DataSource::Executable {
+        return match (geometry, streamed_music) {
+            (true, []) => Err("In executable cannot be used while Geometry Streaming is enabled. Disable Geometry Streaming or choose CD on demand / PC on demand.".into()),
+            (false, []) => Ok(()),
+            (false, music) => Err(format!(
+                "In executable cannot contain streamed XA music: {}. Select a resident MusicSequence asset or choose CD on demand.",
+                music.join(", ")
+            )),
+            (true, music) => Err(format!(
+                "In executable cannot contain streamed geometry or XA music: {}. Disable Geometry Streaming and select resident MusicSequence assets, or choose CD on demand.",
+                music.join(", ")
+            )),
+        };
+    }
+    if profile.data == crate::play::DataSource::Host && !streamed_music.is_empty() {
+        return Err(format!(
+            "PC on demand cannot play XA music because XA requires the physical CD decoder: {}. Select a resident MusicSequence asset or use CD on demand.",
+            streamed_music.join(", ")
+        ));
+    }
+    Ok(())
+}
+
 fn stage_with_playback(
     root: &Path,
     scene: &Scene,
@@ -712,6 +766,12 @@ fn stage_with_playback(
             &crate::assets::scan(root, &mut Default::default()),
         )?;
     }
+    if resolved.actors.iter().any(|e| e.terrain.is_some()) {
+        crate::terrain::resolve(
+            &mut resolved,
+            &crate::assets::scan(root, &mut Default::default()),
+        )?;
+    }
     crate::skeletal::resolve(
         &mut resolved,
         &crate::assets::scan(root, &mut Default::default()),
@@ -726,7 +786,10 @@ fn stage_with_playback(
     let catalog = scripts::catalog(root).inspect_err(|_| {
         let _ = fs::remove_dir_all(build.join("scripts/generated/lua"));
     })?;
-    let blueprint_registry = crate::blueprint::registry_from_catalog(root, &catalog);
+    // Resource selection must see engine components too, not only classes
+    // inherited by project scripts. Otherwise their numeric properties are
+    // conservatively mistaken for unresolved audio inputs during staging.
+    let blueprint_registry = crate::blueprint::native_registry(root, &catalog)?;
     // Template refresh can replace resource defaults. Observe the submitted
     // document with the same types used to select the actual cooked resources.
     playback.scene_audio_source(root, authored.0, authored.1, &blueprint_registry)?;
@@ -775,6 +838,8 @@ fn stage_with_playback(
         crate::blueprint_templates::refresh_instances(bank, &blueprint_files, &blueprint_registry)?;
         bank.display_size = scene.display_size;
         crate::mesh::resolve(bank, &asset_index)?;
+        crate::terrain::resolve(bank, &asset_index)?;
+        crate::terrain::validate_scene(bank)?;
         crate::skeletal::resolve(bank, &asset_index)?;
         crate::texture::resolve(bank, &asset_index)?;
         bank.validate()?;
@@ -787,7 +852,7 @@ fn stage_with_playback(
                 > 3500
         {
             return Err(format!(
-                "Scene {} exceeds 7000 resident triangles. Enable Engine > Streaming > Geometry Streaming for editable meshes, or reduce geometry/subdivisions.",
+                "Scene {} exceeds 7000 resident triangles. Enable Engine > Streaming > Geometry Streaming for editable meshes and terrain, or reduce cell counts, subdivisions and geometry.",
                 bank.name
             ));
         }
@@ -917,25 +982,36 @@ fn stage_with_playback(
         skeletal_queries,
     )?;
     resource_scenes.push(referenced);
+    let shared_resources = crate::scene_bank::resources(&resource_scenes);
+    let streamed_music = crate::audio::clip_ids(&shared_resources)
+        .into_iter()
+        .map(|id| asset_index.resolve(id))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .filter_map(|record| {
+            if record.meta.kind != crate::assets::Kind::AudioClip {
+                return None;
+            }
+            record
+                .meta
+                .settings
+                .audio()
+                .ok()
+                .filter(|settings| settings.is_streamed())
+                .map(|_| record.meta.source.clone())
+        })
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    validate_play_data(profile, stream.is_some(), &streamed_music)?;
     let audio_outputs = if profile.is_some_and(|p| p.target == crate::play::Target::Serial) {
-        crate::audio::stage_with_music(
-            root,
-            &crate::scene_bank::resources(&resource_scenes),
-            build,
-            &asset_index,
-            false,
-        )?
+        crate::audio::stage_with_music(root, &shared_resources, build, &asset_index, false)?
     } else {
-        crate::audio::stage(
-            root,
-            &crate::scene_bank::resources(&resource_scenes),
-            build,
-            &asset_index,
-        )?
+        crate::audio::stage(root, &shared_resources, build, &asset_index)?
     };
     if let Some(profile) = profile {
         if profile.data == crate::play::DataSource::Executable && build.join("disc.xml").is_file() {
-            return Err("This build requires external geometry or XA music. Choose CD on demand / PC on demand, or disable Geometry Streaming and use resident sound effects.".into());
+            return Err("In executable staging unexpectedly produced external disc data; retry after cleaning the build output or report this as a build-system error.".into());
         }
         if profile.data == crate::play::DataSource::Host
             && fs::read_to_string(build.join("audio-bank.hh")).is_ok_and(|s| s.contains(".XA;1"))
@@ -953,7 +1029,6 @@ fn stage_with_playback(
             header.as_bytes(),
         )?;
     }
-    let shared_resources = crate::scene_bank::resources(&resource_scenes);
     crate::memory::stage(
         root,
         build,
@@ -1089,6 +1164,14 @@ pub fn stage_runtime(build: &Path) -> Result<(), String> {
 }
 pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
     static SOURCES: &[(&str, &[u8])] = &[
+        (
+            "navigation.hpp",
+            include_bytes!("../runtime/navigation.hpp").as_slice(),
+        ),
+        (
+            "navigation_components.hpp",
+            include_bytes!("../runtime/navigation_components.hpp").as_slice(),
+        ),
         (
             "gameplay_api.hpp",
             include_bytes!("../runtime/gameplay_api.hpp").as_slice(),
@@ -1252,6 +1335,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/sprites.hpp").as_slice(),
         ),
         (
+            "sprite_math.hpp",
+            include_bytes!("../runtime/sprite_math.hpp").as_slice(),
+        ),
+        (
             "sprite_types.hpp",
             include_bytes!("../runtime/sprite_types.hpp").as_slice(),
         ),
@@ -1380,6 +1467,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "lighting.hpp",
             include_bytes!("../runtime/lighting.hpp").as_slice(),
+        ),
+        (
+            "fixed_math.hpp",
+            include_bytes!("../runtime/fixed_math.hpp").as_slice(),
         ),
         (
             "shadows.hpp",
@@ -1862,6 +1953,58 @@ fn property_setters(
 mod tests {
     use super::*;
     use crate::scene::ClassDefaults;
+
+    #[test]
+    fn play_data_rejects_external_content_with_actionable_diagnostics() {
+        let executable = crate::play::Profile::default();
+        let error = validate_play_data(
+            Some(&executable),
+            false,
+            &["assets/Audio/bgm/streamed.wav".into()],
+        )
+        .unwrap_err();
+        assert!(error.contains("streamed XA music"));
+        assert!(error.contains("assets/Audio/bgm/streamed.wav"));
+        assert!(error.contains("resident MusicSequence"));
+
+        let error = validate_play_data(Some(&executable), true, &[]).unwrap_err();
+        assert!(error.contains("Geometry Streaming"));
+
+        let host = crate::play::Profile {
+            data: crate::play::DataSource::Host,
+            ..Default::default()
+        };
+        let error = validate_play_data(Some(&host), false, &["music.wav".into()]).unwrap_err();
+        assert!(error.contains("physical CD decoder"));
+    }
+
+    #[test]
+    fn play_data_allows_disc_and_serial_xa_policy() {
+        let disc = crate::play::Profile {
+            data: crate::play::DataSource::Disc,
+            ..Default::default()
+        };
+        assert!(validate_play_data(Some(&disc), true, &["music.wav".into()]).is_ok());
+
+        let serial = crate::play::Profile {
+            target: crate::play::Target::Serial,
+            ..Default::default()
+        };
+        assert!(validate_play_data(Some(&serial), false, &["music.wav".into()]).is_ok());
+        assert!(validate_play_data(Some(&serial), true, &["music.wav".into()]).is_err());
+    }
+
+    #[test]
+    fn camera_sky_color_exports_to_the_runtime_clear_setting() {
+        let mut scene = Scene::default();
+        scene.actors[0].camera_sky_color = [0.25, 0.5, 1.];
+        let header = scene_header(&scene, &[]).unwrap();
+        assert!(
+            header.contains(
+                "objects[0].camera_settings={true,Fixed(368640, Fixed::RAW),{64,128,255}};"
+            )
+        );
+    }
     #[test]
     fn background_pass_only_exports_for_selected_actor() {
         let mut scene = Scene::default();

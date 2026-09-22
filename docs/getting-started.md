@@ -99,7 +99,7 @@ With the default Cargo target directory, `make release` writes `target/release/e
 
 ## First session
 
-1. In **Projects**, choose a name/location, select **Sample game**, and click **Create project**. Then select **Cube** in Hierarchy. The sample attaches **Spinner** to it.
+1. In **Projects**, select **Sample**, leave the gameplay flavor on **C++**, choose a name/location, and click **Create project**. Then select **Cube** in Hierarchy. The sample attaches **Spinner** to it.
 2. Use **Edit Script** in Inspector to open its original C++ source in VS Code.
 3. Save a change. With Auto compile enabled, the editor waits 700 ms after a write and compiles in the background.
 4. Double-click a compiler diagnostic in Console to open the corresponding original script and line.

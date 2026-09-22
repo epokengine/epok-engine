@@ -31,7 +31,7 @@ import epok_documents as documents
 from project_layout import project_manifest
 from PIL import Image
 from profile_runtime import EXTRA_FIELDS, FIELDS, symbol_address
-from verify_rpg import png
+from imaging import png
 from verify_skeletal import expected_poses, package
 
 # Only Windows builds carry the .exe suffix; macOS and Linux use the bare name.

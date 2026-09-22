@@ -59,12 +59,22 @@ pub fn inspector(
     editor: &mut crate::editor::Editor,
     entity: &mut crate::scene::Actor,
 ) {
-    let Some(component) = &mut entity.timeline else {
-        return;
-    };
-    if !ui.collapsing_header("Timeline Component", imgui::TreeNodeFlags::DEFAULT_OPEN) {
+    if entity.timeline.is_none() {
         return;
     }
+    let mut remove = false;
+    let open = crate::gui::section(ui, "Timeline Component", || {
+        remove = ui.menu_item("Remove Timeline Component");
+    });
+    if remove {
+        entity.timeline = None;
+        ui.separator();
+        return;
+    }
+    if !open {
+        return;
+    }
+    let component = entity.timeline.as_mut().unwrap();
     if editor
         .timeline_inspector
         .checked
@@ -86,8 +96,8 @@ pub fn inspector(
     if let Some(error) = &editor.timeline_inspector.error {
         ui.text_wrapped(format!("Timeline catalog has errors: {error}"));
     }
-    ui.checkbox("Enabled##timeline", &mut component.enabled);
-    ui.checkbox("Play on start##timeline", &mut component.play_on_start);
+    crate::gui::toggle(ui, "Enabled##timeline", &mut component.enabled);
+    crate::gui::toggle(ui, "Play on start##timeline", &mut component.play_on_start);
     let selected = editor
         .timeline_inspector
         .assets
@@ -101,7 +111,7 @@ pub fn inspector(
         },
         |(_, a)| a.name.clone(),
     );
-    if let Some(_combo) = ui.begin_combo("Timeline asset", &preview) {
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Timeline asset"), &preview) {
         if ui.selectable("None") {
             component.asset = None;
         }
@@ -158,9 +168,6 @@ pub fn inspector(
         {
             ui.text_wrapped(diagnostic.to_string());
         }
-    }
-    if ui.small_button("Remove Timeline Component") {
-        entity.timeline = None;
     }
     ui.separator();
     if let Some(path) = open

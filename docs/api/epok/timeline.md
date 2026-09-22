@@ -28,7 +28,7 @@ This module covers fixed-step simulation time and frame timing. It documents 3 p
 inline bool poll_marker(const Marker* markers, uint16_t count, uint16_t& cursor, int32_t tick, uint16_t& id)
 ```
 
-- **Declared at:** [line 60](../../../runtime/timeline.hpp#L60)
+- **Declared at:** [line 65](../../../runtime/timeline.hpp#L65)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -36,10 +36,10 @@ inline bool poll_marker(const Marker* markers, uint16_t count, uint16_t& cursor,
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `markers` | `const Marker *` | Input | Value supplied for `markers`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
-| `cursor` | `int &` | Input/output; inspect the function contract | Value supplied for `cursor`. See the exact type and module contract. |
-| `tick` | `int` | Input | Value supplied for `tick`. See the exact type and module contract. |
-| `id` | `int &` | Input/output; inspect the function contract | Value supplied for `id`. See the exact type and module contract. |
+| `count` | `uint16_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `cursor` | `uint16_t &` | Input/output; inspect the function contract | Value supplied for `cursor`. See the exact type and module contract. |
+| `tick` | `int32_t` | Input | Value supplied for `tick`. See the exact type and module contract. |
+| `id` | `uint16_t &` | Input/output; inspect the function contract | Value supplied for `id`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -52,10 +52,10 @@ inline bool poll_marker(const Marker* markers, uint16_t count, uint16_t& cursor,
 
 // Assume these named values have been initialized with valid data:
 // const Marker * markers
-// int count
-// int & cursor
-// int tick
-// int & id
+// uint16_t count
+// uint16_t & cursor
+// int32_t tick
+// uint16_t & id
 
 auto result = epok::timeline::poll_marker(markers, count, cursor, tick, id);
 ```
@@ -78,7 +78,7 @@ auto result = epok::timeline::poll_marker(markers, count, cursor, tick, id);
 inline int32_t sample(Curve curve, int32_t tick)
 ```
 
-- **Declared at:** [line 22](../../../runtime/timeline.hpp#L22)
+- **Declared at:** [line 23](../../../runtime/timeline.hpp#L23)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -86,9 +86,9 @@ inline int32_t sample(Curve curve, int32_t tick)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `curve` | `Curve` | Input | Value supplied for `curve`. See the exact type and module contract. |
-| `tick` | `int` | Input | Value supplied for `tick`. See the exact type and module contract. |
+| `tick` | `int32_t` | Input | Value supplied for `tick`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Ticks and values are raw Q12. Do not quantize alpha before interpolation.
 
@@ -99,7 +99,7 @@ inline int32_t sample(Curve curve, int32_t tick)
 
 // Assume these named values have been initialized with valid data:
 // Curve curve
-// int tick
+// int32_t tick
 
 auto result = epok::timeline::sample(curve, tick);
 ```
@@ -120,7 +120,7 @@ auto result = epok::timeline::sample(curve, tick);
 constexpr int32_t saturate(int64_t value)
 ```
 
-- **Declared at:** [line 17](../../../runtime/timeline.hpp#L17)
+- **Declared at:** [line 18](../../../runtime/timeline.hpp#L18)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -129,7 +129,7 @@ constexpr int32_t saturate(int64_t value)
 | --- | --- | --- | --- |
 | `value` | `int64_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need fixed-step simulation time and frame timing and the preconditions in the declaration are already satisfied.
 

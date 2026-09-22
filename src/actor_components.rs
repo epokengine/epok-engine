@@ -115,7 +115,9 @@ pub fn sync(actor: &mut ActorInstance) {
         material,
         lighting,
         camera_fov,
+        camera_sky_color,
         editable_mesh,
+        terrain,
         skeletal_mesh,
         sprite,
         sprite_animator,
@@ -176,7 +178,7 @@ pub fn sync(actor: &mut ActorInstance) {
     if !ui && !two_d {
         if data.kind == "Mesh" {
             wanted.push((om::MESH3D_COMPONENT_ID,"epok::Mesh3DComponent","Mesh Renderer",false,
-                json!({"material":data.material,"lighting":data.lighting,"editable_mesh":data.editable_mesh,"skeletal_mesh":data.skeletal_mesh})));
+                json!({"material":data.material,"lighting":data.lighting,"editable_mesh":data.editable_mesh,"terrain":data.terrain,"skeletal_mesh":data.skeletal_mesh})));
         }
         if data.kind == "Camera" {
             wanted.push((
@@ -184,7 +186,7 @@ pub fn sync(actor: &mut ActorInstance) {
                 "epok::Camera3DComponent",
                 "Camera",
                 false,
-                json!({"camera_fov":data.camera_fov}),
+                json!({"camera_fov":data.camera_fov,"camera_sky_color":data.camera_sky_color}),
             ));
         }
     }
@@ -328,11 +330,14 @@ pub fn read(actor: &mut ActorInstance) {
                     data.lighting = value;
                 }
                 data.editable_mesh = decoded(p, "editable_mesh");
+                data.terrain = decoded(p, "terrain");
                 data.skeletal_mesh = decoded(p, "skeletal_mesh");
             }
             om::CAMERA3D_COMPONENT_ID => {
                 data.kind = "Camera".into();
                 data.camera_fov = decoded(p, "camera_fov").unwrap_or(90.);
+                data.camera_sky_color = decoded(p, "camera_sky_color")
+                    .unwrap_or(crate::scene::DEFAULT_CAMERA_SKY_COLOR);
             }
             om::RECT_TRANSFORM_COMPONENT_ID => {
                 data.rect = Some(decoded(p, "rect").unwrap_or_default())
@@ -369,7 +374,7 @@ pub fn read(actor: &mut ActorInstance) {
     // Resolved mesh buffers are caches, excluded from the component document.
     // Keep them when a component edit or identity remap leaves the asset unchanged.
     macro_rules! retain_cache {($($field:ident),*)=>{$(if serde_json::to_value(&data.$field).ok()==serde_json::to_value(&actor.data.$field).ok(){data.$field=actor.data.$field.clone();})*};}
-    retain_cache!(editable_mesh, skeletal_mesh);
+    retain_cache!(editable_mesh, terrain, skeletal_mesh);
     actor.data = data;
     actor.projection_baseline = serde_json::to_value(&actor.data).expect("built-in projection");
 }
@@ -419,10 +424,12 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
             check!("material", crate::scene::Material);
             check!("lighting", crate::lighting::MeshLighting);
             check!("editable_mesh", crate::mesh::Component);
+            check!("terrain", crate::terrain::Component);
             check!("skeletal_mesh", crate::skeletal::Component);
         }
         om::CAMERA3D_COMPONENT_ID => {
             check!("camera_fov", f32);
+            check!("camera_sky_color", [f32; 3]);
         }
         om::SPRITE3D_COMPONENT_ID => {
             check!("sprite", crate::sprites::Sprite);

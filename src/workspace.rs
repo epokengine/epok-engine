@@ -1,7 +1,9 @@
 //! Game project identity and lifetime. No editor sources belong in this directory.
 use crate::{project::write_changed, scene::Scene};
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
+    cmp::Ordering,
     fs,
     path::{Component, Path, PathBuf},
 };
@@ -13,6 +15,16 @@ pub const LEGACY_MANIFEST: &str = "ProjectSettings/project.json";
 #[allow(dead_code)]
 pub const MANIFEST: &str = LEGACY_MANIFEST;
 pub const FORMAT: u32 = 1;
+
+/// Whether a project's editor revision may be opened by this build. Older
+/// projects are deliberately held here until the author explicitly accepts
+/// the manifest upgrade in the Hub.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EditorVersion {
+    Current,
+    Older(String),
+    CurrentOrNewer(String),
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -32,6 +44,9 @@ pub struct Manifest {
     pub rendering: crate::settings::Rendering,
     #[serde(default)]
     pub debug: crate::settings::DebugHud,
+    /// Desktop bindings for up to four virtual PlayStation pads.
+    #[serde(default)]
+    pub controls: crate::controls::Settings,
     /// Exactly one Lua execution mode per project; Play, Build and export all
     /// resolve this field. Never three booleans, never switched automatically.
     #[serde(default)]
@@ -177,7 +192,64 @@ pub fn read_manifest(root: &Path) -> Result<Manifest, String> {
     read_manifest_at(&root, &path)
 }
 
+/// Read just the editor revision for the Hub. This intentionally does not
+/// reject a project solely because it was authored by another editor build;
+/// the Hub needs to show its actual version and offer an explicit upgrade.
+pub fn project_editor_version(path: &Path) -> Result<String, String> {
+    let (root, manifest_path) = resolve(path)?;
+    Ok(read_manifest_document(&root, &manifest_path)?.editor_version)
+}
+
+pub fn editor_version(path: &Path) -> Result<EditorVersion, String> {
+    let (root, manifest_path) = resolve(path)?;
+    let manifest = read_manifest_document(&root, &manifest_path)?;
+    editor_version_for(&manifest.editor_version)
+}
+
+/// Update only the manifest's editor revision after an author has confirmed
+/// the action in the Hub. The original descriptor is copied into
+/// `.epok/migrations` first, so cancelling the migration is never the only
+/// way to preserve the prior project state.
+pub fn upgrade_editor_version(path: &Path) -> Result<PathBuf, String> {
+    let (root, manifest_path) = resolve(path)?;
+    let _lock = lock_root(&root)?;
+    let mut manifest = read_manifest_document(&root, &manifest_path)?;
+    let previous = manifest.editor_version.clone();
+    match editor_version_for(&previous)? {
+        EditorVersion::Older(_) => {}
+        EditorVersion::Current => {
+            return Err("This project already uses the current Epok version.".into());
+        }
+        EditorVersion::CurrentOrNewer(version) => {
+            return Err(format!(
+                "Project requires Epok {version}; this editor is {}.",
+                env!("CARGO_PKG_VERSION")
+            ));
+        }
+    }
+    // Do not publish a new descriptor if its startup scene cannot be read.
+    Scene::load_unresolved(&scene_path(&root, &manifest)?)?;
+    let backup = backup_manifest(&root, &manifest_path, &previous)?;
+    manifest.editor_version = env!("CARGO_PKG_VERSION").into();
+    crate::settings::save_document(&manifest_path, &manifest)?;
+    Ok(backup)
+}
+
 fn read_manifest_at(root: &Path, path: &Path) -> Result<Manifest, String> {
+    let manifest = read_manifest_document(root, path)?;
+    // Projects at another revision must be upgraded through the Hub. Keeping
+    // this check here protects headless and programmatic open paths too.
+    if manifest.editor_version != env!("CARGO_PKG_VERSION") {
+        return Err(format!(
+            "Project requires Epok {}; this editor is {}.",
+            manifest.editor_version,
+            env!("CARGO_PKG_VERSION")
+        ));
+    }
+    Ok(manifest)
+}
+
+fn read_manifest_document(root: &Path, path: &Path) -> Result<Manifest, String> {
     let manifest: Manifest = crate::document::from_slice(
         &fs::read(path).map_err(|e| format!("Not an Epok project ({}): {e}", path.display()))?,
     )
@@ -186,14 +258,6 @@ fn read_manifest_at(root: &Path, path: &Path) -> Result<Manifest, String> {
         return Err(format!(
             "Unsupported project format {} (this editor supports {FORMAT}).",
             manifest.format_version
-        ));
-    }
-    // No silent upgrades while Epok's serialization/runtime API is experimental.
-    if manifest.editor_version != env!("CARGO_PKG_VERSION") {
-        return Err(format!(
-            "Project requires Epok {}; this editor is {}.",
-            manifest.editor_version,
-            env!("CARGO_PKG_VERSION")
         ));
     }
     validate_name(&manifest.name)?;
@@ -205,6 +269,49 @@ fn read_manifest_at(root: &Path, path: &Path) -> Result<Manifest, String> {
     }
     scene_path(root, &manifest)?;
     Ok(manifest)
+}
+
+fn editor_version_for(version: &str) -> Result<EditorVersion, String> {
+    if version == env!("CARGO_PKG_VERSION") {
+        return Ok(EditorVersion::Current);
+    }
+    let project = Version::parse(version).map_err(|error| {
+        format!("Project editor version {version:?} is not a valid semantic version: {error}")
+    })?;
+    let current = Version::parse(env!("CARGO_PKG_VERSION"))
+        .expect("the editor package version must be valid semantic version");
+    Ok(match project.cmp(&current) {
+        Ordering::Less => EditorVersion::Older(version.into()),
+        Ordering::Equal | Ordering::Greater => EditorVersion::CurrentOrNewer(version.into()),
+    })
+}
+
+fn backup_manifest(root: &Path, manifest: &Path, version: &str) -> Result<PathBuf, String> {
+    let directory = root.join(".epok/migrations");
+    fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    let safe_version = version
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || character == '.' || character == '-' {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let backup = directory.join(format!(
+        "{}-editor-{}-{}.backup",
+        manifest.file_name().unwrap_or_default().to_string_lossy(),
+        safe_version,
+        uuid::Uuid::new_v4()
+    ));
+    fs::copy(manifest, &backup).map_err(|error| {
+        format!(
+            "Could not back up {} before upgrading: {error}",
+            manifest.display()
+        )
+    })?;
+    Ok(backup)
 }
 
 pub fn save_manifest(root: &Path, manifest: &Manifest) -> Result<(), String> {
@@ -327,14 +434,127 @@ pub fn validate_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Template {
     Basic,
     Sample,
     ThirdPerson,
 }
+impl Template {
+    pub const ALL: [Self; 3] = [Self::Basic, Self::Sample, Self::ThirdPerson];
+    /// The spelling `--template` accepts and the preview file stem.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Basic => "basic",
+            Self::Sample => "sample",
+            Self::ThirdPerson => "third-person",
+        }
+    }
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|t| t.key() == value)
+    }
+}
 
+/// Which authoring system writes the starter gameplay a template generates.
+/// It chooses what is written once, at creation; it is never a project mode,
+/// so a created project keeps all three systems available side by side.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GameplayFlavor {
+    #[default]
+    Cpp,
+    Blueprint,
+    Lua,
+}
+impl GameplayFlavor {
+    pub const ALL: [Self; 3] = [Self::Cpp, Self::Blueprint, Self::Lua];
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Cpp => "cpp",
+            Self::Blueprint => "blueprint",
+            Self::Lua => "lua",
+        }
+    }
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::Cpp => "C++",
+            Self::Blueprint => "Blueprint",
+            Self::Lua => "Lua",
+        }
+    }
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::Cpp => "Native component source owned by the project.",
+            Self::Blueprint => "A visual graph authored in the project.",
+            Self::Lua => {
+                "Lua source authored in the project, built with the project's Lua execution setting."
+            }
+        }
+    }
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|f| f.key() == value)
+    }
+}
+
+/// The hardware a new project targets. One variant today; the field exists so
+/// creation, templates and the Hub never have to be rewritten to gain a second.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TargetPlatform {
+    #[default]
+    PlayStation,
+}
+impl TargetPlatform {
+    pub const ALL: [Self; 1] = [Self::PlayStation];
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::PlayStation => "PlayStation",
+        }
+    }
+}
+
+/// Template, gameplay flavor and target platform are independent axes of one
+/// creation request; none of them multiplies the others into new template values.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CreateOptions {
+    pub template: Template,
+    pub gameplay: GameplayFlavor,
+    pub target: TargetPlatform,
+}
+impl CreateOptions {
+    pub fn new(template: Template) -> Self {
+        Self {
+            template,
+            gameplay: GameplayFlavor::default(),
+            target: TargetPlatform::default(),
+        }
+    }
+    pub fn with_gameplay(self, gameplay: GameplayFlavor) -> Self {
+        Self { gameplay, ..self }
+    }
+}
+
+/// Command-line spellings of the two choices. The target is not an option yet:
+/// there is one, and inventing a flag for it would imply otherwise.
+pub fn creation_options(template: &str, gameplay: &str) -> Result<CreateOptions, String> {
+    let template = Template::parse(template).ok_or_else(|| {
+        format!("Unknown template: {template}. Use basic, sample or third-person.")
+    })?;
+    let gameplay = GameplayFlavor::parse(gameplay).ok_or_else(|| {
+        format!("Unknown gameplay flavor: {gameplay}. Use cpp, blueprint or lua.")
+    })?;
+    Ok(CreateOptions::new(template).with_gameplay(gameplay))
+}
+
+/// Creation with the historic signature: C++ starter gameplay for a PlayStation
+/// project. Existing callers and old automation keep working unchanged.
 pub fn create(destination: &Path, name: &str, template: Template) -> Result<Project, String> {
+    create_with_options(destination, name, CreateOptions::new(template))
+}
+
+pub fn create_with_options(
+    destination: &Path,
+    name: &str,
+    options: CreateOptions,
+) -> Result<Project, String> {
     validate_name(name)?;
     // Claim a NEW directory exclusively. Never merge into or overwrite existing content.
     let parent = destination
@@ -347,12 +567,29 @@ pub fn create(destination: &Path, name: &str, template: Template) -> Result<Proj
             destination.display()
         )
     })?;
+    // Everything after the exclusive claim is transactional: a half-written
+    // project is removed rather than left behind to be opened by mistake.
+    match populate(destination, name, options) {
+        Ok(project) => Ok(project),
+        Err(error) => {
+            let _ = fs::remove_dir_all(destination);
+            Err(error)
+        }
+    }
+}
+
+fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Project, String> {
+    let CreateOptions {
+        template, gameplay, ..
+    } = options;
     for directory in ["assets/scenes", "assets/scripts", "ProjectSettings"] {
         fs::create_dir_all(destination.join(directory)).map_err(|e| e.to_string())?;
     }
     let scene = match template {
-        Template::ThirdPerson => crate::third_person::create(destination)?,
+        Template::ThirdPerson => crate::third_person::create(destination, gameplay)?,
         Template::Basic => {
+            // Basic stays basic: no starter behaviour in any flavor, so nothing
+            // here depends on the selection beyond the descriptor it records.
             let mut scene = Scene {
                 name: "Main".into(),
                 ..Scene::default()
@@ -360,29 +597,7 @@ pub fn create(destination: &Path, name: &str, template: Template) -> Result<Proj
             scene.actors.truncate(1);
             scene
         }
-        Template::Sample => {
-            let mut scene = Scene::default();
-            scene.name = "SampleScene".into();
-            scene.actors[1]
-                .components
-                .push(crate::actor_document::ComponentInstance::new(
-                    uuid::Uuid::new_v4(),
-                    crate::actor_document::ClassReference::new(
-                        "Spinner",
-                        "a997b0f2-b3ac-45c2-9d75-9ec11dc890af",
-                    ),
-                    "Spinner",
-                ));
-            write_changed(
-                &destination.join("assets/scripts/Spinner.hpp"),
-                include_bytes!("../templates/Spinner.hpp"),
-            )?;
-            write_changed(
-                &destination.join("assets/scripts/Spinner.cpp"),
-                b"#include \"Spinner.hpp\"\n",
-            )?;
-            scene
-        }
+        Template::Sample => crate::sample_template::create(destination, gameplay)?,
     };
     let manifest = Manifest {
         format_version: FORMAT,
@@ -403,6 +618,7 @@ pub fn create(destination: &Path, name: &str, template: Template) -> Result<Proj
             Default::default()
         },
         debug: Default::default(),
+        controls: Default::default(),
         lua_execution: Default::default(),
         lua_profile: crate::settings::LuaProfile::GameplayV2,
         default_sound_bank: None,
@@ -529,6 +745,63 @@ pub fn update_recent(path: &Path, project: &Path, name: Option<&str>) -> Result<
 
 #[cfg(test)]
 pub(crate) mod tests {
+
+    #[test]
+    fn the_command_line_names_every_template_and_flavor() {
+        for template in Template::ALL {
+            for flavor in GameplayFlavor::ALL {
+                let options = creation_options(template.key(), flavor.key()).unwrap();
+                assert_eq!(options.template, template);
+                assert_eq!(options.gameplay, flavor);
+                assert_eq!(options.target, TargetPlatform::PlayStation);
+            }
+        }
+        // The historic invocation keeps generating C++, with or without the flag.
+        assert_eq!(
+            creation_options("third-person", "cpp").unwrap(),
+            CreateOptions::new(Template::ThirdPerson)
+        );
+        assert!(creation_options("roguelike", "cpp").is_err());
+        assert!(
+            creation_options("basic", "rust")
+                .unwrap_err()
+                .contains("cpp, blueprint or lua")
+        );
+    }
+
+    /// A creation that cannot finish leaves no folder behind: an abandoned one
+    /// would be offered by the Hub as a real project. The first case never
+    /// reaches the template; the second fails inside it, after the folder has
+    /// already been claimed, and is rolled back.
+    #[test]
+    #[cfg(unix)]
+    fn a_failed_creation_claims_nothing() {
+        use std::os::unix::fs::PermissionsExt;
+        let parent =
+            std::env::temp_dir().join(format!("epok-transaction-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&parent).unwrap();
+        let destination = parent.join("Blocked");
+        fs::set_permissions(&parent, fs::Permissions::from_mode(0o555)).unwrap();
+        assert!(create(&destination, "Blocked", Template::Basic).is_err());
+        assert!(!destination.exists());
+        fs::set_permissions(&parent, fs::Permissions::from_mode(0o755)).unwrap();
+
+        // The same failure one step later: the folder exists and the template
+        // cannot write its scene into it.
+        let claimed = parent.join("Half written");
+        fs::create_dir(&claimed).unwrap();
+        fs::set_permissions(&claimed, fs::Permissions::from_mode(0o555)).unwrap();
+        assert!(
+            populate(
+                &claimed,
+                "Half written",
+                CreateOptions::new(Template::ThirdPerson)
+            )
+            .is_err()
+        );
+        fs::set_permissions(&claimed, fs::Permissions::from_mode(0o755)).unwrap();
+        fs::remove_dir_all(parent).unwrap();
+    }
     use super::*;
     pub fn temp(label: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -688,6 +961,42 @@ pub(crate) mod tests {
         )
         .unwrap();
         assert!(Project::open(&root).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn older_editor_versions_require_an_explicit_recoverable_upgrade() {
+        let root = temp("editor-version-upgrade");
+        let project = create(&root, "Versioned Game", Template::Basic).unwrap();
+        let mut manifest = project.manifest.clone();
+        drop(project);
+        manifest.editor_version = "0.2.0".into();
+        let descriptor = manifest_path(&root).unwrap();
+        write_changed(&descriptor, &serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let before = fs::read(&descriptor).unwrap();
+
+        assert_eq!(
+            project_editor_version(&root).unwrap(),
+            "0.2.0",
+            "The Hub must be able to show an older descriptor revision."
+        );
+        assert_eq!(
+            editor_version(&root).unwrap(),
+            EditorVersion::Older("0.2.0".into())
+        );
+        assert!(
+            Project::open(&root).is_err(),
+            "Opening cannot upgrade silently."
+        );
+
+        let backup = upgrade_editor_version(&root).unwrap();
+        assert_eq!(fs::read(&backup).unwrap(), before);
+        assert!(backup.starts_with(fs::canonicalize(&root).unwrap().join(".epok/migrations")));
+        assert_eq!(
+            read_manifest(&root).unwrap().editor_version,
+            env!("CARGO_PKG_VERSION")
+        );
+        assert!(Project::open(&root).is_ok());
+        assert!(upgrade_editor_version(&root).is_err());
         fs::remove_dir_all(root).unwrap();
     }
     #[test]

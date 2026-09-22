@@ -34,7 +34,7 @@ emitter.stop();    // stops new automatic emission
 emitter.play();    // restarts automatic emission
 ```
 
-Limits are 64 authored emitters, 128 particles per emitter, 256 globally, and 2048 sprite triangles per frame. Particle slots are independent of entity slots. `particle_stats` reports alive, spawned, dropped and peak counts; `sprite_stats` reports submitted, culled, clipped and dropped rendering work. Lifetimes and flipbook cells are validated before export. The editor previews an eight-second repeating timeline with a cached fixed-step pool and at most eight catch-up ticks per frame.
+Limits are 64 authored emitters, 128 particles per emitter, 256 globally, and by default 2048 sprite triangles per frame. Project Settings → Rendering → Geometry → Sprite Triangle Budget can reserve 64–2048 triangles for the native double-buffered sprite/VFX pool; lowering it saves 64 bytes per removed triangle slot. Exceeding the pool drops triangles and increments `sprite_stats.dropped`. The editor preview retains its default pool. Particle slots are independent of entity slots. `particle_stats` reports alive, spawned, dropped and peak counts; `sprite_stats` reports submitted, culled, clipped and dropped rendering work. Lifetimes and flipbook cells are validated before export. The editor previews an eight-second repeating timeline with a cached fixed-step pool and at most eight catch-up ticks per frame.
 
 These capacities bound storage and work; a full pool can still consume substantial
 simulation and drawing time. Profile the intended simultaneous effects together
@@ -62,4 +62,4 @@ at most six catch-up steps per UI frame and discards excess wall time. The older
 Scene view particle preview still uses its existing Rust simulation; it is not
 the effect parity reference. GPU rendering is not pixel-identical to PSX.
 
-The [included example](../examples/rpg-2-5d-demo/README.md) exercises textured geometry, sprite sorting, animation, bursts, collision, input, resource reuse and HUD text. Host runtime tests use the actual PsyQo Q12 type: `python tests/runtime/verify_sprites_particles.py`.
+Host runtime tests use the actual PsyQo Q12 type: `python tests/runtime/verify_sprites_particles.py`.

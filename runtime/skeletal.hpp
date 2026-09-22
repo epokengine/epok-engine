@@ -19,7 +19,7 @@ static_assert(sizeof(AnimationClip)==20,"AnimationClip layout changed; update th
 static_assert(sizeof(Material)==24,"Material layout changed; update the editor's size constants");
 static_assert(sizeof(MeshQuad)==72,"MeshQuad layout changed; update the editor's size constants");
 static_assert(sizeof(MeshGeometry)==72,"MeshGeometry layout changed; update the editor's size constants");
-static_assert(sizeof(SkeletalMesh)==36,"SkeletalMesh layout changed; update the editor's size constants");
+static_assert(sizeof(SkeletalMesh)==40,"SkeletalMesh layout changed; update the editor's size constants");
 static_assert(sizeof(Animator)==20,"Animator layout changed; update the editor's size constants");
 static_assert(sizeof(Affine<Fixed>)==48,"Affine<Fixed> layout changed; update the editor's size constants");
 #endif
@@ -29,11 +29,39 @@ inline Affine<Fixed> pose_matrix(const BonePose& p) {
     Fixed x(p.rotation[0],Fixed::RAW),y(p.rotation[1],Fixed::RAW),z(p.rotation[2],Fixed::RAW),w(p.rotation[3],Fixed::RAW);
     Fixed two=2.0,one=1.0;
     Affine<Fixed> m;
+    if(!(p.rotation[0]|p.rotation[1]|p.rotation[2])){
+        for(int r=0;r<3;++r){m.values[r][r]=Fixed(p.scale[r],Fixed::RAW);m.values[r][3]=Fixed(int32_t(p.translation[r])*16,Fixed::RAW);}
+        return m;
+    }
     m.values[0][0]=one-two*(y*y+z*z);m.values[0][1]=two*(x*y-z*w);m.values[0][2]=two*(x*z+y*w);
     m.values[1][0]=two*(x*y+z*w);m.values[1][1]=one-two*(x*x+z*z);m.values[1][2]=two*(y*z-x*w);
     m.values[2][0]=two*(x*z-y*w);m.values[2][1]=two*(y*z+x*w);m.values[2][2]=one-two*(x*x+y*y);
-    for(int r=0;r<3;++r){for(int c=0;c<3;++c)m.values[r][c]*=Fixed(p.scale[c],Fixed::RAW);m.values[r][3]=Fixed(int32_t(p.translation[r])*16,Fixed::RAW);}
+    for(int r=0;r<3;++r){for(int c=0;c<3;++c)if(p.scale[c]!=4096)m.values[r][c]*=Fixed(p.scale[c],Fixed::RAW);m.values[r][3]=Fixed(int32_t(p.translation[r])*16,Fixed::RAW);}
     return m;
+}
+// A small-angle quaternion approximation keeps additive aiming deterministic on
+// host and MIPS without introducing a per-character trigonometry service. The
+// controller clamps this to a practical upper-body range ([-35, 45] degrees).
+inline Affine<Fixed> aim_pitch_matrix(Fixed degrees) {
+    const Fixed radians=degrees*Fixed(36,Fixed::RAW); // pi / 360 in Q12.
+    const Fixed squared=radians*radians;
+    const Fixed sine=radians-(squared*radians)/Fixed(6.0);
+    const Fixed cosine=Fixed(1.0)-squared/Fixed(2.0)+(squared*squared)/Fixed(24.0);
+    const Fixed two=Fixed(2.0);
+    auto value=Affine<Fixed>::identity();
+    value.values[1][1]=cosine*cosine-sine*sine;
+    value.values[1][2]=-two*sine*cosine;
+    value.values[2][1]=two*sine*cosine;
+    value.values[2][2]=cosine*cosine-sine*sine;
+    return value;
+}
+inline Affine<Fixed> local_pose_matrix(const BonePose& pose,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,size_t bone) {
+    const auto local=pose_matrix(pose);
+    if(aim_bone<0||!aim_pitch.raw())return local;
+    if(size_t(aim_bone)==bone)return local.compose(aim_pitch_matrix(aim_pitch));
+    if(aim_stop_bones&&(aim_stop_bones[0]==int16_t(bone)||aim_stop_bones[1]==int16_t(bone)))
+        return aim_pitch_matrix(-aim_pitch).compose(local);
+    return local;
 }
 struct Scratch {
     Affine<Fixed> bones[64];
@@ -47,13 +75,16 @@ struct Scratch {
         else if(frame>=clip->frames)frame=clip->frames-1;
         return frame;
     }
-    void pose_bones(const SkeletalMesh& model,const Animator& animator) {
+#ifdef __mips__
+    __attribute__((noinline,optimize("O3")))
+#endif
+    void pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch) {
         const AnimationClip* clip=animator.clip>=0 && size_t(animator.clip)<model.clip_count?&model.clips[animator.clip]:nullptr;
         uint32_t frame=frame_index(clip,animator);
         for(size_t i=0;i<model.bone_count;++i){
             const auto& bone=model.bones[i];const BonePose* p=&bone.bind;
             if(clip&&clip->tracks){const auto& track=clip->tracks[i];p=&track.poses[track.constant?0:frame];}
-            auto local=pose_matrix(*p);bones[i]=bone.parent<0?local:bones[bone.parent].compose(local);
+            auto local=local_pose_matrix(*p,aim_bone,aim_stop_bones,aim_pitch,i);bones[i]=bone.parent<0?local:bones[bone.parent].compose(local);
         }
     }
     void skin_vertices(const SkeletalMesh& model) {
@@ -64,6 +95,9 @@ struct Scratch {
         }
         geometry=*model.geometry;geometry.vertices=vertices;
     }
+#ifdef __mips__
+    __attribute__((noinline,optimize("O3")))
+#endif
     void decode_vertices(const SkeletalMesh& model,const Animator& animator) {
         geometry=*model.geometry;
         const AnimationClip* clip=animator.clip>=0 && size_t(animator.clip)<model.clip_count?&model.clips[animator.clip]:nullptr;
@@ -80,9 +114,9 @@ struct Scratch {
         }
         geometry.vertices=vertices;
     }
-    void pose(const SkeletalMesh& model,const Animator& animator) {
+    void pose(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch) {
         if(model.storage==SkeletalStorage::BakedVertices){decode_vertices(model,animator);return;}
-        pose_bones(model,animator);skin_vertices(model);
+        pose_bones(model,animator,aim_bone,aim_stop_bones,aim_pitch);skin_vertices(model);
     }
 };
 #ifdef __mips__
@@ -105,7 +139,7 @@ inline const BonePose* selected_pose(const SkeletalMesh& model,const Animator& a
     if(!track.poses)return nullptr;
     return &track.poses[track.constant?0:skeletal_detail::Scratch::frame_index(&clip,animator)];
 }
-inline bool bone_matrix(const SkeletalMesh& model,const Animator& animator,uint32_t bone,PoseKind pose,Affine<Fixed>& output) {
+inline bool bone_matrix(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t bone,PoseKind pose,Affine<Fixed>& output) {
     if(!model.bones||bone>=model.bone_count||model.bone_count>64)return false;
     uint16_t chain[64];size_t count=0;int current=int(bone);
     while(current>=0&&size_t(current)<model.bone_count&&count<64){
@@ -114,14 +148,14 @@ inline bool bone_matrix(const SkeletalMesh& model,const Animator& animator,uint3
     }
     if(current>=0)return false;
     stats().bones+=uint32_t(count);output=Affine<Fixed>::identity();
-    while(count){const size_t index=chain[--count];const auto* value=selected_pose(model,animator,index,pose);if(!value)return false;output=output.compose(skeletal_detail::pose_matrix(*value));}
+    while(count){const size_t index=chain[--count];const auto* value=selected_pose(model,animator,index,pose);if(!value)return false;output=output.compose(skeletal_detail::local_pose_matrix(*value,aim_bone,aim_stop_bones,aim_pitch,index));}
     return true;
 }
 struct BatchScratch {Affine<Fixed> bones[64];};
 inline BatchScratch& batch_scratch(){static BatchScratch value;return value;}
-inline bool pose_all(const SkeletalMesh& model,const Animator& animator,PoseKind pose) {
+inline bool pose_all(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,PoseKind pose) {
     if(!model.bones||model.bone_count>64)return false;auto& output=batch_scratch();
-    for(size_t index=0;index<model.bone_count;++index){const auto* value=selected_pose(model,animator,index,pose);if(!value)return false;const auto local=skeletal_detail::pose_matrix(*value);const int parent=model.bones[index].parent;if(parent>=int(index))return false;output.bones[index]=parent<0?local:output.bones[parent].compose(local);}stats().bones+=uint32_t(model.bone_count);return true;
+    for(size_t index=0;index<model.bone_count;++index){const auto* value=selected_pose(model,animator,index,pose);if(!value)return false;const auto local=skeletal_detail::local_pose_matrix(*value,aim_bone,aim_stop_bones,aim_pitch,index);const int parent=model.bones[index].parent;if(parent>=int(index))return false;output.bones[index]=parent<0?local:output.bones[parent].compose(local);}stats().bones+=uint32_t(model.bone_count);return true;
 }
 inline bool baked_vertex(const SkeletalMesh& model,const Animator& animator,uint32_t vertex,PoseKind pose,Fixed* output) {
     if(!model.geometry||vertex>=model.geometry->vertex_count)return false;
@@ -138,13 +172,13 @@ inline bool baked_vertex(const SkeletalMesh& model,const Animator& animator,uint
     stats().decoded_bytes+=uint32_t(source-decoded_begin);
     return true;
 }
-inline bool model_vertex(const SkeletalMesh& model,const Animator& animator,uint32_t portable,PoseKind pose,Fixed* output,SkeletalError& error) {
-    if(!model.geometry||portable>=model.geometry->vertex_count){error=SkeletalError::InvalidVertex;return false;}
+inline bool model_vertex(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t portable,PoseKind pose,Fixed* output,SkeletalError& error) {
+    if(!model.geometry||portable>=(model.portable_vertex_count?model.portable_vertex_count:model.geometry->vertex_count)){error=SkeletalError::InvalidVertex;return false;}
     if(model.storage==SkeletalStorage::BakedVertices){if(!baked_vertex(model,animator,portable,pose,output)){error=SkeletalError::MissingPoseData;return false;}return true;}
     const uint32_t cooked=model.portable_to_cooked?model.portable_to_cooked[portable]:portable;
     if(cooked>=model.geometry->vertex_count||!model.vertex_bones){error=SkeletalError::MissingPoseData;return false;}
     const uint32_t bone=model.vertex_bones[cooked];Affine<Fixed> matrix;
-    if(!bone_matrix(model,animator,bone,pose,matrix)){error=SkeletalError::MissingPoseData;return false;}
+    if(!bone_matrix(model,animator,aim_bone,aim_stop_bones,aim_pitch,bone,pose,matrix)){error=SkeletalError::MissingPoseData;return false;}
     Fixed local[3];for(int c=0;c<3;++c)local[c]=Fixed(model.geometry->vertices[cooked][c],Fixed::RAW);matrix.point(local,output);return true;
 }
 inline bool apply_space(const ActorData& entity,CoordinateSpace space,Fixed* position,SkeletalError& error) {
@@ -160,7 +194,7 @@ inline VertexSample skeletal_sample_vertex_impl(const ActorData* entity,uint32_t
     if(!skeletal_query_detail::valid_pose(pose)){result.error=SkeletalError::MissingPoseData;++skeletal_query_detail::stats().failures;return result;}
     if(!skeletal_query_detail::valid_space(space)){result.error=SkeletalError::InvalidCoordinateSpace;++skeletal_query_detail::stats().failures;return result;}
     const auto& model=*entity->animator.model;
-    if(!skeletal_query_detail::model_vertex(model,entity->animator,vertex,pose,result.position,result.error)){++skeletal_query_detail::stats().failures;return result;}
+    if(!skeletal_query_detail::model_vertex(model,entity->animator,pose==PoseKind::Current?entity->aim_bone:-1,entity->aim_stop_bones,pose==PoseKind::Current?entity->aim_pitch:Fixed(0.0),vertex,pose,result.position,result.error)){++skeletal_query_detail::stats().failures;return result;}
     if(!skeletal_query_detail::apply_space(*entity,space,result.position,result.error)){++skeletal_query_detail::stats().failures;return result;}
     const auto* clip=entity->animator.clip>=0&&size_t(entity->animator.clip)<model.clip_count?&model.clips[entity->animator.clip]:nullptr;
     result.sampled_frame=skeletal_detail::Scratch::frame_index(clip,entity->animator);result.error=SkeletalError::None;result.success=true;return result;
@@ -179,12 +213,12 @@ inline VertexSamples4 skeletal_sample_vertices(const ActorData* entity,VertexInd
     const auto& model=*entity->animator.model;
     if(model.storage!=SkeletalStorage::BakedVertices&&model.geometry&&model.bones&&model.vertex_bones&&model.bone_count<=64){
         Animator sampled=entity->animator;if(pose==PoseKind::Bind)sampled.clip=-1;
-        if(!skeletal_query_detail::pose_all(model,sampled,pose)){for(uint32_t i=0;i<output.count;++i){samples[i]->error=SkeletalError::MissingPoseData;++skeletal_query_detail::stats().failures;}return output;}
+        if(!skeletal_query_detail::pose_all(model,sampled,pose==PoseKind::Current?entity->aim_bone:-1,entity->aim_stop_bones,pose==PoseKind::Current?entity->aim_pitch:Fixed(0.0),pose)){for(uint32_t i=0;i<output.count;++i){samples[i]->error=SkeletalError::MissingPoseData;++skeletal_query_detail::stats().failures;}return output;}
         const auto* clip=entity->animator.clip>=0&&size_t(entity->animator.clip)<model.clip_count?&model.clips[entity->animator.clip]:nullptr;
         const uint32_t frame=skeletal_detail::Scratch::frame_index(clip,entity->animator);
         for(uint32_t i=0;i<output.count;++i){
             bool repeated=false;for(uint32_t previous=0;previous<i;++previous)if(values[previous]==values[i]){*samples[i]=*samples[previous];repeated=true;break;}if(repeated)continue;
-            if(values[i]>=model.geometry->vertex_count){samples[i]->error=SkeletalError::InvalidVertex;++skeletal_query_detail::stats().failures;continue;}
+            if(values[i]>=(model.portable_vertex_count?model.portable_vertex_count:model.geometry->vertex_count)){samples[i]->error=SkeletalError::InvalidVertex;++skeletal_query_detail::stats().failures;continue;}
             const uint32_t cooked=model.portable_to_cooked?model.portable_to_cooked[values[i]]:values[i];if(cooked>=model.geometry->vertex_count){samples[i]->error=SkeletalError::InvalidVertex;++skeletal_query_detail::stats().failures;continue;}const uint32_t bone=model.vertex_bones[cooked];if(bone>=model.bone_count){samples[i]->error=SkeletalError::MissingPoseData;++skeletal_query_detail::stats().failures;continue;}Fixed local[3];for(int c=0;c<3;++c)local[c]=Fixed(model.geometry->vertices[cooked][c],Fixed::RAW);skeletal_query_detail::batch_scratch().bones[bone].point(local,samples[i]->position);if(!skeletal_query_detail::apply_space(*entity,space,samples[i]->position,samples[i]->error)){++skeletal_query_detail::stats().failures;continue;}samples[i]->sampled_frame=frame;samples[i]->error=SkeletalError::None;samples[i]->success=true;
         }
     }else for(uint32_t i=0;i<output.count;++i){bool repeated=false;for(uint32_t previous=0;previous<i;++previous)if(values[previous]==values[i]){*samples[i]=*samples[previous];repeated=true;break;}if(!repeated)*samples[i]=skeletal_sample_vertex_impl(entity,values[i],pose,space,false);}
@@ -197,7 +231,7 @@ inline BoneSample skeletal_sample_bone(const ActorData* entity,uint32_t bone,Pos
     if(!skeletal_query_detail::valid_pose(pose)){result.error=SkeletalError::MissingPoseData;++skeletal_query_detail::stats().failures;return result;}
     if(!skeletal_query_detail::valid_space(space)){result.error=SkeletalError::InvalidCoordinateSpace;++skeletal_query_detail::stats().failures;return result;}
     const auto& model=*entity->animator.model;if(!model.bones||bone>=model.bone_count){result.error=SkeletalError::InvalidBone;++skeletal_query_detail::stats().failures;return result;}
-    Affine<Fixed> matrix;if(!skeletal_query_detail::bone_matrix(model,entity->animator,bone,pose,matrix)){result.error=SkeletalError::MissingPoseData;++skeletal_query_detail::stats().failures;return result;}
+    Affine<Fixed> matrix;if(!skeletal_query_detail::bone_matrix(model,entity->animator,pose==PoseKind::Current?entity->aim_bone:-1,entity->aim_stop_bones,pose==PoseKind::Current?entity->aim_pitch:Fixed(0.0),bone,pose,matrix)){result.error=SkeletalError::MissingPoseData;++skeletal_query_detail::stats().failures;return result;}
     if(space==CoordinateSpace::World){Fixed world_origin[3],point[3],world_point[3],translation[3];for(int row=0;row<3;++row)translation[row]=matrix.values[row][3];if(!skeletal_world_point(*entity,translation,world_origin)){result.error=SkeletalError::WorldUnavailable;++skeletal_query_detail::stats().failures;return result;}for(int column=0;column<3;++column){for(int row=0;row<3;++row)point[row]=translation[row]+matrix.values[row][column];if(!skeletal_world_point(*entity,point,world_point)){result.error=SkeletalError::WorldUnavailable;++skeletal_query_detail::stats().failures;return result;}for(int row=0;row<3;++row)matrix.values[row][column]=world_point[row]-world_origin[row];}for(int row=0;row<3;++row)matrix.values[row][3]=world_origin[row];}
     for(int row=0;row<3;++row){result.basis_x[row]=matrix.values[row][0];result.basis_y[row]=matrix.values[row][1];result.basis_z[row]=matrix.values[row][2];result.position[row]=matrix.values[row][3];}
     result.parent=model.bones[bone].parent;const auto* clip=entity->animator.clip>=0&&size_t(entity->animator.clip)<model.clip_count?&model.clips[entity->animator.clip]:nullptr;result.sampled_frame=skeletal_detail::Scratch::frame_index(clip,entity->animator);result.error=SkeletalError::None;result.success=true;return result;

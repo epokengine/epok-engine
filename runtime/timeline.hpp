@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include "fixed_math.hpp"
 
 // Shared cooked timeline evaluation kernel. Descriptive IDs, bindings and
 // reflection stay on the host. The director (not this stateless kernel) owns
@@ -41,9 +42,13 @@ inline int32_t sample(Curve curve, int32_t tick) {
                 const int64_t t=part*4096/span;
                 int64_t eased=t;
                 switch(curve.interpolation){
+                    // EaseIn/EaseOut are the shared quad curves, bit for bit: one
+                    // truncating multiply is exactly what powq(t,2) performs. Smoothstep
+                    // keeps its single division here because the utility library's
+                    // two-step form differs from it by up to three raw units.
                     case Interpolation::Smoothstep:eased=t*t*(12288-2*t)/(4096*4096);break;
-                    case Interpolation::EaseIn:eased=t*t/4096;break;
-                    case Interpolation::EaseOut:eased=4096-(4096-t)*(4096-t)/4096;break;
+                    case Interpolation::EaseIn:eased=fixed_math::powq(int32_t(t),2);break;
+                    case Interpolation::EaseOut:eased=4096-fixed_math::powq(4096-int32_t(t),2);break;
                     default:break;
                 }
                 value=x+(y-x)*eased/4096;

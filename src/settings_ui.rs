@@ -18,7 +18,63 @@ pub struct State {
     preferences_search: String,
     project_page: usize,
     preferences_page: usize,
+    pub controls: crate::controls_ui::State,
     pub message: String,
+    capture: Option<(usize, crate::controls::Control)>,
+}
+impl State {
+    pub fn cancel_capture(&mut self) {
+        self.capture = None;
+    }
+    pub fn capture_binding(&mut self, binding: crate::controls::Binding) {
+        if !self.project_open {
+            self.cancel_capture();
+            return;
+        }
+        // Pointer motion while choosing a button must not become its binding.
+        if let Some((_, control)) = self.capture {
+            let axis = matches!(
+                binding,
+                crate::controls::Binding::MouseAxis { .. }
+                    | crate::controls::Binding::GamepadAxis { .. }
+            );
+            if matches!(control, crate::controls::Control::Axis(_)) && !axis {
+                return;
+            }
+            if matches!(control, crate::controls::Control::Button(_))
+                && matches!(binding, crate::controls::Binding::MouseAxis { .. })
+            {
+                return;
+            }
+        }
+        let Some((pad, control)) = self.capture.take() else {
+            return;
+        };
+        let Some(project) = self.project.as_mut() else {
+            return;
+        };
+        let Some(profile) = project
+            .controls
+            .pads
+            .get(pad)
+            .and_then(|slot| slot.profile)
+            .and_then(|id| {
+                project
+                    .controls
+                    .profiles
+                    .iter_mut()
+                    .find(|profile| profile.id == id)
+            })
+        else {
+            return;
+        };
+        profile.set(control, binding.clone());
+        self.message = format!(
+            "{} mapped to {}. Apply to save.",
+            control.label(),
+            binding.label()
+        );
+    }
 }
 pub fn open_project(e: &mut Editor) {
     match crate::workspace::read_manifest(&e.root) {
@@ -30,8 +86,73 @@ pub fn open_project(e: &mut Editor) {
             e.settings.project_open = true;
             e.settings.project_page = 2;
             e.settings.message.clear();
+            e.settings.cancel_capture();
         }
         Err(error) => e.log(error),
+    }
+}
+pub fn open_controls(e: &mut Editor) {
+    open_project(e);
+    e.settings.project_page = 5;
+    e.settings.project_search.clear();
+}
+
+#[cfg(test)]
+mod controls_capture_tests {
+    use super::*;
+    use crate::controls::{Axis, Binding, Button, Control, MouseAxis};
+
+    #[test]
+    fn capture_ignores_pointer_motion_for_buttons_and_buttons_for_axes() {
+        let project: Manifest = serde_json::from_value(serde_json::json!({
+            "format_version": 1, "editor_version": "0.4.0", "name": "Input capture",
+            "startup_scene": "assets/scenes/Main.epokmap", "auto_build": false
+        }))
+        .unwrap();
+        let mut state = State {
+            project: Some(project),
+            project_open: true,
+            ..Default::default()
+        };
+        let cross = Control::Button(Button::Cross);
+        state.capture = Some((0, cross));
+        state.capture_binding(Binding::MouseAxis { axis: MouseAxis::X });
+        assert_eq!(state.capture, Some((0, cross)));
+        let key = Binding::Keyboard {
+            key: "Space".into(),
+        };
+        state.capture_binding(key.clone());
+        assert_eq!(
+            state
+                .project
+                .as_ref()
+                .unwrap()
+                .controls
+                .profile(0)
+                .unwrap()
+                .binding(cross),
+            Some(&key)
+        );
+        assert!(state.capture.is_none());
+        let axis = Control::Axis(Axis::LeftX);
+        state.capture = Some((0, axis));
+        state.capture_binding(key.clone());
+        assert_eq!(state.capture, Some((0, axis)));
+        state.project_open = false;
+        state.capture_binding(Binding::MouseAxis { axis: MouseAxis::Y });
+        assert!(state.capture.is_none());
+        assert!(
+            state
+                .project
+                .as_ref()
+                .unwrap()
+                .controls
+                .profile(0)
+                .unwrap()
+                .binding(axis)
+                .is_none()
+        );
+        assert!(Button::ALL.iter().all(|b| b.label().is_ascii()));
     }
 }
 /// `cpp_name` of every class a scene Blueprint may derive from, in name order.
@@ -211,15 +332,20 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
             "Project Settings"
         };
         let screen = ui.io().display_size;
+        let previous_page = if preferences {
+            state.preferences_page
+        } else {
+            state.project_page
+        };
         ui.window(title).opened(&mut open).position([screen[0]*0.5,screen[1]*0.5],Condition::Appearing).position_pivot([0.5,0.5])
-            .size([1020.,680.],Condition::FirstUseEver).size_constraints([760.,460.],[1800.,1200.]).build(||{
+            .size([(screen[0]-60.).min(1180.),(screen[1]-80.).min(780.)],Condition::FirstUseEver).size_constraints([760.,460.],[1800.,1200.]).build(||{
             ui.text_disabled(if preferences{"EPOK  /  LOCAL EDITOR"}else{"EPOK  /  GAME PROJECT"});
             ui.separator();
             let available=ui.content_region_avail();
             let height=(available[1]-60.).max(200.);
             ui.child_window(format!("nav-{title}")).size([215.,height]).build(||{
                 ui.text_disabled(if preferences{"GENERAL"}else{"PROJECT"});
-                let pages: &[(&str,&str)]=if preferences{&[("Viewports","grid camera speed navigation"),("Play","game integer scale filter emulator serial NOTPSXSerial nops COM fast"),("Integrations / MCP","server integrations mcp connection port key"),("Dependencies","tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")]}else{&[("Description","name project scripting lua execution native VM bytecode source interpreter"),("Maps & Build","startup scene build compilation asset report generate play target content data transition fade loading text image"),("Rendering","resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera experimental FPS performance"),("Streaming","geometry pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance"),("Debug","HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime performance") ]};
+                let pages: &[(&str,&str)]=if preferences{&[("Viewports","grid camera speed navigation"),("Play","game integer scale filter emulator serial NOTPSXSerial nops COM fast"),("Integrations / MCP","server integrations mcp connection port key"),("Dependencies","tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")]}else{&[("Description","name project scripting lua execution native VM bytecode source interpreter"),("Maps & Build","startup scene build compilation asset report generate play target content data transition fade loading text image"),("Rendering","resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera experimental FPS performance"),("Streaming","geometry pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance"),("Debug","HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime performance"),("Controls","controller pad multitap keyboard mouse gamepad analog profile mapping input") ]};
                 let page=if preferences{&mut state.preferences_page}else{&mut state.project_page};
                 let query=if preferences{&state.preferences_search}else{&state.project_search};
                 for (i,(label,keywords)) in pages.iter().enumerate(){
@@ -232,14 +358,15 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
             });
             ui.same_line();
             ui.child_window(format!("content-{title}")).size([0.,height]).build(||{
+                if previous_page != if preferences { state.preferences_page } else { state.project_page } { ui.set_scroll_y(0.); state.capture=None; }
                 let query=if preferences{&mut state.preferences_search}else{&mut state.project_search};
                 ui.set_next_item_width(-1.);ui.input_text("##search",query).hint("Search settings...").build();
                 ui.spacing();
                 let q=query.clone();
-                let keywords=if preferences{"Viewports grid camera speed navigation Play game integer scale filter emulator serial NOTPSXSerial nops COM fast Integrations MCP server connection port key Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang"}else{"Description name project scripting lua execution native VM bytecode source interpreter Maps Build startup scene build compilation asset report generate play target content data transition fade loading text image Rendering resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera Streaming pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance Debug HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime"};
+                let keywords=if preferences{"Viewports grid camera speed navigation Play game integer scale filter emulator serial NOTPSXSerial nops COM fast Integrations MCP server connection port key Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang"}else{"Description name project scripting lua execution native VM bytecode source interpreter Maps Build startup scene build compilation asset report generate play target content data transition fade loading text image Rendering resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera Streaming pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance Debug HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime Controls controller pad multitap keyboard mouse gamepad analog profile mapping input"};
                 if !matches(&q,keywords){ui.text_disabled("No settings match your search.");}
                 if preferences {
-                    if (state.preferences_page==3 && q.is_empty()) || (!q.is_empty() && matches(&q,"Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")) { e.dependencies.page(ui, e.job.is_some() || e.assets.busy || e.bake_job.is_some()); }
+                    if (state.preferences_page==3 && q.is_empty()) || (!q.is_empty() && matches(&q,"Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")) { ui.text("General  >  Dependencies"); e.dependencies.page(ui, e.job.is_some() || e.assets.busy || e.bake_job.is_some()); }
                     let p=state.preferences.as_mut().unwrap();
                     if (state.preferences_page==2 && q.is_empty()) || (!q.is_empty() && matches(&q,"Integrations MCP server connection port key")) { mcp_page(ui,p,e); }
                     if (state.preferences_page==0 && q.is_empty()) || (!q.is_empty() && matches(&q,"Viewports grid camera speed navigation")) {
@@ -312,7 +439,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                         section(ui,"Build Reports",||{row(ui,"Generate Asset Report","Generate the detailed asset and memory report after Build/Play. File sizes are always recorded.",||{ui.checkbox("##asset-report",&mut m.build.generate_asset_report);});});
                         ui.spacing();
                         ui.text("Play Profile");
-                        crate::play_ui::controls(ui,&mut m.play, &e.root, ((ui.content_region_avail()[0]-16.)/3.).min(220.));
+                        crate::play_ui::controls(ui,&mut m.play, &e.root, ((ui.content_region_avail()[0]-24.)/4.).min(220.));
                         section(ui,"Scene Transitions",||{
                             row(ui,"Fade Out (ms)","Fade picture, music and sound effects to silence before releasing the outgoing scene.",||{let mut ms=i32::from(m.transition.fade_out_ms);if crate::gui::Drag::new("##fade-out").speed(1.).build(ui, &mut ms){m.transition.fade_out_ms=ms.clamp(0,10000) as u16;}});
                             row(ui,"Fade In (ms)","Reveal the ready scene and restore its authored audio levels.",||{let mut ms=i32::from(m.transition.fade_in_ms);if crate::gui::Drag::new("##fade-in").speed(1.).build(ui, &mut ms){m.transition.fade_in_ms=ms.clamp(0,10000) as u16;}});
@@ -354,6 +481,10 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                             });
                         });
                         section(ui,"Geometry",||{
+                            row(ui,"Sprite Triangle Budget","Fixed, double-buffered sprite/VFX packet pool. Lower values save RAM; excess triangles are counted as dropped. 64..2048, applies on next build. Includes particles, not mesh triangles or HUD.",||{
+                                let mut value=i32::from(m.rendering.sprite_triangle_budget);
+                                if ui.input_int("##sprite-triangle-budget",&mut value).build(){m.rendering.sprite_triangle_budget=value.clamp(64,2048) as u16;}
+                            });
                             row(ui,"3D Dithering","Reduce RGB555 color banding in shaded 3D geometry using the PS1 GPU's ordered dithering. Adds a fine pixel pattern. HUD and text remain undithered. Applies on the next native build.",||{
                                 ui.checkbox("##dither-3d",&mut m.rendering.dither_3d);
                             });
@@ -417,6 +548,9 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                             });
                         });
                     }
+                    if (state.project_page==5 && q.is_empty()) || (!q.is_empty() && matches(&q,"Controls controller pad multitap keyboard mouse gamepad analog profile mapping input")) {
+                        crate::controls_ui::page(ui,&mut m.controls,&mut state.controls,&mut state.capture);
+                    }
                 }
             });
             ui.separator();
@@ -427,10 +561,11 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
             ui.child_window(format!("message-{title}")).size([(ui.content_region_avail()[0]-buttons).max(150.),44.]).build(||{ui.text_wrapped(&state.message);});
             ui.same_line();
             let reset_disabled=ui.begin_disabled(dependency_page);
-            if ui.button(if preferences {"Reset Defaults"} else if state.project_page==4 {"Reset Debug"} else if state.project_page==3 {"Reset Streaming"} else {"Reset Rendering"}) {
+            if ui.button(if preferences {"Reset Defaults"} else if state.project_page==5 {"Reset Controls"} else if state.project_page==4 {"Reset Debug"} else if state.project_page==3 {"Reset Streaming"} else {"Reset Rendering"}) {
                 if preferences {state.preferences=Some(Preferences::default());}else if let Some(m)=state.project.as_mut(){
                     let defaults=Rendering::default();
-                    if state.project_page==4 {m.debug=Default::default();}
+                    if state.project_page==5 {m.controls=Default::default();state.capture=None;}
+                    else if state.project_page==4 {m.debug=Default::default();}
                     else if state.project_page==3 {m.rendering.streaming_geometry=defaults.streaming_geometry;m.rendering.streaming_pool_pages=defaults.streaming_pool_pages;m.rendering.streaming_triangle_budget=defaults.streaming_triangle_budget;m.rendering.streaming_prefetch=defaults.streaming_prefetch;}
                     else {m.rendering=Rendering{streaming_geometry:m.rendering.streaming_geometry,streaming_pool_pages:m.rendering.streaming_pool_pages,streaming_triangle_budget:m.rendering.streaming_triangle_budget,streaming_prefetch:m.rendering.streaming_prefetch,..defaults};}
                 }
@@ -459,6 +594,9 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
             state.preferences_open = open;
         } else {
             state.project_open = open;
+            if !open {
+                state.cancel_capture();
+            }
         }
     }
     e.settings = state;

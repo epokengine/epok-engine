@@ -4,6 +4,10 @@
 
 This module covers native HUD layout, drawing and focus navigation. It documents 4 public callables declared directly in this header.
 
+## Declared types
+
+`epok::debug_hud::State`
+
 ## Callable index
 
 - [`epok::debug_hud::begin`](#epok-debug-hud-begin-1) — Begins begin as part of native HUD layout, drawing and focus navigation.
@@ -20,17 +24,17 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 **Exact declaration**
 
 ```cpp
-inline void begin(psyqo::GPU&)
+inline void begin(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 153](../../../runtime/debug_hud.hpp#L153)
+- **Declared at:** [line 62](../../../runtime/debug_hud.hpp#L62)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `int &` | Input/output; inspect the function contract | Value supplied for `arg1`. See the exact type and module contract. |
+| `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -42,9 +46,9 @@ inline void begin(psyqo::GPU&)
 #include "debug_hud.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int & arg1
+// psyqo::GPU & gpu
 
-epok::debug_hud::begin(arg1);
+epok::debug_hud::begin(gpu);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to native HUD layout, drawing and focus navigation. No exception-based error path is implied by the signature.
@@ -60,17 +64,17 @@ epok::debug_hud::begin(arg1);
 **Exact declaration**
 
 ```cpp
-inline void draw(psyqo::GPU&)
+inline void draw(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 155](../../../runtime/debug_hud.hpp#L155)
+- **Declared at:** [line 91](../../../runtime/debug_hud.hpp#L91)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `int &` | Input/output; inspect the function contract | Value supplied for `arg1`. See the exact type and module contract. |
+| `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -82,9 +86,9 @@ inline void draw(psyqo::GPU&)
 #include "debug_hud.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int & arg1
+// psyqo::GPU & gpu
 
-epok::debug_hud::draw(arg1);
+epok::debug_hud::draw(gpu);
 ```
 
 **Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
@@ -100,18 +104,18 @@ epok::debug_hud::draw(arg1);
 **Exact declaration**
 
 ```cpp
-inline void geometry(uint16_t, bool)
+inline void geometry(uint16_t started, bool gte)
 ```
 
-- **Declared at:** [line 154](../../../runtime/debug_hud.hpp#L154)
+- **Declared at:** [line 85](../../../runtime/debug_hud.hpp#L85)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `int` | Input | Value supplied for `arg1`. See the exact type and module contract. |
-| `arg2` | `bool` | Input | Value supplied for `arg2`. See the exact type and module contract. |
+| `started` | `uint16_t` | Input | Value supplied for `started`. See the exact type and module contract. |
+| `gte` | `bool` | Input | Value supplied for `gte`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -123,10 +127,10 @@ inline void geometry(uint16_t, bool)
 #include "debug_hud.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int arg1
-// bool arg2
+// uint16_t started
+// bool gte
 
-epok::debug_hud::geometry(arg1, arg2);
+epok::debug_hud::geometry(started, gte);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to native HUD layout, drawing and focus navigation. No exception-based error path is implied by the signature.
@@ -142,17 +146,17 @@ epok::debug_hud::geometry(arg1, arg2);
 **Exact declaration**
 
 ```cpp
-inline void initialize(psyqo::GPU&)
+inline void initialize(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 152](../../../runtime/debug_hud.hpp#L152)
+- **Declared at:** [line 42](../../../runtime/debug_hud.hpp#L42)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `arg1` | `int &` | Input/output; inspect the function contract | Value supplied for `arg1`. See the exact type and module contract. |
+| `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -164,9 +168,9 @@ inline void initialize(psyqo::GPU&)
 #include "debug_hud.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int & arg1
+// psyqo::GPU & gpu
 
-epok::debug_hud::initialize(arg1);
+epok::debug_hud::initialize(gpu);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to native HUD layout, drawing and focus navigation. No exception-based error path is implied by the signature.

@@ -1,0 +1,19 @@
+# Product names that must not appear in this repository.
+#
+# Epok's documentation, comments, identifiers and tests describe Epok's own
+# behaviour on its own terms. Naming another engine or tool to explain a
+# decision makes the explanation depend on something the reader may not know,
+# and reads as a comparison the project does not intend to make. State what the
+# code does instead.
+#
+# Matching is case-insensitive and whole-word, so "community" does not match
+# "unity". One term per line; blank lines and lines starting with # are ignored.
+# Enforced over every tracked file by `forbidden_terms_are_absent_from_tracked_files`.
+
+unreal
+unity
+godot
+cryengine
+gamemaker
+itween
+psxsplash

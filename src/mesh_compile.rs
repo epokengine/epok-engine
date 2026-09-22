@@ -109,7 +109,11 @@ pub fn chunks(quads: &[Quad]) -> Result<Vec<Chunk>, String> {
     Ok(chunks)
 }
 
-fn encode_chunks(quads: &[Quad], part: &[usize], chunks: &mut Vec<Chunk>) -> Result<(), String> {
+pub(crate) fn encode_chunks(
+    quads: &[Quad],
+    part: &[usize],
+    chunks: &mut Vec<Chunk>,
+) -> Result<(), String> {
     let mut world_low = [i32::MAX; 3];
     let mut world_high = [i32::MIN; 3];
     for &i in part {
@@ -196,7 +200,15 @@ pub fn header_with_pages(e: &Actor, index: usize, pages: PageLookup) -> Result<S
         );
     }
     let chunks = chunks(&qs)?;
-    let mut text = visibility::header(&chunks, index);
+    Ok(header_for(index, &qs, &chunks, pages))
+}
+
+/// Emit the cooked chunk arrays for one actor. Terrain partitions its quads
+/// differently but stores them in exactly this layout, so it shares the
+/// emitter rather than growing a second symbol namespace the runtime,
+/// streaming archive and visibility bake would all have to learn.
+pub fn header_for(index: usize, qs: &[Quad], chunks: &[Chunk], pages: PageLookup) -> String {
+    let mut text = visibility::header(chunks, index);
     for (c, chunk) in chunks.iter().enumerate().rev() {
         let key = format!("editable_{index}_{c}");
         text.push_str(&format!(
@@ -264,5 +276,5 @@ pub fn header_with_pages(e: &Actor, index: usize, pages: PageLookup) -> Result<S
             "inline constexpr MeshGeometry editable_{index}_0={{nullptr,0,nullptr,0,true}};\n"
         ));
     }
-    Ok(text)
+    text
 }

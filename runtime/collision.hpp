@@ -19,8 +19,20 @@ template<class Number> struct ColliderT {
     // than a general inclined plane, which this solver has no normals for.
     Number slope_rise=0.0;
     uint8_t slope_axis=0;
+    // A height grid, which is the same idea as the ramp taken to two axes and
+    // arbitrary steps: a surface to stand on, never an obstacle. `heights` has
+    // (height_cells[0]+1) * (height_cells[1]+1) Q8 entries, row-major with X
+    // varying fastest, measured upwards from the bottom of the box.
+    //
+    // The grid is indexed from the box's world minimum, so the owning object
+    // must be translated only: the cooker rejects a rotated or scaled terrain
+    // rather than sampling a grid that no longer lines up with its box.
+    const int16_t* heights=nullptr;
+    uint16_t height_cells[2]={0,0};
+    Number height_step=1.0;
 };
 template<class Number> struct AabbT { Number min[3],max[3]; };
+template<class Number> struct RaycastQueryT {Number origin[3],displacement[3];};
 template<class Number> struct SpatialHitT {
     int entity=-1;uint32_t generation=0;Number fraction=1.0,point[3]={},normal[3]={};bool started_inside=false;
     explicit operator bool() const { return entity>=0; }
@@ -66,6 +78,7 @@ template<class Number,size_t Capacity,size_t PairCapacity=256> class CollisionWo
         AabbT<Number> box{};uint32_t layer=1,mask=0xffffffffu,generation=0;bool enabled=false,trigger=false;
         Number center[3]={},half_extents[3]={};uint32_t world_revision=0;bool cached=false;
         Number slope_rise{};uint8_t slope_axis=0;
+        const int16_t* heights=nullptr;uint16_t height_cells[2]={0,0};Number height_step{};
     };
     Entry entries[Capacity];
     // Highest enabled slot + 1 and the number of enabled triggers, refreshed by
@@ -79,7 +92,39 @@ template<class Number,size_t Capacity,size_t PairCapacity=256> class CollisionWo
     // Top of an entry under a horizontal position: the ramp's surface where one
     // is authored, the box top otherwise. Clamped to the box so a character
     // stepping off the end rests on the edge rather than extrapolating.
+    static bool field(const Entry& e) {
+        return e.heights&&e.height_cells[0]&&e.height_cells[1]&&e.height_step.raw()>0;
+    }
+    // Bilinear height at a horizontal position, clamped to the grid so a
+    // character stepping off the edge rests on the border row rather than
+    // extrapolating off a cliff that is not there.
+    static Number sample(const Entry& e,const Number* point) {
+        const int32_t step=e.height_step.raw();
+        const int32_t last_x=int32_t(e.height_cells[0])-1,last_z=int32_t(e.height_cells[1])-1;
+        const int64_t along_x=int64_t(point[0].raw())-e.box.min[0].raw();
+        const int64_t along_z=int64_t(point[2].raw())-e.box.min[2].raw();
+        int32_t cx=0,fx=0,cz=0,fz=0;
+        if(along_x>0) {
+            cx=int32_t(along_x/step);fx=int32_t(along_x-int64_t(cx)*step);
+            if(cx>last_x){cx=last_x;fx=step;}
+        }
+        if(along_z>0) {
+            cz=int32_t(along_z/step);fz=int32_t(along_z-int64_t(cz)*step);
+            if(cz>last_z){cz=last_z;fz=step;}
+        }
+        const int32_t stride=int32_t(e.height_cells[0])+1;
+        // Q8 grid entries widen to the Q12 the solver works in.
+        const int64_t h00=int64_t(e.heights[cz*stride+cx])<<4;
+        const int64_t h10=int64_t(e.heights[cz*stride+cx+1])<<4;
+        const int64_t h01=int64_t(e.heights[(cz+1)*stride+cx])<<4;
+        const int64_t h11=int64_t(e.heights[(cz+1)*stride+cx+1])<<4;
+        const int64_t a=h00+(h10-h00)*fx/step;
+        const int64_t b=h01+(h11-h01)*fx/step;
+        const int64_t height=a+(b-a)*fz/step;
+        return raw(int32_t(int64_t(e.box.min[1].raw())+height));
+    }
     static Number surface(const Entry& e,const Number* point) {
+        if(field(e))return sample(e,point);
         if(!e.slope_rise.raw())return e.box.max[1];
         const int axis=e.slope_axis;
         const int32_t span=e.box.max[axis].raw()-e.box.min[axis].raw();
@@ -89,7 +134,9 @@ template<class Number,size_t Capacity,size_t PairCapacity=256> class CollisionWo
         const int32_t rise=int32_t(int64_t(e.slope_rise.raw())*along/span);
         return raw(e.box.max[1].raw()-e.slope_rise.raw()+rise);
     }
-    static bool ramp(const Entry& e) { return e.slope_rise.raw()!=0; }
+    // A standable entry is resolved by lifting the character onto its surface
+    // instead of by pushing it sideways. Ramps and height grids both qualify.
+    static bool ramp(const Entry& e) { return e.slope_rise.raw()!=0||field(e); }
     static bool same(const Pair& a,const Pair& b) { return a.a==b.a&&a.b==b.b&&a.ga==b.ga&&a.gb==b.gb; }
     bool match(size_t i,uint32_t mask,int ignore,bool triggers) const {
         return entries[i].enabled&&int(i)!=ignore&&(entries[i].layer&mask)&&(triggers||!entries[i].trigger);
@@ -116,6 +163,7 @@ template<class Number,size_t Capacity,size_t PairCapacity=256> class CollisionWo
     }
 public:
     uint32_t dropped_trigger_pairs=0;
+    bool has_trigger_pairs() const{return previous_count!=0;}
     void clear() { for(auto& e:entries){e.enabled=false;e.cached=false;}previous_count=0;dropped_trigger_pairs=0;limit=trigger_count=0; }
     void begin_sync() { for(size_t i=0;i<limit;++i)entries[i].enabled=false;limit=trigger_count=0; }
     void note_enabled(size_t index) { if(index>=limit)limit=index+1;if(entries[index].trigger)++trigger_count; }
@@ -124,6 +172,10 @@ public:
         entries[index]={collider_bounds(collider,matrix),collider.layer,collider.mask,generation,active&&collider.enabled,collider.trigger};
         entries[index].slope_rise=collider.slope_rise;
         entries[index].slope_axis=collider.slope_axis<3?collider.slope_axis:0;
+        entries[index].heights=collider.heights;
+        entries[index].height_cells[0]=collider.height_cells[0];
+        entries[index].height_cells[1]=collider.height_cells[1];
+        entries[index].height_step=collider.height_step;
         if(entries[index].enabled)note_enabled(index);
     }
     // Returns whether bounds were rebuilt. Metadata remains live even when a
@@ -133,6 +185,8 @@ public:
         auto& e=entries[index];
         e.enabled=active&&collider.enabled;e.trigger=collider.trigger;e.layer=collider.layer;e.mask=collider.mask;e.generation=generation;
         e.slope_rise=collider.slope_rise;e.slope_axis=collider.slope_axis<3?collider.slope_axis:0;
+        e.heights=collider.heights;e.height_cells[0]=collider.height_cells[0];
+        e.height_cells[1]=collider.height_cells[1];e.height_step=collider.height_step;
         if(!e.enabled)return false;
         note_enabled(index);
         bool dirty=!e.cached||e.world_revision!=revision;
@@ -165,6 +219,11 @@ public:
             }
         }
         return hit;
+    }
+    void raycast_batch(const RaycastQueryT<Number>* queries,SpatialHitT<Number>* results,size_t count,
+                       uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=false) const {
+        if(!queries||!results)return;
+        for(size_t i=0;i<count;++i)results[i]=raycast(queries[i].origin,queries[i].displacement,mask,ignore,triggers);
     }
     // Downward box sweep uses the complete footprint, including ledges missed by
     // a center ray. distance must be nonnegative; normal points upwards.
@@ -230,12 +289,17 @@ public:
                 int64_t t;int axis,sign;bool inside;
                 if(segment(center,remaining,expanded,t,axis,sign,true,inside)&&axis>=0&&t<best) { best=t;best_axis=axis;best_sign=sign;best_entity=int(i); }
             }
-            int64_t fraction=best_entity<0?one:best;
+            // The common unobstructed step needs neither a Q24 multiply nor
+            // another pass. This is exactly fraction==one in the path below.
+            if(best_entity<0){
+                for(int k=0;k<3;++k)result.displacement[k]+=remaining[k];
+                break;
+            }
+            int64_t fraction=best;
             for(int k=0;k<3;++k) {
                 auto moved=raw(int32_t(int64_t(remaining[k].raw())*fraction/one));
                 box.min[k]+=moved;box.max[k]+=moved;result.displacement[k]+=moved;remaining[k]-=moved;
             }
-            if(best_entity<0)break;
             auto skin=raw(best_sign);box.min[best_axis]+=skin;box.max[best_axis]+=skin;result.displacement[best_axis]+=skin;remaining[best_axis]=raw(0);
             result.blocked=true;result.entity=best_entity;result.generation=entries[size_t(best_entity)].generation;result.normal[best_axis]=raw(best_sign*4096);
             if(best_axis==1&&best_sign>0)result.grounded=true;

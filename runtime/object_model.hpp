@@ -464,6 +464,11 @@ protected:
     ObjectId m_level, m_root, m_logical_parent;
     ObjectId m_components[actor_component_capacity] = {};
     uint8_t m_component_count = 0;
+    // Immutable callback capabilities, refreshed only when component order or
+    // ownership changes. Avoid resolving every inert render/collider component
+    // just to rediscover that it has no tick or frame callback.
+    uint8_t m_tick_components = 0, m_frame_components = 0;
+    bool m_actor_tick = true, m_actor_frame = true;
     bool m_active = true;
     bool m_wants_tick = true;
     bool m_begun = false, m_ended = false, m_doomed = false;
@@ -518,6 +523,13 @@ template<class T> struct ComponentCallbacks<T,std::void_t<decltype(&T::tick),
     static constexpr bool tick=!std::is_same_v<decltype(&T::tick),decltype(&ActorComponent::tick)>;
     static constexpr bool frame=!std::is_same_v<decltype(&T::frame_update),decltype(&ActorComponent::frame_update)> ||
         !std::is_same_v<decltype(&T::on_frame),decltype(&ActorComponent::on_frame)>;
+};
+template<class T,class=void> struct ActorCallbacks {static constexpr bool tick=true,frame=true;};
+template<class T> struct ActorCallbacks<T,std::void_t<decltype(&T::tick),
+    decltype(&T::frame_update),decltype(&T::on_frame)>> {
+    static constexpr bool tick=!std::is_same_v<decltype(&T::tick),decltype(&Actor::tick)>;
+    static constexpr bool frame=!std::is_same_v<decltype(&T::frame_update),decltype(&Actor::frame_update)> ||
+        !std::is_same_v<decltype(&T::on_frame),decltype(&Actor::on_frame)>;
 };
 
 inline bool attach_component(ObjectId child,ObjectId parent);
@@ -668,6 +680,22 @@ public:
     EPOK_FUNCTION(BlueprintCallable, Id="74c0cd75-108d-486c-bccb-68b0a85b1a9a") void pause_animation() {auto* data=entity_slot();if(data)data->animator.pause();}
     EPOK_FUNCTION(BlueprintCallable, Id="a6ef5510-6cb3-418d-be3c-c1e5f4e56776") void resume_animation() {auto* data=entity_slot();if(data)data->animator.resume();}
     EPOK_FUNCTION(BlueprintCallable, Id="a127e39c-84a2-4618-b6e3-b08f8d466ae3") void stop_animation() {auto* data=entity_slot();if(data)data->animator.stop();}
+    EPOK_FUNCTION(BlueprintPure, Id="3ea752b4-6bf6-4e45-831c-b05524ecdc46") uint32_t clip_frames(uint32_t clip) const {
+        const auto* data=entity_slot();return data&&data->animator.model&&clip<data->animator.model->clip_count?uint32_t(data->animator.model->clips[clip].frames):0;
+    }
+    // One loop of a clip, measured in the animator's own two-per-frame ticks.
+    // Fixed so a manually driven cycle can be advanced by a fractional amount
+    // and wrapped against this length without leaving the Fixed vocabulary.
+    EPOK_FUNCTION(BlueprintPure, Id="857927dd-9229-44d3-8556-b392f18f3567") Fixed clip_loop_ticks(uint32_t clip) const {
+        const uint32_t frames=clip_frames(clip);return Fixed(int32_t((frames>1?frames-1:1)*2),0);
+    }
+    // Manual playback position, in the same ticks. It is what a game drives
+    // when the cycle has to follow something other than real time -- a
+    // locomotion blend following ground speed, for instance -- and it pairs
+    // with pause_animation() so the animator stops advancing on its own.
+    EPOK_FUNCTION(BlueprintCallable, Id="b0b30f1a-a82b-4806-bb2a-eb7392bb6607") void set_animation_position(Fixed ticks) {
+        auto* data=entity_slot();if(!data)return;const int32_t value=ticks.raw()/4096;data->animator.ticks=uint32_t(value<0?0:value);
+    }
     EPOK_FUNCTION(BlueprintPure, Id="3ec24d35-4613-4ffb-b50a-0ea205e901b1") SkeletalPlaybackState playback_state() const {
         SkeletalPlaybackState result;const auto* data=entity_slot();if(!data||!data->animator.model)return result;
         const auto& animator=data->animator;result.valid=true;result.enabled=animator.enabled;result.playing=animator.playing;result.looping=animator.looping;result.clip=animator.clip;result.ticks=animator.ticks;
@@ -1166,6 +1194,7 @@ public:
         }
         for (size_t i = index + 1; i < owner.m_component_count; ++i) owner.m_components[i - 1] = owner.m_components[i];
         owner.m_components[--owner.m_component_count] = ObjectId{};
+        refresh_component_callbacks(owner);
         if (component == owner.m_root) owner.m_root = ObjectId{};
         m_registry->release(component);
         return true;
@@ -1188,6 +1217,7 @@ protected:
     }
     bool install_default_root(Actor& actor) {
         const auto* actor_type=find_object_class(actor.class_id());
+        if(actor_type){actor.m_actor_tick=actor_type->component_tick;actor.m_actor_frame=actor_type->component_frame;}
         if(actor_type && actor_type->default_component && actor_type->default_component_count) {
             if(actor_type->default_component_count>actor_component_capacity)return false;
             for(size_t c=0;c<actor_type->default_component_count;++c) {
@@ -1225,6 +1255,7 @@ protected:
         root->set_name("Root");
         actor.m_root = id;
         actor.m_components[actor.m_component_count++] = id;
+        refresh_component_callbacks(actor);
         return true;
     }
     bool accepts_component(const Actor& owner, const ClassDescriptor& owner_type, const ClassDescriptor& type) const {
@@ -1247,6 +1278,17 @@ protected:
         component.m_owner = owner.id();
         component.set_name(name);
         owner.m_components[owner.m_component_count++] = component.id();
+        refresh_component_callbacks(owner);
+    }
+    void refresh_component_callbacks(Actor& owner) {
+        static_assert(actor_component_capacity<=8,"Widen the callback masks with the component capacity");
+        owner.m_tick_components=owner.m_frame_components=0;
+        for(size_t c=0;c<owner.m_component_count;++c){
+            const auto* type=m_registry->class_of(owner.m_components[c]);
+            if(!type)continue;
+            if(type->component_tick)owner.m_tick_components|=uint8_t(1u<<c);
+            if(type->component_frame)owner.m_frame_components|=uint8_t(1u<<c);
+        }
     }
     bool order_components(Actor& actor,const ObjectId* ids,size_t count) {
         if(count!=actor.m_component_count)return false;
@@ -1256,6 +1298,7 @@ protected:
             for(size_t j=0;j<i;++j)if(ids[j]==ids[i])return false;
         }
         for(size_t i=0;i<count;++i)actor.m_components[i]=ids[i];
+        refresh_component_callbacks(actor);
         return true;
     }
     void begin_play_component(ActorComponent& component) {
@@ -1293,28 +1336,28 @@ protected:
     void tick_actor(ObjectId id, Fixed delta) {
         auto* actor = m_registry->resolve<Actor>(id);
         if (!actor || actor->m_doomed || !actor->m_begun) return;
+        if(!actor->m_tick_components&&(!actor->m_wants_tick||!actor->m_actor_tick))return;
         if (!actor_active(*actor)) return;
         ObjectDispatchScope scope(*m_registry);
         for (size_t c = 0; c < actor->m_component_count; ++c) {
             if (actor->m_doomed) return;
-            const auto* type = m_registry->class_of(actor->m_components[c]);
-            if (type && type->component_tick)
+            if (actor->m_tick_components & (1u<<c))
                 if (auto* component = m_registry->resolve<ActorComponent>(actor->m_components[c])) component->tick(delta);
         }
-        if (!actor->m_doomed && actor->m_wants_tick) actor->tick(delta);
+        if (!actor->m_doomed && actor->m_wants_tick && actor->m_actor_tick) actor->tick(delta);
     }
     void frame_update_actor(ObjectId id, uint32_t elapsed) {
         auto* actor = m_registry->resolve<Actor>(id);
         if (!actor || actor->m_doomed || !actor->m_begun) return;
+        if(!actor->m_frame_components&&!actor->m_actor_frame)return;
         if (!actor_active(*actor)) return;
         ObjectDispatchScope scope(*m_registry);
         for (size_t c = 0; c < actor->m_component_count; ++c) {
             if (actor->m_doomed) return;
-            const auto* type = m_registry->class_of(actor->m_components[c]);
-            if (type && type->component_frame)
+            if (actor->m_frame_components & (1u<<c))
                 if (auto* component = m_registry->resolve<ActorComponent>(actor->m_components[c])) component->frame_update(elapsed);
         }
-        if(!actor->m_doomed)actor->frame_update(elapsed);
+        if(!actor->m_doomed&&actor->m_actor_frame)actor->frame_update(elapsed);
     }
     // Releases an unstarted reservation: no gameplay event ever ran on it.
     void release_actor_storage(ObjectId id) {

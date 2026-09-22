@@ -2,13 +2,13 @@
 
 > **Header:** `"psyqo/coroutine.hh"` · **Tier:** Pinned PsyQo API · **Source:** [open header](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh)
 
-This module covers the coroutine module. It documents 44 public callables declared directly in this header.
+This module covers the coroutine module. It documents 34 public callables declared directly in this header.
 
 PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`. Signatures and comments below come from that exact revision, not from whichever upstream version happens to be newest.
 
 ## Declared types
 
-`psyqo::Coroutine`, `psyqo::Coroutine::Awaiter`, `psyqo::Coroutine::ChainAwaiter`, `psyqo::Coroutine::Empty`, `psyqo::Coroutine::PromiseValue`, `psyqo::Coroutine::PromiseVoid`, `psyqo::Stackful`, `psyqo::Stackful::Stack`, `psyqo::StackfulBase`
+`psyqo::Coroutine`, `psyqo::Coroutine::Awaiter`, `psyqo::Coroutine::ChainAwaiter`, `psyqo::Coroutine::Empty`, `psyqo::Coroutine::promise_type`, `psyqo::Stackful`, `psyqo::StackfulBase`
 
 ## Callable index
 
@@ -36,16 +36,6 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 - [`psyqo::Coroutine::operator co_await`](#psyqo-coroutine-operator-co-await-1) — Performs `operator  co await` as part of the coroutine module.
 - [`psyqo::Coroutine::operator=`](#psyqo-coroutine-operator-1) — Performs `operator =` as part of the coroutine module.
 - [`psyqo::Coroutine::operator=`](#psyqo-coroutine-operator-2) — Performs `operator =` as part of the coroutine module.
-- [`psyqo::Coroutine::PromiseValue::final_suspend`](#psyqo-coroutine-promisevalue-final-suspend-1) — Performs `final suspend` as part of the coroutine module.
-- [`psyqo::Coroutine::PromiseValue::get_return_object`](#psyqo-coroutine-promisevalue-get-return-object-1) — Returns return object as part of the coroutine module.
-- [`psyqo::Coroutine::PromiseValue::initial_suspend`](#psyqo-coroutine-promisevalue-initial-suspend-1) — Performs `initial suspend` as part of the coroutine module.
-- [`psyqo::Coroutine::PromiseValue::return_value`](#psyqo-coroutine-promisevalue-return-value-1) — Performs `return value` as part of the coroutine module.
-- [`psyqo::Coroutine::PromiseValue::unhandled_exception`](#psyqo-coroutine-promisevalue-unhandled-exception-1) — Performs `unhandled exception` as part of the coroutine module.
-- [`psyqo::Coroutine::PromiseVoid::final_suspend`](#psyqo-coroutine-promisevoid-final-suspend-1) — Performs `final suspend` as part of the coroutine module.
-- [`psyqo::Coroutine::PromiseVoid::get_return_object`](#psyqo-coroutine-promisevoid-get-return-object-1) — Returns return object as part of the coroutine module.
-- [`psyqo::Coroutine::PromiseVoid::initial_suspend`](#psyqo-coroutine-promisevoid-initial-suspend-1) — Performs `initial suspend` as part of the coroutine module.
-- [`psyqo::Coroutine::PromiseVoid::return_void`](#psyqo-coroutine-promisevoid-return-void-1) — Performs `return void` as part of the coroutine module.
-- [`psyqo::Coroutine::PromiseVoid::unhandled_exception`](#psyqo-coroutine-promisevoid-unhandled-exception-1) — Performs `unhandled exception` as part of the coroutine module.
 - [`psyqo::Coroutine::resume`](#psyqo-coroutine-resume-1) — Resumes the coroutine.
 - [`psyqo::Coroutine::value`](#psyqo-coroutine-value-1) — Returns the value returned by the coroutine.
 - [`psyqo::Coroutine::~Coroutine<T>`](#psyqo-coroutine-coroutine-t-4) — Releases the resources owned by `psyqo::Coroutine`.
@@ -177,7 +167,7 @@ constexpr void await_suspend(std::coroutine_handle<> h)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `h` | `int` | Input | Value supplied for `h`. See the exact type and module contract. |
+| `h` | `std::coroutine_handle<>` | Input | Value supplied for `h`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -189,7 +179,7 @@ constexpr void await_suspend(std::coroutine_handle<> h)
 #include "psyqo/coroutine.hh"
 
 // Assume these named values have been initialized with valid data:
-// int h
+// std::coroutine_handle<> h
 
 psyqo::Coroutine::Awaiter& object = /* obtain a valid instance */;
 
@@ -445,7 +435,7 @@ void await_suspend(std::coroutine_handle<> h)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `h` | `int` | Input | Value supplied for `h`. See the exact type and module contract. |
+| `h` | `std::coroutine_handle<>` | Input | Value supplied for `h`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -457,7 +447,7 @@ void await_suspend(std::coroutine_handle<> h)
 #include "psyqo/coroutine.hh"
 
 // Assume these named values have been initialized with valid data:
-// int h
+// std::coroutine_handle<> h
 
 psyqo::Coroutine::ChainAwaiter& object = /* obtain a valid instance */;
 
@@ -563,7 +553,7 @@ explicit ChainAwaiter(std::coroutine_handle<Promise> h) : handl
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `h` | `int` | Input | Value supplied for `h`. See the exact type and module contract. |
+| `h` | `std::coroutine_handle<Promise>` | Input | Value supplied for `h`. See the exact type and module contract. |
 
 **Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
 
@@ -573,7 +563,7 @@ explicit ChainAwaiter(std::coroutine_handle<Promise> h) : handl
 #include "psyqo/coroutine.hh"
 
 // Assume these named values have been initialized with valid data:
-// int h
+// std::coroutine_handle<Promise> h
 
 psyqo::Coroutine::ChainAwaiter value(h);
 ```
@@ -952,345 +942,6 @@ auto result = object.operator=(arg1);
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
-<a id="psyqo-coroutine-promisevalue-final-suspend-1"></a>
-
-## `psyqo::Coroutine::PromiseValue::final_suspend`
-
-**Purpose.** Performs `final suspend` as part of the coroutine module.
-
-**Exact declaration**
-
-```cpp
-std::suspend_always final_suspend() noexcept
-```
-
-- **Declared at:** [line 210](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L210)
-- **Kind:** `cxx method`
-
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/coroutine.hh"
-
-psyqo::Coroutine::PromiseValue& object = /* obtain a valid instance */;
-
-auto result = object.final_suspend();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the coroutine module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="psyqo-coroutine-promisevalue-get-return-object-1"></a>
-
-## `psyqo::Coroutine::PromiseValue::get_return_object`
-
-**Purpose.** Returns return object as part of the coroutine module.
-
-**Exact declaration**
-
-```cpp
-Coroutine<T> get_return_object()
-```
-
-- **Declared at:** [line 206](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L206)
-- **Kind:** `cxx method`
-
-**Returns.** Returns `Coroutine<T>`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/coroutine.hh"
-
-psyqo::Coroutine::PromiseValue& object = /* obtain a valid instance */;
-
-auto result = object.get_return_object();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the coroutine module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="psyqo-coroutine-promisevalue-initial-suspend-1"></a>
-
-## `psyqo::Coroutine::PromiseValue::initial_suspend`
-
-**Purpose.** Performs `initial suspend` as part of the coroutine module.
-
-**Exact declaration**
-
-```cpp
-std::suspend_always initial_suspend()
-```
-
-- **Declared at:** [line 209](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L209)
-- **Kind:** `cxx method`
-
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/coroutine.hh"
-
-psyqo::Coroutine::PromiseValue& object = /* obtain a valid instance */;
-
-auto result = object.initial_suspend();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the coroutine module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="psyqo-coroutine-promisevalue-return-value-1"></a>
-
-## `psyqo::Coroutine::PromiseValue::return_value`
-
-**Purpose.** Performs `return value` as part of the coroutine module.
-
-**Exact declaration**
-
-```cpp
-void return_value(T &&value)
-```
-
-- **Declared at:** [line 212](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L212)
-- **Kind:** `cxx method`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `value` | `T &&` | Consumed or moved input | Value supplied for `value`. See the exact type and module contract. |
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/coroutine.hh"
-
-// Assume these named values have been initialized with valid data:
-// T && value
-
-psyqo::Coroutine::PromiseValue& object = /* obtain a valid instance */;
-
-object.return_value(value);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the coroutine module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
-
-<a id="psyqo-coroutine-promisevalue-unhandled-exception-1"></a>
-
-## `psyqo::Coroutine::PromiseValue::unhandled_exception`
-
-**Purpose.** Performs `unhandled exception` as part of the coroutine module.
-
-**Exact declaration**
-
-```cpp
-void unhandled_exception()
-```
-
-- **Declared at:** [line 211](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L211)
-- **Kind:** `cxx method`
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/coroutine.hh"
-
-psyqo::Coroutine::PromiseValue& object = /* obtain a valid instance */;
-
-object.unhandled_exception();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the coroutine module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="psyqo-coroutine-promisevoid-final-suspend-1"></a>
-
-## `psyqo::Coroutine::PromiseVoid::final_suspend`
-
-**Purpose.** Performs `final suspend` as part of the coroutine module.
-
-**Exact declaration**
-
-```cpp
-std::suspend_always final_suspend() noexcept
-```
-
-- **Declared at:** [line 193](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L193)
-- **Kind:** `cxx method`
-
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/coroutine.hh"
-
-psyqo::Coroutine::PromiseVoid& object = /* obtain a valid instance */;
-
-auto result = object.final_suspend();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the coroutine module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="psyqo-coroutine-promisevoid-get-return-object-1"></a>
-
-## `psyqo::Coroutine::PromiseVoid::get_return_object`
-
-**Purpose.** Returns return object as part of the coroutine module.
-
-**Exact declaration**
-
-```cpp
-Coroutine<> get_return_object()
-```
-
-- **Declared at:** [line 189](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L189)
-- **Kind:** `cxx method`
-
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/coroutine.hh"
-
-psyqo::Coroutine::PromiseVoid& object = /* obtain a valid instance */;
-
-auto result = object.get_return_object();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the coroutine module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="psyqo-coroutine-promisevoid-initial-suspend-1"></a>
-
-## `psyqo::Coroutine::PromiseVoid::initial_suspend`
-
-**Purpose.** Performs `initial suspend` as part of the coroutine module.
-
-**Exact declaration**
-
-```cpp
-std::suspend_always initial_suspend()
-```
-
-- **Declared at:** [line 192](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L192)
-- **Kind:** `cxx method`
-
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/coroutine.hh"
-
-psyqo::Coroutine::PromiseVoid& object = /* obtain a valid instance */;
-
-auto result = object.initial_suspend();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the coroutine module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="psyqo-coroutine-promisevoid-return-void-1"></a>
-
-## `psyqo::Coroutine::PromiseVoid::return_void`
-
-**Purpose.** Performs `return void` as part of the coroutine module.
-
-**Exact declaration**
-
-```cpp
-void return_void()
-```
-
-- **Declared at:** [line 195](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L195)
-- **Kind:** `cxx method`
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/coroutine.hh"
-
-psyqo::Coroutine::PromiseVoid& object = /* obtain a valid instance */;
-
-object.return_void();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the coroutine module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
-<a id="psyqo-coroutine-promisevoid-unhandled-exception-1"></a>
-
-## `psyqo::Coroutine::PromiseVoid::unhandled_exception`
-
-**Purpose.** Performs `unhandled exception` as part of the coroutine module.
-
-**Exact declaration**
-
-```cpp
-void unhandled_exception()
-```
-
-- **Declared at:** [line 194](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L194)
-- **Kind:** `cxx method`
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need the coroutine module and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "psyqo/coroutine.hh"
-
-psyqo::Coroutine::PromiseVoid& object = /* obtain a valid instance */;
-
-object.unhandled_exception();
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to the coroutine module. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
-
 <a id="psyqo-coroutine-resume-1"></a>
 
 ## `psyqo::Coroutine::resume`
@@ -1343,7 +994,7 @@ const SafeT &value() const
 - **Declared at:** [line 185](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/coroutine.hh#L185)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `const int &`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `const SafeT &`. Check the purpose and failure notes before using the value.
 
 **Use it when.** This method returns the value returned by the coroutine. It is only valid to call it after the coroutine has finished executing. The typical usage of this method is to call it after the `done` method returns `true`. The coroutine sets its return value using the `co_return` keyword. Since it is possible for the return type to be `void`, the return type of this method is `T` if `T` is not `void`, and `Empty` if `T` is `void`.
 

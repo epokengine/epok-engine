@@ -6,7 +6,7 @@ This module covers static and blob shadow rendering. It documents 1 public calla
 
 ## Declared types
 
-`epok::BlobRenderer`, `epok::BlobRenderer::Packet`
+`epok::BlobRenderer`
 
 ## Callable index
 
@@ -21,10 +21,10 @@ This module covers static and blob shadow rendering. It documents 1 public calla
 **Exact declaration**
 
 ```cpp
-template<size_t N,typename Table>void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const Affine<Fixed>& view)
+template<size_t N,typename Table> #ifdef __mips__ __attribute__((noinline,optimize("O3"))) #endif void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const Affine<Fixed>& view)
 ```
 
-- **Declared at:** [line 12](../../../runtime/shadows.hpp#L12)
+- **Declared at:** [line 16](../../../runtime/shadows.hpp#L16)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -33,10 +33,10 @@ template<size_t N,typename Table>void draw(int parity,Table& table,const std::ar
 | --- | --- | --- | --- |
 | `parity` | `int` | Input | Value supplied for `parity`. See the exact type and module contract. |
 | `table` | `Table &` | Input/output; inspect the function contract | Value supplied for `table`. See the exact type and module contract. |
-| `objects` | `const int &` | Input | Value supplied for `objects`. See the exact type and module contract. |
-| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
-| `view` | `const int &` | Input | Value supplied for `view`. See the exact type and module contract. |
+| `objects` | `const std::array<ActorData, N> &` | Input | Value supplied for `objects`. See the exact type and module contract. |
+| `world` | `const std::array<Affine<Fixed>, N> &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `view` | `const Affine<Fixed> &` | Input | Value supplied for `view`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -53,10 +53,10 @@ template<size_t N,typename Table>void draw(int parity,Table& table,const std::ar
 // Assume these named values have been initialized with valid data:
 // int parity
 // Table & table
-// const int & objects
-// const int & world
-// int count
-// const int & view
+// const std::array<ActorData, N> & objects
+// const std::array<Affine<Fixed>, N> & world
+// size_t count
+// const Affine<Fixed> & view
 
 epok::BlobRenderer& object = /* obtain a valid instance */;
 

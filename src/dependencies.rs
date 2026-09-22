@@ -514,8 +514,10 @@ impl State {
         self.warning &= open && !configure;
         configure
     }
+    /// The tool list itself. Both hosts draw it inline in their own layout --
+    /// the editor inside Preferences, the Hub inside its content pane -- so
+    /// neither of them owns a window this page has to live in.
     pub fn page(&mut self, ui: &imgui::Ui, blocked: bool) {
-        ui.text("General  >  Dependencies");
         ui.text_wrapped(format!(
             "Configuration: {}",
             self.owner.join("Local.epokconfig").display()
@@ -646,32 +648,22 @@ impl State {
             self.message = error;
         }
     }
-    pub fn hub_window(&mut self, ui: &imgui::Ui) {
+    /// The Hub's Dependencies view. It is a pane like Projects and New project,
+    /// not a window over them: configuring a tool is ordinary work, and it
+    /// belongs beside the thing it unblocks.
+    pub fn hub_page(&mut self, ui: &imgui::Ui) {
         self.poll();
-        if self.warning_ui(ui) {
-            self.open = true;
+        ui.child_window("dependency-settings")
+            .size([0., -45.])
+            .build(|| self.page(ui, false));
+        self.install_all_control(ui, false);
+        ui.same_line();
+        let _disabled = ui.begin_disabled(self.busy());
+        if ui.button("Apply") {
+            self.message = self
+                .save()
+                .map_or_else(|e| e, |()| "Dependency paths saved.".into());
         }
-        if !self.open {
-            return;
-        }
-        let mut open = true;
-        ui.window("Editor Dependencies")
-            .opened(&mut open)
-            .size([820., 680.], imgui::Condition::FirstUseEver)
-            .build(|| {
-                ui.child_window("dependency-settings")
-                    .size([0., -45.])
-                    .build(|| self.page(ui, false));
-                self.install_all_control(ui, false);
-                ui.same_line();
-                let _disabled = ui.begin_disabled(self.busy());
-                if ui.button("Apply") {
-                    self.message = self
-                        .save()
-                        .map_or_else(|e| e, |()| "Dependency paths saved.".into());
-                }
-            });
-        self.open = open;
     }
 }
 
@@ -687,7 +679,11 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     let mut state = State::new(&root);
     assert!(state.warning);
     let frame = |context: &mut imgui::Context, state: &mut State| {
-        state.hub_window(context.frame());
+        let ui = context.frame();
+        if state.warning_ui(ui) {
+            state.open = true;
+        }
+        ui.window("Hub dependencies").build(|| state.hub_page(ui));
         context.render();
     };
     frame(context, &mut state);

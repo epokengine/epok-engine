@@ -3,6 +3,7 @@
 #include "affine.hpp"
 #include "lighting.hpp"
 #include "texture.hpp"
+#include "sprite_math.hpp"
 #include "psyqo/fragments.hh"
 #include "psyqo/primitives/triangles.hh"
 namespace epok {
@@ -72,17 +73,21 @@ public:
         static constexpr int xy[4][2]={{0,1},{1,1},{1,0},{0,0}};
         for(int i=0;i<4;++i){Fixed local[3]={(Fixed(xy[i][0]*4096,Fixed::RAW)-sprite.pivot[0])*sprite.size[0],(Fixed(xy[i][1]*4096,Fixed::RAW)-sprite.pivot[1])*sprite.size[1],0.0},p[3];mv.point(local,p);for(int c=0;c<3;++c)buffers[0][i].p[c]=p[c].raw();
             const int u=sprite.flip_x?1-xy[i][0]:xy[i][0],v=sprite.flip_y?xy[i][1]:1-xy[i][1];buffers[0][i].uv[0]=(sprite.region[0]+u*(w-1))*4096;buffers[0][i].uv[1]=(tex->y%256+sprite.region[1]+v*(h-1))*4096;}
-        bool clipped=false;
-        for(int plane=0;plane<6&&count>0;++plane){auto distance=[&](const Clip& v)->int64_t{switch(plane){case 0:return int64_t(v.p[2])-1024;case 1:return 128*4096-1-int64_t(v.p[2]);case 2:return int64_t(v.p[2])+v.p[0];case 3:return int64_t(v.p[2])-v.p[0];case 4:return 3*int64_t(v.p[2])+4*int64_t(v.p[1]);default:return 3*int64_t(v.p[2])-4*int64_t(v.p[1]);}};
+        bool clipped=false,inside=true;
+        for(int i=0;i<4;++i){const auto* p=buffers[0][i].p;inside&=sprite_detail::interior(p[0],p[1],p[2]);}
+        // An interior quad is already the exact output of all six clip passes.
+        // Boundary quads retain the complete original clipper and rounding.
+        for(int plane=0;!inside&&plane<6&&count>0;++plane){auto distance=[&](const Clip& v)->int64_t{switch(plane){case 0:return int64_t(v.p[2])-1024;case 1:return 128*4096-1-int64_t(v.p[2]);case 2:return int64_t(v.p[2])+v.p[0];case 3:return int64_t(v.p[2])-v.p[0];case 4:return 3*int64_t(v.p[2])+4*int64_t(v.p[1]);default:return 3*int64_t(v.p[2])-4*int64_t(v.p[1]);}};
             int next=0;auto previous=buffers[from][count-1];auto pd=distance(previous);
             for(int i=0;i<count;++i){const auto current=buffers[from][i];auto cd=distance(current);if((pd>=0)!=(cd>=0)){clipped=true;Clip v;int64_t fraction=pd*65536/(pd-cd);for(int c=0;c<3;++c)v.p[c]=previous.p[c]+(int64_t(current.p[c])-previous.p[c])*fraction/65536;for(int c=0;c<2;++c)v.uv[c]=previous.uv[c]+(int64_t(current.uv[c])-previous.uv[c])*fraction/65536;if(plane==0)v.p[2]=1024;if(plane==1)v.p[2]=128*4096-1;if(next<12)buffers[1-from][next++]=v;}if(cd>=0&&next<12)buffers[1-from][next++]=current;else if(cd<0)clipped=true;previous=current;pd=cd;}
             count=next;from=1-from;
         }
         if(count<3){++sprite_stats.culled;return;}if(clipped)++sprite_stats.clipped;
         MeshQuad face{};face.normal[2]=-4096;face.material.unlit=sprite.unlit;Material tint{};tint.unlit=sprite.unlit;for(int c=0;c<3;++c){face.material.color[c]=255;tint.color[c]=sprite.color[c];}
-        int64_t depth_sum=0;for(int i=0;i<count;++i)depth_sum+=buffers[from][i].p[2];
+        // At most 12 vertices, each clipped to [1024, 128*4096): sum fits i32.
+        int32_t depth_sum=0;for(int i=0;i<count;++i)depth_sum+=buffers[from][i].p[2];
         auto color=fog_color(lighting_detail::mesh_shade(model,face,tint,receive_lighting),int32_t(depth_sum/count));color.r=uint8_t((uint16_t(color.r)+1)/2);color.g=uint8_t((uint16_t(color.g)+1)/2);color.b=uint8_t((uint16_t(color.b)+1)/2);
-        psyqo::Vertex points[12];for(int i=0;i<count;++i){const auto& p=buffers[from][i];points[i]={{.x=int16_t(display_width/2+int64_t(p.p[0])*(display_width/2)/p.p[2]),.y=int16_t(display_height/2-int64_t(p.p[1])*(display_height*2/3)/p.p[2])}};}
+        psyqo::Vertex points[12];for(int i=0;i<count;++i){const auto& p=buffers[from][i];points[i]={{.x=int16_t(display_width/2+sprite_detail::project_ratio(p.p[0],display_width/2,p.p[2])),.y=int16_t(display_height/2-sprite_detail::project_ratio(p.p[1],display_height*2/3,p.p[2]))}};}
         ++sprite_stats.submitted;
         // One depth bucket for the complete quad avoids diagonal ordering seams.
         int depth=int(depth_sum/(count*1024))+sprite.depth_bias;if(depth<0)depth=0;if(depth>511)depth=511;

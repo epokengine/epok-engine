@@ -283,7 +283,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `handle` | `int` | Input | Value supplied for `handle`. See the exact type and module contract. |
+| `handle` | `std::coroutine_handle<U>` | Input | Value supplied for `handle`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -298,7 +298,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 // U
 
 // Assume these named values have been initialized with valid data:
-// int handle
+// std::coroutine_handle<U> handle
 
 psyqo::CDRomDevice::GetPlaybackLocationAwaiter& object = /* obtain a valid instance */;
 
@@ -509,7 +509,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `handle` | `int` | Input | Value supplied for `handle`. See the exact type and module contract. |
+| `handle` | `std::coroutine_handle<U>` | Input | Value supplied for `handle`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -524,7 +524,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 // U
 
 // Assume these named values have been initialized with valid data:
-// int handle
+// std::coroutine_handle<U> handle
 
 psyqo::CDRomDevice::GetTOCSizeAwaiter& object = /* obtain a valid instance */;
 
@@ -808,7 +808,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `handle` | `int` | Input | Value supplied for `handle`. See the exact type and module contract. |
+| `handle` | `std::coroutine_handle<U>` | Input | Value supplied for `handle`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -823,7 +823,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 // U
 
 // Assume these named values have been initialized with valid data:
-// int handle
+// std::coroutine_handle<U> handle
 
 psyqo::CDRomDevice::MuteAwaiter& object = /* obtain a valid instance */;
 
@@ -1183,8 +1183,8 @@ void readSectors(uint32_t sector, uint32_t count, void *buffer, eastl::function<
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `sector` | `int` | Input | The sector to start reading from. |
-| `count` | `int` | Input | The number of sectors to read. |
+| `sector` | `uint32_t` | Input | The sector to start reading from. |
+| `count` | `uint32_t` | Input | The number of sectors to read. |
 | `buffer` | `void *` | Input/output; inspect the function contract | The buffer to read the sectors into. |
 | `callback` | `eastl::function<void (bool)> &&` | Consumed or moved input | The callback to call when the read is complete. |
 
@@ -1198,8 +1198,8 @@ void readSectors(uint32_t sector, uint32_t count, void *buffer, eastl::function<
 #include "psyqo/cdrom-device.hh"
 
 // Assume these named values have been initialized with valid data:
-// int sector
-// int count
+// uint32_t sector
+// uint32_t count
 // void * buffer
 // eastl::function<void (bool)> && callback
 
@@ -1231,8 +1231,8 @@ bool readSectorsBlocking(uint32_t sector, uint32_t count, void *buffer, GPU &)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `sector` | `int` | Input | Value supplied for `sector`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `sector` | `uint32_t` | Input | Value supplied for `sector`. See the exact type and module contract. |
+| `count` | `uint32_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `buffer` | `void *` | Input/output; inspect the function contract | Value supplied for `buffer`. See the exact type and module contract. |
 | `arg4` | `GPU &` | Input/output; inspect the function contract | Value supplied for `arg4`. See the exact type and module contract. |
 
@@ -1246,8 +1246,8 @@ bool readSectorsBlocking(uint32_t sector, uint32_t count, void *buffer, GPU &)
 #include "psyqo/cdrom-device.hh"
 
 // Assume these named values have been initialized with valid data:
-// int sector
-// int count
+// uint32_t sector
+// uint32_t count
 // void * buffer
 // GPU & arg4
 
@@ -1437,7 +1437,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `handle` | `int` | Input | Value supplied for `handle`. See the exact type and module contract. |
+| `handle` | `std::coroutine_handle<U>` | Input | Value supplied for `handle`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1452,7 +1452,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 // U
 
 // Assume these named values have been initialized with valid data:
-// int handle
+// std::coroutine_handle<U> handle
 
 psyqo::CDRomDevice::ReadTOCAwaiter& object = /* obtain a valid instance */;
 
@@ -1713,7 +1713,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `handle` | `int` | Input | Value supplied for `handle`. See the exact type and module contract. |
+| `handle` | `std::coroutine_handle<U>` | Input | Value supplied for `handle`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1728,7 +1728,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 // U
 
 // Assume these named values have been initialized with valid data:
-// int handle
+// std::coroutine_handle<U> handle
 
 psyqo::CDRomDevice::ResetAwaiter& object = /* obtain a valid instance */;
 
@@ -2151,10 +2151,10 @@ void setVolume(uint8_t leftToLeft, uint8_t rightToLeft, uint8_t leftToRight, uin
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `leftToLeft` | `int` | Input | The volume of the left channel to the left speaker. |
-| `rightToLeft` | `int` | Input | The volume of the right channel to the left speaker. |
-| `leftToRight` | `int` | Input | The volume of the left channel to the right speaker. |
-| `rightToRight` | `int` | Input | The volume of the right channel to the right speaker. |
+| `leftToLeft` | `uint8_t` | Input | The volume of the left channel to the left speaker. |
+| `rightToLeft` | `uint8_t` | Input | The volume of the right channel to the left speaker. |
+| `leftToRight` | `uint8_t` | Input | The volume of the left channel to the right speaker. |
+| `rightToRight` | `uint8_t` | Input | The volume of the right channel to the right speaker. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -2166,10 +2166,10 @@ void setVolume(uint8_t leftToLeft, uint8_t rightToLeft, uint8_t leftToRight, uin
 #include "psyqo/cdrom-device.hh"
 
 // Assume these named values have been initialized with valid data:
-// int leftToLeft
-// int rightToLeft
-// int leftToRight
-// int rightToRight
+// uint8_t leftToLeft
+// uint8_t rightToLeft
+// uint8_t leftToRight
+// uint8_t rightToRight
 
 psyqo::CDRomDevice& object = /* obtain a valid instance */;
 
@@ -2463,7 +2463,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `handle` | `int` | Input | Value supplied for `handle`. See the exact type and module contract. |
+| `handle` | `std::coroutine_handle<U>` | Input | Value supplied for `handle`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -2478,7 +2478,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 // U
 
 // Assume these named values have been initialized with valid data:
-// int handle
+// std::coroutine_handle<U> handle
 
 psyqo::CDRomDevice::UnmuteAwaiter& object = /* obtain a valid instance */;
 

@@ -27,6 +27,7 @@ import argparse  # noqa: E402
 import contextlib  # noqa: E402
 import hashlib  # noqa: E402
 import json  # noqa: E402
+import math  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
 import shutil  # noqa: E402
@@ -153,6 +154,53 @@ def as_int32(value):
     return value - 2**32 if value > I32_MAX else value
 
 
+def powq(t, n):
+    """`runtime/fixed_math.hpp`: t**n in Q12, truncating once per multiply."""
+    acc = t
+    for _ in range(n - 1):
+        acc = trunc(acc * t, Q12)
+    return acc
+
+
+def q_sqrt(raw):
+    """Q12 square root, floor, matching the shared integer sqrt."""
+    return 0 if raw <= 0 else math.isqrt(raw * Q12)
+
+
+def ease(raw, kind):
+    """`epok::ease`, by enumerator number: the catalogue is stored as its index."""
+    raw = 0 if raw < 0 else Q12 if raw > Q12 else raw
+    inverse, rising = Q12 - raw, raw * 2 <= Q12
+    if kind == 1:
+        return trunc(trunc(raw * raw, Q12) * (3 * Q12 - 2 * raw), Q12)
+    if kind == 2:
+        return trunc(raw * raw, Q12)
+    if kind == 3:
+        return trunc(raw * (2 * Q12 - raw), Q12)
+    if kind in (5, 8, 11):
+        return powq(raw, {5: 3, 8: 4, 11: 5}[kind])
+    if kind in (6, 9, 12):
+        return Q12 - powq(inverse, {6: 3, 9: 4, 12: 5}[kind])
+    if kind in (4, 7, 10, 13):
+        power = {4: 2, 7: 3, 10: 4, 13: 5}[kind]
+        return powq(2 * raw, power) // 2 if rising else Q12 - powq(2 * inverse, power) // 2
+    if kind == 14:
+        return Q12 - q_sqrt(Q12 - powq(raw, 2))
+    if kind == 15:
+        return q_sqrt(Q12 - powq(inverse, 2))
+    if kind == 16:
+        if rising:
+            return (Q12 - q_sqrt(Q12 - powq(2 * raw, 2))) // 2
+        return (Q12 + q_sqrt(Q12 - powq(2 * inverse, 2))) // 2
+    return raw
+
+
+def flerp(a, b, raw):
+    """`epok::lerp`: one truncating multiply over the whole difference."""
+    raw = 0 if raw < 0 else Q12 if raw > Q12 else raw
+    return saturate(a + trunc((b - a) * raw, Q12))
+
+
 # ---------------------------------------------------------------------------
 def expected_probe():
     """Every probe slot, derived from the fixture sources and the helpers above.
@@ -261,6 +309,23 @@ def expected_probe():
     probe[87] = 1                              # so it casts to itself
     probe[88] = 1                              # the spawned actor is a Sentinel
     probe[89] = 1                              # and its own reference is valid
+    probe[90] = 1                              # scene.set_fog(scene.fog()) round trip
+
+    # The deepened tween surface. 0.5 of wait then 1.25 of a 1.0 leg leaves the plan
+    # 0.25 into its second, mirrored leg, so the value is the forward curve read with
+    # the endpoints swapped.
+    mirrored = flerp(0, fixed(8.0), Q12 - ease(fixed(0.25), 2))
+    assert mirrored == fixed(8.0) - flerp(0, fixed(8.0), ease(fixed(0.25), 2))
+    probe[91] = mirrored
+    probe[92] = ease(fixed(0.5), 13)           # InOutQuint at the midpoint
+    # One clock, three lerps: the Vector3 component and the scalar tween over the
+    # same endpoints are the same raw value, not merely close.
+    probe[93] = flerp(fixed(-2.0), fixed(6.0), ease(fixed(0.375), 15))
+    probe[94] = probe[93]
+
+    # The screen fade, packed into one slot: the saturated write, a value that
+    # round trips, and the restore, which has to read back as zero.
+    probe[95] = 255 * 65536 + 200 * 256 + 0
 
     probe[48] = 0x4C4D4F31                     # magic
     probe[49] = 2                              # EnemyBase::begin_play, twice
@@ -305,6 +370,10 @@ SLOT_NAMES = {
     82: "spawned.destroyed", 83: "builtin.checkpoint", 84: "builtin.spawn.deferred",
     85: "patrol.is_a.base", 86: "patrol.is_a.self", 87: "patrol.cast.self",
     88: "spawned.is_a.self", 89: "spawned.ref.valid",
+    90: "builtin.scene.set_fog",
+    91: "builtin.utilities.tween_schedule", 92: "builtin.utilities.ease",
+    93: "builtin.utilities.vector_tween_advance", 94: "builtin.utilities.tween_advance",
+    95: "builtin.scene.set_screen_fade",
 }
 
 
@@ -836,7 +905,9 @@ def main():
     report["passed"] = all(r["passed"] for r in RESULTS)
     output = _Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    # Recorded evidence is read on other machines, so it carries repository-
+    # relative paths rather than wherever this run happened to be checked out.
+    output.write_text(json.dumps(report, indent=2).replace(f"{ROOT}/", ""), encoding="utf-8")
 
     print("\n=== probe table (slot: expected | native_cpp | vm_bytecode | vm_source) ===")
     for row in report.get("probe", {}).get("table", []):

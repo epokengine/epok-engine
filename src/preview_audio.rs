@@ -2,13 +2,13 @@
 
 // Only the Windows driver reads the authored timeline; elsewhere `Player` refuses to start.
 #[cfg_attr(not(windows), allow(dead_code))]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Timeline {
     pub duration: f32,
     pub loop_region: Option<(f32, f32)>,
 }
 #[cfg_attr(not(windows), allow(dead_code))]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Pcm {
     pub samples: Vec<i16>,
     pub rate: u32,
@@ -62,6 +62,8 @@ mod win {
         ) -> u32;
         fn waveOutPrepareHeader(out: *mut c_void, header: *mut Header, size: u32) -> u32;
         fn waveOutWrite(out: *mut c_void, header: *mut Header, size: u32) -> u32;
+        fn waveOutPause(out: *mut c_void) -> u32;
+        fn waveOutRestart(out: *mut c_void) -> u32;
         fn waveOutReset(out: *mut c_void) -> u32;
         fn waveOutUnprepareHeader(out: *mut c_void, header: *mut Header, size: u32) -> u32;
         fn waveOutClose(out: *mut c_void) -> u32;
@@ -166,6 +168,15 @@ mod win {
                 ptr::read_volatile(ptr::addr_of!(self.headers.last().unwrap().flags)) & 1 != 0
             }
         }
+        pub fn pause(&self, paused: bool) {
+            unsafe {
+                if paused {
+                    waveOutPause(self.device);
+                } else {
+                    waveOutRestart(self.device);
+                }
+            }
+        }
         pub fn progress(&self) -> f32 {
             let mut elapsed = self.started.elapsed().as_secs_f32();
             if let Some((start, end)) = self.loop_region
@@ -207,4 +218,5 @@ impl Player {
     pub fn progress(&self) -> f32 {
         0.
     }
+    pub fn pause(&self, _: bool) {}
 }

@@ -808,6 +808,36 @@ fn material_edits_preserve_every_field_the_model_window_does_not_show() {
 }
 
 #[test]
+fn rigid_cooking_merges_only_same_bone_positions_and_preserves_portable_ids() {
+    use crate::skeletal_compile::{self as compile, QueryDemand};
+    let mut model = seam_model(true, None);
+    model.mesh.vertices.push(model.mesh.vertices[1].clone());
+    model.mesh.triangles[1].indices[1] = 4;
+    let original = compile::budget_for(&model, QueryDemand::ALL).unwrap();
+    let header =
+        compile::header_with_pages_for(&seam_actor(model.clone()), 7, &|_| None, QueryDemand::ALL)
+            .unwrap();
+    assert!(header.contains("skin_vertices_7[4][3]"));
+    assert!(header.contains("skin_portable_to_cooked_7[]={0,1,2,3,1}"));
+    assert!(header.contains("{{2,1,3,3}"));
+    assert!(header.contains("{{4096,2048},{2048,4096},{4096,4096},{4096,4096}}"));
+    let mut bone = model.skeleton.bones[0].clone();
+    bone.name = "other".into();
+    model.skeleton.bones.push(bone);
+    model.mesh.vertices[4].bone = 1;
+    let separate =
+        compile::header_with_pages_for(&seam_actor(model.clone()), 7, &|_| None, QueryDemand::ALL)
+            .unwrap();
+    assert!(separate.contains("skin_vertices_7[5][3]"));
+    assert!(separate.contains("skin_portable_to_cooked_7[]={0,1,2,3,4}"));
+    let budget = compile::budget_for(&model, QueryDemand::ALL).unwrap();
+    assert_eq!(
+        budget.geometry_bytes - original.geometry_bytes,
+        compile::VERTEX_BYTES + 1 + 2
+    );
+}
+
+#[test]
 fn seam_coordinates_survive_rigid_reordering_without_duplicating_positions() {
     let plain = crate::skeletal_compile::header(&seam_actor(seam_model(false, None)), 7).unwrap();
     let mapped = crate::skeletal_compile::header(&seam_actor(seam_model(true, None)), 7).unwrap();

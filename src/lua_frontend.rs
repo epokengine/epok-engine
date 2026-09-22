@@ -98,7 +98,9 @@ struct Token {
     tok: Tok,
     span: Span,
 }
-const KEYWORDS: &[&str] = &[
+/// The reserved words. Also read by the reflection tests: a record member or an
+/// enumerator spelled like one of these is unreachable from every Lua mode.
+pub(crate) const KEYWORDS: &[&str] = &[
     "and", "break", "do", "else", "elseif", "end", "false", "for", "function", "goto", "if", "in",
     "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while",
 ];
@@ -3218,6 +3220,15 @@ fn adapter(name: &str) -> Option<(bp::Builtin, Vec<Operand>, ClassArgument)> {
         "input.pressed" => simple(bp::Builtin::InputPressed, &[Value, Value]),
         "input.released" => simple(bp::Builtin::InputReleased, &[Value, Value]),
         "request_scene" => simple(bp::Builtin::RequestScene, &[Value]),
+        // Spatial reads and writes on a World3D actor. Gameplay v2 moves whole
+        // vectors, so these are the same three-component pins Blueprint has;
+        // without them a Lua-only author cannot move what they can already see.
+        "position" => simple(bp::Builtin::GetPosition, &[Value]),
+        "rotation" => simple(bp::Builtin::GetRotation, &[Value]),
+        "scale" => simple(bp::Builtin::GetScale, &[Value]),
+        "set_position" => simple(bp::Builtin::SetPosition, &[Value, Value]),
+        "set_rotation" => simple(bp::Builtin::SetRotation, &[Value, Value]),
+        "set_scale" => simple(bp::Builtin::SetScale, &[Value, Value]),
         "is_valid" => simple(bp::Builtin::IsValid, &[Value]),
         "owner" => simple(bp::Builtin::GetOwner, &[]),
         "play_audio" => simple(bp::Builtin::PlayAudio, &[Value]),

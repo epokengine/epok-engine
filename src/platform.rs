@@ -15,7 +15,7 @@ use std::{
 };
 use winit::{
     dpi::LogicalSize,
-    event::{DeviceEvent, Event, WindowEvent},
+    event::{DeviceEvent, ElementState, Event, MouseButton as WinitMouseButton, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{CursorGrabMode, WindowAttributes},
 };
@@ -50,6 +50,13 @@ pub fn run(
     let mut hub = crate::hub::Hub::new(startup_error);
     startup_mark("hub and dependency discovery");
     let args = std::env::args().collect::<Vec<_>>();
+    // Visual QA of the two Hub panes a click away from the project list.
+    if args.iter().any(|arg| arg == "--screenshot-new-project") {
+        hub.open_new_project();
+    }
+    if args.iter().any(|arg| arg == "--screenshot-dependencies") {
+        hub.dependencies.open = true;
+    }
     let content_capture = args.iter().any(|arg| arg == "--screenshot-content-browser");
     let minimum_size = if content_capture || args.iter().any(|arg| arg == "--sequencer-layout") {
         [640, 300]
@@ -165,7 +172,7 @@ pub fn run(
                 data: include_bytes!("../resources/editor/fa-solid-900.ttf"),
                 size_pixels: 14.,
                 config: Some(imgui::FontConfig {
-                    glyph_ranges: imgui::FontGlyphRanges::from_slice(&[0xf256, 0xf256, 0]),
+                    glyph_ranges: imgui::FontGlyphRanges::from_slice(EDITOR_FA_GLYPHS),
                     ..Default::default()
                 }),
             },
@@ -191,7 +198,7 @@ pub fn run(
                 data: include_bytes!("../resources/editor/fa-solid-900.ttf"),
                 size_pixels: 14.,
                 config: Some(imgui::FontConfig {
-                    glyph_ranges: imgui::FontGlyphRanges::from_slice(&[0xf256, 0xf256, 0]),
+                    glyph_ranges: imgui::FontGlyphRanges::from_slice(EDITOR_FA_GLYPHS),
                     ..Default::default()
                 }),
             },
@@ -218,6 +225,33 @@ pub fn run(
             config: Some(imgui::FontConfig {
                 glyph_ranges: imgui::FontGlyphRanges::from_slice(&[0xf000, 0xf8ff, 0]),
                 glyph_min_advance_x: 16.,
+                ..Default::default()
+            }),
+        },
+    ]);
+    // The property editor draws at a smaller, proportional size than the rest of
+    // the editor so a narrow panel still fits a label and its value on one row.
+    let inspector_font = imgui.fonts().add_font(&[
+        imgui::FontSource::TtfData {
+            data: include_bytes!("../resources/editor/Roboto-Regular.ttf"),
+            size_pixels: 13.,
+            config: None,
+        },
+        imgui::FontSource::TtfData {
+            data: include_bytes!("../resources/editor/codicon.ttf"),
+            size_pixels: 14.,
+            config: Some(imgui::FontConfig {
+                glyph_ranges: imgui::FontGlyphRanges::from_slice(&[0xea60, 0xedff, 0]),
+                glyph_min_advance_x: 14.,
+                ..Default::default()
+            }),
+        },
+        imgui::FontSource::TtfData {
+            data: include_bytes!("../resources/editor/fa-solid-900.ttf"),
+            size_pixels: 12.,
+            config: Some(imgui::FontConfig {
+                glyph_ranges: imgui::FontGlyphRanges::from_slice(&[0xf000, 0xf8ff, 0]),
+                glyph_min_advance_x: 13.,
                 ..Default::default()
             }),
         },
@@ -326,6 +360,22 @@ pub fn run(
     lockup_texture.write(&queue, &lockup_pixels, lockup_width, lockup_height);
     let lockup_texture_id = renderer.textures.insert(lockup_texture);
     hub.lockup = Some(lockup_texture_id);
+    // Template artwork is renderer-owned like the branding above, so it stays
+    // alive for the Hub's lifetime and a project never loads it from disk. A
+    // preview that fails to decode leaves its slot empty and the card falls
+    // back to a plain tile rather than stopping the editor from starting.
+    for (slot, info) in crate::project_templates::CATALOG.iter().enumerate() {
+        if let Some((pixels, width, height)) = info.preview() {
+            hub.previews[slot] = Some(upload_rgba(
+                &device,
+                &queue,
+                &mut renderer,
+                &pixels,
+                width,
+                height,
+            ));
+        }
+    }
     let (splash_pixels, splash_width, splash_height) = crate::branding::splash_pixels()?;
     let splash_texture = imgui_wgpu::Texture::new(
         &device,
@@ -342,6 +392,33 @@ pub fn run(
     );
     splash_texture.write(&queue, &splash_pixels, splash_width, splash_height);
     let splash_texture_id = renderer.textures.insert(splash_texture);
+    let (controller_pixels, controller_width, controller_height) =
+        crate::branding::controller_pixels()?;
+    let controller_texture = imgui_wgpu::Texture::new(
+        &device,
+        &renderer,
+        imgui_wgpu::TextureConfig {
+            size: wgpu::Extent3d {
+                width: controller_width,
+                height: controller_height,
+                depth_or_array_layers: 1,
+            },
+            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+            sampler_desc: wgpu::SamplerDescriptor {
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    controller_texture.write(
+        &queue,
+        &controller_pixels,
+        controller_width,
+        controller_height,
+    );
+    let controller_texture_id = renderer.textures.insert(controller_texture);
     let texture = imgui_wgpu::Texture::new(
         &device,
         &renderer,
@@ -400,9 +477,60 @@ pub fn run(
     );
     let hud_texture_id = renderer.textures.insert(hud_texture);
 
+    let native_game_texture = imgui_wgpu::Texture::new(
+        &device,
+        &renderer,
+        imgui_wgpu::TextureConfig {
+            size: scene_gpu::NATIVE_PLAY_SIZE,
+            format: Some(scene_gpu::FORMAT),
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC,
+            sampler_desc: wgpu::SamplerDescriptor {
+                mag_filter: wgpu::FilterMode::Nearest,
+                min_filter: wgpu::FilterMode::Nearest,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    let mut native_game_target = native_game_texture
+        .texture()
+        .create_view(&Default::default());
+    let native_game_texture_id = renderer.textures.insert(native_game_texture);
+    let mut native_game_renderer =
+        scene_gpu::SceneGpu::new_with_size(&device, &queue, scene_gpu::NATIVE_PLAY_SIZE);
+    let mut native_game_size = [
+        scene_gpu::NATIVE_PLAY_SIZE.width,
+        scene_gpu::NATIVE_PLAY_SIZE.height,
+    ];
+    let native_hud_texture = imgui_wgpu::Texture::new(
+        &device,
+        &renderer,
+        imgui_wgpu::TextureConfig {
+            size: wgpu::Extent3d {
+                width: 320,
+                height: 240,
+                depth_or_array_layers: 1,
+            },
+            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+            sampler_desc: wgpu::SamplerDescriptor {
+                mag_filter: wgpu::FilterMode::Nearest,
+                min_filter: wgpu::FilterMode::Nearest,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    let native_hud_texture_id = renderer.textures.insert(native_hud_texture);
+    let mut native_hud_size = [320, 240];
+    let mut native_sequence = 0;
+
     let mut game_texture = None;
     let mut game_sequence = 0;
-    let capture_game = args.iter().any(|arg| arg == "--screenshot-game");
+    let capture_game = args
+        .iter()
+        .any(|arg| arg == "--screenshot-game" || arg == "--screenshot-native-game");
     let capture_loading = args.iter().any(|arg| arg == "--screenshot-loading");
     let mut project_frames = 0;
     let started = Instant::now();
@@ -419,6 +547,9 @@ pub fn run(
     let mut startup_first_frame = true;
     startup_mark("remaining setup");
     let mut look_restore = winit::dpi::PhysicalPosition::new(0_f64, 0_f64);
+    // Gilrs is polled independently from Winit so generic XInput, DirectInput
+    // and SDL-style controllers can be captured and used by Native PC Play.
+    let mut gamepads = gilrs::Gilrs::new().ok();
     // A hidden Win32 window may not receive paint events. Show the compact
     // window after GPU setup so the event loop can present its first splash.
     window.set_visible(true);
@@ -429,6 +560,16 @@ pub fn run(
             platform.handle_event(imgui.io_mut(), &window, &event);
         }
         match event {
+            Event::WindowEvent { event: WindowEvent::KeyboardInput { event, .. }, .. } => {
+                if let Some(editor)=session.as_mut() {
+                    if let winit::keyboard::PhysicalKey::Code(code)=event.physical_key {
+                        editor.input_key(format!("{code:?}"),event.state==ElementState::Pressed);
+                    }
+                }
+            }
+            Event::WindowEvent { event: WindowEvent::MouseInput { state, button, .. }, .. } => {
+                if let Some(button)=mouse_button(button) && let Some(editor)=session.as_mut() { editor.input_mouse_button(button,state==ElementState::Pressed); }
+            }
             Event::WindowEvent { event: WindowEvent::DroppedFile(path), .. } => {
                 if let Some(editor) = session.as_mut().filter(|e| !e.critical_busy()) {
                     crate::project_browser::external_drop(editor, path);
@@ -437,8 +578,20 @@ pub fn run(
             Event::WindowEvent{event:WindowEvent::CursorMoved{position,..},..} if !look_captured => {look_restore=position;}
             Event::DeviceEvent {event:DeviceEvent::MouseMotion{delta},..} if look_captured => {
                 raw_motion[0]+=delta.0 as f32;raw_motion[1]+=delta.1 as f32;
+                if let Some(editor)=session.as_mut(){editor.input_mouse_motion([delta.0 as f32,delta.1 as f32]);}
+            }
+            Event::DeviceEvent {event:DeviceEvent::MouseMotion{delta},..} => {
+                if let Some(editor)=session.as_mut(){editor.input_mouse_motion([delta.0 as f32,delta.1 as f32]);}
             }
             Event::AboutToWait => {
+                if let (Some(gamepads),Some(editor))=(gamepads.as_mut(),session.as_mut()) {
+                    while let Some(event)=gamepads.next_event() { match event.event {
+                        gilrs::EventType::ButtonPressed(button,_)=>editor.input_gamepad_button(format!("{button:?}"),true),
+                        gilrs::EventType::ButtonReleased(button,_)=>editor.input_gamepad_button(format!("{button:?}"),false),
+                        gilrs::EventType::AxisChanged(axis,value,_)=>if let Some(axis)=gamepad_axis(axis){editor.input_gamepad_axis(axis,value)},
+                        _=>{}
+                    }}
+                }
                 if Instant::now()>=next_frame {
                     window.request_redraw();
                 }
@@ -531,6 +684,77 @@ pub fn run(
                 } else {
                     game_sequence = 0;
                 }
+                if let Some(native) = &editor.native_frame {
+                    if native_game_size != native.hud_size {
+                        let size = wgpu::Extent3d {
+                            width: native.hud_size[0],
+                            height: native.hud_size[1],
+                            depth_or_array_layers: 1,
+                        };
+                        let texture = imgui_wgpu::Texture::new(
+                            &device,
+                            &renderer,
+                            imgui_wgpu::TextureConfig {
+                                size,
+                                format: Some(scene_gpu::FORMAT),
+                                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                                    | wgpu::TextureUsages::RENDER_ATTACHMENT
+                                    | wgpu::TextureUsages::COPY_SRC,
+                                sampler_desc: wgpu::SamplerDescriptor {
+                                    mag_filter: wgpu::FilterMode::Nearest,
+                                    min_filter: wgpu::FilterMode::Nearest,
+                                    ..Default::default()
+                                },
+                                ..Default::default()
+                            },
+                        );
+                        native_game_target = texture.texture().create_view(&Default::default());
+                        renderer.textures.replace(native_game_texture_id, texture);
+                        native_game_renderer = scene_gpu::SceneGpu::new_with_size(
+                            &device,
+                            &queue,
+                            size,
+                        );
+                        native_game_size = native.hud_size;
+                    }
+                    if native_sequence != native.number || native_hud_size != native.hud_size {
+                        if native_hud_size != native.hud_size {
+                            let texture = imgui_wgpu::Texture::new(
+                                &device,
+                                &renderer,
+                                imgui_wgpu::TextureConfig {
+                                    size: wgpu::Extent3d {
+                                        width: native.hud_size[0],
+                                        height: native.hud_size[1],
+                                        depth_or_array_layers: 1,
+                                    },
+                                    format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+                                    sampler_desc: wgpu::SamplerDescriptor {
+                                        mag_filter: wgpu::FilterMode::Nearest,
+                                        min_filter: wgpu::FilterMode::Nearest,
+                                        ..Default::default()
+                                    },
+                                    ..Default::default()
+                                },
+                            );
+                            renderer.textures.replace(native_hud_texture_id, texture);
+                            native_hud_size = native.hud_size;
+                        }
+                        renderer
+                            .textures
+                            .get(native_hud_texture_id)
+                            .unwrap()
+                            .write(
+                                &queue,
+                                &native.hud_rgba,
+                                native.hud_size[0],
+                                native.hud_size[1],
+                            );
+                        native_sequence = native.number;
+                    }
+                } else {
+                    native_sequence = 0;
+                }
                 }
                 let frame = match surface.get_current_texture() {
                     Ok(f) => f,
@@ -555,15 +779,27 @@ pub fn run(
                 }
                 let ui = imgui.frame();
                 let mut opened = None;
+                let native_visible = session
+                    .as_ref()
+                    .is_some_and(|editor| editor.native_frame.is_some());
+                let visible_game = if native_visible {
+                    Some(native_game_texture_id)
+                } else {
+                    game_texture.map(|(id, _)| id)
+                };
+                let visible_overlay = native_visible.then_some(native_hud_texture_id);
                 if let Some(editor) = session.as_mut() {
                 editor.raw_look=look_captured.then_some(std::mem::take(&mut raw_motion));
                 editor.project_browser.font = Some(browser_font);
                 editor.timeline_editor.font = Some(sequencer_font);
+                editor.inspector_font = Some(inspector_font);
+                editor.settings.controls.texture = Some(controller_texture_id);
                 gui::draw(
                     ui,
                     editor,
                     [texture_id,hud_texture_id,brand_texture_id],
-                    game_texture.map(|(id, _)| id),
+                    visible_game,
+                    visible_overlay,
                     asset_font,
                     [960., 600.],
                     &mut initial_layout,
@@ -586,6 +822,15 @@ pub fn run(
                     look_captured=capture_look;raw_motion=[0.;2];
                 }
                 let mut encoder = device.create_command_encoder(&Default::default());
+                if let Some(frame) = session.as_ref().and_then(|editor| editor.native_frame.as_ref()) {
+                    native_game_renderer.render_game(
+                        &device,
+                        &queue,
+                        &mut encoder,
+                        &native_game_target,
+                        frame,
+                    );
+                }
                 if let Some(editor) = session.as_mut().filter(|e| e.asset_inspector.visible && e.asset_inspector.details.as_ref().is_some_and(|d|d.scene.is_some())) {
                     if asset_renderer.is_none() {
                         let texture = imgui_wgpu::Texture::new(&device,&renderer,imgui_wgpu::TextureConfig {
@@ -626,7 +871,10 @@ pub fn run(
                         let phase=scene_renderer.preview_time(&editor.scene,editor.view.phase);
                         let pixels=editor.hud_simulation.pixels.clone().unwrap_or_else(||crate::hud::render_at(preview_scene,phase));
                         renderer.textures.get(hud_texture_id).unwrap().write(&queue,&pixels,size[0],size[1]);
-                    } else {scene_renderer.render(&device, &queue, &mut encoder, &scene_target, editor);}
+                    } else {
+                        scene_renderer.render(&device, &queue, &mut encoder, &scene_target, editor);
+                        editor.navigation_preview_status=scene_renderer.navigation_status();
+                    }
                     editor.view_dirty = false;
                 }
                 frame_mark("scene render");
@@ -680,7 +928,8 @@ pub fn run(
                                 let pixels=editor.hud_simulation.pixels.clone().unwrap_or_else(||crate::hud::render_at(preview_scene,scene_renderer.preview_time(preview_scene,editor.view.phase)));
                                 crate::mcp::png(size[0],size[1],&pixels)
                             },
-                            Some("game") => editor.game_frame.as_ref().ok_or("No emulator frame available. Start Play first.".to_string()).and_then(|f| crate::mcp::png(f.width, f.height, &f.rgba)),
+                            Some("game") if editor.native_frame.is_some() => capture_png(&device, &queue, renderer.textures.get(native_game_texture_id).unwrap().texture()),
+                            Some("game") => editor.game_frame.as_ref().ok_or("No game frame available. Start Play first.".to_string()).and_then(|f| crate::mcp::png(f.width, f.height, &f.rgba)),
                             _ => Err("Choose editor, scene, hud or game".into()),
                         };
                         crate::mcp::screenshot_reply(request, result);
@@ -693,6 +942,7 @@ pub fn run(
                             && if session.is_some() { project_started.elapsed() > Duration::from_secs(2) } else { started.elapsed() > Duration::from_secs(2) }))
                     && (!capture_game
                         || session.as_ref().and_then(|e| e.game_frame.as_ref()).is_some_and(|f| f.sequence > 90)
+                        || session.as_ref().and_then(|e| e.native_frame.as_ref()).is_some_and(|f| f.number > 90)
                         || project_started.elapsed() > Duration::from_secs(25))
                     && (!std::env::args().any(|a|a=="--screenshot-native-hud")
                         || session.as_ref().and_then(|e|e.hud_simulation.session.as_ref()).and_then(|s|s.frame.as_ref()).is_some()
@@ -783,6 +1033,60 @@ pub fn run(
         }
     })?;
     Ok(())
+}
+/// One RGBA image registered with the UI renderer, which owns it from here on.
+/// Everything the Hub draws as an image goes through this: branding, template
+/// artwork and anything a later view needs from `resources/`.
+fn upload_rgba(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    renderer: &mut imgui_wgpu::Renderer,
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+) -> imgui::TextureId {
+    let texture = imgui_wgpu::Texture::new(
+        device,
+        &*renderer,
+        imgui_wgpu::TextureConfig {
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+            sampler_desc: wgpu::SamplerDescriptor {
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    texture.write(queue, pixels, width, height);
+    renderer.textures.insert(texture)
+}
+
+fn mouse_button(button: WinitMouseButton) -> Option<crate::controls::MouseButton> {
+    match button {
+        WinitMouseButton::Left => Some(crate::controls::MouseButton::Left),
+        WinitMouseButton::Right => Some(crate::controls::MouseButton::Right),
+        WinitMouseButton::Middle => Some(crate::controls::MouseButton::Middle),
+        WinitMouseButton::Back => Some(crate::controls::MouseButton::Back),
+        WinitMouseButton::Forward => Some(crate::controls::MouseButton::Forward),
+        _ => None,
+    }
+}
+fn gamepad_axis(axis: gilrs::Axis) -> Option<crate::controls::GamepadAxis> {
+    match axis {
+        gilrs::Axis::LeftStickX => Some(crate::controls::GamepadAxis::LeftStickX),
+        gilrs::Axis::LeftStickY => Some(crate::controls::GamepadAxis::LeftStickY),
+        gilrs::Axis::RightStickX => Some(crate::controls::GamepadAxis::RightStickX),
+        gilrs::Axis::RightStickY => Some(crate::controls::GamepadAxis::RightStickY),
+        gilrs::Axis::LeftZ => Some(crate::controls::GamepadAxis::LeftTrigger),
+        gilrs::Axis::RightZ => Some(crate::controls::GamepadAxis::RightTrigger),
+        _ => None,
+    }
 }
 fn update_look_cursor(previous: bool, captured: bool, set_visible: impl FnOnce(bool)) {
     // ImGui caches its cursor choice. Hiding the OS cursor outside the backend
@@ -1190,3 +1494,23 @@ fn capture(
     std::fs::write(path, bytes)?;
     Ok(())
 }
+
+/// Font Awesome codepoints rasterized into the main UI font. The face is the
+/// full free set, so nothing has to be re-subset to add one: list it here and
+/// use it. Ranges are inclusive pairs, ascending, zero-terminated.
+const EDITOR_FA_GLYPHS: &[u32] = &[
+    0x25a0, 0x25a0, // square: constant falloff
+    0x25d0, 0x25d0, // circle-half-stroke: smooth falloff
+    0xf0aa, 0xf0ab, // circle-arrow-up / down: raise, lower
+    0xf140, 0xf140, // bullseye: set height
+    0xf1fc, 0xf1fc, // paintbrush: paint tile
+    0xf1fe, 0xf1fe, // chart-area: linear falloff
+    0xf256, 0xf256, // hand: select tool
+    0xf2ea, 0xf2ea, // rotate-left: undo
+    0xf2f9, 0xf2f9, // rotate-right: redo
+    0xf522, 0xf522, // dice: noise
+    0xf547, 0xf547, // ruler-horizontal: flatten
+    0xf6fc, 0xf6fc, // mountain: sharp falloff
+    0xf773, 0xf773, // water: smooth
+    0,
+];

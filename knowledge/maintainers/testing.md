@@ -66,6 +66,11 @@ particular) also changes the generated API reference. Regenerate it with
 bindings installed, and commit the regenerated `docs/api/` output; the committed
 files record declaration line numbers, so even a pure insertion above an existing
 member makes `--check` fail until they are regenerated. Never hand-edit them.
+The generator parses the runtime the way the target builds it, freestanding
+against the pinned `mipsel-none-elf` toolchain's own headers, so host setup must
+have installed that compiler or `--target-compiler` must point at it. It refuses
+to run without one rather than produce a reference from a translation unit that
+has no standard headers.
 
 After SDK setup, `python tools/extract_hud_font.py --check` verifies that the committed editor HUD font matches the pinned PsyQo font. Omit `--check` to regenerate the bitmap when intentionally updating that resource.
 
@@ -186,12 +191,10 @@ Combat and Blueprint feature integration additionally inspect the real SDK
 certificate and each build destination's private archive dependency. Standalone
 rebuilds use fresh private SDK objects through the exported launchers.
 
-`python tests/integration/verify_particle_effect_load.py` measures one effect,
-eight effects with 64 emitters and 256 particles, deliberate effect/burst/emitter
-overflow, and cleanup in a scene containing twelve meshes, textured characters
-and HUD. It checks actual MIPS output, an identical standalone rebuild and two
-serialized PCSX runs. The retained fixture and `artifacts/timelines/phase5-vfx-load.json`
-contain completed native frame samples, code/data/BSS sizes and pool sizes.
+Effect load acceptance — one effect, eight effects with 64 emitters and 256
+particles, deliberate effect/burst/emitter overflow and cleanup in a populated
+scene — was covered by a harness built on the retired spell example and needs
+rebuilding on a current-format project.
 Capacity assertions are correctness checks; measured frame costs and dropped
 steps determine the tested workload's performance. Keep the SDK and emulator
 free of other native validation runs while executing it.
@@ -214,7 +217,6 @@ python tests/runtime/verify_spatial.py
 python tests/runtime/verify_sprites_particles.py
 python tests/runtime/test_compare_runtime.py
 python tests/runtime/test_stream_pool_layout.py
-python tests/integration/verify_rpg.py
 python tests/integration/verify_streaming.py
 python tests/integration/verify_streaming_xa.py
 ```
@@ -420,7 +422,6 @@ rtk proxy python tests/integration/verify_particle_effect_runtime.py --emulator
 rtk proxy python tests/integration/verify_blueprint_playback.py
 rtk proxy python tests/integration/verify_blueprint_playback.py --direct-assets
 rtk proxy python tests/integration/verify_blueprint_playback.py --subscribe-markers
-rtk proxy python tests/integration/verify_timeline_combat.py
 ```
 
 The runtime runner includes cooked Q12 curve/marker tests. The asset integration
@@ -462,14 +463,10 @@ checks repeated Impact delivery, a latent reached branch, stop cancellation and
 the unchanged eight-slot continuation table. Their evidence is recorded in
 `phase4-direct-assets.json` and `phase4-subscriptions.json`.
 
-The authored combat fixture copies `examples/timeline-spell`, then instruments
-its real `BP_Fireball` graph. It verifies captured target identity, one 25-point
-Impact hit, completion after particle drain, cancellation before another Impact,
-owner destruction, scene replacement and an identical standalone export. It
-captures the game HUD and effects for visual inspection; `phase4-combat.json`
-records the fixture, counters and MIPS section sizes. The older Fireball visual
-fixture explicitly selects the retained presentation scene (`Main.epokmap`),
-since the example now starts in `Combat.epokmap`.
+The authored combat fixture, which instrumented a real graph in the retired
+spell example, is gone with that project; captured target identity, a single
+Impact hit, completion after particle drain, cancellation, owner destruction and
+scene replacement need a new fixture on a current-format project.
 The combat check also verifies actual scene, script and executable hashes in the
 artifact dependency graph, plus the separate build/export stage manifests. The
 `staging_files` unit tests exercise native-body invalidation, retained stale
@@ -571,8 +568,8 @@ whole-document restoration, embedded serialization and external-write rejection.
 `--open-effect` plus `--screenshot` captures the effect editor; inspect the image
 for reflection diagnostics as well as layout errors.
 
-For the asset window, use `--project examples/timeline-spell --open-timeline
-assets/Timelines/Cast.timeline.json --screenshot artifacts/timelines/editor.png`.
+For the asset window, open a project's own `.timeline.json` with `--open-timeline
+<path> --screenshot artifacts/timelines/editor.png`.
 The ImGui interaction test owns a context and is explicitly serialized.
 
 ```powershell
@@ -598,21 +595,11 @@ Blockout keyboard tests cover E/Q extrusion, inward displacement, edge picking, 
 
 ## Native runtime profiling
 
-For Timeline/VFX relocation and standalone portability on Windows:
-
-```powershell
-rtk proxy python tests/integration/verify_timeline_relocation.py --emulator
-```
-
-The verifier builds a copy of `examples/timeline-spell`, copies its caches into
-a second project and copies its export into a separate folder. It checks the
-resolved fixture paths before renaming its own original folder so the old path
-is unavailable. Both rebuilds must produce the original executable byte-for-byte;
-authored files and UUIDs must remain unchanged. It also verifies v2 relative
-script-manifest paths, fresh build provenance, portable generated/debug sources
-and exported guides. `--emulator` adds a Play startup/stop smoke test from the
-copied project; it is not a new RAM, visual or performance measurement. All
-fixture folders are retained, and `artifacts/timelines/phase5-relocation.json`
+Timeline/VFX relocation and standalone portability — byte-identical rebuilds
+from a copied project and from a relocated export, v2 relative script-manifest
+paths, fresh build provenance and portable generated sources — were covered by a
+harness built on the retired spell example. It needs rebuilding on a
+current-format project. Its evidence was `artifacts/timelines/phase5-relocation.json`
 records the outcome. The host provider unit test covers v1 regeneration,
 equivalent manifests in different roots and rejection before partial writes.
 
@@ -633,12 +620,8 @@ harness remains responsible for lifecycle, capacity and runtime timing checks.
 
 `cargo test --locked particle_effect_preview -- --test-threads=1` exercises the
 host bridge ABI, pause, resolver ownership, replay and broken binding behavior.
-Add `--fireball` to `verify_particle_effect_preview.py` for all 350 steps of the
-seven-layer textured example. `verify_timeline_fireball.py` independently builds
-and boots a copy of the example, captures each spell stage, checks marker
-revisions and cleanup, records completed-frame simulation costs, and rebuilds
-the standalone export byte-identically. It writes `phase3-fireball.json` and
-`fireball-stage-*.png` under `artifacts/timelines`. The effect runtime harness
+The long textured-example run and the staged spell capture that accompanied it
+were built on the retired spell example and are gone with it. The effect runtime harness
 also checks per-instance typed overrides and unchanged unmodified plays;
 the asset harness rejects orphaned/type-mismatched overrides without rewriting
 the scene. Retiming tests preserve all IDs and reject collapsed curve keys.
@@ -646,7 +629,7 @@ For manual visual checks, open an effect with `--open-effect <source-path>` and
 capture it with the normal `--screenshot` option. Host GPU pixels are not a PSX
 rasterization reference, even though simulation and cooked sprite values match.
 
-The included profiler defaults to `examples/rpg-2-5d-demo`. It uses that project's optional `Local.epokconfig`, otherwise the engine's local or default tool configuration. Build the editor first and keep the selected project and emulator port free during each run.
+The included profiler defaults to `examples/sample-game`. It uses that project's optional `Local.epokconfig`, otherwise the engine's local or default tool configuration. Build the editor first and keep the selected project and emulator port free during each run.
 
 ```powershell
 cargo build --locked
@@ -662,10 +645,10 @@ The profiler generates `profile.json`, `vram.bin` and logs in the requested outp
 
 `python -m unittest discover -s tools -p test_profile_runtime.py` checks linked
 counter layouts, unavailable services, active gauges, capture deltas, resets and
-saturation. Use `--project examples/timeline-spell` for a native spell capture;
-the profiler's `playback` section reports sequences, effects and particles along
-with frame costs. Startup work remains visible in the first/last cumulative
-values even when the sampled frames start after the spell has completed.
+saturation. Pass `--project <path>` to profile a project that plays sequences or
+effects; the profiler's `playback` section reports sequences, effects and
+particles along with frame costs. Startup work remains visible in the first/last
+cumulative values even when the sampled frames start after playback has finished.
 
 ## Clean-checkout verification
 

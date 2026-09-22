@@ -6,13 +6,13 @@ use crate::{
     texture::BlendMode,
 };
 pub fn sprite(ui: &imgui::Ui, index: &crate::assets::Index, s: &mut Sprite) {
-    ui.checkbox("Enabled", &mut s.enabled);
+    crate::gui::toggle(ui, "Enabled", &mut s.enabled);
     let label = s
         .texture
         .and_then(|id| index.resolve(id).ok())
         .map(|r| r.meta.source.clone())
         .unwrap_or_else(|| "None / missing".into());
-    if let Some(_combo) = ui.begin_combo("Texture", label) {
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Texture"), label) {
         if ui.selectable("None") {
             s.texture = None;
         }
@@ -25,28 +25,27 @@ pub fn sprite(ui: &imgui::Ui, index: &crate::assets::Index, s: &mut Sprite) {
             }
         }
     }
-    crate::gui::Drag::new("Size")
+    crate::gui::Drag::new(crate::gui::field(ui, "Size"))
         .range(0.001, 128.)
         .speed(0.01)
         .build_array(ui, &mut s.size);
-    crate::gui::Drag::new("Pivot")
+    crate::gui::Drag::new(crate::gui::field(ui, "Pivot"))
         .range(0., 1.)
         .speed(0.01)
         .build_array(ui, &mut s.pivot);
-    crate::gui::Drag::new("Atlas x/y/w/h")
+    crate::gui::Drag::new(crate::gui::field(ui, "Atlas x/y/w/h"))
         .range(0, 256)
         .build_array(ui, &mut s.region);
     ui.text_disabled("Zero width/height uses the whole texture.");
-    ui.checkbox("Flip X", &mut s.flip_x);
-    ui.same_line();
-    ui.checkbox("Flip Y", &mut s.flip_y);
+    crate::gui::toggle(ui, "Flip X", &mut s.flip_x);
+    crate::gui::toggle(ui, "Flip Y", &mut s.flip_y);
     let mut orientation = match s.orientation {
         Orientation::Fixed => 0,
         Orientation::Upright => 1,
         Orientation::Spherical => 2,
     };
     if ui.combo_simple_string(
-        "Orientation",
+        crate::gui::field(ui, "Orientation"),
         &mut orientation,
         &["Fixed plane", "Upright billboard", "Spherical billboard"],
     ) {
@@ -56,8 +55,8 @@ pub fn sprite(ui: &imgui::Ui, index: &crate::assets::Index, s: &mut Sprite) {
             Orientation::Spherical,
         ][orientation];
     }
-    ui.color_edit3("Tint", &mut s.color);
-    ui.checkbox("Unlit", &mut s.unlit);
+    ui.color_edit3(crate::gui::field(ui, "Tint"), &mut s.color);
+    crate::gui::toggle(ui, "Unlit", &mut s.unlit);
     let modes = [
         BlendMode::Cutout,
         BlendMode::Average,
@@ -67,40 +66,47 @@ pub fn sprite(ui: &imgui::Ui, index: &crate::assets::Index, s: &mut Sprite) {
     ];
     let mut mode = modes.iter().position(|m| *m == s.blend).unwrap_or(0);
     if ui.combo_simple_string(
-        "Blend",
+        crate::gui::field(ui, "Blend"),
         &mut mode,
         &["Cutout", "Average", "Add", "Subtract", "Add quarter"],
     ) {
         s.blend = modes[mode];
     }
-    crate::gui::Drag::new("Depth bias")
+    crate::gui::Drag::new(crate::gui::field(ui, "Depth bias"))
         .range(-511, 511)
         .build(ui, &mut s.depth_bias);
     ui.text_disabled("Positive bias draws farther away (1 step = 0.25 world units).");
 }
 pub fn inspector(ui: &imgui::Ui, editor: &Editor, e: &mut Actor) {
-    if let Some(s) = &mut e.sprite
-        && crate::gui::heading(ui, "Sprite")
-    {
-        let _id = ui.push_id("sprite");
-        sprite(ui, &editor.assets.index, s);
-        if ui.small_button("Remove Sprite") {
+    if e.sprite.is_some() {
+        let mut remove = false;
+        let open = crate::gui::section(ui, "Sprite", || {
+            remove = ui.menu_item("Remove Sprite");
+        });
+        if open && let Some(s) = &mut e.sprite {
+            let _id = ui.push_id("sprite");
+            sprite(ui, &editor.assets.index, s);
+        }
+        if remove {
             e.sprite = None;
             e.sprite_animator = None;
         }
     }
-    if let Some(a) = &mut e.data.sprite_animator
-        && crate::gui::heading(ui, "Sprite Animator")
-    {
+    let mut remove_animator = false;
+    let animator = e.data.sprite_animator.is_some()
+        && crate::gui::section(ui, "Sprite Animator", || {
+            remove_animator = ui.menu_item("Remove Sprite Animator");
+        });
+    if animator && let Some(a) = &mut e.data.sprite_animator {
         let _id = ui.push_id("sprite animator");
-        ui.checkbox("Play on start", &mut a.playing);
+        crate::gui::toggle(ui, "Play on start", &mut a.playing);
         let names = a
             .sheet
             .clips
             .iter()
             .map(|c| c.name.as_str())
             .collect::<Vec<_>>();
-        ui.combo_simple_string("Clip", &mut a.clip, &names);
+        ui.combo_simple_string(crate::gui::field(ui, "Clip"), &mut a.clip, &names);
         if ui.small_button("Add clip") && a.sheet.clips.len() < 32 {
             a.sheet.clips.push(crate::sprites::Clip {
                 name: format!("Clip {}", a.sheet.clips.len() + 1),
@@ -116,8 +122,9 @@ pub fn inspector(ui: &imgui::Ui, editor: &Editor, e: &mut Actor) {
             }
         }
         if let Some(c) = a.sheet.clips.get_mut(a.clip) {
-            ui.input_text("Name", &mut c.name).build();
-            ui.checkbox("Loop", &mut c.looping);
+            ui.input_text(crate::gui::field(ui, "Name"), &mut c.name)
+                .build();
+            crate::gui::toggle(ui, "Loop", &mut c.looping);
             if ui.small_button("Append frame") && c.frames.len() < 256 {
                 c.frames.push(c.frames.last().cloned().unwrap_or_default());
             }
@@ -143,14 +150,14 @@ pub fn inspector(ui: &imgui::Ui, editor: &Editor, e: &mut Actor) {
             for (i, f) in c.frames.iter_mut().enumerate() {
                 let _id = ui.push_id(i.to_string());
                 if ui.collapsing_header(format!("Frame {}", i + 1), imgui::TreeNodeFlags::empty()) {
-                    crate::gui::Drag::new("Rectangle")
+                    crate::gui::Drag::new(crate::gui::field(ui, "Rectangle"))
                         .range(0, 256)
                         .build_array(ui, &mut f.region);
-                    crate::gui::Drag::new("Seconds")
+                    crate::gui::Drag::new(crate::gui::field(ui, "Seconds"))
                         .range(1. / 60., 60.)
                         .speed(0.01)
                         .build(ui, &mut f.duration);
-                    crate::gui::Drag::new("Event ID (0 = none)")
+                    crate::gui::Drag::new(crate::gui::field(ui, "Event ID (0 = none)"))
                         .range(0, 65535)
                         .build(ui, &mut f.event);
                     if ui.small_button("Delete frame") {
@@ -164,36 +171,40 @@ pub fn inspector(ui: &imgui::Ui, editor: &Editor, e: &mut Actor) {
                 c.frames.remove(i);
             }
         }
-        if ui.small_button("Remove Sprite Animator") {
-            e.sprite_animator = None;
-        }
     }
-    if let Some(p) = &mut e.particle_emitter
-        && crate::gui::heading(ui, "Particle Emitter")
-    {
-        emitter(ui, &editor.assets.index, p);
-        if ui.small_button("Remove Particle Emitter") {
+    if remove_animator {
+        e.sprite_animator = None;
+    }
+    if e.particle_emitter.is_some() {
+        let mut remove = false;
+        let open = crate::gui::section(ui, "Particle Emitter", || {
+            remove = ui.menu_item("Remove Particle Emitter");
+        });
+        if open && let Some(p) = &mut e.particle_emitter {
+            emitter(ui, &editor.assets.index, p);
+        }
+        if remove {
             e.particle_emitter = None;
         }
     }
 }
 pub fn emitter(ui: &imgui::Ui, index: &crate::assets::Index, p: &mut crate::particles::Emitter) {
     let _id = ui.push_id("particles");
-    ui.checkbox("Enabled", &mut p.enabled);
-    ui.checkbox("Play on start", &mut p.play_on_start);
-    ui.checkbox("Continuous", &mut p.continuous);
-    ui.checkbox("Local space", &mut p.local_space);
-    crate::gui::Drag::new("Particles / second")
+    crate::gui::toggle(ui, "Enabled", &mut p.enabled);
+    crate::gui::toggle(ui, "Play on start", &mut p.play_on_start);
+    crate::gui::toggle(ui, "Continuous", &mut p.continuous);
+    crate::gui::toggle(ui, "Local space", &mut p.local_space);
+    crate::gui::Drag::new(crate::gui::field(ui, "Particles / second"))
         .range(0., 512.)
         .speed(0.1)
         .build(ui, &mut p.rate);
-    crate::gui::Drag::new("Burst count")
+    crate::gui::Drag::new(crate::gui::field(ui, "Burst count"))
         .range(0, 128)
         .build(ui, &mut p.burst);
-    crate::gui::Drag::new("Per-emitter limit")
+    crate::gui::Drag::new(crate::gui::field(ui, "Per-emitter limit"))
         .range(1, 128)
         .build(ui, &mut p.max_particles);
-    crate::gui::Drag::new("Lifetime seconds")
+    crate::gui::Drag::new(crate::gui::field(ui, "Lifetime seconds"))
         .range(1. / 60., 60.)
         .speed(0.01)
         .build(ui, &mut p.lifetime);
@@ -214,24 +225,24 @@ pub fn emitter(ui: &imgui::Ui, index: &crate::assets::Index, p: &mut crate::part
             .speed(0.01)
             .build_array(ui, values);
     }
-    crate::gui::Drag::new("Start size")
+    crate::gui::Drag::new(crate::gui::field(ui, "Start size"))
         .range(0., 32.)
         .speed(0.01)
         .build(ui, &mut p.start_size);
-    crate::gui::Drag::new("End size")
+    crate::gui::Drag::new(crate::gui::field(ui, "End size"))
         .range(0., 32.)
         .speed(0.01)
         .build(ui, &mut p.end_size);
-    ui.color_edit3("Start color", &mut p.start_color);
-    ui.color_edit3("End color", &mut p.end_color);
-    crate::gui::Drag::new("Seed").build(ui, &mut p.seed);
-    crate::gui::Drag::new("Flipbook frames")
+    ui.color_edit3(crate::gui::field(ui, "Start color"), &mut p.start_color);
+    ui.color_edit3(crate::gui::field(ui, "End color"), &mut p.end_color);
+    crate::gui::Drag::new(crate::gui::field(ui, "Seed")).build(ui, &mut p.seed);
+    crate::gui::Drag::new(crate::gui::field(ui, "Flipbook frames"))
         .range(1, 256)
         .build(ui, &mut p.frames);
-    crate::gui::Drag::new("Flipbook columns")
+    crate::gui::Drag::new(crate::gui::field(ui, "Flipbook columns"))
         .range(1, 256)
         .build(ui, &mut p.frame_columns);
-    crate::gui::Drag::new("Seconds per cell")
+    crate::gui::Drag::new(crate::gui::field(ui, "Seconds per cell"))
         .range(1. / 60., 60.)
         .speed(0.01)
         .build(ui, &mut p.frame_duration);

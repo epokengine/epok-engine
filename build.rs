@@ -39,7 +39,8 @@ fn main() {
     println!("cargo:rerun-if-changed=native/spu_envelope.hpp");
     println!("cargo:rerun-if-changed=native/instrument_source_preview.cpp");
     println!("cargo:rerun-if-changed=native/instrument_source_preview.h");
-    cc::Build::new()
+    let mut sequence_preview = cc::Build::new();
+    sequence_preview
         .cpp(true)
         .std("c++20")
         .warnings(true)
@@ -47,11 +48,21 @@ fn main() {
         .file("native/sequence_preview.cpp")
         .file("native/instrument_preview.cpp")
         .file("native/native_music.cpp")
-        .file("native/instrument_source_preview.cpp")
-        .compile("epok_sequence_preview");
+        .file("native/instrument_source_preview.cpp");
+    // Host music rendering is real-time-adjacent even in a Debug editor. Keep
+    // the DSP kernel optimized without changing Rust diagnostics or PSX flags.
+    if std::env::var("PROFILE").as_deref() == Ok("debug") {
+        sequence_preview.opt_level(2);
+    }
+    sequence_preview.compile("epok_sequence_preview");
     lua_cooker();
     println!("cargo:rerun-if-changed=resources/branding/epok.ico");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        // The debug editor constructs large by-value UI state during startup.
+        // Reserve host stack space; this does not affect PSX stack/RAM budgets.
+        if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+            println!("cargo:rustc-link-arg-bin=epok-editor=/STACK:16777216");
+        }
         winresource::WindowsResource::new()
             .set_icon("resources/branding/epok.ico")
             .set("ProductName", "Epok Engine")

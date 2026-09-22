@@ -11,6 +11,7 @@
 #include "common/hardware/counters.h"
 #include "frame_clear.hpp"
 #include "audio.hpp"
+#include "hud-font.hh"
 
 namespace epok::debug_hud {
 constexpr unsigned bars = EPOK_DEBUG_CPU + EPOK_DEBUG_GTE + EPOK_DEBUG_GPU + EPOK_DEBUG_SPU;
@@ -91,7 +92,7 @@ inline void draw(psyqo::GPU& gpu) {
     const uint32_t cpu_lines = uint16_t(COUNTERS[1].value - state.frame_start);
     const unsigned parity = gpu.getParity();
     const int left = display_width / 20, bottom = display_height - display_height / 20;
-    constexpr int width = 184, row_height = 16;
+    constexpr int width = 120, row_height = 9;
     int top = bottom - int(bars + EPOK_DEBUG_FPS) * row_height;
     unsigned rect = 0, letter = 0;
     auto rectangle = [&](int x, int y, int w, int h, psyqo::Color color) {
@@ -103,20 +104,24 @@ inline void draw(psyqo::GPU& gpu) {
     };
     auto text = [&](const char* s, int y) {
         int x = left + 4;
-        for (; *s && letter < glyphs; ++s, x += 8) {
-            const unsigned c = unsigned(*s) - 32;
+        for (; *s && letter < glyphs; ++s, x += debug_font_advance) {
+            unsigned c = 0;
+            while(debug_font_characters[c]&&debug_font_characters[c]!=*s)++c;
+            if(!debug_font_characters[c])c=0;
             auto& f = state.letters[parity][letter++]; auto& p = f.primitive;
-            p.position = {{.x=int16_t(x), .y=int16_t(y)}}; p.size = {{.w=8, .h=16}};
-            p.texInfo.u = (c % 32) * 8; p.texInfo.v = 192 + (c / 32) * 16;
+            p.position = {{.x=int16_t(x), .y=int16_t(y+1)}};
+            p.size = {{.w=debug_font_width, .h=debug_font_height}};
+            p.texInfo.u = debug_font_u + c * debug_font_advance; p.texInfo.v = debug_font_v;
             p.texInfo.clut = psyqo::PrimPieces::ClutIndex(60, 448);
             p.setColor({{.r=128, .g=128, .b=128}}).setOpaque(); gpu.chain(f);
         }
     };
     auto bar = [&](const char* label, uint32_t value, uint32_t limit) {
         text(label, top);
-        rectangle(left + 36, top + 5, width - 40, 6, {{.r=40,.g=40,.b=48}});
-        const int filled = int((value > limit ? limit : value) * (width - 40) / limit);
-        if (filled) rectangle(left + 36, top + 5, filled, 6,
+        constexpr int bar_x = 25, bar_width = width - 29;
+        rectangle(left + bar_x, top + 3, bar_width, 3, {{.r=40,.g=40,.b=48}});
+        const int filled = int((value > limit ? limit : value) * bar_width / limit);
+        if (filled) rectangle(left + bar_x, top + 3, filled, 3,
             value >= limit ? psyqo::Color{{.r=240,.g=64,.b=48}} : psyqo::Color{{.r=64,.g=208,.b=120}});
         top += row_height;
     };

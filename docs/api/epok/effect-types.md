@@ -33,7 +33,7 @@ void burst(uint32_t count)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `uint32_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -45,7 +45,7 @@ void burst(uint32_t count)
 #include "effect_types.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int count
+// uint32_t count
 
 epok::EffectLayer& object = /* obtain a valid instance */;
 

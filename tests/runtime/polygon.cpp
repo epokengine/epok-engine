@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstdio>
 #include "polygon.hpp"
+#include "sprite_math.hpp"
 using namespace epok;
 // Reference implementations mirror the previous renderer's arithmetic.
 static uint32_t reference_modulate(uint32_t c) { return (c * 128 + 127) / 255; }
@@ -17,6 +18,40 @@ static ProjectedVertex vertex(int32_t x, int32_t y, int32_t z) {
     return v;
 }
 int main() {
+    uint32_t seed=7219;
+    for(int i=0;i<20000;++i){
+        int32_t p[3];for(auto& v:p){seed=seed*1664525u+1013904223u;v=i%2?int32_t(seed):int32_t(seed%1200000)-600000;}
+        const int64_t x=p[0],y=p[1],z=p[2];
+        const bool inside=z>=1024&&z<128*4096&&z+x>=0&&z-x>=0&&3*z+4*y>=0&&3*z-4*y>=0;
+        assert(sprite_detail::interior(p[0],p[1],p[2])==inside);
+        const int32_t depth=1024+int32_t(seed%520000);
+        const int scales[]={160,320,240,4096};
+        for(int scale:scales)assert(sprite_detail::project_ratio(p[0],scale,depth)==int32_t(int64_t(p[0])*scale/depth));
+    }
+    assert(sprite_detail::interior(0,768,1024)&&!sprite_detail::interior(0,769,1024));
+    assert(!sprite_detail::interior(INT32_MIN,INT32_MAX,INT32_MAX));
+    for(int i=0;i<20000;++i){
+        seed=seed*1664525u+1013904223u;const uint32_t denominator=1+(seed&0x0fffffffu);
+        seed=seed*1664525u+1013904223u;const uint32_t numerator=i%2?seed%denominator:(seed&65535)%denominator;
+        assert(clip_fraction16(numerator,denominator)==(uint64_t(numerator)<<16)/denominator);
+        assert(clip_fraction16(denominator,denominator)==65536);
+    }
+    const int64_t boundaries[]={INT32_MIN,int64_t(INT32_MIN)-1,-65537,-1,0,1,65535,INT32_MAX,int64_t(INT32_MAX)+1,int64_t(1)<<38,-(int64_t(1)<<38)};
+    for(auto n:boundaries)for(int32_t d=1;d<33000;d+=137){
+        const int32_t expected=n>=0?int32_t(n/d):-int32_t((-n+d-1)/d);
+        assert(floor_div(n,d)==expected);
+    }
+    for(int i=0;i<2000;++i){
+        ProjectedVertex full[3]{};CompactProjectedVertex compact[3]{};
+        for(int k=0;k<3;++k){
+            full[k].screen.x=int16_t((i*17+k*73)%320);full[k].screen.y=int16_t((i*11+k*97)%240);
+            full[k].camera[2]=64+(i*19+k*101)%32700;
+            compact[k].screen=full[k].screen;compact[k].camera.value=uint16_t(full[k].camera[2]);
+        }
+        assert(screen_area(full[0],full[1],full[2])==screen_area(compact[0],compact[1],compact[2]));
+        assert(CameraQ8::bucket(full[0].camera[2],full[1].camera[2],full[2].camera[2])==
+            CameraQ8::bucket(compact[0].camera[2],compact[1].camera[2],compact[2].camera[2]));
+    }
     for (uint32_t c = 0; c < 256; ++c) {
         assert(modulate_channel(c) == reference_modulate(c));
         for (uint32_t t = 0; t < 256; t += 5) assert(scale_channel(c, t) == c * t / 255);

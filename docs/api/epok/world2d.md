@@ -6,7 +6,7 @@ This module covers the world2d module. It documents 45 public callables declared
 
 ## Declared types
 
-`epok::Aabb2D`, `epok::Affine2D`, `epok::Camera2D`, `epok::Collider2D`, `epok::Collider2D::Shape`, `epok::ColliderEntry2D`, `epok::CollisionWorld2D`, `epok::CollisionWorld2D::Entry`, `epok::CollisionWorld2D::Pair`, `epok::detail::SineTable2D`, `epok::MoveResult2D`, `epok::Pick2DEntry`, `epok::SpatialHit2D`
+`epok::Aabb2D`, `epok::Affine2D`, `epok::Camera2D`, `epok::Collider2D`, `epok::Collider2D::Shape`, `epok::ColliderEntry2D`, `epok::CollisionWorld2D`, `epok::detail::SineTable2D`, `epok::MoveResult2D`, `epok::Pick2DEntry`, `epok::SpatialHit2D`
 
 ## Callable index
 
@@ -76,7 +76,7 @@ inline bool aabb2d_contains(const Aabb2D& box, const Fixed* point)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `box` | `const Aabb2D &` | Input | Value supplied for `box`. See the exact type and module contract. |
-| `point` | `const int *` | Input | Value supplied for `point`. See the exact type and module contract. |
+| `point` | `const Fixed *` | Input | Value supplied for `point`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -89,7 +89,7 @@ inline bool aabb2d_contains(const Aabb2D& box, const Fixed* point)
 
 // Assume these named values have been initialized with valid data:
 // const Aabb2D & box
-// const int * point
+// const Fixed * point
 
 auto result = epok::aabb2d_contains(box, point);
 ```
@@ -202,7 +202,7 @@ inline Aabb2D aabb2d_translated(Aabb2D box, const Fixed* delta)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `box` | `Aabb2D` | Input | Value supplied for `box`. See the exact type and module contract. |
-| `delta` | `const int *` | Input | Value supplied for `delta`. See the exact type and module contract. |
+| `delta` | `const Fixed *` | Input | Value supplied for `delta`. See the exact type and module contract. |
 
 **Returns.** Returns `Aabb2D`. Check the purpose and failure notes before using the value.
 
@@ -215,7 +215,7 @@ inline Aabb2D aabb2d_translated(Aabb2D box, const Fixed* delta)
 
 // Assume these named values have been initialized with valid data:
 // Aabb2D box
-// const int * delta
+// const Fixed * delta
 
 auto result = epok::aabb2d_translated(box, delta);
 ```
@@ -243,8 +243,8 @@ void direction(const Fixed* in, Fixed* out) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `in` | `const int *` | Input | Value supplied for `in`. See the exact type and module contract. |
-| `out` | `int *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
+| `in` | `const Fixed *` | Input | Value supplied for `in`. See the exact type and module contract. |
+| `out` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -256,8 +256,8 @@ void direction(const Fixed* in, Fixed* out) const
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * in
-// int * out
+// const Fixed * in
+// Fixed * out
 
 epok::Affine2D& object = /* obtain a valid instance */;
 
@@ -318,8 +318,8 @@ void point(const Fixed* in, Fixed* out) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `in` | `const int *` | Input | Value supplied for `in`. See the exact type and module contract. |
-| `out` | `int *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
+| `in` | `const Fixed *` | Input | Value supplied for `in`. See the exact type and module contract. |
+| `out` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -331,8 +331,8 @@ void point(const Fixed* in, Fixed* out) const
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * in
-// int * out
+// const Fixed * in
+// Fixed * out
 
 epok::Affine2D& object = /* obtain a valid instance */;
 
@@ -363,8 +363,8 @@ inline bool box_circle_overlap_2d(const Aabb2D& box, const Fixed* center, Fixed 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `box` | `const Aabb2D &` | Input | Value supplied for `box`. See the exact type and module contract. |
-| `center` | `const int *` | Input | Value supplied for `center`. See the exact type and module contract. |
-| `radius` | `int` | Input | Value supplied for `radius`. See the exact type and module contract. |
+| `center` | `const Fixed *` | Input | Value supplied for `center`. See the exact type and module contract. |
+| `radius` | `Fixed` | Input | Value supplied for `radius`. See the exact type and module contract. |
 | `inclusive` | `bool` | Input | Value supplied for `inclusive`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -378,8 +378,8 @@ inline bool box_circle_overlap_2d(const Aabb2D& box, const Fixed* center, Fixed 
 
 // Assume these named values have been initialized with valid data:
 // const Aabb2D & box
-// const int * center
-// int radius
+// const Fixed * center
+// Fixed radius
 // bool inclusive
 
 auto result = epok::box_circle_overlap_2d(box, center, radius, inclusive);
@@ -410,7 +410,7 @@ inline Fixed camera2d_pixels_per_unit(const Camera2D& camera)
 | --- | --- | --- | --- |
 | `camera` | `const Camera2D &` | Input | Value supplied for `camera`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the world2d module and the preconditions in the declaration are already satisfied.
 
@@ -449,7 +449,7 @@ inline void camera2d_viewport_center(const Camera2D& camera, Fixed* out)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `camera` | `const Camera2D &` | Input | Value supplied for `camera`. See the exact type and module contract. |
-| `out` | `int *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
+| `out` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -462,7 +462,7 @@ inline void camera2d_viewport_center(const Camera2D& camera, Fixed* out)
 
 // Assume these named values have been initialized with valid data:
 // const Camera2D & camera
-// int * out
+// Fixed * out
 
 epok::camera2d_viewport_center(camera, out);
 ```
@@ -490,10 +490,10 @@ inline bool circle_overlap_2d(const Fixed* a, Fixed radius_a, const Fixed* b, Fi
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `const int *` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `radius_a` | `int` | Input | Value supplied for `radius_a`. See the exact type and module contract. |
-| `b` | `const int *` | Input | Value supplied for `b`. See the exact type and module contract. |
-| `radius_b` | `int` | Input | Value supplied for `radius_b`. See the exact type and module contract. |
+| `a` | `const Fixed *` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `radius_a` | `Fixed` | Input | Value supplied for `radius_a`. See the exact type and module contract. |
+| `b` | `const Fixed *` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `radius_b` | `Fixed` | Input | Value supplied for `radius_b`. See the exact type and module contract. |
 | `inclusive` | `bool` | Input | Value supplied for `inclusive`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -506,10 +506,10 @@ inline bool circle_overlap_2d(const Fixed* a, Fixed radius_a, const Fixed* b, Fi
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * a
-// int radius_a
-// const int * b
-// int radius_b
+// const Fixed * a
+// Fixed radius_a
+// const Fixed * b
+// Fixed radius_b
 // bool inclusive
 
 auto result = epok::circle_overlap_2d(a, radius_a, b, radius_b, inclusive);
@@ -539,7 +539,7 @@ inline Aabb2D collider2d_bounds(const Collider2D& collider, const Fixed* world_x
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `collider` | `const Collider2D &` | Input | Value supplied for `collider`. See the exact type and module contract. |
-| `world_xy` | `const int *` | Input | Value supplied for `world_xy`. See the exact type and module contract. |
+| `world_xy` | `const Fixed *` | Input | Value supplied for `world_xy`. See the exact type and module contract. |
 
 **Returns.** Returns `Aabb2D`. Check the purpose and failure notes before using the value.
 
@@ -552,7 +552,7 @@ inline Aabb2D collider2d_bounds(const Collider2D& collider, const Fixed* world_x
 
 // Assume these named values have been initialized with valid data:
 // const Collider2D & collider
-// const int * world_xy
+// const Fixed * world_xy
 
 auto result = epok::collider2d_bounds(collider, world_xy);
 ```
@@ -581,8 +581,8 @@ inline void collider2d_center(const Collider2D& collider, const Fixed* world_xy,
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `collider` | `const Collider2D &` | Input | Value supplied for `collider`. See the exact type and module contract. |
-| `world_xy` | `const int *` | Input | Value supplied for `world_xy`. See the exact type and module contract. |
-| `out` | `int *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
+| `world_xy` | `const Fixed *` | Input | Value supplied for `world_xy`. See the exact type and module contract. |
+| `out` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -595,8 +595,8 @@ inline void collider2d_center(const Collider2D& collider, const Fixed* world_xy,
 
 // Assume these named values have been initialized with valid data:
 // const Collider2D & collider
-// const int * world_xy
-// int * out
+// const Fixed * world_xy
+// Fixed * out
 
 epok::collider2d_center(collider, world_xy, out);
 ```
@@ -625,9 +625,9 @@ inline bool collider2d_overlap(const Collider2D& a, const Fixed* world_a, const 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `a` | `const Collider2D &` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `world_a` | `const int *` | Input | Value supplied for `world_a`. See the exact type and module contract. |
+| `world_a` | `const Fixed *` | Input | Value supplied for `world_a`. See the exact type and module contract. |
 | `b` | `const Collider2D &` | Input | Value supplied for `b`. See the exact type and module contract. |
-| `world_b` | `const int *` | Input | Value supplied for `world_b`. See the exact type and module contract. |
+| `world_b` | `const Fixed *` | Input | Value supplied for `world_b`. See the exact type and module contract. |
 | `inclusive` | `bool` | Input | Value supplied for `inclusive`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -641,9 +641,9 @@ inline bool collider2d_overlap(const Collider2D& a, const Fixed* world_a, const 
 
 // Assume these named values have been initialized with valid data:
 // const Collider2D & a
-// const int * world_a
+// const Fixed * world_a
 // const Collider2D & b
-// const int * world_b
+// const Fixed * world_b
 // bool inclusive
 
 auto result = epok::collider2d_overlap(a, world_a, b, world_b, inclusive);
@@ -672,7 +672,7 @@ const Aabb2D* bounds(size_t index) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** Returns `const Aabb2D *`. Check the purpose and failure notes before using the value.
 
@@ -684,7 +684,7 @@ const Aabb2D* bounds(size_t index) const
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// size_t index
 
 epok::CollisionWorld2D& object = /* obtain a valid instance */;
 
@@ -747,7 +747,7 @@ void disable(size_t index)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -759,7 +759,7 @@ void disable(size_t index)
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// size_t index
 
 epok::CollisionWorld2D& object = /* obtain a valid instance */;
 
@@ -785,7 +785,7 @@ size_t live() const
 - **Declared at:** [line 508](../../../runtime/world2d.hpp#L508)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the world2d module and the preconditions in the declaration are already satisfied.
 
@@ -824,9 +824,9 @@ MoveResult2D move_and_slide_2d(size_t index, const Fixed* displacement, uint32_t
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
-| `displacement` | `const int *` | Input | Value supplied for `displacement`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `displacement` | `const Fixed *` | Input | Value supplied for `displacement`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 
 **Returns.** Returns `MoveResult2D`. Check the purpose and failure notes before using the value.
 
@@ -838,9 +838,9 @@ MoveResult2D move_and_slide_2d(size_t index, const Fixed* displacement, uint32_t
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
-// const int * displacement
-// int mask
+// size_t index
+// const Fixed * displacement
+// uint32_t mask
 
 epok::CollisionWorld2D& object = /* obtain a valid instance */;
 
@@ -873,13 +873,13 @@ size_t overlap(const Aabb2D& box, uint16_t* output, size_t output_capacity, uint
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `box` | `const Aabb2D &` | Input | Value supplied for `box`. See the exact type and module contract. |
-| `output` | `int *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
-| `output_capacity` | `int` | Input | Value supplied for `output_capacity`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `output` | `uint16_t *` | Input/output; inspect the function contract | Value supplied for `output`. See the exact type and module contract. |
+| `output_capacity` | `size_t` | Input | Value supplied for `output_capacity`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 | `ignore` | `int` | Input | Value supplied for `ignore`. See the exact type and module contract. |
 | `triggers` | `bool` | Input | Value supplied for `triggers`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Broad phase only: circles are tested through their bounding box.
 
@@ -890,9 +890,9 @@ size_t overlap(const Aabb2D& box, uint16_t* output, size_t output_capacity, uint
 
 // Assume these named values have been initialized with valid data:
 // const Aabb2D & box
-// int * output
-// int output_capacity
-// int mask
+// uint16_t * output
+// size_t output_capacity
+// uint32_t mask
 // int ignore
 // bool triggers
 
@@ -924,9 +924,9 @@ const Fixed* position(size_t index) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
-**Returns.** Returns `const int *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `const Fixed *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the world2d module and the preconditions in the declaration are already satisfied.
 
@@ -936,7 +936,7 @@ const Fixed* position(size_t index) const
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// size_t index
 
 epok::CollisionWorld2D& object = /* obtain a valid instance */;
 
@@ -968,9 +968,9 @@ SpatialHit2D raycast2d(const Fixed* origin, const Fixed* displacement, uint32_t 
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `origin` | `const int *` | Input | Value supplied for `origin`. See the exact type and module contract. |
-| `displacement` | `const int *` | Input | Value supplied for `displacement`. See the exact type and module contract. |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `origin` | `const Fixed *` | Input | Value supplied for `origin`. See the exact type and module contract. |
+| `displacement` | `const Fixed *` | Input | Value supplied for `displacement`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 | `ignore` | `int` | Input | Value supplied for `ignore`. See the exact type and module contract. |
 | `triggers` | `bool` | Input | Value supplied for `triggers`. See the exact type and module contract. |
 
@@ -984,9 +984,9 @@ SpatialHit2D raycast2d(const Fixed* origin, const Fixed* displacement, uint32_t 
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * origin
-// const int * displacement
-// int mask
+// const Fixed * origin
+// const Fixed * displacement
+// uint32_t mask
 // int ignore
 // bool triggers
 
@@ -1018,7 +1018,7 @@ void set(size_t index, const ColliderEntry2D& value)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `size_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 | `value` | `const ColliderEntry2D &` | Input | Value supplied for `value`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1031,7 +1031,7 @@ void set(size_t index, const ColliderEntry2D& value)
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// size_t index
 // const ColliderEntry2D & value
 
 epok::CollisionWorld2D& object = /* obtain a valid instance */;
@@ -1063,7 +1063,7 @@ void sync(const ColliderEntry2D* list, size_t count)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `list` | `const ColliderEntry2D *` | Input | Value supplied for `list`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1076,7 +1076,7 @@ void sync(const ColliderEntry2D* list, size_t count)
 
 // Assume these named values have been initialized with valid data:
 // const ColliderEntry2D * list
-// int count
+// size_t count
 
 epok::CollisionWorld2D& object = /* obtain a valid instance */;
 
@@ -1195,9 +1195,9 @@ inline Fixed cos_degrees(Fixed degrees)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `degrees` | `int` | Input | Value supplied for `degrees`. See the exact type and module contract. |
+| `degrees` | `Fixed` | Input | Value supplied for `degrees`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the world2d module and the preconditions in the declaration are already satisfied.
 
@@ -1207,7 +1207,7 @@ inline Fixed cos_degrees(Fixed degrees)
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int degrees
+// Fixed degrees
 
 auto result = epok::cos_degrees(degrees);
 ```
@@ -1237,7 +1237,7 @@ inline Fixed clamp_raw_2d(int64_t value)
 | --- | --- | --- | --- |
 | `value` | `int64_t` | Input | Value supplied for `value`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the world2d module and the preconditions in the declaration are already satisfied.
 
@@ -1306,10 +1306,10 @@ inline Fixed mul_2d(Fixed a, Fixed b)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `int` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `b` | `int` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `a` | `Fixed` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `Fixed` | Input | Value supplied for `b`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the world2d module and the preconditions in the declaration are already satisfied.
 
@@ -1319,8 +1319,8 @@ inline Fixed mul_2d(Fixed a, Fixed b)
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int a
-// int b
+// Fixed a
+// Fixed b
 
 auto result = epok::detail::mul_2d(a, b);
 ```
@@ -1348,9 +1348,9 @@ inline int32_t sine_quarter_2d(int32_t raw_degrees)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `raw_degrees` | `int` | Input | Value supplied for `raw_degrees`. See the exact type and module contract. |
+| `raw_degrees` | `int32_t` | Input | Value supplied for `raw_degrees`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the world2d module and the preconditions in the declaration are already satisfied.
 
@@ -1360,7 +1360,7 @@ inline int32_t sine_quarter_2d(int32_t raw_degrees)
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int raw_degrees
+// int32_t raw_degrees
 
 auto result = epok::detail::sine_quarter_2d(raw_degrees);
 ```
@@ -1428,8 +1428,8 @@ inline int64_t distance_squared_raw_2d(const Fixed* a, const Fixed* b)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `a` | `const int *` | Input | Value supplied for `a`. See the exact type and module contract. |
-| `b` | `const int *` | Input | Value supplied for `b`. See the exact type and module contract. |
+| `a` | `const Fixed *` | Input | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `const Fixed *` | Input | Value supplied for `b`. See the exact type and module contract. |
 
 **Returns.** Returns `int64_t`. Check the purpose and failure notes before using the value.
 
@@ -1441,8 +1441,8 @@ inline int64_t distance_squared_raw_2d(const Fixed* a, const Fixed* b)
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * a
-// const int * b
+// const Fixed * a
+// const Fixed * b
 
 auto result = epok::distance_squared_raw_2d(a, b);
 ```
@@ -1472,9 +1472,9 @@ inline uint64_t draw_key_2d(int8_t layer, int16_t draw_order, uint16_t creation)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `layer` | `int` | Input | Value supplied for `layer`. See the exact type and module contract. |
-| `draw_order` | `int` | Input | Value supplied for `draw_order`. See the exact type and module contract. |
-| `creation` | `int` | Input | Value supplied for `creation`. See the exact type and module contract. |
+| `layer` | `int8_t` | Input | Value supplied for `layer`. See the exact type and module contract. |
+| `draw_order` | `int16_t` | Input | Value supplied for `draw_order`. See the exact type and module contract. |
+| `creation` | `uint16_t` | Input | Value supplied for `creation`. See the exact type and module contract. |
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
 
@@ -1486,9 +1486,9 @@ inline uint64_t draw_key_2d(int8_t layer, int16_t draw_order, uint16_t creation)
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int layer
-// int draw_order
-// int creation
+// int8_t layer
+// int16_t draw_order
+// uint16_t creation
 
 auto result = epok::draw_key_2d(layer, draw_order, creation);
 ```
@@ -1516,8 +1516,8 @@ inline bool fixed_in_range(Fixed value, Fixed limit)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
-| `limit` | `int` | Input | Value supplied for `limit`. See the exact type and module contract. |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `limit` | `Fixed` | Input | Value supplied for `limit`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1529,8 +1529,8 @@ inline bool fixed_in_range(Fixed value, Fixed limit)
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int value
-// int limit
+// Fixed value
+// Fixed limit
 
 auto result = epok::fixed_in_range(value, limit);
 ```
@@ -1601,10 +1601,10 @@ inline bool pick_2d(const Camera2D& camera, const Fixed* screen_xy, const Pick2D
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `camera` | `const Camera2D &` | Input | Value supplied for `camera`. See the exact type and module contract. |
-| `screen_xy` | `const int *` | Input | Value supplied for `screen_xy`. See the exact type and module contract. |
+| `screen_xy` | `const Fixed *` | Input | Value supplied for `screen_xy`. See the exact type and module contract. |
 | `entries` | `const Pick2DEntry *` | Input | Value supplied for `entries`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
-| `out_index` | `int &` | Input/output; inspect the function contract | Value supplied for `out_index`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `out_index` | `size_t &` | Input/output; inspect the function contract | Value supplied for `out_index`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -1617,10 +1617,10 @@ inline bool pick_2d(const Camera2D& camera, const Fixed* screen_xy, const Pick2D
 
 // Assume these named values have been initialized with valid data:
 // const Camera2D & camera
-// const int * screen_xy
+// const Fixed * screen_xy
 // const Pick2DEntry * entries
-// int count
-// int & out_index
+// size_t count
+// size_t & out_index
 
 auto result = epok::pick_2d(camera, screen_xy, entries, count, out_index);
 ```
@@ -1651,8 +1651,8 @@ inline void screen_to_world(const Camera2D& camera, const Fixed* screen_xy, Fixe
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `camera` | `const Camera2D &` | Input | Value supplied for `camera`. See the exact type and module contract. |
-| `screen_xy` | `const int *` | Input | Value supplied for `screen_xy`. See the exact type and module contract. |
-| `world_xy` | `int *` | Input/output; inspect the function contract | Value supplied for `world_xy`. See the exact type and module contract. |
+| `screen_xy` | `const Fixed *` | Input | Value supplied for `screen_xy`. See the exact type and module contract. |
+| `world_xy` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `world_xy`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1665,8 +1665,8 @@ inline void screen_to_world(const Camera2D& camera, const Fixed* screen_xy, Fixe
 
 // Assume these named values have been initialized with valid data:
 // const Camera2D & camera
-// const int * screen_xy
-// int * world_xy
+// const Fixed * screen_xy
+// Fixed * world_xy
 
 epok::screen_to_world(camera, screen_xy, world_xy);
 ```
@@ -1696,9 +1696,9 @@ inline Fixed sin_degrees(Fixed degrees)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `degrees` | `int` | Input | Value supplied for `degrees`. See the exact type and module contract. |
+| `degrees` | `Fixed` | Input | Value supplied for `degrees`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Deterministic and identical on host and MIPS.
 
@@ -1708,7 +1708,7 @@ inline Fixed sin_degrees(Fixed degrees)
 #include "world2d.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int degrees
+// Fixed degrees
 
 auto result = epok::sin_degrees(degrees);
 ```
@@ -1738,8 +1738,8 @@ template <class Key> inline void sort_draw_order(uint16_t* indices, size_t count
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `indices` | `int *` | Input/output; inspect the function contract | Value supplied for `indices`. See the exact type and module contract. |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `indices` | `uint16_t *` | Input/output; inspect the function contract | Value supplied for `indices`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `key` | `Key &&` | Consumed or moved input | Value supplied for `key`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1755,8 +1755,8 @@ template <class Key> inline void sort_draw_order(uint16_t* indices, size_t count
 // Key
 
 // Assume these named values have been initialized with valid data:
-// int * indices
-// int count
+// uint16_t * indices
+// size_t count
 // Key && key
 
 epok::sort_draw_order<Key>(indices, count, key);
@@ -1952,8 +1952,8 @@ inline void world_to_screen(const Camera2D& camera, const Fixed* world_xy, Fixed
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `camera` | `const Camera2D &` | Input | Value supplied for `camera`. See the exact type and module contract. |
-| `world_xy` | `const int *` | Input | Value supplied for `world_xy`. See the exact type and module contract. |
-| `screen_xy` | `int *` | Input/output; inspect the function contract | Value supplied for `screen_xy`. See the exact type and module contract. |
+| `world_xy` | `const Fixed *` | Input | Value supplied for `world_xy`. See the exact type and module contract. |
+| `screen_xy` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `screen_xy`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1966,8 +1966,8 @@ inline void world_to_screen(const Camera2D& camera, const Fixed* world_xy, Fixed
 
 // Assume these named values have been initialized with valid data:
 // const Camera2D & camera
-// const int * world_xy
-// int * screen_xy
+// const Fixed * world_xy
+// Fixed * screen_xy
 
 epok::world_to_screen(camera, world_xy, screen_xy);
 ```

@@ -33,7 +33,7 @@ void burst(uint16_t count=0)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `count` | `int` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `count` | `uint16_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -45,7 +45,7 @@ void burst(uint16_t count=0)
 #include "particle_types.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int count
+// uint16_t count
 
 epok::ParticleEmitter& object = /* obtain a valid instance */;
 

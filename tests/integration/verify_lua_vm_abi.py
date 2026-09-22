@@ -535,7 +535,8 @@ def finish(report, args):
         "Linked section sizes are this smoke program's, not a game's.",
         "Arena figures cover Lua allocations inside EPOK_LUA_ARENA_BYTES only.",
     ]
-    text = json.dumps(report, indent=2, sort_keys=True)
+    # Repository-relative, so the recorded evidence reads the same anywhere.
+    text = json.dumps(report, indent=2, sort_keys=True).replace(f"{ROOT}/", "")
     if args.output:
         Path(args.output).write_text(text, encoding="utf-8")
     print(text)

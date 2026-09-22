@@ -6,7 +6,7 @@ This module covers bounded CD or PC geometry-page streaming. It documents 13 pub
 
 ## Declared types
 
-`epok::StreamPagePool`, `epok::StreamPagePool::Slot`
+`epok::StreamPagePool`
 
 ## Callable index
 
@@ -43,10 +43,10 @@ inline uint32_t stream_page_hash(const uint8_t *data, size_t bytes = stream_page
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `data` | `const int *` | Input | Value supplied for `data`. See the exact type and module contract. |
-| `bytes` | `int` | Input | Value supplied for `bytes`. See the exact type and module contract. |
+| `data` | `const uint8_t *` | Input | Value supplied for `data`. See the exact type and module contract. |
+| `bytes` | `size_t` | Input | Value supplied for `bytes`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need bounded CD or PC geometry-page streaming and the preconditions in the declaration are already satisfied.
 
@@ -56,8 +56,8 @@ inline uint32_t stream_page_hash(const uint8_t *data, size_t bytes = stream_page
 #include "streaming_pool.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int * data
-// int bytes
+// const uint8_t * data
+// size_t bytes
 
 auto result = epok::stream_page_hash(data, bytes);
 ```
@@ -131,7 +131,7 @@ uint8_t *destination(int slot)
 | --- | --- | --- | --- |
 | `slot` | `int` | Input | Value supplied for `slot`. See the exact type and module contract. |
 
-**Returns.** Returns `int *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint8_t *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need bounded CD or PC geometry-page streaming and the preconditions in the declaration are already satisfied.
 
@@ -171,7 +171,7 @@ int find(uint32_t page) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -183,7 +183,7 @@ int find(uint32_t page) const
 #include "streaming_pool.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 
 epok::StreamPagePool& object = /* obtain a valid instance */;
 
@@ -246,9 +246,9 @@ const uint8_t *pin(uint32_t page)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 
-**Returns.** Returns `const int *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `const uint8_t *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need bounded CD or PC geometry-page streaming and the preconditions in the declaration are already satisfied.
 
@@ -258,7 +258,7 @@ const uint8_t *pin(uint32_t page)
 #include "streaming_pool.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 
 epok::StreamPagePool& object = /* obtain a valid instance */;
 
@@ -288,7 +288,7 @@ int pin_slot(uint32_t page)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -300,7 +300,7 @@ int pin_slot(uint32_t page)
 #include "streaming_pool.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 
 epok::StreamPagePool& object = /* obtain a valid instance */;
 
@@ -330,7 +330,7 @@ bool ready(uint32_t page) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -342,7 +342,7 @@ bool ready(uint32_t page) const
 #include "streaming_pool.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 
 epok::StreamPagePool& object = /* obtain a valid instance */;
 
@@ -374,7 +374,7 @@ int reserve(uint32_t page)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -386,7 +386,7 @@ int reserve(uint32_t page)
 #include "streaming_pool.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 
 epok::StreamPagePool& object = /* obtain a valid instance */;
 
@@ -412,7 +412,7 @@ size_t resident_count() const
 - **Declared at:** [line 114](../../../runtime/streaming_pool.hpp#L114)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need bounded CD or PC geometry-page streaming and the preconditions in the declaration are already satisfied.
 
@@ -449,7 +449,7 @@ bool unpin(uint32_t page)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -461,7 +461,7 @@ bool unpin(uint32_t page)
 #include "streaming_pool.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int page
+// uint32_t page
 
 epok::StreamPagePool& object = /* obtain a valid instance */;
 
@@ -492,7 +492,7 @@ bool unpin_slot(int slot, uint32_t page)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `slot` | `int` | Input | Value supplied for `slot`. See the exact type and module contract. |
-| `page` | `int` | Input | Value supplied for `page`. See the exact type and module contract. |
+| `page` | `uint32_t` | Input | Value supplied for `page`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -505,7 +505,7 @@ bool unpin_slot(int slot, uint32_t page)
 
 // Assume these named values have been initialized with valid data:
 // int slot
-// int page
+// uint32_t page
 
 epok::StreamPagePool& object = /* obtain a valid instance */;
 
@@ -535,9 +535,9 @@ static bool valid_range(uint32_t offset, uint32_t bytes, uint32_t alignment = 4)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `offset` | `int` | Input | Value supplied for `offset`. See the exact type and module contract. |
-| `bytes` | `int` | Input | Value supplied for `bytes`. See the exact type and module contract. |
-| `alignment` | `int` | Input | Value supplied for `alignment`. See the exact type and module contract. |
+| `offset` | `uint32_t` | Input | Value supplied for `offset`. See the exact type and module contract. |
+| `bytes` | `uint32_t` | Input | Value supplied for `bytes`. See the exact type and module contract. |
+| `alignment` | `uint32_t` | Input | Value supplied for `alignment`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -549,9 +549,9 @@ static bool valid_range(uint32_t offset, uint32_t bytes, uint32_t alignment = 4)
 #include "streaming_pool.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int offset
-// int bytes
-// int alignment
+// uint32_t offset
+// uint32_t bytes
+// uint32_t alignment
 
 auto result = epok::StreamPagePool::valid_range(offset, bytes, alignment);
 ```

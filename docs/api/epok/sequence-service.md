@@ -2,7 +2,7 @@
 
 > **Header:** `"sequence_service.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/sequence_service.hpp)
 
-This module covers the sequence service module. It documents 28 public callables declared directly in this header.
+This module covers the sequence service module. It documents 31 public callables declared directly in this header.
 
 ## Declared types
 
@@ -16,6 +16,9 @@ This module covers the sequence service module. It documents 28 public callables
 - [`epok::psx_audio::Instance::cut`](#epok-psx-audio-instance-cut-1) — Performs `cut` as part of the sequence service module.
 - [`epok::psx_audio::Instance::defer_note`](#epok-psx-audio-instance-defer-note-1) — Performs `defer note` as part of the sequence service module.
 - [`epok::psx_audio::Instance::finish_layer`](#epok-psx-audio-instance-finish-layer-1) — Performs `finish layer` as part of the sequence service module.
+- [`epok::psx_audio::Instance::native_advance`](#epok-psx-audio-instance-native-advance-1) — Performs `native advance` as part of the sequence service module.
+- [`epok::psx_audio::Instance::native_begin`](#epok-psx-audio-instance-native-begin-1) — Performs `native begin` as part of the sequence service module.
+- [`epok::psx_audio::Instance::native_parameters`](#epok-psx-audio-instance-native-parameters-1) — Performs `native parameters` as part of the sequence service module.
 - [`epok::psx_audio::Instance::owns`](#epok-psx-audio-instance-owns-1) — Performs `owns` as part of the sequence service module.
 - [`epok::psx_audio::Instance::release`](#epok-psx-audio-instance-release-1) — Performs `release` as part of the sequence service module.
 - [`epok::psx_audio::Instance::release_library`](#epok-psx-audio-instance-release-library-1) — Performs `release library` as part of the sequence service module.
@@ -51,10 +54,10 @@ This module covers the sequence service module. It documents 28 public callables
 inline uint16_t counter_ticks()
 ```
 
-- **Declared at:** [line 56](../../../runtime/sequence_service.hpp#L56)
+- **Declared at:** [line 64](../../../runtime/sequence_service.hpp#L64)
 - **Kind:** `function decl`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
 
@@ -82,14 +85,14 @@ auto result = epok::psx_audio::counter_ticks();
 inline int first_voice(uint32_t mask)
 ```
 
-- **Declared at:** [line 64](../../../runtime/sequence_service.hpp#L64)
+- **Declared at:** [line 72](../../../runtime/sequence_service.hpp#L72)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `mask` | `int` | Input | Value supplied for `mask`. See the exact type and module contract. |
+| `mask` | `uint32_t` | Input | Value supplied for `mask`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -101,7 +104,7 @@ inline int first_voice(uint32_t mask)
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int mask
+// uint32_t mask
 
 auto result = epok::psx_audio::first_voice(mask);
 ```
@@ -122,7 +125,7 @@ auto result = epok::psx_audio::first_voice(mask);
 bool advance_library(int number)
 ```
 
-- **Declared at:** [line 114](../../../runtime/sequence_service.hpp#L114)
+- **Declared at:** [line 133](../../../runtime/sequence_service.hpp#L133)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -164,14 +167,14 @@ auto result = object.advance_library(number);
 void cut(uint16_t note)
 ```
 
-- **Declared at:** [line 99](../../../runtime/sequence_service.hpp#L99)
+- **Declared at:** [line 112](../../../runtime/sequence_service.hpp#L112)
 - **Kind:** `cxx method`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -183,7 +186,7 @@ void cut(uint16_t note)
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int note
+// uint16_t note
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
 
@@ -206,7 +209,7 @@ object.cut(note);
 bool defer_note(const sequence::Event&,uint32_t cursor)
 ```
 
-- **Declared at:** [line 83](../../../runtime/sequence_service.hpp#L83)
+- **Declared at:** [line 96](../../../runtime/sequence_service.hpp#L96)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -214,7 +217,7 @@ bool defer_note(const sequence::Event&,uint32_t cursor)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `arg1` | `const sequence::Event &` | Input | Value supplied for `arg1`. See the exact type and module contract. |
-| `cursor` | `int` | Input | Value supplied for `cursor`. See the exact type and module contract. |
+| `cursor` | `uint32_t` | Input | Value supplied for `cursor`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -227,7 +230,7 @@ bool defer_note(const sequence::Event&,uint32_t cursor)
 
 // Assume these named values have been initialized with valid data:
 // const sequence::Event & arg1
-// int cursor
+// uint32_t cursor
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
 
@@ -250,7 +253,7 @@ auto result = object.defer_note(arg1, cursor);
 void finish_layer(int i)
 ```
 
-- **Declared at:** [line 107](../../../runtime/sequence_service.hpp#L107)
+- **Declared at:** [line 123](../../../runtime/sequence_service.hpp#L123)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -280,6 +283,123 @@ object.finish_layer(i);
 
 **Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
 
+<a id="epok-psx-audio-instance-native-advance-1"></a>
+
+## `epok::psx_audio::Instance::native_advance`
+
+**Purpose.** Performs `native advance` as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+void native_advance(uint32_t elapsed)
+```
+
+- **Declared at:** [line 94](../../../runtime/sequence_service.hpp#L94)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `elapsed` | `uint32_t` | Input | Value supplied for `elapsed`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// uint32_t elapsed
+
+epok::psx_audio::Instance& object = /* obtain a valid instance */;
+
+object.native_advance(elapsed);
+```
+
+**Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+
+<a id="epok-psx-audio-instance-native-begin-1"></a>
+
+## `epok::psx_audio::Instance::native_begin`
+
+**Purpose.** Performs `native begin` as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+void native_begin()
+```
+
+- **Declared at:** [line 93](../../../runtime/sequence_service.hpp#L93)
+- **Kind:** `cxx method`
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+epok::psx_audio::Instance& object = /* obtain a valid instance */;
+
+object.native_begin();
+```
+
+**Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+
+<a id="epok-psx-audio-instance-native-parameters-1"></a>
+
+## `epok::psx_audio::Instance::native_parameters`
+
+**Purpose.** Performs `native parameters` as part of the sequence service module.
+
+**Exact declaration**
+
+```cpp
+void native_parameters(int voice)
+```
+
+- **Declared at:** [line 95](../../../runtime/sequence_service.hpp#L95)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `voice` | `int` | Input | Value supplied for `voice`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the sequence service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "sequence_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int voice
+
+epok::psx_audio::Instance& object = /* obtain a valid instance */;
+
+object.native_parameters(voice);
+```
+
+**Why choose it.** The API exposes the hardware service without hiding latency or bounded memory.
+
+**Trade-offs and warnings.** Treat device absence, busy state and I/O failure as expected outcomes; do not block the frame loop waiting for hardware.
+
 <a id="epok-psx-audio-instance-owns-1"></a>
 
 ## `epok::psx_audio::Instance::owns`
@@ -292,7 +412,7 @@ object.finish_layer(i);
 bool owns(int voice,uint16_t note)const
 ```
 
-- **Declared at:** [line 92](../../../runtime/sequence_service.hpp#L92)
+- **Declared at:** [line 105](../../../runtime/sequence_service.hpp#L105)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -300,7 +420,7 @@ bool owns(int voice,uint16_t note)const
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `voice` | `int` | Input | Value supplied for `voice`. See the exact type and module contract. |
-| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -313,7 +433,7 @@ bool owns(int voice,uint16_t note)const
 
 // Assume these named values have been initialized with valid data:
 // int voice
-// int note
+// uint16_t note
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
 
@@ -336,14 +456,14 @@ auto result = object.owns(voice, note);
 void release(uint16_t note)
 ```
 
-- **Declared at:** [line 117](../../../runtime/sequence_service.hpp#L117)
+- **Declared at:** [line 136](../../../runtime/sequence_service.hpp#L136)
 - **Kind:** `cxx method`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -355,7 +475,7 @@ void release(uint16_t note)
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int note
+// uint16_t note
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
 
@@ -378,14 +498,14 @@ object.release(note);
 void release_library(uint16_t note)
 ```
 
-- **Declared at:** [line 115](../../../runtime/sequence_service.hpp#L115)
+- **Declared at:** [line 134](../../../runtime/sequence_service.hpp#L134)
 - **Kind:** `cxx method`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -397,7 +517,7 @@ void release_library(uint16_t note)
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int note
+// uint16_t note
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
 
@@ -420,14 +540,14 @@ object.release_library(note);
 bool start(uint16_t note,const sequence::Note& n,const sequence::Channel& channel)
 ```
 
-- **Declared at:** [line 164](../../../runtime/sequence_service.hpp#L164)
+- **Declared at:** [line 183](../../../runtime/sequence_service.hpp#L183)
 - **Kind:** `cxx method`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
 | `n` | `const sequence::Note &` | Input | Value supplied for `n`. See the exact type and module contract. |
 | `channel` | `const sequence::Channel &` | Input | Value supplied for `channel`. See the exact type and module contract. |
 
@@ -441,7 +561,7 @@ bool start(uint16_t note,const sequence::Note& n,const sequence::Channel& channe
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int note
+// uint16_t note
 // const sequence::Note & n
 // const sequence::Channel & channel
 
@@ -466,14 +586,14 @@ auto result = object.start(note, n, channel);
 bool start_library(uint16_t note,const sequence::Note& n,const sequence::Channel& channel)
 ```
 
-- **Declared at:** [line 165](../../../runtime/sequence_service.hpp#L165)
+- **Declared at:** [line 184](../../../runtime/sequence_service.hpp#L184)
 - **Kind:** `cxx method`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
 | `n` | `const sequence::Note &` | Input | Value supplied for `n`. See the exact type and module contract. |
 | `channel` | `const sequence::Channel &` | Input | Value supplied for `channel`. See the exact type and module contract. |
 
@@ -487,7 +607,7 @@ bool start_library(uint16_t note,const sequence::Note& n,const sequence::Channel
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int note
+// uint16_t note
 // const sequence::Note & n
 // const sequence::Channel & channel
 
@@ -512,14 +632,14 @@ auto result = object.start_library(note, n, channel);
 void update(uint16_t note,const sequence::Channel& channel)
 ```
 
-- **Declared at:** [line 125](../../../runtime/sequence_service.hpp#L125)
+- **Declared at:** [line 144](../../../runtime/sequence_service.hpp#L144)
 - **Kind:** `cxx method`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
 | `channel` | `const sequence::Channel &` | Input | Value supplied for `channel`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -532,7 +652,7 @@ void update(uint16_t note,const sequence::Channel& channel)
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int note
+// uint16_t note
 // const sequence::Channel & channel
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
@@ -556,7 +676,7 @@ object.update(note, channel);
 void update_library(int physical_voice,const sequence::Channel& channel,bool controls_changed)
 ```
 
-- **Declared at:** [line 116](../../../runtime/sequence_service.hpp#L116)
+- **Declared at:** [line 135](../../../runtime/sequence_service.hpp#L135)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -602,14 +722,14 @@ object.update_library(physical_voice, channel, controls_changed);
 int voice(uint16_t note) const
 ```
 
-- **Declared at:** [line 95](../../../runtime/sequence_service.hpp#L95)
+- **Declared at:** [line 108](../../../runtime/sequence_service.hpp#L108)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `note` | `uint16_t` | Input | Value supplied for `note`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -621,7 +741,7 @@ int voice(uint16_t note) const
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int note
+// uint16_t note
 
 epok::psx_audio::Instance& object = /* obtain a valid instance */;
 
@@ -644,7 +764,7 @@ auto result = object.voice(note);
 inline void next_envelope(Physical& v)
 ```
 
-- **Declared at:** [line 182](../../../runtime/sequence_service.hpp#L182)
+- **Declared at:** [line 202](../../../runtime/sequence_service.hpp#L202)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -684,7 +804,7 @@ epok::psx_audio::next_envelope(v);
 void reset_metadata()
 ```
 
-- **Declared at:** [line 41](../../../runtime/sequence_service.hpp#L41)
+- **Declared at:** [line 47](../../../runtime/sequence_service.hpp#L47)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -717,7 +837,7 @@ object.reset_metadata();
 inline void retire(Instance& instance)
 ```
 
-- **Declared at:** [line 169](../../../runtime/sequence_service.hpp#L169)
+- **Declared at:** [line 188](../../../runtime/sequence_service.hpp#L188)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -757,7 +877,7 @@ epok::psx_audio::retire(instance);
 inline void stolen(int i)
 ```
 
-- **Declared at:** [line 175](../../../runtime/sequence_service.hpp#L175)
+- **Declared at:** [line 195](../../../runtime/sequence_service.hpp#L195)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -797,7 +917,7 @@ epok::psx_audio::stolen(i);
 inline void sequence_clock_fault()
 ```
 
-- **Declared at:** [line 347](../../../runtime/sequence_service.hpp#L347)
+- **Declared at:** [line 379](../../../runtime/sequence_service.hpp#L379)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -828,7 +948,7 @@ epok::sequence_clock_fault();
 inline bool sequence_is_playing(const AudioSource* source)
 ```
 
-- **Declared at:** [line 231](../../../runtime/sequence_service.hpp#L231)
+- **Declared at:** [line 252](../../../runtime/sequence_service.hpp#L252)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -868,7 +988,7 @@ auto result = epok::sequence_is_playing(source);
 inline psx_audio::Parameters sequence_parameters(const AudioSource* source)
 ```
 
-- **Declared at:** [line 243](../../../runtime/sequence_service.hpp#L243)
+- **Declared at:** [line 264](../../../runtime/sequence_service.hpp#L264)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -908,7 +1028,7 @@ auto result = epok::sequence_parameters(source);
 inline void sequence_play(AudioSource* source)
 ```
 
-- **Declared at:** [line 249](../../../runtime/sequence_service.hpp#L249)
+- **Declared at:** [line 270](../../../runtime/sequence_service.hpp#L270)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -948,7 +1068,7 @@ epok::sequence_play(source);
 inline bool sequence_prepare()
 ```
 
-- **Declared at:** [line 351](../../../runtime/sequence_service.hpp#L351)
+- **Declared at:** [line 383](../../../runtime/sequence_service.hpp#L383)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -979,7 +1099,7 @@ auto result = epok::sequence_prepare();
 inline bool sequence_retiring()
 ```
 
-- **Declared at:** [line 238](../../../runtime/sequence_service.hpp#L238)
+- **Declared at:** [line 259](../../../runtime/sequence_service.hpp#L259)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1010,14 +1130,14 @@ auto result = epok::sequence_retiring();
 inline void sequence_service(uint32_t elapsed_us)
 ```
 
-- **Declared at:** [line 283](../../../runtime/sequence_service.hpp#L283)
+- **Declared at:** [line 308](../../../runtime/sequence_service.hpp#L308)
 - **Kind:** `function decl`
 
 **Parameters**
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `elapsed_us` | `int` | Input | Value supplied for `elapsed_us`. See the exact type and module contract. |
+| `elapsed_us` | `uint32_t` | Input | Value supplied for `elapsed_us`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -1029,7 +1149,7 @@ inline void sequence_service(uint32_t elapsed_us)
 #include "sequence_service.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int elapsed_us
+// uint32_t elapsed_us
 
 epok::sequence_service(elapsed_us);
 ```
@@ -1050,7 +1170,7 @@ epok::sequence_service(elapsed_us);
 inline void sequence_stop(AudioSource* source)
 ```
 
-- **Declared at:** [line 235](../../../runtime/sequence_service.hpp#L235)
+- **Declared at:** [line 256](../../../runtime/sequence_service.hpp#L256)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1090,7 +1210,7 @@ epok::sequence_stop(source);
 inline void sequence_update_sources()
 ```
 
-- **Declared at:** [line 266](../../../runtime/sequence_service.hpp#L266)
+- **Declared at:** [line 288](../../../runtime/sequence_service.hpp#L288)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1121,7 +1241,7 @@ epok::sequence_update_sources();
 inline void sequence_voice_stolen(int voice)
 ```
 
-- **Declared at:** [line 230](../../../runtime/sequence_service.hpp#L230)
+- **Declared at:** [line 251](../../../runtime/sequence_service.hpp#L251)
 - **Kind:** `function decl`
 
 **Parameters**

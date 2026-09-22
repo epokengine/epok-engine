@@ -34,6 +34,7 @@ mod blueprint_templates;
 mod blueprint_workflow;
 mod branding;
 mod bridge;
+mod brush;
 mod build_inputs;
 mod build_report;
 mod busy_ui;
@@ -41,6 +42,8 @@ mod collision;
 mod collision_editor;
 mod console;
 mod content_preview;
+mod controls;
+mod controls_ui;
 mod dependencies;
 mod disc;
 mod document;
@@ -57,6 +60,7 @@ mod hud_editor;
 mod hud_native;
 mod hud_simulation;
 mod import_settings;
+mod inspector_theme;
 mod instrument_dsp;
 mod instrument_ir;
 mod instrument_modulation;
@@ -96,6 +100,9 @@ mod music_conversion_ui;
 mod native;
 mod native_metadata;
 mod native_music;
+mod native_play;
+mod navigation;
+mod navigation_geometry;
 mod obj_import;
 mod object_model;
 mod operation;
@@ -115,6 +122,7 @@ mod playback_staging;
 mod preview_audio;
 mod project;
 mod project_browser;
+mod project_templates;
 mod psx_library;
 mod psx_library_asset;
 #[cfg(test)]
@@ -127,7 +135,10 @@ mod psx_sequence;
 mod reflection;
 mod reflection_schema;
 #[cfg(test)]
+mod repo_policy_tests;
+#[cfg(test)]
 mod runtime_api_tests;
+mod sample_template;
 mod scene;
 mod scene_bank;
 mod scene_dependencies;
@@ -165,8 +176,12 @@ mod sprites_editor;
 mod spu_encoder;
 mod staging_files;
 mod streaming;
+mod terrain;
+mod terrain_compile;
+mod terrain_editor;
 mod texture;
 mod third_person;
+mod third_person_blueprint;
 mod timeline;
 mod timeline_adapters;
 mod timeline_compile;
@@ -248,23 +263,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|v| v[1].as_str())
             .or_else(|| destination.file_name().and_then(|v| v.to_str()))
             .ok_or("Project name required")?;
-        let template = match args
+        let template = args
             .windows(2)
             .find(|v| v[0] == "--template")
             .map(|v| v[1].as_str())
-            .unwrap_or("basic")
-        {
-            "basic" => workspace::Template::Basic,
-            "sample" => workspace::Template::Sample,
-            "third-person" => workspace::Template::ThirdPerson,
-            other => {
-                return Err(format!(
-                    "Unknown template: {other}. Use basic, sample or third-person."
-                )
-                .into());
-            }
-        };
-        let project = workspace::create(&destination, name, template)?;
+            .unwrap_or("basic");
+        let gameplay = args
+            .windows(2)
+            .find(|v| v[0] == "--gameplay")
+            .map(|v| v[1].as_str())
+            .unwrap_or("cpp");
+        let options = workspace::creation_options(template, gameplay)?;
+        let project = workspace::create_with_options(&destination, name, options)?;
         println!("Created project: {}", project.root.display());
         return Ok(());
     }
@@ -287,9 +297,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         [
             "--build-psx",
             "--play-psx",
+            "--play-native",
             "--analyze-memory",
             "--generate-asset-report",
             "--bake-lighting",
+            "--bake-navigation",
             "--add-actor",
             "--profile-scene",
             "--profile-scene-cpu",
@@ -1250,6 +1262,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Baked lighting saved: {}", path.display());
         return Ok(());
     }
+    if args.iter().any(|a| a == "--bake-navigation") {
+        let path = args
+            .windows(2)
+            .find(|v| v[0] == "--scene")
+            .map(|v| root.join(&v[1]))
+            .map_or_else(|| workspace::startup_scene(&root), Ok)?;
+        let mut scene = scene::Scene::load(&path)?;
+        scene.navigation = Some(navigation::bake(&scene)?);
+        scene.save(&path)?;
+        println!(
+            "Navigation baked: {} nodes, {}",
+            scene.navigation.as_ref().unwrap().nodes.len(),
+            path.display()
+        );
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--profile-scene") {
         return scene_gpu::profile(project);
     }
@@ -1283,6 +1311,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.iter().any(|a| {
         a == "--build-psx"
             || a == "--play-psx"
+            || a == "--play-native"
             || a == "--analyze-memory"
             || a == "--generate-asset-report"
     }) {
@@ -1293,8 +1322,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             pipeline::Job::report(root.clone(), summary)
         } else {
             let analyze = args.iter().any(|a| a == "--analyze-memory");
-            let mut scene = scene_dependencies::Input::load(&workspace::startup_scene(&root)?)?;
-            if analyze || args.iter().any(|a| a == "--use-play-profile") {
+            let scene_path = args
+                .windows(2)
+                .find(|v| v[0] == "--scene")
+                .map(|v| root.join(&v[1]))
+                .map_or_else(|| workspace::startup_scene(&root), Ok)?;
+            let native = args.iter().any(|a| a == "--play-native");
+            let mut scene = scene_dependencies::Input::load(&scene_path)?;
+            if native {
+                let mut profile = play::Profile::load(&root).unwrap_or_default();
+                profile.runtime = play::Runtime::NativePc;
+                profile.content = play::Content::CurrentScene;
+                scene = play::saved_input(&root, &scene_path, profile)?;
+            } else if analyze || args.iter().any(|a| a == "--use-play-profile") {
                 scene = play::saved_input(
                     &root,
                     &workspace::startup_scene(&root)?,
@@ -1307,7 +1347,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 pipeline::Job::start_with_debug(
                     root,
                     scene,
-                    args.iter().any(|a| a == "--play-psx"),
+                    args.iter()
+                        .any(|a| a == "--play-psx" || a == "--play-native"),
                     args.iter().any(|a| a == "--blueprint-debug"),
                 )
             }
@@ -1343,7 +1384,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(pipeline::Event::LightingBaked(_)) => println!("Vertex lighting ready"),
                 Ok(pipeline::Event::Built(p)) => println!("Built {}", p.display()),
                 Ok(pipeline::Event::Running(_)) => {
-                    println!("Emulator running");
+                    println!(
+                        "{}",
+                        if args.iter().any(|a| a == "--play-native") {
+                            "Native PC runtime running"
+                        } else {
+                            "Emulator running"
+                        }
+                    );
                     started = Some(Instant::now());
                 }
                 Ok(pipeline::Event::SerialConnected) => {
@@ -1368,6 +1416,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn prepare_editor(editor: &mut editor::Editor) {
     let args = std::env::args().collect::<Vec<_>>();
+    if args.iter().any(|a| a == "--screenshot-controls") {
+        settings_ui::open_controls(editor);
+    }
     if let Some(relative) = args
         .windows(2)
         .find(|a| a[0] == "--inspect-asset")
@@ -1423,9 +1474,45 @@ fn prepare_editor(editor: &mut editor::Editor) {
             editor.selected = editor.mesh_editor.target;
         }
     }
+    if args.iter().any(|a| a == "--screenshot-terrain") {
+        editor.assets.index = assets::scan(&editor.root, &mut Default::default());
+        let record = editor
+            .assets
+            .index
+            .usable()
+            .find(|r| r.meta.kind == assets::Kind::Terrain)
+            .cloned();
+        match record {
+            Some(record) => {
+                terrain_editor::open(editor, record, None);
+                editor.selected = editor.terrain_editor.target;
+            }
+            // Nothing to open yet: make one, so the capture always has a
+            // terrain to show rather than an empty panel.
+            None => {
+                if let Err(error) = terrain_editor::create(editor) {
+                    editor.log(error);
+                }
+            }
+        }
+    }
+    if args.iter().any(|a| a == "--screenshot-inspector") {
+        editor.selected = editor
+            .scene
+            .actors
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, actor)| actor.components.len())
+            .map(|(index, _)| index)
+            .or(editor.selected);
+    }
     if args.iter().any(|a| a == "--screenshot-lighting") {
         editor.lighting_window = true;
         editor.selected = editor.scene.actors.iter().position(|e| e.light.is_some());
+    }
+    if args.iter().any(|a| a == "--screenshot-navigation") {
+        editor.selected = (0..editor.scene.actors.len())
+            .find(|&i| navigation::selected_volume(&editor.scene, Some(i)).is_some());
     }
     if args.iter().any(|a| a == "--screenshot-hud") {
         editor.set_scene_2d(true);
@@ -1457,7 +1544,11 @@ fn prepare_editor(editor: &mut editor::Editor) {
             .map(|c| c.name.clone())
             .unwrap_or_else(|| "ActorComponent".into());
     }
-    if args.iter().any(|a| a == "--screenshot-game") {
+    if args.iter().any(|a| a == "--screenshot-native-game") {
+        editor.play_profile.runtime = play::Runtime::NativePc;
+        editor.play_profile.content = play::Content::CurrentScene;
+        editor.build(true);
+    } else if args.iter().any(|a| a == "--screenshot-game") {
         editor.build(true);
     }
 }

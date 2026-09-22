@@ -1,16 +1,16 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 75,
-    "types": 358,
-    "callables": 1221,
-    "properties": 1868
+    "headers": 82,
+    "types": 379,
+    "callables": 1330,
+    "properties": 1976
   },
   "psyqo": {
     "headers": 53,
-    "types": 168,
-    "callables": 894,
-    "properties": 551
+    "types": 160,
+    "callables": 944,
+    "properties": 539
   },
   "modules": [
     {
@@ -21,17 +21,15 @@
       "types": 0,
       "properties": 0,
       "source_sha256": "c367cdbc7268eaf8acd0864143515f59e777c7fcbfbbc9bd7a5f01f7b4e0abb0",
-      "diagnostics": [
-        "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok-api-epok.cpp:1:10: fatal error: 'array' file not found"
-      ]
+      "diagnostics": []
     },
     {
       "family": "epok",
       "header": "actor_tables.hpp",
       "slug": "actor-tables",
       "callables": 12,
-      "types": 9,
-      "properties": 52,
+      "types": 8,
+      "properties": 46,
       "source_sha256": "4f6ea3ea311109f5233ed4e950e7b4688bde084c350160137c6057c80f6fcba4",
       "diagnostics": []
     },
@@ -39,10 +37,10 @@
       "family": "epok",
       "header": "affine.hpp",
       "slug": "affine",
-      "callables": 4,
+      "callables": 5,
       "types": 1,
       "properties": 1,
-      "source_sha256": "b2fcc9bb39cc923e30ed0320547e0ac99724ecfd97105f90bc5ad0c6d8329cd6",
+      "source_sha256": "9eb76ceab024c9365a089e06a658749df5e72569cad91f431e9af22589ba083f",
       "diagnostics": []
     },
     {
@@ -89,10 +87,10 @@
       "family": "epok",
       "header": "blueprint_runtime.hpp",
       "slug": "blueprint-runtime",
-      "callables": 64,
-      "types": 12,
-      "properties": 34,
-      "source_sha256": "fe07fc333b0e40aa98b1c3ca95e8ab47aa5dab3dc3e3de151621af64ff807831",
+      "callables": 65,
+      "types": 11,
+      "properties": 29,
+      "source_sha256": "96a9a2cb5e50a766c4879a2ddbb3c500598bd08b743f9c3ee275b75530f441b1",
       "diagnostics": []
     },
     {
@@ -119,10 +117,10 @@
       "family": "epok",
       "header": "collision.hpp",
       "slug": "collision",
-      "callables": 16,
-      "types": 9,
-      "properties": 48,
-      "source_sha256": "a221bee86f9fdd9f58312c130374cc391e199db24a28a6d739f06b3e0d3d7864",
+      "callables": 18,
+      "types": 8,
+      "properties": 37,
+      "source_sha256": "e586f7c6935b5971ac08500bfe026ea46f6e333905bf9acdeaa36991474bcc03",
       "diagnostics": []
     },
     {
@@ -130,9 +128,9 @@
       "header": "debug_hud.hpp",
       "slug": "debug-hud",
       "callables": 4,
-      "types": 0,
-      "properties": 0,
-      "source_sha256": "248812fcce435923067bd3a3be06db76c638b47476a289bf3844005d465db514",
+      "types": 1,
+      "properties": 16,
+      "source_sha256": "bd6c768da1e7b4728fbf53968671dc836feba360d7e356fa79d599faeea2c667",
       "diagnostics": []
     },
     {
@@ -159,10 +157,20 @@
       "family": "epok",
       "header": "epok.hpp",
       "slug": "epok",
-      "callables": 52,
-      "types": 50,
-      "properties": 311,
-      "source_sha256": "bf8225886c0317238ba335c7af53837b0d780b06f74b19fe6e0bc1c1ae6f8aaa",
+      "callables": 53,
+      "types": 56,
+      "properties": 317,
+      "source_sha256": "ac467445ff4cbe1245342f7181bd771a57d03e02c1a1f3c9b274969b21585f54",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "fixed_math.hpp",
+      "slug": "fixed-math",
+      "callables": 3,
+      "types": 0,
+      "properties": 1,
+      "source_sha256": "d5bf28107f11a801ab3f8f4ccfd7efefaff9a5c71cf0a6609f809db24eaf9276",
       "diagnostics": []
     },
     {
@@ -179,30 +187,30 @@
       "family": "epok",
       "header": "frustum.hpp",
       "slug": "frustum",
-      "callables": 6,
+      "callables": 7,
       "types": 0,
       "properties": 0,
-      "source_sha256": "0b77c65a488fb049c3c2fbc0136c2ddd06f5e050d324452f81015fb545740c5a",
+      "source_sha256": "f3bd227116e42492949a57cefc40b6f390ff9b0af4b0469642587f6ca2a26f2f",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "gameplay_api.hpp",
       "slug": "gameplay-api",
-      "callables": 66,
-      "types": 27,
-      "properties": 93,
-      "source_sha256": "2e76e11cbda5e367299029adb0e8b70a100a4e410bde510449be3f8cbb751f7a",
+      "callables": 90,
+      "types": 32,
+      "properties": 108,
+      "source_sha256": "eefc36e47fe76329897b42770a5ceeb091dc0956606e2a5ff5be45ec7a63d427",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "gte_geometry.hpp",
       "slug": "gte-geometry",
-      "callables": 5,
+      "callables": 6,
       "types": 0,
       "properties": 2,
-      "source_sha256": "456692cb4c0d85e723d5e9164357c7f24be337b24bd03ff7e8356632a822a8d1",
+      "source_sha256": "bb3f385accbc850c7b9d526b93993e259e568ab6653a609aadcbe862b00848a9",
       "diagnostics": []
     },
     {
@@ -210,8 +218,8 @@
       "header": "hud.hpp",
       "slug": "hud",
       "callables": 8,
-      "types": 2,
-      "properties": 1,
+      "types": 1,
+      "properties": 0,
       "source_sha256": "7ccd5a2722759f6505e160c16833c18588fe87e504412aad5db77b9039f79d73",
       "diagnostics": []
     },
@@ -229,10 +237,10 @@
       "family": "epok",
       "header": "input.hpp",
       "slug": "input",
-      "callables": 14,
-      "types": 4,
-      "properties": 31,
-      "source_sha256": "a29e88f64c3b03332e45c50c9c1ef6cf0c297c4787b5d226639b9a018e2c0105",
+      "callables": 15,
+      "types": 3,
+      "properties": 21,
+      "source_sha256": "f1d8b49e13af877a7bf49095d2febc8373c9b58ccf28b1a1829c7ff54ea0867d",
       "diagnostics": []
     },
     {
@@ -279,10 +287,10 @@
       "family": "epok",
       "header": "instrument_synth.hpp",
       "slug": "instrument-synth",
-      "callables": 35,
-      "types": 8,
-      "properties": 45,
-      "source_sha256": "fd8adee76ed5f736d9066beebd1890e9ccca11d00a466e2da4c74130f0f9fcb4",
+      "callables": 37,
+      "types": 7,
+      "properties": 37,
+      "source_sha256": "bdadc8a8445bd7ea20b9bc7d572313f2f13995e326c326382f7576606067503e",
       "diagnostics": []
     },
     {
@@ -299,10 +307,10 @@
       "family": "epok",
       "header": "lighting.hpp",
       "slug": "lighting",
-      "callables": 16,
+      "callables": 15,
       "types": 5,
       "properties": 12,
-      "source_sha256": "6c715a5c34a8167726a18d439f5977a24574e6eff72e527334f5ea7031fc4c55",
+      "source_sha256": "cc3709b03a88db773a3a124a498588a0fffdf3fc3de2a02aa4ab7bebedf7a3aa",
       "diagnostics": []
     },
     {
@@ -350,8 +358,8 @@
       "header": "motion_interpolation.hpp",
       "slug": "motion-interpolation",
       "callables": 13,
-      "types": 2,
-      "properties": 7,
+      "types": 1,
+      "properties": 0,
       "source_sha256": "0798b8ed2bb7d379efdc5d1766168e596d570c903dd1c98596fc8c561e318ae1",
       "diagnostics": []
     },
@@ -361,18 +369,68 @@
       "slug": "music",
       "callables": 10,
       "types": 2,
-      "properties": 24,
+      "properties": 25,
       "source_sha256": "84f35ad30c430db3ad392c56b8b7cd3fe85578c28e2dfb70bf8331a42745cc7f",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "native_music_data.hpp",
+      "slug": "native-music-data",
+      "callables": 7,
+      "types": 4,
+      "properties": 26,
+      "source_sha256": "34a74d6dedbcd02f5617d0ac6aa2c7eedd317c0a9221fcc39487daf557749d74",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "native_music_runtime.hpp",
+      "slug": "native-music-runtime",
+      "callables": 0,
+      "types": 0,
+      "properties": 0,
+      "source_sha256": "9b2b2b220d66bf3fef5257dbcb916afb9e0ce62676c673c3945be0c50e4d7adf",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "native_music_service.hpp",
+      "slug": "native-music-service",
+      "callables": 1,
+      "types": 0,
+      "properties": 0,
+      "source_sha256": "f89ef58b6a7973715c8d9c021e3bc7da5efa16c596391ead545bff79f8b18354",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "navigation.hpp",
+      "slug": "navigation",
+      "callables": 17,
+      "types": 10,
+      "properties": 62,
+      "source_sha256": "b0e5d8ee7a985306f27ebc2137bbd002f6fb7b25a5b026063d4dbfc9c43e93d2",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "navigation_components.hpp",
+      "slug": "navigation-components",
+      "callables": 21,
+      "types": 5,
+      "properties": 33,
+      "source_sha256": "1c097d418c71b80d737b2f67a0c0dce4e89ad159d3cd508508249734795352f8",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "object_model.hpp",
       "slug": "object-model",
-      "callables": 297,
-      "types": 47,
-      "properties": 143,
-      "source_sha256": "b73aa1805129cf7dbc51729d7fa96ca854ede4ecc4b394f5a8846f823c0ee38e",
+      "callables": 300,
+      "types": 49,
+      "properties": 154,
+      "source_sha256": "4fe1fbfa15fa61ecbaedaf1138a073ab23e0a2da8224ab470bbc2a0c74a6db67",
       "diagnostics": []
     },
     {
@@ -380,8 +438,8 @@
       "header": "palette.hpp",
       "slug": "palette",
       "callables": 2,
-      "types": 2,
-      "properties": 4,
+      "types": 1,
+      "properties": 0,
       "source_sha256": "70158d8896728b39759bea97bcaf8fad01ac0ef6afe14bf4efd77a8c5cf0431f",
       "diagnostics": []
     },
@@ -390,7 +448,7 @@
       "header": "palette_types.hpp",
       "slug": "palette-types",
       "callables": 4,
-      "types": 2,
+      "types": 3,
       "properties": 12,
       "source_sha256": "ff3e249638384816b9aeab84b2b56b71c39f65aef7935ac30757868b0f238084",
       "diagnostics": []
@@ -400,8 +458,8 @@
       "header": "particle_effect_runtime.hpp",
       "slug": "particle-effect-runtime",
       "callables": 22,
-      "types": 7,
-      "properties": 43,
+      "types": 6,
+      "properties": 29,
       "source_sha256": "f23f2c74a3ae50cc7586b251fcb71740173696c9eaa9e640402fff7086f8f5ea",
       "diagnostics": []
     },
@@ -430,8 +488,8 @@
       "header": "particles.hpp",
       "slug": "particles",
       "callables": 10,
-      "types": 3,
-      "properties": 23,
+      "types": 2,
+      "properties": 20,
       "source_sha256": "07dad5f6b5b55b05e631ca17c7c60571f9ef99a5ba050d30a7cbfc2465a03ba4",
       "diagnostics": []
     },
@@ -449,10 +507,10 @@
       "family": "epok",
       "header": "polygon.hpp",
       "slug": "polygon",
-      "callables": 11,
-      "types": 6,
-      "properties": 18,
-      "source_sha256": "4b831ae91e5d05c78644f2970b558d83e360b8aa7748d85c9f8645bcfec56d05",
+      "callables": 13,
+      "types": 8,
+      "properties": 21,
+      "source_sha256": "a9e048fab8eebedeae8f407c0e0e4a6975272dd73bcdb734e38bdf0710308288",
       "diagnostics": []
     },
     {
@@ -469,10 +527,10 @@
       "family": "epok",
       "header": "retained.hpp",
       "slug": "retained",
-      "callables": 8,
-      "types": 5,
-      "properties": 36,
-      "source_sha256": "8446d4b6cb87336c3c7cd3f15238b314cbb655af86ceae73c77933444693c6d2",
+      "callables": 11,
+      "types": 6,
+      "properties": 38,
+      "source_sha256": "a4393ba0060af49799e281a08a057e5eff17af955122d4ceac980a7d8f4f61d6",
       "diagnostics": []
     },
     {
@@ -491,18 +549,18 @@
       "slug": "sequence-clock",
       "callables": 3,
       "types": 0,
-      "properties": 2,
-      "source_sha256": "847b3cb6ee8f2435397c5b4d0e3445258186c4ed4b10118fd971bab1f4600816",
+      "properties": 3,
+      "source_sha256": "1d6090446ae27cdddadaa70fce588244e1e71847e434ad3a338e1447160fc738",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "sequence_data.hpp",
       "slug": "sequence-data",
-      "callables": 14,
+      "callables": 16,
       "types": 4,
       "properties": 32,
-      "source_sha256": "d2817648cfba6fe050f2b75c98533dde58ec3efe3c057932d72610d0f8b285d7",
+      "source_sha256": "45ce28374f823f81088e3b10a37dc43e57e93b914db888c4f517e85297166549",
       "diagnostics": []
     },
     {
@@ -512,7 +570,7 @@
       "callables": 3,
       "types": 0,
       "properties": 0,
-      "source_sha256": "14581f81b739a16618484a8fa25002a37ef61619b49af09e0325ddb68d64182d",
+      "source_sha256": "2a0220cb0cc5c2673a227b4717ebcae4dd8437e60a4710f75a7cbba97b255afe",
       "diagnostics": []
     },
     {
@@ -522,7 +580,7 @@
       "callables": 23,
       "types": 7,
       "properties": 87,
-      "source_sha256": "19545fb04950c96ecd82db3c56d7158da940111cae53043fa43a9dde1cb7ea66",
+      "source_sha256": "646bf37c6eb8f803c3c7c844145121f8dc1bf65c73dacc188b09fa23dc31510e",
       "diagnostics": []
     },
     {
@@ -539,10 +597,10 @@
       "family": "epok",
       "header": "sequence_service.hpp",
       "slug": "sequence-service",
-      "callables": 28,
+      "callables": 31,
       "types": 6,
-      "properties": 79,
-      "source_sha256": "88c64d663f2da49e30e5296111973c379bbc768dfa0919eb579cbba0224838dd",
+      "properties": 94,
+      "source_sha256": "4b85a304830b176a625b18cde5c478aab213b28591eee68a9b3971b49897e882",
       "diagnostics": []
     },
     {
@@ -580,19 +638,29 @@
       "header": "shadows.hpp",
       "slug": "shadows",
       "callables": 1,
-      "types": 2,
-      "properties": 3,
-      "source_sha256": "f06f1f2cca746b401ff27dee711166172c8a513f2a280ffa4423f44b3d2723e4",
+      "types": 1,
+      "properties": 0,
+      "source_sha256": "1cb27989e09d218a244cc2faf3c5a3f201148959f9b688384686bae27949171d",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "skeletal.hpp",
       "slug": "skeletal",
-      "callables": 17,
+      "callables": 19,
       "types": 2,
       "properties": 5,
-      "source_sha256": "96b7b3db56cb7ee2211c3fcc9598b87c04d3d096a581081f22fc7ef2729cfdf8",
+      "source_sha256": "ecc58bb0ac0444c09c1b2b675959af7c729bf4352a54c312d77632d297924b37",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "sprite_math.hpp",
+      "slug": "sprite-math",
+      "callables": 2,
+      "types": 0,
+      "properties": 0,
+      "source_sha256": "0a37fcfa1c89b5be4766ac065335a3e4b6c29597f3e78c4997ef28abebd217c1",
       "diagnostics": []
     },
     {
@@ -600,7 +668,7 @@
       "header": "sprite_types.hpp",
       "slug": "sprite-types",
       "callables": 8,
-      "types": 6,
+      "types": 7,
       "properties": 41,
       "source_sha256": "5024d28805d8f7b1c6b90c13ef633a6ee5bc18c10d16d632fe4229349ea4982d",
       "diagnostics": []
@@ -612,7 +680,7 @@
       "callables": 5,
       "types": 2,
       "properties": 0,
-      "source_sha256": "a5853ebe17779855e7a951497f33c8eeaecb9e1220eacc8457e767ed104af8ca",
+      "source_sha256": "7240f80905938a8b352b681b47f259a27f5763d0095498e0b6fd71bb7c379642",
       "diagnostics": []
     },
     {
@@ -640,8 +708,8 @@
       "header": "streaming_pool.hpp",
       "slug": "streaming-pool",
       "callables": 13,
-      "types": 2,
-      "properties": 13,
+      "types": 1,
+      "properties": 8,
       "source_sha256": "a8d8cfe15cd65701265fbcd66698a6555cb84e77b3b3c5feb25022334c01b7de",
       "diagnostics": []
     },
@@ -662,7 +730,7 @@
       "callables": 5,
       "types": 0,
       "properties": 0,
-      "source_sha256": "8534d626f9cded8c54fbc0f0c873a7bdb860fb4768a585084b36c35cede4da86",
+      "source_sha256": "789bd0eccd2af9114417557836cc9ade2477ff8b41ebd776f0f44545088df1bb",
       "diagnostics": []
     },
     {
@@ -692,7 +760,7 @@
       "callables": 3,
       "types": 6,
       "properties": 20,
-      "source_sha256": "5a63662524140e445de2f17d1a4f1875895afe071ac545c7c94644c01ffd7b5f",
+      "source_sha256": "24cb5042a89a56b9981bced55e469a53157915a8d85d817bde8e68b82ea1e2d9",
       "diagnostics": []
     },
     {
@@ -700,8 +768,8 @@
       "header": "timeline_runtime.hpp",
       "slug": "timeline-runtime",
       "callables": 32,
-      "types": 12,
-      "properties": 79,
+      "types": 11,
+      "properties": 68,
       "source_sha256": "5bb7273dab79f3c5d3597ad9b828eaacd05b0db5e9eb4e423af149e075f9f870",
       "diagnostics": []
     },
@@ -719,10 +787,10 @@
       "family": "epok",
       "header": "transform_cache.hpp",
       "slug": "transform-cache",
-      "callables": 3,
-      "types": 2,
-      "properties": 9,
-      "source_sha256": "6dd2171c177fdce549eee9950232bd90353c3cf1f3821b7a5c355ff7c33b8cdb",
+      "callables": 4,
+      "types": 1,
+      "properties": 2,
+      "source_sha256": "8513efcf4b86eaed3b272f8886d8980aebdbbe804f47335435873211d15bc248",
       "diagnostics": []
     },
     {
@@ -739,10 +807,10 @@
       "family": "epok",
       "header": "utility.hpp",
       "slug": "utility",
-      "callables": 55,
-      "types": 16,
-      "properties": 37,
-      "source_sha256": "fccc098ff797101ca1d294e77f18149491bca5a42408e4139b963cf9869db250",
+      "callables": 64,
+      "types": 17,
+      "properties": 57,
+      "source_sha256": "c31cec9ce5bc2f85e472abc9aef55f3067ae3a71d614cbd440ed173b817e1a42",
       "diagnostics": []
     },
     {
@@ -760,8 +828,8 @@
       "header": "world2d.hpp",
       "slug": "world2d",
       "callables": 45,
-      "types": 13,
-      "properties": 55,
+      "types": 11,
+      "properties": 46,
       "source_sha256": "fe74d215c3d452c6f155dd67a8d335cb080696a8a9ba067d05c8e5e215821bbe",
       "diagnostics": []
     },
@@ -773,9 +841,7 @@
       "types": 0,
       "properties": 0,
       "source_sha256": "acbf938b97f5127ab28e44027cd951d98e1cbb3d2f5549b597c3225f92b69ee2",
-      "diagnostics": [
-        "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok-api-psyqo.cpp:1:10: fatal error: 'array' file not found"
-      ]
+      "diagnostics": []
     },
     {
       "family": "psyqo",
@@ -801,7 +867,7 @@
       "family": "psyqo",
       "header": "bezier.hh",
       "slug": "bezier",
-      "callables": 1,
+      "callables": 2,
       "types": 0,
       "properties": 0,
       "source_sha256": "4795bffc23bfcda70fbe4161a3dafa86f0b9e40e0320314f23d60b131cc6fd9f",
@@ -861,8 +927,8 @@
       "family": "psyqo",
       "header": "cdrom.hh",
       "slug": "cdrom",
-      "callables": 10,
-      "types": 3,
+      "callables": 5,
+      "types": 2,
       "properties": 3,
       "source_sha256": "926077f0496ff80c9b68f9b6e9be73631e5adb36e569fd17659c42970d6520c9",
       "diagnostics": []
@@ -871,9 +937,9 @@
       "family": "psyqo",
       "header": "coroutine.hh",
       "slug": "coroutine",
-      "callables": 44,
-      "types": 9,
-      "properties": 7,
+      "callables": 34,
+      "types": 7,
+      "properties": 2,
       "source_sha256": "1f7fb1de89183cdd2ca5fe9a3505769cc0aee95ee45e31f9db4bdabefd07be1d",
       "diagnostics": []
     },
@@ -881,7 +947,7 @@
       "family": "psyqo",
       "header": "fixed-point.hh",
       "slug": "fixed-point",
-      "callables": 49,
+      "callables": 50,
       "types": 2,
       "properties": 3,
       "source_sha256": "0744776790428769a46aadba405a47c8799dd8e3489ee7b9bf30512198d18116",
@@ -892,8 +958,8 @@
       "header": "font.hh",
       "slug": "font",
       "callables": 18,
-      "types": 3,
-      "properties": 4,
+      "types": 2,
+      "properties": 0,
       "source_sha256": "9ad21d9f5b178a170ef0508c0a9d249ea34739a14b711665b267e49557030306",
       "diagnostics": []
     },
@@ -921,9 +987,9 @@
       "family": "psyqo",
       "header": "gpu.hh",
       "slug": "gpu",
-      "callables": 51,
-      "types": 10,
-      "properties": 26,
+      "callables": 46,
+      "types": 7,
+      "properties": 16,
       "source_sha256": "b41653e8941308284d22a258f255389744e81903a23b9a968289e6e380fead72",
       "diagnostics": []
     },
@@ -951,7 +1017,7 @@
       "family": "psyqo",
       "header": "gte-registers.hh",
       "slug": "gte-registers",
-      "callables": 33,
+      "callables": 101,
       "types": 4,
       "properties": 79,
       "source_sha256": "d0d655ed9e63fc8dd1dd99da4874c9d9b83bbaaa2c284f819e2b55bd0dce3e63",
@@ -963,7 +1029,7 @@
       "slug": "hardware-cdrom",
       "callables": 4,
       "types": 3,
-      "properties": 36,
+      "properties": 44,
       "source_sha256": "d8a4609c31942703ee3051608f55257557e10bcd0000361f3b293e663f026659",
       "diagnostics": []
     },
@@ -1062,8 +1128,8 @@
       "header": "memory-card-filesystem.hh",
       "slug": "memory-card-filesystem",
       "callables": 20,
-      "types": 8,
-      "properties": 9,
+      "types": 7,
+      "properties": 8,
       "source_sha256": "88c72ddd2a0c536894770f7d922221b96e62bf2f63a195367962e5dbbeeb1fa8",
       "diagnostics": []
     },

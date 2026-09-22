@@ -972,9 +972,7 @@ fn has_delay_node(body: &[Statement]) -> bool {
             completed,
             cancelled,
             ..
-        } => {
-            has_delay_node(reached) || has_delay_node(completed) || has_delay_node(cancelled)
-        }
+        } => has_delay_node(reached) || has_delay_node(completed) || has_delay_node(cancelled),
         _ => false,
     })
 }

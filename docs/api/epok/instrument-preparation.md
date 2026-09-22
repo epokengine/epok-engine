@@ -43,9 +43,9 @@ inline constexpr uint16_t bucket_count(uint16_t capacity)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `capacity` | `int` | Input | Value supplied for `capacity`. See the exact type and module contract. |
+| `capacity` | `uint16_t` | Input | Value supplied for `capacity`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument preparation module and the preconditions in the declaration are already satisfied.
 
@@ -55,7 +55,7 @@ inline constexpr uint16_t bucket_count(uint16_t capacity)
 #include "instrument_preparation.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int capacity
+// uint16_t capacity
 
 auto result = epok::instrument::preparation::bucket_count(capacity);
 ```
@@ -85,9 +85,9 @@ Cache(Key* k,synth::State* s,uint16_t* b,uint16_t n,uint16_t bs):key
 | --- | --- | --- | --- |
 | `k` | `Key *` | Input/output; inspect the function contract | Value supplied for `k`. See the exact type and module contract. |
 | `s` | `synth::State *` | Input/output; inspect the function contract | Value supplied for `s`. See the exact type and module contract. |
-| `b` | `int *` | Input/output; inspect the function contract | Value supplied for `b`. See the exact type and module contract. |
-| `n` | `int` | Input | Value supplied for `n`. See the exact type and module contract. |
-| `bs` | `int` | Input | Value supplied for `bs`. See the exact type and module contract. |
+| `b` | `uint16_t *` | Input/output; inspect the function contract | Value supplied for `b`. See the exact type and module contract. |
+| `n` | `uint16_t` | Input | Value supplied for `n`. See the exact type and module contract. |
+| `bs` | `uint16_t` | Input | Value supplied for `bs`. See the exact type and module contract. |
 
 **Use it when.** You need the instrument preparation module and the preconditions in the declaration are already satisfied.
 
@@ -99,9 +99,9 @@ Cache(Key* k,synth::State* s,uint16_t* b,uint16_t n,uint16_t bs):key
 // Assume these named values have been initialized with valid data:
 // Key * k
 // synth::State * s
-// int * b
-// int n
-// int bs
+// uint16_t * b
+// uint16_t n
+// uint16_t bs
 
 epok::instrument::preparation::Cache value(k, s, b, n, bs);
 ```
@@ -129,9 +129,9 @@ const synth::State* find(uint16_t zone,uint8_t note,uint8_t velocity,const seque
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `zone` | `int` | Input | Value supplied for `zone`. See the exact type and module contract. |
-| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
-| `velocity` | `int` | Input | Value supplied for `velocity`. See the exact type and module contract. |
+| `zone` | `uint16_t` | Input | Value supplied for `zone`. See the exact type and module contract. |
+| `note` | `uint8_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `velocity` | `uint8_t` | Input | Value supplied for `velocity`. See the exact type and module contract. |
 | `channel` | `const sequence::Channel &` | Input | Value supplied for `channel`. See the exact type and module contract. |
 
 **Returns.** Returns `const synth::State *`. Check the purpose and failure notes before using the value.
@@ -144,9 +144,9 @@ const synth::State* find(uint16_t zone,uint8_t note,uint8_t velocity,const seque
 #include "instrument_preparation.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int zone
-// int note
-// int velocity
+// uint16_t zone
+// uint8_t note
+// uint8_t velocity
 // const sequence::Channel & channel
 
 epok::instrument::preparation::Cache& object = /* obtain a valid instance */;
@@ -178,11 +178,11 @@ uint16_t insert(const BankView& bank,uint16_t zone,const sequence::Note& note,co
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `bank` | `const BankView &` | Input | Value supplied for `bank`. See the exact type and module contract. |
-| `zone` | `int` | Input | Value supplied for `zone`. See the exact type and module contract. |
+| `zone` | `uint16_t` | Input | Value supplied for `zone`. See the exact type and module contract. |
 | `note` | `const sequence::Note &` | Input | Value supplied for `note`. See the exact type and module contract. |
 | `channel` | `const sequence::Channel &` | Input | Value supplied for `channel`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument preparation module and the preconditions in the declaration are already satisfied.
 
@@ -193,7 +193,7 @@ uint16_t insert(const BankView& bank,uint16_t zone,const sequence::Note& note,co
 
 // Assume these named values have been initialized with valid data:
 // const BankView & bank
-// int zone
+// uint16_t zone
 // const sequence::Note & note
 // const sequence::Channel & channel
 
@@ -227,8 +227,8 @@ bool prepare(const BankView& bank,const sequence::Event* events,uint32_t size,ui
 | --- | --- | --- | --- |
 | `bank` | `const BankView &` | Input | Value supplied for `bank`. See the exact type and module contract. |
 | `events` | `const sequence::Event *` | Input | Value supplied for `events`. See the exact type and module contract. |
-| `size` | `int` | Input | Value supplied for `size`. See the exact type and module contract. |
-| `ppqn` | `int` | Input | Value supplied for `ppqn`. See the exact type and module contract. |
+| `size` | `uint32_t` | Input | Value supplied for `size`. See the exact type and module contract. |
+| `ppqn` | `uint16_t` | Input | Value supplied for `ppqn`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -242,8 +242,8 @@ bool prepare(const BankView& bank,const sequence::Event* events,uint32_t size,ui
 // Assume these named values have been initialized with valid data:
 // const BankView & bank
 // const sequence::Event * events
-// int size
-// int ppqn
+// uint32_t size
+// uint16_t ppqn
 
 epok::instrument::preparation::Cache& object = /* obtain a valid instance */;
 
@@ -275,7 +275,7 @@ uint16_t slot(const Key& key)const
 | --- | --- | --- | --- |
 | `key` | `const Key &` | Input | Value supplied for `key`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument preparation module and the preconditions in the declaration are already satisfied.
 
@@ -358,10 +358,10 @@ inline uint16_t initial_pitch(const BankView& bank,uint16_t zone,const synth::St
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `bank` | `const BankView &` | Input | Value supplied for `bank`. See the exact type and module contract. |
-| `zone` | `int` | Input | Value supplied for `zone`. See the exact type and module contract. |
+| `zone` | `uint16_t` | Input | Value supplied for `zone`. See the exact type and module contract. |
 | `state` | `const synth::State &` | Input | Value supplied for `state`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Compute it before the clock starts; other source pitches retain the live calculation.
 
@@ -372,7 +372,7 @@ inline uint16_t initial_pitch(const BankView& bank,uint16_t zone,const synth::St
 
 // Assume these named values have been initialized with valid data:
 // const BankView & bank
-// int zone
+// uint16_t zone
 // const synth::State & state
 
 auto result = epok::instrument::preparation::initial_pitch(bank, zone, state);
@@ -397,7 +397,7 @@ uint32_t hash()const
 - **Declared at:** [line 56](../../../runtime/instrument_preparation.hpp#L56)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the instrument preparation module and the preconditions in the declaration are already satisfied.
 
@@ -463,9 +463,9 @@ Key(uint16_t zone,uint8_t note,uint8_t velocity,const sequence::Channel& c)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `zone` | `int` | Input | Value supplied for `zone`. See the exact type and module contract. |
-| `note` | `int` | Input | Value supplied for `note`. See the exact type and module contract. |
-| `velocity` | `int` | Input | Value supplied for `velocity`. See the exact type and module contract. |
+| `zone` | `uint16_t` | Input | Value supplied for `zone`. See the exact type and module contract. |
+| `note` | `uint8_t` | Input | Value supplied for `note`. See the exact type and module contract. |
+| `velocity` | `uint8_t` | Input | Value supplied for `velocity`. See the exact type and module contract. |
 | `c` | `const sequence::Channel &` | Input | Value supplied for `c`. See the exact type and module contract. |
 
 **Use it when.** You need the instrument preparation module and the preconditions in the declaration are already satisfied.
@@ -476,9 +476,9 @@ Key(uint16_t zone,uint8_t note,uint8_t velocity,const sequence::Channel& c)
 #include "instrument_preparation.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int zone
-// int note
-// int velocity
+// uint16_t zone
+// uint8_t note
+// uint8_t velocity
 // const sequence::Channel & c
 
 epok::instrument::preparation::Key value(zone, note, velocity, c);

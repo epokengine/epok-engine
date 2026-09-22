@@ -2,12 +2,21 @@ pub fn inspector(ui: &imgui::Ui, entity: &mut crate::scene::Actor) {
     if entity.collider.is_none() {
         return;
     }
-    if !crate::gui::heading(ui, "Box Collider") {
+    let mut remove = false;
+    let open = crate::gui::section(ui, "Box Collider", || {
+        remove = ui.menu_item("Remove Box Collider");
+    });
+    if remove {
+        entity.collider = None;
+        ui.separator();
+        return;
+    }
+    if !open {
         return;
     }
     let collider = entity.collider.as_mut().unwrap();
-    ui.checkbox("Enabled##collider", &mut collider.enabled);
-    ui.checkbox("Trigger##collider", &mut collider.trigger);
+    crate::gui::toggle(ui, "Enabled##collider", &mut collider.enabled);
+    crate::gui::toggle(ui, "Trigger##collider", &mut collider.trigger);
     crate::gui::Drag::new(crate::gui::field(ui, "Center##collider"))
         .speed(0.01)
         .range(-128., 128.)
@@ -35,8 +44,5 @@ pub fn inspector(ui: &imgui::Ui, entity: &mut crate::scene::Actor) {
         collider.mask = value;
     }
     ui.text_wrapped("Boxes use conservative world AABBs after hierarchy transforms. Triggers report enter/stay/exit and do not block movement. Layer/mask values are bit fields.");
-    if ui.small_button("Remove Box Collider") {
-        entity.collider = None;
-    }
     ui.separator();
 }

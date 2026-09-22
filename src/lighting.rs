@@ -136,6 +136,7 @@ pub const NORMALS: [[f32; 3]; 6] = [
 ];
 pub fn tiled(e: &Actor) -> bool {
     e.skeletal_mesh.is_none()
+        && e.terrain.is_none()
         && e.editable_mesh.is_none()
         && e.kind == "Mesh"
         && e.scale[1] <= 0.25
@@ -159,7 +160,7 @@ pub fn quad_count(e: &Actor) -> usize {
     if e.kind != "Mesh" {
         return 0;
     }
-    if e.editable_mesh.is_some() || e.skeletal_mesh.is_some() {
+    if e.editable_mesh.is_some() || e.terrain.is_some() || e.skeletal_mesh.is_some() {
         return quads(e).len();
     }
     (0..6).map(|f| face_steps(e, f).pow(2)).sum()
@@ -182,6 +183,9 @@ pub fn quads(e: &Actor) -> Vec<Quad> {
     }
     if let Some(mesh) = &e.editable_mesh {
         return crate::mesh_compile::quads(e, mesh);
+    }
+    if let Some(terrain) = &e.terrain {
+        return crate::terrain_compile::quads(terrain);
     }
     let mut out = Vec::new();
     for (face, indices) in FACES.iter().enumerate() {
@@ -339,7 +343,7 @@ fn bake_matches(scene: &Scene, bake: &Bake, fingerprint: u64) -> bool {
 }
 pub fn baked(e: &Actor) -> bool {
     e.kind == "Mesh"
-        && (e.editable_mesh.is_some() || !e.material.unlit)
+        && (e.editable_mesh.is_some() || e.terrain.is_some() || !e.material.unlit)
         && e.lighting.receive == Receive::Baked
 }
 pub fn validate(scene: &Scene) -> Result<(), String> {

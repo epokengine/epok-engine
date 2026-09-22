@@ -451,6 +451,7 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             Kind::AudioClip | Kind::MusicSequence => "Audio",
             Kind::SoundBank => "SoundBank",
             Kind::EditableMesh | Kind::SkeletalMesh | Kind::ModelSource => "Mesh",
+            Kind::Terrain => "Terrain",
             Kind::Skeleton => "Skeleton",
             Kind::AnimationClip => "Animation",
             Kind::Material => "Material",
@@ -666,6 +667,37 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             crate::mesh::Component::new(record.map_or_else(uuid::Uuid::new_v4, |r| r.meta.id));
         c.document = Some(Arc::new(doc));
         e.editable_mesh = Some(c);
+        entity = Some(e);
+    } else if record.is_some_and(|r| r.meta.kind == Kind::Terrain) {
+        let doc = crate::terrain::document(record.unwrap())?;
+        let cells = doc.cells();
+        let span = doc.span();
+        details.fields.push((
+            "Grid".into(),
+            format!(
+                "{} x {} cells of {:.2} units · {:.1} x {:.1} units · {} quads",
+                cells[0],
+                cells[1],
+                doc.cell_size(),
+                span[0],
+                span[1],
+                doc.quad_count()
+            ),
+        ));
+        details.fields.push((
+            "Height range".into(),
+            format!("{:.2} to {:.2}", doc.lowest(), doc.highest()),
+        ));
+        let mut e = Actor::cube("Asset preview".into());
+        e.position = [0.; 3];
+        let mut c =
+            crate::terrain::Component::new(record.map_or_else(uuid::Uuid::new_v4, |r| r.meta.id));
+        c.document = Some(Arc::new(doc));
+        e.terrain = Some(c);
+        points = crate::lighting::quads(&e)
+            .into_iter()
+            .flat_map(|q| q.points)
+            .collect();
         entity = Some(e);
     } else if extension == "fbx"
         || record.is_some_and(|r| {

@@ -29,6 +29,22 @@ pub fn pick(scene: &Scene, view: &View, pixel: [f32; 2]) -> Option<usize> {
                     .then_some((index, p[2] - 1.));
             }
             let world = scene.world_matrix(index);
+            if let Some(doc) = e.terrain.as_ref().and_then(|t| t.document.as_ref()) {
+                // March the height grid instead of testing every cell: a click
+                // costs the cells the ray crosses, not the whole terrain. The
+                // ray parameter is affine-invariant, so `t` found in local space
+                // ranks against the other actors' world-space depths directly.
+                let inverse = world.inverse().ok()?;
+                let origin = inverse.point(start);
+                let local = inverse.vector(direction);
+                let hit = doc.raycast(origin, local)?;
+                let axis = (0..3).max_by(|a, b| local[*a].abs().total_cmp(&local[*b].abs()))?;
+                if local[axis].abs() < 1e-9 {
+                    return None;
+                }
+                let t = (hit[axis] - origin[axis]) / local[axis];
+                return (t > 0. && t <= 19999.).then_some((index, t));
+            }
             if e.skeletal_mesh.is_some() || e.editable_mesh.is_some() {
                 // Use the current posed surfaces, including inherited reflection
                 // and shear. A missing model must not become an invisible cube.
@@ -119,6 +135,41 @@ impl ClickGesture {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn clicking_a_terrain_selects_it_where_the_surface_is() {
+        use crate::{scene::Scene, viewport::View};
+        let mut doc = crate::terrain::Document::new([16, 16], 2.);
+        for j in 0..=16 {
+            for i in 0..=16 {
+                doc.set_height(i, j, if i > 8 { 4. } else { 0. });
+            }
+        }
+        let mut actor = crate::scene::Actor::cube("Terrain".into());
+        actor.position = [0.; 3];
+        let mut component = crate::terrain::Component::new(uuid::Uuid::new_v4());
+        component.document = Some(std::sync::Arc::new(doc));
+        actor.terrain = Some(component);
+        let scene = Scene {
+            actors: vec![actor],
+            ..Default::default()
+        };
+        // Looking straight down at the low half of the grid, far from the
+        // actor origin: the unit-cube test the legacy path uses would miss.
+        let view = View {
+            center: [-8., 0., 0.],
+            distance: 30.,
+            pitch: -std::f32::consts::FRAC_PI_2 + 0.01,
+            ..Default::default()
+        };
+        assert_eq!(pick(&scene, &view, [480., 300.]), Some(0));
+        // Off the footprint there is nothing to select.
+        let away = View {
+            center: [200., 0., 200.],
+            ..view
+        };
+        assert_eq!(pick(&scene, &away, [480., 300.]), None);
+    }
+
     use super::*;
     use crate::{scene::Actor, viewport};
     fn scene(actors: Vec<Actor>) -> Scene {

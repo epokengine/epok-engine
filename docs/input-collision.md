@@ -14,7 +14,7 @@ C++ scene banks. A collider can be attached, enabled, disabled or removed throug
 
 ## Controller and simulation
 
-`epok::input` reads both ports through PsyQo AdvancedPad. Port arguments are
+`epok::input` reads the configured pads through PsyQo AdvancedPad. Port arguments are
 zero-based and default to the first port. `held`, `pressed`, and `released` take
 a `epok::Button` (`Cross`, `Start`, `Up`, `Left`, etc.). A disconnection releases
 all held buttons. Edges are buffered until a simulation update runs and delivered
@@ -24,12 +24,14 @@ once, including when several fixed updates catch up during a rendered frame.
 `input.axis_raw(Axis::LeftX/LeftY/RightX/RightY, port)` returns signed Q12 values
 from -4096 to +4096, with positive X right and positive Y up. The centered ADC
 value 128 maps exactly to zero; both endpoints reach full magnitude. Digital
-controllers, disconnected ports and invalid arguments return zero. Axis state
+controllers, disconnected ports and invalid arguments return zero. Four logical
+controllers are available: Pad 1..4 map to a PSX multitap's Pad1a..Pad1d sockets
+on native hardware and to the matching virtual pads in Native PC Play. Axis state
 is sampled independently of button edges and remains available on catch-up ticks.
 The input layer does not impose a dead zone: controllers should apply a radial
 dead zone and limit diagonal magnitude before deriving movement speed.
 
-Analog stick (0x53) and analog pad (0x73) packets are supported on both ports.
+Analog stick (0x53) and analog pad (0x73) packets are supported on every active pad.
 The controller or emulator must be configured to send analog packets; digital
 keyboard button overrides do not synthesize variable stick values.
 The Play dropdown's **Analog controller (port 1)** option selects an analog pad

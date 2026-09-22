@@ -6,7 +6,7 @@ This module covers sprites, flipbooks and screen-facing rendering. It documents 
 
 ## Declared types
 
-`epok::Sprite`, `epok::SpriteAnimator`, `epok::SpriteClip`, `epok::SpriteFrame`, `epok::SpriteOrientation`, `epok::SpriteStats`
+`epok::Fixed`, `epok::Sprite`, `epok::SpriteAnimator`, `epok::SpriteClip`, `epok::SpriteFrame`, `epok::SpriteOrientation`, `epok::SpriteStats`
 
 ## Callable index
 
@@ -38,7 +38,7 @@ void advance(Fixed dt,Sprite& sprite)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `dt` | `int` | Input | Value supplied for `dt`. See the exact type and module contract. |
+| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
 | `sprite` | `Sprite &` | Input/output; inspect the function contract | Value supplied for `sprite`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -51,7 +51,7 @@ void advance(Fixed dt,Sprite& sprite)
 #include "sprite_types.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int dt
+// Fixed dt
 // Sprite & sprite
 
 epok::SpriteAnimator& object = /* obtain a valid instance */;
@@ -124,7 +124,7 @@ void emit(uint16_t event)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `event` | `int` | Input | Value supplied for `event`. See the exact type and module contract. |
+| `event` | `uint16_t` | Input | Value supplied for `event`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -136,7 +136,7 @@ void emit(uint16_t event)
 #include "sprite_types.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int event
+// uint16_t event
 
 epok::SpriteAnimator& object = /* obtain a valid instance */;
 
@@ -199,7 +199,7 @@ bool play(uint16_t index)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `index` | `int` | Input | Value supplied for `index`. See the exact type and module contract. |
+| `index` | `uint16_t` | Input | Value supplied for `index`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -211,7 +211,7 @@ bool play(uint16_t index)
 #include "sprite_types.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int index
+// uint16_t index
 
 epok::SpriteAnimator& object = /* obtain a valid instance */;
 
@@ -241,7 +241,7 @@ bool poll_event(uint16_t& event)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `event` | `int &` | Input/output; inspect the function contract | Value supplied for `event`. See the exact type and module contract. |
+| `event` | `uint16_t &` | Input/output; inspect the function contract | Value supplied for `event`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -253,7 +253,7 @@ bool poll_event(uint16_t& event)
 #include "sprite_types.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int & event
+// uint16_t & event
 
 epok::SpriteAnimator& object = /* obtain a valid instance */;
 

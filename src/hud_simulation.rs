@@ -12,7 +12,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver},
     },
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 /// The two phases of the native preview, and the boundary between them.
@@ -488,11 +488,29 @@ pub fn build(
     catalog: &[Script],
     cancel: &AtomicBool,
 ) -> Result<PathBuf, String> {
+    build_runner(root, scene, catalog, cancel, Runner::HudPreview)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Runner {
+    HudPreview,
+    NativePlay,
+}
+
+pub(crate) fn build_runner(
+    root: &Path,
+    scene: &Scene,
+    catalog: &[Script],
+    cancel: &AtomicBool,
+    runner: Runner,
+) -> Result<PathBuf, String> {
     scene.validate()?;
     // A Blueprint-driven entity gets its own diagnostic: the generic "unsupported
     // component" message reads as a missing feature, while this one has to say
     // that the logic does not run, so nothing is rendered as if it had.
-    if let Some(entity) = blueprint_driven(scene, catalog) {
+    if runner == Runner::HudPreview
+        && let Some(entity) = blueprint_driven(scene, catalog)
+    {
         return Err(format!(
             "{BLUEPRINT_UNSUPPORTED} `{entity}` is driven by a Blueprint class."
         ));
@@ -548,11 +566,25 @@ pub fn build(
         "text.hpp".into(),
         include_bytes!("../runtime/text.hpp").to_vec(),
     );
-    files.insert("display.hh".into(),format!("#pragma once\nnamespace epok {{inline constexpr int display_width={},display_height={};}}\n",scene.display_size[0],scene.display_size[1]).into_bytes());
     files.insert(
-        "hud_runner.cpp".into(),
-        include_bytes!("../native/hud_runner.cpp").to_vec(),
+        "display.hh".into(),
+        if runner == Runner::NativePlay {
+            crate::settings::rendering(root)?.header()?.into_bytes()
+        } else {
+            format!("#pragma once\nnamespace epok {{inline constexpr int display_width={},display_height={};}}\n",scene.display_size[0],scene.display_size[1]).into_bytes()
+        },
     );
+    let (runner_source, runner_bytes) = match runner {
+        Runner::HudPreview => (
+            "hud_runner.cpp",
+            include_bytes!("../native/hud_runner.cpp").as_slice(),
+        ),
+        Runner::NativePlay => (
+            "native_play_runner.cpp",
+            include_bytes!("../native/native_play_runner.cpp").as_slice(),
+        ),
+    };
+    files.insert(runner_source.into(), runner_bytes.to_vec());
     files.insert(
         "hud_commands.hpp".into(),
         include_bytes!("../native/hud_commands.hpp").to_vec(),
@@ -561,6 +593,12 @@ pub fn build(
         "hud_preview.h".into(),
         include_bytes!("../native/hud_preview.h").to_vec(),
     );
+    if runner == Runner::NativePlay {
+        files.insert(
+            "native_play_protocol.h".into(),
+            include_bytes!("../native/native_play_protocol.h").to_vec(),
+        );
+    }
     files.insert(
         "EASTL/functional.h".into(),
         b"#pragma once\n#include <functional>\nnamespace eastl {using std::function;}\n".to_vec(),
@@ -585,29 +623,75 @@ pub fn build(
     }
     // Snapshot all headers/local includes; compile only the attached classes and
     // their bases. Unavailable hardware services produce a visible linker error.
-    let native = crate::script_backend::prepare_native(root)?;
+    let native = if runner == Runner::NativePlay {
+        let native_catalog = catalog
+            .iter()
+            .filter(|script| {
+                script
+                    .classes
+                    .iter()
+                    .all(|class| class.provider.id == "cpp")
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        crate::script_backend::prepare_all(root, &native_catalog)?
+    } else {
+        crate::script_backend::prepare_native(root)?
+    };
+    if runner == Runner::NativePlay {
+        sources = native.native_sources.iter().cloned().collect();
+    }
+    let native_blueprints = native.runtime_capabilities.contains("blueprint");
     files.extend(native.files);
-    let mut compiler = host_compiler()?;
+    let compiler_signature = format!("{:?}", host_compiler()?);
+    let compile_configuration = format!(
+        "runner={runner:?};blueprints={native_blueprints};registry=256;objects=1;platform={};flags=cpp20,exceptions,o2,editor-preview,no-warnings",
+        if cfg!(windows) { "msvc" } else { "posix" }
+    );
     use sha2::{Digest, Sha256};
     let mut hash = Sha256::new();
-    hash.update(format!("{:?}", compiler));
+    hash.update(&compiler_signature);
+    hash.update(&compile_configuration);
     for (path, bytes) in &files {
         hash.update(path.to_string_lossy().as_bytes());
         hash.update([0]);
         hash.update(bytes);
     }
     let key = format!("{:x}", hash.finalize());
-    let cache = root.join(".epok/native-preview").join(key);
+    let base = root.join(if runner == Runner::HudPreview {
+        ".epok/native-preview"
+    } else {
+        ".epok/native-play"
+    });
+    let cache = base.join(key);
     let exe = cache.join(if cfg!(windows) {
         "runner.exe"
     } else {
         "runner"
     });
     if exe.is_file() {
+        touch_cache(&cache);
+        prune_native_cache(&base, &cache);
         return Ok(exe);
     }
+    let mut common = Sha256::new();
+    common.update(&compiler_signature);
+    common.update(&compile_configuration);
+    // A header/generated-runtime change conservatively invalidates every object.
+    // Independent C++ implementation files retain their own immutable objects.
+    for (path, bytes) in &files {
+        if path.extension().is_some_and(|extension| extension == "cpp") {
+            continue;
+        }
+        common.update(path.to_string_lossy().as_bytes());
+        common.update([0]);
+        common.update(bytes);
+    }
+    let common = common.finalize();
+    let mut compile_sources = vec![PathBuf::from(runner_source)];
+    compile_sources.extend(sources);
     let stage = cache.join(uuid::Uuid::new_v4().to_string());
-    for (path, bytes) in files {
+    for (path, bytes) in &files {
         let path = stage.join(path);
         fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
         fs::write(path, bytes).map_err(|e| e.to_string())?;
@@ -617,61 +701,105 @@ pub fn build(
     } else {
         "runner"
     });
-    compiler.current_dir(&stage);
-    if cfg!(windows) {
-        compiler.args([
-            "/nologo",
-            "/std:c++20",
-            "/EHsc",
-            "/O2",
-            "/W0",
-            "/D_CRT_SECURE_NO_WARNINGS",
-            "/DEPOK_EDITOR_PREVIEW",
-            "/I.",
-            "/Iscripts",
-        ]);
-        compiler.arg(format!("/Fe:{}", output.display()));
-    } else {
-        compiler
-            .args([
-                "-std=c++20",
-                "-O2",
-                "-DEPOK_EDITOR_PREVIEW",
-                "-I.",
-                "-Iscripts",
-                "-o",
-            ])
-            .arg(&output);
-    }
-    compiler.arg("hud_runner.cpp");
-    compiler.args(sources);
     let log = stage.join("compile.log");
-    let file = fs::File::create(&log).map_err(|e| e.to_string())?;
-    compiler
-        .stdout(file.try_clone().map_err(|e| e.to_string())?)
-        .stderr(file);
-    crate::pipeline::quiet(&mut compiler);
-    let mut child = compiler
-        .spawn()
-        .map_err(|e| format!("Start native C++ compiler: {e}"))?;
-    let started = Instant::now();
-    loop {
-        if cancel.load(Ordering::Relaxed) || started.elapsed() > Duration::from_secs(120) {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err("Native compilation cancelled or timed out".into());
-        }
-        if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
-            if !status.success() {
-                return Err(format!(
-                    "Native HUD compilation failed. Controllers must use portable C++ and supported HUD services.\n{}\nLog: {}",
-                    fs::read_to_string(&log).unwrap_or_default(),
-                    log.display()
-                ));
+    fs::File::create(&log).map_err(|e| e.to_string())?;
+    let object_cache = base.join("objects");
+    fs::create_dir_all(&object_cache).map_err(|e| e.to_string())?;
+    let mut objects = Vec::with_capacity(compile_sources.len());
+    for (source_index, source) in compile_sources.into_iter().enumerate() {
+        let bytes = files
+            .get(&source)
+            .ok_or_else(|| format!("Native source {} was not staged", source.display()))?;
+        let mut object_hash = Sha256::new();
+        object_hash.update(common.as_slice());
+        object_hash.update(source.to_string_lossy().as_bytes());
+        object_hash.update([0]);
+        object_hash.update(bytes);
+        let object = object_cache.join(format!(
+            "{:x}.{}",
+            object_hash.finalize(),
+            if cfg!(windows) { "obj" } else { "o" }
+        ));
+        if !object.is_file() {
+            let staged = stage.join(format!(
+                "{}.{}",
+                uuid::Uuid::new_v4(),
+                if cfg!(windows) { "obj" } else { "o" }
+            ));
+            let mut compiler = host_compiler()?;
+            compiler.current_dir(&stage);
+            if cfg!(windows) {
+                compiler.args([
+                    "/nologo",
+                    "/std:c++20",
+                    "/EHsc",
+                    "/O2",
+                    "/W0",
+                    "/D_CRT_SECURE_NO_WARNINGS",
+                    "/DEPOK_EDITOR_PREVIEW",
+                    "/I.",
+                    "/Iscripts",
+                    "/c",
+                ]);
+                if native_blueprints {
+                    compiler.arg("/DEPOK_BLUEPRINTS");
+                }
+                if runner == Runner::NativePlay {
+                    compiler.arg("/DEPOK_OBJECT_REGISTRY_CAPACITY=256");
+                }
+                compiler
+                    .arg(&source)
+                    .arg(format!("/Fo{}", staged.display()));
+            } else {
+                compiler.args([
+                    "-std=c++20",
+                    "-O2",
+                    "-DEPOK_EDITOR_PREVIEW",
+                    "-I.",
+                    "-Iscripts",
+                    "-c",
+                ]);
+                if native_blueprints {
+                    compiler.arg("-DEPOK_BLUEPRINTS");
+                }
+                if runner == Runner::NativePlay {
+                    compiler.arg("-DEPOK_OBJECT_REGISTRY_CAPACITY=256");
+                }
+                compiler.arg(&source).arg("-o").arg(&staged);
             }
-            break;
+            if !run_host_command(&mut compiler, &log, cancel)? {
+                return Err(native_compile_error(runner, &log));
+            }
+            if !object.exists() {
+                fs::rename(&staged, &object)
+                    .or_else(|error| if object.exists() { Ok(()) } else { Err(error) })
+                    .map_err(|error| error.to_string())?;
+            }
         }
-        std::thread::sleep(Duration::from_millis(30));
+        // Link from the short staging path. MSVC's linker does not consistently
+        // accept Win32 extended-length object paths supplied on its command line.
+        let local_name = format!(
+            "object-{source_index}.{}",
+            if cfg!(windows) { "obj" } else { "o" }
+        );
+        let local = stage.join(&local_name);
+        fs::hard_link(&object, &local)
+            .or_else(|_| fs::copy(&object, &local).map(|_| ()))
+            .map_err(|error| error.to_string())?;
+        objects.push(PathBuf::from(local_name));
+    }
+    let mut linker = host_compiler()?;
+    linker.current_dir(&stage);
+    if cfg!(windows) {
+        linker
+            .arg("/nologo")
+            .arg(format!("/Fe:{}", output.display()));
+    } else {
+        linker.arg("-o").arg(&output);
+    }
+    linker.args(objects);
+    if !run_host_command(&mut linker, &log, cancel)? {
+        return Err(native_compile_error(runner, &log));
     }
     // A concurrent preview may have published the same immutable artifact.
     if !exe.exists() {
@@ -679,7 +807,124 @@ pub fn build(
             .or_else(|e| if exe.exists() { Ok(()) } else { Err(e) })
             .map_err(|e| e.to_string())?;
     }
+    // The immutable executable and object cache are the only reusable outputs.
+    // Keeping a complete generated source tree for every content hash caused
+    // long-lived projects to accumulate gigabytes of redundant staging data.
+    let _ = fs::remove_dir_all(&stage);
+    touch_cache(&cache);
+    prune_native_cache(&base, &cache);
     Ok(exe)
+}
+
+const NATIVE_CACHE_BUILDS: usize = 6;
+const NATIVE_OBJECT_FILES: usize = 128;
+const NATIVE_OBJECT_BYTES: u64 = 128 * 1024 * 1024;
+
+fn modified(path: &Path) -> SystemTime {
+    fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .unwrap_or(SystemTime::UNIX_EPOCH)
+}
+
+fn touch_cache(cache: &Path) {
+    // Content is irrelevant; replacing the marker records actual use without
+    // changing the immutable runner that the cache key certifies.
+    let _ = fs::write(cache.join("used"), format!("{:?}", SystemTime::now()));
+}
+
+fn prune_files(directory: &Path, max_files: usize, max_bytes: u64) {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+    let mut files = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .collect::<Vec<_>>();
+    files.sort_by_key(|path| std::cmp::Reverse(modified(path)));
+    let mut retained = 0usize;
+    let mut bytes = 0u64;
+    for path in files {
+        let size = fs::metadata(&path)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
+        if retained < max_files && bytes.saturating_add(size) <= max_bytes {
+            retained += 1;
+            bytes = bytes.saturating_add(size);
+        } else {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
+fn prune_native_cache(base: &Path, current: &Path) {
+    let runner = if cfg!(windows) {
+        "runner.exe"
+    } else {
+        "runner"
+    };
+    let Ok(entries) = fs::read_dir(base) else {
+        return;
+    };
+    let mut completed = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path != current && path.join(runner).is_file())
+        .collect::<Vec<_>>();
+    completed.sort_by_key(|path| std::cmp::Reverse(modified(&path.join("used"))));
+    for path in completed
+        .into_iter()
+        .skip(NATIVE_CACHE_BUILDS.saturating_sub(1))
+    {
+        let _ = fs::remove_dir_all(path);
+    }
+    prune_files(
+        &base.join("objects"),
+        NATIVE_OBJECT_FILES,
+        NATIVE_OBJECT_BYTES,
+    );
+}
+fn native_compile_error(runner: Runner, log: &Path) -> String {
+    format!(
+        "{} compilation failed. Controllers must use portable C++ and supported runtime services.\n{}\nLog: {}",
+        if runner == Runner::HudPreview {
+            "Native HUD"
+        } else {
+            "Native PC Play"
+        },
+        fs::read_to_string(log).unwrap_or_default(),
+        log.display()
+    )
+}
+fn run_host_command(
+    command: &mut Command,
+    log: &Path,
+    cancel: &AtomicBool,
+) -> Result<bool, String> {
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)
+        .map_err(|error| error.to_string())?;
+    command
+        .stdout(file.try_clone().map_err(|error| error.to_string())?)
+        .stderr(file);
+    crate::pipeline::quiet(command);
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("Start native C++ compiler: {error}"))?;
+    let started = Instant::now();
+    loop {
+        if cancel.load(Ordering::Relaxed) || started.elapsed() > Duration::from_secs(120) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("Native compilation cancelled or timed out".into());
+        }
+        if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+            return Ok(status.success());
+        }
+        std::thread::sleep(Duration::from_millis(30));
+    }
 }
 fn host_compiler() -> Result<Command, String> {
     #[cfg(windows)]
@@ -793,6 +1038,40 @@ mod tests {
         assert!(simulate.phase.runs_begin_play());
         // The runner never sets the Blueprint bit; the handshake reports false.
         assert!(!simulate.blueprint_support());
+    }
+    #[test]
+    fn native_cache_retention_is_bounded() {
+        let root = std::env::temp_dir().join(format!("epok-native-cache-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(root.join("objects")).unwrap();
+        let runner = if cfg!(windows) {
+            "runner.exe"
+        } else {
+            "runner"
+        };
+        for index in 0..10 {
+            let cache = root.join(format!("build-{index}"));
+            fs::create_dir_all(&cache).unwrap();
+            fs::write(cache.join(runner), b"runner").unwrap();
+            fs::write(cache.join("used"), index.to_string()).unwrap();
+        }
+        let current = root.join("build-9");
+        prune_native_cache(&root, &current);
+        let completed = fs::read_dir(&root)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| path.join(runner).is_file())
+            .count();
+        assert!(current.join(runner).is_file());
+        assert!(completed <= NATIVE_CACHE_BUILDS);
+
+        let objects = root.join("objects");
+        for index in 0..5 {
+            fs::write(objects.join(format!("{index}.obj")), [index as u8; 4]).unwrap();
+        }
+        prune_files(&objects, 2, 8);
+        assert_eq!(fs::read_dir(&objects).unwrap().count(), 2);
+        fs::remove_dir_all(root).unwrap();
     }
     #[test]
     fn blueprint_driven_scene_reports_its_own_diagnostic() {

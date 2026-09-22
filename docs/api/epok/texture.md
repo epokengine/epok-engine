@@ -101,7 +101,7 @@ auto result = epok::texture_clut(t);
 **Exact declaration**
 
 ```cpp
-inline psyqo::PrimPieces::TPageAttr texture_page(const Texture& t,BlendMode blend)
+inline psyqo::PrimPieces::TPageAttr texture_page(const Texture& t,BlendMode blend,bool dithering=false)
 ```
 
 - **Declared at:** [line 9](../../../runtime/texture.hpp#L9)
@@ -113,6 +113,7 @@ inline psyqo::PrimPieces::TPageAttr texture_page(const Texture& t,BlendMode blen
 | --- | --- | --- | --- |
 | `t` | `const Texture &` | Input | Value supplied for `t`. See the exact type and module contract. |
 | `blend` | `BlendMode` | Input | Value supplied for `blend`. See the exact type and module contract. |
+| `dithering` | `bool` | Input | Value supplied for `dithering`. See the exact type and module contract. |
 
 **Returns.** Returns `psyqo::PrimPieces::TPageAttr`. Check the purpose and failure notes before using the value.
 
@@ -126,8 +127,9 @@ inline psyqo::PrimPieces::TPageAttr texture_page(const Texture& t,BlendMode blen
 // Assume these named values have been initialized with valid data:
 // const Texture & t
 // BlendMode blend
+// bool dithering
 
-auto result = epok::texture_page(t, blend);
+auto result = epok::texture_page(t, blend, dithering);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to native text data and HUD text components. No exception-based error path is implied by the signature.
@@ -154,8 +156,8 @@ inline psyqo::PrimPieces::UVCoords texture_uv(const Texture& t,int32_t u,int32_t
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `t` | `const Texture &` | Input | Value supplied for `t`. See the exact type and module contract. |
-| `u` | `int` | Input | Value supplied for `u`. See the exact type and module contract. |
-| `v` | `int` | Input | Value supplied for `v`. See the exact type and module contract. |
+| `u` | `int32_t` | Input | Value supplied for `u`. See the exact type and module contract. |
+| `v` | `int32_t` | Input | Value supplied for `v`. See the exact type and module contract. |
 
 **Returns.** Returns `psyqo::PrimPieces::UVCoords`. Check the purpose and failure notes before using the value.
 
@@ -168,8 +170,8 @@ inline psyqo::PrimPieces::UVCoords texture_uv(const Texture& t,int32_t u,int32_t
 
 // Assume these named values have been initialized with valid data:
 // const Texture & t
-// int u
-// int v
+// int32_t u
+// int32_t v
 
 auto result = epok::texture_uv(t, u, v);
 ```

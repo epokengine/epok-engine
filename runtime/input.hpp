@@ -11,24 +11,24 @@ enum class Button : uint8_t {
 enum class Axis : uint8_t { LeftX, LeftY, RightX, RightY };
 class Input {
     struct State { uint16_t held=0, pending_pressed=0, pending_released=0, pressed=0, released=0,frame_pressed=0,frame_released=0; bool connected=false,analog=false; int16_t axes[4]={}; };
-    State ports[2];
+    State ports[4];
     static uint16_t mask(Button b) { return uint8_t(b)<16?uint16_t(1u << uint8_t(b)):0; }
 public:
-    bool connected(unsigned port=0) const { return port<2 && ports[port].connected; }
+    bool connected(unsigned port=0) const { return port<4 && ports[port].connected; }
     bool analog(unsigned port=0) const { return connected(port) && ports[port].analog; }
     int16_t axis_raw(Axis axis,unsigned port=0) const {
         return analog(port) && unsigned(axis)<4 ? ports[port].axes[unsigned(axis)] : 0;
     }
-    bool held(Button b,unsigned port=0) const { return port<2 && (ports[port].held & mask(b)); }
-    bool pressed(Button b,unsigned port=0) const { return port<2 && (ports[port].pressed & mask(b)); }
-    bool released(Button b,unsigned port=0) const { return port<2 && (ports[port].released & mask(b)); }
-    bool frame_pressed(Button b,unsigned port=0) const { return port<2 && (ports[port].frame_pressed & mask(b)); }
-    bool frame_released(Button b,unsigned port=0) const { return port<2 && (ports[port].frame_released & mask(b)); }
+    bool held(Button b,unsigned port=0) const { return port<4 && (ports[port].held & mask(b)); }
+    bool pressed(Button b,unsigned port=0) const { return port<4 && (ports[port].pressed & mask(b)); }
+    bool released(Button b,unsigned port=0) const { return port<4 && (ports[port].released & mask(b)); }
+    bool frame_pressed(Button b,unsigned port=0) const { return port<4 && (ports[port].frame_pressed & mask(b)); }
+    bool frame_released(Button b,unsigned port=0) const { return port<4 && (ports[port].frame_released & mask(b)); }
     // Sampling accumulates edges until a simulation tick consumes them. A render
     // with no tick cannot lose a quick press/release; catch-up ticks don't repeat it.
     void sample(unsigned port,bool connected,uint16_t held,bool analog=false,
                 uint8_t left_x=128,uint8_t left_y=128,uint8_t right_x=128,uint8_t right_y=128) {
-        if(port>=2)return;
+        if(port>=4)return;
         auto& s=ports[port];if(!connected)held=0;
         s.frame_pressed=uint16_t(held & ~s.held);s.frame_released=uint16_t(s.held & ~held);
         s.pending_pressed |= s.frame_pressed;
@@ -57,6 +57,19 @@ public:
             } else {
                 sample(p,connected,bits);
             }
+        }
+    }
+    // AdvancedPad indexes the four sockets of a multitap on the first physical
+    // port as 0..3 (the second physical port begins at 4). Desktop profiles use
+    // the same logical Pad 1..4 numbering.
+    template<class PadReader> void poll_multitap(const PadReader& pad) {
+        for(unsigned p=0;p<4;++p) {
+            auto port=static_cast<typename PadReader::Pad>(p);bool connected=pad.isPadConnected(port);uint16_t bits=0;
+            if(connected)for(unsigned b=0;b<16;++b)if(pad.isButtonPressed(port,static_cast<typename PadReader::Button>(b)))bits|=uint16_t(1u<<b);
+            if constexpr(requires { pad.getPadType(port);pad.getAdc(port,0); }) {
+                const auto type=pad.getPadType(port);const bool analog=connected&&(type==0x53||type==0x73);
+                sample(p,connected,bits,analog,pad.getAdc(port,2),pad.getAdc(port,3),pad.getAdc(port,0),pad.getAdc(port,1));
+            } else sample(p,connected,bits);
         }
     }
     void begin_tick() {

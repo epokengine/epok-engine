@@ -1,9 +1,9 @@
 # Timeline assets and scene directors
 
 For step-by-step effect authoring, use [Using the VFX editor](vfx-editor.md).
-[Connect a spell to Blueprint gameplay](spell-tutorial.md) covers spawning,
-markers and cancellation. This page describes scene directors and the shared
-timeline reference, including limits, bindings and cache behavior.
+This page describes scene directors and the shared timeline reference, including
+limits, bindings and cache behavior, and how Blueprints spawn effects and wait on
+their markers.
 
 TimelineAsset creates and validates reusable source assets and previews their
 property values. TimelineComponent binds an asset to scene entities and plays
@@ -15,8 +15,7 @@ Choose **New Timeline** in the Project browser, or double-click an existing
 `.timeline.json` file. Add a typed binding slot, select a reflected class, and
 choose an explicitly animatable property. Add two to four keys and markers,
 then scrub **Preview tick**. Values use integer Q12 evaluation, including on
-the host. There are 4096 ticks per second. The [spell example](../examples/timeline-spell/README.md)
-contains a charge curve and Cast, Impact, and Aftermath markers.
+the host. There are 4096 ticks per second.
 
 Use **Validate** to cook immutable tables and refresh the preview cache. Source
 files remain JSON below the project's `assets/`. Derived tables and host source
@@ -151,8 +150,9 @@ property/event tracks, four keys per curve, 64 event keys, and 64 markers. These
 independent of the runtime's eight director instances and eight components.
 Pool exhaustion skips the new request and increments dropped-work diagnostics.
 Existing particle limits
-remain 64 emitters, 128 particles per emitter, 256 globally, and 2048 sprite
-triangles per frame.
+remain 64 emitters, 128 particles per emitter and 256 globally. The native sprite
+triangle budget defaults to 2048 per frame and is configurable from 64 to 2048
+in Project Settings → Rendering → Geometry.
 
 ## Identity, editing, and validation
 

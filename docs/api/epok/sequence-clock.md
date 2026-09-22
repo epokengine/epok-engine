@@ -22,7 +22,7 @@ This module covers the sequence clock module. It documents 3 public callables de
 inline void sequence_clock_irq()
 ```
 
-- **Declared at:** [line 25](../../../runtime/sequence_clock.hpp#L25)
+- **Declared at:** [line 29](../../../runtime/sequence_clock.hpp#L29)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -53,7 +53,7 @@ epok::sequence_clock_irq();
 inline bool sequence_clock_start()
 ```
 
-- **Declared at:** [line 43](../../../runtime/sequence_clock.hpp#L43)
+- **Declared at:** [line 47](../../../runtime/sequence_clock.hpp#L47)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -84,10 +84,10 @@ auto result = epok::sequence_clock_start();
 inline uint16_t sequence_hsync()
 ```
 
-- **Declared at:** [line 14](../../../runtime/sequence_clock.hpp#L14)
+- **Declared at:** [line 18](../../../runtime/sequence_clock.hpp#L18)
 - **Kind:** `function decl`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need the sequence clock module and the preconditions in the declaration are already satisfied.
 

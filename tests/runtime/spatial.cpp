@@ -93,6 +93,19 @@ static void rays_and_ground() {
     hit=world.ground(box(2.25,0.,0.),3.,0xffffffffu,0);assert(hit.entity==1); // footprint catches edge
     uint16_t matches[1]={99};assert(world.overlap(box(0.,0.,0.),matches,1)==1&&matches[0]==0);
     assert(world.overlap(box(0.,0.,0.),nullptr,0)==1);
+    epok::RaycastQueryT<Q12> batch[4]={
+        {{-2.,0.,0.},{4.,0.,0.}},{{2.,0.,0.},{-4.,0.,0.}},
+        {{0.,0.,0.},{0.,0.,0.}},{{0.,4.,0.},{0.,-8.,0.}}};
+    epok::SpatialHitT<Q12> results[4];
+    for(unsigned mask:{0u,1u,0xffffffffu})for(int ignore:{-1,0,1})for(bool triggers:{false,true}){
+        world.raycast_batch(batch,results,4,mask,ignore,triggers);
+        for(int i=0;i<4;++i){const auto reference=world.raycast(batch[i].origin,batch[i].displacement,mask,ignore,triggers);
+            assert(results[i].entity==reference.entity&&results[i].generation==reference.generation&&results[i].started_inside==reference.started_inside);
+            assert(results[i].fraction.raw()==reference.fraction.raw());
+            for(int k=0;k<3;++k)assert(results[i].point[k].raw()==reference.point[k].raw()&&results[i].normal[k].raw()==reference.normal[k].raw());}
+    }
+    results[0].entity=99;world.raycast_batch(batch,results,0);assert(results[0].entity==99);
+    world.raycast_batch(nullptr,results,4);world.raycast_batch(batch,nullptr,4);
 }
 static void sweeps() {
     { // Conservative broad phase retains contacts exactly at the endpoint.
@@ -150,10 +163,13 @@ static void ramps() {
 static void triggers_and_transform() {
     World world;auto c=collider();c.trigger=true;world.set(0,c,matrix(),true,7);world.set(1,collider(),matrix(),true,8);
     std::vector<epok::TriggerEvent> events;auto callback=[&](auto event){events.push_back(event);};
+    assert(!world.has_trigger_pairs());
     world.update_triggers(callback);assert(events.size()==1&&events[0].phase==epok::TriggerPhase::Enter);
+    assert(world.has_trigger_pairs());
     events.clear();world.update_triggers(callback);assert(events.size()==1&&events[0].phase==epok::TriggerPhase::Stay);
     events.clear();world.set(1,collider(),matrix(),true,9);world.update_triggers(callback);assert(events.size()==2&&events[0].phase==epok::TriggerPhase::Enter&&events[1].phase==epok::TriggerPhase::Exit);
     events.clear();world.begin_sync();world.set(0,c,matrix(),true,7);world.update_triggers(callback);assert(events.size()==1&&events[0].phase==epok::TriggerPhase::Exit);
+    assert(!world.has_trigger_pairs());
     events.clear();world.clear();for(int i=0;i<5;++i)world.set(i,c,matrix());world.update_triggers(callback);assert(events.size()==4&&world.dropped_trigger_pairs==6);
     auto m=matrix(2.,3.,4.);m.values[0][1]=2.;m.values[1][1]=3.;auto bounds=epok::collider_bounds(collider(),m);assert(real(bounds.min[0])==.5&&real(bounds.max[1])==4.5);
 }

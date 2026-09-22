@@ -2,25 +2,101 @@
 #define EPOK_INCLUDE_FROM_UTILITY 1
 #include "epok.hpp"
 #undef EPOK_INCLUDE_FROM_UTILITY
+#include "fixed_math.hpp"
 namespace epok {
 inline Fixed lerp(Fixed a,Fixed b,Fixed t){if(t.raw()<0)t=0.0;if(t.raw()>4096)t=1.0;return Fixed(int32_t(int64_t(a.raw())+(int64_t(b.raw())-a.raw())*t.raw()/4096),Fixed::RAW);}
-enum class Ease {Linear,SmoothStep,InQuad,OutQuad};
-inline Fixed ease(Fixed t,Ease kind){if(t.raw()<0)t=0.0;if(t.raw()>4096)t=1.0;switch(kind){case Ease::SmoothStep:return t*t*(Fixed(3.0)-t*2);case Ease::InQuad:return t*t;case Ease::OutQuad:return t*(Fixed(2.0)-t);default:return t;}}
+// Serialized in authored content as Linear=0, SmoothStep=1, InQuad=2, OutQuad=3.
+// Curves are appended only: reordering would reshape every tween already saved.
+// Sine, exponential, elastic, back and bounce are absent because no fixed-point
+// trigonometric primitive exists on the target and none is being added for them.
+enum class Ease {Linear,SmoothStep,InQuad,OutQuad,InOutQuad,InCubic,OutCubic,InOutCubic,InQuart,OutQuart,InOutQuart,InQuint,OutQuint,InOutQuint,InCirc,OutCirc,InOutCirc};
+// Replay plan for one tween. Restart repeats the same leg; PingPong swaps the
+// endpoints on every other leg. Neither name may be a Lua keyword, which rules
+// out the obvious `repeat`/`until` spellings.
+enum class TweenLoop {None,Restart,PingPong};
+// Q12 easing. Every curve returns exactly 0 at t=0 and exactly 4096 at t=1, which
+// is what lets Tween::advance land on `to` the moment elapsed reaches duration.
+// The In/Out halves double the argument before taking the power rather than
+// scaling a truncated power afterwards: scaling afterwards costs an order of
+// magnitude of accuracy by the fifth power. SmoothStep, InQuad and OutQuad keep
+// their original expressions so already authored tweens keep their exact shape;
+// OutQuad therefore truncates the whole product instead of only the square.
+inline Fixed ease(Fixed t,Ease kind){
+    if(t.raw()<0)t=0.0;if(t.raw()>4096)t=1.0;
+    using fixed_math::powq;using fixed_math::q_sqrt;
+    const int32_t u=t.raw(),v=4096-u;const bool rising=u*2<=4096;
+    const auto q=[](int32_t raw){return Fixed(raw,Fixed::RAW);};
+    switch(kind){
+        case Ease::SmoothStep:return t*t*(Fixed(3.0)-t*2);
+        case Ease::InQuad:return t*t;
+        case Ease::OutQuad:return t*(Fixed(2.0)-t);
+        case Ease::InOutQuad:return q(rising?powq(u*2,2)/2:4096-powq(v*2,2)/2);
+        case Ease::InCubic:return q(powq(u,3));
+        case Ease::OutCubic:return q(4096-powq(v,3));
+        case Ease::InOutCubic:return q(rising?powq(u*2,3)/2:4096-powq(v*2,3)/2);
+        case Ease::InQuart:return q(powq(u,4));
+        case Ease::OutQuart:return q(4096-powq(v,4));
+        case Ease::InOutQuart:return q(rising?powq(u*2,4)/2:4096-powq(v*2,4)/2);
+        case Ease::InQuint:return q(powq(u,5));
+        case Ease::OutQuint:return q(4096-powq(v,5));
+        case Ease::InOutQuint:return q(rising?powq(u*2,5)/2:4096-powq(v*2,5)/2);
+        case Ease::InCirc:return q(4096-q_sqrt(4096-powq(u,2)));
+        case Ease::OutCirc:return q(q_sqrt(4096-powq(v,2)));
+        case Ease::InOutCirc:return q(rising?(4096-q_sqrt(4096-powq(u*2,2)))/2:(4096+q_sqrt(4096-powq(v*2,2)))/2);
+        default:return t;
+    }
+}
 // Value tween: the project applies its output to any property. It does not retain
 // raw references to entity fields that could be invalidated by a scene switch.
 class Tween {
-    Fixed from=0.0,to=0.0,duration=1.0,elapsed=0.0;Ease easing=Ease::Linear;
-    bool running=false,finished=false;
+    Fixed from=0.0,to=0.0,duration=1.0,elapsed=0.0,delay=0.0;Ease easing=Ease::Linear;
+    TweenLoop looping=TweenLoop::None;uint32_t cycles=1;
+    bool running=false,finished=false,reversed=false;
 public:
-    bool start(Fixed a,Fixed b,Fixed seconds,Ease mode=Ease::Linear){if(seconds.raw()<0)return false;from=a;to=b;duration=seconds;elapsed=0.0;easing=mode;running=seconds.raw()>0;finished=!running;return true;}
-    Fixed value() const{return duration.raw()==0?to:lerp(from,to,ease(Fixed(int32_t(int64_t(elapsed.raw())*4096/duration.raw()),Fixed::RAW),easing));}
-    Fixed advance(Fixed dt){if(running&&dt.raw()>0){int64_t next=int64_t(elapsed.raw())+dt.raw();elapsed=Fixed(int32_t(next>duration.raw()?duration.raw():next),Fixed::RAW);if(elapsed>=duration){running=false;finished=true;}}return value();}
+    bool start(Fixed a,Fixed b,Fixed seconds,Ease mode=Ease::Linear){return schedule(a,b,seconds,mode,0.0,TweenLoop::None,1);}
+    // `wait` holds the first leg back without shortening it. `legs` counts the
+    // duration spans to play and 0 asks for an unbounded replay; without a loop
+    // mode exactly one leg plays whatever `legs` says. A zero duration is already
+    // finished on arrival, so it ignores the wait rather than deferring `to`.
+    bool schedule(Fixed a,Fixed b,Fixed seconds,Ease mode,Fixed wait,TweenLoop loop,uint32_t legs){
+        if(seconds.raw()<0||wait.raw()<0)return false;
+        from=a;to=b;duration=seconds;elapsed=0.0;delay=wait;easing=mode;looping=loop;
+        cycles=loop==TweenLoop::None?1:legs;running=seconds.raw()>0;finished=!running;reversed=false;return true;
+    }
+    Fixed ratio() const{return duration.raw()==0?Fixed(4096,Fixed::RAW):Fixed(int32_t(int64_t(elapsed.raw())*4096/duration.raw()),Fixed::RAW);}
+    // The eased interpolation parameter. A reversed leg mirrors the curve about
+    // both axes, which is the same shape with the endpoints swapped and keeps both
+    // turnarounds exact. Vector tweens read this value and lerp each component
+    // with it, so they agree with three scalar tweens raw unit for raw unit; a zero
+    // duration answers 1 so both forms report `to` whatever leg a record claims.
+    Fixed alpha() const{if(duration.raw()==0)return Fixed(4096,Fixed::RAW);const auto eased=ease(ratio(),easing);return reversed?Fixed(4096-eased.raw(),Fixed::RAW):eased;}
+    Fixed value() const{return duration.raw()==0?to:lerp(from,to,alpha());}
+    // Whole completed legs are counted by one division, so a long delta cannot
+    // spin here and an unbounded ping-pong keeps the correct leg parity.
+    Fixed advance(Fixed dt){
+        if(running&&dt.raw()>0){
+            int64_t step=dt.raw();
+            if(delay.raw()>0){const int64_t left=int64_t(delay.raw())-step;delay=Fixed(int32_t(left>0?left:0),Fixed::RAW);step=left>0?0:-left;}
+            int64_t next=int64_t(elapsed.raw())+step;
+            if(next>=duration.raw()){
+                const int64_t legs=next/duration.raw();
+                if(cycles&&int64_t(cycles)<=legs){if(looping==TweenLoop::PingPong&&((cycles-1)&1))reversed=!reversed;next=duration.raw();cycles=1;running=false;finished=true;}
+                else{next-=legs*duration.raw();if(cycles)cycles-=uint32_t(legs);if(looping==TweenLoop::PingPong&&(legs&1))reversed=!reversed;}
+            }
+            elapsed=Fixed(int32_t(next),Fixed::RAW);
+        }
+        return value();
+    }
     void cancel(){running=finished=false;}bool playing()const{return running;}
     bool take_completion(){bool result=finished;finished=false;return result;}
     Fixed start_value()const{return from;}Fixed end_value()const{return to;}
     Fixed duration_value()const{return duration;}Fixed elapsed_value()const{return elapsed;}
     Ease ease_kind()const{return easing;}bool completion_pending()const{return finished;}
-    void restore(Fixed a,Fixed b,Fixed seconds,Fixed progress,Ease mode,bool active,bool completion){from=a;to=b;duration=seconds;elapsed=progress;easing=mode;running=active;finished=completion;}
+    Fixed delay_value()const{return delay;}TweenLoop loop_mode()const{return looping;}
+    uint32_t cycles_remaining()const{return cycles;}bool reversed_leg()const{return reversed;}
+    void restore(Fixed a,Fixed b,Fixed seconds,Fixed progress,Ease mode,bool active,bool completion,Fixed wait=0.0,TweenLoop loop=TweenLoop::None,uint32_t legs=1,bool reverse=false){
+        from=a;to=b;duration=seconds;elapsed=progress;easing=mode;running=active;finished=completion;delay=wait;looping=loop;cycles=legs;reversed=reverse;
+    }
 };
 struct QueueEvent {uint16_t kind=0;int32_t value=0;DataHandle source;};
 template<size_t Capacity=64> class EventQueue {
@@ -65,7 +141,11 @@ inline void layout_list(DataHandle* children,size_t count,Fixed item_extent,Fixe
 }
 
 struct EPOK_VALUE(Id="d8df46a8-ab62-44a9-8279-420a3765b2d1") FocusSnapshot {bool valid=false;ObjectId current{};uint32_t count=0;};
-struct EPOK_VALUE(Id="5e278107-d8f8-4a76-8c72-568e0d4d3fc2") GameplayTweenState {Fixed from=0.0,to=0.0,duration=0.0,elapsed=0.0;Ease easing=Ease::Linear;bool running=false,completion_pending=false;};
+// Layout is append-only: saved Blueprint graphs address split members by dotted
+// name, so a member added at the end is simply absent from older graphs and
+// takes its pin default there. `cycles_remaining` is 0 in a hand-built record,
+// which reads as unbounded, so gameplay_tween forces one leg when loop is None.
+struct EPOK_VALUE(Id="5e278107-d8f8-4a76-8c72-568e0d4d3fc2") GameplayTweenState {Fixed from=0.0,to=0.0,duration=0.0,elapsed=0.0;Ease easing=Ease::Linear;bool running=false,completion_pending=false;Fixed delay=0.0;TweenLoop loop=TweenLoop::None;uint32_t cycles_remaining=0;bool reversed=false;};
 struct EPOK_VALUE(Id="31e41da8-6334-47f0-99f6-692949bb6f17") TweenAdvanceSample {GameplayTweenState state{};Fixed value=0.0;bool completed=false;};
 struct EPOK_VALUE(Id="9a3e9e93-eade-4991-b813-fc2296542a16") GameplayEventSample {uint32_t kind=0;int32_t value=0;ObjectId source{};};
 struct EPOK_VALUE(Id="15b9944c-8b33-4e23-9951-f4c91c4cf486") GameplayEventQueue4 {GameplayEventSample item0{},item1{},item2{},item3{};uint32_t count=0,dropped=0;};
@@ -75,8 +155,8 @@ struct EPOK_VALUE(Id="c2b92619-e338-42d8-95c1-0ed3862fa361") EventQueuePoll {Gam
 inline ActorData* utility_actor_data(ObjectId id){auto* actor=active_object_registry?active_object_registry->resolve<Actor>(id):nullptr;return actor?actor->data():nullptr;}
 inline ObjectId utility_actor_id(DataHandle value){auto* data=value.get();return data&&data->owner?data->owner->id():ObjectId{};}
 inline Focus<16>& gameplay_focus(){static Focus<16> value;return value;}
-inline GameplayTweenState gameplay_tween_state(const Tween& value){return {value.start_value(),value.end_value(),value.duration_value(),value.elapsed_value(),value.ease_kind(),value.playing(),value.completion_pending()};}
-inline Tween gameplay_tween(GameplayTweenState state){Tween value;value.restore(state.from,state.to,state.duration,state.elapsed,state.easing,state.running,state.completion_pending);return value;}
+inline GameplayTweenState gameplay_tween_state(const Tween& value){return {value.start_value(),value.end_value(),value.duration_value(),value.elapsed_value(),value.ease_kind(),value.playing(),value.completion_pending(),value.delay_value(),value.loop_mode(),value.cycles_remaining(),value.reversed_leg()};}
+inline Tween gameplay_tween(GameplayTweenState state){Tween value;value.restore(state.from,state.to,state.duration,state.elapsed,state.easing,state.running,state.completion_pending,state.delay,state.loop,state.loop==TweenLoop::None?1u:state.cycles_remaining,state.reversed);return value;}
 inline GameplayEventSample gameplay_event(QueueEvent value){return {value.kind,value.value,utility_actor_id(value.source)};}
 inline QueueEvent gameplay_event(GameplayEventSample value){auto* source=utility_actor_data(value.source);return {uint16_t(value.kind>65535?65535:value.kind),value.value,source?handle(source):DataHandle{}};}
 inline GameplayEventQueue4 gameplay_event_queue(EventQueue<4>& value){QueueEvent events[4]{};GameplayEventQueue4 result;result.count=uint32_t(value.snapshot(events,4));result.dropped=value.dropped;GameplayEventSample* output[4]={&result.item0,&result.item1,&result.item2,&result.item3};for(uint32_t i=0;i<result.count;++i)*output[i]=gameplay_event(events[i]);return result;}
@@ -95,6 +175,13 @@ struct EPOK_FUNCTION_LIBRARY(Category="Utilities", Id="6499b0ab-c987-4e1b-b3f3-4
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="8a083901-1054-40d6-9395-0230935d8ad1") static TweenAdvanceSample tween_advance(GameplayTweenState state,Fixed delta_seconds){auto value=gameplay_tween(state);TweenAdvanceSample result;result.value=value.advance(delta_seconds);result.completed=value.completion_pending();result.state=gameplay_tween_state(value);return result;}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="246c8362-87f8-479d-9b0f-352cc292ac27") static GameplayTweenState tween_cancel(GameplayTweenState state){auto value=gameplay_tween(state);value.cancel();return gameplay_tween_state(value);}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="ee9dc203-4641-43aa-a6e4-e270536a1458") static Fixed tween_value(GameplayTweenState state){return gameplay_tween(state).value();}
+    // The full plan: `delay_seconds` holds the first leg back, `loop` and `legs`
+    // decide the replay, and `legs` 0 loops without end. A rejected plan returns
+    // a cancelled state rather than a half-applied one.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="80e1ced0-392c-4534-85bf-d8bef9d016ff") static GameplayTweenState tween_schedule(Fixed from,Fixed to,Fixed seconds,Ease easing,Fixed delay_seconds,TweenLoop loop,uint32_t legs){Tween value;value.schedule(from,to,seconds,easing,delay_seconds,loop,legs);return gameplay_tween_state(value);}
+    // The easing catalogue on its own, for curves applied to something that is
+    // not a tween. `t` is clamped to 0..1 and both endpoints are exact.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="15fc8b3a-80e8-4757-8216-38c89d3e3c7c") static Fixed ease(Fixed t,Ease easing){return epok::ease(t,easing);}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="680b43e9-1329-4382-90bd-48a0cf21fca6") static GameplayEventQueue4 event_queue_clear(){return {};}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="07803730-b04c-4917-af7a-30abf3695271") static EventQueueMutation event_queue_emit(GameplayEventQueue4 state,uint32_t kind,int32_t value,ObjectId source){auto queue=gameplay_event_queue(state);EventQueueMutation result;result.accepted=queue.emit(gameplay_event(GameplayEventSample{kind,value,source}));result.state=gameplay_event_queue(queue);return result;}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="3d9a1ba0-a7b8-4773-aaac-f841c7e7a0da") static EventQueuePoll event_queue_poll(GameplayEventQueue4 state){auto queue=gameplay_event_queue(state);EventQueuePoll result;QueueEvent value;result.valid=queue.poll(value);if(result.valid)result.event=gameplay_event(value);result.state=gameplay_event_queue(queue);return result;}

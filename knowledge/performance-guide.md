@@ -237,7 +237,7 @@ normal cofactors shared per object; `main.o` compiled with `-O2`.
   Epok's existing integration tests use 8077. Tests launching emulators must
   run sequentially if they share a port, and the measured project must be
   closed in the editor. The later streaming tests use 8092 and 8093.
-- `tools/profile_runtime.py` defaults to `examples/rpg-2-5d-demo`; pass
+- `tools/profile_runtime.py` defaults to `examples/sample-game`; pass
   `--project <path>` for another project. `--detail` and `--validate-gte`
   recompile `main.o` with additional work (their timings are not release
   timings) and remove `main.o` when finished.
@@ -263,7 +263,6 @@ rtk proxy python tools/profile_runtime.py --project <project> --output artifacts
 rtk proxy python tests/runtime/verify_spatial.py
 rtk proxy python tests/runtime/verify_sprites_particles.py
 rtk proxy python tests/integration/verify_hud.py
-rtk proxy python tests/integration/verify_rpg.py
 rtk cargo test
 ```
 

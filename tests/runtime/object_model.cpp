@@ -98,6 +98,13 @@ struct ProbeUI : UIActor {
     uint64_t class_id() const override { return static_class_id; }
 };
 struct FrameOnly : ActorComponent { void on_frame(uint32_t) override {} };
+struct MaskTick : ActorComponent {
+    static constexpr uint64_t static_class_id=0x2010;
+    unsigned ticks=0,frames=0;
+    void tick(Fixed) override{++ticks;}
+    void frame_update(uint32_t) override{++frames;}
+};
+struct MaskFrame : MaskTick {static constexpr uint64_t static_class_id=0x2011;};
 struct InheritedTick : ProbeComponent {};
 static_assert(std::is_same_v<decltype(&Mesh3DComponent::tick),decltype(&ActorComponent::tick)>);
 static_assert(!std::is_same_v<decltype(&InheritedTick::tick),decltype(&ActorComponent::tick)>);
@@ -108,11 +115,30 @@ struct OverloadedTick : ActorComponent { void tick(Fixed) override {} void tick(
 static_assert(!ComponentCallbacks<Mesh3DComponent>::tick && !ComponentCallbacks<Mesh3DComponent>::frame);
 static_assert(ComponentCallbacks<InheritedTick>::tick && ComponentCallbacks<FrameOnly>::frame);
 static_assert(ComponentCallbacks<PrivateTick>::tick && ComponentCallbacks<OverloadedTick>::tick);
+struct ActorFrameOnly:Actor3D {void on_frame(uint32_t)override{}};
+struct ActorInheritedTick:ProbeActor{};
+class ActorPrivateTick:public Actor3D {void tick(Fixed)override{}};
+static_assert(!ActorCallbacks<Actor3D>::tick&&!ActorCallbacks<Actor3D>::frame);
+static_assert(ActorCallbacks<ActorFrameOnly>::frame&&!ActorCallbacks<ActorFrameOnly>::tick);
+static_assert(ActorCallbacks<ActorInheritedTick>::tick&&ActorCallbacks<ActorPrivateTick>::tick);
+struct MaskActor:Actor3D {
+    static constexpr uint64_t static_class_id=0x1011;
+    uint64_t class_id()const override{return static_class_id;}
+    unsigned ticks=0,frames=0;
+    void tick(Fixed)override{++ticks;}
+    void frame_update(uint32_t)override{++frames;}
+};
 }  // namespace
 
 // ---- cooked class table ------------------------------------------------------------
 namespace epok {
 const ClassDescriptor object_classes[] = {
+    {MaskActor::static_class_id,Actor3D::static_class_id,ObjectFamily::Actor,ObjectDomain::World3D,0,uint8_t(ObjectClassPlaceable|ObjectClassSpawnable),
+     &object_construct<MaskActor>,&object_destruct,sizeof(MaskActor),alignof(MaskActor),&ObjectPool<MaskActor,1>::acquire,&ObjectPool<MaskActor,1>::release,0,nullptr,false,false},
+    {MaskTick::static_class_id,ActorComponent::static_class_id,ObjectFamily::Component,ObjectDomain::None,object_domain_bit(ObjectDomain::World3D),0,
+     &object_construct<MaskTick>,&object_destruct,sizeof(MaskTick),alignof(MaskTick),&ObjectPool<MaskTick,2>::acquire,&ObjectPool<MaskTick,2>::release,0,nullptr,true,false},
+    {MaskFrame::static_class_id,ActorComponent::static_class_id,ObjectFamily::Component,ObjectDomain::None,object_domain_bit(ObjectDomain::World3D),0,
+     &object_construct<MaskFrame>,&object_destruct,sizeof(MaskFrame),alignof(MaskFrame),&ObjectPool<MaskFrame,2>::acquire,&ObjectPool<MaskFrame,2>::release,0,nullptr,false,true},
     {Object::static_class_id, 0, ObjectFamily::Object, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Object), alignof(Object), nullptr, nullptr},
     {Actor::static_class_id, Object::static_class_id, ObjectFamily::Actor, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Actor), alignof(Actor), nullptr, nullptr},
     {Actor3D::static_class_id, Actor::static_class_id, ObjectFamily::Actor, ObjectDomain::World3D, 0, uint8_t(ObjectClassPlaceable | ObjectClassSpawnable), nullptr, nullptr, sizeof(Actor3D), alignof(Actor3D), nullptr, nullptr},
@@ -149,7 +175,8 @@ const ClassDescriptor& class_of(uint64_t id) {
     return *found;
 }
 ObjectRegistryStorage<32> registry_storage;
-Level game_level;
+struct CallbackTestLevel : Level {using Level::order_components;};
+CallbackTestLevel game_level;
 
 void ProbeActor::begin_play() {
     ++begins;
@@ -171,7 +198,7 @@ void reset() {
         level->end_play_all(EndPlayReason::LevelUnloaded);
         registry_storage.release(level->id());
     }
-    game_level = Level{};
+    game_level = CallbackTestLevel{};
     level = &game_level;
     active_object_registry = &registry_storage;
     registry_storage.stats = ObjectStats{};
@@ -443,6 +470,29 @@ void compact_identities() {
     assert(World::static_class_id == UINT64_C(6971179517075037215));
 }
 
+void callback_masks() {
+    reset();const auto id=spawn(ProbeActor::static_class_id,"Masks");
+    auto* actor=registry_storage.resolve<ProbeActor>(id);
+    auto* ticking=game_level.add_component<MaskTick>(*actor,"Tick");
+    auto* framing=game_level.add_component<MaskFrame>(*actor,"Frame");
+    assert(ticking&&framing);
+    game_level.tick(Fixed(1.0));game_level.frame_update(1000);
+    assert(ticking->ticks==1&&ticking->frames==0&&framing->ticks==0&&framing->frames==1);
+    const ObjectId reordered[]={actor->root_id(),framing->id(),ticking->id()};
+    assert(game_level.order_components(*actor,reordered,3));
+    game_level.tick(Fixed(1.0));game_level.frame_update(1000);
+    assert(ticking->ticks==2&&ticking->frames==0&&framing->ticks==0&&framing->frames==2);
+    assert(game_level.remove_component(*actor,framing->id()));
+    game_level.tick(Fixed(1.0));game_level.frame_update(1000);
+    assert(ticking->ticks==3&&ticking->frames==0);
+    reset();auto* inert=registry_storage.resolve<MaskActor>(spawn(MaskActor::static_class_id,"Inert"));
+    assert(inert);game_level.tick(Fixed(1.0));game_level.frame_update(1000);
+    assert(inert->ticks==0&&inert->frames==0);
+    auto* live=game_level.add_component<MaskTick>(*inert,"Live");assert(live);
+    game_level.tick(Fixed(1.0));game_level.frame_update(1000);
+    assert(live->ticks==1&&inert->ticks==0&&inert->frames==0);
+}
+
 void family_queries_and_pending_release() {
     reset();
     const auto id = spawn(ProbeActor::static_class_id, "FamilyProbe");
@@ -501,6 +551,7 @@ int main() {
     deferred_mutations();
     capacity_and_rollback();
     component_rules();
+    callback_masks();
     activation_propagation();
     attachment_rules();
     reset();

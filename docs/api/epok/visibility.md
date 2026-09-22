@@ -43,7 +43,7 @@ bool candidate(size_t chunk) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `chunk` | `int` | Input | Value supplied for `chunk`. See the exact type and module contract. |
+| `chunk` | `size_t` | Input | Value supplied for `chunk`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -55,7 +55,7 @@ bool candidate(size_t chunk) const
 #include "visibility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int chunk
+// size_t chunk
 
 epok::ChunkVisibilityMask& object = /* obtain a valid instance */;
 
@@ -201,7 +201,7 @@ const ChunkBasisBounds* cached_basis_bounds(size_t chunk) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `chunk` | `int` | Input | Value supplied for `chunk`. See the exact type and module contract. |
+| `chunk` | `size_t` | Input | Value supplied for `chunk`. See the exact type and module contract. |
 
 **Returns.** Returns `const ChunkBasisBounds *`. Check the purpose and failure notes before using the value.
 
@@ -213,7 +213,7 @@ const ChunkBasisBounds* cached_basis_bounds(size_t chunk) const
 #include "visibility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int chunk
+// size_t chunk
 
 epok::ChunkVisibilityQuery& object = /* obtain a valid instance */;
 
@@ -243,7 +243,7 @@ int cached_bounds(size_t chunk) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `chunk` | `int` | Input | Value supplied for `chunk`. See the exact type and module contract. |
+| `chunk` | `size_t` | Input | Value supplied for `chunk`. See the exact type and module contract. |
 
 **Returns.** Returns `int`. Check the purpose and failure notes before using the value.
 
@@ -255,7 +255,7 @@ int cached_bounds(size_t chunk) const
 #include "visibility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int chunk
+// size_t chunk
 
 epok::ChunkVisibilityQuery& object = /* obtain a valid instance */;
 
@@ -285,7 +285,7 @@ bool candidate(size_t chunk) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `chunk` | `int` | Input | Value supplied for `chunk`. See the exact type and module contract. |
+| `chunk` | `size_t` | Input | Value supplied for `chunk`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
 
@@ -297,7 +297,7 @@ bool candidate(size_t chunk) const
 #include "visibility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int chunk
+// size_t chunk
 
 epok::ChunkVisibilityQuery& object = /* obtain a valid instance */;
 
@@ -396,7 +396,7 @@ const uint32_t* merged_mask() const
 - **Declared at:** [line 164](../../../runtime/visibility.hpp#L164)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `const int *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `const uint32_t *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** A null result means the current view has no useful rejection; the renderer can bypass bit tests.
 
@@ -433,9 +433,9 @@ void remember_basis_bounds(size_t chunk,const int32_t center[3],const int32_t ex
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `chunk` | `int` | Input | Value supplied for `chunk`. See the exact type and module contract. |
-| `center` | `const int[3]` | Input | Value supplied for `center`. See the exact type and module contract. |
-| `extent` | `const int[3]` | Input | Value supplied for `extent`. See the exact type and module contract. |
+| `chunk` | `size_t` | Input | Value supplied for `chunk`. See the exact type and module contract. |
+| `center` | `const int32_t[3]` | Input | Value supplied for `center`. See the exact type and module contract. |
+| `extent` | `const int32_t[3]` | Input | Value supplied for `extent`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -447,9 +447,9 @@ void remember_basis_bounds(size_t chunk,const int32_t center[3],const int32_t ex
 #include "visibility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int chunk
-// const int[3] center
-// const int[3] extent
+// size_t chunk
+// const int32_t[3] center
+// const int32_t[3] extent
 
 epok::ChunkVisibilityQuery& object = /* obtain a valid instance */;
 
@@ -479,7 +479,7 @@ void remember_bounds(size_t chunk,bool accepted) const
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `chunk` | `int` | Input | Value supplied for `chunk`. See the exact type and module contract. |
+| `chunk` | `size_t` | Input | Value supplied for `chunk`. See the exact type and module contract. |
 | `accepted` | `bool` | Input | Value supplied for `accepted`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -492,7 +492,7 @@ void remember_bounds(size_t chunk,bool accepted) const
 #include "visibility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int chunk
+// size_t chunk
 // bool accepted
 
 epok::ChunkVisibilityQuery& object = /* obtain a valid instance */;
@@ -525,8 +525,8 @@ bool reuse_matrix(const int32_t rows[3][3],const int32_t translation[3], bool de
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `rows` | `const int[3][3]` | Input | Value supplied for `rows`. See the exact type and module contract. |
-| `translation` | `const int[3]` | Input | Value supplied for `translation`. See the exact type and module contract. |
+| `rows` | `const int32_t[3][3]` | Input | Value supplied for `rows`. See the exact type and module contract. |
+| `translation` | `const int32_t[3]` | Input | Value supplied for `translation`. See the exact type and module contract. |
 | `defer_until_stable` | `bool` | Input | Value supplied for `defer_until_stable`. See the exact type and module contract. |
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -539,8 +539,8 @@ bool reuse_matrix(const int32_t rows[3][3],const int32_t translation[3], bool de
 #include "visibility.hpp"
 
 // Assume these named values have been initialized with valid data:
-// const int[3][3] rows
-// const int[3] translation
+// const int32_t[3][3] rows
+// const int32_t[3] translation
 // bool defer_until_stable
 
 epok::ChunkVisibilityQuery& object = /* obtain a valid instance */;

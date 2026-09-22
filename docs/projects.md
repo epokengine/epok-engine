@@ -1,10 +1,33 @@
 # Independent game projects
 
-Epok starts in **Projects**. Create a project with a name, parent folder and template, or open an existing project folder. Recent projects are shortcuts to their folders; **Remove from list** forgets a shortcut without deleting the game. **Basic PSX** contains a camera and an empty scene; **Sample game** copies the bundled demo and native behaviours. The default location is `Documents/Epok Projects`, outside the editor installation.
+Epok starts in **Projects**. Create a project with a template, a gameplay flavor, a name and a parent folder, or open an existing project folder. Recent projects are shortcuts to their folders; **Remove from list** forgets a shortcut without deleting the game. **Basic** contains a camera and an empty scene; **Sample** is a ground plane, two cubes and one Spinner behaviour. The default location is `Documents/Epok Projects`, outside the editor installation.
 
 Use **File > Projects... (New / Open / Close)** to return to the selector. Unsaved scenes offer Save and close, Discard changes and Cancel. Closing a project stops its owned build/emulator before releasing its lock. A failed open stays in the selector and displays the error; it never substitutes a sample scene or overwrites a damaged project.
 
-The dark Hub opens on a searchable project list. Search matches names and paths; the sort button switches between recently opened and alphabetical order. Each row shows its folder, PlayStation target and compatible editor version. Click a row to open it, or use its **...** menu to open or remove the shortcut. Unavailable projects remain visible so their errors can be inspected. **New project** opens the template and project details view; **Open project** accepts a folder path or the native folder browser. The Hub has its own typography and palette, preserved when returning from the editor.
+The dark Hub opens on a searchable project list. Search matches names and paths; the sort button switches between recently opened and alphabetical order. Each row shows its folder, PlayStation target and compatible editor version. Click a row to open it, or use its **...** menu to open or remove the shortcut. Unavailable projects remain visible so their errors can be inspected. **New project** opens the template browser and **Dependencies** opens the tool paths, one tab per target platform; both are panes of the same window, not dialogs over it. **Open project** accepts a folder path or the native folder browser. The Hub has its own typography and palette, preserved when returning from the editor.
+
+## New project
+
+The New Project view is a template browser, not a wizard. Cards on the left carry a thumbnail, a title and a one-line summary, and the whole card selects; the panel on the right shows a large 16:9 preview of the selected template, a paragraph about it and what it includes. A preview that cannot be decoded falls back to a plain tile and never stops the editor from starting.
+
+**Project defaults** below the preview holds the two decisions a new project makes, as two lists:
+
+- **Gameplay** — C++, Blueprint or Lua. It chooses which starter implementation the template writes, and nothing else.
+- **Target** — PlayStation, the only target Epok builds today.
+
+Project location and project name stay at the bottom with the resolved destination folder. **Create project** is unavailable while the name or the location is unusable and the reason is shown next to them; Enter in the name field creates when the fields are valid. **Cancel** returns to the project list with the selections untouched.
+
+### Gameplay flavors
+
+The flavor is a generation choice, never a project mode. A Lua project can gain C++ classes and Blueprints afterwards, a C++ project can gain Lua scripts, and a scene can bind all three at once. Nothing in the descriptor records the choice, because nothing in the engine acts on it after creation.
+
+| Flavor | What the template writes | Console build |
+| --- | --- | --- |
+| C++ | Project-owned sources under `assets/scripts` | Compiled with the rest of the project |
+| Blueprint | A project-owned graph under `assets/Blueprints` | The backend generates native code; the source you edit stays visual |
+| Lua | Project-owned `.lua` under `assets/scripts` | Built with the project's Lua execution setting, which starts on the ahead-of-time native mode |
+
+Every template accepts every flavor, and the three share one scene: the same actors, transforms, colliders and assets, with only the class the Player binds differing. Basic writes no gameplay in any flavor, and its card says so. A template that ever gains an unimplemented pair disables that flavor in the selector and explains why; creation never silently falls back to another language.
 
 Opening a project shows a centered, borderless 640 × 400 splash with abstract
 retro artwork, the original Epok logo, the project name and live loading stage.
@@ -15,7 +38,7 @@ The artwork is embedded, so it works outside the installation's working director
 
 ## Ownership and format
 
-**Third Person** adds an editable arena with grey platforms, ramps, blue cubes and a static mannequin. It is currently a level placeholder; movement and collisions are not included. See [Third Person arena](third-person.md) for its layout and PSX rendering details. The command-line template name is `third-person`.
+**Third Person** adds an optimized editable arena, static blue cubes and an animated player with camera-relative movement, jumping, collision and an orbit camera. It intentionally excludes combat, NPCs and audio. See [Third Person template](third-person.md) for controls, hierarchy and rendering details. The command-line template name is `third-person`.
 
 ```text
 My Game/
@@ -31,7 +54,7 @@ My Game/
 
 The root-level `.epokproject` descriptor contains `format_version`, `editor_version`, `name`, `startup_scene`, `auto_build` and `rendering`. It is the single writable owner of these settings; it is not an archive and does not contain assets. Open **Edit > Project Settings** to edit it. Rendering defaults to 640 x 480 interlaced NTSC when omitted. The startup scene is a relative path within `assets/scenes`; there is no fixed SampleScene path. Format/version mismatches are rejected. Existing `ProjectSettings/project.json` projects remain readable and migrate only through `--migrate-project <folder>`; reading never rewrites them. Projects with both active formats, or multiple root descriptors, are rejected until recovered.
 
-Track the root `.epokproject` descriptor, `assets/`, `ProjectSettings/` and `.gitignore` in the game's own repository. Moving or copying this content preserves the game; `.epok/` can be removed while closed and regenerated on the next build. Preserve `.epok/migrations/` backups separately before deleting that cache if needed for recovery. Creation requires a new destination and never merges with existing files. A failed creation retains its partial directory for inspection; choose a fresh destination after correcting the cause.
+Track the root `.epokproject` descriptor, `assets/`, `ProjectSettings/` and `.gitignore` in the game's own repository. Moving or copying this content preserves the game; `.epok/` can be removed while closed and regenerated on the next build. Preserve `.epok/migrations/` backups separately before deleting that cache if needed for recovery. Creation requires a new destination and never merges with existing files, and it is transactional: a creation that fails part way removes the folder it claimed, so a half-written project is never offered as a real one.
 
 The editor executable embeds its runtime source snapshot, templates, fonts and emulator adapter. Only generated C++ builds and exports receive runtime copies. Projects do not need editor Rust sources, `runtime/`, `resources/`, `third_party/` or `.tools/`.
 
@@ -45,11 +68,14 @@ The Hub stores recent folders in `%LOCALAPPDATA%/Epok/RecentProjects.epokprefs`,
 cargo run --locked
 cargo run --locked -- --create-project "D:/Games/My Game" --template basic
 cargo run --locked -- --create-project "D:/Games/My Demo" --template sample --name "My Demo"
+cargo run --locked -- --create-project "D:/Games/My Hero" --template third-person --gameplay lua
 cargo run --locked -- --project "D:/Games/My Game"
 cargo run --locked -- --project "D:/Games/My Game/My Game.epokproject"
 cargo run --locked -- --project "D:/Games/My Game" --build-psx
 cargo run --locked -- --project examples/sample-game --play-psx --stop-after 10
 ```
+
+`--gameplay` takes `cpp`, `blueprint` or `lua` and defaults to `cpp`, so an existing command line keeps generating exactly what it did before. There is no target option while PlayStation is the only target.
 
 Creation is a headless operation; open the resulting folder to edit. Build, Play, lighting bake and profiling require `--project`. Running from an arbitrary working directory works with the executable's absolute path. Game paths with spaces are tested; the upstream SDK/tool installation still needs a path without spaces.
 

@@ -11,7 +11,11 @@ pub fn splash_pixels() -> Result<(Vec<u8>, u32, u32), Box<dyn std::error::Error>
     decode(include_bytes!("../resources/branding/epok-splash.png"))
 }
 
-fn decode(bytes: &[u8]) -> Result<(Vec<u8>, u32, u32), Box<dyn std::error::Error>> {
+pub fn controller_pixels() -> Result<(Vec<u8>, u32, u32), Box<dyn std::error::Error>> {
+    decode(include_bytes!("../resources/editor/psx-controller.png"))
+}
+
+pub fn decode(bytes: &[u8]) -> Result<(Vec<u8>, u32, u32), Box<dyn std::error::Error>> {
     let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
     decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
     let mut reader = decoder.read_info()?;

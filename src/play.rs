@@ -2,6 +2,25 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+/// Gameplay runtime. This is deliberately independent from the PlayStation
+/// runner below: choosing Native PC must not overwrite how PSX Play is launched.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Runtime {
+    NativePc,
+    #[default]
+    PlayStation,
+}
+impl Runtime {
+    pub const ALL: [Self; 2] = [Self::NativePc, Self::PlayStation];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::NativePc => "Native PC",
+            Self::PlayStation => "PlayStation",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Target {
@@ -49,6 +68,8 @@ impl DataSource {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Profile {
+    pub runtime: Runtime,
+    /// PlayStation runner. Retained while Native PC is selected.
     pub target: Target,
     pub content: Content,
     pub data: DataSource,
@@ -63,7 +84,10 @@ fn is_false(value: &bool) -> bool {
 }
 impl Profile {
     pub fn normalize(&mut self) {
-        if self.target == Target::Serial && self.data == DataSource::Disc {
+        if self.runtime == Runtime::PlayStation
+            && self.target == Target::Serial
+            && self.data == DataSource::Disc
+        {
             self.data = DataSource::Host;
         }
         if !self
@@ -93,7 +117,10 @@ impl Profile {
         self.normalize();
     }
     pub fn validate(&self) -> Result<(), String> {
-        if self.target == Target::Serial && self.data == DataSource::Disc {
+        if self.runtime == Runtime::PlayStation
+            && self.target == Target::Serial
+            && self.data == DataSource::Disc
+        {
             return Err(
                 "Serial Play cannot use CD data. Choose PC on demand or In executable.".into(),
             );
@@ -120,7 +147,7 @@ impl Profile {
             if self.selected_scenes.is_empty() {
                 return Err("Selected Scenes cannot be used because no scenes are selected. Select at least one scene in Play options.".into());
             }
-            if self.selected_scenes.len() > 16 {
+            if self.runtime == Runtime::PlayStation && self.selected_scenes.len() > 16 {
                 return Err("Selected Scenes supports at most 16 scenes.".into());
             }
             let base =
@@ -183,6 +210,7 @@ pub fn input(
     physical_disc: bool,
 ) -> Result<crate::scene_dependencies::Input, String> {
     if physical_disc {
+        profile.runtime = Runtime::PlayStation;
         profile.target = Target::Embedded;
         profile.content = Content::WholeGame;
         profile.data = DataSource::Disc;
@@ -350,6 +378,42 @@ mod tests {
         let restored: Profile =
             serde_json::from_value(serde_json::to_value(&profile).unwrap()).unwrap();
         assert_eq!(restored, profile);
+    }
+    #[test]
+    fn legacy_profiles_default_to_playstation_and_native_keeps_the_psx_runner() {
+        let mut profile: Profile = serde_json::from_str(r#"{"target":"window"}"#).unwrap();
+        assert_eq!(profile.runtime, Runtime::PlayStation);
+        assert_eq!(profile.target, Target::Window);
+        profile.runtime = Runtime::NativePc;
+        profile.target = Target::Serial;
+        profile.data = DataSource::Disc;
+        assert!(profile.validate().is_ok());
+        let restored: Profile =
+            serde_json::from_value(serde_json::to_value(&profile).unwrap()).unwrap();
+        assert_eq!(restored.runtime, Runtime::NativePc);
+        assert_eq!(restored.target, Target::Serial);
+        assert_eq!(restored.data, DataSource::Disc);
+
+        profile.content = Content::SelectedScenes;
+        profile.selected_scenes = (0..17)
+            .map(|index| format!("assets/scenes/Scene{index}.epokmap"))
+            .collect();
+        profile.runtime = Runtime::PlayStation;
+        profile.target = Target::Embedded;
+        profile.data = DataSource::Executable;
+        assert!(
+            profile
+                .validate_build(Path::new("unused"))
+                .unwrap_err()
+                .contains("at most 16")
+        );
+        profile.runtime = Runtime::NativePc;
+        assert!(
+            !profile
+                .validate_build(Path::new("unused"))
+                .unwrap_err()
+                .contains("at most 16")
+        );
     }
     #[test]
     fn selected_scene_initial_follows_next_included_and_empty_is_persistable() {

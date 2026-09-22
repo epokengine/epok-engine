@@ -28,7 +28,7 @@ This module covers sprites, flipbooks and screen-facing rendering. It documents 
 inline Affine<Fixed> plane(const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixed>& view)
 ```
 
-- **Declared at:** [line 10](../../../runtime/sprites.hpp#L10)
+- **Declared at:** [line 11](../../../runtime/sprites.hpp#L11)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -36,10 +36,10 @@ inline Affine<Fixed> plane(const Sprite& sprite,const Affine<Fixed>& world,const
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `sprite` | `const Sprite &` | Input | Value supplied for `sprite`. See the exact type and module contract. |
-| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `view` | `const int &` | Input | Value supplied for `view`. See the exact type and module contract. |
+| `world` | `const Affine<Fixed> &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `view` | `const Affine<Fixed> &` | Input | Value supplied for `view`. See the exact type and module contract. |
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `Affine<Fixed>`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need sprites, flipbooks and screen-facing rendering and the preconditions in the declaration are already satisfied.
 
@@ -50,8 +50,8 @@ inline Affine<Fixed> plane(const Sprite& sprite,const Affine<Fixed>& world,const
 
 // Assume these named values have been initialized with valid data:
 // const Sprite & sprite
-// const int & world
-// const int & view
+// const Affine<Fixed> & world
+// const Affine<Fixed> & view
 
 auto result = epok::sprite_detail::plane(sprite, world, view);
 ```
@@ -72,7 +72,7 @@ auto result = epok::sprite_detail::plane(sprite, world, view);
 void clear()
 ```
 
-- **Declared at:** [line 26](../../../runtime/sprites.hpp#L26)
+- **Declared at:** [line 27](../../../runtime/sprites.hpp#L27)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -105,7 +105,7 @@ object.clear();
 void transform(const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixed>& view, Affine<Fixed>& model,Affine<Fixed>& camera)
 ```
 
-- **Declared at:** [line 27](../../../runtime/sprites.hpp#L27)
+- **Declared at:** [line 28](../../../runtime/sprites.hpp#L28)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -113,10 +113,10 @@ void transform(const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixe
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `sprite` | `const Sprite &` | Input | Value supplied for `sprite`. See the exact type and module contract. |
-| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `view` | `const int &` | Input | Value supplied for `view`. See the exact type and module contract. |
-| `model` | `int &` | Input/output; inspect the function contract | Value supplied for `model`. See the exact type and module contract. |
-| `camera` | `int &` | Input/output; inspect the function contract | Value supplied for `camera`. See the exact type and module contract. |
+| `world` | `const Affine<Fixed> &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `view` | `const Affine<Fixed> &` | Input | Value supplied for `view`. See the exact type and module contract. |
+| `model` | `Affine<Fixed> &` | Input/output; inspect the function contract | Value supplied for `model`. See the exact type and module contract. |
+| `camera` | `Affine<Fixed> &` | Input/output; inspect the function contract | Value supplied for `camera`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -129,10 +129,10 @@ void transform(const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixe
 
 // Assume these named values have been initialized with valid data:
 // const Sprite & sprite
-// const int & world
-// const int & view
-// int & model
-// int & camera
+// const Affine<Fixed> & world
+// const Affine<Fixed> & view
+// Affine<Fixed> & model
+// Affine<Fixed> & camera
 
 epok::sprite_detail::PlaneCache& object = /* obtain a valid instance */;
 
@@ -152,11 +152,17 @@ object.transform(sprite, world, view, model, camera);
 **Exact declaration**
 
 ```cpp
-void begin()
+void begin(bool dither=false)
 ```
 
-- **Declared at:** [line 60](../../../runtime/sprites.hpp#L60)
+- **Declared at:** [line 62](../../../runtime/sprites.hpp#L62)
 - **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `dither` | `bool` | Input | Value supplied for `dither`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -167,9 +173,12 @@ void begin()
 ```cpp
 #include "sprites.hpp"
 
+// Assume these named values have been initialized with valid data:
+// bool dither
+
 epok::SpriteRenderer& object = /* obtain a valid instance */;
 
-object.begin();
+object.begin(dither);
 ```
 
 **Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
@@ -188,7 +197,7 @@ object.begin();
 template<class Table>void draw(int parity,Table& table,const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixed>& view,bool receive_lighting=true)
 ```
 
-- **Declared at:** [line 62](../../../runtime/sprites.hpp#L62)
+- **Declared at:** [line 64](../../../runtime/sprites.hpp#L64)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -198,8 +207,8 @@ template<class Table>void draw(int parity,Table& table,const Sprite& sprite,cons
 | `parity` | `int` | Input | Value supplied for `parity`. See the exact type and module contract. |
 | `table` | `Table &` | Input/output; inspect the function contract | Value supplied for `table`. See the exact type and module contract. |
 | `sprite` | `const Sprite &` | Input | Value supplied for `sprite`. See the exact type and module contract. |
-| `world` | `const int &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `view` | `const int &` | Input | Value supplied for `view`. See the exact type and module contract. |
+| `world` | `const Affine<Fixed> &` | Input | Value supplied for `world`. See the exact type and module contract. |
+| `view` | `const Affine<Fixed> &` | Input | Value supplied for `view`. See the exact type and module contract. |
 | `receive_lighting` | `bool` | Input | Value supplied for `receive_lighting`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -218,8 +227,8 @@ template<class Table>void draw(int parity,Table& table,const Sprite& sprite,cons
 // int parity
 // Table & table
 // const Sprite & sprite
-// const int & world
-// const int & view
+// const Affine<Fixed> & world
+// const Affine<Fixed> & view
 // bool receive_lighting
 
 epok::SpriteRenderer& object = /* obtain a valid instance */;

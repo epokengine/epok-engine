@@ -8,7 +8,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 
 ## Declared types
 
-`psyqo::ISO9660Parser`, `psyqo::ISO9660Parser::DirEntry`, `psyqo::ISO9660Parser::DirEntry::(unnamed enum at /Users/francisco.rivero/GithubProjects/p/epok-engine/third_party/nugget/psyqo/iso9660-parser.hh:60:9)`, `psyqo::ISO9660Parser::GetDirentryAwaiter`, `psyqo::ISO9660Parser::InitializeAwaiter`, `psyqo::ISO9660Parser::ReadRequest`
+`psyqo::ISO9660Parser`, `psyqo::ISO9660Parser::DirEntry`, `psyqo::ISO9660Parser::DirEntry::(unnamed enum at third_party/nugget/psyqo/iso9660-parser.hh:60:9)`, `psyqo::ISO9660Parser::GetDirentryAwaiter`, `psyqo::ISO9660Parser::InitializeAwaiter`, `psyqo::ISO9660Parser::ReadRequest`
 
 ## Callable index
 
@@ -241,7 +241,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `handle` | `int` | Input | Value supplied for `handle`. See the exact type and module contract. |
+| `handle` | `std::coroutine_handle<U>` | Input | Value supplied for `handle`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -256,7 +256,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 // U
 
 // Assume these named values have been initialized with valid data:
-// int handle
+// std::coroutine_handle<U> handle
 
 psyqo::ISO9660Parser::GetDirentryAwaiter& object = /* obtain a valid instance */;
 
@@ -471,7 +471,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `handle` | `int` | Input | Value supplied for `handle`. See the exact type and module contract. |
+| `handle` | `std::coroutine_handle<U>` | Input | Value supplied for `handle`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -486,7 +486,7 @@ template <typename U> void await_suspend(std::coroutine_handle<U> handle)
 // U
 
 // Assume these named values have been initialized with valid data:
-// int handle
+// std::coroutine_handle<U> handle
 
 psyqo::ISO9660Parser::InitializeAwaiter& object = /* obtain a valid instance */;
 

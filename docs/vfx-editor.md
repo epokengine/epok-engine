@@ -4,19 +4,19 @@ Create reusable effects from sprite and particle layers, animate them over time,
 and place them in a scene. Each `.particle-effect.json` asset contains one
 embedded TimelineAsset. The same timeline system also drives scene sequences.
 
-Start here for visual authoring. Continue with [the spell tutorial](spell-tutorial.md)
-to trigger the effect from Blueprints, or [Timeline reference](timelines.md) for
-typed scene bindings and runtime rules. Authoring uses the Windows or Linux
-reflection toolchain described in [Getting started](getting-started.md).
+Start here for visual authoring. Continue with [Blueprints](blueprints.md) to
+trigger the effect from a graph, or [Timeline reference](timelines.md) for typed
+scene bindings and runtime rules. Authoring uses the Windows or Linux reflection
+toolchain described in [Getting started](getting-started.md).
 
 ## Open a working effect
 
-![Epok Particle Effect editor with preview transport, particle counters, duration controls and Fireball layers](images/vfx-editor.png)
+![Epok Particle Effect editor with preview transport, particle counters, duration controls and layers](images/vfx-editor.png)
 
-Open `examples/timeline-spell/Timeline Spell.epokproject` from the engine checkout.
-In Project, double-click `assets/Effects/Fireball.particle-effect.json`. This
-example already has an imported atlas, seven layers, curves, bursts and markers.
-It is useful for learning the controls before building an effect from scratch.
+Choose **New Particle Effect** in the Project browser and pick a preset, or
+double-click an existing `.particle-effect.json` asset. A preset arrives with
+layers, curves and a timeline already authored, which is useful for learning the
+controls before building an effect from scratch.
 
 Use **Pause preview**, **Restart preview**, and **Preview step** to inspect the
 effect. The preview uses the authored seed, so restarting a fixed seed gives a
@@ -156,7 +156,7 @@ they animate an overridden property.
 
 For transient explosions or projectiles, use Blueprint **Effect / Spawn asset**
 instead. It accepts a world Transform and optional owner and does not require a
-persistent effect component. Follow [Spell tutorial](spell-tutorial.md) for the
+persistent effect component. See [Timeline playback](timelines.md) for the
 handle, marker and completion wiring.
 
 ## Validate appearance and cost
@@ -165,7 +165,9 @@ Check the preview's alive/peak particles, dropped work, events and markers.
 Test the intended number of simultaneous effects with geometry and HUD in Play.
 The shared limits are eight effect instances, eight director instances, eight
 layers per effect, 64 emitter sources, 128 particles per emitter, 256 global
-particles and 2048 sprite triangles per frame. Scene emitters share these pools.
+particles and by default 2048 sprite triangles per frame. The native sprite
+budget is configurable from 64 to 2048 in Project Settings → Rendering → Geometry;
+the editor preview keeps its default pool. Scene emitters share these pools.
 These limits bound storage; they do not promise a particular frame rate.
 
 Normal completion hides sprite layers and lets particles drain for a bounded

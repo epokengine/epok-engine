@@ -10,11 +10,14 @@ Epok's original source code is MIT licensed. This does not replace the licenses 
 | Roboto Regular and Bold | Google and contributors; Apache License 2.0 | [Roboto license](resources/editor/LICENSE-roboto.txt) |
 | Material Design Icons function glyph, version 7.4.47 | Pictogrammers and contributors; Apache License 2.0 | [MDI license](resources/editor/LICENSE-blueprint-function-icon.txt) |
 | Font Awesome Free desktop font | Fonticons, Inc.; SIL Open Font License 1.1 for the font | [Font Awesome license](resources/editor/LICENSE-fontawesome.txt) |
+| Hand-Painted Watercolor Terrain Textures | Jonas Voland, distributed by Voxel Core Lab GmbH; Creative Commons Zero 1.0 Universal (CC0), attribution not required | [Terrain texture licence](resources/terrain/LICENSE-watercolor-terrain.txt) |
 | mig68000 HUD bitmap font | Zingot Games; attribution retained from the pinned PsyQo source, author lists FontPack as CC BY 4.0 | [HUD font notice](resources/editor/LICENSE-psx-font.txt) |
 
 Codicons legal notices distinguish content from code: https://github.com/microsoft/vscode-codicons#legal-notices
 
 The included Codicons font is a subset of version 0.0.46-24 containing the glyphs used by the editor. Unused glyphs and glyph-name metadata were removed with fonttools 4.60.1; the retained designs are unchanged. See [resource maintenance](knowledge/maintainers/resources.md) for regeneration.
+
+The bundled terrain atlas `resources/terrain/EpokTerrainAtlas.png` is derived from that pack: sixteen of its 1024-pixel PNGs downscaled to 64 pixels and composed into one 256-pixel page (four grass, four dirt, four stone, four water). The designs are unchanged apart from the downscale. CC0 requires no attribution; the author asks to be credited as Jonas Voland.
 
 Font Awesome's distribution includes different licenses for different formats. Epok uses the TTF font: https://fontawesome.com/license/free
 

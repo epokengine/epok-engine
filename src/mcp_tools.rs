@@ -119,6 +119,7 @@ fn install(e: &mut Editor, mut scene: Scene) -> Result<(), String> {
     // project open. Resolve against disk before publishing a scene transaction.
     e.assets.index = assets::scan(&e.root, &mut Default::default());
     crate::mesh::resolve(&mut scene, &e.assets.index)?;
+    crate::terrain::resolve(&mut scene, &e.assets.index)?;
     crate::skeletal::resolve(&mut scene, &e.assets.index)?;
     e.scene = scene;
     e.reset_scene_tools();
@@ -129,6 +130,7 @@ fn refresh(e: &mut Editor) {
     e.assets.refresh();
     e.assets.index = assets::scan(&e.root, &mut Default::default());
     let _ = crate::mesh::resolve(&mut e.scene, &e.assets.index);
+    let _ = crate::terrain::resolve(&mut e.scene, &e.assets.index);
     let _ = crate::skeletal::resolve(&mut e.scene, &e.assets.index);
     e.refresh_scripts();
     e.view_dirty = true;

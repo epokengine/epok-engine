@@ -1,6 +1,16 @@
 //! Byte-level legacy PSX oracle, captured before the portable settings migration.
 use crate::{assets, audio_import};
 
+/// Write a stand-in encoder that the dependency resolver accepts as executable.
+fn write_tool(path: &std::path::Path, bytes: &[u8]) {
+    std::fs::write(path, bytes).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+}
+
 #[test]
 fn audio_authoring_valid_target_error_and_tool_identity() {
     let root = crate::workspace::tests::temp("audio-cook-identity");
@@ -32,14 +42,21 @@ fn audio_authoring_valid_target_error_and_tool_identity() {
         sample_rate: 37800,
         ..Default::default()
     });
-    let tool = root.join(".tools/psxavenc/bin/psxavenc.exe");
-    std::fs::write(root.join("Local.epokconfig"), b"{}").unwrap();
+    // The tool is configured by absolute path so the check reads the same on every
+    // host: the platform default is a bare PATH name outside Windows, and a
+    // relative configured path resolves against the process directory.
+    let tool = root.join(".tools/psxavenc/bin/psxavenc");
     std::fs::create_dir_all(tool.parent().unwrap()).unwrap();
-    std::fs::write(&tool, b"encoder revision one").unwrap();
+    write_tool(&tool, b"encoder revision one");
+    std::fs::write(
+        root.join("Local.epokconfig"),
+        serde_json::to_vec(&serde_json::json!({ "psxavenc": tool })).unwrap(),
+    )
+    .unwrap();
     assert_eq!(crate::disc::tool(&root, "psxavenc").unwrap(), tool);
     let before = assets::cook_key(&root, &package.meta).unwrap();
     let authoring = assets::cache_key(&package.meta);
-    std::fs::write(tool, b"encoder revision two").unwrap();
+    write_tool(&tool, b"encoder revision two");
     assert_ne!(before, assets::cook_key(&root, &package.meta).unwrap());
     assert_eq!(authoring, assets::cache_key(&package.meta));
 }
@@ -201,7 +218,10 @@ fn audio_package_reimport_and_duplicate_preserve_unknown_metadata() {
 fn audio_legacy_golden_outputs() {
     let root = crate::workspace::tests::temp("audio-legacy-golden");
     std::fs::create_dir_all(root.join("assets")).unwrap();
-    let source = audio_import::test_wav();
+    // The source is a committed fixture, not a generated waveform: `f32::sin` is not
+    // bit-identical across libm implementations, so a generated tone made this oracle
+    // depend on whichever host captured it. These are the bytes it was captured from.
+    let source = include_bytes!("../tests/fixtures/audio-legacy-tone.wav").to_vec();
     // This is the actual v1 untagged package shape, independent of current serializers.
     let id = uuid::Uuid::from_u128(1);
     let meta = serde_json::json!({

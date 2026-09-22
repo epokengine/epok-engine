@@ -36,7 +36,7 @@ template <typename T> static inline T* allocate(size_t size)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `size` | `int` | Input | Value supplied for `size`. See the exact type and module contract. |
+| `size` | `size_t` | Input | Value supplied for `size`. See the exact type and module contract. |
 
 **Returns.** Returns `T *`. Check the purpose and failure notes before using the value.
 
@@ -51,7 +51,7 @@ template <typename T> static inline T* allocate(size_t size)
 // T
 
 // Assume these named values have been initialized with valid data:
-// int size
+// size_t size
 
 auto result = psyqo::PsyqoAllocator::allocate<T>(size);
 ```
@@ -81,7 +81,7 @@ template <typename T> static inline void copy(T* dst, const T* src, size_t size)
 | --- | --- | --- | --- |
 | `dst` | `T *` | Input/output; inspect the function contract | Value supplied for `dst`. See the exact type and module contract. |
 | `src` | `const T *` | Input | Value supplied for `src`. See the exact type and module contract. |
-| `size` | `int` | Input | Value supplied for `size`. See the exact type and module contract. |
+| `size` | `size_t` | Input | Value supplied for `size`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -98,7 +98,7 @@ template <typename T> static inline void copy(T* dst, const T* src, size_t size)
 // Assume these named values have been initialized with valid data:
 // T * dst
 // const T * src
-// int size
+// size_t size
 
 psyqo::PsyqoAllocator::copy<T>(dst, src, size);
 ```
@@ -167,7 +167,7 @@ template <typename T> static inline T* reallocate(void* ptr, size_t size)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `ptr` | `void *` | Input/output; inspect the function contract | Value supplied for `ptr`. See the exact type and module contract. |
-| `size` | `int` | Input | Value supplied for `size`. See the exact type and module contract. |
+| `size` | `size_t` | Input | Value supplied for `size`. See the exact type and module contract. |
 
 **Returns.** Returns `T *`. Check the purpose and failure notes before using the value.
 
@@ -183,7 +183,7 @@ template <typename T> static inline T* reallocate(void* ptr, size_t size)
 
 // Assume these named values have been initialized with valid data:
 // void * ptr
-// int size
+// size_t size
 
 auto result = psyqo::PsyqoAllocator::reallocate<T>(ptr, size);
 ```

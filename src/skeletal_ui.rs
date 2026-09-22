@@ -53,12 +53,30 @@ pub fn open(e: &mut Editor, record: Record) {
         yaw: -0.4,
         ..Default::default()
     };
+    let args = std::env::args().collect::<Vec<_>>();
+    if let Some(pair) = args.windows(2).find(|v| v[0] == "--preview-model-yaw") {
+        if let Ok(yaw) = pair[1].parse::<f32>() {
+            if yaw.is_finite() {
+                state.yaw = yaw;
+            }
+        }
+    }
+    if args.iter().any(|v| v == "--preview-model-no-bones") {
+        state.show_bones = false;
+    }
     match mesh_id
         .ok_or("No skeletal mesh references this asset".into())
         .and_then(|id| Model::load(&e.assets.index, id).map(|model| (id, model)))
     {
         Ok((id, model)) => {
             let mut c = Component::new(id);
+            if let Some(pair) = args.windows(2).find(|v| v[0] == "--preview-model-time") {
+                if let Ok(time) = pair[1].parse::<f32>() {
+                    if time.is_finite() && time >= 0.0 {
+                        c.time = time;
+                    }
+                }
+            }
             c.clip = if model.mesh.clips.contains(&record.meta.id) {
                 Some(record.meta.id)
             } else {
@@ -220,7 +238,7 @@ fn playback(ui: &Ui, c: &mut Component) {
             c.time = t;
         }
     }
-    ui.checkbox("Loop", &mut c.looping);
+    crate::gui::toggle(ui, "Loop", &mut c.looping);
 }
 pub fn window(ui: &Ui, e: &mut Editor) {
     if !e.skeletal_ui.open {
@@ -510,26 +528,39 @@ pub fn window(ui: &Ui, e: &mut Editor) {
     e.skeletal_ui = s;
 }
 pub fn component(ui: &Ui, e: &mut Editor, entity: &mut crate::scene::Actor) {
-    let Some(c) = &mut entity.skeletal_mesh else {
-        return;
-    };
-    ui.separator();
-    if !crate::gui::heading(ui, "Skeletal Mesh / Animator") {
+    if entity.skeletal_mesh.is_none() {
         return;
     }
+    ui.separator();
+    let mut remove = false;
+    let expanded = crate::gui::section(ui, "Skeletal Mesh / Animator", || {
+        remove = ui.menu_item("Remove Skeletal Mesh");
+    });
+    if remove {
+        entity.skeletal_mesh = None;
+        entity.kind = "Empty".into();
+        return;
+    }
+    if !expanded {
+        return;
+    }
+    crate::mesh_editor::selector(ui, e, entity);
+    let Some(c) = entity.skeletal_mesh.as_mut() else {
+        return;
+    };
     if let Some(error) = &c.error {
         ui.text_wrapped(error);
     }
     playback(ui, c);
-    ui.checkbox("Play on start (PSX)", &mut c.play_on_start);
-    ui.checkbox("Animate scene preview", &mut e.skeletal_ui.animate_scene);
+    crate::gui::toggle(ui, "Play on start (PSX)", &mut c.play_on_start);
+    crate::gui::toggle(
+        ui,
+        "Animate scene preview",
+        &mut e.skeletal_ui.animate_scene,
+    );
     if ui.button("Open model preview")
         && let Ok(record) = e.assets.index.resolve(c.asset).cloned()
     {
         open(e, record);
-    }
-    if ui.button("Remove Skeletal Mesh") {
-        entity.skeletal_mesh = None;
-        entity.kind = "Empty".into();
     }
 }

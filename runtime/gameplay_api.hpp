@@ -8,6 +8,7 @@
 #include "blueprint_api.hpp"
 #include "skeletal.hpp"
 #include "world2d.hpp"
+#include "utility.hpp"
 
 namespace epok {
 
@@ -30,6 +31,12 @@ struct EPOK_VALUE(Id="1a95f3e5-4d5b-4bcb-90ac-34d7fb61bc77") GameplayVector3 {
 };
 struct EPOK_VALUE(Id="b8f68929-ed24-4c76-8fdd-52b785024d74") GameplayVector2 {
     Fixed x=0.0,y=0.0;
+};
+// A dead-zoned analog stick reduced to a planar direction and a strength.
+// `x` and `y` are the stick vector rescaled so the dead zone maps to zero and a
+// fully deflected stick maps to one; `strength` is that rescaled magnitude.
+struct EPOK_VALUE(Id="0b90f02c-2962-475d-bc38-9d10ed8272c1") MovementIntent {
+    Fixed x=0.0,y=0.0,strength=0.0;
 };
 struct EPOK_VALUE(Id="aeb84ccb-e308-456a-a59f-31bed0cb08a4") GameplayCamera2D {
     GameplayVector2 position{};
@@ -63,6 +70,13 @@ struct EPOK_VALUE(Id="dd229750-b0fe-43e5-a20f-83c53f30130a") GameplayTransitionS
     uint32_t audio_gain=4096,opacity=0;
     bool busy=false,presented=false;
 };
+// Per-scene distance fog. Distances are named in full because `end` is a Lua
+// keyword and a record member has to stay readable in every execution mode.
+struct EPOK_VALUE(Id="8b4375d1-f9cf-431c-9194-b16612bcf12d") FogSettings {
+    bool enabled=false;
+    Fixed start_distance=12.0,end_distance=40.0;
+    uint32_t red=64,green=77,blue=102;
+};
 struct EPOK_VALUE(Id="0748249f-e8e3-4f29-9670-4ecdb4704448") ResourceSnapshot {
     uint32_t alive_slots=0,active_slots=0,slot_capacity=0,scene_banks=0;
     uint32_t textures=0,resident_texture_bytes=0,active_texture_bytes=0;
@@ -93,6 +107,13 @@ struct EPOK_VALUE(Id="f24065e1-e5b0-4608-8863-a20e708fd4df") GameplayPlaybackSna
 struct EPOK_VALUE(Id="93318a22-af5b-49d8-a114-aaf101faab5c") SkeletalQuerySnapshot {
     uint32_t calls=0,vertices=0,bones=0,decoded_bytes=0,failures=0;
 };
+// A Vector3 tween is one clock plus two endpoints. `timing` is an ordinary scalar
+// tween over 0..1, so `utilities.tween_value(timing)` is the interpolation
+// parameter the three components share and each component is exactly what a
+// scalar tween over that component would report. Nothing here duplicates the
+// clock, the easing catalogue, the delay or the loop plan.
+struct EPOK_VALUE(Id="c4306dbe-18ba-4f38-98bc-bdb558ed3667") GameplayVector3TweenState {GameplayVector3 from{},to{};GameplayTweenState timing{};};
+struct EPOK_VALUE(Id="872b1e73-f320-4bf9-a6c3-e77ea6e92371") Vector3TweenAdvanceSample {GameplayVector3TweenState state{};GameplayVector3 value{};bool completed=false;};
 
 inline GameplayVector3 gameplay_vector(const Fixed* value){return {value[0],value[1],value[2]};}
 inline void gameplay_vector(GameplayVector3 value,Fixed* output){output[0]=value.x;output[1]=value.y;output[2]=value.z;}
@@ -103,6 +124,8 @@ inline int16_t gameplay_i16(int32_t value){return int16_t(value<-32768?-32768:va
 inline uint32_t* gameplay_save_words(){alignas(4) static uint32_t words[MemoryCardService::max_payload/4]{};return words;}
 inline uint16_t gameplay_u16(uint32_t value){return uint16_t(value>65535?65535:value);}
 inline uint8_t gameplay_u8(uint32_t value){return uint8_t(value>255?255:value);}
+inline GameplayVector3TweenState gameplay_vector_tween(GameplayVector3 from,GameplayVector3 to,Tween timing){return {from,to,gameplay_tween_state(timing)};}
+inline GameplayVector3 gameplay_vector_tween_value(GameplayVector3TweenState state){const auto alpha=gameplay_tween(state.timing).alpha();return {lerp(state.from.x,state.to.x,alpha),lerp(state.from.y,state.to.y,alpha),lerp(state.from.z,state.to.z,alpha)};}
 
 struct EPOK_FUNCTION_LIBRARY(Category="Input", Id="d6963400-e105-4af5-826c-e4b2edfc09df") InputLibrary {
     EPOK_FUNCTION(BlueprintPure, Id="8c11a90e-5791-40f8-89d7-1092c6376b48")
@@ -151,6 +174,67 @@ struct EPOK_FUNCTION_LIBRARY(Category="Math", Id="895f8595-ac0d-4584-b749-df23ae
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="4fe0f030-091c-4d55-984d-769077622c33") static GameplayVector3 vector3(Fixed x,Fixed y,Fixed z){return {x,y,z};}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="74678bdd-b229-46e9-949a-7256f1444183") static GameplayVector3 add(GameplayVector3 a,GameplayVector3 b){return {a.x+b.x,a.y+b.y,a.z+b.z};}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="d32131a5-2c47-43f2-8907-35e40389cfb5") static GameplayVector3 scale(GameplayVector3 value,Fixed amount){return {value.x*amount,value.y*amount,value.z*amount};}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="ab6fa418-8b8e-4c20-b41a-696c9cd61575") static GameplayVector3 subtract(GameplayVector3 a,GameplayVector3 b){return {a.x-b.x,a.y-b.y,a.z-b.z};}
+    // Trigonometry, roots and angle arithmetic in the engine's own Q12 form.
+    // Every one of these is integer-only, so a script reaches the same bits the
+    // renderer and the collision solver already agree on, on host and on target.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="eeee7d31-a8c6-437a-95db-10e163771b24") static Fixed sine_degrees(Fixed degrees){return sin_degrees(degrees);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="565552a8-869a-4ca7-a1d8-a7ad6e1508a7") static Fixed cosine_degrees(Fixed degrees){return cos_degrees(degrees);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="6977e1b9-1736-4c49-b003-2a7b3bdc98a2") static Fixed square_root(Fixed value){return Fixed(fixed_math::q_sqrt(value.raw()),Fixed::RAW);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="57b625c6-06d7-4635-b551-17a75ceffa3b") static Fixed length2(Fixed x,Fixed y){return Fixed(int32_t(fixed_math::sqrt64(uint64_t(int64_t(x.raw())*x.raw()+int64_t(y.raw())*y.raw()))),Fixed::RAW);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="625d5493-89ff-401f-a535-308206d5f4d4") static Fixed length(GameplayVector3 value){return Fixed(int32_t(fixed_math::sqrt64(uint64_t(int64_t(value.x.raw())*value.x.raw()+int64_t(value.y.raw())*value.y.raw()+int64_t(value.z.raw())*value.z.raw()))),Fixed::RAW);}
+    // 0 <= result < 360. A turn is exact in Q12, so wrapping never drifts.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="9b882fef-4a7b-4463-81aa-65b2f7e0dcd0") static Fixed wrap_degrees(Fixed degrees){const int32_t turn=360*4096;int32_t value=degrees.raw()%turn;if(value<0)value+=turn;return Fixed(value,Fixed::RAW);}
+    // Shortest signed turn from one heading to another, in -180..180.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="c5b4efca-6c21-42fb-b9bf-f354902d7ee4") static Fixed delta_degrees(Fixed from,Fixed to){const int32_t turn=360*4096;int32_t delta=(to.raw()-from.raw())%turn;if(delta>turn/2)delta-=turn;else if(delta<-turn/2)delta+=turn;return Fixed(delta,Fixed::RAW);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="3e369e64-cb38-4930-9842-02bbf054c5d9") static Fixed move_toward(Fixed from,Fixed to,Fixed max_step){const Fixed delta=to-from;if(delta>max_step)return from+max_step;if(delta<-max_step)return from-max_step;return to;}
+    // The same approach on a circle: turns the short way and never overshoots.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="bacfcfc1-e38c-44d2-b47d-19ec3ae37f8d") static Fixed move_toward_degrees(Fixed from,Fixed to,Fixed max_step){const Fixed delta=delta_degrees(from,to);if(delta>max_step)return from+max_step;if(delta<-max_step)return from-max_step;return to;}
+    // Heading of a planar vector in degrees, measured from +y towards +x, so a
+    // stick pushed forward reads 0 and a stick pushed right reads 90.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="1057a007-0420-4b95-8f48-140be81f9ba5") static Fixed heading_degrees(Fixed x,Fixed y){
+        const int32_t raw_x=x.raw(),raw_y=y.raw();
+        const int32_t ax=raw_x<0?-raw_x:raw_x,ay=raw_y<0?-raw_y:raw_y;
+        const int32_t large=ax>ay?ax:ay,small=ax>ay?ay:ax;
+        if(!large)return Fixed(0,Fixed::RAW);
+        const int32_t ratio=int32_t(int64_t(small)*4096/large);
+        int32_t angle=int32_t(int64_t(ratio)*(45*4096+16*(4096-ratio))/4096);
+        if(ax>ay)angle=90*4096-angle;
+        if(raw_y<0)angle=180*4096-angle;
+        if(raw_x<0)angle=360*4096-angle;
+        return Fixed(angle,Fixed::RAW);
+    }
+    // The engine's standard analog dead zone, as a share of full deflection.
+    // It is fixed rather than a parameter so every language reaches the same
+    // raw threshold without depending on how a literal is rounded.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="bf76ade4-3e06-44b8-b6af-baa40968ceaf") static Fixed stick_dead_zone(){return Fixed(491,Fixed::RAW);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="5b0a28df-53d9-40e4-b7ca-c5381f473771") static MovementIntent stick_intent(Fixed x,Fixed y){
+        constexpr int32_t full=4096,dead_zone=491;
+        int32_t raw_x=x.raw(),raw_y=y.raw();
+        if(raw_x<-full)raw_x=-full;if(raw_x>full)raw_x=full;
+        if(raw_y<-full)raw_y=-full;if(raw_y>full)raw_y=full;
+        const int32_t magnitude=int32_t(fixed_math::sqrt64(uint64_t(int64_t(raw_x)*raw_x+int64_t(raw_y)*raw_y)));
+        if(magnitude<=dead_zone)return {};
+        const int32_t capped=magnitude>full?full:magnitude;
+        const int32_t strength=(capped-dead_zone)*full/(full-dead_zone);
+        MovementIntent result;
+        result.x=Fixed(int32_t(int64_t(raw_x)*strength/magnitude),Fixed::RAW);
+        result.y=Fixed(int32_t(int64_t(raw_y)*strength/magnitude),Fixed::RAW);
+        result.strength=Fixed(strength,Fixed::RAW);
+        return result;
+    }
+};
+
+// The Vector3 half of the `utilities` group. It shares the category, and so the
+// script namespace and the Blueprint palette, with epok::UtilityLibrary; it lives
+// here only because GameplayVector3 is declared in this header. Like the scalar
+// calls it is pure value: the caller owns the state and hands it back each frame.
+struct EPOK_FUNCTION_LIBRARY(Category="Utilities", Id="07422ba3-cdbf-4384-bde6-19521f4e1c2c") UtilityVectorLibrary {
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="18823cc1-6141-40e6-8c2a-dc097bc32bfa") static GameplayVector3TweenState vector_tween_start(GameplayVector3 from,GameplayVector3 to,Fixed seconds,Ease easing){Tween timing;timing.start(0.0,1.0,seconds,easing);return gameplay_vector_tween(from,to,timing);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="5cd97b29-6570-4071-aede-8f095a2d59c6") static GameplayVector3TweenState vector_tween_schedule(GameplayVector3 from,GameplayVector3 to,Fixed seconds,Ease easing,Fixed delay_seconds,TweenLoop loop,uint32_t legs){Tween timing;timing.schedule(0.0,1.0,seconds,easing,delay_seconds,loop,legs);return gameplay_vector_tween(from,to,timing);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="ba4cbaf3-43a7-4476-aff8-c1cd48442c98") static Vector3TweenAdvanceSample vector_tween_advance(GameplayVector3TweenState state,Fixed delta_seconds){auto timing=gameplay_tween(state.timing);timing.advance(delta_seconds);Vector3TweenAdvanceSample result;result.state=gameplay_vector_tween(state.from,state.to,timing);result.completed=timing.completion_pending();result.value=gameplay_vector_tween_value(result.state);return result;}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="4e926f38-ba79-4cd8-9a64-aafd484d1c79") static GameplayVector3TweenState vector_tween_cancel(GameplayVector3TweenState state){auto timing=gameplay_tween(state.timing);timing.cancel();return gameplay_vector_tween(state.from,state.to,timing);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="9ffb6016-7a91-49ec-b8a6-315f6f5b91f0") static GameplayVector3 vector_tween_value(GameplayVector3TweenState state){return gameplay_vector_tween_value(state);}
 };
 
 struct EPOK_FUNCTION_LIBRARY(Category="World 2D", Id="624ed546-973a-40d1-8496-055eec580f18") World2DLibrary {
@@ -186,6 +270,30 @@ struct EPOK_FUNCTION_LIBRARY(Category="Scene", Id="e018f41e-b530-46f2-9331-9cf15
 #else
         (void)value;return request_scene(index);
 #endif
+    }
+    EPOK_FUNCTION(BlueprintPure, Id="5c70f7f6-3789-423e-83f1-608bc604bc2e") static FogSettings fog(){const auto& value=fog_environment;return {value.enabled,Fixed(value.start,Fixed::RAW),Fixed(value.end,Fixed::RAW),value.color[0],value.color[1],value.color[2]};}
+    EPOK_FUNCTION(BlueprintCallable, Id="3de7b991-edcb-40e6-8739-ca4cc5e4039b") static bool set_fog(FogSettings value){
+        // The editor validator accepts 0 <= start < end <= 128 with a span of at
+        // least one Q12 step; an out-of-range range is rejected whole so a
+        // scripted scene cannot diverge from an authored one.
+        const int32_t start=value.start_distance.raw(),finish=value.end_distance.raw();
+        if(start<0||finish>128*4096||finish-start<1)return false;
+        fog_environment.enabled=value.enabled;fog_environment.start=start;fog_environment.end=finish;
+        fog_environment.color[0]=gameplay_u8(value.red);fog_environment.color[1]=gameplay_u8(value.green);fog_environment.color[2]=gameplay_u8(value.blue);
+        return true;
+    }
+    // The post-HUD fade to black, 0 clear to 255 opaque, clamped rather than
+    // rejected because every amount above the range has one nearest valid value.
+    // The getter reports the authored amount; what is drawn is the larger of it
+    // and a running transition's opacity, which `transition_snapshot` already
+    // reports. The amount survives scene activation, so a game can fade out,
+    // request a scene and fade back in.
+    EPOK_FUNCTION(BlueprintPure, Id="91c95c93-f719-430c-b8e0-1c5863468be9") static uint32_t screen_fade(){return epok::screen_fade;}
+    EPOK_FUNCTION(BlueprintCallable, Id="2c441c7c-296e-4932-9b55-65a8f042a398") static void set_screen_fade(uint32_t value){
+        // `epok::` is load-bearing on both accessors: this library is in namespace
+        // epok, so an unqualified `screen_fade` in a member body finds the getter
+        // above rather than the store it reads.
+        epok::screen_fade=gameplay_u8(value);
     }
     EPOK_FUNCTION(BlueprintPure, Id="42291949-a4c5-454e-a5d6-09c5c3b1f698") static ObjectId active_camera_actor(){return gameplay_actor_id(active_camera());}
     EPOK_FUNCTION(BlueprintCallable, Id="e36ec48c-b2fe-49a2-8935-894d346882f7") static bool set_camera(ObjectId actor){return set_active_camera(gameplay_actor_data(actor));}

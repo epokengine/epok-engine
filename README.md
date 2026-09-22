@@ -43,11 +43,12 @@ the **[complete feature catalog](docs/features.md)**.
 
 | | What you can do |
 | --- | --- |
-| **Build your world** | Arrange entities in a dockable editor with transform gizmos, parenting and a component Inspector. Create and edit geometry with [Blockout](docs/blockout.md), including extrusion, bevels and geometry Undo/Redo. |
+| **Build your world** | Arrange entities in a dockable editor with transform gizmos, parenting and a component Inspector. Create and edit geometry with [Blockout](docs/blockout.md), including extrusion, bevels and geometry Undo/Redo. Sculpt and paint ground with [Terrain](docs/terrain.md). |
 | **Bring in your assets** | Import [PNG textures](docs/textures.md), [OBJ/MTL models](docs/static-mesh-import.md) and [FBX characters](docs/skeletal.md). Asset identities survive moves and reimports. |
 | **Animate and add effects** | Build layered effects in the [VFX editor](docs/vfx-editor.md) with presets, Q12 curves, bursts and preview controls. Reuse [timelines](docs/timelines.md) for scene sequences and connect their markers to Blueprint gameplay. Use sprites, flipbooks, [particle emitters](docs/sprites-particles.md), fog and palette cycling. |
 | **Model your game objects** | Compose maps from [actors and components](docs/actors.md): `Actor3D`, `Actor2D` and `UIActor` classes written in C++ or as Blueprints, with typed components, per-map scene Blueprints and a 3D / 2D / UI authoring mode. Maps use one Actor collection. Older projects must be recreated; see [project recreation](docs/migration-actors.md). |
 | **Write native gameplay** | Author C++20 behaviours with Inspector properties. Connect [input and collision](docs/input-collision.md), [scene transitions and object lifecycle](docs/runtime-services.md), cameras, tweens and [Memory Card storage](docs/memory-card.md). |
+| **Navigate NPCs** | Bake a bounded [NavLite](docs/navigation.md) walking graph from static box colliders, then reuse `NavigationAgentComponent` with a shared PSX search budget. Version 1 supports flat surfaces and obstacles. |
 | **Build visual gameplay** | Create [Blueprint classes](docs/blueprints.md) with native or visual parents, inherited defaults, typed graph nodes, functions, event overrides and Call Parent. Author entity templates, spawn classes and debug node execution. Graphs compile ahead of time to native C++; no graph VM runs on the PSX. |
 | **Script gameplay in Lua** | Author classes in [Lua](docs/lua-scripting.md) that subclass reflected C++ or other Lua classes, with Inspector properties, event overrides, typed gameplay-service/component calls and explicit parent calls. One project-wide setting compiles the same scripts to native C++ or runs them through a Lua VM linked into the game. New projects use bounded, statically typed Gameplay profile 2; older manifests retain the scalar Legacy v1 profile. Neither profile is general Lua compatibility. |
 | **Light and render** | Combine baked vertex lighting, bounded realtime GTE lighting, static shadows and blob shadows. Author for PSX rendering limits with native [performance counters](docs/performance.md). |
@@ -73,8 +74,8 @@ calls. Instrumented Play supports node breakpoints, stepping and typed values;
 release builds omit debugger instrumentation. Exported C++ projects rebuild
 without the editor or reflection extractor.
 
-Start with [Your first Blueprint](docs/blueprints-tutorial.md), then connect an
-effect with the [spell tutorial](docs/spell-tutorial.md). The [Blueprint reference](docs/blueprints.md)
+Start with [Your first Blueprint](docs/blueprints-tutorial.md), then author the
+effect it drives with the [VFX editor](docs/vfx-editor.md). The [Blueprint reference](docs/blueprints.md)
 documents execution and console-side limits. Blueprints use Epok's own asset format and
 bounded native backend; foreign assets/APIs and live native-code patching are not
 supported. Blueprint reflection/authoring is available on Windows x64 and Linux
@@ -127,12 +128,12 @@ system `PATH`; the local compiler build can take several minutes.
 
 ### Your first game
 
-1. Create a **Sample game** project in the Hub.
+1. Create a **Sample** project in the Hub.
 2. Select **Cube** and edit its **Spinner** component.
 3. Press **Play** to compile and run the game.
 4. Use **Pause**, **Step** and **Stop** to inspect it. Save scene changes with **Ctrl+S**.
 
-For level building, choose the **Third Person** template and edit its platforms and ramps with Blockout. The template provides an editable arena; game behaviours define character movement and camera following.
+Choose the **Third Person** template for an optimized editable arena and an animated player with camera-relative movement, jumping, collision and an orbit camera. New Project also asks how its starter gameplay should be written — C++, Blueprint or Lua — and generates the same scene either way; the choice never locks the project to one system.
 
 See [Getting started](docs/getting-started.md) for configuration and troubleshooting.
 
@@ -142,7 +143,7 @@ See [Getting started](docs/getting-started.md) for configuration and troubleshoo
 | Command | Purpose |
 | --- | --- |
 | `cargo run --locked` | Open the project Hub |
-| `cargo run --locked -- --project examples/rpg-2-5d-demo` | Open the included 2.5D project |
+| `cargo run --locked -- --project examples/sample-game` | Open the included sample project |
 | `cargo build --locked --release` | Build the optimized editor |
 | `make app` (macOS) | Build `Epok Engine.app` and optionally replace its Desktop copy |
 | `cargo test --locked` | Run the default Rust test suite |
@@ -162,13 +163,11 @@ A release build produces the editor executable. On macOS, `make app` additionall
 
 See [Sprites and particles](docs/sprites-particles.md), [Textures](docs/textures.md) and [HUD](docs/hud.md) for the engine features used in this scene.
 
-### A playable 2.5D scene
+### A playable third-person scene
 
-The [included demo](examples/rpg-2-5d-demo/README.md) combines a courtyard and night scene with textured geometry, lit animated sprites, collision, particles, a portal, HUD text, scrolling water and shared resources.
+Choose the **Third Person** template for an animated player with camera-relative movement, jumping, collision and an obstacle-aware orbit camera in an optimized arena. See [Third Person template](docs/third-person.md).
 
-![The Epok 2.5D demo running natively in PCSX-Redux](examples/rpg-2-5d-demo/preview.png)
-
-Move with the D-pad, trigger effects and switch scenes. The demo README documents its controls. Engine APIs are documented under [Input and collision](docs/input-collision.md), [Sprites and particles](docs/sprites-particles.md), [HUD](docs/hud.md) and [Runtime services](docs/runtime-services.md).
+Engine APIs are documented under [Input and collision](docs/input-collision.md), [Sprites and particles](docs/sprites-particles.md), [HUD](docs/hud.md) and [Runtime services](docs/runtime-services.md).
 
 ### From FBX to an animated character
 
@@ -211,7 +210,7 @@ Browse the **[Epok documentation](docs/getting-started.md)** for guides, workflo
 | Area | Guides |
 | --- | --- |
 | **Start and configure** | [Complete feature catalog](docs/features.md) · [Getting started](docs/getting-started.md) · [Projects](docs/projects.md) · [Settings](docs/settings.md) · [Editor](docs/editor.md) · [Migrating to actors](docs/migration-actors.md) |
-| **Create content** | [Blockout](docs/blockout.md) · [Third Person arena](docs/third-person.md) · [Static model import](docs/static-mesh-import.md) · [Skeletal characters](docs/skeletal.md) |
+| **Create content** | [Blockout](docs/blockout.md) · [Terrain](docs/terrain.md) · [Third Person arena](docs/third-person.md) · [Static model import](docs/static-mesh-import.md) · [Skeletal characters](docs/skeletal.md) |
 | **Render and animate** | [Textures](docs/textures.md) · [Lighting](docs/lighting.md) · [Sprites and particles](docs/sprites-particles.md) · [Environment effects](docs/environment-effects.md) · [Palette animation](docs/palette-animation.md) |
 | **Build gameplay** | [Gameplay API](docs/gameplay-api.md) · [Actors and components](docs/actors.md) · [Blueprints](docs/blueprints.md) · [C++ scripting](docs/scripting.md) · [Lua scripting](docs/lua-scripting.md) · [Input and collision](docs/input-collision.md) · [Runtime services](docs/runtime-services.md) · [Cameras and resources](docs/camera-resources.md) · [Memory Card](docs/memory-card.md) |
 | **Look up C++ APIs** | [Complete API reference](docs/api/index.md) · [Epok runtime API](docs/api/epok.md) · [PsyQo API](docs/api/psyqo.md) |

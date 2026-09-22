@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstdio>
 #include "../../runtime/epok.hpp"
+#include "../../runtime/retained.hpp"
 
 namespace epok {
 const ClassDescriptor object_classes[1] = {};
@@ -69,6 +70,20 @@ static void skeletal_queries() {
     auto stats=epok::ResourceLibrary::skeletal_queries();
     assert(stats.calls==4&&stats.vertices==7&&stats.failures==2);
 
+    // Portable IDs survive many-to-one cooking, including IDs beyond the
+    // cooked geometry count (weapon sockets use authored vertex indices).
+    const uint16_t duplicates[4]={1,0,1,0};
+    rigid.portable_to_cooked=duplicates;rigid.portable_vertex_count=4;
+    auto duplicate=epok::skeletal_sample_vertex(&actor,2,epok::PoseKind::Bind,epok::CoordinateSpace::Model);
+    assert(duplicate.success&&duplicate.position[0].raw()==8192);
+    indices.index0=2;indices.index1=3;indices.index2=4;indices.index3=2;
+    batch=epok::skeletal_sample_vertices(&actor,indices,epok::PoseKind::Bind,epok::CoordinateSpace::Model);
+    assert(batch.sample0.success&&batch.sample0.position[0].raw()==8192);
+    assert(batch.sample1.success&&batch.sample1.position[0].raw()==0);
+    assert(!batch.sample2.success&&batch.sample2.error==epok::SkeletalError::InvalidVertex);
+    assert(batch.sample3.success&&batch.sample3.position[0].raw()==8192);
+    rigid.portable_to_cooked=portable_to_cooked;rigid.portable_vertex_count=0;
+
     const uint8_t encoded[6]={0,0,0,1,0,0};
     const uint32_t seek[1]={0};
     const epok::VertexFrame frame[1]={{0,seek,false}};
@@ -92,6 +107,153 @@ static void skeletal_queries() {
     assert(bone.success&&bone.parent==-1&&bone.basis_x[0].raw()==4096);
 }
 
+static void skeletal_matrix_fast_paths() {
+    using epok::Fixed;
+    uint32_t rng=7;
+    auto next=[&](){rng=rng*1664525u+1013904223u;return rng;};
+    for(int sample=0;sample<10000;++sample){
+        auto p=identity_pose();
+        for(int k=0;k<4;++k)p.rotation[k]=int16_t(int(next()%8193)-4096);
+        if(sample%3==0)p.rotation[0]=p.rotation[1]=p.rotation[2]=0;
+        for(int k=0;k<3;++k){p.translation[k]=int16_t(next());p.scale[k]=sample%2?4096:int16_t(next());}
+        Fixed x(p.rotation[0],Fixed::RAW),y(p.rotation[1],Fixed::RAW),z(p.rotation[2],Fixed::RAW),w(p.rotation[3],Fixed::RAW),two=2.0,one=1.0;
+        epok::Affine<Fixed> ref;
+        ref.values[0][0]=one-two*(y*y+z*z);ref.values[0][1]=two*(x*y-z*w);ref.values[0][2]=two*(x*z+y*w);
+        ref.values[1][0]=two*(x*y+z*w);ref.values[1][1]=one-two*(x*x+z*z);ref.values[1][2]=two*(y*z-x*w);
+        ref.values[2][0]=two*(x*z-y*w);ref.values[2][1]=two*(y*z+x*w);ref.values[2][2]=one-two*(x*x+y*y);
+        for(int r=0;r<3;++r){for(int c=0;c<3;++c)ref.values[r][c]*=Fixed(p.scale[c],Fixed::RAW);ref.values[r][3]=Fixed(int32_t(p.translation[r])*16,Fixed::RAW);}
+        const auto result=epok::skeletal_detail::pose_matrix(p);
+        for(int r=0;r<3;++r)for(int c=0;c<4;++c)assert(result.values[r][c].raw()==ref.values[r][c].raw());
+    }
+}
+
+static void animated_packet_retention() {
+    assert(epok::retain_mesh_packets(true,false,false));
+    assert(!epok::retain_mesh_packets(true,true,false));
+    assert(!epok::retain_mesh_packets(true,false,true));
+    assert(epok::retain_mesh_packets(false,true,true));
+    epok::RetainedGeometry<3,4> pool;
+    epok::MeshGeometry geometry{};
+    epok::MeshQuad faces[2]{};
+    geometry.editable=true;geometry.quads=faces;geometry.quad_count=2;
+    faces[0].material.unlit=faces[1].material.unlit=true;
+    assert(epok::mesh_faces_unlit(&geometry));
+    faces[1].material.unlit=false;assert(!epok::mesh_faces_unlit(&geometry));
+    faces[1].material.unlit=true;
+    epok::MeshGeometry tail{};geometry.next=&tail;
+    assert(!epok::mesh_faces_unlit(&geometry));geometry.next=nullptr;
+    assert(!epok::mesh_faces_unlit(nullptr));
+    epok::MeshMaterialCache materials;
+    assert(!materials.faces_unlit(nullptr));
+    assert(materials.faces_unlit(&geometry));
+    assert(materials.faces_unlit(&geometry));
+    assert(!materials.faces_unlit(&tail)); // a different model invalidates
+    assert(materials.faces_unlit(&geometry));
+    materials={}; // scene/bank storage may reuse the same address
+    faces[1].material.unlit=false;
+    assert(!materials.faces_unlit(&geometry));
+    faces[1].material.unlit=true;
+    assert(pool.allocate(0,&geometry,3,8));
+    assert(pool.slot_top()==6);
+    assert(pool.allocate(0,&geometry,3,8)); // new poses do not allocate again
+    assert(pool.slot_top()==6);
+    assert(!pool.allocate(1,&geometry,2,8)); // safe dynamic fallback
+    auto& state=pool.state(0);
+    state.key[0].valid=state.key[1].valid=true;
+    assert(state.key[0]==state.key[1]);
+    ++state.key[0].color[0];assert(!(state.key[0]==state.key[1]));
+    pool.forget(0);assert(!state.key[0].valid&&!state.key[1].valid);
+}
+
+// The scripted fog facade over the raw `fog_environment` store. The accepted range
+// is the editor validator's; src/effects.rs checks the same candidates against that
+// validator, so neither end of the facade can drift alone.
+static void scene_fog_range() {
+    epok::fog_environment=epok::FogEnvironment{};
+    const auto defaults=epok::SceneLibrary::fog();
+    assert(!defaults.enabled&&defaults.start_distance.raw()==12*4096&&defaults.end_distance.raw()==40*4096);
+    assert(defaults.red==64&&defaults.green==77&&defaults.blue==102);
+    // The record's own defaults are the authored scene defaults, so an untouched
+    // Blueprint/Lua pin writes back exactly what the editor would.
+    const epok::FogSettings declared;
+    assert(declared.enabled==defaults.enabled&&declared.start_distance.raw()==defaults.start_distance.raw());
+    assert(declared.end_distance.raw()==defaults.end_distance.raw());
+    assert(declared.red==defaults.red&&declared.green==defaults.green&&declared.blue==defaults.blue);
+
+    epok::FogSettings value;
+    value.enabled=true;value.start_distance=0.0;value.end_distance=128.0;
+    value.red=300;value.green=77;value.blue=0;
+    assert(epok::SceneLibrary::set_fog(value));
+    assert(epok::fog_environment.enabled&&epok::fog_environment.start==0&&epok::fog_environment.end==128*4096);
+    // Channels clamp exactly as a transition's loading color does.
+    assert(epok::fog_environment.color[0]==255&&epok::fog_environment.color[1]==77&&epok::fog_environment.color[2]==0);
+    const auto applied=epok::SceneLibrary::fog();
+    assert(applied.enabled&&applied.start_distance.raw()==0&&applied.end_distance.raw()==128*4096);
+    assert(applied.red==255&&applied.green==77&&applied.blue==0);
+
+    // One Q12 step is the narrowest accepted span.
+    epok::FogSettings narrow=value;
+    narrow.start_distance=5.0;narrow.end_distance=epok::Fixed(5*4096+1,epok::Fixed::RAW);
+    assert(epok::SceneLibrary::set_fog(narrow));
+    assert(epok::fog_environment.start==5*4096&&epok::fog_environment.end==5*4096+1);
+
+    // A rejected range applies nothing at all: the flag, both distances and the
+    // three channels keep the values the last accepted call left behind.
+    const epok::FogEnvironment before=epok::fog_environment;
+    epok::FogSettings rejected[4]={narrow,narrow,narrow,narrow};
+    rejected[0].start_distance=epok::Fixed(-1,epok::Fixed::RAW);
+    rejected[1].end_distance=epok::Fixed(128*4096+1,epok::Fixed::RAW);
+    rejected[2].end_distance=rejected[2].start_distance;
+    rejected[3].end_distance=1.0;
+    for(const auto& candidate:rejected){
+        epok::FogSettings copy=candidate;
+        copy.enabled=!before.enabled;copy.red=1;copy.green=2;copy.blue=3;
+        assert(!epok::SceneLibrary::set_fog(copy));
+        assert(epok::fog_environment.enabled==before.enabled);
+        assert(epok::fog_environment.start==before.start&&epok::fog_environment.end==before.end);
+        assert(epok::fog_environment.color[0]==before.color[0]&&epok::fog_environment.color[1]==before.color[1]);
+        assert(epok::fog_environment.color[2]==before.color[2]);
+    }
+    epok::fog_environment=epok::FogEnvironment{};
+}
+
+// The scripted screen-fade facade over the raw `epok::screen_fade` store. Unlike
+// the fog range every input has one nearest valid value, so the setter clamps and
+// reports nothing; the getter is the whole observation.
+static void scene_screen_fade_clamps_and_round_trips() {
+    epok::screen_fade=0;
+    assert(epok::SceneLibrary::screen_fade()==0);
+
+    // Every representable amount round-trips exactly, including both ends and
+    // the 255 the renderer special-cases into an opaque rectangle.
+    for(uint32_t amount=0;amount<=255;++amount){
+        epok::SceneLibrary::set_screen_fade(amount);
+        assert(epok::screen_fade==amount);
+        assert(epok::SceneLibrary::screen_fade()==amount);
+    }
+
+    // Above the range the setter clamps to opaque black rather than refusing,
+    // exactly as a transition's loading color clamps its channels.
+    for(uint32_t over:{uint32_t(256),uint32_t(300),uint32_t(4096),uint32_t(0xffffffffu)}){
+        epok::SceneLibrary::set_screen_fade(over);
+        assert(epok::screen_fade==255&&epok::SceneLibrary::screen_fade()==255);
+    }
+    // The low end is unsigned, so zero is the only floor there is to reach.
+    epok::SceneLibrary::set_screen_fade(0);
+    assert(epok::screen_fade==0&&epok::SceneLibrary::screen_fade()==0);
+
+    // The getter reports what was authored, not what is drawn. The drawn amount
+    // is the larger of this and the running transition's opacity, and that one
+    // is already observable through `transition_snapshot`.
+    epok::SceneLibrary::set_screen_fade(64);
+    epok::transition.opacity=200;
+    assert(epok::SceneLibrary::screen_fade()==64);
+    assert(epok::SceneLibrary::transition_snapshot().opacity==200);
+    epok::transition.opacity=0;
+    assert(epok::SceneLibrary::screen_fade()==64);
+    epok::screen_fade=0;
+}
+
 static void persistent_utilities() {
     auto tween=epok::UtilityLibrary::tween_start(0.0,10.0,2.0,epok::Ease::SmoothStep);
     auto halfway=epok::UtilityLibrary::tween_advance(tween,1.0);
@@ -112,6 +274,53 @@ static void persistent_utilities() {
     auto polled=epok::UtilityLibrary::event_queue_poll(overflow.state);
     assert(polled.valid&&polled.event.kind==1&&polled.event.value==10);
     assert(polled.state.count==3&&polled.state.dropped==1);
+}
+
+// The Vector3 tween is one clock plus two endpoints, so it has to agree with
+// three scalar tweens driven by the same plan raw unit for raw unit: on the
+// waiting leg, on the forward leg and on the mirrored ping-pong leg alike.
+static void vector_tweens_track_scalar_tweens() {
+    const epok::GameplayVector3 from{-2.0,0.5,7.0},to{6.0,-3.25,7.0};
+    const epok::Fixed starts[3]={from.x,from.y,from.z},ends[3]={to.x,to.y,to.z};
+    for(auto easing:{epok::Ease::Linear,epok::Ease::InOutQuint,epok::Ease::OutCirc,epok::Ease::SmoothStep}){
+        auto vector=epok::UtilityVectorLibrary::vector_tween_schedule(from,to,2.0,easing,0.5,epok::TweenLoop::PingPong,2);
+        epok::GameplayTweenState axes[3];
+        for(unsigned axis=0;axis<3;++axis)axes[axis]=epok::UtilityLibrary::tween_schedule(starts[axis],ends[axis],2.0,easing,0.5,epok::TweenLoop::PingPong,2);
+        // 0.5 of wait plus two 2.0 legs is exactly twelve steps of 0.375.
+        for(int step=0;step<12;++step){
+            const auto advanced=epok::UtilityVectorLibrary::vector_tween_advance(vector,0.375);
+            vector=advanced.state;
+            const epok::Fixed components[3]={advanced.value.x,advanced.value.y,advanced.value.z};
+            for(unsigned axis=0;axis<3;++axis){
+                const auto scalar=epok::UtilityLibrary::tween_advance(axes[axis],0.375);
+                axes[axis]=scalar.state;
+                assert(components[axis].raw()==scalar.value.raw());
+                assert(advanced.completed==scalar.completed);
+                assert(vector.timing.running==scalar.state.running);
+                assert(vector.timing.elapsed.raw()==scalar.state.elapsed.raw());
+                assert(vector.timing.reversed==scalar.state.reversed);
+            }
+            // The shared clock is an ordinary 0..1 tween, so its own value is the
+            // interpolation parameter the three components were lerped with.
+            const auto alpha=epok::UtilityLibrary::tween_value(vector.timing);
+            for(unsigned axis=0;axis<3;++axis)assert(epok::lerp(starts[axis],ends[axis],alpha).raw()==components[axis].raw());
+            assert(epok::UtilityVectorLibrary::vector_tween_value(vector).y.raw()==components[1].raw());
+        }
+        // Two mirrored legs end exactly back at the start, on every component.
+        assert(!vector.timing.running&&vector.timing.completion_pending);
+        const auto ended=epok::UtilityVectorLibrary::vector_tween_value(vector);
+        assert(ended.x.raw()==from.x.raw()&&ended.y.raw()==from.y.raw()&&ended.z.raw()==from.z.raw());
+    }
+    // The short form is the same plan without a wait or a loop, and cancelling
+    // keeps the endpoints and the reached value while clearing the playback.
+    auto plain=epok::UtilityVectorLibrary::vector_tween_start(from,to,1.0,epok::Ease::OutCubic);
+    assert(plain.timing.delay.raw()==0&&plain.timing.loop==epok::TweenLoop::None&&plain.timing.cycles_remaining==1);
+    const auto quarter=epok::UtilityVectorLibrary::vector_tween_advance(plain,0.25);
+    const auto cancelled=epok::UtilityVectorLibrary::vector_tween_cancel(quarter.state);
+    assert(!cancelled.timing.running&&!cancelled.timing.completion_pending);
+    const auto held=epok::UtilityVectorLibrary::vector_tween_value(cancelled);
+    assert(held.x.raw()==quarter.value.x.raw()&&held.z.raw()==from.z.raw());
+    assert(epok::UtilityVectorLibrary::vector_tween_advance(cancelled,9.0).value.x.raw()==held.x.raw());
 }
 
 int main() {
@@ -155,6 +364,11 @@ int main() {
     auto focus=epok::FocusLibrary::snapshot();
     assert(!focus.valid&&focus.count==0&&!focus.current.valid());
     skeletal_queries();
+    skeletal_matrix_fast_paths();
+    animated_packet_retention();
+    scene_fog_range();
+    scene_screen_fade_clamps_and_round_trips();
     persistent_utilities();
-    std::puts("Gameplay libraries: typed records, input/time, math, bounded payload and focus pass.");
+    vector_tweens_track_scalar_tweens();
+    std::puts("Gameplay libraries: typed records, input/time, math, bounded payload, fog, screen fade, tweens and focus pass.");
 }

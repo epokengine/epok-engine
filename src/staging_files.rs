@@ -631,6 +631,7 @@ mod tests {
             editor_version: env!("CARGO_PKG_VERSION").into(),
             name: "Certification".into(),
             debug: Default::default(),
+            controls: Default::default(),
             lua_execution: Default::default(),
             lua_profile: Default::default(),
             play: Default::default(),

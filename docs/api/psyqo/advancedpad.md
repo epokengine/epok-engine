@@ -8,7 +8,7 @@ PsyQo is pinned through Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552
 
 ## Declared types
 
-`psyqo::AdvancedPad`, `psyqo::AdvancedPad::Button`, `psyqo::AdvancedPad::Event`, `psyqo::AdvancedPad::Event::(unnamed enum at /Users/francisco.rivero/GithubProjects/p/epok-engine/third_party/nugget/psyqo/advancedpad.hh:84:9)`, `psyqo::AdvancedPad::Pad`, `psyqo::AdvancedPad::PadData::(unnamed struct at /Users/francisco.rivero/GithubProjects/p/epok-engine/third_party/nugget/psyqo/advancedpad.hh:235:9)`, `psyqo::AdvancedPad::PadType`, `psyqo::AdvancedPad::PollingMode`
+`psyqo::AdvancedPad`, `psyqo::AdvancedPad::Button`, `psyqo::AdvancedPad::Event`, `psyqo::AdvancedPad::Event::(unnamed enum at third_party/nugget/psyqo/advancedpad.hh:84:9)`, `psyqo::AdvancedPad::Pad`, `psyqo::AdvancedPad::PadData::(anonymous struct at third_party/nugget/psyqo/advancedpad.hh:235:9)`, `psyqo::AdvancedPad::PadType`, `psyqo::AdvancedPad::PollingMode`
 
 ## Callable index
 

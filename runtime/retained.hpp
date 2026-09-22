@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Retained GPU packets for static meshes (Project Settings > Rendering >
+// Retained GPU packets for static and unlit animated meshes (Project Settings > Rendering >
 // Retained Packets). Every quad of a retained object owns two fixed fragment
 // slots in each parity buffer. A rebuild writes the words that do not change
 // per frame: command byte and corner colours, page UVs, palette and page
@@ -14,6 +14,29 @@
 // built, so a rebuild touches only the parity being built and each parity
 // keeps its own key of the inputs baked into its packets.
 namespace epok {
+// An imported editable mesh owns per-face materials. The actor tint can still
+// have its default lit flag even when every face explicitly opts out.
+inline bool mesh_faces_unlit(const MeshGeometry* geometry) {
+    if(!geometry)return false;
+    for(auto* mesh=geometry;mesh;mesh=mesh->next){
+        if(!mesh->editable || (mesh->quad_count && !mesh->quads))return false;
+        for(size_t q=0;q<mesh->quad_count;++q)if(!mesh->quads[q].material.unlit)return false;
+    }
+    return true;
+}
+// Generated topology and face materials are immutable. A new model/scene
+// invalidates the pointer; actor tint and lighting remain live renderer inputs.
+struct MeshMaterialCache {
+    const MeshGeometry* geometry=nullptr;
+    bool unlit=false;
+    bool faces_unlit(const MeshGeometry* source) {
+        if(source!=geometry){geometry=source;unlit=mesh_faces_unlit(source);}
+        return unlit;
+    }
+};
+inline bool retain_mesh_packets(bool skeletal,bool object_lit,bool baked_colors) {
+    return !skeletal || (!object_lit && !baked_colors);
+}
 struct RetainedKey {
     const MeshGeometry* geometry=nullptr;const Texture* bank=nullptr;const uint8_t (*baked)[3]=nullptr;size_t baked_count=0;
     uint32_t generation=0,light_signature=0;int32_t basis[9]={};

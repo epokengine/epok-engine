@@ -524,8 +524,17 @@ impl Emitter<'_> {
                     Conversion::FixedToInt => format!("epok::bp::to_int({operand})"),
                 }
             }
-            Expr::Member { base, name, .. } => {
-                format!("({}).{name}", self.expr(base)?)
+            Expr::Member {
+                base, name, index, ..
+            } => {
+                // A record's components are named members; a vector's are a
+                // native `Fixed[N]`, so they are reached by index exactly as a
+                // write to the same component is.
+                if matches!(base.value_type(), Type::Vector { .. }) {
+                    format!("({})[{index}]", self.expr(base)?)
+                } else {
+                    format!("({}).{name}", self.expr(base)?)
+                }
             }
             Expr::CallSelf { name, args, .. } => {
                 format!("this->{name}({})", self.arguments(args)?)
@@ -936,8 +945,11 @@ pub fn emit_bindings(
                 wide_get.push_str(&wire_dispatch_case(slot, &access, &field.value_type)?);
                 let value = wire_unpack("value", &field.value_type, 0)?;
                 if let Type::Vector { length } = &field.value_type {
+                    // The unpacked value is a braced list, so it needs the
+                    // array type spelled out: `auto` would deduce an
+                    // initializer_list, which has no subscript operator.
                     wide_set.push_str(&format!(
-                        "case {slot}: {{ const auto epok_value={value};{}return; }}\n",
+                        "case {slot}: {{ const epok::Fixed epok_value[]={value};{}return; }}\n",
                         (0..*length)
                             .map(|component| format!(
                                 "{access}[{component}]=epok_value[{component}];"
@@ -1255,6 +1267,28 @@ pub(crate) mod tests {
             .expect("lowered body");
         (registry, ir)
     }
+    /// The profile new projects use, where a whole vector is a value and
+    /// reading one of its components takes the member path.
+    fn lower_v2(path: &str, source: &str, registry: &Registry) -> (Registry, ClassIr) {
+        let file = lua_asset::tests::fixture(path, source);
+        let declaration = lua_asset::extract(&file).expect("declaration");
+        let class = lua_asset::declarations(&declaration, &file, registry).expect("class");
+        let mut registry = registry.clone();
+        registry.classes.insert(class.id.clone(), class);
+        registry.normalize_functions();
+        let chunk = crate::lua_frontend::parse(&file).expect("chunk");
+        let class = registry.classes[&declaration.id].clone();
+        let ir = crate::lua_frontend::lower_class_with_profile(
+            &declaration,
+            &chunk,
+            &class,
+            &registry,
+            crate::settings::LuaProfile::GameplayV2,
+        )
+        .expect("lowered body");
+        (registry, ir)
+    }
+
     fn enemy_logic(body: &str) -> String {
         format!(
             "{}\n{body}\nreturn EnemyLogic\n",
@@ -1289,6 +1323,39 @@ pub(crate) mod tests {
         }
         // A native build never reaches the VM runtime or its class indices.
         assert!(!text.contains("lua_runtime.hpp") && !text.contains("kEpokLuaClass_"));
+    }
+
+    /// A vector property is a native `epok::Fixed[N]`, so reading one of its
+    /// components is an index. Emitting `.y` compiled as a member access and
+    /// only failed in the target compiler, long after the Lua frontend had
+    /// accepted the source.
+    #[test]
+    fn a_vector_property_component_is_read_by_index() {
+        let registry = lua_asset::tests::registry();
+        let source = enemy_logic(&format!(
+            "---@id 9a13c2d4-4f2f-4a0d-8f2a-4a1f2c3d4e5f\n\
+             EnemyLogic.velocity = epok.Vector3(0.0, 0.0, 0.0)\n\
+             {}function EnemyLogic:damage(amount)\n    \
+             self.velocity.y = self.velocity.y - amount\n    \
+             if self.velocity.y > amount then\n        self.health = amount\n    end\nend\n",
+            lua_asset::tests::DAMAGE
+        ));
+        let (registry, ir) = lower_v2("assets/scripts/EnemyLogic.lua", &source, &registry);
+        let class = registry.classes["956f4946-0c61-42f8-899e-2db063b42420"].clone();
+        let text = emit_class(&class, &ir, &registry, BodyMode::Native, None).unwrap();
+        assert!(text.contains("epok::Fixed velocity[3]{};\n"), "{text}");
+        assert!(
+            text.contains("this->velocity[1] = epok::bp::sub((this->velocity)[1], epok_p0);"),
+            "a vector component must be read and written by index in\n{text}"
+        );
+        assert!(
+            text.contains("((this->velocity)[1])>(epok_p0)"),
+            "a vector component read must be an index in\n{text}"
+        );
+        assert!(
+            !text.contains("velocity).y") && !text.contains("velocity.y"),
+            "{text}"
+        );
     }
 
     /// The body both backends must lower identically: one builtin of every
@@ -1334,6 +1401,47 @@ end
         }
         // An impure builtin may destroy this object, so the owner is rechecked.
         assert!(text.contains("if(!epok_owner.get())return;"));
+    }
+
+    /// The whole-vector setter the VM binding generates for a vector property.
+    /// `auto` deduced an `initializer_list` from the braced wire value, which
+    /// has no subscript operator, so every VM build of a class with a vector
+    /// property failed in the target compiler.
+    #[test]
+    fn the_vm_binding_assigns_a_vector_property_component_by_component() {
+        let registry = lua_asset::tests::registry();
+        let source = enemy_logic(&format!(
+            "---@id 9a13c2d4-4f2f-4a0d-8f2a-4a1f2c3d4e5f\n\
+             EnemyLogic.velocity = epok.Vector3(0.0, 0.0, 0.0)\n\
+             {}function EnemyLogic:damage(amount)\n    \
+             self.velocity.y = amount\n    \
+             self.health = self.velocity.y\nend\n",
+            lua_asset::tests::DAMAGE
+        ));
+        let (registry, ir) = lower_v2("assets/scripts/EnemyLogic.lua", &source, &registry);
+        let class = registry.classes["956f4946-0c61-42f8-899e-2db063b42420"].clone();
+        let symbols = BTreeMap::from([(class.id.clone(), crate::lua_vm::chunk_symbol(&class.id))]);
+        let text = emit_bindings(&[(class, ir.clone())], &registry, &symbols).unwrap();
+        assert!(
+            text.contains("const epok::Fixed epok_value[]={"),
+            "the wide setter must name the array type in\n{text}"
+        );
+        assert!(text.contains("self.velocity[0]=epok_value[0];"), "{text}");
+        assert!(!text.contains("const auto epok_value={"), "{text}");
+
+        // The chunk side of the same property: a component read is one slot,
+        // never a member of a value the boundary cannot carry.
+        let fields = crate::lua_vm::field_slots_for_ir(&ir, &registry);
+        let methods = crate::lua_vm::method_slots(&ir, &registry);
+        let chunk = crate::lua_vm::emit_chunk(
+            &ir,
+            &fields,
+            &methods,
+            std::path::Path::new("assets/scripts/EnemyLogic.lua"),
+        )
+        .unwrap();
+        assert!(chunk.contains("__epok_getf(self,"), "{chunk}");
+        assert!(!chunk.contains("__epok_member("), "{chunk}");
     }
 
     #[test]

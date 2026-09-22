@@ -548,7 +548,16 @@ def write_report(report, out):
     if report.get("failures"):
         lines += ["## Failed workloads", ""]
         lines += [f"* `{key}`: {error}" for key, error in report["failures"]] + [""]
-    documents.write_text(out / "report.md", "\n".join(lines))
+    write_evidence(out / "report.md", "\n".join(lines))
+
+
+def write_evidence(path, text):
+    """Record a report with repository-relative paths.
+
+    These files are committed and read on other machines, so they must not
+    carry the directory this run happened to execute in.
+    """
+    documents.write_text(path, text.replace(f"{ROOT}/", ""))
 
 
 def main():
@@ -602,7 +611,7 @@ def main():
                "One sample per distinct completed frame, polled at 20 Hz; not a "
                "continuous per-frame trace."],
         projects={}, workloads={})
-    documents.write_text(out / "results.json", json.dumps(report, indent=2))
+    write_evidence(out / "results.json", json.dumps(report, indent=2))
 
     projects, failures = {}, []
     for workload in workloads:
@@ -674,10 +683,10 @@ def main():
             failures.append((key, entry["error"]))
             print(f"  FAILED {entry['error'][:300]}", flush=True)
         report["workloads"][key] = entry
-        documents.write_text(out / "results.json", json.dumps(report, indent=2))
+        write_evidence(out / "results.json", json.dumps(report, indent=2))
 
     report["failures"] = failures
-    documents.write_text(out / "results.json", json.dumps(report, indent=2))
+    write_evidence(out / "results.json", json.dumps(report, indent=2))
     write_report(report, out)
     print("Measurements:", out)
     if failures:

@@ -506,6 +506,8 @@ construction rather than by agreement.
 | `epok.spawn("Class")`, `epok.spawn("Class", parent)` | `ActorRef<Class>` | Spawn |
 | `epok.spawn_class(self.<ClassRef property>)`, with an optional `parent` | `ActorRef<base>` | Spawn Class |
 | `epok.owner()` | `ActorRef` | Get Owner (Component classes only) |
+| `epok.position(ref)`, `epok.rotation(ref)`, `epok.scale(ref)` | `Vector3` | Get Position, Get Rotation, Get Scale |
+| `epok.set_position(ref, value)`, `epok.set_rotation(ref, value)`, `epok.set_scale(ref, value)` | `void` | Set Position, Set Rotation, Set Scale |
 | `epok.play_audio(ref)`, `epok.stop_audio(ref)` | `void` | Play Audio, Stop Audio |
 | `epok.set_texture(ref, self.<AssetRef property>)` | `void` | Set Texture |
 | `epok.set_audio_clip(ref, self.<AssetRef property>)` | `void` | Set Audio Clip |
@@ -515,6 +517,16 @@ construction rather than by agreement.
 
 `button` and `port` are `UInt32`; `port` is 0 or 1 and a button index of 16 or
 more always reads `false`, exactly as the Blueprint node does.
+
+`epok.position` and its five neighbours read and write the spatial root of any
+World3D actor, which is what `self.position.x` does for the actor running the
+body. They are how a class reaches something other than itself:
+
+```lua
+local placement = epok.position(self.camera)
+placement.y = placement.y + 1.0
+epok.set_position(self.camera, placement)
+```
 
 `epok.is_a`, `epok.cast`, `epok.spawn` name their class by an authored name
 resolved through the class registry at compile time, so a misspelling is a

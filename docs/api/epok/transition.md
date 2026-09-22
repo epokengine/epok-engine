@@ -35,7 +35,7 @@ inline uint16_t transition_audio_gain()
 - **Declared at:** [line 60](../../../runtime/transition.hpp#L60)
 - **Kind:** `function decl`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** The transition gain never overwrites AudioSource.volume.
 
@@ -70,7 +70,7 @@ void advance(uint32_t now)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `now` | `int` | Input | Value supplied for `now`. See the exact type and module contract. |
+| `now` | `uint32_t` | Input | Value supplied for `now`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -82,7 +82,7 @@ void advance(uint32_t now)
 #include "transition.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int now
+// uint32_t now
 
 epok::TransitionState& object = /* obtain a valid instance */;
 
@@ -113,7 +113,7 @@ void begin(const TransitionOptions& value,uint32_t now,bool initial=false)
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
 | `value` | `const TransitionOptions &` | Input | Value supplied for `value`. See the exact type and module contract. |
-| `now` | `int` | Input | Value supplied for `now`. See the exact type and module contract. |
+| `now` | `uint32_t` | Input | Value supplied for `now`. See the exact type and module contract. |
 | `initial` | `bool` | Input | Value supplied for `initial`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -127,7 +127,7 @@ void begin(const TransitionOptions& value,uint32_t now,bool initial=false)
 
 // Assume these named values have been initialized with valid data:
 // const TransitionOptions & value
-// int now
+// uint32_t now
 // bool initial
 
 epok::TransitionState& object = /* obtain a valid instance */;
@@ -224,7 +224,7 @@ void loaded(uint32_t now)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `now` | `int` | Input | Value supplied for `now`. See the exact type and module contract. |
+| `now` | `uint32_t` | Input | Value supplied for `now`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -236,7 +236,7 @@ void loaded(uint32_t now)
 #include "transition.hpp"
 
 // Assume these named values have been initialized with valid data:
-// int now
+// uint32_t now
 
 epok::TransitionState& object = /* obtain a valid instance */;
 

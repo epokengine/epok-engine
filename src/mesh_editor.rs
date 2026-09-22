@@ -62,6 +62,7 @@ pub struct State {
     rotation: [f32; 3],
     scale: [f32; 3],
     distance: f32,
+    brush: crate::brush::Brush,
     undo: Vec<History>,
     redo: Vec<History>,
     pub error: Option<String>,
@@ -94,6 +95,7 @@ impl Default for State {
             rotation: [0.; 3],
             scale: [1.; 3],
             distance: 0.25,
+            brush: crate::brush::Brush::default(),
             undo: vec![],
             redo: vec![],
             error: None,
@@ -472,10 +474,10 @@ pub(crate) fn assign_mesh(
     Ok(())
 }
 
-pub fn filter(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
-    if !crate::gui::heading(ui, "Mesh Filter") {
-        return;
-    }
+/// The actor's mesh: the read-only engine cube or a project mesh asset. Epok has
+/// one mesh component, so this is the first row of whichever renderer section is
+/// showing rather than a section of its own.
+pub fn selector(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
     let current = entity
         .editable_mesh
         .as_ref()
@@ -543,17 +545,29 @@ pub fn filter(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
     if entity.editable_mesh.is_none() && entity.skeletal_mesh.is_none() {
         ui.text_disabled("Engine mesh (read-only)");
     }
-    ui.separator();
 }
 
 pub fn component(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
-    let Some(m) = &mut entity.editable_mesh else {
-        return;
-    };
-    ui.separator();
-    if !crate::gui::heading(ui, "Mesh Renderer") {
+    if entity.editable_mesh.is_none() {
         return;
     }
+    ui.separator();
+    let mut remove = false;
+    let expanded = crate::gui::section(ui, "Mesh Renderer", || {
+        remove = ui.menu_item("Remove Editable Mesh");
+    });
+    if remove {
+        entity.editable_mesh = None;
+        entity.kind = "Empty".into();
+        return;
+    }
+    if !expanded {
+        return;
+    }
+    selector(ui, e, entity);
+    let Some(m) = entity.editable_mesh.as_mut() else {
+        return;
+    };
     if let Some(error) = &m.error {
         ui.text_wrapped(error);
     }
@@ -603,10 +617,6 @@ pub fn component(ui: &Ui, e: &mut Editor, entity: &mut Actor) {
         {
             ui.text_wrapped("Overrides for removed material slots are retained for undo/recovery.");
         }
-    }
-    if button(ui, "Remove Editable Mesh") {
-        entity.editable_mesh = None;
-        entity.kind = "Empty".into();
     }
 }
 pub fn pick(e: &mut Editor, pixel: [f32; 2], extend: bool) -> bool {
@@ -964,6 +974,7 @@ fn edit_panel(ui: &Ui, e: &mut Editor, doc: &Document) {
         .range(0.001, 4.)
         .speed(0.01)
         .build(ui, &mut e.mesh_editor.grid);
+    sculpt_controls(ui, e, doc);
     if button(ui, "Add shape") {
         let shape = shapes[e.mesh_editor.shape];
         let grid = e.mesh_editor.grid.max(0.001);
@@ -1768,4 +1779,87 @@ mod tests {
         drop(e);
         std::fs::remove_dir_all(root).unwrap();
     }
+}
+
+/// Height brush for blockout geometry, centred on the selection.
+///
+/// It is the terrain brush applied to authored vertices: same falloff, same
+/// modes, same arithmetic. A quad the displacement bends is split into two
+/// triangles, because a blockout face has to stay planar.
+fn sculpt_controls(ui: &Ui, e: &mut Editor, doc: &Document) {
+    ui.separator();
+    crate::gui::muted(ui, "Sculpt brush");
+    let mut mode = crate::brush::Mode::SCULPT
+        .iter()
+        .position(|m| *m == e.mesh_editor.brush.mode)
+        .unwrap_or(0);
+    let labels: Vec<&str> = crate::brush::Mode::SCULPT
+        .iter()
+        .map(|m| m.label())
+        .collect();
+    if ui.combo_simple_string(crate::gui::field(ui, "Sculpt"), &mut mode, &labels) {
+        e.mesh_editor.brush.mode = crate::brush::Mode::SCULPT[mode];
+    }
+    let mut falloff = crate::brush::Falloff::ALL
+        .iter()
+        .position(|f| *f == e.mesh_editor.brush.falloff)
+        .unwrap_or(0);
+    let falloffs: Vec<&str> = crate::brush::Falloff::ALL
+        .iter()
+        .map(|f| f.label())
+        .collect();
+    if ui.combo_simple_string(
+        crate::gui::field(ui, "Sculpt falloff"),
+        &mut falloff,
+        &falloffs,
+    ) {
+        e.mesh_editor.brush.falloff = crate::brush::Falloff::ALL[falloff];
+    }
+    crate::gui::Drag::new(crate::gui::field(ui, "Sculpt radius"))
+        .speed(0.05)
+        .range(crate::brush::MIN_RADIUS, crate::brush::MAX_RADIUS)
+        .build(ui, &mut e.mesh_editor.brush.radius);
+    crate::gui::Drag::new(crate::gui::field(ui, "Sculpt strength"))
+        .speed(0.01)
+        .range(0., crate::brush::MAX_STRENGTH)
+        .build(ui, &mut e.mesh_editor.brush.strength);
+    let selection = selected_vertices(e, doc);
+    let center = brush_center(doc, &selection);
+    if button(ui, "Sculpt selection") {
+        let brush = e.mesh_editor.brush;
+        let result = edit(e, move |doc| {
+            crate::mesh_ops::sculpt(doc, &brush, center, &selection)
+        });
+        report(e, result);
+    }
+    ui.text_wrapped(
+        "Displaces vertices along Y under the brush, centred on the selection or on the whole mesh when nothing is selected. Bent quads become triangle pairs. Use the Terrain tool for a heightmap you can paint and stroke in the viewport.",
+    );
+}
+
+/// Vertices the sculpt applies to: the explicit vertex selection, or the
+/// vertices of the selected faces, or everything when nothing is selected.
+fn selected_vertices(e: &Editor, doc: &Document) -> BTreeSet<u32> {
+    if !e.mesh_editor.vertices.is_empty() {
+        return e.mesh_editor.vertices.clone();
+    }
+    if !e.mesh_editor.selected.is_empty() {
+        return doc.selected_vertices(&e.mesh_editor.selected);
+    }
+    BTreeSet::new()
+}
+
+fn brush_center(doc: &Document, selection: &BTreeSet<u32>) -> [f32; 3] {
+    let points: Vec<[f32; 3]> = if selection.is_empty() {
+        doc.vertices.clone()
+    } else {
+        selection
+            .iter()
+            .filter_map(|v| doc.vertices.get(*v as usize).copied())
+            .collect()
+    };
+    if points.is_empty() {
+        return [0.; 3];
+    }
+    std::array::from_fn(|c| points.iter().map(|p| p[c]).sum::<f32>() / points.len() as f32)
 }

@@ -15,8 +15,8 @@
   "builds": {
     "dump": {
       "built": true,
-      "elf": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/lua-vm-abi/dump/dump.elf",
-      "ps_exe": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/lua-vm-abi/dump/dump.ps-exe",
+      "elf": ".epok/lua-vm-abi/dump/dump.elf",
+      "ps_exe": ".epok/lua-vm-abi/dump/dump.ps-exe",
       "sections": {
         "bss": 16668,
         "data": 1456,
@@ -27,8 +27,8 @@
     },
     "smoke-bytecode": {
       "built": true,
-      "elf": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/lua-vm-abi/smoke-bytecode/smoke_bytecode.elf",
-      "ps_exe": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/lua-vm-abi/smoke-bytecode/smoke_bytecode.ps-exe",
+      "elf": ".epok/lua-vm-abi/smoke-bytecode/smoke_bytecode.elf",
+      "ps_exe": ".epok/lua-vm-abi/smoke-bytecode/smoke_bytecode.ps-exe",
       "sections": {
         "bss": 238380,
         "data": 1056,
@@ -39,8 +39,8 @@
     },
     "smoke-source": {
       "built": true,
-      "elf": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/lua-vm-abi/smoke-source/smoke_source.elf",
-      "ps_exe": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.epok/lua-vm-abi/smoke-source/smoke_source.ps-exe",
+      "elf": ".epok/lua-vm-abi/smoke-source/smoke_source.elf",
+      "ps_exe": ".epok/lua-vm-abi/smoke-source/smoke_source.ps-exe",
       "sections": {
         "bss": 238380,
         "data": 880,
@@ -93,8 +93,8 @@
     }
   },
   "environment": {
-    "bios": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.tools/macos/redux/PCSX-Redux.app/Contents/Resources/share/pcsx-redux/resources/openbios.bin",
-    "emulator": "/Users/francisco.rivero/GithubProjects/p/epok-engine/.tools/macos/redux/PCSX-Redux.app/Contents/MacOS/PCSX-Redux",
+    "bios": ".tools/macos/redux/PCSX-Redux.app/Contents/Resources/share/pcsx-redux/resources/openbios.bin",
+    "emulator": ".tools/macos/redux/PCSX-Redux.app/Contents/MacOS/PCSX-Redux",
     "platform": "darwin",
     "revisions": {
       "nugget": "6186b131aacc5853a9161fb076ed34ffe504552d",

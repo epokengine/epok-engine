@@ -125,7 +125,7 @@ virtual void list(unsigned,CardFile*,uint32_t*,void*,Completion)=0
 | --- | --- | --- | --- |
 | `arg1` | `unsigned int` | Input | Value supplied for `arg1`. See the exact type and module contract. |
 | `arg2` | `CardFile *` | Input/output; inspect the function contract | Value supplied for `arg2`. See the exact type and module contract. |
-| `arg3` | `int *` | Input/output; inspect the function contract | Value supplied for `arg3`. See the exact type and module contract. |
+| `arg3` | `uint32_t *` | Input/output; inspect the function contract | Value supplied for `arg3`. See the exact type and module contract. |
 | `arg4` | `void *` | Input/output; inspect the function contract | Value supplied for `arg4`. See the exact type and module contract. |
 | `arg5` | `Completion` | Input | Value supplied for `arg5`. See the exact type and module contract. |
 
@@ -141,7 +141,7 @@ virtual void list(unsigned,CardFile*,uint32_t*,void*,Completion)=0
 // Assume these named values have been initialized with valid data:
 // unsigned int arg1
 // CardFile * arg2
-// int * arg3
+// uint32_t * arg3
 // void * arg4
 // Completion arg5
 
@@ -222,8 +222,8 @@ virtual void read(unsigned,const char*,void*,uint32_t,uint32_t*,void*,Completion
 | `arg1` | `unsigned int` | Input | Value supplied for `arg1`. See the exact type and module contract. |
 | `arg2` | `const char *` | Input | Value supplied for `arg2`. See the exact type and module contract. |
 | `arg3` | `void *` | Input/output; inspect the function contract | Value supplied for `arg3`. See the exact type and module contract. |
-| `arg4` | `int` | Input | Value supplied for `arg4`. See the exact type and module contract. |
-| `arg5` | `int *` | Input/output; inspect the function contract | Value supplied for `arg5`. See the exact type and module contract. |
+| `arg4` | `uint32_t` | Input | Value supplied for `arg4`. See the exact type and module contract. |
+| `arg5` | `uint32_t *` | Input/output; inspect the function contract | Value supplied for `arg5`. See the exact type and module contract. |
 | `arg6` | `void *` | Input/output; inspect the function contract | Value supplied for `arg6`. See the exact type and module contract. |
 | `arg7` | `Completion` | Input | Value supplied for `arg7`. See the exact type and module contract. |
 
@@ -240,8 +240,8 @@ virtual void read(unsigned,const char*,void*,uint32_t,uint32_t*,void*,Completion
 // unsigned int arg1
 // const char * arg2
 // void * arg3
-// int arg4
-// int * arg5
+// uint32_t arg4
+// uint32_t * arg5
 // void * arg6
 // Completion arg7
 
@@ -278,7 +278,7 @@ virtual void write(unsigned,const char*,const char*,const CardIcon&,const void*,
 | `arg3` | `const char *` | Input | Value supplied for `arg3`. See the exact type and module contract. |
 | `arg4` | `const CardIcon &` | Input | Value supplied for `arg4`. See the exact type and module contract. |
 | `arg5` | `const void *` | Input | Value supplied for `arg5`. See the exact type and module contract. |
-| `arg6` | `int` | Input | Value supplied for `arg6`. See the exact type and module contract. |
+| `arg6` | `uint32_t` | Input | Value supplied for `arg6`. See the exact type and module contract. |
 | `arg7` | `void *` | Input/output; inspect the function contract | Value supplied for `arg7`. See the exact type and module contract. |
 | `arg8` | `Completion` | Input | Value supplied for `arg8`. See the exact type and module contract. |
 
@@ -297,7 +297,7 @@ virtual void write(unsigned,const char*,const char*,const CardIcon&,const void*,
 // const char * arg3
 // const CardIcon & arg4
 // const void * arg5
-// int arg6
+// uint32_t arg6
 // void * arg7
 // Completion arg8
 
@@ -400,7 +400,7 @@ const uint8_t* data()const
 - **Declared at:** [line 133](../../../runtime/memory_card.hpp#L133)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `const int *`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `const uint8_t *`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need asynchronous Memory Card access and files and the preconditions in the declaration are already satisfied.
 
@@ -433,7 +433,7 @@ uint32_t file_count()const
 - **Declared at:** [line 136](../../../runtime/memory_card.hpp#L136)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need asynchronous Memory Card access and files and the preconditions in the declaration are already satisfied.
 
@@ -736,7 +736,7 @@ uint32_t size()const
 - **Declared at:** [line 134](../../../runtime/memory_card.hpp#L134)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** You need asynchronous Memory Card access and files and the preconditions in the declaration are already satisfied.
 
@@ -809,7 +809,7 @@ bool write(const char* name,const char* title,const void* data,uint32_t size,uns
 | `name` | `const char *` | Input | Value supplied for `name`. See the exact type and module contract. |
 | `title` | `const char *` | Input | Value supplied for `title`. See the exact type and module contract. |
 | `data` | `const void *` | Input | Value supplied for `data`. See the exact type and module contract. |
-| `size` | `int` | Input | Value supplied for `size`. See the exact type and module contract. |
+| `size` | `uint32_t` | Input | Value supplied for `size`. See the exact type and module contract. |
 | `port` | `unsigned int` | Input | Value supplied for `port`. See the exact type and module contract. |
 | `icon` | `const CardIcon *` | Input | Value supplied for `icon`. See the exact type and module contract. |
 
@@ -826,7 +826,7 @@ bool write(const char* name,const char* title,const void* data,uint32_t size,uns
 // const char * name
 // const char * title
 // const void * data
-// int size
+// uint32_t size
 // unsigned int port
 // const CardIcon * icon
 

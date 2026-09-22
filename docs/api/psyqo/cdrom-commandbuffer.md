@@ -33,7 +33,7 @@ template <CDRomArgumentType... T> void set(T... values)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `values` | `int` | Input | Value supplied for `values`. See the exact type and module contract. |
+| `values` | `T...` | Input | Value supplied for `values`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -48,7 +48,7 @@ template <CDRomArgumentType... T> void set(T... values)
 // T
 
 // Assume these named values have been initialized with valid data:
-// int values
+// T... values
 
 psyqo::Hardware::CDRom::CDRomCommandBuffer& object = /* obtain a valid instance */;
 

@@ -94,6 +94,42 @@ mod tests {
             2147483648
         );
     }
+    /// `runtime/timeline.hpp` now takes `EaseIn`/`EaseOut` from the shared
+    /// `epok::fixed_math::powq` instead of writing the squares out, so this pins the
+    /// substitution as bit-identical over the whole alpha domain: one truncating
+    /// multiply is exactly what `powq(t, 2)` performs.
+    ///
+    /// `Smoothstep` deliberately kept its own single division. The utility library's
+    /// `Ease::SmoothStep` truncates twice, which disagrees with the timeline form on
+    /// 2867 of the 4096 alphas by up to three raw units, so sharing that one would
+    /// have changed every cooked timeline. This test is also the proof of that.
+    #[test]
+    fn timeline_quad_easing_is_the_shared_power_form_and_smoothstep_is_not() {
+        fn powq(t: i64, n: u32) -> i64 {
+            let mut acc = t;
+            for _ in 1..n {
+                acc = acc * t / 4096;
+            }
+            acc
+        }
+        let mut smoothstep_disagreements = 0;
+        let mut smoothstep_worst = 0;
+        for t in 0..=4096i64 {
+            assert_eq!(t * t / 4096, powq(t, 2), "EaseIn drifted at t={t}");
+            assert_eq!(
+                4096 - (4096 - t) * (4096 - t) / 4096,
+                4096 - powq(4096 - t, 2),
+                "EaseOut drifted at t={t}"
+            );
+            let shared = t * t / 4096 * (12288 - 2 * t) / 4096;
+            let timeline = t * t * (12288 - 2 * t) / (4096 * 4096);
+            if shared != timeline {
+                smoothstep_disagreements += 1;
+                smoothstep_worst = smoothstep_worst.max((shared - timeline).abs());
+            }
+        }
+        assert_eq!((smoothstep_disagreements, smoothstep_worst), (2867, 3));
+    }
     #[test]
     fn native_conformance_vectors_use_signed_division_and_wide_intermediates() {
         assert_eq!(super::sample(&[(0, 4096), (3, -4096)], 1), 1366);

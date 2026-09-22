@@ -37,6 +37,7 @@ pub fn prepare(
         };
         let mut scene = template.scene(binding, &registry)?;
         crate::mesh::resolve(&mut scene, index)?;
+        crate::terrain::resolve(&mut scene, index)?;
         crate::skeletal::resolve(&mut scene, index)?;
         crate::texture::resolve(&mut scene, index)?;
         crate::audio::validate_assets(&scene, index)?;
@@ -301,6 +302,15 @@ fn object_class_table_with_capacities(
             format!(
                 ",0,nullptr,epok::ComponentCallbacks<{name}>::tick,epok::ComponentCallbacks<{name}>::frame"
             )
+        } else if class.family == crate::reflection_schema::ClassFamily::Actor {
+            let prefix = if defaults.is_empty() {
+                ",0,nullptr"
+            } else {
+                ""
+            };
+            format!(
+                "{prefix},epok::ActorCallbacks<{name}>::tick,epok::ActorCallbacks<{name}>::frame"
+            )
         } else {
             String::new()
         };
@@ -485,11 +495,11 @@ mod tests {
         // Abstract bases stay in the table so `object_class_is_a` can walk them, but
         // carry no storage at all.
         assert!(text.contains(&format!(
-            "{{UINT64_C({actor_id}),UINT64_C({object_id}),epok::ObjectFamily::Actor,epok::ObjectDomain::None,0,1,nullptr,nullptr,0,0,nullptr,nullptr}},"
+            "{{UINT64_C({actor_id}),UINT64_C({object_id}),epok::ObjectFamily::Actor,epok::ObjectDomain::None,0,1,nullptr,nullptr,0,0,nullptr,nullptr,0,nullptr,epok::ActorCallbacks<epok::Actor>::tick,epok::ActorCallbacks<epok::Actor>::frame}},"
         )));
         // Concrete actor: placeable|spawnable, pool-backed, placement-new pair exposed.
         assert!(text.contains(&format!(
-            "{{UINT64_C({actor3d_id}),UINT64_C({actor_id}),epok::ObjectFamily::Actor,epok::ObjectDomain::World3D,0,6,&epok::object_construct<epok::Actor3D>,&epok::object_destruct,sizeof(epok::Actor3D),alignof(epok::Actor3D),&epok::ObjectPool<epok::Actor3D,4>::acquire,&epok::ObjectPool<epok::Actor3D,4>::release}},"
+            "{{UINT64_C({actor3d_id}),UINT64_C({actor_id}),epok::ObjectFamily::Actor,epok::ObjectDomain::World3D,0,6,&epok::object_construct<epok::Actor3D>,&epok::object_destruct,sizeof(epok::Actor3D),alignof(epok::Actor3D),&epok::ObjectPool<epok::Actor3D,4>::acquire,&epok::ObjectPool<epok::Actor3D,4>::release,0,nullptr,epok::ActorCallbacks<epok::Actor3D>::tick,epok::ActorCallbacks<epok::Actor3D>::frame}},"
         )));
         // Component: owners mask World3D|World2D|UI = 7, Multiple cardinality = flag 32.
         assert!(text.contains("epok::ComponentCallbacks<epok::AudioComponent>::tick"));

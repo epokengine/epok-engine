@@ -53,7 +53,7 @@ uint32_t getCommandWord() const
 - **Declared at:** [line 102](https://github.com/pcsx-redux/nugget/blob/6186b131aacc5853a9161fb076ed34ffe504552d/psyqo/primitives/lines.hh#L102)
 - **Kind:** `cxx method`; qualifiers: `const`
 
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
 
 **Use it when.** Meant for the GTE's RGBC CODE field, which gets fused into every colour the GTE emits. Preload it and the colour FIFO hands back finished first words. See `GouraudQuad::getCommandWord` for the full round trip.
 
@@ -201,7 +201,7 @@ GouraudLine& setColorAPacked(uint32_t packed)
 
 | Name | Type | Role | Meaning |
 | --- | --- | --- | --- |
-| `packed` | `int` | Input | Value supplied for `packed`. See the exact type and module contract. |
+| `packed` | `uint32_t` | Input | Value supplied for `packed`. See the exact type and module contract. |
 
 **Returns.** Returns `GouraudLine &`. Check the purpose and failure notes before using the value.
 
@@ -213,7 +213,7 @@ GouraudLine& setColorAPacked(uint32_t packed)
 #include "psyqo/primitives/lines.hh"
 
 // Assume these named values have been initialized with valid data:
-// int packed
+// uint32_t packed
 
 psyqo::Prim::GouraudLine& object = /* obtain a valid instance */;
 

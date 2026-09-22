@@ -212,6 +212,7 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
             assets::Kind::EditableMesh | assets::Kind::SkeletalMesh | assets::Kind::ModelSource => {
                 "Mesh"
             }
+            assets::Kind::Terrain => "Terrain",
             assets::Kind::AnimationClip => "Animation",
             assets::Kind::Material => "Material",
             assets::Kind::Skeleton => "Skeleton",
@@ -288,6 +289,7 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         "Scene" => ("\u{f279}", [0.40, 0.68, 0.86, 1.]),
         "Texture" => ("\u{f03e}", [0.46, 0.73, 0.39, 1.]),
         "Mesh" => ("\u{f1b2}", [0.46, 0.72, 0.80, 1.]),
+        "Terrain" => ("\u{f6fc}", [0.55, 0.74, 0.45, 1.]),
         "Skeleton" => ("\u{f5d7}", [0.81, 0.78, 0.63, 1.]),
         "Audio" => ("\u{f001}", [0.73, 0.48, 0.87, 1.]),
         "SoundBank" => ("\u{f001}", [0.54, 0.65, 0.88, 1.]),
@@ -299,7 +301,7 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         _ => ("\u{f15b}", [0.66, 0.68, 0.71, 1.]),
     }
 }
-const FILTERS: [&str; 16] = [
+const FILTERS: [&str; 17] = [
     "All assets",
     "Folder",
     "Blueprint",
@@ -307,6 +309,7 @@ const FILTERS: [&str; 16] = [
     "Scene",
     "Texture",
     "Mesh",
+    "Terrain",
     "Skeleton",
     "Audio",
     "Animation",
@@ -705,6 +708,12 @@ fn creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
     }
     if ui.menu_item("Particle Effect") {
         if let Err(error) = e.timeline_editor.create_effect(&e.root) {
+            s.error = Some(error);
+        }
+        s.refresh(e);
+    }
+    if ui.menu_item("Terrain") {
+        if let Err(error) = crate::terrain_editor::create(e) {
             s.error = Some(error);
         }
         s.refresh(e);
@@ -1461,6 +1470,7 @@ fn open(e: &mut Editor, s: &mut State, entry: &Entry) {
         e.assets.selected = Some(record.meta.id);
         match record.meta.kind {
             assets::Kind::EditableMesh => crate::mesh_editor::open(e, record, None),
+            assets::Kind::Terrain => crate::terrain_editor::open(e, record, None),
             assets::Kind::Texture
             | assets::Kind::AudioClip
             | assets::Kind::MusicSequence
@@ -2625,6 +2635,7 @@ fn place_content(e: &mut Editor, paths: &[String]) -> Result<(), String> {
     }
     scene.validate()?;
     crate::mesh::resolve(&mut scene, &e.assets.index)?;
+    crate::terrain::resolve(&mut scene, &e.assets.index)?;
     crate::skeletal::resolve(&mut scene, &e.assets.index)?;
     crate::texture::resolve(&mut scene, &e.assets.index)?;
     let added = scene.actors.len() > before.actors.len();

@@ -9,7 +9,9 @@ const PLAY: &str = "\u{eb2c}";
 const PAUSE: &str = "\u{ead1}";
 const STOP: &str = "\u{ead7}";
 const SEARCH: &str = "\u{ea6d}";
-const ACTOR: &str = "\u{eb5b}";
+// The bundled editor font has the cube glyph but not this icon-font's Actor
+// codepoint. Reuse the verified glyph so hierarchy rows never degrade to `?`.
+const ACTOR: &str = CUBE;
 
 pub fn configure_input(io: &mut imgui::Io) {
     // Scene/HUD handles are drawn over images rather than ImGui buttons.
@@ -104,6 +106,20 @@ fn build_menu(ui: &imgui::Ui, e: &mut Editor) {
         }
         #[cfg(test)]
         record_script_control(ui, "Build Lighting");
+        if ui
+            .menu_item_config("Bake Navigation")
+            .enabled(enabled)
+            .build()
+        {
+            crate::navigation::editor_bake(e);
+        }
+        if ui
+            .menu_item_config("Add Navigation Bake Volume")
+            .enabled(enabled)
+            .build()
+        {
+            crate::navigation::create_volume(e);
+        }
         ui.separator();
         if ui
             .menu_item_config("Package PSX Disc...")
@@ -376,7 +392,7 @@ fn add_component_menu(ui: &imgui::Ui, editor: &mut Editor, actor: uuid::Uuid) ->
     });
     added
 }
-pub(crate) fn gray(v: u8) -> [f32; 4] {
+pub(crate) const fn gray(v: u8) -> [f32; 4] {
     let f = v as f32 / 255.;
     [f, f, f, 1.]
 }
@@ -446,6 +462,15 @@ pub(crate) fn field(ui: &imgui::Ui, label: &str) -> String {
     let start = ui.cursor_pos()[0];
     let width = ui.content_region_avail()[0];
     ui.align_text_to_frame_padding();
+    // The property editor keeps its two columns at any panel width, shortening a
+    // long label rather than pushing its value onto a second line.
+    if crate::inspector_theme::active() && width >= 170. {
+        let column = crate::inspector_theme::label_column(width);
+        clipped(ui, visible, column - 8.);
+        ui.same_line_with_pos(start + column);
+        ui.set_next_item_width(-1.);
+        return format!("##{label}");
+    }
     ui.text_wrapped(visible);
     let label_width = (width * 0.38).clamp(100., 170.);
     if width >= 340. && ui.calc_text_size(visible)[0] < label_width - 8. {
@@ -453,6 +478,16 @@ pub(crate) fn field(ui: &imgui::Ui, label: &str) -> String {
     }
     ui.set_next_item_width(-1.);
     format!("##{label}")
+}
+
+/// A property row whose value is a toggle: the label keeps the row's left column
+/// and the box lines up with the other values.
+pub(crate) fn toggle(ui: &imgui::Ui, label: &str, value: &mut bool) -> bool {
+    if !crate::inspector_theme::active() {
+        return ui.checkbox(label, value);
+    }
+    let id = field(ui, label);
+    ui.checkbox(id, value)
 }
 
 /// Continue a toolbar row only when the next control fits inside this panel.
@@ -485,7 +520,8 @@ pub(crate) fn clipped(ui: &imgui::Ui, text: &str, width: f32) {
         ui.tooltip_text(text);
     }
 }
-fn icon(ui: &imgui::Ui, glyph: &str, id: &str, tip: &str, active: bool) -> bool {
+pub(crate) fn icon(ui: &imgui::Ui, glyph: &str, id: &str, tip: &str, active: bool) -> bool {
+    let panel = crate::inspector_theme::active();
     let _color = ui.push_style_color(
         C::Button,
         if active {
@@ -494,7 +530,14 @@ fn icon(ui: &imgui::Ui, glyph: &str, id: &str, tip: &str, active: bool) -> bool 
             gray(49)
         },
     );
-    let result = ui.button_with_size(format!("{glyph}##{id}"), [28., 21.]);
+    // In the property editor the state toggles are part of a row, so they take
+    // its height instead of their own.
+    let size = if panel {
+        [26., ui.frame_height()]
+    } else {
+        [28., 21.]
+    };
+    let result = ui.button_with_size(format!("{glyph}##{id}"), size);
     if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
         ui.tooltip_text(tip);
     }
@@ -505,6 +548,7 @@ pub fn draw(
     e: &mut Editor,
     scene_textures: [imgui::TextureId; 3],
     game: Option<imgui::TextureId>,
+    game_overlay: Option<imgui::TextureId>,
     asset_font: imgui::FontId,
     image_size: [f32; 2],
     initial: &mut bool,
@@ -523,6 +567,7 @@ pub fn draw(
                 e,
                 scene_textures,
                 game,
+                game_overlay,
                 asset_font,
                 image_size,
                 initial,
@@ -537,6 +582,7 @@ pub fn draw(
             e,
             scene_textures,
             game,
+            game_overlay,
             asset_font,
             image_size,
             initial,
@@ -556,6 +602,7 @@ fn draw_workspace(
     e: &mut Editor,
     scene_textures: [imgui::TextureId; 3],
     game: Option<imgui::TextureId>,
+    game_overlay: Option<imgui::TextureId>,
     asset_font: imgui::FontId,
     image_size: [f32; 2],
     initial: &mut bool,
@@ -676,6 +723,9 @@ fn draw_workspace(
             if let Some(class) = actor_class {
                 e.create_actor(&class);
             }
+            if ui.menu_item("Terrain") {
+                e.action("terrain-create");
+            }
         });
         build_menu(ui, e);
         ui.menu("Window", || {
@@ -723,10 +773,16 @@ fn draw_workspace(
         ui.menu("Help", || {
             ui.text("Epok | PSX editor");
             ui.text("Rust / Dear ImGui / PsyQo");
+            ui.separator();
+            if ui.menu_item("About Epok...") {
+                e.about_requested = true;
+            }
         });
     });
+    about_dialog(ui, e);
     if !background && !text_input_active(ui) && !e.game_capture {
         crate::mesh_editor::shortcuts(ui, e);
+        crate::terrain_editor::shortcuts(ui, e);
         if ui.io().key_ctrl && ui.is_key_pressed(imgui::Key::S) {
             e.save_all();
         }
@@ -905,7 +961,7 @@ fn draw_workspace(
     crate::console::draw(ui, e);
     e.scene_look = false;
     scene_view(ui, e, scene, hud_texture, image_size);
-    game_view(ui, e, game);
+    game_view(ui, e, game, game_overlay);
     if std::mem::take(&mut e.focus_scene) || reset {
         unsafe {
             if reset {
@@ -945,7 +1001,9 @@ fn draw_workspace(
             } else if e.paused {
                 "Paused".into()
             } else if e.playing {
-                if e.active_play_target == crate::play::Target::Serial {
+                if e.active_play_runtime == crate::play::Runtime::NativePc {
+                    "Playing on Native PC".into()
+                } else if e.active_play_target == crate::play::Target::Serial {
                     "Playing on PSX / serial".into()
                 } else {
                     "Playing on PCSX-Redux".into()
@@ -987,6 +1045,7 @@ fn draw_workspace(
     crate::play_ui::warning(ui, e);
     e.artifact_dependencies.draw(ui, &e.root);
     crate::mesh_editor::window(ui, e);
+    crate::terrain_editor::window(ui, e);
     crate::settings_ui::windows(ui, e);
     if !background && e.critical_busy() {
         return;
@@ -1025,6 +1084,25 @@ fn draw_workspace(
             }
             ui.same_line();
             if ui.button("Cancel") {
+                ui.close_current_popup();
+            }
+        });
+}
+
+fn about_dialog(ui: &imgui::Ui, editor: &mut Editor) {
+    if std::mem::take(&mut editor.about_requested) {
+        ui.open_popup("About Epok");
+    }
+    ui.modal_popup_config("About Epok")
+        .always_auto_resize(true)
+        .build(|| {
+            ui.text("Epok Engine");
+            ui.separator();
+            ui.text(format!("Version {}", env!("CARGO_PKG_VERSION")));
+            ui.text_disabled("Visual editor for original PlayStation games");
+            ui.text_disabled("Built with Rust, Dear ImGui and PsyQo.");
+            ui.dummy([0., 6.]);
+            if ui.button("Close") {
                 ui.close_current_popup();
             }
         });
@@ -1623,7 +1701,7 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
     ui.window("\u{eb86} Hierarchy###Hierarchy").build(|| {
         let mut out = HierarchyResult::default();
         let mut actor_out = ActorResult::default();
-        if ui.is_window_focused()
+        if ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS)
             && !text_input_active(ui)
             && !e.playing
             && !e.game_capture
@@ -1653,82 +1731,86 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
         #[cfg(test)]
         record_script_control(ui, "Hierarchy search");
         ui.separator();
-        let mut scene_config = ui
-            .tree_node_config(format!(
-                "{CUBE} {}{}###scene-root",
-                e.scene.name,
-                if e.dirty { " *" } else { "" }
-            ))
-            .flags(imgui::TreeNodeFlags::DEFAULT_OPEN | imgui::TreeNodeFlags::SPAN_AVAIL_WIDTH);
-        if e.reveal_selected || !e.search.is_empty() {
-            scene_config = scene_config.opened(true, Condition::Always);
-        }
-        let scene_node = scene_config.push();
-        // The map root is the document itself, not an instance: it is neither
-        // selectable nor a reparent target. Clicking it opens Map Settings.
-        if ui.is_item_hovered() {
-            ui.tooltip_text("Map root — click to open Map Settings");
-        }
-        if ui.is_item_clicked() && !ui.is_item_toggled_open() {
-            out.open_map_settings = true;
-        }
-        if let Some(_popup) = ui.begin_popup_context_item() {
-            ui.disabled(e.playing, || {
-                let mut actor_class = None;
-                if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
-                    out.root_action = Some(command);
-                }
-                if actor_class.is_some() {
-                    out.actor_class = actor_class;
-                }
-                ui.separator();
-                if ui.menu_item("Map Settings...") {
-                    out.open_map_settings = true;
-                }
-            });
-        }
-        if let Some(_scene) = scene_node {
-            let actor_cx = actor_context(e);
-            if !actor_cx.roots.is_empty() {
-                for root in actor_cx.roots.clone() {
-                    actor_node(ui, e, root, &actor_cx, &mut actor_out);
+        // The tree owns scrolling; the creation controls and search field stay
+        // in the parent window so filtering remains available at every depth.
+        ui.child_window("Hierarchy tree").size([0., 0.]).build(|| {
+            let mut scene_config = ui
+                .tree_node_config(format!(
+                    "{CUBE} {}{}###scene-root",
+                    e.scene.name,
+                    if e.dirty { " *" } else { "" }
+                ))
+                .flags(imgui::TreeNodeFlags::DEFAULT_OPEN | imgui::TreeNodeFlags::SPAN_AVAIL_WIDTH);
+            if e.reveal_selected || !e.search.is_empty() {
+                scene_config = scene_config.opened(true, Condition::Always);
+            }
+            let scene_node = scene_config.push();
+            // The map root is the document itself, not an instance: it is neither
+            // selectable nor a reparent target. Clicking it opens Map Settings.
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Map root — click to open Map Settings");
+            }
+            if ui.is_item_clicked() && !ui.is_item_toggled_open() {
+                out.open_map_settings = true;
+            }
+            if let Some(_popup) = ui.begin_popup_context_item() {
+                ui.disabled(e.playing, || {
+                    let mut actor_class = None;
+                    if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
+                        out.root_action = Some(command);
+                    }
+                    if actor_class.is_some() {
+                        out.actor_class = actor_class;
+                    }
+                    ui.separator();
+                    if ui.menu_item("Map Settings...") {
+                        out.open_map_settings = true;
+                    }
+                });
+            }
+            if let Some(_scene) = scene_node {
+                let actor_cx = actor_context(e);
+                if !actor_cx.roots.is_empty() {
+                    for root in actor_cx.roots.clone() {
+                        actor_node(ui, e, root, &actor_cx, &mut actor_out);
+                    }
                 }
             }
-        }
-        ui.invisible_button(
-            "hierarchy-root-drop",
-            [
-                ui.content_region_avail()[0].max(1.),
-                ui.content_region_avail()[1].max(24.),
-            ],
-        );
-        if !e.playing
-            && let Some(target) = ui.drag_drop_target()
-        {
-            if let Some(Ok(payload)) =
-                target.accept_payload::<usize, _>("EPOK_ENTITY", imgui::DragDropFlags::empty())
-                && payload.delivery
+            ui.invisible_button(
+                "hierarchy-root-drop",
+                [
+                    ui.content_region_avail()[0].max(1.),
+                    ui.content_region_avail()[1].max(24.),
+                ],
+            );
+            if !e.playing
+                && let Some(target) = ui.drag_drop_target()
             {
-                out.reparent = Some((payload.data, None, true));
-            } else if let Some(Ok(payload)) =
-                target.accept_payload::<usize, _>("EPOK_ACTOR", imgui::DragDropFlags::empty())
-                && payload.delivery
-                && let Some(child) = e.scene.actors.get(payload.data).map(|a| a.id)
-            {
-                actor_out.reparent = Some((child, None));
+                if let Some(Ok(payload)) =
+                    target.accept_payload::<usize, _>("EPOK_ENTITY", imgui::DragDropFlags::empty())
+                    && payload.delivery
+                {
+                    out.reparent = Some((payload.data, None, true));
+                } else if let Some(Ok(payload)) =
+                    target.accept_payload::<usize, _>("EPOK_ACTOR", imgui::DragDropFlags::empty())
+                    && payload.delivery
+                    && let Some(child) = e.scene.actors.get(payload.data).map(|a| a.id)
+                {
+                    actor_out.reparent = Some((child, None));
+                }
             }
-        }
-        if let Some(_popup) = ui.begin_popup_context_item() {
-            ui.disabled(e.playing, || {
-                let mut actor_class = None;
-                if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
-                    out.root_action = Some(command);
-                }
-                if actor_class.is_some() {
-                    out.actor_class = actor_class;
-                }
-            });
-        }
+            if let Some(_popup) = ui.begin_popup_context_item() {
+                ui.disabled(e.playing, || {
+                    let mut actor_class = None;
+                    if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
+                        out.root_action = Some(command);
+                    }
+                    if actor_class.is_some() {
+                        out.actor_class = actor_class;
+                    }
+                });
+            }
+        });
         e.reveal_selected = false;
         if out.open_map_settings {
             e.map_settings = true;
@@ -1763,7 +1845,7 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
         if let Some(id) = actor_out.delete {
             e.delete_actor(id);
         }
-        if ui.is_window_focused()
+        if ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS)
             && !ui.io().want_text_input
             && ui.is_key_pressed(imgui::Key::Delete)
         {
@@ -1946,6 +2028,14 @@ fn edit_class_button(
 }
 
 fn actor_header(ui: &imgui::Ui, actor: &mut crate::scene::Actor, glyph: &str) -> bool {
+    if crate::inspector_theme::active() {
+        return crate::inspector_theme::strip(ui, || actor_identity(ui, actor, glyph));
+    }
+    actor_identity(ui, actor, glyph)
+}
+
+/// The selected object's icon, its state toggles and its name.
+fn actor_identity(ui: &imgui::Ui, actor: &mut crate::scene::Actor, glyph: &str) -> bool {
     ui.align_text_to_frame_padding();
     ui.text(glyph);
     ui.same_line();
@@ -2020,7 +2110,16 @@ fn entity_actor_inspector(ui: &imgui::Ui, e: &mut Editor, entity: usize) {
             continue;
         }
         let _id = ui.push_id(component.id.to_string());
-        if heading(ui, &format!("{CODE} {} (Actor Component)", component.name)) {
+        let mut remove = false;
+        let open = section(
+            ui,
+            &format!("{CODE} {} (Actor Component)", component.name),
+            || {
+                let _disabled = ui.begin_disabled(component.inherited);
+                remove = script_menu_item(ui, "Remove Component");
+            },
+        );
+        if open {
             ui.text_disabled(&component.class.name);
             edit_class_button(ui, e, &component.class);
             if let Some(action) = reflected_property_table(
@@ -2043,10 +2142,9 @@ fn entity_actor_inspector(ui: &imgui::Ui, e: &mut Editor, entity: usize) {
                 apply_property_action(action, &mut target.properties, &mut target.overrides);
                 e.changed();
             }
-            let _disabled = ui.begin_disabled(component.inherited);
-            if script_button(ui, "Remove Component") {
-                e.remove_actor_component(actor.id, component.id);
-            }
+        }
+        if remove {
+            e.remove_actor_component(actor.id, component.id);
         }
     }
     ui.separator();
@@ -2387,9 +2485,74 @@ fn scene_blueprint_settings(ui: &imgui::Ui, e: &mut Editor) {
         }
     }
 }
+/// A section header that carries the section's own commands. They open from the
+/// affordance at the header's right end or by right-clicking the header itself,
+/// which keeps destructive commands out of the section's body.
+pub(crate) fn section(ui: &imgui::Ui, text: &str, commands: impl FnOnce()) -> bool {
+    let open = heading(ui, text);
+    let header = [ui.item_rect_min(), ui.item_rect_max()];
+    let visible = text.split("##").next().unwrap_or(text);
+    let menu = format!("{visible}-commands");
+    let mut requested = ui.is_item_clicked_with_button(imgui::MouseButton::Right);
+    requested |= section_commands(ui, visible, header);
+    #[cfg(test)]
+    record_script_control(ui, &format!("{visible} menu"));
+    if requested {
+        ui.open_popup(&menu);
+    }
+    ui.popup(&menu, commands);
+    open
+}
+
+/// The three dots that open a section's commands, at the right end of its header.
+fn section_commands(ui: &imgui::Ui, id: &str, header: [[f32; 2]; 2]) -> bool {
+    let [min, max] = header;
+    let resume = ui.cursor_screen_pos();
+    let height = max[1] - min[1];
+    let width = height.min(18.);
+    let left = max[0] - width - 2.;
+    ui.set_cursor_screen_pos([left, min[1]]);
+    let pressed = ui.invisible_button(format!("##commands-{id}"), [width, height]);
+    let hovered = ui.is_item_hovered();
+    let draw = ui.get_window_draw_list();
+    if hovered {
+        draw.add_rect(
+            [left, min[1] + 2.],
+            [left + width, max[1] - 2.],
+            ui.style_color(C::ButtonHovered),
+        )
+        .filled(true)
+        .rounding(2.)
+        .build();
+    }
+    let color = ui.style_color(if hovered { C::Text } else { C::TextDisabled });
+    let center = [left + width * 0.5, (min[1] + max[1]) * 0.5];
+    for step in [-4., 0., 4.] {
+        draw.add_circle([center[0], center[1] + step], 1.4, color)
+            .filled(true)
+            .build();
+    }
+    ui.set_cursor_screen_pos(resume);
+    pressed
+}
+
+/// A command in a section menu, recorded like a button so the harness can drive it.
+pub(crate) fn script_menu_item(ui: &imgui::Ui, label: &str) -> bool {
+    let pressed = ui.menu_item(label);
+    #[cfg(test)]
+    record_script_control(ui, label);
+    pressed
+}
+
 pub(crate) fn heading(ui: &imgui::Ui, text: &str) -> bool {
+    if crate::inspector_theme::active() {
+        return crate::inspector_theme::band(ui, text);
+    }
     let _color = ui.push_style_color(C::Header, gray(43));
-    ui.collapsing_header(text, imgui::TreeNodeFlags::DEFAULT_OPEN)
+    ui.collapsing_header(
+        text,
+        imgui::TreeNodeFlags::DEFAULT_OPEN | imgui::TreeNodeFlags::ALLOW_ITEM_OVERLAP,
+    )
 }
 fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
     let _id = ui.push_id(label);
@@ -2397,9 +2560,14 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
     let width = ui.content_region_avail()[0];
     ui.align_text_to_frame_padding();
     ui.text(label);
-    let value_width = if width >= 320. {
-        ui.same_line_with_pos(left + 86.);
-        width - 86.
+    let column = if crate::inspector_theme::active() {
+        crate::inspector_theme::label_column(width)
+    } else {
+        86.
+    };
+    let value_width = if width >= 170. {
+        ui.same_line_with_pos(left + column);
+        width - column
     } else {
         width
     };
@@ -2426,7 +2594,10 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
 }
 pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
     crate::lighting_editor::window(ui, e);
+    let _style = crate::inspector_theme::scope(ui, e.inspector_font);
     ui.window("\u{ea74} Inspector###Inspector").build(|| {
+        // Properties are inset from the panel edges; only section bands reach them.
+        ui.indent_by(crate::inspector_theme::INDENT);
         if e.selected_asset.is_some() {
             crate::asset_inspector::draw(ui, e);
             return;
@@ -2456,9 +2627,12 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             ui.separator();
             entity_actor_inspector(ui, e, index);
             crate::hud_editor::inspector(ui, &mut entity);
+            let mut reset_transform = false;
             if entity.rect.is_none()
                 && entity.canvas.is_none()
-                && heading(ui, &format!("{MOVE} Transform"))
+                && section(ui, &format!("{MOVE} Transform"), || {
+                    reset_transform = ui.menu_item("Reset Transform");
+                })
             {
                 let _ = field(ui, "Parent");
                 ui.set_next_item_width(-1.);
@@ -2474,13 +2648,11 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                 vector(ui, "Position", &mut entity.position);
                 vector(ui, "Rotation", &mut entity.rotation);
                 vector(ui, "Scale", &mut entity.scale);
-                if let Some(_popup) = ui.begin_popup_context_window()
-                    && ui.menu_item("Reset Transform")
-                {
-                    entity.position = [0.; 3];
-                    entity.rotation = [0.; 3];
-                    entity.scale = [1.; 3];
-                }
+            }
+            if reset_transform {
+                entity.position = [0.; 3];
+                entity.rotation = [0.; 3];
+                entity.scale = [1.; 3];
             }
             ui.separator();
             crate::lighting_editor::inspector(ui, &mut entity);
@@ -2488,14 +2660,23 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             crate::sprites_editor::inspector(ui, e, &mut entity);
             crate::collision_editor::inspector(ui, &mut entity);
             crate::palette::inspector(ui, e, &mut entity);
-            if entity.kind == "Mesh" {
-                crate::mesh_editor::filter(ui, e, &mut entity);
-            }
             if entity.kind == "Mesh"
                 && entity.editable_mesh.is_none()
+                && entity.terrain.is_none()
                 && entity.skeletal_mesh.is_none()
             {
-                if heading(ui, "\u{eb5c} Mesh Renderer") {
+                let mut reset_material = false;
+                let mut remove_renderer = false;
+                let renderer = section(ui, "\u{eb5c} Mesh Renderer", || {
+                    reset_material = ui.menu_item("Reset Material");
+                    remove_renderer = ui.menu_item("Remove Mesh Renderer");
+                });
+                if renderer {
+                    crate::mesh_editor::selector(ui, e, &mut entity);
+                }
+                // Choosing a project mesh hands the actor to that mesh's own
+                // renderer section, so the engine cube's rows stop here.
+                if renderer && entity.editable_mesh.is_none() && entity.skeletal_mesh.is_none() {
                     let _ = field(ui, "Material");
                     ui.text("PSX Material (instance)");
                     ui.align_text_to_frame_padding();
@@ -2504,13 +2685,12 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                     ui.color_edit3("##material-color", &mut entity.material.color);
                     crate::texture::picker(ui, &e.assets.index, &mut entity.material);
                     crate::lighting_editor::mesh(ui, &mut entity);
-                    if ui.small_button("Reset Material") {
-                        entity.material = Default::default();
-                    }
-                    inline(ui, "Remove Mesh Renderer");
-                    if ui.small_button("Remove Mesh Renderer") {
-                        entity.kind = "Empty".into();
-                    }
+                }
+                if reset_material {
+                    entity.material = Default::default();
+                }
+                if remove_renderer {
+                    entity.kind = "Empty".into();
                 }
                 ui.separator();
             } else if entity.kind == "Camera" && heading(ui, &format!("{CAMERA} Camera")) {
@@ -2520,6 +2700,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                     .range(25., 120.)
                     .speed(0.25)
                     .build(ui, &mut entity.camera_fov);
+                ui.color_edit3(field(ui, "Sky Color"), &mut entity.camera_sky_color);
                 let _ = field(ui, "Target");
                 ui.text_disabled(format!(
                     "{} x {} / NTSC",
@@ -2569,6 +2750,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                 }
             }
             crate::mesh_editor::component(ui, e, &mut entity);
+            crate::terrain_editor::component(ui, e, &mut entity);
             ui.dummy([0., 7.]);
             let width = ui.content_region_avail()[0];
             ui.set_cursor_pos([
@@ -2977,6 +3159,18 @@ fn scene_view(
                 .build(ui, &mut e.view.fly_speed);
             muted(ui, "RMB + WASD: fly | Q/E: down/up | Alt + LMB: orbit");
             crate::lighting_editor::preview_status(ui, e);
+            if crate::navigation::selected_volume(&e.scene, e.selected).is_some() {
+                match &e.navigation_preview_status {
+                    Some(Ok(count)) => ui.text_colored(
+                        [0.35, 0.95, 0.5, 1.],
+                        format!("Navigation preview: {count} points | Green: walkable area"),
+                    ),
+                    Some(Err(error)) => {
+                        ui.text_colored([1., 0.5, 0.3, 1.], format!("Navigation preview: {error}"))
+                    }
+                    None => ui.text_disabled("Generating navigation preview..."),
+                }
+            }
             ui.separator();
         }
         let position = ui.cursor_screen_pos();
@@ -3045,7 +3239,7 @@ fn scene_view(
             e.view.look(ui.io().mouse_delta, true);
             e.view_dirty = true;
         }
-        if !e.mesh_editor.open {
+        if !e.mesh_editor.open && !e.terrain_editor.sculpting() {
             crate::gizmo::draw(ui, e, position, available, factor, uv);
         }
         let mouse = ui.io().mouse_pos;
@@ -3062,14 +3256,20 @@ fn scene_view(
             && !ui.is_mouse_down(imgui::MouseButton::Middle)
             && ui.io().mouse_wheel == 0.
             && e.drag_axis.is_none();
-        if e.scene_click.update(
-            mouse,
-            ui.is_mouse_clicked(imgui::MouseButton::Left),
-            ui.is_mouse_released(imgui::MouseButton::Left),
-            ui.is_mouse_down(imgui::MouseButton::Left),
-            eligible,
-        ) {
-            let pixel = crate::picking::texture_pixel(mouse, position, factor, uv);
+        let pixel = crate::picking::texture_pixel(mouse, position, factor, uv);
+        // A brush needs press-drag-release, which the click gesture cannot
+        // express. While the terrain tool is stroking it owns the viewport, so
+        // selection and the gizmo never fight it for the same drag.
+        let sculpting = crate::terrain_editor::drag(ui, e, pixel, eligible);
+        if !sculpting
+            && e.scene_click.update(
+                mouse,
+                ui.is_mouse_clicked(imgui::MouseButton::Left),
+                ui.is_mouse_released(imgui::MouseButton::Left),
+                ui.is_mouse_down(imgui::MouseButton::Left),
+                eligible,
+            )
+        {
             e.selected_asset = None;
             if !crate::mesh_editor::pick(e, pixel, ui.io().key_ctrl) {
                 let scene = e
@@ -3089,11 +3289,12 @@ fn scene_view(
         }
         if ui.is_window_focused() && !ui.io().want_text_input && !right && !middle {
             crate::mesh_editor::geometry_shortcuts(ui, e);
+            crate::terrain_editor::brush_shortcuts(ui, e);
             for (i, key) in [imgui::Key::Q, imgui::Key::W, imgui::Key::E, imgui::Key::R]
                 .iter()
                 .enumerate()
             {
-                if !e.mesh_editor.open && ui.is_key_pressed(*key) {
+                if !e.mesh_editor.open && !e.terrain_editor.sculpting() && ui.is_key_pressed(*key) {
                     e.tool = i;
                 }
             }
@@ -3130,11 +3331,19 @@ fn scene_view(
         }
     });
 }
-fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) {
+fn game_view(
+    ui: &imgui::Ui,
+    e: &mut Editor,
+    texture: Option<imgui::TextureId>,
+    overlay: Option<imgui::TextureId>,
+) {
     let mut visible = false;
     ui.window("\u{ec17} Game###Game").build(|| {
         visible = true;
-        if e.active_play_target == crate::play::Target::Serial && e.job.is_some() {
+        if e.active_play_runtime == crate::play::Runtime::PlayStation
+            && e.active_play_target == crate::play::Target::Serial
+            && e.job.is_some()
+        {
             ui.text_wrapped("PSX serial session. The picture is on the console's display; use its controller. Upload progress and TTY messages appear in Console.");
             ui.text_wrapped("Stop disconnects NOTPSXSerial. It does not reset or halt the console.");
             ui.disabled(!e.playing || e.serial_ui.command_pending, || {
@@ -3148,7 +3357,11 @@ fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) 
             ui.text_wrapped("Reset reboots the console; it does not automatically reload the game. Return to the Unirom loader before the next Play.");
             return;
         }
-        ui.text("PSX native / Point filter");
+        ui.text(if e.active_play_runtime == crate::play::Runtime::NativePc {
+            "Native PC / PSX limits / Point filter"
+        } else {
+            "PSX native / Point filter"
+        });
         inline_width(ui, 140.);
         ui.set_next_item_width(140.);
         if let Some(_combo) = ui.begin_combo("##game-scale", e.preferences.game_scale.label()) {
@@ -3159,28 +3372,47 @@ fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) 
                 }
             }
         }
-        inline(ui, "Debugger");
-        if ui.small_button("Debugger")
-            && let Some(pid) = e.emulator_pid
-        {
-            e.emulator_visible = true;
-            crate::native::emulator_window(pid, true);
+        if e.active_play_runtime == crate::play::Runtime::PlayStation {
+            inline(ui, "Debugger");
+            if ui.small_button("Debugger")
+                && let Some(pid) = e.emulator_pid
+            {
+                e.emulator_visible = true;
+                crate::native::emulator_window(pid, true);
+            }
+        } else if e.playing {
+            inline(ui, "Reset");
+            if ui.small_button("Reset")
+                && let Some(job) = &e.job
+            {
+                job.control(crate::pipeline::Control::Reset);
+            }
         }
         ui.separator();
         if let Some(error) = &e.game_error {
             ui.text_colored([1., 0.55, 0.4, 1.], format!("Video disconnected: {error}"));
         }
         let region = ui.content_region_avail();
-        if let (Some(frame), Some(texture)) = (&e.game_frame, texture) {
+        let dimensions = e
+            .native_frame
+            .as_ref()
+            .map(|frame| frame.hud_size)
+            .or_else(|| e.game_frame.as_ref().map(|frame| [frame.width, frame.height]));
+        if let (Some(dimensions), Some(texture)) = (dimensions, texture) {
             let footer_height = ui.text_line_height() + 8.;
             let image_height = (region[1] - footer_height).max(1.);
-            let size = e.preferences.game_scale.image_size([frame.width, frame.height], [region[0].max(1.), image_height]);
+            let size = e.preferences.game_scale.image_size(dimensions, [region[0].max(1.), image_height]);
             let p = ui.cursor_pos();
             ui.set_cursor_pos([
                 p[0] + (region[0] - size[0]) * 0.5,
                 p[1] + (image_height - size[1]) * 0.5,
             ]);
             imgui::Image::new(texture, size).build(ui);
+            if let Some(overlay) = overlay {
+                ui.get_window_draw_list()
+                    .add_image(overlay, ui.item_rect_min(), ui.item_rect_max())
+                    .build();
+            }
             if ui.is_item_clicked() {
                 e.game_capture = true;
             }
@@ -3192,8 +3424,8 @@ fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) 
                 ui,
                 &format!(
                     "{} x {}  |  {}",
-                    frame.width,
-                    frame.height,
+                    dimensions[0],
+                    dimensions[1],
                     if e.game_capture {
                         "Keyboard active - Esc releases"
                     } else {
@@ -3203,47 +3435,39 @@ fn game_view(ui: &imgui::Ui, e: &mut Editor, texture: Option<imgui::TextureId>) 
                 region[0],
             );
             if ui.is_item_hovered() {
-                ui.tooltip_text(format!(
-                    "Pad {:04X} / VBlank {} / Cycles {}",
-                    frame.buttons, frame.vsyncs, frame.cycles
-                ));
+                ui.tooltip_text(if let Some(frame) = &e.native_frame {
+                    format!(
+                        "Pad {:04X} / Frame {} / Actors {} / Audio {}/{} / HUD dropped {}",
+                        frame.buttons,
+                        frame.number,
+                        frame.actor_count,
+                        frame.audio_voices,
+                        frame.audio_pending,
+                        frame.stats[4]
+                    )
+                } else if let Some(frame) = &e.game_frame {
+                    format!(
+                        "Pad {:04X} / VBlank {} / Cycles {}",
+                        frame.buttons, frame.vsyncs, frame.cycles
+                    )
+                } else {
+                    String::new()
+                });
             }
-            let mut mask = 0;
-            if e.game_capture && e.game_error.is_none() {
-                for (key, bit) in [
-                    (imgui::Key::Backspace, 0),
-                    (imgui::Key::Enter, 3),
-                    (imgui::Key::UpArrow, 4),
-                    (imgui::Key::RightArrow, 5),
-                    (imgui::Key::DownArrow, 6),
-                    (imgui::Key::LeftArrow, 7),
-                    (imgui::Key::W, 4),
-                    (imgui::Key::D, 5),
-                    (imgui::Key::S, 6),
-                    (imgui::Key::A, 7),
-                    (imgui::Key::Alpha1, 8),
-                    (imgui::Key::Alpha3, 9),
-                    (imgui::Key::Q, 10),
-                    (imgui::Key::E, 11),
-                    (imgui::Key::I, 12),
-                    (imgui::Key::L, 13),
-                    (imgui::Key::K, 14),
-                    (imgui::Key::J, 15),
-                ] {
-                    if ui.is_key_down(key) {
-                        mask |= 1 << bit;
-                    }
-                }
-            }
-            e.set_buttons(mask);
+            let pads=if e.game_capture && e.game_error.is_none(){e.sample_controls()}else{e.controls.clear_motion();Default::default()};
+            e.set_controls(pads);
         } else {
             ui.dummy([0., region[1] * 0.35]);
             ui.text_wrapped(if e.playing {
-                "Connecting to the PSX display..."
+                if e.active_play_runtime == crate::play::Runtime::NativePc {
+                    "Connecting to the Native PC runtime..."
+                } else {
+                    "Connecting to the PSX display..."
+                }
             } else if e.job.is_some() {
-                "Compiling C++ scripts and scene..."
+                "Compiling C++ gameplay and scene..."
             } else {
-                "Press Play to run the scene on PlayStation."
+                "Press Play to run the selected runtime."
             });
         }
     });
@@ -4084,10 +4308,12 @@ mod interaction_tests {
             frame(context, editor, wizard);
             frame(context, editor, wizard);
             let point = SCRIPT_BUTTONS.with(|buttons| {
-                *buttons
-                    .borrow()
-                    .get(label)
-                    .unwrap_or_else(|| panic!("Missing control {label}"))
+                *buttons.borrow().get(label).unwrap_or_else(|| {
+                    panic!(
+                        "Missing control {label}; have {:?}",
+                        buttons.borrow().keys().collect::<Vec<_>>()
+                    )
+                })
             });
             context.io_mut().add_mouse_pos_event(point);
             frame(context, editor, wizard);
@@ -4137,6 +4363,13 @@ mod interaction_tests {
         assert_eq!(
             editor.blueprint_editor.asset.as_ref().unwrap().name,
             "BP_Box"
+        );
+        // The component's commands live in its section menu, not in its body.
+        click(
+            &mut context,
+            &mut editor,
+            &format!("{CODE} BP_Box (Actor Component) menu"),
+            false,
         );
         click(&mut context, &mut editor, "Remove Component", false);
         assert!(
@@ -4370,10 +4603,10 @@ mod interaction_tests {
             for mode in crate::settings::GameScale::ALL {
                 game.preferences.game_scale = mode;
                 for _ in 0..2 {
-                    game_view(context.frame(), &mut game, Some(texture));
+                    game_view(context.frame(), &mut game, Some(texture), None);
                     context.render();
                 }
-                game_view(context.frame(), &mut game, Some(texture));
+                game_view(context.frame(), &mut game, Some(texture), None);
                 let data = context.render();
                 let mut min = [f32::MAX; 2];
                 let mut max = [f32::MIN; 2];
@@ -4427,6 +4660,7 @@ mod interaction_tests {
                     imgui::TextureId::new(1000),
                     imgui::TextureId::new(1001),
                 ],
+                None,
                 None,
                 font,
                 [960., 600.],
@@ -4760,6 +4994,7 @@ mod interaction_tests {
         crate::asset_ui::interaction::verify(&mut context);
         crate::project_browser::verify_interactions(&mut context, font);
         crate::mesh_editor::verify_interactions(&mut context);
+        crate::terrain_editor::verify_interactions(&mut context);
         crate::settings_ui::verify_interactions(&mut context);
         crate::dependencies::verify_interactions(&mut context);
         crate::busy_ui::verify_interactions(&mut context);

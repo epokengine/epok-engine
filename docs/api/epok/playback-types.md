@@ -265,7 +265,7 @@ void begin(timeline::Handle target,uint64_t expected_asset=0,uint64_t marker_id=
 | `target` | `timeline::Handle` | Input | Value supplied for `target`. See the exact type and module contract. |
 | `expected_asset` | `uint64_t` | Input | Value supplied for `expected_asset`. See the exact type and module contract. |
 | `marker_id` | `uint64_t` | Input | Value supplied for `marker_id`. See the exact type and module contract. |
-| `after` | `int` | Input | Value supplied for `after`. See the exact type and module contract. |
+| `after` | `uint32_t` | Input | Value supplied for `after`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -280,7 +280,7 @@ void begin(timeline::Handle target,uint64_t expected_asset=0,uint64_t marker_id=
 // timeline::Handle target
 // uint64_t expected_asset
 // uint64_t marker_id
-// int after
+// uint32_t after
 
 epok::bp::PlaybackWait& object = /* obtain a valid instance */;
 

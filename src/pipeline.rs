@@ -39,6 +39,7 @@ pub enum Control {
 }
 pub struct Job {
     pub bridge: Option<crate::bridge::Bridge>,
+    pub native: Option<crate::native_play::Bridge>,
     pub events: Receiver<Event>,
     controls: Sender<Control>,
     worker: Option<thread::JoinHandle<()>>,
@@ -77,6 +78,7 @@ impl Job {
         });
         Self {
             bridge: None,
+            native: None,
             events,
             controls,
             worker: Some(worker),
@@ -129,6 +131,7 @@ impl Job {
         });
         Self {
             bridge: None,
+            native: None,
             events,
             controls,
             worker: Some(worker),
@@ -141,6 +144,7 @@ impl Job {
         (
             Self {
                 bridge: None,
+                native: None,
                 events,
                 controls,
                 worker: None,
@@ -179,11 +183,16 @@ impl Job {
     ) -> Self {
         let (tx, events) = mpsc::channel();
         let (controls, rx) = mpsc::channel();
-        let serial = scene
-            .play
-            .as_ref()
-            .is_some_and(|p| p.target == crate::play::Target::Serial);
-        let bridge = if run && !serial {
+        let serial = scene.play.as_ref().is_some_and(|p| {
+            p.runtime == crate::play::Runtime::PlayStation
+                && p.target == crate::play::Target::Serial
+        });
+        let native = run
+            && scene
+                .play
+                .as_ref()
+                .is_some_and(|p| p.runtime == crate::play::Runtime::NativePc);
+        let bridge = if run && !serial && !native {
             crate::bridge::Bridge::start(&root).map(Some)
         } else {
             Ok(None)
@@ -193,9 +202,13 @@ impl Job {
             Err(e) => (None, Some(e)),
         };
         let script = bridge.as_ref().map(|b| b.script.clone());
+        let native_bridge = native.then(crate::native_play::Bridge::new);
+        let worker_native = native_bridge.clone();
         let worker = thread::spawn(move || {
             let result = if let Some(e) = bridge_error {
                 Err(e)
+            } else if let Some(native) = &worker_native {
+                crate::native_play::execute(&root, &scene, &tx, &rx, native)
             } else {
                 execute(
                     &root,
@@ -223,6 +236,7 @@ impl Job {
         });
         Self {
             bridge,
+            native: native_bridge,
             events,
             controls,
             worker: Some(worker),
@@ -484,11 +498,16 @@ fn execute(
             crate::build_inputs::prepare(root, &build, &config, &invocation, &mut |arguments| {
                 compile_command(invocation.command(arguments), tx, rx, &build_log)
             })?;
+        report(crate::scene_loading::Message::new(format!(
+            "PsyQo SDK: {}.",
+            native.sdk_preparation()
+        )));
         if native.requires_rebuild() {
             None
         } else {
             match receipt.reuse(root, &build) {
                 Ok(outputs) => {
+                    native.record_reused(&build)?;
                     let _ = tx.send(Event::Log(
                         "Reusing verified PSX build; no compilation or disc generation needed."
                             .into(),
@@ -525,12 +544,20 @@ fn execute(
         ));
         let mut prepared = scene.clone();
         project::refresh_linked_scene(root, &mut prepared)?;
-        if prepared.actors.iter().any(|e| e.editable_mesh.is_some()) {
-            crate::mesh::resolve(
-                &mut prepared,
-                &crate::assets::scan(root, &mut Default::default()),
-            )?;
+        if prepared
+            .actors
+            .iter()
+            .any(|e| e.editable_mesh.is_some() || e.terrain.is_some())
+        {
+            let index = crate::assets::scan(root, &mut Default::default());
+            crate::mesh::resolve(&mut prepared, &index)?;
+            // The bake reads the terrain surface, so an unresolved grid would
+            // silently bake no colours for it rather than failing.
+            crate::terrain::resolve(&mut prepared, &index)?;
         }
+        // Report a terrain over its limits before the generic lighting budget
+        // does: this message names the actor and says which limit it is.
+        crate::terrain::validate_scene(&prepared)?;
         if !crate::lighting::valid_bake(&prepared) {
             let bake = crate::lighting::bake(&prepared)?;
             let _ = tx.send(Event::LightingBaked(bake.clone()));
@@ -586,6 +613,17 @@ fn execute(
         timing.stage("Preparing native dependencies", &mut report);
         let native =
             crate::build_inputs::prepare(root, &build, &config, &invocation, &mut run_make)?;
+        report(crate::scene_loading::Message::new(format!(
+            "PsyQo SDK: {}. Application rebuild: {}.",
+            native.sdk_preparation(),
+            if native.forces_full_recompile() {
+                "full"
+            } else if native.requires_rebuild() {
+                "incremental"
+            } else {
+                "not required"
+            }
+        )));
         timing.stage("Validating staged build inputs", &mut report);
         let ticket = crate::staging_files::BuildTicket::begin_native(root, &build)?;
         timing.stage("Compiling and linking game", &mut report);
