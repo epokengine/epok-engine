@@ -94,6 +94,46 @@ fn forbidden_terms_are_absent_from_tracked_files() {
     );
 }
 
+/// Every shipped example must open in the editor that ships beside it. Two
+/// examples were left at `0.1.0` over startup maps in a retired format, so no
+/// editor since v0.1.0 could open them, and the portable archive shipped both
+/// anyway because it copies `examples/` whole. Reviewing a version string is the
+/// wrong instrument for that, so the release gate now reads the descriptors.
+#[test]
+fn shipped_examples_open_in_this_editor() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let projects: Vec<String> = tracked(root)
+        .into_iter()
+        .filter(|path| path.starts_with("examples/") && path.ends_with(".epokproject"))
+        .collect();
+    assert!(
+        projects.len() >= 3,
+        "the shipped examples must be discoverable; found {projects:?}"
+    );
+    let mut rejected = vec![];
+    for project in projects {
+        // The descriptor's own directory is the project root.
+        let folder = root
+            .join(&project)
+            .parent()
+            .expect("a rooted path")
+            .to_owned();
+        match crate::workspace::project_editor_version(&folder) {
+            Ok(version) if version == env!("CARGO_PKG_VERSION") => {}
+            Ok(version) => rejected.push(format!(
+                "{project}: declares {version}, but this editor is {}",
+                env!("CARGO_PKG_VERSION")
+            )),
+            Err(error) => rejected.push(format!("{project}: {error}")),
+        }
+    }
+    assert!(
+        rejected.is_empty(),
+        "shipped examples that this editor cannot open:\n{}",
+        rejected.join("\n")
+    );
+}
+
 #[test]
 fn the_sweep_detects_a_planted_term() {
     // A sweep that silently matched nothing would pass for the wrong reason.

@@ -14,7 +14,7 @@ import time
 import urllib.request
 import hashlib
 import uuid
-from verify_rpg import png
+from imaging import png
 
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 ART=ROOT/'artifacts'

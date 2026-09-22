@@ -5,14 +5,11 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
-import shutil
-import sys
 
 from verify_blueprints import ROOT, documents, identity, run, write
 from verify_blueprint_performance import tool
 
-FIREBALL = '--fireball' in sys.argv
-STEPS = 350 if FIREBALL else 96
+STEPS = 96
 FIELDS = ["state", "tick", "alive", "spawned", "dropped", "peak", "events", "markers",
           "skipped_targets", "skipped_events", "dropped_emitters", "diagnostics_dropped"]
 
@@ -41,31 +38,25 @@ def expected(frame):
 def main():
     root = Path(tempfile.mkdtemp(prefix="epok-effect-preview-")) / "Game"
     run("--create-project", root, "--name", "Effect Preview Parity")
-    if FIREBALL:
-        source = ROOT / 'examples/timeline-spell'
-        shutil.copytree(source / 'assets/textures', root / 'assets/textures', dirs_exist_ok=True)
-        path = root / 'assets/Effects/Fireball.particle-effect.json'
-        effect = json.loads((source / 'assets/Effects/Fireball.particle-effect.json').read_text())
-    else:
-        path = Path(run("--project", root, "--new-particle-effect", "Preview", "--preset", "Sparks").strip())
-        effect = json.loads(path.read_text())
-        effect["seed"] = 91873
-        effect["timeline"]["duration_ticks"] = 4096
-        for key in effect["timeline"]["tracks"][0]["keys"]:
-            key["tick"] = min(key["tick"], 4096)
-        # Independent authored curve, rather than relying on preset duration ratios.
-        effect["timeline"]["tracks"][0]["keys"] = [
-            {"id": identity(), "tick": 0, "value": 0.25},
-            {"id": identity(), "tick": 2048, "value": 1.0},
-            {"id": identity(), "tick": 4096, "value": 0.0}]
-        effect["timeline"]["tracks"][0]["interpolation"] = "smoothstep"
-        emitter = effect["layers"][0]["content"]["emitter"]
-        emitter.update(lifetime=0.75, frames=3, frame_columns=4, frame_duration=0.125)
-        emitter["sprite"]["region"] = [0, 0, 16, 16]
-        effect["layers"][0]["position"] = [-0.5, 0.25, 0.75]
-        effect["timeline"]["markers"] = [{"id": identity(), "name": "Impact", "tick": 2048}]
-        effect["timeline"]["events"][0]["keys"].append({"id": identity(), "tick": 2048,
-            "arguments": {"count": {"kind": "literal", "value_type": {"kind": "uint32"}, "value": 11}}})
+    path = Path(run("--project", root, "--new-particle-effect", "Preview", "--preset", "Sparks").strip())
+    effect = json.loads(path.read_text())
+    effect["seed"] = 91873
+    effect["timeline"]["duration_ticks"] = 4096
+    for key in effect["timeline"]["tracks"][0]["keys"]:
+        key["tick"] = min(key["tick"], 4096)
+    # Independent authored curve, rather than relying on preset duration ratios.
+    effect["timeline"]["tracks"][0]["keys"] = [
+        {"id": identity(), "tick": 0, "value": 0.25},
+        {"id": identity(), "tick": 2048, "value": 1.0},
+        {"id": identity(), "tick": 4096, "value": 0.0}]
+    effect["timeline"]["tracks"][0]["interpolation"] = "smoothstep"
+    emitter = effect["layers"][0]["content"]["emitter"]
+    emitter.update(lifetime=0.75, frames=3, frame_columns=4, frame_duration=0.125)
+    emitter["sprite"]["region"] = [0, 0, 16, 16]
+    effect["layers"][0]["position"] = [-0.5, 0.25, 0.75]
+    effect["timeline"]["markers"] = [{"id": identity(), "name": "Impact", "tick": 2048}]
+    effect["timeline"]["events"][0]["keys"].append({"id": identity(), "tick": 2048,
+        "arguments": {"count": {"kind": "literal", "value_type": {"kind": "uint32"}, "value": 11}}})
     write(path, effect)
     trace = json.loads(run("--project", root, "--preview-particle-effect", path, "--steps", STEPS))
     assert trace == json.loads(run("--project", root, "--preview-particle-effect", path, "--steps", STEPS))
@@ -159,8 +150,7 @@ end)
         assert actual[i*15:(i+1)*15] == expected(frame), (i, actual[i*15:(i+1)*15], expected(frame))
     report = {"project": str(root), "steps": STEPS, "tick_q12": 68, "all_particle_state_hashes_match": True,
               "all_stats_and_quad_counts_match": True, "all_quad_values_match": True, "replay_identical": True}
-    report_name = "phase3-fireball-parity.json" if FIREBALL else "phase3-preview-parity.json"
-    write(ROOT / "artifacts/timelines" / report_name, report)
+    write(ROOT / "artifacts/timelines/phase3-preview-parity.json", report)
     print("PASS host C ABI versus cooked MIPS/PCSX Q12 particles, RNG, events, markers and lifecycle:", report)
 
 

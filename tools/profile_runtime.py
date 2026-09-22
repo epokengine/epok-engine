@@ -114,8 +114,8 @@ def counter_summary(rows, key, fields):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--project", type=Path, default=ROOT / "examples/rpg-2-5d-demo",
-                        help="Game project to profile (default: included 2.5D demo)")
+    parser.add_argument("--project", type=Path, default=ROOT / "examples/sample-game",
+                        help="Game project to profile (default: the included sample project)")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--editor", type=Path, default=EDITOR,
                         help="Editor snapshot used to export/build this capture")

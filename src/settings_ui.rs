@@ -105,7 +105,7 @@ mod controls_capture_tests {
     #[test]
     fn capture_ignores_pointer_motion_for_buttons_and_buttons_for_axes() {
         let project: Manifest = serde_json::from_value(serde_json::json!({
-            "format_version": 1, "editor_version": "0.3.0", "name": "Input capture",
+            "format_version": 1, "editor_version": "0.4.0", "name": "Input capture",
             "startup_scene": "assets/scenes/Main.epokmap", "auto_build": false
         }))
         .unwrap();

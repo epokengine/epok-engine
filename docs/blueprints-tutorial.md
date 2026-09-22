@@ -2,7 +2,7 @@
 
 Build a small visual behaviour, compile it and inspect its execution. This guide
 introduces the editor before you move on to [Blueprint reference](blueprints.md)
-or [a spell driven by markers](spell-tutorial.md).
+or [VFX authoring](vfx-editor.md).
 
 ## Before you start
 
@@ -76,8 +76,8 @@ choose **Instantiate Actor**, select `BP_Interaction` and save the scene. Leave 
 
 The example changes behaviour state; it is not a visible movement demo. Use the
 debugger to inspect the execution and `progress`. The fixed snapshot exposes the
-first 16 reflected members. [The spell tutorial](spell-tutorial.md) provides a
-visible follow-up with an effect, target health and cancellation.
+first 16 reflected members. [The VFX editor](vfx-editor.md) provides a visible
+follow-up: author an effect, then spawn it from a graph and wait on its markers.
 
 ## Create a class in your own project
 
@@ -155,5 +155,4 @@ the previous runtime state or patch native code in a running PSX process.
 
 - [Blueprint reference](blueprints.md): types, inheritance, execution and debugger contracts.
 - [VFX editor](vfx-editor.md): create an effect without gameplay wiring.
-- [Spell tutorial](spell-tutorial.md): spawn an effect and apply damage at Impact.
 - [Blueprint and VFX troubleshooting](blueprints-vfx-troubleshooting.md): repair classes, bindings, playback and stale output.

@@ -1,9 +1,9 @@
 # Timeline assets and scene directors
 
 For step-by-step effect authoring, use [Using the VFX editor](vfx-editor.md).
-[Connect a spell to Blueprint gameplay](spell-tutorial.md) covers spawning,
-markers and cancellation. This page describes scene directors and the shared
-timeline reference, including limits, bindings and cache behavior.
+This page describes scene directors and the shared timeline reference, including
+limits, bindings and cache behavior, and how Blueprints spawn effects and wait on
+their markers.
 
 TimelineAsset creates and validates reusable source assets and previews their
 property values. TimelineComponent binds an asset to scene entities and plays
@@ -15,8 +15,7 @@ Choose **New Timeline** in the Project browser, or double-click an existing
 `.timeline.json` file. Add a typed binding slot, select a reflected class, and
 choose an explicitly animatable property. Add two to four keys and markers,
 then scrub **Preview tick**. Values use integer Q12 evaluation, including on
-the host. There are 4096 ticks per second. The [spell example](../examples/timeline-spell/README.md)
-contains a charge curve and Cast, Impact, and Aftermath markers.
+the host. There are 4096 ticks per second.
 
 Use **Validate** to cook immutable tables and refresh the preview cache. Source
 files remain JSON below the project's `assets/`. Derived tables and host source
