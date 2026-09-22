@@ -8,6 +8,30 @@ fn vector(ui: &imgui::Ui, label: &str, value: &mut [f32; 2]) {
         .display_format("%.1f")
         .build_array(ui, value);
 }
+/// The point anchor presets: each sets `anchor_min`, `anchor_max` and `pivot` to
+/// the same corner. The combo menu and the preview label read this one table, so
+/// a preset can never be offered without being recognised again afterwards.
+const ANCHOR_PRESETS: [(&str, [f32; 2]); 7] = [
+    ("Top Left", [0., 1.]),
+    ("Top Center", [0.5, 1.]),
+    ("Top Right", [1., 1.]),
+    ("Center", [0.5, 0.5]),
+    ("Bottom Left", [0., 0.]),
+    ("Bottom Center", [0.5, 0.]),
+    ("Bottom Right", [1., 0.]),
+];
+/// The preset a rect currently sits on, for the combo preview. `position` and
+/// `size` are deliberately ignored: an element moved away from the origin is
+/// still anchored to its preset.
+fn anchor_preset(r: &hud::RectTransform) -> &'static str {
+    if r.anchor_min == [0.; 2] && r.anchor_max == [1.; 2] && r.pivot == [0.5; 2] {
+        return "Stretch";
+    }
+    ANCHOR_PRESETS
+        .iter()
+        .find(|(_, p)| r.anchor_min == *p && r.anchor_max == *p && r.pivot == *p)
+        .map_or("Custom", |(name, _)| *name)
+}
 pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
     if let Some(c) = &mut e.canvas
         && heading(ui, "Canvas")
@@ -22,16 +46,8 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
     if let Some(r) = &mut e.rect
         && heading(ui, "Rect Transform")
     {
-        if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Anchors"), "Presets...") {
-            for (name, p) in [
-                ("Top Left", [0., 1.]),
-                ("Top Center", [0.5, 1.]),
-                ("Top Right", [1., 1.]),
-                ("Center", [0.5, 0.5]),
-                ("Bottom Left", [0., 0.]),
-                ("Bottom Center", [0.5, 0.]),
-                ("Bottom Right", [1., 0.]),
-            ] {
+        if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Anchors"), anchor_preset(r)) {
+            for (name, p) in ANCHOR_PRESETS {
                 if ui.selectable(name) {
                     r.anchor_min = p;
                     r.anchor_max = p;
@@ -128,6 +144,69 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
     }
     if remove_progress {
         e.progress = None;
+    }
+}
+/// Which side of one axis a resize handle grabs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Side {
+    Min,
+    Max,
+}
+/// What a drag started on the selection overlay is doing. `Resize` names the
+/// side it grabs per axis; `None` on an axis leaves that axis alone, so the four
+/// corners and the four edge midpoints are the eight combinations that grab at
+/// least one side.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HudHandle {
+    Move,
+    Resize([Option<Side>; 2]),
+}
+/// Corners before edges: the two hit boxes overlap on a small rect, and the
+/// corner is the grab an author meant.
+const HANDLES: [[Option<Side>; 2]; 8] = [
+    [Some(Side::Min), Some(Side::Min)],
+    [Some(Side::Max), Some(Side::Min)],
+    [Some(Side::Min), Some(Side::Max)],
+    [Some(Side::Max), Some(Side::Max)],
+    [Some(Side::Min), None],
+    [Some(Side::Max), None],
+    [None, Some(Side::Min)],
+    [None, Some(Side::Max)],
+];
+/// Half the handle hit box, in screen pixels. The viewport is scaled to fit, so
+/// a HUD-unit reach would shrink out of the cursor's way as the author zoomed
+/// out; everything below divides by `scale` at the point of comparison instead.
+const HANDLE_HALF: f32 = 6.;
+/// The handle's point on a resolved rect, in HUD units.
+fn handle_point(r: hud::Rect, sides: [Option<Side>; 2]) -> [f32; 2] {
+    [0usize, 1].map(|i| match sides[i] {
+        None => r[i] + r[i + 2] * 0.5,
+        Some(Side::Min) => r[i],
+        Some(Side::Max) => r[i] + r[i + 2],
+    })
+}
+/// Move the grabbed sides by `delta` HUD units (+Y up) and pin the opposite
+/// sides.
+///
+/// `resolve` gives `extent = parent_extent * (anchor_max - anchor_min) + size`
+/// and `min = anchor_point + position - extent * pivot`, so the parent term is
+/// constant in both `size` and `position`: the same compensation is exact for a
+/// point anchor and for a stretched one, and no parent rect is needed here.
+pub fn resize(r: &mut hud::RectTransform, sides: [Option<Side>; 2], delta: [f32; 2]) {
+    for i in 0..2 {
+        match sides[i] {
+            None => {}
+            // d(max) = d(position) + d(size) * (1 - pivot); d(min) picks up
+            // -d(size) * pivot, which the position term cancels exactly.
+            Some(Side::Max) => {
+                r.size[i] += delta[i];
+                r.position[i] += delta[i] * r.pivot[i];
+            }
+            Some(Side::Min) => {
+                r.size[i] -= delta[i];
+                r.position[i] += delta[i] * (1. - r.pivot[i]);
+            }
+        }
     }
 }
 pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
@@ -295,15 +374,19 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
         height - (mouse[1] - origin[1]) / scale,
     ];
     let order = hud::order(&e.scene);
-    let mut handle = false;
+    let mut grab = None;
     if let Some(i) = e.selected
         && let Some(r) = hud::layout(&e.scene, i)
         && e.scene.actors[i].rect.is_some()
     {
-        handle = (p[0] - r[0] - r[2]).abs() < 5. / scale && (p[1] - r[1]).abs() < 5. / scale;
+        let reach = HANDLE_HALF / scale;
+        grab = HANDLES.into_iter().find(|sides| {
+            let h = handle_point(r, *sides);
+            (p[0] - h[0]).abs() <= reach && (p[1] - h[1]).abs() <= reach
+        });
     }
     if hovered && ui.is_mouse_clicked(imgui::MouseButton::Left) && !e.playing {
-        if !handle {
+        if grab.is_none() {
             e.selected = order
                 .iter()
                 .rev()
@@ -317,7 +400,7 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
         e.hud_drag = e
             .selected
             .filter(|i| e.scene.actors[*i].rect.is_some())
-            .map(|i| (i, handle));
+            .map(|i| (i, grab.map_or(HudHandle::Move, HudHandle::Resize)));
         e.reveal_selected = e.selected.is_some();
         e.search.clear();
         e.view_dirty = true;
@@ -328,20 +411,21 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
         e.end_coalesced();
     }
     if !e.playing
-        && let Some((i, resize)) = e.hud_drag
+        && let Some((i, handle)) = e.hud_drag
         && ui.is_mouse_dragging(imgui::MouseButton::Left)
     {
-        let delta = ui.io().mouse_delta.map(|v| v / scale);
+        // HUD space is +Y up and the cursor's is +Y down, so the vertical delta
+        // is negated once here and every handle below works in HUD units.
+        let raw = ui.io().mouse_delta;
+        let delta = [raw[0] / scale, -raw[1] / scale];
         let original = e.scene.actors[i].rect.clone();
         if let Some(r) = &mut e.scene.actors[i].rect {
-            if resize {
-                r.size[0] += delta[0];
-                r.size[1] += delta[1];
-                r.position[0] += delta[0] * r.pivot[0];
-                r.position[1] -= delta[1] * (1. - r.pivot[1]);
-            } else {
-                r.position[0] += delta[0];
-                r.position[1] -= delta[1];
+            match handle {
+                HudHandle::Move => {
+                    r.position[0] += delta[0];
+                    r.position[1] += delta[1];
+                }
+                HudHandle::Resize(sides) => resize(r, sides, delta),
             }
         }
         if e.scene.validate().is_ok() {
@@ -359,20 +443,33 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
             origin[1] + (height - r[1] - r[3]) * scale,
         ];
         let b = [a[0] + r[2] * scale, a[1] + r[3] * scale];
+        let accent = [1., 0.65, 0.25, 1.];
+        // Drawn smaller than it grabs, so the hit box stays forgiving without
+        // the markers swallowing a small rect.
+        let marker = HANDLE_HALF - 2.;
+        let resizable = e.scene.actors[i].rect.is_some();
         draw.with_clip_rect(
             origin,
             [origin[0] + width * scale, origin[1] + height * scale],
             || {
-                draw.add_rect(a, b, [1., 0.65, 0.25, 1.])
-                    .thickness(2.)
+                draw.add_rect(a, b, accent).thickness(2.).build();
+                if !resizable {
+                    return;
+                }
+                for sides in HANDLES {
+                    let h = handle_point(r, sides);
+                    let c = [
+                        origin[0] + h[0] * scale,
+                        origin[1] + (height - h[1]) * scale,
+                    ];
+                    draw.add_rect(
+                        [c[0] - marker, c[1] - marker],
+                        [c[0] + marker, c[1] + marker],
+                        accent,
+                    )
+                    .filled(true)
                     .build();
-                draw.add_rect(
-                    [b[0] - 4., b[1] - 4.],
-                    [b[0] + 4., b[1] + 4.],
-                    [1., 0.65, 0.25, 1.],
-                )
-                .filled(true)
-                .build();
+                }
             },
         );
     }
@@ -387,7 +484,109 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
         {
             format!("HUD {width:.0} x {height:.0} | Procedural UI preview")
         } else {
-            format!("HUD {width:.0} x {height:.0} | Drag to move; corner to resize")
+            format!("HUD {width:.0} x {height:.0} | Drag to move; handles to resize")
         },
     );
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    /// A Canvas with one panel under it, so `hud::layout` walks the real parent
+    /// chain the viewport walks.
+    fn panel(anchor_min: [f32; 2], anchor_max: [f32; 2], pivot: [f32; 2]) -> (Editor, usize) {
+        let mut e = Editor::new(std::env::temp_dir().join("epok-hud-handles"));
+        e.create_hud("panel");
+        let i = e.selected.unwrap();
+        let r = e.scene.actors[i].rect.as_mut().unwrap();
+        r.anchor_min = anchor_min;
+        r.anchor_max = anchor_max;
+        r.pivot = pivot;
+        r.position = [0.; 2];
+        r.size = [200., 120.];
+        (e, i)
+    }
+    #[test]
+    fn every_anchor_preset_is_recognised_again_and_anything_else_is_custom() {
+        let mut r = hud::RectTransform::default();
+        for (name, p) in ANCHOR_PRESETS {
+            r.anchor_min = p;
+            r.anchor_max = p;
+            r.pivot = p;
+            assert_eq!(anchor_preset(&r), name);
+        }
+        r.anchor_min = [0.; 2];
+        r.anchor_max = [1.; 2];
+        r.pivot = [0.5; 2];
+        assert_eq!(anchor_preset(&r), "Stretch");
+        r.pivot = [0.5, 0.4];
+        assert_eq!(anchor_preset(&r), "Custom");
+        assert_eq!(anchor_preset(&hud::RectTransform::default()), "Center");
+    }
+    #[test]
+    fn dragging_a_side_moves_it_one_to_one_and_pins_the_opposite_side() {
+        // Point anchors and stretched anchors, at a centred and an off-centre
+        // pivot: the resolved rect must respond identically to all four.
+        for anchors in [([0.5; 2], [0.5; 2]), ([0.2, 0.1], [0.8, 0.9])] {
+            for pivot in [[0.5; 2], [0.25, 0.75]] {
+                let (mut e, i) = panel(anchors.0, anchors.1, pivot);
+                let label = format!("{anchors:?} pivot {pivot:?}");
+                let before = hud::layout(&e.scene, i).unwrap();
+                let rect = |e: &Editor| hud::layout(&e.scene, i).unwrap();
+                resize(
+                    e.scene.actors[i].rect.as_mut().unwrap(),
+                    [Some(Side::Max), None],
+                    [10., 0.],
+                );
+                let right = rect(&e);
+                assert!((right[2] - before[2] - 10.).abs() < 0.01, "width {label}");
+                assert!((right[0] - before[0]).abs() < 0.01, "left pinned {label}");
+                resize(
+                    e.scene.actors[i].rect.as_mut().unwrap(),
+                    [Some(Side::Min), None],
+                    [-10., 0.],
+                );
+                let left = rect(&e);
+                assert!((left[2] - right[2] - 10.).abs() < 0.01, "width {label}");
+                assert!(
+                    (left[0] - right[0] + 10.).abs() < 0.01,
+                    "left moved {label}"
+                );
+                // +Y is up, so the top side is the maximum of the second axis.
+                resize(
+                    e.scene.actors[i].rect.as_mut().unwrap(),
+                    [None, Some(Side::Max)],
+                    [0., 8.],
+                );
+                let top = rect(&e);
+                assert!((top[3] - left[3] - 8.).abs() < 0.01, "height {label}");
+                assert!((top[1] - left[1]).abs() < 0.01, "bottom pinned {label}");
+                // A corner is the two axes at once and nothing else.
+                resize(
+                    e.scene.actors[i].rect.as_mut().unwrap(),
+                    [Some(Side::Max), Some(Side::Min)],
+                    [5., -5.],
+                );
+                let corner = rect(&e);
+                assert!((corner[2] - top[2] - 5.).abs() < 0.01, "corner w {label}");
+                assert!((corner[3] - top[3] - 5.).abs() < 0.01, "corner h {label}");
+                assert!((corner[0] - top[0]).abs() < 0.01, "corner left {label}");
+                assert!(
+                    (corner[1] - top[1] + 5.).abs() < 0.01,
+                    "corner bottom {label}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn the_eight_handles_sit_on_the_sides_and_midpoints_they_name() {
+        let r = [10., 20., 100., 40.];
+        let points: Vec<[f32; 2]> = HANDLES.iter().map(|s| handle_point(r, *s)).collect();
+        assert_eq!(points.len(), 8);
+        assert!(points.contains(&[10., 20.]) && points.contains(&[110., 60.]));
+        assert!(points.contains(&[60., 20.]) && points.contains(&[10., 40.]));
+        let mut sorted = points.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.dedup();
+        assert_eq!(sorted.len(), 8, "handles must not share a point");
+    }
 }

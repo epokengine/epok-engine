@@ -248,7 +248,7 @@ pub struct Editor {
     object_model:
         std::cell::RefCell<Option<(u64, Option<std::rc::Rc<crate::object_model::Model>>)>>,
     pub hud_simulation: crate::hud_simulation::State,
-    pub hud_drag: Option<(usize, bool)>,
+    pub hud_drag: Option<(usize, crate::hud_editor::HudHandle)>,
     fingerprint: u64,
     playback_watch: crate::timeline_compile::SourceWatch,
     source_scan: Option<std::sync::mpsc::Receiver<SourceObservation>>,
@@ -2398,6 +2398,8 @@ impl Editor {
             match kind {
                 "canvas" => "Canvas",
                 "text" => "Text",
+                "label" => "Label",
+                "textarea" => "Text Area",
                 "progress" => "Progress Bar",
                 "panel" => "Panel",
                 _ => "Image",
@@ -2415,6 +2417,22 @@ impl Editor {
                 "text" => {
                     entity.text = Some(Default::default());
                     entity.rect.as_mut().unwrap().size = [160., 16.];
+                }
+                // Label and Text Area are the same two components; the wrap flag
+                // and the default box are what make them different widgets.
+                "label" => {
+                    entity.text = Some(crate::hud::Text {
+                        wrap: false,
+                        ..Default::default()
+                    });
+                    entity.rect.as_mut().unwrap().size = [120., 16.];
+                }
+                "textarea" => {
+                    entity.text = Some(crate::hud::Text {
+                        wrap: true,
+                        ..Default::default()
+                    });
+                    entity.rect.as_mut().unwrap().size = [200., 64.];
                 }
                 "progress" => {
                     entity.progress = Some(Default::default());
@@ -4626,6 +4644,19 @@ mod tests {
                 .canvas
                 .is_some()
         );
+        e.scene.validate().unwrap();
+        // Label and Text Area are the same components under two default boxes.
+        for (kind, name, size, wrap) in [
+            ("label", "Label", [120., 16.], false),
+            ("textarea", "Text Area", [200., 64.], true),
+        ] {
+            e.create_hud(kind);
+            let i = e.selected.unwrap();
+            assert_eq!(e.scene.actors[i].name, name);
+            assert!(e.scene.actors[i].image.is_none());
+            assert_eq!(e.scene.actors[i].text.as_ref().unwrap().wrap, wrap);
+            assert_eq!(e.scene.actors[i].rect.as_ref().unwrap().size, size);
+        }
         e.scene.validate().unwrap();
         let before = e.scene.clone();
         e.playing = true;

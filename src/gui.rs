@@ -716,8 +716,9 @@ fn draw_workspace(
         });
         ui.menu("GameObject", || {
             let actors = placeable_actor_classes(e);
+            let mode = e.scene_view_mode.domain();
             let mut actor_class = None;
-            if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
+            if let Some(command) = creation_menu(ui, false, mode, &actors, &mut actor_class) {
                 e.action(command);
             }
             if let Some(class) = actor_class {
@@ -1265,6 +1266,35 @@ mod hierarchy_domain_tests {
         assert!(domain_visible(Domain::UI, Domain::UI));
         assert!(!domain_visible(Domain::UI, Domain::World3D));
     }
+
+    /// The creation menu offers the UI submenu only in the Canvas view, and
+    /// every command it can emit reaches a recipe rather than being ignored.
+    #[test]
+    fn every_ui_widget_command_creates_its_widget() {
+        assert!(domain_visible(Domain::UI, Domain::UI));
+        assert!(!domain_visible(Domain::UI, Domain::World3D));
+        let mut e = Editor::new(std::env::temp_dir().join("epok-ui-widgets"));
+        for (label, command) in UI_WIDGETS {
+            let before = e.scene.actors.len();
+            e.action(command);
+            assert!(
+                e.scene.actors.len() > before,
+                "{command} created nothing for {label}"
+            );
+            let actor = &e.scene.actors[e.selected.unwrap()];
+            assert!(
+                actor.canvas.is_some() || actor.rect.is_some(),
+                "{command} produced no UI actor"
+            );
+        }
+        let label = e
+            .scene
+            .actors
+            .iter()
+            .find(|a| a.name == "Label")
+            .expect("ui-label creates a Label");
+        assert!(label.text.is_some() && !label.text.as_ref().unwrap().wrap);
+    }
 }
 /// The domain of a document actor. `None` means the class did not resolve; the
 /// caller shows it in the 3D view with a "class unresolved" tooltip rather than
@@ -1275,22 +1305,76 @@ fn actor_domain(
 ) -> Option<crate::reflection_schema::Domain> {
     model.and_then(|m| actor.class.resolve(m)).map(|c| c.domain)
 }
+/// The UI widget recipes offered by the creation menu. Each command reaches
+/// `Editor::create_hud` through the `ui-` prefix that `Editor::action` strips,
+/// so the menu and the recipe table have a single spelling between them.
+const UI_WIDGETS: [(&str, &str); 6] = [
+    ("Canvas", "ui-canvas"),
+    ("Panel", "ui-panel"),
+    ("Image", "ui-image"),
+    ("Label", "ui-label"),
+    ("Text Area", "ui-textarea"),
+    ("Progress Bar", "ui-progress"),
+];
 fn creation_menu(
     ui: &imgui::Ui,
     child: bool,
-    _actors: &[ActorClass],
-    _actor: &mut Option<String>,
+    mode: crate::reflection_schema::Domain,
+    actors: &[ActorClass],
+    actor: &mut Option<String>,
 ) -> Option<&'static str> {
-    ui.menu_item(if child {
+    use crate::reflection_schema::Domain;
+    let mut action = None;
+    if ui.menu_item(if child {
         "Instantiate Child Actor..."
     } else {
         "Instantiate Actor..."
-    })
-    .then_some(if child {
-        "instantiate-child-actor"
-    } else {
-        "instantiate-actor"
-    })
+    }) {
+        action = Some(if child {
+            "instantiate-child-actor"
+        } else {
+            "instantiate-actor"
+        });
+    }
+    // HUD widgets only make sense where the Canvas editor is showing; the
+    // recipes switch the Scene window into it, so offering them elsewhere would
+    // move the author out of the view they were working in.
+    if domain_visible(Domain::UI, mode)
+        && let Some(_menu) = ui.begin_menu("UI")
+    {
+        for (label, command) in UI_WIDGETS {
+            if ui.menu_item(label) {
+                action = Some(command);
+            }
+        }
+    }
+    if let Some(_menu) = ui.begin_menu("Actor") {
+        if actors.is_empty() {
+            ui.text_disabled("No placeable classes");
+            muted(ui, "Reflection data for this project did not resolve.");
+        } else {
+            for (group, domain) in [
+                ("3D", Domain::World3D),
+                ("2D", Domain::World2D),
+                ("UI", Domain::UI),
+                ("Logic", Domain::None),
+            ] {
+                if !actors.iter().any(|c| c.domain == domain) {
+                    continue;
+                }
+                if let Some(_group) = ui.begin_menu(group) {
+                    for class in actors.iter().filter(|c| c.domain == domain) {
+                        if ui.menu_item(&class.label) {
+                            *actor = Some(class.class.clone());
+                        }
+                    }
+                }
+            }
+            ui.separator();
+            ui.text_disabled("Actors are created at the map root");
+        }
+    }
+    action
 }
 /// Everything the Hierarchy computes once per frame and every node reads.
 struct HierarchyContext<'a> {
@@ -1408,13 +1492,14 @@ fn hierarchy_node(
         e.selected_actor = None;
         e.selected = Some(index);
         e.view_dirty = true;
+        let mode = e.scene_view_mode.domain();
         ui.disabled(e.playing, || {
             if ui.menu_item("Rename") {
                 e.begin_rename(index);
             }
             ui.separator();
             let mut actor_class = None;
-            if let Some(command) = creation_menu(ui, true, cx.actors, &mut actor_class) {
+            if let Some(command) = creation_menu(ui, true, mode, cx.actors, &mut actor_class) {
                 out.action = Some((index, command));
             }
             if actor_class.is_some() {
@@ -1698,6 +1783,7 @@ fn hierarchy_rename_finished(ui: &imgui::Ui, submit: bool, focus_requested: bool
 }
 fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
     let actors = placeable_actor_classes(e);
+    let mode = e.scene_view_mode.domain();
     ui.window("\u{eb86} Hierarchy###Hierarchy").build(|| {
         let mut out = HierarchyResult::default();
         let mut actor_out = ActorResult::default();
@@ -1715,7 +1801,7 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
         ui.popup("create-object", || {
             ui.disabled(e.playing, || {
                 let mut actor_class = None;
-                if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
+                if let Some(command) = creation_menu(ui, false, mode, &actors, &mut actor_class) {
                     e.action(command);
                 }
                 if let Some(class) = actor_class {
@@ -1756,7 +1842,8 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
             if let Some(_popup) = ui.begin_popup_context_item() {
                 ui.disabled(e.playing, || {
                     let mut actor_class = None;
-                    if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
+                    if let Some(command) = creation_menu(ui, false, mode, &actors, &mut actor_class)
+                    {
                         out.root_action = Some(command);
                     }
                     if actor_class.is_some() {
@@ -1802,7 +1889,8 @@ fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
             if let Some(_popup) = ui.begin_popup_context_item() {
                 ui.disabled(e.playing, || {
                     let mut actor_class = None;
-                    if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
+                    if let Some(command) = creation_menu(ui, false, mode, &actors, &mut actor_class)
+                    {
                         out.root_action = Some(command);
                     }
                     if actor_class.is_some() {
