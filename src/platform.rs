@@ -50,8 +50,12 @@ pub fn run(
     let mut hub = crate::hub::Hub::new(startup_error);
     startup_mark("hub and dependency discovery");
     let args = std::env::args().collect::<Vec<_>>();
+    // Visual QA of the two Hub panes a click away from the project list.
     if args.iter().any(|arg| arg == "--screenshot-new-project") {
         hub.open_new_project();
+    }
+    if args.iter().any(|arg| arg == "--screenshot-dependencies") {
+        hub.dependencies.open = true;
     }
     let content_capture = args.iter().any(|arg| arg == "--screenshot-content-browser");
     let minimum_size = if content_capture || args.iter().any(|arg| arg == "--sequencer-layout") {

@@ -4,16 +4,16 @@ Epok starts in **Projects**. Create a project with a template, a gameplay flavor
 
 Use **File > Projects... (New / Open / Close)** to return to the selector. Unsaved scenes offer Save and close, Discard changes and Cancel. Closing a project stops its owned build/emulator before releasing its lock. A failed open stays in the selector and displays the error; it never substitutes a sample scene or overwrites a damaged project.
 
-The dark Hub opens on a searchable project list. Search matches names and paths; the sort button switches between recently opened and alphabetical order. Each row shows its folder, PlayStation target and compatible editor version. Click a row to open it, or use its **...** menu to open or remove the shortcut. Unavailable projects remain visible so their errors can be inspected. **New project** opens the template browser; **Open project** accepts a folder path or the native folder browser. The Hub has its own typography and palette, preserved when returning from the editor.
+The dark Hub opens on a searchable project list. Search matches names and paths; the sort button switches between recently opened and alphabetical order. Each row shows its folder, PlayStation target and compatible editor version. Click a row to open it, or use its **...** menu to open or remove the shortcut. Unavailable projects remain visible so their errors can be inspected. **New project** opens the template browser and **Dependencies** opens the tool paths; both are panes of the same window, not dialogs over it. **Open project** accepts a folder path or the native folder browser. The Hub has its own typography and palette, preserved when returning from the editor.
 
 ## New project
 
 The New Project view is a template browser, not a wizard. Cards on the left carry a thumbnail, a title and a one-line summary, and the whole card selects; the panel on the right shows a large 16:9 preview of the selected template, a paragraph about it and what it includes. A preview that cannot be decoded falls back to a plain tile and never stops the editor from starting.
 
-**Project defaults** below the preview holds the two decisions a new project makes:
+**Project defaults** below the preview holds the two decisions a new project makes, as two lists:
 
 - **Gameplay** — C++, Blueprint or Lua. It chooses which starter implementation the template writes, and nothing else.
-- **Target platform** — PlayStation, the only target Epok builds today.
+- **Target** — PlayStation, the only target Epok builds today.
 
 Project location and project name stay at the bottom with the resolved destination folder. **Create project** is unavailable while the name or the location is unusable and the reason is shown next to them; Enter in the name field creates when the fields are valid. **Cancel** returns to the project list with the selections untouched.
 

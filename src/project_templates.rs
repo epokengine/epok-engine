@@ -77,25 +77,16 @@ impl Info {
     pub fn supports(&self, _flavor: GameplayFlavor) -> bool {
         true
     }
-    /// What the selected flavor will actually write for this template.
+    /// What the selected flavor will actually write for this template. One
+    /// short line: it sits under the two lists, not in place of the manual.
     pub fn gameplay_note(&self, flavor: GameplayFlavor) -> &'static str {
         if self.template == Template::Basic {
-            return "Basic generates no gameplay source. The choice is remembered as the style you \
-prefer to start in; every project can use all three.";
+            return "Basic writes no gameplay. Every project can use all three.";
         }
         match flavor {
-            GameplayFlavor::Cpp => {
-                "Generates project-owned C++ source under assets/scripts, compiled for the console \
-with the rest of the project."
-            }
-            GameplayFlavor::Blueprint => {
-                "Generates a project-owned visual graph under assets/Blueprints. The build backend \
-turns the graph into native console code; what you edit stays visual."
-            }
-            GameplayFlavor::Lua => {
-                "Generates project-owned Lua under assets/scripts, built with the project's Lua \
-execution setting. It starts on the ahead-of-time native mode, which keeps the console build small."
-            }
+            GameplayFlavor::Cpp => "Writes project-owned C++ under assets/scripts.",
+            GameplayFlavor::Blueprint => "Writes a project-owned graph under assets/Blueprints.",
+            GameplayFlavor::Lua => "Writes project-owned Lua, built ahead of time by default.",
         }
     }
 }

@@ -14,6 +14,15 @@ fn gray(value: u8) -> [f32; 4] {
     [v, v, v, 1.]
 }
 
+/// The three panes of the Hub's content area. Dependencies is one of them
+/// rather than a window over them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Panel {
+    Projects,
+    New,
+    Dependencies,
+}
+
 #[derive(Clone)]
 struct PendingUpgrade {
     path: PathBuf,
@@ -44,10 +53,9 @@ pub struct Hub {
     pub previews: [Option<imgui::TextureId>; Template::ALL.len()],
     /// Hit targets the interaction test clicks: 0 Create, 1 Open in the popup,
     /// 2 New project, 3 Open project, 4 Projects, 5 the first recent row,
-    /// 6-8 the template cards, 9-11 the gameplay flavors, 12 Cancel and
-    /// 13 the target platform tile.
+    /// 6-8 the template cards, 12 Cancel, and the named list indices below.
     #[cfg(test)]
-    buttons: [[f32; 2]; 14],
+    buttons: [[f32; 2]; 16],
     pub error: Option<String>,
 }
 impl Hub {
@@ -84,8 +92,34 @@ impl Hub {
             lockup: None,
             previews: [None; Template::ALL.len()],
             #[cfg(test)]
-            buttons: [[0.; 2]; 14],
+            buttons: [[0.; 2]; 16],
         }
+    }
+
+    fn panel(&self) -> Panel {
+        if self.dependencies.open {
+            Panel::Dependencies
+        } else if self.creating {
+            Panel::New
+        } else {
+            Panel::Projects
+        }
+    }
+
+    /// Navigation background: the pane being shown is the lit one.
+    fn tab(&self, panel: Panel) -> [f32; 4] {
+        if self.panel() == panel {
+            gray(47)
+        } else {
+            gray(18)
+        }
+    }
+
+    fn dependencies_view(&mut self, ui: &Ui) {
+        self.heading(ui, "Dependencies", true);
+        ui.text_disabled("Tools the editor needs to build, convert and run games.");
+        ui.dummy([0., 6.]);
+        self.dependencies.hub_page(ui);
     }
 
     /// Opens on the template browser instead of the project list. Visual QA of
@@ -234,33 +268,35 @@ impl Hub {
                         let _padding = ui.push_style_var(V::FramePadding([16., 12.]));
                         let _align = ui.push_style_var(V::ButtonTextAlign([0.10, 0.5]));
                         let _border = ui.push_style_var(V::FrameBorderSize(0.));
-                        let _active = ui.push_style_color(
-                            C::Button,
-                            if self.creating { gray(18) } else { gray(47) },
-                        );
+                        let _active = ui.push_style_color(C::Button, self.tab(Panel::Projects));
                         if ui.button_with_size("Projects", [-1., 42.]) {
                             self.creating = false;
+                            self.dependencies.open = false;
                         }
                         drop(_active);
                         #[cfg(test)]
                         {
                             self.buttons[4] = button_center(ui);
                         }
-                        let _active = ui.push_style_color(
-                            C::Button,
-                            if self.creating { gray(47) } else { gray(18) },
-                        );
+                        let _active = ui.push_style_color(C::Button, self.tab(Panel::New));
                         if ui.button_with_size("New project", [-1., 42.]) {
                             self.creating = true;
+                            self.dependencies.open = false;
                         }
                         #[cfg(test)]
                         {
                             self.buttons[2] = button_center(ui);
                         }
                         drop(_active);
+                        let _active = ui.push_style_color(C::Button, self.tab(Panel::Dependencies));
                         if ui.button_with_size("Dependencies", [-1., 42.]) {
                             self.dependencies.open = true;
                         }
+                        #[cfg(test)]
+                        {
+                            self.buttons[DEPENDENCIES_TAB] = button_center(ui);
+                        }
+                        drop(_active);
                         ui.set_cursor_pos([16., ui.window_size()[1] - 76.]);
                         ui.text_disabled("EPOK ENGINE");
                         ui.set_cursor_pos([16., ui.cursor_pos()[1]]);
@@ -271,12 +307,10 @@ impl Hub {
                 ui.child_window("Project content")
                     .border(true)
                     .size([width - 242., (height - 216.).max(200.)])
-                    .build(|| {
-                        if self.creating {
-                            result = self.create_view(ui);
-                        } else {
-                            result = self.projects_view(ui);
-                        }
+                    .build(|| match self.panel() {
+                        Panel::Dependencies => self.dependencies_view(ui),
+                        Panel::New => result = self.create_view(ui),
+                        Panel::Projects => result = self.projects_view(ui),
                     });
                 if self.open_requested {
                     self.open_requested = false;
@@ -285,7 +319,11 @@ impl Hub {
                 self.open_dialog(ui, &mut result);
                 self.upgrade_dialog(ui, &mut result);
             });
-        self.dependencies.hub_window(ui);
+        // The startup notice stays a window: it interrupts, and it can appear
+        // over any of the three panes. Its button switches to the pane.
+        if self.dependencies.warning_ui(ui) {
+            self.dependencies.open = true;
+        }
         if self.dependencies.busy() {
             None
         } else {
@@ -701,7 +739,7 @@ impl Hub {
         // The defaults own a fixed strip at the bottom of the panel and scroll
         // inside it, so the gameplay selector is reachable at every Hub size
         // however long the explanation under it wraps.
-        let defaults = (panel[1] * 0.34).clamp(126., 196.);
+        let defaults = (panel[1] * 0.33).clamp(142., 190.);
         let width = panel[0].max(120.);
         let preview = (width * 9. / 16.).min((panel[1] * 0.30).max(68.));
         let origin = ui.cursor_screen_pos();
@@ -762,65 +800,62 @@ impl Hub {
     /// stay visible even when the explanation below them wraps.
     fn project_defaults(&mut self, ui: &Ui, info: &project_templates::Info) {
         let _spacing = ui.push_style_var(V::ItemSpacing([10., 6.]));
-        ui.text_disabled("PROJECT DEFAULTS  ·  GAMEPLAY");
-        let segment = ((ui.content_region_avail()[0] - 16.) / 3.).max(52.);
-        for (slot, flavor) in GameplayFlavor::ALL.into_iter().enumerate() {
-            if slot > 0 {
-                ui.same_line_with_spacing(0., 8.);
-            }
-            let selected = self.gameplay == flavor;
-            let supported = info.supports(flavor);
-            let _colors = [
-                (C::Button, if selected { BLUE } else { gray(35) }),
-                (
-                    C::ButtonHovered,
-                    if selected {
-                        [0.05, 0.48, 0.88, 1.]
-                    } else {
-                        gray(49)
-                    },
-                ),
-                (
-                    C::ButtonActive,
-                    if selected {
-                        [0.02, 0.33, 0.65, 1.]
-                    } else {
-                        gray(58)
-                    },
-                ),
-                (C::Border, if selected { BLUE } else { gray(53) }),
-                (C::Text, if selected { [1.; 4] } else { TEXT }),
-            ]
-            .map(|(c, value)| ui.push_style_color(c, value));
-            let _disabled = ui.begin_disabled(!supported);
-            if ui.button_with_size(flavor.title(), [segment, 34.]) {
-                self.gameplay = flavor;
-            }
-            #[cfg(test)]
-            {
-                self.buttons[9 + slot] = button_center(ui);
-            }
-        }
+        ui.text_disabled("PROJECT DEFAULTS");
+        let label = 108.;
+        let origin = ui.cursor_pos()[0];
+        let field = || (ui.content_region_avail()[0] - 4.).max(96.);
+
         ui.align_text_to_frame_padding();
-        ui.text_disabled("TARGET");
-        ui.same_line();
-        // One target today. It is a selectable tile rather than a label so the
-        // row already looks like the list it will become.
-        let _colors = [
-            (C::Button, [0.08, 0.15, 0.22, 1.]),
-            (C::ButtonHovered, [0.08, 0.15, 0.22, 1.]),
-            (C::ButtonActive, [0.08, 0.15, 0.22, 1.]),
-            (C::Border, BLUE),
-        ]
-        .map(|(c, value)| ui.push_style_color(c, value));
-        if ui.button_with_size(self.target.title(), [(segment * 1.4).max(108.), 30.]) {
-            self.target = TargetPlatform::PlayStation;
+        ui.text("Gameplay");
+        ui.same_line_with_pos(origin + label);
+        ui.set_next_item_width(field());
+        if let Some(_list) = ui.begin_combo("##Gameplay", self.gameplay.title()) {
+            for flavor in GameplayFlavor::ALL {
+                let _disabled = ui.begin_disabled(!info.supports(flavor));
+                if ui
+                    .selectable_config(flavor.title())
+                    .selected(self.gameplay == flavor)
+                    .build()
+                {
+                    self.gameplay = flavor;
+                }
+                #[cfg(test)]
+                {
+                    self.buttons[GAMEPLAY_ITEM + flavor as usize] = button_center(ui);
+                }
+            }
         }
         #[cfg(test)]
         {
-            self.buttons[13] = button_center(ui);
+            self.buttons[GAMEPLAY_LIST] = button_center(ui);
         }
-        drop(_colors);
+
+        ui.align_text_to_frame_padding();
+        ui.text("Target");
+        ui.same_line_with_pos(origin + label);
+        ui.set_next_item_width(field());
+        // One target today. It is a list rather than a label so the row already
+        // looks like the list it will become.
+        if let Some(_list) = ui.begin_combo("##Target platform", self.target.title()) {
+            for target in TargetPlatform::ALL {
+                if ui
+                    .selectable_config(target.title())
+                    .selected(self.target == target)
+                    .build()
+                {
+                    self.target = target;
+                }
+                #[cfg(test)]
+                {
+                    self.buttons[TARGET_ITEM] = button_center(ui);
+                }
+            }
+        }
+        #[cfg(test)]
+        {
+            self.buttons[TARGET_LIST] = button_center(ui);
+        }
+
         let _muted = ui.push_style_color(C::Text, MUTED);
         ui.text_wrapped(info.gameplay_note(self.gameplay));
     }
@@ -1060,6 +1095,20 @@ pub fn close_project_dialog(ui: &imgui::Ui, editor: &mut Editor) {
         });
 }
 
+/// The two Project Defaults lists, and the first of the three gameplay entries
+/// inside the open one. A list's entries only have a position while its popup
+/// is up, so the test clicks the list, reads them, and clicks again.
+#[cfg(test)]
+const GAMEPLAY_LIST: usize = 9;
+#[cfg(test)]
+const TARGET_LIST: usize = 10;
+#[cfg(test)]
+const TARGET_ITEM: usize = 11;
+#[cfg(test)]
+const DEPENDENCIES_TAB: usize = 14;
+#[cfg(test)]
+const GAMEPLAY_ITEM: usize = 13;
+
 #[cfg(test)]
 fn button_center(ui: &imgui::Ui) -> [f32; 2] {
     let min = ui.item_rect_min();
@@ -1131,12 +1180,16 @@ pub fn verify_interactions(context: &mut imgui::Context) {
         click(context, &mut hub, 6 + slot);
         assert_eq!(hub.template, template, "card {slot} did not select");
     }
+    // Each default is a list: the first click opens it, which is also what
+    // gives its entries a position, and the second click picks one.
     for (slot, flavor) in workspace::GameplayFlavor::ALL.into_iter().enumerate() {
-        click(context, &mut hub, 9 + slot);
+        click(context, &mut hub, GAMEPLAY_LIST);
+        click(context, &mut hub, GAMEPLAY_ITEM + slot);
         assert_eq!(hub.gameplay, flavor, "flavor {slot} did not select");
     }
-    // One target, and selecting it is a no-op rather than a hidden state change.
-    click(context, &mut hub, 13);
+    // One target, and picking it is a no-op rather than a hidden state change.
+    click(context, &mut hub, TARGET_LIST);
+    click(context, &mut hub, TARGET_ITEM);
     assert_eq!(hub.target, workspace::TargetPlatform::PlayStation);
     assert_eq!(workspace::TargetPlatform::ALL.len(), 1);
 
@@ -1163,6 +1216,15 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     assert!(click(context, &mut hub, 0).is_none());
     assert!(!parent.join("bad").exists());
     hub.name = name;
+
+    // Dependencies is a pane of the Hub, not a window over it: switching to it
+    // and back leaves the browser exactly as it was.
+    click(context, &mut hub, DEPENDENCIES_TAB);
+    assert_eq!(hub.panel(), Panel::Dependencies);
+    frame(context, &mut hub);
+    click(context, &mut hub, 2);
+    assert_eq!(hub.panel(), Panel::New);
+    assert_eq!(hub.template, Template::ThirdPerson);
 
     // Cancel returns to the project list with the selections untouched.
     click(context, &mut hub, 12);
