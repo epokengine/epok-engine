@@ -95,6 +95,7 @@ impl PreparedProject {
         let _ = crate::terrain::resolve(&mut scene, &assets);
         let _ = crate::skeletal::resolve(&mut scene, &assets);
         let _ = crate::texture::resolve(&mut scene, &assets);
+        let _ = crate::hud::resolve_fonts(&mut scene, &assets);
         mark("Establishing source observation baseline");
         let external_watch =
             crate::native_metadata::ExternalWatch::primed(&project.root).unwrap_or_default(); // Normal polling reports unreadable dependency graphs.
@@ -248,7 +249,7 @@ pub struct Editor {
     object_model:
         std::cell::RefCell<Option<(u64, Option<std::rc::Rc<crate::object_model::Model>>)>>,
     pub hud_simulation: crate::hud_simulation::State,
-    pub hud_drag: Option<(usize, bool)>,
+    pub hud_drag: Option<(usize, crate::hud_editor::HudHandle)>,
     fingerprint: u64,
     playback_watch: crate::timeline_compile::SourceWatch,
     source_scan: Option<std::sync::mpsc::Receiver<SourceObservation>>,
@@ -2398,8 +2399,16 @@ impl Editor {
             match kind {
                 "canvas" => "Canvas",
                 "text" => "Text",
+                "label" => "Label",
+                "textarea" => "Text Area",
                 "progress" => "Progress Bar",
                 "panel" => "Panel",
+                "button" => "Button",
+                "hbox" => "Horizontal Box",
+                "vbox" => "Vertical Box",
+                "grid" => "Grid",
+                "margin" => "Margin",
+                "center" => "Center",
                 _ => "Image",
             }
             .into(),
@@ -2416,6 +2425,22 @@ impl Editor {
                     entity.text = Some(Default::default());
                     entity.rect.as_mut().unwrap().size = [160., 16.];
                 }
+                // Label and Text Area are the same two components; the wrap flag
+                // and the default box are what make them different widgets.
+                "label" => {
+                    entity.text = Some(crate::hud::Text {
+                        wrap: false,
+                        ..Default::default()
+                    });
+                    entity.rect.as_mut().unwrap().size = [120., 16.];
+                }
+                "textarea" => {
+                    entity.text = Some(crate::hud::Text {
+                        wrap: true,
+                        ..Default::default()
+                    });
+                    entity.rect.as_mut().unwrap().size = [200., 64.];
+                }
                 "progress" => {
                     entity.progress = Some(Default::default());
                     entity.rect.as_mut().unwrap().size = [120., 16.];
@@ -2423,6 +2448,35 @@ impl Editor {
                 "panel" => {
                     entity.image = Some(Default::default());
                     entity.rect.as_mut().unwrap().size = [200., 120.];
+                }
+                // A Button is the existing graphics plus a focus record: a
+                // background, an unwrapped caption, and the neighbours the
+                // author fills in from the inspector.
+                "button" => {
+                    entity.rect.as_mut().unwrap().size = [120., 24.];
+                    entity.image = Some(Default::default());
+                    entity.text = Some(crate::hud::Text {
+                        text: "Button".into(),
+                        wrap: false,
+                        ..Default::default()
+                    });
+                    entity.focusable = Some(Default::default());
+                }
+                // The five containers are one component with a different kind;
+                // only Grid needs a second column to be worth creating.
+                "hbox" | "vbox" | "grid" | "margin" | "center" => {
+                    entity.rect.as_mut().unwrap().size = [200., 120.];
+                    entity.layout_container = Some(crate::hud::LayoutContainer {
+                        kind: match kind {
+                            "hbox" => crate::hud::LayoutKind::Horizontal,
+                            "vbox" => crate::hud::LayoutKind::Vertical,
+                            "grid" => crate::hud::LayoutKind::Grid,
+                            "margin" => crate::hud::LayoutKind::Margin,
+                            _ => crate::hud::LayoutKind::Center,
+                        },
+                        columns: if kind == "grid" { 2 } else { 1 },
+                        ..Default::default()
+                    });
                 }
                 _ => entity.image = Some(Default::default()),
             }
@@ -4626,6 +4680,58 @@ mod tests {
                 .canvas
                 .is_some()
         );
+        e.scene.validate().unwrap();
+        // Label and Text Area are the same components under two default boxes.
+        for (kind, name, size, wrap) in [
+            ("label", "Label", [120., 16.], false),
+            ("textarea", "Text Area", [200., 64.], true),
+        ] {
+            e.create_hud(kind);
+            let i = e.selected.unwrap();
+            assert_eq!(e.scene.actors[i].name, name);
+            assert!(e.scene.actors[i].image.is_none());
+            assert_eq!(e.scene.actors[i].text.as_ref().unwrap().wrap, wrap);
+            assert_eq!(e.scene.actors[i].rect.as_ref().unwrap().size, size);
+        }
+        e.scene.validate().unwrap();
+        // The five container recipes are one component under five kinds.
+        for (kind, name, layout, columns) in [
+            (
+                "hbox",
+                "Horizontal Box",
+                crate::hud::LayoutKind::Horizontal,
+                1,
+            ),
+            ("vbox", "Vertical Box", crate::hud::LayoutKind::Vertical, 1),
+            ("grid", "Grid", crate::hud::LayoutKind::Grid, 2),
+            ("margin", "Margin", crate::hud::LayoutKind::Margin, 1),
+            ("center", "Center", crate::hud::LayoutKind::Center, 1),
+        ] {
+            e.create_hud(kind);
+            let i = e.selected.unwrap();
+            let container = e.scene.actors[i].layout_container.as_ref().unwrap();
+            assert_eq!(e.scene.actors[i].name, name);
+            assert_eq!(container.kind, layout);
+            assert_eq!(container.columns, columns);
+            assert!(container.enabled);
+            assert_eq!(e.scene.actors[i].rect.as_ref().unwrap().size, [200., 120.]);
+            assert!(e.scene.actors[i].image.is_none());
+        }
+        e.scene.validate().unwrap();
+        // Button is a recipe, not a component: a background, an unwrapped
+        // caption and the focus record the D-pad reads.
+        e.create_hud("button");
+        let i = e.selected.unwrap();
+        let button = &e.scene.actors[i];
+        assert_eq!(button.name, "Button");
+        assert_eq!(button.rect.as_ref().unwrap().size, [120., 24.]);
+        assert!(button.image.as_ref().is_some_and(|c| c.enabled));
+        assert_eq!(button.text.as_ref().unwrap().text, "Button");
+        assert!(!button.text.as_ref().unwrap().wrap);
+        let focus = button.focusable.as_ref().unwrap();
+        assert!(focus.enabled);
+        assert_eq!(focus.neighbors, [-1; 4]);
+        assert_eq!(focus.highlight, [1.; 3]);
         e.scene.validate().unwrap();
         let before = e.scene.clone();
         e.playing = true;

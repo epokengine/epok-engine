@@ -17,7 +17,9 @@ extern "C" __declspec(dllimport) unsigned long __stdcall SetErrorMode(unsigned l
 #endif
 #include "scene.hh"
 #include "hud_commands.hpp"
+#include "fonts.hh"
 #include "hud-config.hh"
+#include "hud_focus.hpp"
 #include "native_play_protocol.h"
 #include "transform_cache.hpp"
 
@@ -157,8 +159,12 @@ static bool write32(uint32_t value){uint8_t b[4];for(unsigned i=0;i<4;++i)b[i]=u
 static bool read32(uint32_t& value){uint8_t b[4];if(fread(b,1,4,stdin)!=4)return false;value=0;for(unsigned i=0;i<4;++i)value|=uint32_t(b[i])<<(i*8);return true;}
 static void frame(){
     EpokHudSink sink;for(size_t i=0;i<epok::texture_count;++i){sink.dimensions.push_back(epok::texture_assets[i].width);sink.dimensions.push_back(epok::texture_assets[i].height);}
-    epok::hud_core::Compiler compiler(sink,epok::display_width,epok::display_height,{epok::hud_layout_budget,epok::hud_rectangle_budget,epok::hud_text_budget,epok::hud_glyph_budget});
-    int first[epok::objects.size()],next[epok::objects.size()];compiler.draw(epok::objects.data(),epok::object_count,first,next);auto s=compiler.stats;
+    // Cooked fonts are global and already carry their VRAM placement; the
+    // layout core only reads their metrics, exactly as the console does.
+    sink.fonts.assign(epok::font_assets,epok::font_assets+epok::font_count);
+    epok::hud_focus_update(epok::objects.data(),epok::object_count,epok::hud_focus_edges());
+    epok::hud_core::Compiler compiler(sink,epok::display_width,epok::display_height,{epok::hud_layout_budget,epok::hud_rectangle_budget,epok::hud_text_budget,epok::hud_glyph_budget,epok::hud_rotated_budget});
+    int first[epok::objects.size()],next[epok::objects.size()];epok::Fixed measured[epok::objects.size()][2];epok::hud_core::Rect rects[epok::objects.size()];epok::hud_core::Affine2 transforms[epok::objects.size()];compiler.draw(epok::objects.data(),epok::object_count,first,next,measured,rects,transforms);auto s=compiler.stats;
     write32(EPOK_NATIVE_PLAY_MAGIC);write32(epok::performance_stats.frame);write32(epok::screen_fade);
     write32(uint32_t(epok::object_count));write32(uint32_t(epok::authored_count));const auto camera=epok::active_camera();write32(camera?camera.index:0xffffffffu);
     write32(uint32_t(sink.commands.size()));write32(uint32_t(epok::requested_scene.size()));write32(uint32_t(epok::audio_events.size()));

@@ -40,6 +40,7 @@ pub enum Kind {
     SkeletalMesh,
     AnimationClip,
     Material,
+    Font,
 }
 impl Kind {
     pub fn playable(&self) -> bool {
@@ -130,6 +131,7 @@ impl Index {
                 | Kind::SoundBank
                 | Kind::ModelSource
                 | Kind::Texture
+                | Kind::Font
         ) {
             return Ok(None);
         }
@@ -340,6 +342,7 @@ impl Package {
             ) => {}
             (Kind::Terrain, crate::import_settings::Settings::Authored) => {}
             (Kind::ModelSource, crate::import_settings::Settings::Fbx(s)) => s.validate()?,
+            (Kind::Font, crate::import_settings::Settings::Font(s)) => s.validate()?,
             (
                 Kind::Skeleton | Kind::SkeletalMesh | Kind::AnimationClip | Kind::Material,
                 crate::import_settings::Settings::Derived,
@@ -390,6 +393,9 @@ impl Package {
             }
             Kind::Terrain => {
                 crate::terrain::Document::parse(&self.source)?;
+            }
+            Kind::Font => {
+                crate::font_asset::decode(&self.source, self.meta.settings.font()?)?;
             }
         }
         Ok(())
@@ -537,6 +543,8 @@ pub fn scan(root: &Path, cache: &mut ScanCache) -> Index {
             "ogg",
             "fbx",
             "png",
+            "ttf",
+            "otf",
             "cpp",
             "hpp",
         ]
@@ -579,7 +587,7 @@ pub fn scan(root: &Path, cache: &mut ScanCache) -> Index {
                     })))
                 } else if [
                     "wav", "mp3", "flac", "ogg", "mid", "midi", "seq", "sep", "vab", "vh", "vb",
-                    "sf2", "sf3", "fbx", "png",
+                    "sf2", "sf3", "fbx", "png", "ttf", "otf",
                 ]
                 .contains(&ext.as_str())
                 {
@@ -1803,5 +1811,49 @@ mod tests {
             .unwrap()
             .contains("exceeds the supported file size")
         );
+    }
+    #[test]
+    fn a_font_package_pairs_only_with_font_settings_and_a_readable_face() {
+        let package = |settings: crate::import_settings::Settings, source: Vec<u8>| Package {
+            meta: Metadata {
+                version: 2,
+                id: Uuid::new_v4(),
+                kind: Kind::Font,
+                importer_version: crate::font_asset::IMPORTER_VERSION,
+                source: "assets/Title.ttf".into(),
+                source_hash: hash(&source),
+                settings,
+                extra: Default::default(),
+            },
+            source,
+        };
+        assert_eq!(
+            package(crate::import_settings::Settings::Texture, b"x".into())
+                .validate()
+                .unwrap_err(),
+            "Importer settings do not match asset kind"
+        );
+        assert!(
+            package(
+                crate::import_settings::Settings::Font(Default::default()),
+                b"not an outline font".into()
+            )
+            .validate()
+            .unwrap_err()
+            .contains("TrueType")
+        );
+        // Font sources relink by path or checksum like the other external-source kinds.
+        assert!(matches!(
+            Index::default().linked_source(&Record {
+                path: PathBuf::from("assets/Title.epokasset"),
+                meta: package(
+                    crate::import_settings::Settings::Font(Default::default()),
+                    Vec::new()
+                )
+                .meta,
+                revision: String::new(),
+            }),
+            Ok(None)
+        ));
     }
 }

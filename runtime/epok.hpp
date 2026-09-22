@@ -96,14 +96,32 @@ extern PerformanceStats performance_stats;
 struct SkeletalQueryStats {
     uint32_t calls=0,vertices=0,bones=0,decoded_bytes=0,failures=0;
 };
-struct Canvas { bool enabled=false; };
+// The authored initial focus and the runtime current focus are the same field:
+// an actor index into the scene's objects array, -1 for none.
+struct Canvas { bool enabled=false; int16_t focused=-1; };
 struct RectTransform {
     bool enabled=false;
     Fixed anchor_min[2]={0.5,0.5},anchor_max[2]={0.5,0.5},pivot[2]={0.5,0.5};
     Fixed position[2]={0.0,0.0},size[2]={100.0,32.0};
+    // Degrees about the pivot. Layout stays axis-aligned; only emit rotates.
+    Fixed rotation=0.0;
 };
-struct Image { bool enabled=false; uint8_t color[3]={51,102,166}; int texture=-1; uint16_t region[4]={}; uint16_t borders[4]={}; };
+// Values are pinned; this enum only ever grows at the end (saved Blueprint graphs store the numbering).
+enum class ImageTiling : uint8_t { None=0, Tile=1, TileFit=2 };
+static_assert(sizeof(ImageTiling)==1);
+struct Image { bool enabled=false; uint8_t color[3]={51,102,166}; int texture=-1; uint16_t region[4]={}; uint16_t borders[4]={}; ImageTiling tiling=ImageTiling::None; };
+// neighbors is left, right, up, down; each an actor index into the scene's
+// objects array, -1 for none. highlight multiplies the fill/image colour while
+// this element is the one its canvas points at.
+struct Focusable { bool enabled=false; int16_t neighbors[4]={-1,-1,-1,-1}; uint8_t order=0; uint8_t highlight[3]={255,255,255}; };
 struct ProgressBar { bool enabled=false;Fixed value=0.75;uint8_t color[3]={64,217,77},background[3]={31,31,31}; };
+// Values are pinned; this enum only ever grows at the end (saved Blueprint graphs store the numbering).
+enum class LayoutKind : uint8_t { None=0, Horizontal=1, Vertical=2, Grid=3, Margin=4, Center=5 };
+static_assert(sizeof(LayoutKind)==1);
+// Size flags, one bitfield per axis: 1 Fill, 2 Expand, 4 ShrinkCenter, 8 ShrinkEnd.
+struct LayoutElement { bool enabled=false; uint8_t horizontal=1,vertical=1; Fixed minimum[2]={0.0,0.0}; Fixed stretch=1.0; };
+// padding is left, top, right, bottom, the order Image::borders uses.
+struct LayoutContainer { bool enabled=false; LayoutKind kind=LayoutKind::None; Fixed spacing[2]={0.0,0.0}; Fixed padding[4]={0.0,0.0,0.0,0.0}; uint8_t columns=1; };
 struct MeshQuad {
   uint16_t indices[4];
   uint8_t face;
@@ -219,7 +237,7 @@ struct Animator {
 class Actor;
 struct ActorData {
     bool camera; bool mesh; bool tiled; int parent; Transform transform; Material material;
-    Canvas canvas;RectTransform rect;Image image;Text text;ProgressBar progress;char name[129]={};
+    Canvas canvas;RectTransform rect;Image image;Text text;ProgressBar progress;LayoutElement layout_element;LayoutContainer layout_container;Focusable focusable;char name[129]={};
     const MeshGeometry* geometry=nullptr;
     Animator animator;
     // Optional additive pitch applied at one skeletal branch. Stop bones cancel
@@ -257,9 +275,16 @@ template<>inline RectTransform& ActorData::component<RectTransform>(){return rec
 template<>inline Image& ActorData::component<Image>(){return image;}
 template<>inline Text& ActorData::component<Text>(){return text;}
 template<>inline ProgressBar& ActorData::component<ProgressBar>(){return progress;}
+template<>inline LayoutElement& ActorData::component<LayoutElement>(){return layout_element;}
+template<>inline LayoutContainer& ActorData::component<LayoutContainer>(){return layout_container;}
+template<>inline Focusable& ActorData::component<Focusable>(){return focusable;}
 template<>inline Transform* ActorData::get<Transform>(){return &transform;}
 template<>inline Transform& ActorData::add<Transform>(){return transform;}
 ActorData* find_actor_data(const char* name);
+// The slot index of a legacy entity, or -1. Defined with the scene tables in
+// lifecycle.hpp; declared here so reflected components can answer about their
+// place in the objects array.
+int entity_index(const ActorData* entity);
 ActorData* allocate_actor_data(const char* name,ActorData* parent=nullptr);
 struct DataHandle {
     uint16_t index=0xffff; uint32_t generation=0;

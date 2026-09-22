@@ -160,6 +160,12 @@ pub struct BuiltinData {
     pub text: Option<crate::hud::Text>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress: Option<crate::hud::ProgressBar>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout_element: Option<crate::hud::LayoutElement>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout_container: Option<crate::hud::LayoutContainer>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focusable: Option<crate::hud::Focusable>,
     #[serde(default)]
     pub lighting: crate::lighting::MeshLighting,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -199,6 +205,9 @@ impl BuiltinData {
             image: None,
             text: None,
             progress: None,
+            layout_element: None,
+            layout_container: None,
+            focusable: None,
             lighting: Default::default(),
             light: None,
             blob_shadow: None,
@@ -215,6 +224,10 @@ pub struct Scene {
     pub hud_budget: crate::hud::Budget,
     #[serde(skip)]
     pub textures: BTreeMap<uuid::Uuid, std::sync::Arc<crate::texture::Data>>,
+    /// Cooked authored fonts, resolved from the asset index exactly as
+    /// `textures` is. Never serialized into a scene.
+    #[serde(skip)]
+    pub fonts: BTreeMap<uuid::Uuid, std::sync::Arc<crate::font_asset::FontData>>,
     /// Project output size used by HUD authoring; never serialized into a scene.
     #[serde(skip, default = "legacy_display_size")]
     pub display_size: [u16; 2],
@@ -280,6 +293,7 @@ impl From<SceneDocument> for Scene {
             navigation: doc.navigation,
             scene_script: doc.scene_script,
             textures: Default::default(),
+            fonts: Default::default(),
             display_size: legacy_display_size(),
         };
         scene.refresh_actor_hierarchy();
@@ -322,6 +336,7 @@ impl Default for Scene {
             navigation: None,
             display_size: legacy_display_size(),
             textures: Default::default(),
+            fonts: Default::default(),
             version: crate::actor_document::SCENE_VERSION,
             name: "SampleScene".into(),
             actors: vec![camera, Actor::cube("Cube".into()), second, floor],
@@ -396,23 +411,32 @@ impl Scene {
             crate::actor_components::domain(&next)
                 == crate::actor_components::domain(&self.actors[*p])
         });
-        if keep_world && let Some(r) = next.rect.as_mut() {
-            let old = crate::hud::layout(self, index).ok_or("Invalid HUD hierarchy")?;
-            let p = spatial_parent
-                .and_then(|p| crate::hud::layout(self, p))
-                .unwrap_or([
-                    0.,
-                    0.,
-                    self.display_size[0] as f32,
-                    self.display_size[1] as f32,
-                ]);
-            for i in 0..2 {
-                r.size[i] = old[i + 2] - p[i + 2] * (r.anchor_max[i] - r.anchor_min[i]);
-                r.position[i] = old[i]
-                    - p[i]
-                    - p[i + 2]
-                        * (r.anchor_min[i] + (r.anchor_max[i] - r.anchor_min[i]) * r.pivot[i])
-                    + old[i + 2] * r.pivot[i];
+        if keep_world && next.rect.is_some() {
+            // One layout pass answers for the element and its new parent. A rect
+            // the pass never placed has no world rectangle to preserve — it is
+            // hidden under a container that assigns its rect wherever it lands —
+            // so the move keeps the authored values instead of failing.
+            let boxes = crate::hud::layouts(self);
+            if let Some(old) = boxes.get(index).copied().flatten().map(|p| p.rect)
+                && let Some(r) = next.rect.as_mut()
+            {
+                let p = spatial_parent
+                    .and_then(|p| boxes.get(p).copied().flatten())
+                    .map(|p| p.rect)
+                    .unwrap_or([
+                        0.,
+                        0.,
+                        self.display_size[0] as f32,
+                        self.display_size[1] as f32,
+                    ]);
+                for i in 0..2 {
+                    r.size[i] = old[i + 2] - p[i + 2] * (r.anchor_max[i] - r.anchor_min[i]);
+                    r.position[i] = old[i]
+                        - p[i]
+                        - p[i + 2]
+                            * (r.anchor_min[i] + (r.anchor_max[i] - r.anchor_min[i]) * r.pivot[i])
+                        + old[i + 2] * r.pivot[i];
+                }
             }
         } else if keep_world {
             let inverse =
@@ -753,6 +777,7 @@ impl Scene {
             let _ = crate::terrain::resolve(&mut scene, &index);
             let _ = crate::skeletal::resolve(&mut scene, &index);
             let _ = crate::texture::resolve(&mut scene, &index);
+            let _ = crate::hud::resolve_fonts(&mut scene, &index);
         }
         Ok(scene)
     }

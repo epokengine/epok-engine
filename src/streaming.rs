@@ -207,7 +207,7 @@ pub fn compile_with_budget(
     };
     let mut used = PAGE_BYTES;
     for scene in scenes {
-        let layout = crate::texture::layout(scene)?;
+        let layout = crate::texture::layout(scene)?.textures;
         let mut locations = BTreeMap::new();
         for (entity, e) in scene.actors.iter().enumerate().filter(|(_, e)| {
             e.kind == "Mesh"

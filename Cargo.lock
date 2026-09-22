@@ -662,6 +662,7 @@ dependencies = [
 name = "epok-editor"
 version = "0.4.0"
 dependencies = [
+ "ab_glyph",
  "arboard",
  "axum",
  "base64 0.22.1",

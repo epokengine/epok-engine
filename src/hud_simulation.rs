@@ -59,7 +59,8 @@ pub struct Frame {
     pub number: u32,
     pub fade: u8,
     pub actors: u32,
-    pub stats: [u32; 5],
+    /// rectangles, glyphs, texts, images, dropped, rotated.
+    pub stats: [u32; 6],
     pub commands: Vec<hud_native::Command>,
     pub requested_scene: String,
     /// Reported by the child, not assumed by the editor.
@@ -102,7 +103,7 @@ fn read_frame(input: &mut impl Read) -> Result<Frame, String> {
     let number = word(input)?;
     let fade = word(input)?;
     let actors = word(input)?;
-    let mut stats = [0; 5];
+    let mut stats = [0; 6];
     for s in &mut stats {
         *s = word(input)?;
     }
@@ -566,6 +567,12 @@ pub(crate) fn build_runner(
         "text.hpp".into(),
         include_bytes!("../runtime/text.hpp").to_vec(),
     );
+    // The child draws labels with the same cooked fonts the console does, so it
+    // gets the same global header rather than an empty one.
+    files.insert(
+        "fonts.hh".into(),
+        crate::hud::fonts_header(scene)?.into_bytes(),
+    );
     files.insert(
         "display.hh".into(),
         if runner == Runner::NativePlay {
@@ -976,7 +983,7 @@ mod tests {
     use super::*;
     fn header(version: u32, capabilities: u32, commands: u32) -> Vec<u8> {
         let mut bytes = vec![];
-        // magic, version, capabilities, frame, fade, actors, stats[5], commands, text
+        // magic, version, capabilities, frame, fade, actors, stats[6], commands, text
         for n in [
             hud_native::HUD_PREVIEW_MAGIC,
             version,
@@ -984,6 +991,7 @@ mod tests {
             7,
             0,
             1,
+            0,
             0,
             0,
             0,
@@ -1144,6 +1152,7 @@ public:
             pivot: [0.; 2],
             position: [2., 10.],
             size: [32., 16.],
+            ..Default::default()
         });
         actor.image = Some(crate::hud::Image {
             color: [1., 0., 0.],

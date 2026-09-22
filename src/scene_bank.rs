@@ -190,9 +190,11 @@ pub fn resources(scenes: &[Scene]) -> Scene {
     let mut out = scenes[0].clone();
     out.actors.clear();
     out.textures.clear();
+    out.fonts.clear();
     for s in scenes {
         out.actors.extend(s.actors.clone());
         out.textures.extend(s.textures.clone());
+        out.fonts.extend(s.fonts.clone());
     }
     for e in &mut out.actors {
         if let Some(a) = &mut e.audio {
@@ -313,7 +315,7 @@ pub fn header_with_templates_for(
         // bank. Reject overflow explicitly instead of spawning invisible assets.
         let layout_scene = if global_layout { &shared } else { s };
         crate::texture::header(layout_scene)?;
-        let layout = crate::texture::layout(layout_scene)?;
+        let layout = crate::texture::layout(layout_scene)?.textures;
         let descriptors = ids
             .iter()
             .enumerate()

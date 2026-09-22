@@ -271,7 +271,10 @@ pub fn scene_header_with_registry_for(
     }
     // Page geometry follows this bank's VRAM layout, the same one its texture
     // descriptors are generated from.
-    let layout = crate::texture::layout(layout_scene)?;
+    let layout = crate::texture::layout(layout_scene)?.textures;
+    // Fonts are cooked once for the whole project, so a label's index addresses
+    // the shared resource set rather than this bank's own.
+    let fonts = crate::hud::font_ids(resources);
     let pages = |id: uuid::Uuid| {
         let placement = layout.iter().find(|(v, _)| *v == id)?;
         let t = scene.textures.get(&id)?;
@@ -500,34 +503,44 @@ inline void initialize_components(){
             ));
         }
         if let Some(c) = &e.canvas {
-            text.push_str(&format!("objects[{i}].canvas.enabled={};\n", c.enabled));
+            text.push_str(&format!(
+                "objects[{i}].canvas.enabled={};objects[{i}].canvas.focused={};\n",
+                c.enabled, c.focused
+            ));
         }
         if let Some(r) = &e.rect {
             text.push_str(&format!(
-                "objects[{i}].rect=RectTransform{{true,{{{}}},{{{}}},{{{}}},{{{}}},{{{}}}}};\n",
+                "objects[{i}].rect=RectTransform{{true,{{{}}},{{{}}},{{{}}},{{{}}},{{{}}},{}}};\n",
                 vec2(&r.anchor_min),
                 vec2(&r.anchor_max),
                 vec2(&r.pivot),
                 vec2(&r.position),
-                vec2(&r.size)
+                vec2(&r.size),
+                fixed(r.rotation)
             ));
         }
         if let Some(c) = &e.image {
             text.push_str(&format!(
-                "objects[{i}].image=Image{{{},{{{}}},{},{{{}}},{{{}}}}};\n",
+                "objects[{i}].image=Image{{{},{{{}}},{},{{{}}},{{{}}},ImageTiling({})}};\n",
                 c.enabled,
                 color(&c.color),
                 c.texture.map(crate::texture::symbol).unwrap_or("-1".into()),
                 c.region.map(|v| v.to_string()).join(","),
-                c.borders.map(|v| v.to_string()).join(",")
+                c.borders.map(|v| v.to_string()).join(","),
+                c.tiling as u8
             ));
         }
         if let Some(c) = &e.text {
             text.push_str(&format!(
-                "objects[{i}].text=Text{{{},{{{}}}}};objects[{i}].text.set_text({});objects[{i}].text.wrap={};\n",
+                "objects[{i}].text=Text{{{},{{{}}}}};objects[{i}].text.set_text({});objects[{i}].text.wrap={};objects[{i}].text.font={};objects[{i}].text.align=TextAlign({});\n",
                 c.enabled,
                 color(&c.color),
-                string(&c.text),c.wrap
+                string(&c.text),
+                c.wrap,
+                c.font
+                    .and_then(|id| fonts.iter().position(|v| *v == id))
+                    .map_or("-1".into(), |i| i.to_string()),
+                c.align as u8
             ));
         }
         if let Some(c) = &e.progress {
@@ -537,6 +550,39 @@ inline void initialize_components(){
                 fixed(c.value),
                 color(&c.color),
                 color(&c.background)
+            ));
+        }
+        if let Some(c) = &e.layout_element {
+            text.push_str(&format!(
+                "objects[{i}].layout_element=LayoutElement{{{},{},{},{{{}}},{}}};\n",
+                c.enabled,
+                c.horizontal,
+                c.vertical,
+                vec2(&c.minimum),
+                fixed(c.stretch)
+            ));
+        }
+        if let Some(c) = &e.layout_container {
+            text.push_str(&format!(
+                "objects[{i}].layout_container=LayoutContainer{{{},LayoutKind({}),{{{}}},{{{}}},{}}};\n",
+                c.enabled,
+                c.kind as u8,
+                vec2(&c.spacing),
+                c.padding.map(fixed).join(","),
+                c.columns
+            ));
+        }
+        if let Some(c) = &e.focusable {
+            text.push_str(&format!(
+                "objects[{i}].focusable=Focusable{{{},{{{}}},{},{{{}}}}};\n",
+                c.enabled,
+                c.neighbors.map(|v| v.to_string()).join(","),
+                c.order,
+                c.highlight
+                    .iter()
+                    .map(|v| ((v.clamp(0., 1.) * 255.).round() as u8).to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
             ));
         }
     }
@@ -780,6 +826,10 @@ fn stage_with_playback(
         &mut resolved,
         &crate::assets::scan(root, &mut Default::default()),
     )?;
+    crate::hud::resolve_fonts(
+        &mut resolved,
+        &crate::assets::scan(root, &mut Default::default()),
+    )?;
     let scene = &resolved;
     // A failed script compilation must never leave generated code from the
     // previous mode or revision behind in the staged build.
@@ -842,6 +892,7 @@ fn stage_with_playback(
         crate::terrain::validate_scene(bank)?;
         crate::skeletal::resolve(bank, &asset_index)?;
         crate::texture::resolve(bank, &asset_index)?;
+        crate::hud::resolve_fonts(bank, &asset_index)?;
         bank.validate()?;
         if !rendering.streaming_geometry
             && bank
@@ -865,6 +916,7 @@ fn stage_with_playback(
         hud_budget.rectangles = hud_budget.rectangles.max(bank.hud_budget.rectangles);
         hud_budget.texts = hud_budget.texts.max(bank.hud_budget.texts);
         hud_budget.glyphs = hud_budget.glyphs.max(bank.hud_budget.glyphs);
+        hud_budget.rotated = hud_budget.rotated.max(bank.hud_budget.rotated);
     }
     let mut timeline_scenes = banks.clone();
     timeline_scenes.extend(templates.iter().map(|t| t.scene.clone()));
@@ -931,6 +983,7 @@ fn stage_with_playback(
             .max(template.scene.hud_budget.rectangles);
         hud_budget.texts = hud_budget.texts.max(template.scene.hud_budget.texts);
         hud_budget.glyphs = hud_budget.glyphs.max(template.scene.hud_budget.glyphs);
+        hud_budget.rotated = hud_budget.rotated.max(template.scene.hud_budget.rotated);
     }
     let playback_sources = || {
         timelines
@@ -1020,6 +1073,11 @@ fn stage_with_playback(
         }
     }
     crate::hud::stage(build, &hud_budget)?;
+    playback.resources(vec![crate::hud::stage_fonts(
+        build,
+        &shared_resources,
+        &asset_index,
+    )?])?;
     stage_runtime(build)?;
     for timeline in &timelines {
         let header = crate::timeline_runtime::header(&timeline.compiled, &blueprint_registry)?;
@@ -1193,8 +1251,16 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/actor_tables.hpp").as_slice(),
         ),
         (
+            "font_types.hpp",
+            include_bytes!("../runtime/font_types.hpp").as_slice(),
+        ),
+        (
             "hud_core.hpp",
             include_bytes!("../runtime/hud_core.hpp").as_slice(),
+        ),
+        (
+            "hud_focus.hpp",
+            include_bytes!("../runtime/hud_focus.hpp").as_slice(),
         ),
         (
             "serial_kernel.hpp",
@@ -2235,6 +2301,103 @@ mod tests {
         s.actors[3].scale = [64.; 3];
         s.actors[1].scale = [2.; 3];
         assert!(scene_header(&s, &[]).is_err());
+    }
+    #[test]
+    fn layout_components_export_positionally_in_the_runtime_field_order() {
+        let mut s = Scene::default();
+        let canvas = s.actors.len();
+        let mut root = crate::scene::Actor::cube("Canvas".into());
+        root.kind = "Empty".into();
+        root.position = [0.; 3];
+        root.canvas = Some(Default::default());
+        s.actors.push(root);
+        let mut box_actor = crate::scene::Actor::cube("Grid".into());
+        box_actor.kind = "Empty".into();
+        box_actor.position = [0.; 3];
+        box_actor.parent = Some(canvas);
+        box_actor.rect = Some(Default::default());
+        box_actor.layout_container = Some(crate::hud::LayoutContainer {
+            kind: crate::hud::LayoutKind::Grid,
+            spacing: [4., 8.],
+            padding: [1., 2., 3., 4.],
+            columns: 3,
+            enabled: true,
+        });
+        box_actor.layout_element = Some(crate::hud::LayoutElement {
+            enabled: true,
+            horizontal: 3,
+            vertical: 8,
+            minimum: [16., 32.],
+            stretch: 2.,
+        });
+        let index = s.actors.len();
+        s.actors.push(box_actor);
+        s.sync_actor_components();
+        let header = scene_header(&s, &[]).unwrap();
+        let q = |raw: i32| format!("Fixed({raw}, Fixed::RAW)");
+        assert!(header.contains(&format!(
+            "objects[{index}].layout_element=LayoutElement{{true,3,8,{{{},{}}},{}}};",
+            q(65536),
+            q(131072),
+            q(8192)
+        )));
+        assert!(header.contains(&format!(
+            "objects[{index}].layout_container=LayoutContainer{{true,LayoutKind(3),{{{},{}}},{{{},{},{},{}}},3}};",
+            q(16384),
+            q(32768),
+            q(4096),
+            q(8192),
+            q(12288),
+            q(16384)
+        )));
+        // Tiling, rotation, canvas focus and the focus table are appended to the
+        // aggregates they belong to, so the positional forms must show them last.
+        s.actors[index].image = Some(crate::hud::Image {
+            color: [0.; 3],
+            enabled: true,
+            texture: None,
+            region: [1, 2, 64, 64],
+            borders: [5, 6, 7, 8],
+            tiling: crate::hud::ImageTiling::TileFit,
+        });
+        s.actors[index].rect.as_mut().unwrap().rotation = 45.;
+        s.actors[index].focusable = Some(crate::hud::Focusable {
+            enabled: true,
+            neighbors: [3, -1, 0, 2],
+            order: 7,
+            highlight: [1., 0.5, 0.],
+        });
+        s.actors[canvas].canvas.as_mut().unwrap().focused = 1;
+        s.sync_actor_components();
+        let header = scene_header(&s, &[]).unwrap();
+        assert!(header.contains(&format!(
+            "objects[{index}].image=Image{{true,{{0,0,0}},-1,{{1,2,64,64}},{{5,6,7,8}},ImageTiling(2)}};"
+        )));
+        assert!(header.contains(&format!(
+            ",{{{},{}}},{}}};",
+            q(409600),
+            q(131072),
+            q(184320)
+        )));
+        assert!(header.contains(&format!(
+            "objects[{index}].focusable=Focusable{{true,{{3,-1,0,2}},7,{{255,128,0}}}};"
+        )));
+        assert!(header.contains(&format!("objects[{canvas}].canvas.focused=1;")));
+        // A label's font index and alignment are appended after its wrap flag;
+        // the built-in atlas keeps index -1 so unchanged scenes are unchanged.
+        s.actors[index].text = Some(crate::hud::Text {
+            text: "Hi".into(),
+            color: [1.; 3],
+            enabled: true,
+            wrap: false,
+            font: None,
+            align: crate::hud::TextAlign::Right,
+        });
+        s.sync_actor_components();
+        let header = scene_header(&s, &[]).unwrap();
+        assert!(header.contains(&format!(
+            "objects[{index}].text.wrap=false;objects[{index}].text.font=-1;objects[{index}].text.align=TextAlign(2);"
+        )));
     }
     #[test]
     fn missing_script_fails_before_build() {

@@ -1281,7 +1281,7 @@ mod tests {
             );
             declarations += 1;
         }
-        assert_eq!(declarations, 28, "native base count changed");
+        assert_eq!(declarations, 31, "native base count changed");
     }
 
     #[test]

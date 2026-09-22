@@ -87,6 +87,9 @@ fn actor_patch(entity: &Actor, patch: &Value) -> Result<Actor, String> {
         "image",
         "text",
         "progress",
+        "layout_element",
+        "layout_container",
+        "focusable",
         "lighting",
         "light",
         "blob_shadow",
@@ -988,6 +991,18 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                     })
                     .unwrap_or_default(),
                 sequence_catalog: None,
+                font: if let Some(value) = a.get("font_settings") {
+                    Some(decode(value.clone())?)
+                } else {
+                    let lower = source.to_ascii_lowercase();
+                    (lower.ends_with(".ttf") || lower.ends_with(".otf")).then(|| {
+                        existing
+                            .as_ref()
+                            .and_then(|r| r.meta.settings.font().ok())
+                            .cloned()
+                            .unwrap_or_default()
+                    })
+                },
                 texture: source.to_ascii_lowercase().ends_with(".png"),
                 model,
                 model_storage,
@@ -1254,7 +1269,7 @@ fn read_file(path: &Path) -> Result<Vec<u8>, String> {
     assets::read_bounded(path)
 }
 fn schema() -> Value {
-    json!({"actor":Actor::cube("Example".into()),"components":{"audio":crate::audio::AudioSource::default(),"light":crate::lighting::Light::default(),"blob_shadow":crate::shadows::BlobShadow::default(),"skeletal_mesh":crate::skeletal::Component::new(uuid::Uuid::nil()),"editable_mesh":crate::mesh::Component::new(uuid::Uuid::nil()),"material":crate::scene::Material::default(),"canvas":crate::hud::Canvas::default(),"rect":crate::hud::RectTransform::default(),"image":crate::hud::Image::default(),"text":crate::hud::Text::default(),"progress":crate::hud::ProgressBar::default(),"lighting":crate::lighting::MeshLighting::default(),"environment":crate::lighting::Settings::default()},"kinds":["Empty","Mesh","Camera"],"notes":"Transforms are local to parent. Actor indices change after deletion. Replace nil asset UUIDs in examples with UUIDs from asset_list or mesh_create. Optional components can be removed with null.","example":{"op":"create","actor":{"name":"Example Cube","kind":"Mesh","position":[0,0.5,0],"material":{"color":[0.2,0.6,1.0]}}}})
+    json!({"actor":Actor::cube("Example".into()),"components":{"audio":crate::audio::AudioSource::default(),"light":crate::lighting::Light::default(),"blob_shadow":crate::shadows::BlobShadow::default(),"skeletal_mesh":crate::skeletal::Component::new(uuid::Uuid::nil()),"editable_mesh":crate::mesh::Component::new(uuid::Uuid::nil()),"material":crate::scene::Material::default(),"canvas":crate::hud::Canvas::default(),"rect":crate::hud::RectTransform::default(),"image":crate::hud::Image::default(),"text":crate::hud::Text::default(),"progress":crate::hud::ProgressBar::default(),"layout_element":crate::hud::LayoutElement::default(),"layout_container":crate::hud::LayoutContainer::default(),"focusable":crate::hud::Focusable::default(),"lighting":crate::lighting::MeshLighting::default(),"environment":crate::lighting::Settings::default()},"kinds":["Empty","Mesh","Camera"],"notes":"Transforms are local to parent. Actor indices change after deletion. Replace nil asset UUIDs in examples with UUIDs from asset_list or mesh_create. Optional components can be removed with null.","example":{"op":"create","actor":{"name":"Example Cube","kind":"Mesh","position":[0,0.5,0],"material":{"color":[0.2,0.6,1.0]}}}})
 }
 pub fn validate_arguments(name: &str, value: &Value) -> Result<(), String> {
     let tool = catalog()
@@ -1493,7 +1508,7 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
         (
             "asset_import",
             "Import an FBX or audio source already in assets/. FBX animation_storage selects RigidGte or BakedVertices. Destination must be .epokasset. Reimport requires current asset revision. Poll editor_state for completion.",
-            json!({"source":s,"destination":s,"revision":s,"animation_storage":{"enum":["RigidGte","BakedVertices"]},"audio_settings":o,"sequence_settings":o,"bank_settings":o,"vb_source":s}),
+            json!({"source":s,"destination":s,"revision":s,"animation_storage":{"enum":["RigidGte","BakedVertices"]},"audio_settings":o,"sequence_settings":o,"bank_settings":o,"font_settings":o,"vb_source":s}),
             vec!["source", "destination"],
             false,
         ),

@@ -2,8 +2,19 @@ use crate::{
     asset_manager::{Manager, Status},
     assets,
     editor::Editor,
+    font_asset::FontData,
+    import_settings::{CharRange, FontSettings},
+    music_conversion_ui::{help, integer},
 };
 use imgui::{Condition, Ui};
+use std::{
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
+};
 
 pub fn windows(ui: &Ui, e: &mut Editor) {
     let m = &mut e.assets;
@@ -185,6 +196,10 @@ fn manager_body(ui: &Ui, m: &mut Manager, scene: &crate::scene::Scene) {
                             texture_inspector(ui, m, &record);
                             return;
                         }
+                        if record.meta.kind == assets::Kind::Font {
+                            font_inspector(ui, m, &record);
+                            return;
+                        }
                         if !matches!(
                             record.meta.kind,
                             assets::Kind::AudioClip
@@ -353,6 +368,54 @@ fn import_dialog(ui: &Ui, m: &mut Manager) {
             m.start_import();
         }
         if !open && !m.busy {
+            m.form = None;
+        }
+        return;
+    }
+    if m.form.as_ref().is_some_and(|f| f.font.is_some()) {
+        m.open_dialog = false;
+        let (mut open, mut start) = (true, false);
+        ui.window("Import Font")
+            .opened(&mut open)
+            .size([620., 620.], Condition::FirstUseEver)
+            .size_constraints([480., 360.], [1200., 1400.])
+            .build(|| {
+                let form = m.form.as_mut().unwrap();
+                ui.text_wrapped("TrueType/OpenType outlines packed into a 4bpp atlas of at most 256 x 256 pixels, with a 16-entry palette. The original font file is stored in the asset.");
+                ui.disabled(m.busy, || {
+                    ui.disabled(form.snapshot, || {
+                        ui.input_text(crate::gui::field(ui, "Source"), &mut form.source)
+                            .build();
+                    });
+                    ui.disabled(form.existing.is_some(), || {
+                        ui.input_text(crate::gui::field(ui, "Font asset"), &mut form.destination)
+                            .build();
+                    });
+                    font_settings(ui, form.font.as_mut().unwrap());
+                    if ui.button(if form.existing.is_some() { "Reimport" } else { "Import" }) {
+                        start = true;
+                    }
+                });
+                ui.separator();
+                let (source, snapshot) = (form.source.clone(), form.snapshot);
+                let settings = form.font.clone().unwrap();
+                let existing = form.existing.clone();
+                m.font_preview.show(
+                    ui,
+                    &m.root,
+                    &source,
+                    existing.as_ref().filter(|_| snapshot),
+                    &settings,
+                );
+                if let Some(error) = &m.error {
+                    ui.text_wrapped(error);
+                }
+            });
+        if start {
+            m.start_import();
+        }
+        if !open && !m.busy {
+            m.font_preview.cancel();
             m.form = None;
         }
         return;
@@ -929,6 +992,246 @@ pub fn audio_settings(ui: &Ui, settings: &mut crate::audio_import::Settings) -> 
         ui.text_wrapped(error);
     }
     *settings != before
+}
+
+struct PreviewJob {
+    key: String,
+    cancel: Arc<AtomicBool>,
+    receive: mpsc::Receiver<Result<FontData, String>>,
+}
+/// Packs the atlas off the render thread so the import panel can show its real cost while the
+/// author edits. Decode is bounded; a stale job is discarded rather than published.
+#[derive(Default)]
+pub struct FontPreview {
+    key: String,
+    job: Option<PreviewJob>,
+    ready: Option<(String, Result<FontData, String>)>,
+}
+impl Drop for FontPreview {
+    fn drop(&mut self) {
+        self.cancel();
+    }
+}
+impl FontPreview {
+    pub fn cancel(&mut self) {
+        if let Some(job) = &self.job {
+            job.cancel.store(true, Ordering::Relaxed);
+        }
+    }
+    fn poll(&mut self) {
+        let Some(job) = &self.job else {
+            return;
+        };
+        let received = match job.receive.try_recv() {
+            Ok(result) => result,
+            Err(mpsc::TryRecvError::Empty) => return,
+            Err(mpsc::TryRecvError::Disconnected) => Err("Font preview worker stopped".into()),
+        };
+        let job = self.job.take().unwrap();
+        if !job.cancel.load(Ordering::Relaxed) {
+            self.ready = Some((job.key, received));
+        }
+    }
+    fn refresh(
+        &mut self,
+        root: &Path,
+        source: &str,
+        snapshot: Option<&assets::Record>,
+        settings: &FontSettings,
+    ) {
+        let key = assets::hash(
+            format!(
+                "{}:{source}:{:?}:{}",
+                root.display(),
+                snapshot.map(|r| &r.revision),
+                serde_json::to_string(settings).unwrap_or_default()
+            )
+            .as_bytes(),
+        );
+        if self.key != key {
+            self.cancel();
+            self.key = key;
+        }
+        // One job at a time: edits made while packing coalesce into the next request.
+        if self.job.is_some() || self.ready.as_ref().is_some_and(|(k, _)| *k == self.key) {
+            return;
+        }
+        let (root, source, settings) = (root.to_owned(), source.to_string(), settings.clone());
+        let snapshot = snapshot.cloned();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let (send, receive) = mpsc::channel();
+        let key = self.key.clone();
+        std::thread::spawn(move || {
+            let _ = send.send((|| {
+                let bytes = match &snapshot {
+                    Some(record) => assets::Package::load(&record.path)?.source,
+                    None => assets::read_bounded(&assets::inside(&root, &source)?)?,
+                };
+                crate::font_asset::decode(&bytes, &settings)
+            })());
+        });
+        self.job = Some(PreviewJob {
+            key,
+            cancel,
+            receive,
+        });
+    }
+    fn show(
+        &mut self,
+        ui: &Ui,
+        root: &Path,
+        source: &str,
+        snapshot: Option<&assets::Record>,
+        settings: &FontSettings,
+    ) {
+        self.poll();
+        self.refresh(root, source, snapshot, settings);
+        match self.ready.as_ref().filter(|(k, _)| *k == self.key) {
+            Some((_, Ok(data))) => {
+                ui.text(format!(
+                    "{} glyphs, {}x{} atlas, {} bytes VRAM",
+                    data.metrics.len(),
+                    data.width,
+                    data.height,
+                    data.vram_bytes()
+                ));
+                atlas_image(ui, data, 256.);
+            }
+            Some((_, Err(error))) => ui.text_wrapped(error),
+            None => ui.text("Packing atlas..."),
+        }
+    }
+}
+/// Draws the packed atlas straight into the window's draw list, downsampled to fit, the way
+/// the texture inspector previews an imported page.
+fn atlas_image(ui: &Ui, data: &FontData, edge: f32) {
+    let (w, h) = (usize::from(data.width), usize::from(data.height));
+    let origin = ui.cursor_screen_pos();
+    let scale = (edge / w.max(h) as f32).clamp(0.5, 4.);
+    let step = (w.max(h)).div_ceil(128).max(1);
+    let draw = ui.get_window_draw_list();
+    for y in (0..h).step_by(step) {
+        for x in (0..w).step_by(step) {
+            let c = &data.rgba[(y * w + x) * 4..(y * w + x) * 4 + 4];
+            let color = if c[3] == 0 {
+                let v = if (x / step + y / step).is_multiple_of(2) {
+                    40
+                } else {
+                    52
+                };
+                imgui::ImColor32::from_rgb(v, v, v)
+            } else {
+                imgui::ImColor32::from_rgb(c[0], c[1], c[2])
+            };
+            draw.add_rect(
+                [origin[0] + x as f32 * scale, origin[1] + y as f32 * scale],
+                [
+                    origin[0] + (x + step).min(w) as f32 * scale,
+                    origin[1] + (y + step).min(h) as f32 * scale,
+                ],
+                color,
+            )
+            .filled(true)
+            .build();
+        }
+    }
+    ui.dummy([w as f32 * scale, h as f32 * scale]);
+}
+pub fn font_settings(ui: &Ui, settings: &mut FontSettings) -> bool {
+    let before = settings.clone();
+    integer(
+        ui,
+        "Pixel height",
+        &mut settings.pixel_height,
+        6,
+        64,
+        "Rasterized cap height in pixels, 6 to 64. Larger faces pack a taller atlas and cost more VRAM; the atlas is rejected above 256 pixels.",
+    );
+    ui.text("Character ranges");
+    help(
+        ui,
+        "font-ranges",
+        "Named blocks the atlas must cover. Codepoints the face does not map are dropped rather than baked as a missing-glyph box.",
+    );
+    for range in CharRange::ALL {
+        let mut on = settings.ranges.contains(&range);
+        if ui.checkbox(range.label(), &mut on) {
+            settings.ranges.retain(|r| *r != range);
+            if on {
+                settings.ranges.push(range);
+            }
+        }
+    }
+    ui.input_text(
+        crate::gui::field(ui, "Extra characters"),
+        &mut settings.characters,
+    )
+    .build();
+    help(
+        ui,
+        "font-characters",
+        "Individual characters to add on top of the selected ranges, such as currency or punctuation the ranges omit.",
+    );
+    ui.checkbox("Antialias", &mut settings.antialias);
+    help(
+        ui,
+        "font-antialias",
+        "Off keeps one white ink entry, matching the built-in HUD font. On spreads coverage over fifteen grey levels in the same 4bpp atlas; it costs no extra VRAM but blends against the background.",
+    );
+    ui.checkbox("Monospace", &mut settings.monospace);
+    help(
+        ui,
+        "font-monospace",
+        "Gives every glyph the widest advance in the set, so counters and timers do not shift as digits change.",
+    );
+    let mut padding = u32::from(settings.padding);
+    integer(
+        ui,
+        "Glyph padding",
+        &mut padding,
+        0,
+        4,
+        "Blank pixels between packed cells, 0 to 4. One pixel stops neighbouring glyphs bleeding in when the hardware samples an edge texel.",
+    );
+    settings.padding = padding as u8;
+    *settings != before
+}
+fn font_inspector(ui: &Ui, m: &mut Manager, r: &assets::Record) {
+    ui.text_wrapped(&r.meta.source);
+    ui.text_wrapped(format!("Font / {}", r.meta.id));
+    match assets::Package::load(&r.path)
+        .and_then(|p| crate::font_asset::decode(&p.source, p.meta.settings.font()?))
+    {
+        Ok(data) => {
+            let settings = r.meta.settings.font();
+            ui.text(format!(
+                "{} x {} / 4-bit indexed / {} glyphs / {} bytes + 32-byte palette",
+                data.width,
+                data.height,
+                data.metrics.len(),
+                data.words.len() * 2
+            ));
+            ui.text(format!(
+                "{} / line {} px / baseline {} px",
+                if settings.is_ok_and(|s| s.antialias) {
+                    "15 grey levels + transparent"
+                } else {
+                    "One ink colour + transparent"
+                },
+                data.line_height,
+                data.baseline
+            ));
+            atlas_image(ui, &data, 256.);
+        }
+        Err(e) => ui.text_wrapped(e),
+    }
+    ui.text_wrapped("Authored fonts compete with textures for the 32-CLUT VRAM budget; overflow is reported at export.");
+    if ui.button("Reimport / Locate source") {
+        m.begin_reimport(r, false);
+    }
+    if ui.button("Rebuild from stored font") {
+        m.begin_reimport(r, true);
+    }
 }
 
 fn texture_inspector(ui: &Ui, m: &mut Manager, r: &assets::Record) {

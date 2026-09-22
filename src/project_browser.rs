@@ -216,6 +216,7 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
             assets::Kind::AnimationClip => "Animation",
             assets::Kind::Material => "Material",
             assets::Kind::Skeleton => "Skeleton",
+            assets::Kind::Font => "Font",
         };
     }
     if entry.path.ends_with(".epokbp") {
@@ -251,7 +252,7 @@ fn entry_icon(e: &Editor, entry: &Entry) -> (&'static str, [f32; 4]) {
 fn request_preview(e: &Editor, s: &mut State, entry: &Entry) -> PathBuf {
     s.previews.ensure_project(&e.root, &e.assets.index);
     let path = e.root.join(&entry.path);
-    if matches!(kind(e, entry), "Texture" | "Audio") {
+    if matches!(kind(e, entry), "Texture" | "Font" | "Audio") {
         let revision = crate::content_preview::revision(&e.root, &e.assets.index, &path);
         s.previews.request(&path, revision);
     }
@@ -277,9 +278,9 @@ fn display_name(entry: &Entry) -> &str {
 
 // Embedded Font Awesome glyphs, shared by tile and list views.
 pub const ASSET_ICON_RANGES: &[u32] = &[
-    0xf001, 0xf001, 0xf008, 0xf008, 0xf03e, 0xf03e, 0xf042, 0xf042, 0xf06d, 0xf06d, 0xf07b, 0xf07b,
-    0xf0e8, 0xf0e8, 0xf121, 0xf121, 0xf15b, 0xf15b, 0xf1b2, 0xf1b2, 0xf279, 0xf279, 0xf550, 0xf550,
-    0xf5d7, 0xf5d7, 0,
+    0xf001, 0xf001, 0xf008, 0xf008, 0xf031, 0xf031, 0xf03e, 0xf03e, 0xf042, 0xf042, 0xf06d, 0xf06d,
+    0xf07b, 0xf07b, 0xf0e8, 0xf0e8, 0xf121, 0xf121, 0xf15b, 0xf15b, 0xf1b2, 0xf1b2, 0xf279, 0xf279,
+    0xf550, 0xf550, 0xf5d7, 0xf5d7, 0,
 ];
 fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
     match kind {
@@ -288,6 +289,7 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         "Lua Class" => ("\u{f121}", [0.36, 0.44, 0.86, 1.]),
         "Scene" => ("\u{f279}", [0.40, 0.68, 0.86, 1.]),
         "Texture" => ("\u{f03e}", [0.46, 0.73, 0.39, 1.]),
+        "Font" => ("\u{f031}", [0.87, 0.71, 0.42, 1.]),
         "Mesh" => ("\u{f1b2}", [0.46, 0.72, 0.80, 1.]),
         "Terrain" => ("\u{f6fc}", [0.55, 0.74, 0.45, 1.]),
         "Skeleton" => ("\u{f5d7}", [0.81, 0.78, 0.63, 1.]),
@@ -301,13 +303,14 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         _ => ("\u{f15b}", [0.66, 0.68, 0.71, 1.]),
     }
 }
-const FILTERS: [&str; 17] = [
+const FILTERS: [&str; 18] = [
     "All assets",
     "Folder",
     "Blueprint",
     "Lua Class",
     "Scene",
     "Texture",
+    "Font",
     "Mesh",
     "Terrain",
     "Skeleton",
@@ -1472,6 +1475,7 @@ fn open(e: &mut Editor, s: &mut State, entry: &Entry) {
             assets::Kind::EditableMesh => crate::mesh_editor::open(e, record, None),
             assets::Kind::Terrain => crate::terrain_editor::open(e, record, None),
             assets::Kind::Texture
+            | assets::Kind::Font
             | assets::Kind::AudioClip
             | assets::Kind::MusicSequence
             | assets::Kind::SoundBank => {
@@ -2439,11 +2443,11 @@ fn import(e: &mut Editor, s: &mut State, source: &Path) -> bool {
             .to_lowercase();
         if ![
             "png", "wav", "mp3", "flac", "ogg", "mid", "midi", "seq", "sep", "vab", "vh", "vb",
-            "sf2", "sf3", "fbx", "obj",
+            "sf2", "sf3", "fbx", "obj", "ttf", "otf",
         ]
         .contains(&ext.as_str())
         {
-            return Err("Supported import sources: PNG, WAV, MP3, FLAC, OGG, MIDI, Sony audio, SoundFont, FBX and OBJ.".into());
+            return Err("Supported import sources: PNG, WAV, MP3, FLAC, OGG, MIDI, Sony audio, SoundFont, FBX, OBJ, TTF and OTF.".into());
         }
         let name = source
             .file_name()
@@ -2682,7 +2686,7 @@ fn pick_files() -> Result<Vec<PathBuf>, String> {
     {
         use std::os::windows::process::CommandExt;
         let output = std::process::Command::new("powershell.exe").creation_flags(0x08000000)
-            .args(["-NoProfile", "-STA", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Import Content'; $d.Multiselect=$true; $d.Filter='Supported content|*.png;*.wav;*.mp3;*.flac;*.ogg;*.mid;*.midi;*.seq;*.sep;*.vab;*.vh;*.vb;*.sf2;*.sf3;*.fbx;*.obj'; if($d.ShowDialog() -eq 'OK'){$d.FileNames | ForEach-Object {[Console]::WriteLine($_)}}; $d.Dispose()"])
+            .args(["-NoProfile", "-STA", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Import Content'; $d.Multiselect=$true; $d.Filter='Supported content|*.png;*.wav;*.mp3;*.flac;*.ogg;*.mid;*.midi;*.seq;*.sep;*.vab;*.vh;*.vb;*.sf2;*.sf3;*.fbx;*.obj;*.ttf;*.otf'; if($d.ShowDialog() -eq 'OK'){$d.FileNames | ForEach-Object {[Console]::WriteLine($_)}}; $d.Dispose()"])
             .output().map_err(|e| e.to_string())?;
         if !output.status.success() {
             return Err("Could not open the file picker. Enter a source path instead.".into());

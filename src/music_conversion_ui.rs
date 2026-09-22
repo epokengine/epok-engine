@@ -54,7 +54,7 @@ pub fn help(ui: &Ui, key: &str, text: &str) {
         }
     }
 }
-fn integer(ui: &Ui, label: &str, value: &mut u32, min: u32, max: u32, text: &str) {
+pub fn integer(ui: &Ui, label: &str, value: &mut u32, min: u32, max: u32, text: &str) {
     let mut input = *value as i32;
     if ui.input_int(label, &mut input).build() {
         *value = input.clamp(min as i32, max as i32) as u32;

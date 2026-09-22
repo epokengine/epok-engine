@@ -54,6 +54,7 @@ pub fn revision<'a>(root: &Path, index: &'a assets::Index, path: &Path) -> &'a s
 pub fn source_kind(path: &Path) -> Option<&'static str> {
     match path.extension()?.to_str()?.to_ascii_lowercase().as_str() {
         "png" => Some("Texture"),
+        "ttf" | "otf" => Some("Font"),
         "wav" | "mp3" | "flac" | "ogg" | "mid" | "midi" | "seq" | "sep" => Some("Audio"),
         "vab" | "vh" | "vb" | "sf2" | "sf3" => Some("SoundBank"),
         "fbx" | "obj" => Some("Mesh"),
@@ -518,6 +519,16 @@ fn decode_size_mode(path: &Path, edge: u32, mode: PreviewMode) -> Result<Preview
                     data.rgba,
                     data.width as u32,
                     data.height as u32,
+                    edge,
+                ))
+            }
+            assets::Kind::Font => {
+                let data =
+                    crate::font_asset::decode(&package.source, package.meta.settings.font()?)?;
+                Ok(thumbnail(
+                    data.rgba,
+                    u32::from(data.width),
+                    u32::from(data.height),
                     edge,
                 ))
             }

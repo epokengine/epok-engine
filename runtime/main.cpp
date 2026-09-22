@@ -35,6 +35,7 @@
 #include "polygon.hpp"
 #include "retained.hpp"
 #include "hud.hpp"
+#include "hud_focus.hpp"
 #include "loading_renderer.hpp"
 #include "debug_hud.hpp"
 #include "serial_debug.hpp"
@@ -1555,6 +1556,9 @@ void GameScene::frame() {
   }
   EPOK_DETAIL_END(sprite, sprite_scanlines);
   EPOK_DETAIL_BEGIN(hud);
+  // D-pad focus moves before the HUD is compiled, so the highlighted element is
+  // the one this frame's press edge selected.
+  epok::hud_focus_update(epok::objects.data(), epok::object_count, epok::hud_focus_edges());
   hud.draw(gpu(), epok::objects, epok::object_count);
   if (const auto amount=epok::transition.opacity>epok::screen_fade?epok::transition.opacity:epok::screen_fade) {
     auto& page=fade_pages[parity];

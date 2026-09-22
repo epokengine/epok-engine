@@ -94,11 +94,21 @@ gameplay when they fit the pool. Later required reads may stall rendering.
 
 ## HUD
 
-Canvas, RectTransform, Image, Text and ProgressBar belong to the same scene entities. HUD rendering follows the 3D world at the configured output resolution. Anchors and pivots are 0..1; position and Size Delta use Q12 native pixels with +Y up. The 3D Transform does not affect UI layout. Text remains 8 x 16 pixels.
+Canvas, RectTransform, Image, Text, ProgressBar, LayoutElement, LayoutContainer and Focusable belong to the same scene entities. HUD rendering follows the 3D world at the configured output resolution. Anchors and pivots are 0..1; position and Size Delta use Q12 native pixels with +Y up. The 3D Transform does not affect UI layout. Text draws with the built-in 8 x 16 atlas or with a cooked font.
 
-Add RectTransform before graphics, beneath a Canvas or another RectTransform. Text uses the attributed mig68000 8 x 16 bitmap plus derived Spanish glyphs, supports 511 UTF-8 bytes, explicit newlines and optional wrapping.
+A rect with an enabled LayoutContainer measures its children and assigns their rectangles instead of letting them resolve their own anchors: Horizontal and Vertical divide one axis, Grid fills `columns` cells per row from the top-left, Margin and Center hand the padded rectangle to every child. Padding is left, top, right, bottom. LayoutElement supplies a child's minimum size, its stretch weight, and the per-axis size flags — bit 0 Fill, bit 1 Expand, bit 2 Shrink Center, bit 3 Shrink End. A subtree without a container is byte-identical to the anchor-only path.
 
-Image uses a texture index and atlas region; optional nine-slice borders preserve corners. `hud-config.hh` sets layout/rectangle/text/glyph budgets validated by the editor. Excess dynamic draws are counted in `hud_stats`. `utility.hpp` supplies focus, navigation, lists and event queues. Parent masks, text rotation/scaling and world-space Canvas remain outside this profile.
+Add RectTransform before graphics, beneath a Canvas or another RectTransform. Text holds 511 UTF-8 bytes verbatim, decoded per glyph at draw time, with explicit newlines and optional wrapping.
+
+`Text::font` is -1 for the built-in atlas, resident at VRAM (960,448) with its CLUT at (60,448), or an index into `font_assets` in the generated `fonts.hh`. A `Font` (`font_types.hpp`) is a 4bpp atlas, its `GlyphMetric` table sorted by codepoint for `find_glyph`, a sixteen-entry palette, and the VRAM placement the export allocator assigned; glyphs carry their own advance and offsets, and the baseline is the ascent from the top of a line. Authored fonts share the thirty-two CLUT rows and the texture shelves, and `fonts_initialize` uploads them once alongside the built-in atlas. `Text::align` is Left, Center or Right; a centred or right-aligned block measures at most thirty-two lines. `hud_core::label` walks advances per glyph and hands each sink a font index plus atlas source texels, so one text element is still one texture-page primitive and one glyph is still one primitive.
+
+Image uses a texture index and atlas region; optional nine-slice borders preserve corners, and `ImageTiling` repeats the region instead of stretching it — `Tile` at its own texel size from the rect's bottom-left with the last column and row clipped, `TileFit` scaled to a whole count per axis. With borders set only the centre piece tiles. Each tile is one more textured quad against the rectangle budget.
+
+`Focusable` carries the four neighbour actor indices the D-pad follows, a tab order and a highlight colour; `Canvas::focused` holds the one focused index for the whole tree, authored and then moved by `hud_focus_update` in `hud_focus.hpp` on a direction's press edge. The focused element's image and fill colours are multiplied by its highlight, so focus costs no primitive.
+
+`RectTransform::rotation` turns an element about its pivot in degrees. Layout stays axis-aligned and an unrotated element emits exactly the primitives it always did; a rotated one emits polygons instead, from `hud_rotated_budget` pools counted in `hud_stats.rotated`, because GP0's rectangle and sprite classes rasterize axis-aligned only. A child inherits its parent's rotation through an accumulated Q12 affine computed once per rotated node per frame.
+
+`hud-config.hh` sets layout/rectangle/text/glyph/rotated budgets validated by the editor. Excess dynamic draws are counted in `hud_stats`. `utility.hpp` supplies focus, navigation, lists and event queues. Parent masks, text scaling and world-space Canvas remain outside this profile.
 
 ## Textures, sprites and particles
 

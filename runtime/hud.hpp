@@ -2,6 +2,7 @@
 #include "hud_core.hpp"
 #include "hud-config.hh"
 #include "hud-font.hh"
+#include "fonts.hh"
 #include "texture.hpp"
 #include "psyqo/primitives/rectangles.hh"
 #include "psyqo/primitives/sprites.hh"
@@ -14,13 +15,17 @@ class HudRenderer {
     psyqo::Fragments::SimpleFragment<psyqo::Prim::TexturedQuad> images[2][hud_rectangle_budget];
     psyqo::Fragments::SimpleFragment<psyqo::Prim::Sprite> glyphs[2][hud_glyph_budget];
     psyqo::Fragments::SimpleFragment<psyqo::Prim::TPage> pages[2][hud_text_budget];
+    // Rotation leaves the rectangle/sprite classes behind: GP0 0b011 rasterizes
+    // axis-aligned only, so a rotated element draws from these polygon pools.
+    psyqo::Fragments::SimpleFragment<psyqo::Prim::Quad> rotated_quads[2][hud_rotated_budget];
+    psyqo::Fragments::SimpleFragment<psyqo::Prim::TexturedQuad> rotated_textured[2][hud_rotated_budget];
     // GP0 no-op bookends delimit each parity's block so an unchanged layout is
     // re-chained in one call; the links between the retained fragments survive
     // because only a rebuild writes them.
     struct Nop { uint32_t command=0; };
     psyqo::Fragments::SimpleFragment<Nop> bookends[2][2];
     uint32_t retained_key[2]={};bool retained[2]={};HudStats retained_stats[2];
-    size_t used=0,texts=0,rects=0,letters=0,pictures=0;
+    size_t used=0,texts=0,rects=0,letters=0,pictures=0,turned=0,turned_textured=0;
     static uint32_t mix(uint32_t h,uint32_t v){return (h^v)*16777619u;}
     // Every input the fragment build reads: hierarchy, canvas/rect layout,
     // image, progress and text state, plus the texture bank.
@@ -30,13 +35,25 @@ class HudRenderer {
             const auto& e=entities[i];
             h=mix(h,uint32_t(e.alive)|uint32_t(e.active)<<1|uint32_t(e.canvas.enabled)<<2|uint32_t(e.rect.enabled)<<3|uint32_t(e.parent+1)<<8);
             if(!e.canvas.enabled&&!e.rect.enabled)continue;
+            h=mix(h,uint32_t(uint16_t(e.canvas.focused)));
             for(int k=0;k<2;++k){h=mix(h,uint32_t(e.rect.anchor_min[k].raw()));h=mix(h,uint32_t(e.rect.anchor_max[k].raw()));h=mix(h,uint32_t(e.rect.pivot[k].raw()));h=mix(h,uint32_t(e.rect.position[k].raw()));h=mix(h,uint32_t(e.rect.size[k].raw()));}
-            h=mix(h,uint32_t(e.image.enabled)|uint32_t(e.image.color[0])<<8|uint32_t(e.image.color[1])<<16|uint32_t(e.image.color[2])<<24);h=mix(h,uint32_t(e.image.texture));
+            h=mix(h,uint32_t(e.rect.rotation.raw()));
+            h=mix(h,uint32_t(e.image.enabled)|uint32_t(e.image.color[0])<<8|uint32_t(e.image.color[1])<<16|uint32_t(e.image.color[2])<<24);h=mix(h,uint32_t(e.image.texture));h=mix(h,uint32_t(e.image.tiling));
             for(int k=0;k<4;++k)h=mix(h,uint32_t(e.image.region[k])|uint32_t(e.image.borders[k])<<16);
             h=mix(h,uint32_t(e.progress.enabled)|uint32_t(e.progress.color[0])<<8|uint32_t(e.progress.color[1])<<16|uint32_t(e.progress.color[2])<<24);
             h=mix(h,uint32_t(e.progress.value.raw()));h=mix(h,uint32_t(e.progress.background[0])|uint32_t(e.progress.background[1])<<8|uint32_t(e.progress.background[2])<<16);
             h=mix(h,uint32_t(e.text.enabled)|uint32_t(e.text.wrap)<<1|uint32_t(e.text.color[0])<<8|uint32_t(e.text.color[1])<<16|uint32_t(e.text.color[2])<<24);
+            h=mix(h,uint32_t(e.text.font));h=mix(h,uint32_t(e.text.align));
             if(e.text.enabled)for(const char* c=e.text.value;*c;++c)h=mix(h,uint8_t(*c));
+            h=mix(h,uint32_t(e.layout_element.enabled)|uint32_t(e.layout_element.horizontal)<<8|uint32_t(e.layout_element.vertical)<<16);
+            for(int k=0;k<2;++k)h=mix(h,uint32_t(e.layout_element.minimum[k].raw()));
+            h=mix(h,uint32_t(e.layout_element.stretch.raw()));
+            h=mix(h,uint32_t(e.layout_container.enabled)|uint32_t(e.layout_container.kind)<<8|uint32_t(e.layout_container.columns)<<16);
+            for(int k=0;k<2;++k)h=mix(h,uint32_t(e.layout_container.spacing[k].raw()));
+            for(int k=0;k<4;++k)h=mix(h,uint32_t(e.layout_container.padding[k].raw()));
+            h=mix(h,uint32_t(e.focusable.enabled)|uint32_t(e.focusable.order)<<8|uint32_t(e.focusable.highlight[0])<<16|uint32_t(e.focusable.highlight[1])<<24);
+            h=mix(h,uint32_t(e.focusable.highlight[2]));
+            for(int k=0;k<4;++k)h=mix(h,uint32_t(uint16_t(e.focusable.neighbors[k])));
         }
         return h;
     }
@@ -57,17 +74,60 @@ public:
         q.clutIndex=texture_clut(*t);q.tpage=texture_page(*t,BlendMode::Cutout);
         q.setColor({{.r=uint8_t((unsigned(color[0])+1)/2),.g=uint8_t((unsigned(color[1])+1)/2),.b=uint8_t((unsigned(color[2])+1)/2)}}).setOpaque();output->chain(f);
     }
-    void begin_text(){
+    // Font index -1 is the built-in atlas, resident at (960,448) with its CLUT
+    // at (60,448); an authored font brings its own placement from the export
+    // allocator. Both are 4bpp, so one TPage per text element still serves.
+    const Font* font(int index){return font_assets&&index>=0&&size_t(index)<font_count?&font_assets[index]:nullptr;}
+    void begin_text(int index){
+        const Font* f=font(index);
         auto& page=pages[output->getParity()][texts++];
-        page.primitive.attr.setPageX(15).setPageY(1).set(psyqo::Prim::TPageAttr::Tex4Bits).setDithering(false);configure_display_field<display_interlaced>(page.primitive.attr);output->chain(page);
+        page.primitive.attr.setPageX(f?f->x/64:15).setPageY(f?f->y/256:1).set(psyqo::Prim::TPageAttr::Tex4Bits).setDithering(false);configure_display_field<display_interlaced>(page.primitive.attr);output->chain(page);
     }
-    void glyph(int,unsigned c,int x0,int y0,int x1,int y1,int u,int v,const uint8_t* color){
-        unsigned i=c-32;auto& f=glyphs[output->getParity()][letters++];auto& p=f.primitive;
+    // Source coordinates arrive as atlas texels; the page origin turns them into
+    // the texel offsets within the page begin_text() chained.
+    void glyph(int,int index,int u,int v,int x0,int y0,int x1,int y1,const uint8_t* color){
+        const Font* f=font(index);auto& fragment=glyphs[output->getParity()][letters++];auto& p=fragment.primitive;
         p.position={{.x=int16_t(x0),.y=int16_t(y0)}};p.size={{.w=int16_t(x1-x0),.h=int16_t(y1-y0)}};
-        p.texInfo.u=(i%32)*8+u;p.texInfo.v=192+(i/32)*16+v;p.texInfo.clut=psyqo::PrimPieces::ClutIndex(60,448);
-        p.setColor({{.r=uint8_t((unsigned(color[0])+1)/2),.g=uint8_t((unsigned(color[1])+1)/2),.b=uint8_t((unsigned(color[2])+1)/2)}}).setOpaque();output->chain(f);
+        p.texInfo.u=uint8_t(u+(f?(f->x%64)*4:0));p.texInfo.v=uint8_t(v+(f?f->y%256:192));
+        p.texInfo.clut=f?psyqo::PrimPieces::ClutIndex(uint16_t(f->clut_x/16),f->clut_y):psyqo::PrimPieces::ClutIndex(60,448);
+        p.setColor({{.r=uint8_t((unsigned(color[0])+1)/2),.g=uint8_t((unsigned(color[1])+1)/2),.b=uint8_t((unsigned(color[2])+1)/2)}}).setOpaque();output->chain(fragment);
     }
-    void initialize(psyqo::GPU& gpu){gpu.uploadToVRAM(hud_font_pixels,{{{.x=960,.y=448}},{{.w=64,.h=64}}});}
+    // Rotated fills, images and glyphs. The corner arrays arrive in the A/B/C/D
+    // Z order the polygon class wants, so nothing is reordered here.
+    void quad(int,const int* x,const int* y,const uint8_t* color){
+        auto& f=rotated_quads[output->getParity()][turned++];auto& q=f.primitive;
+        q.pointA={{.x=int16_t(x[0]),.y=int16_t(y[0])}};q.pointB={{.x=int16_t(x[1]),.y=int16_t(y[1])}};
+        q.pointC={{.x=int16_t(x[2]),.y=int16_t(y[2])}};q.pointD={{.x=int16_t(x[3]),.y=int16_t(y[3])}};
+        q.setColor(psyqo::Color{{.r=color[0],.g=color[1],.b=color[2]}}).setOpaque();output->chain(f);
+    }
+    void textured_quad(int,int id,const int* x,const int* y,const int* u,const int* v,const uint8_t* color){
+        const auto* t=texture(id);if(!t)return;
+        auto& f=rotated_textured[output->getParity()][turned_textured++];auto& q=f.primitive;
+        q.pointA={{.x=int16_t(x[0]),.y=int16_t(y[0])}};q.pointB={{.x=int16_t(x[1]),.y=int16_t(y[1])}};
+        q.pointC={{.x=int16_t(x[2]),.y=int16_t(y[2])}};q.pointD={{.x=int16_t(x[3]),.y=int16_t(y[3])}};
+        q.uvA.u=u[0];q.uvA.v=v[0]+(t->y&255);q.uvB.u=u[1];q.uvB.v=v[1]+(t->y&255);
+        q.uvC.u=u[2];q.uvC.v=v[2]+(t->y&255);q.uvD.u=u[3];q.uvD.v=v[3]+(t->y&255);
+        q.clutIndex=texture_clut(*t);q.tpage=texture_page(*t,BlendMode::Cutout);
+        q.setColor({{.r=uint8_t((unsigned(color[0])+1)/2),.g=uint8_t((unsigned(color[1])+1)/2),.b=uint8_t((unsigned(color[2])+1)/2)}}).setOpaque();output->chain(f);
+    }
+    // The same page, CLUT and atlas texels glyph() uses; only the primitive
+    // class differs, and a TexturedQuad carries its own page rather than
+    // inheriting the one begin_text() chained.
+    void glyph_quad(int,int index,const int* x,const int* y,const int* u,const int* v,const uint8_t* color){
+        const Font* font_of=font(index);
+        auto& f=rotated_textured[output->getParity()][turned_textured++];auto& q=f.primitive;
+        q.pointA={{.x=int16_t(x[0]),.y=int16_t(y[0])}};q.pointB={{.x=int16_t(x[1]),.y=int16_t(y[1])}};
+        q.pointC={{.x=int16_t(x[2]),.y=int16_t(y[2])}};q.pointD={{.x=int16_t(x[3]),.y=int16_t(y[3])}};
+        const int base_u=font_of?int((font_of->x%64)*4):0,base_v=font_of?int(font_of->y%256):192;
+        q.uvA.u=uint8_t(base_u+u[0]);q.uvA.v=uint8_t(base_v+v[0]);q.uvB.u=uint8_t(base_u+u[1]);q.uvB.v=uint8_t(base_v+v[1]);
+        q.uvC.u=uint8_t(base_u+u[2]);q.uvC.v=uint8_t(base_v+v[2]);q.uvD.u=uint8_t(base_u+u[3]);q.uvD.v=uint8_t(base_v+v[3]);
+        q.clutIndex=font_of?psyqo::PrimPieces::ClutIndex(uint16_t(font_of->clut_x/16),font_of->clut_y):psyqo::PrimPieces::ClutIndex(60,448);
+        psyqo::PrimPieces::TPageAttr page;
+        page.setPageX(font_of?font_of->x/64:15).setPageY(font_of?font_of->y/256:1).set(psyqo::Prim::TPageAttr::Tex4Bits).setDithering(false);
+        configure_display_field<display_interlaced>(page);q.tpage=page;
+        q.setColor({{.r=uint8_t((unsigned(color[0])+1)/2),.g=uint8_t((unsigned(color[1])+1)/2),.b=uint8_t((unsigned(color[2])+1)/2)}}).setOpaque();output->chain(f);
+    }
+    void initialize(psyqo::GPU& gpu){gpu.uploadToVRAM(hud_font_pixels,{{{.x=960,.y=448}},{{.w=64,.h=64}}});fonts_initialize(gpu,font_assets,font_count);}
     template<size_t N>void draw(psyqo::GPU& gpu,std::array<ActorData,N>& entities,size_t count) {
         const unsigned parity=gpu.getParity();
         const uint32_t key=layout_key(entities,count);
@@ -76,12 +136,12 @@ public:
             hud_stats=retained_stats[parity];
             return;
         }
-        used=texts=rects=letters=pictures=0;hud_stats={};
+        used=texts=rects=letters=pictures=turned=turned_textured=0;hud_stats={};
         gpu.chain(bookends[parity][0]);
-        int first[N],next[N];
+        int first[N],next[N];Fixed measured[N][2];hud_core::Rect rects[N];hud_core::Affine2 transforms[N];
         output=&gpu;
-        hud_core::Compiler compiler(*this,display_width,display_height,{hud_layout_budget,hud_rectangle_budget,hud_text_budget,hud_glyph_budget});
-        compiler.draw(entities.data(),count,first,next);
+        hud_core::Compiler compiler(*this,display_width,display_height,{hud_layout_budget,hud_rectangle_budget,hud_text_budget,hud_glyph_budget,hud_rotated_budget});
+        compiler.draw(entities.data(),count,first,next,measured,rects,transforms);
         gpu.chain(bookends[parity][1]);
         hud_stats=compiler.stats;
         retained[parity]=true;retained_key[parity]=key;retained_stats[parity]=hud_stats;

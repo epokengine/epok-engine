@@ -105,7 +105,7 @@ fn scene_batches_are_atomic_versioned_and_reversible() {
     let initial = mcp_tools::revision(&e.scene);
     let original = e.scene.clone();
     e.rename = Some((0, "Pending rename".into()));
-    e.hud_drag = Some((0, false));
+    e.hud_drag = Some((0, crate::hud_editor::HudHandle::Move));
     let run = |e: &mut crate::editor::Editor, s: &mut mcp::State, ops| {
         mcp_tools::execute(
             e,

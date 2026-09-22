@@ -2,12 +2,11 @@
 
 > **Header:** `"lifecycle.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/lifecycle.hpp)
 
-This module covers entity creation, activation and destruction. It documents 3 public callables declared directly in this header.
+This module covers entity creation, activation and destruction. It documents 2 public callables declared directly in this header.
 
 ## Callable index
 
 - [`epok::descendant`](#epok-descendant-1) — Performs `descendant` as part of entity creation, activation and destruction.
-- [`epok::entity_index`](#epok-entity-index-1) — Performs `entity index` as part of entity creation, activation and destruction.
 - [`epok::next_generation`](#epok-next-generation-1) — Performs `next generation` as part of entity creation, activation and destruction.
 
 <a id="epok-descendant-1"></a>
@@ -51,46 +50,6 @@ auto result = epok::descendant(child, ancestor);
 **Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
-
-<a id="epok-entity-index-1"></a>
-
-## `epok::entity_index`
-
-**Purpose.** Performs `entity index` as part of entity creation, activation and destruction.
-
-**Exact declaration**
-
-```cpp
-inline int entity_index(const ActorData* entity)
-```
-
-- **Declared at:** [line 9](../../../runtime/lifecycle.hpp#L9)
-- **Kind:** `function decl`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `entity` | `const ActorData *` | Input | Value supplied for `entity`. See the exact type and module contract. |
-
-**Returns.** Returns `int`. Check the purpose and failure notes before using the value.
-
-**Use it when.** You need entity creation, activation and destruction and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "lifecycle.hpp"
-
-// Assume these named values have been initialized with valid data:
-// const ActorData * entity
-
-auto result = epok::entity_index(entity);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to entity creation, activation and destruction. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
 <a id="epok-next-generation-1"></a>
 

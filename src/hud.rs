@@ -8,6 +8,9 @@ pub struct Budget {
     pub rectangles: usize,
     pub texts: usize,
     pub glyphs: usize,
+    /// Quads emitted by rotated elements. They sit in their own double-buffered
+    /// polygon pools, so an unrotated HUD pays nothing for this.
+    pub rotated: usize,
 }
 impl Default for Budget {
     fn default() -> Self {
@@ -16,6 +19,7 @@ impl Default for Budget {
             rectangles: 256,
             texts: 64,
             glyphs: 1024,
+            rotated: 128,
         }
     }
 }
@@ -29,9 +33,11 @@ impl Budget {
             || self.texts > 64
             || self.glyphs == 0
             || self.glyphs > 2048
+            || self.rotated == 0
+            || self.rotated > 512
         {
             return Err(
-                "HUD budgets: layouts 1..128, rectangles 1..512, texts 1..64, glyphs 1..2048"
+                "HUD budgets: layouts 1..128, rectangles 1..512, texts 1..64, glyphs 1..2048, rotated 1..512"
                     .into(),
             );
         }
@@ -40,8 +46,8 @@ impl Budget {
     pub fn header(&self) -> Result<String, String> {
         self.validate()?;
         Ok(format!(
-            "#pragma once\nnamespace epok {{\ninline constexpr unsigned hud_layout_budget={};\ninline constexpr unsigned hud_rectangle_budget={};\ninline constexpr unsigned hud_text_budget={};\ninline constexpr unsigned hud_glyph_budget={};\n}}\n",
-            self.layouts, self.rectangles, self.texts, self.glyphs
+            "#pragma once\nnamespace epok {{\ninline constexpr unsigned hud_layout_budget={};\ninline constexpr unsigned hud_rectangle_budget={};\ninline constexpr unsigned hud_text_budget={};\ninline constexpr unsigned hud_glyph_budget={};\ninline constexpr unsigned hud_rotated_budget={};\n}}\n",
+            self.layouts, self.rectangles, self.texts, self.glyphs, self.rotated
         ))
     }
 }
@@ -56,15 +62,130 @@ pub fn stage(build: &std::path::Path, budget: &Budget) -> Result<(), String> {
         include_bytes!("../runtime/text.hpp"),
     )
 }
+/// Every Font asset the scene's texts name, in the index order the exported
+/// `Text::font` refers to: distinct ids sorted by UUID.
+pub fn font_ids(scene: &Scene) -> Vec<uuid::Uuid> {
+    let mut ids: Vec<_> = scene
+        .actors
+        .iter()
+        .filter_map(|e| e.text.as_ref().and_then(|t| t.font))
+        .collect();
+    ids.sort_unstable();
+    ids.dedup();
+    ids
+}
+/// Cook every referenced font into `scene.fonts`, the way `texture::resolve`
+/// fills `scene.textures`. Placement in VRAM is decided later by the allocator.
+pub fn resolve_fonts(scene: &mut Scene, index: &crate::assets::Index) -> Result<(), String> {
+    scene.fonts.clear();
+    let mut errors = vec![];
+    for id in font_ids(scene) {
+        let load = || {
+            let record = index.resolve(id)?;
+            if record.meta.kind != crate::assets::Kind::Font {
+                return Err(format!("{id} is not a Font"));
+            }
+            let package = crate::assets::Package::load(&record.path)?;
+            let settings = package.meta.settings.font()?;
+            crate::font_asset::decode(&package.source, settings)
+        };
+        match load() {
+            Ok(data) => {
+                scene.fonts.insert(id, std::sync::Arc::new(data));
+            }
+            Err(error) => errors.push(error),
+        }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("\n"))
+    }
+}
+/// The cooked atlases, metrics and CLUTs of every font `scene` references, plus
+/// the `Font` descriptors carrying the placement the VRAM allocator assigned.
+/// Fonts are global: one header serves every bank, so a label's index means the
+/// same thing wherever it is drawn.
+pub fn fonts_header(scene: &Scene) -> Result<String, String> {
+    let placement = crate::texture::layout(scene)?.fonts;
+    let mut header = String::from(
+        "#pragma once\n#include \"font_types.hpp\"\n#include <stddef.h>\nnamespace epok {\n",
+    );
+    let mut descriptors = vec![];
+    for (i, (id, p)) in placement.iter().enumerate() {
+        let data = scene
+            .fonts
+            .get(id)
+            .ok_or_else(|| format!("Unresolved font {id}"))?;
+        let symbol = format!("font_{i}");
+        header += &crate::font_asset::header_fragment(data, &symbol);
+        header += &format!("inline constexpr int font_id_{}={i};\n", id.simple());
+        descriptors.push(format!(
+            "{{{symbol}_pixels,{symbol}_metrics,{symbol}_palette,{},{},{},{},{},{},{},640,{}}}",
+            data.metrics.len(),
+            data.width,
+            data.height,
+            data.line_height,
+            data.baseline,
+            p.x,
+            p.y,
+            p.clut_y
+        ));
+    }
+    header += &format!(
+        "inline constexpr size_t font_count={};\ninline constexpr Font font_assets[]={{{}}};\n}}\n",
+        descriptors.len(),
+        if descriptors.is_empty() {
+            "{}".into()
+        } else {
+            descriptors.join(",")
+        }
+    );
+    Ok(header)
+}
+/// Stage that header and register one dependency per font asset, the way
+/// `Transition::stage_image` does, so a reimported font reruns the cook and
+/// nothing else does.
+pub fn stage_fonts(
+    build: &std::path::Path,
+    scene: &Scene,
+    index: &crate::assets::Index,
+) -> Result<crate::playback_staging::ResourceOutput, String> {
+    let mut inputs = std::collections::BTreeMap::new();
+    for id in font_ids(scene) {
+        let record = index.resolve(id)?;
+        let package = crate::assets::Package::load(&record.path)?;
+        if package.meta.id != id || package.meta.kind != crate::assets::Kind::Font {
+            return Err(format!("Text font {id} must reference a Font asset."));
+        }
+        inputs.insert(
+            format!("asset:{id}"),
+            crate::assets::cache_key(&package.meta),
+        );
+    }
+    let header = fonts_header(scene)?;
+    crate::project::write_changed(&build.join("fonts.hh"), header.as_bytes())?;
+    Ok(crate::playback_staging::ResourceOutput {
+        path: "fonts.hh".into(),
+        signature: crate::assets::hash(header.as_bytes()),
+        inputs,
+    })
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Canvas {
     pub enabled: bool,
+    /// The focused element, as an actor index, or -1. The authored initial focus
+    /// and the runtime's current focus are this one field.
+    pub focused: i32,
 }
 impl Default for Canvas {
     fn default() -> Self {
-        Self { enabled: true }
+        Self {
+            enabled: true,
+            focused: -1,
+        }
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -75,6 +196,10 @@ pub struct RectTransform {
     pub pivot: [f32; 2],
     pub position: [f32; 2],
     pub size: [f32; 2],
+    /// Degrees about the pivot. Layout stays axis-aligned; only the emitted
+    /// primitives turn, and zero emits exactly what an unrotated element emits.
+    #[serde(default)]
+    pub rotation: f32,
 }
 impl Default for RectTransform {
     fn default() -> Self {
@@ -84,6 +209,7 @@ impl Default for RectTransform {
             pivot: [0.5; 2],
             position: [0.; 2],
             size: [100., 32.],
+            rotation: 0.,
         }
     }
 }
@@ -97,6 +223,9 @@ pub struct Image {
     pub region: [u16; 4],
     /// Nine-slice borders in source pixels: left, top, right, bottom.
     pub borders: [u16; 4],
+    /// How the source region fills the rect. With nine-slice borders only the
+    /// centre piece tiles; the corners and edges keep their stretch.
+    pub tiling: ImageTiling,
 }
 impl Default for Image {
     fn default() -> Self {
@@ -106,6 +235,37 @@ impl Default for Image {
             texture: None,
             region: [0; 4],
             borders: [0; 4],
+            tiling: ImageTiling::None,
+        }
+    }
+}
+/// Mirrors `epok::ImageTiling`. The numbering is pinned: saved Blueprint graphs
+/// store it, so the type only ever grows at the end.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[repr(u8)]
+pub enum ImageTiling {
+    #[default]
+    None = 0,
+    Tile = 1,
+    TileFit = 2,
+}
+impl From<u8> for ImageTiling {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => Self::Tile,
+            2 => Self::TileFit,
+            _ => Self::None,
+        }
+    }
+}
+impl ImageTiling {
+    pub const ALL: [Self; 3] = [Self::None, Self::Tile, Self::TileFit];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::Tile => "Tile",
+            Self::TileFit => "Tile Fit",
         }
     }
 }
@@ -116,6 +276,10 @@ pub struct Text {
     pub color: [f32; 3],
     pub enabled: bool,
     pub wrap: bool,
+    /// The Font asset this label draws from; `None` is the built-in 8x16 atlas.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font: Option<uuid::Uuid>,
+    pub align: TextAlign,
 }
 impl Default for Text {
     fn default() -> Self {
@@ -124,6 +288,38 @@ impl Default for Text {
             color: [1.; 3],
             enabled: true,
             wrap: true,
+            font: None,
+            align: TextAlign::Left,
+        }
+    }
+}
+/// Mirrors `epok::TextAlign`. The numbering is pinned: saved Blueprint graphs
+/// store it, so the type only ever grows at the end.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[repr(u8)]
+pub enum TextAlign {
+    #[default]
+    Left = 0,
+    Center = 1,
+    Right = 2,
+}
+impl From<u8> for TextAlign {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => Self::Center,
+            2 => Self::Right,
+            _ => Self::Left,
+        }
+    }
+}
+impl TextAlign {
+    pub const ALL: [Self; 3] = [Self::Left, Self::Center, Self::Right];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Left => "Left",
+            Self::Center => "Center",
+            Self::Right => "Right",
         }
     }
 }
@@ -145,30 +341,150 @@ impl Default for ProgressBar {
         }
     }
 }
+/// Mirrors `epok::LayoutKind`. The numbering is pinned: saved Blueprint graphs
+/// store it, so the type only ever grows at the end.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[repr(u8)]
+pub enum LayoutKind {
+    #[default]
+    None = 0,
+    Horizontal = 1,
+    Vertical = 2,
+    Grid = 3,
+    Margin = 4,
+    Center = 5,
+}
+impl From<u8> for LayoutKind {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => Self::Horizontal,
+            2 => Self::Vertical,
+            3 => Self::Grid,
+            4 => Self::Margin,
+            5 => Self::Center,
+            _ => Self::None,
+        }
+    }
+}
+impl LayoutKind {
+    pub const ALL: [Self; 6] = [
+        Self::None,
+        Self::Horizontal,
+        Self::Vertical,
+        Self::Grid,
+        Self::Margin,
+        Self::Center,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::Horizontal => "Horizontal",
+            Self::Vertical => "Vertical",
+            Self::Grid => "Grid",
+            Self::Margin => "Margin",
+            Self::Center => "Center",
+        }
+    }
+}
+/// Per-child layout hints read only when the parent has a `LayoutContainer`.
+/// `horizontal`/`vertical` are bitfields: 1 Fill, 2 Expand, 4 Shrink Center,
+/// 8 Shrink End.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct LayoutElement {
+    pub enabled: bool,
+    pub horizontal: u8,
+    pub vertical: u8,
+    pub minimum: [f32; 2],
+    pub stretch: f32,
+}
+impl Default for LayoutElement {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            horizontal: 1,
+            vertical: 1,
+            minimum: [0.; 2],
+            stretch: 1.,
+        }
+    }
+}
+/// Automatic placement for the children of this rect. `padding` is left, top,
+/// right, bottom, the order `Image::borders` uses.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct LayoutContainer {
+    pub enabled: bool,
+    pub kind: LayoutKind,
+    pub spacing: [f32; 2],
+    pub padding: [f32; 4],
+    pub columns: u8,
+}
+impl Default for LayoutContainer {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            kind: LayoutKind::None,
+            spacing: [0.; 2],
+            padding: [0.; 4],
+            columns: 1,
+        }
+    }
+}
+/// Per-child focus and D-pad navigation, read by the runtime's focus pass.
+///
+/// `neighbors` holds actor indices rather than actor UUIDs. No other
+/// `BuiltinData` component references another actor — the UUID references in a
+/// document are `logical_parent` and `attach`, both on the actor itself — so
+/// there is no remapping precedent to follow here, and the runtime table is
+/// indices either way. Reordering actors therefore rewrites these by hand.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Focusable {
+    pub enabled: bool,
+    /// Left, right, up, down; -1 for no neighbour that way.
+    pub neighbors: [i32; 4],
+    pub order: u8,
+    /// Multiplied into the image and fill colours while this element is focused.
+    pub highlight: [f32; 3],
+}
+impl Default for Focusable {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            neighbors: [-1; 4],
+            order: 0,
+            highlight: [1.; 3],
+        }
+    }
+}
 pub type Rect = [f32; 4]; // bottom-left x/y, width/height; positive Y points upward.
+/// Where one element sits: the axis-aligned rect the layout pass decided, and
+/// the four corners it really occupies once rotation is applied — top-left,
+/// top-right, bottom-left, bottom-right, in HUD space with +Y up. Without
+/// rotation the corners are simply the rect's own.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Placement {
+    pub rect: Rect,
+    pub corners: [[f32; 2]; 4],
+}
+#[allow(dead_code)]
 pub fn resolve(parent: Rect, r: &RectTransform) -> Rect {
     crate::hud_native::resolve(parent, r)
 }
+/// Every actor's resolved HUD rect, measured and arranged by the shared runtime
+/// core in one call. Containers make a rect depend on its siblings, so the whole
+/// scene is laid out at once and the viewport indexes the result.
+pub fn layouts(scene: &Scene) -> Vec<Option<Placement>> {
+    crate::hud_native::layouts(scene)
+}
+/// One actor's rect. Laying a scene out costs one pass whatever is asked of it,
+/// so production code calls `layouts` once and indexes the result; this is the
+/// readable form for the tests that want a single rectangle.
+#[cfg(test)]
 pub fn layout(scene: &Scene, index: usize) -> Option<Rect> {
-    let e = scene.actors.get(index)?;
-    if e.canvas.is_some() {
-        return Some([
-            0.,
-            0.,
-            scene.display_size[0] as f32,
-            scene.display_size[1] as f32,
-        ]);
-    }
-    let parent = scene
-        .spatial_parent(index)
-        .and_then(|p| layout(scene, p))
-        .unwrap_or([
-            0.,
-            0.,
-            scene.display_size[0] as f32,
-            scene.display_size[1] as f32,
-        ]);
-    Some(resolve(parent, e.rect.as_ref()?))
+    layouts(scene).get(index).copied().flatten().map(|p| p.rect)
 }
 pub fn order(scene: &Scene) -> Vec<usize> {
     fn visit(s: &Scene, i: usize, out: &mut Vec<usize>) {
@@ -226,10 +542,12 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
                     "RectTransform needs a Canvas or RectTransform parent and no 3D mesh".into(),
                 );
             }
-            if r.position
-                .iter()
-                .chain(&r.size)
-                .any(|v| !v.is_finite() || v.abs() > 1024.)
+            if !r.rotation.is_finite()
+                || r.rotation.abs() > 3600.
+                || r.position
+                    .iter()
+                    .chain(&r.size)
+                    .any(|v| !v.is_finite() || v.abs() > 1024.)
                 || (0..2).any(|i| {
                     !r.anchor_min[i].is_finite()
                         || !r.anchor_max[i].is_finite()
@@ -241,12 +559,59 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
                 })
             {
                 return Err(
-                    "Invalid RectTransform: anchors/pivot 0..1, position/size within ±1024".into(),
+                    "Invalid RectTransform: anchors/pivot 0..1, position/size within ±1024, rotation within ±3600 degrees"
+                        .into(),
                 );
             }
         }
-        if (e.image.is_some() || e.text.is_some() || e.progress.is_some()) && e.rect.is_none() {
+        if (e.image.is_some()
+            || e.text.is_some()
+            || e.progress.is_some()
+            || e.layout_element.is_some()
+            || e.layout_container.is_some()
+            || e.focusable.is_some())
+            && e.rect.is_none()
+        {
             return Err("HUD graphics require RectTransform".into());
+        }
+        if let Some(c) = &e.layout_container
+            && (c.columns < 1
+                || c.spacing
+                    .iter()
+                    .chain(&c.padding)
+                    .any(|v| !v.is_finite() || v.abs() > 1024.))
+        {
+            return Err(
+                "Invalid Layout Container: columns at least 1, spacing/padding within ±1024".into(),
+            );
+        }
+        if let Some(c) = &e.layout_element
+            && (!c.stretch.is_finite()
+                || c.stretch < 0.
+                || c.minimum
+                    .iter()
+                    .any(|v| !v.is_finite() || *v < 0. || *v > 1024.))
+        {
+            return Err(
+                "Invalid Layout Element: minimum 0..1024 and stretch zero or greater".into(),
+            );
+        }
+        if let Some(c) = &e.focusable {
+            let count = scene.actors.len() as i32;
+            if c.neighbors.iter().any(|n| *n < -1 || *n >= count)
+                || c.highlight
+                    .iter()
+                    .any(|v| !v.is_finite() || !(0. ..=1.).contains(v))
+            {
+                return Err(
+                    "Invalid Focusable: neighbours are actor indices or -1, highlight 0..1".into(),
+                );
+            }
+        }
+        if let Some(c) = &e.canvas
+            && (c.focused < -1 || c.focused >= scene.actors.len() as i32)
+        {
+            return Err("Canvas initial focus must be an actor index or -1".into());
         }
         let valid_color = |c: &[f32; 3]| c.iter().all(|v| v.is_finite() && (0. ..=1.).contains(v));
         if e.image.as_ref().is_some_and(|c| !valid_color(&c.color))
@@ -262,40 +627,117 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
         }
         if let Some(t) = &e.text {
             texts += 1;
-            crate::bitmap_font::validate(&t.text)?;
+            match t.font {
+                // A cooked font answers for its own character set; the built-in
+                // atlas keeps the 8x16 rule and its sixteen Spanish extras.
+                Some(id) => {
+                    if id.is_nil() {
+                        return Err("Text font must be a valid Font asset UUID".into());
+                    }
+                    if t.text.len() > crate::bitmap_font::MAX_BYTES {
+                        return Err(format!(
+                            "Text exceeds {} UTF-8 bytes",
+                            crate::bitmap_font::MAX_BYTES
+                        ));
+                    }
+                    // An unresolved font is reported by `resolve_fonts`; here it
+                    // is simply not checked, as an unresolved texture is not.
+                    if let Some(data) = scene.fonts.get(&id)
+                        && let Some(c) = t.text.chars().find(|c| {
+                            *c != '\n'
+                                && data
+                                    .metrics
+                                    .binary_search_by_key(&(*c as u32), |m| m.codepoint)
+                                    .is_err()
+                        })
+                    {
+                        return Err(format!("Font {id} has no glyph for {c:?}"));
+                    }
+                }
+                None => crate::bitmap_font::validate(&t.text)?,
+            }
         }
         if let Some(i) = &e.image {
             crate::texture::validate_region(i.texture, i.region, scene)?;
         }
     }
-    let glyphs: usize = scene
-        .actors
-        .iter()
-        .filter_map(|e| e.text.as_ref())
-        .filter(|t| t.enabled)
-        .map(|t| t.text.chars().filter(|c| *c != '\n').count())
-        .sum();
-    let rectangles: usize = scene
-        .actors
-        .iter()
-        .map(|e| {
-            e.image.as_ref().filter(|v| v.enabled).map_or(0, |v| {
-                if v.borders.iter().any(|b| *b > 0) {
-                    9
-                } else {
-                    1
-                }
-            }) + 2 * usize::from(e.progress.as_ref().is_some_and(|v| v.enabled))
-        })
-        .sum();
+    // Tiling multiplies one image into many, and a rotated element draws from
+    // the rotated pool instead of the rectangle and glyph pools, so the three
+    // counts are accumulated together over the laid-out rects the runtime sees.
+    let places = layouts(scene);
+    let (mut glyphs, mut rectangles, mut rotated) = (0usize, 0usize, 0usize);
+    for (i, e) in scene.actors.iter().enumerate() {
+        let size = places
+            .get(i)
+            .copied()
+            .flatten()
+            .map_or([0., 0.], |p| [p.rect[2], p.rect[3]]);
+        let pictures = e.image.as_ref().filter(|v| v.enabled).map_or(0, |v| {
+            let dimensions = v
+                .texture
+                .and_then(|id| scene.textures.get(&id))
+                .map_or([256, 256], |t| [t.width, t.height]);
+            image_primitives(v, dimensions, size)
+        }) + 2 * usize::from(e.progress.as_ref().is_some_and(|v| v.enabled));
+        let letters = e
+            .text
+            .as_ref()
+            .filter(|t| t.enabled)
+            .map_or(0, |t| t.text.chars().filter(|c| *c != '\n').count());
+        if e.rect.as_ref().is_some_and(|r| r.rotation != 0.) {
+            rotated += pictures + letters;
+        } else {
+            rectangles += pictures;
+            glyphs += letters;
+        }
+    }
     if texts > scene.hud_budget.texts
         || scene.actors.iter().filter(|e| e.rect.is_some()).count() > scene.hud_budget.layouts
         || glyphs > scene.hud_budget.glyphs
         || rectangles > scene.hud_budget.rectangles
+        || rotated > scene.hud_budget.rotated
     {
-        return Err("Scene exceeds its configured HUD layout/text/glyph/rectangle budget".into());
+        return Err(
+            "Scene exceeds its configured HUD layout/text/glyph/rectangle/rotated budget".into(),
+        );
     }
     Ok(())
+}
+/// How many textured quads one Image draws, the way `hud_core::picture` counts
+/// them: one per nine-slice piece, and one per tile of the piece that tiles.
+/// `size` is the resolved rect in HUD pixels; it is only an upper bound for a
+/// nine-sliced centre, which is smaller than the whole rect.
+fn image_primitives(image: &Image, dimensions: [u16; 2], size: [f32; 2]) -> usize {
+    let source = [0usize, 1].map(|i| {
+        if image.region[i + 2] > 0 {
+            u32::from(image.region[i + 2])
+        } else {
+            u32::from(dimensions[i].saturating_sub(image.region[i]))
+        }
+    });
+    let tiles = if image.tiling == ImageTiling::None {
+        1
+    } else {
+        [0usize, 1]
+            .map(|i| {
+                let extent = size[i].max(0.).round() as u32;
+                if source[i] == 0 {
+                    return 1;
+                }
+                match image.tiling {
+                    ImageTiling::TileFit => (extent + source[i] / 2) / source[i],
+                    _ => extent.div_ceil(source[i]),
+                }
+                .max(1) as usize
+            })
+            .iter()
+            .product()
+    };
+    if image.borders.iter().any(|b| *b > 0) {
+        8 + tiles
+    } else {
+        tiles
+    }
 }
 #[cfg(test)]
 pub fn render(scene: &Scene) -> Vec<u8> {
@@ -309,6 +751,116 @@ pub fn render_at(scene: &Scene, seconds: f32) -> Vec<u8> {
 mod tests {
     use super::*;
     use crate::scene::Actor;
+    /// A synthesized cooked font: three proportional glyphs plus a question
+    /// mark, packed 4bpp into a 64 x 32 atlas. No font file is needed to pin the
+    /// export, validation and preview paths against it.
+    fn cooked_font() -> crate::font_asset::FontData {
+        let metric = |codepoint, u, width, advance| crate::font_asset::GlyphMetric {
+            codepoint,
+            u,
+            v: 0,
+            width,
+            height: 8,
+            advance,
+            x_offset: 0,
+            y_offset: -8,
+        };
+        crate::font_asset::FontData {
+            width: 64,
+            height: 32,
+            words: vec![0x1111; 16 * 32],
+            palette: crate::font_asset::palette(false),
+            metrics: vec![
+                metric(63, 30, 5, 6),
+                metric(65, 0, 6, 7),
+                metric(66, 8, 10, 11),
+                metric(67, 20, 4, 5),
+            ],
+            line_height: 12,
+            baseline: 9,
+            rgba: vec![],
+        }
+    }
+    fn labelled(text: &str, font: Option<uuid::Uuid>) -> Scene {
+        let mut scene = fixture();
+        scene.actors[1].image = None;
+        scene.actors[1].text = Some(Text {
+            text: text.into(),
+            font,
+            ..Default::default()
+        });
+        scene.sync_actor_components();
+        scene
+    }
+    #[test]
+    fn an_authored_font_answers_for_its_own_character_set() {
+        let id = uuid::Uuid::new_v4();
+        let mut scene = labelled("ABC", Some(id));
+        // Unresolved, the font is not checked at all, exactly as an unresolved
+        // texture is not: `resolve_fonts` is what reports a missing asset.
+        scene.validate().unwrap();
+        scene.fonts.insert(id, std::sync::Arc::new(cooked_font()));
+        scene.validate().unwrap();
+        let mut missing = labelled("ABZ", Some(id));
+        missing.fonts = scene.fonts.clone();
+        assert!(
+            missing
+                .validate()
+                .unwrap_err()
+                .contains("has no glyph for 'Z'")
+        );
+        // The built-in atlas keeps its own rule and its Spanish extras.
+        labelled("Añ", None).validate().unwrap();
+        assert!(
+            labelled("漢", None)
+                .validate()
+                .unwrap_err()
+                .contains("no glyph")
+        );
+        // A nil UUID is a dangling reference, not a font.
+        assert!(
+            labelled("A", Some(uuid::Uuid::nil()))
+                .validate()
+                .unwrap_err()
+                .contains("valid Font asset")
+        );
+    }
+    #[test]
+    fn text_alignment_round_trips_through_serde() {
+        for align in TextAlign::ALL {
+            let text = Text {
+                align,
+                ..Default::default()
+            };
+            let encoded = serde_json::to_string(&text).unwrap();
+            assert_eq!(serde_json::from_str::<Text>(&encoded).unwrap(), text);
+            assert_eq!(TextAlign::from(align as u8), align);
+        }
+        assert!(
+            serde_json::to_string(&Text::default())
+                .unwrap()
+                .contains("\"align\":\"left\"")
+        );
+        // A label with no font stays out of the document entirely.
+        assert!(
+            !serde_json::to_string(&Text::default())
+                .unwrap()
+                .contains("font")
+        );
+    }
+    #[test]
+    fn the_cooked_font_header_carries_its_placement_and_metrics() {
+        let id = uuid::Uuid::new_v4();
+        let mut scene = labelled("ABC", Some(id));
+        scene.fonts.insert(id, std::sync::Arc::new(cooked_font()));
+        let placement = crate::texture::layout(&scene).unwrap().fonts;
+        assert_eq!(placement.len(), 1);
+        assert_eq!(placement[0].0, id);
+        // No textures, so the font takes the first shelf and the first CLUT row.
+        assert_eq!((placement[0].1.x, placement[0].1.y), (640, 0));
+        assert_eq!(placement[0].1.clut_y, 480);
+        assert_eq!(font_ids(&scene), vec![id]);
+    }
     #[test]
     fn nine_slice_preserves_borders_and_checks_budget() {
         let mut scene = fixture();
@@ -358,6 +910,7 @@ mod tests {
             pivot: [0., 1.],
             position: [12., -12.],
             size: [180., 64.],
+            ..Default::default()
         });
         p.image = Some(Image {
             color: [0., 0., 1.],
@@ -390,6 +943,7 @@ mod tests {
             pivot: [0.5; 2],
             position: [0.; 2],
             size: [-16., -16.],
+            ..Default::default()
         });
         s.actors.push(child);
         s.sync_actor_components();
@@ -399,6 +953,225 @@ mod tests {
         assert_eq!(before, layout(&s, 2));
         let decoded: Scene = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert_eq!(s, decoded);
+    }
+    #[test]
+    fn a_vertical_box_stacks_its_children_downward_from_the_top() {
+        let mut s = fixture();
+        let container = s.actors[1].rect.as_mut().unwrap();
+        container.anchor_min = [0., 1.];
+        container.anchor_max = [0., 1.];
+        container.pivot = [0., 1.];
+        container.position = [0., 0.];
+        container.size = [200., 120.];
+        s.actors[1].image = None;
+        s.actors[1].layout_container = Some(LayoutContainer {
+            kind: LayoutKind::Vertical,
+            spacing: [0., 10.],
+            ..Default::default()
+        });
+        for name in ["First", "Second", "Third"] {
+            let mut label = Actor::cube(name.into());
+            label.kind = "Empty".into();
+            label.parent = Some(1);
+            label.rect = Some(RectTransform {
+                size: [50., 20.],
+                ..Default::default()
+            });
+            label.text = Some(Text {
+                text: name.into(),
+                wrap: false,
+                ..Default::default()
+            });
+            s.actors.push(label);
+        }
+        s.sync_actor_components();
+        s.validate().unwrap();
+        // The canvas is 320x240 and the box hangs from its top-left corner.
+        let boxes: Vec<Option<Rect>> = layouts(&s).iter().map(|p| p.map(|p| p.rect)).collect();
+        assert_eq!(boxes[1], Some([0., 120., 200., 120.]));
+        // Each label measures 50x20 from its rect, wider and taller than the 48x16
+        // the unwrapped text needs; Fill is the default on both axes.
+        assert_eq!(boxes[2], Some([0., 220., 200., 20.]));
+        assert_eq!(boxes[3], Some([0., 190., 200., 20.]));
+        assert_eq!(boxes[4], Some([0., 160., 200., 20.]));
+        assert!(boxes[2].unwrap()[1] > boxes[3].unwrap()[1]);
+        assert_eq!(layout(&s, 4), boxes[4]);
+        // Hiding the middle label closes the list up instead of leaving its gap.
+        s.actors[3].active = false;
+        let boxes: Vec<Option<Rect>> = layouts(&s).iter().map(|p| p.map(|p| p.rect)).collect();
+        assert_eq!(boxes[2], Some([0., 220., 200., 20.]));
+        assert_eq!(boxes[3], None);
+        assert_eq!(boxes[4], Some([0., 190., 200., 20.]));
+    }
+    #[test]
+    fn layout_kind_round_trips_through_serde_and_its_pinned_numbering() {
+        for (kind, name, value) in [
+            (LayoutKind::None, "none", 0u8),
+            (LayoutKind::Horizontal, "horizontal", 1),
+            (LayoutKind::Vertical, "vertical", 2),
+            (LayoutKind::Grid, "grid", 3),
+            (LayoutKind::Margin, "margin", 4),
+            (LayoutKind::Center, "center", 5),
+        ] {
+            assert_eq!(kind as u8, value);
+            assert_eq!(LayoutKind::from(value), kind);
+            let text = serde_json::to_string(&kind).unwrap();
+            assert_eq!(text, format!("\"{name}\""));
+            assert_eq!(serde_json::from_str::<LayoutKind>(&text).unwrap(), kind);
+        }
+        assert_eq!(LayoutKind::from(9), LayoutKind::None);
+        assert_eq!(LayoutKind::ALL.len(), 6);
+    }
+    #[test]
+    fn tiling_and_focus_round_trip_through_serde_and_their_pinned_numbering() {
+        for (tiling, name, value) in [
+            (ImageTiling::None, "none", 0u8),
+            (ImageTiling::Tile, "tile", 1),
+            (ImageTiling::TileFit, "tile_fit", 2),
+        ] {
+            assert_eq!(tiling as u8, value);
+            assert_eq!(ImageTiling::from(value), tiling);
+            let text = serde_json::to_string(&tiling).unwrap();
+            assert_eq!(text, format!("\"{name}\""));
+            assert_eq!(serde_json::from_str::<ImageTiling>(&text).unwrap(), tiling);
+        }
+        assert_eq!(ImageTiling::from(9), ImageTiling::None);
+        assert_eq!(ImageTiling::ALL.len(), 3);
+        let focus = Focusable {
+            enabled: true,
+            neighbors: [3, -1, 0, 7],
+            order: 4,
+            highlight: [0.5, 1., 0.25],
+        };
+        let text = serde_json::to_string(&focus).unwrap();
+        assert_eq!(serde_json::from_str::<Focusable>(&text).unwrap(), focus);
+        // Every field carries a default, so a document written before this
+        // component existed still loads.
+        assert_eq!(
+            serde_json::from_str::<Focusable>("{}").unwrap(),
+            Focusable::default()
+        );
+        assert_eq!(
+            serde_json::from_str::<Canvas>("{\"enabled\":true}")
+                .unwrap()
+                .focused,
+            -1
+        );
+        assert_eq!(
+            serde_json::from_str::<RectTransform>("{}")
+                .unwrap()
+                .rotation,
+            0.
+        );
+    }
+    #[test]
+    fn tiles_and_rotated_elements_are_counted_against_their_own_budgets() {
+        let mut s = fixture();
+        let id = uuid::Uuid::new_v4();
+        s.textures.insert(
+            id,
+            std::sync::Arc::new(crate::texture::Data {
+                width: 64,
+                height: 64,
+                words: vec![0; 2048],
+                palette: vec![0; 256],
+                rgba: vec![255; 64 * 64 * 4],
+            }),
+        );
+        let panel = s.actors[1].rect.as_mut().unwrap();
+        panel.size = [200., 100.];
+        let image = s.actors[1].image.as_mut().unwrap();
+        image.texture = Some(id);
+        image.tiling = ImageTiling::Tile;
+        s.hud_budget.rectangles = 7;
+        assert!(s.validate().unwrap_err().contains("budget"));
+        // Four columns by two rows over a 64x64 source, exactly as picture() tiles it.
+        s.hud_budget.rectangles = 8;
+        s.validate().unwrap();
+        s.actors[1].image.as_mut().unwrap().tiling = ImageTiling::TileFit;
+        s.hud_budget.rectangles = 6;
+        s.validate().unwrap();
+        // Rotating the element moves its cost out of the rectangle pool entirely.
+        s.actors[1].rect.as_mut().unwrap().rotation = 30.;
+        s.hud_budget.rectangles = 1;
+        s.hud_budget.rotated = 5;
+        assert!(s.validate().unwrap_err().contains("budget"));
+        s.hud_budget.rotated = 6;
+        s.validate().unwrap();
+        s.actors[1].rect.as_mut().unwrap().rotation = f32::NAN;
+        assert!(s.validate().unwrap_err().contains("rotation"));
+    }
+    #[test]
+    fn focus_links_are_actor_indices_the_scene_still_has() {
+        let mut s = fixture();
+        s.actors[1].focusable = Some(Focusable {
+            neighbors: [1, -1, -1, -1],
+            ..Default::default()
+        });
+        s.sync_actor_components();
+        s.validate().unwrap();
+        s.actors[1].focusable.as_mut().unwrap().neighbors[0] = 9;
+        assert!(s.validate().unwrap_err().contains("Focusable"));
+        s.actors[1].focusable.as_mut().unwrap().neighbors[0] = -1;
+        s.actors[0].canvas.as_mut().unwrap().focused = 1;
+        s.validate().unwrap();
+        s.actors[0].canvas.as_mut().unwrap().focused = 5;
+        assert!(s.validate().unwrap_err().contains("focus"));
+    }
+    #[test]
+    fn a_rotated_element_reports_turned_corners_and_an_unturned_rect() {
+        let mut s = fixture();
+        let before = layouts(&s)[1].unwrap();
+        assert_eq!(
+            before.corners,
+            [
+                [before.rect[0], before.rect[1] + before.rect[3]],
+                [
+                    before.rect[0] + before.rect[2],
+                    before.rect[1] + before.rect[3]
+                ],
+                [before.rect[0], before.rect[1]],
+                [before.rect[0] + before.rect[2], before.rect[1]],
+            ]
+        );
+        s.actors[1].rect.as_mut().unwrap().rotation = 90.;
+        let after = layouts(&s)[1].unwrap();
+        assert_eq!(after.rect, before.rect);
+        // The fixture panel pivots on its top-left corner, and that is what the
+        // turn is about: the pivot is the one point rotation leaves alone.
+        let p = s.actors[1].rect.as_ref().unwrap().pivot;
+        let pivot = [
+            before.rect[0] + before.rect[2] * p[0],
+            before.rect[1] + before.rect[3] * p[1],
+        ];
+        for (plain, turned) in before.corners.iter().zip(&after.corners) {
+            let expected = [
+                pivot[0] - (plain[1] - pivot[1]),
+                pivot[1] + (plain[0] - pivot[0]),
+            ];
+            assert!(
+                (turned[0] - expected[0]).abs() < 0.05 && (turned[1] - expected[1]).abs() < 0.05,
+                "{turned:?} vs {expected:?}"
+            );
+        }
+    }
+    #[test]
+    fn layout_components_are_validated_against_their_budgets() {
+        let mut s = fixture();
+        s.actors[1].layout_container = Some(Default::default());
+        s.actors[1].layout_element = Some(Default::default());
+        s.validate().unwrap();
+        s.actors[1].layout_container.as_mut().unwrap().columns = 0;
+        assert!(s.validate().unwrap_err().contains("Layout Container"));
+        s.actors[1].layout_container.as_mut().unwrap().columns = 1;
+        s.actors[1].layout_container.as_mut().unwrap().padding[2] = 4096.;
+        assert!(s.validate().unwrap_err().contains("Layout Container"));
+        s.actors[1].layout_container.as_mut().unwrap().padding[2] = 0.;
+        s.actors[1].layout_element.as_mut().unwrap().stretch = -1.;
+        assert!(s.validate().unwrap_err().contains("Layout Element"));
+        s.actors[1].layout_element.as_mut().unwrap().stretch = 1.;
+        s.actors[1].rect = None;
+        assert!(s.validate().unwrap_err().contains("RectTransform"));
     }
     #[test]
     fn invalid_hud_dependencies_text_and_cycles_are_rejected() {
@@ -428,6 +1201,7 @@ mod tests {
             pivot: [0., 1.],
             position: [0.; 2],
             size: [3., 1.],
+            ..Default::default()
         });
         s.actors[1].image = Some(Image {
             texture: Some(id),

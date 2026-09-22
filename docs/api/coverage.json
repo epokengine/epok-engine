@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 82,
-    "types": 379,
-    "callables": 1330,
-    "properties": 1976
+    "headers": 84,
+    "types": 392,
+    "callables": 1400,
+    "properties": 2041
   },
   "psyqo": {
     "headers": 53,
@@ -157,10 +157,10 @@
       "family": "epok",
       "header": "epok.hpp",
       "slug": "epok",
-      "callables": 53,
-      "types": 56,
-      "properties": 317,
-      "source_sha256": "ac467445ff4cbe1245342f7181bd771a57d03e02c1a1f3c9b274969b21585f54",
+      "callables": 54,
+      "types": 61,
+      "properties": 346,
+      "source_sha256": "b6a63bcdfda9cdb8ad4e472c22615f7d11f43c845edd4f38b143be63e03ecd27",
       "diagnostics": []
     },
     {
@@ -171,6 +171,16 @@
       "types": 0,
       "properties": 1,
       "source_sha256": "d5bf28107f11a801ab3f8f4ccfd7efefaff9a5c71cf0a6609f809db24eaf9276",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "font_types.hpp",
+      "slug": "font-types",
+      "callables": 3,
+      "types": 2,
+      "properties": 20,
+      "source_sha256": "33d0682a7c7b749b8bac41f5ebb087221b6f58b4b13110b69073ae09a6b0995b",
       "diagnostics": []
     },
     {
@@ -217,20 +227,32 @@
       "family": "epok",
       "header": "hud.hpp",
       "slug": "hud",
-      "callables": 8,
+      "callables": 12,
       "types": 1,
       "properties": 0,
-      "source_sha256": "7ccd5a2722759f6505e160c16833c18588fe87e504412aad5db77b9039f79d73",
-      "diagnostics": []
+      "source_sha256": "e613f276dd7357301536d40c430549f4efc44e12acf7cdb46cf19e893e4b83d3",
+      "diagnostics": [
+        "runtime/hud.hpp:5:10: fatal error: 'fonts.hh' file not found"
+      ]
     },
     {
       "family": "epok",
       "header": "hud_core.hpp",
       "slug": "hud-core",
-      "callables": 5,
-      "types": 3,
-      "properties": 9,
-      "source_sha256": "79904537bc9eebdf1440c09c8ed6cc052b87dd5da39984cfa42c8036d76b2027",
+      "callables": 14,
+      "types": 5,
+      "properties": 16,
+      "source_sha256": "0312de472297b85f0fe6d553b669d826f7234bcc9138de4578e073465fadd52c",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "hud_focus.hpp",
+      "slug": "hud-focus",
+      "callables": 3,
+      "types": 0,
+      "properties": 0,
+      "source_sha256": "2529619b466a71d28fe2fbd6444a5e1e006e6ce2bbbc326d45c2ed7b645d9f76",
       "diagnostics": []
     },
     {
@@ -297,7 +319,7 @@
       "family": "epok",
       "header": "lifecycle.hpp",
       "slug": "lifecycle",
-      "callables": 3,
+      "callables": 2,
       "types": 0,
       "properties": 1,
       "source_sha256": "4acab904c8b924ccd380d598637be43408ac7a509967cb143b8ce6beed77e3d0",
@@ -427,10 +449,10 @@
       "family": "epok",
       "header": "object_model.hpp",
       "slug": "object-model",
-      "callables": 300,
-      "types": 49,
-      "properties": 154,
-      "source_sha256": "4fe1fbfa15fa61ecbaedaf1138a073ab23e0a2da8224ab470bbc2a0c74a6db67",
+      "callables": 350,
+      "types": 52,
+      "properties": 157,
+      "source_sha256": "05e102aa6753641b09d29ec7b438543e2415912d1e387ba76ad27113624e696a",
       "diagnostics": []
     },
     {
@@ -718,19 +740,19 @@
       "header": "text.hpp",
       "slug": "text",
       "callables": 1,
-      "types": 2,
-      "properties": 10,
-      "source_sha256": "3f84490294858946cf09e6775ae206b27e68a5a58a480b9d075d8633b075103f",
+      "types": 3,
+      "properties": 16,
+      "source_sha256": "0e34ab246f67d2de802a0beb156264188400333271725a7616f4210dff0e5f42",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "texture.hpp",
       "slug": "texture",
-      "callables": 5,
+      "callables": 6,
       "types": 0,
       "properties": 0,
-      "source_sha256": "789bd0eccd2af9114417557836cc9ade2477ff8b41ebd776f0f44545088df1bb",
+      "source_sha256": "ee418b8866600bd19f0e54ffdbcd9ae89ae665eb7fa7be25b0e438f41ebb628c",
       "diagnostics": []
     },
     {

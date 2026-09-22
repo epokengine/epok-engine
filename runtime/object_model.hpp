@@ -599,6 +599,9 @@ public:
     EPOK_FUNCTION(BlueprintCallable, Id="45b9ad2e-b86b-464f-b303-c54353bc5f4d") void set_size(Fixed x,Fixed y) {if(rect){rect->size[0]=x;rect->size[1]=y;}}
     EPOK_FUNCTION(BlueprintCallable, Id="1eca293e-859c-4462-bc73-0b67d42ab4d6") void set_anchors(Fixed min_x,Fixed min_y,Fixed max_x,Fixed max_y) {if(rect){rect->anchor_min[0]=min_x;rect->anchor_min[1]=min_y;rect->anchor_max[0]=max_x;rect->anchor_max[1]=max_y;}}
     EPOK_FUNCTION(BlueprintCallable, Id="b1345048-7372-4bd1-b1e1-10ec4c33e7fc") void set_pivot(Fixed x,Fixed y) {if(rect){rect->pivot[0]=x;rect->pivot[1]=y;}}
+    EPOK_FUNCTION(BlueprintPure, Id="f21d1b01-6933-433b-a970-4d6c812380b3") Fixed rotation() const {return rect?rect->rotation:Fixed(0.0);}
+    // Degrees about the pivot. Layout is unchanged; only the emitted primitives turn.
+    EPOK_FUNCTION(BlueprintCallable, Id="f83ea29d-442e-47f0-bf15-c44681a73aac") void set_rotation(Fixed value) {if(rect)rect->rotation=value;}
 protected:
     ActorData* slot = nullptr;
 };
@@ -787,6 +790,10 @@ public:
     ActorData* entity_slot() const {auto* owner=const_cast<CanvasComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
     EPOK_FUNCTION(BlueprintPure, Id="00aeb910-bc8e-41cd-9a73-0fe2eef92a29") bool enabled() const {const auto* data=entity_slot();return data&&data->canvas.enabled;}
     EPOK_FUNCTION(BlueprintCallable, Id="45fd9028-92b6-463b-bd03-f34787624b73") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->canvas.enabled=value;}
+    // The focused element, as an actor index into the scene's objects array, or
+    // -1. Authored initial focus and runtime focus are this one field.
+    EPOK_FUNCTION(BlueprintPure, Id="6c7c7c84-562b-438c-a4a0-ea89dbd7e8aa") int32_t focused() const {const auto* data=entity_slot();return data?int32_t(data->canvas.focused):-1;}
+    EPOK_FUNCTION(BlueprintCallable, Id="06a3f570-b233-4740-bb87-17fd87a4a52b") void set_focused(int value) {auto* data=entity_slot();if(data)data->canvas.focused=int16_t(value<-1?-1:value>32767?32767:value);}
 };
 class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=image, Id="d04c78d6-23bd-40d7-88f1-b1afc1b05b5b") ImageComponent : public UIComponent {
 public:
@@ -798,6 +805,11 @@ public:
     EPOK_FUNCTION(BlueprintCallable, Id="39996407-2091-4a70-b2e1-2bbf508f77e9") void set_texture(int32_t value) {auto* data=entity_slot();if(data)data->image.texture=value;}
     EPOK_FUNCTION(BlueprintCallable, Id="7d9da0a9-2ae2-403b-9f40-5061bfd12e47") void set_color(uint32_t red,uint32_t green,uint32_t blue) {auto* data=entity_slot();if(data){data->image.color[0]=uint8_t(red>255?255:red);data->image.color[1]=uint8_t(green>255?255:green);data->image.color[2]=uint8_t(blue>255?255:blue);}}
     EPOK_FUNCTION(BlueprintCallable, Id="d4550792-9e1d-4454-b65d-1b4b86d04880") void set_region(uint32_t x,uint32_t y,uint32_t width,uint32_t height) {auto* data=entity_slot();if(data){data->image.region[0]=uint16_t(x>65535?65535:x);data->image.region[1]=uint16_t(y>65535?65535:y);data->image.region[2]=uint16_t(width>65535?65535:width);data->image.region[3]=uint16_t(height>65535?65535:height);}}
+    // Nine-slice borders in source pixels: left, top, right, bottom.
+    EPOK_FUNCTION(BlueprintCallable, Id="afbae136-9f2c-4c7f-b845-a9cbdd225530") void set_borders(int left,int top,int right,int bottom) {auto* data=entity_slot();if(!data)return;const int values[4]={left,top,right,bottom};for(int i=0;i<4;++i)data->image.borders[i]=uint16_t(values[i]<0?0:values[i]>65535?65535:values[i]);}
+    EPOK_FUNCTION(BlueprintPure, Id="7d9e1551-488f-446b-8ac5-8dea96b96fee") int32_t tiling() const {const auto* data=entity_slot();return data?int32_t(data->image.tiling):0;}
+    // 0 None, 1 Tile, 2 TileFit; anything else leaves the image stretched.
+    EPOK_FUNCTION(BlueprintCallable, Id="e0c70a72-1587-4c3e-bfc1-8835c634162f") void set_tiling(int value) {auto* data=entity_slot();if(data)data->image.tiling=value==1?ImageTiling::Tile:value==2?ImageTiling::TileFit:ImageTiling::None;}
 };
 class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=text, Id="fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34") TextComponent : public UIComponent {
 public:
@@ -813,6 +825,13 @@ public:
     EPOK_FUNCTION(BlueprintPure, Id="694cc674-49fb-4c9f-8851-b655b1b8fd45") uint32_t text_word(uint32_t index) const {const auto* data=entity_slot();if(!data||index>=128)return 0;uint32_t result=0;for(uint32_t i=0;i<4;++i)result|=uint32_t(uint8_t(data->text.value[index*4+i]))<<(i*8);return result;}
     EPOK_FUNCTION(BlueprintCallable, Id="0e61f050-7634-473f-a3bf-85d4067af329") void set_color(uint32_t red,uint32_t green,uint32_t blue) {auto* data=entity_slot();if(data){data->text.color[0]=uint8_t(red>255?255:red);data->text.color[1]=uint8_t(green>255?255:green);data->text.color[2]=uint8_t(blue>255?255:blue);}}
     EPOK_FUNCTION(BlueprintCallable, Id="bdcfb111-a742-4059-96a7-d10dd8182c88") void set_wrap(bool value) {auto* data=entity_slot();if(data)data->text.wrap=value;}
+    EPOK_FUNCTION(BlueprintPure, Id="26daebdb-28d8-496c-87ee-f4d4bf80c839") int32_t align() const {const auto* data=entity_slot();return data?int32_t(data->text.align):0;}
+    // 0 Left, 1 Center, 2 Right; anything else leaves the lines left-aligned.
+    EPOK_FUNCTION(BlueprintCallable, Id="c2a8c760-4d90-4e2e-8900-a747a7065366") void set_align(int value) {auto* data=entity_slot();if(data)data->text.align=value==1?TextAlign::Center:value==2?TextAlign::Right:TextAlign::Left;}
+    EPOK_FUNCTION(BlueprintPure, Id="cd1ac0c4-58af-4241-b0df-fdc8ab8c5ebc") int32_t font_index() const {const auto* data=entity_slot();return data?int32_t(data->text.font):-1;}
+    // The cooked font this label draws from, in export order; -1 is the
+    // built-in 8x16 atlas. An index no font answers falls back to the built-in.
+    EPOK_FUNCTION(BlueprintCallable, Id="4fc0a479-e9e3-4042-ae30-4559eace268b") void set_font_index(int value) {auto* data=entity_slot();if(data)data->text.font=value<0?-1:value;}
 };
 class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=progress, Id="28bf5245-5d80-4cba-a77d-1d74479ac276") ProgressBarComponent : public UIComponent {
 public:
@@ -824,6 +843,71 @@ public:
     EPOK_FUNCTION(BlueprintPure, Id="77e4c531-5d42-470c-954e-937d5204f664") Fixed value() const {const auto* data=entity_slot();return data?data->progress.value:Fixed(0.0);}
     EPOK_FUNCTION(BlueprintCallable, Id="d9ce66cc-cf09-4e8d-b76c-a1793dd980e0") void set_value(Fixed value) {auto* data=entity_slot();if(data)data->progress.value=value<0.0?Fixed(0.0):value>1.0?Fixed(1.0):value;}
     EPOK_FUNCTION(BlueprintCallable, Id="0afbb6fa-16ca-455b-aa47-5cc6cb719527") void set_colors(uint32_t red,uint32_t green,uint32_t blue,uint32_t background_red,uint32_t background_green,uint32_t background_blue) {auto* data=entity_slot();if(data){data->progress.color[0]=uint8_t(red>255?255:red);data->progress.color[1]=uint8_t(green>255?255:green);data->progress.color[2]=uint8_t(blue>255?255:blue);data->progress.background[0]=uint8_t(background_red>255?255:background_red);data->progress.background[1]=uint8_t(background_green>255?255:background_green);data->progress.background[2]=uint8_t(background_blue>255?255:background_blue);}}
+};
+class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=layout, Id="c1eae9de-bc3d-4fea-9b85-ddbc8aeb8bb1") LayoutElementComponent : public UIComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("c1eae9de-bc3d-4fea-9b85-ddbc8aeb8bb1");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<LayoutElementComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="fc293045-6c2d-4027-8079-eee4b7ffd19e") bool enabled() const {const auto* data=entity_slot();return data&&data->layout_element.enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="f014afb1-7b58-402f-9b40-dabd4095a375") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->layout_element.enabled=value;}
+    EPOK_FUNCTION(BlueprintPure, Id="eca949ba-094f-4d9f-8201-1ad05f9d547b") int32_t horizontal_flags() const {const auto* data=entity_slot();return data?int32_t(data->layout_element.horizontal):0;}
+    EPOK_FUNCTION(BlueprintCallable, Id="17dd57e1-9df3-4e5d-b265-a3d0eff0f8c2") void set_horizontal_flags(int32_t value) {auto* data=entity_slot();if(data)data->layout_element.horizontal=uint8_t(value<0?0:value>255?255:value);}
+    EPOK_FUNCTION(BlueprintPure, Id="3a8d2c1e-96b2-46fb-8b6f-20e0df8cb1e8") int32_t vertical_flags() const {const auto* data=entity_slot();return data?int32_t(data->layout_element.vertical):0;}
+    EPOK_FUNCTION(BlueprintCallable, Id="46451cc1-fb1b-4c2d-b90f-4f29dfd18ecf") void set_vertical_flags(int32_t value) {auto* data=entity_slot();if(data)data->layout_element.vertical=uint8_t(value<0?0:value>255?255:value);}
+    EPOK_FUNCTION(BlueprintPure, Id="fdbb5ebf-f358-4c29-b922-0014ec72a113") Fixed minimum_width() const {const auto* data=entity_slot();return data?data->layout_element.minimum[0]:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintPure, Id="79059823-26f2-4f4a-8555-cafcacf39897") Fixed minimum_height() const {const auto* data=entity_slot();return data?data->layout_element.minimum[1]:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintCallable, Id="5afa583a-6bcf-40e9-b141-d82faa8f27c3") void set_minimum(Fixed width,Fixed height) {auto* data=entity_slot();if(data){data->layout_element.minimum[0]=width<0.0?Fixed(0.0):width;data->layout_element.minimum[1]=height<0.0?Fixed(0.0):height;}}
+    EPOK_FUNCTION(BlueprintPure, Id="d012d9ea-a6ab-44d5-a774-df8ec13efa7e") Fixed stretch() const {const auto* data=entity_slot();return data?data->layout_element.stretch:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintCallable, Id="89587c7a-96f4-4729-885c-3d6bbecd72d8") void set_stretch(Fixed value) {auto* data=entity_slot();if(data)data->layout_element.stretch=value<0.0?Fixed(0.0):value;}
+};
+class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=layout, Id="0215c00b-c65f-49d5-924e-ac205dd0c8e0") LayoutContainerComponent : public UIComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("0215c00b-c65f-49d5-924e-ac205dd0c8e0");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<LayoutContainerComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="179dd638-cfaf-42d9-925e-28fcc2fa4c8d") bool enabled() const {const auto* data=entity_slot();return data&&data->layout_container.enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="4600df3a-968b-4537-a752-0ec56455e093") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->layout_container.enabled=value;}
+    EPOK_FUNCTION(BlueprintPure, Id="c13f53c0-f45d-4a81-b057-582839522c10") int32_t kind() const {const auto* data=entity_slot();return data?int32_t(data->layout_container.kind):0;}
+    EPOK_FUNCTION(BlueprintCallable, Id="c0604b5f-8010-49b3-a83f-7597b1f5cfa2") void set_kind(LayoutKind value) {auto* data=entity_slot();if(data)data->layout_container.kind=value;}
+    EPOK_FUNCTION(BlueprintPure, Id="29b86b2c-cd4d-4a9c-aee4-0197bfc8ddbb") Fixed spacing_x() const {const auto* data=entity_slot();return data?data->layout_container.spacing[0]:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintPure, Id="6e3951d7-315b-4765-b1d2-1835d2f0f708") Fixed spacing_y() const {const auto* data=entity_slot();return data?data->layout_container.spacing[1]:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintCallable, Id="01e8a277-95d7-49dd-8ac0-8e33276df388") void set_spacing(Fixed x,Fixed y) {auto* data=entity_slot();if(data){data->layout_container.spacing[0]=x<0.0?Fixed(0.0):x;data->layout_container.spacing[1]=y<0.0?Fixed(0.0):y;}}
+    EPOK_FUNCTION(BlueprintPure, Id="51a0e4ba-11c5-44c8-aad1-cfe098031ddc") Fixed padding_left() const {const auto* data=entity_slot();return data?data->layout_container.padding[0]:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintPure, Id="a8de539e-567d-4a85-afe0-285a58d66c9a") Fixed padding_top() const {const auto* data=entity_slot();return data?data->layout_container.padding[1]:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintPure, Id="11ff649d-92ce-4795-8ba5-20f48e0b6c6a") Fixed padding_right() const {const auto* data=entity_slot();return data?data->layout_container.padding[2]:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintPure, Id="da44743b-fd56-4ac4-8d01-6a5487c56039") Fixed padding_bottom() const {const auto* data=entity_slot();return data?data->layout_container.padding[3]:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintCallable, Id="c548107e-9579-42f9-8f0c-ee0d99144a7d") void set_padding(Fixed left,Fixed top,Fixed right,Fixed bottom) {auto* data=entity_slot();if(!data)return;const Fixed values[4]={left,top,right,bottom};for(int i=0;i<4;++i)data->layout_container.padding[i]=values[i]<0.0?Fixed(0.0):values[i];}
+    EPOK_FUNCTION(BlueprintPure, Id="69869fdd-afa9-4661-9ade-b5f30385b5d0") int32_t columns() const {const auto* data=entity_slot();return data?int32_t(data->layout_container.columns):0;}
+    EPOK_FUNCTION(BlueprintCallable, Id="c3cd2262-8a8b-42c7-b3bc-3e4761cc7098") void set_columns(int32_t value) {auto* data=entity_slot();if(data)data->layout_container.columns=uint8_t(value<1?1:value>255?255:value);}
+};
+class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=focus, Id="63836cf7-47ce-4174-ad2c-6b3b4266414d") FocusableComponent : public UIComponent {
+public:
+    static constexpr uint64_t static_class_id = detail::compact_class_id("63836cf7-47ce-4174-ad2c-6b3b4266414d");
+    uint64_t class_id() const override { return m_runtime_class_id ? m_runtime_class_id : static_class_id; }
+    ActorData* entity_slot() const {auto* owner=const_cast<FocusableComponent*>(this)->get_owner();return owner?owner->data():nullptr;}
+    EPOK_FUNCTION(BlueprintPure, Id="ad4b5019-074b-49cc-8e05-746012c25281") bool enabled() const {const auto* data=entity_slot();return data&&data->focusable.enabled;}
+    EPOK_FUNCTION(BlueprintCallable, Id="0783fbe7-7ba7-4159-a0c5-c6e657bae03d") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->focusable.enabled=value;}
+    // Direction 0 left, 1 right, 2 up, 3 down; the value is an actor index into
+    // the scene's objects array, or -1 for no neighbour that way.
+    EPOK_FUNCTION(BlueprintPure, Id="a2806533-3f89-4ccb-a434-79c99bcc182e") int32_t neighbor(int dir) const {const auto* data=entity_slot();return data&&dir>=0&&dir<4?int32_t(data->focusable.neighbors[dir]):-1;}
+    EPOK_FUNCTION(BlueprintCallable, Id="e67141fb-61f8-4444-af85-0037e7b150cf") void set_neighbor(int dir,int actor) {auto* data=entity_slot();if(data&&dir>=0&&dir<4)data->focusable.neighbors[dir]=int16_t(actor<-1?-1:actor>32767?32767:actor);}
+    EPOK_FUNCTION(BlueprintPure, Id="3cab80d1-3b2b-4007-a1b4-ce73582dfd00") int32_t order() const {const auto* data=entity_slot();return data?int32_t(data->focusable.order):0;}
+    EPOK_FUNCTION(BlueprintCallable, Id="e487a3bb-b41f-4f3e-9654-fd8690b91000") void set_order(int value) {auto* data=entity_slot();if(data)data->focusable.order=uint8_t(value<0?0:value>255?255:value);}
+    EPOK_FUNCTION(BlueprintCallable, Id="b1a87ee4-d338-4d13-b97b-5912a5c8d526") void set_highlight(int red,int green,int blue) {auto* data=entity_slot();if(!data)return;const int values[3]={red,green,blue};for(int i=0;i<3;++i)data->focusable.highlight[i]=uint8_t(values[i]<0?0:values[i]>255?255:values[i]);}
+    // True while the canvas above this element points at it. Focus lives on the
+    // canvas, so the answer is a walk up the slot parents, not a flag here.
+    EPOK_FUNCTION(BlueprintPure, Id="6beb822a-bfd3-4152-bd2d-2825eb42c9fd") bool is_focused() const {
+        const auto* data=entity_slot();const int self=entity_index(data);if(self<0)return false;
+        // Slots are contiguous, so the array base is this slot minus its index.
+        const ActorData* base=data-self;
+        for(int current=self,depth=0;current>=0&&depth<33;++depth){
+            const auto& node=base[current];
+            if(node.canvas.enabled)return node.canvas.focused==self;
+            current=node.parent;
+        }
+        return false;
+    }
 };
 class EPOK_CLASS(Blueprintable, Domain=World3D, Owners=World3D, Capability=particles, Id="1d067605-c408-40b8-b2c2-718b8cf0c601") ParticleEmitterComponent : public ActorComponent {
 public:

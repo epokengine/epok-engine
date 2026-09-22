@@ -5,7 +5,7 @@ use crate::{hud, scene::Scene};
 /// it, so a cached executable built from an older header is rejected instead of
 /// being misread. Bump on any frame-header or command-record change.
 pub const HUD_PREVIEW_MAGIC: u32 = 0x3144_5548; // "HUD1"
-pub const HUD_PREVIEW_PROTOCOL_VERSION: u32 = 2;
+pub const HUD_PREVIEW_PROTOCOL_VERSION: u32 = 5;
 /// The child runs gameplay: BeginPlay/start, update, frame_update. Clear in the
 /// edit phase, which only calls `editor_preview` construction hooks.
 pub const HUD_PREVIEW_CAP_SIMULATE: u32 = 1;
@@ -20,18 +20,34 @@ pub const HUD_PREVIEW_CAP_BLUEPRINT: u32 = 2;
 struct Node {
     parent: i32,
     flags: i32,
-    rect: [i32; 10],
+    /// Anchor min/max, pivot, position and size in Q12, then the rotation in
+    /// Q12 degrees.
+    rect: [i32; 11],
     texture: i32,
+    /// 0 None, 1 Tile, 2 TileFit.
+    tiling: i32,
     image_color: [i32; 3],
     region: [i32; 4],
     borders: [i32; 4],
     text_color: [i32; 3],
     progress: [i32; 7],
+    /// Horizontal flags, vertical flags, minimum x/y and stretch in Q12.
+    layout_element: [i32; 5],
+    /// Kind, spacing x/y, padding left/top/right/bottom, columns.
+    layout_container: [i32; 8],
+    /// Enabled, four neighbour actor indices, tab order, highlight r/g/b.
+    focusable: [i32; 9],
+    /// This node's Canvas focus index, or -1.
+    canvas_focused: i32,
+    /// The cooked font this text draws from, or -1 for the built-in atlas.
+    font: i32,
+    /// 0 Left, 1 Center, 2 Right.
+    align: i32,
     text: [u8; 512],
 }
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct Command(pub [i32; 16]);
+pub struct Command(pub [i32; 24]);
 unsafe extern "C" {
     fn epok_hud_compile(
         nodes: *const Node,
@@ -44,8 +60,20 @@ unsafe extern "C" {
         commands: *mut Command,
         capacity: u32,
         stats: *mut u32,
+        font_table: *const i32,
+        font_words: u32,
     ) -> u32;
+    #[allow(dead_code)]
     fn epok_hud_resolve(parent: *const i32, rect: *const i32, result: *mut i32);
+    fn epok_hud_layout(
+        nodes: *const Node,
+        count: u32,
+        width: i32,
+        height: i32,
+        rects: *mut i32,
+        font_table: *const i32,
+        font_words: u32,
+    ) -> u32;
 }
 fn fixed(v: f32) -> i32 {
     (f64::from(v) * 4096.).round() as i32
@@ -53,17 +81,24 @@ fn fixed(v: f32) -> i32 {
 fn color(v: [f32; 3]) -> [i32; 3] {
     v.map(|v| (v.clamp(0., 1.) * 255.).round() as i32)
 }
-fn rect(r: &hud::RectTransform) -> [i32; 10] {
-    let mut values = [0; 10];
-    for (out, input) in
-        values
-            .chunks_exact_mut(2)
-            .zip([r.anchor_min, r.anchor_max, r.pivot, r.position, r.size])
-    {
+fn rect(r: &hud::RectTransform) -> [i32; 11] {
+    let mut values = [0; 11];
+    for (out, input) in values[..10].chunks_exact_mut(2).zip([
+        r.anchor_min,
+        r.anchor_max,
+        r.pivot,
+        r.position,
+        r.size,
+    ]) {
         out.copy_from_slice(&input.map(fixed));
     }
+    values[10] = fixed(r.rotation);
     values
 }
+/// One rect against one parent, the anchor math on its own. `layouts` replaced it
+/// as the viewport's query, but it stays as the pin on the Q12 boundary the whole
+/// protocol is quantized to, and as the single-rect entry any host can call.
+#[allow(dead_code)]
 pub fn resolve(parent: hud::Rect, r: &hud::RectTransform) -> hud::Rect {
     let mut result = [0; 4];
     unsafe {
@@ -75,18 +110,45 @@ pub fn resolve(parent: hud::Rect, r: &hud::RectTransform) -> hud::Rect {
     }
     result.map(|v| v as f32 / 4096.)
 }
-pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
-    let ids = crate::texture::ids(scene);
-    let dimensions: Vec<i32> = ids
-        .iter()
-        .flat_map(|id| {
-            scene
-                .textures
-                .get(id)
-                .map_or([0, 0], |t| [i32::from(t.width), i32::from(t.height)])
-        })
-        .collect();
-    let nodes: Vec<_> = scene
+/// The flat font table both FFI entry points read: per font, five header ints
+/// `[count,width,height,line_height,baseline]` followed by eight per glyph, in
+/// the index order `hud::font_ids` fixes. Fixed-width values, no pointers, like
+/// every other record on this boundary. Decoding is not repeated here: the
+/// cooked atlases already live in `scene.fonts`, keyed by asset id.
+fn font_table(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<i32> {
+    let mut out = vec![];
+    for id in ids {
+        let Some(data) = scene.fonts.get(id) else {
+            out.extend([0; 5]);
+            continue;
+        };
+        out.extend([
+            data.metrics.len() as i32,
+            i32::from(data.width),
+            i32::from(data.height),
+            i32::from(data.line_height),
+            i32::from(data.baseline),
+        ]);
+        for m in &data.metrics {
+            out.extend([
+                m.codepoint as i32,
+                i32::from(m.u),
+                i32::from(m.v),
+                i32::from(m.width),
+                i32::from(m.height),
+                i32::from(m.advance),
+                i32::from(m.x_offset),
+                i32::from(m.y_offset),
+            ]);
+        }
+    }
+    out
+}
+/// One wire node per actor, in actor order. `ids` is the texture bank the image
+/// indices address, `font_ids` the cooked fonts a label's index addresses. Shared by the command compiler and the layout query so the
+/// editor never marshals the scene two different ways.
+fn nodes(scene: &Scene, ids: &[uuid::Uuid], font_ids: &[uuid::Uuid]) -> Vec<Node> {
+    scene
         .actors
         .iter()
         .map(|e| {
@@ -95,15 +157,25 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
                 flags: 1 | if e.active { 2 } else { 0 },
                 rect: rect(&e.rect.clone().unwrap_or_default()),
                 texture: -1,
+                tiling: 0,
                 image_color: [0; 3],
                 region: [0; 4],
                 borders: [0; 4],
                 text_color: [0; 3],
                 progress: [0; 7],
+                layout_element: [1, 1, 0, 0, 0],
+                layout_container: [0, 0, 0, 0, 0, 0, 0, 1],
+                focusable: [0, -1, -1, -1, -1, 0, 255, 255, 255],
+                canvas_focused: -1,
+                font: -1,
+                align: 0,
                 text: [0; 512],
             };
-            if e.canvas.as_ref().is_some_and(|c| c.enabled) {
-                n.flags |= 4;
+            if let Some(c) = &e.canvas {
+                if c.enabled {
+                    n.flags |= 4;
+                }
+                n.canvas_focused = c.focused;
             }
             if e.rect.is_some() {
                 n.flags |= 8;
@@ -119,6 +191,7 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
                 n.image_color = color(c.color);
                 n.region = c.region.map(i32::from);
                 n.borders = c.borders.map(i32::from);
+                n.tiling = i32::from(c.tiling as u8);
             }
             if let Some(c) = &e.text {
                 if c.enabled {
@@ -128,6 +201,11 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
                     n.flags |= 128;
                 }
                 n.text_color = color(c.color);
+                n.font = c
+                    .font
+                    .and_then(|id| font_ids.iter().position(|v| *v == id))
+                    .map_or(-1, |i| i as i32);
+                n.align = i32::from(c.align as u8);
                 let bytes = c.text.as_bytes();
                 let end = bytes.len().min(511);
                 n.text[..end].copy_from_slice(&bytes[..end]);
@@ -140,18 +218,123 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
                 n.progress[1..4].copy_from_slice(&color(c.color));
                 n.progress[4..7].copy_from_slice(&color(c.background));
             }
+            if let Some(c) = &e.layout_element {
+                if c.enabled {
+                    n.flags |= 256;
+                }
+                n.layout_element = [
+                    i32::from(c.horizontal),
+                    i32::from(c.vertical),
+                    fixed(c.minimum[0]),
+                    fixed(c.minimum[1]),
+                    fixed(c.stretch),
+                ];
+            }
+            if let Some(c) = &e.layout_container {
+                if c.enabled {
+                    n.flags |= 512;
+                }
+                n.layout_container[0] = i32::from(c.kind as u8);
+                n.layout_container[1..3].copy_from_slice(&c.spacing.map(fixed));
+                n.layout_container[3..7].copy_from_slice(&c.padding.map(fixed));
+                n.layout_container[7] = i32::from(c.columns);
+            }
+            if let Some(c) = &e.focusable {
+                if c.enabled {
+                    n.flags |= 1024;
+                }
+                n.focusable[0] = i32::from(c.enabled);
+                n.focusable[1..5].copy_from_slice(&c.neighbors);
+                n.focusable[5] = i32::from(c.order);
+                n.focusable[6..9].copy_from_slice(&color(c.highlight));
+            }
             n
         })
+        .collect()
+}
+/// Every actor's resolved rect, or `None` where the actor carries no Canvas and
+/// no RectTransform.
+///
+/// The gizmos answer "where does this element sit", so what only hides a subtree
+/// is ignored here: a disabled Canvas still reports rects, and so does an
+/// inactive element that places itself from its own anchors, exactly as the
+/// anchor-chain walk this replaced did. Under a container `active` stops being
+/// visibility and becomes geometry — it decides whether the child takes a cell —
+/// so there the authored flag is passed through and the outlines keep agreeing
+/// with the pixels the same core produces.
+pub fn layouts(scene: &Scene) -> Vec<Option<hud::Placement>> {
+    let ids = crate::texture::ids(scene);
+    let font_ids = hud::font_ids(scene);
+    let table = font_table(scene, &font_ids);
+    let mut nodes = nodes(scene, &ids, &font_ids);
+    for (i, n) in nodes.iter_mut().enumerate() {
+        let parent = scene.spatial_parent(i);
+        n.parent = parent.map_or(-1, |p| p as i32);
+        if !parent
+            .and_then(|p| scene.actors[p].layout_container.as_ref())
+            .is_some_and(|c| c.enabled && c.kind != hud::LayoutKind::None)
+        {
+            n.flags |= 2;
+        }
+        if scene.actors[i].canvas.is_some() {
+            n.flags |= 4;
+        }
+    }
+    let mut out = vec![0; nodes.len() * 12];
+    unsafe {
+        epok_hud_layout(
+            nodes.as_ptr(),
+            nodes.len() as u32,
+            i32::from(scene.display_size[0]),
+            i32::from(scene.display_size[1]),
+            out.as_mut_ptr(),
+            table.as_ptr(),
+            table.len() as u32,
+        );
+    }
+    scene
+        .actors
+        .iter()
+        .enumerate()
+        .map(|(i, e)| {
+            let node = &out[i * 12..i * 12 + 12];
+            let q12: [i32; 4] = node[..4].try_into().unwrap();
+            // The core zeroes a node it did not lay out. An element that really
+            // resolved to an empty rect at the origin has no rectangle on screen
+            // either, so both answer the caller the same way.
+            ((e.canvas.is_some() || e.rect.is_some()) && q12 != [0; 4]).then(|| hud::Placement {
+                rect: q12.map(|v| v as f32 / 4096.),
+                corners: std::array::from_fn(|k| {
+                    [node[4 + k * 2], node[5 + k * 2]].map(|v| v as f32 / 4096.)
+                }),
+            })
+        })
+        .collect()
+}
+pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 6]) {
+    let ids = crate::texture::ids(scene);
+    let dimensions: Vec<i32> = ids
+        .iter()
+        .flat_map(|id| {
+            scene
+                .textures
+                .get(id)
+                .map_or([0, 0], |t| [i32::from(t.width), i32::from(t.height)])
+        })
         .collect();
+    let font_ids = hud::font_ids(scene);
+    let table = font_table(scene, &font_ids);
+    let nodes = nodes(scene, &ids, &font_ids);
     let b = &scene.hud_budget;
     let budget = [
         b.layouts as u32,
         b.rectangles as u32,
         b.texts as u32,
         b.glyphs as u32,
+        b.rotated as u32,
     ];
-    let mut commands = vec![Command::default(); b.rectangles + b.glyphs];
-    let mut stats = [0; 5];
+    let mut commands = vec![Command::default(); b.rectangles + b.glyphs + b.rotated];
+    let mut stats = [0; 6];
     let count = unsafe {
         epok_hud_compile(
             nodes.as_ptr(),
@@ -164,6 +347,8 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
             commands.as_mut_ptr(),
             commands.len() as u32,
             stats.as_mut_ptr(),
+            table.as_ptr(),
+            table.len() as u32,
         )
     };
     commands.truncate(count as usize);
@@ -203,22 +388,122 @@ fn render_with_background(
                 .map(|t| (t, crate::palette::preview_rgba(scene, *id, seconds, t)))
         })
         .collect();
+    let fonts: Vec<_> = hud::font_ids(scene)
+        .iter()
+        .map(|id| scene.fonts.get(id).cloned())
+        .collect();
+    // Font -1 draws from the built-in atlas, whose cell the source texels name;
+    // an authored font is 4bpp, so a texel is one nibble through its CLUT.
+    // `None` is transparent: the glyph leaves the pixel behind it alone.
+    let sample = |index: i32, u: i32, v: i32, rgb: [u8; 3]| -> Option<[u8; 3]> {
+        if index < 0 {
+            let cell = (v / 16) * 32 + u / 8;
+            let (du, dv) = (u - (u / 8) * 8, v - (v / 16) * 16);
+            let rows =
+                crate::bitmap_font::character(cell as usize).and_then(crate::bitmap_font::glyph)?;
+            (rows[dv as usize] & (1 << du) != 0).then_some(rgb)
+        } else {
+            let data = fonts.get(index as usize)?.as_ref()?;
+            if u < 0 || v < 0 || u >= i32::from(data.width) || v >= i32::from(data.height) {
+                return None;
+            }
+            let stride = usize::from(data.width) / 4;
+            let word = data.words[v as usize * stride + u as usize / 4];
+            let entry = usize::from((word >> ((u % 4) * 4)) & 0xf);
+            if entry == 0 {
+                return None;
+            }
+            let color = data.palette[entry];
+            Some(std::array::from_fn(|channel| {
+                let gain = u32::from(rgb[channel]).div_ceil(2);
+                let five = (u32::from((color >> (channel * 5)) & 31) * gain / 128).min(31) as u8;
+                (five << 3) | (five >> 2)
+            }))
+        }
+    };
     for Command(c) in commands {
+        // Kinds 3, 4 and 5 carry four screen corners instead of a box: fill them
+        // as two triangles and interpolate the source corners barycentrically.
+        if c[0] >= 3 {
+            let rgb = [c[11], c[12], c[13]].map(|v| v.clamp(0, 255) as u8);
+            let corner: [[f32; 2]; 4] =
+                std::array::from_fn(|i| [c[3 + i * 2] as f32, c[4 + i * 2] as f32]);
+            let source: [[f32; 2]; 4] =
+                std::array::from_fn(|i| [c[14 + i * 2] as f32, c[15 + i * 2] as f32]);
+            let glyph = (c[0] == 5).then_some(c[2]);
+            let texture = if c[0] == 4 {
+                match textures.get(c[2] as usize).and_then(|t| t.as_ref()) {
+                    Some(t) => Some(t),
+                    None => continue,
+                }
+            } else {
+                None
+            };
+            // A and B before C and D: the corners arrive in the Z order the
+            // console's quad class wants, so the two triangles share edge B-C.
+            for [i, j, k] in [[0usize, 1, 2], [1, 2, 3]] {
+                let (a, b, d) = (corner[i], corner[j], corner[k]);
+                let area = (b[0] - a[0]) * (d[1] - a[1]) - (b[1] - a[1]) * (d[0] - a[0]);
+                if area.abs() < 1e-3 {
+                    continue;
+                }
+                let low = |axis: usize| a[axis].min(b[axis]).min(d[axis]).floor().max(0.) as i32;
+                let high = |axis: usize, limit: usize| {
+                    a[axis].max(b[axis]).max(d[axis]).ceil().min(limit as f32) as i32
+                };
+                for y in low(1)..high(1, height) {
+                    for x in low(0)..high(0, width) {
+                        let p = [x as f32 + 0.5, y as f32 + 0.5];
+                        let e0 =
+                            ((b[0] - p[0]) * (d[1] - p[1]) - (b[1] - p[1]) * (d[0] - p[0])) / area;
+                        let e1 =
+                            ((d[0] - p[0]) * (a[1] - p[1]) - (d[1] - p[1]) * (a[0] - p[0])) / area;
+                        let e2 = 1. - e0 - e1;
+                        if e0 < 0. || e1 < 0. || e2 < 0. {
+                            continue;
+                        }
+                        let uv = [0usize, 1].map(|axis| {
+                            e0 * source[i][axis] + e1 * source[j][axis] + e2 * source[k][axis]
+                        });
+                        let result = if let Some(font) = glyph {
+                            sample(font, uv[0] as i32, uv[1] as i32, rgb)
+                        } else if let Some((t, rgba)) = texture {
+                            let (u, v) = (uv[0] as i32, uv[1] as i32);
+                            if u < 0 || v < 0 || u >= i32::from(t.width) || v >= i32::from(t.height)
+                            {
+                                None
+                            } else {
+                                let offset = (v as usize * usize::from(t.width) + u as usize) * 4;
+                                (rgba[offset + 3] != 0).then(|| {
+                                    std::array::from_fn(|channel| {
+                                        let gain = u32::from(rgb[channel]).div_ceil(2);
+                                        let five = ((u32::from(rgba[offset + channel]) >> 3) * gain
+                                            / 128)
+                                            .min(31)
+                                            as u8;
+                                        (five << 3) | (five >> 2)
+                                    })
+                                })
+                            }
+                        } else {
+                            Some(rgb)
+                        };
+                        if let Some(rgb) = result {
+                            let offset = (y as usize * width + x as usize) * 4;
+                            pixels[offset..offset + 3].copy_from_slice(&rgb);
+                            pixels[offset + 3] = 255;
+                        }
+                    }
+                }
+            }
+            continue;
+        }
         let [x0, y0, x1, y1] = [c[3], c[4], c[5], c[6]];
         if x1 <= x0 || y1 <= y0 {
             continue;
         }
         let rgb = [c[11], c[12], c[13]].map(|v| v.clamp(0, 255) as u8);
-        let glyph = if c[0] == 2 {
-            let ch = if c[2] <= 126 {
-                char::from_u32(c[2] as u32)
-            } else {
-                crate::bitmap_font::EXTRA.chars().nth((c[2] - 127) as usize)
-            };
-            ch.and_then(crate::bitmap_font::glyph)
-        } else {
-            None
-        };
+        let glyph = (c[0] == 2).then_some(c[2]);
         for y in y0.max(0)..y1.min(height as i32) {
             for x in x0.max(0)..x1.min(width as i32) {
                 let result = match c[0] {
@@ -254,18 +539,7 @@ fn render_with_background(
                                 (five << 3) | (five >> 2)
                             }))
                         }),
-                    2 => glyph.and_then(|g| {
-                        let u = c[7] + x - x0;
-                        let v = c[8] + y - y0;
-                        if !(0..8).contains(&u)
-                            || !(0..16).contains(&v)
-                            || g[v as usize] & (1 << u) == 0
-                        {
-                            None
-                        } else {
-                            Some(rgb)
-                        }
-                    }),
+                    2 => glyph.and_then(|font| sample(font, c[7] + x - x0, c[8] + y - y0, rgb)),
                     _ => None,
                 };
                 if let Some(rgb) = result {
@@ -298,6 +572,111 @@ mod tests {
         let out = resolve([0., 0., 640., 480.], &r);
         assert_eq!(out, [270. + 1. / 4096., 224. - 1. / 4096., 100., 32.]);
     }
+    /// `Node` mirrors `EpokHudNode` byte for byte. The C side is not visible from
+    /// Rust, so the field count and the total size are pinned here: a record added
+    /// on one side without the other would otherwise be read as garbage.
+    #[test]
+    fn the_wire_node_matches_the_protocol_it_declares() {
+        const FIELDS: usize = 1 + 1 + 11 + 1 + 1 + 3 + 4 + 4 + 3 + 7 + 5 + 8 + 9 + 1 + 1 + 1;
+        assert_eq!(size_of::<Node>(), FIELDS * 4 + 512);
+        assert_eq!(align_of::<Node>(), 4);
+        assert_eq!(HUD_PREVIEW_PROTOCOL_VERSION, 5);
+    }
+    fn labelled(text: &str, font: Option<uuid::Uuid>) -> Scene {
+        let mut s = Scene::default();
+        s.actors.clear();
+        let mut root = crate::scene::Actor::cube("Canvas".into());
+        root.kind = "Empty".into();
+        root.canvas = Some(Default::default());
+        s.actors.push(root);
+        let mut label = crate::scene::Actor::cube("Label".into());
+        label.kind = "Empty".into();
+        label.parent = Some(0);
+        label.rect = Some(hud::RectTransform {
+            size: [160., 32.],
+            ..Default::default()
+        });
+        label.text = Some(hud::Text {
+            text: text.into(),
+            font,
+            ..Default::default()
+        });
+        s.actors.push(label);
+        s
+    }
+    /// `set_text` keeps UTF-8 verbatim now and the decode happens at draw time,
+    /// so a multi-byte character has to cross the wire whole and come back as
+    /// one glyph rather than as its bytes.
+    #[test]
+    fn utf8_survives_the_wire_and_decodes_to_one_glyph() {
+        let (commands, stats) = compile(&labelled("A\u{f1}", None));
+        assert_eq!(stats[1], 2, "two characters, four bytes");
+        assert_eq!(commands.len(), 2);
+        // Built-in cells: 'A' is 65-32, 'n' with a tilde is the seventh extra.
+        for (command, cell) in commands.iter().zip([65 - 32, 95 + 6]) {
+            assert_eq!(command.0[0], 2);
+            assert_eq!(command.0[2], -1, "the built-in atlas stays font -1");
+            assert_eq!(
+                (command.0[7], command.0[8]),
+                ((cell % 32) * 8, (cell / 32) * 16)
+            );
+        }
+    }
+    /// The flat table is the only shape the layout core sees a font through, so
+    /// what goes in has to be exactly what a `Font` and its metrics come out as.
+    #[test]
+    fn the_flat_font_table_carries_a_cooked_font_verbatim() {
+        let id = uuid::Uuid::new_v4();
+        let data = crate::font_asset::FontData {
+            width: 64,
+            height: 32,
+            words: vec![0; 16 * 32],
+            palette: crate::font_asset::palette(false),
+            metrics: vec![
+                crate::font_asset::GlyphMetric {
+                    codepoint: 65,
+                    u: 3,
+                    v: 4,
+                    width: 6,
+                    height: 8,
+                    advance: 7,
+                    x_offset: -1,
+                    y_offset: -8,
+                },
+                crate::font_asset::GlyphMetric {
+                    codepoint: 66,
+                    u: 11,
+                    v: 4,
+                    width: 5,
+                    height: 8,
+                    advance: 6,
+                    x_offset: 0,
+                    y_offset: -8,
+                },
+            ],
+            line_height: 12,
+            baseline: 9,
+            rgba: vec![],
+        };
+        let mut scene = labelled("AB", Some(id));
+        scene.fonts.insert(id, std::sync::Arc::new(data.clone()));
+        let table = font_table(&scene, &hud::font_ids(&scene));
+        assert_eq!(table.len(), 5 + 2 * 8);
+        assert_eq!(&table[..5], &[2, 64, 32, 12, 9]);
+        assert_eq!(&table[5..13], &[65, 3, 4, 6, 8, 7, -1, -8]);
+        assert_eq!(&table[13..], &[66, 11, 4, 5, 8, 6, 0, -8]);
+        // The core reads that table back: the advances place the second glyph.
+        let (commands, _) = compile(&scene);
+        assert_eq!(commands.len(), 2);
+        assert_eq!(commands[0].0[2], 0, "the label names font index zero");
+        assert_eq!(commands[1].0[3] - commands[0].0[3], 7 + 1);
+        assert_eq!((commands[0].0[7], commands[0].0[8]), (3, 4));
+        // An unresolved font falls back to the built-in atlas rather than
+        // dropping the label; the table still carries its five header words.
+        scene.fonts.clear();
+        assert_eq!(font_table(&scene, &hud::font_ids(&scene)), vec![0; 5]);
+        assert_eq!(compile(&scene).0.len(), 2);
+    }
     #[test]
     fn dynamic_budget_and_disabled_parent_match_console() {
         let mut s = Scene::default();
@@ -317,7 +696,7 @@ mod tests {
         s.hud_budget.rectangles = 2;
         let (commands, stats) = compile(&s);
         assert_eq!(commands.len(), 2);
-        assert_eq!(stats, [2, 0, 0, 0, 1]);
+        assert_eq!(stats, [2, 0, 0, 0, 1, 0]);
         s.actors[0].active = false;
         assert!(compile(&s).0.is_empty());
     }
