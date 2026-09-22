@@ -32,12 +32,33 @@ fn anchor_preset(r: &hud::RectTransform) -> &'static str {
         .find(|(_, p)| r.anchor_min == *p && r.anchor_max == *p && r.pivot == *p)
         .map_or("Custom", |(name, _)| *name)
 }
-pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
+/// One entry per element a focus link can point at: the actor index the runtime
+/// table stores, and the name the author recognises.
+pub type FocusTargets<'a> = &'a [(usize, String)];
+/// A combo over `targets` plus "None", editing an actor index in place.
+fn actor_picker(ui: &imgui::Ui, label: &str, targets: FocusTargets, value: &mut i32) {
+    let preview = targets
+        .iter()
+        .find(|(index, _)| *index as i32 == *value)
+        .map_or("None", |(_, name)| name.as_str());
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, label), preview) {
+        if ui.selectable("None") {
+            *value = -1;
+        }
+        for (index, name) in targets {
+            if ui.selectable(format!("{name}##{label}-{index}")) {
+                *value = *index as i32;
+            }
+        }
+    }
+}
+pub fn inspector(ui: &imgui::Ui, e: &mut Actor, targets: FocusTargets) {
     if let Some(c) = &mut e.canvas
         && heading(ui, "Canvas")
     {
         crate::gui::toggle(ui, "Enabled##canvas", &mut c.enabled);
         ui.text("Screen Space - Overlay");
+        actor_picker(ui, "Initial focus", targets, &mut c.focused);
         crate::gui::muted(
             ui,
             "Native pixels; canvas follows Project Settings resolution.",
@@ -68,7 +89,14 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
         vector(ui, "Anchor Min", &mut r.anchor_min);
         vector(ui, "Anchor Max", &mut r.anchor_max);
         vector(ui, "Pivot", &mut r.pivot);
-        crate::gui::muted(ui, "Pixels; +Y up. Size includes anchor stretch.");
+        crate::gui::Drag::new(crate::gui::field(ui, "Rotation"))
+            .speed(1.)
+            .display_format("%.1f")
+            .build(ui, &mut r.rotation);
+        crate::gui::muted(
+            ui,
+            "Pixels; +Y up. Size includes anchor stretch. Rotation is degrees about the pivot.",
+        );
     }
     let mut remove_image = false;
     let mut remove_text = false;
@@ -102,12 +130,27 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
         }
         crate::gui::muted(ui, "Atlas pixels; zero width/height uses the full texture.");
         let mut borders = c.borders.map(i32::from);
-        if crate::gui::Drag::new(crate::gui::field(ui, "Slice left/top/right/bottom"))
+        if crate::gui::Drag::new(crate::gui::field(ui, "Nine-slice borders (px)"))
             .speed(1.)
             .build_array(ui, &mut borders)
         {
             c.borders = borders.map(|v| v.clamp(0, 256) as u16);
         }
+        crate::gui::muted(
+            ui,
+            "Left, top, right, bottom; zero stretches the whole region.",
+        );
+        if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Tiling"), c.tiling.label()) {
+            for tiling in hud::ImageTiling::ALL {
+                if ui.selectable(tiling.label()) {
+                    c.tiling = tiling;
+                }
+            }
+        }
+        crate::gui::muted(
+            ui,
+            "Tile repeats at texel size and clips; Tile Fit scales to a whole count. With borders only the centre tiles.",
+        );
     }
     let text_open = e.text.is_some()
         && crate::gui::section(ui, "Text", || {
@@ -169,6 +212,7 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
             "Read by the parent container: Expand claims leftover space by stretch.",
         );
     }
+    let mut remove_focusable = false;
     let container_open = e.layout_container.is_some()
         && crate::gui::section(ui, "Layout Container", || {
             remove_container = ui.menu_item("Remove Layout Container");
@@ -205,6 +249,28 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
             "Children ignore their own anchors; this rect measures and places them.",
         );
     }
+    let focus_open = e.focusable.is_some()
+        && crate::gui::section(ui, "Focusable", || {
+            remove_focusable = ui.menu_item("Remove Focusable");
+        });
+    if focus_open && let Some(c) = &mut e.focusable {
+        crate::gui::toggle(ui, "Enabled##focusable", &mut c.enabled);
+        for (index, label) in NEIGHBOURS.into_iter().enumerate() {
+            actor_picker(ui, label, targets, &mut c.neighbors[index]);
+        }
+        let mut order = i32::from(c.order);
+        if crate::gui::Drag::new(crate::gui::field(ui, "Order"))
+            .speed(1.)
+            .build(ui, &mut order)
+        {
+            c.order = order.clamp(0, 255) as u8;
+        }
+        ui.color_edit3(crate::gui::field(ui, "Highlight##focus"), &mut c.highlight);
+        crate::gui::muted(
+            ui,
+            "The D-pad follows these links; the highlight multiplies this element's colours while it holds focus.",
+        );
+    }
     if remove_image {
         e.image = None;
     }
@@ -220,7 +286,12 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
     if remove_container {
         e.layout_container = None;
     }
+    if remove_focusable {
+        e.focusable = None;
+    }
 }
+/// The four neighbour links, in the order `Focusable::neighbors` stores them.
+const NEIGHBOURS: [&str; 4] = ["Left", "Right", "Up", "Down"];
 /// The per-axis size flags a Layout Element writes, in bit order.
 const SIZE_FLAGS: [(&str, u8); 4] = [
     ("Fill", 1),
@@ -238,10 +309,14 @@ pub enum Side {
 /// side it grabs per axis; `None` on an axis leaves that axis alone, so the four
 /// corners and the four edge midpoints are the eight combinations that grab at
 /// least one side.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum HudHandle {
     Move,
     Resize([Option<Side>; 2]),
+    /// The ring above the top edge. The payload is the angle the cursor held
+    /// when the drag began, minus the element's rotation then, so the element
+    /// follows the cursor without snapping to it.
+    Rotate(f32),
 }
 /// Corners before edges: the two hit boxes overlap on a small rect, and the
 /// corner is the grab an author meant.
@@ -259,13 +334,49 @@ const HANDLES: [[Option<Side>; 2]; 8] = [
 /// a HUD-unit reach would shrink out of the cursor's way as the author zoomed
 /// out; everything below divides by `scale` at the point of comparison instead.
 const HANDLE_HALF: f32 = 6.;
-/// The handle's point on a resolved rect, in HUD units.
-fn handle_point(r: hud::Rect, sides: [Option<Side>; 2]) -> [f32; 2] {
-    [0usize, 1].map(|i| match sides[i] {
-        None => r[i] + r[i + 2] * 0.5,
-        Some(Side::Min) => r[i],
-        Some(Side::Max) => r[i] + r[i + 2],
+/// How far above the top-centre handle the rotation ring sits, in screen pixels.
+const ROTATE_REACH: f32 = 22.;
+/// A point inside a placement, in HUD units, from its normalized position in the
+/// element's own frame: 0,0 is the bottom-left corner and 1,1 the top-right.
+/// The corners already carry the rotation, and an affine map is exactly bilinear
+/// over them, so this answers for a rotated element as well as a square one.
+fn interpolate(p: &hud::Placement, u: f32, v: f32) -> [f32; 2] {
+    // corners are top-left, top-right, bottom-left, bottom-right.
+    let [a, b, c, d] = p.corners;
+    [0usize, 1].map(|i| {
+        (1. - u) * (1. - v) * c[i] + u * (1. - v) * d[i] + (1. - u) * v * a[i] + u * v * b[i]
     })
+}
+/// The handle's point on a placement, in HUD units.
+fn handle_point(p: &hud::Placement, sides: [Option<Side>; 2]) -> [f32; 2] {
+    let axis = |i: usize| match sides[i] {
+        None => 0.5,
+        Some(Side::Min) => 0.,
+        Some(Side::Max) => 1.,
+    };
+    interpolate(p, axis(0), axis(1))
+}
+/// The element's accumulated rotation in degrees, read back off the corners its
+/// own transform produced. Zero for everything the runtime did not turn.
+fn placement_angle(p: &hud::Placement) -> f32 {
+    let [a, b, ..] = p.corners;
+    let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+    if dx.abs() < 1e-4 && dy.abs() < 1e-4 {
+        0.
+    } else {
+        dy.atan2(dx).to_degrees()
+    }
+}
+/// A cursor delta in HUD units turned back into the frame `degrees` rotated out of.
+fn unrotate(delta: [f32; 2], degrees: f32) -> [f32; 2] {
+    if degrees == 0. {
+        return delta;
+    }
+    let (sin, cos) = (-degrees).to_radians().sin_cos();
+    [
+        delta[0] * cos - delta[1] * sin,
+        delta[0] * sin + delta[1] * cos,
+    ]
 }
 /// Move the grabbed sides by `delta` HUD units (+Y up) and pin the opposite
 /// sides.
@@ -290,6 +401,27 @@ pub fn resize(r: &mut hud::RectTransform, sides: [Option<Side>; 2], delta: [f32;
             }
         }
     }
+}
+/// The rotation ring, in HUD units: above the top-centre handle, along the
+/// element's own up direction so it keeps its place once the element turns.
+fn rotation_handle(p: &hud::Placement, scale: f32) -> [f32; 2] {
+    let top = handle_point(p, [None, Some(Side::Max)]);
+    let bottom = handle_point(p, [None, Some(Side::Min)]);
+    let (dx, dy) = (top[0] - bottom[0], top[1] - bottom[1]);
+    let length = (dx * dx + dy * dy).sqrt();
+    let up = if length < 1e-4 {
+        [0., 1.]
+    } else {
+        [dx / length, dy / length]
+    };
+    let reach = ROTATE_REACH / scale.max(0.01);
+    [top[0] + up[0] * reach, top[1] + up[1] * reach]
+}
+/// The element's pivot in HUD units. Rotation turns about it, so a drag of the
+/// ring measures its angle from here.
+fn pivot_point(actor: &Actor, p: &hud::Placement) -> [f32; 2] {
+    let pivot = actor.rect.as_ref().map_or([0.5; 2], |r| r.pivot);
+    interpolate(p, pivot[0], pivot[1])
 }
 pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
     let mut step = false;
@@ -460,23 +592,33 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
     // out once per frame and every hit test and gizmo indexes that one result.
     let mut boxes = hud::layouts(&e.scene);
     let mut grab = None;
+    let mut spin = None;
     if let Some(i) = e.selected
-        && let Some(r) = boxes.get(i).copied().flatten()
+        && let Some(place) = boxes.get(i).copied().flatten()
         && e.scene.actors[i].rect.is_some()
     {
         let reach = HANDLE_HALF / scale;
         grab = HANDLES.into_iter().find(|sides| {
-            let h = handle_point(r, *sides);
+            let h = handle_point(&place, *sides);
             (p[0] - h[0]).abs() <= reach && (p[1] - h[1]).abs() <= reach
         });
+        let ring = rotation_handle(&place, scale);
+        if grab.is_none() && (p[0] - ring[0]).abs() <= reach && (p[1] - ring[1]).abs() <= reach {
+            let pivot = pivot_point(&e.scene.actors[i], &place);
+            let held = (p[1] - pivot[1]).atan2(p[0] - pivot[0]).to_degrees();
+            spin = Some(held - e.scene.actors[i].rect.as_ref().map_or(0., |r| r.rotation));
+        }
     }
     if hovered && ui.is_mouse_clicked(imgui::MouseButton::Left) && !e.playing {
-        if grab.is_none() {
+        if grab.is_none() && spin.is_none() {
             e.selected = order
                 .iter()
                 .rev()
                 .find(|i| {
-                    boxes.get(**i).copied().flatten().is_some_and(|r| {
+                    boxes.get(**i).copied().flatten().is_some_and(|place| {
+                        let r = place.rect;
+                        // The hit test stays on the axis-aligned rect: a rotated
+                        // element is still picked by the box its layout decided.
                         p[0] >= r[0] && p[0] <= r[0] + r[2] && p[1] >= r[1] && p[1] <= r[1] + r[3]
                     })
                 })
@@ -485,7 +627,16 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
         e.hud_drag = e
             .selected
             .filter(|i| e.scene.actors[*i].rect.is_some())
-            .map(|i| (i, grab.map_or(HudHandle::Move, HudHandle::Resize)));
+            .map(|i| {
+                (
+                    i,
+                    match (grab, spin) {
+                        (Some(sides), _) => HudHandle::Resize(sides),
+                        (None, Some(offset)) => HudHandle::Rotate(offset),
+                        _ => HudHandle::Move,
+                    },
+                )
+            });
         e.reveal_selected = e.selected.is_some();
         e.search.clear();
         e.view_dirty = true;
@@ -504,13 +655,40 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
         let raw = ui.io().mouse_delta;
         let delta = [raw[0] / scale, -raw[1] / scale];
         let original = e.scene.actors[i].rect.clone();
+        // Position lives in the parent's layout frame and size in this element's
+        // own, so each drag is taken back through the rotation that produced the
+        // pixels it was measured against.
+        let place = boxes.get(i).copied().flatten();
+        let angle = place.as_ref().map_or(0., placement_angle);
+        let parent_angle = e
+            .scene
+            .spatial_parent(i)
+            .and_then(|parent| boxes.get(parent).copied().flatten())
+            .as_ref()
+            .map_or(0., placement_angle);
+        let pivot = place
+            .as_ref()
+            .map(|place| pivot_point(&e.scene.actors[i], place));
+        let shift = ui.io().key_shift;
         if let Some(r) = &mut e.scene.actors[i].rect {
             match handle {
                 HudHandle::Move => {
-                    r.position[0] += delta[0];
-                    r.position[1] += delta[1];
+                    let local = unrotate(delta, parent_angle);
+                    r.position[0] += local[0];
+                    r.position[1] += local[1];
                 }
-                HudHandle::Resize(sides) => resize(r, sides, delta),
+                HudHandle::Resize(sides) => resize(r, sides, unrotate(delta, angle)),
+                HudHandle::Rotate(offset) => {
+                    if let Some(pivot) = pivot {
+                        let held = (p[1] - pivot[1]).atan2(p[0] - pivot[0]).to_degrees();
+                        let value = held - offset;
+                        r.rotation = if shift {
+                            (value / 15.).round() * 15.
+                        } else {
+                            value
+                        };
+                    }
+                }
             }
         }
         if e.scene.validate().is_ok() {
@@ -522,40 +700,72 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
     }
     let draw = ui.get_window_draw_list();
     if let Some(i) = e.selected
-        && let Some(r) = boxes.get(i).copied().flatten()
+        && let Some(place) = boxes.get(i).copied().flatten()
     {
-        let a = [
-            origin[0] + r[0] * scale,
-            origin[1] + (height - r[1] - r[3]) * scale,
-        ];
-        let b = [a[0] + r[2] * scale, a[1] + r[3] * scale];
+        let screen = |q: [f32; 2]| {
+            [
+                origin[0] + q[0] * scale,
+                origin[1] + (height - q[1]) * scale,
+            ]
+        };
         let accent = [1., 0.65, 0.25, 1.];
+        let link = [0.45, 0.8, 1., 0.9];
         // Drawn smaller than it grabs, so the hit box stays forgiving without
         // the markers swallowing a small rect.
         let marker = HANDLE_HALF - 2.;
         let resizable = e.scene.actors[i].rect.is_some();
+        // Where each neighbour link lands, so a focus table reads as a graph
+        // rather than four numbers in the inspector.
+        let links: Vec<[f32; 2]> = e.scene.actors[i]
+            .focusable
+            .as_ref()
+            .map(|c| {
+                c.neighbors
+                    .iter()
+                    .filter_map(|n| usize::try_from(*n).ok())
+                    .filter_map(|n| boxes.get(n).copied().flatten())
+                    .map(|target| interpolate(&target, 0.5, 0.5))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let centre = interpolate(&place, 0.5, 0.5);
+        let ring = rotation_handle(&place, scale);
         draw.with_clip_rect(
             origin,
             [origin[0] + width * scale, origin[1] + height * scale],
             || {
-                draw.add_rect(a, b, accent).thickness(2.).build();
+                // The outline follows the transformed corners, so a rotated
+                // element is drawn where it is actually painted.
+                let [a, b, c, d] = place.corners.map(screen);
+                for (from, to) in [(a, b), (b, d), (d, c), (c, a)] {
+                    draw.add_line(from, to, accent).thickness(2.).build();
+                }
+                for target in &links {
+                    draw.add_line(screen(centre), screen(*target), link)
+                        .thickness(1.)
+                        .build();
+                }
                 if !resizable {
                     return;
                 }
                 for sides in HANDLES {
-                    let h = handle_point(r, sides);
-                    let c = [
-                        origin[0] + h[0] * scale,
-                        origin[1] + (height - h[1]) * scale,
-                    ];
+                    let h = screen(handle_point(&place, sides));
                     draw.add_rect(
-                        [c[0] - marker, c[1] - marker],
-                        [c[0] + marker, c[1] + marker],
+                        [h[0] - marker, h[1] - marker],
+                        [h[0] + marker, h[1] + marker],
                         accent,
                     )
                     .filled(true)
                     .build();
                 }
+                let h = screen(ring);
+                draw.add_line(
+                    screen(handle_point(&place, [None, Some(Side::Max)])),
+                    h,
+                    accent,
+                )
+                .build();
+                draw.add_circle(h, marker, accent).filled(true).build();
             },
         );
     }
@@ -663,10 +873,23 @@ mod tests {
             }
         }
     }
+    /// An unrotated placement: the corners are the rect's own, in the
+    /// top-left/top-right/bottom-left/bottom-right order the runtime emits.
+    fn placement(r: hud::Rect) -> hud::Placement {
+        hud::Placement {
+            rect: r,
+            corners: [
+                [r[0], r[1] + r[3]],
+                [r[0] + r[2], r[1] + r[3]],
+                [r[0], r[1]],
+                [r[0] + r[2], r[1]],
+            ],
+        }
+    }
     #[test]
     fn the_eight_handles_sit_on_the_sides_and_midpoints_they_name() {
-        let r = [10., 20., 100., 40.];
-        let points: Vec<[f32; 2]> = HANDLES.iter().map(|s| handle_point(r, *s)).collect();
+        let p = placement([10., 20., 100., 40.]);
+        let points: Vec<[f32; 2]> = HANDLES.iter().map(|s| handle_point(&p, *s)).collect();
         assert_eq!(points.len(), 8);
         assert!(points.contains(&[10., 20.]) && points.contains(&[110., 60.]));
         assert!(points.contains(&[60., 20.]) && points.contains(&[10., 40.]));
@@ -674,5 +897,59 @@ mod tests {
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         sorted.dedup();
         assert_eq!(sorted.len(), 8, "handles must not share a point");
+        assert_eq!(placement_angle(&p), 0.);
+        // The ring sits above the top edge, along the element's own up direction.
+        let ring = rotation_handle(&p, 1.);
+        assert_eq!(ring[0], 60.);
+        assert!((ring[1] - (60. + ROTATE_REACH)).abs() < 0.01);
+    }
+    #[test]
+    fn a_rotated_element_resizes_in_its_own_frame_and_reads_its_angle_back() {
+        // A quarter turn maps the element's +X to the screen's +Y, so a handle
+        // dragged that way has to come back as a width change, not a height one.
+        let (mut e, i) = panel([0.5; 2], [0.5; 2], [0.5; 2]);
+        e.scene.actors[i].rect.as_mut().unwrap().rotation = 90.;
+        let place = hud::layouts(&e.scene)[i].unwrap();
+        let angle = placement_angle(&place);
+        assert!((angle - 90.).abs() < 0.2, "angle {angle}");
+        let local = unrotate([0., 10.], angle);
+        assert!(
+            (local[0] - 10.).abs() < 0.05 && local[1].abs() < 0.05,
+            "{local:?}"
+        );
+        let before = hud::layout(&e.scene, i).unwrap();
+        resize(
+            e.scene.actors[i].rect.as_mut().unwrap(),
+            [Some(Side::Max), None],
+            local,
+        );
+        let after = hud::layout(&e.scene, i).unwrap();
+        // The layout rect stays axis-aligned: the grabbed side moved by ten and
+        // the opposite one did not move at all.
+        assert!((after[2] - before[2] - 10.).abs() < 0.05);
+        assert!((after[0] - before[0]).abs() < 0.05);
+    }
+    #[test]
+    fn the_corners_of_a_quarter_turn_swap_the_axes_about_the_pivot() {
+        let (mut e, i) = panel([0.5; 2], [0.5; 2], [0.5; 2]);
+        let square = hud::layouts(&e.scene)[i].unwrap();
+        e.scene.actors[i].rect.as_mut().unwrap().rotation = 90.;
+        let turned = hud::layouts(&e.scene)[i].unwrap();
+        // Layout is untouched by rotation; only the corners move.
+        assert_eq!(turned.rect, square.rect);
+        let centre = [
+            square.rect[0] + square.rect[2] / 2.,
+            square.rect[1] + square.rect[3] / 2.,
+        ];
+        for (before, after) in square.corners.iter().zip(&turned.corners) {
+            let expected = [
+                centre[0] - (before[1] - centre[1]),
+                centre[1] + (before[0] - centre[0]),
+            ];
+            assert!(
+                (after[0] - expected[0]).abs() < 0.05 && (after[1] - expected[1]).abs() < 0.05,
+                "{after:?} vs {expected:?}"
+            );
+        }
     }
 }

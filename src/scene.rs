@@ -164,6 +164,8 @@ pub struct BuiltinData {
     pub layout_element: Option<crate::hud::LayoutElement>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layout_container: Option<crate::hud::LayoutContainer>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focusable: Option<crate::hud::Focusable>,
     #[serde(default)]
     pub lighting: crate::lighting::MeshLighting,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -205,6 +207,7 @@ impl BuiltinData {
             progress: None,
             layout_element: None,
             layout_container: None,
+            focusable: None,
             lighting: Default::default(),
             light: None,
             blob_shadow: None,
@@ -408,11 +411,12 @@ impl Scene {
             // hidden under a container that assigns its rect wherever it lands —
             // so the move keeps the authored values instead of failing.
             let boxes = crate::hud::layouts(self);
-            if let Some(old) = boxes.get(index).copied().flatten()
+            if let Some(old) = boxes.get(index).copied().flatten().map(|p| p.rect)
                 && let Some(r) = next.rect.as_mut()
             {
                 let p = spatial_parent
                     .and_then(|p| boxes.get(p).copied().flatten())
+                    .map(|p| p.rect)
                     .unwrap_or([
                         0.,
                         0.,

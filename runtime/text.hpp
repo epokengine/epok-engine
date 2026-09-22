@@ -24,6 +24,8 @@ struct Text {
         value[n]=0;
     }
 };
-struct HudStats {uint32_t rectangles=0,glyphs=0,texts=0,images=0,dropped=0;};
+// `rotated` counts quads emitted through the rotated path; they come out of
+// hud_rotated_budget rather than the rectangle and glyph pools.
+struct HudStats {uint32_t rectangles=0,glyphs=0,texts=0,images=0,dropped=0,rotated=0;};
 inline HudStats hud_stats;
 }

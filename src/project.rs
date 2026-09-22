@@ -500,26 +500,31 @@ inline void initialize_components(){
             ));
         }
         if let Some(c) = &e.canvas {
-            text.push_str(&format!("objects[{i}].canvas.enabled={};\n", c.enabled));
+            text.push_str(&format!(
+                "objects[{i}].canvas.enabled={};objects[{i}].canvas.focused={};\n",
+                c.enabled, c.focused
+            ));
         }
         if let Some(r) = &e.rect {
             text.push_str(&format!(
-                "objects[{i}].rect=RectTransform{{true,{{{}}},{{{}}},{{{}}},{{{}}},{{{}}}}};\n",
+                "objects[{i}].rect=RectTransform{{true,{{{}}},{{{}}},{{{}}},{{{}}},{{{}}},{}}};\n",
                 vec2(&r.anchor_min),
                 vec2(&r.anchor_max),
                 vec2(&r.pivot),
                 vec2(&r.position),
-                vec2(&r.size)
+                vec2(&r.size),
+                fixed(r.rotation)
             ));
         }
         if let Some(c) = &e.image {
             text.push_str(&format!(
-                "objects[{i}].image=Image{{{},{{{}}},{},{{{}}},{{{}}}}};\n",
+                "objects[{i}].image=Image{{{},{{{}}},{},{{{}}},{{{}}},ImageTiling({})}};\n",
                 c.enabled,
                 color(&c.color),
                 c.texture.map(crate::texture::symbol).unwrap_or("-1".into()),
                 c.region.map(|v| v.to_string()).join(","),
-                c.borders.map(|v| v.to_string()).join(",")
+                c.borders.map(|v| v.to_string()).join(","),
+                c.tiling as u8
             ));
         }
         if let Some(c) = &e.text {
@@ -557,6 +562,19 @@ inline void initialize_components(){
                 vec2(&c.spacing),
                 c.padding.map(fixed).join(","),
                 c.columns
+            ));
+        }
+        if let Some(c) = &e.focusable {
+            text.push_str(&format!(
+                "objects[{i}].focusable=Focusable{{{},{{{}}},{},{{{}}}}};\n",
+                c.enabled,
+                c.neighbors.map(|v| v.to_string()).join(","),
+                c.order,
+                c.highlight
+                    .iter()
+                    .map(|v| ((v.clamp(0., 1.) * 255.).round() as u8).to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
             ));
         }
     }
@@ -885,6 +903,7 @@ fn stage_with_playback(
         hud_budget.rectangles = hud_budget.rectangles.max(bank.hud_budget.rectangles);
         hud_budget.texts = hud_budget.texts.max(bank.hud_budget.texts);
         hud_budget.glyphs = hud_budget.glyphs.max(bank.hud_budget.glyphs);
+        hud_budget.rotated = hud_budget.rotated.max(bank.hud_budget.rotated);
     }
     let mut timeline_scenes = banks.clone();
     timeline_scenes.extend(templates.iter().map(|t| t.scene.clone()));
@@ -951,6 +970,7 @@ fn stage_with_playback(
             .max(template.scene.hud_budget.rectangles);
         hud_budget.texts = hud_budget.texts.max(template.scene.hud_budget.texts);
         hud_budget.glyphs = hud_budget.glyphs.max(template.scene.hud_budget.glyphs);
+        hud_budget.rotated = hud_budget.rotated.max(template.scene.hud_budget.rotated);
     }
     let playback_sources = || {
         timelines
@@ -1215,6 +1235,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "hud_core.hpp",
             include_bytes!("../runtime/hud_core.hpp").as_slice(),
+        ),
+        (
+            "hud_focus.hpp",
+            include_bytes!("../runtime/hud_focus.hpp").as_slice(),
         ),
         (
             "serial_kernel.hpp",
@@ -2304,6 +2328,39 @@ mod tests {
             q(12288),
             q(16384)
         )));
+        // Tiling, rotation, canvas focus and the focus table are appended to the
+        // aggregates they belong to, so the positional forms must show them last.
+        s.actors[index].image = Some(crate::hud::Image {
+            color: [0.; 3],
+            enabled: true,
+            texture: None,
+            region: [1, 2, 64, 64],
+            borders: [5, 6, 7, 8],
+            tiling: crate::hud::ImageTiling::TileFit,
+        });
+        s.actors[index].rect.as_mut().unwrap().rotation = 45.;
+        s.actors[index].focusable = Some(crate::hud::Focusable {
+            enabled: true,
+            neighbors: [3, -1, 0, 2],
+            order: 7,
+            highlight: [1., 0.5, 0.],
+        });
+        s.actors[canvas].canvas.as_mut().unwrap().focused = 1;
+        s.sync_actor_components();
+        let header = scene_header(&s, &[]).unwrap();
+        assert!(header.contains(&format!(
+            "objects[{index}].image=Image{{true,{{0,0,0}},-1,{{1,2,64,64}},{{5,6,7,8}},ImageTiling(2)}};"
+        )));
+        assert!(header.contains(&format!(
+            ",{{{},{}}},{}}};",
+            q(409600),
+            q(131072),
+            q(184320)
+        )));
+        assert!(header.contains(&format!(
+            "objects[{index}].focusable=Focusable{{true,{{3,-1,0,2}},7,{{255,128,0}}}};"
+        )));
+        assert!(header.contains(&format!("objects[{canvas}].canvas.focused=1;")));
     }
     #[test]
     fn missing_script_fails_before_build() {

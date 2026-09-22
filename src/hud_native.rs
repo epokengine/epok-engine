@@ -5,7 +5,7 @@ use crate::{hud, scene::Scene};
 /// it, so a cached executable built from an older header is rejected instead of
 /// being misread. Bump on any frame-header or command-record change.
 pub const HUD_PREVIEW_MAGIC: u32 = 0x3144_5548; // "HUD1"
-pub const HUD_PREVIEW_PROTOCOL_VERSION: u32 = 3;
+pub const HUD_PREVIEW_PROTOCOL_VERSION: u32 = 4;
 /// The child runs gameplay: BeginPlay/start, update, frame_update. Clear in the
 /// edit phase, which only calls `editor_preview` construction hooks.
 pub const HUD_PREVIEW_CAP_SIMULATE: u32 = 1;
@@ -20,8 +20,12 @@ pub const HUD_PREVIEW_CAP_BLUEPRINT: u32 = 2;
 struct Node {
     parent: i32,
     flags: i32,
-    rect: [i32; 10],
+    /// Anchor min/max, pivot, position and size in Q12, then the rotation in
+    /// Q12 degrees.
+    rect: [i32; 11],
     texture: i32,
+    /// 0 None, 1 Tile, 2 TileFit.
+    tiling: i32,
     image_color: [i32; 3],
     region: [i32; 4],
     borders: [i32; 4],
@@ -31,11 +35,15 @@ struct Node {
     layout_element: [i32; 5],
     /// Kind, spacing x/y, padding left/top/right/bottom, columns.
     layout_container: [i32; 8],
+    /// Enabled, four neighbour actor indices, tab order, highlight r/g/b.
+    focusable: [i32; 9],
+    /// This node's Canvas focus index, or -1.
+    canvas_focused: i32,
     text: [u8; 512],
 }
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct Command(pub [i32; 16]);
+pub struct Command(pub [i32; 24]);
 unsafe extern "C" {
     fn epok_hud_compile(
         nodes: *const Node,
@@ -65,15 +73,18 @@ fn fixed(v: f32) -> i32 {
 fn color(v: [f32; 3]) -> [i32; 3] {
     v.map(|v| (v.clamp(0., 1.) * 255.).round() as i32)
 }
-fn rect(r: &hud::RectTransform) -> [i32; 10] {
-    let mut values = [0; 10];
-    for (out, input) in
-        values
-            .chunks_exact_mut(2)
-            .zip([r.anchor_min, r.anchor_max, r.pivot, r.position, r.size])
-    {
+fn rect(r: &hud::RectTransform) -> [i32; 11] {
+    let mut values = [0; 11];
+    for (out, input) in values[..10].chunks_exact_mut(2).zip([
+        r.anchor_min,
+        r.anchor_max,
+        r.pivot,
+        r.position,
+        r.size,
+    ]) {
         out.copy_from_slice(&input.map(fixed));
     }
+    values[10] = fixed(r.rotation);
     values
 }
 /// One rect against one parent, the anchor math on its own. `layouts` replaced it
@@ -104,6 +115,7 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<Node> {
                 flags: 1 | if e.active { 2 } else { 0 },
                 rect: rect(&e.rect.clone().unwrap_or_default()),
                 texture: -1,
+                tiling: 0,
                 image_color: [0; 3],
                 region: [0; 4],
                 borders: [0; 4],
@@ -111,10 +123,15 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<Node> {
                 progress: [0; 7],
                 layout_element: [1, 1, 0, 0, 0],
                 layout_container: [0, 0, 0, 0, 0, 0, 0, 1],
+                focusable: [0, -1, -1, -1, -1, 0, 255, 255, 255],
+                canvas_focused: -1,
                 text: [0; 512],
             };
-            if e.canvas.as_ref().is_some_and(|c| c.enabled) {
-                n.flags |= 4;
+            if let Some(c) = &e.canvas {
+                if c.enabled {
+                    n.flags |= 4;
+                }
+                n.canvas_focused = c.focused;
             }
             if e.rect.is_some() {
                 n.flags |= 8;
@@ -130,6 +147,7 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<Node> {
                 n.image_color = color(c.color);
                 n.region = c.region.map(i32::from);
                 n.borders = c.borders.map(i32::from);
+                n.tiling = i32::from(c.tiling as u8);
             }
             if let Some(c) = &e.text {
                 if c.enabled {
@@ -172,6 +190,15 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<Node> {
                 n.layout_container[3..7].copy_from_slice(&c.padding.map(fixed));
                 n.layout_container[7] = i32::from(c.columns);
             }
+            if let Some(c) = &e.focusable {
+                if c.enabled {
+                    n.flags |= 1024;
+                }
+                n.focusable[0] = i32::from(c.enabled);
+                n.focusable[1..5].copy_from_slice(&c.neighbors);
+                n.focusable[5] = i32::from(c.order);
+                n.focusable[6..9].copy_from_slice(&color(c.highlight));
+            }
             n
         })
         .collect()
@@ -186,7 +213,7 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<Node> {
 /// visibility and becomes geometry — it decides whether the child takes a cell —
 /// so there the authored flag is passed through and the outlines keep agreeing
 /// with the pixels the same core produces.
-pub fn layouts(scene: &Scene) -> Vec<Option<hud::Rect>> {
+pub fn layouts(scene: &Scene) -> Vec<Option<hud::Placement>> {
     let ids = crate::texture::ids(scene);
     let mut nodes = nodes(scene, &ids);
     for (i, n) in nodes.iter_mut().enumerate() {
@@ -202,7 +229,7 @@ pub fn layouts(scene: &Scene) -> Vec<Option<hud::Rect>> {
             n.flags |= 4;
         }
     }
-    let mut out = vec![0; nodes.len() * 4];
+    let mut out = vec![0; nodes.len() * 12];
     unsafe {
         epok_hud_layout(
             nodes.as_ptr(),
@@ -217,16 +244,21 @@ pub fn layouts(scene: &Scene) -> Vec<Option<hud::Rect>> {
         .iter()
         .enumerate()
         .map(|(i, e)| {
-            let q12 = [out[i * 4], out[i * 4 + 1], out[i * 4 + 2], out[i * 4 + 3]];
+            let node = &out[i * 12..i * 12 + 12];
+            let q12: [i32; 4] = node[..4].try_into().unwrap();
             // The core zeroes a node it did not lay out. An element that really
             // resolved to an empty rect at the origin has no rectangle on screen
             // either, so both answer the caller the same way.
-            ((e.canvas.is_some() || e.rect.is_some()) && q12 != [0; 4])
-                .then(|| q12.map(|v| v as f32 / 4096.))
+            ((e.canvas.is_some() || e.rect.is_some()) && q12 != [0; 4]).then(|| hud::Placement {
+                rect: q12.map(|v| v as f32 / 4096.),
+                corners: std::array::from_fn(|k| {
+                    [node[4 + k * 2], node[5 + k * 2]].map(|v| v as f32 / 4096.)
+                }),
+            })
         })
         .collect()
 }
-pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
+pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 6]) {
     let ids = crate::texture::ids(scene);
     let dimensions: Vec<i32> = ids
         .iter()
@@ -244,9 +276,10 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
         b.rectangles as u32,
         b.texts as u32,
         b.glyphs as u32,
+        b.rotated as u32,
     ];
-    let mut commands = vec![Command::default(); b.rectangles + b.glyphs];
-    let mut stats = [0; 5];
+    let mut commands = vec![Command::default(); b.rectangles + b.glyphs + b.rotated];
+    let mut stats = [0; 6];
     let count = unsafe {
         epok_hud_compile(
             nodes.as_ptr(),
@@ -299,6 +332,98 @@ fn render_with_background(
         })
         .collect();
     for Command(c) in commands {
+        // Kinds 3, 4 and 5 carry four screen corners instead of a box: fill them
+        // as two triangles and interpolate the source corners barycentrically.
+        if c[0] >= 3 {
+            let rgb = [c[11], c[12], c[13]].map(|v| v.clamp(0, 255) as u8);
+            let corner: [[f32; 2]; 4] =
+                std::array::from_fn(|i| [c[3 + i * 2] as f32, c[4 + i * 2] as f32]);
+            let source: [[f32; 2]; 4] =
+                std::array::from_fn(|i| [c[14 + i * 2] as f32, c[15 + i * 2] as f32]);
+            let glyph = if c[0] == 5 {
+                let ch = if c[2] <= 126 {
+                    char::from_u32(c[2] as u32)
+                } else {
+                    crate::bitmap_font::EXTRA.chars().nth((c[2] - 127) as usize)
+                };
+                match ch.and_then(crate::bitmap_font::glyph) {
+                    Some(g) => Some(g),
+                    None => continue,
+                }
+            } else {
+                None
+            };
+            let texture = if c[0] == 4 {
+                match textures.get(c[2] as usize).and_then(|t| t.as_ref()) {
+                    Some(t) => Some(t),
+                    None => continue,
+                }
+            } else {
+                None
+            };
+            // A and B before C and D: the corners arrive in the Z order the
+            // console's quad class wants, so the two triangles share edge B-C.
+            for [i, j, k] in [[0usize, 1, 2], [1, 2, 3]] {
+                let (a, b, d) = (corner[i], corner[j], corner[k]);
+                let area = (b[0] - a[0]) * (d[1] - a[1]) - (b[1] - a[1]) * (d[0] - a[0]);
+                if area.abs() < 1e-3 {
+                    continue;
+                }
+                let low = |axis: usize| a[axis].min(b[axis]).min(d[axis]).floor().max(0.) as i32;
+                let high = |axis: usize, limit: usize| {
+                    a[axis].max(b[axis]).max(d[axis]).ceil().min(limit as f32) as i32
+                };
+                for y in low(1)..high(1, height) {
+                    for x in low(0)..high(0, width) {
+                        let p = [x as f32 + 0.5, y as f32 + 0.5];
+                        let e0 =
+                            ((b[0] - p[0]) * (d[1] - p[1]) - (b[1] - p[1]) * (d[0] - p[0])) / area;
+                        let e1 =
+                            ((d[0] - p[0]) * (a[1] - p[1]) - (d[1] - p[1]) * (a[0] - p[0])) / area;
+                        let e2 = 1. - e0 - e1;
+                        if e0 < 0. || e1 < 0. || e2 < 0. {
+                            continue;
+                        }
+                        let uv = [0usize, 1].map(|axis| {
+                            e0 * source[i][axis] + e1 * source[j][axis] + e2 * source[k][axis]
+                        });
+                        let result = if let Some(g) = glyph {
+                            let (u, v) = (uv[0] as i32, uv[1] as i32);
+                            ((0..8).contains(&u)
+                                && (0..16).contains(&v)
+                                && g[v as usize] & (1 << u) != 0)
+                                .then_some(rgb)
+                        } else if let Some((t, rgba)) = texture {
+                            let (u, v) = (uv[0] as i32, uv[1] as i32);
+                            if u < 0 || v < 0 || u >= i32::from(t.width) || v >= i32::from(t.height)
+                            {
+                                None
+                            } else {
+                                let offset = (v as usize * usize::from(t.width) + u as usize) * 4;
+                                (rgba[offset + 3] != 0).then(|| {
+                                    std::array::from_fn(|channel| {
+                                        let gain = u32::from(rgb[channel]).div_ceil(2);
+                                        let five = ((u32::from(rgba[offset + channel]) >> 3) * gain
+                                            / 128)
+                                            .min(31)
+                                            as u8;
+                                        (five << 3) | (five >> 2)
+                                    })
+                                })
+                            }
+                        } else {
+                            Some(rgb)
+                        };
+                        if let Some(rgb) = result {
+                            let offset = (y as usize * width + x as usize) * 4;
+                            pixels[offset..offset + 3].copy_from_slice(&rgb);
+                            pixels[offset + 3] = 255;
+                        }
+                    }
+                }
+            }
+            continue;
+        }
         let [x0, y0, x1, y1] = [c[3], c[4], c[5], c[6]];
         if x1 <= x0 || y1 <= y0 {
             continue;
@@ -398,10 +523,10 @@ mod tests {
     /// on one side without the other would otherwise be read as garbage.
     #[test]
     fn the_wire_node_matches_the_protocol_it_declares() {
-        const FIELDS: usize = 1 + 1 + 10 + 1 + 3 + 4 + 4 + 3 + 7 + 5 + 8;
+        const FIELDS: usize = 1 + 1 + 11 + 1 + 1 + 3 + 4 + 4 + 3 + 7 + 5 + 8 + 9 + 1;
         assert_eq!(size_of::<Node>(), FIELDS * 4 + 512);
         assert_eq!(align_of::<Node>(), 4);
-        assert_eq!(HUD_PREVIEW_PROTOCOL_VERSION, 3);
+        assert_eq!(HUD_PREVIEW_PROTOCOL_VERSION, 4);
     }
     #[test]
     fn dynamic_budget_and_disabled_parent_match_console() {
@@ -422,7 +547,7 @@ mod tests {
         s.hud_budget.rectangles = 2;
         let (commands, stats) = compile(&s);
         assert_eq!(commands.len(), 2);
-        assert_eq!(stats, [2, 0, 0, 0, 1]);
+        assert_eq!(stats, [2, 0, 0, 0, 1, 0]);
         s.actors[0].active = false;
         assert!(compile(&s).0.is_empty());
     }

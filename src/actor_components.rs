@@ -51,6 +51,7 @@ pub fn native(id: &str) -> bool {
             | om::PROGRESS_BAR_COMPONENT_ID
             | om::LAYOUT_ELEMENT_COMPONENT_ID
             | om::LAYOUT_CONTAINER_COMPONENT_ID
+            | om::FOCUSABLE_COMPONENT_ID
             | om::AUDIO_COMPONENT_ID
             | PARTICLES
             | TIMELINE
@@ -133,6 +134,7 @@ pub fn sync(actor: &mut ActorInstance) {
         progress,
         layout_element,
         layout_container,
+        focusable,
         particle_emitter,
         palette_animator,
         blob_shadow,
@@ -272,6 +274,12 @@ pub fn sync(actor: &mut ActorInstance) {
             "epok::LayoutContainerComponent",
             "Layout Container"
         );
+        optional!(
+            focusable,
+            om::FOCUSABLE_COMPONENT_ID,
+            "epok::FocusableComponent",
+            "Focusable"
+        );
     }
     optional!(
         audio,
@@ -381,6 +389,9 @@ pub fn read(actor: &mut ActorInstance) {
             om::LAYOUT_CONTAINER_COMPONENT_ID => {
                 data.layout_container = Some(decoded(p, "layout_container").unwrap_or_default())
             }
+            om::FOCUSABLE_COMPONENT_ID => {
+                data.focusable = Some(decoded(p, "focusable").unwrap_or_default())
+            }
             PARTICLES => {
                 data.particle_emitter = Some(decoded(p, "particle_emitter").unwrap_or_default())
             }
@@ -483,6 +494,9 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
         }
         om::LAYOUT_CONTAINER_COMPONENT_ID => {
             check!("layout_container", crate::hud::LayoutContainer);
+        }
+        om::FOCUSABLE_COMPONENT_ID => {
+            check!("focusable", crate::hud::Focusable);
         }
         PARTICLES => {
             check!("particle_emitter", crate::particles::Emitter);

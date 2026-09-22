@@ -132,6 +132,7 @@ fn browser_inner(
                     "HUD Progress",
                     "HUD Layout Element",
                     "HUD Layout Container",
+                    "HUD Focusable",
                     "Blob Shadow",
                 ] {
                     if super::choose(ui, name) {
@@ -243,7 +244,12 @@ fn add_component(entity: &mut Actor, parent: Option<&Actor>, name: &str) -> Resu
     }
     if matches!(
         name,
-        "HUD Image" | "HUD Text" | "HUD Progress" | "HUD Layout Element" | "HUD Layout Container"
+        "HUD Image"
+            | "HUD Text"
+            | "HUD Progress"
+            | "HUD Layout Element"
+            | "HUD Layout Container"
+            | "HUD Focusable"
     ) && (entity.kind != "Empty"
         || !parent.is_some_and(|parent| parent.canvas.is_some() || parent.rect.is_some()))
     {
@@ -282,6 +288,10 @@ fn add_component(entity: &mut Actor, parent: Option<&Actor>, name: &str) -> Resu
             entity.layout_container.get_or_insert_with(Default::default);
             entity.rect.get_or_insert_with(Default::default);
         }
+        "HUD Focusable" => {
+            entity.focusable.get_or_insert_with(Default::default);
+            entity.rect.get_or_insert_with(Default::default);
+        }
         "Blob Shadow" => {
             entity.blob_shadow.get_or_insert_with(Default::default);
         }
@@ -304,6 +314,7 @@ fn component_names(entity: &Actor) -> Vec<&'static str> {
         (entity.progress.is_some(), "HUD Progress"),
         (entity.layout_element.is_some(), "HUD Layout Element"),
         (entity.layout_container.is_some(), "HUD Layout Container"),
+        (entity.focusable.is_some(), "HUD Focusable"),
         (entity.blob_shadow.is_some(), "Blob Shadow"),
     ] {
         if present {
@@ -471,6 +482,7 @@ fn draw_inner(
                 "HUD Progress",
                 "HUD Layout Element",
                 "HUD Layout Container",
+                "HUD Focusable",
                 "Blob Shadow",
             ] {
                 if ui.selectable(name) {
@@ -479,7 +491,7 @@ fn draw_inner(
             }
         }
         crate::lighting_editor::inspector(ui, &mut entity);
-        crate::hud_editor::inspector(ui, &mut entity);
+        crate::hud_editor::inspector(ui, &mut entity, &[]);
         crate::shadows::inspector(ui, &mut entity);
         if entity != old {
             apply_entity_changes(&mut doc.template, &old, &entity)?;

@@ -8,6 +8,9 @@ pub struct Budget {
     pub rectangles: usize,
     pub texts: usize,
     pub glyphs: usize,
+    /// Quads emitted by rotated elements. They sit in their own double-buffered
+    /// polygon pools, so an unrotated HUD pays nothing for this.
+    pub rotated: usize,
 }
 impl Default for Budget {
     fn default() -> Self {
@@ -16,6 +19,7 @@ impl Default for Budget {
             rectangles: 256,
             texts: 64,
             glyphs: 1024,
+            rotated: 128,
         }
     }
 }
@@ -29,9 +33,11 @@ impl Budget {
             || self.texts > 64
             || self.glyphs == 0
             || self.glyphs > 2048
+            || self.rotated == 0
+            || self.rotated > 512
         {
             return Err(
-                "HUD budgets: layouts 1..128, rectangles 1..512, texts 1..64, glyphs 1..2048"
+                "HUD budgets: layouts 1..128, rectangles 1..512, texts 1..64, glyphs 1..2048, rotated 1..512"
                     .into(),
             );
         }
@@ -40,8 +46,8 @@ impl Budget {
     pub fn header(&self) -> Result<String, String> {
         self.validate()?;
         Ok(format!(
-            "#pragma once\nnamespace epok {{\ninline constexpr unsigned hud_layout_budget={};\ninline constexpr unsigned hud_rectangle_budget={};\ninline constexpr unsigned hud_text_budget={};\ninline constexpr unsigned hud_glyph_budget={};\n}}\n",
-            self.layouts, self.rectangles, self.texts, self.glyphs
+            "#pragma once\nnamespace epok {{\ninline constexpr unsigned hud_layout_budget={};\ninline constexpr unsigned hud_rectangle_budget={};\ninline constexpr unsigned hud_text_budget={};\ninline constexpr unsigned hud_glyph_budget={};\ninline constexpr unsigned hud_rotated_budget={};\n}}\n",
+            self.layouts, self.rectangles, self.texts, self.glyphs, self.rotated
         ))
     }
 }
@@ -61,10 +67,16 @@ pub fn stage(build: &std::path::Path, budget: &Budget) -> Result<(), String> {
 #[serde(default)]
 pub struct Canvas {
     pub enabled: bool,
+    /// The focused element, as an actor index, or -1. The authored initial focus
+    /// and the runtime's current focus are this one field.
+    pub focused: i32,
 }
 impl Default for Canvas {
     fn default() -> Self {
-        Self { enabled: true }
+        Self {
+            enabled: true,
+            focused: -1,
+        }
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -75,6 +87,10 @@ pub struct RectTransform {
     pub pivot: [f32; 2],
     pub position: [f32; 2],
     pub size: [f32; 2],
+    /// Degrees about the pivot. Layout stays axis-aligned; only the emitted
+    /// primitives turn, and zero emits exactly what an unrotated element emits.
+    #[serde(default)]
+    pub rotation: f32,
 }
 impl Default for RectTransform {
     fn default() -> Self {
@@ -84,6 +100,7 @@ impl Default for RectTransform {
             pivot: [0.5; 2],
             position: [0.; 2],
             size: [100., 32.],
+            rotation: 0.,
         }
     }
 }
@@ -97,6 +114,9 @@ pub struct Image {
     pub region: [u16; 4],
     /// Nine-slice borders in source pixels: left, top, right, bottom.
     pub borders: [u16; 4],
+    /// How the source region fills the rect. With nine-slice borders only the
+    /// centre piece tiles; the corners and edges keep their stretch.
+    pub tiling: ImageTiling,
 }
 impl Default for Image {
     fn default() -> Self {
@@ -106,6 +126,37 @@ impl Default for Image {
             texture: None,
             region: [0; 4],
             borders: [0; 4],
+            tiling: ImageTiling::None,
+        }
+    }
+}
+/// Mirrors `epok::ImageTiling`. The numbering is pinned: saved Blueprint graphs
+/// store it, so the type only ever grows at the end.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[repr(u8)]
+pub enum ImageTiling {
+    #[default]
+    None = 0,
+    Tile = 1,
+    TileFit = 2,
+}
+impl From<u8> for ImageTiling {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => Self::Tile,
+            2 => Self::TileFit,
+            _ => Self::None,
+        }
+    }
+}
+impl ImageTiling {
+    pub const ALL: [Self; 3] = [Self::None, Self::Tile, Self::TileFit];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::Tile => "Tile",
+            Self::TileFit => "Tile Fit",
         }
     }
 }
@@ -236,7 +287,43 @@ impl Default for LayoutContainer {
         }
     }
 }
+/// Per-child focus and D-pad navigation, read by the runtime's focus pass.
+///
+/// `neighbors` holds actor indices rather than actor UUIDs. No other
+/// `BuiltinData` component references another actor — the UUID references in a
+/// document are `logical_parent` and `attach`, both on the actor itself — so
+/// there is no remapping precedent to follow here, and the runtime table is
+/// indices either way. Reordering actors therefore rewrites these by hand.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Focusable {
+    pub enabled: bool,
+    /// Left, right, up, down; -1 for no neighbour that way.
+    pub neighbors: [i32; 4],
+    pub order: u8,
+    /// Multiplied into the image and fill colours while this element is focused.
+    pub highlight: [f32; 3],
+}
+impl Default for Focusable {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            neighbors: [-1; 4],
+            order: 0,
+            highlight: [1.; 3],
+        }
+    }
+}
 pub type Rect = [f32; 4]; // bottom-left x/y, width/height; positive Y points upward.
+/// Where one element sits: the axis-aligned rect the layout pass decided, and
+/// the four corners it really occupies once rotation is applied — top-left,
+/// top-right, bottom-left, bottom-right, in HUD space with +Y up. Without
+/// rotation the corners are simply the rect's own.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Placement {
+    pub rect: Rect,
+    pub corners: [[f32; 2]; 4],
+}
 #[allow(dead_code)]
 pub fn resolve(parent: Rect, r: &RectTransform) -> Rect {
     crate::hud_native::resolve(parent, r)
@@ -244,7 +331,7 @@ pub fn resolve(parent: Rect, r: &RectTransform) -> Rect {
 /// Every actor's resolved HUD rect, measured and arranged by the shared runtime
 /// core in one call. Containers make a rect depend on its siblings, so the whole
 /// scene is laid out at once and the viewport indexes the result.
-pub fn layouts(scene: &Scene) -> Vec<Option<Rect>> {
+pub fn layouts(scene: &Scene) -> Vec<Option<Placement>> {
     crate::hud_native::layouts(scene)
 }
 /// One actor's rect. Laying a scene out costs one pass whatever is asked of it,
@@ -252,7 +339,7 @@ pub fn layouts(scene: &Scene) -> Vec<Option<Rect>> {
 /// readable form for the tests that want a single rectangle.
 #[cfg(test)]
 pub fn layout(scene: &Scene, index: usize) -> Option<Rect> {
-    layouts(scene).get(index).copied().flatten()
+    layouts(scene).get(index).copied().flatten().map(|p| p.rect)
 }
 pub fn order(scene: &Scene) -> Vec<usize> {
     fn visit(s: &Scene, i: usize, out: &mut Vec<usize>) {
@@ -310,10 +397,12 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
                     "RectTransform needs a Canvas or RectTransform parent and no 3D mesh".into(),
                 );
             }
-            if r.position
-                .iter()
-                .chain(&r.size)
-                .any(|v| !v.is_finite() || v.abs() > 1024.)
+            if !r.rotation.is_finite()
+                || r.rotation.abs() > 3600.
+                || r.position
+                    .iter()
+                    .chain(&r.size)
+                    .any(|v| !v.is_finite() || v.abs() > 1024.)
                 || (0..2).any(|i| {
                     !r.anchor_min[i].is_finite()
                         || !r.anchor_max[i].is_finite()
@@ -325,7 +414,8 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
                 })
             {
                 return Err(
-                    "Invalid RectTransform: anchors/pivot 0..1, position/size within ±1024".into(),
+                    "Invalid RectTransform: anchors/pivot 0..1, position/size within ±1024, rotation within ±3600 degrees"
+                        .into(),
                 );
             }
         }
@@ -333,7 +423,8 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
             || e.text.is_some()
             || e.progress.is_some()
             || e.layout_element.is_some()
-            || e.layout_container.is_some())
+            || e.layout_container.is_some()
+            || e.focusable.is_some())
             && e.rect.is_none()
         {
             return Err("HUD graphics require RectTransform".into());
@@ -360,6 +451,23 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
                 "Invalid Layout Element: minimum 0..1024 and stretch zero or greater".into(),
             );
         }
+        if let Some(c) = &e.focusable {
+            let count = scene.actors.len() as i32;
+            if c.neighbors.iter().any(|n| *n < -1 || *n >= count)
+                || c.highlight
+                    .iter()
+                    .any(|v| !v.is_finite() || !(0. ..=1.).contains(v))
+            {
+                return Err(
+                    "Invalid Focusable: neighbours are actor indices or -1, highlight 0..1".into(),
+                );
+            }
+        }
+        if let Some(c) = &e.canvas
+            && (c.focused < -1 || c.focused >= scene.actors.len() as i32)
+        {
+            return Err("Canvas initial focus must be an actor index or -1".into());
+        }
         let valid_color = |c: &[f32; 3]| c.iter().all(|v| v.is_finite() && (0. ..=1.).contains(v));
         if e.image.as_ref().is_some_and(|c| !valid_color(&c.color))
             || e.text.as_ref().is_some_and(|c| !valid_color(&c.color))
@@ -380,34 +488,83 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
             crate::texture::validate_region(i.texture, i.region, scene)?;
         }
     }
-    let glyphs: usize = scene
-        .actors
-        .iter()
-        .filter_map(|e| e.text.as_ref())
-        .filter(|t| t.enabled)
-        .map(|t| t.text.chars().filter(|c| *c != '\n').count())
-        .sum();
-    let rectangles: usize = scene
-        .actors
-        .iter()
-        .map(|e| {
-            e.image.as_ref().filter(|v| v.enabled).map_or(0, |v| {
-                if v.borders.iter().any(|b| *b > 0) {
-                    9
-                } else {
-                    1
-                }
-            }) + 2 * usize::from(e.progress.as_ref().is_some_and(|v| v.enabled))
-        })
-        .sum();
+    // Tiling multiplies one image into many, and a rotated element draws from
+    // the rotated pool instead of the rectangle and glyph pools, so the three
+    // counts are accumulated together over the laid-out rects the runtime sees.
+    let places = layouts(scene);
+    let (mut glyphs, mut rectangles, mut rotated) = (0usize, 0usize, 0usize);
+    for (i, e) in scene.actors.iter().enumerate() {
+        let size = places
+            .get(i)
+            .copied()
+            .flatten()
+            .map_or([0., 0.], |p| [p.rect[2], p.rect[3]]);
+        let pictures = e.image.as_ref().filter(|v| v.enabled).map_or(0, |v| {
+            let dimensions = v
+                .texture
+                .and_then(|id| scene.textures.get(&id))
+                .map_or([256, 256], |t| [t.width, t.height]);
+            image_primitives(v, dimensions, size)
+        }) + 2 * usize::from(e.progress.as_ref().is_some_and(|v| v.enabled));
+        let letters = e
+            .text
+            .as_ref()
+            .filter(|t| t.enabled)
+            .map_or(0, |t| t.text.chars().filter(|c| *c != '\n').count());
+        if e.rect.as_ref().is_some_and(|r| r.rotation != 0.) {
+            rotated += pictures + letters;
+        } else {
+            rectangles += pictures;
+            glyphs += letters;
+        }
+    }
     if texts > scene.hud_budget.texts
         || scene.actors.iter().filter(|e| e.rect.is_some()).count() > scene.hud_budget.layouts
         || glyphs > scene.hud_budget.glyphs
         || rectangles > scene.hud_budget.rectangles
+        || rotated > scene.hud_budget.rotated
     {
-        return Err("Scene exceeds its configured HUD layout/text/glyph/rectangle budget".into());
+        return Err(
+            "Scene exceeds its configured HUD layout/text/glyph/rectangle/rotated budget".into(),
+        );
     }
     Ok(())
+}
+/// How many textured quads one Image draws, the way `hud_core::picture` counts
+/// them: one per nine-slice piece, and one per tile of the piece that tiles.
+/// `size` is the resolved rect in HUD pixels; it is only an upper bound for a
+/// nine-sliced centre, which is smaller than the whole rect.
+fn image_primitives(image: &Image, dimensions: [u16; 2], size: [f32; 2]) -> usize {
+    let source = [0usize, 1].map(|i| {
+        if image.region[i + 2] > 0 {
+            u32::from(image.region[i + 2])
+        } else {
+            u32::from(dimensions[i].saturating_sub(image.region[i]))
+        }
+    });
+    let tiles = if image.tiling == ImageTiling::None {
+        1
+    } else {
+        [0usize, 1]
+            .map(|i| {
+                let extent = size[i].max(0.).round() as u32;
+                if source[i] == 0 {
+                    return 1;
+                }
+                match image.tiling {
+                    ImageTiling::TileFit => (extent + source[i] / 2) / source[i],
+                    _ => extent.div_ceil(source[i]),
+                }
+                .max(1) as usize
+            })
+            .iter()
+            .product()
+    };
+    if image.borders.iter().any(|b| *b > 0) {
+        8 + tiles
+    } else {
+        tiles
+    }
 }
 #[cfg(test)]
 pub fn render(scene: &Scene) -> Vec<u8> {
@@ -470,6 +627,7 @@ mod tests {
             pivot: [0., 1.],
             position: [12., -12.],
             size: [180., 64.],
+            ..Default::default()
         });
         p.image = Some(Image {
             color: [0., 0., 1.],
@@ -502,6 +660,7 @@ mod tests {
             pivot: [0.5; 2],
             position: [0.; 2],
             size: [-16., -16.],
+            ..Default::default()
         });
         s.actors.push(child);
         s.sync_actor_components();
@@ -545,7 +704,7 @@ mod tests {
         s.sync_actor_components();
         s.validate().unwrap();
         // The canvas is 320x240 and the box hangs from its top-left corner.
-        let boxes = layouts(&s);
+        let boxes: Vec<Option<Rect>> = layouts(&s).iter().map(|p| p.map(|p| p.rect)).collect();
         assert_eq!(boxes[1], Some([0., 120., 200., 120.]));
         // Each label measures 50x20 from its rect, wider and taller than the 48x16
         // the unwrapped text needs; Fill is the default on both axes.
@@ -556,7 +715,7 @@ mod tests {
         assert_eq!(layout(&s, 4), boxes[4]);
         // Hiding the middle label closes the list up instead of leaving its gap.
         s.actors[3].active = false;
-        let boxes = layouts(&s);
+        let boxes: Vec<Option<Rect>> = layouts(&s).iter().map(|p| p.map(|p| p.rect)).collect();
         assert_eq!(boxes[2], Some([0., 220., 200., 20.]));
         assert_eq!(boxes[3], None);
         assert_eq!(boxes[4], Some([0., 190., 200., 20.]));
@@ -579,6 +738,139 @@ mod tests {
         }
         assert_eq!(LayoutKind::from(9), LayoutKind::None);
         assert_eq!(LayoutKind::ALL.len(), 6);
+    }
+    #[test]
+    fn tiling_and_focus_round_trip_through_serde_and_their_pinned_numbering() {
+        for (tiling, name, value) in [
+            (ImageTiling::None, "none", 0u8),
+            (ImageTiling::Tile, "tile", 1),
+            (ImageTiling::TileFit, "tile_fit", 2),
+        ] {
+            assert_eq!(tiling as u8, value);
+            assert_eq!(ImageTiling::from(value), tiling);
+            let text = serde_json::to_string(&tiling).unwrap();
+            assert_eq!(text, format!("\"{name}\""));
+            assert_eq!(serde_json::from_str::<ImageTiling>(&text).unwrap(), tiling);
+        }
+        assert_eq!(ImageTiling::from(9), ImageTiling::None);
+        assert_eq!(ImageTiling::ALL.len(), 3);
+        let focus = Focusable {
+            enabled: true,
+            neighbors: [3, -1, 0, 7],
+            order: 4,
+            highlight: [0.5, 1., 0.25],
+        };
+        let text = serde_json::to_string(&focus).unwrap();
+        assert_eq!(serde_json::from_str::<Focusable>(&text).unwrap(), focus);
+        // Every field carries a default, so a document written before this
+        // component existed still loads.
+        assert_eq!(
+            serde_json::from_str::<Focusable>("{}").unwrap(),
+            Focusable::default()
+        );
+        assert_eq!(
+            serde_json::from_str::<Canvas>("{\"enabled\":true}")
+                .unwrap()
+                .focused,
+            -1
+        );
+        assert_eq!(
+            serde_json::from_str::<RectTransform>("{}")
+                .unwrap()
+                .rotation,
+            0.
+        );
+    }
+    #[test]
+    fn tiles_and_rotated_elements_are_counted_against_their_own_budgets() {
+        let mut s = fixture();
+        let id = uuid::Uuid::new_v4();
+        s.textures.insert(
+            id,
+            std::sync::Arc::new(crate::texture::Data {
+                width: 64,
+                height: 64,
+                words: vec![0; 2048],
+                palette: vec![0; 256],
+                rgba: vec![255; 64 * 64 * 4],
+            }),
+        );
+        let panel = s.actors[1].rect.as_mut().unwrap();
+        panel.size = [200., 100.];
+        let image = s.actors[1].image.as_mut().unwrap();
+        image.texture = Some(id);
+        image.tiling = ImageTiling::Tile;
+        s.hud_budget.rectangles = 7;
+        assert!(s.validate().unwrap_err().contains("budget"));
+        // Four columns by two rows over a 64x64 source, exactly as picture() tiles it.
+        s.hud_budget.rectangles = 8;
+        s.validate().unwrap();
+        s.actors[1].image.as_mut().unwrap().tiling = ImageTiling::TileFit;
+        s.hud_budget.rectangles = 6;
+        s.validate().unwrap();
+        // Rotating the element moves its cost out of the rectangle pool entirely.
+        s.actors[1].rect.as_mut().unwrap().rotation = 30.;
+        s.hud_budget.rectangles = 1;
+        s.hud_budget.rotated = 5;
+        assert!(s.validate().unwrap_err().contains("budget"));
+        s.hud_budget.rotated = 6;
+        s.validate().unwrap();
+        s.actors[1].rect.as_mut().unwrap().rotation = f32::NAN;
+        assert!(s.validate().unwrap_err().contains("rotation"));
+    }
+    #[test]
+    fn focus_links_are_actor_indices_the_scene_still_has() {
+        let mut s = fixture();
+        s.actors[1].focusable = Some(Focusable {
+            neighbors: [1, -1, -1, -1],
+            ..Default::default()
+        });
+        s.sync_actor_components();
+        s.validate().unwrap();
+        s.actors[1].focusable.as_mut().unwrap().neighbors[0] = 9;
+        assert!(s.validate().unwrap_err().contains("Focusable"));
+        s.actors[1].focusable.as_mut().unwrap().neighbors[0] = -1;
+        s.actors[0].canvas.as_mut().unwrap().focused = 1;
+        s.validate().unwrap();
+        s.actors[0].canvas.as_mut().unwrap().focused = 5;
+        assert!(s.validate().unwrap_err().contains("focus"));
+    }
+    #[test]
+    fn a_rotated_element_reports_turned_corners_and_an_unturned_rect() {
+        let mut s = fixture();
+        let before = layouts(&s)[1].unwrap();
+        assert_eq!(
+            before.corners,
+            [
+                [before.rect[0], before.rect[1] + before.rect[3]],
+                [
+                    before.rect[0] + before.rect[2],
+                    before.rect[1] + before.rect[3]
+                ],
+                [before.rect[0], before.rect[1]],
+                [before.rect[0] + before.rect[2], before.rect[1]],
+            ]
+        );
+        s.actors[1].rect.as_mut().unwrap().rotation = 90.;
+        let after = layouts(&s)[1].unwrap();
+        assert_eq!(after.rect, before.rect);
+        // The fixture panel pivots on its top-left corner, and that is what the
+        // turn is about: the pivot is the one point rotation leaves alone.
+        let p = s.actors[1].rect.as_ref().unwrap().pivot;
+        let pivot = [
+            before.rect[0] + before.rect[2] * p[0],
+            before.rect[1] + before.rect[3] * p[1],
+        ];
+        for (plain, turned) in before.corners.iter().zip(&after.corners) {
+            let expected = [
+                pivot[0] - (plain[1] - pivot[1]),
+                pivot[1] + (plain[0] - pivot[0]),
+            ];
+            assert!(
+                (turned[0] - expected[0]).abs() < 0.05 && (turned[1] - expected[1]).abs() < 0.05,
+                "{turned:?} vs {expected:?}"
+            );
+        }
     }
     #[test]
     fn layout_components_are_validated_against_their_budgets() {
@@ -626,6 +918,7 @@ mod tests {
             pivot: [0., 1.],
             position: [0.; 2],
             size: [3., 1.],
+            ..Default::default()
         });
         s.actors[1].image = Some(Image {
             texture: Some(id),

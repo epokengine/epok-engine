@@ -1,6 +1,6 @@
 # HUD and 2D entities
 
-Create Canvas, Panel, Image, Text or Progress Bar through GameObject > UI or Hierarchy's context menu. Epok adds a Canvas automatically when necessary. These are ordinary scene entities with hierarchy, scripts, renaming, duplication and persistence.
+Create Canvas, Panel, Image, Text, Button or Progress Bar through GameObject > UI or Hierarchy's context menu. Epok adds a Canvas automatically when necessary. These are ordinary scene entities with hierarchy, scripts, renaming, duplication and persistence.
 
 Panel combines RectTransform and Image. Text and ProgressBar are independent graphics components. Add Component can add Canvas to an empty root entity, RectTransform to a UI child, and graphics to an entity with RectTransform.
 
@@ -29,6 +29,18 @@ A container measures and places exactly the children it draws. Clearing an eleme
 **Layout Element** decides what the child does inside that cell, per axis. **Fill** takes the whole cell; **Expand** claims a share of the space left over after every minimum is satisfied, divided in proportion to **Stretch**; **Shrink Center** and **Shrink End** keep the measured size and move it within the cell. With no Layout Element a child fills its cell without expanding, which packs a box tightly against its first edge.
 
 Layout runs in the same fixed-point pass the console uses, so the editor viewport, the native preview and the PSX build agree on every rectangle. Each laid-out rect still costs one entry of the scene's `hud_budget.layouts`.
+
+## Panel styling
+
+Image's **Nine-slice borders** hold back the left, top, right and bottom strips of the source region so a frame keeps its corners at any size; all four at zero stretches the whole region as before. **Tiling** decides how the remaining area is filled: **Tile** repeats the region at its own texel size starting from the rect's bottom-left and clips the last column and row, and **Tile Fit** rounds the count on each axis to the nearest whole number, at least one, and scales the tiles so they fill exactly. With borders set, only the centre piece tiles. Every tile is one more textured quad and counts against `hud_budget.rectangles`, so a large panel over a small source is expensive; the editor refuses a scene whose tiles overrun that budget.
+
+## Focus and D-pad navigation
+
+**Button** is a recipe — a rect with an Image, an unwrapped Text and a **Focusable** — not a new component type. Focusable names the element reached by each D-pad direction, a tab **Order**, and a **Highlight** colour. Focus itself is one index on the Canvas, its **Initial focus**, which the runtime then moves: on a direction's press edge it follows that link if the target is alive, active and focusable, and otherwise stays put. Nothing searches, so a menu of any size costs the same. While an element holds focus its Image and Progress Bar colours are multiplied by its Highlight, which lights a button up without emitting a single extra primitive. Neighbours are stored as actor indices, so reordering actors means revisiting the links; the inspector picks them by name, and the viewport draws each one as a line from the selected element to its target.
+
+## Rotation
+
+A Rect Transform's **Rotation** turns the element about its pivot, in degrees, counter-clockwise. Layout is untouched: the rect the container or the anchors decided stays axis-aligned, and the rotation rides alongside it, so a child of a rotated panel turns with the panel without its own rect changing. An element with zero rotation emits exactly the primitives it always did, packet for packet. A rotated one cannot: the console rasterizes rectangles and sprites axis-aligned, so its fills, images and glyphs become polygons and come out of a separate pool sized by `hud_budget.rotated` (128 by default), counted in `hud_stats.rotated` rather than against rectangles and glyphs. A rotated text element therefore costs about twice the packet space of the same text upright. In the viewport the selection outline and its eight handles follow the turned corners, and a ring above the top edge rotates the element; hold Shift while dragging it to snap to fifteen degrees.
 
 ## UI actors
 

@@ -2402,6 +2402,7 @@ impl Editor {
                 "textarea" => "Text Area",
                 "progress" => "Progress Bar",
                 "panel" => "Panel",
+                "button" => "Button",
                 "hbox" => "Horizontal Box",
                 "vbox" => "Vertical Box",
                 "grid" => "Grid",
@@ -2446,6 +2447,19 @@ impl Editor {
                 "panel" => {
                     entity.image = Some(Default::default());
                     entity.rect.as_mut().unwrap().size = [200., 120.];
+                }
+                // A Button is the existing graphics plus a focus record: a
+                // background, an unwrapped caption, and the neighbours the
+                // author fills in from the inspector.
+                "button" => {
+                    entity.rect.as_mut().unwrap().size = [120., 24.];
+                    entity.image = Some(Default::default());
+                    entity.text = Some(crate::hud::Text {
+                        text: "Button".into(),
+                        wrap: false,
+                        ..Default::default()
+                    });
+                    entity.focusable = Some(Default::default());
                 }
                 // The five containers are one component with a different kind;
                 // only Grid needs a second column to be worth creating.
@@ -4702,6 +4716,21 @@ mod tests {
             assert_eq!(e.scene.actors[i].rect.as_ref().unwrap().size, [200., 120.]);
             assert!(e.scene.actors[i].image.is_none());
         }
+        e.scene.validate().unwrap();
+        // Button is a recipe, not a component: a background, an unwrapped
+        // caption and the focus record the D-pad reads.
+        e.create_hud("button");
+        let i = e.selected.unwrap();
+        let button = &e.scene.actors[i];
+        assert_eq!(button.name, "Button");
+        assert_eq!(button.rect.as_ref().unwrap().size, [120., 24.]);
+        assert!(button.image.as_ref().is_some_and(|c| c.enabled));
+        assert_eq!(button.text.as_ref().unwrap().text, "Button");
+        assert!(!button.text.as_ref().unwrap().wrap);
+        let focus = button.focusable.as_ref().unwrap();
+        assert!(focus.enabled);
+        assert_eq!(focus.neighbors, [-1; 4]);
+        assert_eq!(focus.highlight, [1.; 3]);
         e.scene.validate().unwrap();
         let before = e.scene.clone();
         e.playing = true;

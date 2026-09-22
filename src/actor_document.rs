@@ -1050,6 +1050,10 @@ pub(crate) mod tests {
                 object_model::LAYOUT_CONTAINER_COMPONENT_ID,
                 "epok::LayoutContainerComponent",
             ),
+            (
+                object_model::FOCUSABLE_COMPONENT_ID,
+                "epok::FocusableComponent",
+            ),
         ] {
             classes.push(component_decl(
                 id,

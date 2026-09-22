@@ -1308,13 +1308,14 @@ fn actor_domain(
 /// The UI widget recipes offered by the creation menu. Each command reaches
 /// `Editor::create_hud` through the `ui-` prefix that `Editor::action` strips,
 /// so the menu and the recipe table have a single spelling between them.
-const UI_WIDGETS: [(&str, &str); 11] = [
+const UI_WIDGETS: [(&str, &str); 12] = [
     ("Canvas", "ui-canvas"),
     ("Panel", "ui-panel"),
     ("Image", "ui-image"),
     ("Label", "ui-label"),
     ("Text Area", "ui-textarea"),
     ("Progress Bar", "ui-progress"),
+    ("Button", "ui-button"),
     ("Horizontal Box", "ui-hbox"),
     ("Vertical Box", "ui-vbox"),
     ("Grid", "ui-grid"),
@@ -1322,7 +1323,7 @@ const UI_WIDGETS: [(&str, &str); 11] = [
     ("Center", "ui-center"),
 ];
 /// The containers start here; the menu rules a line above them.
-const UI_CONTAINERS: usize = 6;
+const UI_CONTAINERS: usize = 7;
 fn creation_menu(
     ui: &imgui::Ui,
     child: bool,
@@ -2458,9 +2459,10 @@ pub(crate) fn map_settings(ui: &imgui::Ui, e: &mut Editor) {
                     e.scene.hud_budget.rectangles as i32,
                     e.scene.hud_budget.texts as i32,
                     e.scene.hud_budget.glyphs as i32,
+                    e.scene.hud_budget.rotated as i32,
                 ];
                 let _disabled = ui.begin_disabled(e.playing);
-                if crate::gui::Drag::new("Layouts / Rects / Texts / Glyphs")
+                if crate::gui::Drag::new("Layouts / Rects / Texts / Glyphs / Rotated")
                     .speed(1.)
                     .build_array(ui, &mut values)
                 {
@@ -2470,6 +2472,7 @@ pub(crate) fn map_settings(ui: &imgui::Ui, e: &mut Editor) {
                         rectangles: values[1].max(1) as usize,
                         texts: values[2].max(1) as usize,
                         glyphs: values[3].max(1) as usize,
+                        rotated: values[4].max(1) as usize,
                     };
                     if let Err(error) = e.scene.validate() {
                         e.scene.hud_budget = before;
@@ -2479,7 +2482,10 @@ pub(crate) fn map_settings(ui: &imgui::Ui, e: &mut Editor) {
                     }
                 }
                 drop(_disabled);
-                muted(ui, "Budgets apply to this map only and are saved with it.");
+                muted(
+                    ui,
+                    "Budgets apply to this map only and are saved with it. Rotated elements draw from their own quad pool.",
+                );
             }
         });
     e.map_settings = open;
@@ -2714,6 +2720,16 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
         crate::blueprint_workflow::instance_inspector(ui, e, index);
         let mut entity = e.scene.actors[index].clone();
         let original = entity.clone();
+        // Focus links point at rect elements by actor index; the picker shows
+        // them by name so the author never types one.
+        let focus_targets: Vec<(usize, String)> = e
+            .scene
+            .actors
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| a.rect.is_some())
+            .map(|(i, a)| (i, a.name.clone()))
+            .collect();
         let mut requested_parent = None;
         ui.disabled(e.playing, || {
             let glyph = if entity.kind == "Camera" {
@@ -2724,7 +2740,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             actor_header(ui, &mut entity, glyph);
             ui.separator();
             entity_actor_inspector(ui, e, index);
-            crate::hud_editor::inspector(ui, &mut entity);
+            crate::hud_editor::inspector(ui, &mut entity, &focus_targets);
             let mut reset_transform = false;
             if entity.rect.is_none()
                 && entity.canvas.is_none()
