@@ -15,6 +15,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall SetErrorMode(unsigned l
 #endif
 #include "scene.hh"
 #include "hud_commands.hpp"
+#include "fonts.hh"
 #include "hud-config.hh"
 #include "hud_focus.hpp"
 
@@ -64,6 +65,9 @@ static bool read32(uint32_t& value){uint8_t bytes[4];if(fread(bytes,1,4,stdin)!=
 static uint32_t preview_capabilities=0;
 static void frame(){
     EpokHudSink sink;for(size_t i=0;i<epok::texture_count;++i){sink.dimensions.push_back(epok::texture_assets[i].width);sink.dimensions.push_back(epok::texture_assets[i].height);}
+    // Cooked fonts are global and already carry their VRAM placement; the
+    // layout core only reads their metrics, exactly as the console does.
+    sink.fonts.assign(epok::font_assets,epok::font_assets+epok::font_count);
     epok::hud_core::Compiler compiler(sink,epok::display_width,epok::display_height,{epok::hud_layout_budget,epok::hud_rectangle_budget,epok::hud_text_budget,epok::hud_glyph_budget,epok::hud_rotated_budget});
     int first[epok::objects.size()],next[epok::objects.size()];epok::Fixed measured[epok::objects.size()][2];epok::hud_core::Rect rects[epok::objects.size()];epok::hud_core::Affine2 transforms[epok::objects.size()];compiler.draw(epok::objects.data(),epok::object_count,first,next,measured,rects,transforms);
     auto s=compiler.stats;

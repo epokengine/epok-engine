@@ -242,7 +242,15 @@ pub struct Placement {
     pub y: u16,
     pub clut_y: u16,
 }
-pub fn layout(scene: &Scene) -> Result<Vec<(Uuid, Placement)>, String> {
+/// The resident VRAM allocation of one scene: its textures first, then the
+/// authored fonts, which compete for the same shelves and the same 32-CLUT
+/// budget rather than holding a reserved sub-budget.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Layout {
+    pub textures: Vec<(Uuid, Placement)>,
+    pub fonts: Vec<(Uuid, Placement)>,
+}
+pub fn layout(scene: &Scene) -> Result<Layout, String> {
     let mut cursor = [[0u16; 2]; 3];
     let mut result = vec![];
     // Pack tall atlases first: a short VFX strip must not fragment the only
@@ -291,7 +299,49 @@ pub fn layout(scene: &Scene) -> Result<Vec<(Uuid, Placement)>, String> {
         result.push((id,place.ok_or("Texture VRAM exhausted; reduce atlas height/count. Framebuffers and font are reserved.")?));
     }
     result.sort_by_key(|(id, _)| ordered_ids.iter().position(|v| v == id).unwrap());
-    Ok(result)
+    // Authored fonts follow the textures into the same shelf bands. They are
+    // 4bpp, so a row is a quarter of its pixel width in VRAM words, and each
+    // takes one CLUT row after the textures' rows.
+    let mut fonts = vec![];
+    for (i, id) in crate::hud::font_ids(scene).into_iter().enumerate() {
+        if ordered_ids.len() + i >= 32 {
+            return Err("VRAM palette budget exceeded (32 textures and fonts)".into());
+        }
+        let data = scene
+            .fonts
+            .get(&id)
+            .ok_or_else(|| format!("Unresolved font {id}"))?;
+        let words = data.width / 4;
+        let mut place = None;
+        for row in 0..2 {
+            for (col, rows) in cursor.iter_mut().enumerate() {
+                let limit = if row == 0 {
+                    256
+                } else if col == 2 {
+                    128 // Resident loading image at (960,384), font at (960,448).
+                } else {
+                    224
+                };
+                if words <= 128 && rows[row] + data.height <= limit {
+                    place = Some(Placement {
+                        x: 640 + col as u16 * 128,
+                        y: row as u16 * 256 + rows[row],
+                        clut_y: 480 + (ordered_ids.len() + i) as u16,
+                    });
+                    rows[row] += data.height;
+                    break;
+                }
+            }
+            if place.is_some() {
+                break;
+            }
+        }
+        fonts.push((id,place.ok_or("Font VRAM exhausted; reduce the pixel height, the character set, or the texture atlases sharing the band.")?));
+    }
+    Ok(Layout {
+        textures: result,
+        fonts,
+    })
 }
 pub fn symbol(id: Uuid) -> String {
     format!("texture_id_{}", id.simple())
@@ -357,7 +407,7 @@ pub fn header(scene: &Scene) -> Result<String, String> {
             }
         }
     }
-    let layout = layout(scene)?;
+    let layout = layout(scene)?.textures;
     let resident_bytes = layout
         .iter()
         .map(|(id, _)| {
@@ -487,7 +537,7 @@ mod tests {
             texture.height = height;
             scene.textures.insert(id, std::sync::Arc::new(texture));
         }
-        let packed = layout(&scene).unwrap();
+        let packed = layout(&scene).unwrap().textures;
         assert_eq!(
             packed.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
             ids(&scene)
@@ -507,6 +557,84 @@ mod tests {
         assert_eq!(d.rgba, [0, 0, 0, 255, 0, 0, 0, 0, 255, 0, 0, 255]);
         assert_eq!(d.palette[1] & 0x8000, 0x8000);
         assert_eq!(decode(&png()).unwrap(), d);
+    }
+    /// Fonts follow the textures into the same shelves and take the CLUT rows
+    /// after theirs, so the thirty-two palette slots are one shared budget.
+    #[test]
+    fn fonts_are_allocated_after_the_textures_they_share_vram_with() {
+        let font = |width: u16| crate::font_asset::FontData {
+            width,
+            height: 32,
+            words: vec![0; usize::from(width) / 4 * 32],
+            palette: crate::font_asset::palette(false),
+            metrics: vec![crate::font_asset::GlyphMetric {
+                codepoint: 65,
+                u: 0,
+                v: 0,
+                width: 6,
+                height: 8,
+                advance: 7,
+                x_offset: 0,
+                y_offset: -8,
+            }],
+            line_height: 12,
+            baseline: 9,
+            rgba: vec![],
+        };
+        let mut scene = Scene::default();
+        scene.actors.clear();
+        let mut canvas = crate::scene::Actor::cube("Canvas".into());
+        canvas.kind = "Empty".into();
+        canvas.canvas = Some(Default::default());
+        scene.actors.push(canvas);
+        let mut texture = decode(&png()).unwrap();
+        texture.width = 256;
+        texture.height = 128;
+        let texture_id = Uuid::new_v4();
+        scene.actors[0].material.texture = Some(texture_id);
+        scene.textures.insert(texture_id, Arc::new(texture));
+        let id = Uuid::new_v4();
+        let mut label = crate::scene::Actor::cube("Label".into());
+        label.kind = "Empty".into();
+        label.parent = Some(0);
+        label.rect = Some(Default::default());
+        label.text = Some(crate::hud::Text {
+            font: Some(id),
+            ..Default::default()
+        });
+        scene.actors.push(label);
+        scene.fonts.insert(id, Arc::new(font(64)));
+        let packed = layout(&scene).unwrap();
+        assert_eq!(packed.textures.len(), 1);
+        assert_eq!(packed.fonts.len(), 1);
+        // 64 px of 4bpp is sixteen VRAM words, and it starts below the 128-line
+        // texture in the same column, on the CLUT row after it.
+        assert_eq!(scene.fonts[&id].width / 4, 16);
+        assert_eq!(
+            (packed.fonts[0].1.x, packed.fonts[0].1.y),
+            (640, packed.textures[0].1.y + 128)
+        );
+        assert_eq!(packed.textures[0].1.clut_y, 480);
+        assert_eq!(packed.fonts[0].1.clut_y, 481);
+        // Textures and fonts share the thirty-two palette rows.
+        for _ in 0..31 {
+            let extra = Uuid::new_v4();
+            let mut e = crate::scene::Actor::cube("Label".into());
+            e.kind = "Empty".into();
+            e.parent = Some(0);
+            e.rect = Some(Default::default());
+            e.text = Some(crate::hud::Text {
+                font: Some(extra),
+                ..Default::default()
+            });
+            scene.actors.push(e);
+            scene.fonts.insert(extra, Arc::new(font(64)));
+        }
+        assert!(
+            layout(&scene)
+                .unwrap_err()
+                .contains("VRAM palette budget exceeded")
+        );
     }
     #[test]
     fn png_import_portable_reimport_mesh_uv_and_hud_roundtrip() {
@@ -589,7 +717,7 @@ mod tests {
             scene.actors.last_mut().unwrap().material.texture = Some(id);
             scene.textures.insert(id, Arc::new(d.clone()));
         }
-        for (_, p) in layout(&scene).unwrap() {
+        for (_, p) in layout(&scene).unwrap().textures {
             assert!(p.x >= 640);
             assert_eq!(p.y, 0);
             assert!((480..512).contains(&p.clut_y));

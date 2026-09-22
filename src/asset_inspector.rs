@@ -1032,6 +1032,7 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             ..Default::default()
         };
         crate::texture::resolve(&mut scene, index)?;
+        crate::hud::resolve_fonts(&mut scene, index)?;
         details.scene = Some(scene);
     }
     Ok(details)

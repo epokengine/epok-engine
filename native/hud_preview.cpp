@@ -10,6 +10,7 @@ static std::vector<epok::ActorData> epok_hud_entities(const EpokHudNode* nodes,u
         e.image.enabled=n.flags&16;e.image.texture=n.texture;
         e.image.tiling=n.tiling==1?epok::ImageTiling::Tile:n.tiling==2?epok::ImageTiling::TileFit:epok::ImageTiling::None;
         e.text.enabled=n.flags&32;e.text.wrap=n.flags&128;e.text.set_text(n.text);
+        e.text.font=n.font;e.text.align=n.align==1?epok::TextAlign::Center:n.align==2?epok::TextAlign::Right:epok::TextAlign::Left;
         e.progress.enabled=n.flags&64;e.progress.value=epok::Fixed(n.progress[0],epok::Fixed::RAW);
         e.layout_element.enabled=n.flags&256;e.layout_element.horizontal=uint8_t(n.layout_element[0]);e.layout_element.vertical=uint8_t(n.layout_element[1]);
         e.layout_element.stretch=epok::Fixed(n.layout_element[4],epok::Fixed::RAW);
@@ -21,8 +22,8 @@ static std::vector<epok::ActorData> epok_hud_entities(const EpokHudNode* nodes,u
     }
     return entities;
 }
-extern "C" uint32_t epok_hud_compile(const EpokHudNode* nodes,uint32_t count,const int32_t* dimensions,uint32_t textures,int32_t width,int32_t height,const uint32_t* budget,EpokHudCommand* output,uint32_t capacity,uint32_t* stats){
-    EpokHudSink sink;sink.dimensions.assign(dimensions,dimensions+textures*2);
+extern "C" uint32_t epok_hud_compile(const EpokHudNode* nodes,uint32_t count,const int32_t* dimensions,uint32_t textures,int32_t width,int32_t height,const uint32_t* budget,EpokHudCommand* output,uint32_t capacity,uint32_t* stats,const int32_t* font_table,uint32_t font_words){
+    EpokHudSink sink;sink.dimensions.assign(dimensions,dimensions+textures*2);sink.load_fonts(font_table,font_words);
     auto entities=epok_hud_entities(nodes,count);
     std::vector<int> first(count),next(count);
     std::vector<epok::Fixed> measured(size_t(count)*2);std::vector<epok::hud_core::Rect> rects(count);
@@ -34,13 +35,15 @@ extern "C" uint32_t epok_hud_compile(const EpokHudNode* nodes,uint32_t count,con
     uint32_t written=std::min(capacity,uint32_t(sink.commands.size()));
     std::copy_n(sink.commands.data(),written,output);return written;
 }
-extern "C" uint32_t epok_hud_layout(const EpokHudNode* nodes,uint32_t count,int32_t width,int32_t height,int32_t* out_rects){
+extern "C" uint32_t epok_hud_layout(const EpokHudNode* nodes,uint32_t count,int32_t width,int32_t height,int32_t* out_rects,const int32_t* font_table,uint32_t font_words){
     auto entities=epok_hud_entities(nodes,count);
     std::vector<int> first(count),next(count);
     std::vector<epok::Fixed> measured(size_t(count)*2);std::vector<epok::hud_core::Rect> rects(count);
     std::vector<epok::hud_core::Affine2> transforms(count);
     auto* sizes=reinterpret_cast<epok::Fixed(*)[2]>(measured.data());
-    EpokHudSink sink;
+    // A label's intrinsic size is measured from its own font, so the arrange
+    // pass needs the same table the command compiler gets.
+    EpokHudSink sink;sink.load_fonts(font_table,font_words);
     // The editor viewport answers "where is this element", so nothing may be
     // dropped for budget: one layout slot per node is always enough.
     epok::hud_core::Compiler compiler(sink,width,height,{count,0,0,0,0});

@@ -42,6 +42,16 @@ Image's **Nine-slice borders** hold back the left, top, right and bottom strips 
 
 A Rect Transform's **Rotation** turns the element about its pivot, in degrees, counter-clockwise. Layout is untouched: the rect the container or the anchors decided stays axis-aligned, and the rotation rides alongside it, so a child of a rotated panel turns with the panel without its own rect changing. An element with zero rotation emits exactly the primitives it always did, packet for packet. A rotated one cannot: the console rasterizes rectangles and sprites axis-aligned, so its fills, images and glyphs become polygons and come out of a separate pool sized by `hud_budget.rotated` (128 by default), counted in `hud_stats.rotated` rather than against rectangles and glyphs. A rotated text element therefore costs about twice the packet space of the same text upright. In the viewport the selection outline and its eight handles follow the turned corners, and a ring above the top edge rotates the element; hold Shift while dragging it to snap to fifteen degrees.
 
+## Fonts
+
+A Text draws with the built-in font unless it names one of the project's imported Font assets. The built-in font is the attributed mig68000 8 × 16 bitmap with derived Spanish glyphs, `áéíóúüñÁÉÍÓÚÜÑ¿¡`: one fixed cell per character, eight pixels of advance and sixteen of line height. It is resident for the whole run, costs nothing to use and is what every existing scene keeps.
+
+An authored font is a TrueType or OpenType file imported as a Font asset, baked at its chosen pixel height over its chosen character ranges. Its glyphs carry their own width, advance and offsets, so text is proportionally spaced and the line height comes from the face rather than from a cell. Pick it in the Text section's **Font** combo; **Built-in** returns to the bitmap. The editor refuses a scene whose label contains a character the chosen font has no glyph for, and at runtime a character that survives anyway draws the font's question mark, or advances by a space when the font has neither.
+
+Authored fonts cost VRAM. Each is a 4bpp atlas, at most 256 × 256 pixels, plus a sixteen-entry palette that takes one of the thirty-two CLUT rows textures also use — so a font and a texture compete for the same budget, and a project that overruns it is rejected at export with the row that overflowed named. The atlas is allocated in the same shelves as the textures, after them, and Memory shows each font beside them as an atlas and a palette rectangle. The import dialog reports the same figure before you commit, so a range or pixel-height change can be judged there.
+
+**Align** places each measured line inside the rect: **Left**, **Center** or **Right**. Alignment measures a line before placing its first glyph, which bounds a centred or right-aligned block at thirty-two rows; left-aligned text is unbounded. The glyph budget is unchanged either way — one glyph is one primitive, and one text element is still one texture-page primitive, whichever font it uses.
+
 ## UI actors
 
 A map can also hold **UI actors**: classes deriving from `epok::UIActor`, whose root
@@ -90,10 +100,10 @@ Add RectTransform before graphics, beneath a Canvas or another RectTransform. Us
 
 Image supports an imported Texture UUID and an atlas rectangle in pixels. Zero width/height selects the remaining texture from the specified origin. Transparent texels reveal previously drawn content. Optional left/top/right/bottom nine-slice borders preserve corner sizes while stretching the center; small destination rectangles shrink borders proportionally.
 
-Text uses the attributed mig68000 8 × 16 bitmap with derived Spanish glyphs: `áéíóúüñÁÉÍÓÚÜÑ¿¡`. It accepts up to 511 UTF-8 bytes, explicit newlines and optional character wrapping. Text clips to its own complete glyph cells and the screen. ProgressBar retains its fill/background colors.
+Text accepts up to 511 UTF-8 bytes, explicit newlines and optional character wrapping, with the built-in bitmap or an imported font (see **Fonts** above). Wrapping breaks before the first glyph whose advance would cross the right edge; without wrapping that glyph is dropped rather than moved. Text clips to its own rect and the screen. ProgressBar retains its fill/background colors.
 
 The scene's `hud_budget` configures layouts, rectangles, text components and glyphs. Defaults are 128 / 256 / 64 / 1024; maximums are 128 / 512 / 64 / 2048. Edit them in **Map Settings**, opened by clicking the map root at the top of the Hierarchy; Project Settings > Rendering keeps the heading and a button that opens it. Nine-slice images budget nine rectangles. The editor rejects authored over-budget scenes; dynamic excess is omitted and counted in `hud_stats.dropped`. Standalone builds reserve the maximum requested by their registered scenes.
 
-`utility.hpp` supplies generic `Focus`, `EventQueue`, and `layout_list` APIs. Focus skips inactive/destroyed handles, supports forward/reverse navigation, and emits activation/cancel events. These are primitives for the game's UI logic. Parent masks, rotated rectangles, scalable text and world-space Canvas remain outside this profile.
+`utility.hpp` supplies generic `Focus`, `EventQueue`, and `layout_list` APIs. Focus skips inactive/destroyed handles, supports forward/reverse navigation, and emits activation/cancel events. These are primitives for the game's UI logic. Parent masks and world-space Canvas remain outside this profile; so does scaling a font at runtime, which is an import-time choice.
 
-The editor and PSX use the same generated bitmap data. Font and derived glyph attribution is preserved in [third-party notices](../THIRD_PARTY_NOTICES.md).
+The editor and PSX use the same generated bitmap data and the same cooked font atlases. Font and derived glyph attribution is preserved in [third-party notices](../THIRD_PARTY_NOTICES.md).

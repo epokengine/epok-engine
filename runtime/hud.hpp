@@ -2,6 +2,7 @@
 #include "hud_core.hpp"
 #include "hud-config.hh"
 #include "hud-font.hh"
+#include "fonts.hh"
 #include "texture.hpp"
 #include "psyqo/primitives/rectangles.hh"
 #include "psyqo/primitives/sprites.hh"
@@ -42,6 +43,7 @@ class HudRenderer {
             h=mix(h,uint32_t(e.progress.enabled)|uint32_t(e.progress.color[0])<<8|uint32_t(e.progress.color[1])<<16|uint32_t(e.progress.color[2])<<24);
             h=mix(h,uint32_t(e.progress.value.raw()));h=mix(h,uint32_t(e.progress.background[0])|uint32_t(e.progress.background[1])<<8|uint32_t(e.progress.background[2])<<16);
             h=mix(h,uint32_t(e.text.enabled)|uint32_t(e.text.wrap)<<1|uint32_t(e.text.color[0])<<8|uint32_t(e.text.color[1])<<16|uint32_t(e.text.color[2])<<24);
+            h=mix(h,uint32_t(e.text.font));h=mix(h,uint32_t(e.text.align));
             if(e.text.enabled)for(const char* c=e.text.value;*c;++c)h=mix(h,uint8_t(*c));
             h=mix(h,uint32_t(e.layout_element.enabled)|uint32_t(e.layout_element.horizontal)<<8|uint32_t(e.layout_element.vertical)<<16);
             for(int k=0;k<2;++k)h=mix(h,uint32_t(e.layout_element.minimum[k].raw()));
@@ -72,15 +74,23 @@ public:
         q.clutIndex=texture_clut(*t);q.tpage=texture_page(*t,BlendMode::Cutout);
         q.setColor({{.r=uint8_t((unsigned(color[0])+1)/2),.g=uint8_t((unsigned(color[1])+1)/2),.b=uint8_t((unsigned(color[2])+1)/2)}}).setOpaque();output->chain(f);
     }
-    void begin_text(){
+    // Font index -1 is the built-in atlas, resident at (960,448) with its CLUT
+    // at (60,448); an authored font brings its own placement from the export
+    // allocator. Both are 4bpp, so one TPage per text element still serves.
+    const Font* font(int index){return font_assets&&index>=0&&size_t(index)<font_count?&font_assets[index]:nullptr;}
+    void begin_text(int index){
+        const Font* f=font(index);
         auto& page=pages[output->getParity()][texts++];
-        page.primitive.attr.setPageX(15).setPageY(1).set(psyqo::Prim::TPageAttr::Tex4Bits).setDithering(false);configure_display_field<display_interlaced>(page.primitive.attr);output->chain(page);
+        page.primitive.attr.setPageX(f?f->x/64:15).setPageY(f?f->y/256:1).set(psyqo::Prim::TPageAttr::Tex4Bits).setDithering(false);configure_display_field<display_interlaced>(page.primitive.attr);output->chain(page);
     }
-    void glyph(int,unsigned c,int x0,int y0,int x1,int y1,int u,int v,const uint8_t* color){
-        unsigned i=c-32;auto& f=glyphs[output->getParity()][letters++];auto& p=f.primitive;
+    // Source coordinates arrive as atlas texels; the page origin turns them into
+    // the texel offsets within the page begin_text() chained.
+    void glyph(int,int index,int u,int v,int x0,int y0,int x1,int y1,const uint8_t* color){
+        const Font* f=font(index);auto& fragment=glyphs[output->getParity()][letters++];auto& p=fragment.primitive;
         p.position={{.x=int16_t(x0),.y=int16_t(y0)}};p.size={{.w=int16_t(x1-x0),.h=int16_t(y1-y0)}};
-        p.texInfo.u=(i%32)*8+u;p.texInfo.v=192+(i/32)*16+v;p.texInfo.clut=psyqo::PrimPieces::ClutIndex(60,448);
-        p.setColor({{.r=uint8_t((unsigned(color[0])+1)/2),.g=uint8_t((unsigned(color[1])+1)/2),.b=uint8_t((unsigned(color[2])+1)/2)}}).setOpaque();output->chain(f);
+        p.texInfo.u=uint8_t(u+(f?(f->x%64)*4:0));p.texInfo.v=uint8_t(v+(f?f->y%256:192));
+        p.texInfo.clut=f?psyqo::PrimPieces::ClutIndex(uint16_t(f->clut_x/16),f->clut_y):psyqo::PrimPieces::ClutIndex(60,448);
+        p.setColor({{.r=uint8_t((unsigned(color[0])+1)/2),.g=uint8_t((unsigned(color[1])+1)/2),.b=uint8_t((unsigned(color[2])+1)/2)}}).setOpaque();output->chain(fragment);
     }
     // Rotated fills, images and glyphs. The corner arrays arrive in the A/B/C/D
     // Z order the polygon class wants, so nothing is reordered here.
@@ -100,24 +110,24 @@ public:
         q.clutIndex=texture_clut(*t);q.tpage=texture_page(*t,BlendMode::Cutout);
         q.setColor({{.r=uint8_t((unsigned(color[0])+1)/2),.g=uint8_t((unsigned(color[1])+1)/2),.b=uint8_t((unsigned(color[2])+1)/2)}}).setOpaque();output->chain(f);
     }
-    // The same cell arithmetic and CLUT glyph() uses; only the primitive class
-    // differs, and a TexturedQuad carries its own page rather than inheriting
-    // the one begin_text() chained.
-    void glyph_quad(int,unsigned c,const int* x,const int* y,const int* u,const int* v,const uint8_t* color){
-        const unsigned i=c-32;
+    // The same page, CLUT and atlas texels glyph() uses; only the primitive
+    // class differs, and a TexturedQuad carries its own page rather than
+    // inheriting the one begin_text() chained.
+    void glyph_quad(int,int index,const int* x,const int* y,const int* u,const int* v,const uint8_t* color){
+        const Font* font_of=font(index);
         auto& f=rotated_textured[output->getParity()][turned_textured++];auto& q=f.primitive;
         q.pointA={{.x=int16_t(x[0]),.y=int16_t(y[0])}};q.pointB={{.x=int16_t(x[1]),.y=int16_t(y[1])}};
         q.pointC={{.x=int16_t(x[2]),.y=int16_t(y[2])}};q.pointD={{.x=int16_t(x[3]),.y=int16_t(y[3])}};
-        const int base_u=int((i%32)*8),base_v=192+int((i/32)*16);
+        const int base_u=font_of?int((font_of->x%64)*4):0,base_v=font_of?int(font_of->y%256):192;
         q.uvA.u=uint8_t(base_u+u[0]);q.uvA.v=uint8_t(base_v+v[0]);q.uvB.u=uint8_t(base_u+u[1]);q.uvB.v=uint8_t(base_v+v[1]);
         q.uvC.u=uint8_t(base_u+u[2]);q.uvC.v=uint8_t(base_v+v[2]);q.uvD.u=uint8_t(base_u+u[3]);q.uvD.v=uint8_t(base_v+v[3]);
-        q.clutIndex=psyqo::PrimPieces::ClutIndex(60,448);
+        q.clutIndex=font_of?psyqo::PrimPieces::ClutIndex(uint16_t(font_of->clut_x/16),font_of->clut_y):psyqo::PrimPieces::ClutIndex(60,448);
         psyqo::PrimPieces::TPageAttr page;
-        page.setPageX(15).setPageY(1).set(psyqo::Prim::TPageAttr::Tex4Bits).setDithering(false);
+        page.setPageX(font_of?font_of->x/64:15).setPageY(font_of?font_of->y/256:1).set(psyqo::Prim::TPageAttr::Tex4Bits).setDithering(false);
         configure_display_field<display_interlaced>(page);q.tpage=page;
         q.setColor({{.r=uint8_t((unsigned(color[0])+1)/2),.g=uint8_t((unsigned(color[1])+1)/2),.b=uint8_t((unsigned(color[2])+1)/2)}}).setOpaque();output->chain(f);
     }
-    void initialize(psyqo::GPU& gpu){gpu.uploadToVRAM(hud_font_pixels,{{{.x=960,.y=448}},{{.w=64,.h=64}}});}
+    void initialize(psyqo::GPU& gpu){gpu.uploadToVRAM(hud_font_pixels,{{{.x=960,.y=448}},{{.w=64,.h=64}}});fonts_initialize(gpu,font_assets,font_count);}
     template<size_t N>void draw(psyqo::GPU& gpu,std::array<ActorData,N>& entities,size_t count) {
         const unsigned parity=gpu.getParity();
         const uint32_t key=layout_key(entities,count);

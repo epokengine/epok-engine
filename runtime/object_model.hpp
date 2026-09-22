@@ -825,6 +825,13 @@ public:
     EPOK_FUNCTION(BlueprintPure, Id="694cc674-49fb-4c9f-8851-b655b1b8fd45") uint32_t text_word(uint32_t index) const {const auto* data=entity_slot();if(!data||index>=128)return 0;uint32_t result=0;for(uint32_t i=0;i<4;++i)result|=uint32_t(uint8_t(data->text.value[index*4+i]))<<(i*8);return result;}
     EPOK_FUNCTION(BlueprintCallable, Id="0e61f050-7634-473f-a3bf-85d4067af329") void set_color(uint32_t red,uint32_t green,uint32_t blue) {auto* data=entity_slot();if(data){data->text.color[0]=uint8_t(red>255?255:red);data->text.color[1]=uint8_t(green>255?255:green);data->text.color[2]=uint8_t(blue>255?255:blue);}}
     EPOK_FUNCTION(BlueprintCallable, Id="bdcfb111-a742-4059-96a7-d10dd8182c88") void set_wrap(bool value) {auto* data=entity_slot();if(data)data->text.wrap=value;}
+    EPOK_FUNCTION(BlueprintPure, Id="26daebdb-28d8-496c-87ee-f4d4bf80c839") int32_t align() const {const auto* data=entity_slot();return data?int32_t(data->text.align):0;}
+    // 0 Left, 1 Center, 2 Right; anything else leaves the lines left-aligned.
+    EPOK_FUNCTION(BlueprintCallable, Id="c2a8c760-4d90-4e2e-8900-a747a7065366") void set_align(int value) {auto* data=entity_slot();if(data)data->text.align=value==1?TextAlign::Center:value==2?TextAlign::Right:TextAlign::Left;}
+    EPOK_FUNCTION(BlueprintPure, Id="cd1ac0c4-58af-4241-b0df-fdc8ab8c5ebc") int32_t font_index() const {const auto* data=entity_slot();return data?int32_t(data->text.font):-1;}
+    // The cooked font this label draws from, in export order; -1 is the
+    // built-in 8x16 atlas. An index no font answers falls back to the built-in.
+    EPOK_FUNCTION(BlueprintCallable, Id="4fc0a479-e9e3-4042-ae30-4559eace268b") void set_font_index(int value) {auto* data=entity_slot();if(data)data->text.font=value<0?-1:value;}
 };
 class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=progress, Id="28bf5245-5d80-4cba-a77d-1d74479ac276") ProgressBarComponent : public UIComponent {
 public:

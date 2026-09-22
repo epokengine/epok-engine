@@ -27,23 +27,27 @@ struct Recorder {
     };
     std::vector<Draw> commands;
     int texture_width = 0, texture_height = 0;
+    // Cooked fonts the compiler may resolve; index -1 stays the built-in atlas.
+    const Font* fonts[4] = {};
     bool texture_size(int id, int& w, int& h) {
         if (id < 0 || texture_width <= 0) return false;
         w = texture_width; h = texture_height; return true;
     }
+    const Font* font(int index) { return index >= 0 && index < 4 ? fonts[index] : nullptr; }
     void rectangle(int owner, int x0, int y0, int x1, int y1, const uint8_t* c) {
         commands.push_back({0, owner, -1, x0, y0, x1, y1, 0, 0, 0, 0, {}, {}, {c[0], c[1], c[2]}});
     }
     void image(int owner, int id, int x0, int y0, int x1, int y1, int u0, int v0, int u1, int v1, const uint8_t* c) {
         commands.push_back({1, owner, id, x0, y0, x1, y1, u0, v0, u1, v1, {}, {}, {c[0], c[1], c[2]}});
     }
-    void begin_text() {}
-    void glyph(int owner, unsigned character, int x0, int y0, int x1, int y1, int u, int v, const uint8_t* c) {
-        commands.push_back({2, owner, int(character), x0, y0, x1, y1, u, v, 0, 0, {}, {}, {c[0], c[1], c[2]}});
+    void begin_text(int) {}
+    // Source coordinates are atlas texels now, and the subject is the font.
+    void glyph(int owner, int index, int u, int v, int x0, int y0, int x1, int y1, const uint8_t* c) {
+        commands.push_back({2, owner, index, x0, y0, x1, y1, u, v, 0, 0, {}, {}, {c[0], c[1], c[2]}});
     }
     void quad(int owner, const int* x, const int* y, const uint8_t* c) { turned(3, owner, -1, x, y, nullptr, nullptr, c); }
     void textured_quad(int owner, int id, const int* x, const int* y, const int* u, const int* v, const uint8_t* c) { turned(4, owner, id, x, y, u, v, c); }
-    void glyph_quad(int owner, unsigned character, const int* x, const int* y, const int* u, const int* v, const uint8_t* c) { turned(5, owner, int(character), x, y, u, v, c); }
+    void glyph_quad(int owner, int index, const int* x, const int* y, const int* u, const int* v, const uint8_t* c) { turned(5, owner, index, x, y, u, v, c); }
 private:
     void turned(int kind, int owner, int subject, const int* x, const int* y, const int* u, const int* v, const uint8_t* c) {
         Draw draw;
@@ -69,6 +73,7 @@ void reset() {
     for (auto& rect : rects) rect = Rect{};
     sink.commands.clear();
     sink.texture_width = sink.texture_height = 0;
+    for (auto& font : sink.fonts) font = nullptr;
 }
 // A Canvas root plus `children` empty rect children of it, sized `width` x `height`.
 void canvas_with(size_t children, int width, int height) {
@@ -518,6 +523,117 @@ void the_exported_aggregates_keep_their_field_order() {
     assert(canvas.focused == 9);
 }
 
+// A proportional test font: five glyphs sorted by codepoint, with advances
+// wider than their ink so the cumulative pen is visible, and a baseline eight
+// pixels above the descender line. No pixels are needed; the layout core reads
+// metrics only.
+constexpr GlyphMetric test_metrics[] = {
+    {32, 0, 0, 0, 0, 4, 0, 0},     // space: advance without ink
+    {63, 30, 0, 5, 8, 6, 0, -8},   // '?'
+    {65, 0, 0, 6, 8, 7, 0, -8},    // 'A'
+    {66, 8, 0, 10, 8, 11, 1, -8},  // 'B', drawn one pixel right of the pen
+    {67, 20, 0, 4, 8, 5, 0, -8},   // 'C'
+};
+constexpr Font test_font{nullptr, test_metrics, nullptr, 5, 64, 16, 12, 9, 0, 0, 0, 0};
+
+// One text element filling `width` x `height` at the canvas origin.
+void canvas_with_label(const char* value, int width, int height, const Font* font) {
+    canvas_with(1, width, height);
+    objects[1].rect.anchor_min[0] = objects[1].rect.anchor_min[1] = 0.0;
+    objects[1].rect.anchor_max[0] = objects[1].rect.anchor_max[1] = 0.0;
+    objects[1].rect.pivot[0] = objects[1].rect.pivot[1] = 0.0;
+    objects[1].text.enabled = true;
+    objects[1].text.set_text(value);
+    objects[1].text.font = font ? 0 : -1;
+    sink.fonts[0] = font;
+}
+
+// (v) The built-in atlas emits exactly the sprites it emitted before authored
+// fonts existed: 8 x 16 cells walked at eight pixels, the Spanish extras after
+// the ninety-five ASCII ones, and one command per character including spaces.
+void the_builtin_font_emits_the_cells_it_always_did() {
+    canvas_with_label("Hi \xc3\xb1", 160, 32, nullptr);
+    run(2, true);
+    const char* ascii = "Hi ";
+    assert(sink.commands.size() == 4);
+    for (size_t i = 0; i < 4; ++i) {
+        // The cell arithmetic src/bitmap_font.rs bakes: ASCII in order from 32,
+        // then the sixteen extras; 'n' with a tilde is the seventh of those.
+        const int cell = i < 3 ? int(ascii[i]) - 32 : 95 + 6;
+        const auto& draw = sink.commands[i];
+        assert(draw.kind == 2 && draw.owner == 1 && draw.subject == -1);
+        assert(draw.x0 == int(i) * 8 && draw.x1 == int(i) * 8 + 8);
+        assert(draw.y0 == screen_height - 32 && draw.y1 == screen_height - 16);
+        assert(draw.u0 == (cell % 32) * 8 && draw.v0 == (cell / 32) * 16);
+    }
+}
+
+// (w) An authored font walks its own advances, and a glyph's x offset moves its
+// box without moving the pen.
+void an_authored_font_places_glyphs_at_cumulative_advances() {
+    canvas_with_label("ABC", 160, 32, &test_font);
+    run(2, true);
+    assert(sink.commands.size() == 3);
+    const int top = screen_height - 32, baseline = top + 9;
+    const int x[3] = {0, 7 + 1, 7 + 11}, u[3] = {0, 8, 20}, w[3] = {6, 10, 4};
+    for (size_t i = 0; i < 3; ++i) {
+        const auto& draw = sink.commands[i];
+        assert(draw.kind == 2 && draw.subject == 0);
+        assert(draw.x0 == x[i] && draw.x1 == x[i] + w[i]);
+        assert(draw.y0 == baseline - 8 && draw.y1 == baseline);
+        assert(draw.u0 == u[i] && draw.v0 == 0);
+    }
+}
+
+// (x) Centre and right alignment shift a line by the space its measured width
+// leaves in the rect; the glyphs keep their order and their advances.
+void alignment_offsets_the_line_by_its_measured_width() {
+    const int box = 100, width = 7 + 11 + 5;
+    canvas_with_label("ABC", box, 32, &test_font);
+    objects[1].text.align = TextAlign::Center;
+    run(2, true);
+    assert(sink.commands.size() == 3);
+    assert(sink.commands[0].x0 == (box - width) / 2);
+    assert(sink.commands[2].x0 == (box - width) / 2 + 7 + 11);
+    objects[1].text.align = TextAlign::Right;
+    run(2, true);
+    assert(sink.commands.size() == 3);
+    assert(sink.commands[0].x0 == box - width);
+    assert(sink.commands[2].x0 == box - width + 7 + 11);
+}
+
+// (y) Wrapping breaks before the first glyph whose advance would cross the
+// right edge, and the next line starts at the pen origin one line height down.
+void wrap_breaks_at_the_first_overflowing_advance() {
+    canvas_with_label("ABC", 20, 32, &test_font);
+    run(2, true);
+    assert(sink.commands.size() == 3);
+    const int top = screen_height - 32;
+    assert(sink.commands[1].x0 == 7 + 1 && sink.commands[1].y0 == top + 1);
+    // A and B fill eighteen of twenty pixels, so C starts the second line.
+    assert(sink.commands[2].x0 == 0 && sink.commands[2].y0 == top + 12 + 1);
+    // Without wrapping the overflowing glyph is dropped rather than moved.
+    objects[1].text.wrap = false;
+    run(2, true);
+    assert(sink.commands.size() == 2);
+}
+
+// (z) A codepoint the font has no glyph for draws its question mark, and one it
+// cannot even substitute advances by a space without emitting anything.
+void a_missing_glyph_falls_back_to_the_question_mark() {
+    canvas_with_label("AZC", 160, 32, &test_font);
+    run(2, true);
+    assert(sink.commands.size() == 3);
+    assert(sink.commands[1].u0 == 30 && sink.commands[1].x1 - sink.commands[1].x0 == 5);
+    // '?' advances six, so C follows A's seven plus that.
+    assert(sink.commands[2].x0 == 7 + 6);
+    // A space carries its advance with no ink of its own.
+    canvas_with_label("A C", 160, 32, &test_font);
+    run(2, true);
+    assert(sink.commands.size() == 2);
+    assert(sink.commands[1].x0 == 7 + 4);
+}
+
 // The reflected component identities are the ones the editor mirrors.
 static_assert(FocusableComponent::static_class_id == 0x35443a7ad04b3989ull, "FocusableComponent identity");
 static_assert(sizeof(ImageTiling) == 1, "ImageTiling must fit the reflected 32-bit enum rule trivially");
@@ -548,5 +664,10 @@ int main() {
     an_identity_transform_emits_exactly_the_old_primitives();
     the_rotated_budget_drops_on_its_own();
     the_exported_aggregates_keep_their_field_order();
-    std::puts("Runtime HUD layout, tiling, focus and rotation tests passed.");
+    the_builtin_font_emits_the_cells_it_always_did();
+    an_authored_font_places_glyphs_at_cumulative_advances();
+    alignment_offsets_the_line_by_its_measured_width();
+    wrap_breaks_at_the_first_overflowing_advance();
+    a_missing_glyph_falls_back_to_the_question_mark();
+    std::puts("Runtime HUD layout, tiling, focus, rotation and font tests passed.");
 }

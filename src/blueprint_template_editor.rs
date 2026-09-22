@@ -491,7 +491,7 @@ fn draw_inner(
             }
         }
         crate::lighting_editor::inspector(ui, &mut entity);
-        crate::hud_editor::inspector(ui, &mut entity, &[]);
+        crate::hud_editor::inspector(ui, &mut entity, &[], &[]);
         crate::shadows::inspector(ui, &mut entity);
         if entity != old {
             apply_entity_changes(&mut doc.template, &old, &entity)?;

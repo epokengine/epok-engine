@@ -95,6 +95,7 @@ impl PreparedProject {
         let _ = crate::terrain::resolve(&mut scene, &assets);
         let _ = crate::skeletal::resolve(&mut scene, &assets);
         let _ = crate::texture::resolve(&mut scene, &assets);
+        let _ = crate::hud::resolve_fonts(&mut scene, &assets);
         mark("Establishing source observation baseline");
         let external_watch =
             crate::native_metadata::ExternalWatch::primed(&project.root).unwrap_or_default(); // Normal polling reports unreadable dependency graphs.

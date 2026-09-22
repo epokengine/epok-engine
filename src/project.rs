@@ -271,7 +271,10 @@ pub fn scene_header_with_registry_for(
     }
     // Page geometry follows this bank's VRAM layout, the same one its texture
     // descriptors are generated from.
-    let layout = crate::texture::layout(layout_scene)?;
+    let layout = crate::texture::layout(layout_scene)?.textures;
+    // Fonts are cooked once for the whole project, so a label's index addresses
+    // the shared resource set rather than this bank's own.
+    let fonts = crate::hud::font_ids(resources);
     let pages = |id: uuid::Uuid| {
         let placement = layout.iter().find(|(v, _)| *v == id)?;
         let t = scene.textures.get(&id)?;
@@ -529,10 +532,15 @@ inline void initialize_components(){
         }
         if let Some(c) = &e.text {
             text.push_str(&format!(
-                "objects[{i}].text=Text{{{},{{{}}}}};objects[{i}].text.set_text({});objects[{i}].text.wrap={};\n",
+                "objects[{i}].text=Text{{{},{{{}}}}};objects[{i}].text.set_text({});objects[{i}].text.wrap={};objects[{i}].text.font={};objects[{i}].text.align=TextAlign({});\n",
                 c.enabled,
                 color(&c.color),
-                string(&c.text),c.wrap
+                string(&c.text),
+                c.wrap,
+                c.font
+                    .and_then(|id| fonts.iter().position(|v| *v == id))
+                    .map_or("-1".into(), |i| i.to_string()),
+                c.align as u8
             ));
         }
         if let Some(c) = &e.progress {
@@ -818,6 +826,10 @@ fn stage_with_playback(
         &mut resolved,
         &crate::assets::scan(root, &mut Default::default()),
     )?;
+    crate::hud::resolve_fonts(
+        &mut resolved,
+        &crate::assets::scan(root, &mut Default::default()),
+    )?;
     let scene = &resolved;
     // A failed script compilation must never leave generated code from the
     // previous mode or revision behind in the staged build.
@@ -880,6 +892,7 @@ fn stage_with_playback(
         crate::terrain::validate_scene(bank)?;
         crate::skeletal::resolve(bank, &asset_index)?;
         crate::texture::resolve(bank, &asset_index)?;
+        crate::hud::resolve_fonts(bank, &asset_index)?;
         bank.validate()?;
         if !rendering.streaming_geometry
             && bank
@@ -1060,6 +1073,11 @@ fn stage_with_playback(
         }
     }
     crate::hud::stage(build, &hud_budget)?;
+    playback.resources(vec![crate::hud::stage_fonts(
+        build,
+        &shared_resources,
+        &asset_index,
+    )?])?;
     stage_runtime(build)?;
     for timeline in &timelines {
         let header = crate::timeline_runtime::header(&timeline.compiled, &blueprint_registry)?;
@@ -1231,6 +1249,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "actor_tables.hpp",
             include_bytes!("../runtime/actor_tables.hpp").as_slice(),
+        ),
+        (
+            "font_types.hpp",
+            include_bytes!("../runtime/font_types.hpp").as_slice(),
         ),
         (
             "hud_core.hpp",
@@ -2361,6 +2383,21 @@ mod tests {
             "objects[{index}].focusable=Focusable{{true,{{3,-1,0,2}},7,{{255,128,0}}}};"
         )));
         assert!(header.contains(&format!("objects[{canvas}].canvas.focused=1;")));
+        // A label's font index and alignment are appended after its wrap flag;
+        // the built-in atlas keeps index -1 so unchanged scenes are unchanged.
+        s.actors[index].text = Some(crate::hud::Text {
+            text: "Hi".into(),
+            color: [1.; 3],
+            enabled: true,
+            wrap: false,
+            font: None,
+            align: crate::hud::TextAlign::Right,
+        });
+        s.sync_actor_components();
+        let header = scene_header(&s, &[]).unwrap();
+        assert!(header.contains(&format!(
+            "objects[{index}].text.wrap=false;objects[{index}].text.font=-1;objects[{index}].text.align=TextAlign(2);"
+        )));
     }
     #[test]
     fn missing_script_fails_before_build() {

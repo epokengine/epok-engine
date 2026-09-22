@@ -5,7 +5,7 @@ use crate::{hud, scene::Scene};
 /// it, so a cached executable built from an older header is rejected instead of
 /// being misread. Bump on any frame-header or command-record change.
 pub const HUD_PREVIEW_MAGIC: u32 = 0x3144_5548; // "HUD1"
-pub const HUD_PREVIEW_PROTOCOL_VERSION: u32 = 4;
+pub const HUD_PREVIEW_PROTOCOL_VERSION: u32 = 5;
 /// The child runs gameplay: BeginPlay/start, update, frame_update. Clear in the
 /// edit phase, which only calls `editor_preview` construction hooks.
 pub const HUD_PREVIEW_CAP_SIMULATE: u32 = 1;
@@ -39,6 +39,10 @@ struct Node {
     focusable: [i32; 9],
     /// This node's Canvas focus index, or -1.
     canvas_focused: i32,
+    /// The cooked font this text draws from, or -1 for the built-in atlas.
+    font: i32,
+    /// 0 Left, 1 Center, 2 Right.
+    align: i32,
     text: [u8; 512],
 }
 #[repr(C)]
@@ -56,6 +60,8 @@ unsafe extern "C" {
         commands: *mut Command,
         capacity: u32,
         stats: *mut u32,
+        font_table: *const i32,
+        font_words: u32,
     ) -> u32;
     #[allow(dead_code)]
     fn epok_hud_resolve(parent: *const i32, rect: *const i32, result: *mut i32);
@@ -65,6 +71,8 @@ unsafe extern "C" {
         width: i32,
         height: i32,
         rects: *mut i32,
+        font_table: *const i32,
+        font_words: u32,
     ) -> u32;
 }
 fn fixed(v: f32) -> i32 {
@@ -102,10 +110,44 @@ pub fn resolve(parent: hud::Rect, r: &hud::RectTransform) -> hud::Rect {
     }
     result.map(|v| v as f32 / 4096.)
 }
+/// The flat font table both FFI entry points read: per font, five header ints
+/// `[count,width,height,line_height,baseline]` followed by eight per glyph, in
+/// the index order `hud::font_ids` fixes. Fixed-width values, no pointers, like
+/// every other record on this boundary. Decoding is not repeated here: the
+/// cooked atlases already live in `scene.fonts`, keyed by asset id.
+fn font_table(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<i32> {
+    let mut out = vec![];
+    for id in ids {
+        let Some(data) = scene.fonts.get(id) else {
+            out.extend([0; 5]);
+            continue;
+        };
+        out.extend([
+            data.metrics.len() as i32,
+            i32::from(data.width),
+            i32::from(data.height),
+            i32::from(data.line_height),
+            i32::from(data.baseline),
+        ]);
+        for m in &data.metrics {
+            out.extend([
+                m.codepoint as i32,
+                i32::from(m.u),
+                i32::from(m.v),
+                i32::from(m.width),
+                i32::from(m.height),
+                i32::from(m.advance),
+                i32::from(m.x_offset),
+                i32::from(m.y_offset),
+            ]);
+        }
+    }
+    out
+}
 /// One wire node per actor, in actor order. `ids` is the texture bank the image
-/// indices address. Shared by the command compiler and the layout query so the
+/// indices address, `font_ids` the cooked fonts a label's index addresses. Shared by the command compiler and the layout query so the
 /// editor never marshals the scene two different ways.
-fn nodes(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<Node> {
+fn nodes(scene: &Scene, ids: &[uuid::Uuid], font_ids: &[uuid::Uuid]) -> Vec<Node> {
     scene
         .actors
         .iter()
@@ -125,6 +167,8 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<Node> {
                 layout_container: [0, 0, 0, 0, 0, 0, 0, 1],
                 focusable: [0, -1, -1, -1, -1, 0, 255, 255, 255],
                 canvas_focused: -1,
+                font: -1,
+                align: 0,
                 text: [0; 512],
             };
             if let Some(c) = &e.canvas {
@@ -157,6 +201,11 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<Node> {
                     n.flags |= 128;
                 }
                 n.text_color = color(c.color);
+                n.font = c
+                    .font
+                    .and_then(|id| font_ids.iter().position(|v| *v == id))
+                    .map_or(-1, |i| i as i32);
+                n.align = i32::from(c.align as u8);
                 let bytes = c.text.as_bytes();
                 let end = bytes.len().min(511);
                 n.text[..end].copy_from_slice(&bytes[..end]);
@@ -215,7 +264,9 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<Node> {
 /// with the pixels the same core produces.
 pub fn layouts(scene: &Scene) -> Vec<Option<hud::Placement>> {
     let ids = crate::texture::ids(scene);
-    let mut nodes = nodes(scene, &ids);
+    let font_ids = hud::font_ids(scene);
+    let table = font_table(scene, &font_ids);
+    let mut nodes = nodes(scene, &ids, &font_ids);
     for (i, n) in nodes.iter_mut().enumerate() {
         let parent = scene.spatial_parent(i);
         n.parent = parent.map_or(-1, |p| p as i32);
@@ -237,6 +288,8 @@ pub fn layouts(scene: &Scene) -> Vec<Option<hud::Placement>> {
             i32::from(scene.display_size[0]),
             i32::from(scene.display_size[1]),
             out.as_mut_ptr(),
+            table.as_ptr(),
+            table.len() as u32,
         );
     }
     scene
@@ -269,7 +322,9 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 6]) {
                 .map_or([0, 0], |t| [i32::from(t.width), i32::from(t.height)])
         })
         .collect();
-    let nodes = nodes(scene, &ids);
+    let font_ids = hud::font_ids(scene);
+    let table = font_table(scene, &font_ids);
+    let nodes = nodes(scene, &ids, &font_ids);
     let b = &scene.hud_budget;
     let budget = [
         b.layouts as u32,
@@ -292,6 +347,8 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 6]) {
             commands.as_mut_ptr(),
             commands.len() as u32,
             stats.as_mut_ptr(),
+            table.as_ptr(),
+            table.len() as u32,
         )
     };
     commands.truncate(count as usize);
@@ -331,6 +388,39 @@ fn render_with_background(
                 .map(|t| (t, crate::palette::preview_rgba(scene, *id, seconds, t)))
         })
         .collect();
+    let fonts: Vec<_> = hud::font_ids(scene)
+        .iter()
+        .map(|id| scene.fonts.get(id).cloned())
+        .collect();
+    // Font -1 draws from the built-in atlas, whose cell the source texels name;
+    // an authored font is 4bpp, so a texel is one nibble through its CLUT.
+    // `None` is transparent: the glyph leaves the pixel behind it alone.
+    let sample = |index: i32, u: i32, v: i32, rgb: [u8; 3]| -> Option<[u8; 3]> {
+        if index < 0 {
+            let cell = (v / 16) * 32 + u / 8;
+            let (du, dv) = (u - (u / 8) * 8, v - (v / 16) * 16);
+            let rows =
+                crate::bitmap_font::character(cell as usize).and_then(crate::bitmap_font::glyph)?;
+            (rows[dv as usize] & (1 << du) != 0).then_some(rgb)
+        } else {
+            let data = fonts.get(index as usize)?.as_ref()?;
+            if u < 0 || v < 0 || u >= i32::from(data.width) || v >= i32::from(data.height) {
+                return None;
+            }
+            let stride = usize::from(data.width) / 4;
+            let word = data.words[v as usize * stride + u as usize / 4];
+            let entry = usize::from((word >> ((u % 4) * 4)) & 0xf);
+            if entry == 0 {
+                return None;
+            }
+            let color = data.palette[entry];
+            Some(std::array::from_fn(|channel| {
+                let gain = u32::from(rgb[channel]).div_ceil(2);
+                let five = (u32::from((color >> (channel * 5)) & 31) * gain / 128).min(31) as u8;
+                (five << 3) | (five >> 2)
+            }))
+        }
+    };
     for Command(c) in commands {
         // Kinds 3, 4 and 5 carry four screen corners instead of a box: fill them
         // as two triangles and interpolate the source corners barycentrically.
@@ -340,19 +430,7 @@ fn render_with_background(
                 std::array::from_fn(|i| [c[3 + i * 2] as f32, c[4 + i * 2] as f32]);
             let source: [[f32; 2]; 4] =
                 std::array::from_fn(|i| [c[14 + i * 2] as f32, c[15 + i * 2] as f32]);
-            let glyph = if c[0] == 5 {
-                let ch = if c[2] <= 126 {
-                    char::from_u32(c[2] as u32)
-                } else {
-                    crate::bitmap_font::EXTRA.chars().nth((c[2] - 127) as usize)
-                };
-                match ch.and_then(crate::bitmap_font::glyph) {
-                    Some(g) => Some(g),
-                    None => continue,
-                }
-            } else {
-                None
-            };
+            let glyph = (c[0] == 5).then_some(c[2]);
             let texture = if c[0] == 4 {
                 match textures.get(c[2] as usize).and_then(|t| t.as_ref()) {
                     Some(t) => Some(t),
@@ -387,12 +465,8 @@ fn render_with_background(
                         let uv = [0usize, 1].map(|axis| {
                             e0 * source[i][axis] + e1 * source[j][axis] + e2 * source[k][axis]
                         });
-                        let result = if let Some(g) = glyph {
-                            let (u, v) = (uv[0] as i32, uv[1] as i32);
-                            ((0..8).contains(&u)
-                                && (0..16).contains(&v)
-                                && g[v as usize] & (1 << u) != 0)
-                                .then_some(rgb)
+                        let result = if let Some(font) = glyph {
+                            sample(font, uv[0] as i32, uv[1] as i32, rgb)
                         } else if let Some((t, rgba)) = texture {
                             let (u, v) = (uv[0] as i32, uv[1] as i32);
                             if u < 0 || v < 0 || u >= i32::from(t.width) || v >= i32::from(t.height)
@@ -429,16 +503,7 @@ fn render_with_background(
             continue;
         }
         let rgb = [c[11], c[12], c[13]].map(|v| v.clamp(0, 255) as u8);
-        let glyph = if c[0] == 2 {
-            let ch = if c[2] <= 126 {
-                char::from_u32(c[2] as u32)
-            } else {
-                crate::bitmap_font::EXTRA.chars().nth((c[2] - 127) as usize)
-            };
-            ch.and_then(crate::bitmap_font::glyph)
-        } else {
-            None
-        };
+        let glyph = (c[0] == 2).then_some(c[2]);
         for y in y0.max(0)..y1.min(height as i32) {
             for x in x0.max(0)..x1.min(width as i32) {
                 let result = match c[0] {
@@ -474,18 +539,7 @@ fn render_with_background(
                                 (five << 3) | (five >> 2)
                             }))
                         }),
-                    2 => glyph.and_then(|g| {
-                        let u = c[7] + x - x0;
-                        let v = c[8] + y - y0;
-                        if !(0..8).contains(&u)
-                            || !(0..16).contains(&v)
-                            || g[v as usize] & (1 << u) == 0
-                        {
-                            None
-                        } else {
-                            Some(rgb)
-                        }
-                    }),
+                    2 => glyph.and_then(|font| sample(font, c[7] + x - x0, c[8] + y - y0, rgb)),
                     _ => None,
                 };
                 if let Some(rgb) = result {
@@ -523,10 +577,105 @@ mod tests {
     /// on one side without the other would otherwise be read as garbage.
     #[test]
     fn the_wire_node_matches_the_protocol_it_declares() {
-        const FIELDS: usize = 1 + 1 + 11 + 1 + 1 + 3 + 4 + 4 + 3 + 7 + 5 + 8 + 9 + 1;
+        const FIELDS: usize = 1 + 1 + 11 + 1 + 1 + 3 + 4 + 4 + 3 + 7 + 5 + 8 + 9 + 1 + 1 + 1;
         assert_eq!(size_of::<Node>(), FIELDS * 4 + 512);
         assert_eq!(align_of::<Node>(), 4);
-        assert_eq!(HUD_PREVIEW_PROTOCOL_VERSION, 4);
+        assert_eq!(HUD_PREVIEW_PROTOCOL_VERSION, 5);
+    }
+    fn labelled(text: &str, font: Option<uuid::Uuid>) -> Scene {
+        let mut s = Scene::default();
+        s.actors.clear();
+        let mut root = crate::scene::Actor::cube("Canvas".into());
+        root.kind = "Empty".into();
+        root.canvas = Some(Default::default());
+        s.actors.push(root);
+        let mut label = crate::scene::Actor::cube("Label".into());
+        label.kind = "Empty".into();
+        label.parent = Some(0);
+        label.rect = Some(hud::RectTransform {
+            size: [160., 32.],
+            ..Default::default()
+        });
+        label.text = Some(hud::Text {
+            text: text.into(),
+            font,
+            ..Default::default()
+        });
+        s.actors.push(label);
+        s
+    }
+    /// `set_text` keeps UTF-8 verbatim now and the decode happens at draw time,
+    /// so a multi-byte character has to cross the wire whole and come back as
+    /// one glyph rather than as its bytes.
+    #[test]
+    fn utf8_survives_the_wire_and_decodes_to_one_glyph() {
+        let (commands, stats) = compile(&labelled("A\u{f1}", None));
+        assert_eq!(stats[1], 2, "two characters, four bytes");
+        assert_eq!(commands.len(), 2);
+        // Built-in cells: 'A' is 65-32, 'n' with a tilde is the seventh extra.
+        for (command, cell) in commands.iter().zip([65 - 32, 95 + 6]) {
+            assert_eq!(command.0[0], 2);
+            assert_eq!(command.0[2], -1, "the built-in atlas stays font -1");
+            assert_eq!(
+                (command.0[7], command.0[8]),
+                ((cell % 32) * 8, (cell / 32) * 16)
+            );
+        }
+    }
+    /// The flat table is the only shape the layout core sees a font through, so
+    /// what goes in has to be exactly what a `Font` and its metrics come out as.
+    #[test]
+    fn the_flat_font_table_carries_a_cooked_font_verbatim() {
+        let id = uuid::Uuid::new_v4();
+        let data = crate::font_asset::FontData {
+            width: 64,
+            height: 32,
+            words: vec![0; 16 * 32],
+            palette: crate::font_asset::palette(false),
+            metrics: vec![
+                crate::font_asset::GlyphMetric {
+                    codepoint: 65,
+                    u: 3,
+                    v: 4,
+                    width: 6,
+                    height: 8,
+                    advance: 7,
+                    x_offset: -1,
+                    y_offset: -8,
+                },
+                crate::font_asset::GlyphMetric {
+                    codepoint: 66,
+                    u: 11,
+                    v: 4,
+                    width: 5,
+                    height: 8,
+                    advance: 6,
+                    x_offset: 0,
+                    y_offset: -8,
+                },
+            ],
+            line_height: 12,
+            baseline: 9,
+            rgba: vec![],
+        };
+        let mut scene = labelled("AB", Some(id));
+        scene.fonts.insert(id, std::sync::Arc::new(data.clone()));
+        let table = font_table(&scene, &hud::font_ids(&scene));
+        assert_eq!(table.len(), 5 + 2 * 8);
+        assert_eq!(&table[..5], &[2, 64, 32, 12, 9]);
+        assert_eq!(&table[5..13], &[65, 3, 4, 6, 8, 7, -1, -8]);
+        assert_eq!(&table[13..], &[66, 11, 4, 5, 8, 6, 0, -8]);
+        // The core reads that table back: the advances place the second glyph.
+        let (commands, _) = compile(&scene);
+        assert_eq!(commands.len(), 2);
+        assert_eq!(commands[0].0[2], 0, "the label names font index zero");
+        assert_eq!(commands[1].0[3] - commands[0].0[3], 7 + 1);
+        assert_eq!((commands[0].0[7], commands[0].0[8]), (3, 4));
+        // An unresolved font falls back to the built-in atlas rather than
+        // dropping the label; the table still carries its five header words.
+        scene.fonts.clear();
+        assert_eq!(font_table(&scene, &hud::font_ids(&scene)), vec![0; 5]);
+        assert_eq!(compile(&scene).0.len(), 2);
     }
     #[test]
     fn dynamic_budget_and_disabled_parent_match_console() {

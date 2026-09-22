@@ -567,6 +567,12 @@ pub(crate) fn build_runner(
         "text.hpp".into(),
         include_bytes!("../runtime/text.hpp").to_vec(),
     );
+    // The child draws labels with the same cooked fonts the console does, so it
+    // gets the same global header rather than an empty one.
+    files.insert(
+        "fonts.hh".into(),
+        crate::hud::fonts_header(scene)?.into_bytes(),
+    );
     files.insert(
         "display.hh".into(),
         if runner == Runner::NativePlay {

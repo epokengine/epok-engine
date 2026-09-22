@@ -52,7 +52,29 @@ fn actor_picker(ui: &imgui::Ui, label: &str, targets: FocusTargets, value: &mut 
         }
     }
 }
-pub fn inspector(ui: &imgui::Ui, e: &mut Actor, targets: FocusTargets) {
+/// Every Font asset in the project, by id and display name, for the Text font
+/// combo. The template editor has no asset index and passes an empty slice; a
+/// font already chosen there still shows as its UUID.
+pub fn font_choices(index: &crate::assets::Index) -> Vec<(uuid::Uuid, String)> {
+    let mut out: Vec<_> = index
+        .assets
+        .iter()
+        .filter_map(|(id, records)| match records.as_slice() {
+            [record] if record.meta.kind == crate::assets::Kind::Font => {
+                Some((*id, record.meta.source.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+    out.sort_by(|a, b| a.1.cmp(&b.1));
+    out
+}
+pub fn inspector(
+    ui: &imgui::Ui,
+    e: &mut Actor,
+    targets: FocusTargets,
+    fonts: &[(uuid::Uuid, String)],
+) {
     if let Some(c) = &mut e.canvas
         && heading(ui, "Canvas")
     {
@@ -163,9 +185,33 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor, targets: FocusTargets) {
             .build();
         crate::gui::toggle(ui, "Wrap text##hud", &mut c.wrap);
         ui.color_edit3(crate::gui::field(ui, "Color##text"), &mut c.color);
+        let label = match c.font {
+            None => "Built-in".to_string(),
+            Some(id) => fonts
+                .iter()
+                .find(|(v, _)| *v == id)
+                .map_or_else(|| id.to_string(), |(_, name)| name.clone()),
+        };
+        if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Font"), label) {
+            if ui.selectable("Built-in") {
+                c.font = None;
+            }
+            for (id, name) in fonts {
+                if ui.selectable(name) {
+                    c.font = Some(*id);
+                }
+            }
+        }
+        if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Align"), c.align.label()) {
+            for align in hud::TextAlign::ALL {
+                if ui.selectable(align.label()) {
+                    c.align = align;
+                }
+            }
+        }
         crate::gui::muted(
             ui,
-            "8 x 16 bitmap; Spanish glyphs, multiline, 511 UTF-8 bytes.",
+            "Built-in is 8 x 16 with Spanish glyphs; an imported font brings its own advances, line height and VRAM cost. Multiline, 511 UTF-8 bytes.",
         );
     }
     let progress_open = e.progress.is_some()

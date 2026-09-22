@@ -1,5 +1,6 @@
 #pragma once
 #include "epok.hpp"
+#include "font_types.hpp"
 
 namespace epok::hud_core {
 // Shared by the PSX packet writer and the native preview. No GPU, heap, or
@@ -154,34 +155,78 @@ template<class Sink> class Compiler {
         ++stats.images;
         sink.image(owner,image.texture,x0,y0,x1,y1,u+(x0-x)*tw/w,v+(y0-y)*th/h,u+(x1-x)*tw/w-1,v+(y1-y)*th/h-1,c);
     }
+    // What one codepoint contributes to a line: the atlas cell it draws from,
+    // the drawn box, the pen advance, and the offset of that box from the pen
+    // and the baseline. `ink` is false for a codepoint the font cannot draw but
+    // still advances past. The built-in atlas is uniform 8x16 with no offsets,
+    // so it reproduces the fixed-cell walk this replaced exactly.
+    struct Placed { int u=0,v=0,width=0,height=0,advance=0,dx=0,dy=0;bool ink=false; };
+    static Placed place_glyph(const Font* font,uint32_t c){
+        Placed g;
+        if(!font){const int cell=builtin_cell(c);g={(cell%32)*8,(cell/32)*16,8,16,8,0,0,true};return g;}
+        const GlyphMetric* m=find_glyph(*font,c);
+        if(!m)m=find_glyph(*font,'?');
+        if(!m){const GlyphMetric* space=find_glyph(*font,' ');g.advance=space?int(space->advance):0;return g;}
+        g={m->u,m->v,m->width,m->height,m->advance,m->x_offset,m->y_offset,m->width>0&&m->height>0};
+        return g;
+    }
+    // A font index nothing answers, or one whose table came through empty,
+    // falls back to the built-in atlas so a label stays visible while its asset
+    // is still unresolved.
+    const Font* font_for(int index){const Font* f=index>=0?sink.font(index):nullptr;return f&&f->count?f:nullptr;}
+    // Alignment has to know a line's width before its first glyph is placed, so
+    // it measures into this table; Left needs no measure and is unbounded.
+    static constexpr int measured_rows=32;
     void label(Rect r,const Text& text){
         if(stats.texts>=budget.texts){++stats.dropped;return;}
-        int columns=pixel(r.w)/8,rows=pixel(r.h)/16;if(columns<=0||rows<=0)return;
-        ++stats.texts;sink.begin_text();
-        int col=0,row=0,left=pixel(r.x),top=height-pixel(r.y+r.h);
-        for(size_t n=0;n<511&&text.value[n];++n){
-            unsigned c=uint8_t(text.value[n]);
-            if(c==10){col=0;++row;continue;}
-            if(col>=columns&&text.wrap){col=0;++row;}
+        const Font* font=font_for(text.font);
+        const int line=font?(font->line_height?int(font->line_height):1):16,base=font?int(font->baseline):0;
+        const int box=pixel(r.w);int rows=pixel(r.h)/line;
+        // The built-in font keeps its "at least one 8 px column" rule so an
+        // unchanged scene emits exactly the sprites it emitted before.
+        if(box/(font?1:8)<=0||rows<=0)return;
+        int widths[measured_rows]={};
+        if(text.align!=TextAlign::Left){
+            if(rows>measured_rows)rows=measured_rows;
+            int pen=0,row=0;
+            for(size_t n=0;n<511&&text.value[n];){
+                const uint32_t c=utf8_scalar(text.value,n);
+                if(c==10){pen=0;if(++row>=rows)break;continue;}
+                const Placed g=place_glyph(font,c);
+                if(text.wrap&&pen+g.advance>box){pen=0;if(++row>=rows)break;}
+                if(pen+g.advance<=box)widths[row]=pen+g.advance;
+                pen+=g.advance;
+            }
+        }
+        ++stats.texts;sink.begin_text(text.font);
+        const int left=pixel(r.x),top=height-pixel(r.y+r.h);
+        int pen=0,row=0;
+        for(size_t n=0;n<511&&text.value[n];){
+            const uint32_t c=utf8_scalar(text.value,n);
+            if(c==10){pen=0;++row;continue;}
+            const Placed g=place_glyph(font,c);
+            if(text.wrap&&pen+g.advance>box){pen=0;++row;}
             if(row>=rows)break;
-            int x=left+col*8,y=top+row*16;++col;
+            const int start=pen;pen+=g.advance;
+            // Past the right edge the glyph is dropped, not clipped: the fixed
+            // column cap did the same before advances varied per glyph.
+            if(start+g.advance>box||!g.ink)continue;
+            const int offset=text.align==TextAlign::Left?0:text.align==TextAlign::Center?(box-widths[row])/2:box-widths[row];
+            const int x=left+offset+start+g.dx,y=top+row*line+base+g.dy;
             if(rotated){
-                // The screen box a rotated cell lands in is not this one, so only
-                // the column cap prunes here and the drawing area clips the rest.
-                if(col>columns)continue;
+                // The screen box a rotated cell lands in is not this one, so the
+                // line cap alone prunes here and the drawing area clips the rest.
                 if(!rotated_room()){++stats.dropped;break;}
-                if(c<32||c>142)c='?';
-                const Rect cell{Fixed(x*4096,Fixed::RAW),Fixed((height-y-16)*4096,Fixed::RAW),Fixed(8*4096,Fixed::RAW),Fixed(16*4096,Fixed::RAW)};
+                const Rect cell{Fixed(x*4096,Fixed::RAW),Fixed((height-y-g.height)*4096,Fixed::RAW),Fixed(g.width*4096,Fixed::RAW),Fixed(g.height*4096,Fixed::RAW)};
                 int px[4],py[4];corners(cell,px,py);
-                const int su[4]={0,8,0,8},sv[4]={0,0,16,16};
-                ++stats.rotated;sink.glyph_quad(owner,c,px,py,su,sv,text.color);
+                const int su[4]={g.u,g.u+g.width,g.u,g.u+g.width},sv[4]={g.v,g.v,g.v+g.height,g.v+g.height};
+                ++stats.rotated;sink.glyph_quad(owner,text.font,px,py,su,sv,text.color);
                 continue;
             }
-            if(col>columns||x>=width||y>=height||x+8<=0||y+16<=0)continue;
+            if(x>=width||y>=height||x+g.width<=0||y+g.height<=0)continue;
             if(stats.glyphs>=budget.glyphs){++stats.dropped;break;}
-            if(c<32||c>142)c='?';
-            int x0=clamp(x,width),y0=clamp(y,height),x1=clamp(x+8,width),y1=clamp(y+16,height);
-            ++stats.glyphs;sink.glyph(owner,c,x0,y0,x1,y1,x0-x,y0-y,text.color);
+            int x0=clamp(x,width),y0=clamp(y,height),x1=clamp(x+g.width,width),y1=clamp(y+g.height,height);
+            ++stats.glyphs;sink.glyph(owner,text.font,g.u+(x0-x),g.v+(y0-y),x0,y0,x1,y1,text.color);
         }
     }
     static bool root_of_layout(const ActorData& e){return (e.canvas.enabled||e.rect.enabled)&&e.parent<0;}
@@ -233,7 +278,11 @@ template<class Sink> class Compiler {
                 size[1]=pad[1]+line[1];if(rows>1)size[1]+=c.spacing[1]*(rows-1);
             }else for(int a=0;a<2;++a)size[a]=pad[a]+(c.kind==LayoutKind::Margin?(head>=0?measured[head][a]:Fixed(0.0)):most[a]);
         }else if(e.text.enabled){
-            size[1]=16.0;if(!e.text.wrap){int32_t length=0;while(length<511&&e.text.value[length])++length;size[0]=Fixed(length*8,0);}
+            // One line of the element's own font: the advances it really walks,
+            // which for the built-in atlas is the byte count times eight.
+            const Font* font=font_for(e.text.font);
+            size[1]=Fixed(font?int(font->line_height):16,0);
+            if(!e.text.wrap){int32_t run=0;for(size_t n=0;n<511&&e.text.value[n];){const uint32_t c=utf8_scalar(e.text.value,n);if(c!=10)run+=place_glyph(font,c).advance;}size[0]=Fixed(run,0);}
         }
         // One rule for every child of a container, a nested container included: the
         // formula or intrinsic, floored by the node's own rect size and its minimum.

@@ -2740,7 +2740,12 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             actor_header(ui, &mut entity, glyph);
             ui.separator();
             entity_actor_inspector(ui, e, index);
-            crate::hud_editor::inspector(ui, &mut entity, &focus_targets);
+            crate::hud_editor::inspector(
+                ui,
+                &mut entity,
+                &focus_targets,
+                &crate::hud_editor::font_choices(&e.assets.index),
+            );
             let mut reset_transform = false;
             if entity.rect.is_none()
                 && entity.canvas.is_none()

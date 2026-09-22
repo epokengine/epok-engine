@@ -606,6 +606,7 @@ fn prepare(
         crate::mesh::resolve(&mut scene, &assets)?;
         crate::skeletal::resolve(&mut scene, &assets)?;
         crate::texture::resolve(&mut scene, &assets)?;
+        crate::hud::resolve_fonts(&mut scene, &assets)?;
     }
     let rendering = crate::settings::rendering(root)?;
     scene.display_size = [rendering.width, rendering.height];

@@ -62,6 +62,115 @@ pub fn stage(build: &std::path::Path, budget: &Budget) -> Result<(), String> {
         include_bytes!("../runtime/text.hpp"),
     )
 }
+/// Every Font asset the scene's texts name, in the index order the exported
+/// `Text::font` refers to: distinct ids sorted by UUID.
+pub fn font_ids(scene: &Scene) -> Vec<uuid::Uuid> {
+    let mut ids: Vec<_> = scene
+        .actors
+        .iter()
+        .filter_map(|e| e.text.as_ref().and_then(|t| t.font))
+        .collect();
+    ids.sort_unstable();
+    ids.dedup();
+    ids
+}
+/// Cook every referenced font into `scene.fonts`, the way `texture::resolve`
+/// fills `scene.textures`. Placement in VRAM is decided later by the allocator.
+pub fn resolve_fonts(scene: &mut Scene, index: &crate::assets::Index) -> Result<(), String> {
+    scene.fonts.clear();
+    let mut errors = vec![];
+    for id in font_ids(scene) {
+        let load = || {
+            let record = index.resolve(id)?;
+            if record.meta.kind != crate::assets::Kind::Font {
+                return Err(format!("{id} is not a Font"));
+            }
+            let package = crate::assets::Package::load(&record.path)?;
+            let settings = package.meta.settings.font()?;
+            crate::font_asset::decode(&package.source, settings)
+        };
+        match load() {
+            Ok(data) => {
+                scene.fonts.insert(id, std::sync::Arc::new(data));
+            }
+            Err(error) => errors.push(error),
+        }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("\n"))
+    }
+}
+/// The cooked atlases, metrics and CLUTs of every font `scene` references, plus
+/// the `Font` descriptors carrying the placement the VRAM allocator assigned.
+/// Fonts are global: one header serves every bank, so a label's index means the
+/// same thing wherever it is drawn.
+pub fn fonts_header(scene: &Scene) -> Result<String, String> {
+    let placement = crate::texture::layout(scene)?.fonts;
+    let mut header = String::from(
+        "#pragma once\n#include \"font_types.hpp\"\n#include <stddef.h>\nnamespace epok {\n",
+    );
+    let mut descriptors = vec![];
+    for (i, (id, p)) in placement.iter().enumerate() {
+        let data = scene
+            .fonts
+            .get(id)
+            .ok_or_else(|| format!("Unresolved font {id}"))?;
+        let symbol = format!("font_{i}");
+        header += &crate::font_asset::header_fragment(data, &symbol);
+        header += &format!("inline constexpr int font_id_{}={i};\n", id.simple());
+        descriptors.push(format!(
+            "{{{symbol}_pixels,{symbol}_metrics,{symbol}_palette,{},{},{},{},{},{},{},640,{}}}",
+            data.metrics.len(),
+            data.width,
+            data.height,
+            data.line_height,
+            data.baseline,
+            p.x,
+            p.y,
+            p.clut_y
+        ));
+    }
+    header += &format!(
+        "inline constexpr size_t font_count={};\ninline constexpr Font font_assets[]={{{}}};\n}}\n",
+        descriptors.len(),
+        if descriptors.is_empty() {
+            "{}".into()
+        } else {
+            descriptors.join(",")
+        }
+    );
+    Ok(header)
+}
+/// Stage that header and register one dependency per font asset, the way
+/// `Transition::stage_image` does, so a reimported font reruns the cook and
+/// nothing else does.
+pub fn stage_fonts(
+    build: &std::path::Path,
+    scene: &Scene,
+    index: &crate::assets::Index,
+) -> Result<crate::playback_staging::ResourceOutput, String> {
+    let mut inputs = std::collections::BTreeMap::new();
+    for id in font_ids(scene) {
+        let record = index.resolve(id)?;
+        let package = crate::assets::Package::load(&record.path)?;
+        if package.meta.id != id || package.meta.kind != crate::assets::Kind::Font {
+            return Err(format!("Text font {id} must reference a Font asset."));
+        }
+        inputs.insert(
+            format!("asset:{id}"),
+            crate::assets::cache_key(&package.meta),
+        );
+    }
+    let header = fonts_header(scene)?;
+    crate::project::write_changed(&build.join("fonts.hh"), header.as_bytes())?;
+    Ok(crate::playback_staging::ResourceOutput {
+        path: "fonts.hh".into(),
+        signature: crate::assets::hash(header.as_bytes()),
+        inputs,
+    })
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -167,6 +276,10 @@ pub struct Text {
     pub color: [f32; 3],
     pub enabled: bool,
     pub wrap: bool,
+    /// The Font asset this label draws from; `None` is the built-in 8x16 atlas.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font: Option<uuid::Uuid>,
+    pub align: TextAlign,
 }
 impl Default for Text {
     fn default() -> Self {
@@ -175,6 +288,38 @@ impl Default for Text {
             color: [1.; 3],
             enabled: true,
             wrap: true,
+            font: None,
+            align: TextAlign::Left,
+        }
+    }
+}
+/// Mirrors `epok::TextAlign`. The numbering is pinned: saved Blueprint graphs
+/// store it, so the type only ever grows at the end.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[repr(u8)]
+pub enum TextAlign {
+    #[default]
+    Left = 0,
+    Center = 1,
+    Right = 2,
+}
+impl From<u8> for TextAlign {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => Self::Center,
+            2 => Self::Right,
+            _ => Self::Left,
+        }
+    }
+}
+impl TextAlign {
+    pub const ALL: [Self; 3] = [Self::Left, Self::Center, Self::Right];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Left => "Left",
+            Self::Center => "Center",
+            Self::Right => "Right",
         }
     }
 }
@@ -482,7 +627,35 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
         }
         if let Some(t) = &e.text {
             texts += 1;
-            crate::bitmap_font::validate(&t.text)?;
+            match t.font {
+                // A cooked font answers for its own character set; the built-in
+                // atlas keeps the 8x16 rule and its sixteen Spanish extras.
+                Some(id) => {
+                    if id.is_nil() {
+                        return Err("Text font must be a valid Font asset UUID".into());
+                    }
+                    if t.text.len() > crate::bitmap_font::MAX_BYTES {
+                        return Err(format!(
+                            "Text exceeds {} UTF-8 bytes",
+                            crate::bitmap_font::MAX_BYTES
+                        ));
+                    }
+                    // An unresolved font is reported by `resolve_fonts`; here it
+                    // is simply not checked, as an unresolved texture is not.
+                    if let Some(data) = scene.fonts.get(&id)
+                        && let Some(c) = t.text.chars().find(|c| {
+                            *c != '\n'
+                                && data
+                                    .metrics
+                                    .binary_search_by_key(&(*c as u32), |m| m.codepoint)
+                                    .is_err()
+                        })
+                    {
+                        return Err(format!("Font {id} has no glyph for {c:?}"));
+                    }
+                }
+                None => crate::bitmap_font::validate(&t.text)?,
+            }
         }
         if let Some(i) = &e.image {
             crate::texture::validate_region(i.texture, i.region, scene)?;
@@ -578,6 +751,116 @@ pub fn render_at(scene: &Scene, seconds: f32) -> Vec<u8> {
 mod tests {
     use super::*;
     use crate::scene::Actor;
+    /// A synthesized cooked font: three proportional glyphs plus a question
+    /// mark, packed 4bpp into a 64 x 32 atlas. No font file is needed to pin the
+    /// export, validation and preview paths against it.
+    fn cooked_font() -> crate::font_asset::FontData {
+        let metric = |codepoint, u, width, advance| crate::font_asset::GlyphMetric {
+            codepoint,
+            u,
+            v: 0,
+            width,
+            height: 8,
+            advance,
+            x_offset: 0,
+            y_offset: -8,
+        };
+        crate::font_asset::FontData {
+            width: 64,
+            height: 32,
+            words: vec![0x1111; 16 * 32],
+            palette: crate::font_asset::palette(false),
+            metrics: vec![
+                metric(63, 30, 5, 6),
+                metric(65, 0, 6, 7),
+                metric(66, 8, 10, 11),
+                metric(67, 20, 4, 5),
+            ],
+            line_height: 12,
+            baseline: 9,
+            rgba: vec![],
+        }
+    }
+    fn labelled(text: &str, font: Option<uuid::Uuid>) -> Scene {
+        let mut scene = fixture();
+        scene.actors[1].image = None;
+        scene.actors[1].text = Some(Text {
+            text: text.into(),
+            font,
+            ..Default::default()
+        });
+        scene.sync_actor_components();
+        scene
+    }
+    #[test]
+    fn an_authored_font_answers_for_its_own_character_set() {
+        let id = uuid::Uuid::new_v4();
+        let mut scene = labelled("ABC", Some(id));
+        // Unresolved, the font is not checked at all, exactly as an unresolved
+        // texture is not: `resolve_fonts` is what reports a missing asset.
+        scene.validate().unwrap();
+        scene.fonts.insert(id, std::sync::Arc::new(cooked_font()));
+        scene.validate().unwrap();
+        let mut missing = labelled("ABZ", Some(id));
+        missing.fonts = scene.fonts.clone();
+        assert!(
+            missing
+                .validate()
+                .unwrap_err()
+                .contains("has no glyph for 'Z'")
+        );
+        // The built-in atlas keeps its own rule and its Spanish extras.
+        labelled("Añ", None).validate().unwrap();
+        assert!(
+            labelled("漢", None)
+                .validate()
+                .unwrap_err()
+                .contains("no glyph")
+        );
+        // A nil UUID is a dangling reference, not a font.
+        assert!(
+            labelled("A", Some(uuid::Uuid::nil()))
+                .validate()
+                .unwrap_err()
+                .contains("valid Font asset")
+        );
+    }
+    #[test]
+    fn text_alignment_round_trips_through_serde() {
+        for align in TextAlign::ALL {
+            let text = Text {
+                align,
+                ..Default::default()
+            };
+            let encoded = serde_json::to_string(&text).unwrap();
+            assert_eq!(serde_json::from_str::<Text>(&encoded).unwrap(), text);
+            assert_eq!(TextAlign::from(align as u8), align);
+        }
+        assert!(
+            serde_json::to_string(&Text::default())
+                .unwrap()
+                .contains("\"align\":\"left\"")
+        );
+        // A label with no font stays out of the document entirely.
+        assert!(
+            !serde_json::to_string(&Text::default())
+                .unwrap()
+                .contains("font")
+        );
+    }
+    #[test]
+    fn the_cooked_font_header_carries_its_placement_and_metrics() {
+        let id = uuid::Uuid::new_v4();
+        let mut scene = labelled("ABC", Some(id));
+        scene.fonts.insert(id, std::sync::Arc::new(cooked_font()));
+        let placement = crate::texture::layout(&scene).unwrap().fonts;
+        assert_eq!(placement.len(), 1);
+        assert_eq!(placement[0].0, id);
+        // No textures, so the font takes the first shelf and the first CLUT row.
+        assert_eq!((placement[0].1.x, placement[0].1.y), (640, 0));
+        assert_eq!(placement[0].1.clut_y, 480);
+        assert_eq!(font_ids(&scene), vec![id]);
+    }
     #[test]
     fn nine_slice_preserves_borders_and_checks_budget() {
         let mut scene = fixture();
