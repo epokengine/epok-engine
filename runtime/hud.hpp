@@ -37,6 +37,12 @@ class HudRenderer {
             h=mix(h,uint32_t(e.progress.value.raw()));h=mix(h,uint32_t(e.progress.background[0])|uint32_t(e.progress.background[1])<<8|uint32_t(e.progress.background[2])<<16);
             h=mix(h,uint32_t(e.text.enabled)|uint32_t(e.text.wrap)<<1|uint32_t(e.text.color[0])<<8|uint32_t(e.text.color[1])<<16|uint32_t(e.text.color[2])<<24);
             if(e.text.enabled)for(const char* c=e.text.value;*c;++c)h=mix(h,uint8_t(*c));
+            h=mix(h,uint32_t(e.layout_element.enabled)|uint32_t(e.layout_element.horizontal)<<8|uint32_t(e.layout_element.vertical)<<16);
+            for(int k=0;k<2;++k)h=mix(h,uint32_t(e.layout_element.minimum[k].raw()));
+            h=mix(h,uint32_t(e.layout_element.stretch.raw()));
+            h=mix(h,uint32_t(e.layout_container.enabled)|uint32_t(e.layout_container.kind)<<8|uint32_t(e.layout_container.columns)<<16);
+            for(int k=0;k<2;++k)h=mix(h,uint32_t(e.layout_container.spacing[k].raw()));
+            for(int k=0;k<4;++k)h=mix(h,uint32_t(e.layout_container.padding[k].raw()));
         }
         return h;
     }
@@ -78,10 +84,10 @@ public:
         }
         used=texts=rects=letters=pictures=0;hud_stats={};
         gpu.chain(bookends[parity][0]);
-        int first[N],next[N];
+        int first[N],next[N];Fixed measured[N][2];hud_core::Rect rects[N];
         output=&gpu;
         hud_core::Compiler compiler(*this,display_width,display_height,{hud_layout_budget,hud_rectangle_budget,hud_text_budget,hud_glyph_budget});
-        compiler.draw(entities.data(),count,first,next);
+        compiler.draw(entities.data(),count,first,next,measured,rects);
         gpu.chain(bookends[parity][1]);
         hud_stats=compiler.stats;
         retained[parity]=true;retained_key[parity]=key;retained_stats[parity]=hud_stats;

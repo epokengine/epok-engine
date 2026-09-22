@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `e345f11a3ead70a61d9ea261dc6991f8f793cd50`. Frozen semantic candidate rows: **3261**.
+Baseline commit: `e6da489b75377177847f75dcdc5f3435947da90c`. Frozen semantic candidate rows: **3311**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -12,8 +12,8 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | --- | ---: |
 | `compatibility_alias` | 44 |
 | `hardware_backend` | 6 |
-| `internal_implementation` | 2726 |
-| `public_gameplay` | 485 |
+| `internal_implementation` | 2751 |
+| `public_gameplay` | 510 |
 
 ## Public gameplay gaps
 
@@ -40,15 +40,15 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `materials_visuals` | 47 |
 | `math_values` | 6 |
 | `memory_card` | 70 |
-| `objects_actors` | 525 |
+| `objects_actors` | 556 |
 | `particles_effects` | 169 |
 | `resources_diagnostics` | 58 |
-| `runtime_facade` | 564 |
+| `runtime_facade` | 582 |
 | `skeletal_animation` | 24 |
 | `sprites_palettes` | 72 |
 | `static_editable_meshes` | 71 |
 | `timelines_sequences` | 72 |
-| `ui_text` | 33 |
+| `ui_text` | 34 |
 | `utilities_events` | 119 |
 
 ## Public gameplay rows
@@ -140,6 +140,31 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::InputLibrary::held` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputLibrary::pressed` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputLibrary::released` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::columns` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::kind` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::padding_bottom` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::padding_left` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::padding_right` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::padding_top` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::set_columns` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::set_kind` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::set_padding` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::set_spacing` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::spacing_x` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutContainerComponent::spacing_y` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutElementComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutElementComponent::horizontal_flags` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutElementComponent::minimum_height` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutElementComponent::minimum_width` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutElementComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutElementComponent::set_horizontal_flags` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutElementComponent::set_minimum` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutElementComponent::set_stretch` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutElementComponent::set_vertical_flags` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutElementComponent::stretch` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LayoutElementComponent::vertical_flags` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Light3DComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Light3DComponent::intensity` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Light3DComponent::set_color` | `object-model` | yes | yes | yes | yes | yes | `implemented` |

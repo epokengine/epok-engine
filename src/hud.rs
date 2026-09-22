@@ -145,30 +145,114 @@ impl Default for ProgressBar {
         }
     }
 }
+/// Mirrors `epok::LayoutKind`. The numbering is pinned: saved Blueprint graphs
+/// store it, so the type only ever grows at the end.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[repr(u8)]
+pub enum LayoutKind {
+    #[default]
+    None = 0,
+    Horizontal = 1,
+    Vertical = 2,
+    Grid = 3,
+    Margin = 4,
+    Center = 5,
+}
+impl From<u8> for LayoutKind {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => Self::Horizontal,
+            2 => Self::Vertical,
+            3 => Self::Grid,
+            4 => Self::Margin,
+            5 => Self::Center,
+            _ => Self::None,
+        }
+    }
+}
+impl LayoutKind {
+    pub const ALL: [Self; 6] = [
+        Self::None,
+        Self::Horizontal,
+        Self::Vertical,
+        Self::Grid,
+        Self::Margin,
+        Self::Center,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::Horizontal => "Horizontal",
+            Self::Vertical => "Vertical",
+            Self::Grid => "Grid",
+            Self::Margin => "Margin",
+            Self::Center => "Center",
+        }
+    }
+}
+/// Per-child layout hints read only when the parent has a `LayoutContainer`.
+/// `horizontal`/`vertical` are bitfields: 1 Fill, 2 Expand, 4 Shrink Center,
+/// 8 Shrink End.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct LayoutElement {
+    pub enabled: bool,
+    pub horizontal: u8,
+    pub vertical: u8,
+    pub minimum: [f32; 2],
+    pub stretch: f32,
+}
+impl Default for LayoutElement {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            horizontal: 1,
+            vertical: 1,
+            minimum: [0.; 2],
+            stretch: 1.,
+        }
+    }
+}
+/// Automatic placement for the children of this rect. `padding` is left, top,
+/// right, bottom, the order `Image::borders` uses.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct LayoutContainer {
+    pub enabled: bool,
+    pub kind: LayoutKind,
+    pub spacing: [f32; 2],
+    pub padding: [f32; 4],
+    pub columns: u8,
+}
+impl Default for LayoutContainer {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            kind: LayoutKind::None,
+            spacing: [0.; 2],
+            padding: [0.; 4],
+            columns: 1,
+        }
+    }
+}
 pub type Rect = [f32; 4]; // bottom-left x/y, width/height; positive Y points upward.
+#[allow(dead_code)]
 pub fn resolve(parent: Rect, r: &RectTransform) -> Rect {
     crate::hud_native::resolve(parent, r)
 }
+/// Every actor's resolved HUD rect, measured and arranged by the shared runtime
+/// core in one call. Containers make a rect depend on its siblings, so the whole
+/// scene is laid out at once and the viewport indexes the result.
+pub fn layouts(scene: &Scene) -> Vec<Option<Rect>> {
+    crate::hud_native::layouts(scene)
+}
+/// One actor's rect. Laying a scene out costs one pass whatever is asked of it,
+/// so production code calls `layouts` once and indexes the result; this is the
+/// readable form for the tests that want a single rectangle.
+#[cfg(test)]
 pub fn layout(scene: &Scene, index: usize) -> Option<Rect> {
-    let e = scene.actors.get(index)?;
-    if e.canvas.is_some() {
-        return Some([
-            0.,
-            0.,
-            scene.display_size[0] as f32,
-            scene.display_size[1] as f32,
-        ]);
-    }
-    let parent = scene
-        .spatial_parent(index)
-        .and_then(|p| layout(scene, p))
-        .unwrap_or([
-            0.,
-            0.,
-            scene.display_size[0] as f32,
-            scene.display_size[1] as f32,
-        ]);
-    Some(resolve(parent, e.rect.as_ref()?))
+    layouts(scene).get(index).copied().flatten()
 }
 pub fn order(scene: &Scene) -> Vec<usize> {
     fn visit(s: &Scene, i: usize, out: &mut Vec<usize>) {
@@ -245,8 +329,36 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
                 );
             }
         }
-        if (e.image.is_some() || e.text.is_some() || e.progress.is_some()) && e.rect.is_none() {
+        if (e.image.is_some()
+            || e.text.is_some()
+            || e.progress.is_some()
+            || e.layout_element.is_some()
+            || e.layout_container.is_some())
+            && e.rect.is_none()
+        {
             return Err("HUD graphics require RectTransform".into());
+        }
+        if let Some(c) = &e.layout_container
+            && (c.columns < 1
+                || c.spacing
+                    .iter()
+                    .chain(&c.padding)
+                    .any(|v| !v.is_finite() || v.abs() > 1024.))
+        {
+            return Err(
+                "Invalid Layout Container: columns at least 1, spacing/padding within ±1024".into(),
+            );
+        }
+        if let Some(c) = &e.layout_element
+            && (!c.stretch.is_finite()
+                || c.stretch < 0.
+                || c.minimum
+                    .iter()
+                    .any(|v| !v.is_finite() || *v < 0. || *v > 1024.))
+        {
+            return Err(
+                "Invalid Layout Element: minimum 0..1024 and stretch zero or greater".into(),
+            );
         }
         let valid_color = |c: &[f32; 3]| c.iter().all(|v| v.is_finite() && (0. ..=1.).contains(v));
         if e.image.as_ref().is_some_and(|c| !valid_color(&c.color))
@@ -399,6 +511,92 @@ mod tests {
         assert_eq!(before, layout(&s, 2));
         let decoded: Scene = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert_eq!(s, decoded);
+    }
+    #[test]
+    fn a_vertical_box_stacks_its_children_downward_from_the_top() {
+        let mut s = fixture();
+        let container = s.actors[1].rect.as_mut().unwrap();
+        container.anchor_min = [0., 1.];
+        container.anchor_max = [0., 1.];
+        container.pivot = [0., 1.];
+        container.position = [0., 0.];
+        container.size = [200., 120.];
+        s.actors[1].image = None;
+        s.actors[1].layout_container = Some(LayoutContainer {
+            kind: LayoutKind::Vertical,
+            spacing: [0., 10.],
+            ..Default::default()
+        });
+        for name in ["First", "Second", "Third"] {
+            let mut label = Actor::cube(name.into());
+            label.kind = "Empty".into();
+            label.parent = Some(1);
+            label.rect = Some(RectTransform {
+                size: [50., 20.],
+                ..Default::default()
+            });
+            label.text = Some(Text {
+                text: name.into(),
+                wrap: false,
+                ..Default::default()
+            });
+            s.actors.push(label);
+        }
+        s.sync_actor_components();
+        s.validate().unwrap();
+        // The canvas is 320x240 and the box hangs from its top-left corner.
+        let boxes = layouts(&s);
+        assert_eq!(boxes[1], Some([0., 120., 200., 120.]));
+        // Each label measures 50x20 from its rect, wider and taller than the 48x16
+        // the unwrapped text needs; Fill is the default on both axes.
+        assert_eq!(boxes[2], Some([0., 220., 200., 20.]));
+        assert_eq!(boxes[3], Some([0., 190., 200., 20.]));
+        assert_eq!(boxes[4], Some([0., 160., 200., 20.]));
+        assert!(boxes[2].unwrap()[1] > boxes[3].unwrap()[1]);
+        assert_eq!(layout(&s, 4), boxes[4]);
+        // Hiding the middle label closes the list up instead of leaving its gap.
+        s.actors[3].active = false;
+        let boxes = layouts(&s);
+        assert_eq!(boxes[2], Some([0., 220., 200., 20.]));
+        assert_eq!(boxes[3], None);
+        assert_eq!(boxes[4], Some([0., 190., 200., 20.]));
+    }
+    #[test]
+    fn layout_kind_round_trips_through_serde_and_its_pinned_numbering() {
+        for (kind, name, value) in [
+            (LayoutKind::None, "none", 0u8),
+            (LayoutKind::Horizontal, "horizontal", 1),
+            (LayoutKind::Vertical, "vertical", 2),
+            (LayoutKind::Grid, "grid", 3),
+            (LayoutKind::Margin, "margin", 4),
+            (LayoutKind::Center, "center", 5),
+        ] {
+            assert_eq!(kind as u8, value);
+            assert_eq!(LayoutKind::from(value), kind);
+            let text = serde_json::to_string(&kind).unwrap();
+            assert_eq!(text, format!("\"{name}\""));
+            assert_eq!(serde_json::from_str::<LayoutKind>(&text).unwrap(), kind);
+        }
+        assert_eq!(LayoutKind::from(9), LayoutKind::None);
+        assert_eq!(LayoutKind::ALL.len(), 6);
+    }
+    #[test]
+    fn layout_components_are_validated_against_their_budgets() {
+        let mut s = fixture();
+        s.actors[1].layout_container = Some(Default::default());
+        s.actors[1].layout_element = Some(Default::default());
+        s.validate().unwrap();
+        s.actors[1].layout_container.as_mut().unwrap().columns = 0;
+        assert!(s.validate().unwrap_err().contains("Layout Container"));
+        s.actors[1].layout_container.as_mut().unwrap().columns = 1;
+        s.actors[1].layout_container.as_mut().unwrap().padding[2] = 4096.;
+        assert!(s.validate().unwrap_err().contains("Layout Container"));
+        s.actors[1].layout_container.as_mut().unwrap().padding[2] = 0.;
+        s.actors[1].layout_element.as_mut().unwrap().stretch = -1.;
+        assert!(s.validate().unwrap_err().contains("Layout Element"));
+        s.actors[1].layout_element.as_mut().unwrap().stretch = 1.;
+        s.actors[1].rect = None;
+        assert!(s.validate().unwrap_err().contains("RectTransform"));
     }
     #[test]
     fn invalid_hud_dependencies_text_and_cycles_are_rejected() {

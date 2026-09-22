@@ -158,7 +158,7 @@ static bool read32(uint32_t& value){uint8_t b[4];if(fread(b,1,4,stdin)!=4)return
 static void frame(){
     EpokHudSink sink;for(size_t i=0;i<epok::texture_count;++i){sink.dimensions.push_back(epok::texture_assets[i].width);sink.dimensions.push_back(epok::texture_assets[i].height);}
     epok::hud_core::Compiler compiler(sink,epok::display_width,epok::display_height,{epok::hud_layout_budget,epok::hud_rectangle_budget,epok::hud_text_budget,epok::hud_glyph_budget});
-    int first[epok::objects.size()],next[epok::objects.size()];compiler.draw(epok::objects.data(),epok::object_count,first,next);auto s=compiler.stats;
+    int first[epok::objects.size()],next[epok::objects.size()];epok::Fixed measured[epok::objects.size()][2];epok::hud_core::Rect rects[epok::objects.size()];compiler.draw(epok::objects.data(),epok::object_count,first,next,measured,rects);auto s=compiler.stats;
     write32(EPOK_NATIVE_PLAY_MAGIC);write32(epok::performance_stats.frame);write32(epok::screen_fade);
     write32(uint32_t(epok::object_count));write32(uint32_t(epok::authored_count));const auto camera=epok::active_camera();write32(camera?camera.index:0xffffffffu);
     write32(uint32_t(sink.commands.size()));write32(uint32_t(epok::requested_scene.size()));write32(uint32_t(epok::audio_events.size()));

@@ -160,6 +160,10 @@ pub struct BuiltinData {
     pub text: Option<crate::hud::Text>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress: Option<crate::hud::ProgressBar>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout_element: Option<crate::hud::LayoutElement>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout_container: Option<crate::hud::LayoutContainer>,
     #[serde(default)]
     pub lighting: crate::lighting::MeshLighting,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -199,6 +203,8 @@ impl BuiltinData {
             image: None,
             text: None,
             progress: None,
+            layout_element: None,
+            layout_container: None,
             lighting: Default::default(),
             light: None,
             blob_shadow: None,
@@ -396,23 +402,31 @@ impl Scene {
             crate::actor_components::domain(&next)
                 == crate::actor_components::domain(&self.actors[*p])
         });
-        if keep_world && let Some(r) = next.rect.as_mut() {
-            let old = crate::hud::layout(self, index).ok_or("Invalid HUD hierarchy")?;
-            let p = spatial_parent
-                .and_then(|p| crate::hud::layout(self, p))
-                .unwrap_or([
-                    0.,
-                    0.,
-                    self.display_size[0] as f32,
-                    self.display_size[1] as f32,
-                ]);
-            for i in 0..2 {
-                r.size[i] = old[i + 2] - p[i + 2] * (r.anchor_max[i] - r.anchor_min[i]);
-                r.position[i] = old[i]
-                    - p[i]
-                    - p[i + 2]
-                        * (r.anchor_min[i] + (r.anchor_max[i] - r.anchor_min[i]) * r.pivot[i])
-                    + old[i + 2] * r.pivot[i];
+        if keep_world && next.rect.is_some() {
+            // One layout pass answers for the element and its new parent. A rect
+            // the pass never placed has no world rectangle to preserve — it is
+            // hidden under a container that assigns its rect wherever it lands —
+            // so the move keeps the authored values instead of failing.
+            let boxes = crate::hud::layouts(self);
+            if let Some(old) = boxes.get(index).copied().flatten()
+                && let Some(r) = next.rect.as_mut()
+            {
+                let p = spatial_parent
+                    .and_then(|p| boxes.get(p).copied().flatten())
+                    .unwrap_or([
+                        0.,
+                        0.,
+                        self.display_size[0] as f32,
+                        self.display_size[1] as f32,
+                    ]);
+                for i in 0..2 {
+                    r.size[i] = old[i + 2] - p[i + 2] * (r.anchor_max[i] - r.anchor_min[i]);
+                    r.position[i] = old[i]
+                        - p[i]
+                        - p[i + 2]
+                            * (r.anchor_min[i] + (r.anchor_max[i] - r.anchor_min[i]) * r.pivot[i])
+                        + old[i + 2] * r.pivot[i];
+                }
             }
         } else if keep_world {
             let inverse =

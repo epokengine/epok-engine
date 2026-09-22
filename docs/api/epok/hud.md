@@ -31,7 +31,7 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 void begin_text()
 ```
 
-- **Declared at:** [line 60](../../../runtime/hud.hpp#L60)
+- **Declared at:** [line 66](../../../runtime/hud.hpp#L66)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -64,7 +64,7 @@ object.begin_text();
 template<size_t N>void draw(psyqo::GPU& gpu,std::array<ActorData,N>& entities,size_t count)
 ```
 
-- **Declared at:** [line 71](../../../runtime/hud.hpp#L71)
+- **Declared at:** [line 77](../../../runtime/hud.hpp#L77)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -113,7 +113,7 @@ object.draw<N>(gpu, entities, count);
 void glyph(int,unsigned c,int x0,int y0,int x1,int y1,int u,int v,const uint8_t* color)
 ```
 
-- **Declared at:** [line 64](../../../runtime/hud.hpp#L64)
+- **Declared at:** [line 70](../../../runtime/hud.hpp#L70)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -171,7 +171,7 @@ object.glyph(arg1, c, x0, y0, x1, y1, u, v, color);
 void image(int,int id,int x0,int y0,int x1,int y1,int u0,int v0,int u1,int v1,const uint8_t* color)
 ```
 
-- **Declared at:** [line 51](../../../runtime/hud.hpp#L51)
+- **Declared at:** [line 57](../../../runtime/hud.hpp#L57)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -233,7 +233,7 @@ object.image(arg1, id, x0, y0, x1, y1, u0, v0, u1, v1, color);
 void initialize(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 70](../../../runtime/hud.hpp#L70)
+- **Declared at:** [line 76](../../../runtime/hud.hpp#L76)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -275,7 +275,7 @@ object.initialize(gpu);
 void invalidate()
 ```
 
-- **Declared at:** [line 90](../../../runtime/hud.hpp#L90)
+- **Declared at:** [line 96](../../../runtime/hud.hpp#L96)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -308,7 +308,7 @@ object.invalidate();
 void rectangle(int,int x0,int y0,int x1,int y1,const uint8_t* color)
 ```
 
-- **Declared at:** [line 45](../../../runtime/hud.hpp#L45)
+- **Declared at:** [line 51](../../../runtime/hud.hpp#L51)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -360,7 +360,7 @@ object.rectangle(arg1, x0, y0, x1, y1, color);
 bool texture_size(int id,int& width,int& height)
 ```
 
-- **Declared at:** [line 44](../../../runtime/hud.hpp#L44)
+- **Declared at:** [line 50](../../../runtime/hud.hpp#L50)
 - **Kind:** `cxx method`
 
 **Parameters**

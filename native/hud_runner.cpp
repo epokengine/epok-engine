@@ -64,7 +64,7 @@ static uint32_t preview_capabilities=0;
 static void frame(){
     EpokHudSink sink;for(size_t i=0;i<epok::texture_count;++i){sink.dimensions.push_back(epok::texture_assets[i].width);sink.dimensions.push_back(epok::texture_assets[i].height);}
     epok::hud_core::Compiler compiler(sink,epok::display_width,epok::display_height,{epok::hud_layout_budget,epok::hud_rectangle_budget,epok::hud_text_budget,epok::hud_glyph_budget});
-    int first[epok::objects.size()],next[epok::objects.size()];compiler.draw(epok::objects.data(),epok::object_count,first,next);
+    int first[epok::objects.size()],next[epok::objects.size()];epok::Fixed measured[epok::objects.size()][2];epok::hud_core::Rect rects[epok::objects.size()];compiler.draw(epok::objects.data(),epok::object_count,first,next,measured,rects);
     auto s=compiler.stats;
     write32(EPOK_HUD_PREVIEW_MAGIC);write32(EPOK_HUD_PREVIEW_PROTOCOL_VERSION);write32(preview_capabilities);
     write32(epok::performance_stats.frame);write32(epok::screen_fade);write32(uint32_t(epok::object_count));

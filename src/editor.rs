@@ -2402,6 +2402,11 @@ impl Editor {
                 "textarea" => "Text Area",
                 "progress" => "Progress Bar",
                 "panel" => "Panel",
+                "hbox" => "Horizontal Box",
+                "vbox" => "Vertical Box",
+                "grid" => "Grid",
+                "margin" => "Margin",
+                "center" => "Center",
                 _ => "Image",
             }
             .into(),
@@ -2441,6 +2446,22 @@ impl Editor {
                 "panel" => {
                     entity.image = Some(Default::default());
                     entity.rect.as_mut().unwrap().size = [200., 120.];
+                }
+                // The five containers are one component with a different kind;
+                // only Grid needs a second column to be worth creating.
+                "hbox" | "vbox" | "grid" | "margin" | "center" => {
+                    entity.rect.as_mut().unwrap().size = [200., 120.];
+                    entity.layout_container = Some(crate::hud::LayoutContainer {
+                        kind: match kind {
+                            "hbox" => crate::hud::LayoutKind::Horizontal,
+                            "vbox" => crate::hud::LayoutKind::Vertical,
+                            "grid" => crate::hud::LayoutKind::Grid,
+                            "margin" => crate::hud::LayoutKind::Margin,
+                            _ => crate::hud::LayoutKind::Center,
+                        },
+                        columns: if kind == "grid" { 2 } else { 1 },
+                        ..Default::default()
+                    });
                 }
                 _ => entity.image = Some(Default::default()),
             }
@@ -4656,6 +4677,30 @@ mod tests {
             assert!(e.scene.actors[i].image.is_none());
             assert_eq!(e.scene.actors[i].text.as_ref().unwrap().wrap, wrap);
             assert_eq!(e.scene.actors[i].rect.as_ref().unwrap().size, size);
+        }
+        e.scene.validate().unwrap();
+        // The five container recipes are one component under five kinds.
+        for (kind, name, layout, columns) in [
+            (
+                "hbox",
+                "Horizontal Box",
+                crate::hud::LayoutKind::Horizontal,
+                1,
+            ),
+            ("vbox", "Vertical Box", crate::hud::LayoutKind::Vertical, 1),
+            ("grid", "Grid", crate::hud::LayoutKind::Grid, 2),
+            ("margin", "Margin", crate::hud::LayoutKind::Margin, 1),
+            ("center", "Center", crate::hud::LayoutKind::Center, 1),
+        ] {
+            e.create_hud(kind);
+            let i = e.selected.unwrap();
+            let container = e.scene.actors[i].layout_container.as_ref().unwrap();
+            assert_eq!(e.scene.actors[i].name, name);
+            assert_eq!(container.kind, layout);
+            assert_eq!(container.columns, columns);
+            assert!(container.enabled);
+            assert_eq!(e.scene.actors[i].rect.as_ref().unwrap().size, [200., 120.]);
+            assert!(e.scene.actors[i].image.is_none());
         }
         e.scene.validate().unwrap();
         let before = e.scene.clone();

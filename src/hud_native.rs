@@ -5,7 +5,7 @@ use crate::{hud, scene::Scene};
 /// it, so a cached executable built from an older header is rejected instead of
 /// being misread. Bump on any frame-header or command-record change.
 pub const HUD_PREVIEW_MAGIC: u32 = 0x3144_5548; // "HUD1"
-pub const HUD_PREVIEW_PROTOCOL_VERSION: u32 = 2;
+pub const HUD_PREVIEW_PROTOCOL_VERSION: u32 = 3;
 /// The child runs gameplay: BeginPlay/start, update, frame_update. Clear in the
 /// edit phase, which only calls `editor_preview` construction hooks.
 pub const HUD_PREVIEW_CAP_SIMULATE: u32 = 1;
@@ -27,6 +27,10 @@ struct Node {
     borders: [i32; 4],
     text_color: [i32; 3],
     progress: [i32; 7],
+    /// Horizontal flags, vertical flags, minimum x/y and stretch in Q12.
+    layout_element: [i32; 5],
+    /// Kind, spacing x/y, padding left/top/right/bottom, columns.
+    layout_container: [i32; 8],
     text: [u8; 512],
 }
 #[repr(C)]
@@ -45,7 +49,15 @@ unsafe extern "C" {
         capacity: u32,
         stats: *mut u32,
     ) -> u32;
+    #[allow(dead_code)]
     fn epok_hud_resolve(parent: *const i32, rect: *const i32, result: *mut i32);
+    fn epok_hud_layout(
+        nodes: *const Node,
+        count: u32,
+        width: i32,
+        height: i32,
+        rects: *mut i32,
+    ) -> u32;
 }
 fn fixed(v: f32) -> i32 {
     (f64::from(v) * 4096.).round() as i32
@@ -64,6 +76,10 @@ fn rect(r: &hud::RectTransform) -> [i32; 10] {
     }
     values
 }
+/// One rect against one parent, the anchor math on its own. `layouts` replaced it
+/// as the viewport's query, but it stays as the pin on the Q12 boundary the whole
+/// protocol is quantized to, and as the single-rect entry any host can call.
+#[allow(dead_code)]
 pub fn resolve(parent: hud::Rect, r: &hud::RectTransform) -> hud::Rect {
     let mut result = [0; 4];
     unsafe {
@@ -75,18 +91,11 @@ pub fn resolve(parent: hud::Rect, r: &hud::RectTransform) -> hud::Rect {
     }
     result.map(|v| v as f32 / 4096.)
 }
-pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
-    let ids = crate::texture::ids(scene);
-    let dimensions: Vec<i32> = ids
-        .iter()
-        .flat_map(|id| {
-            scene
-                .textures
-                .get(id)
-                .map_or([0, 0], |t| [i32::from(t.width), i32::from(t.height)])
-        })
-        .collect();
-    let nodes: Vec<_> = scene
+/// One wire node per actor, in actor order. `ids` is the texture bank the image
+/// indices address. Shared by the command compiler and the layout query so the
+/// editor never marshals the scene two different ways.
+fn nodes(scene: &Scene, ids: &[uuid::Uuid]) -> Vec<Node> {
+    scene
         .actors
         .iter()
         .map(|e| {
@@ -100,6 +109,8 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
                 borders: [0; 4],
                 text_color: [0; 3],
                 progress: [0; 7],
+                layout_element: [1, 1, 0, 0, 0],
+                layout_container: [0, 0, 0, 0, 0, 0, 0, 1],
                 text: [0; 512],
             };
             if e.canvas.as_ref().is_some_and(|c| c.enabled) {
@@ -140,9 +151,93 @@ pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
                 n.progress[1..4].copy_from_slice(&color(c.color));
                 n.progress[4..7].copy_from_slice(&color(c.background));
             }
+            if let Some(c) = &e.layout_element {
+                if c.enabled {
+                    n.flags |= 256;
+                }
+                n.layout_element = [
+                    i32::from(c.horizontal),
+                    i32::from(c.vertical),
+                    fixed(c.minimum[0]),
+                    fixed(c.minimum[1]),
+                    fixed(c.stretch),
+                ];
+            }
+            if let Some(c) = &e.layout_container {
+                if c.enabled {
+                    n.flags |= 512;
+                }
+                n.layout_container[0] = i32::from(c.kind as u8);
+                n.layout_container[1..3].copy_from_slice(&c.spacing.map(fixed));
+                n.layout_container[3..7].copy_from_slice(&c.padding.map(fixed));
+                n.layout_container[7] = i32::from(c.columns);
+            }
             n
         })
+        .collect()
+}
+/// Every actor's resolved rect, or `None` where the actor carries no Canvas and
+/// no RectTransform.
+///
+/// The gizmos answer "where does this element sit", so what only hides a subtree
+/// is ignored here: a disabled Canvas still reports rects, and so does an
+/// inactive element that places itself from its own anchors, exactly as the
+/// anchor-chain walk this replaced did. Under a container `active` stops being
+/// visibility and becomes geometry — it decides whether the child takes a cell —
+/// so there the authored flag is passed through and the outlines keep agreeing
+/// with the pixels the same core produces.
+pub fn layouts(scene: &Scene) -> Vec<Option<hud::Rect>> {
+    let ids = crate::texture::ids(scene);
+    let mut nodes = nodes(scene, &ids);
+    for (i, n) in nodes.iter_mut().enumerate() {
+        let parent = scene.spatial_parent(i);
+        n.parent = parent.map_or(-1, |p| p as i32);
+        if !parent
+            .and_then(|p| scene.actors[p].layout_container.as_ref())
+            .is_some_and(|c| c.enabled && c.kind != hud::LayoutKind::None)
+        {
+            n.flags |= 2;
+        }
+        if scene.actors[i].canvas.is_some() {
+            n.flags |= 4;
+        }
+    }
+    let mut out = vec![0; nodes.len() * 4];
+    unsafe {
+        epok_hud_layout(
+            nodes.as_ptr(),
+            nodes.len() as u32,
+            i32::from(scene.display_size[0]),
+            i32::from(scene.display_size[1]),
+            out.as_mut_ptr(),
+        );
+    }
+    scene
+        .actors
+        .iter()
+        .enumerate()
+        .map(|(i, e)| {
+            let q12 = [out[i * 4], out[i * 4 + 1], out[i * 4 + 2], out[i * 4 + 3]];
+            // The core zeroes a node it did not lay out. An element that really
+            // resolved to an empty rect at the origin has no rectangle on screen
+            // either, so both answer the caller the same way.
+            ((e.canvas.is_some() || e.rect.is_some()) && q12 != [0; 4])
+                .then(|| q12.map(|v| v as f32 / 4096.))
+        })
+        .collect()
+}
+pub fn compile(scene: &Scene) -> (Vec<Command>, [u32; 5]) {
+    let ids = crate::texture::ids(scene);
+    let dimensions: Vec<i32> = ids
+        .iter()
+        .flat_map(|id| {
+            scene
+                .textures
+                .get(id)
+                .map_or([0, 0], |t| [i32::from(t.width), i32::from(t.height)])
+        })
         .collect();
+    let nodes = nodes(scene, &ids);
     let b = &scene.hud_budget;
     let budget = [
         b.layouts as u32,
@@ -297,6 +392,16 @@ mod tests {
         };
         let out = resolve([0., 0., 640., 480.], &r);
         assert_eq!(out, [270. + 1. / 4096., 224. - 1. / 4096., 100., 32.]);
+    }
+    /// `Node` mirrors `EpokHudNode` byte for byte. The C side is not visible from
+    /// Rust, so the field count and the total size are pinned here: a record added
+    /// on one side without the other would otherwise be read as garbage.
+    #[test]
+    fn the_wire_node_matches_the_protocol_it_declares() {
+        const FIELDS: usize = 1 + 1 + 10 + 1 + 3 + 4 + 4 + 3 + 7 + 5 + 8;
+        assert_eq!(size_of::<Node>(), FIELDS * 4 + 512);
+        assert_eq!(align_of::<Node>(), 4);
+        assert_eq!(HUD_PREVIEW_PROTOCOL_VERSION, 3);
     }
     #[test]
     fn dynamic_budget_and_disabled_parent_match_console() {

@@ -49,6 +49,8 @@ pub fn native(id: &str) -> bool {
             | om::IMAGE_COMPONENT_ID
             | om::TEXT_COMPONENT_ID
             | om::PROGRESS_BAR_COMPONENT_ID
+            | om::LAYOUT_ELEMENT_COMPONENT_ID
+            | om::LAYOUT_CONTAINER_COMPONENT_ID
             | om::AUDIO_COMPONENT_ID
             | PARTICLES
             | TIMELINE
@@ -129,6 +131,8 @@ pub fn sync(actor: &mut ActorInstance) {
         image,
         text,
         progress,
+        layout_element,
+        layout_container,
         particle_emitter,
         palette_animator,
         blob_shadow,
@@ -256,6 +260,18 @@ pub fn sync(actor: &mut ActorInstance) {
             "epok::ProgressBarComponent",
             "Progress Bar"
         );
+        optional!(
+            layout_element,
+            om::LAYOUT_ELEMENT_COMPONENT_ID,
+            "epok::LayoutElementComponent",
+            "Layout Element"
+        );
+        optional!(
+            layout_container,
+            om::LAYOUT_CONTAINER_COMPONENT_ID,
+            "epok::LayoutContainerComponent",
+            "Layout Container"
+        );
     }
     optional!(
         audio,
@@ -359,6 +375,12 @@ pub fn read(actor: &mut ActorInstance) {
             om::PROGRESS_BAR_COMPONENT_ID => {
                 data.progress = Some(decoded(p, "progress").unwrap_or_default())
             }
+            om::LAYOUT_ELEMENT_COMPONENT_ID => {
+                data.layout_element = Some(decoded(p, "layout_element").unwrap_or_default())
+            }
+            om::LAYOUT_CONTAINER_COMPONENT_ID => {
+                data.layout_container = Some(decoded(p, "layout_container").unwrap_or_default())
+            }
             PARTICLES => {
                 data.particle_emitter = Some(decoded(p, "particle_emitter").unwrap_or_default())
             }
@@ -455,6 +477,12 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
         }
         om::PROGRESS_BAR_COMPONENT_ID => {
             check!("progress", crate::hud::ProgressBar);
+        }
+        om::LAYOUT_ELEMENT_COMPONENT_ID => {
+            check!("layout_element", crate::hud::LayoutElement);
+        }
+        om::LAYOUT_CONTAINER_COMPONENT_ID => {
+            check!("layout_container", crate::hud::LayoutContainer);
         }
         PARTICLES => {
             check!("particle_emitter", crate::particles::Emitter);

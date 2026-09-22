@@ -16,6 +16,20 @@ The Canvas mode is **Screen Space - Overlay** at the resolution selected in [Pro
 
 Graphics clip to the Canvas, not their parent's rectangle. Text is limited to its own width. Disabling Canvas hides its subtree; graphics also have Enabled flags.
 
+## Automatic layout
+
+**Horizontal Box**, **Vertical Box**, **Grid**, **Margin** and **Center** are rects carrying a **Layout Container**. A container measures its children and assigns their rectangles, so a list of items needs no hand-placed coordinates. A child of a container ignores its own anchors and Position; everything outside a container resolves from anchors exactly as before, so existing maps are unaffected.
+
+Every child of a container is measured by one rule, per axis: the larger of what its content needs, its own Size Delta, and its Layout Element Minimum. Content means the space unwrapped text occupies for a label, and — for a box that is itself a container — the size its own children add up to. So a nested Vertical Box whose items are 60 wide but whose Size Delta is 150 asks for 150; set that Size Delta to zero and it follows its content instead. Size Delta is a floor, never a ceiling.
+
+The container then hands each child a cell: a Horizontal Box divides its width left to right, a Vertical Box its height top to bottom, and a Grid fills `Columns` cells per row starting at the top-left. Margin and Center give their children the rectangle shrunk by the four padding values, in left, top, right, bottom order — the order Image's nine-slice borders use.
+
+A container measures and places exactly the children it draws. Clearing an element's Active flag takes it out of the list entirely: the items after it move up and the box measures smaller, rather than a hole being left where it used to be.
+
+**Layout Element** decides what the child does inside that cell, per axis. **Fill** takes the whole cell; **Expand** claims a share of the space left over after every minimum is satisfied, divided in proportion to **Stretch**; **Shrink Center** and **Shrink End** keep the measured size and move it within the cell. With no Layout Element a child fills its cell without expanding, which packs a box tightly against its first edge.
+
+Layout runs in the same fixed-point pass the console uses, so the editor viewport, the native preview and the PSX build agree on every rectangle. Each laid-out rect still costs one entry of the scene's `hud_budget.layouts`.
+
 ## UI actors
 
 A map can also hold **UI actors**: classes deriving from `epok::UIActor`, whose root

@@ -87,6 +87,8 @@ fn actor_patch(entity: &Actor, patch: &Value) -> Result<Actor, String> {
         "image",
         "text",
         "progress",
+        "layout_element",
+        "layout_container",
         "lighting",
         "light",
         "blob_shadow",
@@ -1254,7 +1256,7 @@ fn read_file(path: &Path) -> Result<Vec<u8>, String> {
     assets::read_bounded(path)
 }
 fn schema() -> Value {
-    json!({"actor":Actor::cube("Example".into()),"components":{"audio":crate::audio::AudioSource::default(),"light":crate::lighting::Light::default(),"blob_shadow":crate::shadows::BlobShadow::default(),"skeletal_mesh":crate::skeletal::Component::new(uuid::Uuid::nil()),"editable_mesh":crate::mesh::Component::new(uuid::Uuid::nil()),"material":crate::scene::Material::default(),"canvas":crate::hud::Canvas::default(),"rect":crate::hud::RectTransform::default(),"image":crate::hud::Image::default(),"text":crate::hud::Text::default(),"progress":crate::hud::ProgressBar::default(),"lighting":crate::lighting::MeshLighting::default(),"environment":crate::lighting::Settings::default()},"kinds":["Empty","Mesh","Camera"],"notes":"Transforms are local to parent. Actor indices change after deletion. Replace nil asset UUIDs in examples with UUIDs from asset_list or mesh_create. Optional components can be removed with null.","example":{"op":"create","actor":{"name":"Example Cube","kind":"Mesh","position":[0,0.5,0],"material":{"color":[0.2,0.6,1.0]}}}})
+    json!({"actor":Actor::cube("Example".into()),"components":{"audio":crate::audio::AudioSource::default(),"light":crate::lighting::Light::default(),"blob_shadow":crate::shadows::BlobShadow::default(),"skeletal_mesh":crate::skeletal::Component::new(uuid::Uuid::nil()),"editable_mesh":crate::mesh::Component::new(uuid::Uuid::nil()),"material":crate::scene::Material::default(),"canvas":crate::hud::Canvas::default(),"rect":crate::hud::RectTransform::default(),"image":crate::hud::Image::default(),"text":crate::hud::Text::default(),"progress":crate::hud::ProgressBar::default(),"layout_element":crate::hud::LayoutElement::default(),"layout_container":crate::hud::LayoutContainer::default(),"lighting":crate::lighting::MeshLighting::default(),"environment":crate::lighting::Settings::default()},"kinds":["Empty","Mesh","Camera"],"notes":"Transforms are local to parent. Actor indices change after deletion. Replace nil asset UUIDs in examples with UUIDs from asset_list or mesh_create. Optional components can be removed with null.","example":{"op":"create","actor":{"name":"Example Cube","kind":"Mesh","position":[0,0.5,0],"material":{"color":[0.2,0.6,1.0]}}}})
 }
 pub fn validate_arguments(name: &str, value: &Value) -> Result<(), String> {
     let tool = catalog()

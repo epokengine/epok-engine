@@ -52,6 +52,8 @@ pub const CANVAS_COMPONENT_ID: &str = "f2cfb26b-af53-4a46-9d91-1debea72e01b";
 pub const IMAGE_COMPONENT_ID: &str = "d04c78d6-23bd-40d7-88f1-b1afc1b05b5b";
 pub const TEXT_COMPONENT_ID: &str = "fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34";
 pub const PROGRESS_BAR_COMPONENT_ID: &str = "28bf5245-5d80-4cba-a77d-1d74479ac276";
+pub const LAYOUT_ELEMENT_COMPONENT_ID: &str = "c1eae9de-bc3d-4fea-9b85-ddbc8aeb8bb1";
+pub const LAYOUT_CONTAINER_COMPONENT_ID: &str = "0215c00b-c65f-49d5-924e-ac205dd0c8e0";
 
 /// Capability names the PSX target provides unconditionally. A component may
 /// declare any name (design.md section 3); one that the target does not provide
@@ -72,6 +74,7 @@ const PSX_CAPABILITIES: &[&str] = &[
     "image",
     "text",
     "progress",
+    "layout",
     "timeline",
     "effect",
     "palette",
@@ -1229,6 +1232,8 @@ mod tests {
             ("ImageComponent", IMAGE_COMPONENT_ID),
             ("TextComponent", TEXT_COMPONENT_ID),
             ("ProgressBarComponent", PROGRESS_BAR_COMPONENT_ID),
+            ("LayoutElementComponent", LAYOUT_ELEMENT_COMPONENT_ID),
+            ("LayoutContainerComponent", LAYOUT_CONTAINER_COMPONENT_ID),
             (
                 "ParticleEmitterComponent",
                 crate::actor_components::PARTICLES,

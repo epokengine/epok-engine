@@ -539,6 +539,26 @@ inline void initialize_components(){
                 color(&c.background)
             ));
         }
+        if let Some(c) = &e.layout_element {
+            text.push_str(&format!(
+                "objects[{i}].layout_element=LayoutElement{{{},{},{},{{{}}},{}}};\n",
+                c.enabled,
+                c.horizontal,
+                c.vertical,
+                vec2(&c.minimum),
+                fixed(c.stretch)
+            ));
+        }
+        if let Some(c) = &e.layout_container {
+            text.push_str(&format!(
+                "objects[{i}].layout_container=LayoutContainer{{{},LayoutKind({}),{{{}}},{{{}}},{}}};\n",
+                c.enabled,
+                c.kind as u8,
+                vec2(&c.spacing),
+                c.padding.map(fixed).join(","),
+                c.columns
+            ));
+        }
     }
 
     text.push_str(&sprite_init);
@@ -2235,6 +2255,55 @@ mod tests {
         s.actors[3].scale = [64.; 3];
         s.actors[1].scale = [2.; 3];
         assert!(scene_header(&s, &[]).is_err());
+    }
+    #[test]
+    fn layout_components_export_positionally_in_the_runtime_field_order() {
+        let mut s = Scene::default();
+        let canvas = s.actors.len();
+        let mut root = crate::scene::Actor::cube("Canvas".into());
+        root.kind = "Empty".into();
+        root.position = [0.; 3];
+        root.canvas = Some(Default::default());
+        s.actors.push(root);
+        let mut box_actor = crate::scene::Actor::cube("Grid".into());
+        box_actor.kind = "Empty".into();
+        box_actor.position = [0.; 3];
+        box_actor.parent = Some(canvas);
+        box_actor.rect = Some(Default::default());
+        box_actor.layout_container = Some(crate::hud::LayoutContainer {
+            kind: crate::hud::LayoutKind::Grid,
+            spacing: [4., 8.],
+            padding: [1., 2., 3., 4.],
+            columns: 3,
+            enabled: true,
+        });
+        box_actor.layout_element = Some(crate::hud::LayoutElement {
+            enabled: true,
+            horizontal: 3,
+            vertical: 8,
+            minimum: [16., 32.],
+            stretch: 2.,
+        });
+        let index = s.actors.len();
+        s.actors.push(box_actor);
+        s.sync_actor_components();
+        let header = scene_header(&s, &[]).unwrap();
+        let q = |raw: i32| format!("Fixed({raw}, Fixed::RAW)");
+        assert!(header.contains(&format!(
+            "objects[{index}].layout_element=LayoutElement{{true,3,8,{{{},{}}},{}}};",
+            q(65536),
+            q(131072),
+            q(8192)
+        )));
+        assert!(header.contains(&format!(
+            "objects[{index}].layout_container=LayoutContainer{{true,LayoutKind(3),{{{},{}}},{{{},{},{},{}}},3}};",
+            q(16384),
+            q(32768),
+            q(4096),
+            q(8192),
+            q(12288),
+            q(16384)
+        )));
     }
     #[test]
     fn missing_script_fails_before_build() {

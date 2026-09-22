@@ -2,7 +2,7 @@
 
 Epok's gameplay-facing and engine-runtime callables. Start here for entities, input, collision, audio, scenes, timelines, effects and resource budgets.
 
-**Coverage:** 82 headers · 1330 public callables.
+**Coverage:** 82 headers · 1360 public callables.
 
 ## Modules
 
@@ -27,7 +27,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 90 | Epok runtime API |
 | [Gte Geometry](epok/gte-geometry.md) | `gte_geometry.hpp` | 6 | Epok runtime API |
 | [Hud](epok/hud.md) | `hud.hpp` | 8 | Epok runtime API |
-| [Hud Core](epok/hud-core.md) | `hud_core.hpp` | 5 | Epok runtime API |
+| [Hud Core](epok/hud-core.md) | `hud_core.hpp` | 6 | Epok runtime API |
 | [Input](epok/input.md) | `input.hpp` | 15 | Epok runtime API |
 | [Instrument Allocator](epok/instrument-allocator.md) | `instrument_allocator.hpp` | 2 | Epok runtime API |
 | [Instrument Bank](epok/instrument-bank.md) | `instrument_bank.hpp` | 18 | Epok runtime API |
@@ -46,7 +46,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Native Music Service](epok/native-music-service.md) | `native_music_service.hpp` | 1 | Epok runtime API |
 | [Navigation](epok/navigation.md) | `navigation.hpp` | 17 | Epok runtime API |
 | [Navigation Components](epok/navigation-components.md) | `navigation_components.hpp` | 21 | Epok runtime API |
-| [Object Model](epok/object-model.md) | `object_model.hpp` | 300 | Epok runtime API |
+| [Object Model](epok/object-model.md) | `object_model.hpp` | 329 | Epok runtime API |
 | [Palette](epok/palette.md) | `palette.hpp` | 2 | Epok runtime API |
 | [Palette Types](epok/palette-types.md) | `palette_types.hpp` | 4 | Epok runtime API |
 | [Particle Effect Service](epok/particle-effect-service.md) | `particle_effect_service.hpp` | 14 | Epok runtime API |

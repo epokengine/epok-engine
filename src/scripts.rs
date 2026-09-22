@@ -354,6 +354,8 @@ fn runtime_base(parent: &str) -> Option<String> {
         "ImageComponent",
         "TextComponent",
         "ProgressBarComponent",
+        "LayoutElementComponent",
+        "LayoutContainerComponent",
         "ParticleEmitterComponent",
         "TimelineComponent",
         "ParticleEffectComponent",

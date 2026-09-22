@@ -73,6 +73,8 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
     let mut remove_image = false;
     let mut remove_text = false;
     let mut remove_progress = false;
+    let mut remove_element = false;
+    let mut remove_container = false;
     let image_open = e.image.is_some()
         && crate::gui::section(ui, "Image", || {
             remove_image = ui.menu_item("Remove Image");
@@ -136,6 +138,73 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
             &mut c.background,
         );
     }
+    let element_open = e.layout_element.is_some()
+        && crate::gui::section(ui, "Layout Element", || {
+            remove_element = ui.menu_item("Remove Layout Element");
+        });
+    if element_open && let Some(c) = &mut e.layout_element {
+        crate::gui::toggle(ui, "Enabled##layout-element", &mut c.enabled);
+        for (label, bits) in [
+            ("Horizontal", &mut c.horizontal),
+            ("Vertical", &mut c.vertical),
+        ] {
+            ui.text(label);
+            for (index, (name, bit)) in SIZE_FLAGS.into_iter().enumerate() {
+                if index > 0 {
+                    ui.same_line();
+                }
+                let mut on = *bits & bit != 0;
+                if ui.checkbox(format!("{name}##{label}"), &mut on) {
+                    *bits = if on { *bits | bit } else { *bits & !bit };
+                }
+            }
+        }
+        vector(ui, "Minimum", &mut c.minimum);
+        crate::gui::Drag::new(crate::gui::field(ui, "Stretch"))
+            .speed(0.1)
+            .display_format("%.2f")
+            .build(ui, &mut c.stretch);
+        crate::gui::muted(
+            ui,
+            "Read by the parent container: Expand claims leftover space by stretch.",
+        );
+    }
+    let container_open = e.layout_container.is_some()
+        && crate::gui::section(ui, "Layout Container", || {
+            remove_container = ui.menu_item("Remove Layout Container");
+        });
+    if container_open && let Some(c) = &mut e.layout_container {
+        crate::gui::toggle(ui, "Enabled##layout-container", &mut c.enabled);
+        if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Kind"), c.kind.label()) {
+            for kind in hud::LayoutKind::ALL {
+                if ui.selectable(kind.label()) {
+                    c.kind = kind;
+                }
+            }
+        }
+        vector(ui, "Spacing", &mut c.spacing);
+        let mut padding = c.padding;
+        if crate::gui::Drag::new(crate::gui::field(ui, "Pad left/top/right/bottom"))
+            .speed(0.5)
+            .display_format("%.1f")
+            .build_array(ui, &mut padding)
+        {
+            c.padding = padding;
+        }
+        if c.kind == hud::LayoutKind::Grid {
+            let mut columns = i32::from(c.columns);
+            if crate::gui::Drag::new(crate::gui::field(ui, "Columns"))
+                .speed(1.)
+                .build(ui, &mut columns)
+            {
+                c.columns = columns.clamp(1, 255) as u8;
+            }
+        }
+        crate::gui::muted(
+            ui,
+            "Children ignore their own anchors; this rect measures and places them.",
+        );
+    }
     if remove_image {
         e.image = None;
     }
@@ -145,7 +214,20 @@ pub fn inspector(ui: &imgui::Ui, e: &mut Actor) {
     if remove_progress {
         e.progress = None;
     }
+    if remove_element {
+        e.layout_element = None;
+    }
+    if remove_container {
+        e.layout_container = None;
+    }
 }
+/// The per-axis size flags a Layout Element writes, in bit order.
+const SIZE_FLAGS: [(&str, u8); 4] = [
+    ("Fill", 1),
+    ("Expand", 2),
+    ("Shrink Center", 4),
+    ("Shrink End", 8),
+];
 /// Which side of one axis a resize handle grabs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Side {
@@ -374,9 +456,12 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
         height - (mouse[1] - origin[1]) / scale,
     ];
     let order = hud::order(&e.scene);
+    // A container makes a rect depend on its siblings, so the whole scene is laid
+    // out once per frame and every hit test and gizmo indexes that one result.
+    let mut boxes = hud::layouts(&e.scene);
     let mut grab = None;
     if let Some(i) = e.selected
-        && let Some(r) = hud::layout(&e.scene, i)
+        && let Some(r) = boxes.get(i).copied().flatten()
         && e.scene.actors[i].rect.is_some()
     {
         let reach = HANDLE_HALF / scale;
@@ -391,7 +476,7 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
                 .iter()
                 .rev()
                 .find(|i| {
-                    hud::layout(&e.scene, **i).is_some_and(|r| {
+                    boxes.get(**i).copied().flatten().is_some_and(|r| {
                         p[0] >= r[0] && p[0] <= r[0] + r[2] && p[1] >= r[1] && p[1] <= r[1] + r[3]
                     })
                 })
@@ -433,10 +518,11 @@ pub fn view(ui: &imgui::Ui, e: &mut Editor, texture: imgui::TextureId) {
         } else {
             e.scene.actors[i].rect = original;
         }
+        boxes = hud::layouts(&e.scene);
     }
     let draw = ui.get_window_draw_list();
     if let Some(i) = e.selected
-        && let Some(r) = hud::layout(&e.scene, i)
+        && let Some(r) = boxes.get(i).copied().flatten()
     {
         let a = [
             origin[0] + r[0] * scale,

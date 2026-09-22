@@ -2,11 +2,11 @@
 
 > **Header:** `"object_model.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/object_model.hpp)
 
-This module covers the object model module. It documents 300 public callables declared directly in this header.
+This module covers the object model module. It documents 329 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::Actor`, `epok::Actor2D`, `epok::Actor3D`, `epok::ActorCallbacks`, `epok::ActorComponent`, `epok::ActorSpawnRequest`, `epok::AudioComponent`, `epok::BlobShadowComponent`, `epok::Camera3DComponent`, `epok::CanvasComponent`, `epok::ClassDescriptor`, `epok::Collider3DComponent`, `epok::ComponentCallbacks`, `epok::EndPlayReason`, `epok::ImageComponent`, `epok::Level`, `epok::Level::ActorPrepareFn`, `epok::LevelPendingOp`, `epok::Light3DComponent`, `epok::Mesh3DComponent`, `epok::NativeComponentDefault`, `epok::Object`, `epok::ObjectBatch8`, `epok::ObjectClassFlags`, `epok::ObjectDispatchScope`, `epok::ObjectDomain`, `epok::ObjectFamily`, `epok::ObjectId`, `epok::ObjectPool`, `epok::ObjectRegistry`, `epok::ObjectRegistryStorage`, `epok::ObjectSlot`, `epok::ObjectState`, `epok::ObjectStats`, `epok::PaletteAnimatorComponent`, `epok::ParticleEffectComponent`, `epok::ParticleEmitterComponent`, `epok::ProgressBarComponent`, `epok::RectTransformComponent`, `epok::SceneComponent2D`, `epok::SceneComponent3D`, `epok::SceneScriptActor`, `epok::Sprite3DComponent`, `epok::TextComponent`, `epok::TimelineComponent`, `epok::Transform2D`, `epok::UIActor`, `epok::UIComponent`, `epok::World`
+`epok::Actor`, `epok::Actor2D`, `epok::Actor3D`, `epok::ActorCallbacks`, `epok::ActorComponent`, `epok::ActorSpawnRequest`, `epok::AudioComponent`, `epok::BlobShadowComponent`, `epok::Camera3DComponent`, `epok::CanvasComponent`, `epok::ClassDescriptor`, `epok::Collider3DComponent`, `epok::ComponentCallbacks`, `epok::EndPlayReason`, `epok::ImageComponent`, `epok::LayoutContainerComponent`, `epok::LayoutElementComponent`, `epok::Level`, `epok::Level::ActorPrepareFn`, `epok::LevelPendingOp`, `epok::Light3DComponent`, `epok::Mesh3DComponent`, `epok::NativeComponentDefault`, `epok::Object`, `epok::ObjectBatch8`, `epok::ObjectClassFlags`, `epok::ObjectDispatchScope`, `epok::ObjectDomain`, `epok::ObjectFamily`, `epok::ObjectId`, `epok::ObjectPool`, `epok::ObjectRegistry`, `epok::ObjectRegistryStorage`, `epok::ObjectSlot`, `epok::ObjectState`, `epok::ObjectStats`, `epok::PaletteAnimatorComponent`, `epok::ParticleEffectComponent`, `epok::ParticleEmitterComponent`, `epok::ProgressBarComponent`, `epok::RectTransformComponent`, `epok::SceneComponent2D`, `epok::SceneComponent3D`, `epok::SceneScriptActor`, `epok::Sprite3DComponent`, `epok::TextComponent`, `epok::TimelineComponent`, `epok::Transform2D`, `epok::UIActor`, `epok::UIComponent`, `epok::World`
 
 ## Callable index
 
@@ -121,6 +121,35 @@ This module covers the object model module. It documents 300 public callables de
 - [`epok::ImageComponent::set_region`](#epok-imagecomponent-set-region-1) — Sets region as part of the object model module.
 - [`epok::ImageComponent::set_texture`](#epok-imagecomponent-set-texture-1) — Sets texture as part of the object model module.
 - [`epok::is_active`](#epok-is-active-1) — Reports whether active as part of the object model module.
+- [`epok::LayoutContainerComponent::class_id`](#epok-layoutcontainercomponent-class-id-1) — Performs `class id` as part of the object model module.
+- [`epok::LayoutContainerComponent::columns`](#epok-layoutcontainercomponent-columns-1) — Performs `columns` as part of the object model module.
+- [`epok::LayoutContainerComponent::enabled`](#epok-layoutcontainercomponent-enabled-1) — Performs `enabled` as part of the object model module.
+- [`epok::LayoutContainerComponent::entity_slot`](#epok-layoutcontainercomponent-entity-slot-1) — Performs `entity slot` as part of the object model module.
+- [`epok::LayoutContainerComponent::kind`](#epok-layoutcontainercomponent-kind-1) — Performs `kind` as part of the object model module.
+- [`epok::LayoutContainerComponent::padding_bottom`](#epok-layoutcontainercomponent-padding-bottom-1) — Performs `padding bottom` as part of the object model module.
+- [`epok::LayoutContainerComponent::padding_left`](#epok-layoutcontainercomponent-padding-left-1) — Performs `padding left` as part of the object model module.
+- [`epok::LayoutContainerComponent::padding_right`](#epok-layoutcontainercomponent-padding-right-1) — Performs `padding right` as part of the object model module.
+- [`epok::LayoutContainerComponent::padding_top`](#epok-layoutcontainercomponent-padding-top-1) — Performs `padding top` as part of the object model module.
+- [`epok::LayoutContainerComponent::set_columns`](#epok-layoutcontainercomponent-set-columns-1) — Sets columns as part of the object model module.
+- [`epok::LayoutContainerComponent::set_enabled`](#epok-layoutcontainercomponent-set-enabled-1) — Sets enabled as part of the object model module.
+- [`epok::LayoutContainerComponent::set_kind`](#epok-layoutcontainercomponent-set-kind-1) — Sets kind as part of the object model module.
+- [`epok::LayoutContainerComponent::set_padding`](#epok-layoutcontainercomponent-set-padding-1) — Sets padding as part of the object model module.
+- [`epok::LayoutContainerComponent::set_spacing`](#epok-layoutcontainercomponent-set-spacing-1) — Sets spacing as part of the object model module.
+- [`epok::LayoutContainerComponent::spacing_x`](#epok-layoutcontainercomponent-spacing-x-1) — Performs `spacing x` as part of the object model module.
+- [`epok::LayoutContainerComponent::spacing_y`](#epok-layoutcontainercomponent-spacing-y-1) — Performs `spacing y` as part of the object model module.
+- [`epok::LayoutElementComponent::class_id`](#epok-layoutelementcomponent-class-id-1) — Performs `class id` as part of the object model module.
+- [`epok::LayoutElementComponent::enabled`](#epok-layoutelementcomponent-enabled-1) — Performs `enabled` as part of the object model module.
+- [`epok::LayoutElementComponent::entity_slot`](#epok-layoutelementcomponent-entity-slot-1) — Performs `entity slot` as part of the object model module.
+- [`epok::LayoutElementComponent::horizontal_flags`](#epok-layoutelementcomponent-horizontal-flags-1) — Performs `horizontal flags` as part of the object model module.
+- [`epok::LayoutElementComponent::minimum_height`](#epok-layoutelementcomponent-minimum-height-1) — Performs `minimum height` as part of the object model module.
+- [`epok::LayoutElementComponent::minimum_width`](#epok-layoutelementcomponent-minimum-width-1) — Performs `minimum width` as part of the object model module.
+- [`epok::LayoutElementComponent::set_enabled`](#epok-layoutelementcomponent-set-enabled-1) — Sets enabled as part of the object model module.
+- [`epok::LayoutElementComponent::set_horizontal_flags`](#epok-layoutelementcomponent-set-horizontal-flags-1) — Sets horizontal flags as part of the object model module.
+- [`epok::LayoutElementComponent::set_minimum`](#epok-layoutelementcomponent-set-minimum-1) — Sets minimum as part of the object model module.
+- [`epok::LayoutElementComponent::set_stretch`](#epok-layoutelementcomponent-set-stretch-1) — Sets stretch as part of the object model module.
+- [`epok::LayoutElementComponent::set_vertical_flags`](#epok-layoutelementcomponent-set-vertical-flags-1) — Sets vertical flags as part of the object model module.
+- [`epok::LayoutElementComponent::stretch`](#epok-layoutelementcomponent-stretch-1) — Performs `stretch` as part of the object model module.
+- [`epok::LayoutElementComponent::vertical_flags`](#epok-layoutelementcomponent-vertical-flags-1) — Performs `vertical flags` as part of the object model module.
 - [`epok::Level::actor_active`](#epok-level-actor-active-1) — ---- activation ----------------------------------------------------------------
 - [`epok::Level::actor_at`](#epok-level-actor-at-1) — Performs `actor at` as part of the object model module.
 - [`epok::Level::actor_count`](#epok-level-actor-count-1) — Performs `actor count` as part of the object model module.
@@ -323,7 +352,7 @@ This module covers the object model module. It documents 300 public callables de
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 882](../../../runtime/object_model.hpp#L882)
+- **Declared at:** [line 919](../../../runtime/object_model.hpp#L919)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -356,7 +385,7 @@ auto result = object.class_id();
 ActorComponent* default_root() override
 ```
 
-- **Declared at:** [line 884](../../../runtime/object_model.hpp#L884)
+- **Declared at:** [line 921](../../../runtime/object_model.hpp#L921)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `ActorComponent *`. Check the purpose and failure notes before using the value.
@@ -389,7 +418,7 @@ auto result = object.default_root();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 875](../../../runtime/object_model.hpp#L875)
+- **Declared at:** [line 912](../../../runtime/object_model.hpp#L912)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -422,7 +451,7 @@ auto result = object.class_id();
 ActorComponent* default_root() override
 ```
 
-- **Declared at:** [line 877](../../../runtime/object_model.hpp#L877)
+- **Declared at:** [line 914](../../../runtime/object_model.hpp#L914)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `ActorComponent *`. Check the purpose and failure notes before using the value.
@@ -2920,7 +2949,7 @@ auto result = object.volume();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 865](../../../runtime/object_model.hpp#L865)
+- **Declared at:** [line 902](../../../runtime/object_model.hpp#L902)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -2953,7 +2982,7 @@ auto result = object.class_id();
 void configure(Fixed radius,Fixed strength,Fixed distance)
 ```
 
-- **Declared at:** [line 869](../../../runtime/object_model.hpp#L869)
+- **Declared at:** [line 906](../../../runtime/object_model.hpp#L906)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2999,7 +3028,7 @@ object.configure(radius, strength, distance);
 bool enabled() const
 ```
 
-- **Declared at:** [line 867](../../../runtime/object_model.hpp#L867)
+- **Declared at:** [line 904](../../../runtime/object_model.hpp#L904)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -3032,7 +3061,7 @@ auto result = object.enabled();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 866](../../../runtime/object_model.hpp#L866)
+- **Declared at:** [line 903](../../../runtime/object_model.hpp#L903)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -3065,7 +3094,7 @@ auto result = object.entity_slot();
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 868](../../../runtime/object_model.hpp#L868)
+- **Declared at:** [line 905](../../../runtime/object_model.hpp#L905)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4039,7 +4068,7 @@ auto result = epok::detail::sha256_rotr(value, bits);
 inline size_t dispatch_trigger(Level& level, ObjectId actor, DataHandle other, TriggerPhase phase)
 ```
 
-- **Declared at:** [line 1487](../../../runtime/object_model.hpp#L1487)
+- **Declared at:** [line 1524](../../../runtime/object_model.hpp#L1524)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -4402,7 +4431,7 @@ object.set_texture(value);
 inline bool is_active(Object* value)
 ```
 
-- **Declared at:** [line 1506](../../../runtime/object_model.hpp#L1506)
+- **Declared at:** [line 1543](../../../runtime/object_model.hpp#L1543)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -4430,6 +4459,1063 @@ auto result = epok::is_active(value);
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-layoutcontainercomponent-class-id-1"></a>
+
+## `epok::LayoutContainerComponent::class_id`
+
+**Purpose.** Performs `class id` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+uint64_t class_id() const override
+```
+
+- **Declared at:** [line 848](../../../runtime/object_model.hpp#L848)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+auto result = object.class_id();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-columns-1"></a>
+
+## `epok::LayoutContainerComponent::columns`
+
+**Purpose.** Performs `columns` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+int32_t columns() const
+```
+
+- **Declared at:** [line 862](../../../runtime/object_model.hpp#L862)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+auto result = object.columns();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-enabled-1"></a>
+
+## `epok::LayoutContainerComponent::enabled`
+
+**Purpose.** Performs `enabled` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+bool enabled() const
+```
+
+- **Declared at:** [line 850](../../../runtime/object_model.hpp#L850)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+auto result = object.enabled();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
+<a id="epok-layoutcontainercomponent-entity-slot-1"></a>
+
+## `epok::LayoutContainerComponent::entity_slot`
+
+**Purpose.** Performs `entity slot` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+ActorData* entity_slot() const
+```
+
+- **Declared at:** [line 849](../../../runtime/object_model.hpp#L849)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+auto result = object.entity_slot();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-kind-1"></a>
+
+## `epok::LayoutContainerComponent::kind`
+
+**Purpose.** Performs `kind` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+int32_t kind() const
+```
+
+- **Declared at:** [line 852](../../../runtime/object_model.hpp#L852)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+auto result = object.kind();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-padding-bottom-1"></a>
+
+## `epok::LayoutContainerComponent::padding_bottom`
+
+**Purpose.** Performs `padding bottom` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+Fixed padding_bottom() const
+```
+
+- **Declared at:** [line 860](../../../runtime/object_model.hpp#L860)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+auto result = object.padding_bottom();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-padding-left-1"></a>
+
+## `epok::LayoutContainerComponent::padding_left`
+
+**Purpose.** Performs `padding left` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+Fixed padding_left() const
+```
+
+- **Declared at:** [line 857](../../../runtime/object_model.hpp#L857)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+auto result = object.padding_left();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-padding-right-1"></a>
+
+## `epok::LayoutContainerComponent::padding_right`
+
+**Purpose.** Performs `padding right` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+Fixed padding_right() const
+```
+
+- **Declared at:** [line 859](../../../runtime/object_model.hpp#L859)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+auto result = object.padding_right();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-padding-top-1"></a>
+
+## `epok::LayoutContainerComponent::padding_top`
+
+**Purpose.** Performs `padding top` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+Fixed padding_top() const
+```
+
+- **Declared at:** [line 858](../../../runtime/object_model.hpp#L858)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+auto result = object.padding_top();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-set-columns-1"></a>
+
+## `epok::LayoutContainerComponent::set_columns`
+
+**Purpose.** Sets columns as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_columns(int32_t value)
+```
+
+- **Declared at:** [line 863](../../../runtime/object_model.hpp#L863)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `int32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int32_t value
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+object.set_columns(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-set-enabled-1"></a>
+
+## `epok::LayoutContainerComponent::set_enabled`
+
+**Purpose.** Sets enabled as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_enabled(bool value)
+```
+
+- **Declared at:** [line 851](../../../runtime/object_model.hpp#L851)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `bool` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// bool value
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+object.set_enabled(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-set-kind-1"></a>
+
+## `epok::LayoutContainerComponent::set_kind`
+
+**Purpose.** Sets kind as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_kind(LayoutKind value)
+```
+
+- **Declared at:** [line 853](../../../runtime/object_model.hpp#L853)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `LayoutKind` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// LayoutKind value
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+object.set_kind(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-set-padding-1"></a>
+
+## `epok::LayoutContainerComponent::set_padding`
+
+**Purpose.** Sets padding as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_padding(Fixed left,Fixed top,Fixed right,Fixed bottom)
+```
+
+- **Declared at:** [line 861](../../../runtime/object_model.hpp#L861)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `left` | `Fixed` | Input | Value supplied for `left`. See the exact type and module contract. |
+| `top` | `Fixed` | Input | Value supplied for `top`. See the exact type and module contract. |
+| `right` | `Fixed` | Input | Value supplied for `right`. See the exact type and module contract. |
+| `bottom` | `Fixed` | Input | Value supplied for `bottom`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Fixed left
+// Fixed top
+// Fixed right
+// Fixed bottom
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+object.set_padding(left, top, right, bottom);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-set-spacing-1"></a>
+
+## `epok::LayoutContainerComponent::set_spacing`
+
+**Purpose.** Sets spacing as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_spacing(Fixed x,Fixed y)
+```
+
+- **Declared at:** [line 856](../../../runtime/object_model.hpp#L856)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `x` | `Fixed` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `Fixed` | Input | Value supplied for `y`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Fixed x
+// Fixed y
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+object.set_spacing(x, y);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-spacing-x-1"></a>
+
+## `epok::LayoutContainerComponent::spacing_x`
+
+**Purpose.** Performs `spacing x` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+Fixed spacing_x() const
+```
+
+- **Declared at:** [line 854](../../../runtime/object_model.hpp#L854)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+auto result = object.spacing_x();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutcontainercomponent-spacing-y-1"></a>
+
+## `epok::LayoutContainerComponent::spacing_y`
+
+**Purpose.** Performs `spacing y` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+Fixed spacing_y() const
+```
+
+- **Declared at:** [line 855](../../../runtime/object_model.hpp#L855)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutContainerComponent& object = /* obtain a valid instance */;
+
+auto result = object.spacing_y();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutelementcomponent-class-id-1"></a>
+
+## `epok::LayoutElementComponent::class_id`
+
+**Purpose.** Performs `class id` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+uint64_t class_id() const override
+```
+
+- **Declared at:** [line 831](../../../runtime/object_model.hpp#L831)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+auto result = object.class_id();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutelementcomponent-enabled-1"></a>
+
+## `epok::LayoutElementComponent::enabled`
+
+**Purpose.** Performs `enabled` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+bool enabled() const
+```
+
+- **Declared at:** [line 833](../../../runtime/object_model.hpp#L833)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+auto result = object.enabled();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
+<a id="epok-layoutelementcomponent-entity-slot-1"></a>
+
+## `epok::LayoutElementComponent::entity_slot`
+
+**Purpose.** Performs `entity slot` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+ActorData* entity_slot() const
+```
+
+- **Declared at:** [line 832](../../../runtime/object_model.hpp#L832)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+auto result = object.entity_slot();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutelementcomponent-horizontal-flags-1"></a>
+
+## `epok::LayoutElementComponent::horizontal_flags`
+
+**Purpose.** Performs `horizontal flags` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+int32_t horizontal_flags() const
+```
+
+- **Declared at:** [line 835](../../../runtime/object_model.hpp#L835)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+auto result = object.horizontal_flags();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutelementcomponent-minimum-height-1"></a>
+
+## `epok::LayoutElementComponent::minimum_height`
+
+**Purpose.** Performs `minimum height` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+Fixed minimum_height() const
+```
+
+- **Declared at:** [line 840](../../../runtime/object_model.hpp#L840)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+auto result = object.minimum_height();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutelementcomponent-minimum-width-1"></a>
+
+## `epok::LayoutElementComponent::minimum_width`
+
+**Purpose.** Performs `minimum width` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+Fixed minimum_width() const
+```
+
+- **Declared at:** [line 839](../../../runtime/object_model.hpp#L839)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+auto result = object.minimum_width();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutelementcomponent-set-enabled-1"></a>
+
+## `epok::LayoutElementComponent::set_enabled`
+
+**Purpose.** Sets enabled as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_enabled(bool value)
+```
+
+- **Declared at:** [line 834](../../../runtime/object_model.hpp#L834)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `bool` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// bool value
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+object.set_enabled(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutelementcomponent-set-horizontal-flags-1"></a>
+
+## `epok::LayoutElementComponent::set_horizontal_flags`
+
+**Purpose.** Sets horizontal flags as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_horizontal_flags(int32_t value)
+```
+
+- **Declared at:** [line 836](../../../runtime/object_model.hpp#L836)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `int32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int32_t value
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+object.set_horizontal_flags(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutelementcomponent-set-minimum-1"></a>
+
+## `epok::LayoutElementComponent::set_minimum`
+
+**Purpose.** Sets minimum as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_minimum(Fixed width,Fixed height)
+```
+
+- **Declared at:** [line 841](../../../runtime/object_model.hpp#L841)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `width` | `Fixed` | Input | Value supplied for `width`. See the exact type and module contract. |
+| `height` | `Fixed` | Input | Value supplied for `height`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Fixed width
+// Fixed height
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+object.set_minimum(width, height);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutelementcomponent-set-stretch-1"></a>
+
+## `epok::LayoutElementComponent::set_stretch`
+
+**Purpose.** Sets stretch as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_stretch(Fixed value)
+```
+
+- **Declared at:** [line 843](../../../runtime/object_model.hpp#L843)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Fixed value
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+object.set_stretch(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutelementcomponent-set-vertical-flags-1"></a>
+
+## `epok::LayoutElementComponent::set_vertical_flags`
+
+**Purpose.** Sets vertical flags as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_vertical_flags(int32_t value)
+```
+
+- **Declared at:** [line 838](../../../runtime/object_model.hpp#L838)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `int32_t` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int32_t value
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+object.set_vertical_flags(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutelementcomponent-stretch-1"></a>
+
+## `epok::LayoutElementComponent::stretch`
+
+**Purpose.** Performs `stretch` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+Fixed stretch() const
+```
+
+- **Declared at:** [line 842](../../../runtime/object_model.hpp#L842)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+auto result = object.stretch();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-layoutelementcomponent-vertical-flags-1"></a>
+
+## `epok::LayoutElementComponent::vertical_flags`
+
+**Purpose.** Performs `vertical flags` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+int32_t vertical_flags() const
+```
+
+- **Declared at:** [line 837](../../../runtime/object_model.hpp#L837)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::LayoutElementComponent& object = /* obtain a valid instance */;
+
+auto result = object.vertical_flags();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-level-actor-active-1"></a>
 
 ## `epok::Level::actor_active`
@@ -4442,7 +5528,7 @@ auto result = epok::is_active(value);
 bool actor_active(const Actor& actor) const
 ```
 
-- **Declared at:** [line 1100](../../../runtime/object_model.hpp#L1100)
+- **Declared at:** [line 1137](../../../runtime/object_model.hpp#L1137)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -4484,7 +5570,7 @@ auto result = object.actor_active(actor);
 ObjectId actor_at(size_t index) const
 ```
 
-- **Declared at:** [line 934](../../../runtime/object_model.hpp#L934)
+- **Declared at:** [line 971](../../../runtime/object_model.hpp#L971)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -4526,7 +5612,7 @@ auto result = object.actor_at(index);
 size_t actor_count() const
 ```
 
-- **Declared at:** [line 933](../../../runtime/object_model.hpp#L933)
+- **Declared at:** [line 970](../../../runtime/object_model.hpp#L970)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -4559,7 +5645,7 @@ auto result = object.actor_count();
 template<class T> T* add_component(Actor& owner, const char* name = nullptr)
 ```
 
-- **Declared at:** [line 1141](../../../runtime/object_model.hpp#L1141)
+- **Declared at:** [line 1178](../../../runtime/object_model.hpp#L1178)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -4608,7 +5694,7 @@ auto result = object.add_component<T>(owner, name);
 bool bind(ObjectRegistry& value)
 ```
 
-- **Declared at:** [line 924](../../../runtime/object_model.hpp#L924)
+- **Declared at:** [line 961](../../../runtime/object_model.hpp#L961)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4650,7 +5736,7 @@ auto result = object.bind(value);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 920](../../../runtime/object_model.hpp#L920)
+- **Declared at:** [line 957](../../../runtime/object_model.hpp#L957)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -4683,7 +5769,7 @@ auto result = object.class_id();
 ObjectId create_scene_script(const ClassDescriptor& type, const char* name)
 ```
 
-- **Declared at:** [line 1031](../../../runtime/object_model.hpp#L1031)
+- **Declared at:** [line 1068](../../../runtime/object_model.hpp#L1068)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4727,7 +5813,7 @@ auto result = object.create_scene_script(type, name);
 bool destroy_actor(ObjectId actor, EndPlayReason reason = EndPlayReason::Destroyed)
 ```
 
-- **Declared at:** [line 1048](../../../runtime/object_model.hpp#L1048)
+- **Declared at:** [line 1085](../../../runtime/object_model.hpp#L1085)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4771,7 +5857,7 @@ auto result = object.destroy_actor(actor, reason);
 void end_play_all(EndPlayReason reason)
 ```
 
-- **Declared at:** [line 1068](../../../runtime/object_model.hpp#L1068)
+- **Declared at:** [line 1105](../../../runtime/object_model.hpp#L1105)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4813,7 +5899,7 @@ object.end_play_all(reason);
 void frame_update(uint32_t elapsed)
 ```
 
-- **Declared at:** [line 1089](../../../runtime/object_model.hpp#L1089)
+- **Declared at:** [line 1126](../../../runtime/object_model.hpp#L1126)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4855,7 +5941,7 @@ object.frame_update(elapsed);
 template<class T> T* get_component(const Actor& owner) const
 ```
 
-- **Declared at:** [line 1159](../../../runtime/object_model.hpp#L1159)
+- **Declared at:** [line 1196](../../../runtime/object_model.hpp#L1196)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Parameters**
@@ -4900,7 +5986,7 @@ auto result = object.get_component<T>(owner);
 template<class T> size_t get_components(const Actor& owner, T** out, size_t capacity) const
 ```
 
-- **Declared at:** [line 1166](../../../runtime/object_model.hpp#L1166)
+- **Declared at:** [line 1203](../../../runtime/object_model.hpp#L1203)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Parameters**
@@ -4949,7 +6035,7 @@ auto result = object.get_components<T>(owner, out, capacity);
 ObjectRegistry* registry() const
 ```
 
-- **Declared at:** [line 931](../../../runtime/object_model.hpp#L931)
+- **Declared at:** [line 968](../../../runtime/object_model.hpp#L968)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ObjectRegistry *`. Check the purpose and failure notes before using the value.
@@ -4982,7 +6068,7 @@ auto result = object.registry();
 bool remove_component(Actor& owner, ObjectId component)
 ```
 
-- **Declared at:** [line 1177](../../../runtime/object_model.hpp#L1177)
+- **Declared at:** [line 1214](../../../runtime/object_model.hpp#L1214)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5026,7 +6112,7 @@ auto result = object.remove_component(owner, component);
 ObjectId scene_script() const
 ```
 
-- **Declared at:** [line 935](../../../runtime/object_model.hpp#L935)
+- **Declared at:** [line 972](../../../runtime/object_model.hpp#L972)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
@@ -5059,7 +6145,7 @@ auto result = object.scene_script();
 bool set_active(ObjectId actor, bool active)
 ```
 
-- **Declared at:** [line 1109](../../../runtime/object_model.hpp#L1109)
+- **Declared at:** [line 1146](../../../runtime/object_model.hpp#L1146)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5103,7 +6189,7 @@ auto result = object.set_active(actor, active);
 bool set_logical_parent(ObjectId child,ObjectId parent)
 ```
 
-- **Declared at:** [line 936](../../../runtime/object_model.hpp#L936)
+- **Declared at:** [line 973](../../../runtime/object_model.hpp#L973)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5147,7 +6233,7 @@ auto result = object.set_logical_parent(child, parent);
 virtual ObjectId spawn_actor(const ClassDescriptor& type, const char* name, ObjectId logical_parent = {})
 ```
 
-- **Declared at:** [line 1021](../../../runtime/object_model.hpp#L1021)
+- **Declared at:** [line 1058](../../../runtime/object_model.hpp#L1058)
 - **Kind:** `cxx method`; qualifiers: `virtual`
 
 **Parameters**
@@ -5195,7 +6281,7 @@ auto result = object.spawn_actor(type, name, logical_parent);
 size_t spawn_batch(const ActorSpawnRequest* requests, size_t count, ObjectId* out, ActorPrepareFn prepare = nullptr)
 ```
 
-- **Declared at:** [line 964](../../../runtime/object_model.hpp#L964)
+- **Declared at:** [line 1001](../../../runtime/object_model.hpp#L1001)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5243,7 +6329,7 @@ auto result = object.spawn_batch(requests, count, out, prepare);
 ObjectStats stats() const
 ```
 
-- **Declared at:** [line 932](../../../runtime/object_model.hpp#L932)
+- **Declared at:** [line 969](../../../runtime/object_model.hpp#L969)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ObjectStats`. Check the purpose and failure notes before using the value.
@@ -5276,7 +6362,7 @@ auto result = object.stats();
 void tick(Fixed delta)
 ```
 
-- **Declared at:** [line 1079](../../../runtime/object_model.hpp#L1079)
+- **Declared at:** [line 1116](../../../runtime/object_model.hpp#L1116)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -8359,7 +9445,7 @@ epok::ObjectRegistryStorage value();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 855](../../../runtime/object_model.hpp#L855)
+- **Declared at:** [line 892](../../../runtime/object_model.hpp#L892)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -8392,7 +9478,7 @@ auto result = object.class_id();
 void configure(int32_t texture,uint32_t first,uint32_t last,Fixed speed,bool reverse)
 ```
 
-- **Declared at:** [line 858](../../../runtime/object_model.hpp#L858)
+- **Declared at:** [line 895](../../../runtime/object_model.hpp#L895)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -8442,7 +9528,7 @@ object.configure(texture, first, last, speed, reverse);
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 856](../../../runtime/object_model.hpp#L856)
+- **Declared at:** [line 893](../../../runtime/object_model.hpp#L893)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -8475,7 +9561,7 @@ auto result = object.entity_slot();
 void reset()
 ```
 
-- **Declared at:** [line 860](../../../runtime/object_model.hpp#L860)
+- **Declared at:** [line 897](../../../runtime/object_model.hpp#L897)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -8508,7 +9594,7 @@ object.reset();
 void set_enabled(bool enabled)
 ```
 
-- **Declared at:** [line 859](../../../runtime/object_model.hpp#L859)
+- **Declared at:** [line 896](../../../runtime/object_model.hpp#L896)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -8550,7 +9636,7 @@ object.set_enabled(enabled);
 PaletteAnimationState state() const
 ```
 
-- **Declared at:** [line 857](../../../runtime/object_model.hpp#L857)
+- **Declared at:** [line 894](../../../runtime/object_model.hpp#L894)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `PaletteAnimationState`. Check the purpose and failure notes before using the value.
@@ -8583,7 +9669,7 @@ auto result = object.state();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 850](../../../runtime/object_model.hpp#L850)
+- **Declared at:** [line 887](../../../runtime/object_model.hpp#L887)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -8616,7 +9702,7 @@ auto result = object.class_id();
 void burst(uint32_t count)
 ```
 
-- **Declared at:** [line 836](../../../runtime/object_model.hpp#L836)
+- **Declared at:** [line 873](../../../runtime/object_model.hpp#L873)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -8658,7 +9744,7 @@ object.burst(count);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 831](../../../runtime/object_model.hpp#L831)
+- **Declared at:** [line 868](../../../runtime/object_model.hpp#L868)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -8691,7 +9777,7 @@ auto result = object.class_id();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 832](../../../runtime/object_model.hpp#L832)
+- **Declared at:** [line 869](../../../runtime/object_model.hpp#L869)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -8724,7 +9810,7 @@ auto result = object.entity_slot();
 void play()
 ```
 
-- **Declared at:** [line 834](../../../runtime/object_model.hpp#L834)
+- **Declared at:** [line 871](../../../runtime/object_model.hpp#L871)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -8757,7 +9843,7 @@ object.play();
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 837](../../../runtime/object_model.hpp#L837)
+- **Declared at:** [line 874](../../../runtime/object_model.hpp#L874)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -8799,7 +9885,7 @@ object.set_enabled(value);
 void set_lifetime(Fixed value)
 ```
 
-- **Declared at:** [line 839](../../../runtime/object_model.hpp#L839)
+- **Declared at:** [line 876](../../../runtime/object_model.hpp#L876)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -8841,7 +9927,7 @@ object.set_lifetime(value);
 void set_max_particles(uint32_t value)
 ```
 
-- **Declared at:** [line 840](../../../runtime/object_model.hpp#L840)
+- **Declared at:** [line 877](../../../runtime/object_model.hpp#L877)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -8883,7 +9969,7 @@ object.set_max_particles(value);
 void set_rate(Fixed value)
 ```
 
-- **Declared at:** [line 838](../../../runtime/object_model.hpp#L838)
+- **Declared at:** [line 875](../../../runtime/object_model.hpp#L875)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -8925,7 +10011,7 @@ object.set_rate(value);
 ParticleEmitterState state() const
 ```
 
-- **Declared at:** [line 833](../../../runtime/object_model.hpp#L833)
+- **Declared at:** [line 870](../../../runtime/object_model.hpp#L870)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ParticleEmitterState`. Check the purpose and failure notes before using the value.
@@ -8958,7 +10044,7 @@ auto result = object.state();
 void stop()
 ```
 
-- **Declared at:** [line 835](../../../runtime/object_model.hpp#L835)
+- **Declared at:** [line 872](../../../runtime/object_model.hpp#L872)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -10533,7 +11619,7 @@ auto result = object.world_affine();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 897](../../../runtime/object_model.hpp#L897)
+- **Declared at:** [line 934](../../../runtime/object_model.hpp#L934)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -11522,7 +12608,7 @@ auto result = object.text_word(index);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 845](../../../runtime/object_model.hpp#L845)
+- **Declared at:** [line 882](../../../runtime/object_model.hpp#L882)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -11555,7 +12641,7 @@ auto result = object.class_id();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 889](../../../runtime/object_model.hpp#L889)
+- **Declared at:** [line 926](../../../runtime/object_model.hpp#L926)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -11588,7 +12674,7 @@ auto result = object.class_id();
 ActorComponent* default_root() override
 ```
 
-- **Declared at:** [line 891](../../../runtime/object_model.hpp#L891)
+- **Declared at:** [line 928](../../../runtime/object_model.hpp#L928)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `ActorComponent *`. Check the purpose and failure notes before using the value.
@@ -11654,7 +12740,7 @@ auto result = object.class_id();
 void bind(Level& value, ObjectRegistry& table)
 ```
 
-- **Declared at:** [line 1453](../../../runtime/object_model.hpp#L1453)
+- **Declared at:** [line 1490](../../../runtime/object_model.hpp#L1490)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -11698,7 +12784,7 @@ object.bind(value, table);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 1449](../../../runtime/object_model.hpp#L1449)
+- **Declared at:** [line 1486](../../../runtime/object_model.hpp#L1486)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.

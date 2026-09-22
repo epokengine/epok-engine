@@ -94,7 +94,9 @@ gameplay when they fit the pool. Later required reads may stall rendering.
 
 ## HUD
 
-Canvas, RectTransform, Image, Text and ProgressBar belong to the same scene entities. HUD rendering follows the 3D world at the configured output resolution. Anchors and pivots are 0..1; position and Size Delta use Q12 native pixels with +Y up. The 3D Transform does not affect UI layout. Text remains 8 x 16 pixels.
+Canvas, RectTransform, Image, Text, ProgressBar, LayoutElement and LayoutContainer belong to the same scene entities. HUD rendering follows the 3D world at the configured output resolution. Anchors and pivots are 0..1; position and Size Delta use Q12 native pixels with +Y up. The 3D Transform does not affect UI layout. Text remains 8 x 16 pixels.
+
+A rect with an enabled LayoutContainer measures its children and assigns their rectangles instead of letting them resolve their own anchors: Horizontal and Vertical divide one axis, Grid fills `columns` cells per row from the top-left, Margin and Center hand the padded rectangle to every child. Padding is left, top, right, bottom. LayoutElement supplies a child's minimum size, its stretch weight, and the per-axis size flags — bit 0 Fill, bit 1 Expand, bit 2 Shrink Center, bit 3 Shrink End. A subtree without a container is byte-identical to the anchor-only path.
 
 Add RectTransform before graphics, beneath a Canvas or another RectTransform. Text uses the attributed mig68000 8 x 16 bitmap plus derived Spanish glyphs, supports 511 UTF-8 bytes, explicit newlines and optional wrapping.
 

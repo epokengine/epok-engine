@@ -2,7 +2,7 @@
 
 > **Header:** `"hud_core.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/hud_core.hpp)
 
-This module covers native HUD layout, drawing and focus navigation. It documents 5 public callables declared directly in this header.
+This module covers native HUD layout, drawing and focus navigation. It documents 6 public callables declared directly in this header.
 
 ## Declared types
 
@@ -13,6 +13,7 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 - [`epok::hud_core::clamp`](#epok-hud-core-clamp-1) — Performs `clamp` as part of native HUD layout, drawing and focus navigation.
 - [`epok::hud_core::Compiler::Compiler<Sink>`](#epok-hud-core-compiler-compiler-sink-1) — Constructs `epok::hud_core::Compiler` for native HUD layout, drawing and focus navigation.
 - [`epok::hud_core::Compiler::draw`](#epok-hud-core-compiler-draw-1) — Draws draw as part of native HUD layout, drawing and focus navigation.
+- [`epok::hud_core::Compiler::layout`](#epok-hud-core-compiler-layout-1) — Measure and arrange without drawing: `rects` holds every laid-out node and zeroes elsewhere.
 - [`epok::hud_core::pixel`](#epok-hud-core-pixel-1) — Performs `pixel` as part of native HUD layout, drawing and focus navigation.
 - [`epok::hud_core::resolve`](#epok-hud-core-resolve-1) — Performs `resolve` as part of native HUD layout, drawing and focus navigation.
 
@@ -70,7 +71,7 @@ auto result = epok::hud_core::clamp(v, hi);
 Compiler(Sink& sink,int width,int height,Budget budget):sin
 ```
 
-- **Declared at:** [line 90](../../../runtime/hud_core.hpp#L90)
+- **Declared at:** [line 233](../../../runtime/hud_core.hpp#L233)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -111,10 +112,10 @@ epok::hud_core::Compiler value(sink, width, height, budget);
 **Exact declaration**
 
 ```cpp
-void draw(ActorData* entities,size_t count,int* first,int* next)
+void draw(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes)
 ```
 
-- **Declared at:** [line 91](../../../runtime/hud_core.hpp#L91)
+- **Declared at:** [line 243](../../../runtime/hud_core.hpp#L243)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -125,6 +126,8 @@ void draw(ActorData* entities,size_t count,int* first,int* next)
 | `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
 | `first` | `int *` | Input/output; inspect the function contract | Value supplied for `first`. See the exact type and module contract. |
 | `next` | `int *` | Input/output; inspect the function contract | Value supplied for `next`. See the exact type and module contract. |
+| `sizes` | `Fixed (*)[2]` | Input/output; inspect the function contract | Value supplied for `sizes`. See the exact type and module contract. |
+| `boxes` | `Rect *` | Input/output; inspect the function contract | Value supplied for `boxes`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -140,15 +143,69 @@ void draw(ActorData* entities,size_t count,int* first,int* next)
 // size_t count
 // int * first
 // int * next
+// Fixed (*)[2] sizes
+// Rect * boxes
 
 epok::hud_core::Compiler& object = /* obtain a valid instance */;
 
-object.draw(entities, count, first, next);
+object.draw(entities, count, first, next, sizes, boxes);
 ```
 
 **Why choose it.** The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
 
 **Trade-offs and warnings.** Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-hud-core-compiler-layout-1"></a>
+
+## `epok::hud_core::Compiler::layout`
+
+**Purpose.** Measure and arrange without drawing: `rects` holds every laid-out node and zeroes elsewhere.
+
+**Exact declaration**
+
+```cpp
+void layout(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes)
+```
+
+- **Declared at:** [line 235](../../../runtime/hud_core.hpp#L235)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `entities` | `ActorData *` | Input/output; inspect the function contract | Value supplied for `entities`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+| `first` | `int *` | Input/output; inspect the function contract | Value supplied for `first`. See the exact type and module contract. |
+| `next` | `int *` | Input/output; inspect the function contract | Value supplied for `next`. See the exact type and module contract. |
+| `sizes` | `Fixed (*)[2]` | Input/output; inspect the function contract | Value supplied for `sizes`. See the exact type and module contract. |
+| `boxes` | `Rect *` | Input/output; inspect the function contract | Value supplied for `boxes`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need native HUD layout, drawing and focus navigation and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "hud_core.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ActorData * entities
+// size_t count
+// int * first
+// int * next
+// Fixed (*)[2] sizes
+// Rect * boxes
+
+epok::hud_core::Compiler& object = /* obtain a valid instance */;
+
+object.layout(entities, count, first, next, sizes, boxes);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to native HUD layout, drawing and focus navigation. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
 <a id="epok-hud-core-pixel-1"></a>
 

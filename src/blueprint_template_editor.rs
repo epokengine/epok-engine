@@ -130,6 +130,8 @@ fn browser_inner(
                     "HUD Image",
                     "HUD Text",
                     "HUD Progress",
+                    "HUD Layout Element",
+                    "HUD Layout Container",
                     "Blob Shadow",
                 ] {
                     if super::choose(ui, name) {
@@ -239,9 +241,11 @@ fn add_component(entity: &mut Actor, parent: Option<&Actor>, name: &str) -> Resu
     if name == "Canvas" && (parent.is_some() || entity.kind != "Empty" || entity.rect.is_some()) {
         return Err("Canvas can only be added to an Empty template root without RectTransform. Existing components were preserved.".into());
     }
-    if matches!(name, "HUD Image" | "HUD Text" | "HUD Progress")
-        && (entity.kind != "Empty"
-            || !parent.is_some_and(|parent| parent.canvas.is_some() || parent.rect.is_some()))
+    if matches!(
+        name,
+        "HUD Image" | "HUD Text" | "HUD Progress" | "HUD Layout Element" | "HUD Layout Container"
+    ) && (entity.kind != "Empty"
+        || !parent.is_some_and(|parent| parent.canvas.is_some() || parent.rect.is_some()))
     {
         return Err("HUD components need an Empty child of Canvas or RectTransform. Existing components were preserved.".into());
     }
@@ -270,6 +274,14 @@ fn add_component(entity: &mut Actor, parent: Option<&Actor>, name: &str) -> Resu
             entity.progress.get_or_insert_with(Default::default);
             entity.rect.get_or_insert_with(Default::default);
         }
+        "HUD Layout Element" => {
+            entity.layout_element.get_or_insert_with(Default::default);
+            entity.rect.get_or_insert_with(Default::default);
+        }
+        "HUD Layout Container" => {
+            entity.layout_container.get_or_insert_with(Default::default);
+            entity.rect.get_or_insert_with(Default::default);
+        }
         "Blob Shadow" => {
             entity.blob_shadow.get_or_insert_with(Default::default);
         }
@@ -290,6 +302,8 @@ fn component_names(entity: &Actor) -> Vec<&'static str> {
         (entity.image.is_some(), "HUD Image"),
         (entity.text.is_some(), "HUD Text"),
         (entity.progress.is_some(), "HUD Progress"),
+        (entity.layout_element.is_some(), "HUD Layout Element"),
+        (entity.layout_container.is_some(), "HUD Layout Container"),
         (entity.blob_shadow.is_some(), "Blob Shadow"),
     ] {
         if present {
@@ -455,6 +469,8 @@ fn draw_inner(
                 "HUD Image",
                 "HUD Text",
                 "HUD Progress",
+                "HUD Layout Element",
+                "HUD Layout Container",
                 "Blob Shadow",
             ] {
                 if ui.selectable(name) {

@@ -1308,14 +1308,21 @@ fn actor_domain(
 /// The UI widget recipes offered by the creation menu. Each command reaches
 /// `Editor::create_hud` through the `ui-` prefix that `Editor::action` strips,
 /// so the menu and the recipe table have a single spelling between them.
-const UI_WIDGETS: [(&str, &str); 6] = [
+const UI_WIDGETS: [(&str, &str); 11] = [
     ("Canvas", "ui-canvas"),
     ("Panel", "ui-panel"),
     ("Image", "ui-image"),
     ("Label", "ui-label"),
     ("Text Area", "ui-textarea"),
     ("Progress Bar", "ui-progress"),
+    ("Horizontal Box", "ui-hbox"),
+    ("Vertical Box", "ui-vbox"),
+    ("Grid", "ui-grid"),
+    ("Margin", "ui-margin"),
+    ("Center", "ui-center"),
 ];
+/// The containers start here; the menu rules a line above them.
+const UI_CONTAINERS: usize = 6;
 fn creation_menu(
     ui: &imgui::Ui,
     child: bool,
@@ -1342,7 +1349,10 @@ fn creation_menu(
     if domain_visible(Domain::UI, mode)
         && let Some(_menu) = ui.begin_menu("UI")
     {
-        for (label, command) in UI_WIDGETS {
+        for (index, (label, command)) in UI_WIDGETS.into_iter().enumerate() {
+            if index == UI_CONTAINERS {
+                ui.separator();
+            }
             if ui.menu_item(label) {
                 action = Some(command);
             }

@@ -104,6 +104,13 @@ struct RectTransform {
 };
 struct Image { bool enabled=false; uint8_t color[3]={51,102,166}; int texture=-1; uint16_t region[4]={}; uint16_t borders[4]={}; };
 struct ProgressBar { bool enabled=false;Fixed value=0.75;uint8_t color[3]={64,217,77},background[3]={31,31,31}; };
+// Values are pinned; this enum only ever grows at the end (saved Blueprint graphs store the numbering).
+enum class LayoutKind : uint8_t { None=0, Horizontal=1, Vertical=2, Grid=3, Margin=4, Center=5 };
+static_assert(sizeof(LayoutKind)==1);
+// Size flags, one bitfield per axis: 1 Fill, 2 Expand, 4 ShrinkCenter, 8 ShrinkEnd.
+struct LayoutElement { bool enabled=false; uint8_t horizontal=1,vertical=1; Fixed minimum[2]={0.0,0.0}; Fixed stretch=1.0; };
+// padding is left, top, right, bottom, the order Image::borders uses.
+struct LayoutContainer { bool enabled=false; LayoutKind kind=LayoutKind::None; Fixed spacing[2]={0.0,0.0}; Fixed padding[4]={0.0,0.0,0.0,0.0}; uint8_t columns=1; };
 struct MeshQuad {
   uint16_t indices[4];
   uint8_t face;
@@ -219,7 +226,7 @@ struct Animator {
 class Actor;
 struct ActorData {
     bool camera; bool mesh; bool tiled; int parent; Transform transform; Material material;
-    Canvas canvas;RectTransform rect;Image image;Text text;ProgressBar progress;char name[129]={};
+    Canvas canvas;RectTransform rect;Image image;Text text;ProgressBar progress;LayoutElement layout_element;LayoutContainer layout_container;char name[129]={};
     const MeshGeometry* geometry=nullptr;
     Animator animator;
     // Optional additive pitch applied at one skeletal branch. Stop bones cancel
@@ -257,6 +264,8 @@ template<>inline RectTransform& ActorData::component<RectTransform>(){return rec
 template<>inline Image& ActorData::component<Image>(){return image;}
 template<>inline Text& ActorData::component<Text>(){return text;}
 template<>inline ProgressBar& ActorData::component<ProgressBar>(){return progress;}
+template<>inline LayoutElement& ActorData::component<LayoutElement>(){return layout_element;}
+template<>inline LayoutContainer& ActorData::component<LayoutContainer>(){return layout_container;}
 template<>inline Transform* ActorData::get<Transform>(){return &transform;}
 template<>inline Transform& ActorData::add<Transform>(){return transform;}
 ActorData* find_actor_data(const char* name);
