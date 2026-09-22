@@ -6,7 +6,7 @@ This module covers native text data and HUD text components. It documents 1 publ
 
 ## Declared types
 
-`epok::HudStats`, `epok::Text`
+`epok::HudStats`, `epok::Text`, `epok::TextAlign`
 
 ## Callable index
 
@@ -24,7 +24,7 @@ This module covers native text data and HUD text components. It documents 1 publ
 void set_text(const char* text)
 ```
 
-- **Declared at:** [line 11](../../../runtime/text.hpp#L11)
+- **Declared at:** [line 18](../../../runtime/text.hpp#L18)
 - **Kind:** `cxx method`
 
 **Parameters**

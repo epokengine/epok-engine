@@ -2,15 +2,62 @@
 
 > **Header:** `"texture.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/texture.hpp)
 
-This module covers native text data and HUD text components. It documents 5 public callables declared directly in this header.
+This module covers native text data and HUD text components. It documents 6 public callables declared directly in this header.
 
 ## Callable index
 
+- [`epok::fonts_initialize`](#epok-fonts-initialize-1) — Authored fonts are 4bpp, so a row is a quarter of its pixel width in VRAM words, and the CLUT is sixteen entries rather than 256.
 - [`epok::texture`](#epok-texture-1) — Performs `texture` as part of native text data and HUD text components.
 - [`epok::texture_clut`](#epok-texture-clut-1) — Performs `texture clut` as part of native text data and HUD text components.
 - [`epok::texture_page`](#epok-texture-page-1) — Performs `texture page` as part of native text data and HUD text components.
 - [`epok::texture_uv`](#epok-texture-uv-1) — Performs `texture uv` as part of native text data and HUD text components.
 - [`epok::textures_initialize`](#epok-textures-initialize-1) — Performs `textures initialize` as part of native text data and HUD text components.
+
+<a id="epok-fonts-initialize-1"></a>
+
+## `epok::fonts_initialize`
+
+**Purpose.** Authored fonts are 4bpp, so a row is a quarter of its pixel width in VRAM words, and the CLUT is sixteen entries rather than 256.
+
+**Details.** They are resident for the whole run: the allocator places them after the textures of every bank.
+
+**Exact declaration**
+
+```cpp
+inline void fonts_initialize(psyqo::GPU& gpu,const Font* fonts,size_t count)
+```
+
+- **Declared at:** [line 17](../../../runtime/texture.hpp#L17)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
+| `fonts` | `const Font *` | Input | Value supplied for `fonts`. See the exact type and module contract. |
+| `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** They are resident for the whole run: the allocator places them after the textures of every bank.
+
+**Usage pattern**
+
+```cpp
+#include "texture.hpp"
+
+// Assume these named values have been initialized with valid data:
+// psyqo::GPU & gpu
+// const Font * fonts
+// size_t count
+
+epok::fonts_initialize(gpu, fonts, count);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to native text data and HUD text components. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
 <a id="epok-texture-1"></a>
 
@@ -24,7 +71,7 @@ This module covers native text data and HUD text components. It documents 5 publ
 inline const Texture* texture(int index)
 ```
 
-- **Declared at:** [line 8](../../../runtime/texture.hpp#L8)
+- **Declared at:** [line 9](../../../runtime/texture.hpp#L9)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -64,7 +111,7 @@ auto result = epok::texture(index);
 inline psyqo::PrimPieces::ClutIndex texture_clut(const Texture& t)
 ```
 
-- **Declared at:** [line 10](../../../runtime/texture.hpp#L10)
+- **Declared at:** [line 11](../../../runtime/texture.hpp#L11)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -104,7 +151,7 @@ auto result = epok::texture_clut(t);
 inline psyqo::PrimPieces::TPageAttr texture_page(const Texture& t,BlendMode blend,bool dithering=false)
 ```
 
-- **Declared at:** [line 9](../../../runtime/texture.hpp#L9)
+- **Declared at:** [line 10](../../../runtime/texture.hpp#L10)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -148,7 +195,7 @@ auto result = epok::texture_page(t, blend, dithering);
 inline psyqo::PrimPieces::UVCoords texture_uv(const Texture& t,int32_t u,int32_t v)
 ```
 
-- **Declared at:** [line 11](../../../runtime/texture.hpp#L11)
+- **Declared at:** [line 12](../../../runtime/texture.hpp#L12)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -192,7 +239,7 @@ auto result = epok::texture_uv(t, u, v);
 inline void textures_initialize(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 12](../../../runtime/texture.hpp#L12)
+- **Declared at:** [line 13](../../../runtime/texture.hpp#L13)
 - **Kind:** `function decl`
 
 **Parameters**

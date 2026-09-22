@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `e6da489b75377177847f75dcdc5f3435947da90c`. Frozen semantic candidate rows: **3311**.
+Baseline commit: `4c58e6a0825b764b553f7bcf4ecf56a01c1952a8`. Frozen semantic candidate rows: **3396**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -12,8 +12,8 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | --- | ---: |
 | `compatibility_alias` | 44 |
 | `hardware_backend` | 6 |
-| `internal_implementation` | 2751 |
-| `public_gameplay` | 510 |
+| `internal_implementation` | 2817 |
+| `public_gameplay` | 529 |
 
 ## Public gameplay gaps
 
@@ -34,21 +34,21 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `collision_3d` | 55 |
 | `components_hierarchy` | 7 |
 | `gameplay_2d` | 91 |
-| `implementation_support` | 878 |
+| `implementation_support` | 904 |
 | `input_time` | 51 |
 | `language_adapter` | 130 |
-| `materials_visuals` | 47 |
+| `materials_visuals` | 48 |
 | `math_values` | 6 |
 | `memory_card` | 70 |
-| `objects_actors` | 556 |
+| `objects_actors` | 577 |
 | `particles_effects` | 169 |
 | `resources_diagnostics` | 58 |
-| `runtime_facade` | 582 |
+| `runtime_facade` | 594 |
 | `skeletal_animation` | 24 |
 | `sprites_palettes` | 72 |
 | `static_editable_meshes` | 71 |
 | `timelines_sequences` | 72 |
-| `ui_text` | 34 |
+| `ui_text` | 59 |
 | `utilities_events` | 119 |
 
 ## Public gameplay rows
@@ -103,7 +103,9 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::Camera3DComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Camera3DComponent::set_field_of_view` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CanvasComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CanvasComponent::focused` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CanvasComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CanvasComponent::set_focused` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Collider3DComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Collider3DComponent::layer` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Collider3DComponent::mask` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -127,11 +129,22 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::FocusLibrary::move` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusLibrary::navigate` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusLibrary::snapshot` | `utility` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::is_focused` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::neighbor` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::order` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::set_highlight` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::set_neighbor` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::set_order` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ImageComponent::set_borders` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::set_color` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::set_region` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::set_texture` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ImageComponent::set_tiling` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ImageComponent::tiling` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputLibrary::analog` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputLibrary::axis` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::InputLibrary::connected` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -262,10 +275,12 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::ProgressBarComponent::set_value` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::value` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::RectTransformComponent::rotation` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::set_anchors` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::set_pivot` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::set_position` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::RectTransformComponent::set_rotation` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::set_size` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ResourceLibrary::clear_skeletal_queries` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ResourceLibrary::skeletal_queries` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -308,10 +323,14 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::Sprite3DComponent::set_size` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Sprite3DComponent::set_texture` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Sprite3DComponent::take_completion` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::TextComponent::align` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::clear_text` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::TextComponent::font_index` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::TextComponent::set_align` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_color` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::TextComponent::set_font_index` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_number` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_text_word` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_unsigned` | `object-model` | yes | yes | yes | yes | yes | `implemented` |

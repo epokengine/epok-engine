@@ -2,7 +2,7 @@
 
 Epok's gameplay-facing and engine-runtime callables. Start here for entities, input, collision, audio, scenes, timelines, effects and resource budgets.
 
-**Coverage:** 82 headers · 1360 public callables.
+**Coverage:** 84 headers · 1400 public callables.
 
 ## Modules
 
@@ -20,21 +20,23 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Debug Hud](epok/debug-hud.md) | `debug_hud.hpp` | 4 | Epok runtime API |
 | [Effect Types](epok/effect-types.md) | `effect_types.hpp` | 3 | Epok runtime API |
 | [Effects](epok/effects.md) | `effects.hpp` | 2 | Epok runtime API |
-| [Epok](epok/epok.md) | `epok.hpp` | 53 | Epok runtime API |
+| [Epok](epok/epok.md) | `epok.hpp` | 54 | Epok runtime API |
 | [Fixed Math](epok/fixed-math.md) | `fixed_math.hpp` | 3 | Epok runtime API |
+| [Font Types](epok/font-types.md) | `font_types.hpp` | 3 | Epok runtime API |
 | [Frame Clear](epok/frame-clear.md) | `frame_clear.hpp` | 2 | Epok runtime API |
 | [Frustum](epok/frustum.md) | `frustum.hpp` | 7 | Epok runtime API |
 | [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 90 | Epok runtime API |
 | [Gte Geometry](epok/gte-geometry.md) | `gte_geometry.hpp` | 6 | Epok runtime API |
-| [Hud](epok/hud.md) | `hud.hpp` | 8 | Epok runtime API |
-| [Hud Core](epok/hud-core.md) | `hud_core.hpp` | 6 | Epok runtime API |
+| [Hud](epok/hud.md) | `hud.hpp` | 12 | Epok runtime API |
+| [Hud Core](epok/hud-core.md) | `hud_core.hpp` | 14 | Epok runtime API |
+| [Hud Focus](epok/hud-focus.md) | `hud_focus.hpp` | 3 | Epok runtime API |
 | [Input](epok/input.md) | `input.hpp` | 15 | Epok runtime API |
 | [Instrument Allocator](epok/instrument-allocator.md) | `instrument_allocator.hpp` | 2 | Epok runtime API |
 | [Instrument Bank](epok/instrument-bank.md) | `instrument_bank.hpp` | 18 | Epok runtime API |
 | [Instrument Preparation](epok/instrument-preparation.md) | `instrument_preparation.hpp` | 13 | Epok runtime API |
 | [Instrument Reverb](epok/instrument-reverb.md) | `instrument_reverb.hpp` | 18 | Epok runtime API |
 | [Instrument Synth](epok/instrument-synth.md) | `instrument_synth.hpp` | 37 | Epok runtime API |
-| [Lifecycle](epok/lifecycle.md) | `lifecycle.hpp` | 3 | Epok runtime API |
+| [Lifecycle](epok/lifecycle.md) | `lifecycle.hpp` | 2 | Epok runtime API |
 | [Lighting](epok/lighting.md) | `lighting.hpp` | 15 | Epok runtime API |
 | [Lua Runtime](epok/lua-runtime.md) | `lua_runtime.hpp` | 0 | Epok runtime API |
 | [Memory Card](epok/memory-card.md) | `memory_card.hpp` | 20 | Epok runtime API |
@@ -46,7 +48,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Native Music Service](epok/native-music-service.md) | `native_music_service.hpp` | 1 | Epok runtime API |
 | [Navigation](epok/navigation.md) | `navigation.hpp` | 17 | Epok runtime API |
 | [Navigation Components](epok/navigation-components.md) | `navigation_components.hpp` | 21 | Epok runtime API |
-| [Object Model](epok/object-model.md) | `object_model.hpp` | 329 | Epok runtime API |
+| [Object Model](epok/object-model.md) | `object_model.hpp` | 350 | Epok runtime API |
 | [Palette](epok/palette.md) | `palette.hpp` | 2 | Epok runtime API |
 | [Palette Types](epok/palette-types.md) | `palette_types.hpp` | 4 | Epok runtime API |
 | [Particle Effect Service](epok/particle-effect-service.md) | `particle_effect_service.hpp` | 14 | Epok runtime API |
@@ -72,7 +74,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Spu Transfer](epok/spu-transfer.md) | `spu_transfer.hpp` | 6 | Epok runtime API |
 | [Streaming](epok/streaming.md) | `streaming.hpp` | 36 | Epok runtime API |
 | [Text](epok/text.md) | `text.hpp` | 1 | Epok runtime API |
-| [Texture](epok/texture.md) | `texture.hpp` | 5 | Epok runtime API |
+| [Texture](epok/texture.md) | `texture.hpp` | 6 | Epok runtime API |
 | [Texture Types](epok/texture-types.md) | `texture_types.hpp` | 0 | Epok runtime API |
 | [Time](epok/time.md) | `time.hpp` | 8 | Epok runtime API |
 | [Timeline](epok/timeline.md) | `timeline.hpp` | 3 | Epok runtime API |

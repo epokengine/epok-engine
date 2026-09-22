@@ -2,11 +2,11 @@
 
 > **Header:** `"object_model.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/object_model.hpp)
 
-This module covers the object model module. It documents 329 public callables declared directly in this header.
+This module covers the object model module. It documents 350 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::Actor`, `epok::Actor2D`, `epok::Actor3D`, `epok::ActorCallbacks`, `epok::ActorComponent`, `epok::ActorSpawnRequest`, `epok::AudioComponent`, `epok::BlobShadowComponent`, `epok::Camera3DComponent`, `epok::CanvasComponent`, `epok::ClassDescriptor`, `epok::Collider3DComponent`, `epok::ComponentCallbacks`, `epok::EndPlayReason`, `epok::ImageComponent`, `epok::LayoutContainerComponent`, `epok::LayoutElementComponent`, `epok::Level`, `epok::Level::ActorPrepareFn`, `epok::LevelPendingOp`, `epok::Light3DComponent`, `epok::Mesh3DComponent`, `epok::NativeComponentDefault`, `epok::Object`, `epok::ObjectBatch8`, `epok::ObjectClassFlags`, `epok::ObjectDispatchScope`, `epok::ObjectDomain`, `epok::ObjectFamily`, `epok::ObjectId`, `epok::ObjectPool`, `epok::ObjectRegistry`, `epok::ObjectRegistryStorage`, `epok::ObjectSlot`, `epok::ObjectState`, `epok::ObjectStats`, `epok::PaletteAnimatorComponent`, `epok::ParticleEffectComponent`, `epok::ParticleEmitterComponent`, `epok::ProgressBarComponent`, `epok::RectTransformComponent`, `epok::SceneComponent2D`, `epok::SceneComponent3D`, `epok::SceneScriptActor`, `epok::Sprite3DComponent`, `epok::TextComponent`, `epok::TimelineComponent`, `epok::Transform2D`, `epok::UIActor`, `epok::UIComponent`, `epok::World`
+`epok::Actor`, `epok::Actor2D`, `epok::Actor3D`, `epok::ActorCallbacks`, `epok::ActorComponent`, `epok::ActorSpawnRequest`, `epok::AudioComponent`, `epok::BlobShadowComponent`, `epok::Camera3DComponent`, `epok::CanvasComponent`, `epok::ClassDescriptor`, `epok::Collider3DComponent`, `epok::ComponentCallbacks`, `epok::EndPlayReason`, `epok::FocusableComponent`, `epok::ImageComponent`, `epok::LayoutContainerComponent`, `epok::LayoutElementComponent`, `epok::Level`, `epok::Level::ActorPrepareFn`, `epok::LevelPendingOp`, `epok::Light3DComponent`, `epok::Mesh3DComponent`, `epok::NativeComponentDefault`, `epok::Object`, `epok::ObjectBatch8`, `epok::ObjectClassFlags`, `epok::ObjectDispatchScope`, `epok::ObjectDomain`, `epok::ObjectFamily`, `epok::ObjectId`, `epok::ObjectPool`, `epok::ObjectRegistry`, `epok::ObjectRegistryStorage`, `epok::ObjectSlot`, `epok::ObjectState`, `epok::ObjectStats`, `epok::PaletteAnimatorComponent`, `epok::ParticleEffectComponent`, `epok::ParticleEmitterComponent`, `epok::ProgressBarComponent`, `epok::RectTransformComponent`, `epok::SceneComponent2D`, `epok::SceneComponent3D`, `epok::SceneScriptActor`, `epok::Sprite3DComponent`, `epok::TextComponent`, `epok::TimelineComponent`, `epok::Transform2D`, `epok::UIActor`, `epok::UIComponent`, `epok::World`
 
 ## Callable index
 
@@ -96,7 +96,9 @@ This module covers the object model module. It documents 329 public callables de
 - [`epok::CanvasComponent::class_id`](#epok-canvascomponent-class-id-1) — Performs `class id` as part of the object model module.
 - [`epok::CanvasComponent::enabled`](#epok-canvascomponent-enabled-1) — Performs `enabled` as part of the object model module.
 - [`epok::CanvasComponent::entity_slot`](#epok-canvascomponent-entity-slot-1) — Performs `entity slot` as part of the object model module.
+- [`epok::CanvasComponent::focused`](#epok-canvascomponent-focused-1) — The focused element, as an actor index into the scene's objects array, or -1.
 - [`epok::CanvasComponent::set_enabled`](#epok-canvascomponent-set-enabled-1) — Sets enabled as part of the object model module.
+- [`epok::CanvasComponent::set_focused`](#epok-canvascomponent-set-focused-1) — Sets focused as part of the object model module.
 - [`epok::Collider3DComponent::class_id`](#epok-collider3dcomponent-class-id-1) — Performs `class id` as part of the object model module.
 - [`epok::Collider3DComponent::enabled`](#epok-collider3dcomponent-enabled-1) — Performs `enabled` as part of the object model module.
 - [`epok::Collider3DComponent::entity_slot`](#epok-collider3dcomponent-entity-slot-1) — Performs `entity slot` as part of the object model module.
@@ -113,13 +115,26 @@ This module covers the object model module. It documents 329 public callables de
 - [`epok::detail::sha256_rotr`](#epok-detail-sha256-rotr-1) — Performs `sha256 rotr` as part of the object model module.
 - [`epok::dispatch_trigger`](#epok-dispatch-trigger-1) — Collision is owned by the spatial services, not by the Level: they resolve the legacy slot to its actor and call this, which fans the event out to the owner's components in registration order.
 - [`epok::find_object_class`](#epok-find-object-class-1) — Finds object class as part of the object model module.
+- [`epok::FocusableComponent::class_id`](#epok-focusablecomponent-class-id-1) — Performs `class id` as part of the object model module.
+- [`epok::FocusableComponent::enabled`](#epok-focusablecomponent-enabled-1) — Performs `enabled` as part of the object model module.
+- [`epok::FocusableComponent::entity_slot`](#epok-focusablecomponent-entity-slot-1) — Performs `entity slot` as part of the object model module.
+- [`epok::FocusableComponent::is_focused`](#epok-focusablecomponent-is-focused-1) — True while the canvas above this element points at it.
+- [`epok::FocusableComponent::neighbor`](#epok-focusablecomponent-neighbor-1) — Direction 0 left, 1 right, 2 up, 3 down; the value is an actor index into the scene's objects array, or -1 for no neighbour that way.
+- [`epok::FocusableComponent::order`](#epok-focusablecomponent-order-1) — Performs `order` as part of the object model module.
+- [`epok::FocusableComponent::set_enabled`](#epok-focusablecomponent-set-enabled-1) — Sets enabled as part of the object model module.
+- [`epok::FocusableComponent::set_highlight`](#epok-focusablecomponent-set-highlight-1) — Sets highlight as part of the object model module.
+- [`epok::FocusableComponent::set_neighbor`](#epok-focusablecomponent-set-neighbor-1) — Sets neighbor as part of the object model module.
+- [`epok::FocusableComponent::set_order`](#epok-focusablecomponent-set-order-1) — Sets order as part of the object model module.
 - [`epok::ImageComponent::class_id`](#epok-imagecomponent-class-id-1) — Performs `class id` as part of the object model module.
 - [`epok::ImageComponent::enabled`](#epok-imagecomponent-enabled-1) — Performs `enabled` as part of the object model module.
 - [`epok::ImageComponent::entity_slot`](#epok-imagecomponent-entity-slot-1) — Performs `entity slot` as part of the object model module.
+- [`epok::ImageComponent::set_borders`](#epok-imagecomponent-set-borders-1) — Nine-slice borders in source pixels: left, top, right, bottom.
 - [`epok::ImageComponent::set_color`](#epok-imagecomponent-set-color-1) — Sets color as part of the object model module.
 - [`epok::ImageComponent::set_enabled`](#epok-imagecomponent-set-enabled-1) — Sets enabled as part of the object model module.
 - [`epok::ImageComponent::set_region`](#epok-imagecomponent-set-region-1) — Sets region as part of the object model module.
 - [`epok::ImageComponent::set_texture`](#epok-imagecomponent-set-texture-1) — Sets texture as part of the object model module.
+- [`epok::ImageComponent::set_tiling`](#epok-imagecomponent-set-tiling-1) — 0 None, 1 Tile, 2 TileFit; anything else leaves the image stretched.
+- [`epok::ImageComponent::tiling`](#epok-imagecomponent-tiling-1) — Performs `tiling` as part of the object model module.
 - [`epok::is_active`](#epok-is-active-1) — Reports whether active as part of the object model module.
 - [`epok::LayoutContainerComponent::class_id`](#epok-layoutcontainercomponent-class-id-1) — Performs `class id` as part of the object model module.
 - [`epok::LayoutContainerComponent::columns`](#epok-layoutcontainercomponent-columns-1) — Performs `columns` as part of the object model module.
@@ -280,10 +295,12 @@ This module covers the object model module. It documents 329 public callables de
 - [`epok::RectTransformComponent::class_id`](#epok-recttransformcomponent-class-id-1) — Performs `class id` as part of the object model module.
 - [`epok::RectTransformComponent::enabled`](#epok-recttransformcomponent-enabled-1) — Performs `enabled` as part of the object model module.
 - [`epok::RectTransformComponent::entity_slot`](#epok-recttransformcomponent-entity-slot-1) — Performs `entity slot` as part of the object model module.
+- [`epok::RectTransformComponent::rotation`](#epok-recttransformcomponent-rotation-1) — Performs `rotation` as part of the object model module.
 - [`epok::RectTransformComponent::set_anchors`](#epok-recttransformcomponent-set-anchors-1) — Sets anchors as part of the object model module.
 - [`epok::RectTransformComponent::set_enabled`](#epok-recttransformcomponent-set-enabled-1) — Sets enabled as part of the object model module.
 - [`epok::RectTransformComponent::set_pivot`](#epok-recttransformcomponent-set-pivot-1) — Sets pivot as part of the object model module.
 - [`epok::RectTransformComponent::set_position`](#epok-recttransformcomponent-set-position-1) — Sets position as part of the object model module.
+- [`epok::RectTransformComponent::set_rotation`](#epok-recttransformcomponent-set-rotation-1) — Degrees about the pivot.
 - [`epok::RectTransformComponent::set_size`](#epok-recttransformcomponent-set-size-1) — Sets size as part of the object model module.
 - [`epok::SceneComponent2D::attach_slot`](#epok-scenecomponent2d-attach-slot-1) — Performs `attach slot` as part of the object model module.
 - [`epok::SceneComponent2D::attach_to`](#epok-scenecomponent2d-attach-to-1) — Performs `attach to` as part of the object model module.
@@ -322,12 +339,16 @@ This module covers the object model module. It documents 329 public callables de
 - [`epok::Sprite3DComponent::set_size`](#epok-sprite3dcomponent-set-size-1) — Sets size as part of the object model module.
 - [`epok::Sprite3DComponent::set_texture`](#epok-sprite3dcomponent-set-texture-1) — Sets texture as part of the object model module.
 - [`epok::Sprite3DComponent::take_completion`](#epok-sprite3dcomponent-take-completion-1) — Performs `take completion` as part of the object model module.
+- [`epok::TextComponent::align`](#epok-textcomponent-align-1) — Performs `align` as part of the object model module.
 - [`epok::TextComponent::class_id`](#epok-textcomponent-class-id-1) — Performs `class id` as part of the object model module.
 - [`epok::TextComponent::clear_text`](#epok-textcomponent-clear-text-1) — Clears text as part of the object model module.
 - [`epok::TextComponent::enabled`](#epok-textcomponent-enabled-1) — Performs `enabled` as part of the object model module.
 - [`epok::TextComponent::entity_slot`](#epok-textcomponent-entity-slot-1) — Performs `entity slot` as part of the object model module.
+- [`epok::TextComponent::font_index`](#epok-textcomponent-font-index-1) — Performs `font index` as part of the object model module.
+- [`epok::TextComponent::set_align`](#epok-textcomponent-set-align-1) — 0 Left, 1 Center, 2 Right; anything else leaves the lines left-aligned.
 - [`epok::TextComponent::set_color`](#epok-textcomponent-set-color-1) — Sets color as part of the object model module.
 - [`epok::TextComponent::set_enabled`](#epok-textcomponent-set-enabled-1) — Sets enabled as part of the object model module.
+- [`epok::TextComponent::set_font_index`](#epok-textcomponent-set-font-index-1) — The cooked font this label draws from, in export order; -1 is the built-in 8x16 atlas.
 - [`epok::TextComponent::set_number`](#epok-textcomponent-set-number-1) — Sets number as part of the object model module.
 - [`epok::TextComponent::set_text_word`](#epok-textcomponent-set-text-word-1) — Sets text word as part of the object model module.
 - [`epok::TextComponent::set_unsigned`](#epok-textcomponent-set-unsigned-1) — Sets unsigned as part of the object model module.
@@ -352,7 +373,7 @@ This module covers the object model module. It documents 329 public callables de
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 919](../../../runtime/object_model.hpp#L919)
+- **Declared at:** [line 966](../../../runtime/object_model.hpp#L966)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -385,7 +406,7 @@ auto result = object.class_id();
 ActorComponent* default_root() override
 ```
 
-- **Declared at:** [line 921](../../../runtime/object_model.hpp#L921)
+- **Declared at:** [line 968](../../../runtime/object_model.hpp#L968)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `ActorComponent *`. Check the purpose and failure notes before using the value.
@@ -418,7 +439,7 @@ auto result = object.default_root();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 912](../../../runtime/object_model.hpp#L912)
+- **Declared at:** [line 959](../../../runtime/object_model.hpp#L959)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -451,7 +472,7 @@ auto result = object.class_id();
 ActorComponent* default_root() override
 ```
 
-- **Declared at:** [line 914](../../../runtime/object_model.hpp#L914)
+- **Declared at:** [line 961](../../../runtime/object_model.hpp#L961)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `ActorComponent *`. Check the purpose and failure notes before using the value.
@@ -2081,7 +2102,7 @@ auto result = epok::attach_component(child, parent);
 void begin_play() override
 ```
 
-- **Declared at:** [line 641](../../../runtime/object_model.hpp#L641)
+- **Declared at:** [line 644](../../../runtime/object_model.hpp#L644)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2114,7 +2135,7 @@ object.begin_play();
 void bind_local()
 ```
 
-- **Declared at:** [line 628](../../../runtime/object_model.hpp#L628)
+- **Declared at:** [line 631](../../../runtime/object_model.hpp#L631)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2147,7 +2168,7 @@ object.bind_local();
 void bind_slot(ActorData& value)
 ```
 
-- **Declared at:** [line 627](../../../runtime/object_model.hpp#L627)
+- **Declared at:** [line 630](../../../runtime/object_model.hpp#L630)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2189,7 +2210,7 @@ object.bind_slot(value);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 609](../../../runtime/object_model.hpp#L609)
+- **Declared at:** [line 612](../../../runtime/object_model.hpp#L612)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -2222,7 +2243,7 @@ auto result = object.class_id();
 int32_t clip() const
 ```
 
-- **Declared at:** [line 616](../../../runtime/object_model.hpp#L616)
+- **Declared at:** [line 619](../../../runtime/object_model.hpp#L619)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
@@ -2255,7 +2276,7 @@ auto result = object.clip();
 bool enabled() const
 ```
 
-- **Declared at:** [line 614](../../../runtime/object_model.hpp#L614)
+- **Declared at:** [line 617](../../../runtime/object_model.hpp#L617)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2288,7 +2309,7 @@ auto result = object.enabled();
 void end_play(EndPlayReason) override
 ```
 
-- **Declared at:** [line 650](../../../runtime/object_model.hpp#L650)
+- **Declared at:** [line 653](../../../runtime/object_model.hpp#L653)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2330,7 +2351,7 @@ object.end_play(arg1);
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 629](../../../runtime/object_model.hpp#L629)
+- **Declared at:** [line 632](../../../runtime/object_model.hpp#L632)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -2363,7 +2384,7 @@ auto result = object.entity_slot();
 bool is_playing() const
 ```
 
-- **Declared at:** [line 613](../../../runtime/object_model.hpp#L613)
+- **Declared at:** [line 616](../../../runtime/object_model.hpp#L616)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2396,7 +2417,7 @@ auto result = object.is_playing();
 void on_disable() override
 ```
 
-- **Declared at:** [line 649](../../../runtime/object_model.hpp#L649)
+- **Declared at:** [line 652](../../../runtime/object_model.hpp#L652)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2431,7 +2452,7 @@ object.on_disable();
 bool owns_source() const
 ```
 
-- **Declared at:** [line 632](../../../runtime/object_model.hpp#L632)
+- **Declared at:** [line 635](../../../runtime/object_model.hpp#L635)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2464,7 +2485,7 @@ auto result = object.owns_source();
 Fixed pitch() const
 ```
 
-- **Declared at:** [line 620](../../../runtime/object_model.hpp#L620)
+- **Declared at:** [line 623](../../../runtime/object_model.hpp#L623)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -2497,7 +2518,7 @@ auto result = object.pitch();
 void play()
 ```
 
-- **Declared at:** [line 611](../../../runtime/object_model.hpp#L611)
+- **Declared at:** [line 614](../../../runtime/object_model.hpp#L614)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2530,7 +2551,7 @@ object.play();
 bool play_on_start() const
 ```
 
-- **Declared at:** [line 624](../../../runtime/object_model.hpp#L624)
+- **Declared at:** [line 627](../../../runtime/object_model.hpp#L627)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2563,7 +2584,7 @@ auto result = object.play_on_start();
 uint32_t priority() const
 ```
 
-- **Declared at:** [line 622](../../../runtime/object_model.hpp#L622)
+- **Declared at:** [line 625](../../../runtime/object_model.hpp#L625)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -2598,7 +2619,7 @@ auto result = object.priority();
 bool releasable() const override
 ```
 
-- **Declared at:** [line 654](../../../runtime/object_model.hpp#L654)
+- **Declared at:** [line 657](../../../runtime/object_model.hpp#L657)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2631,7 +2652,7 @@ auto result = object.releasable();
 void set_clip(int32_t value)
 ```
 
-- **Declared at:** [line 617](../../../runtime/object_model.hpp#L617)
+- **Declared at:** [line 620](../../../runtime/object_model.hpp#L620)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2673,7 +2694,7 @@ object.set_clip(value);
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 615](../../../runtime/object_model.hpp#L615)
+- **Declared at:** [line 618](../../../runtime/object_model.hpp#L618)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2715,7 +2736,7 @@ object.set_enabled(value);
 void set_pitch(Fixed value)
 ```
 
-- **Declared at:** [line 621](../../../runtime/object_model.hpp#L621)
+- **Declared at:** [line 624](../../../runtime/object_model.hpp#L624)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2757,7 +2778,7 @@ object.set_pitch(value);
 void set_play_on_start(bool value)
 ```
 
-- **Declared at:** [line 625](../../../runtime/object_model.hpp#L625)
+- **Declared at:** [line 628](../../../runtime/object_model.hpp#L628)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2799,7 +2820,7 @@ object.set_play_on_start(value);
 void set_priority(uint32_t value)
 ```
 
-- **Declared at:** [line 623](../../../runtime/object_model.hpp#L623)
+- **Declared at:** [line 626](../../../runtime/object_model.hpp#L626)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2841,7 +2862,7 @@ object.set_priority(value);
 void set_volume(Fixed value)
 ```
 
-- **Declared at:** [line 619](../../../runtime/object_model.hpp#L619)
+- **Declared at:** [line 622](../../../runtime/object_model.hpp#L622)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2883,7 +2904,7 @@ object.set_volume(value);
 void stop()
 ```
 
-- **Declared at:** [line 612](../../../runtime/object_model.hpp#L612)
+- **Declared at:** [line 615](../../../runtime/object_model.hpp#L615)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2916,7 +2937,7 @@ object.stop();
 Fixed volume() const
 ```
 
-- **Declared at:** [line 618](../../../runtime/object_model.hpp#L618)
+- **Declared at:** [line 621](../../../runtime/object_model.hpp#L621)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -2949,7 +2970,7 @@ auto result = object.volume();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 902](../../../runtime/object_model.hpp#L902)
+- **Declared at:** [line 949](../../../runtime/object_model.hpp#L949)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -2982,7 +3003,7 @@ auto result = object.class_id();
 void configure(Fixed radius,Fixed strength,Fixed distance)
 ```
 
-- **Declared at:** [line 906](../../../runtime/object_model.hpp#L906)
+- **Declared at:** [line 953](../../../runtime/object_model.hpp#L953)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -3028,7 +3049,7 @@ object.configure(radius, strength, distance);
 bool enabled() const
 ```
 
-- **Declared at:** [line 904](../../../runtime/object_model.hpp#L904)
+- **Declared at:** [line 951](../../../runtime/object_model.hpp#L951)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -3061,7 +3082,7 @@ auto result = object.enabled();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 903](../../../runtime/object_model.hpp#L903)
+- **Declared at:** [line 950](../../../runtime/object_model.hpp#L950)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -3094,7 +3115,7 @@ auto result = object.entity_slot();
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 905](../../../runtime/object_model.hpp#L905)
+- **Declared at:** [line 952](../../../runtime/object_model.hpp#L952)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -3136,7 +3157,7 @@ object.set_enabled(value);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 745](../../../runtime/object_model.hpp#L745)
+- **Declared at:** [line 748](../../../runtime/object_model.hpp#L748)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -3169,7 +3190,7 @@ auto result = object.class_id();
 bool enabled() const
 ```
 
-- **Declared at:** [line 747](../../../runtime/object_model.hpp#L747)
+- **Declared at:** [line 750](../../../runtime/object_model.hpp#L750)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -3202,7 +3223,7 @@ auto result = object.enabled();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 746](../../../runtime/object_model.hpp#L746)
+- **Declared at:** [line 749](../../../runtime/object_model.hpp#L749)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -3235,7 +3256,7 @@ auto result = object.entity_slot();
 Fixed field_of_view() const
 ```
 
-- **Declared at:** [line 749](../../../runtime/object_model.hpp#L749)
+- **Declared at:** [line 752](../../../runtime/object_model.hpp#L752)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -3268,7 +3289,7 @@ auto result = object.field_of_view();
 bool make_active()
 ```
 
-- **Declared at:** [line 751](../../../runtime/object_model.hpp#L751)
+- **Declared at:** [line 754](../../../runtime/object_model.hpp#L754)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -3301,7 +3322,7 @@ auto result = object.make_active();
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 748](../../../runtime/object_model.hpp#L748)
+- **Declared at:** [line 751](../../../runtime/object_model.hpp#L751)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -3343,7 +3364,7 @@ object.set_enabled(value);
 void set_field_of_view(Fixed value)
 ```
 
-- **Declared at:** [line 750](../../../runtime/object_model.hpp#L750)
+- **Declared at:** [line 753](../../../runtime/object_model.hpp#L753)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -3385,7 +3406,7 @@ object.set_field_of_view(value);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 786](../../../runtime/object_model.hpp#L786)
+- **Declared at:** [line 789](../../../runtime/object_model.hpp#L789)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -3418,7 +3439,7 @@ auto result = object.class_id();
 bool enabled() const
 ```
 
-- **Declared at:** [line 788](../../../runtime/object_model.hpp#L788)
+- **Declared at:** [line 791](../../../runtime/object_model.hpp#L791)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -3451,7 +3472,7 @@ auto result = object.enabled();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 787](../../../runtime/object_model.hpp#L787)
+- **Declared at:** [line 790](../../../runtime/object_model.hpp#L790)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -3472,6 +3493,41 @@ auto result = object.entity_slot();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-canvascomponent-focused-1"></a>
+
+## `epok::CanvasComponent::focused`
+
+**Purpose.** The focused element, as an actor index into the scene's objects array, or -1.
+
+**Details.** Authored initial focus and runtime focus are this one field.
+
+**Exact declaration**
+
+```cpp
+int32_t focused() const
+```
+
+- **Declared at:** [line 795](../../../runtime/object_model.hpp#L795)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** Authored initial focus and runtime focus are this one field.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::CanvasComponent& object = /* obtain a valid instance */;
+
+auto result = object.focused();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-canvascomponent-set-enabled-1"></a>
 
 ## `epok::CanvasComponent::set_enabled`
@@ -3484,7 +3540,7 @@ auto result = object.entity_slot();
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 789](../../../runtime/object_model.hpp#L789)
+- **Declared at:** [line 792](../../../runtime/object_model.hpp#L792)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -3514,6 +3570,48 @@ object.set_enabled(value);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-canvascomponent-set-focused-1"></a>
+
+## `epok::CanvasComponent::set_focused`
+
+**Purpose.** Sets focused as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_focused(int value)
+```
+
+- **Declared at:** [line 796](../../../runtime/object_model.hpp#L796)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int value
+
+epok::CanvasComponent& object = /* obtain a valid instance */;
+
+object.set_focused(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-collider3dcomponent-class-id-1"></a>
 
 ## `epok::Collider3DComponent::class_id`
@@ -3526,7 +3624,7 @@ object.set_enabled(value);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 770](../../../runtime/object_model.hpp#L770)
+- **Declared at:** [line 773](../../../runtime/object_model.hpp#L773)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -3559,7 +3657,7 @@ auto result = object.class_id();
 bool enabled() const
 ```
 
-- **Declared at:** [line 772](../../../runtime/object_model.hpp#L772)
+- **Declared at:** [line 775](../../../runtime/object_model.hpp#L775)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -3592,7 +3690,7 @@ auto result = object.enabled();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 771](../../../runtime/object_model.hpp#L771)
+- **Declared at:** [line 774](../../../runtime/object_model.hpp#L774)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -3625,7 +3723,7 @@ auto result = object.entity_slot();
 uint32_t layer() const
 ```
 
-- **Declared at:** [line 776](../../../runtime/object_model.hpp#L776)
+- **Declared at:** [line 779](../../../runtime/object_model.hpp#L779)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -3658,7 +3756,7 @@ auto result = object.layer();
 uint32_t mask() const
 ```
 
-- **Declared at:** [line 778](../../../runtime/object_model.hpp#L778)
+- **Declared at:** [line 781](../../../runtime/object_model.hpp#L781)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -3691,7 +3789,7 @@ auto result = object.mask();
 void set_center(Fixed x,Fixed y,Fixed z)
 ```
 
-- **Declared at:** [line 780](../../../runtime/object_model.hpp#L780)
+- **Declared at:** [line 783](../../../runtime/object_model.hpp#L783)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -3737,7 +3835,7 @@ object.set_center(x, y, z);
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 773](../../../runtime/object_model.hpp#L773)
+- **Declared at:** [line 776](../../../runtime/object_model.hpp#L776)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -3779,7 +3877,7 @@ object.set_enabled(value);
 void set_half_extents(Fixed x,Fixed y,Fixed z)
 ```
 
-- **Declared at:** [line 781](../../../runtime/object_model.hpp#L781)
+- **Declared at:** [line 784](../../../runtime/object_model.hpp#L784)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -3825,7 +3923,7 @@ object.set_half_extents(x, y, z);
 void set_layer(uint32_t value)
 ```
 
-- **Declared at:** [line 777](../../../runtime/object_model.hpp#L777)
+- **Declared at:** [line 780](../../../runtime/object_model.hpp#L780)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -3867,7 +3965,7 @@ object.set_layer(value);
 void set_mask(uint32_t value)
 ```
 
-- **Declared at:** [line 779](../../../runtime/object_model.hpp#L779)
+- **Declared at:** [line 782](../../../runtime/object_model.hpp#L782)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -3909,7 +4007,7 @@ object.set_mask(value);
 void set_trigger(bool value)
 ```
 
-- **Declared at:** [line 775](../../../runtime/object_model.hpp#L775)
+- **Declared at:** [line 778](../../../runtime/object_model.hpp#L778)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -3951,7 +4049,7 @@ object.set_trigger(value);
 bool trigger() const
 ```
 
-- **Declared at:** [line 774](../../../runtime/object_model.hpp#L774)
+- **Declared at:** [line 777](../../../runtime/object_model.hpp#L777)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -4068,7 +4166,7 @@ auto result = epok::detail::sha256_rotr(value, bits);
 inline size_t dispatch_trigger(Level& level, ObjectId actor, DataHandle other, TriggerPhase phase)
 ```
 
-- **Declared at:** [line 1524](../../../runtime/object_model.hpp#L1524)
+- **Declared at:** [line 1571](../../../runtime/object_model.hpp#L1571)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -4142,6 +4240,389 @@ auto result = epok::find_object_class(id);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-focusablecomponent-class-id-1"></a>
+
+## `epok::FocusableComponent::class_id`
+
+**Purpose.** Performs `class id` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+uint64_t class_id() const override
+```
+
+- **Declared at:** [line 887](../../../runtime/object_model.hpp#L887)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::FocusableComponent& object = /* obtain a valid instance */;
+
+auto result = object.class_id();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-focusablecomponent-enabled-1"></a>
+
+## `epok::FocusableComponent::enabled`
+
+**Purpose.** Performs `enabled` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+bool enabled() const
+```
+
+- **Declared at:** [line 889](../../../runtime/object_model.hpp#L889)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::FocusableComponent& object = /* obtain a valid instance */;
+
+auto result = object.enabled();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
+<a id="epok-focusablecomponent-entity-slot-1"></a>
+
+## `epok::FocusableComponent::entity_slot`
+
+**Purpose.** Performs `entity slot` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+ActorData* entity_slot() const
+```
+
+- **Declared at:** [line 888](../../../runtime/object_model.hpp#L888)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::FocusableComponent& object = /* obtain a valid instance */;
+
+auto result = object.entity_slot();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-focusablecomponent-is-focused-1"></a>
+
+## `epok::FocusableComponent::is_focused`
+
+**Purpose.** True while the canvas above this element points at it.
+
+**Details.** Focus lives on the canvas, so the answer is a walk up the slot parents, not a flag here.
+
+**Exact declaration**
+
+```cpp
+bool is_focused() const
+```
+
+- **Declared at:** [line 900](../../../runtime/object_model.hpp#L900)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** Focus lives on the canvas, so the answer is a walk up the slot parents, not a flag here.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::FocusableComponent& object = /* obtain a valid instance */;
+
+auto result = object.is_focused();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
+<a id="epok-focusablecomponent-neighbor-1"></a>
+
+## `epok::FocusableComponent::neighbor`
+
+**Purpose.** Direction 0 left, 1 right, 2 up, 3 down; the value is an actor index into the scene's objects array, or -1 for no neighbour that way.
+
+**Exact declaration**
+
+```cpp
+int32_t neighbor(int dir) const
+```
+
+- **Declared at:** [line 893](../../../runtime/object_model.hpp#L893)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `dir` | `int` | Input | Value supplied for `dir`. See the exact type and module contract. |
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int dir
+
+epok::FocusableComponent& object = /* obtain a valid instance */;
+
+auto result = object.neighbor(dir);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-focusablecomponent-order-1"></a>
+
+## `epok::FocusableComponent::order`
+
+**Purpose.** Performs `order` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+int32_t order() const
+```
+
+- **Declared at:** [line 895](../../../runtime/object_model.hpp#L895)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::FocusableComponent& object = /* obtain a valid instance */;
+
+auto result = object.order();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-focusablecomponent-set-enabled-1"></a>
+
+## `epok::FocusableComponent::set_enabled`
+
+**Purpose.** Sets enabled as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_enabled(bool value)
+```
+
+- **Declared at:** [line 890](../../../runtime/object_model.hpp#L890)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `bool` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// bool value
+
+epok::FocusableComponent& object = /* obtain a valid instance */;
+
+object.set_enabled(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-focusablecomponent-set-highlight-1"></a>
+
+## `epok::FocusableComponent::set_highlight`
+
+**Purpose.** Sets highlight as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_highlight(int red,int green,int blue)
+```
+
+- **Declared at:** [line 897](../../../runtime/object_model.hpp#L897)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `red` | `int` | Input | Value supplied for `red`. See the exact type and module contract. |
+| `green` | `int` | Input | Value supplied for `green`. See the exact type and module contract. |
+| `blue` | `int` | Input | Value supplied for `blue`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int red
+// int green
+// int blue
+
+epok::FocusableComponent& object = /* obtain a valid instance */;
+
+object.set_highlight(red, green, blue);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-focusablecomponent-set-neighbor-1"></a>
+
+## `epok::FocusableComponent::set_neighbor`
+
+**Purpose.** Sets neighbor as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_neighbor(int dir,int actor)
+```
+
+- **Declared at:** [line 894](../../../runtime/object_model.hpp#L894)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `dir` | `int` | Input | Value supplied for `dir`. See the exact type and module contract. |
+| `actor` | `int` | Input | Value supplied for `actor`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int dir
+// int actor
+
+epok::FocusableComponent& object = /* obtain a valid instance */;
+
+object.set_neighbor(dir, actor);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-focusablecomponent-set-order-1"></a>
+
+## `epok::FocusableComponent::set_order`
+
+**Purpose.** Sets order as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+void set_order(int value)
+```
+
+- **Declared at:** [line 896](../../../runtime/object_model.hpp#L896)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int value
+
+epok::FocusableComponent& object = /* obtain a valid instance */;
+
+object.set_order(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-imagecomponent-class-id-1"></a>
 
 ## `epok::ImageComponent::class_id`
@@ -4154,7 +4635,7 @@ auto result = epok::find_object_class(id);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 794](../../../runtime/object_model.hpp#L794)
+- **Declared at:** [line 801](../../../runtime/object_model.hpp#L801)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -4187,7 +4668,7 @@ auto result = object.class_id();
 bool enabled() const
 ```
 
-- **Declared at:** [line 796](../../../runtime/object_model.hpp#L796)
+- **Declared at:** [line 803](../../../runtime/object_model.hpp#L803)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -4220,7 +4701,7 @@ auto result = object.enabled();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 795](../../../runtime/object_model.hpp#L795)
+- **Declared at:** [line 802](../../../runtime/object_model.hpp#L802)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -4241,6 +4722,54 @@ auto result = object.entity_slot();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-imagecomponent-set-borders-1"></a>
+
+## `epok::ImageComponent::set_borders`
+
+**Purpose.** Nine-slice borders in source pixels: left, top, right, bottom.
+
+**Exact declaration**
+
+```cpp
+void set_borders(int left,int top,int right,int bottom)
+```
+
+- **Declared at:** [line 809](../../../runtime/object_model.hpp#L809)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `left` | `int` | Input | Value supplied for `left`. See the exact type and module contract. |
+| `top` | `int` | Input | Value supplied for `top`. See the exact type and module contract. |
+| `right` | `int` | Input | Value supplied for `right`. See the exact type and module contract. |
+| `bottom` | `int` | Input | Value supplied for `bottom`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int left
+// int top
+// int right
+// int bottom
+
+epok::ImageComponent& object = /* obtain a valid instance */;
+
+object.set_borders(left, top, right, bottom);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-imagecomponent-set-color-1"></a>
 
 ## `epok::ImageComponent::set_color`
@@ -4253,7 +4782,7 @@ auto result = object.entity_slot();
 void set_color(uint32_t red,uint32_t green,uint32_t blue)
 ```
 
-- **Declared at:** [line 799](../../../runtime/object_model.hpp#L799)
+- **Declared at:** [line 806](../../../runtime/object_model.hpp#L806)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4299,7 +4828,7 @@ object.set_color(red, green, blue);
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 797](../../../runtime/object_model.hpp#L797)
+- **Declared at:** [line 804](../../../runtime/object_model.hpp#L804)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4341,7 +4870,7 @@ object.set_enabled(value);
 void set_region(uint32_t x,uint32_t y,uint32_t width,uint32_t height)
 ```
 
-- **Declared at:** [line 800](../../../runtime/object_model.hpp#L800)
+- **Declared at:** [line 807](../../../runtime/object_model.hpp#L807)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4389,7 +4918,7 @@ object.set_region(x, y, width, height);
 void set_texture(int32_t value)
 ```
 
-- **Declared at:** [line 798](../../../runtime/object_model.hpp#L798)
+- **Declared at:** [line 805](../../../runtime/object_model.hpp#L805)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4419,6 +4948,81 @@ object.set_texture(value);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-imagecomponent-set-tiling-1"></a>
+
+## `epok::ImageComponent::set_tiling`
+
+**Purpose.** 0 None, 1 Tile, 2 TileFit; anything else leaves the image stretched.
+
+**Exact declaration**
+
+```cpp
+void set_tiling(int value)
+```
+
+- **Declared at:** [line 812](../../../runtime/object_model.hpp#L812)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int value
+
+epok::ImageComponent& object = /* obtain a valid instance */;
+
+object.set_tiling(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-imagecomponent-tiling-1"></a>
+
+## `epok::ImageComponent::tiling`
+
+**Purpose.** Performs `tiling` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+int32_t tiling() const
+```
+
+- **Declared at:** [line 810](../../../runtime/object_model.hpp#L810)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::ImageComponent& object = /* obtain a valid instance */;
+
+auto result = object.tiling();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-is-active-1"></a>
 
 ## `epok::is_active`
@@ -4431,7 +5035,7 @@ object.set_texture(value);
 inline bool is_active(Object* value)
 ```
 
-- **Declared at:** [line 1543](../../../runtime/object_model.hpp#L1543)
+- **Declared at:** [line 1590](../../../runtime/object_model.hpp#L1590)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -4471,7 +5075,7 @@ auto result = epok::is_active(value);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 848](../../../runtime/object_model.hpp#L848)
+- **Declared at:** [line 867](../../../runtime/object_model.hpp#L867)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -4504,7 +5108,7 @@ auto result = object.class_id();
 int32_t columns() const
 ```
 
-- **Declared at:** [line 862](../../../runtime/object_model.hpp#L862)
+- **Declared at:** [line 881](../../../runtime/object_model.hpp#L881)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
@@ -4537,7 +5141,7 @@ auto result = object.columns();
 bool enabled() const
 ```
 
-- **Declared at:** [line 850](../../../runtime/object_model.hpp#L850)
+- **Declared at:** [line 869](../../../runtime/object_model.hpp#L869)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -4570,7 +5174,7 @@ auto result = object.enabled();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 849](../../../runtime/object_model.hpp#L849)
+- **Declared at:** [line 868](../../../runtime/object_model.hpp#L868)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -4603,7 +5207,7 @@ auto result = object.entity_slot();
 int32_t kind() const
 ```
 
-- **Declared at:** [line 852](../../../runtime/object_model.hpp#L852)
+- **Declared at:** [line 871](../../../runtime/object_model.hpp#L871)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
@@ -4636,7 +5240,7 @@ auto result = object.kind();
 Fixed padding_bottom() const
 ```
 
-- **Declared at:** [line 860](../../../runtime/object_model.hpp#L860)
+- **Declared at:** [line 879](../../../runtime/object_model.hpp#L879)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -4669,7 +5273,7 @@ auto result = object.padding_bottom();
 Fixed padding_left() const
 ```
 
-- **Declared at:** [line 857](../../../runtime/object_model.hpp#L857)
+- **Declared at:** [line 876](../../../runtime/object_model.hpp#L876)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -4702,7 +5306,7 @@ auto result = object.padding_left();
 Fixed padding_right() const
 ```
 
-- **Declared at:** [line 859](../../../runtime/object_model.hpp#L859)
+- **Declared at:** [line 878](../../../runtime/object_model.hpp#L878)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -4735,7 +5339,7 @@ auto result = object.padding_right();
 Fixed padding_top() const
 ```
 
-- **Declared at:** [line 858](../../../runtime/object_model.hpp#L858)
+- **Declared at:** [line 877](../../../runtime/object_model.hpp#L877)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -4768,7 +5372,7 @@ auto result = object.padding_top();
 void set_columns(int32_t value)
 ```
 
-- **Declared at:** [line 863](../../../runtime/object_model.hpp#L863)
+- **Declared at:** [line 882](../../../runtime/object_model.hpp#L882)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4810,7 +5414,7 @@ object.set_columns(value);
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 851](../../../runtime/object_model.hpp#L851)
+- **Declared at:** [line 870](../../../runtime/object_model.hpp#L870)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4852,7 +5456,7 @@ object.set_enabled(value);
 void set_kind(LayoutKind value)
 ```
 
-- **Declared at:** [line 853](../../../runtime/object_model.hpp#L853)
+- **Declared at:** [line 872](../../../runtime/object_model.hpp#L872)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4894,7 +5498,7 @@ object.set_kind(value);
 void set_padding(Fixed left,Fixed top,Fixed right,Fixed bottom)
 ```
 
-- **Declared at:** [line 861](../../../runtime/object_model.hpp#L861)
+- **Declared at:** [line 880](../../../runtime/object_model.hpp#L880)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4942,7 +5546,7 @@ object.set_padding(left, top, right, bottom);
 void set_spacing(Fixed x,Fixed y)
 ```
 
-- **Declared at:** [line 856](../../../runtime/object_model.hpp#L856)
+- **Declared at:** [line 875](../../../runtime/object_model.hpp#L875)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -4986,7 +5590,7 @@ object.set_spacing(x, y);
 Fixed spacing_x() const
 ```
 
-- **Declared at:** [line 854](../../../runtime/object_model.hpp#L854)
+- **Declared at:** [line 873](../../../runtime/object_model.hpp#L873)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -5019,7 +5623,7 @@ auto result = object.spacing_x();
 Fixed spacing_y() const
 ```
 
-- **Declared at:** [line 855](../../../runtime/object_model.hpp#L855)
+- **Declared at:** [line 874](../../../runtime/object_model.hpp#L874)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -5052,7 +5656,7 @@ auto result = object.spacing_y();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 831](../../../runtime/object_model.hpp#L831)
+- **Declared at:** [line 850](../../../runtime/object_model.hpp#L850)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -5085,7 +5689,7 @@ auto result = object.class_id();
 bool enabled() const
 ```
 
-- **Declared at:** [line 833](../../../runtime/object_model.hpp#L833)
+- **Declared at:** [line 852](../../../runtime/object_model.hpp#L852)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -5118,7 +5722,7 @@ auto result = object.enabled();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 832](../../../runtime/object_model.hpp#L832)
+- **Declared at:** [line 851](../../../runtime/object_model.hpp#L851)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -5151,7 +5755,7 @@ auto result = object.entity_slot();
 int32_t horizontal_flags() const
 ```
 
-- **Declared at:** [line 835](../../../runtime/object_model.hpp#L835)
+- **Declared at:** [line 854](../../../runtime/object_model.hpp#L854)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
@@ -5184,7 +5788,7 @@ auto result = object.horizontal_flags();
 Fixed minimum_height() const
 ```
 
-- **Declared at:** [line 840](../../../runtime/object_model.hpp#L840)
+- **Declared at:** [line 859](../../../runtime/object_model.hpp#L859)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -5217,7 +5821,7 @@ auto result = object.minimum_height();
 Fixed minimum_width() const
 ```
 
-- **Declared at:** [line 839](../../../runtime/object_model.hpp#L839)
+- **Declared at:** [line 858](../../../runtime/object_model.hpp#L858)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -5250,7 +5854,7 @@ auto result = object.minimum_width();
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 834](../../../runtime/object_model.hpp#L834)
+- **Declared at:** [line 853](../../../runtime/object_model.hpp#L853)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5292,7 +5896,7 @@ object.set_enabled(value);
 void set_horizontal_flags(int32_t value)
 ```
 
-- **Declared at:** [line 836](../../../runtime/object_model.hpp#L836)
+- **Declared at:** [line 855](../../../runtime/object_model.hpp#L855)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5334,7 +5938,7 @@ object.set_horizontal_flags(value);
 void set_minimum(Fixed width,Fixed height)
 ```
 
-- **Declared at:** [line 841](../../../runtime/object_model.hpp#L841)
+- **Declared at:** [line 860](../../../runtime/object_model.hpp#L860)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5378,7 +5982,7 @@ object.set_minimum(width, height);
 void set_stretch(Fixed value)
 ```
 
-- **Declared at:** [line 843](../../../runtime/object_model.hpp#L843)
+- **Declared at:** [line 862](../../../runtime/object_model.hpp#L862)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5420,7 +6024,7 @@ object.set_stretch(value);
 void set_vertical_flags(int32_t value)
 ```
 
-- **Declared at:** [line 838](../../../runtime/object_model.hpp#L838)
+- **Declared at:** [line 857](../../../runtime/object_model.hpp#L857)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5462,7 +6066,7 @@ object.set_vertical_flags(value);
 Fixed stretch() const
 ```
 
-- **Declared at:** [line 842](../../../runtime/object_model.hpp#L842)
+- **Declared at:** [line 861](../../../runtime/object_model.hpp#L861)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -5495,7 +6099,7 @@ auto result = object.stretch();
 int32_t vertical_flags() const
 ```
 
-- **Declared at:** [line 837](../../../runtime/object_model.hpp#L837)
+- **Declared at:** [line 856](../../../runtime/object_model.hpp#L856)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
@@ -5528,7 +6132,7 @@ auto result = object.vertical_flags();
 bool actor_active(const Actor& actor) const
 ```
 
-- **Declared at:** [line 1137](../../../runtime/object_model.hpp#L1137)
+- **Declared at:** [line 1184](../../../runtime/object_model.hpp#L1184)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -5570,7 +6174,7 @@ auto result = object.actor_active(actor);
 ObjectId actor_at(size_t index) const
 ```
 
-- **Declared at:** [line 971](../../../runtime/object_model.hpp#L971)
+- **Declared at:** [line 1018](../../../runtime/object_model.hpp#L1018)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -5612,7 +6216,7 @@ auto result = object.actor_at(index);
 size_t actor_count() const
 ```
 
-- **Declared at:** [line 970](../../../runtime/object_model.hpp#L970)
+- **Declared at:** [line 1017](../../../runtime/object_model.hpp#L1017)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -5645,7 +6249,7 @@ auto result = object.actor_count();
 template<class T> T* add_component(Actor& owner, const char* name = nullptr)
 ```
 
-- **Declared at:** [line 1178](../../../runtime/object_model.hpp#L1178)
+- **Declared at:** [line 1225](../../../runtime/object_model.hpp#L1225)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -5694,7 +6298,7 @@ auto result = object.add_component<T>(owner, name);
 bool bind(ObjectRegistry& value)
 ```
 
-- **Declared at:** [line 961](../../../runtime/object_model.hpp#L961)
+- **Declared at:** [line 1008](../../../runtime/object_model.hpp#L1008)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5736,7 +6340,7 @@ auto result = object.bind(value);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 957](../../../runtime/object_model.hpp#L957)
+- **Declared at:** [line 1004](../../../runtime/object_model.hpp#L1004)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -5769,7 +6373,7 @@ auto result = object.class_id();
 ObjectId create_scene_script(const ClassDescriptor& type, const char* name)
 ```
 
-- **Declared at:** [line 1068](../../../runtime/object_model.hpp#L1068)
+- **Declared at:** [line 1115](../../../runtime/object_model.hpp#L1115)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5813,7 +6417,7 @@ auto result = object.create_scene_script(type, name);
 bool destroy_actor(ObjectId actor, EndPlayReason reason = EndPlayReason::Destroyed)
 ```
 
-- **Declared at:** [line 1085](../../../runtime/object_model.hpp#L1085)
+- **Declared at:** [line 1132](../../../runtime/object_model.hpp#L1132)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5857,7 +6461,7 @@ auto result = object.destroy_actor(actor, reason);
 void end_play_all(EndPlayReason reason)
 ```
 
-- **Declared at:** [line 1105](../../../runtime/object_model.hpp#L1105)
+- **Declared at:** [line 1152](../../../runtime/object_model.hpp#L1152)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5899,7 +6503,7 @@ object.end_play_all(reason);
 void frame_update(uint32_t elapsed)
 ```
 
-- **Declared at:** [line 1126](../../../runtime/object_model.hpp#L1126)
+- **Declared at:** [line 1173](../../../runtime/object_model.hpp#L1173)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -5941,7 +6545,7 @@ object.frame_update(elapsed);
 template<class T> T* get_component(const Actor& owner) const
 ```
 
-- **Declared at:** [line 1196](../../../runtime/object_model.hpp#L1196)
+- **Declared at:** [line 1243](../../../runtime/object_model.hpp#L1243)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Parameters**
@@ -5986,7 +6590,7 @@ auto result = object.get_component<T>(owner);
 template<class T> size_t get_components(const Actor& owner, T** out, size_t capacity) const
 ```
 
-- **Declared at:** [line 1203](../../../runtime/object_model.hpp#L1203)
+- **Declared at:** [line 1250](../../../runtime/object_model.hpp#L1250)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Parameters**
@@ -6035,7 +6639,7 @@ auto result = object.get_components<T>(owner, out, capacity);
 ObjectRegistry* registry() const
 ```
 
-- **Declared at:** [line 968](../../../runtime/object_model.hpp#L968)
+- **Declared at:** [line 1015](../../../runtime/object_model.hpp#L1015)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ObjectRegistry *`. Check the purpose and failure notes before using the value.
@@ -6068,7 +6672,7 @@ auto result = object.registry();
 bool remove_component(Actor& owner, ObjectId component)
 ```
 
-- **Declared at:** [line 1214](../../../runtime/object_model.hpp#L1214)
+- **Declared at:** [line 1261](../../../runtime/object_model.hpp#L1261)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -6112,7 +6716,7 @@ auto result = object.remove_component(owner, component);
 ObjectId scene_script() const
 ```
 
-- **Declared at:** [line 972](../../../runtime/object_model.hpp#L972)
+- **Declared at:** [line 1019](../../../runtime/object_model.hpp#L1019)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
@@ -6145,7 +6749,7 @@ auto result = object.scene_script();
 bool set_active(ObjectId actor, bool active)
 ```
 
-- **Declared at:** [line 1146](../../../runtime/object_model.hpp#L1146)
+- **Declared at:** [line 1193](../../../runtime/object_model.hpp#L1193)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -6189,7 +6793,7 @@ auto result = object.set_active(actor, active);
 bool set_logical_parent(ObjectId child,ObjectId parent)
 ```
 
-- **Declared at:** [line 973](../../../runtime/object_model.hpp#L973)
+- **Declared at:** [line 1020](../../../runtime/object_model.hpp#L1020)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -6233,7 +6837,7 @@ auto result = object.set_logical_parent(child, parent);
 virtual ObjectId spawn_actor(const ClassDescriptor& type, const char* name, ObjectId logical_parent = {})
 ```
 
-- **Declared at:** [line 1058](../../../runtime/object_model.hpp#L1058)
+- **Declared at:** [line 1105](../../../runtime/object_model.hpp#L1105)
 - **Kind:** `cxx method`; qualifiers: `virtual`
 
 **Parameters**
@@ -6281,7 +6885,7 @@ auto result = object.spawn_actor(type, name, logical_parent);
 size_t spawn_batch(const ActorSpawnRequest* requests, size_t count, ObjectId* out, ActorPrepareFn prepare = nullptr)
 ```
 
-- **Declared at:** [line 1001](../../../runtime/object_model.hpp#L1001)
+- **Declared at:** [line 1048](../../../runtime/object_model.hpp#L1048)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -6329,7 +6933,7 @@ auto result = object.spawn_batch(requests, count, out, prepare);
 ObjectStats stats() const
 ```
 
-- **Declared at:** [line 969](../../../runtime/object_model.hpp#L969)
+- **Declared at:** [line 1016](../../../runtime/object_model.hpp#L1016)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ObjectStats`. Check the purpose and failure notes before using the value.
@@ -6362,7 +6966,7 @@ auto result = object.stats();
 void tick(Fixed delta)
 ```
 
-- **Declared at:** [line 1116](../../../runtime/object_model.hpp#L1116)
+- **Declared at:** [line 1163](../../../runtime/object_model.hpp#L1163)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -6404,7 +7008,7 @@ object.tick(delta);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 756](../../../runtime/object_model.hpp#L756)
+- **Declared at:** [line 759](../../../runtime/object_model.hpp#L759)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -6437,7 +7041,7 @@ auto result = object.class_id();
 bool enabled() const
 ```
 
-- **Declared at:** [line 758](../../../runtime/object_model.hpp#L758)
+- **Declared at:** [line 761](../../../runtime/object_model.hpp#L761)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -6470,7 +7074,7 @@ auto result = object.enabled();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 757](../../../runtime/object_model.hpp#L757)
+- **Declared at:** [line 760](../../../runtime/object_model.hpp#L760)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -6503,7 +7107,7 @@ auto result = object.entity_slot();
 Fixed intensity() const
 ```
 
-- **Declared at:** [line 760](../../../runtime/object_model.hpp#L760)
+- **Declared at:** [line 763](../../../runtime/object_model.hpp#L763)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -6536,7 +7140,7 @@ auto result = object.intensity();
 void set_color(uint32_t red,uint32_t green,uint32_t blue)
 ```
 
-- **Declared at:** [line 763](../../../runtime/object_model.hpp#L763)
+- **Declared at:** [line 766](../../../runtime/object_model.hpp#L766)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -6582,7 +7186,7 @@ object.set_color(red, green, blue);
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 759](../../../runtime/object_model.hpp#L759)
+- **Declared at:** [line 762](../../../runtime/object_model.hpp#L762)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -6624,7 +7228,7 @@ object.set_enabled(value);
 void set_intensity(Fixed value)
 ```
 
-- **Declared at:** [line 761](../../../runtime/object_model.hpp#L761)
+- **Declared at:** [line 764](../../../runtime/object_model.hpp#L764)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -6666,7 +7270,7 @@ object.set_intensity(value);
 void set_mode(LightMode value)
 ```
 
-- **Declared at:** [line 765](../../../runtime/object_model.hpp#L765)
+- **Declared at:** [line 768](../../../runtime/object_model.hpp#L768)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -6708,7 +7312,7 @@ object.set_mode(value);
 void set_range(Fixed value)
 ```
 
-- **Declared at:** [line 762](../../../runtime/object_model.hpp#L762)
+- **Declared at:** [line 765](../../../runtime/object_model.hpp#L765)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -6750,7 +7354,7 @@ object.set_range(value);
 void set_type(LightType value)
 ```
 
-- **Declared at:** [line 764](../../../runtime/object_model.hpp#L764)
+- **Declared at:** [line 767](../../../runtime/object_model.hpp#L767)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -6792,7 +7396,7 @@ object.set_type(value);
 uint32_t bone_count() const
 ```
 
-- **Declared at:** [line 671](../../../runtime/object_model.hpp#L671)
+- **Declared at:** [line 674](../../../runtime/object_model.hpp#L674)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -6825,7 +7429,7 @@ auto result = object.bone_count();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 666](../../../runtime/object_model.hpp#L666)
+- **Declared at:** [line 669](../../../runtime/object_model.hpp#L669)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -6858,7 +7462,7 @@ auto result = object.class_id();
 uint32_t clip_count() const
 ```
 
-- **Declared at:** [line 674](../../../runtime/object_model.hpp#L674)
+- **Declared at:** [line 677](../../../runtime/object_model.hpp#L677)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -6891,7 +7495,7 @@ auto result = object.clip_count();
 uint32_t clip_frames(uint32_t clip) const
 ```
 
-- **Declared at:** [line 683](../../../runtime/object_model.hpp#L683)
+- **Declared at:** [line 686](../../../runtime/object_model.hpp#L686)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -6935,7 +7539,7 @@ auto result = object.clip_frames(clip);
 Fixed clip_loop_ticks(uint32_t clip) const
 ```
 
-- **Declared at:** [line 689](../../../runtime/object_model.hpp#L689)
+- **Declared at:** [line 692](../../../runtime/object_model.hpp#L692)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -6977,7 +7581,7 @@ auto result = object.clip_loop_ticks(clip);
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 667](../../../runtime/object_model.hpp#L667)
+- **Declared at:** [line 670](../../../runtime/object_model.hpp#L670)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -7010,7 +7614,7 @@ auto result = object.entity_slot();
 MeshDataState geometry_state() const
 ```
 
-- **Declared at:** [line 718](../../../runtime/object_model.hpp#L718)
+- **Declared at:** [line 721](../../../runtime/object_model.hpp#L721)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `MeshDataState`. Check the purpose and failure notes before using the value.
@@ -7043,7 +7647,7 @@ auto result = object.geometry_state();
 bool lighting_enabled() const
 ```
 
-- **Declared at:** [line 721](../../../runtime/object_model.hpp#L721)
+- **Declared at:** [line 724](../../../runtime/object_model.hpp#L724)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -7076,7 +7680,7 @@ auto result = object.lighting_enabled();
 MaterialSnapshot material_state() const
 ```
 
-- **Declared at:** [line 707](../../../runtime/object_model.hpp#L707)
+- **Declared at:** [line 710](../../../runtime/object_model.hpp#L710)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `MaterialSnapshot`. Check the purpose and failure notes before using the value.
@@ -7109,7 +7713,7 @@ auto result = object.material_state();
 void pause_animation()
 ```
 
-- **Declared at:** [line 680](../../../runtime/object_model.hpp#L680)
+- **Declared at:** [line 683](../../../runtime/object_model.hpp#L683)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -7142,7 +7746,7 @@ object.pause_animation();
 bool play_clip(uint32_t clip,bool looping)
 ```
 
-- **Declared at:** [line 677](../../../runtime/object_model.hpp#L677)
+- **Declared at:** [line 680](../../../runtime/object_model.hpp#L680)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7186,7 +7790,7 @@ auto result = object.play_clip(clip, looping);
 SkeletalPlaybackState playback_state() const
 ```
 
-- **Declared at:** [line 699](../../../runtime/object_model.hpp#L699)
+- **Declared at:** [line 702](../../../runtime/object_model.hpp#L702)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `SkeletalPlaybackState`. Check the purpose and failure notes before using the value.
@@ -7219,7 +7823,7 @@ auto result = object.playback_state();
 uint32_t quad_count() const
 ```
 
-- **Declared at:** [line 716](../../../runtime/object_model.hpp#L716)
+- **Declared at:** [line 719](../../../runtime/object_model.hpp#L719)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -7252,7 +7856,7 @@ auto result = object.quad_count();
 bool request_geometry()
 ```
 
-- **Declared at:** [line 719](../../../runtime/object_model.hpp#L719)
+- **Declared at:** [line 722](../../../runtime/object_model.hpp#L722)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -7285,7 +7889,7 @@ auto result = object.request_geometry();
 void resume_animation()
 ```
 
-- **Declared at:** [line 681](../../../runtime/object_model.hpp#L681)
+- **Declared at:** [line 684](../../../runtime/object_model.hpp#L684)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -7318,7 +7922,7 @@ object.resume_animation();
 BoneSample sample_bone(uint32_t bone,PoseKind pose,CoordinateSpace space)
 ```
 
-- **Declared at:** [line 706](../../../runtime/object_model.hpp#L706)
+- **Declared at:** [line 709](../../../runtime/object_model.hpp#L709)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7364,7 +7968,7 @@ auto result = object.sample_bone(bone, pose, space);
 MeshVertexSample sample_geometry_vertex(uint32_t vertex,CoordinateSpace space)
 ```
 
-- **Declared at:** [line 720](../../../runtime/object_model.hpp#L720)
+- **Declared at:** [line 723](../../../runtime/object_model.hpp#L723)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7408,7 +8012,7 @@ auto result = object.sample_geometry_vertex(vertex, space);
 VertexSample sample_vertex(uint32_t vertex,PoseKind pose,CoordinateSpace space)
 ```
 
-- **Declared at:** [line 704](../../../runtime/object_model.hpp#L704)
+- **Declared at:** [line 707](../../../runtime/object_model.hpp#L707)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7454,7 +8058,7 @@ auto result = object.sample_vertex(vertex, pose, space);
 VertexSamples4 sample_vertices(VertexIndexBatch4 indices,PoseKind pose,CoordinateSpace space)
 ```
 
-- **Declared at:** [line 705](../../../runtime/object_model.hpp#L705)
+- **Declared at:** [line 708](../../../runtime/object_model.hpp#L708)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7502,7 +8106,7 @@ auto result = object.sample_vertices(indices, pose, space);
 void set_animation_position(Fixed ticks)
 ```
 
-- **Declared at:** [line 696](../../../runtime/object_model.hpp#L696)
+- **Declared at:** [line 699](../../../runtime/object_model.hpp#L699)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7544,7 +8148,7 @@ object.set_animation_position(ticks);
 void set_lighting_enabled(bool value)
 ```
 
-- **Declared at:** [line 722](../../../runtime/object_model.hpp#L722)
+- **Declared at:** [line 725](../../../runtime/object_model.hpp#L725)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7586,7 +8190,7 @@ object.set_lighting_enabled(value);
 void set_material_blend(BlendMode blend)
 ```
 
-- **Declared at:** [line 713](../../../runtime/object_model.hpp#L713)
+- **Declared at:** [line 716](../../../runtime/object_model.hpp#L716)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7628,7 +8232,7 @@ object.set_material_blend(blend);
 void set_material_color(uint32_t red,uint32_t green,uint32_t blue)
 ```
 
-- **Declared at:** [line 710](../../../runtime/object_model.hpp#L710)
+- **Declared at:** [line 713](../../../runtime/object_model.hpp#L713)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7674,7 +8278,7 @@ object.set_material_color(red, green, blue);
 void set_material_depth_bias(int32_t value)
 ```
 
-- **Declared at:** [line 714](../../../runtime/object_model.hpp#L714)
+- **Declared at:** [line 717](../../../runtime/object_model.hpp#L717)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7716,7 +8320,7 @@ object.set_material_depth_bias(value);
 void set_material_texture(int32_t texture)
 ```
 
-- **Declared at:** [line 711](../../../runtime/object_model.hpp#L711)
+- **Declared at:** [line 714](../../../runtime/object_model.hpp#L714)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7758,7 +8362,7 @@ object.set_material_texture(texture);
 void set_material_unlit(bool unlit)
 ```
 
-- **Declared at:** [line 712](../../../runtime/object_model.hpp#L712)
+- **Declared at:** [line 715](../../../runtime/object_model.hpp#L715)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7800,7 +8404,7 @@ object.set_material_unlit(unlit);
 void set_uv_scroll(Fixed x,Fixed y)
 ```
 
-- **Declared at:** [line 715](../../../runtime/object_model.hpp#L715)
+- **Declared at:** [line 718](../../../runtime/object_model.hpp#L718)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -7844,7 +8448,7 @@ object.set_uv_scroll(x, y);
 void stop_animation()
 ```
 
-- **Declared at:** [line 682](../../../runtime/object_model.hpp#L682)
+- **Declared at:** [line 685](../../../runtime/object_model.hpp#L685)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -7877,7 +8481,7 @@ object.stop_animation();
 bool streamed() const
 ```
 
-- **Declared at:** [line 717](../../../runtime/object_model.hpp#L717)
+- **Declared at:** [line 720](../../../runtime/object_model.hpp#L720)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -7910,7 +8514,7 @@ auto result = object.streamed();
 uint32_t vertex_count() const
 ```
 
-- **Declared at:** [line 668](../../../runtime/object_model.hpp#L668)
+- **Declared at:** [line 671](../../../runtime/object_model.hpp#L671)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -9445,7 +10049,7 @@ epok::ObjectRegistryStorage value();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 892](../../../runtime/object_model.hpp#L892)
+- **Declared at:** [line 939](../../../runtime/object_model.hpp#L939)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -9478,7 +10082,7 @@ auto result = object.class_id();
 void configure(int32_t texture,uint32_t first,uint32_t last,Fixed speed,bool reverse)
 ```
 
-- **Declared at:** [line 895](../../../runtime/object_model.hpp#L895)
+- **Declared at:** [line 942](../../../runtime/object_model.hpp#L942)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -9528,7 +10132,7 @@ object.configure(texture, first, last, speed, reverse);
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 893](../../../runtime/object_model.hpp#L893)
+- **Declared at:** [line 940](../../../runtime/object_model.hpp#L940)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -9561,7 +10165,7 @@ auto result = object.entity_slot();
 void reset()
 ```
 
-- **Declared at:** [line 897](../../../runtime/object_model.hpp#L897)
+- **Declared at:** [line 944](../../../runtime/object_model.hpp#L944)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -9594,7 +10198,7 @@ object.reset();
 void set_enabled(bool enabled)
 ```
 
-- **Declared at:** [line 896](../../../runtime/object_model.hpp#L896)
+- **Declared at:** [line 943](../../../runtime/object_model.hpp#L943)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -9636,7 +10240,7 @@ object.set_enabled(enabled);
 PaletteAnimationState state() const
 ```
 
-- **Declared at:** [line 894](../../../runtime/object_model.hpp#L894)
+- **Declared at:** [line 941](../../../runtime/object_model.hpp#L941)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `PaletteAnimationState`. Check the purpose and failure notes before using the value.
@@ -9669,7 +10273,7 @@ auto result = object.state();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 887](../../../runtime/object_model.hpp#L887)
+- **Declared at:** [line 934](../../../runtime/object_model.hpp#L934)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -9702,7 +10306,7 @@ auto result = object.class_id();
 void burst(uint32_t count)
 ```
 
-- **Declared at:** [line 873](../../../runtime/object_model.hpp#L873)
+- **Declared at:** [line 920](../../../runtime/object_model.hpp#L920)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -9744,7 +10348,7 @@ object.burst(count);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 868](../../../runtime/object_model.hpp#L868)
+- **Declared at:** [line 915](../../../runtime/object_model.hpp#L915)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -9777,7 +10381,7 @@ auto result = object.class_id();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 869](../../../runtime/object_model.hpp#L869)
+- **Declared at:** [line 916](../../../runtime/object_model.hpp#L916)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -9810,7 +10414,7 @@ auto result = object.entity_slot();
 void play()
 ```
 
-- **Declared at:** [line 871](../../../runtime/object_model.hpp#L871)
+- **Declared at:** [line 918](../../../runtime/object_model.hpp#L918)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -9843,7 +10447,7 @@ object.play();
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 874](../../../runtime/object_model.hpp#L874)
+- **Declared at:** [line 921](../../../runtime/object_model.hpp#L921)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -9885,7 +10489,7 @@ object.set_enabled(value);
 void set_lifetime(Fixed value)
 ```
 
-- **Declared at:** [line 876](../../../runtime/object_model.hpp#L876)
+- **Declared at:** [line 923](../../../runtime/object_model.hpp#L923)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -9927,7 +10531,7 @@ object.set_lifetime(value);
 void set_max_particles(uint32_t value)
 ```
 
-- **Declared at:** [line 877](../../../runtime/object_model.hpp#L877)
+- **Declared at:** [line 924](../../../runtime/object_model.hpp#L924)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -9969,7 +10573,7 @@ object.set_max_particles(value);
 void set_rate(Fixed value)
 ```
 
-- **Declared at:** [line 875](../../../runtime/object_model.hpp#L875)
+- **Declared at:** [line 922](../../../runtime/object_model.hpp#L922)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -10011,7 +10615,7 @@ object.set_rate(value);
 ParticleEmitterState state() const
 ```
 
-- **Declared at:** [line 870](../../../runtime/object_model.hpp#L870)
+- **Declared at:** [line 917](../../../runtime/object_model.hpp#L917)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ParticleEmitterState`. Check the purpose and failure notes before using the value.
@@ -10044,7 +10648,7 @@ auto result = object.state();
 void stop()
 ```
 
-- **Declared at:** [line 872](../../../runtime/object_model.hpp#L872)
+- **Declared at:** [line 919](../../../runtime/object_model.hpp#L919)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -10077,7 +10681,7 @@ object.stop();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 820](../../../runtime/object_model.hpp#L820)
+- **Declared at:** [line 839](../../../runtime/object_model.hpp#L839)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -10110,7 +10714,7 @@ auto result = object.class_id();
 bool enabled() const
 ```
 
-- **Declared at:** [line 822](../../../runtime/object_model.hpp#L822)
+- **Declared at:** [line 841](../../../runtime/object_model.hpp#L841)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -10143,7 +10747,7 @@ auto result = object.enabled();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 821](../../../runtime/object_model.hpp#L821)
+- **Declared at:** [line 840](../../../runtime/object_model.hpp#L840)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -10176,7 +10780,7 @@ auto result = object.entity_slot();
 void set_colors(uint32_t red,uint32_t green,uint32_t blue,uint32_t background_red,uint32_t background_green,uint32_t background_blue)
 ```
 
-- **Declared at:** [line 826](../../../runtime/object_model.hpp#L826)
+- **Declared at:** [line 845](../../../runtime/object_model.hpp#L845)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -10228,7 +10832,7 @@ object.set_colors(red, green, blue, background_red, background_green, background
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 823](../../../runtime/object_model.hpp#L823)
+- **Declared at:** [line 842](../../../runtime/object_model.hpp#L842)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -10270,7 +10874,7 @@ object.set_enabled(value);
 void set_value(Fixed value)
 ```
 
-- **Declared at:** [line 825](../../../runtime/object_model.hpp#L825)
+- **Declared at:** [line 844](../../../runtime/object_model.hpp#L844)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -10312,7 +10916,7 @@ object.set_value(value);
 Fixed value() const
 ```
 
-- **Declared at:** [line 824](../../../runtime/object_model.hpp#L824)
+- **Declared at:** [line 843](../../../runtime/object_model.hpp#L843)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -10540,6 +11144,39 @@ auto result = object.entity_slot();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-recttransformcomponent-rotation-1"></a>
+
+## `epok::RectTransformComponent::rotation`
+
+**Purpose.** Performs `rotation` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+Fixed rotation() const
+```
+
+- **Declared at:** [line 602](../../../runtime/object_model.hpp#L602)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::RectTransformComponent& object = /* obtain a valid instance */;
+
+auto result = object.rotation();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-recttransformcomponent-set-anchors-1"></a>
 
 ## `epok::RectTransformComponent::set_anchors`
@@ -10712,6 +11349,50 @@ void set_position(Fixed x,Fixed y)
 epok::RectTransformComponent& object = /* obtain a valid instance */;
 
 object.set_position(x, y);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-recttransformcomponent-set-rotation-1"></a>
+
+## `epok::RectTransformComponent::set_rotation`
+
+**Purpose.** Degrees about the pivot.
+
+**Details.** Layout is unchanged; only the emitted primitives turn.
+
+**Exact declaration**
+
+```cpp
+void set_rotation(Fixed value)
+```
+
+- **Declared at:** [line 604](../../../runtime/object_model.hpp#L604)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** Layout is unchanged; only the emitted primitives turn.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Fixed value
+
+epok::RectTransformComponent& object = /* obtain a valid instance */;
+
+object.set_rotation(value);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
@@ -11619,7 +12300,7 @@ auto result = object.world_affine();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 934](../../../runtime/object_model.hpp#L934)
+- **Declared at:** [line 981](../../../runtime/object_model.hpp#L981)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -11652,7 +12333,7 @@ auto result = object.class_id();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 727](../../../runtime/object_model.hpp#L727)
+- **Declared at:** [line 730](../../../runtime/object_model.hpp#L730)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -11685,7 +12366,7 @@ auto result = object.class_id();
 bool enabled() const
 ```
 
-- **Declared at:** [line 735](../../../runtime/object_model.hpp#L735)
+- **Declared at:** [line 738](../../../runtime/object_model.hpp#L738)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -11718,7 +12399,7 @@ auto result = object.enabled();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 728](../../../runtime/object_model.hpp#L728)
+- **Declared at:** [line 731](../../../runtime/object_model.hpp#L731)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -11751,7 +12432,7 @@ auto result = object.entity_slot();
 void pause_animation()
 ```
 
-- **Declared at:** [line 731](../../../runtime/object_model.hpp#L731)
+- **Declared at:** [line 734](../../../runtime/object_model.hpp#L734)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -11784,7 +12465,7 @@ object.pause_animation();
 bool play_clip(uint32_t clip)
 ```
 
-- **Declared at:** [line 730](../../../runtime/object_model.hpp#L730)
+- **Declared at:** [line 733](../../../runtime/object_model.hpp#L733)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -11826,7 +12507,7 @@ auto result = object.play_clip(clip);
 SpritePlaybackState playback_state() const
 ```
 
-- **Declared at:** [line 729](../../../runtime/object_model.hpp#L729)
+- **Declared at:** [line 732](../../../runtime/object_model.hpp#L732)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `SpritePlaybackState`. Check the purpose and failure notes before using the value.
@@ -11859,7 +12540,7 @@ auto result = object.playback_state();
 uint32_t poll_event()
 ```
 
-- **Declared at:** [line 733](../../../runtime/object_model.hpp#L733)
+- **Declared at:** [line 736](../../../runtime/object_model.hpp#L736)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -11892,7 +12573,7 @@ auto result = object.poll_event();
 void resume_animation()
 ```
 
-- **Declared at:** [line 732](../../../runtime/object_model.hpp#L732)
+- **Declared at:** [line 735](../../../runtime/object_model.hpp#L735)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -11925,7 +12606,7 @@ object.resume_animation();
 void set_color(uint32_t red,uint32_t green,uint32_t blue)
 ```
 
-- **Declared at:** [line 740](../../../runtime/object_model.hpp#L740)
+- **Declared at:** [line 743](../../../runtime/object_model.hpp#L743)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -11971,7 +12652,7 @@ object.set_color(red, green, blue);
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 736](../../../runtime/object_model.hpp#L736)
+- **Declared at:** [line 739](../../../runtime/object_model.hpp#L739)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -12013,7 +12694,7 @@ object.set_enabled(value);
 void set_flip(bool x,bool y)
 ```
 
-- **Declared at:** [line 739](../../../runtime/object_model.hpp#L739)
+- **Declared at:** [line 742](../../../runtime/object_model.hpp#L742)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -12057,7 +12738,7 @@ object.set_flip(x, y);
 void set_size(Fixed x,Fixed y)
 ```
 
-- **Declared at:** [line 738](../../../runtime/object_model.hpp#L738)
+- **Declared at:** [line 741](../../../runtime/object_model.hpp#L741)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -12101,7 +12782,7 @@ object.set_size(x, y);
 void set_texture(int32_t value)
 ```
 
-- **Declared at:** [line 737](../../../runtime/object_model.hpp#L737)
+- **Declared at:** [line 740](../../../runtime/object_model.hpp#L740)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -12143,7 +12824,7 @@ object.set_texture(value);
 bool take_completion()
 ```
 
-- **Declared at:** [line 734](../../../runtime/object_model.hpp#L734)
+- **Declared at:** [line 737](../../../runtime/object_model.hpp#L737)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -12164,6 +12845,39 @@ auto result = object.take_completion();
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
 
+<a id="epok-textcomponent-align-1"></a>
+
+## `epok::TextComponent::align`
+
+**Purpose.** Performs `align` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+int32_t align() const
+```
+
+- **Declared at:** [line 828](../../../runtime/object_model.hpp#L828)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::TextComponent& object = /* obtain a valid instance */;
+
+auto result = object.align();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-textcomponent-class-id-1"></a>
 
 ## `epok::TextComponent::class_id`
@@ -12176,7 +12890,7 @@ auto result = object.take_completion();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 805](../../../runtime/object_model.hpp#L805)
+- **Declared at:** [line 817](../../../runtime/object_model.hpp#L817)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -12209,7 +12923,7 @@ auto result = object.class_id();
 void clear_text()
 ```
 
-- **Declared at:** [line 811](../../../runtime/object_model.hpp#L811)
+- **Declared at:** [line 823](../../../runtime/object_model.hpp#L823)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -12242,7 +12956,7 @@ object.clear_text();
 bool enabled() const
 ```
 
-- **Declared at:** [line 807](../../../runtime/object_model.hpp#L807)
+- **Declared at:** [line 819](../../../runtime/object_model.hpp#L819)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -12275,7 +12989,7 @@ auto result = object.enabled();
 ActorData* entity_slot() const
 ```
 
-- **Declared at:** [line 806](../../../runtime/object_model.hpp#L806)
+- **Declared at:** [line 818](../../../runtime/object_model.hpp#L818)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ActorData *`. Check the purpose and failure notes before using the value.
@@ -12296,6 +13010,81 @@ auto result = object.entity_slot();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-textcomponent-font-index-1"></a>
+
+## `epok::TextComponent::font_index`
+
+**Purpose.** Performs `font index` as part of the object model module.
+
+**Exact declaration**
+
+```cpp
+int32_t font_index() const
+```
+
+- **Declared at:** [line 831](../../../runtime/object_model.hpp#L831)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+epok::TextComponent& object = /* obtain a valid instance */;
+
+auto result = object.font_index();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-textcomponent-set-align-1"></a>
+
+## `epok::TextComponent::set_align`
+
+**Purpose.** 0 Left, 1 Center, 2 Right; anything else leaves the lines left-aligned.
+
+**Exact declaration**
+
+```cpp
+void set_align(int value)
+```
+
+- **Declared at:** [line 830](../../../runtime/object_model.hpp#L830)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the object model module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int value
+
+epok::TextComponent& object = /* obtain a valid instance */;
+
+object.set_align(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-textcomponent-set-color-1"></a>
 
 ## `epok::TextComponent::set_color`
@@ -12308,7 +13097,7 @@ auto result = object.entity_slot();
 void set_color(uint32_t red,uint32_t green,uint32_t blue)
 ```
 
-- **Declared at:** [line 814](../../../runtime/object_model.hpp#L814)
+- **Declared at:** [line 826](../../../runtime/object_model.hpp#L826)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -12354,7 +13143,7 @@ object.set_color(red, green, blue);
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 808](../../../runtime/object_model.hpp#L808)
+- **Declared at:** [line 820](../../../runtime/object_model.hpp#L820)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -12384,6 +13173,50 @@ object.set_enabled(value);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-textcomponent-set-font-index-1"></a>
+
+## `epok::TextComponent::set_font_index`
+
+**Purpose.** The cooked font this label draws from, in export order; -1 is the built-in 8x16 atlas.
+
+**Details.** An index no font answers falls back to the built-in.
+
+**Exact declaration**
+
+```cpp
+void set_font_index(int value)
+```
+
+- **Declared at:** [line 834](../../../runtime/object_model.hpp#L834)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `int` | Input | Value supplied for `value`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** An index no font answers falls back to the built-in.
+
+**Usage pattern**
+
+```cpp
+#include "object_model.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int value
+
+epok::TextComponent& object = /* obtain a valid instance */;
+
+object.set_font_index(value);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the object model module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-textcomponent-set-number-1"></a>
 
 ## `epok::TextComponent::set_number`
@@ -12396,7 +13229,7 @@ object.set_enabled(value);
 void set_number(int32_t value)
 ```
 
-- **Declared at:** [line 809](../../../runtime/object_model.hpp#L809)
+- **Declared at:** [line 821](../../../runtime/object_model.hpp#L821)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -12438,7 +13271,7 @@ object.set_number(value);
 bool set_text_word(uint32_t index,uint32_t packed)
 ```
 
-- **Declared at:** [line 812](../../../runtime/object_model.hpp#L812)
+- **Declared at:** [line 824](../../../runtime/object_model.hpp#L824)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -12482,7 +13315,7 @@ auto result = object.set_text_word(index, packed);
 void set_unsigned(uint32_t value)
 ```
 
-- **Declared at:** [line 810](../../../runtime/object_model.hpp#L810)
+- **Declared at:** [line 822](../../../runtime/object_model.hpp#L822)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -12524,7 +13357,7 @@ object.set_unsigned(value);
 void set_wrap(bool value)
 ```
 
-- **Declared at:** [line 815](../../../runtime/object_model.hpp#L815)
+- **Declared at:** [line 827](../../../runtime/object_model.hpp#L827)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -12566,7 +13399,7 @@ object.set_wrap(value);
 uint32_t text_word(uint32_t index) const
 ```
 
-- **Declared at:** [line 813](../../../runtime/object_model.hpp#L813)
+- **Declared at:** [line 825](../../../runtime/object_model.hpp#L825)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -12608,7 +13441,7 @@ auto result = object.text_word(index);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 882](../../../runtime/object_model.hpp#L882)
+- **Declared at:** [line 929](../../../runtime/object_model.hpp#L929)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -12641,7 +13474,7 @@ auto result = object.class_id();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 926](../../../runtime/object_model.hpp#L926)
+- **Declared at:** [line 973](../../../runtime/object_model.hpp#L973)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -12674,7 +13507,7 @@ auto result = object.class_id();
 ActorComponent* default_root() override
 ```
 
-- **Declared at:** [line 928](../../../runtime/object_model.hpp#L928)
+- **Declared at:** [line 975](../../../runtime/object_model.hpp#L975)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `ActorComponent *`. Check the purpose and failure notes before using the value.
@@ -12740,7 +13573,7 @@ auto result = object.class_id();
 void bind(Level& value, ObjectRegistry& table)
 ```
 
-- **Declared at:** [line 1490](../../../runtime/object_model.hpp#L1490)
+- **Declared at:** [line 1537](../../../runtime/object_model.hpp#L1537)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -12784,7 +13617,7 @@ object.bind(value, table);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 1486](../../../runtime/object_model.hpp#L1486)
+- **Declared at:** [line 1533](../../../runtime/object_model.hpp#L1533)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
