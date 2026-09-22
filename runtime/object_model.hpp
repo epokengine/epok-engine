@@ -680,6 +680,22 @@ public:
     EPOK_FUNCTION(BlueprintCallable, Id="74c0cd75-108d-486c-bccb-68b0a85b1a9a") void pause_animation() {auto* data=entity_slot();if(data)data->animator.pause();}
     EPOK_FUNCTION(BlueprintCallable, Id="a6ef5510-6cb3-418d-be3c-c1e5f4e56776") void resume_animation() {auto* data=entity_slot();if(data)data->animator.resume();}
     EPOK_FUNCTION(BlueprintCallable, Id="a127e39c-84a2-4618-b6e3-b08f8d466ae3") void stop_animation() {auto* data=entity_slot();if(data)data->animator.stop();}
+    EPOK_FUNCTION(BlueprintPure, Id="3ea752b4-6bf6-4e45-831c-b05524ecdc46") uint32_t clip_frames(uint32_t clip) const {
+        const auto* data=entity_slot();return data&&data->animator.model&&clip<data->animator.model->clip_count?uint32_t(data->animator.model->clips[clip].frames):0;
+    }
+    // One loop of a clip, measured in the animator's own two-per-frame ticks.
+    // Fixed so a manually driven cycle can be advanced by a fractional amount
+    // and wrapped against this length without leaving the Fixed vocabulary.
+    EPOK_FUNCTION(BlueprintPure, Id="857927dd-9229-44d3-8556-b392f18f3567") Fixed clip_loop_ticks(uint32_t clip) const {
+        const uint32_t frames=clip_frames(clip);return Fixed(int32_t((frames>1?frames-1:1)*2),0);
+    }
+    // Manual playback position, in the same ticks. It is what a game drives
+    // when the cycle has to follow something other than real time -- a
+    // locomotion blend following ground speed, for instance -- and it pairs
+    // with pause_animation() so the animator stops advancing on its own.
+    EPOK_FUNCTION(BlueprintCallable, Id="b0b30f1a-a82b-4806-bb2a-eb7392bb6607") void set_animation_position(Fixed ticks) {
+        auto* data=entity_slot();if(!data)return;const int32_t value=ticks.raw()/4096;data->animator.ticks=uint32_t(value<0?0:value);
+    }
     EPOK_FUNCTION(BlueprintPure, Id="3ec24d35-4613-4ffb-b50a-0ea205e901b1") SkeletalPlaybackState playback_state() const {
         SkeletalPlaybackState result;const auto* data=entity_slot();if(!data||!data->animator.model)return result;
         const auto& animator=data->animator;result.valid=true;result.enabled=animator.enabled;result.playing=animator.playing;result.looping=animator.looping;result.clip=animator.clip;result.ticks=animator.ticks;

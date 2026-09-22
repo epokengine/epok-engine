@@ -32,6 +32,12 @@ struct EPOK_VALUE(Id="1a95f3e5-4d5b-4bcb-90ac-34d7fb61bc77") GameplayVector3 {
 struct EPOK_VALUE(Id="b8f68929-ed24-4c76-8fdd-52b785024d74") GameplayVector2 {
     Fixed x=0.0,y=0.0;
 };
+// A dead-zoned analog stick reduced to a planar direction and a strength.
+// `x` and `y` are the stick vector rescaled so the dead zone maps to zero and a
+// fully deflected stick maps to one; `strength` is that rescaled magnitude.
+struct EPOK_VALUE(Id="0b90f02c-2962-475d-bc38-9d10ed8272c1") MovementIntent {
+    Fixed x=0.0,y=0.0,strength=0.0;
+};
 struct EPOK_VALUE(Id="aeb84ccb-e308-456a-a59f-31bed0cb08a4") GameplayCamera2D {
     GameplayVector2 position{};
     Fixed zoom=1.0,rotation=0.0;
@@ -168,6 +174,55 @@ struct EPOK_FUNCTION_LIBRARY(Category="Math", Id="895f8595-ac0d-4584-b749-df23ae
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="4fe0f030-091c-4d55-984d-769077622c33") static GameplayVector3 vector3(Fixed x,Fixed y,Fixed z){return {x,y,z};}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="74678bdd-b229-46e9-949a-7256f1444183") static GameplayVector3 add(GameplayVector3 a,GameplayVector3 b){return {a.x+b.x,a.y+b.y,a.z+b.z};}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="d32131a5-2c47-43f2-8907-35e40389cfb5") static GameplayVector3 scale(GameplayVector3 value,Fixed amount){return {value.x*amount,value.y*amount,value.z*amount};}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="ab6fa418-8b8e-4c20-b41a-696c9cd61575") static GameplayVector3 subtract(GameplayVector3 a,GameplayVector3 b){return {a.x-b.x,a.y-b.y,a.z-b.z};}
+    // Trigonometry, roots and angle arithmetic in the engine's own Q12 form.
+    // Every one of these is integer-only, so a script reaches the same bits the
+    // renderer and the collision solver already agree on, on host and on target.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="eeee7d31-a8c6-437a-95db-10e163771b24") static Fixed sine_degrees(Fixed degrees){return sin_degrees(degrees);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="565552a8-869a-4ca7-a1d8-a7ad6e1508a7") static Fixed cosine_degrees(Fixed degrees){return cos_degrees(degrees);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="6977e1b9-1736-4c49-b003-2a7b3bdc98a2") static Fixed square_root(Fixed value){return Fixed(fixed_math::q_sqrt(value.raw()),Fixed::RAW);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="57b625c6-06d7-4635-b551-17a75ceffa3b") static Fixed length2(Fixed x,Fixed y){return Fixed(int32_t(fixed_math::sqrt64(uint64_t(int64_t(x.raw())*x.raw()+int64_t(y.raw())*y.raw()))),Fixed::RAW);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="625d5493-89ff-401f-a535-308206d5f4d4") static Fixed length(GameplayVector3 value){return Fixed(int32_t(fixed_math::sqrt64(uint64_t(int64_t(value.x.raw())*value.x.raw()+int64_t(value.y.raw())*value.y.raw()+int64_t(value.z.raw())*value.z.raw()))),Fixed::RAW);}
+    // 0 <= result < 360. A turn is exact in Q12, so wrapping never drifts.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="9b882fef-4a7b-4463-81aa-65b2f7e0dcd0") static Fixed wrap_degrees(Fixed degrees){const int32_t turn=360*4096;int32_t value=degrees.raw()%turn;if(value<0)value+=turn;return Fixed(value,Fixed::RAW);}
+    // Shortest signed turn from one heading to another, in -180..180.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="c5b4efca-6c21-42fb-b9bf-f354902d7ee4") static Fixed delta_degrees(Fixed from,Fixed to){const int32_t turn=360*4096;int32_t delta=(to.raw()-from.raw())%turn;if(delta>turn/2)delta-=turn;else if(delta<-turn/2)delta+=turn;return Fixed(delta,Fixed::RAW);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="3e369e64-cb38-4930-9842-02bbf054c5d9") static Fixed move_toward(Fixed from,Fixed to,Fixed max_step){const Fixed delta=to-from;if(delta>max_step)return from+max_step;if(delta<-max_step)return from-max_step;return to;}
+    // The same approach on a circle: turns the short way and never overshoots.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="bacfcfc1-e38c-44d2-b47d-19ec3ae37f8d") static Fixed move_toward_degrees(Fixed from,Fixed to,Fixed max_step){const Fixed delta=delta_degrees(from,to);if(delta>max_step)return from+max_step;if(delta<-max_step)return from-max_step;return to;}
+    // Heading of a planar vector in degrees, measured from +y towards +x, so a
+    // stick pushed forward reads 0 and a stick pushed right reads 90.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="1057a007-0420-4b95-8f48-140be81f9ba5") static Fixed heading_degrees(Fixed x,Fixed y){
+        const int32_t raw_x=x.raw(),raw_y=y.raw();
+        const int32_t ax=raw_x<0?-raw_x:raw_x,ay=raw_y<0?-raw_y:raw_y;
+        const int32_t large=ax>ay?ax:ay,small=ax>ay?ay:ax;
+        if(!large)return Fixed(0,Fixed::RAW);
+        const int32_t ratio=int32_t(int64_t(small)*4096/large);
+        int32_t angle=int32_t(int64_t(ratio)*(45*4096+16*(4096-ratio))/4096);
+        if(ax>ay)angle=90*4096-angle;
+        if(raw_y<0)angle=180*4096-angle;
+        if(raw_x<0)angle=360*4096-angle;
+        return Fixed(angle,Fixed::RAW);
+    }
+    // The engine's standard analog dead zone, as a share of full deflection.
+    // It is fixed rather than a parameter so every language reaches the same
+    // raw threshold without depending on how a literal is rounded.
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="bf76ade4-3e06-44b8-b6af-baa40968ceaf") static Fixed stick_dead_zone(){return Fixed(491,Fixed::RAW);}
+    EPOK_FUNCTION(BlueprintPure, PureValue, Id="5b0a28df-53d9-40e4-b7ca-c5381f473771") static MovementIntent stick_intent(Fixed x,Fixed y){
+        constexpr int32_t full=4096,dead_zone=491;
+        int32_t raw_x=x.raw(),raw_y=y.raw();
+        if(raw_x<-full)raw_x=-full;if(raw_x>full)raw_x=full;
+        if(raw_y<-full)raw_y=-full;if(raw_y>full)raw_y=full;
+        const int32_t magnitude=int32_t(fixed_math::sqrt64(uint64_t(int64_t(raw_x)*raw_x+int64_t(raw_y)*raw_y)));
+        if(magnitude<=dead_zone)return {};
+        const int32_t capped=magnitude>full?full:magnitude;
+        const int32_t strength=(capped-dead_zone)*full/(full-dead_zone);
+        MovementIntent result;
+        result.x=Fixed(int32_t(int64_t(raw_x)*strength/magnitude),Fixed::RAW);
+        result.y=Fixed(int32_t(int64_t(raw_y)*strength/magnitude),Fixed::RAW);
+        result.strength=Fixed(strength,Fixed::RAW);
+        return result;
+    }
 };
 
 // The Vector3 half of the `utilities` group. It shares the category, and so the

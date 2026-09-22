@@ -4,6 +4,7 @@ use crate::{
     assets, lighting, mesh,
     scene::{Actor, Scene},
     viewport::View,
+    workspace::GameplayFlavor,
 };
 use std::{path::Path, sync::Arc};
 use uuid::Uuid;
@@ -214,7 +215,59 @@ pub fn overview() -> View {
     view
 }
 
-pub fn create(root: &Path) -> Result<Scene, String> {
+/// Every generated flavor binds a class with this name to the Player actor; the
+/// identity differs because a C++ class, a Blueprint class and a Lua class are
+/// three different classes, not three spellings of one.
+pub const CONTROLLER_NAME: &str = "ThirdPersonController";
+pub const CPP_CONTROLLER_ID: &str = "9233f481-d27e-4765-a2d3-4dcfcb0cc910";
+pub const LUA_CONTROLLER_ID: &str = "5d5b3e5e-604d-4b2a-bd1d-313ce3bd2598";
+pub const LUA_CONTROLLER_PATH: &str = "assets/scripts/ThirdPersonController.lua";
+
+/// The six locomotion clips, in the order the controller indexes them. The C++
+/// flavor looks them up by name at begin_play; the Blueprint and Lua flavors are
+/// handed the resolved indices as typed properties, so neither depends on a
+/// display name surviving a rename.
+const CLIP_NAMES: [&str; 6] = [
+    "CharacterRig|Sequence_00_Wait",
+    "CharacterRig|Sequence_01_Sequence",
+    "CharacterRig|Sequence_02_Run",
+    "CharacterRig|Sequence_24_Jump_Up",
+    "CharacterRig|Sequence_25_Jump_Down",
+    "CharacterRig|Sequence_26_Land",
+];
+const CLIP_PROPERTIES: [&str; 6] = [
+    "idle_clip",
+    "walk_clip",
+    "run_clip",
+    "jump_up_clip",
+    "jump_down_clip",
+    "land_clip",
+];
+
+/// Where the shared scene keeps the actors a flavor has to bind to.
+struct Gameplay {
+    player: usize,
+    camera: usize,
+    visual: usize,
+}
+
+pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
+    install_shared_assets(root)?;
+    let (mut scene, gameplay) = build_shared_scene(root)?;
+    install_gameplay(root, &mut scene, &gameplay, flavor)?;
+    finalize(root, &mut scene, flavor)
+}
+
+fn install_shared_assets(root: &Path) -> Result<(), String> {
+    for (path, bytes) in PLAYER_ASSETS {
+        install(root, path, bytes)?;
+    }
+    Ok(())
+}
+
+/// The level, the player and the camera. Identical for every flavor: one copy of
+/// the assets, one hierarchy, one set of transforms and colliders.
+fn build_shared_scene(root: &Path) -> Result<(Scene, Gameplay), String> {
     let mut scene = Scene {
         name: "Main".into(),
         actors: Vec::new(),
@@ -307,9 +360,6 @@ pub fn create(root: &Path) -> Result<Scene, String> {
     });
     scene.actors.push(sun);
 
-    for (path, bytes) in PLAYER_ASSETS {
-        install(root, path, bytes)?;
-    }
     let gameplay = scene.actors.len();
     scene.actors.push(empty("Gameplay", Some(world)));
 
@@ -319,6 +369,7 @@ pub fn create(root: &Path) -> Result<Scene, String> {
     camera.position = [-7., 4.5, -13.5];
     camera.rotation = [20., 0., 0.];
     camera.camera_sky_color = [0.405, 0.624, 1.0];
+    let camera_index = scene.actors.len();
     scene.actors.push(camera);
 
     let mut player = empty("Player", Some(gameplay));
@@ -329,16 +380,6 @@ pub fn create(root: &Path) -> Result<Scene, String> {
         layer: 4,
         ..Default::default()
     });
-    player
-        .components
-        .push(crate::actor_document::ComponentInstance::new(
-            Uuid::new_v4(),
-            crate::actor_document::ClassReference::new(
-                "ThirdPersonController",
-                "9233f481-d27e-4765-a2d3-4dcfcb0cc910",
-            ),
-            "Third Person Controller",
-        ));
     let player_index = scene.actors.len();
     scene.actors.push(player);
 
@@ -352,10 +393,162 @@ pub fn create(root: &Path) -> Result<Scene, String> {
         clip: Some(Uuid::parse_str(IDLE_CLIP).map_err(|e| e.to_string())?),
         ..crate::skeletal::Component::new(Uuid::parse_str(PLAYER_MESH).map_err(|e| e.to_string())?)
     });
+    let visual_index = scene.actors.len();
     scene.actors.push(visual);
 
     scene.sync_actor_components();
-    scene.bake = Some(lighting::bake(&scene)?);
+    Ok((
+        scene,
+        Gameplay {
+            player: player_index,
+            camera: camera_index,
+            visual: visual_index,
+        },
+    ))
+}
+
+/// The only part of the template a flavor owns: the controller source and the
+/// class the Player actor binds. The scene above is untouched.
+fn install_gameplay(
+    root: &Path,
+    scene: &mut Scene,
+    gameplay: &Gameplay,
+    flavor: GameplayFlavor,
+) -> Result<(), String> {
+    let class_id = match flavor {
+        GameplayFlavor::Cpp => CPP_CONTROLLER_ID,
+        GameplayFlavor::Blueprint => crate::third_person_blueprint::CLASS_ID,
+        GameplayFlavor::Lua => LUA_CONTROLLER_ID,
+    };
+    let mut controller = crate::actor_document::ComponentInstance::new(
+        Uuid::new_v4(),
+        crate::actor_document::ClassReference::new(CONTROLLER_NAME, class_id),
+        "Third Person Controller",
+    );
+    if flavor != GameplayFlavor::Cpp {
+        // Typed references, resolved once here. Neither generated controller
+        // looks an actor up by display name, so renaming one is safe. The Lua
+        // flavor binds the camera's transform rather than the camera, because
+        // writing a transform component takes three scalars and a Lua class
+        // that never holds a whole vector compiles in every execution mode.
+        let camera = match flavor {
+            GameplayFlavor::Lua => {
+                scene.actors[gameplay.camera]
+                    .root()
+                    .ok_or("Third Person template Camera actor has no transform")?
+                    .id
+            }
+            _ => scene.actors[gameplay.camera].id,
+        };
+        let visual = scene.actors[gameplay.visual]
+            .components
+            .iter()
+            .find(|c| c.class.class_id.as_deref() == Some(crate::object_model::MESH3D_COMPONENT_ID))
+            .ok_or("Third Person template Visual actor has no mesh component")?
+            .id;
+        controller.properties.insert(
+            "camera".into(),
+            serde_json::Value::String(camera.to_string()),
+        );
+        controller.properties.insert(
+            "visual".into(),
+            serde_json::Value::String(visual.to_string()),
+        );
+        for (name, slot) in CLIP_PROPERTIES.iter().zip(clip_slots(root)?) {
+            controller
+                .properties
+                .insert((*name).into(), serde_json::Value::from(slot));
+        }
+        controller
+            .overrides
+            .extend(controller.properties.keys().cloned());
+    }
+    scene.actors[gameplay.player].components.push(controller);
+
+    match flavor {
+        GameplayFlavor::Cpp => {
+            for (name, source) in [
+                (
+                    "assets/scripts/ThirdPersonController.hpp",
+                    include_str!("../templates/ThirdPersonController.hpp"),
+                ),
+                (
+                    "assets/scripts/ThirdPersonController.cpp",
+                    include_str!("../templates/ThirdPersonController.cpp"),
+                ),
+                (
+                    "assets/scripts/CharacterMotion.hpp",
+                    include_str!("../templates/CharacterMotion.hpp"),
+                ),
+                (
+                    "assets/scripts/CharacterClips.hpp",
+                    include_str!("../templates/CharacterClips.hpp"),
+                ),
+            ] {
+                crate::project::write_changed(&assets::inside(root, name)?, source.as_bytes())?;
+            }
+        }
+        GameplayFlavor::Lua => {
+            crate::project::write_changed(
+                &assets::inside(root, LUA_CONTROLLER_PATH)?,
+                include_bytes!("../templates/ThirdPersonController.lua"),
+            )?;
+            let mut registry = crate::lua_identity::Registry::default();
+            registry
+                .classes
+                .insert(LUA_CONTROLLER_PATH.into(), LUA_CONTROLLER_ID.into());
+            registry.save(root)?;
+        }
+        GameplayFlavor::Blueprint => {
+            let asset = assets::inside(root, crate::third_person_blueprint::ASSET_PATH)?;
+            if let Some(directory) = asset.parent() {
+                std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
+            }
+            crate::blueprint_asset::create(&asset, &crate::third_person_blueprint::asset())?;
+        }
+    }
+    Ok(())
+}
+
+/// The clip index of each locomotion name, in the order the bundled model
+/// stores them. Reading the installed packages keeps this honest: a reordered
+/// or renamed clip fails here instead of silently animating the wrong state.
+fn clip_slots(root: &Path) -> Result<[u32; 6], String> {
+    let package = assets::Package::load(&assets::inside(
+        root,
+        "assets/Character/Player/Player.epokasset",
+    )?)?;
+    let crate::skeletal::Data::SkeletalMesh(mesh) = crate::skeletal::Data::parse(&package.source)?
+    else {
+        return Err("Third Person template player asset is not a skeletal mesh".into());
+    };
+    let mut names = std::collections::BTreeMap::new();
+    for (path, _) in PLAYER_ASSETS {
+        if !path.contains("/Animation/") || path.ends_with("Skeleton.epokasset") {
+            continue;
+        }
+        let package = assets::Package::load(&assets::inside(root, path)?)?;
+        if let crate::skeletal::Data::AnimationClip(clip) =
+            crate::skeletal::Data::parse(&package.source)?
+        {
+            names.insert(package.meta.id, clip.name);
+        }
+    }
+    let mut slots = [0u32; 6];
+    for (slot, wanted) in CLIP_NAMES.iter().enumerate() {
+        let index = mesh
+            .clips
+            .iter()
+            .position(|id| names.get(id).is_some_and(|name| name == wanted))
+            .ok_or_else(|| format!("Third Person template is missing the {wanted} clip"))?;
+        slots[slot] = index as u32;
+    }
+    Ok(slots)
+}
+
+fn finalize(root: &Path, scene: &mut Scene, flavor: GameplayFlavor) -> Result<Scene, String> {
+    scene.sync_actor_components();
+    scene.bake = Some(lighting::bake(scene)?);
     scene.validate()?;
 
     std::fs::create_dir_all(root.join("UserSettings")).map_err(|e| e.to_string())?;
@@ -363,37 +556,405 @@ pub fn create(root: &Path) -> Result<Scene, String> {
         &root.join("UserSettings/SceneView.epokprefs"),
         &crate::document::to_vec(&overview()).map_err(|e| e.to_string())?,
     )?;
-    crate::project::write_changed(
-        &root.join("README.md"),
-        include_bytes!("../resources/templates/third-person/README.md"),
-    )?;
-    for (name, source) in [
-        (
-            "assets/scripts/ThirdPersonController.hpp",
-            include_str!("../templates/ThirdPersonController.hpp"),
+    crate::project::write_changed(&root.join("README.md"), readme(flavor).as_bytes())?;
+    Ok(scene.clone())
+}
+
+/// The generated README names the source that was actually written, never the
+/// files of a flavor this project does not have.
+fn readme(flavor: GameplayFlavor) -> String {
+    let source = match flavor {
+        GameplayFlavor::Cpp => concat!(
+            "The controller is project-owned C++ in `assets/scripts/ThirdPersonController.hpp`\n",
+            "and `assets/scripts/ThirdPersonController.cpp`, with\n",
+            "`assets/scripts/CharacterMotion.hpp` for the locomotion state machine and\n",
+            "`assets/scripts/CharacterClips.hpp` for the clip names."
         ),
-        (
-            "assets/scripts/ThirdPersonController.cpp",
-            include_str!("../templates/ThirdPersonController.cpp"),
+        GameplayFlavor::Blueprint => concat!(
+            "The controller is a project-owned visual graph in\n",
+            "`assets/Blueprints/ThirdPersonController.epokbp`. Open it from the Project browser\n",
+            "to edit movement, the camera boom or the animation states. The build backend turns\n",
+            "the graph into native console code; the source you edit stays visual."
         ),
-        (
-            "assets/scripts/CharacterMotion.hpp",
-            include_str!("../templates/CharacterMotion.hpp"),
+        GameplayFlavor::Lua => concat!(
+            "The controller is project-owned Lua in `assets/scripts/ThirdPersonController.lua`.\n",
+            "It is compiled with this project's Lua execution setting, which starts on the\n",
+            "ahead-of-time native mode so the console build stays small; Project Settings can\n",
+            "switch it to the virtual machine at any time."
         ),
-        (
-            "assets/scripts/CharacterClips.hpp",
-            include_str!("../templates/CharacterClips.hpp"),
-        ),
-    ] {
-        let path = assets::inside(root, name)?;
-        crate::project::write_changed(&path, source.as_bytes())?;
-    }
-    Ok(scene)
+    };
+    include_str!("../resources/templates/third-person/README.md").replace("<!--GAMEPLAY-->", source)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn disposable(flavor: GameplayFlavor) -> (std::path::PathBuf, std::path::PathBuf) {
+        let parent = std::env::temp_dir().join(format!("epok-third-person-{}", Uuid::new_v4()));
+        let root = parent.join("Third Person Game");
+        crate::workspace::create_with_options(
+            &root,
+            "Third Person Game",
+            crate::workspace::CreateOptions::new(crate::workspace::Template::ThirdPerson)
+                .with_gameplay(flavor),
+        )
+        .unwrap_or_else(|e| panic!("{flavor:?} project creation: {e}"));
+        (parent, root)
+    }
+
+    /// Every flavor writes its own gameplay and nothing else: a Lua project has
+    /// no generated C++ controller to fall back on, and neither does a
+    /// Blueprint one. Silence here would be the worst outcome of all.
+    #[test]
+    fn each_flavor_generates_only_its_own_gameplay_source() {
+        let cpp = [
+            "assets/scripts/ThirdPersonController.hpp",
+            "assets/scripts/ThirdPersonController.cpp",
+            "assets/scripts/CharacterMotion.hpp",
+            "assets/scripts/CharacterClips.hpp",
+        ];
+        let lua = [LUA_CONTROLLER_PATH];
+        let blueprint = [crate::third_person_blueprint::ASSET_PATH];
+        for (flavor, mine) in [
+            (GameplayFlavor::Cpp, &cpp[..]),
+            (GameplayFlavor::Lua, &lua[..]),
+            (GameplayFlavor::Blueprint, &blueprint[..]),
+        ] {
+            let (parent, root) = disposable(flavor);
+            for path in cpp.iter().chain(&lua).chain(&blueprint) {
+                assert_eq!(
+                    root.join(path).is_file(),
+                    mine.contains(path),
+                    "{flavor:?} generated {path}"
+                );
+            }
+            let readme = std::fs::read_to_string(root.join("README.md")).unwrap();
+            assert!(!readme.contains("<!--GAMEPLAY-->"));
+            for path in cpp.iter().chain(&lua).chain(&blueprint) {
+                let named = readme.contains(path.rsplit('/').next().unwrap());
+                assert_eq!(named, mine.contains(path), "{flavor:?} README names {path}");
+            }
+            // Build output is never template content, and the caches the editor
+            // does create on open stay out of version control.
+            for excluded in ["exports", "artifacts"] {
+                assert!(
+                    !root.join(excluded).exists(),
+                    "{flavor:?} bundled {excluded}"
+                );
+            }
+            let ignore = std::fs::read_to_string(root.join(".gitignore")).unwrap();
+            for excluded in ["/.epok/", "/UserSettings/", "/exports/", "/artifacts/"] {
+                assert!(
+                    ignore.contains(excluded),
+                    "{flavor:?} .gitignore misses {excluded}"
+                );
+            }
+            std::fs::remove_dir_all(parent).unwrap();
+        }
+    }
+
+    /// The scene, the assets and the transforms are the template; the flavor is
+    /// only the class the Player binds. Anything else drifting between them
+    /// would make the three impossible to compare.
+    #[test]
+    fn every_flavor_shares_one_scene() {
+        let mut shape = None;
+        for flavor in [
+            GameplayFlavor::Cpp,
+            GameplayFlavor::Lua,
+            GameplayFlavor::Blueprint,
+        ] {
+            let (parent, root) = disposable(flavor);
+            let scene = Scene::load(&crate::workspace::startup_scene(&root).unwrap()).unwrap();
+            let described = scene
+                .actors
+                .iter()
+                .map(|actor| {
+                    (
+                        actor.name.clone(),
+                        actor.kind.clone(),
+                        actor.parent,
+                        actor.position,
+                        actor.rotation,
+                        actor.scale,
+                        format!("{:?}", actor.collider),
+                        format!("{:?}", actor.editable_mesh.as_ref().map(|m| m.asset)),
+                        format!(
+                            "{:?}",
+                            actor.skeletal_mesh.as_ref().map(|m| (m.asset, m.clip))
+                        ),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let files = walk(&root.join("assets/Character"));
+            match &shape {
+                None => shape = Some((described, files)),
+                Some(first) => {
+                    assert_eq!(first.0, described, "{flavor:?} changed the shared scene");
+                    assert_eq!(first.1, files, "{flavor:?} changed the shared assets");
+                }
+            }
+            let player = scene
+                .actors
+                .iter()
+                .find(|actor| actor.name == "Player")
+                .unwrap();
+            let controller = player
+                .components
+                .iter()
+                .find(|c| c.class.name == CONTROLLER_NAME)
+                .unwrap_or_else(|| panic!("{flavor:?} Player has no controller"));
+            let expected = match flavor {
+                GameplayFlavor::Cpp => CPP_CONTROLLER_ID,
+                GameplayFlavor::Lua => LUA_CONTROLLER_ID,
+                GameplayFlavor::Blueprint => crate::third_person_blueprint::CLASS_ID,
+            };
+            assert_eq!(controller.class.class_id.as_deref(), Some(expected));
+            if flavor != GameplayFlavor::Cpp {
+                // Typed references, not a display-name lookup at begin_play.
+                let camera = scene
+                    .actors
+                    .iter()
+                    .find(|actor| actor.name == "Camera")
+                    .unwrap();
+                let bound = match flavor {
+                    GameplayFlavor::Lua => camera.root().unwrap().id,
+                    _ => camera.id,
+                };
+                assert_eq!(
+                    controller.properties.get("camera").and_then(|v| v.as_str()),
+                    Some(bound.to_string().as_str())
+                );
+                let visual = scene
+                    .actors
+                    .iter()
+                    .find(|actor| actor.name == "Visual")
+                    .unwrap();
+                let mesh = visual
+                    .components
+                    .iter()
+                    .find(|c| {
+                        c.class.class_id.as_deref()
+                            == Some(crate::object_model::MESH3D_COMPONENT_ID)
+                    })
+                    .unwrap();
+                assert_eq!(
+                    controller.properties.get("visual").and_then(|v| v.as_str()),
+                    Some(mesh.id.to_string().as_str())
+                );
+                let mut slots: Vec<u64> = CLIP_PROPERTIES
+                    .iter()
+                    .map(|name| controller.properties[*name].as_u64().unwrap())
+                    .collect();
+                slots.sort_unstable();
+                assert_eq!(slots, vec![0, 1, 2, 3, 4, 5], "{flavor:?} clip indices");
+            }
+            std::fs::remove_dir_all(parent).unwrap();
+        }
+    }
+
+    /// The compiler is the only honest answer to "does this flavor work?": it
+    /// runs the real Lua frontend and the real Blueprint backend against the
+    /// generated sources and resolves the class the scene binds.
+    #[test]
+    fn every_flavor_compiles_and_resolves_its_controller() {
+        for flavor in [
+            GameplayFlavor::Cpp,
+            GameplayFlavor::Lua,
+            GameplayFlavor::Blueprint,
+        ] {
+            let (parent, root) = disposable(flavor);
+            let index = assets::scan(&root, &mut Default::default());
+            assert!(
+                index.problems.is_empty(),
+                "{flavor:?} asset problems: {:?}",
+                index.problems
+            );
+            let catalog = crate::scripts::catalog(&root)
+                .unwrap_or_else(|e| panic!("{flavor:?} script catalog: {e}"));
+            let controller = catalog
+                .iter()
+                .flat_map(|script| script.classes.iter())
+                .find(|class| class.cpp_name == CONTROLLER_NAME)
+                .unwrap_or_else(|| panic!("{flavor:?} catalog has no {CONTROLLER_NAME}"));
+            let expected = match flavor {
+                GameplayFlavor::Cpp => CPP_CONTROLLER_ID,
+                GameplayFlavor::Lua => LUA_CONTROLLER_ID,
+                GameplayFlavor::Blueprint => crate::third_person_blueprint::CLASS_ID,
+            };
+            assert_eq!(controller.id, expected);
+            let scene = Scene::load(&crate::workspace::startup_scene(&root).unwrap()).unwrap();
+            let header = crate::project::scene_header(&scene, &catalog).unwrap();
+            assert!(header.contains(CONTROLLER_NAME), "{flavor:?} scene header");
+            std::fs::remove_dir_all(parent).unwrap();
+        }
+    }
+
+    /// Every numeric literal in a source, so the three flavors can be compared
+    /// on the values they actually contain rather than on a claim in a comment.
+    fn literals(source: &str) -> std::collections::BTreeSet<String> {
+        let bytes: Vec<char> = source.chars().collect();
+        let mut out = std::collections::BTreeSet::new();
+        let mut index = 0;
+        while index < bytes.len() {
+            if !bytes[index].is_ascii_digit() {
+                index += 1;
+                continue;
+            }
+            let start = index;
+            while index < bytes.len() && (bytes[index].is_ascii_digit() || bytes[index] == '.') {
+                index += 1;
+            }
+            let run: String = bytes[start..index].iter().collect();
+            // A decimal point is what makes a tuning value; indices, ports and
+            // button numbers are integers and are compared by behaviour, not here.
+            if !run.contains('.') || run.ends_with('.') {
+                continue;
+            }
+            let signed = start > 0
+                && bytes[start - 1] == '-'
+                && (start < 2 || !bytes[start - 2].is_alphanumeric());
+            let Ok(value) = run.parse::<f64>() else {
+                continue;
+            };
+            out.insert(format!("{:.6}", if signed { -value } else { value }));
+        }
+        out
+    }
+
+    /// The flavors are only comparable if they are built from the same values
+    /// and the same engine operations. Both are checked on the sources that are
+    /// actually generated, so a change to one of the three has to be made to
+    /// all three or this fails.
+    #[test]
+    fn the_three_flavors_share_their_tuning_and_their_operations() {
+        let cpp = include_str!("../templates/ThirdPersonController.cpp");
+        let lua = include_str!("../templates/ThirdPersonController.lua");
+        let blueprint = String::from_utf8(
+            crate::document::to_vec(&crate::third_person_blueprint::asset()).unwrap(),
+        )
+        .unwrap();
+        let tuning = [
+            6.0, 2.6, 540.0, 140.0, 70.0, -10.0, 55.0, 5.4, 1.1, 24.0, 9.0, -0.05, 0.6, 12.0, 3.0,
+            0.2, 1.6, 60.0, 0.04, 0.12, 0.001,
+        ];
+        for (flavor, source) in [("C++", cpp), ("Lua", lua), ("Blueprint", &blueprint[..])] {
+            let found = literals(source);
+            for value in tuning {
+                assert!(
+                    found.contains(&format!("{value:.6}")),
+                    "the {flavor} controller is missing the tuning value {value}"
+                );
+            }
+        }
+
+        // Lua and Blueprint reach the engine through the same reflected
+        // operations. The Blueprint asset names them by UUID and the Lua source
+        // by their script spelling, so the pairs are checked together.
+        for (uuid, spelling) in [
+            (
+                "eeee7d31-a8c6-437a-95db-10e163771b24",
+                "epok.math.sine_degrees",
+            ),
+            (
+                "565552a8-869a-4ca7-a1d8-a7ad6e1508a7",
+                "epok.math.cosine_degrees",
+            ),
+            ("57b625c6-06d7-4635-b551-17a75ceffa3b", "epok.math.length2"),
+            (
+                "9b882fef-4a7b-4463-81aa-65b2f7e0dcd0",
+                "epok.math.wrap_degrees",
+            ),
+            (
+                "bacfcfc1-e38c-44d2-b47d-19ec3ae37f8d",
+                "epok.math.move_toward_degrees",
+            ),
+            (
+                "1057a007-0420-4b95-8f48-140be81f9ba5",
+                "epok.math.heading_degrees",
+            ),
+            (
+                "5b0a28df-53d9-40e4-b7ca-c5381f473771",
+                "epok.math.stick_intent",
+            ),
+            ("6b6ba8bd-8446-4fef-a147-e41b61f88a61", "epok.math.clamp"),
+            ("4fe0f030-091c-4d55-984d-769077622c33", "epok.math.vector3"),
+            (
+                "da298163-8f45-4b47-81c9-e2e70c89a566",
+                "epok.collision.move",
+            ),
+            (
+                "acebf3f3-9592-481f-820e-99e44b834f5d",
+                "epok.collision.raycast_segment",
+            ),
+            (
+                "e36ec48c-b2fe-49a2-8935-894d346882f7",
+                "epok.scene.set_camera",
+            ),
+            ("047cbafb-5024-44d8-92a3-4939b31de81d", ":play_clip("),
+            ("74c0cd75-108d-486c-bccb-68b0a85b1a9a", ":pause_animation("),
+            ("3ec24d35-4613-4ffb-b50a-0ea205e901b1", ":playback_state("),
+            ("3ea752b4-6bf6-4e45-831c-b05524ecdc46", ":clip_frames("),
+            ("857927dd-9229-44d3-8556-b392f18f3567", ":clip_loop_ticks("),
+            (
+                "b0b30f1a-a82b-4806-bb2a-eb7392bb6607",
+                ":set_animation_position(",
+            ),
+        ] {
+            assert!(lua.contains(spelling), "the Lua controller lost {spelling}");
+            assert!(
+                blueprint.contains(uuid),
+                "the Blueprint controller lost {spelling} ({uuid})"
+            );
+        }
+
+        // The C++ oracle uses the same math rather than a private copy of it,
+        // which is what makes the comparison meaningful at all.
+        for operation in [
+            "MathLibrary::sine_degrees",
+            "MathLibrary::cosine_degrees",
+            "MathLibrary::length2",
+            "MathLibrary::wrap_degrees",
+            "MathLibrary::move_toward_degrees",
+            "MathLibrary::heading_degrees",
+            "MathLibrary::stick_intent",
+            "MathLibrary::clamp",
+        ] {
+            assert!(
+                cpp.contains(operation),
+                "the C++ controller lost {operation}"
+            );
+        }
+        // No flavor reaches another's implementation.
+        assert!(!lua.contains("ThirdPersonController.hpp"));
+        assert!(!blueprint.contains("CharacterMotion"));
+    }
+
+    fn walk(root: &Path) -> Vec<String> {
+        let mut out = vec![];
+        let mut pending = vec![root.to_path_buf()];
+        while let Some(directory) = pending.pop() {
+            let Ok(entries) = std::fs::read_dir(&directory) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    pending.push(path);
+                } else {
+                    out.push(
+                        path.strip_prefix(root)
+                            .unwrap()
+                            .to_string_lossy()
+                            .replace('\\', "/"),
+                    );
+                }
+            }
+        }
+        out.sort();
+        out
+    }
 
     #[test]
     fn template_is_animated_grouped_and_self_contained() {

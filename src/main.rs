@@ -122,6 +122,7 @@ mod playback_staging;
 mod preview_audio;
 mod project;
 mod project_browser;
+mod project_templates;
 mod psx_library;
 mod psx_library_asset;
 #[cfg(test)]
@@ -137,6 +138,7 @@ mod reflection_schema;
 mod repo_policy_tests;
 #[cfg(test)]
 mod runtime_api_tests;
+mod sample_template;
 mod scene;
 mod scene_bank;
 mod scene_dependencies;
@@ -179,6 +181,7 @@ mod terrain_compile;
 mod terrain_editor;
 mod texture;
 mod third_person;
+mod third_person_blueprint;
 mod timeline;
 mod timeline_adapters;
 mod timeline_compile;
@@ -260,23 +263,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|v| v[1].as_str())
             .or_else(|| destination.file_name().and_then(|v| v.to_str()))
             .ok_or("Project name required")?;
-        let template = match args
+        let template = args
             .windows(2)
             .find(|v| v[0] == "--template")
             .map(|v| v[1].as_str())
-            .unwrap_or("basic")
-        {
-            "basic" => workspace::Template::Basic,
-            "sample" => workspace::Template::Sample,
-            "third-person" => workspace::Template::ThirdPerson,
-            other => {
-                return Err(format!(
-                    "Unknown template: {other}. Use basic, sample or third-person."
-                )
-                .into());
-            }
-        };
-        let project = workspace::create(&destination, name, template)?;
+            .unwrap_or("basic");
+        let gameplay = args
+            .windows(2)
+            .find(|v| v[0] == "--gameplay")
+            .map(|v| v[1].as_str())
+            .unwrap_or("cpp");
+        let options = workspace::creation_options(template, gameplay)?;
+        let project = workspace::create_with_options(&destination, name, options)?;
         println!("Created project: {}", project.root.display());
         return Ok(());
     }
