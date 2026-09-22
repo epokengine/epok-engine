@@ -1520,7 +1520,11 @@ mod tests {
             let mut doc = crate::terrain::Document::new([cells, cells], 128. / f32::from(cells));
             for j in 0..=cells {
                 for i in 0..=cells {
-                    doc.set_height(i, j, ((f32::from(i) * 0.4).sin() + (f32::from(j) * 0.3).cos()) * 2.);
+                    doc.set_height(
+                        i,
+                        j,
+                        ((f32::from(i) * 0.4).sin() + (f32::from(j) * 0.3).cos()) * 2.,
+                    );
                 }
             }
             let mut terrain = crate::scene::Actor::cube("Terrain".into());
@@ -1544,7 +1548,10 @@ mod tests {
             sun.kind = "Light".into();
             sun.light = Some(Default::default());
             actors.push(sun);
-            Scene { actors, ..Default::default() }
+            Scene {
+                actors,
+                ..Default::default()
+            }
         };
         let view = crate::viewport::View::default();
         let state = crate::mesh_editor::State::default();

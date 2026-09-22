@@ -773,22 +773,7 @@ mod tests {
     #[test]
     fn packet_bounds_are_rejected_before_allocation() {
         let mut bytes = Vec::new();
-        for value in [
-            MAGIC,
-            0,
-            0,
-            2048,
-            0,
-            u32::MAX,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ] {
+        for value in [MAGIC, 0, 0, 2048, 0, u32::MAX, 0, 0, 0, 0, 0, 0, 0, 0] {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
         assert!(read_packet(&mut &bytes[..]).unwrap_err().contains("bounds"));

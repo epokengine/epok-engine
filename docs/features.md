@@ -25,6 +25,15 @@ unbounded or validated on every host and console. See [Known boundaries](#known-
   a per-project lock prevent the same project being edited twice.
 - **Templates.** New-project choices are Basic, Sample and Third Person, each with a C++, Blueprint or Lua gameplay flavor that decides only the starter implementation.
   Creation claims a new directory and never merges into existing content.
+- **Template browser and project defaults.** New project presents a thumbnail,
+  title and summary per template with a large preview, and a Project Defaults
+  block holding the gameplay flavor and target platform. Template, flavor and
+  platform are independent choices; the flavor decides only which starter source
+  is written and is not recorded in the descriptor. Creation is transactional and
+  removes a folder it claimed if a template fails part way.
+- **Dependencies pane.** External tool setup is a Hub pane beside Projects and
+  New project, drawn from the same page the editor shows inside Preferences, with
+  a platform tab bar for the tools a target needs.
 - **Legacy migration and recovery.** Legacy manifests and JSON documents remain
   readable. Migration is explicit, keeps backups and has recovery choices for an
   interrupted migration. See [Projects](projects.md) and [formats](formats.md).
@@ -53,7 +62,12 @@ unbounded or validated on every host and console. See [Known boundaries](#known-
   normal save shortcuts.
 - **Component Inspector.** Edit materials, scripts and typed script properties,
   cameras, meshes, collision, lighting, shadows, sprites, particle emitters,
-  skeletal animation, audio, timelines, effects and HUD components.
+  skeletal animation, audio, timelines, effects and HUD components. The panel is
+  a dense two-column property grid whose sections are full-width bands; each
+  band carries its own command menu, and a renderer section owns both its
+  geometry selection and how it is drawn.
+- **Control bindings.** Keyboard, mouse and pad bindings are edited against a
+  controller illustration whose button regions scale with the image.
 - **Numeric editing.** Numeric properties accept direct text entry and
   click-drag adjustment with the appropriate cursor feedback.
 - **Console.** Build, import, emulator and serial output is available in a
@@ -130,6 +144,12 @@ The complete interaction and preview contract is in the
   custom mesh document. Edit vertices, faces and material slots; extrude, inset,
   bevel, subdivide and build ramps. Geometry editing has local Undo/Redo and
   preserves stable asset UUIDs. See [Blockout](blockout.md).
+- **Heightmap terrain.** Sculpt and paint a grid of up to 256 x 256 cells whose
+  corner heights are stored in Q8 and whose materials autotile their own borders
+  from the four edge neighbours. The grid bakes into the same chunk format as
+  blockout geometry, so it inherits culling, retained packets, visibility,
+  streaming and the lighting bake, and an optional heightfield collider samples
+  it bilinearly in Q12. See [Terrain](terrain.md).
 - **Spatial compilation.** Editable faces are converted to bounded PSX chunks
   with UV/material data, visibility bounds and optional external page locations.
 - **Static OBJ/MTL import.** Import triangular or quad OBJ geometry and material
@@ -403,15 +423,23 @@ Start with [Your first Blueprint](blueprints-tutorial.md), then use the
 
 ## Input, collision and runtime object services
 
-- **Controller input.** Two ports expose connected, held, pressed, released and
-  frame-edge state for the standard PSX buttons. The embedded Game view owns focus
-  and releases buttons when focus is lost. An opt-in analog-controller mode adds
-  signed Q12 stick axes for both sticks with an exact center and no dead zone.
+- **Controller input.** Four logical pads — a multitap's Pad1a to Pad1d on
+  hardware, the matching virtual pads under Native PC — expose connected, held,
+  pressed, released and frame-edge state for the standard PSX buttons. The
+  embedded Game view owns focus and releases buttons when focus is lost. An
+  opt-in analog-controller mode adds signed Q12 stick axes for both sticks with
+  an exact center and no dead zone.
 - **Measured fixed step.** Host frame time feeds a fixed 60 Hz simulation with
   bounded catch-up, pause, single-step, tick counters and interpolation data.
 - **AABB collision.** Collider layers/masks, solid and trigger modes, overlap,
   swept movement and trigger Enter/Stay/Exit events run in bounded storage.
   Collision is conservative and not a rigid-body solver.
+- **Baked navigation (NavLite).** Bake a bounded walking graph from box colliders,
+  collider ramps and navigation surfaces inside authored volumes under one shared
+  profile, then move agents over it within a fixed console search budget. Authored
+  jump and climb links, moving obstacles, a cached editor preview of the selected
+  volume and automatic rebaking on fingerprint changes are included. Version 1
+  supports flat surfaces and obstacles. See [NavLite](navigation.md).
 - **Entity handles.** Slot-plus-generation handles detect destroyed/reused objects.
   Runtime creation, subtree destruction, activation and lookup are bounded.
 - **Scene lifetime.** Deactivation affects descendants and rendering/audio/
@@ -423,6 +451,10 @@ See [Input, time and collision](input-collision.md) and
 
 ## Play, emulation and physical-console workflow
 
+- **Native PC runtime.** Play the generated C++ gameplay on the host with the same
+  fixed 60 Hz clock as the console. It runs out of process and returns only bounded
+  actor and HUD snapshots to the editor renderer; the PlayStation runner choice is
+  retained while it is active.
 - **Persistent Play profile.** Choose destination (embedded PCSX-Redux, separate
   emulator window or PSX through serial), content (current open scene including
   unsaved edits or whole game from startup) and data source (in executable, CD on
