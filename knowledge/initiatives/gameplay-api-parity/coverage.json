@@ -2,10 +2,10 @@
   "schema_version": 2,
   "initiative": "gameplay-api-parity",
   "baseline": {
-    "commit": "4c58e6a0825b764b553f7bcf4ecf56a01c1952a8",
-    "branch": "features/hud-authoring",
+    "commit": "c429a2e513b052b7912d1a126e305cbc9666887e",
+    "branch": "features/api-extraction-generated-headers",
     "catalog": "docs/api/catalog.json",
-    "catalog_sha256": "fef0ff2d4f59b1f85c9a33114671d0bb26d866f5ae4a5ba192973380bbcf54fe",
+    "catalog_sha256": "08020cd76d6a92d77296b36e9f261fd34c55abffa03f7314a850a03dd7302949",
     "catalog_schema": 1,
     "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
     "source_hashes": {
@@ -257506,12 +257506,12 @@
           "source": "runtime/sequence_service.hpp",
           "line": 57,
           "signature": "inline instrument::reverb::Resource<> reverb_resource",
-          "value_type": "int",
+          "value_type": "instrument::reverb::Resource<>",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "1b55eca2f73a30f53d76dab1c6254df740002ead8e24b66ed8ab863484d9c1c9",
+      "declaration_hash": "a0b153fd25ddde5129512ddfa35942fefcccfce524fdeb8ad6b4d3f1ae8526a2",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "inline instrument::reverb::Resource<> reverb_resource",
@@ -257519,11 +257519,11 @@
         "parameters": [
           {
             "name": "value",
-            "type": "int",
+            "type": "instrument::reverb::Resource<>",
             "direction": "read_write"
           }
         ],
-        "returns": "int"
+        "returns": "instrument::reverb::Resource<>"
       },
       "owner_domain": {
         "owner": "epok::psx_audio",

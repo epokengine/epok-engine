@@ -8899,7 +8899,9 @@
       "details": "",
       "namespace": "epok",
       "owner": "",
-      "bases": []
+      "bases": [
+        "psyqo::CDRomDevice::Action<XAState>"
+      ]
     },
     {
       "family": "epok",
@@ -126107,7 +126109,7 @@
       "kind": "VAR_DECL",
       "line": 57,
       "signature": "inline instrument::reverb::Resource<> reverb_resource",
-      "type": "int",
+      "type": "instrument::reverb::Resource<>",
       "brief": "Exposes `reverb_resource` on the `epok::psx_audio` namespace for the sequence service module.",
       "details": "",
       "namespace": "epok::psx_audio",
