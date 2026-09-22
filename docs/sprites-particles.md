@@ -62,4 +62,4 @@ at most six catch-up steps per UI frame and discards excess wall time. The older
 Scene view particle preview still uses its existing Rust simulation; it is not
 the effect parity reference. GPU rendering is not pixel-identical to PSX.
 
-The [included example](../examples/rpg-2-5d-demo/README.md) exercises textured geometry, sprite sorting, animation, bursts, collision, input, resource reuse and HUD text. Host runtime tests use the actual PsyQo Q12 type: `python tests/runtime/verify_sprites_particles.py`.
+Host runtime tests use the actual PsyQo Q12 type: `python tests/runtime/verify_sprites_particles.py`.

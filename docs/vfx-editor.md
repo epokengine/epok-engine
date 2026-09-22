@@ -4,19 +4,19 @@ Create reusable effects from sprite and particle layers, animate them over time,
 and place them in a scene. Each `.particle-effect.json` asset contains one
 embedded TimelineAsset. The same timeline system also drives scene sequences.
 
-Start here for visual authoring. Continue with [the spell tutorial](spell-tutorial.md)
-to trigger the effect from Blueprints, or [Timeline reference](timelines.md) for
-typed scene bindings and runtime rules. Authoring uses the Windows or Linux
-reflection toolchain described in [Getting started](getting-started.md).
+Start here for visual authoring. Continue with [Blueprints](blueprints.md) to
+trigger the effect from a graph, or [Timeline reference](timelines.md) for typed
+scene bindings and runtime rules. Authoring uses the Windows or Linux reflection
+toolchain described in [Getting started](getting-started.md).
 
 ## Open a working effect
 
-![Epok Particle Effect editor with preview transport, particle counters, duration controls and Fireball layers](images/vfx-editor.png)
+![Epok Particle Effect editor with preview transport, particle counters, duration controls and layers](images/vfx-editor.png)
 
-Open `examples/timeline-spell/Timeline Spell.epokproject` from the engine checkout.
-In Project, double-click `assets/Effects/Fireball.particle-effect.json`. This
-example already has an imported atlas, seven layers, curves, bursts and markers.
-It is useful for learning the controls before building an effect from scratch.
+Choose **New Particle Effect** in the Project browser and pick a preset, or
+double-click an existing `.particle-effect.json` asset. A preset arrives with
+layers, curves and a timeline already authored, which is useful for learning the
+controls before building an effect from scratch.
 
 Use **Pause preview**, **Restart preview**, and **Preview step** to inspect the
 effect. The preview uses the authored seed, so restarting a fixed seed gives a
@@ -156,7 +156,7 @@ they animate an overridden property.
 
 For transient explosions or projectiles, use Blueprint **Effect / Spawn asset**
 instead. It accepts a world Transform and optional owner and does not require a
-persistent effect component. Follow [Spell tutorial](spell-tutorial.md) for the
+persistent effect component. See [Timeline playback](timelines.md) for the
 handle, marker and completion wiring.
 
 ## Validate appearance and cost

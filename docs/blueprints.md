@@ -2,8 +2,7 @@
 
 Start with [Your first Blueprint](blueprints-tutorial.md) for a guided editor
 exercise. This page is the reference for types, inheritance and execution.
-For visual gameplay, continue with [VFX authoring](vfx-editor.md) and the
-[marker-driven spell tutorial](spell-tutorial.md). Keep
+For visual gameplay, continue with [VFX authoring](vfx-editor.md). Keep
 [troubleshooting](blueprints-vfx-troubleshooting.md) nearby when repairing graphs.
 
 Blueprints are original `.epokbp` class assets, not generated C++ files.
@@ -239,8 +238,7 @@ external binding slots. Slot renames/reordering retain connections; removed slot
 remain visible as stale connections until repaired. Subscribe to marker delivers
 future crossings through that same continuation table, retaining a compact
 backlog while the reached branch suspends. See [Timeline playback](timelines.md)
-for owner, pause, completion and cancellation rules, and open the
-`timeline-spell` example's `BP_Fireball` for an authored combat graph.
+for owner, pause, completion and cancellation rules.
 
 ## Actor templates and construction
 

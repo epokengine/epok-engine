@@ -74,8 +74,8 @@ calls. Instrumented Play supports node breakpoints, stepping and typed values;
 release builds omit debugger instrumentation. Exported C++ projects rebuild
 without the editor or reflection extractor.
 
-Start with [Your first Blueprint](docs/blueprints-tutorial.md), then connect an
-effect with the [spell tutorial](docs/spell-tutorial.md). The [Blueprint reference](docs/blueprints.md)
+Start with [Your first Blueprint](docs/blueprints-tutorial.md), then author the
+effect it drives with the [VFX editor](docs/vfx-editor.md). The [Blueprint reference](docs/blueprints.md)
 documents execution and console-side limits. Blueprints use Epok's own asset format and
 bounded native backend; foreign assets/APIs and live native-code patching are not
 supported. Blueprint reflection/authoring is available on Windows x64 and Linux
@@ -143,7 +143,7 @@ See [Getting started](docs/getting-started.md) for configuration and troubleshoo
 | Command | Purpose |
 | --- | --- |
 | `cargo run --locked` | Open the project Hub |
-| `cargo run --locked -- --project examples/rpg-2-5d-demo` | Open the included 2.5D project |
+| `cargo run --locked -- --project examples/sample-game` | Open the included sample project |
 | `cargo build --locked --release` | Build the optimized editor |
 | `make app` (macOS) | Build `Epok Engine.app` and optionally replace its Desktop copy |
 | `cargo test --locked` | Run the default Rust test suite |
@@ -163,13 +163,11 @@ A release build produces the editor executable. On macOS, `make app` additionall
 
 See [Sprites and particles](docs/sprites-particles.md), [Textures](docs/textures.md) and [HUD](docs/hud.md) for the engine features used in this scene.
 
-### A playable 2.5D scene
+### A playable third-person scene
 
-The [included demo](examples/rpg-2-5d-demo/README.md) combines a courtyard and night scene with textured geometry, lit animated sprites, collision, particles, a portal, HUD text, scrolling water and shared resources.
+Choose the **Third Person** template for an animated player with camera-relative movement, jumping, collision and an obstacle-aware orbit camera in an optimized arena. See [Third Person template](docs/third-person.md).
 
-![The Epok 2.5D demo running natively in PCSX-Redux](examples/rpg-2-5d-demo/preview.png)
-
-Move with the D-pad, trigger effects and switch scenes. The demo README documents its controls. Engine APIs are documented under [Input and collision](docs/input-collision.md), [Sprites and particles](docs/sprites-particles.md), [HUD](docs/hud.md) and [Runtime services](docs/runtime-services.md).
+Engine APIs are documented under [Input and collision](docs/input-collision.md), [Sprites and particles](docs/sprites-particles.md), [HUD](docs/hud.md) and [Runtime services](docs/runtime-services.md).
 
 ### From FBX to an animated character
 

@@ -568,7 +568,7 @@ Baseline artifacts: source revision plus dirty-tree digest, SDK/tool hashes, coo
 | Emulator integration | Boot, workflow and modeled hardware behavior | Native frame, assets, input replay, scene changes, streaming/audio/error paths |
 | Physical-console tests | Timing/cache/DMA/media behavior absent or imperfect in emulation | Audio+graphics stress, buffer retirement, real CD/save/ROM media, base-memory profile |
 
-Relevant existing entrypoints include `tests/runtime/verify_spatial.py`, `verify_sprites_particles.py`, `verify_frame_clear.py`, `verify_blueprint_runtime.py`, `test_stream_pool_layout.py`; integration scripts include `verify_pipeline.py`, `verify_projects.py`, `verify_reflection.py`, `verify_timeline_relocation.py`, `verify_particle_effect_preview.py`, `verify_bgm.py`, `verify_streaming.py`, `verify_streaming_xa.py` and `verify_skeletal.py`. Retain `tools/profile_runtime.py`, `profile_forest_*`, `compare_runtime.py`, and `compare_vram.py`. Run emulator suites serially where their current harness expects exclusive ownership; first read `knowledge/maintainers/testing.md` for fixture and environment requirements.
+Relevant existing entrypoints include `tests/runtime/verify_spatial.py`, `verify_sprites_particles.py`, `verify_frame_clear.py`, `verify_blueprint_runtime.py`, `test_stream_pool_layout.py`; integration scripts include `verify_pipeline.py`, `verify_projects.py`, `verify_reflection.py`, `verify_particle_effect_preview.py`, `verify_bgm.py`, `verify_streaming.py`, `verify_streaming_xa.py` and `verify_skeletal.py`. Retain `tools/profile_runtime.py`, `profile_forest_*`, `compare_runtime.py`, and `compare_vram.py`. Run emulator suites serially where their current harness expects exclusive ownership; first read `knowledge/maintainers/testing.md` for fixture and environment requirements.
 
 Before crate moves, use the current host checks: `cargo fmt --all -- --check`, `cargo test --locked`, `cargo clippy --locked --all-targets -- -D warnings`, `cargo build --locked`. After splitting, make package selection explicit and add host CI. Existing GitHub workflows primarily enforce release/version policy, so a full engine CI matrix is new work.
 
@@ -1132,7 +1132,7 @@ The `Do not change` entry narrows scope further. Dependencies identify necessary
 - **Goal/context:** Existing behaviors and Blueprint output use direct fields/pointers and C++ text.
 - **Constraint:** Compatibility is an explicit API/node matrix, not a claim that all scripts are portable.
 - **Files:** Proposed `runtime/compat/epok-game-v1.h/.hpp`, `docs/architecture/cpp-compatibility.md`, reflection capability metadata.
-- **Instructions:** Audit sample-game, timeline-spell and disposable Ironwood script usage; specify supported accessors, callbacks, handles, numeric types and unsupported native extensions; compile a header-only fixture.
+- **Instructions:** Audit sample-game and disposable Ironwood script usage; specify supported accessors, callbacks, handles, numeric types and unsupported native extensions; compile a header-only fixture.
 - **Do not change:** Existing C++ scripts, original public API or Blueprint lowering yet.
 - **Dependencies:** T04, T09, T16; independent of later N64 rendering.
 - **Validation / done:** Every sampled API use is classified; facade compiles without PsyQo/libdragon headers; unsupported execution produces a diagnostic without deleting serialized data.
@@ -1251,7 +1251,7 @@ The `Do not change` entry narrows scope further. Dependencies identify necessary
 
 - **Goal/context:** A useful engine milestone requires more than isolated subsystem demos.
 - **Constraint:** Feature inventory drives acceptance; target-specific visual/media overrides are explicit and original projects stay intact.
-- **Files:** `examples/portable-parity`, disposable sample-game/timeline-spell/Ironwood migration copies, parity matrix.
+- **Files:** `examples/portable-parity`, disposable sample-game/Ironwood migration copies, parity matrix.
 - **Instructions:** Integrate input/3D/HUD/scenes/audio/save/animation/authored-system scenarios; use T54–56 movement/trigger/HUD services and T57–60 scene/script/export path. Enumerate any remaining game-specific unsupported call and create a bounded task before declaring its scenario complete.
 - **Do not change:** Original demo assets/scripts or redefine parity to omit a listed required behavior.
 - **Dependencies:** T26, T31, T35–42, T43, T54–60.

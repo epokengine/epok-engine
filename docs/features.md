@@ -288,8 +288,8 @@ emulator validation are pending on an SDK machine. See
   certifying stale output. Unsaved open documents participate in Play using the
   documented save/discard rules.
 
-See the complete [Timeline reference](timelines.md), the
-[spell tutorial](spell-tutorial.md) and [troubleshooting guide](blueprints-vfx-troubleshooting.md).
+See the complete [Timeline reference](timelines.md) and the
+[troubleshooting guide](blueprints-vfx-troubleshooting.md).
 
 ## HUD and 2D interface
 
