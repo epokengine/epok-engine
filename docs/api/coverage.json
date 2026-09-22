@@ -2,9 +2,9 @@
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
     "headers": 82,
-    "types": 378,
-    "callables": 1314,
-    "properties": 1973
+    "types": 379,
+    "callables": 1330,
+    "properties": 1976
   },
   "psyqo": {
     "headers": 53,
@@ -197,10 +197,10 @@
       "family": "epok",
       "header": "gameplay_api.hpp",
       "slug": "gameplay-api",
-      "callables": 77,
-      "types": 31,
-      "properties": 105,
-      "source_sha256": "0751ccbecf3809c4d326135a303acd072d3761fe5e795555ebb9f6aa17039edd",
+      "callables": 90,
+      "types": 32,
+      "properties": 108,
+      "source_sha256": "eefc36e47fe76329897b42770a5ceeb091dc0956606e2a5ff5be45ec7a63d427",
       "diagnostics": []
     },
     {
@@ -427,10 +427,10 @@
       "family": "epok",
       "header": "object_model.hpp",
       "slug": "object-model",
-      "callables": 297,
+      "callables": 300,
       "types": 49,
       "properties": 154,
-      "source_sha256": "2f0db49f2105d7ee5777574897d5626148d37c77d05aa87e82b317a2b3879cf3",
+      "source_sha256": "4fe1fbfa15fa61ecbaedaf1138a073ab23e0a2da8224ab470bbc2a0c74a6db67",
       "diagnostics": []
     },
     {

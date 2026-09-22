@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `02bc4ab98f68cc50d3882620e114adc43aefa707`. Frozen semantic candidate rows: **3242**.
+Baseline commit: `e345f11a3ead70a61d9ea261dc6991f8f793cd50`. Frozen semantic candidate rows: **3261**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -13,7 +13,7 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `compatibility_alias` | 44 |
 | `hardware_backend` | 6 |
 | `internal_implementation` | 2726 |
-| `public_gameplay` | 466 |
+| `public_gameplay` | 485 |
 
 ## Public gameplay gaps
 
@@ -40,10 +40,10 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `materials_visuals` | 47 |
 | `math_values` | 6 |
 | `memory_card` | 70 |
-| `objects_actors` | 522 |
+| `objects_actors` | 525 |
 | `particles_effects` | 169 |
 | `resources_diagnostics` | 58 |
-| `runtime_facade` | 548 |
+| `runtime_facade` | 564 |
 | `skeletal_animation` | 24 |
 | `sprites_palettes` | 72 |
 | `static_editable_meshes` | 71 |
@@ -150,10 +150,23 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::Light3DComponent::set_type` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::add` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::clamp` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::cosine_degrees` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::delta_degrees` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::heading_degrees` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::length` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::length2` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::lerp` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::move_toward` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::move_toward_degrees` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::scale` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::sine_degrees` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::smoothstep` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::square_root` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::stick_dead_zone` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::stick_intent` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::subtract` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::vector3` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MathLibrary::wrap_degrees` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::clear_staged_payload` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::file` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MemoryCardLibrary::list` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -168,6 +181,8 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::MemoryCardLibrary::write_staged` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::bone_count` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::clip_count` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Mesh3DComponent::clip_frames` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Mesh3DComponent::clip_loop_ticks` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::geometry_state` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::lighting_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::material_state` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -181,6 +196,7 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::Mesh3DComponent::sample_geometry_vertex` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::sample_vertex` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::sample_vertices` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Mesh3DComponent::set_animation_position` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::set_lighting_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::set_material_blend` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Mesh3DComponent::set_material_color` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -415,6 +431,9 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::MoveSample::normal` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MoveSample::unresolved_overlap` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MoveSample::valid` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MovementIntent::strength` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MovementIntent::x` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::MovementIntent::y` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ObjectBatch8::count` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ObjectBatch8::item0` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ObjectBatch8::item1` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
