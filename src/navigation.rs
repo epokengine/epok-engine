@@ -11,7 +11,7 @@ pub const SURFACE: &str = "e56c5741-4b0f-4861-a732-e91430c72a03";
 pub const LINK: &str = "e56c5741-4b0f-4861-a732-e91430c72a04";
 pub const OBSTACLE: &str = "e56c5741-4b0f-4861-a732-e91430c72a05";
 const EPS: f32 = 1. / 256.;
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Bake {
     pub fingerprint: String,
     pub nodes: Vec<Node>,
@@ -27,12 +27,12 @@ pub struct Bake {
     #[serde(default)]
     pub step_height: f32,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Node {
     pub position: [i16; 3],
     pub links: Vec<u16>,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Traversal {
     pub from: u16,
     pub to: u16,

@@ -1,4 +1,4 @@
-//! Portable PNG textures, deterministic PSX palettes and a framebuffer-safe VRAM layout.
+//! Portable PNG / indexed TIM textures and a framebuffer-safe VRAM layout.
 use crate::{
     assets,
     scene::{Material, Scene},
@@ -20,7 +20,7 @@ pub enum BlendMode {
     Subtract,
     AddQuarter,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Data {
     pub width: u16,
     pub height: u16,
@@ -30,6 +30,9 @@ pub struct Data {
 }
 
 pub fn decode(bytes: &[u8]) -> Result<Data, String> {
+    if bytes.starts_with(&0x10u32.to_le_bytes()) {
+        return decode_tim(bytes);
+    }
     let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
     decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
     let mut reader = decoder.read_info().map_err(|e| format!("PNG: {e}"))?;
@@ -116,6 +119,74 @@ pub fn decode(bytes: &[u8]) -> Result<Data, String> {
         words,
         palette,
     })
+}
+
+/// Source discovery only; the decoder validates the actual file contents.
+pub fn source_candidate(source: &str) -> bool {
+    Path::new(source).extension().and_then(|s| s.to_str())
+        .is_some_and(|s| s.eq_ignore_ascii_case("png") || s.eq_ignore_ascii_case("tim"))
+}
+
+impl Data {
+    /// PNG keeps its legacy STP-on policy. Native CLUTs can also contain opaque
+    /// texels inside a blending primitive; the host preview needs a second pass.
+    pub fn has_opaque_texels(&self) -> bool {
+        self.palette.iter().any(|&word| word != 0 && word & 0x8000 == 0)
+    }
+}
+
+/// A single 4/8-bit TIM image with one CLUT, relocated by the normal VRAM cook.
+/// Retain CLUT words and indices exactly (including visible index zero and
+/// transparent entries at other indices). No color quantization or STP rewrite.
+fn decode_tim(bytes: &[u8]) -> Result<Data, String> {
+    fn block<'a>(bytes: &mut &'a [u8]) -> Result<(u16, u16, &'a [u8]), String> {
+        if bytes.len() < 12 { return Err("TIM: truncated image/CLUT header".into()); }
+        let size = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
+        let width = u16::from_le_bytes(bytes[8..10].try_into().unwrap());
+        let height = u16::from_le_bytes(bytes[10..12].try_into().unwrap());
+        let payload = usize::from(width).checked_mul(usize::from(height))
+            .and_then(|n| n.checked_mul(2)).ok_or("TIM: block size overflow")?;
+        if size != 12 + payload || size > bytes.len() {
+            return Err("TIM: invalid image/CLUT block length".into());
+        }
+        let data = &bytes[12..size];
+        *bytes = &bytes[size..];
+        Ok((width, height, data))
+    }
+    if bytes.len() < 8 { return Err("TIM: truncated file header".into()); }
+    let flags = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
+    if !matches!(flags, 8 | 9) {
+        return Err("TIM: only indexed 4/8-bit images with one CLUT are supported".into());
+    }
+    let bits = if flags == 8 { 4 } else { 8 };
+    let mut remaining = &bytes[8..];
+    let (cw, ch, clut) = block(&mut remaining)?;
+    if cw != 1 << bits || ch != 1 {
+        return Err("TIM: export exactly one 16/256-color CLUT per image".into());
+    }
+    let (word_width, height, pixels) = block(&mut remaining)?;
+    let width = usize::from(word_width) * (16 / bits);
+    if width == 0 || width > 256 || height == 0 || height > 256 {
+        return Err("TIM: texture dimensions must be 1..256 pixels per axis".into());
+    }
+    if !remaining.is_empty() { return Err("TIM: unexpected trailing data".into()); }
+    let mut palette: Vec<u16> = clut.chunks_exact(2)
+        .map(|p| u16::from_le_bytes([p[0], p[1]])).collect();
+    palette.resize(256, 0);
+    let row = width.div_ceil(4) * 2;
+    let mut words = vec![0; row * usize::from(height)];
+    let mut rgba = Vec::with_capacity(width * usize::from(height) * 4);
+    for y in 0..usize::from(height) {
+        for x in 0..width {
+            let byte = pixels[y * usize::from(word_width) * 2 + x * bits / 8];
+            let index = if bits == 4 { (byte >> ((x % 2) * 4)) & 15 } else { byte };
+            words[y * row + x / 2] |= u16::from(index) << ((x % 2) * 8);
+            let color = palette[usize::from(index)];
+            for channel in 0..3 { rgba.push((((color >> (channel * 5)) & 31) * 255 / 31) as u8); }
+            rgba.push(if color == 0 { 0 } else { 255 });
+        }
+    }
+    Ok(Data { width: width as u16, height, rgba, words, palette })
 }
 pub fn prepare(
     root: &Path,
@@ -205,11 +276,17 @@ pub fn resolve(scene: &mut Scene, index: &assets::Index) -> Result<(), String> {
             if r.meta.kind != assets::Kind::Texture {
                 return Err(format!("{id} is not a Texture"));
             }
-            decode(&assets::Package::load(&r.path)?.source)
+            crate::source_cache::load(&r.path, &format!("texture-psx-v1-{id}"), |bytes| {
+                let package = assets::Package::parse(bytes)?;
+                if package.meta.kind != assets::Kind::Texture || package.meta.id != id {
+                    return Err("The texture asset was replaced; refresh the asset index".into());
+                }
+                decode(&package.source)
+            })
         };
         match load() {
             Ok(d) => {
-                scene.textures.insert(id, Arc::new(d));
+                scene.textures.insert(id, d);
             }
             Err(e) => errors.push(e),
         }
@@ -236,62 +313,9 @@ pub fn validate_region(id: Option<Uuid>, r: [u16; 4], scene: &Scene) -> Result<(
         Ok(())
     }
 }
-#[derive(Debug, Clone, PartialEq)]
-pub struct Placement {
-    pub x: u16,
-    pub y: u16,
-    pub clut_y: u16,
-}
+pub use crate::texture_cook::Placement;
 pub fn layout(scene: &Scene) -> Result<Vec<(Uuid, Placement)>, String> {
-    let mut cursor = [[0u16; 2]; 3];
-    let mut result = vec![];
-    // Pack tall atlases first: a short VFX strip must not fragment the only
-    // three 256-high pages and reject three full-size character atlases.
-    // Keep texture indices/CLUT identities in the original resource order.
-    let ordered_ids = ids(scene);
-    let mut packing_order: Vec<_> = ordered_ids.iter().copied().enumerate().collect();
-    packing_order.sort_by_key(|(i, id)| {
-        (
-            std::cmp::Reverse(scene.textures.get(id).map_or(0, |t| t.height)),
-            *i,
-        )
-    });
-    for (i, id) in packing_order {
-        if i >= 32 {
-            return Err("VRAM palette budget exceeded (32 textures)".into());
-        }
-        let t = scene
-            .textures
-            .get(&id)
-            .ok_or_else(|| format!("Unresolved texture {id}"))?;
-        let mut place = None;
-        for row in 0..2 {
-            for (col, rows) in cursor.iter_mut().enumerate() {
-                let limit = if row == 0 {
-                    256
-                } else if col == 2 {
-                    128 // Resident loading image at (960,384), font at (960,448).
-                } else {
-                    224
-                };
-                if rows[row] + t.height <= limit {
-                    place = Some(Placement {
-                        x: 640 + col as u16 * 128,
-                        y: row as u16 * 256 + rows[row],
-                        clut_y: 480 + i as u16,
-                    });
-                    rows[row] += t.height;
-                    break;
-                }
-            }
-            if place.is_some() {
-                break;
-            }
-        }
-        result.push((id,place.ok_or("Texture VRAM exhausted; reduce atlas height/count. Framebuffers and font are reserved.")?));
-    }
-    result.sort_by_key(|(id, _)| ordered_ids.iter().position(|v| v == id).unwrap());
-    Ok(result)
+    crate::texture_cook::layout(scene)
 }
 pub fn symbol(id: Uuid) -> String {
     format!("texture_id_{}", id.simple())
@@ -311,7 +335,7 @@ pub fn validate_material(m: &Material) -> Result<(), String> {
 }
 pub fn material_cpp(m: &Material) -> String {
     format!(
-        "{{{{{},{},{}}}, {},{},BlendMode::{:?},{},{{{},{}}}}}",
+        "{{{{{},{},{}}}, {},{},BlendMode::{:?},{},{},{{{},{}}}}}",
         (m.color[0] * 255.).round() as u8,
         (m.color[1] * 255.).round() as u8,
         (m.color[2] * 255.).round() as u8,
@@ -319,6 +343,7 @@ pub fn material_cpp(m: &Material) -> String {
         m.texture.map(symbol).unwrap_or("-1".into()),
         m.blend,
         m.depth_bias,
+        m.double_sided,
         (m.uv_scroll[0] * 4096.).round() as i32,
         (m.uv_scroll[1] * 4096.).round() as i32
     )
@@ -362,7 +387,8 @@ pub fn header(scene: &Scene) -> Result<String, String> {
         .iter()
         .map(|(id, _)| {
             let t = &scene.textures[id];
-            (t.words.len() + t.palette.len()) * 2
+            let cooked = crate::texture_cook::cook(t);
+            (cooked.words.len() + cooked.palette.len()) * 2
         })
         .sum::<usize>();
     let mut out = String::new();
@@ -370,8 +396,9 @@ pub fn header(scene: &Scene) -> Result<String, String> {
     let mut assets = vec![];
     for (i, (id, p)) in layout.iter().enumerate() {
         let t = &scene.textures[id];
+        let cooked = crate::texture_cook::cook(t);
         out += &format!("inline constexpr int {}={i};\n", symbol(*id));
-        for (name, values) in [("pixels", &t.words), ("palette", &t.palette)] {
+        for (name, values) in [("pixels", &cooked.words), ("palette", &cooked.palette)] {
             out += &format!(
                 "alignas(4) inline constexpr uint16_t texture_{i}_{name}[]={{{}}};\n",
                 values
@@ -382,13 +409,15 @@ pub fn header(scene: &Scene) -> Result<String, String> {
             );
         }
         assets.push(format!(
-            "{{{},{},{},{},{},640,{},texture_{i}_pixels,texture_{i}_palette}}",
+            "{{{},{},{},{},{},{},{},texture_{i}_pixels,texture_{i}_palette,{}}}",
             t.width,
             t.height,
             p.x,
             p.y,
-            t.width.div_ceil(4) * 2,
-            p.clut_y
+            cooked.format.word_width(t.width),
+            p.clut_x,
+            p.clut_y,
+            cooked.format.bits()
         ));
     }
     out += &format!(
@@ -400,11 +429,13 @@ pub fn header(scene: &Scene) -> Result<String, String> {
             assets.join(",")
         }
     );
+    out += "inline constexpr auto texture_packet_words=bake_texture_packets(texture_assets);\ninline const uint32_t* baked_texture_bank(const Texture* bank){return bank==texture_assets?texture_packet_words.words:nullptr;}\n";
     Ok(out)
 }
 
 pub fn picker(ui: &imgui::Ui, index: &assets::Index, material: &mut Material) -> bool {
     let mut changed = false;
+    changed |= ui.checkbox(crate::gui::field(ui, "Double sided"), &mut material.double_sided);
     if let Some(id) = material.texture
         && let Err(error) = index.resolve(id)
     {
@@ -458,8 +489,134 @@ pub fn picker(ui: &imgui::Ui, index: &assets::Index, material: &mut Material) ->
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+    pub fn tim_fixture(bits: usize, palette: &[u16], width_words: u16, height: u16, pixels: &[u8]) -> Vec<u8> {
+        let mut out = 0x10u32.to_le_bytes().to_vec();
+        out.extend_from_slice(&(if bits == 4 { 8u32 } else { 9u32 }).to_le_bytes());
+        for (width, height, data) in [
+            (palette.len() as u16, 1, palette.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<_>>()),
+            (width_words, height, pixels.to_vec()),
+        ] {
+            out.extend_from_slice(&(12u32 + data.len() as u32).to_le_bytes());
+            out.extend_from_slice(&[0; 4]); // Original VRAM position is intentionally not authoritative.
+            out.extend_from_slice(&width.to_le_bytes()); out.extend_from_slice(&height.to_le_bytes());
+            out.extend_from_slice(&data);
+        }
+        out
+    }
+    #[test]
+    fn tim_retains_all_clut_bits_indices_and_nonzero_index_zero() {
+        for bits in [4, 8] {
+            let mut palette = vec![0; 1 << bits];
+            palette[..4].copy_from_slice(&[0x001f, 0x801f, 0, 0x8000]);
+            let pixels = if bits == 4 { vec![0x10, 0x32, 0x01, 0x23] }
+                else { vec![0, 1, 2, 3, 1, 0, 3, 2] };
+            let encoded = tim_fixture(bits, &palette, (bits / 4) as u16, 2, &pixels);
+            let data = decode(&encoded).unwrap();
+            assert_eq!((data.width, data.height), (4, 2));
+            assert_eq!(data.words, [0x0100, 0x0302, 0x0001, 0x0203]);
+            assert_eq!(&data.palette[..1 << bits], &palette);
+            assert_eq!(&data.rgba[..16], &[255,0,0,255, 255,0,0,255, 0,0,0,0, 0,0,0,255]);
+            assert!(data.has_opaque_texels());
+            let cooked = crate::texture_cook::cook(&data);
+            assert_eq!(&cooked.palette[..4], &[0x001f, 0x801f, 0, 0x8000]);
+            assert_eq!(cooked.words, [0x3210, 0, 0x2301, 0]);
+            for n in 0..encoded.len() { assert!(decode(&encoded[..n]).is_err(), "prefix {n}"); }
+            let mut trailing = encoded.clone(); trailing.push(0); assert!(decode(&trailing).is_err());
+            let mut bad = encoded.clone(); bad[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
+            assert!(decode(&bad).is_err());
+        }
+    }
+    #[test]
+    fn tim_preserves_full_256_colors_without_reserved_transparency_or_quantization() {
+        let palette: Vec<u16> = (0..256).map(|i| 0x8000 | i).collect();
+        let pixels: Vec<u8> = (0..=255).collect();
+        let data = decode(&tim_fixture(8, &palette, 128, 1, &pixels)).unwrap();
+        assert_eq!(data.palette, palette);
+        assert!(data.rgba.chunks_exact(4).all(|p| p[3] == 255));
+        assert_eq!(crate::texture_cook::cook(&data).format, crate::texture_cook::Format::Indexed8);
+        for (i, word) in data.words.iter().enumerate() { assert_eq!(*word, (i*2) as u16 | (((i*2+1) as u16) << 8)); }
+        assert!(!data.has_opaque_texels());
+    }
+    #[test]
+    fn tim_rejects_ambiguous_palettes_dimensions_and_unsupported_modes() {
+        let valid = tim_fixture(4, &[0;16], 1, 1, &[0,0]);
+        for flags in [0u32, 1, 2, 3, 10, 11, 0x108] {
+            let mut bytes = valid.clone(); bytes[4..8].copy_from_slice(&flags.to_le_bytes());
+            assert!(decode(&bytes).unwrap_err().contains("only indexed"));
+        }
+        assert!(decode(&tim_fixture(4, &[0;32], 1, 1, &[0,0])).unwrap_err().contains("one 16/256"));
+        assert!(decode(&tim_fixture(4, &[0;16], 65, 1, &[0;130])).unwrap_err().contains("dimensions"));
+        assert!(decode(&tim_fixture(4, &[0;16], 1, 0, &[])).is_err());
+        for path in ["assets/a.tim", "assets/a.TIM", "assets/a.png"] { assert!(source_candidate(path)); }
+        assert!(!source_candidate("assets/a.tim.bak"));
+    }
+    #[test]
+    fn tim_import_reimport_snapshot_and_discovery_keep_asset_identity() {
+        let root = crate::workspace::tests::temp("native-tim");
+        std::fs::create_dir_all(root.join("assets")).unwrap();
+        let mut palette = [0;16]; palette[0]=0x001f; palette[1]=0x8000;
+        let bytes = tim_fixture(4, &palette, 1, 1, &[0x10, 0x01]);
+        std::fs::write(root.join("assets/t.tim"), &bytes).unwrap();
+        let id = assets::commit(prepare(&root,"assets/t.tim","assets/t.epokasset",None,false).unwrap()).unwrap();
+        let index = assets::scan(&root, &mut Default::default());
+        assert!(index.linked_source(index.resolve(id).unwrap()).unwrap().is_some());
+        let mut scene = Scene::default(); scene.actors[1].material.texture=Some(id);
+        resolve(&mut scene, &index).unwrap();
+        assert_eq!(scene.textures[&id].palette[..2], [0x001f,0x8000]);
+        std::fs::remove_file(root.join("assets/t.tim")).unwrap();
+        let candidate=prepare(&root,"assets/t.tim","assets/t.epokasset",Some(index.resolve(id).unwrap()),true).unwrap();
+        assert_eq!(assets::commit(candidate).unwrap(),id);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn prepared_textures_share_storage_and_do_not_hide_package_changes() {
+        let root = crate::workspace::tests::temp("prepared-texture");
+        std::fs::create_dir_all(root.join("assets")).unwrap();
+        std::fs::write(root.join("assets/t.png"), png()).unwrap();
+        let id = assets::commit(prepare(&root, "assets/t.png", "assets/t.epokasset", None, false).unwrap()).unwrap();
+        let index = assets::scan(&root, &mut Default::default());
+        let mut scene = Scene::default(); scene.actors[1].material.texture = Some(id);
+        resolve(&mut scene, &index).unwrap();
+        let original = scene.textures[&id].clone();
+        resolve(&mut scene, &index).unwrap();
+        assert!(Arc::ptr_eq(&original, &scene.textures[&id]));
+        let path = root.join("assets/t.epokasset");
+        let mut package = assets::Package::load(&path).unwrap();
+        let mut png = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut png, 1, 1);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder.write_header().unwrap().write_image_data(&[0, 0, 255, 255]).unwrap();
+        }
+        package.source = png;
+        package.meta.source_hash = assets::hash(&package.source);
+        std::fs::write(&path, package.bytes().unwrap()).unwrap();
+        resolve(&mut scene, &index).unwrap(); // deliberately stale index
+        assert_eq!(scene.textures[&id].rgba, [0, 0, 255, 255]);
+        assert!(!Arc::ptr_eq(&original, &scene.textures[&id]));
+        assert_eq!(original.width, 3);
+        package.meta.id = Uuid::new_v4();
+        std::fs::write(&path, package.bytes().unwrap()).unwrap();
+        assert!(resolve(&mut scene, &index).is_err());
+        assert!(!scene.textures.contains_key(&id));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn double_sided_is_opt_in_and_survives_material_serialization() {
+        let mut material: Material = serde_json::from_str("{\"unlit\":true}").unwrap();
+        assert!(!material.double_sided);
+        material.double_sided = true;
+        let copy: Material = serde_json::from_slice(&serde_json::to_vec(&material).unwrap()).unwrap();
+        assert_eq!(copy, material);
+        assert_eq!(
+            material_cpp(&material),
+            "{{255,255,255}, true,-1,BlendMode::Cutout,0,true,{0,0}}"
+        );
+    }
     pub fn png() -> Vec<u8> {
         let mut bytes = vec![];
         {
@@ -485,6 +642,8 @@ mod tests {
             let mut texture = decode(&png()).unwrap();
             texture.width = 256;
             texture.height = height;
+            texture.words = vec![0x2020; 128 * height as usize];
+            texture.palette[32] = 0x8123; // Full-width 8-bit atlas, not a three-pixel mock.
             scene.textures.insert(id, std::sync::Arc::new(texture));
         }
         let packed = layout(&scene).unwrap();
@@ -492,11 +651,11 @@ mod tests {
             packed.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
             ids(&scene)
         );
-        assert_eq!(packed[0].1.y, 256);
         for (i, (_, p)) in packed.iter().enumerate() {
-            assert_eq!(p.clut_y, 480 + i as u16);
+            assert_eq!(p.x % 64, 0);
+            assert_eq!(p.clut_x % 16, 0);
             if i != 0 {
-                assert_eq!(p.y, 0);
+                assert_eq!(p.y % 256, 0);
             }
         }
     }
@@ -530,7 +689,8 @@ mod tests {
         assert!(h.contains("texture_id_"));
         assert!(h.contains("BlendMode::Add"));
         assert!(h.contains("{2048,2048}"));
-        assert!(h.contains("640,0,2,640,480"));
+        let p = layout(&scene).unwrap()[0].1;
+        assert!(h.contains(&format!("3,1,{},{},2,{},{},texture_0_pixels,texture_0_palette,4", p.x, p.y, p.clut_x, p.clut_y)));
         let saved = serde_json::to_vec(&scene).unwrap();
         let mut decoded: Scene = serde_json::from_slice(&saved).unwrap();
         assert!(decoded.textures.is_empty());
@@ -580,7 +740,10 @@ mod tests {
     fn vram_rejects_overflow_without_touching_framebuffer_or_font() {
         let mut scene = Scene::default();
         let mut d = decode(&png()).unwrap();
+        d.width = 256;
         d.height = 256;
+        d.words = vec![0x2020; 32768];
+        d.palette[32] = 0x8123;
         for _ in 0..3 {
             let id = Uuid::new_v4();
             scene
@@ -591,12 +754,17 @@ mod tests {
         }
         for (_, p) in layout(&scene).unwrap() {
             assert!(p.x >= 640);
-            assert_eq!(p.y, 0);
-            assert!((480..512).contains(&p.clut_y));
+            assert_eq!(p.y % 256, 0);
+            assert!(p.x + 128 <= 1024 && p.clut_x + 256 <= 1024);
+            assert!(p.clut_y < 512);
         }
-        let id = Uuid::new_v4();
-        scene.actors[0].material.texture = Some(id);
-        scene.textures.insert(id, Arc::new(d));
+        for _ in 0..5 {
+            let id = Uuid::new_v4();
+            let mut actor = crate::scene::Actor::cube("Overflow".into());
+            actor.material.texture = Some(id);
+            scene.actors.push(actor);
+            scene.textures.insert(id, Arc::new(d.clone()));
+        }
         assert!(layout(&scene).is_err());
     }
 }

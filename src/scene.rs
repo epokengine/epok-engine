@@ -21,6 +21,8 @@ pub struct Material {
     pub uv_scroll: [f32; 2],
     pub color: [f32; 3],
     pub unlit: bool,
+    /// Surface is visible from either side; independent of visibility/streaming.
+    pub double_sided: bool,
     pub texture: Option<uuid::Uuid>,
     pub blend: crate::texture::BlendMode,
     pub depth_bias: i16,
@@ -31,6 +33,7 @@ impl Default for Material {
             uv_scroll: [0.; 2],
             color: [1.; 3],
             unlit: false,
+            double_sided: false,
             texture: None,
             blend: Default::default(),
             depth_bias: 0,
@@ -112,6 +115,9 @@ pub struct BuiltinData {
     pub blueprint_instance: Option<crate::blueprint_templates::Instance>,
     #[serde(default = "default_fov")]
     pub camera_fov: f32,
+    /// Mirror the camera projection, not world transforms or the free Scene view.
+    #[serde(default)]
+    pub camera_mirror_x: bool,
     /// Flat clear colour used whenever this camera is active. It deliberately
     /// starts at the runtime's historic blue-grey clear so old projects render
     /// exactly as they did before this camera setting existed.
@@ -176,6 +182,7 @@ impl BuiltinData {
             blueprint_instance: None,
             active: true,
             camera_fov: 90.,
+            camera_mirror_x: false,
             camera_sky_color: default_camera_sky_color(),
             sprite: None,
             sprite_animator: None,
@@ -230,6 +237,10 @@ pub struct Scene {
     /// The map's own Blueprint, one `SceneScriptActor` subclass per scene.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scene_script: Option<crate::actor_document::SceneScript>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visibility_track: Option<crate::visibility_track::Track>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ordered_draw: Option<crate::ordered_draw::Program>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -250,6 +261,10 @@ struct SceneDocument {
     navigation: Option<crate::navigation::Bake>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     scene_script: Option<crate::actor_document::SceneScript>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    visibility_track: Option<crate::visibility_track::Track>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ordered_draw: Option<crate::ordered_draw::Program>,
 }
 impl From<Scene> for SceneDocument {
     fn from(mut scene: Scene) -> Self {
@@ -264,6 +279,8 @@ impl From<Scene> for SceneDocument {
             bake: scene.bake,
             navigation: scene.navigation,
             scene_script: scene.scene_script,
+            visibility_track: scene.visibility_track,
+            ordered_draw: scene.ordered_draw,
         }
     }
 }
@@ -279,6 +296,8 @@ impl From<SceneDocument> for Scene {
             bake: doc.bake,
             navigation: doc.navigation,
             scene_script: doc.scene_script,
+            visibility_track: doc.visibility_track,
+            ordered_draw: doc.ordered_draw,
             textures: Default::default(),
             display_size: legacy_display_size(),
         };
@@ -296,7 +315,28 @@ impl From<SceneDocument> for Scene {
 }
 impl PartialEq for Scene {
     fn eq(&self, other: &Self) -> bool {
-        serde_json::to_value(self).ok() == serde_json::to_value(other).ok()
+        // Bulk baked data already has structural equality. Expanding millions
+        // of visibility indices into JSON Values on the frame thread merely to
+        // accept a background observation caused a visible hitch after loading.
+        if self.visibility_track != other.visibility_track
+            || self.ordered_draw != other.ordered_draw
+            || self.bake != other.bake
+            || self.navigation != other.navigation
+        {
+            return false;
+        }
+        let mut left = self.clone();
+        let mut right = other.clone();
+        left.visibility_track = None;
+        right.visibility_track = None;
+        left.ordered_draw = None;
+        right.ordered_draw = None;
+        left.bake = None;
+        right.bake = None;
+        left.navigation = None;
+        right.navigation = None;
+        // Preserve Actor/component projection and serialized-only semantics.
+        serde_json::to_value(left).ok() == serde_json::to_value(right).ok()
     }
 }
 
@@ -326,6 +366,8 @@ impl Default for Scene {
             name: "SampleScene".into(),
             actors: vec![camera, Actor::cube("Cube".into()), second, floor],
             scene_script: None,
+            visibility_track: None,
+            ordered_draw: None,
         }
     }
 }
@@ -450,11 +492,24 @@ impl Scene {
     pub fn duplicate_identities(&mut self) {
         self.sync_actor_components();
         let map = crate::actor_document::fresh_identities(&self.actors);
+        if let Some(program) = &mut self.ordered_draw {
+            program.remap_actors(&map);
+        }
         for actor in &mut self.actors {
             crate::actor_document::remap_actor(actor, &map);
         }
         if let Some(script) = &mut self.scene_script {
             crate::actor_document::remap_scene_script(script, &map, true);
+        }
+        if let Some(track) = &mut self.visibility_track {
+            if let Some(camera) = map.get(&track.camera) {
+                track.camera = *camera;
+            }
+            if let Some(nav) = &mut track.navigation {
+                if let Some(target) = map.get(&nav.target) {
+                    nav.target = *target;
+                }
+            }
         }
         self.refresh_actor_hierarchy();
     }
@@ -622,6 +677,12 @@ impl Scene {
         &self,
         model: Option<&crate::object_model::Model>,
     ) -> Result<(), String> {
+        if let Some(track) = &self.visibility_track {
+            track.validate(self)?;
+        }
+        if let Some(program) = &self.ordered_draw {
+            program.validate(self)?;
+        }
         if self.version > crate::actor_document::SCENE_VERSION {
             return Err(format!(
                 "This scene was written by a newer editor (document version {}, this editor supports up to {}). Update the editor rather than opening it: the document is never loaded as empty.",
@@ -757,15 +818,21 @@ impl Scene {
         Ok(scene)
     }
     pub fn load_unresolved(path: &Path) -> Result<Self, String> {
-        let bytes = fs::read(path).map_err(|e| e.to_string())?;
-        let document: serde_json::Value = crate::document::from_slice(&bytes)?;
+        let cached = crate::source_cache::load(path, "scene-v1", Self::parse_unresolved)?;
+        let scene = (*cached).clone();
+        // Validation remains authoritative, including after a disk-cache hit.
+        scene.validate()?;
+        Ok(scene)
+    }
+    pub(crate) fn parse_unresolved(bytes: &[u8]) -> Result<Self, String> {
+        let document: serde_json::Value = crate::document::from_slice(bytes)?;
         if document["version"]
             .as_u64()
             .is_none_or(|version| version < u64::from(crate::actor_document::SCENE_VERSION))
         {
             return Err("This map uses the retired Entity/Behaviour format; recreate the project with the Actor templates.".into());
         }
-        let mut scene: Self = crate::document::from_slice(&bytes).map_err(|e| e.to_string())?;
+        let mut scene: Self = serde_json::from_value(document).map_err(|e| e.to_string())?;
         let indices: BTreeMap<_, _> = scene
             .actors
             .iter()

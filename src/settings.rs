@@ -196,6 +196,9 @@ pub struct Rendering {
     pub sprite_triangle_budget: u16,
     pub motion_interpolation: bool,
     pub precomputed_visibility: bool,
+    /// Conservative distance used to reject entire editable-mesh chunks before
+    /// their streamed pages are acquired. The PSX projection limit remains 128.
+    pub geometry_draw_distance: u8,
     pub streaming_geometry: bool,
     pub streaming_pool_pages: u8,
     pub streaming_triangle_budget: u16,
@@ -211,6 +214,7 @@ impl Default for Rendering {
             sprite_triangle_budget: 2048,
             motion_interpolation: true,
             precomputed_visibility: false,
+            geometry_draw_distance: 128,
             streaming_geometry: false,
             streaming_pool_pages: 4,
             streaming_triangle_budget: 4096,
@@ -234,6 +238,9 @@ impl Rendering {
     pub fn validate(self) -> Result<(), String> {
         if !(64..=2048).contains(&self.sprite_triangle_budget) {
             return Err("Sprite triangle budget must be between 64 and 2048.".into());
+        }
+        if !(1..=128).contains(&self.geometry_draw_distance) {
+            return Err("Geometry draw distance must be between 1 and 128 world units.".into());
         }
         if !(2..=8).contains(&self.streaming_pool_pages) {
             return Err("Geometry streaming pool must contain 2..8 pages of 64 KiB.".into());
@@ -262,7 +269,7 @@ impl Rendering {
     pub fn header(self) -> Result<String, String> {
         self.validate()?;
         let mut header = format!(
-            "// Generated from Project Settings.\n#pragma once\nnamespace epok {{\ninline constexpr int display_width = {};\ninline constexpr int display_height = {};\ninline constexpr bool display_interlaced = {};\ninline constexpr bool retained_geometry = {};\ninline constexpr bool dither_3d = {};\ninline constexpr bool motion_interpolation = {};\ninline constexpr bool precomputed_visibility = {};\ninline constexpr bool streaming_geometry = {};\ninline constexpr unsigned streaming_pool_pages = {};\ninline constexpr bool streaming_prefetch_enabled = {};\n}}\n",
+            "// Generated from Project Settings.\n#pragma once\nnamespace epok {{\ninline constexpr int display_width = {};\ninline constexpr int display_height = {};\ninline constexpr bool display_interlaced = {};\ninline constexpr bool retained_geometry = {};\ninline constexpr bool dither_3d = {};\ninline constexpr bool motion_interpolation = {};\ninline constexpr bool precomputed_visibility = {};\ninline constexpr int geometry_draw_distance = {};\ninline constexpr bool streaming_geometry = {};\ninline constexpr unsigned streaming_pool_pages = {};\ninline constexpr bool streaming_prefetch_enabled = {};\n}}\n",
             self.width,
             self.height,
             self.height == 480,
@@ -270,6 +277,7 @@ impl Rendering {
             self.dither_3d,
             self.motion_interpolation,
             self.precomputed_visibility,
+            self.geometry_draw_distance,
             self.streaming_geometry,
             self.streaming_pool_pages,
             self.streaming_prefetch
@@ -633,6 +641,7 @@ mod tests {
         let mut settings: Rendering =
             serde_json::from_str("{\"width\":320,\"height\":240}").unwrap();
         assert!(!settings.precomputed_visibility);
+        assert_eq!(settings.geometry_draw_distance, 128);
         assert!(settings.motion_interpolation);
         assert!(!settings.streaming_geometry);
         assert_eq!(settings.streaming_pool_pages, 4);
@@ -654,6 +663,10 @@ mod tests {
             settings.streaming_triangle_budget = triangles;
             settings.validate().unwrap();
         }
+        settings.geometry_draw_distance = 0;
+        assert!(settings.validate().is_err());
+        settings.geometry_draw_distance = 24;
+        settings.validate().unwrap();
         settings.streaming_geometry = true;
         settings.motion_interpolation = false;
         settings.precomputed_visibility = true;
@@ -663,6 +676,7 @@ mod tests {
         assert_eq!(decoded, settings);
         let header = settings.header().unwrap();
         assert!(header.contains("precomputed_visibility = true"));
+        assert!(header.contains("geometry_draw_distance = 24"));
         assert!(header.contains("motion_interpolation = false"));
         assert!(header.contains("streaming_geometry = true"));
         assert!(header.contains("streaming_pool_pages = 8"));

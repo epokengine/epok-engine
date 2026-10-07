@@ -332,20 +332,24 @@ pub const VERTEX_FRAME_BYTES: usize = 12;
 /// uint16_t frames; const char* name; }` — 12 + 2 + 2 padding + 4.
 pub const ANIMATION_CLIP_BYTES: usize = 20;
 /// `Material { uint8_t color[3]; bool unlit; int texture; BlendMode blend;
-/// int16_t depth_bias; int32_t uv_scroll[2]; }`. Assumed layout: 3 + 1 colour
+/// int16_t depth_bias; bool double_sided; int32_t uv_scroll[2]; }`. Assumed layout: 3 + 1 colour
 /// bytes, `int` texture at 4, the scoped enum `BlendMode` as a 4-byte `int` at
-/// 8, `depth_bias` at 12 with 2 bytes of padding, and `uv_scroll` at 16.
+/// 8, `depth_bias` at 12, `double_sided` at 14, one padding byte, `uv_scroll` at 16.
 pub const MATERIAL_BYTES: usize = 24;
 /// `MeshQuad { uint16_t indices[4]; uint8_t face; int16_t normal[3]; Material
 /// material; uint32_t color_offset; int16_t uv[4][2]; bool packed_uv;
-/// uint16_t uvw[4]; }`. Assumed layout: indices at 0, `face` at 8 with one
+/// uint16_t uvw[4]; bool vertex_colors; uint16_t vertex_color_indices[4]; }`.
+/// Assumed layout: indices at 0, `face` at 8 with one
 /// byte of padding, `normal` at 10, `Material` at 16 (alignment 4),
 /// `color_offset` at 40, the per-corner coordinates at 44, `packed_uv` at 60
-/// with one byte of padding, `uvw` at 62, padded to 72 for alignment 4.
-pub const MESH_QUAD_BYTES: usize = 72;
-/// `MeshGeometry` — four words of pointers/counts, `editable` padded to a word,
-/// three `int32_t[3]` boxes, two pointers, `stream_page` and two `uint16_t`.
-pub const MESH_GEOMETRY_BYTES: usize = 72;
+/// with one byte of padding, `uvw` at 62, authored colour flag at 70 and
+/// four palette indices at 72. Size 80, alignment 4.
+pub const MESH_QUAD_BYTES: usize = 80;
+/// `MeshGeometry` — five words of vertex view (pointer + padded stride), counts
+/// and quad pointer, `editable` padded to a word,
+/// three `int32_t[3]` boxes, two pointers, `stream_page`, two `uint16_t`,
+/// the resident per-face visibility-mask pointer and two root-span `uint16_t`s.
+pub const MESH_GEOMETRY_BYTES: usize = 84;
 /// `SkeletalMesh` — eight words plus the `SkeletalStorage` byte padded to a word.
 pub const SKELETAL_MESH_BYTES: usize = 40;
 /// `Animator` — `enabled` padded to a word, model pointer, clip, ticks, and the
@@ -384,8 +388,8 @@ impl QueryDemand {
 const _: () = {
     // `Material` starts at offset 16 in `MeshQuad`; after it come the colour
     // offset word, the four Q12 coordinate pairs, the packed flag with one byte
-    // of padding, the four packed corners and two bytes of tail padding.
-    assert!(MESH_QUAD_BYTES == 16 + MATERIAL_BYTES + 4 + 16 + 2 + 8 + 2);
+    // of padding, four packed corners, the colour flag/padding and four indices.
+    assert!(MESH_QUAD_BYTES == 16 + MATERIAL_BYTES + 4 + 16 + 2 + 8 + 2 + 8);
 };
 
 /// Explicit byte accounting for one compiled model, in the target's layout.

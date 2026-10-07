@@ -1,7 +1,9 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <initializer_list>
 #include "polygon.hpp"
+#include "baked_draw_types.hpp"
 #include "sprite_math.hpp"
 using namespace epok;
 // Reference implementations mirror the previous renderer's arithmetic.
@@ -18,6 +20,49 @@ static ProjectedVertex vertex(int32_t x, int32_t y, int32_t z) {
     return v;
 }
 int main() {
+    const uint32_t palette[]={pack_color(0,128,185),pack_color(255,1,127),pack_color(64,128,255),pack_color(10,20,30)};
+    BakedDrawFace colored{};colored.color=0x00010000;colored.shaded=0x00030002;colored.flags=0x3410;colored.texture=0;
+    static_assert(sizeof(BakedDrawFace)==32);
+    for(unsigned c=0;c<4;++c){
+        assert(baked_corner_color(colored,c,palette)==palette[c]);
+        assert(packet_color(palette[c],true,true)==palette[c]);
+        assert(packet_color(palette[c],true,false)==modulate_color(palette[c]));
+        assert(tint_color(palette[c],0xffffff)==palette[c]);
+        assert(tint_color(palette[c],0)==0);
+    }
+    assert(baked_command(colored)==0x34000000u);
+    colored.flags=0x3616;assert(baked_command(colored)==0x36000000u);
+    colored.texture=0xffff;colored.flags=0x3016;assert(baked_command(colored)==0x30000000u);
+    for(uint32_t command:{0x30000000u,0x34000000u,0x36000000u})for(uint16_t flags=0;flags<32;++flags){
+        colored.flags=uint16_t((command>>16)|flags);assert(baked_command(colored)==command);
+    }
+    const uint8_t white_fog[]={255,255,255};
+    assert(blend_vertex_fog(palette[0],0,white_fog,true)==palette[0]);
+    assert(blend_vertex_fog(palette[0],4096,white_fog,true)==0x808080);
+    assert(blend_vertex_fog(palette[0],4096,white_fog,false)==0xffffff);
+    for (int32_t area : {INT32_MIN, -8192, -1, 0, 1, 8192, INT32_MAX}) {
+        assert(screen_backface(area, false) == (area < 0));
+        assert(screen_backface(area, true) == (area > 0));
+    }
+    using Wide=CameraUnits<64,32768,6,ScreenFrustum<512,240>>;
+    static_assert(Wide::Frustum::xz==8&&Wide::Frustum::xx==5);
+    // At 512x240 GTE H=160 and camera X is already aspect-scaled.
+    // x/z=1.2 is visible at pixel 448, not outside a canonical x/z<=1 frustum.
+    ProjectedVertex wide{};wide.camera[0]=3072;wide.camera[2]=2560;
+    project_cpu<Wide,512,240>(wide);
+    assert(wide.screen.x==448&&wide.screen.y==120&&wide.outcode==0);
+    wide.camera[0]=-4096;project_cpu<Wide,512,240>(wide);assert(wide.screen.x==0&&wide.outcode==0);
+    wide.camera[0]=4096;project_cpu<Wide,512,240>(wide);assert(wide.screen.x==512&&wide.outcode==0);
+    wide.camera[0]=4097;project_cpu<Wide,512,240>(wide);assert(wide.outcode==8);
+    ClipVertex wide_clip[2][12]{};
+    wide_clip[0][0].p[0]=3000;wide_clip[0][0].p[1]=-500;wide_clip[0][0].p[2]=2560;
+    wide_clip[0][1].p[0]=5000;wide_clip[0][1].p[1]=0;wide_clip[0][1].p[2]=2560;
+    wide_clip[0][2].p[0]=3000;wide_clip[0][2].p[1]=500;wide_clip[0][2].p[2]=2560;
+    int wide_from=0;const int wide_count=clip_polygon<Wide>(wide_clip,3,8,wide_from);
+    assert(wide_count==4);
+    for(int i=0;i<wide_count;++i)assert(wide_clip[wide_from][i].p[0]<=4097);
+    assert(Wide::outcode(INT32_MAX,INT32_MIN,2560)==(8|16));
+    assert(CameraQ12::outcode(INT32_MAX,INT32_MIN,4096)==(8|16));
     uint32_t seed=7219;
     for(int i=0;i<20000;++i){
         int32_t p[3];for(auto& v:p){seed=seed*1664525u+1013904223u;v=i%2?int32_t(seed):int32_t(seed%1200000)-600000;}
@@ -36,6 +81,9 @@ int main() {
         assert(clip_fraction16(numerator,denominator)==(uint64_t(numerator)<<16)/denominator);
         assert(clip_fraction16(denominator,denominator)==65536);
     }
+    for(uint32_t denominator:{0x7fffffffu,0x80000000u,0xfffffffeu,0xffffffffu})
+        for(uint32_t numerator:{0u,1u,denominator/2,denominator-1,denominator})
+            assert(clip_fraction16(numerator,denominator)==(uint64_t(numerator)<<16)/denominator);
     const int64_t boundaries[]={INT32_MIN,int64_t(INT32_MIN)-1,-65537,-1,0,1,65535,INT32_MAX,int64_t(INT32_MAX)+1,int64_t(1)<<38,-(int64_t(1)<<38)};
     for(auto n:boundaries)for(int32_t d=1;d<33000;d+=137){
         const int32_t expected=n>=0?int32_t(n/d):-int32_t((-n+d-1)/d);

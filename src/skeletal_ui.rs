@@ -502,6 +502,7 @@ pub fn window(ui: &Ui, e: &mut Editor) {
                         material.texture = edited.texture;
                         material.blend = edited.blend;
                         material.depth_bias = edited.depth_bias;
+                        material.double_sided = edited.double_sided;
                         material.uv_scroll = edited.uv_scroll;
                     }) {
                         Ok((meta, revision, material)) => {

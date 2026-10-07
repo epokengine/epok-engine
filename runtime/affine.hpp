@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 
 namespace epok {
 // Affine composition preserves inherited non-uniform scale and shear.
@@ -53,6 +54,41 @@ template<class Number> struct Affine {
             for(int k=0;k<3;++k) out.values[r][c]+=values[r][k]*b.values[k][c];
         }
         return out;
+    }
+};
+
+// World coordinates and GTE vector coordinates have different ranges. Keep the
+// camera origin separate: R * (world - camera), never R*world - R*camera. The
+// latter rounds large absolute coordinates independently in Q12 and makes a
+// translated scene visibly drift. No authored coordinate is rebased or changed.
+template<class Number> struct CameraSpace {
+    Affine<Number> basis=Affine<Number>::identity(); // inverse basis; zero translation
+    Number origin[3]={};
+    void point(const Number* in,Number* out) const {
+        int64_t delta[3];bool narrow=true;
+        for(int c=0;c<3;++c){
+            delta[c]=int64_t(in[c].raw())-origin[c].raw();
+            narrow&=delta[c]>=INT32_MIN&&delta[c]<=INT32_MAX;
+        }
+        for(int r=0;r<3;++r){
+            int64_t sum=0;
+            for(int c=0;c<3;++c){
+                // Keep 32x32 -> 64 multiplies on the normal PSX path. Widen the
+                // rare full-range subtraction as well; signed wrap is not culling.
+                const int32_t coefficient=basis.values[r][c].raw();
+                const int64_t product=narrow?int64_t(coefficient)*int32_t(delta[c]):int64_t(coefficient)*delta[c];
+                sum+=product/Number::scale; // PsyQo truncates each product toward zero.
+            }
+            out[r]=Number(int32_t(sum<INT32_MIN?INT32_MIN:sum>INT32_MAX?INT32_MAX:sum),Number::RAW);
+        }
+    }
+    Affine<Number> compose(const Affine<Number>& world) const {
+        auto local=world;Number position[3],camera[3];
+        for(int r=0;r<3;++r){position[r]=world.values[r][3];local.values[r][3]=0.;}
+        auto result=basis.compose(local);
+        point(position,camera);
+        for(int r=0;r<3;++r)result.values[r][3]=camera[r];
+        return result;
     }
 };
 }

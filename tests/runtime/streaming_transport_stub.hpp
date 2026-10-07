@@ -1,14 +1,24 @@
 #pragma once
+#if defined(_MSC_VER) && !defined(__clang__)
+// Host-only fixture: MSVC has no GNU retention attribute. Production MIPS
+// builds still compile the actual attribute on the script-facing entry points.
+#define __attribute__(attributes)
+#endif
 #include <cassert>
 #include <cstdint>
 #include <cstddef>
 #include <functional>
 #include <utility>
 #include <cstring>
+#include "baked_draw_types.hpp"
+#include "mesh_vertices.hpp"
 namespace fake_cd {
 inline std::function<void()> pending;
 inline bool idle = true, read_ok = true, hung = false, corrupt = false;
 inline uint32_t now = 0, reads = 0, pauses = 0, idle_checks = 0;
+inline uint32_t corrupt_offset = 1234;
+inline uint32_t available = 0;
+inline bool dma_busy = false;
 inline void pump() {
   now += 1000;
   if (!hung && pending) {
@@ -54,14 +64,16 @@ inline constexpr const char *stream_archive_path = "GEOMETRY.BIN;1";
 // Independently generated FNV1a32 for pages filled with bytes 0, 1, 2 and 3.
 inline constexpr uint32_t stream_page_hashes[] = {1582341573u, 2715917765u, 2786893253u, 3818495429u};
 struct Material {
-  uint8_t color[3]; bool unlit; int32_t texture, blend; int16_t depth_bias; int32_t uv_scroll[2];
+  uint8_t color[3]; bool unlit; int32_t texture, blend; int16_t depth_bias; bool double_sided; int32_t uv_scroll[2];
 };
 struct MeshQuad {
   uint16_t indices[4]; uint8_t face; int16_t normal[3]; Material material;
   uint32_t color_offset; int16_t uv[4][2]; bool packed_uv; uint16_t uvw[4];
+  bool vertex_colors=false; uint16_t vertex_color_indices[4]={};
 };
 struct MeshGeometry {
-  mutable const int16_t (*vertices)[3] = nullptr;
+  uint8_t editable = 0;
+  mutable MeshVertices vertices;
   size_t vertex_count = 1;
   mutable const MeshQuad *quads = nullptr;
   size_t quad_count = 1;
@@ -95,7 +107,7 @@ inline bool skeletal_world_point(const ActorData&,const Fixed* model,Fixed* worl
   return true;
 }
 inline bool music_active = false, music_requested = false, music_lookup = false,
-            music_ready = false, music_boot_failed = false, music_data_owner = false;
+            music_ready = false, music_boot_failed = false, music_booting = false, music_data_owner = false;
 struct Drive {
   bool isIdle() { ++fake_cd::idle_checks; return fake_cd::idle; }
   void readSectors(uint32_t sector, uint32_t sectors, void *buffer, std::function<void(bool)> callback) {
@@ -105,12 +117,24 @@ struct Drive {
     fake_cd::idle = false;
     fake_cd::pending = [sector, buffer, callback] {
       if (fake_cd::read_ok) std::memset(buffer, int((sector - 100) / 32), 65536);
-      if (fake_cd::corrupt) static_cast<uint8_t *>(buffer)[1234] ^= 1;
+      if (fake_cd::corrupt) static_cast<uint8_t *>(buffer)[fake_cd::corrupt_offset] ^= 1;
       callback(fake_cd::read_ok);
     };
   }
 };
 inline Drive music_drive;
+struct StreamReadAction {
+  static bool dma_idle(){return !fake_cd::dma_busy;}
+  uint32_t available_bytes()const{return fake_cd::available;}
+  void start(Drive* drive,uint32_t sector,uint32_t count,void* buffer,std::function<void(bool)> callback){
+    fake_cd::available=0;fake_cd::dma_busy=false;
+    drive->readSectors(sector,count,buffer,[callback](bool ok){
+      if(ok)fake_cd::available=65536;
+      callback(ok);
+    });
+  }
+};
+inline StreamReadAction stream_read_action;
 inline psyqo::ISO9660Parser music_files;
 inline void music_prepare(bool) {}
 inline void music_tick() {

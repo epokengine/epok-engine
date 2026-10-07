@@ -86,16 +86,21 @@ pub fn offset(animator: &Animator, seconds: f32) -> usize {
     }
 }
 pub fn preview_rgba(scene: &Scene, id: Uuid, seconds: f32, data: &Data) -> Vec<u8> {
+    preview_pixels(scene, id, seconds, data, false)
+}
+/// GPU alpha carries coverage and STP, not fractional opacity:
+/// 0 = cutout, 128 = opaque even in a blending primitive, 255 = STP set.
+pub fn preview_gpu_rgba(scene: &Scene, id: Uuid, seconds: f32, data: &Data) -> Vec<u8> {
+    preview_pixels(scene, id, seconds, data, true)
+}
+fn preview_pixels(scene: &Scene, id: Uuid, seconds: f32, data: &Data, stp: bool) -> Vec<u8> {
     let animator = scene.actors.iter().enumerate().find_map(|(index, e)| {
         e.palette_animator
             .as_ref()
             .filter(|a| scene.is_active(index) && a.enabled && a.texture == Some(id))
     });
-    let Some(animator) = animator else {
-        return data.rgba.clone();
-    };
-    let shift = offset(animator, seconds);
-    if shift == 0 {
+    let shift = animator.map_or(0, |a| offset(a, seconds));
+    if shift == 0 && !(stp && data.has_opaque_texels()) {
         return data.rgba.clone();
     }
     let row_words = usize::from(data.width).div_ceil(4) * 2;
@@ -103,19 +108,20 @@ pub fn preview_rgba(scene: &Scene, id: Uuid, seconds: f32, data: &Data) -> Vec<u
     for y in 0..usize::from(data.height) {
         for x in 0..usize::from(data.width) {
             let index = usize::from((data.words[y * row_words + x / 2] >> ((x % 2) * 8)) & 255);
-            let source =
+            let source = animator.map_or(index, |animator| {
                 if index >= usize::from(animator.first) && index <= usize::from(animator.last) {
                     usize::from(animator.first)
                         + (index - usize::from(animator.first) + shift)
                             % (usize::from(animator.last - animator.first) + 1)
                 } else {
                     index
-                };
+                }
+            });
             let color = data.palette[source];
             for channel in 0..3 {
                 output.push((((color >> (channel * 5)) & 31) * 255 / 31) as u8);
             }
-            output.push(if index == 0 { 0 } else { 255 });
+            output.push(if color == 0 { 0 } else if stp && color & 0x8000 == 0 { 128 } else { 255 });
         }
     }
     output

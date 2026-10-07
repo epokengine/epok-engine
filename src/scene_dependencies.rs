@@ -179,6 +179,34 @@ impl Origin {
     }
 }
 
+/// Publish only the in-memory snapshot submitted by an explicit Build/Play.
+/// Do this before starting its worker: a delayed observer of this same edit
+/// must not cancel the new job while invalidating the previous build. Saved
+/// files, settings and external sources still use their normal observers.
+/// This invalidates old consumers; it does not certify any generated output.
+pub fn submit_editor(
+    root: &Path,
+    path: &Path,
+    scene: &Scene,
+    registry: Result<&crate::blueprint::Registry, &str>,
+) -> Result<String, String> {
+    let signature = signature(scene);
+    let (key, _) = Origin::Editor(path.to_owned(), signature.clone()).dependency(root, "")?;
+    let audio_key = format!("audio-selection:{key}");
+    let audio = registry.map(|registry| crate::audio::selection_signature(scene, Some(registry)));
+    artifact_dependencies::transaction(root, |graph| {
+        graph.publish(&key, signature.clone(), Default::default());
+        match audio {
+            Ok(signature) => graph.publish(&audio_key, signature, Default::default()),
+            Err(error) if graph.nodes.contains_key(&audio_key) => {
+                graph.invalidate(&audio_key, error)
+            }
+            Err(_) => {}
+        }
+    })?;
+    Ok(signature)
+}
+
 /// Observe already consumed scene files plus the active editor document. Closed
 /// unsaved snapshots remain stale navigation data, never a saved-scene fallback.
 /// Returns whether either build target consumes an input changed in this poll.
@@ -534,6 +562,56 @@ mod tests {
                 .publish_navigation(&root)
                 .unwrap()
         );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn submitted_editor_snapshot_does_not_cancel_itself_or_certify_old_outputs() {
+        let root = root();
+        let path = root.join("assets/scenes/Main.epokmap");
+        let other = root.join("assets/scenes/Other.epokmap");
+        let mut scene = Scene::default();
+        scene.save(&path).unwrap();
+        scene.save(&other).unwrap();
+        stage(
+            &root,
+            ".epok/build",
+            Input::editor(path.clone(), scene.clone()),
+            &[Input::load(&other).unwrap()],
+        );
+        stage(&root, "exports/saved", Input::load(&path).unwrap(), &[]);
+        let registry = crate::blueprint::Registry::new();
+        let saved =
+            Graph::load(&root).unwrap().nodes["generated-scene:exports/saved/scene.hh"].clone();
+        scene.actors[0].position[0] += 1.;
+        let delayed = inspect_with_registry(&root, &path, &scene, Ok(&registry)).unwrap();
+        assert_eq!(
+            submit_editor(&root, &path, &scene, Ok(&registry)).unwrap(),
+            signature(&scene)
+        );
+        assert!(
+            !delayed.publish(&root).unwrap(),
+            "An already submitted edit is not a new change"
+        );
+        assert!(!observe_with_registry(&root, &path, &scene, Ok(&registry)).unwrap());
+        let graph = Graph::load(&root).unwrap();
+        assert!(
+            !graph.nodes["generated-scene:.epok/build/scene.hh"]
+                .stale
+                .is_empty()
+        );
+        assert_eq!(graph.nodes["generated-scene:exports/saved/scene.hh"], saved);
+        assert_eq!(
+            graph.nodes["audio-selection:scene-editor:assets/scenes/Main.epokmap"]
+                .signature
+                .as_deref(),
+            Some(crate::audio::selection_signature(&scene, Some(&registry)).as_str())
+        );
+        // A genuinely newer edit must still cancel, even before any output was
+        // published by the worker. Submission cannot mask independent files.
+        scene.actors[0].position[0] += 1.;
+        assert!(observe_with_registry(&root, &path, &scene, Ok(&registry)).unwrap());
+        scene.save(&other).unwrap();
+        assert!(observe_with_registry(&root, &path, &scene, Ok(&registry)).unwrap());
         std::fs::remove_dir_all(root).unwrap();
     }
     #[test]

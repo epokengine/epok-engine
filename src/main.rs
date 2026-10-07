@@ -46,7 +46,12 @@ mod controls;
 mod controls_ui;
 mod dependencies;
 mod disc;
+mod draw_order_codec;
+mod ordered_draw;
+mod ordered_draw_cook;
 mod document;
+mod source_cache;
+mod scene_view_state;
 mod editor;
 mod effects;
 mod export;
@@ -61,6 +66,7 @@ mod hud_native;
 mod hud_simulation;
 mod import_settings;
 mod inspector_theme;
+mod input_replay;
 mod instrument_dsp;
 mod instrument_ir;
 mod instrument_modulation;
@@ -102,6 +108,7 @@ mod native_metadata;
 mod native_music;
 mod native_play;
 mod navigation;
+mod rail_aim;
 mod navigation_geometry;
 mod obj_import;
 mod object_model;
@@ -176,10 +183,18 @@ mod sprites_editor;
 mod spu_encoder;
 mod staging_files;
 mod streaming;
+mod visibility_track;
+mod baked_draw;
+mod vertex_colors;
+mod baked_preview;
+mod visibility_packing;
+mod visibility_codec;
+mod rail_navigation;
 mod terrain;
 mod terrain_compile;
 mod terrain_editor;
 mod texture;
+mod texture_cook;
 mod third_person;
 mod third_person_blueprint;
 mod timeline;
@@ -1315,6 +1330,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             || a == "--analyze-memory"
             || a == "--generate-asset-report"
     }) {
+        let replay = args.windows(2).find(|v| v[0] == "--input-replay")
+            .map(|v| input_replay::Replay::parse(&v[1])).transpose()?;
+        if replay.is_some() && !args.iter().any(|a| a == "--play-psx") {
+            return Err("--input-replay requires --play-psx".into());
+        }
         let job = if args.iter().any(|a| a == "--generate-asset-report") {
             let summary =
                 build_report::Summary::load(&root, args.iter().any(|a| a == "--blueprint-debug"))
@@ -1359,6 +1379,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|v| v[1].parse::<u64>().ok());
         let mut started = None;
         loop {
+            if let (Some(replay), Some(started), Some(bridge)) = (&replay, started, &job.bridge) {
+                let started: Instant = started;
+                bridge.buttons.store(replay.buttons(started.elapsed().as_millis() as u64),
+                    std::sync::atomic::Ordering::Relaxed);
+            }
             if started.is_some_and(|t: Instant| {
                 stop_after.is_some_and(|secs| t.elapsed() > Duration::from_secs(secs))
             }) {

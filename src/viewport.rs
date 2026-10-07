@@ -16,6 +16,7 @@ pub struct View {
     pub distance: f32,
     pub phase: f32,
     pub fly_speed: f32,
+    pub mirror_x: bool,
 }
 impl Default for View {
     fn default() -> Self {
@@ -27,6 +28,7 @@ impl Default for View {
             distance: 12.,
             phase: 0.,
             fly_speed: 5.,
+            mirror_x: false,
         }
     }
 }
@@ -137,7 +139,8 @@ impl View {
     }
     pub fn unproject(&self, pixel: [f32; 2], depth: f32) -> [f32; 3] {
         let [right, up, forward] = self.basis();
-        let x = (pixel[0] - 480.) * depth / (870. * self.zoom);
+        let x =
+            (pixel[0] - 480.) * depth / (870. * self.zoom) * if self.mirror_x { -1. } else { 1. };
         let y = (300. - pixel[1]) * depth / (870. * self.zoom);
         std::array::from_fn(|i| {
             self.center[i] + right[i] * x + up[i] * y + forward[i] * (depth - self.distance)
@@ -245,7 +248,7 @@ pub fn project(view: &View, p: [f32; 3]) -> [f32; 3] {
     let relative: [f32; 3] = std::array::from_fn(|i| p[i] - view.center[i]);
     let [right, up, forward] = view.basis();
     let dot = |v: [f32; 3]| (0..3).map(|i| v[i] * relative[i]).sum::<f32>();
-    let x = dot(right);
+    let x = dot(right) * if view.mirror_x { -1. } else { 1. };
     let y = dot(up);
     let depth = view.distance + dot(forward);
     let scale = h as f32 * 1.45 * view.zoom / depth.max(1.);
@@ -335,6 +338,7 @@ pub fn render(
                 || entity.terrain.is_some()
                 || entity.skeletal_mesh.is_some())
                 && !wire
+                && !q.material.double_sided
             {
                 let area = (p[1][0] - p[0][0]) * (p[2][1] - p[0][1])
                     - (p[1][1] - p[0][1]) * (p[2][0] - p[0][0]);
@@ -353,7 +357,13 @@ pub fn render(
                 } else {
                     lighting.sample(world.point([0.; 3]), n, index, false, false)
                 };
-                crate::lighting::modulate(light, q.material.color)
+                let shade = crate::lighting::modulate(light, q.material.color);
+                q.vertex_colors.map_or(shade, |colors| {
+                    let rgb = crate::vertex_colors::tint(colors[v], shade);
+                    // The software wire/blockout fallback has no texture sampler.
+                    // Show modulation against white; the GPU preview retains HDR gain.
+                    if q.material.texture.is_some() { rgb.map(|c| (u32::from(c) * 255 / 128).min(255) as u8) } else { rgb }
+                })
             });
             polygons.push((
                 p.iter().map(|v| v[2]).sum::<f32>() / 4.,
@@ -508,6 +518,31 @@ mod tests {
     }
 
     #[test]
+    fn mirrored_projection_roundtrips_without_moving_the_eye() {
+        let normal = View::default();
+        let mirrored = View {
+            mirror_x: true,
+            ..normal
+        };
+        assert_eq!(
+            normal.unproject([480., 300.], 0.),
+            mirrored.unproject([480., 300.], 0.)
+        );
+        for pixel in [[50., 200.], [800., 400.], [480., 300.]] {
+            let world = normal.unproject(pixel, 12.);
+            let p = project(&mirrored, world);
+            assert!((p[0] - (960. - pixel[0])).abs() < 0.001);
+            assert!((p[1] - pixel[1]).abs() < 0.001);
+            for (a, b) in mirrored
+                .unproject([p[0], p[1]], p[2])
+                .into_iter()
+                .zip(world)
+            {
+                assert!((a - b).abs() < 0.001);
+            }
+        }
+    }
+    #[test]
     fn isometric_snap_preserves_the_camera_target_and_lens() {
         let mut view = View {
             yaw: 4.2,
@@ -517,6 +552,7 @@ mod tests {
             distance: 42.,
             phase: 0.25,
             fly_speed: 12.,
+            mirror_x: false,
         };
         let expected = View::default();
         view.snap_to_isometric();

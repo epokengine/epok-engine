@@ -1247,6 +1247,7 @@ pub(crate) fn verify_modal_indices(context: &mut imgui::Context) {
 }
 fn save_layout(imgui: &mut imgui::Context, editor: Option<&Editor>, screenshot: bool) {
     if !screenshot && let Some(editor) = editor {
+        let _ = crate::scene_view_state::save(&editor.root, &editor.scene_path(), &editor.view);
         let mut ini = String::new();
         imgui.save_ini_settings(&mut ini);
         let _ = std::fs::write(editor.root.join("UserSettings/editor-layout-v2.ini"), ini);
@@ -1474,7 +1475,7 @@ fn gpu_scene_and_gizmo_projection_agree_at_different_orbit_distances() {
     }
 }
 
-fn capture_png(
+pub(crate) fn capture_png(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     texture: &wgpu::Texture,

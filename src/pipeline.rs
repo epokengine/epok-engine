@@ -1,5 +1,6 @@
 use crate::project::{self, Config};
 use std::{
+    cell::Cell,
     fs,
     io::{BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
@@ -42,6 +43,7 @@ pub struct Job {
     pub native: Option<crate::native_play::Bridge>,
     pub events: Receiver<Event>,
     controls: Sender<Control>,
+    stopping: Cell<bool>,
     worker: Option<thread::JoinHandle<()>>,
 }
 impl Job {
@@ -81,6 +83,7 @@ impl Job {
             native: None,
             events,
             controls,
+            stopping: Cell::new(false),
             worker: Some(worker),
         }
     }
@@ -134,6 +137,7 @@ impl Job {
             native: None,
             events,
             controls,
+            stopping: Cell::new(false),
             worker: Some(worker),
         }
     }
@@ -147,6 +151,7 @@ impl Job {
                 native: None,
                 events,
                 controls,
+                stopping: Cell::new(false),
                 worker: None,
             },
             sender,
@@ -239,11 +244,18 @@ impl Job {
             native: native_bridge,
             events,
             controls,
+            stopping: Cell::new(false),
             worker: Some(worker),
         }
     }
     pub fn control(&self, control: Control) {
+        if matches!(control, Control::Stop) {
+            self.stopping.set(true);
+        }
         let _ = self.controls.send(control);
+    }
+    pub fn stopping(&self) -> bool {
+        self.stopping.get()
     }
 }
 impl Drop for Job {

@@ -10,7 +10,7 @@ fn linear(c:vec3<f32>) -> vec3<f32> {
 @vertex fn vertex(v:Vertex) -> Output {
     let s=camera.values.x; let c=camera.values.y; let sp=camera.values.z; let cp=camera.values.w;
     let zoom=camera.center.w; let p=v.position-camera.center.xyz;
-    let x=p.x*c-p.z*s;
+    let x=(p.x*c-p.z*s)*camera.orbit.z;
     let z=p.x*s+p.z*c;
     let y=p.y*cp+z*sp;
     let depth=camera.orbit.x+z*cp-p.y*sp;
@@ -22,6 +22,10 @@ fn linear(c:vec3<f32>) -> vec3<f32> {
 @fragment fn fragment(v:Output) -> @location(0) vec4<f32> {
     let tex=textureSample(textures,nearest_sampler,v.uv,v.layer);
     if tex.a<0.5 {discard;}
+    // Native CLUT: STP-clear texels overwrite; STP-set texels use material ABR.
+    // Mode 8 is the opaque half of a mixed primitive; mode 0 ignores STP.
+    if v.mode==8 && tex.a>0.75 {discard;}
+    if v.mode>0 && v.mode<8 && tex.a<0.75 {discard;}
     let alpha=select(select(1.0,0.25,v.mode==4),0.5,v.mode==1);
     return vec4<f32>(linear(v.color*tex.rgb),alpha);
 }

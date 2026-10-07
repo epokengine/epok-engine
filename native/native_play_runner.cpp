@@ -20,6 +20,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall SetErrorMode(unsigned l
 #include "hud-config.hh"
 #include "native_play_protocol.h"
 #include "transform_cache.hpp"
+#include "track_camera_pose.hpp"
 
 namespace epok {
 MusicStats music_stats; PerformanceStats performance_stats; LightingEnvironment lighting_environment;
@@ -120,7 +121,7 @@ bool camera_project(const Fixed* point,Fixed* screen){
     Fixed p[3];view.point(point,p);if(p[2]<=Fixed(0.25))return false;
     int32_t fov=camera->camera_settings.field_of_view.raw();if(fov<25*4096)fov=25*4096;if(fov>120*4096)fov=120*4096;
     const double focal=1.0/std::tan(double(fov)*3.14159265358979323846/(2.0*180.0*4096.0));
-    const int64_t x=int64_t(p[0].raw()*focal),y=int64_t(p[1].raw()*focal),z=p[2].raw();
+    const int64_t x=int64_t(p[0].raw()*focal)*(camera->camera_settings.mirror_x?-1:1),y=int64_t(p[1].raw()*focal),z=p[2].raw();
     screen[0]=Fixed(int32_t(int64_t(display_width/2)*4096+x*(display_width/2)*4096/z),Fixed::RAW);
     screen[1]=Fixed(int32_t(int64_t(display_height/2)*4096-y*(display_height*2/3)*4096/z),Fixed::RAW);return true;
 }
@@ -155,6 +156,25 @@ public:
 static FILE* frames=nullptr;
 static bool write32(uint32_t value){uint8_t b[4];for(unsigned i=0;i<4;++i)b[i]=uint8_t(value>>(i*8));return fwrite(b,1,4,frames)==4;}
 static bool read32(uint32_t& value){uint8_t b[4];if(fread(b,1,4,stdin)!=4)return false;value=0;for(unsigned i=0;i<4;++i)value|=uint32_t(b[i])<<(i*8);return true;}
+static void advance_camera_track(uint32_t elapsed){
+    const auto* track=epok::active_visibility_track;if(!track)return;
+    const auto transitions=epok::rail_navigation_state.transitions;
+    const bool active=!track->navigation||epok::is_active_slot(track->navigation->target);
+    if(!active||epok::time.paused())elapsed=0;
+    int32_t target[3]{};
+    if(track->navigation)for(unsigned c=0;c<3;++c)target[c]=epok::objects[track->navigation->target].transform.position[c].raw();
+    auto camera=[&](const auto& a,const auto& b,uint32_t fraction){
+        auto pose=epok::interpolate_track_camera(a,b,fraction);
+        epok::aim_track_camera(pose,elapsed,target,transitions);
+        auto& actor=epok::objects[track->camera];actor.camera_settings.field_of_view=Fixed(pose.fov,Fixed::RAW);
+        for(unsigned c=0;c<3;++c){actor.transform.position[c]=Fixed(pose.position[c],Fixed::RAW);actor.transform.rotation[c]=Fixed(pose.rotation[c],Fixed::RAW);}
+    };
+    // Native gameplay uses the same rail/aim controller with all pages ready.
+    // This does not enable streaming or visibility filtering in Scene View.
+    auto ready=[](bool){return true;};
+    if(track->navigation)epok::advance_rail_navigation(elapsed,target,ready,camera);
+    else epok::advance_visibility_track(elapsed,ready,camera);
+}
 static void frame(){
     EpokHudSink sink;for(size_t i=0;i<epok::texture_count;++i){sink.dimensions.push_back(epok::texture_assets[i].width);sink.dimensions.push_back(epok::texture_assets[i].height);}
     epok::hud_core::Compiler compiler(sink,epok::display_width,epok::display_height,{epok::hud_layout_budget,epok::hud_rectangle_budget,epok::hud_text_budget,epok::hud_glyph_budget});
@@ -163,7 +183,7 @@ static void frame(){
     write32(uint32_t(epok::object_count));write32(uint32_t(epok::authored_count));const auto camera=epok::active_camera();write32(camera?camera.index:0xffffffffu);
     write32(uint32_t(sink.commands.size()));write32(uint32_t(epok::requested_scene.size()));write32(uint32_t(epok::audio_events.size()));
     write32(s.rectangles);write32(s.glyphs);write32(s.texts);write32(s.images);write32(s.dropped);
-    for(size_t i=0;i<epok::object_count;++i){const auto& o=epok::objects[i];write32(o.alive);write32(o.active);write32(uint32_t(o.parent));for(auto v:o.transform.position)write32(uint32_t(v.raw()));for(auto v:o.transform.rotation)write32(uint32_t(v.raw()));for(auto v:o.transform.scale)write32(uint32_t(v.raw()));write32(uint32_t(o.camera_settings.field_of_view.raw()));write32(uint32_t(o.animator.ticks));write32(uint32_t(o.animator.clip));write32((o.animator.enabled?1u:0u)|(o.animator.playing?2u:0u)|(o.animator.looping?4u:0u));}
+    for(size_t i=0;i<epok::object_count;++i){const auto& o=epok::objects[i];write32(o.alive);write32(o.active);write32(uint32_t(o.parent));for(auto v:o.transform.position)write32(uint32_t(v.raw()));for(auto v:o.transform.rotation)write32(uint32_t(v.raw()));for(auto v:o.transform.scale)write32(uint32_t(v.raw()));write32(uint32_t(o.camera_settings.field_of_view.raw()));write32(uint32_t(o.animator.ticks));write32(uint32_t(o.animator.clip));write32((o.animator.enabled?1u:0u)|(o.animator.playing?2u:0u)|(o.animator.looping?4u:0u)|(o.camera_settings.mirror_x?8u:0u));}
     for(const auto& command:sink.commands)for(auto value:command.v)write32(uint32_t(value));
     for(const auto& event:epok::audio_events){write32(uint32_t(event.source));write32(uint32_t(uint64_t(event.source)>>32));write32(event.action);write32(uint32_t(event.clip));write32(uint32_t(event.volume));write32(uint32_t(event.pitch));}
     fwrite(epok::requested_scene.data(),1,epok::requested_scene.size(),frames);fflush(frames);epok::audio_events.clear();
@@ -178,7 +198,7 @@ int main(){
     epok::audio_source_retained=[](const epok::AudioSource* source){return epok::music_active==source||epok::music_requested==source;};
     epok::nav::move_actor=&epok::move_and_slide;epok::nav::bounds_actor=&epok::collider_aabb;
     epok::initialize_components();if(epok::load_actor_bank(epok::actor_table,epok::objects.data(),epok::object_count)!=epok::actor_table.count)return 4;
-    for(auto& object:epok::objects)if(epok::is_active(&object)&&object.audio.enabled&&object.audio.play_on_start&&!object.audio.is_playing())object.audio.play();frame();
+    for(auto& object:epok::objects)if(epok::is_active(&object)&&object.audio.enabled&&object.audio.play_on_start&&!object.audio.is_playing())object.audio.play();advance_camera_track(0);frame();
     uint32_t now=0,elapsed=0;uint32_t buttons[4]={},analog[4]={},axes[4]={};
     while(read32(elapsed)){for(unsigned p=0;p<4;++p)if(!read32(buttons[p])||!read32(analog[p])||!read32(axes[p])||buttons[p]>65535||analog[p]>1)return 3;uint32_t completed=0;if(!read32(completed)||elapsed>100000||completed>EPOK_NATIVE_PLAY_AUDIO_LIMIT)return 3;
         for(uint32_t i=0;i<completed;++i){uint32_t low=0,high=0;if(!read32(low)||!read32(high))return 3;const auto* source=reinterpret_cast<const epok::AudioSource*>(uintptr_t(uint64_t(low)|(uint64_t(high)<<32)));auto found=epok::audio_playing.find(source);if(found!=epok::audio_playing.end())found->second=false;}
@@ -187,7 +207,7 @@ int main(){
             for(unsigned step=0;step<steps&&!epok::time.paused();++step){epok::time.begin_tick();epok::input.begin_tick();const Fixed dt(epok::time.delta_raw,Fixed::RAW);epok::level.tick(dt);
                 bool triggers=collision_world.has_trigger_pairs();for(size_t i=0;i<epok::object_count&&!triggers;++i)triggers=epok::objects[i].collider.enabled&&epok::objects[i].collider.trigger&&epok::is_active_slot(i);
                 if(triggers){refresh_collisions();collision_world.update_triggers(dispatch_trigger);}for(size_t i=0;i<epok::object_count;++i)if(epok::is_active_slot(i)){epok::objects[i].animator.advance();epok::objects[i].sprite_animator.advance(dt,epok::objects[i].sprite);epok::objects[i].palette_animator.advance(dt);}epok::input.end_tick();}
-            cards.pump();epok::level.refresh_stats();++epok::performance_stats.frame;
+            advance_camera_track(epok::time.frame_microseconds);cards.pump();epok::level.refresh_stats();++epok::performance_stats.frame;
         }frame();
     }
 }

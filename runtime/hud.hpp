@@ -52,8 +52,9 @@ public:
         const auto* t=texture(id);auto& f=images[output->getParity()][pictures++];auto& q=f.primitive;
         q.pointA={{.x=int16_t(x0),.y=int16_t(y0)}};q.pointB={{.x=int16_t(x1),.y=int16_t(y0)}};
         q.pointC={{.x=int16_t(x0),.y=int16_t(y1)}};q.pointD={{.x=int16_t(x1),.y=int16_t(y1)}};
-        q.uvA.u=u0;q.uvA.v=v0+(t->y&255);q.uvB.u=u1;q.uvB.v=v0+(t->y&255);
-        q.uvC.u=u0;q.uvC.v=v1+(t->y&255);q.uvD.u=u1;q.uvD.v=v1+(t->y&255);
+        const auto base_u=texture_base_u(*t);
+        q.uvA.u=base_u+u0;q.uvA.v=v0+(t->y&255);q.uvB.u=base_u+u1;q.uvB.v=v0+(t->y&255);
+        q.uvC.u=base_u+u0;q.uvC.v=v1+(t->y&255);q.uvD.u=base_u+u1;q.uvD.v=v1+(t->y&255);
         q.clutIndex=texture_clut(*t);q.tpage=texture_page(*t,BlendMode::Cutout);
         q.setColor({{.r=uint8_t((unsigned(color[0])+1)/2),.g=uint8_t((unsigned(color[1])+1)/2),.b=uint8_t((unsigned(color[2])+1)/2)}}).setOpaque();output->chain(f);
     }

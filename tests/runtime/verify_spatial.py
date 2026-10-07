@@ -17,9 +17,20 @@ SOURCES.append(ROOT / "tests/runtime/terrain_collision.cpp")
 SOURCES.append(ROOT / "tests/runtime/navigation_motion.cpp")
 SOURCES.append(ROOT / "tests/runtime/frustum.cpp")
 SOURCES.append(ROOT / "tests/runtime/visibility.cpp")
+SOURCES.append(ROOT / "tests/runtime/visibility_track.cpp")
+SOURCES.append(ROOT / "tests/runtime/rail_navigation.cpp")
 SOURCES.append(ROOT / "tests/runtime/polygon.cpp")
+SOURCES.append(ROOT / "tests/runtime/baked_selection.cpp")
+SOURCES.append(ROOT / "tests/runtime/draw_order.cpp")
+SOURCES.append(ROOT / "tests/runtime/ordered_draw.cpp")
+SOURCES.append(ROOT / "tests/runtime/ordered_projection.cpp")
+SOURCES.append(ROOT / "tests/runtime/ordered_screen.cpp")
+SOURCES.append(ROOT / "tests/runtime/baked_packet.cpp")
+SOURCES.append(ROOT / "tests/runtime/baked_colors.cpp")
 SOURCES.append(ROOT / "tests/runtime/streaming_pool.cpp")
+SOURCES.append(ROOT / "tests/runtime/stream_hash.cpp")
 SOURCES.append(ROOT / "tests/runtime/streaming_backend.cpp")
+SOURCES.append(ROOT / "tests/runtime/streaming_read.cpp")
 SOURCES.append(ROOT / "tests/runtime/streaming_disabled.cpp")
 SOURCES.append(ROOT / "tests/runtime/streaming_archive_fits.cpp")
 SOURCES.append(ROOT / "tests/runtime/transition.cpp")
@@ -45,6 +56,13 @@ SOURCES.append(ROOT / "tests/runtime/native_envelope.cpp")
 SOURCES.append(ROOT / "tests/runtime/instrument_reverb.cpp")
 SOURCES.append(ROOT / "tests/runtime/instrument_source_preview.cpp")
 SOURCES.append(ROOT / "tests/runtime/spu_transfer.cpp")
+SOURCES.append(ROOT / "tests/runtime/palette_renderer.cpp")
+SOURCES.append(ROOT / "tests/runtime/camera_space.cpp")
+SOURCES.append(ROOT / "tests/runtime/fixed_trigonometry.cpp")
+SOURCES.append(ROOT / "tests/runtime/camera_aim.cpp")
+SOURCES.append(ROOT / "tests/runtime/rail_camera_aim.cpp")
+SOURCES.append(ROOT / "tests/runtime/texture_upload.cpp")
+SOURCES.append(ROOT / "tests/runtime/texture_packet.cpp")
 if len(_sys.argv) > 1:
     selected = set(_sys.argv[1:])
     missing = selected - {source.stem for source in SOURCES}
@@ -76,13 +94,31 @@ with tempfile.TemporaryDirectory(prefix="epok-spatial-") as temp:
     (backend / "psyqo").mkdir(parents=True)
     shutil.copyfile(ROOT / "runtime/streaming.hpp", backend / "streaming.hpp")
     shutil.copyfile(ROOT / "tests/runtime/streaming_transport_stub.hpp", backend / "music.hpp")
+    documents.write_text(backend / "streaming_read.hpp", "#pragma once\n")
     documents.write_text(backend / "psyqo/gpu.hh", "#pragma once\n")
     host = path / "streaming-host"
     shutil.copytree(backend, host)
     (host / "common/kernel").mkdir(parents=True)
     shutil.copyfile(ROOT / "tests/runtime/pcdrv_stub.hpp", host / "common/kernel/pcdrv.h")
     documents.write_text(host / "data-config.hh", "#pragma once\n#define EPOK_HOST_DATA 1\n")
+    read = path / "streaming-read"
+    read.mkdir()
+    shutil.copyfile(ROOT / "runtime/streaming_read.hpp", read / "streaming_read.hpp")
+    for name in ("EASTL/atomic.h", "common/hardware/dma.h", "psyqo/cdrom-device.hh",
+                 "psyqo/hardware/cdrom.hh", "psyqo/hardware/sbus.hh", "psyqo/kernel.hh", "psyqo/msf.hh"):
+        (read / name).parent.mkdir(parents=True, exist_ok=True)
+        documents.write_text(read / name, "#pragma once\n")
     includes = [path, ROOT / "third_party/nugget", ROOT / "runtime", ROOT / "native"]
+    gte = path / "gte-matrix"
+    (gte / "psyqo").mkdir(parents=True)
+    shutil.copyfile(ROOT / "runtime/gte_geometry.hpp", gte / "gte_geometry.hpp")
+    shutil.copyfile(ROOT / "tests/runtime/gte_register_stub.hpp", gte / "psyqo/gte-registers.hh")
+    documents.write_text(gte / "psyqo/gte-kernels.hh", "#pragma once\n")
+    palette = path / "palette-renderer"
+    palette.mkdir()
+    shutil.copyfile(ROOT / "runtime/palette.hpp", palette / "palette.hpp")
+    shutil.copyfile(ROOT / "tests/runtime/palette_transport_stub.hpp", palette / "texture.hpp")
+    documents.write_text(palette / "epok.hpp", "#pragma once\n")
     audio = path / "audio-runtime"
     (audio / "common/hardware").mkdir(parents=True)
     shutil.copyfile(ROOT / "runtime/audio.hpp", audio / "audio.hpp")
@@ -97,6 +133,8 @@ with tempfile.TemporaryDirectory(prefix="epok-spatial-") as temp:
             command = [compiler, "/nologo", "/std:c++20", "/EHsc", "/W3", "/D_CRT_SECURE_NO_WARNINGS", str(source), f"/Fe:{target}", f"/Fo:{path / (source.stem + '.obj')}", *[f"/I{p}" for p in includes]]
         else:
             command = [compiler, "-std=c++20", "-Wall", "-Wextra", str(source), "-o", str(target), *[f"-I{p}" for p in includes]]
+        if source.stem == "streaming_read":
+            command.insert(1, f"/I{read}" if Path(compiler).name.lower()=="cl.exe" else f"-I{read}")
         if source.stem in ("instrument_preview", "instrument_source_preview"):
             native_source = ROOT / "native" / source.name
             if Path(compiler).name.lower() == "cl.exe":

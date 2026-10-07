@@ -6,11 +6,73 @@ namespace epok {
 inline constexpr uint32_t stream_page_bytes = 64u * 1024u;
 inline constexpr uint32_t stream_page_sectors = stream_page_bytes / 2048u;
 inline constexpr uint32_t stream_invalid_page = UINT32_MAX;
-inline uint32_t stream_page_hash(const uint8_t *data, size_t bytes = stream_page_bytes) {
-  uint32_t hash = 2166136261u;
-  for (size_t i = 0; i < bytes; ++i) hash = (hash ^ data[i]) * 16777619u;
+inline uint32_t stream_hash_multiply(uint32_t value) {
+  // FNV prime 0x01000193 = 2^24 + 16*(8*3+1) + 3, modulo 2^32.
+  // On R3000 -O2 this is eight ALU instructions instead of the compiler's
+  // ten-instruction constant multiply. Keep unsigned wraparound intentional.
+  const uint32_t triple = value + (value << 1);
+  return (value << 24) + (((triple << 3) + value) << 4) + triple;
+}
+inline uint32_t stream_page_hash_update(uint32_t hash, const uint8_t *data, size_t bytes) {
+  // Consume four bytes per loop, preserving their FNV1a order. Byte loads keep
+  // unaligned callers safe and never read outside the requested range.
+  while (bytes >= 4) {
+    hash = stream_hash_multiply(hash ^ data[0]);
+    hash = stream_hash_multiply(hash ^ data[1]);
+    hash = stream_hash_multiply(hash ^ data[2]);
+    hash = stream_hash_multiply(hash ^ data[3]);
+    data += 4; bytes -= 4;
+  }
+  while (bytes--) hash = stream_hash_multiply(hash ^ *data++);
   return hash;
 }
+inline uint32_t stream_page_hash(const uint8_t *data, size_t bytes = stream_page_bytes) {
+  return stream_page_hash_update(2166136261u, data, bytes);
+}
+
+// Small, deterministic working set for a camera-sized view of a streamed world.
+// The caller scores visible chunks using resident bounds, then requests only the
+// closest pages. A page shared by several chunks keeps its best score.
+template <size_t Capacity> class StreamPageWorkingSet {
+  static_assert(Capacity > 0, "a working set needs at least one slot");
+  struct Entry { uint32_t page = stream_invalid_page; uint32_t score = UINT32_MAX; };
+  Entry entries_[Capacity]{};
+  size_t count_ = 0;
+  static bool before(const Entry &a, const Entry &b) {
+    return a.score < b.score || (a.score == b.score && a.page < b.page);
+  }
+  void sort() {
+    for (size_t i = 1; i < count_; ++i) {
+      Entry value = entries_[i];
+      size_t j = i;
+      while (j && before(value, entries_[j - 1])) {
+        entries_[j] = entries_[j - 1];
+        --j;
+      }
+      entries_[j] = value;
+    }
+  }
+public:
+  void clear() { count_ = 0; }
+  size_t count() const { return count_; }
+  uint32_t page(size_t i) const { return i < count_ ? entries_[i].page : stream_invalid_page; }
+  bool contains(uint32_t page) const {
+    for (size_t i = 0; i < count_; ++i) if (entries_[i].page == page) return true;
+    return false;
+  }
+  void consider(uint32_t page, uint32_t score) {
+    if (page == stream_invalid_page) return;
+    Entry incoming{page, score};
+    for (size_t i = 0; i < count_; ++i) if (entries_[i].page == page) {
+      if (score < entries_[i].score) { entries_[i].score = score; sort(); }
+      return;
+    }
+    if (count_ < Capacity) entries_[count_++] = incoming;
+    else if (before(incoming, entries_[count_ - 1])) entries_[count_ - 1] = incoming;
+    else return;
+    sort();
+  }
+};
 
 // Platform independent page ownership. A DMA destination cannot be evicted,
 // and callers must pin ready pages for as long as they retain payload pointers.

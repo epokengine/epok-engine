@@ -138,14 +138,20 @@ fn refresh(e: &mut Editor) {
 fn snapshot(e: &Editor) -> Value {
     let profile = json!({"saved":e.play_profile,"active_target":e.active_play_target});
     let operation = e.critical_busy().then(|| {
-        if e.dependencies.busy() {
+        if let Some(loading) = &e.scene_loading {
+            loading.stage.clone()
+        } else if e.dependencies.busy() {
             e.dependencies.message.clone()
         } else {
             e.job_stage.clone()
         }
     });
     let serial = json!({"setup_open":e.serial_ui.open,"tools_ready":e.serial_ui.tools_ready,"tools_directory":crate::serial_support::managed_directory(),"port":e.preferences.serial.port,"status":e.serial_ui.status,"error":e.serial_ui.error,"command_pending":e.serial_ui.command_pending});
-    json!({"project":e.project_name(),"root":e.root,"scene_path":assets::path_string(&e.root,&e.scene_path()),"revision":revision(&e.scene),"dirty":e.dirty,"actors":e.scene.actors.len(),"selected":e.selected,"playing":e.playing,"paused":e.paused,"play_profile":profile,"serial":serial,"build_or_play_active":e.job.is_some(),"editing_locked":e.critical_busy(),"installation_active":e.dependencies.busy(),"operation":operation,"import_active":e.assets.busy,"import_error":e.assets.error,"bake_active":e.bake_job.is_some(),"last_error":e.last_error,"game_error":e.game_error,"game_frame":e.game_frame.as_ref().map(|f|json!({"sequence":f.sequence,"width":f.width,"height":f.height,"buttons":f.buttons,"vsyncs":f.vsyncs,"cycles":f.cycles})),"view":e.view,"scene_2d":e.scene_2d(),"view_mode":e.scene_view_mode.key(),"grid":e.grid,"wire":e.wire})
+    let native_frame = e.native_frame.as_ref().map(|f| json!({
+        "sequence": f.number, "width": f.hud_size[0], "height": f.hud_size[1],
+        "buttons": f.buttons, "actors": f.actor_count, "camera": f.camera
+    }));
+    json!({"project":e.project_name(),"root":e.root,"scene_path":assets::path_string(&e.root,&e.scene_path()),"revision":revision(&e.scene),"dirty":e.dirty,"actors":e.scene.actors.len(),"selected":e.selected,"playing":e.playing,"paused":e.paused,"play_profile":profile,"serial":serial,"build_or_play_active":e.job.is_some(),"stopping":e.job.as_ref().is_some_and(crate::pipeline::Job::stopping),"scene_loading":e.scene_loading.is_some(),"editing_locked":e.critical_busy(),"installation_active":e.dependencies.busy(),"operation":operation,"import_active":e.assets.busy,"import_error":e.assets.error,"bake_active":e.bake_job.is_some(),"last_error":e.last_error,"game_error":e.game_error,"native_frame":native_frame,"game_frame":e.game_frame.as_ref().map(|f|json!({"sequence":f.sequence,"width":f.width,"height":f.height,"buttons":f.buttons,"vsyncs":f.vsyncs,"cycles":f.cycles})),"view":e.view,"scene_2d":e.scene_2d(),"view_mode":e.scene_view_mode.key(),"grid":e.grid,"wire":e.wire,"baked_preview":{"enabled":e.baked_preview.enabled,"streaming":e.baked_preview.streaming,"sample":e.baked_preview.sample,"committed":e.baked_preview.committed,"resident_pages":e.baked_preview.resident,"requested_pages":e.baked_preview.requested,"error":e.baked_preview.error}})
 }
 
 /// Resolved Object/Actor/Component model for the editor's current catalog. `None` when
@@ -284,7 +290,7 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
             || (name == "project_files" && matches!(a["action"].as_str(), Some("list" | "read")))
             || (name == "editor_control" && a["action"] == "stop");
         if !read {
-            return Err("Editing is locked during component installation, compilation and serial preparation. Read editor_state/logs_read or cancel the operation.".into());
+                return Err("Editing is locked during scene loading, component installation, compilation and serial preparation. Read editor_state/logs_read for completion.".into());
         }
     }
     match name {
@@ -687,7 +693,8 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                 return Err("Save the scene first or explicitly set discard_unsaved=true.".into());
             }
             let path = inside(&e.root, &string(&a, "path")?)?;
-            e.open_scene(path)?;
+            e.begin_scene_open(path)?;
+            e.last_error = None;
             state.undo.clear();
             state.redo.clear();
             Ok(snapshot(e))
@@ -765,7 +772,7 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
             if e.active_play_target == crate::play::Target::Serial {
                 return Err("Use the physical PSX controller during Serial Play.".into());
             }
-            if !e.playing {
+            if !e.playing || e.job.as_ref().is_some_and(crate::pipeline::Job::stopping) {
                 return Err("Start Play before sending controller input".into());
             }
             let mask = a["buttons"]
@@ -790,9 +797,9 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                     e.build(a["action"] == "play");
                 }
                 "stop" => {
-                    if let Some(job) = &e.job {
-                        job.control(crate::pipeline::Control::Stop);
-                    }
+                    state.buttons = 0;
+                    state.buttons_until = None;
+                    e.stop_play();
                 }
                 "step" => {
                     if !e.playing || !e.paused {
@@ -988,7 +995,7 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                     })
                     .unwrap_or_default(),
                 sequence_catalog: None,
-                texture: source.to_ascii_lowercase().ends_with(".png"),
+                texture: crate::texture::source_candidate(&source),
                 model,
                 model_storage,
                 source,
@@ -1422,7 +1429,7 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
         ),
         (
             "scene_open",
-            "Open a scene under assets/. Create new scene files with project_files first. Unsaved changes require explicit discard.",
+            "Start asynchronous scene loading under assets/. Poll editor_state until scene_loading=false, then check scene_path and last_error. Unsaved changes require explicit discard.",
             json!({"revision":s,"path":s,"discard_unsaved":b}),
             vec!["revision", "path"],
             false,

@@ -69,9 +69,8 @@ inline void transform2d_clamp(Transform2D& transform) {
 
 // ---- deterministic Q12 trigonometry --------------------------------------------------
 //
-// psyqo::Trig<> is a runtime object owned by main.cpp and its angle unit is a turn
-// fraction, not degrees; depending on it here would drag a service into a header that the
-// host tests compile standalone. Instead the quarter turn is tabulated at compile time:
+// The 2D path interpolates degrees independently of the 3D turn-quantized table.
+// Its quarter turn is tabulated at compile time:
 // 257 Q12 samples of sin over [0, 90] degrees (256 intervals of exactly 1440 raw degree
 // units = 0.3515625 degrees), linearly interpolated and mirrored into the other three
 // quadrants. The table is `constexpr`, so no floating point survives into the image; only

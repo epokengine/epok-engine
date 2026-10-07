@@ -73,7 +73,7 @@ fn manager_body(ui: &Ui, m: &mut Manager, scene: &crate::scene::Scene) {
         if m.busy {
             "Converting in background..."
         } else {
-            "Copy PNG, audio or FBX sources into assets/ to import them."
+            "Copy PNG, TIM, audio or FBX sources into assets/ to import them."
         },
     );
     if let Some(error) = &m.error {
@@ -343,9 +343,9 @@ fn import_dialog(ui: &Ui, m: &mut Manager) {
         m.open_dialog = false;
         let mut open = true;
         let mut start = false;
-        ui.window("Import PNG Texture").opened(&mut open).size([560.,260.],Condition::FirstUseEver).build(||{
+        ui.window("Import Texture").opened(&mut open).size([560.,260.],Condition::FirstUseEver).build(||{
             let form=m.form.as_mut().unwrap();
-            ui.text_wrapped("PNG up to 256 x 256. PSX 8-bit palette (255 colors + transparent). Alpha below 128 is cut out. Nearest-color quantization is deterministic.");
+            ui.text_wrapped("Up to 256 x 256. PNG: deterministic 255-color quantization plus cutout (alpha <128). Indexed TIM: one 16/256-color CLUT; colors, indices and per-texel PSX semitransparency are preserved exactly.");
             ui.disabled(m.busy,||{ui.disabled(form.snapshot,||{ui.input_text("Source",&mut form.source).build();});ui.disabled(form.existing.is_some(),||{ui.input_text("Asset",&mut form.destination).build();});if ui.button("Import"){start=true;}});
             if let Some(error)=&m.error{ui.text_wrapped(error);}
         });
@@ -980,7 +980,7 @@ fn texture_inspector(ui: &Ui, m: &mut Manager, r: &assets::Record) {
     if ui.button("Reimport / Locate source") {
         m.begin_reimport(r, false);
     }
-    if ui.button("Rebuild from stored PNG") {
+    if ui.button("Rebuild from stored source") {
         m.begin_reimport(r, true);
     }
 }

@@ -2438,12 +2438,12 @@ fn import(e: &mut Editor, s: &mut State, source: &Path) -> bool {
             .unwrap_or_default()
             .to_lowercase();
         if ![
-            "png", "wav", "mp3", "flac", "ogg", "mid", "midi", "seq", "sep", "vab", "vh", "vb",
+            "png", "tim", "wav", "mp3", "flac", "ogg", "mid", "midi", "seq", "sep", "vab", "vh", "vb",
             "sf2", "sf3", "fbx", "obj",
         ]
         .contains(&ext.as_str())
         {
-            return Err("Supported import sources: PNG, WAV, MP3, FLAC, OGG, MIDI, Sony audio, SoundFont, FBX and OBJ.".into());
+            return Err("Supported import sources: PNG, TIM, WAV, MP3, FLAC, OGG, MIDI, Sony audio, SoundFont, FBX and OBJ.".into());
         }
         let name = source
             .file_name()
@@ -2682,7 +2682,7 @@ fn pick_files() -> Result<Vec<PathBuf>, String> {
     {
         use std::os::windows::process::CommandExt;
         let output = std::process::Command::new("powershell.exe").creation_flags(0x08000000)
-            .args(["-NoProfile", "-STA", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Import Content'; $d.Multiselect=$true; $d.Filter='Supported content|*.png;*.wav;*.mp3;*.flac;*.ogg;*.mid;*.midi;*.seq;*.sep;*.vab;*.vh;*.vb;*.sf2;*.sf3;*.fbx;*.obj'; if($d.ShowDialog() -eq 'OK'){$d.FileNames | ForEach-Object {[Console]::WriteLine($_)}}; $d.Dispose()"])
+            .args(["-NoProfile", "-STA", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Import Content'; $d.Multiselect=$true; $d.Filter='Supported content|*.png;*.tim;*.wav;*.mp3;*.flac;*.ogg;*.mid;*.midi;*.seq;*.sep;*.vab;*.vh;*.vb;*.sf2;*.sf3;*.fbx;*.obj'; if($d.ShowDialog() -eq 'OK'){$d.FileNames | ForEach-Object {[Console]::WriteLine($_)}}; $d.Dispose()"])
             .output().map_err(|e| e.to_string())?;
         if !output.status.success() {
             return Err("Could not open the file picker. Enter a source path instead.".into());

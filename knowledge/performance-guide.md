@@ -297,7 +297,7 @@ The corner/center design below is **historical and was not implemented**:
 it did not guarantee coverage of intermediate positions and arbitrary camera
 orientations.
 
-Crash Bandicoot technique: precompute off-console which geometry is visible
+Offline visibility technique: precompute off-console which geometry is visible
 from each camera position. This targets two measured components: `setup`
 (69 units to test all chunk bounds) and the part of the polygon loop that
 rejects invisible quads using outcodes.
@@ -498,13 +498,10 @@ internal contracts and debt in `knowledge/streaming-implementation.md` and
 `knowledge/performance-implementation.md`; user controls in `docs/settings.md`. Section 8 describes the earlier state: this delivery is
 in the working tree and does not imply a new commit or push.
 
-Historical relationship: visibility and ordering precomputation are described
-in [Andy Gavin, Making Crash Bandicoot, part 3](https://all-things-andy-gavin.com/2011/02/04/making-crash-bandicoot-part-3/)
-and [Dave Baggett](https://news.ycombinator.com/item?id=9277704).
-Paging and packing are described in
-[Teaching an Old Dog New Bits, part 3](https://all-things-andy-gavin.com/2011/03/28/crash-bandicoot-teaching-an-old-dog-new-bits-part-3/).
-This work adapts chunk selection and geometry loading; it does not reproduce
-Crash's occlusion, precomputed polygon ordering, or entire memory system.
+Scope of this stage: the implementation adapts offline chunk selection and
+geometry loading. It does not establish equivalence to a reference renderer's
+occlusion, polygon ordering, or complete memory system. Historical research and
+source-specific comparison evidence are maintained separately from this repo.
 
 ## 10. Prototype corrections and acceptance criteria
 

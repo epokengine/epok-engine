@@ -265,6 +265,9 @@ pub fn header_with_templates_for(
     if scenes.is_empty() || scenes.len() > 16 {
         return Err("Scene registry needs 1..16 scenes".into());
     }
+    if streaming.is_none()&&scenes.iter().any(|scene|scene.ordered_draw.is_some()) {
+        return Err("Ordered draw programs require cooked streaming pages".into());
+    }
     let mut all_resources = scenes.to_vec();
     all_resources.extend(templates.iter().map(|template| template.scene.clone()));
     all_resources.extend(referenced.cloned());
@@ -278,11 +281,15 @@ pub fn header_with_templates_for(
             .textures
             .get(id)
             .ok_or_else(|| format!("Unresolved shared texture {id}"))?;
+        let cooked = crate::texture_cook::cook(t);
         textures += &format!(
             "inline constexpr int {}={i};\n",
             crate::texture::symbol(*id)
         );
-        for (name, values) in [("pixels", &t.words), ("palette", &t.palette)] {
+        for (name, values) in [("pixels", &cooked.words), ("palette", &cooked.palette)] {
+            if name == "pixels" && streaming.and_then(|s| s.texture_pixels(*id)).is_some() {
+                continue;
+            }
             textures += &format!(
                 "alignas(4) inline constexpr uint16_t texture_{i}_{name}[]={{{}}};\n",
                 values
@@ -302,13 +309,20 @@ pub fn header_with_templates_for(
         ids.iter()
             .map(|id| {
                 let t = &shared.textures[id];
-                (t.words.len() + t.palette.len()) * 2
+                let cooked = crate::texture_cook::cook(t);
+                let resident_pixels = if streaming.and_then(|s| s.texture_pixels(*id)).is_some() {
+                    0
+                } else {
+                    cooked.words.len()
+                };
+                (resident_pixels + cooked.palette.len()) * 2
             })
             .sum::<usize>()
     );
     for (bank, s) in scenes.iter().enumerate() {
         // Validate each working bank independently; unused bank textures do not
-        // occupy VRAM. Shared source pixels exist once in executable memory.
+        // occupy VRAM. Upload pixels live in the archive when data streaming is
+        // enabled, otherwise once in executable memory.
         // Dynamic prototypes use one fixed resident texture layout in every
         // bank. Reject overflow explicitly instead of spawning invisible assets.
         let layout_scene = if global_layout { &shared } else { s };
@@ -320,14 +334,20 @@ pub fn header_with_templates_for(
             .map(|(i, id)| {
                 if let Some((_, p)) = layout.iter().find(|(v, _)| v == id) {
                     let t = &shared.textures[id];
+                    let (pixels, location) = match streaming.and_then(|s| s.texture_pixels(*id)) {
+                        Some((page, offset)) => ("nullptr".to_owned(), format!(",{page}u,{offset}")),
+                        None => (format!("texture_{i}_pixels"), String::new()),
+                    };
                     format!(
-                        "{{{},{},{},{},{},640,{},texture_{i}_pixels,texture_{i}_palette}}",
+                        "{{{},{},{},{},{},{},{},{pixels},texture_{i}_palette,{}{location}}}",
                         t.width,
                         t.height,
                         p.x,
                         p.y,
-                        t.width.div_ceil(4) * 2,
-                        p.clut_y
+                        p.format.word_width(t.width),
+                        p.clut_x,
+                        p.clut_y,
+                        p.format.bits()
                     )
                 } else {
                     "{}".into()
@@ -343,7 +363,17 @@ pub fn header_with_templates_for(
                 &descriptors
             }
         );
+        textures += &format!(
+            "inline constexpr auto bank_texture_packets_{bank}=bake_texture_packets(bank_textures_{bank});\n"
+        );
     }
+    // Resolve once per ordered world pass, not once per face. Unknown/custom
+    // banks use the existing descriptor path; publication still follows upload.
+    textures += "inline const uint32_t* baked_texture_bank(const Texture* bank){\n";
+    for bank in 0..scenes.len() {
+        textures += &format!("if(bank==bank_textures_{bank})return bank_texture_packets_{bank}.words;\n");
+    }
+    textures += "return nullptr;\n}\n";
     let capacity = scenes.iter().map(|s| s.actors.len() + 32).max().unwrap();
     let mut headers = Vec::new();
     let mut render_capacity = 0;
@@ -383,6 +413,10 @@ pub fn header_with_templates_for(
                 scene
                     .actors
                     .iter()
+                    .filter(|actor| !scene.visibility_track.as_ref().is_some_and(|track| {
+                        actor.editable_mesh.as_ref().and_then(|m|m.document.as_ref())
+                            .and_then(|d|d.faces.first()).is_some_and(|f|track.faces.contains(&f.id))
+                    }))
                     .map(crate::lighting::quad_count)
                     .sum::<usize>()
                     + 32 * dynamic_quads
@@ -463,6 +497,11 @@ pub fn header_with_templates_for(
         }
     }
     out += "namespace epok {\n";
+    let vertex_colors = crate::vertex_colors::Palette::scene(&shared)?;
+    if streaming.is_some_and(|bundle| bundle.vertex_colors() != &vertex_colors) {
+        return Err("Streamed geometry and scene headers use different vertex colour palettes".into());
+    }
+    out += &vertex_colors.header();
     out += &format!("inline constexpr size_t retained_quad_capacity={retained_quad_capacity};\n");
     out += &streaming.map_or_else(
         || crate::streaming::Bundle::default().globals(),
@@ -710,6 +749,11 @@ mod tests {
             1
         );
         assert!(h.contains("objects[j].generation=generation"));
+        for bank in 0..2 {
+            assert!(h.contains(&format!("bank_texture_packets_{bank}=bake_texture_packets(bank_textures_{bank})")));
+            assert!(h.contains(&format!("if(bank==bank_textures_{bank})return bank_texture_packets_{bank}.words;")));
+        }
+        assert!(h.contains("return nullptr;\n}\n"));
     }
 
     // ---- cooked actor tables (P10) --------------------------------------------------

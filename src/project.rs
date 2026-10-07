@@ -209,6 +209,7 @@ pub fn scene_header_with_registry_for(
     text.push_str(&navigation_table);
     if emit_resources {
         text.push_str(&crate::texture::header(resources)?);
+        text.push_str(&crate::vertex_colors::Palette::scene(resources)?.header());
     }
     let texture_ids = crate::texture::ids(resources);
     let (sprite_tables, sprite_init) = crate::sprites::generate(scene, &texture_ids);
@@ -275,15 +276,16 @@ pub fn scene_header_with_registry_for(
     let pages = |id: uuid::Uuid| {
         let placement = layout.iter().find(|(v, _)| *v == id)?;
         let t = scene.textures.get(&id)?;
-        Some((t.width, t.height, placement.1.y))
+        Some(placement.1.page(t))
     };
+    let vertex_colors = crate::vertex_colors::Palette::scene(resources)?;
     for (index, e) in scene
         .actors
         .iter()
         .enumerate()
         .filter(|(_, e)| e.kind == "Mesh" && e.editable_mesh.is_some())
     {
-        text.push_str(&crate::mesh_compile::header_with_pages(e, index, &pages)?);
+        text.push_str(&crate::mesh_compile::header_with_colors(e, index, &pages, &vertex_colors)?);
     }
     for (index, e) in scene
         .actors
@@ -317,20 +319,28 @@ pub fn scene_header_with_registry_for(
     ));
     let fixed = |v: f32| format!("Fixed({}, Fixed::RAW)", (v as f64 * 4096.).round() as i32);
     for (index, e) in scene.actors.iter().enumerate() {
-        if e.position.iter().any(|v| v.abs() > 128.) || e.scale.iter().any(|v| *v > 64.) {
-            return Err(format!(
-                "{}: initial PSX renderer supports positions ±128 and scales up to 64",
-                e.name
-            ));
+        if e.scale.iter().any(|v| *v > 64.) {
+            return Err(format!("{}: PSX export supports scales up to 64", e.name));
         }
         let world = scene.world_matrix(index);
         if world
             .0
             .iter()
-            .any(|row| row[3].abs() > 128. || row[..3].iter().any(|v| v.abs() > 64.))
+            .any(|row| row[..3].iter().any(|v| !v.is_finite() || v.abs() > 64.))
         {
             return Err(format!(
-                "{}: inherited world transform exceeds PSX positions ±128 or basis ±64",
+                "{}: inherited world transform exceeds PSX basis ±64",
+                e.name
+            ));
+        }
+        // Translations are signed 32-bit Q12, not the GTE's signed 16-bit
+        // vertex input. Do not silently saturate an inherited world position.
+        if world.0.iter().any(|row| {
+            let raw = (f64::from(row[3]) * 4096.).round();
+            !raw.is_finite() || raw < f64::from(i32::MIN) || raw > f64::from(i32::MAX)
+        }) {
+            return Err(format!(
+                "{}: inherited world position exceeds signed 32-bit PSX Q12",
                 e.name
             ));
         }
@@ -395,6 +405,7 @@ pub fn scene_header_with_registry_for(
     text.push_str(
         r#"
 inline void initialize_components(){
+epok::set_visibility_track(nullptr);
 "#,
     );
     let color = |c: &[f32; 3]| {
@@ -449,9 +460,10 @@ inline void initialize_components(){
         text.push_str(&format!("objects[{i}].active={};\n", e.active));
         if e.kind == "Camera" {
             text.push_str(&format!(
-                "objects[{i}].camera_settings={{true,{},{{{}}}}};\n",
+                "objects[{i}].camera_settings={{true,{},{{{}}},{}}};\n",
                 fixed(e.camera_fov),
-                color(&e.camera_sky_color)
+                color(&e.camera_sky_color),
+                e.camera_mirror_x
             ));
         }
         if e.editable_mesh.is_none() && e.terrain.is_none() && e.skeletal_mesh.is_none() {
@@ -576,7 +588,7 @@ inline void initialize_components(){
     text.push_str("inline void initialize_scripts() {initialize_components();}\n");
     text.push_str(&actor_table_with_registry(scene, class_registry, &clips)?);
     text.push_str("#ifdef EPOK_EDITOR_PREVIEW\ninline void initialize_editor_preview() {initialize_components();}\n#endif\n}\n");
-    Ok(text)
+    crate::visibility_track::rewrite(scene, text)
 }
 fn tiled(e: &crate::scene::Actor) -> bool {
     crate::lighting::tiled(e)
@@ -908,20 +920,6 @@ fn stage_with_playback(
             .chain(effects.iter().map(|p| &p.compiled)),
         &effect_registry,
     )?;
-    let stream = if rendering.streaming_geometry {
-        Some(crate::streaming::compile_with_budget(
-            &banks,
-            rendering.streaming_pool_pages as usize,
-            usize::from(rendering.streaming_triangle_budget),
-        )?)
-    } else {
-        None
-    };
-    if let Some(bundle) = &stream {
-        bundle.write(build)?;
-    } else {
-        crate::streaming::clear(build)?;
-    }
     let mut resource_scenes = banks.clone();
     for template in &templates {
         resource_scenes.push(template.scene.clone());
@@ -953,6 +951,15 @@ fn stage_with_playback(
         &asset_index,
         &extra_resources,
     )?;
+    let mut vertex_color_sources = resource_scenes.clone();
+    vertex_color_sources.push(referenced.clone());
+    let vertex_colors = crate::vertex_colors::Palette::scene(&crate::scene_bank::resources(&vertex_color_sources))?;
+    let mut stream = if rendering.streaming_geometry {
+        Some(crate::streaming::compile_with_palette(
+            &banks, rendering.streaming_pool_pages as usize,
+            usize::from(rendering.streaming_triangle_budget), &vertex_colors,
+        )?)
+    } else { None };
     // Scene actor records may refer directly to SDK-native classes. Those classes are
     // deliberately absent from the project script catalog, so use the authoritative
     // reflection registry for both validation and the cooked runtime class table.
@@ -970,6 +977,14 @@ fn stage_with_playback(
             .runtime_capabilities
             .contains("skeletal-bone-query"),
     };
+    resource_scenes.push(referenced.clone());
+    let shared_resources = crate::scene_bank::resources(&resource_scenes);
+    if let Some(bundle) = &mut stream {
+        bundle.append_texture_pixels(&shared_resources)?;
+        bundle.write(build)?;
+    } else {
+        crate::streaming::clear(build)?;
+    }
     let generated = crate::scene_bank::header_with_templates_for(
         &banks,
         &catalog,
@@ -981,8 +996,6 @@ fn stage_with_playback(
         class_registry,
         skeletal_queries,
     )?;
-    resource_scenes.push(referenced);
-    let shared_resources = crate::scene_bank::resources(&resource_scenes);
     let streamed_music = crate::audio::clip_ids(&shared_resources)
         .into_iter()
         .map(|id| asset_index.resolve(id))
@@ -1282,8 +1295,48 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/streaming.hpp").as_slice(),
         ),
         (
+            "streaming_read.hpp",
+            include_bytes!("../runtime/streaming_read.hpp").as_slice(),
+        ),
+        (
             "streaming_pool.hpp",
             include_bytes!("../runtime/streaming_pool.hpp").as_slice(),
+        ),
+        (
+            "visibility_track.hpp",
+            include_bytes!("../runtime/visibility_track.hpp").as_slice(),
+        ),
+        (
+            "ordered_draw_types.hpp",
+            include_bytes!("../runtime/ordered_draw_types.hpp").as_slice(),
+        ),
+        (
+            "ordered_draw.hpp",
+            include_bytes!("../runtime/ordered_draw.hpp").as_slice(),
+        ),
+        (
+            "ordered_renderer.hpp",
+            include_bytes!("../runtime/ordered_renderer.hpp").as_slice(),
+        ),
+        (
+            "ordered_projection.hpp",
+            include_bytes!("../runtime/ordered_projection.hpp").as_slice(),
+        ),
+        (
+            "draw_order.hpp",
+            include_bytes!("../runtime/draw_order.hpp").as_slice(),
+        ),
+        (
+            "baked_packet.hpp",
+            include_bytes!("../runtime/baked_packet.hpp").as_slice(),
+        ),
+        (
+            "rail_navigation_types.hpp",
+            include_bytes!("../runtime/rail_navigation_types.hpp").as_slice(),
+        ),
+        (
+            "rail_navigation.hpp",
+            include_bytes!("../runtime/rail_navigation.hpp").as_slice(),
         ),
         (
             "effects.hpp",
@@ -1329,6 +1382,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "texture.hpp",
             include_bytes!("../runtime/texture.hpp").as_slice(),
+        ),
+        (
+            "texture_upload.hpp",
+            include_bytes!("../runtime/texture_upload.hpp").as_slice(),
         ),
         (
             "sprites.hpp",
@@ -1436,6 +1493,26 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/affine.hpp").as_slice(),
         ),
         (
+            "fixed_trigonometry.hpp",
+            include_bytes!("../runtime/fixed_trigonometry.hpp").as_slice(),
+        ),
+        (
+            "camera_aim.hpp",
+            include_bytes!("../runtime/camera_aim.hpp").as_slice(),
+        ),
+        (
+            "camera_direction.hpp",
+            include_bytes!("../runtime/camera_direction.hpp").as_slice(),
+        ),
+        (
+            "rail_camera_aim.hpp",
+            include_bytes!("../runtime/rail_camera_aim.hpp").as_slice(),
+        ),
+        (
+            "track_camera_pose.hpp",
+            include_bytes!("../runtime/track_camera_pose.hpp").as_slice(),
+        ),
+        (
             "transform_cache.hpp",
             include_bytes!("../runtime/transform_cache.hpp").as_slice(),
         ),
@@ -1450,6 +1527,18 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "gte_geometry.hpp",
             include_bytes!("../runtime/gte_geometry.hpp").as_slice(),
+        ),
+        (
+            "mesh_vertices.hpp",
+            include_bytes!("../runtime/mesh_vertices.hpp").as_slice(),
+        ),
+        (
+            "baked_draw_types.hpp",
+            include_bytes!("../runtime/baked_draw_types.hpp").as_slice(),
+        ),
+        (
+            "baked_selection.hpp",
+            include_bytes!("../runtime/baked_selection.hpp").as_slice(),
         ),
         (
             "polygon.hpp",
@@ -1999,11 +2088,15 @@ mod tests {
         let mut scene = Scene::default();
         scene.actors[0].camera_sky_color = [0.25, 0.5, 1.];
         let header = scene_header(&scene, &[]).unwrap();
-        assert!(
-            header.contains(
-                "objects[0].camera_settings={true,Fixed(368640, Fixed::RAW),{64,128,255}};"
-            )
-        );
+        assert!(header.contains(
+            "objects[0].camera_settings={true,Fixed(368640, Fixed::RAW),{64,128,255},false};"
+        ));
+        scene.actors[0].camera_mirror_x = true;
+        let copy: Scene = serde_json::from_value(serde_json::to_value(&scene).unwrap()).unwrap();
+        assert!(copy.actors[0].camera_mirror_x);
+        assert!(scene_header(&copy, &[]).unwrap().contains(
+            "objects[0].camera_settings={true,Fixed(368640, Fixed::RAW),{64,128,255},true};"
+        ));
     }
     #[test]
     fn background_pass_only_exports_for_selected_actor() {
@@ -2218,6 +2311,35 @@ mod tests {
             Some(authored_audio)
         );
         assert!(graph.nodes["stage:.epok/build"].stale.is_empty());
+    }
+    #[test]
+    fn psx_export_preserves_large_world_positions() {
+        let mut scene = Scene::default();
+        scene.actors[0].position = [120.74, 24.04, 906.76];
+        scene.actors[1].position = [120.74, 20.04, 914.76];
+        let before = scene.actors[1].position;
+        let header = scene_header(&scene, &[]).unwrap();
+        for value in before {
+            assert!(header.contains(&format!(
+                "Fixed({}, Fixed::RAW)",
+                (f64::from(value) * 4096.).round() as i32
+            )));
+        }
+        assert_eq!(scene.actors[1].position, before);
+        // A distant parent is allowed; its child retains local coordinates.
+        scene.actors[3].position = [10000.; 3];
+        scene.actors[3].scale = [1.; 3];
+        scene.actors[1].parent = Some(3);
+        assert!(scene_header(&scene, &[]).is_ok());
+        // But a hierarchy that actually exceeds the runtime's Q12 storage is not.
+        scene.actors[3].scale = [64.; 3];
+        scene.actors[1].position = [10000.; 3];
+        scene.actors[1].scale = [1.; 3];
+        assert!(
+            scene_header(&scene, &[])
+                .unwrap_err()
+                .contains("world position exceeds signed 32-bit")
+        );
     }
     #[test]
     fn native_export_keeps_local_transforms_materials_and_parent_first_order() {

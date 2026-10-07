@@ -2701,6 +2701,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                     .speed(0.25)
                     .build(ui, &mut entity.camera_fov);
                 ui.color_edit3(field(ui, "Sky Color"), &mut entity.camera_sky_color);
+                ui.checkbox(field(ui, "Mirror X"), &mut entity.camera_mirror_x);
                 let _ = field(ui, "Target");
                 ui.text_disabled(format!(
                     "{} x {} / NTSC",
@@ -3159,6 +3160,7 @@ fn scene_view(
                 .build(ui, &mut e.view.fly_speed);
             muted(ui, "RMB + WASD: fly | Q/E: down/up | Alt + LMB: orbit");
             crate::lighting_editor::preview_status(ui, e);
+            crate::baked_preview::ui(ui, e);
             if crate::navigation::selected_volume(&e.scene, e.selected).is_some() {
                 match &e.navigation_preview_status {
                     Some(Ok(count)) => ui.text_colored(

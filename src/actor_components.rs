@@ -115,6 +115,7 @@ pub fn sync(actor: &mut ActorInstance) {
         material,
         lighting,
         camera_fov,
+        camera_mirror_x,
         camera_sky_color,
         editable_mesh,
         terrain,
@@ -186,7 +187,7 @@ pub fn sync(actor: &mut ActorInstance) {
                 "epok::Camera3DComponent",
                 "Camera",
                 false,
-                json!({"camera_fov":data.camera_fov,"camera_sky_color":data.camera_sky_color}),
+                json!({"camera_fov":data.camera_fov,"camera_sky_color":data.camera_sky_color,"camera_mirror_x":data.camera_mirror_x}),
             ));
         }
     }
@@ -336,6 +337,7 @@ pub fn read(actor: &mut ActorInstance) {
             om::CAMERA3D_COMPONENT_ID => {
                 data.kind = "Camera".into();
                 data.camera_fov = decoded(p, "camera_fov").unwrap_or(90.);
+                data.camera_mirror_x = decoded(p, "camera_mirror_x").unwrap_or(false);
                 data.camera_sky_color = decoded(p, "camera_sky_color")
                     .unwrap_or(crate::scene::DEFAULT_CAMERA_SKY_COLOR);
             }
@@ -429,6 +431,7 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
         }
         om::CAMERA3D_COMPONENT_ID => {
             check!("camera_fov", f32);
+            check!("camera_mirror_x", bool);
             check!("camera_sky_color", [f32; 3]);
         }
         om::SPRITE3D_COMPONENT_ID => {

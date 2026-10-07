@@ -199,6 +199,7 @@ pub fn parse(
                             id: Uuid::new_v4(),
                             vertices: corners.map(|c| c.0 as u32),
                             uv: corners.map(|c| c.1),
+                            vertex_colors: None,
                             group,
                             material,
                         });

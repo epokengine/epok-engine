@@ -281,7 +281,7 @@ impl Package {
     pub fn load(path: &Path) -> Result<Self, String> {
         Self::parse(&read_package(path)?)
     }
-    fn parse(bytes: &[u8]) -> Result<Self, String> {
+    pub(crate) fn parse(bytes: &[u8]) -> Result<Self, String> {
         if bytes.len() < 16 || &bytes[..8] != MAGIC {
             return Err("Invalid Epok asset header".into());
         }
@@ -537,6 +537,7 @@ pub fn scan(root: &Path, cache: &mut ScanCache) -> Index {
             "ogg",
             "fbx",
             "png",
+            "tim",
             "cpp",
             "hpp",
         ]
@@ -579,7 +580,7 @@ pub fn scan(root: &Path, cache: &mut ScanCache) -> Index {
                     })))
                 } else if [
                     "wav", "mp3", "flac", "ogg", "mid", "midi", "seq", "sep", "vab", "vh", "vb",
-                    "sf2", "sf3", "fbx", "png",
+                    "sf2", "sf3", "fbx", "png", "tim",
                 ]
                 .contains(&ext.as_str())
                 {
@@ -599,7 +600,12 @@ pub fn scan(root: &Path, cache: &mut ScanCache) -> Index {
                     // Broken visual sources stay visible so they can be repaired in the editor.
                     Ok(Cached::Native(path.clone()))
                 } else if name.ends_with(".epokmap") {
-                    crate::scene::Scene::load_unresolved(&path)?;
+                    // The browser needs a validated catalog entry, not all baked
+                    // samples and actors of every unopened map. Persist only the
+                    // result; a content change forces full validation again.
+                    crate::source_cache::load(&path, "scene-index-v1", |bytes| {
+                        crate::scene::Scene::parse_unresolved(bytes).map(|scene| scene.name)
+                    })?;
                     Ok(Cached::Native(path.clone()))
                 } else {
                     // Index source files independently of reflection success so users can

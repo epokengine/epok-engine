@@ -497,6 +497,10 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                                 ui.checkbox("##precomputed-visibility",&mut m.rendering.precomputed_visibility);
                                 ui.same_line();ui.text_colored([1.,0.72,0.3,1.],"Experimental - may lower FPS");
                             });
+                            row(ui,"Geometry Draw Distance","Reject editable-mesh chunks entirely beyond this camera-space distance before acquiring streamed pages. Chunks crossing the boundary remain visible. Range: 1..128 world units; applies on the next build.",||{
+                                let mut distance=i32::from(m.rendering.geometry_draw_distance);
+                                if ui.input_int("##geometry-draw-distance",&mut distance).build(){m.rendering.geometry_draw_distance=distance.clamp(1,128) as u8;}
+                            });
                         });
                         section(ui,"Current Scene HUD Budget",||{
                             ui.text_wrapped("HUD budgets belong to one map. Edit them in Map Settings: click the map root in the Hierarchy.");
@@ -521,11 +525,11 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                         ui.text_colored([1.,0.72,0.3,1.],"Experimental");
                         ui.text_wrapped("Geometry streaming and preloading may lower FPS and cause frame stalls. Keep streaming off unless native performance comparisons meet your frame-time and dropped-step requirements. Development and validation are ongoing.");
                         section(ui,"Geometry Loading",||{
-                            row(ui,"Geometry Streaming","Experimental. Loads immutable editable mesh data from disc. May lower FPS and cause frame stalls. Requires a disc image build. Disabled by default.",||{
+                            row(ui,"Geometry Streaming","Experimental. Loads immutable editable mesh data in 64 KiB pages from CD or PCDrv. A bounded camera-near working set avoids repeated render-time stalls, but may omit geometry when the pool is too small. Disabled by default.",||{
                                 ui.checkbox("##streaming-geometry",&mut m.rendering.streaming_geometry);
                                 ui.same_line();ui.text_colored([1.,0.72,0.3,1.],"Experimental");
                             });
-                            row(ui,"Preload Nearby Geometry","Experimental. Requests a candidate page while a memory slot and the disc are available. Extra work may lower FPS; reduced waiting is not guaranteed. Inactive while Geometry Streaming is off.",||{
+                            row(ui,"Preload Nearby Geometry","Optional speculative lookahead when an unused page slot exists. Bounded demand streaming always schedules its camera-near pages independently of this option. Inactive while Geometry Streaming is off.",||{
                                 let _disabled=ui.begin_disabled(!m.rendering.streaming_geometry);
                                 ui.checkbox("##streaming-prefetch",&mut m.rendering.streaming_prefetch);
                                 ui.same_line();ui.text_colored([1.,0.72,0.3,1.],"Experimental");
@@ -543,8 +547,8 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                                 let mut triangles=i32::from(m.rendering.streaming_triangle_budget);
                                 if crate::gui::Drag::new("##streaming-triangle-budget").speed(1.).build(ui, &mut triangles){m.rendering.streaming_triangle_budget=triangles.clamp(512,8192) as u16;}
                             });
-                            row(ui,"Disc Music","Geometry reads and XA music share the disc drive. Active XA music pauses during a geometry read and restarts afterward.",||{
-                                ui.text_wrapped("Pause and restart during geometry reads");
+                            row(ui,"Disc Music","Geometry reads and XA music share the disc drive. The bounded working set waits while XA owns the drive; explicit blocking requests may interrupt music.",||{
+                                ui.text_wrapped("Bounded page reads defer to active XA");
                             });
                         });
                     }

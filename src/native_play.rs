@@ -29,6 +29,7 @@ struct ActorState {
     rotation: [i32; 3],
     scale: [i32; 3],
     fov: i32,
+    mirror_x: bool,
     animation_ticks: u32,
     animation_clip: i32,
     animation_enabled: bool,
@@ -57,6 +58,10 @@ pub struct Frame {
     pub audio_voices: u32,
     pub audio_pending: u32,
 }
+// Runtime projection uses width/2 horizontally and height*2/3 vertically.
+// Their normalized ratio is 4:3 for every supported video mode, irrespective
+// of the raw framebuffer aspect (PSX pixels are not necessarily square).
+pub const GAME_PROJECTION_ASPECT: f32 = 4. / 3.;
 impl Frame {
     pub fn view(&self) -> crate::viewport::View {
         let Some(index) = self.camera.filter(|index| *index < self.scene.actors.len()) else {
@@ -83,10 +88,14 @@ impl Frame {
             yaw: forward[0].atan2(forward[2]),
             pitch: (-forward[1]).clamp(-1., 1.).asin(),
             center: std::array::from_fn(|axis| eye[axis] + forward[axis] * distance),
-            zoom: (1. / (camera.camera_fov.clamp(25., 120.).to_radians() * 0.5).tan()) / 1.8125,
+            // SceneGpu's orbit shader multiplies vertical coordinates by 2.9.
+            // Match the runtime's normalized vertical focal length, 4/3*cot.
+            zoom: (1. / (camera.camera_fov.clamp(25., 120.).to_radians() * 0.5).tan())
+                * GAME_PROJECTION_ASPECT / 2.9,
             distance,
             phase: self.number as f32 / 60.,
             fly_speed: 5.,
+            mirror_x: camera.camera_mirror_x,
         }
     }
 }
@@ -176,6 +185,7 @@ fn read_packet(input: &mut impl Read) -> Result<Packet, String> {
             rotation: [values[6] as i32, values[7] as i32, values[8] as i32],
             scale: [values[9] as i32, values[10] as i32, values[11] as i32],
             fov: values[12] as i32,
+            mirror_x: values[15] & 8 != 0,
             animation_ticks: values[13],
             animation_clip: values[14] as i32,
             animation_enabled: values[15] & 1 != 0,
@@ -239,6 +249,7 @@ fn apply(
         actor.position = state.position.map(fixed);
         actor.rotation = state.rotation.map(fixed);
         actor.scale = state.scale.map(fixed);
+        actor.camera_mirror_x = state.mirror_x;
         if state.fov > 0 {
             actor.camera_fov = fixed(state.fov);
         }
@@ -800,7 +811,7 @@ mod tests {
             60 * 4096,
             18,
             3,
-            1 | 2 | 4,
+            1 | 2 | 4 | 8,
         ] {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
@@ -812,6 +823,11 @@ mod tests {
         assert_eq!(actor.animation_ticks, 18);
         assert_eq!(actor.animation_clip, 3);
         assert!(actor.animation_enabled && actor.animation_looping);
+        assert!(actor.mirror_x);
+        let mut scene = Scene::default();
+        scene.actors.truncate(1);
+        let frame = apply(scene, &packet, 0, 0, 0);
+        assert!(frame.scene.actors[0].camera_mirror_x);
         assert_eq!(packet.audio.len(), 1);
         assert_eq!(packet.audio[0].source, 0x0123_4567_89ab_cdef);
         assert!(packet.audio[0].play);
@@ -832,5 +848,37 @@ mod tests {
         if std::env::var_os("EPOK_NATIVE_EXPECT_AUDIO").is_some() {
             assert!(!packet.audio.is_empty(), "initial frame has no audio event");
         }
+    }
+    #[test]
+    #[ignore = "requires EPOK_NATIVE_PROJECT and an EPOK_NATIVE_SCENE with RailProbe and rail aim"]
+    fn project_runner_advances_rail_camera_and_target_aim() {
+        let root=PathBuf::from(std::env::var_os("EPOK_NATIVE_PROJECT").unwrap());
+        let path=PathBuf::from(std::env::var_os("EPOK_NATIVE_SCENE").unwrap());
+        let scene=Scene::load(&path).unwrap();
+        let nav=scene.visibility_track.as_ref().unwrap().navigation.as_ref().unwrap();
+        assert!(nav.aim.is_some());
+        let target=scene.actors.iter().position(|a|a.id==nav.target).unwrap();
+        let exe=prepare(&root,scene,false,None,&AtomicBool::new(false)).unwrap();
+        let mut still=Session::launch(&exe).unwrap();
+        let mut moving=Session::launch(&exe).unwrap();
+        let mut a=still.receive(Duration::from_secs(10)).unwrap();
+        let mut b=moving.receive(Duration::from_secs(10)).unwrap();
+        let camera=a.camera.unwrap();
+        let initial_position=a.actors[camera].position;
+        let mut pads=[crate::controls::PadState::default();4];
+        pads[0].buttons=(1u16<<crate::controls::Button::R1 as u32)|(1u16<<crate::controls::Button::R2 as u32);
+        for _ in 0..240 {
+            still.request(33334,[crate::controls::PadState::default();4],&[]).unwrap();
+            moving.request(33334,pads,&[]).unwrap();
+            a=still.receive(Duration::from_secs(5)).unwrap();
+            b=moving.receive(Duration::from_secs(5)).unwrap();
+        }
+        assert_ne!(a.actors[camera].position,initial_position,"Native rail never advanced");
+        assert!(b.actors[target].position[1]>a.actors[target].position[1],"Probe input never reached the target");
+        assert_eq!(a.actors[camera].position,b.actors[camera].position,"Vertical aim must not move the rail");
+        assert_ne!(a.actors[camera].rotation[0],b.actors[camera].rotation[0],"Camera did not aim at the changed target height");
+        println!("Native rail/aim: 240 paired frames; camera {:?}; pitch still={} moving={}; target Y still={} moving={}",
+            a.actors[camera].position,a.actors[camera].rotation[0],b.actors[camera].rotation[0],
+            a.actors[target].position[1],b.actors[target].position[1]);
     }
 }

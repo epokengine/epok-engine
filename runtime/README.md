@@ -78,6 +78,13 @@ geometry counters stay active. The profiler's existing `--detail` option enables
 this diagnostic and extra timers; its overhead makes those timings unsuitable
 as release FPS measurements.
 
+The ordered-world pass also collects its per-polygon vertex/polygon timers only
+with `EPOK_PROFILE_DETAIL=1`. When such a pass has candidates, ordinary frames
+publish `vertex_scanlines` and `polygon_scanlines` as `UINT32_MAX`/JSON `null`:
+timings from other mesh passes alone would be an incomplete breakdown. Frames
+without ordered candidates keep their existing per-chunk timings. Global CPU,
+render, simulation, streaming verification and failure counters stay active.
+
 Project Settings > Engine > Rendering offers optional conservative visibility
 masks. Visibility and geometry streaming are **Experimental**, remain off by
 default and may lower FPS; nearby-page preloading is also Experimental.

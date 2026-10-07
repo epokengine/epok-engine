@@ -424,6 +424,7 @@ fn draw_inner(
                 .range(25., 120.)
                 .build(ui, &mut entity.camera_fov);
             ui.color_edit3("Sky color", &mut entity.camera_sky_color);
+            ui.checkbox("Mirror X", &mut entity.camera_mirror_x);
         }
         crate::collision_editor::inspector(ui, &mut entity);
         if entity.audio.is_none() && ui.small_button("Add Audio Source") {

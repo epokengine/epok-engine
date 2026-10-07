@@ -476,7 +476,7 @@ impl Manager {
                     _ => None,
                 })
                 .unwrap_or_default(),
-            texture: item.source.to_ascii_lowercase().ends_with(".png"),
+            texture: crate::texture::source_candidate(&item.source),
             source: item.source.clone(),
             destination,
             settings: existing
