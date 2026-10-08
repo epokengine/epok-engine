@@ -77,10 +77,9 @@ rendering/presentation, which must additionally be checked in the real editor.
 
 ## Reference architecture
 
-Unity's [Asset Database](https://docs.unity3d.com/6000.0/Documentation/Manual/asset-database-contents.html)
-separates source assets, import artifacts and their dependencies. Unreal's
-[Asset Registry](https://dev.epicgames.com/documentation/en-us/unreal-engine/asset-registry-in-unreal-engine)
-allows metadata queries without loading full objects; its
-[Derived Data Cache](https://dev.epicgames.com/documentation/en-us/unreal-engine/using-derived-data-cache-in-unreal-engine)
-reuses prepared data. These are architectural references, not benchmark results
-or claims that Epok implements their complete systems.
+The design follows three established asset-pipeline ideas: keep source assets,
+derived import artifacts and their dependency records separate; answer metadata
+queries from a registry without loading full objects; and reuse prepared data
+from a derived-data cache. These are architectural
+principles, not benchmark results or claims that Epok implements any complete
+asset system.
