@@ -101,13 +101,13 @@ __attribute__((noinline,optimize("O3")))
 __attribute__((noinline))
 #endif
 bool project_ordered_cpu(
-    const BakedDrawFace& face,const uint8_t* page,const unsigned* corners,unsigned count,
+    const int32_t (*points)[3],unsigned count,
     const CameraSpace<Number>& view,const Number* row_scale,
     ProjectedVertex* projected,uint32_t* screen,int32_t* depth) {
     bool direct=true;
     int min_x=32767,max_x=-32768,min_y=32767,max_y=-32768;
     for(unsigned v=0;v<count;++v){
-        const auto* point=reinterpret_cast<const int32_t*>(page+face.indices[corners[v]]);
+        const auto* point=points[v];
         Number world[3],camera[3];for(unsigned c=0;c<3;++c)world[c]=Number(point[c],Number::RAW);
         view.point(world,camera);camera[0]*=row_scale[0];camera[1]*=row_scale[1];
         auto& p=projected[v];for(unsigned c=0;c<3;++c)p.camera[c]=camera[c].raw()>>4;

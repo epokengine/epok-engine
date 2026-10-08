@@ -132,6 +132,60 @@ inline bool load_projection_input(const int32_t* world,const int32_t* offset) {
 #endif
     return fits;
 }
+// A compact cooked vertex is {Q8 X|Y<<16, Q8 Z | fraction bits << 16}, each
+// relative to its block center. `offset` holds the block center plus the
+// camera-relative lattice offset as one packed X/Y word, its X half, and Z.
+// The caller has proved with the block bounds that every sum fits signed 16
+// bits, so no per-vertex range check is needed: X is added in the low half
+// and its carry out is cancelled before it can reach Y. VZ is a 16-bit GTE
+// register that ignores the upper half of the written word, so the fraction
+// bits need no masking on the console; host emulation gets a clean value.
+struct CompactProjectionOffset {uint32_t xy,x,z;};
+inline GteProjectionInput compact_projection_input(const uint8_t* entry,const CompactProjectionOffset& offset) {
+    const auto* words=reinterpret_cast<const uint32_t*>(entry);
+    const uint32_t xy=words[0];
+    const uint32_t carry=(((xy&0xffffu)+offset.x)>>16)<<16;
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    return {xy+offset.xy-carry,words[1]+offset.z};
+#else
+    return {xy+offset.xy-carry,uint32_t(int32_t(int16_t(words[1]+offset.z)))};
+#endif
+}
+// Per-vertex form for a block whose bounds do not all fit: `sum` is the block
+// center plus the lattice offset. Same packed words as pack_projection_input.
+inline bool checked_compact_projection_input(const uint8_t* entry,const int32_t* sum,GteProjectionInput& out) {
+    const auto* words=reinterpret_cast<const uint32_t*>(entry);
+    const int32_t x=int16_t(words[0])+sum[0],y=int16_t(words[0]>>16)+sum[1],z=int16_t(words[1])+sum[2];
+    out.xy=uint32_t(uint16_t(x))|(uint32_t(uint16_t(y))<<16);out.z=uint32_t(z);
+    return (uint32_t(x+32768)<=65535u)&(uint32_t(y+32768)<=65535u)&(uint32_t(z+32768)<=65535u);
+}
+template<unsigned Slot>
+inline void load_projection_words(const GteProjectionInput& input) {
+    static_assert(Slot<3);
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    asm volatile(".set push\n.set noreorder\nmtc2 %0, $%2\nmtc2 %1, $%3\n.set pop\n"
+        : : "r"(input.xy), "r"(input.z), "i"(Slot*2), "i"(Slot*2+1));
+#else
+    using namespace psyqo::GTE;
+    constexpr Register xy=Slot==0?Register::VXY0:Slot==1?Register::VXY1:Register::VXY2;
+    constexpr Register z=Slot==0?Register::VZ0:Slot==1?Register::VZ1:Register::VZ2;
+    write<xy>(input.xy);write<z>(input.z);
+#endif
+}
+template<unsigned Slot>
+inline void load_compact_projection_input(const uint8_t* entry,const CompactProjectionOffset& offset) {
+    static_assert(Slot<3);
+    const GteProjectionInput input=compact_projection_input(entry,offset);
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    asm volatile(".set push\n.set noreorder\nmtc2 %0, $%2\nmtc2 %1, $%3\n.set pop\n"
+        : : "r"(input.xy), "r"(input.z), "i"(Slot*2), "i"(Slot*2+1));
+#else
+    using namespace psyqo::GTE;
+    constexpr Register xy=Slot==0?Register::VXY0:Slot==1?Register::VXY1:Register::VXY2;
+    constexpr Register z=Slot==0?Register::VZ0:Slot==1?Register::VZ1:Register::VZ2;
+    write<xy>(input.xy);write<z>(input.z);
+#endif
+}
 inline void begin_loaded_projection_triple() {
 #if defined(__mips__) && !defined(PS1_PC_PORT)
     // Do not depend on the optimizer leaving two independent instructions

@@ -3,7 +3,7 @@ import struct
 import unittest
 
 from analyze_epok_cadence import analyze
-from capture_epok_cadence import flip_hook, validate_executable
+from capture_epok_cadence import block_leaders, flip_hook, validate_executable
 
 
 def fixture():
@@ -41,6 +41,23 @@ def fixture():
 
 
 class CadenceTests(unittest.TestCase):
+    def test_block_leaders_cover_branches_calls_and_fallthrough(self):
+        entry = 0x80010000
+        words = [
+            0x10400003,  # 00 beq v0,zero,+3 -> 0x10
+            0x00000000,  # 04 delay slot
+            0x0c004010,  # 08 jal 0x80010040 (outside)
+            0x00000000,  # 0c delay slot
+            0x24420001,  # 10 addiu (branch target, also after jal)
+            0x03e00008,  # 14 jr ra
+            0x00000000,  # 18 delay slot
+            0x24420002,  # 1c unreachable tail
+        ]
+        code = struct.pack("<8I", *words)
+        leaders, indirect = block_leaders(code, entry)
+        self.assertEqual(leaders, [entry, entry + 0x08, entry + 0x10, entry + 0x1c])
+        self.assertEqual(indirect, 1)
+
     def test_aggregate_rate_keeps_long_wait(self):
         profile, config = fixture()
         result = analyze(profile, config)

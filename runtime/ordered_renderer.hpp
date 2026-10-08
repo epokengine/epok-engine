@@ -2,6 +2,14 @@
 // Uses the same buffers, clipping implementation and frame accounting.
 epok::OrderedDrawCursor<epok::ordered_draw_capacity> ordered_cursor;
 epok::OrderedDrawStats ordered_work;
+// Projection block offsets are valid for one epoch: a frame, or until a
+// re-anchor moves the camera lattice. Never zero, the blocks' initial state.
+uint32_t ordered_block_epoch=0;
+inline uint32_t next_ordered_block_epoch(){
+  ordered_block_epoch=(ordered_block_epoch+1)&0x7fffffffu;
+  if(!ordered_block_epoch)ordered_block_epoch=1;
+  return ordered_block_epoch;
+}
 
 #ifdef EPOK_VALIDATE_GTE
 __attribute__((noinline,optimize("O3"))) void validate_ordered_gte(
@@ -103,6 +111,8 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
   const auto* baked_materials=epok::baked_texture_bank(epok::texture_assets);
   emitter.editable=false;emitter.double_sided=true;
   const auto* tokens=ordered_cursor.tokens();
+  auto* projections=ordered_cursor.owner()->projections;
+  uint32_t epoch=next_ordered_block_epoch();
   ordered_work.candidates=ordered_cursor.count();
   for(size_t n=ordered_cursor.count();n-->0;){
     const auto token=tokens[n];const unsigned part=token&3;const bool quad=part==3;
@@ -114,38 +124,73 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       if(!page){++performance_work.stream_failed_chunks;epok::stream_failed=true;break;}
     }
     const auto& face=*reinterpret_cast<const epok::BakedDrawFace*>(page+((token&8191u)&~3u)*8);
+    const uint32_t block_id=epok::ordered_face_block(face.topology);
+    auto& block=projections[block_id];
     const unsigned corners[4]={part==2?1u:0u,part==2?2u:1u,part==2?3u:2u,3u};
     const unsigned count=quad?4:3;
     epok::GteProjectionInput fourth;
+    // Exact Q12 corners, decoded only for the per-vertex, CPU and validation
+    // paths. world[v] is corner corners[v]; the quad's fourth is corner 3.
+    int32_t world[4][3];bool decoded=false;
+    const auto decode=[&]{
+      if(decoded)return;
+      for(unsigned v=0;v<count;++v)epok::ordered_vertex_world(block,page+face.indices[corners[v]],world[v]);
+      decoded=true;
+    };
     const auto prepare_inputs=[&](const int32_t* candidate_offset){
-      const auto point=[&](unsigned corner){return reinterpret_cast<const int32_t*>(page+face.indices[corner]);};
+      decode();
       // Bitwise combination is intentional: every vector register must be
       // loaded, even when an earlier corner needs the wide CPU fallback.
-      bool fits=epok::load_projection_input<0>(point(corners[0]),candidate_offset);
-      fits&=epok::load_projection_input<1>(point(corners[1]),candidate_offset);
-      fits&=epok::load_projection_input<2>(point(corners[2]),candidate_offset);
-      if(quad)fits&=epok::pack_projection_input(point(3),candidate_offset,fourth);
+      bool fits=epok::load_projection_input<0>(world[0],candidate_offset);
+      fits&=epok::load_projection_input<1>(world[1],candidate_offset);
+      fits&=epok::load_projection_input<2>(world[2],candidate_offset);
+      if(quad)fits&=epok::pack_projection_input(world[3],candidate_offset,fourth);
       return fits;
     };
-#ifdef EPOK_VALIDATE_GTE
-    int32_t local[4][3];
-#endif
     EPOK_DETAIL_BEGIN(ordered_vertex);
-    bool narrow=prepare_inputs(offset)&matrix_valid;
-#ifdef EPOK_VALIDATE_GTE
-    for(unsigned v=0;v<count;++v){
-      const auto* point=reinterpret_cast<const int32_t*>(page+face.indices[corners[v]]);
-      for(unsigned c=0;c<3;++c)local[v][c]=point[c];
+    if((block.state>>1)!=epoch){
+      // One bounds check per block and epoch replaces a range check per
+      // vertex. Inputs equal (Q12 >> 4) + offset exactly, as per vertex.
+      bool fits=(block.flags&epok::ordered_projection_compact)!=0;
+      for(unsigned c=0;c<3;++c){
+        block.sum[c]=block.center[c]+offset[c];
+        fits&=(block.sum[c]+block.low[c]>=-32768)&(block.sum[c]+block.high[c]<=32767);
+      }
+      block.xy=uint32_t(uint16_t(block.sum[0]))|(uint32_t(block.sum[1])<<16);
+      block.state=(epoch<<1)|uint32_t(fits);
     }
+    bool narrow;
+    if((block.state&1)&matrix_valid){
+      const epok::CompactProjectionOffset compact{block.xy,uint32_t(uint16_t(block.sum[0])),uint32_t(block.sum[2])};
+      epok::load_compact_projection_input<0>(page+face.indices[corners[0]],compact);
+      epok::load_compact_projection_input<1>(page+face.indices[corners[1]],compact);
+      epok::load_compact_projection_input<2>(page+face.indices[corners[2]],compact);
+      if(quad)fourth=epok::compact_projection_input(page+face.indices[3],compact);
+      narrow=true;
+    }else if((block.flags&epok::ordered_projection_compact)&&matrix_valid){
+      // Part of the block is out of range: check this face's corners only.
+      epok::GteProjectionInput input[3];
+      bool fits=epok::checked_compact_projection_input(page+face.indices[corners[0]],block.sum,input[0]);
+      fits&=epok::checked_compact_projection_input(page+face.indices[corners[1]],block.sum,input[1]);
+      fits&=epok::checked_compact_projection_input(page+face.indices[corners[2]],block.sum,input[2]);
+      if(quad)fits&=epok::checked_compact_projection_input(page+face.indices[3],block.sum,fourth);
+      epok::load_projection_words<0>(input[0]);
+      epok::load_projection_words<1>(input[1]);
+      epok::load_projection_words<2>(input[2]);
+      narrow=fits;
+    }else narrow=prepare_inputs(offset)&matrix_valid;
+#ifdef EPOK_VALIDATE_GTE
+    decode();
+    const auto& local=world;
 #endif
     if(!narrow&&matrix_valid){
-      const auto* block=epok::ordered_projection_block(ordered_cursor.owner(),token);
       int32_t next_offset[3],next_translation[3];
-      if(block&&epok::ordered_projection_anchor(matrix,base_offset,block->center,next_offset,next_translation)){
+      if(epok::ordered_projection_anchor(matrix,base_offset,block.center,next_offset,next_translation)){
         const bool fits=prepare_inputs(next_offset);
         if(fits){
           for(unsigned c=0;c<3;++c)offset[c]=next_offset[c];
           epok::load_projection_translation(next_translation);
+          epoch=next_ordered_block_epoch();
           ++ordered_work.origin_changes;anchored=true;narrow=true;
         }else ++ordered_work.anchor_rejections;
       }else ++ordered_work.anchor_rejections;
@@ -182,8 +227,9 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     ProjectedVertex projected[4];
     if(!direct){
       inside=false;
+      decode();
       direct=epok::project_ordered_cpu<OrderedUnits,epok::display_width,epok::display_height>(
-        face,page,corners,count,view,row_scale,projected,screen,depth);
+        world,count,view,row_scale,projected,screen,depth);
       ordered_work.cpu_direct+=direct;
       min_x=min_y=32767;max_x=max_y=-32768;
       if(direct)for(unsigned v=0;v<count;++v){

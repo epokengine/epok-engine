@@ -1,11 +1,12 @@
-"""Attribute a per-instruction cycle profile to source lines of the linked ELF.
+"""Attribute a basic-block cycle profile to source lines of the linked ELF.
 
 Reads a capture made with capture_epok_cadence.py --pc-profile and the ELF
-snapshot stored in that capture. Each instruction's charged emulated cycles
-are grouped by its outermost source line inside the profiled function (the
-statement of the loop that inlined it) and by its innermost inlined function.
-A call's callee time is charged to its delay slot, so it appears on the line
-of the call. Read-only; addr2line comes from the configured MIPS toolchain.
+snapshot stored in that capture. Cycles are exact per basic block (between
+consecutive block leaders); within a block they are split evenly across its
+instructions, which is an approximation. Instructions are grouped by their
+outermost source line inside the profiled function and by their innermost
+inlined function. A call's callee time stays in the calling block. Captures
+from the earlier per-instruction mode are read unchanged. Read-only.
 """
 import argparse
 import collections
@@ -49,7 +50,21 @@ def main():
     profile = json.loads((args.capture / "profile.json").read_text())["pc_profile"]
     if profile["discarded"] or profile["open"] or not profile["frames"]:
         raise SystemExit("Incomplete profile: discarded/open interval or no profiled frames")
-    rows = {pc: (hits, cycles) for pc, hits, cycles in profile["pcs"]}
+    measured = {pc: (hits, cycles) for pc, hits, cycles in profile["pcs"]}
+    config = json.loads((args.capture / "observer-config.json").read_text())["pc_profile"]
+    end = config["entry"] + config["size"]
+    leaders = config.get("leaders") or list(range(config["entry"], end, 4))
+    blocks, rows = [], {}
+    for index, leader in enumerate(leaders):
+        stop = leaders[index + 1] if index + 1 < len(leaders) else end
+        hits, cycles = measured.get(leader, (0, 0))
+        if not hits:
+            continue
+        length = (stop - leader) // 4
+        blocks.append(dict(start=hex(leader), instructions=length, executions=hits / profile["frames"],
+                           cycles_per_frame=cycles / profile["frames"]))
+        for pc in range(leader, stop, 4):
+            rows[pc] = (hits, cycles / length)
     chains = addr2line(args.addr2line, args.capture / "epok.elf", sorted(rows))
     frames = profile["frames"]
     total = sum(cycles for _, cycles in rows.values())
@@ -72,7 +87,10 @@ def main():
     report = dict(scope=__doc__, frames=frames, entry=hex(profile["entry"]), size=profile["size"],
                   cycles_per_frame=total / frames,
                   instructions_per_frame=sum(h for h, _ in rows.values()) / frames,
-                  by_source_line=lines, by_inlined_function=table(by_function))
+                  granularity="basic block" if config.get("leaders") else "instruction",
+                  indirect_jumps=config.get("indirect_jumps"),
+                  by_source_line=lines, by_inlined_function=table(by_function),
+                  by_block=sorted(blocks, key=lambda b: -b["cycles_per_frame"]))
     args.output.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(dict(cycles_per_frame=report["cycles_per_frame"],
                           instructions_per_frame=report["instructions_per_frame"]), indent=None))

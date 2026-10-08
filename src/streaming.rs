@@ -876,7 +876,7 @@ mod tests {
             "max_packets":ordered.max_packets,"sample_count":ordered.sample_blocks.len(),
             "blocks":ordered.blocks.iter().map(|b|serde_json::json!({"page":b.page,"offset":b.offset,"first":b.first})).collect::<Vec<_>>(),
             "sample_blocks":ordered.sample_blocks,"primitive_tokens":ordered.primitive_tokens,
-            "projections":ordered.projections.iter().map(|b|serde_json::json!({"first":b.first,"count":b.count,"center":b.center})).collect::<Vec<_>>(),
+            "projections":ordered.projections.iter().map(|b|serde_json::json!({"first":b.first,"count":b.count,"center":b.center,"compact":b.compact,"low":b.low,"high":b.high})).collect::<Vec<_>>(),
             "samples":lists,"page_sets":ordered.sets.iter().map(|s|s.keys().collect::<Vec<_>>()).collect::<Vec<_>>(),
             "primitive_count":ordered.primitive_tokens.len(),"archive_sha256":crate::assets::hash(&bundle.bytes),
             "header_sha256":crate::assets::hash(header.as_bytes())});

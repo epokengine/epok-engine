@@ -1,7 +1,8 @@
--- Optional host-only per-instruction cycle profile of one ELF-verified function.
--- Every instruction address of the function gets an Exec breakpoint; the
--- emulated cycles between consecutive hits are charged to the earlier
--- instruction, so a call's callee time lands on its delay slot. Verified
+-- Optional host-only cycle profile of one ELF-verified function. Each basic
+-- block leader the launcher derived from the linked code gets an Exec
+-- breakpoint (one per instruction would exceed LuaJIT's callback slots); the
+-- emulated cycles between consecutive hits are charged to the earlier block,
+-- so a call's callee time lands on the block containing the call. Verified
 -- return sites close the open interval. Breakpoints stay disabled outside the
 -- requested frame window. No guest instruction patches, timers, input or
 -- memory writes.
@@ -19,7 +20,7 @@ return function(config,guarded,cycles)
         hits[address]=(hits[address] or 0)+1
         open_pc,open_cycles=address,now
     end)
-    for address=config.entry,config.entry+config.size-4,4 do
+    for _,address in ipairs(config.leaders) do
         local handle=PCSX.addBreakpoint(address,'Exec',4,'Epok pc profile',step)
         handle:disable()
         handles[#handles+1]=handle

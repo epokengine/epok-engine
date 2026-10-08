@@ -3,10 +3,63 @@
 #include <cmath>
 #include "psyqo/fixed-point.hh"
 #include "../../runtime/ordered_projection.hpp"
+#include "gte-matrix/gte_geometry.hpp"
 using Q=psyqo::FixedPoint<12>;
 using Units=epok::CameraUnits<64,1<<27,6,epok::ScreenFrustum<512,240>>;
+// Compact cooked vertices must reproduce the per-vertex GTE inputs bit for bit
+// whenever the block bounds admit the offset, and decode to the exact Q12.
+static void compact_vertices(){
+    uint32_t random=91;
+    const auto next=[&](){random=random*1664525u+1013904223u;return random;};
+    for(unsigned sample=0;sample<200000;++sample){
+        epok::OrderedProjectionBlock block{0,1,epok::ordered_projection_compact,
+            {int32_t(next())>>6,int32_t(next())>>6,int32_t(next())>>6},{-32768,-32768,-32768},{32767,32767,32767}};
+        int16_t relative[3];int32_t q12[3];uint32_t fraction=0;
+        for(unsigned c=0;c<3;++c){
+            relative[c]=int16_t(next());const uint32_t bits=next()&15u;fraction|=bits<<(16+4*c);
+            q12[c]=int32_t(uint32_t(relative[c]+block.center[c])*16u+bits);
+        }
+        const uint32_t words[2]={uint32_t(uint16_t(relative[0]))|(uint32_t(uint16_t(relative[1]))<<16),
+                                 uint32_t(uint16_t(relative[2]))|fraction};
+        const auto* entry=reinterpret_cast<const uint8_t*>(words);
+        int32_t decoded[3];epok::ordered_vertex_world(block,entry,decoded);
+        for(unsigned c=0;c<3;++c)assert(decoded[c]==q12[c]);
+        // Any camera offset that keeps this vertex in range: the bounds check
+        // in the renderer is per block, the arithmetic here is per vertex.
+        int32_t offset[3];
+        for(unsigned c=0;c<3;++c){
+            const int32_t target=int32_t(int16_t(next()));
+            offset[c]=target-(q12[c]>>4);
+        }
+        epok::GteProjectionInput expected;
+        assert(epok::pack_projection_input(q12,offset,expected));
+        int32_t sum[3];for(unsigned c=0;c<3;++c)sum[c]=block.center[c]+offset[c];
+        const epok::CompactProjectionOffset compact{uint32_t(uint16_t(sum[0]))|(uint32_t(sum[1])<<16),
+            uint32_t(uint16_t(sum[0])),uint32_t(sum[2])};
+        const auto actual=epok::compact_projection_input(entry,compact);
+        assert(actual.xy==expected.xy);
+        assert(int16_t(actual.z)==int16_t(expected.z)&&actual.z==expected.z);
+        epok::GteProjectionInput checked;
+        assert(epok::checked_compact_projection_input(entry,sum,checked));
+        assert(checked.xy==expected.xy&&checked.z==expected.z);
+        // Out of range on any axis: the same rejection and words as per vertex.
+        int32_t far[3]={offset[0],offset[1],offset[2]};far[sample%3]+=(sample&8)?40000:-40000;
+        int32_t far_sum[3];for(unsigned c=0;c<3;++c)far_sum[c]=block.center[c]+far[c];
+        epok::GteProjectionInput reference;
+        const bool reference_fits=epok::pack_projection_input(q12,far,reference);
+        assert(epok::checked_compact_projection_input(entry,far_sum,checked)==reference_fits);
+        assert(checked.xy==reference.xy&&checked.z==reference.z);
+    }
+    // Wide blocks keep absolute Q12 words.
+    const int32_t absolute[3]={-123456789,5,987654321};int32_t decoded[3];
+    epok::OrderedProjectionBlock wide{0,1,0,{},{},{}};
+    epok::ordered_vertex_world(wide,reinterpret_cast<const uint8_t*>(absolute),decoded);
+    for(unsigned c=0;c<3;++c)assert(decoded[c]==absolute[c]);
+    assert(epok::ordered_face_block(uint16_t((513u<<2)|1u))==513);
+    std::puts("Compact ordered vertices: 200000 exact GTE inputs, checked out-of-range faces, Q12 decode and wide blocks passed.");
+}
 static void anchors(){
-    epok::OrderedProjectionBlock blocks[]={{40,3,{0,0,0}},{100,2,{0,0,0}}};
+    epok::OrderedProjectionBlock blocks[]={{40,3,0,{0,0,0},{},{}},{100,2,0,{0,0,0},{},{}}};
     epok::OrderedDrawData data{};data.projections=blocks;data.projection_count=2;
     for(uint32_t token=0;token<112;++token){
         const auto* expected=token>=40&&token<52?blocks:token>=100&&token<108?blocks+1:nullptr;
@@ -67,6 +120,7 @@ static void anchors(){
 }
 int main(){
     anchors();
+    compact_vertices();
     const auto check_depth=[](int32_t value){
         assert(epok::ordered_depth_average(value,false)==value/192);
         assert(epok::ordered_depth_average(value,true)==value/256);
@@ -125,9 +179,8 @@ int main(){
     // Vertices well beyond signed Q8 GTE inputs still project to a native quad.
     int32_t points[4][3]={{-10*4096,10*4096,200*4096},{10*4096,10*4096,200*4096},
                         {-10*4096,-10*4096,200*4096},{10*4096,-10*4096,200*4096}};
-    epok::BakedDrawFace face{};for(unsigned i=0;i<4;++i)face.indices[i]=i*12;
     epok::CameraSpace<Q> camera;
-    const Q scale[]={1.,1.};const unsigned corners[]={0,1,2,3};
+    const Q scale[]={1.,1.};
     epok::ProjectedVertex projected[4];uint32_t screen[4];int32_t depth[4];
     auto project=[&](unsigned count=4){
         // Renderer output arrays need no initialization: even a rejected CPU
@@ -135,7 +188,7 @@ int main(){
         // A triangle must not touch or depend on its unused fourth corner.
         for(unsigned i=0;i<4;++i){screen[i]=0xdeadbeefu;depth[i]=INT32_MIN;}
         const bool direct=epok::project_ordered_cpu<Units,512,240>(
-            face,reinterpret_cast<const uint8_t*>(points),corners,count,camera,scale,projected,screen,depth);
+            points,count,camera,scale,projected,screen,depth);
         for(unsigned i=0;i<count;++i){
             assert(depth[i]==projected[i].camera[2]);
             assert(screen[i]==(projected[i].visible?projected[i].screen.packed:0u));

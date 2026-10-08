@@ -89,6 +89,35 @@ def function_cost_hooks(symbols, sections):
     return selected
 
 
+def block_leaders(code, entry, returns=()):
+    """Basic block leaders of one MIPS I function: its entry, every in-function
+    branch/jump target, and the instruction after each branch or jump's delay
+    slot (which includes call return sites). Indirect JR targets cannot be
+    known statically; their code is charged to the preceding block."""
+    end = entry + len(code)
+    leaders = {entry, *[r for r in returns if entry <= r < end]}
+    indirect = 0
+    for offset in range(0, len(code) - 3, 4):
+        pc = entry + offset
+        ins = struct.unpack_from("<I", code, offset)[0]
+        op, rs, rt, funct = ins >> 26, (ins >> 21) & 31, (ins >> 16) & 31, ins & 63
+        relative = pc + 4 + (((ins & 0xffff) ^ 0x8000) - 0x8000) * 4
+        target = None
+        if op in (4, 5, 6, 7) or (op == 1 and rt in (0, 1, 16, 17)) or (16 <= op <= 19 and rs == 8):
+            target = relative
+        elif op in (2, 3):
+            target = ((pc + 4) & 0xf0000000) | ((ins & 0x3ffffff) << 2)
+        elif op == 0 and funct in (8, 9):
+            indirect += funct == 8
+        else:
+            continue
+        if target is not None and entry <= target < end:
+            leaders.add(target)
+        if pc + 8 < end:
+            leaders.add(pc + 8)
+    return sorted(leaders), indirect
+
+
 def observer_config(elf, profile):
     symbols = elf_symbols(elf)
     sections = executable_sections(elf)
@@ -194,7 +223,13 @@ def main():
     if args.pc_profile is not None:
         render = next(h for h in function_cost_hooks(elf_symbols(snapshot['epok.elf']), sections)
                       if h['label'] == 'ordered_render')
+        code = next(c[(render['entry'] & 0x1fffffff) - start:][:render['size']] for start, c in sections
+                    if start <= (render['entry'] & 0x1fffffff) < start + len(c))
+        leaders, indirect = block_leaders(code, render['entry'])
+        if len(leaders) > 1500:
+            parser.error(f"{len(leaders)} block leaders exceed the observer's callback budget")
         config['pc_profile'] = dict(entry=render['entry'], size=render['size'], returns=render['returns'],
+                                    leaders=leaders, indirect_jumps=indirect,
                                     first=args.pc_profile, frames=args.pc_frames)
     emulator, bios = emulator_and_bios(engine)
     bridge = Path(__file__).with_name("epok_cadence_observer.lua")
@@ -220,7 +255,8 @@ def main():
         if args.pc_profile is not None:
             pc = config['pc_profile']
             prefix += (f'PC_PROFILE={{entry={pc["entry"]},size={pc["size"]},first={pc["first"]},frames={pc["frames"]},'
-                       + 'returns={' + ','.join(map(str, pc['returns'])) + '}}\n')
+                       + 'returns={' + ','.join(map(str, pc['returns'])) + '},'
+                       + 'leaders={' + ','.join(map(str, pc['leaders'])) + '}}\n')
         script = folder / "adapter.lua"
         script.write_text(prefix + bridge.read_text(encoding="utf-8"), encoding="utf-8")
         command = [str(emulator), "-portable", str(folder), "-logfile", str(folder / "runtime.log"),
@@ -242,7 +278,9 @@ def main():
             try:
                 connection, _ = listener.accept()
                 with connection:
-                    connection.settimeout(15)
+                    # Profiled frames run every instruction through a host
+                    # callback, so replies can lag far behind emulated time.
+                    connection.settimeout(15 if args.pc_profile is None else 300)
                     frames = Frames(connection)
                     assert frames.line() == ["EPOK", token], "Unauthenticated observer"
                     deadline = time.monotonic() + 30

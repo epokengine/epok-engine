@@ -2,6 +2,7 @@
 import epok_documents as documents
 import argparse
 import hashlib
+import http.client
 import json
 import os
 from pathlib import Path
@@ -202,6 +203,7 @@ def main():
     parser.add_argument("--capture-track-samples", default="",
                         help="Comma-separated baked visibility sample indices to capture as additional VRAM snapshots")
     parser.add_argument("--use-play-profile", action="store_true", help="Measure the saved Play content/data profile instead of the full scene bank")
+    parser.add_argument("--scene", help="Project-relative scene to build and play instead of the startup scene")
     parser.add_argument("--input-replay", help="Explicit virtual-pad schedule: milliseconds:mask,... since emulator launch; final mask must be 0")
     parser.add_argument("--validate-gte", action="store_true")
     parser.add_argument("--optimization", choices=["Os","O2"])
@@ -220,7 +222,7 @@ def main():
         env["EPOK_PROFILE_DETAIL"]="1"
     if args.validate_gte or args.optimization or args.detail:
         (args.project / ".epok/build/main.o").unlink(missing_ok=True)
-    profile_args = ["--use-play-profile"] if args.use_play_profile else []
+    profile_args = (["--use-play-profile"] if args.use_play_profile else []) + (["--scene", args.scene] if args.scene else [])
     build = subprocess.run([str(editor), "--project", str(args.project), "--build-psx", *profile_args], capture_output=True, text=True,env=env)
     documents.write_text(args.output / "build.log", build.stdout + build.stderr)
     assert build.returncode == 0, build.stdout + build.stderr
@@ -301,7 +303,10 @@ def main():
                         if not captured and len(frames) >= args.capture_after_frames:
                             (args.output / "vram.bin").write_bytes(request("gpu/vram/raw"))
                             captured = True
-                except (OSError, ValueError):
+                # A RAM read cut short by the 2 s timeout (an IncompleteRead)
+                # is a missed poll like a refused connection; counters are
+                # cumulative, so the next poll still sees any failure.
+                except (OSError, ValueError, http.client.HTTPException):
                     pass
                 time.sleep(.1)
         finally:

@@ -1,6 +1,14 @@
 //! Streaming ABI for prepared native packets. Each primitive record and all of
-//! its world-space Q12 vertices occupy ONE page. Tokens directly address the
-//! record, so PSX RAM never needs a resident primitive-to-chunk lookup table.
+//! its vertices occupy ONE page. Tokens directly address the record, so PSX
+//! RAM never needs a resident primitive-to-chunk lookup table.
+//!
+//! A vertex is stored once per projection span. In a compact span it is two
+//! words: signed Q8 X/Y relative to the span center (the GTE VXY layout), and
+//! relative Q8 Z in the low half with the three dropped Q12 fraction nibbles
+//! above it, which the GTE ignores. Q12 = (relative + center) * 16 + fraction
+//! exactly, so the CPU paths keep full precision. A span whose relative values
+//! do not fit 16 bits keeps absolute Q12 words. Face records carry their
+//! global span index above the two topology bits.
 use crate::{
     ordered_draw::{Program, Resolved},
     scene::Scene,
@@ -10,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 const PAGE: usize = crate::streaming::PAGE_BYTES;
 const ALIGN: usize = 32;
 const JOB_PRIMITIVES: usize = 64;
-pub const ABI: u32 = 2;
+pub const ABI: u32 = 3;
 
 #[derive(Clone, Debug)]
 pub struct Block {
@@ -23,6 +31,9 @@ pub struct ProjectionBlock {
     pub first: u32,
     pub count: usize,
     pub center: [i32; 3],
+    pub compact: bool,
+    pub low: [i16; 3],
+    pub high: [i16; 3],
 }
 pub struct Cooked {
     pub bytes: Vec<u8>,
@@ -49,7 +60,10 @@ fn put32(out: &mut [u8], at: usize, value: u32) {
 struct Job {
     first: usize,
     count: usize,
-    vertices: BTreeMap<[i32; 3], usize>,
+    /// Byte offset after the records for each (span, point).
+    vertices: BTreeMap<(usize, [i32; 3]), usize>,
+    /// Span of each primitive in the job.
+    spans: Vec<usize>,
     length: usize,
     projections: Vec<ProjectionSpan>,
 }
@@ -58,6 +72,33 @@ struct ProjectionSpan {
     first: usize,
     count: usize,
     center: [i32; 3],
+    compact: bool,
+    low: [i16; 3],
+    high: [i16; 3],
+}
+
+/// Signed Q8 offsets of one span's points from its center, if all fit 16 bits.
+fn compact_range(points: &[[[i32; 3]; 4]], center: [i32; 3]) -> Option<([i16; 3], [i16; 3])> {
+    let mut low = [i16::MAX; 3];
+    let mut high = [i16::MIN; 3];
+    for point in points.iter().flatten() {
+        for axis in 0..3 {
+            let relative =
+                i16::try_from(i64::from(point[axis] >> 4) - i64::from(center[axis])).ok()?;
+            low[axis] = low[axis].min(relative);
+            high[axis] = high[axis].max(relative);
+        }
+    }
+    Some((low, high))
+}
+
+fn compact_vertex(point: [i32; 3], center: [i32; 3]) -> [u32; 2] {
+    let relative = |axis: usize| u32::from(((point[axis] >> 4) - center[axis]) as i16 as u16);
+    let fraction = |axis: usize| (point[axis] & 15) as u32;
+    [
+        relative(0) | relative(1) << 16,
+        relative(2) | fraction(0) << 16 | fraction(1) << 20 | fraction(2) << 24,
+    ]
 }
 
 fn projection_spans(points: &[[[i32; 3]; 4]]) -> Vec<ProjectionSpan> {
@@ -86,7 +127,9 @@ fn projection_spans(points: &[[[i32; 3]; 4]]) -> Vec<ProjectionSpan> {
             if wide { break; }
         }
         let center = std::array::from_fn(|axis| ((i64::from(low[axis]) + i64::from(high[axis])) >> 1) as i32);
-        spans.push(ProjectionSpan { first, count, center });
+        let range = compact_range(&points[first..first + count], center);
+        spans.push(ProjectionSpan { first, count, center, compact: range.is_some(),
+            low: range.map_or([0; 3], |r| r.0), high: range.map_or([0; 3], |r| r.1) });
         first += count;
     }
     spans
@@ -97,14 +140,21 @@ fn draw_jobs(points: &[[[i32; 3]; 4]]) -> (Vec<Job>, Vec<usize>) {
     // Spatial projection bounds subdivide DESCRIPTORS, never storage jobs:
     // changing a GTE origin must not silently repack every subsequent page.
     let jobs = points.chunks(JOB_PRIMITIVES).enumerate().map(|(id, chunk)| {
+        let projections = projection_spans(chunk);
         let mut vertices = BTreeMap::new();
-        for point in chunk.iter().flatten() {
-            let next = vertices.len();
-            vertices.entry(*point).or_insert(next);
+        let mut spans = vec![0; chunk.len()];
+        let mut bytes = 0;
+        for (index, span) in projections.iter().enumerate() {
+            let size = if span.compact { 8 } else { 12 };
+            for local in span.first..span.first + span.count {
+                spans[local] = index;
+                for point in &chunk[local] {
+                    vertices.entry((index, *point)).or_insert_with(|| { bytes += size; bytes - size });
+                }
+            }
         }
-        let length = aligned(chunk.len() * 32 + vertices.len() * 12);
-        Job { first: id * JOB_PRIMITIVES, count: chunk.len(), vertices, length,
-              projections: projection_spans(chunk) }
+        let length = aligned(chunk.len() * 32 + bytes);
+        Job { first: id * JOB_PRIMITIVES, count: chunk.len(), vertices, spans, length, projections }
     }).collect();
     (jobs, (0..points.len()).map(|i| i / JOB_PRIMITIVES).collect())
 }
@@ -203,16 +253,19 @@ pub fn cook(
             .ok_or("Ordered draw projection address overflow")? >> 3;
         for span in &job.projections {
             out.projections.push(ProjectionBlock { first: first + (span.first * 4) as u32,
-                count: span.count, center: span.center });
+                count: span.count, center: span.center, compact: span.compact,
+                low: span.low, high: span.high });
         }
         let vertex_start = offset + job.count * 32;
-        for (point, &index) in &job.vertices {
-            for axis in 0..3 {
-                put32(
-                    &mut out.bytes,
-                    page * PAGE + vertex_start + index * 12 + axis * 4,
-                    point[axis] as u32,
-                );
+        for (&(span, point), &at) in &job.vertices {
+            let at = page * PAGE + vertex_start + at;
+            let span = &job.projections[span];
+            if span.compact {
+                for (word, value) in compact_vertex(point, span.center).into_iter().enumerate() {
+                    put32(&mut out.bytes, at + word * 4, value);
+                }
+            } else {
+                for axis in 0..3 { put32(&mut out.bytes, at + axis * 4, point[axis] as u32); }
             }
         }
         for local in 0..job.count {
@@ -222,8 +275,8 @@ pub fn cook(
                 .actors
                 .first()
                 .ok_or("Ordered draw has no actors")?];
-            let indices =
-                resolved.points[primitive].map(|v| (vertex_start + job.vertices[&v] * 12) as u16);
+            let indices = resolved.points[primitive]
+                .map(|v| (vertex_start + job.vertices[&(job.spans[local], v)]) as u16);
             let (texture, placement) = if let Some(id) = q.material.texture {
                 let index = texture_ids
                     .iter()
@@ -268,6 +321,16 @@ pub fn cook(
         }
     }
     out.projections.sort_by_key(|block| block.first);
+    // The runtime reaches a face's span directly instead of searching blocks.
+    for (index, block) in out.projections.iter().enumerate() {
+        let index = u16::try_from(index).ok().filter(|&i| i < 1 << 14)
+            .ok_or("Too many ordered projection spans")?;
+        for face in 0..block.count {
+            let at = ((block.first as usize + face * 4) << 3) - first_page * PAGE + 30;
+            let topology = u16::from_le_bytes([out.bytes[at], out.bytes[at + 1]]);
+            put16(&mut out.bytes, at, topology | index << 2);
+        }
+    }
     let lists: Vec<Vec<u32>> = program
         .samples
         .iter()
@@ -353,7 +416,7 @@ pub fn cook(
 impl Cooked {
     pub fn header(&self, actors: usize) -> String {
         format!(
-            "static_assert(ordered_draw_abi=={},\"Re-cook the ordered draw ABI\");\ninline constexpr OrderedDrawBlock ordered_blocks[]={{{}}};\ninline constexpr uint16_t ordered_sample_blocks[]={{{}}};\ninline constexpr uint8_t ordered_actors[]={{{}}};\ninline constexpr OrderedProjectionBlock ordered_projections[]={{{}}};\ninline constexpr OrderedDrawData ordered_data={{ordered_blocks,ordered_sample_blocks,ordered_actors,{},{},{},{},ordered_projections,{}}};\n",
+            "static_assert(ordered_draw_abi=={},\"Re-cook the ordered draw ABI\");\ninline constexpr OrderedDrawBlock ordered_blocks[]={{{}}};\ninline constexpr uint16_t ordered_sample_blocks[]={{{}}};\ninline constexpr uint8_t ordered_actors[]={{{}}};\ninline OrderedProjectionBlock ordered_projections[]={{{}}};\ninline constexpr OrderedDrawData ordered_data={{ordered_blocks,ordered_sample_blocks,ordered_actors,{},{},{},{},ordered_projections,{}}};\n",
             ABI,
             self.blocks
                 .iter()
@@ -369,7 +432,9 @@ impl Cooked {
                 .map(|i| if self.actors.contains(&i) { "1" } else { "0" })
                 .collect::<Vec<_>>()
                 .join(","),
-            self.projections.iter().map(|b| format!("{{{}u,{},{{{},{},{}}}}}", b.first,b.count,b.center[0],b.center[1],b.center[2])).collect::<Vec<_>>().join(","),
+            self.projections.iter().map(|b| format!("{{{}u,{},{},{{{},{},{}}},{{{},{},{}}},{{{},{},{}}}}}",
+                b.first, b.count, u16::from(b.compact), b.center[0], b.center[1], b.center[2],
+                b.low[0], b.low[1], b.low[2], b.high[0], b.high[1], b.high[2])).collect::<Vec<_>>().join(","),
             self.blocks.len(),
             self.sample_blocks.len(),
             self.max_packets,
@@ -392,7 +457,8 @@ mod tests {
         let (jobs,membership)=draw_jobs(&points);
         assert_eq!(jobs.len(),2);
         assert_eq!(jobs[0].count,64);
-        assert_eq!(jobs[0].length,aligned(64*32+12));
+        // 64 coincident points share one compact 8-byte vertex.
+        assert_eq!(jobs[0].length,aligned(64*32+8));
         assert_eq!(jobs[1].first,64);
         assert_eq!(jobs[1].count,6);
         assert_eq!(membership,(0..70).map(|i|i/64).collect::<Vec<_>>());
@@ -415,6 +481,8 @@ mod tests {
         }
         let span=|index:usize|{let job=&jobs[membership[index]];job.projections.iter().find(|s|job.first+s.first==index).unwrap()};
         assert_eq!(span(67).count,1); // Oversized quad stays whole.
+        assert!(!span(67).compact); // ...and keeps absolute Q12 vertices.
+        assert!(span(65).compact&&span(66).compact&&span(64).compact);
         assert_eq!(span(65).center[0],i32::MAX>>4);
         assert_eq!(span(66).center[0],i32::MIN>>4);
     }
@@ -440,23 +508,41 @@ mod tests {
             );
         }
         assert_eq!(cooked.sets[3].keys().copied().collect::<Vec<_>>(), [41]);
+        let block = &cooked.projections[0];
+        assert!(block.compact);
+        assert_eq!(u16::from_le_bytes([cooked.bytes[30], cooked.bytes[31]]) >> 2, 0);
         for corner in 0..4 {
             let at = usize::from(u16::from_le_bytes(
                 cooked.bytes[corner * 2..corner * 2 + 2].try_into().unwrap(),
             ));
+            let word = |i: usize| u32::from_le_bytes(cooked.bytes[at + i * 4..at + i * 4 + 4].try_into().unwrap());
+            let (xy, z) = (word(0), word(1));
+            let relative = [xy as u16 as i16, (xy >> 16) as u16 as i16, z as u16 as i16];
             for axis in 0..3 {
-                assert_eq!(
-                    i32::from_le_bytes(
-                        cooked.bytes[at + axis * 4..at + axis * 4 + 4]
-                            .try_into()
-                            .unwrap()
-                    ),
-                    resolved.points[0][corner][axis]
-                );
+                assert!(block.low[axis] <= relative[axis] && relative[axis] <= block.high[axis]);
+                let q12 = (i32::from(relative[axis]) + block.center[axis]) * 16
+                    + ((z >> (16 + 4 * axis)) & 15) as i32;
+                assert_eq!(q12, resolved.points[0][corner][axis]);
             }
         }
         assert!(cooked.header(2).contains("OrderedDrawData ordered_data="));
         assert!(cook(&scene, program, &resolved, 0, 2, &[], &palette).is_err());
+    }
+    #[test]
+    fn compact_vertices_are_lossless_across_signs_and_fractions() {
+        let center = [-5, 7, 100_000];
+        for point in [[-81, 113, 1_600_000], [-80 - 32768 * 16, 112 + 32767 * 16 + 15, 1_600_015],
+                      [-1, -16, 1_599_999], [0, 15, 1_600_001]] {
+            let [xy, z] = compact_vertex(point, center);
+            let relative = [xy as u16 as i16, (xy >> 16) as u16 as i16, z as u16 as i16];
+            for axis in 0..3 {
+                assert_eq!((i32::from(relative[axis]) + center[axis]) * 16
+                    + ((z >> (16 + 4 * axis)) & 15) as i32, point[axis]);
+            }
+        }
+        assert!(compact_range(&[[[0; 3], [0; 3], [0; 3], [32768 * 16, 0, 0]]], [0; 3]).is_none());
+        assert_eq!(compact_range(&[[[-16; 3], [0; 3], [0; 3], [32767 * 16, 0, 0]]], [0; 3]),
+                   Some(([-1, -1, -1], [32767, 0, 0])));
     }
     #[test]
     fn cuts_and_periodic_checkpoints_remain_page_local() {
