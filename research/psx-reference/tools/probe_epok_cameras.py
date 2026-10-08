@@ -13,6 +13,7 @@ from pathlib import Path
 import struct
 import subprocess
 import yaml
+from redux_host import default_engine
 
 
 def section(source, begin, end):
@@ -30,7 +31,7 @@ def q12(value):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--engine",type=Path,default=Path("D:/GitProjects/GameEngines/Epok/EpokEngine"))
+    parser.add_argument("--engine",type=Path,default=default_engine())
     parser.add_argument("--scene",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
     args=parser.parse_args()

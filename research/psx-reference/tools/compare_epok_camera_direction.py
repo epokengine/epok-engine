@@ -13,6 +13,7 @@ import subprocess
 
 from check_epok_camera_aim import inputs_for_row, negative_controls
 from replay_original_camera import delta, i32, verify
+from redux_host import default_engine
 
 PROBE = r'''#include <cstdio>
 #include "camera_direction.hpp"
@@ -56,7 +57,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('exe','before','after','profile','output'):
         parser.add_argument('--'+name,type=Path,required=True)
-    parser.add_argument('--engine',type=Path,default=Path('D:/GitProjects/GameEngines/Epok/EpokEngine'))
+    parser.add_argument('--engine',type=Path,default=default_engine())
     args=parser.parse_args()
     if args.output.exists():parser.error('Output must be new')
     data={n:getattr(args,n).read_bytes() for n in ('exe','before','after','profile')}

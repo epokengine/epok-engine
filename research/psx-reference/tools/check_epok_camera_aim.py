@@ -13,6 +13,7 @@ import struct
 import subprocess
 
 from replay_original_camera import Direction, i32, property_values, verify
+from redux_host import default_engine
 
 PROBE = r'''#include <cstdio>
 #include <cstdint>
@@ -75,7 +76,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('exe', 'before', 'after', 'profile', 'output'):
         parser.add_argument('--'+name, type=Path, required=True)
-    parser.add_argument('--engine', type=Path, default=Path('D:/GitProjects/GameEngines/Epok/EpokEngine'))
+    parser.add_argument('--engine', type=Path, default=default_engine())
     args = parser.parse_args()
     if args.output.exists(): parser.error('Output must be new')
     data = {n: getattr(args, n).read_bytes() for n in ('exe', 'before', 'after', 'profile')}

@@ -9,6 +9,7 @@ import struct
 import sys
 import time
 import urllib.request
+from redux_host import default_engine
 
 
 def executable_sections(elf):
@@ -35,7 +36,7 @@ def verify_running_code(ram, sections):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--engine", type=Path, default=Path("D:/GitProjects/GameEngines/Epok/EpokEngine"))
+    parser.add_argument("--engine", type=Path, default=default_engine())
     parser.add_argument("--project", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seconds", type=float, default=30)

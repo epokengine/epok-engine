@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 import uuid
+from redux_host import default_engine
 
 
 def frame_sequence(state):
@@ -22,7 +23,7 @@ def frame_sequence(state):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--engine", type=Path, default=Path("D:/GitProjects/GameEngines/Epok/EpokEngine"))
+    parser.add_argument("--engine", type=Path, default=default_engine())
     parser.add_argument("--session", type=Path, required=True)
     parser.add_argument("--reconnect", action="store_true", help="Negotiate a fresh MCP session with the same editor; never replays an uncertain request")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -52,7 +53,7 @@ def main():
     if args.command == "start":
         if metadata.exists():
             raise SystemExit("Session already exists; inspect its PID/server instead of launching another editor.")
-        editor = (args.editor or engine / "target/debug/epok-editor.exe").resolve()
+        editor = (args.editor or engine / ("target/debug/epok-editor.exe" if os.name == "nt" else "target/debug/epok-editor")).resolve()
         project = args.project.resolve(strict=True)
         ordinary = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local/share"))) / "Epok/Editor.epokprefs"
         prefs = module.documents.loads(ordinary.read_text(encoding="utf-8")) if ordinary.exists() else {}

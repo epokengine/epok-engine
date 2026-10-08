@@ -15,6 +15,7 @@ import sys
 import time
 import uuid
 from PIL import Image
+from redux_host import default_engine, emulator_and_bios
 
 
 def digest(path):
@@ -108,7 +109,7 @@ def child(folder, name, suffix):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--engine", type=Path, default=Path("D:/GitProjects/GameEngines/Epok/EpokEngine"))
+    parser.add_argument("--engine", type=Path, default=default_engine())
     parser.add_argument("--exe", type=Path, required=True, help="User-supplied reference executable; verified by hash")
     parser.add_argument("--cue", type=Path, required=True, help="User-supplied disc cue sheet")
     parser.add_argument("--disc", type=Path, required=True, help="User-supplied disc image for provenance")
@@ -122,8 +123,7 @@ def main():
     cue = args.cue.resolve()
     disc = args.disc.resolve()
     assert digest(exe) == "1b93cc563c90966e1d79b750f7d19bc1662859cceeb991775e9e9a22656d71d1"
-    emulator = engine / ".tools/redux/pcsx-redux.main"
-    bios = engine / ".tools/redux/openbios-fastboot.bin"
+    emulator, bios = emulator_and_bios(engine)
     bridge = Path(__file__).with_name("original_observer.lua")
     camera_bridge = Path(__file__).with_name("original_camera_observer.lua") if args.camera_trace else None
     folder.mkdir(parents=True, exist_ok=True)
