@@ -245,24 +245,31 @@ else
     [[ -n "$emulator" ]] || { echo "PCSX-Redux installation did not produce an executable." >&2; exit 1; }
 fi
 
-# C++ script reflection loads libclang.dylib from a directory. Xcode and the
-# Command Line Tools both ship one, and Homebrew's llvm is the fallback.
-libclang=""
-for candidate in \
-    "$(xcode-select -p 2>/dev/null)/Toolchains/XcodeDefault.xctoolchain/usr/lib" \
-    "$(xcode-select -p 2>/dev/null)/usr/lib" \
-    "$(brew --prefix llvm 2>/dev/null)/lib"; do
-    if [[ -f "$candidate/libclang.dylib" ]]; then
-        libclang="$candidate"
-        break
-    fi
-done
-if [[ -z "$libclang" ]]; then
-    brew install llvm
-    libclang="$(brew --prefix llvm)/lib"
+# C++ script reflection accepts only the pinned libclang 18.1.1, so the one
+# Xcode or Homebrew happens to ship is never a substitute: the header tool
+# rejects any other version. The pinned wheel is the same one the other hosts
+# use, verified by hash and extracted as an archive.
+libclang_dir="$tools/libclang"
+libclang=".tools/macos/libclang/libclang-18.1.1.data/platlib/clang/native"
+if [[ ! -f "$root/$libclang/libclang.dylib" || $repair == true ]]; then
+    echo "Downloading pinned libclang 18.1.1 for macOS Apple Silicon..."
+    libclang_temp="$(mktemp -d "${TMPDIR:-/tmp}/epok-libclang.XXXXXX")"
+    wheel="$libclang_temp/libclang-18.1.1-py2.py3-none-macosx_11_0_arm64.whl"
+    curl --fail --location --retry 2 --silent --show-error \
+        "https://files.pythonhosted.org/packages/db/ed/1df62b44db2583375f6a8a5e2ca5432bbdc3edb477942b9b7c848c720055/libclang-18.1.1-py2.py3-none-macosx_11_0_arm64.whl" \
+        --output "$wheel"
+    [[ "$(shasum -a 256 "$wheel" | awk '{print $1}')" == 83ce5045d101b669ac38e6da8e58765f12da2d3aafb3b9b98d88b286a60964d8 ]] || {
+        rm -rf "$libclang_temp"
+        echo "libclang download failed its SHA-256 integrity check." >&2
+        exit 1
+    }
+    rm -rf "$libclang_dir"
+    mkdir -p "$libclang_dir"
+    ditto -x -k "$wheel" "$libclang_dir"
+    rm -rf "$libclang_temp"
 fi
-[[ -f "$libclang/libclang.dylib" ]] || {
-    echo "Could not locate libclang.dylib for C++ script reflection." >&2
+[[ -f "$root/$libclang/libclang.dylib" ]] || {
+    echo "Could not locate the pinned libclang.dylib for C++ script reflection." >&2
     exit 1
 }
 
