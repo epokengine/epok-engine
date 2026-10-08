@@ -1355,11 +1355,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 profile.content = play::Content::CurrentScene;
                 scene = play::saved_input(&root, &scene_path, profile)?;
             } else if analyze || args.iter().any(|a| a == "--use-play-profile") {
-                scene = play::saved_input(
-                    &root,
-                    &workspace::startup_scene(&root)?,
-                    play::Profile::load(&root)?,
-                )?;
+                // --scene is the current scene, as in the editor; startup otherwise.
+                scene = play::saved_input(&root, &scene_path, play::Profile::load(&root)?)?;
             }
             if analyze {
                 pipeline::Job::analyze(root, scene, args.iter().any(|a| a == "--blueprint-debug"))

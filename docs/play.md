@@ -292,6 +292,7 @@ time. A null image uses the project default; an empty static descriptor suppress
 it. Lifecycle callback requests queue behind the current fade.
 
 Headless `--build-psx --use-play-profile` and `--play-psx --use-play-profile` honor
-the saved profile, using startup as the current scene. Without that flag,
+the saved profile, using `--scene` as the current scene, or startup when it is
+omitted. Without that flag,
 headless tools preserve the existing full-bank build. **Package Disc** builds
 the whole game from startup with CD data, independently of the Play destination.
