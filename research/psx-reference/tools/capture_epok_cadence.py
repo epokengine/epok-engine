@@ -154,10 +154,15 @@ def main():
     parser.add_argument("--seconds", type=float, default=260)
     parser.add_argument("--function-costs", action="store_true",
                         help="Read-only inclusive cycle timings for aim, rail, ordered prepare/render; requires exact linked symbols")
+    parser.add_argument("--pc-profile", type=int, metavar="FRAME",
+                        help="Read-only per-instruction cycle profile of draw_ordered_world from this captured frame index")
+    parser.add_argument("--pc-frames", type=int, default=10, help="Frames to profile with --pc-profile (1..120)")
     parser.add_argument("--engine", type=Path, default=default_engine())
     args = parser.parse_args()
     if not 1 <= args.seconds <= 300:
         parser.error("seconds must be 1..300")
+    if args.pc_profile is not None and not (args.pc_profile >= 0 and 1 <= args.pc_frames <= 120):
+        parser.error("--pc-profile must be a nonnegative frame and --pc-frames 1..120")
     folder, build, engine = args.output.resolve(), args.build.resolve(), args.engine.resolve()
     if folder.exists() and any(folder.iterdir()):
         parser.error("Output/session must be new or empty")
@@ -186,14 +191,22 @@ def main():
     config = observer_config(snapshot["epok.elf"], profile)
     if args.function_costs:
         config['function_costs'] = function_cost_hooks(elf_symbols(snapshot['epok.elf']), sections)
+    if args.pc_profile is not None:
+        render = next(h for h in function_cost_hooks(elf_symbols(snapshot['epok.elf']), sections)
+                      if h['label'] == 'ordered_render')
+        config['pc_profile'] = dict(entry=render['entry'], size=render['size'], returns=render['returns'],
+                                    first=args.pc_profile, frames=args.pc_frames)
     emulator, bios = emulator_and_bios(engine)
     bridge = Path(__file__).with_name("epok_cadence_observer.lua")
     cost_bridge = Path(__file__).with_name("epok_function_costs.lua")
+    pc_bridge = Path(__file__).with_name("epok_pc_profile.lua")
     folder.mkdir(parents=True, exist_ok=True)
     for name, data in snapshot.items():
         (folder / name).write_bytes(data)
     if args.function_costs:
         (folder / cost_bridge.name).write_bytes(cost_bridge.read_bytes())
+    if args.pc_profile is not None:
+        (folder / pc_bridge.name).write_bytes(pc_bridge.read_bytes())
     (folder / "observer-config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
     token = uuid.uuid4().hex
     with socket.socket() as listener:
@@ -204,6 +217,10 @@ def main():
         if args.function_costs:
             prefix += 'FUNCTION_COSTS={' + ','.join('{'+str(f['entry'])+',{' + ','.join(map(str,f['returns']))+'}}'
                                                  for f in config['function_costs']) + '}\n'
+        if args.pc_profile is not None:
+            pc = config['pc_profile']
+            prefix += (f'PC_PROFILE={{entry={pc["entry"]},size={pc["size"]},first={pc["first"]},frames={pc["frames"]},'
+                       + 'returns={' + ','.join(map(str, pc['returns'])) + '}}\n')
         script = folder / "adapter.lua"
         script.write_text(prefix + bridge.read_text(encoding="utf-8"), encoding="utf-8")
         command = [str(emulator), "-portable", str(folder), "-logfile", str(folder / "runtime.log"),
@@ -218,7 +235,8 @@ def main():
             process = subprocess.Popen(command, cwd=folder, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                                        startupinfo=startup, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             provenance = dict(scope=__doc__, parent_pid=os.getpid(), pid=process.pid, command=command,
-                              inputs={str(p): digest(p) for p in (emulator, bios, bridge, Path(__file__), *([cost_bridge] if args.function_costs else []))},
+                              inputs={str(p): digest(p) for p in (emulator, bios, bridge, Path(__file__), *([cost_bridge] if args.function_costs else []),
+                                                                   *([pc_bridge] if args.pc_profile is not None else []))},
                               build_sha256={name: hashlib.sha256(data).hexdigest() for name, data in snapshot.items()})
             (folder / "session.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
             try:

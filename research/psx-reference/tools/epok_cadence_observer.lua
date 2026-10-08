@@ -16,16 +16,18 @@ local function quoted(value)
     return '"'..value:gsub('[%z\1-\31\\"]', function(c) return string.format('\\u%04x', string.byte(c)) end)..'"'
 end
 local function guarded(callback)
-    return function()
+    return function(...)
         if profiling then
-            local ok, why = pcall(callback)
+            local ok, why = pcall(callback, ...)
             if not ok then callback_error=tostring(why); profiling=false end
         end
         return true
     end
 end
 local costs=FUNCTION_COSTS and dofile('epok_function_costs.lua')(FUNCTION_COSTS,guarded,cycles) or nil
+local pcs=PC_PROFILE and dofile('epok_pc_profile.lua')(PC_PROFILE,guarded,cycles) or nil
 EPOK_FRAME_BEGIN = PCSX.addBreakpoint(FRAME_ENTRY, 'Exec', 4, 'Epok frame begin', guarded(function()
+    if pcs then pcs.frame(#rows) end
     frame_begin=cycles()
 end))
 EPOK_FLIP_BEGIN = PCSX.addBreakpoint(FLIP_ENTRY, 'Exec', 4, 'Epok completed CPU frame', guarded(function()
@@ -62,6 +64,7 @@ local function command(line)
     if line=='P' then
         rows={};presentations={};overflow=false;callback_error=nil;frame_begin=nil;flip_begin=nil;profiling=true
         if costs then costs.reset() end
+        if pcs then pcs.reset() end
         data('profiling');return
     end
     if line=='Q' then data('{"frames":'..#rows..',"presentations":'..#presentations..','..summary()..'}');return end
@@ -79,6 +82,7 @@ local function command(line)
         end
         output[#output+1]=']'
         if costs then output[#output+1]=',"function_costs":'..costs.json() end
+        if pcs then output[#output+1]=',"pc_profile":'..pcs.json() end
         output[#output+1]='}'
         data(table.concat(output));return
     end
