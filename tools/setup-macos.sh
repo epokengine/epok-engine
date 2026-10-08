@@ -143,6 +143,10 @@ if [[ ! -x "$tools/bin/mkpsxiso" || $repair == true ]]; then
 fi
 
 redux_dir="$tools/redux"
+redux_version="f9cd9b2c"
+redux_url="https://distrib.app/storage/assets/cea/1f4/3be/c574513277b755e1d3ef4a864f30bc7819fb746dcfef48c14f69727/PCSX-Redux-f9cd9b2c-Arm.dmg"
+redux_sha256="72019d6170a79de022985c790519b81dbc6dcd8edb383323ed6a06e1f4c1f04d"
+redux_binary_sha256="c48a388de3cb9563780b85d7ccc2a06bcadf2ce0cc7b7ec030fc2840c41afbb8"
 redux_config_path=""
 redux_binary=""
 for name in pcsx-redux PCSX-Redux; do
@@ -153,46 +157,27 @@ for name in pcsx-redux PCSX-Redux; do
         break
     fi
 done
+if [[ -n "$redux_binary" && "$(shasum -a 256 "$redux_binary" | awk '{print $1}')" != "$redux_binary_sha256" ]]; then
+    if $repair; then
+        redux_binary=""
+        redux_config_path=""
+    else
+        echo "Installed PCSX-Redux is not the pinned build $redux_version; its timings are not comparable. Run with --repair to replace it." >&2
+    fi
+fi
 if [[ -z "$redux_binary" ]]; then
-    echo "Downloading PCSX-Redux for macOS Apple Silicon..."
+    echo "Downloading PCSX-Redux $redux_version for macOS Apple Silicon..."
     redux_temp="$(mktemp -d "${TMPDIR:-/tmp}/epok-redux.XXXXXX")"
     cleanup_redux() { rm -rf "$redux_temp"; }
     trap cleanup_redux EXIT
-    catalog="$redux_temp/catalog.json"
-    curl --fail --location --retry 2 --silent --show-error \
-        "https://distrib.app/storage/manifests/pcsx-redux/dev-macos-arm/manifest.json" \
-        --output "$catalog"
-    build_id="$(python3 - "$catalog" <<'PY'
-import json, sys
-builds = json.load(open(sys.argv[1], encoding="utf-8")).get("builds", [])
-if not builds or not isinstance(builds[0].get("id"), int):
-    raise SystemExit("PCSX-Redux catalog has no usable macOS Arm build")
-print(builds[0]["id"])
-PY
-)"
-    manifest="$redux_temp/manifest.json"
-    curl --fail --location --retry 2 --silent --show-error \
-        "https://distrib.app/storage/manifests/pcsx-redux/dev-macos-arm/manifest-${build_id}.json" \
-        --output "$manifest"
-    mapfile_output="$(python3 - "$manifest" <<'PY'
-import json, sys
-data = json.load(open(sys.argv[1], encoding="utf-8"))
-path = data.get("path")
-sha1 = data.get("hashes", {}).get("sha1")
-if not isinstance(path, str) or not path.startswith("/") or not isinstance(sha1, str):
-    raise SystemExit("PCSX-Redux build manifest is incomplete")
-print("https://distrib.app" + path)
-print(sha1)
-PY
-)"
-    redux_url="$(printf '%s\n' "$mapfile_output" | sed -n '1p')"
-    redux_sha1="$(printf '%s\n' "$mapfile_output" | sed -n '2p')"
-    archive="$redux_temp/PCSX-Redux.dmg"
+    # A fixed build, not the newest development build: emulated cycle counts
+    # differ between builds, so every capture on this host must use the same
+    # emulator and its bundled OpenBIOS to be comparable.
+    archive="$redux_temp/PCSX-Redux-${redux_version}-Arm.dmg"
     # Keep curl's actual transfer meter in the editor's live install log.
     curl --fail --location --retry 2 --progress-bar "$redux_url" --output "$archive"
-    actual_sha1="$(shasum -a 1 "$archive" | awk '{print $1}')"
-    [[ "$actual_sha1" == "$redux_sha1" ]] || {
-        echo "PCSX-Redux download failed its SHA-1 integrity check." >&2
+    [[ "$(shasum -a 256 "$archive" | awk '{print $1}')" == "$redux_sha256" ]] || {
+        echo "PCSX-Redux download failed its SHA-256 integrity check." >&2
         exit 1
     }
     mount_plist="$redux_temp/mount.plist"
