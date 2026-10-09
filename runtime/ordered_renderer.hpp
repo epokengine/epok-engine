@@ -120,7 +120,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     if(page_id!=previous_page){
       ++ordered_work.page_switches;
       previous_page=page_id;
-      page=epok::stream_pool.ready(page_id)?epok::stream_pool.destination(epok::stream_pool.find(page_id)):nullptr;
+      page=epok::stream_pool.ready_data(page_id);
       if(!page){++performance_work.stream_failed_chunks;epok::stream_failed=true;break;}
     }
     const auto& face=*reinterpret_cast<const epok::BakedDrawFace*>(page+((token&8191u)&~3u)*8);

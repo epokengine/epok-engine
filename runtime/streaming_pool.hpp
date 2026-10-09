@@ -105,6 +105,12 @@ public:
     int i = find(page);
     return i >= 0 && slots_[i].ready;
   }
+  // The data of a resident, completed page, or null: one search instead of
+  // ready() followed by destination(find()).
+  const uint8_t *ready_data(uint32_t page) const {
+    int i = find(page);
+    return i >= 0 && slots_[i].ready ? data_[i] : nullptr;
+  }
   bool has_free_slot() const {
     for (const auto &s : slots_) if (!s.occupied) return true;
     return false;
