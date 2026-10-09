@@ -1184,6 +1184,19 @@ void GameScene::frame() {
   }
   epok::StreamPageCursor stream_cursor;
   if constexpr(epok::ordered_draw_enabled)if(track&&track->ordered){
+#ifdef EPOK_SWEEP_CAMERAS
+    // Diagnostic: the ordered pass of a listed sample uses that table camera.
+    if(const auto* table=epok::sweep_camera(epok::visibility_page_selection.current)){
+      epok::CameraSpace<Fixed> sweep_view;
+      for(unsigned r=0;r<3;++r){
+        for(unsigned c=0;c<3;++c)sweep_view.basis.values[r][c]=Fixed(int32_t(table->basis[r*3+c]),Fixed::RAW);
+        sweep_view.basis.values[r][3]=Fixed(0,Fixed::RAW);
+        sweep_view.origin[r]=Fixed(table->origin[r],Fixed::RAW);
+      }
+      const Fixed sweep_scale[2]={Fixed(table->row_scale[0],Fixed::RAW),Fixed(table->row_scale[1],Fixed::RAW)};
+      draw_ordered_world(emitter,sweep_view,sweep_scale);
+    }else
+#endif
     draw_ordered_world(emitter,view,row_scale);
   }
   for (size_t index = 0; index < epok::object_count; ++index) {

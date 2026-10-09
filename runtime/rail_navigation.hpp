@@ -128,6 +128,17 @@ inline void advance_rail_navigation(uint32_t elapsed,const int32_t* player,Ready
   camera(data.sample(current),data.sample(s.pending?s.next_sample:current),s.fraction);
 }
 #ifdef EPOK_VISIBILITY_SWEEP
+#ifdef EPOK_SWEEP_CAMERAS
+}
+// A generated table of {sample, camera}: the sweep visits only these samples
+// and the ordered pass draws each with its camera (see the main loop).
+#include EPOK_SWEEP_CAMERAS
+namespace epok {
+inline const SweepCamera* sweep_camera(size_t sample) {
+  for(unsigned i=0;i<sweep_camera_count;++i)if(sweep_cameras[i].sample==sample)return &sweep_cameras[i];
+  return nullptr;
+}
+#endif
 // Diagnostic sweep, not gameplay: visit every sample of every route in index
 // order, each once its pages are resident and then for EPOK_VISIBILITY_SWEEP
 // frames, through the same crossing path as a navigation link. The camera is
@@ -144,7 +155,13 @@ inline void advance_rail_sweep(Ready&& ready,Camera&& camera) {
     visibility_track_started=true;
   }
   if(!s.pending&&!sweep.done&&++sweep.held>=uint32_t(EPOK_VISIBILITY_SWEEP)){
+#ifdef EPOK_SWEEP_CAMERAS
+    size_t next=size_t(-1);
+    for(unsigned i=0;i<sweep_camera_count;++i)
+      if(sweep_cameras[i].sample>current&&sweep_cameras[i].sample<next)next=sweep_cameras[i].sample;
+#else
     const size_t next=current+1;
+#endif
     uint16_t route=0xffff;
     for(uint16_t r=0;r<nav.route_count;++r)
       if(next>=nav.routes[r].first&&next<size_t(nav.routes[r].first)+nav.routes[r].count){route=r;break;}
