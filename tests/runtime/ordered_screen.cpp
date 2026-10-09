@@ -12,11 +12,22 @@ template<unsigned W,unsigned H> static void test(){
         }
         return true;
     };
-    unsigned accepted=0;
+    const auto outside=[](const uint32_t* screen,bool quad){
+        int minx=32767,maxx=-32768,miny=32767,maxy=-32768;
+        for(unsigned i=0;i<(quad?4u:3u);++i){
+            const int x=int16_t(screen[i]),y=int16_t(screen[i]>>16);
+            if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;
+        }
+        return maxx<0||minx>=int(W)||maxy<0||miny>=int(H);
+    };
+    unsigned accepted=0,rejected=0;
     const auto check=[&](const uint32_t* screen){
         for(bool quad:{false,true}){
             const bool actual=epok::ordered_screen_inside<W,H>(screen,quad);
             assert(actual==reference(screen,quad));accepted+=actual;
+            const bool beside=epok::ordered_screen_outside<W,H>(screen,quad);
+            assert(beside==outside(screen,quad));rejected+=beside;
+            assert(!(actual&&beside));
             if(actual){
                 int minx=32767,maxx=-32768,miny=32767,maxy=-32768;
                 for(unsigned i=0;i<(quad?4u:3u);++i){
@@ -45,13 +56,19 @@ template<unsigned W,unsigned H> static void test(){
         }
         check(s);
     }
+    // Corners on different outer sides are not trivially rejected.
+    const uint32_t straddle[]={pack(-5,0),pack(int(W)+5,0),pack(-5,0)};
+    assert((!epok::ordered_screen_outside<W,H>(straddle,false)));
+    const uint32_t left[]={pack(-5,-5),pack(-1,int(H)+5),pack(-1000,10),pack(0,10)};
+    assert((epok::ordered_screen_outside<W,H>(left,false)));
+    assert((!epok::ordered_screen_outside<W,H>(left,true)));
     // Three-corner path must neither read nor include the fourth corner.
     const uint32_t triangle[]={0,pack(W-1,0),pack(0,H-1)};
     assert((epok::ordered_screen_inside<W,H>(triangle,false)));
     const uint32_t bad_fourth[]={triangle[0],triangle[1],triangle[2],pack(-1,-1)};
     assert((epok::ordered_screen_inside<W,H>(bad_fourth,false)));
     assert((!epok::ordered_screen_inside<W,H>(bad_fourth,true)));
-    assert(accepted>190000);
-    std::printf("Packed viewport %ux%u: exhaustive halves, boundaries, 300000 mixed polygons passed.\n",W,H);
+    assert(accepted>190000&&rejected>20000);
+    std::printf("Packed viewport %ux%u: inside and outside, exhaustive halves, boundaries, 300000 mixed polygons passed.\n",W,H);
 }
 int main(){test<512,240>();test<320,240>();test<256,240>();test<640,480>();test<1024,512>();test<1,1>();}

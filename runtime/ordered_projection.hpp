@@ -28,6 +28,21 @@ inline bool ordered_screen_inside(const uint32_t* screen,bool quad) {
     if(quad)outside|=screen[3]|(screen[3]+bias);
     return !(outside&mask);
 }
+// Trivial rejection on packed SXY words, the reference pass's test: true when
+// every corner lies on the same outer side of the viewport, exactly when the
+// corners' bounding box misses it. Sign bits give x<0 / y<0. Clearing them
+// and adding 0x8000-W (per half) sets bit 15/31 for x>=W / y>=H without a
+// carry between halves; masking with the inverted sign excludes negatives.
+template<unsigned Width,unsigned Height>
+inline bool ordered_screen_outside(const uint32_t* screen,bool quad) {
+    static_assert(Width>0&&Width<=1024&&Height>0&&Height<=1024);
+    constexpr uint32_t bias=((0x8000u-Height)<<16)|(0x8000u-Width);
+    const auto beyond=[](uint32_t s){return ((s&0x7fff7fffu)+bias)&~s;};
+    uint32_t below=screen[0]&screen[1]&screen[2];
+    uint32_t above=beyond(screen[0])&beyond(screen[1])&beyond(screen[2]);
+    if(quad){below&=screen[3];above&=beyond(screen[3]);}
+    return ((below|above)&0x80008000u)!=0;
+}
 // Exact signed division (truncate toward zero), without MIPS DIV. Keeping the
 // two denominators in a conditional expression made GCC merge them into one
 // variable divide. Shift the magnitude first, then divide by 3 via reciprocal.

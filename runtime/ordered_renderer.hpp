@@ -248,6 +248,24 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
 #endif
     int min_x=32767,max_x=-32768,min_y=32767,max_y=-32768;
     bool inside=direct&&epok::ordered_screen_inside<epok::display_width,epok::display_height>(screen,quad);
+    // Early trivial rejection, as the reference pass does: a GTE-projected
+    // face entirely beside the viewport skips the bounds, clipping and
+    // material work. Tested only for faces not already accepted, so faces
+    // fully inside (the common case) pay nothing for it. Exact near clipping
+    // keeps a face with a corner nearer than the plane for its clipping path;
+    // every other rejected face is one the bounds cull below would drop (the
+    // inexact path's too-wide skip drops it too).
+    if(direct&&!inside&&epok::ordered_screen_outside<epok::display_width,epok::display_height>(screen,quad)){
+      bool reject=true;
+      if constexpr(epok::exact_near_clipping){
+        reject=(depth[0]>=OrderedUnits::near)&(depth[1]>=OrderedUnits::near)&(depth[2]>=OrderedUnits::near);
+        if(quad)reject&=depth[3]>=OrderedUnits::near;
+      }
+      if(reject){
+        gte_vertices+=count;transformed+=count;
+        EPOK_DETAIL_END(ordered_vertex,vertex_scanlines);continue;
+      }
+    }
     if(direct){
       if(inside){
         if constexpr(epok::exact_near_clipping){
