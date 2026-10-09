@@ -278,10 +278,12 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       }
     }
     const uint32_t command=epok::baked_command(face);
-    uint32_t rgb[4];epok::baked_ordered_colors(face,part==2,epok::vertex_color_palette,rgb);
     epok::BakedTextureWords uv{clut16|face.uv[0],tpage16|face.uv[1],uint32_t(face.uv[2])|(uint32_t(face.uv[3])<<16)};
     if(part==2)uv=epok::baked_second_half(uv);
     if(direct){
+      // Decoded here, not shared with the clipped branch, so the corner colors
+      // never have their address taken and can stay in registers.
+      uint32_t rgb[4];epok::baked_ordered_colors(face,part==2,epok::vertex_color_palette,rgb);
       unsigned slots;
       if(textured){if(quad)slots=ordered_packet<true,true>(target,rgb,screen,uv,command,monotone_depth);
         else slots=ordered_packet<true,false>(target,rgb,screen,uv,command,monotone_depth);}
@@ -290,6 +292,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       emitted+=slots;packets+=slots!=0;quads+=quad&(slots!=0);
     }else{
       ++ordered_work.clipped_candidates;
+      uint32_t rgb[4];epok::baked_ordered_colors(face,part==2,epok::vertex_color_palette,rgb);
       QuadPacket material;
       material.textured=textured;material.clut16=clut16;material.tpage16=tpage16;
       material.command=command;material.gpu_colors=epok::baked_indexed_color(face);material.depth_bias=face.depth_bias;
