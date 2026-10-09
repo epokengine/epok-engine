@@ -58,6 +58,29 @@ static void compact_vertices(){
     assert(epok::ordered_face_block(uint16_t((513u<<2)|1u))==513);
     std::puts("Compact ordered vertices: 200000 exact GTE inputs, checked out-of-range faces, Q12 decode and wide blocks passed.");
 }
+// GTE perspective division model: documented seed table, overflow boundary,
+// and the reciprocal within two units of the ideal rounded quotient.
+static void gte_division(){
+    assert(epok::gte_unr_table.value[0]==0xff&&epok::gte_unr_table.value[256]==0);
+    for(uint32_t h:{1u,120u,160u,213u,240u,1000u}){
+        uint32_t n;
+        assert(!epok::gte_divide(h,h/2,n)&&n==0x1ffff);
+        uint32_t previous=0xffffffffu;
+        for(uint32_t sz=h/2+1;sz<=0xffff;++sz){
+            assert(epok::gte_divide(h,sz,n));
+            const uint64_t ideal=((uint64_t(h)*0x20000/sz)+1)/2;
+            assert(n<=0x1ffff&&(n>ideal?n-ideal:ideal-n)<=2);
+            assert(n<=previous);previous=n;
+        }
+    }
+    // Screen saturation and divide overflow are rejected like GTE flags.
+    uint32_t screen;
+    const int32_t centre[3]={0,0,320},left[3]={-4000,0,320},near_camera[3]={0,0,79};
+    assert(epok::gte_project_point(centre,160,256,120,screen)&&screen==((120u<<16)|256u));
+    assert(!epok::gte_project_point(left,160,256,120,screen));
+    assert(!epok::gte_project_point(near_camera,160,256,120,screen));
+    std::puts("GTE division model: seed table, overflow, monotonic reciprocal within two units passed.");
+}
 static void anchors(){
     epok::OrderedProjectionBlock blocks[]={{40,3,0,{0,0,0},{},{}},{100,2,0,{0,0,0},{},{}}};
     epok::OrderedDrawData data{};data.projections=blocks;data.projection_count=2;
@@ -119,6 +142,7 @@ static void anchors(){
     std::printf("Projection anchors: %u exact wide MAC sums, signed boundaries, rejection and block lookup passed.\n",accepted);
 }
 int main(){
+    gte_division();
     anchors();
     compact_vertices();
     const auto check_depth=[](int32_t value){

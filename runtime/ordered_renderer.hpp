@@ -41,6 +41,11 @@ __attribute__((noinline,optimize("O3"))) void validate_ordered_gte(
       if(delta)fail(1,v);
     }
     if(triple_valid&&(v<3||safe)&&(single_screen!=screen[v]||camera[2]!=depth[v]||!safe))fail(2,v);
+    // The CPU fallback's GTE model must reproduce RTPS bit for bit wherever
+    // the GTE accepted the vertex; any mismatch would reopen edge cracks.
+    uint32_t modelled;
+    if(safe&&!(epok::gte_project_point(expected,epok::display_height*2/3,epok::display_width/2,epok::display_height/2,modelled)
+        &&modelled==single_screen))fail(5,v);
     if(safe&&camera[2]>=OrderedUnits::near&&camera[2]<OrderedUnits::far){
       ProjectedVertex reference{};for(unsigned c=0;c<3;++c)reference.camera[c]=camera[c];
       epok::project_cpu<OrderedUnits,epok::display_width,epok::display_height>(reference);
@@ -272,7 +277,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       // Inexact clipping only reaches here for inputs too wide for the GTE.
       decode();
       direct=epok::project_ordered_cpu<OrderedUnits,epok::display_width,epok::display_height>(
-        world,count,view,row_scale,projected,screen,depth);
+        world,count,view,row_scale,projected,screen,depth,narrow?&matrix:nullptr,base_offset);
       ordered_work.cpu_direct+=direct;
       min_x=min_y=32767;max_x=max_y=-32768;
       if(direct)for(unsigned v=0;v<count;++v){
@@ -341,8 +346,8 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       material.command=command;material.gpu_colors=epok::baked_indexed_color(face);material.depth_bias=face.depth_bias;
       emitter.fixed_depth=monotone_depth;
       uint32_t shaded[4];for(unsigned v=0;v<4;++v)shaded[v]=material.gpu_colors?rgb[v]:face.shaded;
-      if(quad)emitter.clipped<OrderedUnits>(projected[1],projected[2],projected[3],shaded[1],shaded[2],shaded[3],face.uv[1],face.uv[2],face.uv[3],material);
-      emitter.clipped<OrderedUnits>(projected[0],projected[1],projected[2],shaded[0],shaded[1],shaded[2],face.uv[corners[0]],face.uv[corners[1]],face.uv[corners[2]],material);
+      if(quad)emitter.clipped<OrderedUnits,true>(projected[1],projected[2],projected[3],shaded[1],shaded[2],shaded[3],face.uv[1],face.uv[2],face.uv[3],material);
+      emitter.clipped<OrderedUnits,true>(projected[0],projected[1],projected[2],shaded[0],shaded[1],shaded[2],face.uv[corners[0]],face.uv[corners[1]],face.uv[corners[2]],material);
       emitter.fixed_depth=-1;
     }
     EPOK_DETAIL_END(ordered_polygon,polygon_scanlines);

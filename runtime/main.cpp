@@ -403,7 +403,10 @@ struct PolygonEmitter {
   }
   // Software clipping stays out of line so the per-quad loop remains compact.
   // Colors here are the fogged 0..255 values; modulation happens after clipping.
-  template<class ClipUnits=Units> __attribute__((noinline,optimize("O3"))) void clipped(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c,
+  // KeepScreens: visible input corners keep the screen position they arrived
+  // with (the ordered pass's GTE-exact ones), so only new intersections are
+  // projected here and edges shared with unclipped neighbours stay sealed.
+  template<class ClipUnits=Units,bool KeepScreens=false> __attribute__((noinline,optimize("O3"))) void clipped(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c,
                                          uint32_t ca, uint32_t cb, uint32_t cc, uint32_t uva, uint32_t uvb, uint32_t uvc,
                                          const QuadPacket& q) {
     const uint8_t planes = a.outcode | b.outcode | c.outcode;
@@ -414,6 +417,7 @@ struct PolygonEmitter {
       for (int d = 0; d < 3; ++d) buffers[0][i].p[d] = points[i]->camera[d];
       buffers[0][i].color[0] = colors[i] & 255; buffers[0][i].color[1] = (colors[i] >> 8) & 255; buffers[0][i].color[2] = (colors[i] >> 16) & 255;
       buffers[0][i].uv[0] = int32_t(uvs[i] & 255) << 16; buffers[0][i].uv[1] = int32_t((uvs[i] >> 8) & 255) << 16;
+      if constexpr (KeepScreens) { buffers[0][i].screen = points[i]->screen.packed; buffers[0][i].has_screen = points[i]->visible; }
     }
     int from = 0;
     const int count = epok::clip_polygon<ClipUnits>(buffers, 3, planes, from);
@@ -423,7 +427,8 @@ struct PolygonEmitter {
     for (int i = 0; i < count; ++i) {
       const auto& v = buffers[from][i];
       for (int d = 0; d < 3; ++d) p[i].camera[d] = v.p[d];
-      epok::project_cpu<ClipUnits, epok::display_width, epok::display_height>(p[i]);
+      if (KeepScreens && v.has_screen) { p[i].screen.packed = v.screen; p[i].visible = true; }
+      else epok::project_cpu<ClipUnits, epok::display_width, epok::display_height>(p[i]);
       const uint32_t packed = epok::pack_color(uint8_t(v.color[0]), uint8_t(v.color[1]), uint8_t(v.color[2]));
       col[i] = epok::packet_color(packed, q.textured, q.gpu_colors);
       tex[i] = uint32_t(uint8_t(v.uv[0] >> 16)) | (uint32_t(uint8_t(v.uv[1] >> 16)) << 8);

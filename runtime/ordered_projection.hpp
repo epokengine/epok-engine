@@ -89,6 +89,40 @@ inline void ordered_gte_camera_reference(const Affine<Number>& matrix,
         camera[r]=sign*int32_t(sum>>12);
     }
 }
+// The GTE's perspective division (RTPS/RTPT): the documented unsigned
+// Newton-Raphson reciprocal with its 257-entry seed table. Returns false and
+// 0x1FFFF where the GTE flags a divide overflow (H >= 2*SZ3).
+struct GteUnrTable {uint8_t value[257];};
+inline constexpr GteUnrTable gte_unr_table=[]{
+    GteUnrTable table{};
+    for(int i=0;i<257;++i){const int value=(0x40000/(i+0x100)+1)/2-0x101;table.value[i]=uint8_t(value<0?0:value);}
+    return table;
+}();
+inline bool gte_divide(uint32_t h,uint32_t sz,uint32_t& quotient) {
+    if(h>=sz*2){quotient=0x1ffff;return false;}
+    int shift=0;while(!(sz&(0x8000u>>shift)))++shift;
+    const uint32_t numerator=h<<shift;uint32_t d=sz<<shift;
+    const uint32_t u=gte_unr_table.value[(d-0x7fc0)>>7]+0x101;
+    d=(0x2000080u-d*u)>>8;
+    d=(0x0000080u+d*u)>>8;
+    const uint64_t n=(uint64_t(numerator)*d+0x8000)>>16;
+    quotient=n>0x1ffff?0x1ffff:uint32_t(n);
+    return true;
+}
+// Screen position exactly as RTPS/RTPT produce it from GTE MAC results
+// (camera Y up, as ordered_gte_camera_reference returns it), or false where
+// the GTE would flag the vertex: IR or SZ3 saturation, divide overflow, or
+// SX/SY outside -0x400..0x3FF.
+inline bool gte_project_point(const int32_t* camera,int32_t h,int32_t ofx,int32_t ofy,uint32_t& screen) {
+    const int32_t ir1=camera[0],ir2=-camera[1],sz=camera[2];
+    if(ir1<-0x8000||ir1>0x7fff||ir2<-0x8000||ir2>0x7fff||sz<0||sz>0xffff)return false;
+    uint32_t n;
+    if(!gte_divide(uint32_t(h),uint32_t(sz),n))return false;
+    const int64_t sx=(int64_t(n)*ir1+(int64_t(ofx)<<16))>>16,sy=(int64_t(n)*ir2+(int64_t(ofy)<<16))>>16;
+    if(sx<-0x400||sx>0x3ff||sy<-0x400||sy>0x3ff)return false;
+    screen=uint32_t(uint16_t(int16_t(sx)))|(uint32_t(uint16_t(int16_t(sy)))<<16);
+    return true;
+}
 #ifdef EPOK_VALIDATE_GTE
 // Cumulative counters: a sampler cannot lose a transient validation failure.
 // world_camera_delta is informational (full Q12 camera vs quantized GTE), not
@@ -112,16 +146,36 @@ __attribute__((noinline))
 bool project_ordered_cpu(
     const int32_t (*points)[3],unsigned count,
     const CameraSpace<Number>& view,const Number* row_scale,
-    ProjectedVertex* projected,uint32_t* screen,int32_t* depth) {
+    ProjectedVertex* projected,uint32_t* screen,int32_t* depth,
+    const Affine<Number>* gte_matrix=nullptr,const int32_t* gte_offset=nullptr) {
+    // With the loaded GTE matrix and lattice offset, corners take the GTE's own
+    // integer camera transform, and every corner the GTE itself could project
+    // gets the GTE's exact screen position. An edge shared with a neighbour
+    // drawn by RTPT therefore matches it to the pixel, leaving no crack. Only
+    // corners the GTE would flag (closer than H/2, saturated) use the exact
+    // CPU division, and every face containing one comes through here.
+    constexpr int32_t focal=Height*2/3;
     bool direct=true;
     int min_x=32767,max_x=-32768,min_y=32767,max_y=-32768;
     for(unsigned v=0;v<count;++v){
         const auto* point=points[v];
-        Number world[3],camera[3];for(unsigned c=0;c<3;++c)world[c]=Number(point[c],Number::RAW);
-        view.point(world,camera);camera[0]*=row_scale[0];camera[1]*=row_scale[1];
-        auto& p=projected[v];for(unsigned c=0;c<3;++c)p.camera[c]=camera[c].raw()>>4;
+        auto& p=projected[v];
+        if(gte_matrix){
+            int32_t camera[3];ordered_gte_camera_reference(*gte_matrix,point,gte_offset,camera);
+            for(unsigned c=0;c<3;++c)p.camera[c]=camera[c];
+        }else{
+            Number world[3],camera[3];for(unsigned c=0;c<3;++c)world[c]=Number(point[c],Number::RAW);
+            view.point(world,camera);camera[0]*=row_scale[0];camera[1]*=row_scale[1];
+            for(unsigned c=0;c<3;++c)p.camera[c]=camera[c].raw()>>4;
+        }
         depth[v]=p.camera[2];p.fog=0;
-        project_cpu<Units,Width,Height>(p);direct&=p.visible;
+        uint32_t packed;
+        if(gte_matrix&&gte_project_point(p.camera,focal,Width/2,Height/2,packed)){
+            p.outcode=Units::outcode(p.camera[0],p.camera[1],p.camera[2]);
+            p.visible=p.camera[2]>=Units::near&&p.camera[2]<Units::far;
+            p.screen.packed=packed;
+        }else project_cpu<Units,Width,Height>(p);
+        direct&=p.visible;
         screen[v]=p.visible?p.screen.packed:0;
         if(p.visible){
             const int x=p.screen.x,y=p.screen.y;

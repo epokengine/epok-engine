@@ -128,6 +128,10 @@ struct ClipVertex {
     int32_t p[3];
     int32_t color[3];
     int32_t uv[2];   // 16.16 texture pixels
+    // An input corner may keep its already projected screen position;
+    // intersections never have one and are projected after clipping.
+    uint32_t screen = 0;
+    bool has_screen = false;
 };
 inline uint32_t clip_fraction16(uint32_t numerator,uint32_t denominator) {
     if(numerator==denominator)return 65536;
@@ -160,7 +164,7 @@ template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int 
                 const uint64_t numerator = pd < 0 ? -pd : pd, denominator = pd - cd < 0 ? cd - pd : pd - cd;
                 const uint32_t fraction=denominator<=UINT32_MAX?clip_fraction16(uint32_t(numerator),uint32_t(denominator)):
                     uint32_t((numerator<<16)/denominator);
-                ClipVertex intersection;
+                ClipVertex intersection{};
                 for (int d = 0; d < 3; ++d) {
                     intersection.p[d] = int32_t(previous->p[d] + (((int64_t(current.p[d]) - previous->p[d]) * fraction) >> 16));
                     intersection.color[d] = previous->color[d] + int32_t((int64_t(current.color[d] - previous->color[d]) * fraction) >> 16);
