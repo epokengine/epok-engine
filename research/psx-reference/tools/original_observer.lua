@@ -19,6 +19,10 @@ end
 local profiling, rows, overflow, previous = false, {}, false, nil
 local presentations, presentation_phases, last_vsync = {}, {}, nil
 local world_samples, pending_sample = {}, nil
+-- Every scenery pass: {start cycles, pass cycles, SLST count, list id, packet
+-- bytes}. A list is stored once whenever it differs from the previous pass's,
+-- so passes can be matched to source samples by their complete token order.
+local world_passes, world_lists, pass_list, pass_count = {}, {}, nil, 0
 local world_start, world_cycles, world_calls = nil, 0, 0
 local world_tokens, packet_bytes, packet_begin, world_buffer = 0, 0, nil, nil
 local last_camera, last_callback, last_mode, last_argument = {0,0,0}, 0, 0, 0
@@ -67,6 +71,25 @@ ORIGINAL_WORLD_BEGIN = PCSX.addBreakpoint(0x80040ed8, 'Exec', 4, 'Original world
     world_tokens = world_tokens + count
     world_buffer = tonumber(registers.GPR.n.a1)
     packet_begin = word(world_buffer+8)
+    pass_count = count
+    pass_list = 0
+    if count > 1 and count <= 4096 then
+        local address = tonumber(registers.GPR.n.a0)
+        local last = world_lists[#world_lists]
+        local same = last ~= nil and #last == count
+        if same then
+            for i=1,count do
+                if last[i] ~= half(address+2+i*2) then same=false;break end
+            end
+        end
+        if not same then
+            if #world_lists >= 4096 then overflow=true;profiling=false;return end
+            local tokens={}
+            for i=1,count do tokens[i]=half(address+2+i*2) end
+            world_lists[#world_lists+1]=tokens
+        end
+        pass_list = #world_lists
+    end
     if count > 1 then
         local config = tonumber(registers.GPR.n.a2)
         local camera = word(config)
@@ -101,9 +124,14 @@ end))
 ORIGINAL_WORLD_END = PCSX.addBreakpoint(0x80041514, 'Exec', 4, 'Original world common epilogue', guarded(function()
     if not profiling then return end
     if world_start then
-        world_cycles=world_cycles+tonumber(PCSX.getCPUCycles())-world_start
+        local cycles=tonumber(PCSX.getCPUCycles())-world_start
+        world_cycles=world_cycles+cycles
         world_calls=world_calls+1
-        packet_bytes=packet_bytes+word(world_buffer+8)-packet_begin
+        local bytes=word(world_buffer+8)-packet_begin
+        packet_bytes=packet_bytes+bytes
+        if #world_passes < 20000 then
+            world_passes[#world_passes+1]={world_start,cycles,pass_count,pass_list,bytes}
+        else overflow=true end
         world_start=nil
     end
 end))
@@ -163,6 +191,7 @@ local function command(line)
     if line=='P' then
         profiling=true;rows={};presentations={};presentation_phases={};overflow=false;previous=nil;world_start=nil;world_cycles=0;world_calls=0;callback_error=nil
         world_samples={};pending_sample=nil
+        world_passes={};world_lists={};pass_list=nil;pass_count=0
         if camera_trace then camera_trace.reset() end
         world_tokens=0;packet_bytes=0;last_gte={};last_camera={0,0,0};last_callback=0;last_mode=0;last_argument=0
         data('profiling');return
@@ -186,6 +215,16 @@ local function command(line)
         end
         output[#output+1]='],"world_samples":['
         for i,row in ipairs(world_samples) do
+            if i>1 then output[#output+1]=',' end
+            output[#output+1]='['..table.concat(row,',')..']'
+        end
+        output[#output+1]='],"world_passes":['
+        for i,row in ipairs(world_passes) do
+            if i>1 then output[#output+1]=',' end
+            output[#output+1]='['..table.concat(row,',')..']'
+        end
+        output[#output+1]='],"world_lists":['
+        for i,row in ipairs(world_lists) do
             if i>1 then output[#output+1]=',' end
             output[#output+1]='['..table.concat(row,',')..']'
         end
