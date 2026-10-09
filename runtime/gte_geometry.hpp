@@ -246,6 +246,24 @@ inline bool finish_projection_triple(uint32_t* screen,int32_t* depth) {
 #endif
     return true;
 }
+// Same outputs as finish_projection_triple, stored even when the GTE flagged
+// the projection; returns whether it was unflagged. Used where a saturated
+// result is accepted as is (inexact near clipping) and by validation.
+inline bool store_projection_triple(uint32_t* screen,int32_t* depth) {
+    using namespace psyqo::GTE;
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    // Reading a GTE register waits for RTPT, so the stores need no FLAG first.
+    asm volatile(
+        "swc2 $12, 0(%2)\nswc2 $13, 4(%2)\nswc2 $14, 8(%2)\n"
+        "swc2 $17, 0(%3)\nswc2 $18, 4(%3)\nswc2 $19, 8(%3)\n"
+        : "=m"(*reinterpret_cast<uint32_t (*)[3]>(screen)),
+          "=m"(*reinterpret_cast<int32_t (*)[3]>(depth)) : "r"(screen), "r"(depth));
+#else
+    screen[0]=readRaw<Register::SXY0>();screen[1]=readRaw<Register::SXY1>();screen[2]=readRaw<Register::SXY2>();
+    depth[0]=int32_t(readRaw<Register::SZ1>());depth[1]=int32_t(readRaw<Register::SZ2>());depth[2]=int32_t(readRaw<Register::SZ3>());
+#endif
+    return !(readRaw<Register::FLAG>() & gte_projection_flags);
+}
 inline bool project_packed_vertex(const GteProjectionInput& vertex,uint32_t& screen,int32_t& depth) {
 #if defined(__mips__) && !defined(PS1_PC_PORT)
     uint32_t flags;

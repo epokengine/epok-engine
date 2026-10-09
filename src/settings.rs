@@ -207,6 +207,12 @@ pub struct Rendering {
     /// AVSZ4 instead of a CPU division. Quads are unchanged; triangles land up
     /// to 1.6% nearer, which only affects interleaving with dynamic actors.
     pub gte_depth_average: bool,
+    /// Prepared ordered geometry that crosses the near plane or saturates the
+    /// GTE is projected and clipped on the CPU. Off accepts the GTE result as
+    /// is, like the reference renderer: faster, but faces at the camera can
+    /// distort or vanish. Inputs too wide for the GTE are still CPU-projected;
+    /// any face that would then need clipping is skipped instead.
+    pub exact_near_clipping: bool,
 }
 impl Default for Rendering {
     fn default() -> Self {
@@ -224,6 +230,7 @@ impl Default for Rendering {
             streaming_triangle_budget: 4096,
             streaming_prefetch: true,
             gte_depth_average: true,
+            exact_near_clipping: true,
         }
     }
 }
@@ -294,6 +301,10 @@ impl Rendering {
         header.push_str(&format!(
             "namespace epok {{ inline constexpr bool gte_depth_average = {}; }}\n",
             self.gte_depth_average
+        ));
+        header.push_str(&format!(
+            "namespace epok {{ inline constexpr bool exact_near_clipping = {}; }}\n",
+            self.exact_near_clipping
         ));
         Ok(header)
     }
@@ -505,6 +516,8 @@ mod tests {
         assert!(legacy.header().unwrap().contains("dither_3d = false"));
         assert!(legacy.gte_depth_average);
         assert!(legacy.header().unwrap().contains("gte_depth_average = true"));
+        assert!(legacy.exact_near_clipping);
+        assert!(legacy.header().unwrap().contains("exact_near_clipping = true"));
         let enabled = super::Rendering {
             dither_3d: true,
             ..legacy

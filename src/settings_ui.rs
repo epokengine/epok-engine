@@ -491,6 +491,11 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                             row(ui,"GTE Depth Sorting","Compute the ordering-table depth of prepared ordered geometry with the GTE instead of a CPU division. Faster. Quads sort identically; triangles may land up to 1.6% nearer, which can only change how they interleave with moving objects. Applies on the next native build.",||{
                                 ui.checkbox("##gte-depth-average",&mut m.rendering.gte_depth_average);
                             });
+                            row(ui,"Exact Near Clipping","Project and clip prepared scenery that crosses the camera's near plane on the CPU, so nothing distorts or disappears up close. Off draws what the GTE produces, like classic PS1 renderers: faster, but faces right at the camera can stretch or vanish. Applies on the next native build.",||{
+                                let mut on=m.rendering.exact_near_clipping;
+                                if ui.checkbox("##exact-near-clipping",&mut on){m.rendering.exact_near_clipping=on;}
+                                ui.same_line();ui.text(if on{"On (default)"}else{"Off: GTE result as is"});
+                            });
                             row(ui,"Retained Packets","Reuse prepared geometry between frames to reduce CPU work. Uses additional RAM. Lighting and material changes refresh the cached data automatically.",||{
                                 let mut on=m.rendering.retained_geometry;
                                 if ui.checkbox("##retained-geometry",&mut on){m.rendering.retained_geometry=on;}

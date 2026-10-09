@@ -222,9 +222,18 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     // triangle corner. Clearing these arrays per face is therefore redundant.
     uint32_t screen[4];int32_t depth[4];
     if(narrow)epok::begin_loaded_projection_triple();
-    const bool triple_valid=narrow&&epok::finish_projection_triple(screen,depth);
-    bool direct=triple_valid;
-    if(direct&&quad)direct=epok::project_packed_vertex(fourth,screen[3],depth[3]);
+    // Without exact near clipping a flagged (saturated) GTE result is drawn as
+    // is, like the reference renderer; triple_valid keeps the flag verdict.
+    bool triple_valid,direct;
+    if constexpr(epok::exact_near_clipping){
+      triple_valid=narrow&&epok::finish_projection_triple(screen,depth);
+      direct=triple_valid;
+      if(direct&&quad)direct=epok::project_packed_vertex(fourth,screen[3],depth[3]);
+    }else{
+      triple_valid=narrow&&epok::store_projection_triple(screen,depth);
+      direct=narrow;
+      if(direct&&quad)epok::project_packed_vertex(fourth,screen[3],depth[3]);
+    }
     // Read while the SZ FIFO still holds this face (validation re-projects).
     int32_t gte_average=0;
     if constexpr(epok::gte_depth_average)if(direct)gte_average=epok::gte_average_depth(quad);
@@ -236,21 +245,31 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     bool inside=direct&&epok::ordered_screen_inside<epok::display_width,epok::display_height>(screen,quad);
     if(direct){
       if(inside){
-        direct=(depth[0]>=OrderedUnits::near)&(depth[1]>=OrderedUnits::near)&(depth[2]>=OrderedUnits::near);
-        if(quad)direct&=depth[3]>=OrderedUnits::near;
+        if constexpr(epok::exact_near_clipping){
+          direct=(depth[0]>=OrderedUnits::near)&(depth[1]>=OrderedUnits::near)&(depth[2]>=OrderedUnits::near);
+          if(quad)direct&=depth[3]>=OrderedUnits::near;
+        }
       }else{
         for(unsigned v=0;v<count;++v){
           const int x=int16_t(screen[v]),y=int16_t(screen[v]>>16);
           if(x<min_x)min_x=x;if(x>max_x)max_x=x;if(y<min_y)min_y=y;if(y>max_y)max_y=y;
-          direct&=depth[v]>=OrderedUnits::near;
+          if constexpr(epok::exact_near_clipping)direct&=depth[v]>=OrderedUnits::near;
         }
-        direct&=max_x-min_x<=1023&&max_y-min_y<=511;
+        const bool fits_gpu=max_x-min_x<=1023&&max_y-min_y<=511;
+        // The GPU itself skips a primitive wider than this; the reference
+        // pass leaves that to the GPU, so the inexact path skips it here.
+        if constexpr(!epok::exact_near_clipping)if(!fits_gpu){
+          ++ordered_work.clipped_candidates;gte_vertices+=count;transformed+=count;
+          EPOK_DETAIL_END(ordered_vertex,vertex_scanlines);continue;
+        }
+        direct&=fits_gpu;
       }
     }
     ProjectedVertex projected[4];
     const bool gte_projected=direct;
     if(!direct){
       inside=false;
+      // Inexact clipping only reaches here for inputs too wide for the GTE.
       decode();
       direct=epok::project_ordered_cpu<OrderedUnits,epok::display_width,epok::display_height>(
         world,count,view,row_scale,projected,screen,depth);
@@ -315,6 +334,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       emitted+=slots;packets+=slots!=0;quads+=quad&(slots!=0);
     }else{
       ++ordered_work.clipped_candidates;
+      if constexpr(!epok::exact_near_clipping){EPOK_DETAIL_END(ordered_polygon,polygon_scanlines);continue;}
       uint32_t rgb[4];epok::baked_ordered_colors(face,part==2,epok::vertex_color_palette,rgb);
       QuadPacket material;
       material.textured=textured;material.clut16=clut16;material.tpage16=tpage16;
