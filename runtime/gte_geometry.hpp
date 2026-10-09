@@ -186,6 +186,18 @@ inline void load_compact_projection_input(const uint8_t* entry,const CompactProj
     write<xy>(input.xy);write<z>(input.z);
 #endif
 }
+// AVSZ3/AVSZ4 scale factors; see ordered_gte_depth_average for the contract.
+inline void load_average_depth_scale(int32_t zsf3,int32_t zsf4) {
+    using namespace psyqo::GTE;
+    write<Register::ZSF3>(uint32_t(zsf3));
+    write<Register::ZSF4>(uint32_t(zsf4));
+}
+// Average of the SZ FIFO after RTPT (SZ1..3) or RTPT+RTPS (SZ0..3).
+inline int32_t gte_average_depth(bool quad) {
+    using namespace psyqo::GTE;
+    if(quad)Kernels::avsz4();else Kernels::avsz3();
+    return int32_t(readRaw<Register::OTZ>());
+}
 inline void begin_loaded_projection_triple() {
 #if defined(__mips__) && !defined(PS1_PC_PORT)
     // Do not depend on the optimizer leaving two independent instructions

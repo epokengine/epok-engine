@@ -112,6 +112,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
   for(unsigned r=0;r<3;++r)matrix.values[r][3]=translation[r];
   for(unsigned r=0;r<2;++r)for(unsigned c=0;c<4;++c)matrix.values[r][c]*=row_scale[r];
   const bool matrix_valid=epok::load_projection_matrix(matrix);
+  if constexpr(epok::gte_depth_average)epok::load_average_depth_scale(epok::ordered_zsf3,epok::ordered_zsf4);
   bool anchored=false;
   uint32_t previous_page=0xffffffffu;const uint8_t* page=nullptr;
   uint32_t texture_key=0xffffffffu;int monotone_depth=0;
@@ -217,6 +218,9 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     const bool triple_valid=narrow&&epok::finish_projection_triple(screen,depth);
     bool direct=triple_valid;
     if(direct&&quad)direct=epok::project_packed_vertex(fourth,screen[3],depth[3]);
+    // Read while the SZ FIFO still holds this face (validation re-projects).
+    int32_t gte_average=0;
+    if constexpr(epok::gte_depth_average)if(direct)gte_average=epok::gte_average_depth(quad);
 #ifdef EPOK_VALIDATE_GTE
     if(narrow)validate_ordered_gte(matrix,view,row_scale,local,offset,base_offset,count,triple_valid,screen,depth,token);
     else epok::ordered_validation_stats.range_fallback_vertices+=count;
@@ -237,6 +241,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       }
     }
     ProjectedVertex projected[4];
+    const bool gte_projected=direct;
     if(!direct){
       inside=false;
       decode();
@@ -261,8 +266,19 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     // Depth units remain Epok's so ordinary dynamic actors share this OT.
     // Source uses AVSZ3 for triangles and AVSZ4 for full quads (800419bc).
     // Q8 camera values originate in signed Q12, so the four-term sum fits i32.
-    const int32_t sum=depth[0]+depth[1]+depth[2]+(quad?depth[3]:0);
-    int candidate=epok::ordered_depth_average(sum,quad)+face.depth_bias;
+    int32_t average;
+    if constexpr(epok::gte_depth_average){
+      if(gte_projected)average=gte_average;
+      else average=epok::ordered_gte_depth_average(depth[0]+depth[1]+depth[2]+(quad?depth[3]:0),quad);
+#ifdef EPOK_VALIDATE_GTE
+      if(gte_projected&&average!=epok::ordered_gte_depth_average(depth[0]+depth[1]+depth[2]+(quad?depth[3]:0),quad)){
+        ++performance_work.gte_validation_errors;++epok::ordered_validation_stats.batch_errors;
+        if(!epok::ordered_validation_stats.first_error_kind){epok::ordered_validation_stats.first_error_kind=4;
+          epok::ordered_validation_stats.first_error_sample=ordered_cursor.sample();epok::ordered_validation_stats.first_error_token=token;}
+      }
+#endif
+    }else average=epok::ordered_depth_average(depth[0]+depth[1]+depth[2]+(quad?depth[3]:0),quad);
+    int candidate=average+face.depth_bias;
     if(candidate<0)candidate=0;if(candidate>=buckets)candidate=buckets-1;
     if(candidate>monotone_depth)monotone_depth=candidate;
     const uint32_t key=uint32_t(face.texture)|(uint32_t((face.flags>>1)&7)<<16);

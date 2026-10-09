@@ -37,6 +37,15 @@ inline int32_t ordered_depth_average(int32_t sum,bool quad) {
         uint32_t((uint64_t(magnitude>>6)*0xaaaaaaabu)>>33);
     return sum<0?-int32_t(quotient):int32_t(quotient);
 }
+// The GTE's AVSZ3/AVSZ4 form ZSF * sum >> 12 (arithmetic) saturated to
+// 0..0xffff. ZSF4=16 equals sum/256 exactly for the non-negative sums of
+// accepted faces; ZSF3=21 approximates sum/192 (at most 1.6% nearer). The CPU
+// form below reproduces the GTE result for faces projected by the CPU.
+inline constexpr int32_t ordered_zsf3=21,ordered_zsf4=16;
+inline int32_t ordered_gte_depth_average(int32_t sum,bool quad) {
+    const int64_t value=(int64_t(quad?ordered_zsf4:ordered_zsf3)*sum)>>12;
+    return value<0?0:value>0xffff?0xffff:int32_t(value);
+}
 // Rebase Q8 operands on a 4096-Q8 (16-world-unit) lattice RELATIVE to the
 // camera. R is Q12: R*(v-d*4096)/4096 + (TR+R*d) preserves the complete MAC
 // sum, including fractional bits and negative-Y rounding. No precision drops.

@@ -128,6 +128,19 @@ int main(){
     // Include every rounding boundary near zero and both signed extremes.
     for(int32_t i=-65536;i<=65536;++i)check_depth(i);
     for(int32_t i=0;i<65536;++i){check_depth(INT32_MIN+i);check_depth(INT32_MAX-i);}
+    // GTE depth (AVSZ3/AVSZ4 contract): quads equal the CPU division exactly
+    // for every non-negative four-depth sum; triangles are never farther and
+    // at most 1.6% (plus rounding) nearer; out-of-range sums saturate.
+    for(int32_t sum=0;sum<=4*65535;++sum){
+        assert(epok::ordered_gte_depth_average(sum,true)==sum/256);
+        if(sum<=3*65535){
+            const int32_t cpu=sum/192,gte=epok::ordered_gte_depth_average(sum,false);
+            assert(gte<=cpu&&cpu-gte<=cpu/60+1);
+        }
+    }
+    assert(epok::ordered_gte_depth_average(-1,false)==0&&epok::ordered_gte_depth_average(-4096,true)==0);
+    assert(epok::ordered_gte_depth_average(INT32_MAX/16,true)==0xffff);
+    std::puts("GTE depth average: exact quads, bounded triangles and saturation passed.");
     uint32_t depth_random=61723;
     for(unsigned i=0;i<1000000;++i){
         depth_random=depth_random*1664525u+1013904223u;check_depth(int32_t(depth_random));

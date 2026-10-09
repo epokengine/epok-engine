@@ -203,6 +203,10 @@ pub struct Rendering {
     pub streaming_pool_pages: u8,
     pub streaming_triangle_budget: u16,
     pub streaming_prefetch: bool,
+    /// Ordered-table depth of prepared ordered geometry from the GTE's AVSZ3/
+    /// AVSZ4 instead of a CPU division. Quads are unchanged; triangles land up
+    /// to 1.6% nearer, which only affects interleaving with dynamic actors.
+    pub gte_depth_average: bool,
 }
 impl Default for Rendering {
     fn default() -> Self {
@@ -219,6 +223,7 @@ impl Default for Rendering {
             streaming_pool_pages: 4,
             streaming_triangle_budget: 4096,
             streaming_prefetch: true,
+            gte_depth_average: true,
         }
     }
 }
@@ -285,6 +290,10 @@ impl Rendering {
         header.push_str(&format!(
             "namespace epok {{ inline constexpr unsigned sprite_triangle_budget = {}; }}\n",
             self.sprite_triangle_budget
+        ));
+        header.push_str(&format!(
+            "namespace epok {{ inline constexpr bool gte_depth_average = {}; }}\n",
+            self.gte_depth_average
         ));
         Ok(header)
     }
@@ -494,6 +503,8 @@ mod tests {
             serde_json::from_str(r#"{"width":320,"height":240}"#).unwrap();
         assert!(!legacy.dither_3d);
         assert!(legacy.header().unwrap().contains("dither_3d = false"));
+        assert!(legacy.gte_depth_average);
+        assert!(legacy.header().unwrap().contains("gte_depth_average = true"));
         let enabled = super::Rendering {
             dither_3d: true,
             ..legacy

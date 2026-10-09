@@ -488,6 +488,9 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                             row(ui,"3D Dithering","Reduce RGB555 color banding in shaded 3D geometry using the PS1 GPU's ordered dithering. Adds a fine pixel pattern. HUD and text remain undithered. Applies on the next native build.",||{
                                 ui.checkbox("##dither-3d",&mut m.rendering.dither_3d);
                             });
+                            row(ui,"GTE Depth Sorting","Compute the ordering-table depth of prepared ordered geometry with the GTE instead of a CPU division. Faster. Quads sort identically; triangles may land up to 1.6% nearer, which can only change how they interleave with moving objects. Applies on the next native build.",||{
+                                ui.checkbox("##gte-depth-average",&mut m.rendering.gte_depth_average);
+                            });
                             row(ui,"Retained Packets","Reuse prepared geometry between frames to reduce CPU work. Uses additional RAM. Lighting and material changes refresh the cached data automatically.",||{
                                 let mut on=m.rendering.retained_geometry;
                                 if ui.checkbox("##retained-geometry",&mut on){m.rendering.retained_geometry=on;}
