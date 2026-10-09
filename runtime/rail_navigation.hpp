@@ -127,4 +127,40 @@ inline void advance_rail_navigation(uint32_t elapsed,const int32_t* player,Ready
   }
   camera(data.sample(current),data.sample(s.pending?s.next_sample:current),s.fraction);
 }
+#ifdef EPOK_VISIBILITY_SWEEP
+// Diagnostic sweep, not gameplay: visit every sample of every route in index
+// order, each once its pages are resident and then for EPOK_VISIBILITY_SWEEP
+// frames, through the same crossing path as a navigation link. The camera is
+// the track's own pose; nothing follows the target. Stops at the last sample.
+struct RailSweepState {uint32_t held=0;bool done=false;};
+inline RailSweepState rail_sweep_state;
+template<class Ready,class Camera>
+inline void advance_rail_sweep(Ready&& ready,Camera&& camera) {
+  const auto* ptr=active_visibility_track;if(!ptr||!ptr->navigation)return;
+  const auto& data=*ptr;const auto& nav=*data.navigation;auto& s=rail_navigation_state;auto& sweep=rail_sweep_state;
+  size_t current=visibility_track_stats.sample;
+  if(!visibility_track_started){
+    if(!ready(false)){++visibility_track_stats.waiting_frames;const auto a=data.sample(current);camera(a,a,0);return;}
+    visibility_track_started=true;
+  }
+  if(!s.pending&&!sweep.done&&++sweep.held>=uint32_t(EPOK_VISIBILITY_SWEEP)){
+    const size_t next=current+1;
+    uint16_t route=0xffff;
+    for(uint16_t r=0;r<nav.route_count;++r)
+      if(next>=nav.routes[r].first&&next<size_t(nav.routes[r].first)+nav.routes[r].count){route=r;break;}
+    if(route==0xffff)sweep.done=true;
+    else{rail_prepare(uint16_t(next),route,true,true);s.pending_link=0xffff;sweep.held=0;}
+  }
+  if(s.pending){
+    if(!ready(true))++visibility_track_stats.waiting_frames;
+    else{
+      for(size_t w=0;w<data.word_count;++w)nav.anchor[w]=data.current[w]=data.next[w];
+      visibility_page_selection.current=s.next_sample;visibility_page_selection.extra=0xffff;
+      s.route=s.next_route;s.fraction=0;s.pending=false;
+      current=s.next_sample;visibility_track_stats.sample=uint32_t(current);++visibility_track_stats.advances;
+    }
+  }
+  camera(data.sample(current),data.sample(current),0);
+}
+#endif
 }

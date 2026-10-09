@@ -1031,12 +1031,24 @@ void GameScene::frame() {
         actor.camera_settings.field_of_view=Fixed(pose.fov,Fixed::RAW);
         for(unsigned c=0;c<3;++c){actor.transform.position[c]=Fixed(pose.position[c],Fixed::RAW);actor.transform.rotation[c]=Fixed(pose.rotation[c],Fixed::RAW);}
       };
+#ifdef EPOK_VISIBILITY_SWEEP
+  if(track&&track->navigation){
+    epok::advance_rail_sweep(track_ready,[&](const epok::VisibilityTrackSample& a,const epok::VisibilityTrackSample& b,uint32_t fraction){
+      const auto pose=epok::interpolate_track_camera(a,b,fraction);
+      auto& actor=epok::objects[track->camera];
+      actor.camera_settings.field_of_view=Fixed(pose.fov,Fixed::RAW);
+      for(unsigned c=0;c<3;++c){actor.transform.position[c]=Fixed(pose.position[c],Fixed::RAW);actor.transform.rotation[c]=Fixed(pose.rotation[c],Fixed::RAW);}
+    });
+  }else
+#else
   if(track&&track->navigation){
     const auto target=track->navigation->target;
     const auto& pos=epok::objects[target].transform.position;
     const int32_t player[]={pos[0].raw(),pos[1].raw(),pos[2].raw()};
     epok::advance_rail_navigation(epok::is_active_slot(target)?elapsed:0,player,track_ready,track_camera);
-  }else epok::advance_visibility_track(elapsed,track_ready,track_camera);
+  }else
+#endif
+  epok::advance_visibility_track(elapsed,track_ready,track_camera);
   if constexpr(epok::ordered_draw_enabled)if(track&&track->ordered&&epok::visibility_track_started){
     if(!ordered_cursor.publish(track->ordered,epok::visibility_page_selection.current)){
       epok::stream_failed=true;++performance_work.stream_failed_chunks;

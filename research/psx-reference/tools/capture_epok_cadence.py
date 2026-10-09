@@ -85,11 +85,18 @@ def function_hook(symbols, sections, label, fragments):
 
 
 def function_cost_hooks(symbols, sections):
-    return [function_hook(symbols, sections, label, fragments)
-            for label, fragments in (('aim', ('advance_rail_aim',)),
-                                     ('rail', ('advance_rail_navigation',)),
-                                     ('ordered_prepare', ('OrderedDrawCursor', '7prepare')),
-                                     ('ordered_render', ('draw_ordered_world',)))]
+    """Ordered prepare/render are required. Aim and rail are measured when
+    linked; a diagnostic build such as a visibility sweep omits them."""
+    hooks = []
+    for label, fragments, required in (('aim', ('advance_rail_aim',), False),
+                                       ('rail', ('advance_rail_navigation',), False),
+                                       ('ordered_prepare', ('OrderedDrawCursor', '7prepare'), True),
+                                       ('ordered_render', ('draw_ordered_world',), True)):
+        if not required and not any(record and record[2] == 2 and all(f in name for f in fragments)
+                                    for name, record in symbols.items()):
+            continue
+        hooks.append(function_hook(symbols, sections, label, fragments))
+    return hooks
 
 
 def block_leaders(code, entry, returns=()):
