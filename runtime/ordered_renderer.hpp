@@ -131,8 +131,10 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     reinterpret_cast<uint32_t*>(emitter.textured),emitter.table->m_table,emitter.next_dynamic};
   // Per-pass totals kept in locals and published once after the loop.
   // Vertex totals follow from the candidates processed and how many were
-  // quads; drawn slots from packets and quads (a quad uses two).
-  uint32_t packets=0,quads=0,quad_candidates=0,cpu_vertices=0,page_switches=0,anchored_vertices=0;
+  // quads; drawn slots from packets and quads (a quad uses two). Counts of
+  // at most 65535 (the cursor capacity) share a word, as low and high
+  // halves, to keep fewer values live across the loop.
+  uint32_t drawn=0,walk=0,cpu_vertices=0,anchored_vertices=0; // drawn: packets|quads<<16; walk: quad candidates|page switches<<16
   const auto* baked_materials=epok::baked_texture_bank(epok::texture_assets);
   emitter.editable=false;emitter.double_sided=true;
   const auto* tokens=ordered_cursor.tokens();
@@ -140,19 +142,19 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
   uint32_t epoch=next_ordered_block_epoch();
   ordered_work.candidates=ordered_cursor.count();
   const size_t total=ordered_cursor.count();
-  size_t n=total;
-  while(n-->0){
-    const auto token=tokens[n];const unsigned part=token&3;const bool quad=part==3;
+  const uint32_t* cursor=tokens+total;
+  while(cursor!=tokens){
+    const auto token=*--cursor;const unsigned part=token&3;const bool quad=part==3;
     const uint32_t page_id=token>>13;
     if(page_id!=previous_page){
-      ++page_switches;
+      walk+=1u<<16;
       previous_page=page_id;
       auto& cached=page_cache[page_id&7u];
       if(cached.id==page_id)page=cached.data;
       else{page=epok::stream_pool.ready_data(page_id);cached={page_id,page};}
-      if(!page){++performance_work.stream_failed_chunks;epok::stream_failed=true;break;}
+      if(!page){++performance_work.stream_failed_chunks;epok::stream_failed=true;++cursor;break;}
     }
-    quad_candidates+=quad;
+    walk+=quad;
     const auto& face=*reinterpret_cast<const epok::BakedDrawFace*>(page+((token&8191u)&~3u)*8);
     const uint32_t block_id=epok::ordered_face_block(face.topology);
     auto& block=projections[block_id];
@@ -184,7 +186,9 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     if((block.state>>1)!=epoch){
       // One bounds check per block and epoch replaces a range check per
       // vertex. Inputs equal (Q12 >> 4) + offset exactly, as per vertex.
-      bool fits=(block.flags&epok::ordered_projection_compact)!=0;
+      // An unusable matrix marks every block as not fitting, so the hot
+      // test below needs only the block state.
+      bool fits=((block.flags&epok::ordered_projection_compact)!=0)&matrix_valid;
       for(unsigned c=0;c<3;++c){
         block.sum[c]=block.center[c]+offset[c];
         fits&=(block.sum[c]+block.low[c]>=-32768)&(block.sum[c]+block.high[c]<=32767);
@@ -193,7 +197,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       block.state=(epoch<<1)|uint32_t(fits);
     }
     bool narrow;
-    if((block.state&1)&matrix_valid){
+    if(block.state&1){
       const epok::CompactProjectionOffset compact{block.xy,uint32_t(uint16_t(block.sum[0])),uint32_t(block.sum[2])};
       epok::load_compact_projection_input<0>(page+face.indices[first],compact);
       epok::load_compact_projection_input<1>(page+face.indices[first+1],compact);
@@ -363,7 +367,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
         else slots=ordered_packet<true,false>(target,rgb,screen,uv,command,monotone_depth);}
       else {if(quad)slots=ordered_packet<false,true>(target,rgb,screen,uv,command,monotone_depth);
         else slots=ordered_packet<false,false>(target,rgb,screen,uv,command,monotone_depth);}
-      packets+=slots!=0;quads+=quad&(slots!=0);
+      if(slots)drawn+=1u+(uint32_t(quad)<<16);
     }else{
       ++ordered_work.clipped_candidates;
       if constexpr(!epok::exact_near_clipping){EPOK_DETAIL_END(ordered_polygon,polygon_scanlines);continue;}
@@ -380,12 +384,13 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     EPOK_DETAIL_END(ordered_polygon,polygon_scanlines);
   }
   emitter.fixed_depth=-1;
+  const uint32_t packets=drawn&0xffffu,quads=drawn>>16;
   emitter.emitted+=packets+quads;
-  ordered_work.packets+=packets;ordered_work.quads+=quads;ordered_work.page_switches+=page_switches;
+  ordered_work.packets+=packets;ordered_work.quads+=quads;ordered_work.page_switches+=walk>>16;
   ordered_work.anchored_vertices+=anchored_vertices;
-  // n is the failed candidate after a stream break, else wrapped to SIZE_MAX:
-  // either way total-1-n candidates were processed, each with 3 or 4 vertices.
-  const uint32_t transformed=uint32_t(total-1-n)*3+quad_candidates;
+  // The cursor stops at the first candidate not processed (the failed one
+  // after a stream break); each processed candidate had 3 or 4 vertices.
+  const uint32_t transformed=uint32_t(tokens+total-cursor)*3+(walk&0xffffu);
   performance_work.software_vertices+=cpu_vertices;
   performance_work.gte_vertices+=transformed-cpu_vertices;epok::mesh_stats.transformed_vertices+=transformed;
 }
