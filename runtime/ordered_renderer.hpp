@@ -62,25 +62,32 @@ __attribute__((noinline,optimize("O3"))) void validate_ordered_gte(
 }
 #endif
 
+// Packet storage and the OT are read once per pass: every packet word is
+// written through a uint32_t pointer, which would otherwise force the compiler
+// to reload emitter fields and global counters after each store.
+struct OrderedPacketTarget {
+  uint32_t* gouraud;uint32_t* textured;decltype(&(static_cast<PolygonEmitter*>(nullptr)->table->m_table[0])) ot;
+  uint32_t& next_dynamic;
+};
+// Returns the slots used: 0 when the frame's packet storage is exhausted.
 template<bool Textured,bool Quad>
-inline void ordered_packet(PolygonEmitter& emitter,const uint32_t* rgb,const uint32_t* screen,
+inline unsigned ordered_packet(const OrderedPacketTarget& target,const uint32_t* rgb,const uint32_t* screen,
     epok::BakedTextureWords uv,uint32_t command,int depth) {
-  static_assert(sizeof(*emitter.gouraud)==28&&sizeof(*emitter.textured)==40);
+  static_assert(sizeof(*static_cast<PolygonEmitter*>(nullptr)->gouraud)==28&&sizeof(*static_cast<PolygonEmitter*>(nullptr)->textured)==40);
   static_assert(epok::BakedPacket<Textured,Quad>::bytes_with_dma<=(Textured?40:28)*(Quad?2:1));
   constexpr unsigned slots=Quad?2:1;
   uint32_t slot;
   if constexpr(epok::retained_geometry)slot=Quad?frame_packet_slots.allocate_dynamic_pair():frame_packet_slots.allocate_dynamic();
-  else {slot=emitter.next_dynamic>=slots?(emitter.next_dynamic-=slots):capacity;}
-  if(slot>=capacity){epok::lighting_work.dropped_triangles+=slots;return;}
+  else {slot=target.next_dynamic>=slots?(target.next_dynamic-=slots):capacity;}
+  if(slot>=capacity){epok::lighting_work.dropped_triangles+=slots;return 0;}
   // Both storage arrays contain contiguous DMA tag/payload words. A quad
   // borrows a verified adjacent pair, without constructing an aliasing object.
-  auto* packet=Textured?reinterpret_cast<uint32_t*>(&emitter.textured[slot]):reinterpret_cast<uint32_t*>(&emitter.gouraud[slot]);
+  auto* packet=Textured?target.textured+slot*10:target.gouraud+slot*7;
   epok::BakedPacket<Textured,Quad>::write(packet+1,rgb,screen,uv,command);
-  auto& bucket=emitter.table->m_table[depth+1];
+  auto& bucket=target.ot[depth+1];
   packet[0]=(epok::BakedPacket<Textured,Quad>::words<<24)|(bucket.head&0xffffffu);
   bucket.head=reinterpret_cast<uint32_t>(packet)&0xffffffu;
-  emitter.emitted+=slots;
-  ++ordered_work.packets;if constexpr(Quad)++ordered_work.quads;
+  return slots;
 }
 
 __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
@@ -107,7 +114,12 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
   const bool matrix_valid=epok::load_projection_matrix(matrix);
   bool anchored=false;
   uint32_t previous_page=0xffffffffu;const uint8_t* page=nullptr;
-  uint32_t texture_key=0xffffffffu;QuadPacket material;int monotone_depth=0;
+  uint32_t texture_key=0xffffffffu;int monotone_depth=0;
+  bool textured=false;uint32_t clut16=0,tpage16=0;
+  const OrderedPacketTarget target{reinterpret_cast<uint32_t*>(emitter.gouraud),
+    reinterpret_cast<uint32_t*>(emitter.textured),emitter.table->m_table,emitter.next_dynamic};
+  // Per-pass totals kept in locals and published once after the loop.
+  uint32_t packets=0,quads=0,emitted=0,page_switches=0,gte_vertices=0,transformed=0,anchored_vertices=0;
   const auto* baked_materials=epok::baked_texture_bank(epok::texture_assets);
   emitter.editable=false;emitter.double_sided=true;
   const auto* tokens=ordered_cursor.tokens();
@@ -118,7 +130,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     const auto token=tokens[n];const unsigned part=token&3;const bool quad=part==3;
     const uint32_t page_id=token>>13;
     if(page_id!=previous_page){
-      ++ordered_work.page_switches;
+      ++page_switches;
       previous_page=page_id;
       page=epok::stream_pool.ready_data(page_id);
       if(!page){++performance_work.stream_failed_chunks;epok::stream_failed=true;break;}
@@ -195,7 +207,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
         }else ++ordered_work.anchor_rejections;
       }else ++ordered_work.anchor_rejections;
     }
-    if(narrow&&anchored)ordered_work.anchored_vertices+=count;
+    if(narrow&&anchored)anchored_vertices+=count;
     // Successful RTPT writes all three outputs; RTPS writes the fourth quad
     // output. A rejected/too-wide batch takes the CPU path, which writes every
     // used corner even when clipping is required. Never read an unused fourth
@@ -237,8 +249,8 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
         if(x<min_x)min_x=x;if(x>max_x)max_x=x;if(y<min_y)min_y=y;if(y>max_y)max_y=y;
       }
       performance_work.software_vertices+=count;
-    }else performance_work.gte_vertices+=count;
-    epok::mesh_stats.transformed_vertices+=count;
+    }else gte_vertices+=count;
+    transformed+=count;
     EPOK_DETAIL_END(ordered_vertex,vertex_scanlines);
     EPOK_DETAIL_BEGIN(ordered_polygon);
     if(direct&&!inside&&(max_x<0||min_x>=epok::display_width||max_y<0||min_y>=epok::display_height)){
@@ -258,24 +270,29 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       texture_key=key;
       if(baked_materials){
         const auto packet=epok::baked_texture_packet<epok::display_interlaced,epok::dither_3d>(baked_materials,epok::texture_count,face.texture,epok::BlendMode((face.flags>>1)&7));
-        material.textured=packet.textured;material.clut16=packet.clut16;material.tpage16=packet.tpage16;
+        textured=packet.textured;clut16=packet.clut16;tpage16=packet.tpage16;
       }else{
-        const auto* texture=epok::texture(face.texture==0xffff?-1:face.texture);material.textured=texture!=nullptr;
+        const auto* texture=epok::texture(face.texture==0xffff?-1:face.texture);textured=texture!=nullptr;
         if(texture){auto clut=epok::texture_clut(*texture);auto tpage=epok::texture_page(*texture,epok::BlendMode((face.flags>>1)&7),epok::dither_3d);
-          uint16_t cb,pb;__builtin_memcpy(&cb,&clut,2);__builtin_memcpy(&pb,&tpage,2);material.clut16=uint32_t(cb)<<16;material.tpage16=uint32_t(pb)<<16;}
+          uint16_t cb,pb;__builtin_memcpy(&cb,&clut,2);__builtin_memcpy(&pb,&tpage,2);clut16=uint32_t(cb)<<16;tpage16=uint32_t(pb)<<16;}
       }
     }
-    material.command=epok::baked_command(face);material.gpu_colors=epok::baked_indexed_color(face);material.depth_bias=face.depth_bias;
+    const uint32_t command=epok::baked_command(face);
     uint32_t rgb[4];epok::baked_ordered_colors(face,part==2,epok::vertex_color_palette,rgb);
-    epok::BakedTextureWords uv{material.clut16|face.uv[0],material.tpage16|face.uv[1],uint32_t(face.uv[2])|(uint32_t(face.uv[3])<<16)};
+    epok::BakedTextureWords uv{clut16|face.uv[0],tpage16|face.uv[1],uint32_t(face.uv[2])|(uint32_t(face.uv[3])<<16)};
     if(part==2)uv=epok::baked_second_half(uv);
     if(direct){
-      if(material.textured){if(quad)ordered_packet<true,true>(emitter,rgb,screen,uv,material.command,monotone_depth);
-        else ordered_packet<true,false>(emitter,rgb,screen,uv,material.command,monotone_depth);}
-      else {if(quad)ordered_packet<false,true>(emitter,rgb,screen,uv,material.command,monotone_depth);
-        else ordered_packet<false,false>(emitter,rgb,screen,uv,material.command,monotone_depth);}
+      unsigned slots;
+      if(textured){if(quad)slots=ordered_packet<true,true>(target,rgb,screen,uv,command,monotone_depth);
+        else slots=ordered_packet<true,false>(target,rgb,screen,uv,command,monotone_depth);}
+      else {if(quad)slots=ordered_packet<false,true>(target,rgb,screen,uv,command,monotone_depth);
+        else slots=ordered_packet<false,false>(target,rgb,screen,uv,command,monotone_depth);}
+      emitted+=slots;packets+=slots!=0;quads+=quad&(slots!=0);
     }else{
       ++ordered_work.clipped_candidates;
+      QuadPacket material;
+      material.textured=textured;material.clut16=clut16;material.tpage16=tpage16;
+      material.command=command;material.gpu_colors=epok::baked_indexed_color(face);material.depth_bias=face.depth_bias;
       emitter.fixed_depth=monotone_depth;
       uint32_t shaded[4];for(unsigned v=0;v<4;++v)shaded[v]=material.gpu_colors?rgb[v]:face.shaded;
       if(quad)emitter.clipped<OrderedUnits>(projected[1],projected[2],projected[3],shaded[1],shaded[2],shaded[3],face.uv[1],face.uv[2],face.uv[3],material);
@@ -285,4 +302,8 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     EPOK_DETAIL_END(ordered_polygon,polygon_scanlines);
   }
   emitter.fixed_depth=-1;
+  emitter.emitted+=emitted;
+  ordered_work.packets+=packets;ordered_work.quads+=quads;ordered_work.page_switches+=page_switches;
+  ordered_work.anchored_vertices+=anchored_vertices;
+  performance_work.gte_vertices+=gte_vertices;epok::mesh_stats.transformed_vertices+=transformed;
 }
