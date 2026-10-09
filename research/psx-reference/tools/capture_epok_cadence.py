@@ -62,31 +62,34 @@ def flip_hook(code, address):
     return address + matches[0] + 16
 
 
+def function_hook(symbols, sections, label, fragments):
+    """One linked function whose symbol contains every fragment. Fail closed on
+    ambiguity; return sites follow exact MIPS JALs to its entry."""
+    matches = [(name, record) for name, record in symbols.items()
+               if record and record[2] == 2 and all(part in name for part in fragments)]
+    if len(matches) != 1: raise ValueError('Missing/ambiguous cost hook: '+label)
+    name, (entry, size, _) = matches[0]
+    if not size or not any(start <= (entry & 0x1fffffff) and
+        (entry & 0x1fffffff)+size <= start+len(code) for start,code in sections):
+        raise ValueError('Cost function outside executable sections: '+label)
+    returns = []
+    for start, code in sections:
+        for offset in range(0, len(code)-7, 4):
+            instruction = struct.unpack_from('<I', code, offset)[0]
+            pc = 0x80000000 + start + offset
+            target = ((pc+4)&0xf0000000) | ((instruction&0x3ffffff)<<2)
+            if instruction >> 26 == 3 and target == entry:
+                returns.append(pc+8)
+    if not returns: raise ValueError('No verified direct callers for '+label)
+    return dict(label=label, symbol=name, entry=entry, size=size, returns=returns)
+
+
 def function_cost_hooks(symbols, sections):
-    """Fail closed on ambiguous functions; return sites follow exact MIPS JALs."""
-    selected = []
-    for label, fragments in (('aim', ('advance_rail_aim',)),
-                             ('rail', ('advance_rail_navigation',)),
-                             ('ordered_prepare', ('OrderedDrawCursor', '7prepare')),
-                             ('ordered_render', ('draw_ordered_world',))):
-        matches = [(name, record) for name, record in symbols.items()
-                   if record and record[2] == 2 and all(part in name for part in fragments)]
-        if len(matches) != 1: raise ValueError('Missing/ambiguous cost hook: '+label)
-        name, (entry, size, _) = matches[0]
-        if not size or not any(start <= (entry & 0x1fffffff) and
-            (entry & 0x1fffffff)+size <= start+len(code) for start,code in sections):
-            raise ValueError('Cost function outside executable sections: '+label)
-        returns = []
-        for start, code in sections:
-            for offset in range(0, len(code)-7, 4):
-                instruction = struct.unpack_from('<I', code, offset)[0]
-                pc = 0x80000000 + start + offset
-                target = ((pc+4)&0xf0000000) | ((instruction&0x3ffffff)<<2)
-                if instruction >> 26 == 3 and target == entry:
-                    returns.append(pc+8)
-        if not returns: raise ValueError('No verified direct callers for '+label)
-        selected.append(dict(label=label, symbol=name, entry=entry, size=size, returns=returns))
-    return selected
+    return [function_hook(symbols, sections, label, fragments)
+            for label, fragments in (('aim', ('advance_rail_aim',)),
+                                     ('rail', ('advance_rail_navigation',)),
+                                     ('ordered_prepare', ('OrderedDrawCursor', '7prepare')),
+                                     ('ordered_render', ('draw_ordered_world',)))]
 
 
 def block_leaders(code, entry, returns=()):
@@ -186,6 +189,8 @@ def main():
     parser.add_argument("--pc-profile", type=int, metavar="FRAME",
                         help="Read-only per-instruction cycle profile of draw_ordered_world from this captured frame index")
     parser.add_argument("--pc-frames", type=int, default=10, help="Frames to profile with --pc-profile (1..120)")
+    parser.add_argument("--pc-symbol", default="draw_ordered_world",
+                        help="Comma-separated fragments that uniquely name the profiled function's linked symbol")
     parser.add_argument("--engine", type=Path, default=default_engine())
     args = parser.parse_args()
     if not 1 <= args.seconds <= 300:
@@ -221,14 +226,14 @@ def main():
     if args.function_costs:
         config['function_costs'] = function_cost_hooks(elf_symbols(snapshot['epok.elf']), sections)
     if args.pc_profile is not None:
-        render = next(h for h in function_cost_hooks(elf_symbols(snapshot['epok.elf']), sections)
-                      if h['label'] == 'ordered_render')
+        render = function_hook(elf_symbols(snapshot['epok.elf']), sections, 'pc_profile',
+                               tuple(f for f in args.pc_symbol.split(',') if f))
         code = next(c[(render['entry'] & 0x1fffffff) - start:][:render['size']] for start, c in sections
                     if start <= (render['entry'] & 0x1fffffff) < start + len(c))
         leaders, indirect = block_leaders(code, render['entry'])
         if len(leaders) > 1500:
             parser.error(f"{len(leaders)} block leaders exceed the observer's callback budget")
-        config['pc_profile'] = dict(entry=render['entry'], size=render['size'], returns=render['returns'],
+        config['pc_profile'] = dict(symbol=render['symbol'], entry=render['entry'], size=render['size'], returns=render['returns'],
                                     leaders=leaders, indirect_jumps=indirect,
                                     first=args.pc_profile, frames=args.pc_frames)
     emulator, bios = emulator_and_bios(engine)

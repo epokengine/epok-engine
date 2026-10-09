@@ -20,7 +20,50 @@ static auto registers(){
     for(unsigned i=0;i<out.size();++i)out[i]=psyqo::GTE::registers[i];
     return out;
 }
+// Literal copy of the general 64-bit transform: the 32-bit fast path must
+// agree with it on every input, including the range edges where it declines.
+static void reference_point(const Camera& camera,const Q* in,Q* out){
+    int64_t delta[3];bool narrow=true;
+    for(int c=0;c<3;++c){
+        delta[c]=int64_t(in[c].raw())-camera.origin[c].raw();
+        narrow&=delta[c]>=INT32_MIN&&delta[c]<=INT32_MAX;
+    }
+    for(int r=0;r<3;++r){
+        int64_t sum=0;
+        for(int c=0;c<3;++c){
+            const int32_t coefficient=camera.basis.values[r][c].raw();
+            const int64_t product=narrow?int64_t(coefficient)*int32_t(delta[c]):int64_t(coefficient)*delta[c];
+            sum+=product/Q::scale;
+        }
+        out[r]=Q(int32_t(sum<INT32_MIN?INT32_MIN:sum>INT32_MAX?INT32_MAX:sum),Q::RAW);
+    }
+}
+static void camera_point_fast_path(){
+    uint32_t random=7;
+    const auto next=[&](){random=random*1664525u+1013904223u;return random;};
+    const int32_t edges[]={0,1,-1,(1<<19)-1,-(1<<19)+1,1<<19,-(1<<19),INT32_MAX,INT32_MIN,4096,-4096,4097,-4097};
+    for(unsigned sample=0;sample<400000;++sample){
+        Camera camera;
+        for(int r=0;r<3;++r)for(int c=0;c<3;++c){
+            const uint32_t kind=next()%8;
+            const int32_t value=kind<5?int32_t(next()%8193)-4096:kind<7?edges[next()%13]:int32_t(next());
+            camera.basis.values[r][c]=Q(value,Q::RAW);
+        }
+        Q in[3],fast[3],slow[3];
+        for(int c=0;c<3;++c){
+            const int32_t origin=next()%4?int32_t(next())>>(next()%12):edges[next()%13];
+            const uint32_t kind=next()%6;
+            const int32_t delta=kind<3?int32_t(next()%(1<<21))-(1<<20):kind<5?edges[next()%13]:int32_t(next());
+            camera.origin[c]=Q(origin,Q::RAW);
+            in[c]=Q(int32_t(uint32_t(origin)+uint32_t(delta)),Q::RAW);
+        }
+        camera.point(in,fast);reference_point(camera,in,slow);
+        for(int c=0;c<3;++c)assert(fast[c].raw()==slow[c].raw());
+    }
+    std::puts("Camera point: 400000 fast-path/64-bit agreements including range edges passed.");
+}
 int main(){
+    camera_point_fast_path();
     // Width changes storage only, not the decoded Q12 coordinates or GTE Q8
     // inputs. Exercise offsets on both signs and an exact int16 boundary.
     const int16_t narrow[][3]={{-32768,32767,16},{17,-17,0},{0,0,1}};
