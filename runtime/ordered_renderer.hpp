@@ -115,6 +115,11 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
   if constexpr(epok::gte_depth_average)epok::load_average_depth_scale(epok::ordered_zsf3,epok::ordered_zsf4);
   bool anchored=false;
   uint32_t previous_page=0xffffffffu;const uint8_t* page=nullptr;
+  // Resident pages do not move during a pass. Remember them in a small
+  // direct-mapped table so a page switch rarely searches the pool; a slot
+  // collision only costs a fresh search.
+  struct {uint32_t id;const uint8_t* data;} page_cache[8];
+  for(auto& entry:page_cache)entry={0xffffffffu,nullptr};
   uint32_t texture_key=0xffffffffu;int monotone_depth=0;
   bool textured=false;uint32_t clut16=0,tpage16=0;
   const OrderedPacketTarget target{reinterpret_cast<uint32_t*>(emitter.gouraud),
@@ -133,7 +138,9 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     if(page_id!=previous_page){
       ++page_switches;
       previous_page=page_id;
-      page=epok::stream_pool.ready_data(page_id);
+      auto& cached=page_cache[page_id&7u];
+      if(cached.id==page_id)page=cached.data;
+      else{page=epok::stream_pool.ready_data(page_id);cached={page_id,page};}
       if(!page){++performance_work.stream_failed_chunks;epok::stream_failed=true;break;}
     }
     const auto& face=*reinterpret_cast<const epok::BakedDrawFace*>(page+((token&8191u)&~3u)*8);
