@@ -23,6 +23,38 @@ local world_samples, pending_sample = {}, nil
 -- bytes}. A list is stored once whenever it differs from the previous pass's,
 -- so passes can be matched to source samples by their complete token order.
 local world_passes, world_lists, pass_list, pass_count = {}, {}, nil, 0
+-- Optional per-instruction cycle profile of the scenery pass, enabled only for
+-- passes whose SLST count equals PC_PROFILE.count, up to PC_PROFILE.passes.
+-- Cycles between consecutive instruction hits are charged to the earlier one
+-- (a call's callee time lands on its delay slot); the pass ends at the common
+-- epilogue, exactly as the pass timing does. Breakpoints stay disabled otherwise.
+local pc_hits, pc_charged, pc_handles, pc_active, pc_done = {}, {}, {}, false, 0
+local pc_last, pc_last_cycles = nil, nil
+local function pc_set(state)
+    for _,handle in ipairs(pc_handles) do if state then handle:enable() else handle:disable() end end
+end
+local function pc_close(now)
+    if pc_last then pc_charged[pc_last]=(pc_charged[pc_last] or 0)+(now-pc_last_cycles) end
+    pc_last=nil
+end
+if PC_PROFILE then
+    local step=function(address)
+        if not pc_active then return true end
+        local now=tonumber(PCSX.getCPUCycles())
+        pc_close(now)
+        pc_hits[address]=(pc_hits[address] or 0)+1
+        pc_last,pc_last_cycles=address,now
+        return true
+    end
+    -- The entry and epilogue have their own hooks below.
+    for address=PC_PROFILE.entry+4,PC_PROFILE.stop-4,4 do
+        if address ~= 0x80041514 then
+            local handle=PCSX.addBreakpoint(address,'Exec',4,'Original pc profile',step)
+            handle:disable()
+            pc_handles[#pc_handles+1]=handle
+        end
+    end
+end
 local world_start, world_cycles, world_calls = nil, 0, 0
 local world_tokens, packet_bytes, packet_begin, world_buffer = 0, 0, nil, nil
 local last_camera, last_callback, last_mode, last_argument = {0,0,0}, 0, 0, 0
@@ -47,8 +79,8 @@ local function half(address)
     return tonumber(ffi.cast('const uint16_t*', memory + address - 0x80000000)[0])
 end
 local function guarded(callback)
-    return function()
-        local ok, why = pcall(callback)
+    return function(...)
+        local ok, why = pcall(callback, ...)
         if not ok then callback_error=tostring(why); profiling=false end
         return true
     end
@@ -90,6 +122,11 @@ ORIGINAL_WORLD_BEGIN = PCSX.addBreakpoint(0x80040ed8, 'Exec', 4, 'Original world
         end
         pass_list = #world_lists
     end
+    if PC_PROFILE and pc_done < PC_PROFILE.passes and count == PC_PROFILE.count then
+        pc_active=true;pc_set(true)
+        pc_hits[0x80040ed8]=(pc_hits[0x80040ed8] or 0)+1
+        pc_last,pc_last_cycles=0x80040ed8,world_start
+    end
     if count > 1 then
         local config = tonumber(registers.GPR.n.a2)
         local camera = word(config)
@@ -129,8 +166,13 @@ ORIGINAL_WORLD_END = PCSX.addBreakpoint(0x80041514, 'Exec', 4, 'Original world c
         world_calls=world_calls+1
         local bytes=word(world_buffer+8)-packet_begin
         packet_bytes=packet_bytes+bytes
+        local profiled=0
+        if pc_active then
+            pc_close(world_start+cycles)
+            pc_active=false;pc_set(false);pc_done=pc_done+1;profiled=1
+        end
         if #world_passes < 20000 then
-            world_passes[#world_passes+1]={world_start,cycles,pass_count,pass_list,bytes}
+            world_passes[#world_passes+1]={world_start,cycles,pass_count,pass_list,bytes,profiled}
         else overflow=true end
         world_start=nil
     end
@@ -192,6 +234,7 @@ local function command(line)
         profiling=true;rows={};presentations={};presentation_phases={};overflow=false;previous=nil;world_start=nil;world_cycles=0;world_calls=0;callback_error=nil
         world_samples={};pending_sample=nil
         world_passes={};world_lists={};pass_list=nil;pass_count=0
+        pc_hits={};pc_charged={};pc_active=false;pc_done=0;pc_last=nil;pc_set(false)
         if camera_trace then camera_trace.reset() end
         world_tokens=0;packet_bytes=0;last_gte={};last_camera={0,0,0};last_callback=0;last_mode=0;last_argument=0
         data('profiling');return
@@ -229,6 +272,16 @@ local function command(line)
             output[#output+1]='['..table.concat(row,',')..']'
         end
         output[#output+1]=']'
+        if PC_PROFILE then
+            output[#output+1]=',"pc_profile":{"entry":'..PC_PROFILE.entry..',"stop":'..PC_PROFILE.stop
+                ..',"count":'..PC_PROFILE.count..',"passes":'..pc_done..',"pcs":['
+            local n=0
+            for address,hits in pairs(pc_hits) do
+                if n>0 then output[#output+1]=',' end
+                output[#output+1]='['..address..','..hits..','..(pc_charged[address] or 0)..']';n=n+1
+            end
+            output[#output+1]=']}'
+        end
         if camera_trace then output[#output+1]=',"camera_trace":'..camera_trace.json() end
         output[#output+1]='}'
         data(table.concat(output));return

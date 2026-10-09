@@ -45,7 +45,7 @@ def original_passes(profile, routes):
         first += len(route["Samples"])
     matched = {}
     unmatched = 0
-    for start, cycles, count, list_id, packet_bytes in passes:
+    for start, cycles, count, list_id, packet_bytes, *_ in passes:
         if not list_id:
             continue
         tokens = tuple(lists[list_id - 1])

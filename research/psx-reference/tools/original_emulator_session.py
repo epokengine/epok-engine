@@ -114,6 +114,9 @@ def main():
     parser.add_argument("--cue", type=Path, required=True, help="User-supplied disc cue sheet")
     parser.add_argument("--disc", type=Path, required=True, help="User-supplied disc image for provenance")
     parser.add_argument("--camera-trace", action="store_true", help="Opt-in read-only target/rail camera trace; not a timing baseline")
+    parser.add_argument("--pc-profile-count", type=int,
+                        help="Per-instruction scenery-pass profile for passes whose list has exactly this many entries")
+    parser.add_argument("--pc-profile-passes", type=int, default=20, help="Passes to profile (1..200)")
     args = parser.parse_args()
     folder = args.output.resolve()
     if folder.exists() and any(folder.iterdir()):
@@ -134,6 +137,12 @@ def main():
         listener.settimeout(45)
         script = folder / "adapter.lua"
         prefix = f'ORIGINAL_PORT={listener.getsockname()[1]}\nORIGINAL_TOKEN="{token}"\nORIGINAL_FOLDER={json.dumps(folder.as_posix())}\n'
+        if args.pc_profile_count is not None:
+            if not (1 < args.pc_profile_count <= 4096 and 1 <= args.pc_profile_passes <= 200):
+                parser.error("--pc-profile-count must be 2..4096 and --pc-profile-passes 1..200")
+            # The audited scenery pass range; the epilogue at 80041514 ends a pass.
+            prefix += (f'PC_PROFILE={{entry=0x80040ed8,stop=0x80041c64,count={args.pc_profile_count},'
+                       f'passes={args.pc_profile_passes}}}\n')
         if camera_bridge:
             # Snapshot the source so a later edit cannot change a live session.
             copy = folder / "camera-observer.lua"
