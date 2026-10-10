@@ -246,11 +246,24 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     if constexpr(epok::exact_near_clipping){
       triple_valid=narrow&&epok::finish_projection_triple(screen,depth);
       direct=triple_valid;
-      if(direct&&quad)direct=epok::project_packed_vertex(fourth,screen[3],depth[3]);
     }else{
       triple_valid=narrow&&epok::store_projection_triple(screen,depth);
       direct=narrow;
-      if(direct&&quad)epok::project_packed_vertex(fourth,screen[3],depth[3]);
+    }
+    // A quad's fourth corner: issue RTPS, then test the first three corners
+    // against the viewport while the GTE computes it.
+    using ScreenSize=epok::OrderedScreenInside<epok::display_width,epok::display_height>;
+    uint32_t inside_bits=0;
+    if(direct){
+      if(quad)epok::begin_packed_vertex(fourth);
+      inside_bits=epok::ordered_screen_inside_bits<epok::display_width,epok::display_height>(screen[0])
+        |epok::ordered_screen_inside_bits<epok::display_width,epok::display_height>(screen[1])
+        |epok::ordered_screen_inside_bits<epok::display_width,epok::display_height>(screen[2]);
+      if(quad){
+        const bool fourth_valid=epok::finish_packed_vertex(screen[3],depth[3]);
+        if constexpr(epok::exact_near_clipping)direct=fourth_valid;
+        inside_bits|=epok::ordered_screen_inside_bits<epok::display_width,epok::display_height>(screen[3]);
+      }
     }
     // Read while the SZ FIFO still holds this face (validation re-projects).
     int32_t gte_average=0;
@@ -260,7 +273,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     else epok::ordered_validation_stats.range_fallback_vertices+=count;
 #endif
     int min_x=32767,max_x=-32768,min_y=32767,max_y=-32768;
-    bool inside=direct&&epok::ordered_screen_inside<epok::display_width,epok::display_height>(screen,quad);
+    bool inside=direct&&!(inside_bits&ScreenSize::mask);
     // Early trivial rejection, as the reference pass does: a GTE-projected
     // face entirely beside the viewport skips the bounds, clipping and
     // material work. Tested only for faces not already accepted, so faces

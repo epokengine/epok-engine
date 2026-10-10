@@ -284,6 +284,36 @@ inline bool project_packed_vertex(const GteProjectionInput& vertex,uint32_t& scr
     return !(readRaw<Register::FLAG>() & gte_projection_flags);
 #endif
 }
+// project_packed_vertex in two halves, so independent CPU work can run
+// while the GTE computes RTPS: begin loads the vertex and issues RTPS;
+// finish (which waits for it) stores the same outputs and returns the same
+// flag verdict. No other GTE access may come between them.
+inline void begin_packed_vertex(const GteProjectionInput& vertex) {
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    asm volatile(
+        ".set push\n.set noreorder\n"
+        "lwc2 $0, 0(%0)\nlwc2 $1, 4(%0)\nnop\nnop\ncop2 0x0180001\n.set pop\n"
+        : : "r"(&vertex), "m"(vertex));
+#else
+    using namespace psyqo::GTE;
+    write<Register::VXY0>(vertex.xy);write<Register::VZ0>(vertex.z);
+    Kernels::rtps();
+#endif
+}
+inline bool finish_packed_vertex(uint32_t& screen,int32_t& depth) {
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    uint32_t flags;
+    asm volatile(
+        ".set push\n.set noreorder\n"
+        "swc2 $27, 0(%3)\nswc2 $14, 0(%4)\ncfc2 %0, $31\nnop\n.set pop\n"
+        : "=r"(flags), "=m"(screen), "=m"(depth) : "r"(&depth), "r"(&screen));
+    return !(flags & gte_projection_flags);
+#else
+    using namespace psyqo::GTE;
+    depth=int32_t(readRaw<Register::MAC3>());screen=readRaw<Register::SXY2>();
+    return !(readRaw<Register::FLAG>() & gte_projection_flags);
+#endif
+}
 template<class Number> inline bool project_geometry_triple(const Number (*vertices)[3],const int32_t* offset,
                                     uint32_t* screen,int32_t* depth) {
     using namespace psyqo::GTE;

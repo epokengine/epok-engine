@@ -16,17 +16,28 @@ inline bool ordered_gte_input_fits(int32_t world_q12,int32_t camera_q8) {
 // Fully inside this viewport also proves the GPU's 1023x511 span constraints.
 // This is acceptance only: crossing/offscreen polygons retain the exact bounds
 // and clipping path, including their depth/near-plane checks.
+// The test accumulates per corner, so a caller can fold in corners as they
+// become available: OR ordered_screen_inside_bits over the corners, then
+// test ordered_screen_inside_mask.
+template<unsigned Width,unsigned Height> struct OrderedScreenInside {
+    static_assert(Width>0&&Width<=1024&&Height>0&&Height<=512);
+    static constexpr uint32_t width_power=[](){uint32_t n=1;while(n<Width)n<<=1;return n;}();
+    static constexpr uint32_t height_power=[](){uint32_t n=1;while(n<Height)n<<=1;return n;}();
+    static constexpr uint32_t bias=((height_power-Height)<<16)|(width_power-Width);
+    static constexpr uint32_t mask=((65536u-height_power)<<16)|(65536u-width_power);
+};
+template<unsigned Width,unsigned Height>
+inline uint32_t ordered_screen_inside_bits(uint32_t screen) {
+    return screen|(screen+OrderedScreenInside<Width,Height>::bias);
+}
+template<unsigned Width,unsigned Height>
+inline constexpr uint32_t ordered_screen_inside_mask=OrderedScreenInside<Width,Height>::mask;
 template<unsigned Width,unsigned Height>
 inline bool ordered_screen_inside(const uint32_t* screen,bool quad) {
-    static_assert(Width>0&&Width<=1024&&Height>0&&Height<=512);
-    constexpr uint32_t width_power=[](){uint32_t n=1;while(n<Width)n<<=1;return n;}();
-    constexpr uint32_t height_power=[](){uint32_t n=1;while(n<Height)n<<=1;return n;}();
-    constexpr uint32_t bias=((height_power-Height)<<16)|(width_power-Width);
-    constexpr uint32_t mask=((65536u-height_power)<<16)|(65536u-width_power);
-    uint32_t outside=screen[0]|screen[1]|screen[2];
-    outside|=(screen[0]+bias)|(screen[1]+bias)|(screen[2]+bias);
-    if(quad)outside|=screen[3]|(screen[3]+bias);
-    return !(outside&mask);
+    uint32_t outside=ordered_screen_inside_bits<Width,Height>(screen[0])|ordered_screen_inside_bits<Width,Height>(screen[1])
+        |ordered_screen_inside_bits<Width,Height>(screen[2]);
+    if(quad)outside|=ordered_screen_inside_bits<Width,Height>(screen[3]);
+    return !(outside&ordered_screen_inside_mask<Width,Height>);
 }
 // Trivial rejection on packed SXY words, the reference pass's test: true when
 // every corner lies on the same outer side of the viewport, exactly when the
