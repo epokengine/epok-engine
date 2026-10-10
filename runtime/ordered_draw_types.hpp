@@ -24,8 +24,11 @@ static_assert(sizeof(OrderedDrawBlock)==8);
 struct OrderedProjectionBlock {
     uint32_t first;uint16_t count,flags;int32_t center[3];int16_t low[3],high[3];
     uint32_t state,xy;int32_t sum[3];
+    // Padding to a power of two: a face's block is then found with a shift
+    // rather than a multiply by 52, once per candidate (12 bytes per block).
+    uint32_t reserved[3];
 };
-static_assert(sizeof(OrderedProjectionBlock)==52);
+static_assert(sizeof(OrderedProjectionBlock)==64);
 inline constexpr uint16_t ordered_projection_compact=1;
 // A face's projection block index sits above its two topology bits.
 inline uint32_t ordered_face_block(uint16_t topology) { return topology>>2; }
