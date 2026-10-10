@@ -85,6 +85,11 @@ template<size_t Capacity> class FramePacketSlots {
 public:
     void begin_frame(){claimed.fill(0);next=Capacity;available_begin=0;}
     uint32_t dynamic_low() const{return next;}
+    // A pass emitting many packets may bump through the current free run
+    // [run_floor(), dynamic_low()) itself, exactly as allocate_dynamic(_pair)
+    // would, and store its new low end before any other allocation.
+    uint32_t run_floor() const{return available_begin;}
+    void set_dynamic_low(uint32_t low){next=low;}
     bool claim(uint32_t first,uint32_t count){
         if(!count||first>=next||count>next-first)return false;
         const uint32_t end=first+count,last=(end-1)/32;

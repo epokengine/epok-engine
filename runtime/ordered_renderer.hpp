@@ -72,18 +72,47 @@ __attribute__((noinline,optimize("O3"))) void validate_ordered_gte(
 // to reload emitter fields and global counters after each store.
 struct OrderedPacketTarget {
   uint32_t* gouraud;uint32_t* textured;decltype(&(static_cast<PolygonEmitter*>(nullptr)->table->m_table[0])) ot;
-  uint32_t& next_dynamic;
+};
+// The free slot run [floor,next) held in locals during the pass: a packet
+// bumps next down exactly as the shared allocator's fast path would. Only
+// when the run is too short does it publish next and ask the allocator,
+// whose slow path may move to another run. publish() precedes any other
+// allocation (the clipped path) and the end of the pass; reload() follows.
+struct OrderedSlotRun {
+  uint32_t next,floor;
+  uint32_t& fallback_next;
+  void reload(){
+    if constexpr(epok::retained_geometry){next=frame_packet_slots.dynamic_low();floor=frame_packet_slots.run_floor();}
+    else {next=fallback_next;floor=0;}
+  }
+  void publish() const{
+    if constexpr(epok::retained_geometry)frame_packet_slots.set_dynamic_low(next);
+    else fallback_next=next;
+  }
+#if defined(__GNUC__)
+  __attribute__((noinline,cold))
+#endif
+  uint32_t refill(unsigned slots){
+    publish();
+    uint32_t slot;
+    if constexpr(epok::retained_geometry)slot=slots==2?frame_packet_slots.allocate_dynamic_pair():frame_packet_slots.allocate_dynamic();
+    else slot=capacity;
+    reload();
+    return slot;
+  }
+  uint32_t take(unsigned slots){
+    if(next-floor>=slots){next-=slots;return next;}
+    return refill(slots);
+  }
 };
 // Returns the slots used: 0 when the frame's packet storage is exhausted.
 template<bool Textured,bool Quad>
-inline unsigned ordered_packet(const OrderedPacketTarget& target,const uint32_t* rgb,const uint32_t* screen,
+inline unsigned ordered_packet(const OrderedPacketTarget& target,OrderedSlotRun& run,const uint32_t* rgb,const uint32_t* screen,
     epok::BakedTextureWords uv,uint32_t command,int depth) {
   static_assert(sizeof(*static_cast<PolygonEmitter*>(nullptr)->gouraud)==28&&sizeof(*static_cast<PolygonEmitter*>(nullptr)->textured)==40);
   static_assert(epok::BakedPacket<Textured,Quad>::bytes_with_dma<=(Textured?40:28)*(Quad?2:1));
   constexpr unsigned slots=Quad?2:1;
-  uint32_t slot;
-  if constexpr(epok::retained_geometry)slot=Quad?frame_packet_slots.allocate_dynamic_pair():frame_packet_slots.allocate_dynamic();
-  else {slot=target.next_dynamic>=slots?(target.next_dynamic-=slots):capacity;}
+  const uint32_t slot=run.take(slots);
   if(slot>=capacity){epok::lighting_work.dropped_triangles+=slots;return 0;}
   // Both storage arrays contain contiguous DMA tag/payload words. A quad
   // borrows a verified adjacent pair, without constructing an aliasing object.
@@ -128,7 +157,8 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
   uint32_t texture_key=0xffffffffu;int monotone_depth=0;
   bool textured=false;uint32_t clut16=0,tpage16=0;
   const OrderedPacketTarget target{reinterpret_cast<uint32_t*>(emitter.gouraud),
-    reinterpret_cast<uint32_t*>(emitter.textured),emitter.table->m_table,emitter.next_dynamic};
+    reinterpret_cast<uint32_t*>(emitter.textured),emitter.table->m_table};
+  OrderedSlotRun run{0,0,emitter.next_dynamic};run.reload();
   // Per-pass totals kept in locals and published once after the loop.
   // Vertex totals follow from the candidates processed and how many were
   // quads; drawn slots from packets and quads (a quad uses two). Counts of
@@ -391,10 +421,10 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       // never have their address taken and can stay in registers.
       uint32_t rgb[4];epok::baked_ordered_colors(face,part==2,epok::vertex_color_palette,rgb);
       unsigned slots;
-      if(textured){if(quad)slots=ordered_packet<true,true>(target,rgb,screen,uv,command,monotone_depth);
-        else slots=ordered_packet<true,false>(target,rgb,screen,uv,command,monotone_depth);}
-      else {if(quad)slots=ordered_packet<false,true>(target,rgb,screen,uv,command,monotone_depth);
-        else slots=ordered_packet<false,false>(target,rgb,screen,uv,command,monotone_depth);}
+      if(textured){if(quad)slots=ordered_packet<true,true>(target,run,rgb,screen,uv,command,monotone_depth);
+        else slots=ordered_packet<true,false>(target,run,rgb,screen,uv,command,monotone_depth);}
+      else {if(quad)slots=ordered_packet<false,true>(target,run,rgb,screen,uv,command,monotone_depth);
+        else slots=ordered_packet<false,false>(target,run,rgb,screen,uv,command,monotone_depth);}
       if(!slots)skipped+=1u+(uint32_t(quad)<<16);
     }else{
       ++ordered_work.clipped_candidates;skipped+=1u+(uint32_t(quad)<<16);
@@ -404,14 +434,17 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       material.textured=textured;material.clut16=clut16;material.tpage16=tpage16;
       material.command=command;material.gpu_colors=epok::baked_indexed_color(face);material.depth_bias=face.depth_bias;
       emitter.fixed_depth=monotone_depth;
+      run.publish();
       uint32_t shaded[4];for(unsigned v=0;v<4;++v)shaded[v]=material.gpu_colors?rgb[v]:face.shaded;
       if(quad)emitter.clipped<OrderedUnits,true>(projected[1],projected[2],projected[3],shaded[1],shaded[2],shaded[3],face.uv[1],face.uv[2],face.uv[3],material);
       emitter.clipped<OrderedUnits,true>(projected[0],projected[1],projected[2],shaded[0],shaded[1],shaded[2],face.uv[first],face.uv[first+1],face.uv[first+2],material);
       emitter.fixed_depth=-1;
+      run.reload();
     }
     EPOK_DETAIL_END(ordered_polygon,polygon_scanlines);
   }
   emitter.fixed_depth=-1;
+  run.publish();
   // Every processed candidate either drew one direct packet or was skipped.
   const uint32_t drawn=uint32_t(tokens+total-cursor)+((walk&0xffffu)<<16)-skipped;
   const uint32_t packets=drawn&0xffffu,quads=drawn>>16;
