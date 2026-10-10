@@ -268,10 +268,15 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
         if constexpr(epok::exact_near_clipping)direct=fourth_valid;
         inside_bits|=epok::ordered_screen_inside_bits<epok::display_width,epok::display_height>(screen[3]);
       }
+      // Issued while the SZ FIFO holds this face, read when the depth is used;
+      // nothing in between touches the GTE for a GTE-projected face.
+      if constexpr(epok::gte_depth_average)epok::begin_average_depth(quad);
     }
-    // Read while the SZ FIFO still holds this face (validation re-projects).
+#ifdef EPOK_VALIDATE_GTE
+    // Validation re-projects with the GTE: read the average first.
     int32_t gte_average=0;
-    if constexpr(epok::gte_depth_average)if(direct)gte_average=epok::gte_average_depth(quad);
+    if constexpr(epok::gte_depth_average)if(direct)gte_average=epok::read_average_depth();
+#endif
 #ifdef EPOK_VALIDATE_GTE
     if(narrow)validate_ordered_gte(matrix,view,row_scale,local,offset,base_offset,count,triple_valid,screen,depth,token);
     else epok::ordered_validation_stats.range_fallback_vertices+=count;
@@ -349,7 +354,11 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     // Q8 camera values originate in signed Q12, so the four-term sum fits i32.
     int32_t average;
     if constexpr(epok::gte_depth_average){
+#ifdef EPOK_VALIDATE_GTE
       if(gte_projected)average=gte_average;
+#else
+      if(gte_projected)average=epok::read_average_depth();
+#endif
       else average=epok::ordered_gte_depth_average(depth[0]+depth[1]+depth[2]+(quad?depth[3]:0),quad);
 #ifdef EPOK_VALIDATE_GTE
       if(gte_projected&&average!=epok::ordered_gte_depth_average(depth[0]+depth[1]+depth[2]+(quad?depth[3]:0),quad)){

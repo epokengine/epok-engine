@@ -198,6 +198,16 @@ inline int32_t gte_average_depth(bool quad) {
     if(quad)Kernels::avsz4();else Kernels::avsz3();
     return int32_t(readRaw<Register::OTZ>());
 }
+// gte_average_depth in two halves, so CPU work can run during AVSZ. No other
+// GTE command may come between them.
+inline void begin_average_depth(bool quad) {
+    using namespace psyqo::GTE;
+    if(quad)Kernels::avsz4();else Kernels::avsz3();
+}
+inline int32_t read_average_depth() {
+    using namespace psyqo::GTE;
+    return int32_t(readRaw<Register::OTZ>());
+}
 inline void begin_loaded_projection_triple() {
 #if defined(__mips__) && !defined(PS1_PC_PORT)
     // Do not depend on the optimizer leaving two independent instructions
