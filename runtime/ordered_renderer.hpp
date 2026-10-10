@@ -134,7 +134,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
   // quads; drawn slots from packets and quads (a quad uses two). Counts of
   // at most 65535 (the cursor capacity) share a word, as low and high
   // halves, to keep fewer values live across the loop.
-  uint32_t drawn=0,walk=0,cpu_vertices=0,anchored_vertices=0; // drawn: packets|quads<<16; walk: quad candidates|page switches<<16
+  uint32_t drawn=0,walk=0,cpu_vertices=0,anchor_base=0,anchor_misses=0; // drawn: packets|quads<<16; walk: quad candidates|page switches<<16
   const auto* baked_materials=epok::baked_texture_bank(epok::texture_assets);
   emitter.editable=false;emitter.double_sided=true;
   const auto* tokens=ordered_cursor.tokens();
@@ -228,11 +228,12 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
           for(unsigned c=0;c<3;++c)offset[c]=next_offset[c];
           epok::load_projection_translation(next_translation);
           epoch=next_ordered_block_epoch();
+          // Vertices before this candidate, for the anchored total below.
+          if(!anchored)anchor_base=uint32_t(tokens+total-cursor-1)*3+(walk&0xffffu)-quad;
           ++ordered_work.origin_changes;anchored=true;narrow=true;
         }else ++ordered_work.anchor_rejections;
       }else ++ordered_work.anchor_rejections;
     }
-    if(narrow&&anchored)anchored_vertices+=count;
     // Successful RTPT writes all three outputs; RTPS writes the fourth quad
     // output. A rejected/too-wide batch takes the CPU path, which writes every
     // used corner even when clipping is required. Never read an unused fourth
@@ -317,6 +318,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
         if(x<min_x)min_x=x;if(x>max_x)max_x=x;if(y<min_y)min_y=y;if(y>max_y)max_y=y;
       }
       cpu_vertices+=count;
+      if(!narrow&&anchored)anchor_misses+=count;
     }
     EPOK_DETAIL_END(ordered_vertex,vertex_scanlines);
     EPOK_DETAIL_BEGIN(ordered_polygon);
@@ -387,10 +389,12 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
   const uint32_t packets=drawn&0xffffu,quads=drawn>>16;
   emitter.emitted+=packets+quads;
   ordered_work.packets+=packets;ordered_work.quads+=quads;ordered_work.page_switches+=walk>>16;
-  ordered_work.anchored_vertices+=anchored_vertices;
   // The cursor stops at the first candidate not processed (the failed one
   // after a stream break); each processed candidate had 3 or 4 vertices.
   const uint32_t transformed=uint32_t(tokens+total-cursor)*3+(walk&0xffffu);
+  // Anchored vertices: those of every GTE-range (narrow) candidate from the
+  // first re-anchor on, i.e. all since then less the CPU-range ones.
+  if(anchored)ordered_work.anchored_vertices+=transformed-anchor_base-anchor_misses;
   performance_work.software_vertices+=cpu_vertices;
   performance_work.gte_vertices+=transformed-cpu_vertices;epok::mesh_stats.transformed_vertices+=transformed;
 }
