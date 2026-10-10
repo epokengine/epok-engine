@@ -134,7 +134,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
   // quads; drawn slots from packets and quads (a quad uses two). Counts of
   // at most 65535 (the cursor capacity) share a word, as low and high
   // halves, to keep fewer values live across the loop.
-  uint32_t drawn=0,walk=0,cpu_vertices=0,anchor_base=0,anchor_misses=0; // drawn: packets|quads<<16; walk: quad candidates|page switches<<16
+  uint32_t skipped=0,walk=0,cpu_vertices=0,anchor_base=0,anchor_misses=0; // skipped: candidates without a direct packet|their quads<<16; walk: quad candidates|page switches<<16
   const auto* baked_materials=epok::baked_texture_bank(epok::texture_assets);
   emitter.editable=false;emitter.double_sided=true;
   const auto* tokens=ordered_cursor.tokens();
@@ -275,7 +275,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
         if(quad)reject&=depth[3]>=OrderedUnits::near;
       }
       if(reject){
-        EPOK_DETAIL_END(ordered_vertex,vertex_scanlines);continue;
+        EPOK_DETAIL_END(ordered_vertex,vertex_scanlines);skipped+=1u+(uint32_t(quad)<<16);continue;
       }
     }
     if(direct){
@@ -295,7 +295,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
         // pass leaves that to the GPU, so the inexact path skips it here.
         if constexpr(!epok::exact_near_clipping)if(!fits_gpu){
           ++ordered_work.clipped_candidates;
-          EPOK_DETAIL_END(ordered_vertex,vertex_scanlines);continue;
+          EPOK_DETAIL_END(ordered_vertex,vertex_scanlines);skipped+=1u+(uint32_t(quad)<<16);continue;
         }
         direct&=fits_gpu;
       }
@@ -323,7 +323,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     EPOK_DETAIL_END(ordered_vertex,vertex_scanlines);
     EPOK_DETAIL_BEGIN(ordered_polygon);
     if(direct&&!inside&&(max_x<0||min_x>=epok::display_width||max_y<0||min_y>=epok::display_height)){
-      EPOK_DETAIL_END(ordered_polygon,polygon_scanlines);continue;
+      EPOK_DETAIL_END(ordered_polygon,polygon_scanlines);skipped+=1u+(uint32_t(quad)<<16);continue;
     }
     // PsyQo traverses buckets DESCENDING. Inverting the source's ascending
     // min-cursor policy gives a max cursor, preserving the prepared order.
@@ -369,9 +369,9 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
         else slots=ordered_packet<true,false>(target,rgb,screen,uv,command,monotone_depth);}
       else {if(quad)slots=ordered_packet<false,true>(target,rgb,screen,uv,command,monotone_depth);
         else slots=ordered_packet<false,false>(target,rgb,screen,uv,command,monotone_depth);}
-      if(slots)drawn+=1u+(uint32_t(quad)<<16);
+      if(!slots)skipped+=1u+(uint32_t(quad)<<16);
     }else{
-      ++ordered_work.clipped_candidates;
+      ++ordered_work.clipped_candidates;skipped+=1u+(uint32_t(quad)<<16);
       if constexpr(!epok::exact_near_clipping){EPOK_DETAIL_END(ordered_polygon,polygon_scanlines);continue;}
       uint32_t rgb[4];epok::baked_ordered_colors(face,part==2,epok::vertex_color_palette,rgb);
       QuadPacket material;
@@ -386,6 +386,8 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     EPOK_DETAIL_END(ordered_polygon,polygon_scanlines);
   }
   emitter.fixed_depth=-1;
+  // Every processed candidate either drew one direct packet or was skipped.
+  const uint32_t drawn=uint32_t(tokens+total-cursor)+((walk&0xffffu)<<16)-skipped;
   const uint32_t packets=drawn&0xffffu,quads=drawn>>16;
   emitter.emitted+=packets+quads;
   ordered_work.packets+=packets;ordered_work.quads+=quads;ordered_work.page_switches+=walk>>16;
