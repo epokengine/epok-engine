@@ -196,13 +196,13 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       block.xy=uint32_t(uint16_t(block.sum[0]))|(uint32_t(block.sum[1])<<16);
       block.state=(epoch<<1)|uint32_t(fits);
     }
-    bool narrow;
+    bool narrow,compact_fourth=false;
     if(block.state&1){
       const epok::CompactProjectionOffset compact{block.xy,uint32_t(uint16_t(block.sum[0])),uint32_t(block.sum[2])};
       epok::load_compact_projection_input<0>(page+face.indices[first],compact);
       epok::load_compact_projection_input<1>(page+face.indices[first+1],compact);
       epok::load_compact_projection_input<2>(page+face.indices[first+2],compact);
-      if(quad)fourth=epok::compact_projection_input(page+face.indices[3],compact);
+      compact_fourth=quad; // Read while the GTE runs RTPT, below.
       narrow=true;
     }else if((block.flags&epok::ordered_projection_compact)&&matrix_valid){
       // Part of the block is out of range: check this face's corners only.
@@ -240,6 +240,10 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     // triangle corner. Clearing these arrays per face is therefore redundant.
     uint32_t screen[4];int32_t depth[4];
     if(narrow)epok::begin_loaded_projection_triple();
+    if(compact_fourth){
+      const epok::CompactProjectionOffset compact{block.xy,uint32_t(uint16_t(block.sum[0])),uint32_t(block.sum[2])};
+      fourth=epok::compact_projection_input(page+face.indices[3],compact);
+    }
     // Without exact near clipping a flagged (saturated) GTE result is drawn as
     // is, like the reference renderer; triple_valid keeps the flag verdict.
     bool triple_valid,direct;
