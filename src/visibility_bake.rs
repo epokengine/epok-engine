@@ -29,13 +29,24 @@ pub struct Options {
     /// a pose half way between, up to `refine_depth` halvings.
     pub refine_pixels: f32,
     pub refine_depth: u32,
+    /// Depth step of the generated draw order, in world units. Packets whose
+    /// depths fall in the same step keep the previous sample's order, so
+    /// consecutive lists stay similar and their deltas small.
+    pub order_step: f32,
+    /// A face hidden for at most this many consecutive samples of a continuous
+    /// stretch, and visible on both sides, stays listed through the gap: fewer
+    /// list changes (smaller resident deltas) for a few extra faces.
+    pub fill_gaps: u32,
+    /// Widen the baked view by this fraction in both directions (0.2 = 20%),
+    /// for cameras that turn away from the recorded path (aiming rigs).
+    pub view_margin: f32,
 }
 impl Default for Options {
     fn default() -> Self {
         // Near and far match the runtime's mesh camera units (0.25 and 128 world
         // units); the far limit is also the default geometry draw distance.
         Self { width: 512, height: 240, scale: 4, substeps: 4, near: 0.25, far: 128., see_through: 0.05,
-            refine_pixels: 2., refine_depth: 6 }
+            refine_pixels: 2., refine_depth: 6, order_step: 0.5, fill_gaps: 2, view_margin: 0. }
     }
 }
 
@@ -73,8 +84,9 @@ impl Pose {
         for r in 0..3 {
             out[r * 4..r * 4 + 4].copy_from_slice(&view.0[r]);
         }
-        out[12] = horizontal;
-        out[13] = horizontal * 4. / 3.;
+        let widen = 1. + options.view_margin.max(0.);
+        out[12] = horizontal / widen;
+        out[13] = horizontal * 4. / 3. / widen;
         out[14] = options.near;
         out[15] = options.far;
         Ok(out)
@@ -311,7 +323,10 @@ impl Gpu {
     }
     /// Marks the faces visible from `pose` in the GPU flags (not cleared).
     fn render(&self, pose: Pose, options: &Options, clear: bool) -> Result<(), String> {
-        self.queue.write_buffer(&self.uniform, 0, bytes(&pose.uniform(options)?));
+        self.render_uniform(pose.uniform(options)?, clear)
+    }
+    fn render_uniform(&self, uniform: [f32; 16], clear: bool) -> Result<(), String> {
+        self.queue.write_buffer(&self.uniform, 0, bytes(&uniform));
         let mut encoder = self.device.create_command_encoder(&Default::default());
         if clear {
             encoder.clear_buffer(&self.visible, 0, None);
@@ -422,7 +437,37 @@ pub fn bake(scene: &Scene, track: &Track, options: &Options) -> Result<Vec<Vec<u
         }
         out.push(union.into_iter().collect());
     }
+    fill_gaps(&mut out, &next, options.fill_gaps as usize);
     Ok(out)
+}
+
+/// See `Options::fill_gaps`. Gaps never cross a cut or a route end.
+fn fill_gaps(lists: &mut [Vec<u16>], next: &[Option<usize>], max_gap: usize) {
+    if max_gap == 0 { return; }
+    let sets: Vec<std::collections::BTreeSet<u16>> = lists.iter().map(|l| l.iter().copied().collect()).collect();
+    let mut added: Vec<std::collections::BTreeSet<u16>> = vec![Default::default(); lists.len()];
+    for i in 0..lists.len() {
+        // Faces visible at i and not at i+1: look for them again within the gap.
+        let Some(first) = next[i] else { continue };
+        for &face in sets[i].difference(&sets[first]) {
+            let mut path = vec![first];
+            while path.len() <= max_gap {
+                let last = *path.last().unwrap();
+                let Some(n) = next[last] else { break };
+                if sets[n].contains(&face) {
+                    for &k in &path { added[k].insert(face); }
+                    break;
+                }
+                path.push(n);
+            }
+        }
+    }
+    for (list, extra) in lists.iter_mut().zip(added) {
+        if extra.is_empty() { continue; }
+        let mut set: std::collections::BTreeSet<u16> = list.iter().copied().collect();
+        set.extend(extra);
+        *list = set.into_iter().collect();
+    }
 }
 
 /// Per-sample comparison of a bake with the track's existing lists.
@@ -622,4 +667,236 @@ mod tests {
         assert_eq!(m.position, [1., 0., 0.]);
         assert!((m.rotation[0] - 360.).abs() < 1e-3 && (m.fov - 70.).abs() < 1e-6);
     }
+}
+
+/// A tracked triangle for the prepared packet order: its source identity,
+/// world Q12 corners and the attributes two halves of a packet must share.
+struct Triangle {
+    reference: crate::ordered_draw::FaceRef,
+    track_index: u16,
+    points: [[i32; 3]; 3],
+    uv: [[f32; 2]; 3],
+    colors: Option<[[u8; 3]; 3]>,
+    material: crate::scene::Material,
+}
+
+fn triangles(scene: &Scene, track: &Track) -> Result<Vec<Triangle>, String> {
+    let index: HashMap<uuid::Uuid, u16> = track.faces.iter().enumerate().map(|(i, f)| (*f, i as u16)).collect();
+    let mut out = Vec::new();
+    for (actor_index, actor) in scene.actors.iter().enumerate() {
+        let Some(doc) = actor.editable_mesh.as_ref().and_then(|m| m.document.as_deref()) else { continue };
+        if actor.kind != "Mesh" || !doc.faces.iter().any(|f| index.contains_key(&f.id)) { continue; }
+        let transform = scene.world_matrix(actor_index);
+        for face in &doc.faces {
+            let Some(&track_index) = index.get(&face.id) else { continue };
+            if face.vertices[2] != face.vertices[3] {
+                return Err("The prepared packet order needs triangle source faces".into());
+            }
+            let raw = doc.points(face);
+            let mut points = [[0; 3]; 3];
+            for c in 0..3 { points[c] = crate::mesh_compile::world_q12(&transform, raw[c])?; }
+            out.push(Triangle {
+                reference: crate::ordered_draw::FaceRef { actor: actor.id, face: face.id },
+                track_index,
+                points,
+                uv: [face.uv[0], face.uv[1], face.uv[2]],
+                colors: face.vertex_colors.map(|c| [c[0], c[1], c[2]]),
+                material: crate::mesh::material(actor, face.material),
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// Pairs neighbouring triangles into GPU quads: same material and colour
+/// domain, and an edge whose corners agree in position, UV and colour. The
+/// packet's corners 1 and 2 are the shared edge; 0 and 3 the other corners.
+fn pair(tris: &[Triangle]) -> Vec<crate::ordered_draw::Primitive> {
+    let mut edges: HashMap<([i32; 3], [i32; 3]), Vec<(usize, usize, usize)>> = HashMap::new();
+    for (t, tri) in tris.iter().enumerate() {
+        for (a, b) in [(0, 1), (1, 2), (2, 0)] {
+            let key = if tri.points[a] <= tri.points[b] { (tri.points[a], tri.points[b]) } else { (tri.points[b], tri.points[a]) };
+            edges.entry(key).or_default().push((t, a, b));
+        }
+    }
+    let corner_matches = |x: &Triangle, i: usize, y: &Triangle, j: usize| {
+        x.points[i] == y.points[j] && x.uv[i] == y.uv[j] && x.colors.map(|c| c[i]) == y.colors.map(|c| c[j])
+    };
+    let mut partner = vec![None::<(usize, usize, usize)>; tris.len()];
+    let mut used = vec![false; tris.len()];
+    for (t, tri) in tris.iter().enumerate() {
+        if used[t] { continue; }
+        for (a, b) in [(0, 1), (1, 2), (2, 0)] {
+            let key = if tri.points[a] <= tri.points[b] { (tri.points[a], tri.points[b]) } else { (tri.points[b], tri.points[a]) };
+            let found = edges[&key].iter().find(|&&(u, c, d)| {
+                u != t && !used[u] && tris[u].material == tri.material
+                    && tris[u].colors.is_some() == tri.colors.is_some()
+                    && ((corner_matches(tri, a, &tris[u], c) && corner_matches(tri, b, &tris[u], d))
+                        || (corner_matches(tri, a, &tris[u], d) && corner_matches(tri, b, &tris[u], c)))
+            }).copied();
+            if let Some((u, c, d)) = found {
+                used[t] = true; used[u] = true;
+                partner[t] = Some((u, a, b));
+                let _ = (c, d);
+                break;
+            }
+        }
+    }
+    let mut primitives = Vec::new();
+    let mut done = vec![false; tris.len()];
+    for (t, tri) in tris.iter().enumerate() {
+        if done[t] { continue; }
+        done[t] = true;
+        match partner[t] {
+            Some((u, a, b)) => {
+                done[u] = true;
+                let opposite = 3 - a - b;
+                let other = &tris[u];
+                let opposite_other = (0..3).find(|&k| other.points[k] != tri.points[a] && other.points[k] != tri.points[b]).unwrap();
+                primitives.push(crate::ordered_draw::Primitive {
+                    first: tri.reference,
+                    second: Some(other.reference),
+                    corners: [[0, opposite as u8], [0, a as u8], [0, b as u8], [1, opposite_other as u8]],
+                });
+            }
+            None => primitives.push(crate::ordered_draw::Primitive {
+                first: tri.reference, second: None, corners: [[0, 0], [0, 1], [0, 2], [0, 2]],
+            }),
+        }
+    }
+    primitives
+}
+
+/// A prepared packet order for a track whose lists are `lists`: triangles
+/// paired into quads, and each sample's packets sorted back to front by their
+/// mean camera depth at the sample's pose (the renderer draws a list from its
+/// end, keeping this order with a monotone depth cursor).
+pub fn ordered_program(scene: &Scene, track: &Track, lists: &[Vec<u16>], options: &Options) -> Result<crate::ordered_draw::Program, String> {
+    let tris = triangles(scene, track)?;
+    let primitives = pair(&tris);
+    let by_face: HashMap<uuid::Uuid, usize> = tris.iter().enumerate().map(|(i, t)| (t.reference.face, i)).collect();
+    // Track face index -> (primitive, half: 1 first, 2 second).
+    let mut owner = vec![(0usize, 0u32); track.faces.len()];
+    for (p, primitive) in primitives.iter().enumerate() {
+        owner[usize::from(tris[by_face[&primitive.first.face]].track_index)] = (p, 1);
+        if let Some(second) = primitive.second {
+            owner[usize::from(tris[by_face[&second.face]].track_index)] = (p, 2);
+        }
+    }
+    let (poses, next) = poses(track);
+    let mut samples: Vec<Vec<u32>> = Vec::with_capacity(lists.len());
+    // Position of each primitive in the previous continuous sample's list.
+    let mut previous: HashMap<usize, usize> = HashMap::new();
+    for (i, (list, pose)) in lists.iter().zip(&poses).enumerate() {
+        let continuous = i > 0 && next[i - 1] == Some(i);
+        if !continuous { previous.clear(); }
+        let view = crate::transform::Matrix::trs(pose.position, pose.rotation, [1.; 3]).inverse()?;
+        let mut parts: BTreeMap<usize, u32> = BTreeMap::new();
+        for &face in list {
+            *parts.entry(owner[usize::from(face)].0).or_default() |= owner[usize::from(face)].1;
+        }
+        let mut packets: Vec<(f64, u32, usize)> = parts.into_iter().map(|(p, halves)| {
+            let primitive = &primitives[p];
+            let part = if primitive.second.is_none() { 0 } else { halves };
+            let mut faces = vec![];
+            if part != 2 { faces.push(&tris[by_face[&primitive.first.face]]); }
+            if part >= 2 { faces.push(&tris[by_face[&primitive.second.unwrap().face]]); }
+            let (mut depth, mut n) = (0f64, 0f64);
+            for t in faces {
+                for c in t.points {
+                    let w = c.map(|v| v as f32 / 4096.);
+                    depth += f64::from(view.point(w)[2]); n += 1.;
+                }
+            }
+            (depth / n, (p as u32) << 2 | part, p)
+        }).collect();
+        // Far first by depth step; within a step, the previous order, then
+        // newly visible packets by exact depth (primitive index last).
+        let step = f64::from(options.order_step.max(1e-6));
+        packets.sort_by(|a, b| {
+            let (sa, sb) = ((a.0 / step).floor(), (b.0 / step).floor());
+            sb.total_cmp(&sa)
+                .then_with(|| match (previous.get(&a.2), previous.get(&b.2)) {
+                    (Some(x), Some(y)) => x.cmp(y),
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => b.0.total_cmp(&a.0),
+                })
+                .then(a.1.cmp(&b.1))
+        });
+        previous = packets.iter().enumerate().map(|(k, x)| (x.2, k)).collect();
+        samples.push(packets.into_iter().map(|(_, token, _)| token).collect());
+    }
+    Ok(crate::ordered_draw::Program { version: 1, static_world: true, primitives, samples })
+}
+
+/// Debug aid: distribution of the nearest-corner camera depth of the faces a
+/// track's existing lists hold, over all samples (how far the lists reach).
+pub fn list_depths(scene: &Scene, track: &Track) -> Result<String, String> {
+    let tris = triangles(scene, track)?;
+    let by_index: HashMap<u16, &Triangle> = tris.iter().map(|t| (t.track_index, t)).collect();
+    let (poses, _) = poses(track);
+    let mut depths = Vec::new();
+    for (sample, pose) in track.samples.iter().zip(&poses) {
+        let view = crate::transform::Matrix::trs(pose.position, pose.rotation, [1.; 3]).inverse()?;
+        for f in &sample.visible {
+            let Some(t) = by_index.get(f) else { continue };
+            let z = t.points.iter().map(|c| view.point(c.map(|v| v as f32 / 4096.))[2]).fold(f32::MAX, f32::min);
+            depths.push(z);
+        }
+    }
+    depths.sort_by(f32::total_cmp);
+    let q = |f: f32| depths[((depths.len() - 1) as f32 * f) as usize];
+    let beyond = |d: f32| depths.iter().filter(|&&z| z > d).count() as f32 / depths.len() as f32 * 100.;
+    Ok(format!("listed faces {}: depth p50 {:.0} p90 {:.0} p99 {:.0} max {:.0}; beyond 64: {:.1}%, 96: {:.1}%, 128: {:.1}%",
+        depths.len(), q(0.5), q(0.9), q(0.99), q(1.), beyond(64.), beyond(96.), beyond(128.)))
+}
+
+/// A camera given directly as runtime camera space: basis rows (right, up,
+/// forward), origin, and the projection's NDC scales for x and y.
+#[derive(Clone, Copy, Debug)]
+pub struct CameraCheck {
+    pub sample: usize,
+    pub basis: [[f32; 3]; 3],
+    pub origin: [f32; 3],
+    pub scale: [f32; 2],
+}
+
+/// Hole check with explicit cameras (for example the cameras a game actually
+/// used): faces truly visible from each camera that the sample's list lacks,
+/// in faces and display pixels, for the given lists and the track's own.
+pub fn check_cameras(scene: &Scene, track: &Track, lists: &[Vec<u16>], cameras: &[CameraCheck], options: &Options) -> Result<serde_json::Value, String> {
+    let (occluders, all) = geometry(scene, track, options.see_through);
+    let gpu = Gpu::new(options, track.faces.len(), &occluders, &all)?;
+    let area = f64::from(options.scale * options.scale);
+    let (mut faces_lists, mut faces_track, mut pixels_lists, mut pixels_track, mut checked) = (0usize, 0usize, 0f64, 0f64, 0usize);
+    let (mut worst_lists, mut worst_track) = ((0usize, 0f64), (0usize, 0f64));
+    for camera in cameras {
+        let mut u = [0f32; 16];
+        for r in 0..3 {
+            for c in 0..3 { u[r * 4 + c] = camera.basis[r][c]; }
+            u[r * 4 + 3] = -(0..3).map(|c| camera.basis[r][c] * camera.origin[c]).sum::<f32>();
+        }
+        u[12] = camera.scale[0]; u[13] = camera.scale[1]; u[14] = options.near; u[15] = options.far;
+        gpu.render_uniform(u, true)?;
+        let truth = gpu.read_pixels(track.faces.len())?;
+        checked += truth.len();
+        for (list, faces, pixels, worst) in [
+            (&lists[camera.sample], &mut faces_lists, &mut pixels_lists, &mut worst_lists),
+            (&track.samples[camera.sample].visible, &mut faces_track, &mut pixels_track, &mut worst_track),
+        ] {
+            let set: std::collections::HashSet<u16> = list.iter().copied().collect();
+            let missing: Vec<f64> = truth.iter().filter(|(f, _)| !set.contains(f)).map(|(_, n)| f64::from(*n) / area).collect();
+            *faces += missing.len();
+            let sum: f64 = missing.iter().sum();
+            *pixels += sum;
+            if sum > worst.1 { *worst = (camera.sample, sum); }
+        }
+    }
+    let n = cameras.len().max(1) as f64;
+    Ok(serde_json::json!({
+        "cameras": cameras.len(), "visible_faces_checked": checked,
+        "lists": {"missing_faces": faces_lists, "missing_display_pixels_per_camera": pixels_lists / n, "worst": worst_lists},
+        "track": {"missing_faces": faces_track, "missing_display_pixels_per_camera": pixels_track / n, "worst": worst_track},
+    }))
 }

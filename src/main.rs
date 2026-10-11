@@ -319,6 +319,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--bake-lighting",
             "--bake-navigation",
             "--bake-visibility-report",
+            "--bake-visibility",
             "--add-actor",
             "--profile-scene",
             "--profile-scene-cpu",
@@ -1295,6 +1296,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Ok(());
     }
+    if args.iter().any(|a| a == "--bake-visibility") {
+        // Replaces the visibility track's lists with a GPU bake and, when the
+        // scene has a prepared packet order, regenerates it from those lists.
+        let path = args.windows(2).find(|v| v[0] == "--scene").map(|v| root.join(&v[1]))
+            .map_or_else(|| workspace::startup_scene(&root), Ok)?;
+        let mut scene = scene::Scene::load(&path)?;
+        let track = scene.visibility_track.clone().ok_or("The scene has no visibility track")?;
+        let mut options = visibility_bake::Options::default();
+        let number = |flag: &str| args.windows(2).find(|v| v[0] == flag).map(|v| v[1].parse::<u32>());
+        if let Some(v) = number("--bake-scale") { options.scale = v?; }
+        if let Some(v) = number("--bake-substeps") { options.substeps = v?; }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-see-through") { options.see_through = v[1].parse()?; }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-view-margin") { options.view_margin = v[1].parse()?; }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-order-step") { options.order_step = v[1].parse()?; }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-far") { options.far = v[1].parse()?; }
+        if let Some(v) = number("--bake-fill-gaps") { options.fill_gaps = v?; }
+        let start = Instant::now();
+        // --bake-reuse-lists keeps the track's lists and only rebuilds the packet order.
+        let lists = if args.iter().any(|a| a == "--bake-reuse-lists") {
+            track.samples.iter().map(|s| s.visible.clone()).collect()
+        } else { visibility_bake::bake(&scene, &track, &options)? };
+        let program = if scene.ordered_draw.is_some() || args.iter().any(|a| a == "--bake-ordered") {
+            Some(visibility_bake::ordered_program(&scene, &track, &lists, &options)?)
+        } else { None };
+        let track = scene.visibility_track.as_mut().unwrap();
+        for (sample, list) in track.samples.iter_mut().zip(&lists) { sample.visible = list.clone(); }
+        let packets = program.as_ref().map(|p| (p.primitives.len(), p.primitives.iter().filter(|q| q.second.is_some()).count()));
+        if let Some(program) = program {
+            program.validate(&scene)?;
+            scene.ordered_draw = Some(program);
+        }
+        scene.save(&path)?;
+        let faces: usize = lists.iter().map(Vec::len).sum();
+        println!("Visibility baked: {} samples, {:.1} faces per sample, {:.0} s{}; {}", lists.len(),
+            faces as f64 / lists.len().max(1) as f64, start.elapsed().as_secs_f64(),
+            packets.map_or(String::new(), |(n, q)| format!(", packet order with {n} packets ({q} paired quads)")),
+            path.display());
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--bake-visibility-report") {
         // Bakes the scene's visibility track lists on the GPU and compares them
         // with the lists the scene already holds. Read-only on the scene.
@@ -1307,16 +1347,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(v) = number("--bake-scale") { options.scale = v?; }
         if let Some(v) = number("--bake-substeps") { options.substeps = v?; }
         if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-see-through") { options.see_through = v[1].parse()?; }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-view-margin") { options.view_margin = v[1].parse()?; }
         if let Some(v) = number("--bake-diagnose") {
             let v = v? as usize;
             println!("{}", visibility_bake::diagnose(&scene, track, v, &options)?);
             print!("{}", visibility_bake::diagnose_differences(&scene, track, v, &options)?);
+            println!("{}", visibility_bake::list_depths(&scene, track)?);
             return Ok(());
         }
         let start = Instant::now();
         let baked = visibility_bake::bake(&scene, track, &options)?;
         let mut report = visibility_bake::compare(track, &baked);
         report["holes_between_samples"] = visibility_bake::holes(&scene, track, &baked, &options, &[0.25, 0.5, 0.75])?;
+        // --bake-check-cameras <json>: {"cameras":[{"sample","basis","origin","row_scale"}]} in
+        // runtime Q12 camera space (row_scale folds the projection into rows 0 and 1).
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-check-cameras") {
+            let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&v[1])?)?;
+            let q12 = |v: &serde_json::Value| v.as_f64().unwrap_or(0.) as f32 / 4096.;
+            let focal = (options.height * 2 / 3) as f32;
+            let cameras: Vec<_> = json["cameras"].as_array().ok_or("No cameras")?.iter().map(|c| visibility_bake::CameraCheck {
+                sample: c["sample"].as_u64().unwrap_or(0) as usize,
+                basis: std::array::from_fn(|r| std::array::from_fn(|k| q12(&c["basis"][r][k]))),
+                origin: std::array::from_fn(|k| q12(&c["origin"][k])),
+                scale: [focal * q12(&c["row_scale"][0]) / (options.width / 2) as f32, focal * q12(&c["row_scale"][1]) / (options.height / 2) as f32],
+            }).filter(|c| c.sample < baked.len()).collect();
+            report["reference_cameras"] = visibility_bake::check_cameras(&scene, track, &baked, &cameras, &options)?;
+        }
         report["seconds"] = serde_json::json!(start.elapsed().as_secs_f64());
         report["options"] = serde_json::json!({"scale": options.scale, "substeps": options.substeps, "see_through": options.see_through});
         let text = serde_json::to_string_pretty(&report)?;

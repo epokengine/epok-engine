@@ -117,6 +117,29 @@ and counts the faces, and their display pixels, that each sample's list lacks.
 `--report <file>` writes the JSON report; `--bake-diagnose <sample>` prints
 where one sample's differing faces lie.
 
+`--bake-visibility --scene <scene>` writes the bake into the scene: every
+sample's list, and, when the scene has a prepared packet order (or with
+`--bake-ordered`), a new order generated from those lists. Neighbouring
+triangles that share an edge with the same position, UV and colour, and the
+same material, become one quad packet. Each sample's packets are sorted back
+to front by mean camera depth in steps of `--bake-order-step` world units
+(0.5); within a step they keep the previous sample's order, so consecutive
+lists stay similar and their stored deltas small. Further options:
+`--bake-far` (128 units), `--bake-fill-gaps` (a face hidden for at most 2
+samples between visible ones stays listed, 2), `--bake-view-margin` (widen
+the baked view, for cameras that turn away from the recorded path; 0) and
+`--bake-reuse-lists` (keep the lists, only rebuild the order).
+
+`--bake-check-cameras <json>` adds a check against explicit cameras, such as
+those a game actually used: `{"cameras":[{"sample","basis","origin",
+"row_scale"}]}` in runtime Q12 camera space.
+
+A list is only as good as the poses it is baked from. A camera that aims at
+a moving target turns away from the recorded path: on the study scene, real
+cameras saw about 3,000 display pixels per view that lists baked from the
+path alone lacked. A 30% view margin cut that to about 220, at 30% more
+faces. Baking from recorded camera poses is the intended remedy.
+
 Without `navigation`, this is automatic diagnostic playback. It does not
 reproduce a source game's original polygon ordering. Texture animation,
 resource-list scheduling, collision and gameplay need separate integrations.
