@@ -277,8 +277,8 @@ pub fn cook(
                 .ok_or("Ordered draw has no actors")?];
             let indices = resolved.points[primitive]
                 .map(|v| (vertex_start + job.vertices[&(job.spans[local], v)]) as u16);
-            let (texture, placement) = if let Some(id) = q.material.texture {
-                let index = texture_ids
+            let texture = if let Some(id) = q.material.texture {
+                texture_ids
                     .iter()
                     .position(|&candidate| candidate == id)
                     .ok_or("Missing ordered texture")?;
@@ -290,15 +290,12 @@ pub fn cook(
                     .iter()
                     .find(|(candidate, _)| *candidate == id)
                     .ok_or("Unplaced ordered texture")?;
-                (
-                    i32::try_from(index).map_err(|_| "Ordered texture index overflow")?,
-                    Some(location.1.page(data)),
-                )
+                Some(crate::baked_draw::ResolvedTexture::new(location.1, data))
             } else {
-                (-1, None)
+                None
             };
             let mut record = crate::baked_draw::encode_with_palette(
-                q, indices, actor, texture, placement, palette,
+                q, indices, actor, texture, palette,
             );
             // Topology is authoring data. Coincident points do not transform a
             // source quad into a triangle or change the tagged half namespace.

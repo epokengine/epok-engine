@@ -462,7 +462,7 @@ struct PolygonEmitter {
 };
 #include "ordered_renderer.hpp"
 epok::BakedSelectionCache<epok::baked_draw_cache_slots> baked_selection_cache;
-static_assert(epok::baked_draw_abi == 2, "Re-cook geometry with the current baked packet ABI");
+static_assert(epok::baked_draw_abi == 3, "Re-cook geometry with the current baked packet ABI");
 // Small static kernel: cooked packet attributes and selected faces only. It is
 // intentionally outside frame(), so dynamic material/animation paths do not
 // compete with this loop's register allocation and instruction working set.
@@ -470,7 +470,6 @@ __attribute__((noinline,optimize("O3"))) void draw_baked_complex(
     PolygonEmitter& emitter,const epok::BakedDrawFace* faces,size_t count,
     const uint32_t* selected,const ProjectedVertex* vertices,const uint8_t* tint) {
   QuadPacket packet;
-  uint32_t texture_key=0xffffffffu;
   const bool tinted=tint[0]!=255||tint[1]!=255||tint[2]!=255;
   for(size_t q=0;q<count;++q){
     if(!epok::visibility_face(selected,q))continue;
@@ -478,19 +477,15 @@ __attribute__((noinline,optimize("O3"))) void draw_baked_complex(
     const auto& a=vertices[ix[0]];const auto& b=vertices[ix[1]];
     const auto& c=vertices[ix[2]];const auto& d=vertices[ix[3]];
     if(a.outcode&b.outcode&c.outcode&d.outcode)continue;
-    emitter.double_sided=(face.flags&1)!=0;
+    emitter.double_sided=epok::baked_double_sided(face);
     const int first=(ix[0]==ix[1]||ix[1]==ix[2]||ix[0]==ix[2])?0:emitter.classify(a,b,c);
     const int second=(ix[0]==ix[2]||ix[2]==ix[3]||ix[0]==ix[3])?0:emitter.classify(a,c,d);
     if(!(first|second))continue;
-    const uint32_t key=uint32_t(face.texture)|(uint32_t((face.flags>>1)&7)<<16);
-    if(key!=texture_key){
-      texture_key=key;const auto* tex=epok::texture(face.texture==0xffff?-1:face.texture);
-      packet.textured=tex!=nullptr;
-      if(tex){
-        auto clut=epok::texture_clut(*tex);auto page=epok::texture_page(*tex,epok::BlendMode((face.flags>>1)&7),epok::dither_3d);
-        uint16_t cb,pb;__builtin_memcpy(&cb,&clut,2);__builtin_memcpy(&pb,&page,2);
-        packet.clut16=uint32_t(cb)<<16;packet.tpage16=uint32_t(pb)<<16;
-      }
+    // Cooked texture words (ABI 3); untextured without a resident bank.
+    packet.textured=epok::baked_textured(face,epok::texture_assets!=nullptr);
+    if(packet.textured){
+      const auto words=epok::baked_texture_words<epok::display_interlaced,epok::dither_3d>(face);
+      packet.clut16=words.uv_clut&0xffff0000u;packet.tpage16=words.uv_tpage&0xffff0000u;
     }
     packet.command=epok::baked_command(face);packet.depth_bias=face.depth_bias;
     packet.gpu_colors=epok::baked_indexed_color(face);
@@ -500,10 +495,11 @@ __attribute__((noinline,optimize("O3"))) void draw_baked_complex(
       if(tinted)shaded[v]=epok::tint_color(shaded[v],epok::pack_color(tint[0],tint[1],tint[2]));
       final[v]=epok::packet_color(shaded[v],packet.textured,packet.gpu_colors);
     }
-    if(first==1)emitter.direct(a,b,c,final[0],final[1],final[2],face.uv[0],face.uv[1],face.uv[2],packet);
-    else if(first==2)emitter.clipped(a,b,c,shaded[0],shaded[1],shaded[2],face.uv[0],face.uv[1],face.uv[2],packet);
-    if(second==1)emitter.direct(a,c,d,final[0],final[2],final[3],face.uv[0],face.uv[2],face.uv[3],packet);
-    else if(second==2)emitter.clipped(a,c,d,shaded[0],shaded[2],shaded[3],face.uv[0],face.uv[2],face.uv[3],packet);
+    const uint16_t uv[4]={epok::baked_uv(face,0),epok::baked_uv(face,1),epok::baked_uv(face,2),epok::baked_uv(face,3)};
+    if(first==1)emitter.direct(a,b,c,final[0],final[1],final[2],uv[0],uv[1],uv[2],packet);
+    else if(first==2)emitter.clipped(a,b,c,shaded[0],shaded[1],shaded[2],uv[0],uv[1],uv[2],packet);
+    if(second==1)emitter.direct(a,c,d,final[0],final[2],final[3],uv[0],uv[2],uv[3],packet);
+    else if(second==2)emitter.clipped(a,c,d,shaded[0],shaded[2],shaded[3],uv[0],uv[2],uv[3],packet);
   }
 }
 // Triangles are the common compiled primitive. Keep their loop small enough
@@ -512,7 +508,7 @@ __attribute__((noinline,optimize("O3"))) void draw_baked_complex(
 __attribute__((noinline,optimize("O3"))) void draw_baked_faces(
     PolygonEmitter& emitter,const epok::BakedDrawFace* faces,size_t count,
     const uint32_t* selected,const ProjectedVertex* vertices,const uint8_t* tint) {
-  QuadPacket packet;uint32_t texture_key=0xffffffffu;
+  QuadPacket packet;
   // Instance tint is dynamic, but uncommon for baked scenery. Keep its colour
   // arithmetic in the checked kernel, outside the triangle instruction loop.
   if(tint[0]!=255||tint[1]!=255||tint[2]!=255){
@@ -528,25 +524,21 @@ __attribute__((noinline,optimize("O3"))) void draw_baked_faces(
       continue;
     }
     const auto& a=vertices[ix[0]];const auto& b=vertices[ix[1]];const auto& c=vertices[ix[2]];
-    emitter.double_sided=(face.flags&1)!=0;
+    emitter.double_sided=epok::baked_double_sided(face);
     const int kind=emitter.classify(a,b,c);
     if(!kind)continue;
     if(kind==2){draw_baked_complex(emitter,&face,1,nullptr,vertices,tint);continue;}
-    const uint32_t key=uint32_t(face.texture)|(uint32_t((face.flags>>1)&7)<<16);
-    if(key!=texture_key){
-      texture_key=key;const auto* tex=epok::texture(face.texture==0xffff?-1:face.texture);
-      packet.textured=tex!=nullptr;
-      if(tex){
-        auto clut=epok::texture_clut(*tex);auto page=epok::texture_page(*tex,epok::BlendMode((face.flags>>1)&7),epok::dither_3d);
-        uint16_t cb,pb;__builtin_memcpy(&cb,&clut,2);__builtin_memcpy(&pb,&page,2);
-        packet.clut16=uint32_t(cb)<<16;packet.tpage16=uint32_t(pb)<<16;
-      }
+    // Cooked texture words (ABI 3); untextured without a resident bank.
+    packet.textured=epok::baked_textured(face,epok::texture_assets!=nullptr);
+    if(packet.textured){
+      const auto words=epok::baked_texture_words<epok::display_interlaced,epok::dither_3d>(face);
+      packet.clut16=words.uv_clut&0xffff0000u;packet.tpage16=words.uv_tpage&0xffff0000u;
     }
     const uint32_t ca=epok::baked_corner_color(face,0,epok::vertex_color_palette);
     const uint32_t cb=epok::baked_corner_color(face,1,epok::vertex_color_palette);
     const uint32_t cc=epok::baked_corner_color(face,2,epok::vertex_color_palette);
     packet.command=epok::baked_command(face);packet.depth_bias=face.depth_bias;
-    emitter.direct(a,b,c,ca,cb,cc,face.uv[0],face.uv[1],face.uv[2],packet);
+    emitter.direct(a,b,c,ca,cb,cc,epok::baked_uv(face,0),epok::baked_uv(face,1),epok::baked_uv(face,2),packet);
   }
 }
 template<class WorkingSet>

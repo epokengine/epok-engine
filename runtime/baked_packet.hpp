@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include "baked_draw_types.hpp"
 
 namespace epok {
 // GPU-domain words prepared offline. The high half of uv34 carries the fourth
@@ -9,6 +10,13 @@ static_assert(sizeof(BakedTextureWords)==12);
 inline BakedTextureWords baked_second_half(BakedTextureWords source) {
     return {(source.uv_clut&0xffff0000u)|(source.uv_tpage&0xffffu),
             (source.uv_tpage&0xffff0000u)|(source.uv34&0xffffu),source.uv34>>16};
+}
+// A face's cooked texture words as the packet takes them: the flags cleared
+// and the display mode bits (as baked_texture_packet) added to the TPAGE.
+template<bool Interlaced,bool Dithering>
+inline BakedTextureWords baked_texture_words(const BakedDrawFace& face) {
+    constexpr uint32_t mode=(Dithering?0x02000000u:0)|(Interlaced?0:0x04000000u);
+    return {face.uv_clut,(face.uv_tpage&~baked_face_flags)|mode,face.uv34};
 }
 template<bool Textured,bool Quad> struct BakedPacket {
     static constexpr unsigned words=(Textured?3:2)*(Quad?4:3);

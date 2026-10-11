@@ -4,6 +4,7 @@
 #include <initializer_list>
 #include "polygon.hpp"
 #include "baked_draw_types.hpp"
+#include "baked_packet.hpp"
 #include "sprite_math.hpp"
 using namespace epok;
 // Reference implementations mirror the previous renderer's arithmetic.
@@ -21,7 +22,8 @@ static ProjectedVertex vertex(int32_t x, int32_t y, int32_t z) {
 }
 int main() {
     const uint32_t palette[]={pack_color(0,128,185),pack_color(255,1,127),pack_color(64,128,255),pack_color(10,20,30)};
-    BakedDrawFace colored{};colored.color=0x00010000;colored.shaded=0x00030002;colored.flags=0x3410;colored.texture=0;
+    BakedDrawFace colored{};colored.color=0x00010000;colored.shaded=0x00030002;
+    colored.uv_tpage=baked_face_indexed_color|baked_face_textured;
     static_assert(sizeof(BakedDrawFace)==32);
     for(unsigned c=0;c<4;++c){
         assert(baked_corner_color(colored,c,palette)==palette[c]);
@@ -30,12 +32,21 @@ int main() {
         assert(tint_color(palette[c],0xffffff)==palette[c]);
         assert(tint_color(palette[c],0)==0);
     }
-    assert(baked_command(colored)==0x34000000u);
-    colored.flags=0x3616;assert(baked_command(colored)==0x36000000u);
-    colored.texture=0xffff;colored.flags=0x3016;assert(baked_command(colored)==0x30000000u);
-    for(uint32_t command:{0x30000000u,0x34000000u,0x36000000u})for(uint16_t flags=0;flags<32;++flags){
-        colored.flags=uint16_t((command>>16)|flags);assert(baked_command(colored)==command);
+    assert(baked_command(colored)==0x34000000u&&baked_textured(colored)&&!baked_textured(colored,false));
+    assert(baked_command(colored,false)==0x30000000u);
+    colored.uv_tpage|=baked_face_semi_transparent;assert(baked_command(colored)==0x36000000u);
+    colored.uv_tpage=baked_face_indexed_color|baked_face_double_sided;assert(baked_command(colored)==0x30000000u);
+    assert(baked_double_sided(colored)&&baked_indexed_color(colored)&&!baked_textured(colored));
+    // Every other TPAGE/UV bit leaves the opcode alone, and packets never see the flags.
+    for(uint32_t command:{0x30000000u,0x34000000u,0x36000000u})for(uint32_t bits=0;bits<0x10000;bits+=7){
+        const uint32_t flags=(command&0x04000000u?baked_face_textured:0)|(command&0x02000000u?baked_face_semi_transparent:0);
+        colored.uv_tpage=flags|((bits&0x0fffu)<<16)|bits;assert(baked_command(colored)==command);
+        const auto words=epok::baked_texture_words<false,true>(colored);
+        assert(!(words.uv_tpage&baked_face_flags)&&(words.uv_tpage&0x06000000u)==0x06000000u);
+        assert((words.uv_tpage&0x0fffffffu&~0x06000000u)==(colored.uv_tpage&0x0fffffffu&~0x06000000u));
     }
+    colored.uv_clut=0x12345678;colored.uv_tpage=0x9abcdef0;colored.uv34=0x13579bdf;
+    assert(baked_uv(colored,0)==0x5678&&baked_uv(colored,1)==0xdef0&&baked_uv(colored,2)==0x9bdf&&baked_uv(colored,3)==0x1357);
     const uint8_t white_fog[]={255,255,255};
     assert(blend_vertex_fog(palette[0],0,white_fog,true)==palette[0]);
     assert(blend_vertex_fog(palette[0],4096,white_fog,true)==0x808080);

@@ -154,8 +154,10 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
   // collision only costs a fresh search.
   struct {uint32_t id;const uint8_t* data;} page_cache[8];
   for(auto& entry:page_cache)entry={0xffffffffu,nullptr};
-  uint32_t texture_key=0xffffffffu;int monotone_depth=0;
-  bool textured=false;uint32_t clut16=0,tpage16=0;
+  int monotone_depth=0;
+  // Cooked texture words assume the scene's bank is resident; without one,
+  // faces draw untextured.
+  const bool textures_ready=epok::texture_assets!=nullptr;
   const OrderedPacketTarget target{reinterpret_cast<uint32_t*>(emitter.gouraud),
     reinterpret_cast<uint32_t*>(emitter.textured),emitter.table->m_table};
   OrderedSlotRun run{0,0,emitter.next_dynamic};run.reload();
@@ -165,7 +167,6 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
   // at most 65535 (the cursor capacity) share a word, as low and high
   // halves, to keep fewer values live across the loop.
   uint32_t skipped=0,walk=0,cpu_vertices=0,anchor_base=0,anchor_misses=0; // skipped: candidates without a direct packet|their quads<<16; walk: quad candidates|page switches<<16
-  const auto* baked_materials=epok::baked_texture_bank(epok::texture_assets);
   emitter.editable=false;emitter.double_sided=true;
   const auto* tokens=ordered_cursor.tokens();
   auto* projections=ordered_cursor.owner()->projections;
@@ -401,20 +402,10 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
     int candidate=average+face.depth_bias;
     if(candidate<0)candidate=0;if(candidate>=buckets)candidate=buckets-1;
     if(candidate>monotone_depth)monotone_depth=candidate;
-    const uint32_t key=uint32_t(face.texture)|(uint32_t((face.flags>>1)&7)<<16);
-    if(key!=texture_key){
-      texture_key=key;
-      if(baked_materials){
-        const auto packet=epok::baked_texture_packet<epok::display_interlaced,epok::dither_3d>(baked_materials,epok::texture_count,face.texture,epok::BlendMode((face.flags>>1)&7));
-        textured=packet.textured;clut16=packet.clut16;tpage16=packet.tpage16;
-      }else{
-        const auto* texture=epok::texture(face.texture==0xffff?-1:face.texture);textured=texture!=nullptr;
-        if(texture){auto clut=epok::texture_clut(*texture);auto tpage=epok::texture_page(*texture,epok::BlendMode((face.flags>>1)&7),epok::dither_3d);
-          uint16_t cb,pb;__builtin_memcpy(&cb,&clut,2);__builtin_memcpy(&pb,&tpage,2);clut16=uint32_t(cb)<<16;tpage16=uint32_t(pb)<<16;}
-      }
-    }
+    // Texture words come cooked, as the GT3/GT4 packet takes them.
+    const bool textured=epok::baked_textured(face,textures_ready);
     const uint32_t command=epok::baked_command(face);
-    epok::BakedTextureWords uv{clut16|face.uv[0],tpage16|face.uv[1],uint32_t(face.uv[2])|(uint32_t(face.uv[3])<<16)};
+    epok::BakedTextureWords uv=epok::baked_texture_words<epok::display_interlaced,epok::dither_3d>(face);
     if(part==2)uv=epok::baked_second_half(uv);
     if(direct){
       // Decoded here, not shared with the clipped branch, so the corner colors
@@ -431,13 +422,13 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
       if constexpr(!epok::exact_near_clipping){EPOK_DETAIL_END(ordered_polygon,polygon_scanlines);continue;}
       uint32_t rgb[4];epok::baked_ordered_colors(face,part==2,epok::vertex_color_palette,rgb);
       QuadPacket material;
-      material.textured=textured;material.clut16=clut16;material.tpage16=tpage16;
+      material.textured=textured;material.clut16=uv.uv_clut&0xffff0000u;material.tpage16=uv.uv_tpage&0xffff0000u;
       material.command=command;material.gpu_colors=epok::baked_indexed_color(face);material.depth_bias=face.depth_bias;
       emitter.fixed_depth=monotone_depth;
       run.publish();
       uint32_t shaded[4];for(unsigned v=0;v<4;++v)shaded[v]=material.gpu_colors?rgb[v]:face.shaded;
-      if(quad)emitter.clipped<OrderedUnits,true>(projected[1],projected[2],projected[3],shaded[1],shaded[2],shaded[3],face.uv[1],face.uv[2],face.uv[3],material);
-      emitter.clipped<OrderedUnits,true>(projected[0],projected[1],projected[2],shaded[0],shaded[1],shaded[2],face.uv[first],face.uv[first+1],face.uv[first+2],material);
+      if(quad)emitter.clipped<OrderedUnits,true>(projected[1],projected[2],projected[3],shaded[1],shaded[2],shaded[3],epok::baked_uv(face,1),epok::baked_uv(face,2),epok::baked_uv(face,3),material);
+      emitter.clipped<OrderedUnits,true>(projected[0],projected[1],projected[2],shaded[0],shaded[1],shaded[2],epok::baked_uv(face,first),epok::baked_uv(face,first+1),epok::baked_uv(face,first+2),material);
       emitter.fixed_depth=-1;
       run.reload();
     }

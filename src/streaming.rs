@@ -404,7 +404,7 @@ pub fn compile_with_palette(scenes: &[Scene], pool_pages: usize, triangle_budget
                 }
                 for (face, (indices, index)) in chunk.faces.iter().enumerate() {
                     let q = &qs[*index];
-                    let (texture, placement) = if let Some(id) = q.material.texture {
+                    let (texture, placement, resolved) = if let Some(id) = q.material.texture {
                         let texture = ids
                             .iter()
                             .position(|candidate| *candidate == id)
@@ -418,13 +418,13 @@ pub fn compile_with_palette(scenes: &[Scene], pool_pages: usize, triangle_budget
                             .iter()
                             .find(|(candidate, _)| *candidate == id)
                             .ok_or("Streamed texture not placed")?;
-                        (texture, Some(p.1.page(t)))
+                        (texture, Some(p.1.page(t)), Some(crate::baked_draw::ResolvedTexture::new(p.1, t)))
                     } else {
-                        (-1, None)
+                        (-1, None, None)
                     };
                     let offset = start + quad_start + face * stride;
                     if baked {
-                        let encoded = crate::baked_draw::encode_with_palette(q, *indices, e, texture, placement, palette);
+                        let encoded = crate::baked_draw::encode_with_palette(q, *indices, e, resolved, palette);
                         bundle.bytes[offset..offset + stride].copy_from_slice(&encoded);
                     } else {
                         let encoded = encode_quad_with_palette(q, *indices, *index, texture, placement, palette);
@@ -937,7 +937,7 @@ mod tests {
             for (q,(indices,index)) in chunk.faces.iter().enumerate() {
                 let offset=base+q*crate::baked_draw::FACE_BYTES;
                 assert_eq!(&bundle.bytes[offset..offset+32],
-                    &crate::baked_draw::encode(&qs[*index],*indices,&scene.actors[0],-1,None));
+                    &crate::baked_draw::encode(&qs[*index],*indices,&scene.actors[0],None));
             }
         }
         let header=bundle.rewrite(0,&crate::project::scene_header(&scene,&[]).unwrap()).unwrap();

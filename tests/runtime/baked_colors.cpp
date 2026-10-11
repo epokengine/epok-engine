@@ -12,9 +12,9 @@ int main(){
     for(unsigned sample=0;sample<10000;++sample){
         face.color=sample<2?sample*0xffffffffu:next();
         face.shaded=sample<2?~face.color:next();
-        face.flags=uint16_t(next());
+        face.uv_tpage=next();
         for(unsigned indexed=0;indexed<2;++indexed){
-            face.flags=uint16_t((face.flags&~0x10u)|(indexed?0x10u:0));
+            face.uv_tpage=(face.uv_tpage&~epok::baked_face_indexed_color)|(indexed?epok::baked_face_indexed_color:0);
             for(unsigned part=0;part<4;++part){
                 uint32_t result[5]={0,0,0,0,0xdeadbeef};
                 epok::baked_ordered_colors(face,part==2,indexed?palette:nullptr,result);
