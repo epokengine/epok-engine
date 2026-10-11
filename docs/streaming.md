@@ -2,6 +2,8 @@
 
 **Experimental: a small pool can omit visible geometry; PCDrv reads can stall frames.**
 Geometry Streaming is disabled by default.
+See [World optimization techniques](world-optimization.md) for how streaming
+combines with the other build-time techniques.
 
 The Windows **Scene** authoring preview always loads the complete scene. Runtime
 streaming budgets, page residency and baked camera visibility lists do not hide
