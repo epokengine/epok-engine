@@ -183,6 +183,8 @@ static void frame(){
     write32(uint32_t(epok::object_count));write32(uint32_t(epok::authored_count));const auto camera=epok::active_camera();write32(camera?camera.index:0xffffffffu);
     write32(uint32_t(sink.commands.size()));write32(uint32_t(epok::requested_scene.size()));write32(uint32_t(epok::audio_events.size()));
     write32(s.rectangles);write32(s.glyphs);write32(s.texts);write32(s.images);write32(s.dropped);
+    // The visibility track sample whose list the console would draw this frame.
+    write32(epok::active_visibility_track&&epok::visibility_track_started?uint32_t(epok::visibility_page_selection.current):0xffffffffu);
     for(size_t i=0;i<epok::object_count;++i){const auto& o=epok::objects[i];write32(o.alive);write32(o.active);write32(uint32_t(o.parent));for(auto v:o.transform.position)write32(uint32_t(v.raw()));for(auto v:o.transform.rotation)write32(uint32_t(v.raw()));for(auto v:o.transform.scale)write32(uint32_t(v.raw()));write32(uint32_t(o.camera_settings.field_of_view.raw()));write32(uint32_t(o.animator.ticks));write32(uint32_t(o.animator.clip));write32((o.animator.enabled?1u:0u)|(o.animator.playing?2u:0u)|(o.animator.looping?4u:0u)|(o.camera_settings.mirror_x?8u:0u));}
     for(const auto& command:sink.commands)for(auto value:command.v)write32(uint32_t(value));
     for(const auto& event:epok::audio_events){write32(uint32_t(event.source));write32(uint32_t(uint64_t(event.source)>>32));write32(event.action);write32(uint32_t(event.clip));write32(uint32_t(event.volume));write32(uint32_t(event.pitch));}

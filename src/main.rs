@@ -1316,7 +1316,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // --bake-reuse-lists keeps the track's lists and only rebuilds the packet order.
         let lists = if args.iter().any(|a| a == "--bake-reuse-lists") {
             track.samples.iter().map(|s| s.visible.clone()).collect()
-        } else { visibility_bake::bake(&scene, &track, &options)? };
+        } else {
+            // Each --bake-recorded-cameras names a recording, or a folder of
+            // .jsonl recordings (such as .epok/camera-recordings).
+            let mut recorded = Vec::new();
+            for v in args.windows(2).filter(|v| v[0] == "--bake-recorded-cameras") {
+                let path = std::path::Path::new(&v[1]);
+                let files: Vec<std::path::PathBuf> = if path.is_dir() {
+                    let mut files: Vec<_> = std::fs::read_dir(path)?.filter_map(|e| e.ok().map(|e| e.path()))
+                        .filter(|p| p.extension().is_some_and(|x| x == "jsonl")).collect();
+                    files.sort();
+                    files
+                } else { vec![path.to_path_buf()] };
+                for file in files { recorded.extend(visibility_bake::CameraCheck::load(&file, &options)?); }
+            }
+            if !recorded.is_empty() { println!("Recorded cameras: {}", recorded.len()); }
+            visibility_bake::bake_with_cameras(&scene, &track, &options, &recorded)?
+        };
         let program = if scene.ordered_draw.is_some() || args.iter().any(|a| a == "--bake-ordered") {
             Some(visibility_bake::ordered_program(&scene, &track, &lists, &options)?)
         } else { None };
@@ -1356,21 +1372,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         }
         let start = Instant::now();
-        let baked = visibility_bake::bake(&scene, track, &options)?;
+        // --bake-reuse-lists reports on the track's own lists instead of baking.
+        let baked: Vec<Vec<u16>> = if args.iter().any(|a| a == "--bake-reuse-lists") {
+            track.samples.iter().map(|s| s.visible.clone()).collect()
+        } else {
+            // Each --bake-recorded-cameras names a recording, or a folder of
+            // .jsonl recordings (such as .epok/camera-recordings).
+            let mut recorded = Vec::new();
+            for v in args.windows(2).filter(|v| v[0] == "--bake-recorded-cameras") {
+                let path = std::path::Path::new(&v[1]);
+                let files: Vec<std::path::PathBuf> = if path.is_dir() {
+                    let mut files: Vec<_> = std::fs::read_dir(path)?.filter_map(|e| e.ok().map(|e| e.path()))
+                        .filter(|p| p.extension().is_some_and(|x| x == "jsonl")).collect();
+                    files.sort();
+                    files
+                } else { vec![path.to_path_buf()] };
+                for file in files { recorded.extend(visibility_bake::CameraCheck::load(&file, &options)?); }
+            }
+            if !recorded.is_empty() { println!("Recorded cameras: {}", recorded.len()); }
+            visibility_bake::bake_with_cameras(&scene, track, &options, &recorded)?
+        };
         let mut report = visibility_bake::compare(track, &baked);
         report["holes_between_samples"] = visibility_bake::holes(&scene, track, &baked, &options, &[0.25, 0.5, 0.75])?;
         // --bake-check-cameras <json>: {"cameras":[{"sample","basis","origin","row_scale"}]} in
         // runtime Q12 camera space (row_scale folds the projection into rows 0 and 1).
         if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-check-cameras") {
-            let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&v[1])?)?;
-            let q12 = |v: &serde_json::Value| v.as_f64().unwrap_or(0.) as f32 / 4096.;
-            let focal = (options.height * 2 / 3) as f32;
-            let cameras: Vec<_> = json["cameras"].as_array().ok_or("No cameras")?.iter().map(|c| visibility_bake::CameraCheck {
-                sample: c["sample"].as_u64().unwrap_or(0) as usize,
-                basis: std::array::from_fn(|r| std::array::from_fn(|k| q12(&c["basis"][r][k]))),
-                origin: std::array::from_fn(|k| q12(&c["origin"][k])),
-                scale: [focal * q12(&c["row_scale"][0]) / (options.width / 2) as f32, focal * q12(&c["row_scale"][1]) / (options.height / 2) as f32],
-            }).filter(|c| c.sample < baked.len()).collect();
+            let cameras = visibility_bake::CameraCheck::load(std::path::Path::new(&v[1]), &options)?;
             report["reference_cameras"] = visibility_bake::check_cameras(&scene, track, &baked, &cameras, &options)?;
         }
         report["seconds"] = serde_json::json!(start.elapsed().as_secs_f64());
@@ -1437,6 +1464,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .map(|v| root.join(&v[1]))
                 .map_or_else(|| workspace::startup_scene(&root), Ok)?;
             let native = args.iter().any(|a| a == "--play-native");
+            // --record-camera <file>: record each frame's rendered camera and
+            // visibility track sample for the visibility bake (JSON lines).
+            if let Some(v) = args.windows(2).find(|v| v[0] == "--record-camera") {
+                if !native { return Err("--record-camera needs --play-native".into()); }
+                let rendering = settings::rendering(&root)?;
+                native_play::record_cameras(Some(std::path::Path::new(&v[1])), [rendering.width, rendering.height])?;
+            }
             let mut scene = scene_dependencies::Input::load(&scene_path)?;
             if native {
                 let mut profile = play::Profile::load(&root).unwrap_or_default();
@@ -1510,7 +1544,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     started = Some(Instant::now());
                 }
                 Ok(pipeline::Event::SerialCommandPending(_)) => {}
-                Ok(pipeline::Event::Finished(result)) => return result.map_err(Into::into),
+                Ok(pipeline::Event::Finished(result)) => {
+                    if native_play::recorded_camera_frames() > 0 {
+                        println!("Recorded {} camera frames", native_play::recorded_camera_frames());
+                    }
+                    native_play::record_cameras(None, [0, 0])?;
+                    return result.map_err(Into::into);
+                }
                 Ok(pipeline::Event::Paused(_)) => {}
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
                 Err(e) => return Err(e.into()),

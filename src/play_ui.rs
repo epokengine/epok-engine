@@ -112,6 +112,13 @@ pub fn toolbar(ui: &imgui::Ui, e: &mut crate::editor::Editor) {
     }
     ui.popup("play-options", || {
         menu(ui, &mut profile, &e.root);
+        if profile.runtime == Runtime::NativePc && e.scene.visibility_track.is_some() {
+            ui.separator();
+            ui.checkbox("Record camera for visibility bake", &mut e.record_camera);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("While playing on Native PC, save the camera of every frame and its visibility track sample to .epok/camera-recordings/. Bake with --bake-visibility --bake-recorded-cameras <file>; several sessions cover more of the camera's freedom.");
+            }
+        }
         ui.separator();
         if ui.menu_item("PSX connection...") {
             crate::serial_ui::open(e);

@@ -70,8 +70,12 @@ def main():
     parser.add_argument("routes", type=Path)
     parser.add_argument("--header", type=Path, required=True)
     parser.add_argument("--summary", type=Path, required=True)
+    parser.add_argument("--all-passes", type=Path,
+                        help="Also write every matched pass's camera (not only the median) as JSON")
     args = parser.parse_args()
-    for path in (args.header, args.summary):
+    for path in (args.header, args.summary, args.all_passes):
+        if path is None:
+            continue
         if path.exists():
             parser.error(f"Refusing to overwrite {path}")
     profile = json.loads(args.original.read_text())
@@ -97,6 +101,16 @@ def main():
         if frame is None:
             continue
         passes.setdefault(matches[0], []).append((cycles, frame))
+    if args.all_passes:
+        every = []
+        for sample in sorted(passes):
+            for cycles, frame in passes[sample]:
+                row = rows[frame]
+                camera = epok_camera(reference_camera(row)) if row[ROW_CALLS] == 1 else None
+                if camera:
+                    every.append(dict(sample=sample, frame=frame, **camera))
+        args.all_passes.write_text(json.dumps(dict(scope="Every matched pass camera", cameras=every)), encoding="utf-8")
+        print(f"all passes: {len(every)} cameras over {len({c['sample'] for c in every})} samples")
     table, skipped, centres = [], dict(multi_pass_frame=0, unexpected_matrix=0), []
     for sample in sorted(passes):
         candidates = sorted(passes[sample])

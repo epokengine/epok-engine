@@ -15,7 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const MAGIC: u32 = 0x314e_5045;
+const MAGIC: u32 = 0x324e_5045; // "EPN2"
 const ACTOR_WORDS: usize = 16;
 const AUDIO_WORDS: usize = 6;
 const AUDIO_LIMIT: u32 = 256;
@@ -57,6 +57,8 @@ pub struct Frame {
     pub stats: [u32; 5],
     pub audio_voices: u32,
     pub audio_pending: u32,
+    /// Active visibility track sample, when a track is playing.
+    pub track_sample: Option<u32>,
 }
 // Runtime projection uses width/2 horizontally and height*2/3 vertically.
 // Their normalized ratio is 4:3 for every supported video mode, irrespective
@@ -133,6 +135,7 @@ struct Packet {
     audio: Vec<AudioEvent>,
     requested_scene: String,
     stats: [u32; 5],
+    track_sample: Option<u32>,
 }
 
 fn word(input: &mut impl Read) -> Result<u32, String> {
@@ -162,6 +165,10 @@ fn read_packet(input: &mut impl Read) -> Result<Packet, String> {
     for value in &mut stats {
         *value = word(input)?;
     }
+    let track_sample = match word(input)? {
+        u32::MAX => None,
+        value => Some(value),
+    };
     if actor_count > 1024
         || authored_count > actor_count
         || command_count > 2560
@@ -227,6 +234,7 @@ fn read_packet(input: &mut impl Read) -> Result<Packet, String> {
         audio,
         requested_scene: String::from_utf8_lossy(&text).into_owned(),
         stats,
+        track_sample,
     })
 }
 
@@ -286,6 +294,65 @@ fn apply(
         stats: packet.stats,
         audio_voices: audio_voices as u32,
         audio_pending: audio_pending as u32,
+        track_sample: packet.track_sample,
+    }
+}
+
+/// Camera recording for the visibility bake: while set, every Native PC Play
+/// frame with an active visibility track appends the rendered camera, in the
+/// runtime's Q12 camera space, as one JSON line (see visibility_bake).
+pub struct CameraRecorder {
+    file: std::io::BufWriter<std::fs::File>,
+    display: [u16; 2],
+    pub frames: usize,
+}
+static RECORDER: Mutex<Option<CameraRecorder>> = Mutex::new(None);
+/// Starts recording into `path` (replacing it), or stops with `None`.
+pub fn record_cameras(path: Option<&Path>, display: [u16; 2]) -> Result<(), String> {
+    let mut recorder = RECORDER.lock().unwrap();
+    if let Some(mut old) = recorder.take() {
+        old.file.flush().map_err(|e| e.to_string())?;
+    }
+    if let Some(path) = path {
+        let file = std::fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        *recorder = Some(CameraRecorder { file: std::io::BufWriter::new(file), display, frames: 0 });
+    }
+    Ok(())
+}
+pub fn recorded_camera_frames() -> usize {
+    RECORDER.lock().unwrap().as_ref().map_or(0, |r| r.frames)
+}
+impl Frame {
+    /// The camera as the runtime renders it: basis rows (right, up, forward)
+    /// and origin from the camera's world transform, and row_scale folding the
+    /// projection (horizontal FOV across the display, mirror) into rows 0, 1.
+    pub fn runtime_camera(&self, display: [u16; 2]) -> Option<serde_json::Value> {
+        let index = self.camera.filter(|i| *i < self.scene.actors.len())?;
+        let sample = self.track_sample?;
+        let camera = &self.scene.actors[index];
+        let world = self.scene.world_matrix(index);
+        // Exactly the runtime's camera space, including a camera scale (which
+        // scales depth, and so the runtime's near and far limits).
+        let basis = world.inverse().ok()?;
+        let cot = 1. / (camera.camera_fov.clamp(25., 120.).to_radians() * 0.5).tan();
+        let horizontal = f32::from(display[0]) / 2. / (f32::from(display[1]) * 2. / 3.);
+        let q12 = |v: f32| (v * 4096.).round() as i64;
+        Some(serde_json::json!({
+            "sample": sample, "frame": self.number,
+            "basis": (0..3).map(|r| (0..3).map(|c| q12(basis.0[r][c])).collect::<Vec<_>>()).collect::<Vec<_>>(),
+            "origin": (0..3).map(|r| q12(world.0[r][3])).collect::<Vec<_>>(),
+            "row_scale": [q12(cot * horizontal * if camera.camera_mirror_x { -1. } else { 1. }), q12(cot)],
+        }))
+    }
+}
+fn record_frame(frame: &Frame) {
+    let mut recorder = RECORDER.lock().unwrap();
+    let Some(recorder) = recorder.as_mut() else { return };
+    if let Some(camera) = frame.runtime_camera(recorder.display) {
+        if writeln!(recorder.file, "{camera}").is_ok() {
+            recorder.frames += 1;
+            if recorder.frames % 60 == 0 { let _ = recorder.file.flush(); }
+        }
     }
 }
 
@@ -719,6 +786,7 @@ pub fn execute(
             audio_pending,
         );
         let frame_number = frame.number;
+        record_frame(&frame);
         bridge.state.lock().unwrap().frame = Some(Arc::new(frame));
         if !requested.is_empty() {
             return Err(format!(
@@ -784,7 +852,7 @@ mod tests {
     #[test]
     fn packet_bounds_are_rejected_before_allocation() {
         let mut bytes = Vec::new();
-        for value in [MAGIC, 0, 0, 2048, 0, u32::MAX, 0, 0, 0, 0, 0, 0, 0, 0] {
+        for value in [MAGIC, 0, 0, 2048, 0, u32::MAX, 0, 0, 0, 0, 0, 0, 0, 0, u32::MAX] {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
         assert!(read_packet(&mut &bytes[..]).unwrap_err().contains("bounds"));
@@ -792,7 +860,7 @@ mod tests {
     #[test]
     fn actor_animation_state_round_trips_through_the_protocol() {
         let mut bytes = Vec::new();
-        for value in [MAGIC, 7, 0, 1, 1, u32::MAX, 0, 0, 1, 0, 0, 0, 0, 0] {
+        for value in [MAGIC, 7, 0, 1, 1, u32::MAX, 0, 0, 1, 0, 0, 0, 0, 0, 12] {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
         for value in [
@@ -819,6 +887,7 @@ mod tests {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
         let packet = read_packet(&mut &bytes[..]).unwrap();
+        assert_eq!(packet.track_sample, Some(12));
         let actor = &packet.actors[0];
         assert_eq!(actor.animation_ticks, 18);
         assert_eq!(actor.animation_clip, 3);

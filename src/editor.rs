@@ -197,6 +197,9 @@ pub struct Editor {
     restart_target: Option<(bool, bool)>,
     native_play_cache: Option<(String, PathBuf)>,
     native_play_request: Option<String>,
+    /// Record the rendered camera during Native PC Play for the visibility
+    /// bake (Play options). Recordings go to .epok/camera-recordings/.
+    pub record_camera: bool,
     pub search: String,
     pub close_requested: bool,
     pub should_close: bool,
@@ -750,6 +753,7 @@ impl Editor {
             native_frame: None,
             native_play_cache: None,
             native_play_request: None,
+            record_camera: false,
             game_error: None,
             focus_game: false,
             game_capture: false,
@@ -2313,6 +2317,17 @@ impl Editor {
             input.native_play_catalog = Some(self.catalog.clone());
             input.native_play_assets = Some(self.assets.index.clone());
             self.native_play_request = Some(key);
+            if self.record_camera && self.scene.visibility_track.is_some() {
+                let stem = self.scene_path().file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+                let seconds = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+                let path = self.root.join(".epok/camera-recordings").join(format!("{stem}-{seconds}.jsonl"));
+                let display = [self.scene.display_size[0], self.scene.display_size[1]];
+                match std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())
+                    .and_then(|_| crate::native_play::record_cameras(Some(&path), display)) {
+                    Ok(()) => self.log(format!("Recording the camera for the visibility bake: {}", path.display())),
+                    Err(error) => self.log(format!("Camera recording unavailable: {error}")),
+                }
+            }
         }
         self.active_play_runtime = self.play_profile.runtime;
         self.active_play_target = self.play_profile.target;
@@ -2987,6 +3002,11 @@ impl Editor {
                 }
                 Event::Finished(result) => {
                     self.serial_ui.command_pending = false;
+                    let frames = crate::native_play::recorded_camera_frames();
+                    if frames > 0 {
+                        self.log(format!("Camera recording finished: {frames} frames"));
+                    }
+                    let _ = crate::native_play::record_cameras(None, [0, 0]);
                     self.external_watch.request_refresh();
                     if std::mem::take(&mut self.memory.pending) {
                         self.memory.open = true;

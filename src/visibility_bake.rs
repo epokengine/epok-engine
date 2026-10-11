@@ -40,13 +40,17 @@ pub struct Options {
     /// Widen the baked view by this fraction in both directions (0.2 = 20%),
     /// for cameras that turn away from the recorded path (aiming rigs).
     pub view_margin: f32,
+    /// World units per runtime camera-space unit along the view (the track
+    /// camera's scale): `near` and `far` are runtime camera units. Set by
+    /// `bake` from the scene.
+    pub depth_scale: f32,
 }
 impl Default for Options {
     fn default() -> Self {
         // Near and far match the runtime's mesh camera units (0.25 and 128 world
         // units); the far limit is also the default geometry draw distance.
         Self { width: 512, height: 240, scale: 4, substeps: 4, near: 0.25, far: 128., see_through: 0.05,
-            refine_pixels: 2., refine_depth: 6, order_step: 0.5, fill_gaps: 2, view_margin: 0. }
+            refine_pixels: 2., refine_depth: 6, order_step: 0.5, fill_gaps: 2, view_margin: 0., depth_scale: 1. }
     }
 }
 
@@ -87,8 +91,8 @@ impl Pose {
         let widen = 1. + options.view_margin.max(0.);
         out[12] = horizontal / widen;
         out[13] = horizontal * 4. / 3. / widen;
-        out[14] = options.near;
-        out[15] = options.far;
+        out[14] = options.near * options.depth_scale;
+        out[15] = options.far * options.depth_scale;
         Ok(out)
     }
 }
@@ -390,6 +394,21 @@ impl Gpu {
 /// Visible face indices (into `track.faces`) for every sample: the faces seen
 /// from the sample's pose or any of `substeps` poses toward the next sample.
 pub fn bake(scene: &Scene, track: &Track, options: &Options) -> Result<Vec<Vec<u16>>, String> {
+    bake_with_cameras(scene, track, options, &[])
+}
+/// As `bake`, adding for each sample what the recorded cameras assigned to
+/// it saw (for example camera poses recorded while playing).
+/// The track camera's scale along its view axis (see `Options::depth_scale`).
+pub fn camera_depth_scale(scene: &Scene, track: &Track) -> f32 {
+    scene.actors.iter().position(|a| a.id == track.camera).map_or(1., |i| {
+        let m = scene.world_matrix(i);
+        (0..3).map(|r| m.0[r][2] * m.0[r][2]).sum::<f32>().sqrt().max(1e-6)
+    })
+}
+pub fn bake_with_cameras(scene: &Scene, track: &Track, options: &Options, recorded: &[CameraCheck]) -> Result<Vec<Vec<u16>>, String> {
+    let options = &Options { depth_scale: camera_depth_scale(scene, track), ..options.clone() };
+    let mut by_sample: HashMap<usize, Vec<&CameraCheck>> = HashMap::new();
+    for camera in recorded { by_sample.entry(camera.sample).or_default().push(camera); }
     let (occluders, all) = geometry(scene, track, options.see_through);
     let gpu = Gpu::new(options, track.faces.len(), &occluders, &all)?;
     let (poses, next) = poses(track);
@@ -434,6 +453,10 @@ pub fn bake(scene: &Scene, track: &Track, options: &Options) -> Result<Vec<Vec<u
                 union.extend(current.keys());
                 previous = (t, current);
             }
+        }
+        for camera in by_sample.get(&i).into_iter().flatten() {
+            gpu.render_uniform(camera.uniform(options), true)?;
+            union.extend(gpu.read(faces)?);
         }
         out.push(union.into_iter().collect());
     }
@@ -560,6 +583,7 @@ pub fn diagnose_differences(scene: &Scene, track: &Track, sample: usize, options
 /// (which a sample's list must cover while the camera moves), the faces truly
 /// visible there that each set of lists lacks.
 pub fn holes(scene: &Scene, track: &Track, baked: &[Vec<u16>], options: &Options, fractions: &[f32]) -> Result<serde_json::Value, String> {
+    let options = &Options { depth_scale: camera_depth_scale(scene, track), ..options.clone() };
     let (occluders, all) = geometry(scene, track, options.see_through);
     let gpu = Gpu::new(options, track.faces.len(), &occluders, &all)?;
     let (poses, next) = poses(track);
@@ -658,6 +682,25 @@ mod tests {
         assert!(visible.iter().any(|&f| usize::from(f) >= front_faces), "{visible:?}");
         // Blended faces never occlude, so the far side of the front cube shows too.
         assert!(visible.iter().filter(|&&f| usize::from(f) < front_faces).count() > 1);
+    }
+    #[test]
+    fn recorded_cameras_load_from_json_lines_and_match_the_track_projection() {
+        // A recorded camera equal to the track pose bakes the same list.
+        let (scene, track, _) = scene_with(BlendMode::Cutout);
+        let options = Options { scale: 1, substeps: 0, ..Default::default() };
+        let cot = 1. / (60f32.to_radians() / 2.).tan();
+        let line = serde_json::json!({"sample": 0, "frame": 3, "basis": [[4096, 0, 0], [0, 4096, 0], [0, 0, 4096]],
+            "origin": [0, 0, 0], "row_scale": [(cot * 256. / 160. * 4096.).round(), (cot * 4096.).round()]});
+        let path = std::env::temp_dir().join(format!("epok-cameras-{}.jsonl", uuid::Uuid::new_v4()));
+        std::fs::write(&path, format!("{line}\n{line}\n")).unwrap();
+        let cameras = CameraCheck::load(&path, &options).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(cameras.len(), 2);
+        let from_track = bake(&scene, &track, &options).unwrap();
+        let mut empty = track.clone();
+        empty.samples[0].visible.clear();
+        let check = check_cameras(&scene, &empty, &from_track, &cameras, &options).unwrap();
+        assert_eq!(check["lists"]["missing_faces"], 0, "{check}");
     }
     #[test]
     fn poses_stop_at_cuts_and_interpolate_angles_the_short_way() {
@@ -862,6 +905,43 @@ pub struct CameraCheck {
     pub scale: [f32; 2],
 }
 
+impl CameraCheck {
+    fn uniform(&self, options: &Options) -> [f32; 16] {
+        let mut u = [0f32; 16];
+        for r in 0..3 {
+            for c in 0..3 { u[r * 4 + c] = self.basis[r][c]; }
+            u[r * 4 + 3] = -(0..3).map(|c| self.basis[r][c] * self.origin[c]).sum::<f32>();
+        }
+        let widen = 1. + options.view_margin.max(0.);
+        u[12] = self.scale[0] / widen; u[13] = self.scale[1] / widen; u[14] = options.near; u[15] = options.far;
+        u
+    }
+    /// Runtime Q12 camera space as JSON {"sample","basis","origin","row_scale"}.
+    pub fn from_json(c: &serde_json::Value, options: &Options) -> Self {
+        let q12 = |v: &serde_json::Value| v.as_f64().unwrap_or(0.) as f32 / 4096.;
+        let focal = (options.height * 2 / 3) as f32;
+        Self {
+            sample: c["sample"].as_u64().unwrap_or(0) as usize,
+            basis: std::array::from_fn(|r| std::array::from_fn(|k| q12(&c["basis"][r][k]))),
+            origin: std::array::from_fn(|k| q12(&c["origin"][k])),
+            scale: [focal * q12(&c["row_scale"][0]) / (options.width / 2) as f32,
+                focal * q12(&c["row_scale"][1]) / (options.height / 2) as f32],
+        }
+    }
+    /// A JSON file {"cameras":[...]}, or JSON lines with one camera each (as
+    /// Native PC Play records them with --record-camera).
+    pub fn load(path: &std::path::Path, options: &Options) -> Result<Vec<Self>, String> {
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        if text.trim_start().starts_with("{\"cameras\"") || text.trim_start().starts_with("{\"scope\"") {
+            let json: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+            return Ok(json["cameras"].as_array().ok_or("No cameras in the camera file")?.iter().map(|c| Self::from_json(c, options)).collect());
+        }
+        text.lines().filter(|l| !l.trim().is_empty())
+            .map(|l| serde_json::from_str::<serde_json::Value>(l).map(|c| Self::from_json(&c, options)).map_err(|e| e.to_string()))
+            .collect()
+    }
+}
+
 /// Hole check with explicit cameras (for example the cameras a game actually
 /// used): faces truly visible from each camera that the sample's list lacks,
 /// in faces and display pixels, for the given lists and the track's own.
@@ -871,14 +951,11 @@ pub fn check_cameras(scene: &Scene, track: &Track, lists: &[Vec<u16>], cameras: 
     let area = f64::from(options.scale * options.scale);
     let (mut faces_lists, mut faces_track, mut pixels_lists, mut pixels_track, mut checked) = (0usize, 0usize, 0f64, 0f64, 0usize);
     let (mut worst_lists, mut worst_track) = ((0usize, 0f64), (0usize, 0f64));
+    // Checks see exactly what each camera sees: no view margin.
+    let exact = Options { view_margin: 0., ..options.clone() };
     for camera in cameras {
-        let mut u = [0f32; 16];
-        for r in 0..3 {
-            for c in 0..3 { u[r * 4 + c] = camera.basis[r][c]; }
-            u[r * 4 + 3] = -(0..3).map(|c| camera.basis[r][c] * camera.origin[c]).sum::<f32>();
-        }
-        u[12] = camera.scale[0]; u[13] = camera.scale[1]; u[14] = options.near; u[15] = options.far;
-        gpu.render_uniform(u, true)?;
+        if camera.sample >= lists.len() { continue; }
+        gpu.render_uniform(camera.uniform(&exact), true)?;
         let truth = gpu.read_pixels(track.faces.len())?;
         checked += truth.len();
         for (list, faces, pixels, worst) in [

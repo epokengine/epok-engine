@@ -134,6 +134,26 @@ the baked view, for cameras that turn away from the recorded path; 0) and
 those a game actually used: `{"cameras":[{"sample","basis","origin",
 "row_scale"}]}` in runtime Q12 camera space.
 
+#### Recording the camera while playing
+
+Lists baked from recorded camera poses follow the camera the game really
+renders, including aiming rigs. In **Play options**, with Native PC selected
+and a scene with a visibility track, enable **Record camera for visibility
+bake**: every frame's camera, in the runtime's camera space, and the active
+visibility track sample are written as JSON lines to
+`.epok/camera-recordings/<scene>-<time>.jsonl`. From the command line,
+`--play-native --record-camera <file> [--stop-after <seconds>]` does the same.
+Native PC Play runs the same rail and aim controllers as the console with
+every page ready, and records the camera the console would render (to within
+the console's fixed-point FOV).
+
+`--bake-visibility --bake-recorded-cameras <file or folder>` (repeatable)
+adds, for each sample, what every recorded camera of that sample saw; a small
+`--bake-view-margin` (0.1) covers poses between recorded sessions. On the
+study scene, lists baked from two thirds of the cameras of a recorded demo
+lacked 8.6 display pixels per view for the remaining third (0.4 with a 10%
+margin, largest single view 14 pixels), at 1,070 (1,168) faces per sample.
+
 A list is only as good as the poses it is baked from. A camera that aims at
 a moving target turns away from the recorded path: on the study scene, real
 cameras saw about 3,000 display pixels per view that lists baked from the

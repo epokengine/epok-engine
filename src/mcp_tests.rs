@@ -25,7 +25,7 @@ fn editor_state_exposes_native_frames_without_emulator_counters() {
     e.native_frame = Some(std::sync::Arc::new(crate::native_play::Frame {
         scene: e.scene.clone(), number: 37, buttons: 2048, actor_count: 46,
         camera: Some(3), hud_rgba: vec![], hud_size: [512, 240], stats: [0; 5],
-        audio_voices: 0, audio_pending: 0,
+        audio_voices: 0, audio_pending: 0, track_sample: None,
     }));
     let reply = mcp_tools::execute(&mut e, &mut state, "editor_state", json!({})).unwrap();
     assert!(reply["game_frame"].is_null());

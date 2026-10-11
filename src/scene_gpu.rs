@@ -1662,7 +1662,7 @@ mod tests {
             hud_size: size.map(u32::from),
             stats: [0; 5],
             audio_voices: 0,
-            audio_pending: 0,
+            audio_pending: 0, track_sample: None,
         }
     }
 
