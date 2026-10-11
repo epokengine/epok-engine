@@ -97,6 +97,26 @@ explicit opt-in: covered actors must stay static at runtime, since their
 runtime transforms are no longer applied, and mesh vertex queries on them
 answer in world space only. Off by default; without it the cook is unchanged.
 
+#### Automatic visibility bake (experimental, report only)
+
+`--bake-visibility-report --scene <scene>` computes every sample's visible
+face list on the GPU and compares it with the lists the scene holds, without
+changing the scene. For each sample it renders the scene from the sample's
+camera, with the runtime's projection (horizontal FOV across the display, the
+mesh camera's 0.25 to 128 unit range), and from poses up to the next
+continuous sample: evenly spaced (`--bake-substeps`, default 4) and then
+halved wherever a face of at least 2 display pixels appears or disappears.
+A face counts as visible when one of its pixels is not behind an opaque face.
+Blended faces and cut-out faces whose covered texels are more than 5%
+transparent (`--bake-see-through`) never hide what is behind them. Rendering
+runs at 4x the display resolution (`--bake-scale`).
+
+The report also checks the result between samples: at a quarter, half and
+three quarters of the way to the next sample it renders the exact visible set
+and counts the faces, and their display pixels, that each sample's list lacks.
+`--report <file>` writes the JSON report; `--bake-diagnose <sample>` prints
+where one sample's differing faces lie.
+
 Without `navigation`, this is automatic diagnostic playback. It does not
 reproduce a source game's original polygon ordering. Texture animation,
 resource-list scheduling, collision and gameplay need separate integrations.

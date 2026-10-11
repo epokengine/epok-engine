@@ -182,7 +182,11 @@ Every renderer change above was checked the same way; keep doing so:
 ## Open items
 
 - Visibility tracks and packet-order programs are imported, not authored in
-  the editor.
+  the editor. An automatic GPU visibility bake exists as a report
+  (`--bake-visibility-report`); on the study scene its lists lack 0.1 display
+  pixels per view on average between samples (largest missing face 14
+  pixels) and take about 6.5 minutes for 1,650 samples. Writing the lists,
+  generating the draw order and recording the camera path come next.
 - The views where Epok remains slowest (1.1 to 1.15x the reference) spend
   more time per polygon walking the list and emitting packets.
 - A face touching the camera can leave a one-pixel edge artifact at the screen
