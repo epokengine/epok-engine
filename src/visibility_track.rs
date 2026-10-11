@@ -27,6 +27,11 @@ pub struct Track {
     pub samples: Vec<Sample>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub navigation: Option<crate::rail_navigation::Navigation>,
+    /// Explicit opt-in: tracked baked scenery is cooked in world space and
+    /// drawn with the camera's matrix, so meshes of different actors meet
+    /// without seams. Their runtime transforms no longer move them.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub static_world: bool,
 }
 fn default_cull() -> bool {
     true
@@ -402,7 +407,7 @@ mod tests {
             navigation: None,
             camera: scene.actors[0].id,
             sample_ms: 100,
-            cull_backfaces: false,
+            cull_backfaces: false, static_world: false,
             faces,
             samples: vec![
                 Sample {

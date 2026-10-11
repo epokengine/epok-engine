@@ -80,6 +80,7 @@ struct MeshGeometry {
   uint32_t stream_page = UINT32_MAX;
   uint16_t stream_vertex_offset = 0, stream_quad_offset = 8;
   const MeshGeometry *next = nullptr;
+  int32_t origin[3] = {};
 };
 enum class CoordinateSpace:uint32_t { Model=0, World=1 };
 enum class MeshDataState:uint32_t { Unavailable=0, Pending=1, Ready=2, Failed=3 };

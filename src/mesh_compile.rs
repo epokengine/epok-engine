@@ -139,6 +139,64 @@ pub(crate) fn encode_chunks(
     });
     Ok(())
 }
+/// A local mesh point in world space, rounded once to Q12. The ordered draw
+/// and static-world cooks share it, so coincident corners of different
+/// actors land on the same Q12 point.
+pub fn world_q12(transform: &crate::transform::Matrix, point: [f32; 3]) -> Result<[i32; 3], String> {
+    let mut out = [0; 3];
+    for axis in 0..3 {
+        let world = f64::from(transform.0[axis][3])
+            + (0..3).map(|c| f64::from(transform.0[axis][c]) * f64::from(point[c])).sum::<f64>();
+        let fixed = (world * 4096.).round();
+        if !fixed.is_finite() || fixed < f64::from(i32::MIN) || fixed > f64::from(i32::MAX) {
+            return Err("World coordinate exceeds Q12 range".into());
+        }
+        out[axis] = fixed as i32;
+    }
+    Ok(out)
+}
+/// A cooked chunk's vertices moved to world space: same vertex order, faces
+/// and indices, so visibility bits and topology are unchanged. Each vertex is
+/// computed from the authored point (not the local Q12 rounding). The origin
+/// is snapped to Q8 like a local chunk's.
+pub struct WorldChunk {
+    pub vertices: Vec<[i32; 3]>,
+    pub origin: [i32; 3],
+    pub center: [i32; 3],
+    pub extent: [i32; 3],
+}
+pub fn world_chunk(doc: &Document, transform: &crate::transform::Matrix, chunk: &Chunk) -> Result<WorldChunk, String> {
+    let mut world = vec![None; chunk.vertices.len()];
+    for (indices, face) in &chunk.faces {
+        let raw = doc.points(doc.faces.get(*face).ok_or("Static world face out of range")?);
+        for (corner, &vertex) in indices.iter().enumerate() {
+            let slot = &mut world[usize::from(vertex)];
+            if slot.is_none() {
+                *slot = Some(world_q12(transform, raw[corner])?);
+            }
+        }
+    }
+    let world: Vec<[i32; 3]> = world.into_iter().collect::<Option<_>>().ok_or("Static world vertex without a face")?;
+    let mut low = [i32::MAX; 3];
+    let mut high = [i32::MIN; 3];
+    for v in &world {
+        for c in 0..3 { low[c] = low[c].min(v[c]); high[c] = high[c].max(v[c]); }
+    }
+    let origin: [i32; 3] = std::array::from_fn(|c| {
+        ((i64::from(low[c]) + i64::from(high[c])) / 2).div_euclid(16) as i32 * 16
+    });
+    let vertices: Vec<[i32; 3]> = world.iter().map(|v| std::array::from_fn(|c| v[c] - origin[c])).collect();
+    let (mut low, mut high) = ([i32::MAX; 3], [i32::MIN; 3]);
+    for v in &vertices {
+        for c in 0..3 { low[c] = low[c].min(v[c]); high[c] = high[c].max(v[c]); }
+    }
+    Ok(WorldChunk {
+        vertices,
+        origin,
+        center: std::array::from_fn(|c| ((i64::from(high[c]) + i64::from(low[c])) / 2) as i32),
+        extent: std::array::from_fn(|c| ((i64::from(high[c]) - i64::from(low[c]) + 1) / 2) as i32),
+    })
+}
 /// Texture page geometry (width, height, VRAM y) used to bake 8-bit page UVs.
 pub type PageLookup<'a> = &'a dyn Fn(uuid::Uuid) -> Option<crate::texture_cook::Page>;
 #[cfg(test)]

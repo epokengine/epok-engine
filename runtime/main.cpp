@@ -497,9 +497,12 @@ __attribute__((noinline,optimize("O3"))) void draw_baked_complex(
     }
     const uint16_t uv[4]={epok::baked_uv(face,0),epok::baked_uv(face,1),epok::baked_uv(face,2),epok::baked_uv(face,3)};
     if(first==1)emitter.direct(a,b,c,final[0],final[1],final[2],uv[0],uv[1],uv[2],packet);
-    else if(first==2)emitter.clipped(a,b,c,shaded[0],shaded[1],shaded[2],uv[0],uv[1],uv[2],packet);
+    // Corners in front of the near plane keep the screen position every
+    // neighbouring face uses (GTE, or the CPU for a GTE-flagged corner); only
+    // new intersections are projected by the clipper. No seam at clip edges.
+    else if(first==2)emitter.clipped<Units,true>(a,b,c,shaded[0],shaded[1],shaded[2],uv[0],uv[1],uv[2],packet);
     if(second==1)emitter.direct(a,c,d,final[0],final[2],final[3],uv[0],uv[2],uv[3],packet);
-    else if(second==2)emitter.clipped(a,c,d,shaded[0],shaded[2],shaded[3],uv[0],uv[2],uv[3],packet);
+    else if(second==2)emitter.clipped<Units,true>(a,c,d,shaded[0],shaded[2],shaded[3],uv[0],uv[2],uv[3],packet);
   }
 }
 // Triangles are the common compiled primitive. Keep their loop small enough
@@ -541,12 +544,34 @@ __attribute__((noinline,optimize("O3"))) void draw_baked_faces(
     emitter.direct(a,b,c,ca,cb,cc,epok::baked_uv(face,0),epok::baked_uv(face,1),epok::baked_uv(face,2),packet);
   }
 }
+// Camera matrix for static-world chunks, built as the ordered pass builds it:
+// GTE inputs are world Q8 relative to the camera's Q8 lattice point and the
+// translation carries the exact residual. Every chunk of every static-world
+// actor then shares one matrix, so their common corners project identically.
+struct StaticWorldView {
+  Matrix matrix;int32_t base_offset[3];int32_t base_translation[3];bool valid=false;
+};
+StaticWorldView static_world_view(const epok::CameraSpace<Fixed>& view,const Fixed* row_scale) {
+  StaticWorldView out;out.matrix=view.basis;
+  int32_t origin[3];Fixed residual[3],translation[3];
+  for(unsigned c=0;c<3;++c){
+    const auto q8=view.origin[c].raw()>>4;origin[c]=q8*16;out.base_offset[c]=-q8;
+    residual[c]=Fixed(origin[c]-view.origin[c].raw(),Fixed::RAW);
+  }
+  out.matrix.point(residual,translation);
+  for(unsigned r=0;r<3;++r)out.matrix.values[r][3]=translation[r];
+  for(unsigned r=0;r<2;++r)for(unsigned c=0;c<4;++c)out.matrix.values[r][c]*=row_scale[r];
+  for(unsigned r=0;r<3;++r)out.base_translation[r]=out.matrix.values[r][3].raw()>>4;
+  out.valid=true;
+  return out;
+}
 template<class WorkingSet>
 __attribute__((noinline,optimize("O3"))) void draw_baked_object(
     const epok::ActorData& object,const Matrix& object_view,PolygonEmitter& emitter,
     epok::StreamPageCursor& cursor,const WorkingSet& pages,psyqo::GPU& gpu,
-    ProjectedVertex* ram) {
+    ProjectedVertex* ram,const StaticWorldView* world=nullptr) {
   bool matrix_loaded=epok::load_projection_matrix(object_view);
+  bool world_translation_moved=false;
   const bool object_gte=matrix_loaded;
   emitter.editable=epok::active_visibility_track->cull_backfaces;
   for(auto* mesh=object.geometry;mesh;mesh=mesh->next){
@@ -567,22 +592,56 @@ __attribute__((noinline,optimize("O3"))) void draw_baked_object(
     const auto* selected=selection.vertices;const auto count=selection.count;
     auto* projected=mesh->vertex_count<=scratch_vertex_capacity?projection_scratch.full:ram;
     int32_t origin[3]={mesh->origin[0]>>4,mesh->origin[1]>>4,mesh->origin[2]>>4};
-    bool shared=object_gte;
-    for(int c=0;c<3;++c)if(origin[c]>epok::gte_shared_origin_limit||origin[c]<-epok::gte_shared_origin_limit)shared=false;
-    if(payload.vertices.wide()&&!epok::gte_vertex_bounds_fit(origin,mesh->center,mesh->extent))shared=false;
     Matrix chunk_view;
 #ifdef EPOK_VALIDATE_GTE
     Matrix reference_view=object_view;
-    for(int r=0;r<3;++r)for(int c=0;c<3;++c)
-      reference_view.values[r][3]+=reference_view.values[r][c]*Fixed(mesh->origin[c],Fixed::RAW);
 #endif
-    bool gte;
-    if(shared){if(!matrix_loaded)matrix_loaded=epok::load_projection_matrix(object_view);gte=matrix_loaded;}
-    else {
-      chunk_view=object_view;
-      for(int r=0;r<3;++r)for(int c=0;c<3;++c)chunk_view.values[r][3]+=chunk_view.values[r][c]*Fixed(mesh->origin[c],Fixed::RAW);
-      origin[0]=origin[1]=origin[2]=0;gte=epok::load_projection_matrix(chunk_view);matrix_loaded=false;
-      if(payload.vertices.wide()&&!epok::gte_vertex_bounds_fit(origin,mesh->center,mesh->extent))gte=false;
+    bool gte=false;
+    if(world&&(mesh->editable&epok::mesh_static_world)){
+      // Cooked origins are Q8-aligned, so origin>>4 + local>>4 is exactly the
+      // world Q8 point; offsetting by the camera's lattice point keeps it exact.
+      for(int c=0;c<3;++c)origin[c]+=world->base_offset[c];
+      if(object_gte&&epok::gte_vertex_bounds_fit(origin,mesh->center,mesh->extent)){
+        if(world_translation_moved){epok::load_projection_translation(world->base_translation);world_translation_moved=false;}
+        gte=true;
+      }else if(object_gte){
+        // Far from the camera: move the lattice by whole 4096-Q8 steps with
+        // the exact integer translation, as the ordered pass re-anchors.
+        int32_t center[3],offset[3],translation[3];
+        for(int c=0;c<3;++c)center[c]=(mesh->origin[c]>>4)+(mesh->center[c]>>4);
+        if(epok::ordered_projection_anchor(world->matrix,world->base_offset,center,offset,translation)){
+          for(int c=0;c<3;++c)origin[c]=(mesh->origin[c]>>4)+offset[c];
+          if(epok::gte_vertex_bounds_fit(origin,mesh->center,mesh->extent)){
+            epok::load_projection_translation(translation);world_translation_moved=true;gte=true;
+          }
+        }
+      }
+      if(!gte){
+        chunk_view=world->matrix;
+        for(int r=0;r<3;++r)for(int c=0;c<3;++c)
+          chunk_view.values[r][3]+=chunk_view.values[r][c]*Fixed(mesh->origin[c]+world->base_offset[c]*16,Fixed::RAW);
+        origin[0]=origin[1]=origin[2]=0;
+      }
+#ifdef EPOK_VALIDATE_GTE
+      reference_view=world->matrix;
+      for(int r=0;r<3;++r)for(int c=0;c<3;++c)
+        reference_view.values[r][3]+=reference_view.values[r][c]*Fixed(mesh->origin[c]+world->base_offset[c]*16,Fixed::RAW);
+#endif
+    }else{
+      bool shared=object_gte;
+      for(int c=0;c<3;++c)if(origin[c]>epok::gte_shared_origin_limit||origin[c]<-epok::gte_shared_origin_limit)shared=false;
+      if(payload.vertices.wide()&&!epok::gte_vertex_bounds_fit(origin,mesh->center,mesh->extent))shared=false;
+#ifdef EPOK_VALIDATE_GTE
+      for(int r=0;r<3;++r)for(int c=0;c<3;++c)
+        reference_view.values[r][3]+=reference_view.values[r][c]*Fixed(mesh->origin[c],Fixed::RAW);
+#endif
+      if(shared){if(!matrix_loaded)matrix_loaded=epok::load_projection_matrix(object_view);gte=matrix_loaded;}
+      else {
+        chunk_view=object_view;
+        for(int r=0;r<3;++r)for(int c=0;c<3;++c)chunk_view.values[r][3]+=chunk_view.values[r][c]*Fixed(mesh->origin[c],Fixed::RAW);
+        origin[0]=origin[1]=origin[2]=0;gte=epok::load_projection_matrix(chunk_view);matrix_loaded=false;
+        if(payload.vertices.wide()&&!epok::gte_vertex_bounds_fit(origin,mesh->center,mesh->extent))gte=false;
+      }
     }
     const uint16_t begin=COUNTERS[1].value;
     uint32_t vertex_mask=0;
@@ -1191,6 +1250,7 @@ void GameScene::frame() {
 #endif
     draw_ordered_world(emitter,view,row_scale);
   }
+  StaticWorldView static_world;
   for (size_t index = 0; index < epok::object_count; ++index) {
     const auto &object = epok::objects[index];
     if (!object.mesh || !epok::is_active_slot(index))
@@ -1210,6 +1270,12 @@ void GameScene::frame() {
         ++chunks;if(epok::visibility_chunk(mesh->visibility_faces,mesh->quad_count)){visible=true;break;}
       }
       if(!visible||!epok::visibility_track_started){performance_work.visibility_skipped_chunks+=chunks;continue;}
+      if(object.geometry->editable&epok::mesh_static_world){
+        // Cooked in world space: the actor's runtime transform is not applied.
+        if(!static_world.valid)static_world=static_world_view(view,row_scale);
+        draw_baked_object(object,static_world.matrix,emitter,stream_cursor,working_pages,gpu(),projected_vertices_ram,&static_world);
+        continue;
+      }
       auto object_view=view.compose(render_world[index]);
       for(int r=0;r<2;++r)for(int c=0;c<4;++c)object_view.values[r][c]*=row_scale[r];
       draw_baked_object(object,object_view,emitter,stream_cursor,working_pages,gpu(),projected_vertices_ram);

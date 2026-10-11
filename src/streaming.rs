@@ -25,6 +25,8 @@ struct Location {
     quads: u16,
     vertex_stride: u8,
     baked: bool,
+    /// Static-world chunk: world-space origin, center and extent (Q12).
+    world: Option<[[i32; 3]; 3]>,
 }
 #[derive(Default)]
 struct PageTrack {
@@ -181,7 +183,17 @@ impl Bundle {
                     line = line
                         .replace(&format!("{key}_vertices"), if location.vertex_stride == 12 { "MeshVertices{nullptr,12}" } else { "nullptr" })
                         .replace(&format!("{key}_faces"), "nullptr");
-                    if location.baked { line = line.replacen(",true,", ",3,", 1); }
+                    if let Some([origin, center, extent]) = location.world {
+                        // Flags baked (2) | static world (4), and the world-space bounds.
+                        let (head, tail) = line.split_once(",true,").ok_or("Unexpected mesh descriptor syntax")?;
+                        let mut rest = tail;
+                        for _ in 0..3 {
+                            let close = rest.find('}').ok_or("Unexpected mesh descriptor syntax")?;
+                            rest = rest[close + 1..].strip_prefix(',').unwrap_or(&rest[close + 1..]);
+                        }
+                        let triple = |v: [i32; 3]| format!("{{{},{},{}}}", v[0], v[1], v[2]);
+                        line = format!("{head},7,{},{},{},{rest}", triple(origin), triple(center), triple(extent));
+                    } else if location.baked { line = line.replacen(",true,", ",3,", 1); }
                     let base = line
                         .strip_suffix("};")
                         .ok_or("Unexpected mesh descriptor syntax")?;
@@ -371,14 +383,28 @@ pub fn compile_with_palette(scenes: &[Scene], pool_pages: usize, triangle_budget
                 Some(terrain) => crate::terrain_compile::chunks(terrain, &qs)?,
                 None => crate::mesh_compile::chunks(&qs)?,
             };
+            // Static world: tracked baked meshes keep their chunks, faces and
+            // vertex order, with world-space vertices (see world_chunk).
+            let world_doc = if baked && e.terrain.is_none()
+                && scene.visibility_track.as_ref().is_some_and(|t| t.static_world) {
+                Some(e.editable_mesh.as_ref().and_then(|m| m.document.as_deref())
+                    .ok_or("Static world mesh asset is unresolved")?)
+            } else {
+                None
+            };
+            let world_transform = scene.world_matrix(entity);
             for (chunk_index, chunk) in parts.into_iter().enumerate() {
+                let world = world_doc
+                    .map(|doc| crate::mesh_compile::world_chunk(doc, &world_transform, &chunk))
+                    .transpose()?;
+                let chunk_vertices = world.as_ref().map_or(&chunk.vertices, |w| &w.vertices);
                 let key=format!("editable_{entity}_{chunk_index}");
                 if let Some((word,_))=track.as_ref().and_then(|t|t.chunks.get(&key)) {
                     preview_chunks.push((key,crate::baked_preview::Chunk{actor:e.id,page:0,word:*word,
                         quads:chunk.faces.iter().map(|(_,i)|*i).collect()}));
                 }
-                let vertex_stride = chunk.vertex_stride();
-                let vertex_bytes = chunk.vertices.len() * vertex_stride;
+                let vertex_stride = if chunk_vertices.iter().flatten().all(|v| i16::try_from(*v).is_ok()) { 6 } else { 12 };
+                let vertex_bytes = chunk_vertices.len() * vertex_stride;
                 let quad_start = (vertex_bytes + 3) & !3;
                 let stride = if baked { crate::baked_draw::FACE_BYTES } else { QUAD_BYTES };
                 let length = quad_start + chunk.faces.len() * stride;
@@ -392,7 +418,7 @@ pub fn compile_with_palette(scenes: &[Scene], pool_pages: usize, triangle_budget
                 }
                 let page = bundle.page_count() - 1;
                 let start = page * PAGE_BYTES + used;
-                for (i, v) in chunk.vertices.iter().enumerate() {
+                for (i, v) in chunk_vertices.iter().enumerate() {
                     for (axis, value) in v.iter().enumerate() {
                         if vertex_stride == 6 {
                             i16_at(&mut bundle.bytes, start + i * 6 + axis * 2,
@@ -439,6 +465,7 @@ pub fn compile_with_palette(scenes: &[Scene], pool_pages: usize, triangle_budget
                         quads: (used + quad_start) as u16,
                         vertex_stride: vertex_stride as u8,
                         baked,
+                        world: world.as_ref().map(|w| [w.origin, w.center, w.extent]),
                     },
                 );
                 lengths.insert(format!("editable_{entity}_{chunk_index}"), length);
@@ -827,6 +854,7 @@ fn pack_visible_together(
             quads: offset as u16 + quad_delta,
             vertex_stride: location.vertex_stride,
             baked: location.baked,
+            world: location.world,
         };
     }
     bytes.truncate(first_page * PAGE_BYTES);
@@ -905,6 +933,65 @@ mod tests {
         assert!(cooked.header().contains("{track_page_ids+2,0}"));
     }
     #[test]
+    fn static_world_cooks_world_space_chunks_with_shared_corners() {
+        // Two scaled actors whose cubes touch: with static_world, both cook
+        // the shared corners to the same world Q12 points.
+        let mut actors: Vec<_> = (0..2).map(|_| self::scene(1).actors.remove(0)).collect();
+        for e in &mut actors {
+            let doc = std::sync::Arc::make_mut(e.editable_mesh.as_mut().unwrap().document.as_mut().unwrap());
+            doc.materials[0].material.uv_scroll = [0., 0.];
+            e.scale = [10.; 3];
+        }
+        actors[0].position = [122.25, 18.25, 1023.];
+        actors[1].position = [132.25, 18.25, 1023.];
+        let faces: Vec<_> = actors.iter().flat_map(|e| e.editable_mesh.as_ref().unwrap()
+            .document.as_ref().unwrap().faces.iter().map(|f| f.id).collect::<Vec<_>>()).collect();
+        let camera = Scene::default().actors[0].clone();
+        let mut scene = Scene { actors: actors.clone(), ..Default::default() };
+        scene.visibility_track = Some(crate::visibility_track::Track {
+            camera: camera.id, sample_ms: 100, cull_backfaces: false, static_world: true, navigation: None,
+            samples: vec![crate::visibility_track::Sample {
+                position: [0.; 3], rotation: [0.; 3], fov: 90., visible: (0..faces.len() as u16).collect(), cut: true,
+            }],
+            faces,
+        });
+        scene.actors.push(camera);
+        let bundle = compile(std::slice::from_ref(&scene), 7).unwrap();
+        let header = bundle.rewrite(0, &crate::project::scene_header(&scene, &[]).unwrap()).unwrap();
+        let mut corners = Vec::new();
+        for (entity, e) in actors.iter().enumerate() {
+            let doc = e.editable_mesh.as_ref().unwrap().document.as_ref().unwrap();
+            let transform = scene.world_matrix(entity);
+            let expected: BTreeSet<[i32; 3]> = doc.faces.iter()
+                .flat_map(|f| doc.points(f)).map(|p| crate::mesh_compile::world_q12(&transform, p).unwrap()).collect();
+            let qs = crate::lighting::quads(e);
+            let mut cooked = BTreeSet::new();
+            for (i, chunk) in crate::mesh_compile::chunks(&qs).unwrap().iter().enumerate() {
+                let key = format!("editable_{entity}_{i}");
+                let location = &bundle.chunks[0][&key];
+                let [origin, _, _] = location.world.expect("static world chunk");
+                assert!(origin.iter().all(|v| v % 16 == 0));
+                let line = header.lines().find(|l| l.starts_with(&format!("inline constexpr MeshGeometry {key}="))).unwrap();
+                assert!(line.contains(&format!(",7,{{{},{},{}}},", origin[0], origin[1], origin[2])), "{line}");
+                let base = location.page as usize * PAGE_BYTES + location.vertices as usize;
+                for v in 0..chunk.vertices.len() {
+                    let point: [i32; 3] = std::array::from_fn(|c| origin[c] + if location.vertex_stride == 6 {
+                        i32::from(i16::from_le_bytes(bundle.bytes[base + v * 6 + c * 2..][..2].try_into().unwrap()))
+                    } else {
+                        i32::from_le_bytes(bundle.bytes[base + v * 12 + c * 4..][..4].try_into().unwrap())
+                    });
+                    cooked.insert(point);
+                }
+            }
+            assert_eq!(cooked, expected);
+            corners.push(cooked);
+        }
+        assert_eq!(corners[0].intersection(&corners[1]).count(), 4);
+        // Without the opt-in the same scene cooks local chunks, as before.
+        scene.visibility_track.as_mut().unwrap().static_world = false;
+        assert!(compile(std::slice::from_ref(&scene), 7).unwrap().chunks[0].values().all(|l| l.world.is_none()));
+    }
+    #[test]
     fn baked_draw_roundtrips_compact_faces_and_preview_from_the_same_cook() {
         let mut scene=scene(1);
         let mesh=scene.actors[0].editable_mesh.as_mut().unwrap();
@@ -913,7 +1000,7 @@ mod tests {
         let faces=doc.faces.iter().map(|f|f.id).collect();
         let camera=Scene::default().actors[0].clone();
         scene.visibility_track=Some(crate::visibility_track::Track {
-            camera:camera.id,sample_ms:100,cull_backfaces:false,navigation:None,faces,
+            camera:camera.id,sample_ms:100,cull_backfaces:false, static_world: false,navigation:None,faces,
             samples:vec![crate::visibility_track::Sample {
                 position:[0.;3],rotation:[0.;3],fov:90.,visible:vec![0,1],cut:true,
             }],
@@ -971,7 +1058,7 @@ mod tests {
         let faces=doc.faces.iter().map(|f|f.id).collect();
         let camera=Scene::default().actors[0].clone();
         scene.visibility_track=Some(crate::visibility_track::Track {
-            camera:camera.id,sample_ms:100,cull_backfaces:false,navigation:None,faces,
+            camera:camera.id,sample_ms:100,cull_backfaces:false, static_world: false,navigation:None,faces,
             samples:vec![
                 crate::visibility_track::Sample {position:[0.;3],rotation:[0.;3],fov:90.,visible:vec![0,1],cut:true},
                 crate::visibility_track::Sample {position:[0.;3],rotation:[0.;3],fov:90.,visible:vec![],cut:false},
@@ -1024,6 +1111,7 @@ mod tests {
                     quads: (offset + 100) as u16,
                     vertex_stride: 6,
                     baked: false,
+                    world: None,
                 },
             );
             lengths.insert(key.clone(), 8192);
@@ -1039,7 +1127,7 @@ mod tests {
             navigation: None,
             camera: uuid::Uuid::nil(),
             sample_ms: 100,
-            cull_backfaces: true,
+            cull_backfaces: true, static_world: false,
             faces: vec![],
             samples: (0..4)
                 .map(|_| crate::visibility_track::Sample {

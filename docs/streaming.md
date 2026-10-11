@@ -84,6 +84,17 @@ Tracks loop automatically, use the simulation pause state and expose
 shortest-path Euler angles interpolate between samples. Set `cull_backfaces`
 to false only when the baked data already supplies the intended triangle sides.
 
+Set `static_world: true` to cook the tracked baked scenery in world space.
+Each actor's chunks keep their faces, vertex order and visibility bits, but
+their vertices are the actor's authored points transformed to world Q12, and
+the renderer draws every such chunk with the camera's matrix on the same
+camera-relative lattice as the prepared packet order below. Meshes of
+different actors then meet exactly, without the one-pixel seams that per-actor
+matrices leave where, for example, a wall meets the ground. This is an
+explicit opt-in: covered actors must stay static at runtime, since their
+runtime transforms are no longer applied, and mesh vertex queries on them
+answer in world space only. Off by default; without it the cook is unchanged.
+
 Without `navigation`, this is automatic diagnostic playback. It does not
 reproduce a source game's original polygon ordering. Texture animation,
 resource-list scheduling, collision and gameplay need separate integrations.

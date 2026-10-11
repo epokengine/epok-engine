@@ -217,20 +217,8 @@ pub fn resolve(scene: &Scene, program: &Program) -> Result<Resolved, String> {
             let raw = doc.points(face);
             let mut points = [[0; 3]; 4];
             for (v, point) in raw.iter().enumerate() {
-                for axis in 0..3 {
-                    let world = f64::from(transform.0[axis][3])
-                        + (0..3)
-                            .map(|c| f64::from(transform.0[axis][c]) * f64::from(point[c]))
-                            .sum::<f64>();
-                    let fixed = (world * 4096.).round();
-                    if !fixed.is_finite()
-                        || fixed < f64::from(i32::MIN)
-                        || fixed > f64::from(i32::MAX)
-                    {
-                        return Err("Ordered draw world coordinate exceeds Q12 range".into());
-                    }
-                    points[v][axis] = fixed as i32;
-                }
+                points[v] = crate::mesh_compile::world_q12(&transform, *point)
+                    .map_err(|_| "Ordered draw world coordinate exceeds Q12 range")?;
             }
             let quad = Quad {
                 uv: face.uv,
@@ -365,7 +353,7 @@ pub(crate) mod tests {
         scene.visibility_track = Some(crate::visibility_track::Track {
             camera: scene.actors[0].id,
             sample_ms: 100,
-            cull_backfaces: false,
+            cull_backfaces: false, static_world: false,
             faces,
             samples: vec![vec![0, 1], vec![1], vec![0], vec![]]
                 .into_iter()

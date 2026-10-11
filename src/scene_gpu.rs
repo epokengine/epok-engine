@@ -2137,7 +2137,7 @@ mod tests {
             navigation: None,
             camera: scene.actors[0].id,
             sample_ms: 100,
-            cull_backfaces: false,
+            cull_backfaces: false, static_world: false,
             faces: vec![face],
             samples: vec![crate::visibility_track::Sample {
                 position: [1000.; 3],

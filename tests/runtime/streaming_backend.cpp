@@ -72,6 +72,14 @@ int main() {
   requested_mesh.vertices={nullptr,12};
   const auto wide_sample=sample_mesh_vertex(&requested_actor,1,CoordinateSpace::Model);
   assert(wide_sample.success&&wide_sample.position[0].raw()==0x01010101);
+  // A static-world chunk stores world points relative to its origin: world
+  // queries add the origin and apply no actor transform; there is no model space.
+  requested_mesh.editable=mesh_baked_draw|mesh_static_world;requested_mesh.origin[0]=-65536;
+  const auto world_sample=sample_mesh_vertex(&requested_actor,1,CoordinateSpace::World);
+  assert(world_sample.success&&world_sample.position[0].raw()==0x01010101-65536);
+  const auto model_sample=sample_mesh_vertex(&requested_actor,1,CoordinateSpace::Model);
+  assert(!model_sample.success&&model_sample.error==MeshVertexError::InvalidCoordinateSpace);
+  requested_mesh.editable=0;requested_mesh.origin[0]=0;
   {
     StreamMeshLease wide(requested_mesh,gpu);
     assert(wide.valid()&&wide.vertices().wide()&&wide.geometry()->vertices.wide());

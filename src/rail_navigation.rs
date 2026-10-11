@@ -27,7 +27,7 @@ mod tests {
         let mut track = Track {
             camera: scene.actors[0].id,
             sample_ms: 100,
-            cull_backfaces: false,
+            cull_backfaces: false, static_world: false,
             faces: vec![],
             samples: (0..5)
                 .map(|_| Sample {

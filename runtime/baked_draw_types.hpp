@@ -66,5 +66,7 @@ inline uint16_t baked_uv(const BakedDrawFace& face,unsigned corner) {
     return corner==0?uint16_t(face.uv_clut):corner==1?uint16_t(face.uv_tpage):
         corner==2?uint16_t(face.uv34):uint16_t(face.uv34>>16);
 }
-inline constexpr uint8_t mesh_editable=1, mesh_baked_draw=2;
+// mesh_static_world: a baked chunk cooked in world space (visibility track
+// static_world), drawn with the camera's matrix instead of its actor's.
+inline constexpr uint8_t mesh_editable=1, mesh_baked_draw=2, mesh_static_world=4;
 }

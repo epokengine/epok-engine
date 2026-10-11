@@ -325,7 +325,12 @@ __attribute__((used)) inline MeshVertexSample sample_mesh_vertex(const ActorData
   if (!vertices) { result.data_state=MeshDataState::Unavailable; return result; }
   for (int axis=0;axis<3;++axis) result.position[axis]=Fixed(vertices[vertex][axis],Fixed::RAW);
   if (slot>=0) stream_pool.unpin_slot(slot,geometry->stream_page);
-  if (space==CoordinateSpace::World) {
+  if (geometry->editable&mesh_static_world) {
+    // Cooked in world space (static world): the stored point is the world
+    // position relative to the chunk origin; there is no model-space copy.
+    if (space!=CoordinateSpace::World) { result.error=MeshVertexError::InvalidCoordinateSpace; return result; }
+    for (int axis=0;axis<3;++axis) result.position[axis]=Fixed(int32_t(result.position[axis].raw())+geometry->origin[axis],Fixed::RAW);
+  } else if (space==CoordinateSpace::World) {
     Fixed world[3];
     if (!skeletal_world_point(*entity,result.position,world)) { result.error=MeshVertexError::WorldUnavailable; return result; }
     for (int axis=0;axis<3;++axis) result.position[axis]=world[axis];
