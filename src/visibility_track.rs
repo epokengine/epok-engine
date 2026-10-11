@@ -126,6 +126,19 @@ fn encode_changes(bits: &BTreeSet<usize>, previous: &BTreeSet<usize>) -> Vec<u8>
     out
 }
 pub fn cook(scene: &Scene) -> Result<Option<Cooked>, String> {
+    cook_excluding(scene, &BTreeSet::new())
+}
+/// Actors whose faces the prepared packet order draws. Their per-face bits
+/// need not be resident: the ordered lists, read from disc with their pages,
+/// already name every face drawn, and page residency comes from those lists.
+pub fn ordered_actors(scene: &Scene) -> BTreeSet<Uuid> {
+    scene.ordered_draw.as_ref().map(|program| program.primitives.iter()
+        .flat_map(|p| std::iter::once(p.first.actor).chain(p.second.map(|s| s.actor))).collect())
+        .unwrap_or_default()
+}
+/// As `cook`, leaving out the given actors' chunks and bits; their faces are
+/// still validated as tracked.
+pub fn cook_excluding(scene: &Scene, excluded: &BTreeSet<Uuid>) -> Result<Option<Cooked>, String> {
     let Some(track) = &scene.visibility_track else {
         return Ok(None);
     };
@@ -153,6 +166,10 @@ pub fn cook(scene: &Scene) -> Result<Option<Cooked>, String> {
             );
         }
         let qs = crate::lighting::quads(e);
+        if excluded.contains(&e.id) {
+            for q in &qs { lookup.entry(q.id.unwrap()).or_default(); }
+            continue;
+        }
         for (chunk_index, chunk) in crate::mesh_compile::chunks(&qs)?.iter().enumerate() {
             let ids: Vec<_> = chunk
                 .faces
@@ -187,7 +204,8 @@ pub fn cook(scene: &Scene) -> Result<Option<Cooked>, String> {
 }
 
 pub fn rewrite(scene: &Scene, header: String) -> Result<String, String> {
-    let Some(cooked) = cook(scene)? else {
+    // Resident bits cover only faces outside the prepared packet order.
+    let Some(cooked) = cook_excluding(scene, &ordered_actors(scene))? else {
         return Ok(header);
     };
     let track = scene.visibility_track.as_ref().unwrap();
@@ -456,5 +474,21 @@ mod tests {
             .unwrap();
         scene.visibility_track.as_mut().unwrap().samples[0].visible = vec![u16::MAX];
         assert!(cook(&scene).is_err());
+    }
+}
+
+#[cfg(test)]
+mod resident_tests {
+    #[test]
+    fn prepared_packet_order_actors_keep_no_resident_face_bits() {
+        let scene = crate::ordered_draw::tests::fixture();
+        let header = crate::project::scene_header(&scene, &[]).unwrap();
+        let actor = scene.actors.iter().position(|a| a.kind == "Mesh").unwrap();
+        let line = header.lines().find(|l| l.starts_with(&format!("inline constexpr MeshGeometry editable_{actor}_0="))).unwrap();
+        assert!(!line.contains("track_current"), "{line}");
+        assert!(header.contains("inline uint32_t track_current[1]={},track_next[1]={};"));
+        // The full cook still maps every tracked face for the editor preview.
+        assert!(super::cook(&scene).unwrap().unwrap().words > 0);
+        assert_eq!(super::cook_excluding(&scene, &super::ordered_actors(&scene)).unwrap().unwrap().words, 0);
     }
 }

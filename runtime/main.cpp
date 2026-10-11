@@ -1188,6 +1188,10 @@ void GameScene::frame() {
       const auto* root = skeletal ? object.animator.model->geometry : object.geometry;
       if (!root) continue;
       if(baked_pages&&root->visibility_faces)continue;
+      // The prepared packet order draws these actors from its own pages; their
+      // ordinary chunks are query copies, loaded on request, not by distance.
+      if constexpr(epok::ordered_draw_enabled)if(track&&track->ordered
+          &&index<track->ordered->actor_count&&track->ordered->actors[index])continue;
       const auto object_view = root->visibility_faces?Matrix::identity():view.compose(render_world[index]);
       for (auto* mesh = root; mesh; mesh = mesh->next) {
         if (mesh->stream_page == epok::stream_invalid_page || !mesh->vertex_count) continue;

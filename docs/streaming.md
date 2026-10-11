@@ -243,6 +243,12 @@ no backface culling, unlit faces and no UV animation. Covered actors must remain
 static at runtime; animation, actor transform/visibility edits and general
 lighting do not modify these immutable world-space packets.
 
+Actors covered by the prepared packet order keep no per-face visibility bits in
+RAM: the ordered lists, read from disc with their pages, already name every face
+drawn and decide page residency. Their ordinary mesh chunks remain as query
+copies, loaded when gameplay requests them rather than by camera distance. On
+the study scene this frees about 137 KB of resident RAM.
+
 The cooker places 32-byte packet records and Q12 vertices in the same 64 KiB
 page, and checkpoint/delta lists in separately addressed page blocks. Current and
 next residency includes both geometry and order data. Three bounded decode
