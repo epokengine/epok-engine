@@ -97,7 +97,28 @@ explicit opt-in: covered actors must stay static at runtime, since their
 runtime transforms are no longer applied, and mesh vertex queries on them
 answer in world space only. Off by default; without it the cook is unchanged.
 
-#### Automatic visibility bake (experimental, report only)
+#### Automatic visibility bake (experimental)
+
+In the editor, **Build > Bake Visibility...** (enabled for a scene with a
+visibility track, outside Play) opens the bake panel:
+
+- **Preset:** *Guided camera* (recommended; lists faces covering at least one
+  display pixel), *Maximum quality* (every face that shows at all, no specks,
+  more packets) or *Lighter lists* (faces of at least two pixels; fewer
+  packets, occasional specks).
+- **Draw distance** in world units (160), converted to the runtime camera's
+  units.
+- **Use camera recordings:** bakes from every recording in
+  `.epok/camera-recordings/` (see below), with a **recorded view margin**
+  (0.1).
+- **Generate prepared packet order:** also rebuilds the scene's packet order
+  from the new lists.
+
+The bake runs on the GPU in the background with a progress bar; the editor
+stays usable. When it finishes, the lists (and order) replace the open
+scene's, unless the scene changed meanwhile; save the scene to keep them.
+The command-line options below give finer control.
+
 
 `--bake-visibility-report --scene <scene>` computes every sample's visible
 face list on the GPU and compares it with the lists the scene holds, without

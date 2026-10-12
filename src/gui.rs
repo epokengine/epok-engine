@@ -114,6 +114,13 @@ fn build_menu(ui: &imgui::Ui, e: &mut Editor) {
             crate::navigation::editor_bake(e);
         }
         if ui
+            .menu_item_config("Bake Visibility...")
+            .enabled(e.scene.visibility_track.is_some() && !e.playing)
+            .build()
+        {
+            e.visibility_bake.open = true;
+        }
+        if ui
             .menu_item_config("Add Navigation Bake Volume")
             .enabled(enabled)
             .build()
@@ -2594,6 +2601,7 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
 }
 pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
     crate::lighting_editor::window(ui, e);
+    crate::visibility_bake_ui::window(ui, e);
     let _style = crate::inspector_theme::scope(ui, e.inspector_font);
     ui.window("\u{ea74} Inspector###Inspector").build(|| {
         // Properties are inset from the panel edges; only section bands reach them.

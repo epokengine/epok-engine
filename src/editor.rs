@@ -200,6 +200,7 @@ pub struct Editor {
     /// Record the rendered camera during Native PC Play for the visibility
     /// bake (Play options). Recordings go to .epok/camera-recordings/.
     pub record_camera: bool,
+    pub visibility_bake: crate::visibility_bake_ui::State,
     pub search: String,
     pub close_requested: bool,
     pub should_close: bool,
@@ -754,6 +755,7 @@ impl Editor {
             native_play_cache: None,
             native_play_request: None,
             record_camera: false,
+            visibility_bake: Default::default(),
             game_error: None,
             focus_game: false,
             game_capture: false,
@@ -2867,6 +2869,7 @@ impl Editor {
             self.log(message);
         }
         crate::lighting_editor::poll(self);
+        crate::visibility_bake_ui::poll(self);
         profile_mark("asset resolution");
         let events = self
             .job

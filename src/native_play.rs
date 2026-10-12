@@ -348,11 +348,11 @@ impl Frame {
 fn record_frame(frame: &Frame) {
     let mut recorder = RECORDER.lock().unwrap();
     let Some(recorder) = recorder.as_mut() else { return };
-    if let Some(camera) = frame.runtime_camera(recorder.display) {
-        if writeln!(recorder.file, "{camera}").is_ok() {
-            recorder.frames += 1;
-            if recorder.frames % 60 == 0 { let _ = recorder.file.flush(); }
-        }
+    if let Some(camera) = frame.runtime_camera(recorder.display)
+        && writeln!(recorder.file, "{camera}").is_ok()
+    {
+        recorder.frames += 1;
+        if recorder.frames % 60 == 0 { let _ = recorder.file.flush(); }
     }
 }
 

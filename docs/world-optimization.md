@@ -44,9 +44,11 @@ streaming pages those faces need now and next. At run time the renderer only
 considers the faces of the current sample, and the streamer loads exactly the
 pages of the current and next sample.
 
-- **Enable:** a scene `visibility_track` (camera, `sample_ms`, face table and
-  samples). It is currently an import/build interface, not an editor tool;
-  see [Baked camera visibility tracks](streaming.md#baked-camera-visibility-tracks-experimental).
+- **Enable:** a scene `visibility_track` (camera path and samples). The face
+  lists are baked automatically: **Build > Bake Visibility...** in the
+  editor, ideally from cameras recorded while playing (Play options, *Record
+  camera for visibility bake*); see
+  [Automatic visibility bake](streaming.md#automatic-visibility-bake-experimental).
 - **Cost:** the camera must stay near the recorded path. A route graph
   (`navigation`) lets a player-driven target choose among recorded routes.
 - **Use when:** the camera is guided. A free camera has no path to bake.
@@ -181,12 +183,10 @@ Every renderer change above was checked the same way; keep doing so:
 
 ## Open items
 
-- Visibility tracks and packet-order programs are imported, not authored in
-  the editor. An automatic GPU visibility bake exists as a report
-  (`--bake-visibility-report`); on the study scene its lists lack 0.1 display
-  pixels per view on average between samples (largest missing face 14
-  pixels) and take about 6.5 minutes for 1,650 samples. Writing the lists,
-  generating the draw order and recording the camera path come next.
+- The camera path of a visibility track is still imported; its face lists
+  and packet order are baked in the editor. Drawing the path in the editor
+  comes next. Baked from a recorded demo's cameras, the study scene's lists
+  cost 1.01x the imported ones in the prepared pass (p10 0.96x, p90 1.12x).
 - The views where Epok remains slowest (1.1 to 1.15x the reference) spend
   more time per polygon walking the list and emitting packets.
 - A face touching the camera can leave a one-pixel edge artifact at the screen
