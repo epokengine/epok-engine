@@ -123,7 +123,9 @@ pub fn decode(bytes: &[u8]) -> Result<Data, String> {
 
 /// Source discovery only; the decoder validates the actual file contents.
 pub fn source_candidate(source: &str) -> bool {
-    Path::new(source).extension().and_then(|s| s.to_str())
+    Path::new(source)
+        .extension()
+        .and_then(|s| s.to_str())
         .is_some_and(|s| s.eq_ignore_ascii_case("png") || s.eq_ignore_ascii_case("tim"))
 }
 
@@ -131,7 +133,9 @@ impl Data {
     /// PNG keeps its legacy STP-on policy. Native CLUTs can also contain opaque
     /// texels inside a blending primitive; the host preview needs a second pass.
     pub fn has_opaque_texels(&self) -> bool {
-        self.palette.iter().any(|&word| word != 0 && word & 0x8000 == 0)
+        self.palette
+            .iter()
+            .any(|&word| word != 0 && word & 0x8000 == 0)
     }
 }
 
@@ -140,12 +144,16 @@ impl Data {
 /// transparent entries at other indices). No color quantization or STP rewrite.
 fn decode_tim(bytes: &[u8]) -> Result<Data, String> {
     fn block<'a>(bytes: &mut &'a [u8]) -> Result<(u16, u16, &'a [u8]), String> {
-        if bytes.len() < 12 { return Err("TIM: truncated image/CLUT header".into()); }
+        if bytes.len() < 12 {
+            return Err("TIM: truncated image/CLUT header".into());
+        }
         let size = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
         let width = u16::from_le_bytes(bytes[8..10].try_into().unwrap());
         let height = u16::from_le_bytes(bytes[10..12].try_into().unwrap());
-        let payload = usize::from(width).checked_mul(usize::from(height))
-            .and_then(|n| n.checked_mul(2)).ok_or("TIM: block size overflow")?;
+        let payload = usize::from(width)
+            .checked_mul(usize::from(height))
+            .and_then(|n| n.checked_mul(2))
+            .ok_or("TIM: block size overflow")?;
         if size != 12 + payload || size > bytes.len() {
             return Err("TIM: invalid image/CLUT block length".into());
         }
@@ -153,7 +161,9 @@ fn decode_tim(bytes: &[u8]) -> Result<Data, String> {
         *bytes = &bytes[size..];
         Ok((width, height, data))
     }
-    if bytes.len() < 8 { return Err("TIM: truncated file header".into()); }
+    if bytes.len() < 8 {
+        return Err("TIM: truncated file header".into());
+    }
     let flags = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
     if !matches!(flags, 8 | 9) {
         return Err("TIM: only indexed 4/8-bit images with one CLUT are supported".into());
@@ -169,9 +179,13 @@ fn decode_tim(bytes: &[u8]) -> Result<Data, String> {
     if width == 0 || width > 256 || height == 0 || height > 256 {
         return Err("TIM: texture dimensions must be 1..256 pixels per axis".into());
     }
-    if !remaining.is_empty() { return Err("TIM: unexpected trailing data".into()); }
-    let mut palette: Vec<u16> = clut.chunks_exact(2)
-        .map(|p| u16::from_le_bytes([p[0], p[1]])).collect();
+    if !remaining.is_empty() {
+        return Err("TIM: unexpected trailing data".into());
+    }
+    let mut palette: Vec<u16> = clut
+        .chunks_exact(2)
+        .map(|p| u16::from_le_bytes([p[0], p[1]]))
+        .collect();
     palette.resize(256, 0);
     let row = width.div_ceil(4) * 2;
     let mut words = vec![0; row * usize::from(height)];
@@ -179,14 +193,26 @@ fn decode_tim(bytes: &[u8]) -> Result<Data, String> {
     for y in 0..usize::from(height) {
         for x in 0..width {
             let byte = pixels[y * usize::from(word_width) * 2 + x * bits / 8];
-            let index = if bits == 4 { (byte >> ((x % 2) * 4)) & 15 } else { byte };
+            let index = if bits == 4 {
+                (byte >> ((x % 2) * 4)) & 15
+            } else {
+                byte
+            };
             words[y * row + x / 2] |= u16::from(index) << ((x % 2) * 8);
             let color = palette[usize::from(index)];
-            for channel in 0..3 { rgba.push((((color >> (channel * 5)) & 31) * 255 / 31) as u8); }
+            for channel in 0..3 {
+                rgba.push((((color >> (channel * 5)) & 31) * 255 / 31) as u8);
+            }
             rgba.push(if color == 0 { 0 } else { 255 });
         }
     }
-    Ok(Data { width: width as u16, height, rgba, words, palette })
+    Ok(Data {
+        width: width as u16,
+        height,
+        rgba,
+        words,
+        palette,
+    })
 }
 pub fn prepare(
     root: &Path,
@@ -436,7 +462,10 @@ pub fn header(scene: &Scene) -> Result<String, String> {
 
 pub fn picker(ui: &imgui::Ui, index: &assets::Index, material: &mut Material) -> bool {
     let mut changed = false;
-    changed |= ui.checkbox(crate::gui::field(ui, "Double sided"), &mut material.double_sided);
+    changed |= ui.checkbox(
+        crate::gui::field(ui, "Double sided"),
+        &mut material.double_sided,
+    );
     if let Some(id) = material.texture
         && let Err(error) = index.resolve(id)
     {
@@ -492,16 +521,30 @@ pub fn picker(ui: &imgui::Ui, index: &assets::Index, material: &mut Material) ->
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    pub fn tim_fixture(bits: usize, palette: &[u16], width_words: u16, height: u16, pixels: &[u8]) -> Vec<u8> {
+    pub fn tim_fixture(
+        bits: usize,
+        palette: &[u16],
+        width_words: u16,
+        height: u16,
+        pixels: &[u8],
+    ) -> Vec<u8> {
         let mut out = 0x10u32.to_le_bytes().to_vec();
         out.extend_from_slice(&(if bits == 4 { 8u32 } else { 9u32 }).to_le_bytes());
         for (width, height, data) in [
-            (palette.len() as u16, 1, palette.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<_>>()),
+            (
+                palette.len() as u16,
+                1,
+                palette
+                    .iter()
+                    .flat_map(|v| v.to_le_bytes())
+                    .collect::<Vec<_>>(),
+            ),
             (width_words, height, pixels.to_vec()),
         ] {
             out.extend_from_slice(&(12u32 + data.len() as u32).to_le_bytes());
             out.extend_from_slice(&[0; 4]); // Original VRAM position is intentionally not authoritative.
-            out.extend_from_slice(&width.to_le_bytes()); out.extend_from_slice(&height.to_le_bytes());
+            out.extend_from_slice(&width.to_le_bytes());
+            out.extend_from_slice(&height.to_le_bytes());
             out.extend_from_slice(&data);
         }
         out
@@ -511,21 +554,32 @@ pub(crate) mod tests {
         for bits in [4, 8] {
             let mut palette = vec![0; 1 << bits];
             palette[..4].copy_from_slice(&[0x001f, 0x801f, 0, 0x8000]);
-            let pixels = if bits == 4 { vec![0x10, 0x32, 0x01, 0x23] }
-                else { vec![0, 1, 2, 3, 1, 0, 3, 2] };
+            let pixels = if bits == 4 {
+                vec![0x10, 0x32, 0x01, 0x23]
+            } else {
+                vec![0, 1, 2, 3, 1, 0, 3, 2]
+            };
             let encoded = tim_fixture(bits, &palette, (bits / 4) as u16, 2, &pixels);
             let data = decode(&encoded).unwrap();
             assert_eq!((data.width, data.height), (4, 2));
             assert_eq!(data.words, [0x0100, 0x0302, 0x0001, 0x0203]);
             assert_eq!(&data.palette[..1 << bits], &palette);
-            assert_eq!(&data.rgba[..16], &[255,0,0,255, 255,0,0,255, 0,0,0,0, 0,0,0,255]);
+            assert_eq!(
+                &data.rgba[..16],
+                &[255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 255]
+            );
             assert!(data.has_opaque_texels());
             let cooked = crate::texture_cook::cook(&data);
             assert_eq!(&cooked.palette[..4], &[0x001f, 0x801f, 0, 0x8000]);
             assert_eq!(cooked.words, [0x3210, 0, 0x2301, 0]);
-            for n in 0..encoded.len() { assert!(decode(&encoded[..n]).is_err(), "prefix {n}"); }
-            let mut trailing = encoded.clone(); trailing.push(0); assert!(decode(&trailing).is_err());
-            let mut bad = encoded.clone(); bad[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
+            for n in 0..encoded.len() {
+                assert!(decode(&encoded[..n]).is_err(), "prefix {n}");
+            }
+            let mut trailing = encoded.clone();
+            trailing.push(0);
+            assert!(decode(&trailing).is_err());
+            let mut bad = encoded.clone();
+            bad[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
             assert!(decode(&bad).is_err());
         }
     }
@@ -536,39 +590,73 @@ pub(crate) mod tests {
         let data = decode(&tim_fixture(8, &palette, 128, 1, &pixels)).unwrap();
         assert_eq!(data.palette, palette);
         assert!(data.rgba.chunks_exact(4).all(|p| p[3] == 255));
-        assert_eq!(crate::texture_cook::cook(&data).format, crate::texture_cook::Format::Indexed8);
-        for (i, word) in data.words.iter().enumerate() { assert_eq!(*word, (i*2) as u16 | (((i*2+1) as u16) << 8)); }
+        assert_eq!(
+            crate::texture_cook::cook(&data).format,
+            crate::texture_cook::Format::Indexed8
+        );
+        for (i, word) in data.words.iter().enumerate() {
+            assert_eq!(*word, (i * 2) as u16 | (((i * 2 + 1) as u16) << 8));
+        }
         assert!(!data.has_opaque_texels());
     }
     #[test]
     fn tim_rejects_ambiguous_palettes_dimensions_and_unsupported_modes() {
-        let valid = tim_fixture(4, &[0;16], 1, 1, &[0,0]);
+        let valid = tim_fixture(4, &[0; 16], 1, 1, &[0, 0]);
         for flags in [0u32, 1, 2, 3, 10, 11, 0x108] {
-            let mut bytes = valid.clone(); bytes[4..8].copy_from_slice(&flags.to_le_bytes());
+            let mut bytes = valid.clone();
+            bytes[4..8].copy_from_slice(&flags.to_le_bytes());
             assert!(decode(&bytes).unwrap_err().contains("only indexed"));
         }
-        assert!(decode(&tim_fixture(4, &[0;32], 1, 1, &[0,0])).unwrap_err().contains("one 16/256"));
-        assert!(decode(&tim_fixture(4, &[0;16], 65, 1, &[0;130])).unwrap_err().contains("dimensions"));
-        assert!(decode(&tim_fixture(4, &[0;16], 1, 0, &[])).is_err());
-        for path in ["assets/a.tim", "assets/a.TIM", "assets/a.png"] { assert!(source_candidate(path)); }
+        assert!(
+            decode(&tim_fixture(4, &[0; 32], 1, 1, &[0, 0]))
+                .unwrap_err()
+                .contains("one 16/256")
+        );
+        assert!(
+            decode(&tim_fixture(4, &[0; 16], 65, 1, &[0; 130]))
+                .unwrap_err()
+                .contains("dimensions")
+        );
+        assert!(decode(&tim_fixture(4, &[0; 16], 1, 0, &[])).is_err());
+        for path in ["assets/a.tim", "assets/a.TIM", "assets/a.png"] {
+            assert!(source_candidate(path));
+        }
         assert!(!source_candidate("assets/a.tim.bak"));
     }
     #[test]
     fn tim_import_reimport_snapshot_and_discovery_keep_asset_identity() {
         let root = crate::workspace::tests::temp("native-tim");
         std::fs::create_dir_all(root.join("assets")).unwrap();
-        let mut palette = [0;16]; palette[0]=0x001f; palette[1]=0x8000;
+        let mut palette = [0; 16];
+        palette[0] = 0x001f;
+        palette[1] = 0x8000;
         let bytes = tim_fixture(4, &palette, 1, 1, &[0x10, 0x01]);
         std::fs::write(root.join("assets/t.tim"), &bytes).unwrap();
-        let id = assets::commit(prepare(&root,"assets/t.tim","assets/t.epokasset",None,false).unwrap()).unwrap();
+        let id = assets::commit(
+            prepare(&root, "assets/t.tim", "assets/t.epokasset", None, false).unwrap(),
+        )
+        .unwrap();
         let index = assets::scan(&root, &mut Default::default());
-        assert!(index.linked_source(index.resolve(id).unwrap()).unwrap().is_some());
-        let mut scene = Scene::default(); scene.actors[1].material.texture=Some(id);
+        assert!(
+            index
+                .linked_source(index.resolve(id).unwrap())
+                .unwrap()
+                .is_some()
+        );
+        let mut scene = Scene::default();
+        scene.actors[1].material.texture = Some(id);
         resolve(&mut scene, &index).unwrap();
-        assert_eq!(scene.textures[&id].palette[..2], [0x001f,0x8000]);
+        assert_eq!(scene.textures[&id].palette[..2], [0x001f, 0x8000]);
         std::fs::remove_file(root.join("assets/t.tim")).unwrap();
-        let candidate=prepare(&root,"assets/t.tim","assets/t.epokasset",Some(index.resolve(id).unwrap()),true).unwrap();
-        assert_eq!(assets::commit(candidate).unwrap(),id);
+        let candidate = prepare(
+            &root,
+            "assets/t.tim",
+            "assets/t.epokasset",
+            Some(index.resolve(id).unwrap()),
+            true,
+        )
+        .unwrap();
+        assert_eq!(assets::commit(candidate).unwrap(), id);
         std::fs::remove_dir_all(root).unwrap();
     }
     #[test]
@@ -576,9 +664,13 @@ pub(crate) mod tests {
         let root = crate::workspace::tests::temp("prepared-texture");
         std::fs::create_dir_all(root.join("assets")).unwrap();
         std::fs::write(root.join("assets/t.png"), png()).unwrap();
-        let id = assets::commit(prepare(&root, "assets/t.png", "assets/t.epokasset", None, false).unwrap()).unwrap();
+        let id = assets::commit(
+            prepare(&root, "assets/t.png", "assets/t.epokasset", None, false).unwrap(),
+        )
+        .unwrap();
         let index = assets::scan(&root, &mut Default::default());
-        let mut scene = Scene::default(); scene.actors[1].material.texture = Some(id);
+        let mut scene = Scene::default();
+        scene.actors[1].material.texture = Some(id);
         resolve(&mut scene, &index).unwrap();
         let original = scene.textures[&id].clone();
         resolve(&mut scene, &index).unwrap();
@@ -590,7 +682,11 @@ pub(crate) mod tests {
             let mut encoder = png::Encoder::new(&mut png, 1, 1);
             encoder.set_color(png::ColorType::Rgba);
             encoder.set_depth(png::BitDepth::Eight);
-            encoder.write_header().unwrap().write_image_data(&[0, 0, 255, 255]).unwrap();
+            encoder
+                .write_header()
+                .unwrap()
+                .write_image_data(&[0, 0, 255, 255])
+                .unwrap();
         }
         package.source = png;
         package.meta.source_hash = assets::hash(&package.source);
@@ -611,7 +707,8 @@ pub(crate) mod tests {
         let mut material: Material = serde_json::from_str("{\"unlit\":true}").unwrap();
         assert!(!material.double_sided);
         material.double_sided = true;
-        let copy: Material = serde_json::from_slice(&serde_json::to_vec(&material).unwrap()).unwrap();
+        let copy: Material =
+            serde_json::from_slice(&serde_json::to_vec(&material).unwrap()).unwrap();
         assert_eq!(copy, material);
         assert_eq!(
             material_cpp(&material),
@@ -726,14 +823,23 @@ pub(crate) mod tests {
                 assert_eq!(p.format, crate::texture_cook::Format::Indexed4);
                 assert_eq!(p.clut_x % 16, 0);
                 // A font row fits its 256-texel texture page.
-                assert!((p.x % 64 + p.format.word_width(f.width)) * 4 <= 256 && p.y % 256 + f.height <= 256);
+                assert!(
+                    (p.x % 64 + p.format.word_width(f.width)) * 4 <= 256
+                        && p.y % 256 + f.height <= 256
+                );
                 out.push([p.x, p.y, p.format.word_width(f.width), f.height]);
                 out.push([p.clut_x, p.clut_y, 16, 1]);
             }
             for (i, a) in out.iter().enumerate() {
-                assert!(a[0] >= 640 && a[0] + a[2] <= 1024 && a[1] + a[3] <= 512, "{a:?}");
+                assert!(
+                    a[0] >= 640 && a[0] + a[2] <= 1024 && a[1] + a[3] <= 512,
+                    "{a:?}"
+                );
                 for b in &out[i + 1..] {
-                    let apart = a[0] + a[2] <= b[0] || b[0] + b[2] <= a[0] || a[1] + a[3] <= b[1] || b[1] + b[3] <= a[1];
+                    let apart = a[0] + a[2] <= b[0]
+                        || b[0] + b[2] <= a[0]
+                        || a[1] + a[3] <= b[1]
+                        || b[1] + b[3] <= a[1];
                     assert!(apart, "VRAM overlap {a:?} {b:?}");
                 }
             }
@@ -807,7 +913,10 @@ pub(crate) mod tests {
         assert!(h.contains("BlendMode::Add"));
         assert!(h.contains("{2048,2048}"));
         let p = layout(&scene).unwrap().textures[0].1;
-        assert!(h.contains(&format!("3,1,{},{},2,{},{},texture_0_pixels,texture_0_palette,4", p.x, p.y, p.clut_x, p.clut_y)));
+        assert!(h.contains(&format!(
+            "3,1,{},{},2,{},{},texture_0_pixels,texture_0_palette,4",
+            p.x, p.y, p.clut_x, p.clut_y
+        )));
         let saved = serde_json::to_vec(&scene).unwrap();
         let mut decoded: Scene = serde_json::from_slice(&saved).unwrap();
         assert!(decoded.textures.is_empty());

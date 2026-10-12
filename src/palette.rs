@@ -121,7 +121,13 @@ fn preview_pixels(scene: &Scene, id: Uuid, seconds: f32, data: &Data, stp: bool)
             for channel in 0..3 {
                 output.push((((color >> (channel * 5)) & 31) * 255 / 31) as u8);
             }
-            output.push(if color == 0 { 0 } else if stp && color & 0x8000 == 0 { 128 } else { 255 });
+            output.push(if color == 0 {
+                0
+            } else if stp && color & 0x8000 == 0 {
+                128
+            } else {
+                255
+            });
         }
     }
     output

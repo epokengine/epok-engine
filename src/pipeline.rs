@@ -1026,7 +1026,11 @@ mod output_tests {
         let bundled = super::openbios(&macos).unwrap();
         assert!(bundled.ends_with("Resources/share/pcsx-redux/resources/openbios.bin"));
         std::fs::write(resources.join("openbios-fastboot.bin"), b"").unwrap();
-        assert!(super::openbios(&macos).unwrap().ends_with("openbios-fastboot.bin"));
+        assert!(
+            super::openbios(&macos)
+                .unwrap()
+                .ends_with("openbios-fastboot.bin")
+        );
         std::fs::write(macos.join("openbios.bin"), b"").unwrap();
         assert_eq!(super::openbios(&macos), Some(macos.join("openbios.bin")));
         std::fs::remove_dir_all(&root).unwrap();

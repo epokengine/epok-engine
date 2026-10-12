@@ -25,7 +25,11 @@ impl ResolvedTexture {
     pub fn new(placement: crate::texture_cook::Placement, data: &crate::texture::Data) -> Self {
         let tpage = ((placement.x / 64) & 15)
             | (((placement.y / 256) & 1) << 4)
-            | if placement.format == crate::texture_cook::Format::Indexed4 { 0 } else { 0x80 };
+            | if placement.format == crate::texture_cook::Format::Indexed4 {
+                0
+            } else {
+                0x80
+            };
         Self {
             page: placement.page(data),
             clut: (placement.clut_y << 6) | (placement.clut_x / 16),
@@ -88,15 +92,23 @@ pub fn encode_with_palette(
         };
     out[8..12].copy_from_slice(&(color | command).to_le_bytes());
     out[12..16].copy_from_slice(&shaded.to_le_bytes());
-    let mut flags = if q.material.double_sided { FLAG_DOUBLE_SIDED } else { 0 };
+    let mut flags = if q.material.double_sided {
+        FLAG_DOUBLE_SIDED
+    } else {
+        0
+    };
     if let Some(texture) = texture {
         for c in 0..4 {
             let at = [16, 20, 24, 26][c];
-            out[at..at + 2].copy_from_slice(&crate::mesh_compile::packed_uv(q.uv[c], texture.page).to_le_bytes());
+            out[at..at + 2].copy_from_slice(
+                &crate::mesh_compile::packed_uv(q.uv[c], texture.page).to_le_bytes(),
+            );
         }
         out[18..20].copy_from_slice(&texture.clut.to_le_bytes());
         let abr = if blend == 0 { 0 } else { blend as u16 - 1 };
-        flags |= texture.tpage | (abr << 5) | FLAG_TEXTURED
+        flags |= texture.tpage
+            | (abr << 5)
+            | FLAG_TEXTURED
             | if blend != 0 { FLAG_SEMI_TRANSPARENT } else { 0 };
     }
     if let Some(colors) = q.vertex_colors {
@@ -120,9 +132,19 @@ pub fn encode_with_palette(
 }
 
 #[cfg(test)]
-pub fn encode(q: &Quad, indices: [u16; 4], actor: &Actor,
-    texture: Option<ResolvedTexture>) -> [u8; FACE_BYTES] {
-    encode_with_palette(q, indices, actor, texture, &crate::vertex_colors::Palette::quads([q]).unwrap())
+pub fn encode(
+    q: &Quad,
+    indices: [u16; 4],
+    actor: &Actor,
+    texture: Option<ResolvedTexture>,
+) -> [u8; FACE_BYTES] {
+    encode_with_palette(
+        q,
+        indices,
+        actor,
+        texture,
+        &crate::vertex_colors::Palette::quads([q]).unwrap(),
+    )
 }
 
 #[cfg(test)]
@@ -138,9 +160,15 @@ mod tests {
         let palette = crate::vertex_colors::Palette::quads([&q]).unwrap();
         let encoded = encode_with_palette(&q, [1, 2, 3, 4], &actor, None, &palette);
         assert_eq!(encoded.len(), 32);
-        assert_ne!(u16::from_le_bytes(encoded[22..24].try_into().unwrap()) & FLAG_INDEXED_COLOR, 0);
+        assert_ne!(
+            u16::from_le_bytes(encoded[22..24].try_into().unwrap()) & FLAG_INDEXED_COLOR,
+            0
+        );
         for (i, index) in palette.indices(colors).into_iter().enumerate() {
-            assert_eq!(u16::from_le_bytes(encoded[8+i*2..10+i*2].try_into().unwrap()), index);
+            assert_eq!(
+                u16::from_le_bytes(encoded[8 + i * 2..10 + i * 2].try_into().unwrap()),
+                index
+            );
         }
         assert!(eligible(&actor, &[q.clone()]));
         q.material.color = [0.5; 3];
@@ -157,8 +185,16 @@ mod tests {
         q.material.double_sided = true;
         q.material.unlit = true;
         q.material.depth_bias = -7;
-        let texture = ResolvedTexture { page: crate::texture_cook::Page { width: 256, height: 128, u: 0, v: 0 },
-            clut: 0x1234, tpage: 0x9d };
+        let texture = ResolvedTexture {
+            page: crate::texture_cook::Page {
+                width: 256,
+                height: 128,
+                u: 0,
+                v: 0,
+            },
+            clut: 0x1234,
+            tpage: 0x9d,
+        };
         let data = encode(&q, [1, 2, 3, 3], &actor, Some(texture));
         assert_eq!(&data[..8], &[1, 0, 2, 0, 3, 0, 3, 0]);
         assert_eq!(
@@ -172,15 +208,24 @@ mod tests {
         let half = |at: usize| u16::from_le_bytes(data[at..at + 2].try_into().unwrap());
         // UV0|CLUT, UV1|TPAGE (+ AddQuarter's ABR 3 and the flags), UV2|UV3.
         for (c, at) in [16, 20, 24, 26].into_iter().enumerate() {
-            assert_eq!(half(at), crate::mesh_compile::packed_uv(q.uv[c], texture.page));
+            assert_eq!(
+                half(at),
+                crate::mesh_compile::packed_uv(q.uv[c], texture.page)
+            );
         }
         assert_eq!(half(18), 0x1234);
-        assert_eq!(half(22), 0x9d | 3 << 5 | FLAG_TEXTURED | FLAG_SEMI_TRANSPARENT | FLAG_DOUBLE_SIDED);
+        assert_eq!(
+            half(22),
+            0x9d | 3 << 5 | FLAG_TEXTURED | FLAG_SEMI_TRANSPARENT | FLAG_DOUBLE_SIDED
+        );
         assert_eq!(i16::from_le_bytes(data[28..30].try_into().unwrap()), -7);
         assert_eq!(u16::from_le_bytes(data[30..32].try_into().unwrap()), 1);
         for (indices, topology) in [([0, 1, 2, 3], 0u16), ([0, 0, 1, 1], 2), ([0, 1, 0, 0], 2)] {
             let bytes = encode(&q, indices, &actor, None);
-            assert_eq!(u16::from_le_bytes(bytes[30..32].try_into().unwrap()), topology);
+            assert_eq!(
+                u16::from_le_bytes(bytes[30..32].try_into().unwrap()),
+                topology
+            );
         }
         assert!(eligible(&actor, &[q.clone()]));
         q.material.uv_scroll[0] = 1.;
@@ -193,21 +238,54 @@ mod tests {
         let mut q = crate::lighting::quads(&actor)[0].clone();
         for colors in [None, Some([[185, 128, 0]; 4])] {
             q.vertex_colors = colors;
-            for texture in [None, Some(ResolvedTexture { page: crate::texture_cook::Page { width: 64, height: 64, u: 0, v: 0 },
-                clut: 0x7fc0, tpage: 0x1f })] {
-                for blend in [BlendMode::Cutout, BlendMode::Average, BlendMode::Add,
-                    BlendMode::Subtract, BlendMode::AddQuarter] {
+            for texture in [
+                None,
+                Some(ResolvedTexture {
+                    page: crate::texture_cook::Page {
+                        width: 64,
+                        height: 64,
+                        u: 0,
+                        v: 0,
+                    },
+                    clut: 0x7fc0,
+                    tpage: 0x1f,
+                }),
+            ] {
+                for blend in [
+                    BlendMode::Cutout,
+                    BlendMode::Average,
+                    BlendMode::Add,
+                    BlendMode::Subtract,
+                    BlendMode::AddQuarter,
+                ] {
                     q.material.blend = blend;
                     let data = encode(&q, [0, 1, 2, 2], &actor, texture);
                     let flags = u16::from_le_bytes(data[22..24].try_into().unwrap());
                     // The runtime's opcode: 0x30, +0x04 textured, +0x02 semi-transparent.
-                    let opcode = 0x30 | if flags & FLAG_TEXTURED != 0 { 0x04 } else { 0 }
-                        | if flags & FLAG_SEMI_TRANSPARENT != 0 { 0x02 } else { 0 };
-                    let expected = if texture.is_none() { 0x30 } else if blend == BlendMode::Cutout { 0x34 } else { 0x36 };
+                    let opcode = 0x30
+                        | if flags & FLAG_TEXTURED != 0 { 0x04 } else { 0 }
+                        | if flags & FLAG_SEMI_TRANSPARENT != 0 {
+                            0x02
+                        } else {
+                            0
+                        };
+                    let expected = if texture.is_none() {
+                        0x30
+                    } else if blend == BlendMode::Cutout {
+                        0x34
+                    } else {
+                        0x36
+                    };
                     assert_eq!(opcode, expected);
-                    if colors.is_none() { assert_eq!(data[11], expected); }
+                    if colors.is_none() {
+                        assert_eq!(data[11], expected);
+                    }
                     assert_eq!(flags & FLAG_INDEXED_COLOR != 0, colors.is_some());
-                    let abr = if texture.is_none() || blend == BlendMode::Cutout { 0 } else { blend as u16 - 1 };
+                    let abr = if texture.is_none() || blend == BlendMode::Cutout {
+                        0
+                    } else {
+                        blend as u16 - 1
+                    };
                     assert_eq!(flags >> 5 & 3, abr);
                     assert_eq!(data.len(), 32);
                 }

@@ -12,27 +12,48 @@ pub fn packed(rgb: [u8; 3]) -> u32 {
 pub struct Palette(Vec<u32>);
 impl Palette {
     pub fn quads<'a>(quads: impl IntoIterator<Item = &'a Quad>) -> Result<Self, String> {
-        let colors = quads.into_iter().filter_map(|q| q.vertex_colors)
-            .flatten().map(packed).collect::<BTreeSet<_>>();
+        let colors = quads
+            .into_iter()
+            .filter_map(|q| q.vertex_colors)
+            .flatten()
+            .map(packed)
+            .collect::<BTreeSet<_>>();
         if colors.len() > 65536 {
             return Err("Authored vertex colours exceed the 65536-entry RGB8 palette".into());
         }
         Ok(Self(colors.into_iter().collect()))
     }
     pub fn scene(scene: &Scene) -> Result<Self, String> {
-        let quads = scene.actors.iter().flat_map(crate::lighting::quads).collect::<Vec<_>>();
+        let quads = scene
+            .actors
+            .iter()
+            .flat_map(crate::lighting::quads)
+            .collect::<Vec<_>>();
         Self::quads(&quads)
     }
     pub fn indices(&self, colors: Corners) -> [u16; 4] {
         // All consumers use the palette of the complete resource scene. Missing
         // entries are an internal cooker mismatch, never an approximate colour.
-        colors.map(|rgb| self.0.binary_search(&packed(rgb)).expect("vertex palette/resource mismatch") as u16)
+        colors.map(|rgb| {
+            self.0
+                .binary_search(&packed(rgb))
+                .expect("vertex palette/resource mismatch") as u16
+        })
     }
     pub fn header(&self) -> String {
-        let values = if self.0.is_empty() { "0".into() } else {
-            self.0.iter().map(|c| format!("{c}u")).collect::<Vec<_>>().join(",")
+        let values = if self.0.is_empty() {
+            "0".into()
+        } else {
+            self.0
+                .iter()
+                .map(|c| format!("{c}u"))
+                .collect::<Vec<_>>()
+                .join(",")
         };
-        format!("inline constexpr bool vertex_colors_enabled={};\ninline constexpr uint32_t vertex_color_palette[]={{{values}}};\n", !self.0.is_empty())
+        format!(
+            "inline constexpr bool vertex_colors_enabled={};\ninline constexpr uint32_t vertex_color_palette[]={{{values}}};\n",
+            !self.0.is_empty()
+        )
     }
 }
 /// Same floor(a*b/255) as runtime::scale_channel; white tint is an identity.
@@ -53,13 +74,24 @@ mod tests {
         let palette = Palette::quads([&a, &b]).unwrap();
         assert_eq!(palette, Palette::quads([&b, &a]).unwrap());
         assert_eq!(palette.0.len(), 3);
-        for rgb in a.vertex_colors.unwrap() { assert_eq!(tint(rgb, [255; 3]), rgb); }
+        for rgb in a.vertex_colors.unwrap() {
+            assert_eq!(tint(rgb, [255; 3]), rgb);
+        }
         let indices = palette.indices(a.vertex_colors.unwrap());
-        assert_eq!(indices.map(|i| palette.0[i as usize]), a.vertex_colors.unwrap().map(packed));
+        assert_eq!(
+            indices.map(|i| palette.0[i as usize]),
+            a.vertex_colors.unwrap().map(packed)
+        );
         assert!(palette.header().contains("vertex_colors_enabled=true"));
-        assert!(Palette::default().header().contains("vertex_colors_enabled=false"));
-        for a in 0..=255u32 { for b in 0..=255u32 {
-            assert_eq!(tint([a as u8; 3], [b as u8; 3]), [(a * b / 255) as u8; 3]);
-        }}
+        assert!(
+            Palette::default()
+                .header()
+                .contains("vertex_colors_enabled=false")
+        );
+        for a in 0..=255u32 {
+            for b in 0..=255u32 {
+                assert_eq!(tint([a as u8; 3], [b as u8; 3]), [(a * b / 255) as u8; 3]);
+            }
+        }
     }
 }

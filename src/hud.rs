@@ -861,11 +861,18 @@ mod tests {
         // allocator, inside the texture area and apart from each other.
         let p = placement[0].1;
         assert_eq!(p.format, crate::texture_cook::Format::Indexed4);
-        assert!(p.x >= 640 && p.clut_x >= 640 && p.clut_x.is_multiple_of(16) && p.y < 512 && p.clut_y < 512);
-        assert!(fonts_header(&scene).unwrap().contains(&format!(
-            "{},{},{},{}}}",
-            p.x, p.y, p.clut_x, p.clut_y
-        )));
+        assert!(
+            p.x >= 640
+                && p.clut_x >= 640
+                && p.clut_x.is_multiple_of(16)
+                && p.y < 512
+                && p.clut_y < 512
+        );
+        assert!(
+            fonts_header(&scene)
+                .unwrap()
+                .contains(&format!("{},{},{},{}}}", p.x, p.y, p.clut_x, p.clut_y))
+        );
         assert_eq!(font_ids(&scene), vec![id]);
     }
     #[test]

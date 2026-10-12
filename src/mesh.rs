@@ -327,7 +327,8 @@ impl Document {
                 let j = (i + 1) % 4;
                 if p[i] != p[j] {
                     self.add_face([p[i], p[j], top[j], top[i]], f.group, f.material);
-                    self.faces.last_mut().unwrap().vertex_colors = f.vertex_colors.map(|c| [c[i], c[j], c[j], c[i]]);
+                    self.faces.last_mut().unwrap().vertex_colors =
+                        f.vertex_colors.map(|c| [c[i], c[j], c[j], c[i]]);
                 }
             }
         }
@@ -366,9 +367,22 @@ impl Document {
                     std::array::from_fn(|c| (f.uv[i][c] + f.uv[(i + count - 1) % count][c]) * 0.5),
                 ];
                 self.faces.last_mut().unwrap().vertex_colors = f.vertex_colors.map(|colors| {
-                    let mix = |a: usize, b: usize| std::array::from_fn(|c| ((u16::from(colors[a][c]) + u16::from(colors[b][c]) + 1) / 2) as u8);
-                    let center = std::array::from_fn(|c| ((colors[..count].iter().map(|v| u32::from(v[c])).sum::<u32>() + count as u32 / 2) / count as u32) as u8);
-                    [colors[i], mix(i, (i + 1) % count), center, mix(i, (i + count - 1) % count)]
+                    let mix = |a: usize, b: usize| {
+                        std::array::from_fn(|c| {
+                            ((u16::from(colors[a][c]) + u16::from(colors[b][c]) + 1) / 2) as u8
+                        })
+                    };
+                    let center = std::array::from_fn(|c| {
+                        ((colors[..count].iter().map(|v| u32::from(v[c])).sum::<u32>()
+                            + count as u32 / 2)
+                            / count as u32) as u8
+                    });
+                    [
+                        colors[i],
+                        mix(i, (i + 1) % count),
+                        center,
+                        mix(i, (i + count - 1) % count),
+                    ]
                 });
             }
         }
@@ -446,17 +460,25 @@ pub fn resolve(scene: &mut Scene, index: &assets::Index) -> Result<(), String> {
     let mut loaded = BTreeMap::new();
     for e in &mut scene.actors {
         if let Some(m) = &mut e.editable_mesh {
-            let result = loaded
-                .entry(m.asset)
-                .or_insert_with(|| index.resolve(m.asset).and_then(|record| {
-                    crate::source_cache::load(&record.path, &format!("editable-mesh-v1-{}", m.asset), |bytes| {
-                        let package = assets::Package::parse(bytes)?;
-                        if package.meta.kind != assets::Kind::EditableMesh || package.meta.id != m.asset {
-                            return Err("The mesh asset was replaced; refresh the asset index".into());
-                        }
-                        Document::parse(&package.source)
-                    })
-                }));
+            let result = loaded.entry(m.asset).or_insert_with(|| {
+                index.resolve(m.asset).and_then(|record| {
+                    crate::source_cache::load(
+                        &record.path,
+                        &format!("editable-mesh-v1-{}", m.asset),
+                        |bytes| {
+                            let package = assets::Package::parse(bytes)?;
+                            if package.meta.kind != assets::Kind::EditableMesh
+                                || package.meta.id != m.asset
+                            {
+                                return Err(
+                                    "The mesh asset was replaced; refresh the asset index".into()
+                                );
+                            }
+                            Document::parse(&package.source)
+                        },
+                    )
+                })
+            });
             match result {
                 Ok(doc) => {
                     m.document = Some(doc.clone());
@@ -543,7 +565,11 @@ pub(crate) mod tests {
     #[test]
     fn authored_vertex_colors_roundtrip_and_topology_keep_corners() {
         let mut doc = shape("Plane");
-        assert!(!String::from_utf8(serde_json::to_vec(&doc).unwrap()).unwrap().contains("vertex_colors"));
+        assert!(
+            !String::from_utf8(serde_json::to_vec(&doc).unwrap())
+                .unwrap()
+                .contains("vertex_colors")
+        );
         let colors = [[0, 128, 185], [255, 1, 127], [64, 128, 255], [10, 20, 30]];
         doc.faces[0].vertex_colors = Some(colors);
         let decoded = Document::parse(&serde_json::to_vec(&doc).unwrap()).unwrap();
@@ -552,7 +578,9 @@ pub(crate) mod tests {
         let mut extruded = doc.clone();
         extruded.extrude(&selected, 1.).unwrap();
         assert_eq!(extruded.faces[0].vertex_colors, Some(colors));
-        for face in &extruded.faces { assert!(face.vertex_colors.is_some()); }
+        for face in &extruded.faces {
+            assert!(face.vertex_colors.is_some());
+        }
         doc.split(&selected);
         assert_eq!(doc.faces.len(), 4);
         for (i, face) in doc.faces.iter().enumerate() {
@@ -758,7 +786,13 @@ pub(crate) mod tests {
         mesh.document = Some(Arc::new(doc));
         let quads = crate::mesh_compile::quads(&e, &mesh);
         assert_eq!(quads.len(), 1);
-        assert_eq!(quads[0].points, mesh.document.as_ref().unwrap().points(&mesh.document.as_ref().unwrap().faces[0]));
+        assert_eq!(
+            quads[0].points,
+            mesh.document
+                .as_ref()
+                .unwrap()
+                .points(&mesh.document.as_ref().unwrap().faces[0])
+        );
         assert_eq!(quads[0].uv, default_uv());
         let chunks = crate::mesh_compile::chunks(&quads).unwrap();
         assert_eq!(chunks.len(), 1);
@@ -774,7 +808,11 @@ pub(crate) mod tests {
             }
         }
         e.editable_mesh = Some(mesh);
-        assert!(crate::mesh_compile::header(&e, 0).unwrap().contains("int32_t editable_0_0_vertices"));
+        assert!(
+            crate::mesh_compile::header(&e, 0)
+                .unwrap()
+                .contains("int32_t editable_0_0_vertices")
+        );
     }
     #[test]
     fn wide_chunk_groups_split_without_changing_quantized_vertices() {

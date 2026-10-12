@@ -1085,7 +1085,8 @@ pub(crate) mod tests {
         let front_faces = ids(&front).len();
         let faces: Vec<_> = ids(&front).into_iter().chain(ids(&back)).collect();
         let camera = Scene::default().actors[0].clone();
-        let track = Track { path: Vec::new(),
+        let track = Track {
+            path: Vec::new(),
             camera: camera.id,
             sample_ms: 100,
             cull_backfaces: false,

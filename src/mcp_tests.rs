@@ -23,14 +23,25 @@ fn editor_state_exposes_native_frames_without_emulator_counters() {
     let before = mcp_tools::execute(&mut e, &mut state, "editor_state", json!({})).unwrap();
     assert!(before["native_frame"].is_null());
     e.native_frame = Some(std::sync::Arc::new(crate::native_play::Frame {
-        scene: e.scene.clone(), number: 37, buttons: 2048, actor_count: 46,
-        camera: Some(3), hud_rgba: vec![], hud_size: [512, 240], stats: [0; 5],
-        audio_voices: 0, audio_pending: 0, track_sample: None,
+        scene: e.scene.clone(),
+        number: 37,
+        buttons: 2048,
+        actor_count: 46,
+        camera: Some(3),
+        hud_rgba: vec![],
+        hud_size: [512, 240],
+        stats: [0; 5],
+        audio_voices: 0,
+        audio_pending: 0,
+        track_sample: None,
     }));
     let reply = mcp_tools::execute(&mut e, &mut state, "editor_state", json!({})).unwrap();
     assert!(reply["game_frame"].is_null());
-    assert_eq!(reply["native_frame"], json!({"sequence":37,"width":512,"height":240,
-        "buttons":2048,"actors":46,"camera":3}));
+    assert_eq!(
+        reply["native_frame"],
+        json!({"sequence":37,"width":512,"height":240,
+        "buttons":2048,"actors":46,"camera":3})
+    );
     drop(e);
     fs::remove_dir_all(root).unwrap();
 }
@@ -55,7 +66,15 @@ fn scene_open_reports_async_progress_and_preserves_the_current_map_on_failure() 
     assert_eq!(result["editing_locked"], true);
     assert_eq!(result["operation"], "Opening scene");
     assert_eq!(e.scene_path(), original);
-    assert!(mcp_tools::execute(&mut e, &mut state, "editor_control", json!({"action":"play"})).is_err());
+    assert!(
+        mcp_tools::execute(
+            &mut e,
+            &mut state,
+            "editor_control",
+            json!({"action":"play"})
+        )
+        .is_err()
+    );
     assert!(mcp_tools::execute(&mut e, &mut state, "logs_read", json!({})).is_ok());
     let wait = |e: &mut crate::editor::Editor| {
         let deadline = Instant::now() + Duration::from_secs(10);
@@ -74,7 +93,8 @@ fn scene_open_reports_async_progress_and_preserves_the_current_map_on_failure() 
     assert!(!e.dirty && e.job.is_none());
     let bad = e.root.join("assets/scenes/McpBroken.epokmap");
     fs::write(&bad, "malformed: [").unwrap();
-    let args = json!({"path":"assets/scenes/McpBroken.epokmap","revision":mcp_tools::revision(&e.scene)});
+    let args =
+        json!({"path":"assets/scenes/McpBroken.epokmap","revision":mcp_tools::revision(&e.scene)});
     mcp_tools::execute(&mut e, &mut state, "scene_open", args).unwrap();
     wait(&mut e);
     assert_eq!(e.scene_path(), path);
@@ -95,21 +115,38 @@ fn mcp_stop_uses_editor_lifecycle_and_releases_held_input() {
     e.focus_game = true;
     state.buttons = 8;
     state.buttons_until = Some(Instant::now() + Duration::from_secs(5));
-    let reply = mcp_tools::execute(&mut e, &mut state, "editor_control", json!({"action":"stop"})).unwrap();
+    let reply = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "editor_control",
+        json!({"action":"stop"}),
+    )
+    .unwrap();
     assert_eq!(reply["state"]["stopping"], true);
-    assert!(matches!(controls.try_recv(), Ok(crate::pipeline::Control::Stop)));
+    assert!(matches!(
+        controls.try_recv(),
+        Ok(crate::pipeline::Control::Stop)
+    ));
     assert!(e.job.as_ref().unwrap().stopping());
     assert!(e.focus_scene && !e.focus_game && !e.game_capture);
     assert_eq!(state.buttons, 0);
     assert!(state.buttons_until.is_none());
     assert!(mcp_tools::execute(&mut e, &mut state, "game_input", json!({"buttons":8})).is_err());
-    events.send(crate::pipeline::Event::Finished(Ok(()))).unwrap();
+    events
+        .send(crate::pipeline::Event::Finished(Ok(())))
+        .unwrap();
     e.tick();
     assert!(e.job.is_none() && !e.playing);
     let reply = mcp_tools::execute(&mut e, &mut state, "editor_state", json!({})).unwrap();
     assert_eq!(reply["stopping"], false);
     // Stop when idle is not the toolbar's Play toggle.
-    mcp_tools::execute(&mut e, &mut state, "editor_control", json!({"action":"stop"})).unwrap();
+    mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "editor_control",
+        json!({"action":"stop"}),
+    )
+    .unwrap();
     assert!(e.job.is_none());
     drop(e);
     fs::remove_dir_all(root).unwrap();

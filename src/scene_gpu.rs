@@ -667,7 +667,8 @@ impl SceneGpu {
             RenderInput {
                 scene: &frame.scene,
                 view: &view,
-                projection_aspect: frame.camera
+                projection_aspect: frame
+                    .camera
                     .filter(|&index| index < frame.scene.actors.len())
                     .map(|_| crate::native_play::GAME_PROJECTION_ASPECT),
                 selected: None,
@@ -894,7 +895,8 @@ impl SceneGpu {
                     }
                     let mut bytes = vec![0; 256 * 256 * 4];
                     if let Some(t) = scene.textures.get(&id) {
-                        let palette_rgba = crate::palette::preview_gpu_rgba(scene, id, preview_time, t);
+                        let palette_rgba =
+                            crate::palette::preview_gpu_rgba(scene, id, preview_time, t);
                         for y in 0..t.height as usize {
                             let len = t.width as usize * 4;
                             bytes[y * 1024..y * 1024 + len]
@@ -947,7 +949,8 @@ impl SceneGpu {
             view.center[2],
             view.zoom,
             view.distance,
-            input.projection_aspect
+            input
+                .projection_aspect
                 .unwrap_or(self.size.width as f32 / self.size.height as f32),
             if view.mirror_x { -1. } else { 1. },
             0.,
@@ -1309,12 +1312,18 @@ fn geometry_with_effects(
                     }
                 };
                 let color = crate::lighting::modulate(rgb, q.material.color);
-                let color = q.vertex_colors.map_or(color, |colors| crate::vertex_colors::tint(colors[v], color));
+                let color = q
+                    .vertex_colors
+                    .map_or(color, |colors| crate::vertex_colors::tint(colors[v], color));
                 if state.open
                     && state.target == Some(index)
                     && q.id.is_some_and(|id| state.selected.contains(&id))
                 {
-                    let highlight = if q.vertex_colors.is_some() && q.material.texture.is_some() { [128, 90, 28] } else { [255, 180, 55] };
+                    let highlight = if q.vertex_colors.is_some() && q.material.texture.is_some() {
+                        [128, 90, 28]
+                    } else {
+                        [255, 180, 55]
+                    };
                     std::array::from_fn(|c| ((color[c] as u16 + highlight[c]) / 2) as u8)
                 } else {
                     color
@@ -1559,11 +1568,18 @@ fn encode_draws(
     let ids = crate::texture::ids(scene);
     let mut triangles = Vec::new();
     let mut ranges = Vec::<DrawRange>::new();
-    let opaque_texels: std::collections::BTreeSet<_> = scene.textures.iter()
-        .filter_map(|(&id, t)| t.has_opaque_texels().then_some(id)).collect();
+    let opaque_texels: std::collections::BTreeSet<_> = scene
+        .textures
+        .iter()
+        .filter_map(|(&id, t)| t.has_opaque_texels().then_some(id))
+        .collect();
     for draw in draws {
         let mode = draw.material.blend as usize;
-        let split_stp = mode != 0 && draw.material.texture.is_some_and(|id| opaque_texels.contains(&id));
+        let split_stp = mode != 0
+            && draw
+                .material
+                .texture
+                .is_some_and(|id| opaque_texels.contains(&id));
         let (bank, layer) = draw
             .material
             .texture
@@ -1574,7 +1590,11 @@ fn encode_draws(
             .texture
             .and_then(|id| scene.textures.get(&id))
             .map_or((256, 256), |texture| (texture.width, texture.height));
-        let neutral = if draw.gpu_colors && layer != 0 { 128. } else { 255. };
+        let neutral = if draw.gpu_colors && layer != 0 {
+            128.
+        } else {
+            255.
+        };
         let mut emitted = Vec::new();
         for triple in [[0, 1, 2], [0, 2, 3]] {
             let input = triple.map(|index| {
@@ -1583,7 +1603,12 @@ fn encode_draws(
                 let depth = view_distance + point[0] * sy * cp + point[2] * cy * cp - point[1] * sp;
                 crate::effects::Vertex {
                     point: draw.points[index],
-                    color: crate::effects::fog_color_domain(draw.colors[index], depth, &scene.fog, neutral),
+                    color: crate::effects::fog_color_domain(
+                        draw.colors[index],
+                        depth,
+                        &scene.fog,
+                        neutral,
+                    ),
                     uv: draw.uv[index],
                 }
             });
@@ -1604,28 +1629,32 @@ fn encode_draws(
             let pipeline = (if pass == 8 { 0 } else { mode }) + if draw.cull { 5 } else { 0 };
             let start = (triangles.len() / 40) as u32;
             let count = (emitted.len() * 3) as u32;
-            if let Some(last) = ranges.last_mut()
-                .filter(|range| range.2 == pipeline && range.3 == bank) {
-                last.1 += count;
-            } else { ranges.push((start, count, pipeline, bank)); }
-        for vertex in emitted.iter().flatten() {
-            let uv = if layer == 0 {
-                [0., 0.]
-            } else {
-                [
-                    (vertex.uv[0].clamp(0., 1.) * size.0.saturating_sub(1) as f32 + 0.5) / 256.,
-                    (vertex.uv[1].clamp(0., 1.) * size.1.saturating_sub(1) as f32 + 0.5) / 256.,
-                ]
-            };
-            for value in vertex
-                .point
-                .into_iter()
-                .chain(vertex.color.map(|channel| channel as f32 / neutral))
-                .chain([uv[0], uv[1], layer as f32, pass as f32])
+            if let Some(last) = ranges
+                .last_mut()
+                .filter(|range| range.2 == pipeline && range.3 == bank)
             {
-                triangles.extend_from_slice(&value.to_le_bytes());
+                last.1 += count;
+            } else {
+                ranges.push((start, count, pipeline, bank));
             }
-        }
+            for vertex in emitted.iter().flatten() {
+                let uv = if layer == 0 {
+                    [0., 0.]
+                } else {
+                    [
+                        (vertex.uv[0].clamp(0., 1.) * size.0.saturating_sub(1) as f32 + 0.5) / 256.,
+                        (vertex.uv[1].clamp(0., 1.) * size.1.saturating_sub(1) as f32 + 0.5) / 256.,
+                    ]
+                };
+                for value in vertex
+                    .point
+                    .into_iter()
+                    .chain(vertex.color.map(|channel| channel as f32 / neutral))
+                    .chain([uv[0], uv[1], layer as f32, pass as f32])
+                {
+                    triangles.extend_from_slice(&value.to_le_bytes());
+                }
+            }
         }
     }
     (triangles, ranges)
@@ -1707,7 +1736,8 @@ mod tests {
             hud_size: size.map(u32::from),
             stats: [0; 5],
             audio_voices: 0,
-            audio_pending: 0, track_sample: None,
+            audio_pending: 0,
+            track_sample: None,
         }
     }
 
@@ -1720,7 +1750,8 @@ mod tests {
                 let focal = 1. / (fov.clamp(25., 120.).to_radians() / 2.).tan();
                 let view = frame.view();
                 let focal_x = f32::from(width) / 2. * 2.9
-                    / crate::native_play::GAME_PROJECTION_ASPECT * view.zoom;
+                    / crate::native_play::GAME_PROJECTION_ASPECT
+                    * view.zoom;
                 let focal_y = f32::from(height) / 2. * 2.9 * view.zoom;
                 assert!((focal_x - f32::from(width / 2) * focal).abs() < 0.001);
                 assert!((focal_y - f32::from(height * 2 / 3) * focal).abs() < 0.001);
@@ -1735,19 +1766,30 @@ mod tests {
     fn native_game_projection_matches_runtime_focals_in_every_video_mode() {
         use super::*;
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: if cfg!(windows) { wgpu::Backends::DX12 } else { wgpu::Backends::PRIMARY },
+            backends: if cfg!(windows) {
+                wgpu::Backends::DX12
+            } else {
+                wgpu::Backends::PRIMARY
+            },
             ..Default::default()
         });
         let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
-        let (device, queue) = pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
         let mut checked = 0;
         for (width, height) in crate::settings::Rendering::MODES {
             let size = wgpu::Extent3d {
-                width: u32::from(width), height: u32::from(height), depth_or_array_layers: 1,
+                width: u32::from(width),
+                height: u32::from(height),
+                depth_or_array_layers: 1,
             };
             let texture = device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Native game focal regression"), size, mip_level_count: 1,
-                sample_count: 1, dimension: wgpu::TextureDimension::D2, format: FORMAT,
+                label: Some("Native game focal regression"),
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: FORMAT,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
                 view_formats: &[],
             });
@@ -1758,8 +1800,14 @@ mod tests {
             doc.materials[0].material.color = [1., 0., 0.];
             doc.materials[0].material.unlit = true;
             doc.add_face(
-                [[1., 0.5, 16.], [1., 1.5, 16.], [3., 1.5, 16.], [3., 0.5, 16.]],
-                doc.groups[0].id, doc.materials[0].id,
+                [
+                    [1., 0.5, 16.],
+                    [1., 1.5, 16.],
+                    [3., 1.5, 16.],
+                    [3., 0.5, 16.],
+                ],
+                doc.groups[0].id,
+                doc.materials[0].id,
             );
             let mut marker = crate::scene::Actor::cube("Projected marker".into());
             marker.position = [0.; 3];
@@ -1778,38 +1826,55 @@ mod tests {
                     renderer.render_game(&device, &queue, &mut encoder, &target, &frame);
                     queue.submit(Some(encoder.finish()));
                     let png = crate::platform::capture_png(&device, &queue, &texture).unwrap();
-                    let mut reader = png::Decoder::new(std::io::Cursor::new(png)).read_info().unwrap();
+                    let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+                        .read_info()
+                        .unwrap();
                     let mut pixels = vec![0; reader.output_buffer_size()];
                     let info = reader.next_frame(&mut pixels).unwrap();
-                    assert_eq!([info.width, info.height], [u32::from(width), u32::from(height)]);
+                    assert_eq!(
+                        [info.width, info.height],
+                        [u32::from(width), u32::from(height)]
+                    );
                     let mut bounds = [u32::MAX, u32::MAX, 0, 0];
                     let mut red_pixels = 0;
                     for (index, pixel) in pixels.chunks_exact(4).enumerate() {
                         if pixel[0] > 200 && pixel[1] < 20 && pixel[2] < 20 {
                             let x = index as u32 % u32::from(width);
                             let y = index as u32 / u32::from(width);
-                            bounds[0] = bounds[0].min(x); bounds[1] = bounds[1].min(y);
-                            bounds[2] = bounds[2].max(x + 1); bounds[3] = bounds[3].max(y + 1);
+                            bounds[0] = bounds[0].min(x);
+                            bounds[1] = bounds[1].min(y);
+                            bounds[2] = bounds[2].max(x + 1);
+                            bounds[3] = bounds[3].max(y + 1);
                             red_pixels += 1;
                         }
                     }
-                    assert!(red_pixels > 0, "marker absent: {width}x{height} FOV {fov} mirror {mirror}");
+                    assert!(
+                        red_pixels > 0,
+                        "marker absent: {width}x{height} FOV {fov} mirror {mirror}"
+                    );
                     // Independent reference: camera_project in both PSX and
                     // native C++ uses w/2 and h*2/3, not the editor's 2.9 scale.
                     let focal = 1. / (fov.clamp(25., 120.).to_radians() / 2.).tan();
-                    let sx = |x| f32::from(width / 2)
-                        + x * focal * f32::from(width / 2) / 16. * if mirror { -1. } else { 1. };
-                    let sy = |y| f32::from(height / 2) - y * focal * f32::from(height * 2 / 3) / 16.;
+                    let sx = |x| {
+                        f32::from(width / 2)
+                            + x * focal * f32::from(width / 2) / 16. * if mirror { -1. } else { 1. }
+                    };
+                    let sy =
+                        |y| f32::from(height / 2) - y * focal * f32::from(height * 2 / 3) / 16.;
                     let expected = [sx(1.).min(sx(3.)), sy(1.5), sx(1.).max(sx(3.)), sy(0.5)];
                     for (actual, expected) in bounds.into_iter().zip(expected) {
-                        assert!((actual as f32 - expected).abs() <= 1.,
-                            "{width}x{height} FOV {fov} mirror {mirror}: {bounds:?}, boundary {expected}");
+                        assert!(
+                            (actual as f32 - expected).abs() <= 1.,
+                            "{width}x{height} FOV {fov} mirror {mirror}: {bounds:?}, boundary {expected}"
+                        );
                     }
                     checked += 1;
                 }
             }
         }
-        println!("Native game projection: {checked} GPU readbacks, ten video modes, six FOV inputs, both mirror states.");
+        println!(
+            "Native game projection: {checked} GPU readbacks, ten video modes, six FOV inputs, both mirror states."
+        );
     }
 
     fn texture_scene(count: usize) -> crate::scene::Scene {
@@ -1840,27 +1905,39 @@ mod tests {
             cull: false,
         };
         let check = |draw: &Draw, scene: &Scene, expected: [f32; 3]| {
-            let (bytes, _) = encode_draws(std::slice::from_ref(draw), scene, 0.5,
-                [0.; 3], 8., [0., 1., 0., 1.]);
+            let (bytes, _) = encode_draws(
+                std::slice::from_ref(draw),
+                scene,
+                0.5,
+                [0.; 3],
+                8.,
+                [0., 1., 0., 1.],
+            );
             assert!(!bytes.is_empty());
             for vertex in bytes.chunks_exact(40) {
                 for c in 0..3 {
-                    let value = f32::from_le_bytes(vertex[12+c*4..16+c*4].try_into().unwrap());
+                    let value =
+                        f32::from_le_bytes(vertex[12 + c * 4..16 + c * 4].try_into().unwrap());
                     assert!((value - expected[c]).abs() < 1e-6, "channel {c}: {value}");
                 }
             }
         };
-        check(&draw, &scene, [185./128., 1., 0.5]);
+        check(&draw, &scene, [185. / 128., 1., 0.5]);
         draw.material.uv_scroll = [0.5, -0.75];
-        check(&draw, &scene, [185./128., 1., 0.5]);
-        scene.fog = crate::effects::Fog { enabled: true, start: 0., end: 4., color: [1., 0.5, 0.] };
+        check(&draw, &scene, [185. / 128., 1., 0.5]);
+        scene.fog = crate::effects::Fog {
+            enabled: true,
+            start: 0.,
+            end: 4.,
+            color: [1., 0.5, 0.],
+        };
         check(&draw, &scene, [1., 0.5, 0.]);
         scene.fog.enabled = false;
         draw.material.texture = None;
-        check(&draw, &scene, [185./255., 128./255., 64./255.]);
+        check(&draw, &scene, [185. / 255., 128. / 255., 64. / 255.]);
         draw.material = scene.actors[0].material.clone();
         draw.gpu_colors = false;
-        check(&draw, &scene, [185./255., 128./255., 64./255.]);
+        check(&draw, &scene, [185. / 255., 128. / 255., 64. / 255.]);
     }
 
     #[test]
@@ -1921,32 +1998,66 @@ mod tests {
         use super::*;
         let mut scene = texture_scene(1);
         let id = scene.actors[0].material.texture.unwrap();
-        let mut palette = [0;16]; palette[0]=0x001f; palette[1]=0x801f;
-        let tim = crate::texture::tests::tim_fixture(4,&palette,1,1,&[0x10,0x01]);
+        let mut palette = [0; 16];
+        palette[0] = 0x001f;
+        palette[1] = 0x801f;
+        let tim = crate::texture::tests::tim_fixture(4, &palette, 1, 1, &[0x10, 0x01]);
         let data = crate::texture::decode(&tim).unwrap();
-        assert_eq!(crate::palette::preview_gpu_rgba(&scene,id,0.,&data),
-            [255,0,0,128,255,0,0,255,255,0,0,255,255,0,0,128]);
-        assert!(crate::palette::preview_rgba(&scene,id,0.,&data).chunks_exact(4).all(|p| p[3]==255));
-        scene.textures.insert(id,std::sync::Arc::new(data));
-        let mut draw=Draw { points:[[-1.,-1.,0.],[1.,-1.,0.],[1.,1.,0.],[-1.,1.,0.]],
-            gpu_colors:false,cull:false,colors:[[255;3];4],uv:[[0.;2];4],material:scene.actors[0].material.clone() };
-        for cull in [false,true] { for blend in [crate::texture::BlendMode::Cutout,
-            crate::texture::BlendMode::Average,crate::texture::BlendMode::Add,
-            crate::texture::BlendMode::Subtract,crate::texture::BlendMode::AddQuarter] {
-            draw.material.blend=blend; draw.cull=cull;
-            let (vertices,ranges)=encode_draws(std::slice::from_ref(&draw),&scene,0.,[0.;3],8.,[0.,1.,0.,1.]);
-            let c=if cull {5} else {0};
-            if blend==crate::texture::BlendMode::Cutout { assert_eq!(ranges,[(0,6,c,0)]); }
-            else {
-                assert_eq!(ranges,[(0,6,c,0),(6,6,c+blend as usize,0)]);
-                for v in vertices[..6*40].chunks_exact(40) {
-                    assert_eq!(f32::from_le_bytes(v[36..40].try_into().unwrap()),8.);
+        assert_eq!(
+            crate::palette::preview_gpu_rgba(&scene, id, 0., &data),
+            [
+                255, 0, 0, 128, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 128
+            ]
+        );
+        assert!(
+            crate::palette::preview_rgba(&scene, id, 0., &data)
+                .chunks_exact(4)
+                .all(|p| p[3] == 255)
+        );
+        scene.textures.insert(id, std::sync::Arc::new(data));
+        let mut draw = Draw {
+            points: [[-1., -1., 0.], [1., -1., 0.], [1., 1., 0.], [-1., 1., 0.]],
+            gpu_colors: false,
+            cull: false,
+            colors: [[255; 3]; 4],
+            uv: [[0.; 2]; 4],
+            material: scene.actors[0].material.clone(),
+        };
+        for cull in [false, true] {
+            for blend in [
+                crate::texture::BlendMode::Cutout,
+                crate::texture::BlendMode::Average,
+                crate::texture::BlendMode::Add,
+                crate::texture::BlendMode::Subtract,
+                crate::texture::BlendMode::AddQuarter,
+            ] {
+                draw.material.blend = blend;
+                draw.cull = cull;
+                let (vertices, ranges) = encode_draws(
+                    std::slice::from_ref(&draw),
+                    &scene,
+                    0.,
+                    [0.; 3],
+                    8.,
+                    [0., 1., 0., 1.],
+                );
+                let c = if cull { 5 } else { 0 };
+                if blend == crate::texture::BlendMode::Cutout {
+                    assert_eq!(ranges, [(0, 6, c, 0)]);
+                } else {
+                    assert_eq!(ranges, [(0, 6, c, 0), (6, 6, c + blend as usize, 0)]);
+                    for v in vertices[..6 * 40].chunks_exact(40) {
+                        assert_eq!(f32::from_le_bytes(v[36..40].try_into().unwrap()), 8.);
+                    }
                 }
             }
-        }}
-        scene.textures.insert(id,std::sync::Arc::new(crate::texture::decode(&crate::texture::tests::png()).unwrap()));
-        let (_,ranges)=encode_draws(&[draw],&scene,0.,[0.;3],8.,[0.,1.,0.,1.]);
-        assert_eq!(ranges,[(0,6,9,0)]);
+        }
+        scene.textures.insert(
+            id,
+            std::sync::Arc::new(crate::texture::decode(&crate::texture::tests::png()).unwrap()),
+        );
+        let (_, ranges) = encode_draws(&[draw], &scene, 0., [0.; 3], 8., [0., 1., 0., 1.]);
+        assert_eq!(ranges, [(0, 6, 9, 0)]);
     }
 
     #[test]
@@ -2047,54 +2158,135 @@ mod tests {
     #[ignore = "requires a graphics adapter; reads back native per-texel STP in all blend modes"]
     fn gpu_native_stp_keeps_opaque_texels_cutout_and_visible_black() {
         use super::*;
-        let mut scene=texture_scene(1);
-        let id=scene.actors[0].material.texture.unwrap();
-        let mut palette=[0;16]; palette[..4].copy_from_slice(&[0x001f,0x801f,0,0x8000]);
-        let tim=crate::texture::tests::tim_fixture(4,&palette,1,1,&[0x10,0x32]);
-        scene.textures.insert(id,std::sync::Arc::new(crate::texture::decode(&tim).unwrap()));
-        scene.actors[0].active=true;
-        let instance=wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends:if cfg!(windows) {wgpu::Backends::DX12} else {wgpu::Backends::PRIMARY},..Default::default() });
-        let adapter=pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
-        let (device,queue)=pollster::block_on(adapter.request_device(&Default::default())).unwrap();
-        let target=device.create_texture(&wgpu::TextureDescriptor {
-            label:Some("Native STP regression"),size:SIZE,mip_level_count:1,sample_count:1,
-            dimension:wgpu::TextureDimension::D2,format:FORMAT,
-            usage:wgpu::TextureUsages::RENDER_ATTACHMENT|wgpu::TextureUsages::COPY_SRC,view_formats:&[] });
-        let view=crate::viewport::View {yaw:0.,pitch:0.,distance:8.,zoom:0.85,..Default::default()};
-        let mut renderer=SceneGpu::new(&device,&queue);
-        let srgb=|v:f32| { let v=v.clamp(0.,1.); ((if v<=0.0031308 {v*12.92} else {1.055*v.powf(1./2.4)-0.055})*255.).round() as u8 };
-        for blend in [crate::texture::BlendMode::Cutout,crate::texture::BlendMode::Average,
-            crate::texture::BlendMode::Add,crate::texture::BlendMode::Subtract,crate::texture::BlendMode::AddQuarter] {
-            let mut doc=crate::mesh::Document::default();
-            doc.materials[0].material=scene.actors[0].material.clone();
-            doc.materials[0].material.blend=blend;
-            doc.add_face([[-2.,-1.,0.],[2.,-1.,0.],[2.,1.,0.],[-2.,1.,0.]],doc.groups[0].id,doc.materials[0].id);
-            doc.faces[0].uv=[[0.,0.],[1.,0.],[1.,1.],[0.,1.]];
-            scene.actors[0].editable_mesh=Some(crate::mesh::Component {document:Some(std::sync::Arc::new(doc)),
-                ..crate::mesh::Component::new(uuid::Uuid::new_v4())});
-            let mut encoder=device.create_command_encoder(&Default::default());
-            renderer.render_input(&device,&queue,&mut encoder,&target.create_view(&Default::default()),RenderInput {
-                scene:&scene,view:&view,projection_aspect:None,selected:None,mesh:&Default::default(),terrain:&Default::default(),wire:false,
-                grid:false,effect:None,background:Some([0.5;3]),sky_gradient:None,revision:None,split_static:false,baked_selection:None,baked_revision:0 });
+        let mut scene = texture_scene(1);
+        let id = scene.actors[0].material.texture.unwrap();
+        let mut palette = [0; 16];
+        palette[..4].copy_from_slice(&[0x001f, 0x801f, 0, 0x8000]);
+        let tim = crate::texture::tests::tim_fixture(4, &palette, 1, 1, &[0x10, 0x32]);
+        scene.textures.insert(
+            id,
+            std::sync::Arc::new(crate::texture::decode(&tim).unwrap()),
+        );
+        scene.actors[0].active = true;
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: if cfg!(windows) {
+                wgpu::Backends::DX12
+            } else {
+                wgpu::Backends::PRIMARY
+            },
+            ..Default::default()
+        });
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let target = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Native STP regression"),
+            size: SIZE,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = crate::viewport::View {
+            yaw: 0.,
+            pitch: 0.,
+            distance: 8.,
+            zoom: 0.85,
+            ..Default::default()
+        };
+        let mut renderer = SceneGpu::new(&device, &queue);
+        let srgb = |v: f32| {
+            let v = v.clamp(0., 1.);
+            ((if v <= 0.0031308 {
+                v * 12.92
+            } else {
+                1.055 * v.powf(1. / 2.4) - 0.055
+            }) * 255.)
+                .round() as u8
+        };
+        for blend in [
+            crate::texture::BlendMode::Cutout,
+            crate::texture::BlendMode::Average,
+            crate::texture::BlendMode::Add,
+            crate::texture::BlendMode::Subtract,
+            crate::texture::BlendMode::AddQuarter,
+        ] {
+            let mut doc = crate::mesh::Document::default();
+            doc.materials[0].material = scene.actors[0].material.clone();
+            doc.materials[0].material.blend = blend;
+            doc.add_face(
+                [[-2., -1., 0.], [2., -1., 0.], [2., 1., 0.], [-2., 1., 0.]],
+                doc.groups[0].id,
+                doc.materials[0].id,
+            );
+            doc.faces[0].uv = [[0., 0.], [1., 0.], [1., 1.], [0., 1.]];
+            scene.actors[0].editable_mesh = Some(crate::mesh::Component {
+                document: Some(std::sync::Arc::new(doc)),
+                ..crate::mesh::Component::new(uuid::Uuid::new_v4())
+            });
+            let mut encoder = device.create_command_encoder(&Default::default());
+            renderer.render_input(
+                &device,
+                &queue,
+                &mut encoder,
+                &target.create_view(&Default::default()),
+                RenderInput {
+                    scene: &scene,
+                    view: &view,
+                    projection_aspect: None,
+                    selected: None,
+                    mesh: &Default::default(),
+                    terrain: &Default::default(),
+                    wire: false,
+                    grid: false,
+                    effect: None,
+                    background: Some([0.5; 3]),
+                    sky_gradient: None,
+                    revision: None,
+                    split_static: false,
+                    baked_selection: None,
+                    baked_revision: 0,
+                },
+            );
             queue.submit(Some(encoder.finish()));
-            let png=crate::platform::capture_png(&device,&queue,&target).unwrap();
-            let mut reader=png::Decoder::new(std::io::Cursor::new(png)).read_info().unwrap();
-            let mut pixels=vec![0;reader.output_buffer_size()]; let info=reader.next_frame(&mut pixels).unwrap();
-            for (index,x) in [340,430,530,620].into_iter().enumerate() {
-                let expected: [u8;3]=std::array::from_fn(|channel| {
+            let png = crate::platform::capture_png(&device, &queue, &target).unwrap();
+            let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+                .read_info()
+                .unwrap();
+            let mut pixels = vec![0; reader.output_buffer_size()];
+            let info = reader.next_frame(&mut pixels).unwrap();
+            for (index, x) in [340, 430, 530, 620].into_iter().enumerate() {
+                let expected: [u8; 3] = std::array::from_fn(|channel| {
                     // RenderInput background is a linear attachment clear;
                     // scene preview blending is linear, not PSX integer RGB5.
-                    let f=if index<2 && channel==0 {1.} else {0.}; let b=0.5;
-                    if index==2 {return srgb(b);}
-                    srgb(if index==0 {f} else {match blend {
-                        crate::texture::BlendMode::Cutout=>f,crate::texture::BlendMode::Average=>(b+f)*0.5,
-                        crate::texture::BlendMode::Add=>b+f,crate::texture::BlendMode::Subtract=>b-f,
-                        crate::texture::BlendMode::AddQuarter=>b+f*0.25 }})
+                    let f = if index < 2 && channel == 0 { 1. } else { 0. };
+                    let b = 0.5;
+                    if index == 2 {
+                        return srgb(b);
+                    }
+                    srgb(if index == 0 {
+                        f
+                    } else {
+                        match blend {
+                            crate::texture::BlendMode::Cutout => f,
+                            crate::texture::BlendMode::Average => (b + f) * 0.5,
+                            crate::texture::BlendMode::Add => b + f,
+                            crate::texture::BlendMode::Subtract => b - f,
+                            crate::texture::BlendMode::AddQuarter => b + f * 0.25,
+                        }
+                    })
                 });
-                let start=(300*960+x)*info.color_type.samples();
-                for channel in 0..3 {assert!(pixels[start+channel].abs_diff(expected[channel])<=2,
-                    "{blend:?} texel {index}, channel {channel}: actual {}, expected {}",pixels[start+channel],expected[channel]);}
+                let start = (300 * 960 + x) * info.color_type.samples();
+                for channel in 0..3 {
+                    assert!(
+                        pixels[start + channel].abs_diff(expected[channel]) <= 2,
+                        "{blend:?} texel {index}, channel {channel}: actual {}, expected {}",
+                        pixels[start + channel],
+                        expected[channel]
+                    );
+                }
             }
         }
     }
@@ -2273,11 +2465,13 @@ mod tests {
         let state = crate::mesh_editor::State::default();
         let expected = super::geometry(&scene, None, 0., &state, &view);
         assert!(!expected.0.is_empty());
-        scene.visibility_track = Some(crate::visibility_track::Track { path: Vec::new(),
+        scene.visibility_track = Some(crate::visibility_track::Track {
+            path: Vec::new(),
             navigation: None,
             camera: scene.actors[0].id,
             sample_ms: 100,
-            cull_backfaces: false, static_world: false,
+            cull_backfaces: false,
+            static_world: false,
             faces: vec![face],
             samples: vec![crate::visibility_track::Sample {
                 position: [1000.; 3],

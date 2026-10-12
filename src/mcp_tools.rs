@@ -154,10 +154,12 @@ fn snapshot(e: &Editor) -> Value {
         }
     });
     let serial = json!({"setup_open":e.serial_ui.open,"tools_ready":e.serial_ui.tools_ready,"tools_directory":crate::serial_support::managed_directory(),"port":e.preferences.serial.port,"status":e.serial_ui.status,"error":e.serial_ui.error,"command_pending":e.serial_ui.command_pending});
-    let native_frame = e.native_frame.as_ref().map(|f| json!({
-        "sequence": f.number, "width": f.hud_size[0], "height": f.hud_size[1],
-        "buttons": f.buttons, "actors": f.actor_count, "camera": f.camera
-    }));
+    let native_frame = e.native_frame.as_ref().map(|f| {
+        json!({
+            "sequence": f.number, "width": f.hud_size[0], "height": f.hud_size[1],
+            "buttons": f.buttons, "actors": f.actor_count, "camera": f.camera
+        })
+    });
     json!({"project":e.project_name(),"root":e.root,"scene_path":assets::path_string(&e.root,&e.scene_path()),"revision":revision(&e.scene),"dirty":e.dirty,"actors":e.scene.actors.len(),"selected":e.selected,"playing":e.playing,"paused":e.paused,"play_profile":profile,"serial":serial,"build_or_play_active":e.job.is_some(),"stopping":e.job.as_ref().is_some_and(crate::pipeline::Job::stopping),"scene_loading":e.scene_loading.is_some(),"editing_locked":e.critical_busy(),"installation_active":e.dependencies.busy(),"operation":operation,"import_active":e.assets.busy,"import_error":e.assets.error,"bake_active":e.bake_job.is_some(),"last_error":e.last_error,"game_error":e.game_error,"native_frame":native_frame,"game_frame":e.game_frame.as_ref().map(|f|json!({"sequence":f.sequence,"width":f.width,"height":f.height,"buttons":f.buttons,"vsyncs":f.vsyncs,"cycles":f.cycles})),"view":e.view,"scene_2d":e.scene_2d(),"view_mode":e.scene_view_mode.key(),"grid":e.grid,"wire":e.wire,"baked_preview":{"enabled":e.baked_preview.enabled,"streaming":e.baked_preview.streaming,"sample":e.baked_preview.sample,"committed":e.baked_preview.committed,"resident_pages":e.baked_preview.resident,"requested_pages":e.baked_preview.requested,"error":e.baked_preview.error}})
 }
 
@@ -297,7 +299,7 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
             || (name == "project_files" && matches!(a["action"].as_str(), Some("list" | "read")))
             || (name == "editor_control" && a["action"] == "stop");
         if !read {
-                return Err("Editing is locked during scene loading, component installation, compilation and serial preparation. Read editor_state/logs_read for completion.".into());
+            return Err("Editing is locked during scene loading, component installation, compilation and serial preparation. Read editor_state/logs_read for completion.".into());
         }
     }
     match name {

@@ -136,8 +136,16 @@ pub fn cook(scene: &Scene) -> Result<Option<Cooked>, String> {
 /// need not be resident: the ordered lists, read from disc with their pages,
 /// already name every face drawn, and page residency comes from those lists.
 pub fn ordered_actors(scene: &Scene) -> BTreeSet<Uuid> {
-    scene.ordered_draw.as_ref().map(|program| program.primitives.iter()
-        .flat_map(|p| std::iter::once(p.first.actor).chain(p.second.map(|s| s.actor))).collect())
+    scene
+        .ordered_draw
+        .as_ref()
+        .map(|program| {
+            program
+                .primitives
+                .iter()
+                .flat_map(|p| std::iter::once(p.first.actor).chain(p.second.map(|s| s.actor)))
+                .collect()
+        })
         .unwrap_or_default()
 }
 /// As `cook`, leaving out the given actors' chunks and bits; their faces are
@@ -171,7 +179,9 @@ pub fn cook_excluding(scene: &Scene, excluded: &BTreeSet<Uuid>) -> Result<Option
         }
         let qs = crate::lighting::quads(e);
         if excluded.contains(&e.id) {
-            for q in &qs { lookup.entry(q.id.unwrap()).or_default(); }
+            for q in &qs {
+                lookup.entry(q.id.unwrap()).or_default();
+            }
             continue;
         }
         for (chunk_index, chunk) in crate::mesh_compile::chunks(&qs)?.iter().enumerate() {
@@ -363,10 +373,16 @@ pub fn rewrite(scene: &Scene, header: String) -> Result<String, String> {
                 // transport fields immediately before this final pointer.
                 let (span, count) = if let Some(prefix) = key.strip_suffix("_0") {
                     let prefix = format!("{prefix}_");
-                    cooked.chunks.iter().filter(|(k, _)| k.starts_with(&prefix))
-                        .fold((0, 0), |(words, count), (_, (_, ids))|
-                            (words + ids.len().div_ceil(32), count + 1))
-                } else { (0, 0) };
+                    cooked
+                        .chunks
+                        .iter()
+                        .filter(|(k, _)| k.starts_with(&prefix))
+                        .fold((0, 0), |(words, count), (_, (_, ids))| {
+                            (words + ids.len().div_ceil(32), count + 1)
+                        })
+                } else {
+                    (0, 0)
+                };
                 replacement = Some(format!(
                     "{},0xffffffffu,0,0,track_current+{word},{span},{count}}};",
                     line.strip_suffix("};")
@@ -425,11 +441,13 @@ mod tests {
             document: Some(std::sync::Arc::new(doc)),
             error: None,
         });
-        scene.visibility_track = Some(Track { path: Vec::new(),
+        scene.visibility_track = Some(Track {
+            path: Vec::new(),
             navigation: None,
             camera: scene.actors[0].id,
             sample_ms: 100,
-            cull_backfaces: false, static_world: false,
+            cull_backfaces: false,
+            static_world: false,
             faces,
             samples: vec![
                 Sample {
@@ -456,8 +474,15 @@ mod tests {
         let archive = crate::streaming::compile(&[scene.clone()], 2).unwrap();
         let rewritten = archive.rewrite(0, &header).unwrap();
         assert!(rewritten.contains("MeshVertices{nullptr,12}"));
-        let root = rewritten.lines().find(|l| l.starts_with("inline constexpr MeshGeometry editable_1_0=")).unwrap();
-        assert!(root.ends_with(&format!("track_current+0,{},{}}};", cooked.words, cooked.chunks.len())));
+        let root = rewritten
+            .lines()
+            .find(|l| l.starts_with("inline constexpr MeshGeometry editable_1_0="))
+            .unwrap();
+        assert!(root.ends_with(&format!(
+            "track_current+0,{},{}}};",
+            cooked.words,
+            cooked.chunks.len()
+        )));
         assert!(rewritten.contains("epok::set_visibility_track(&track_data);"));
         assert!(rewritten.lines().any(
             |l| l.starts_with("inline constexpr MeshGeometry editable_1_")
@@ -488,11 +513,24 @@ mod resident_tests {
         let scene = crate::ordered_draw::tests::fixture();
         let header = crate::project::scene_header(&scene, &[]).unwrap();
         let actor = scene.actors.iter().position(|a| a.kind == "Mesh").unwrap();
-        let line = header.lines().find(|l| l.starts_with(&format!("inline constexpr MeshGeometry editable_{actor}_0="))).unwrap();
+        let line = header
+            .lines()
+            .find(|l| {
+                l.starts_with(&format!(
+                    "inline constexpr MeshGeometry editable_{actor}_0="
+                ))
+            })
+            .unwrap();
         assert!(!line.contains("track_current"), "{line}");
         assert!(header.contains("inline uint32_t track_current[1]={},track_next[1]={};"));
         // The full cook still maps every tracked face for the editor preview.
         assert!(super::cook(&scene).unwrap().unwrap().words > 0);
-        assert_eq!(super::cook_excluding(&scene, &super::ordered_actors(&scene)).unwrap().unwrap().words, 0);
+        assert_eq!(
+            super::cook_excluding(&scene, &super::ordered_actors(&scene))
+                .unwrap()
+                .unwrap()
+                .words,
+            0
+        );
     }
 }

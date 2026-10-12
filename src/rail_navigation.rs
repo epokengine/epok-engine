@@ -24,10 +24,12 @@ mod tests {
     fn graph_pairs_include_disabled_links_and_preserve_reverse_endpoints() {
         let mut scene = Scene::default();
         scene.actors.truncate(2);
-        let mut track = Track { path: Vec::new(),
+        let mut track = Track {
+            path: Vec::new(),
             camera: scene.actors[0].id,
             sample_ms: 100,
-            cull_backfaces: false, static_world: false,
+            cull_backfaces: false,
+            static_world: false,
             faces: vec![],
             samples: (0..5)
                 .map(|_| Sample {
@@ -138,7 +140,9 @@ pub struct Navigation {
 }
 impl Navigation {
     pub fn validate(&self, scene: &Scene, track: &Track) -> Result<(), String> {
-        if let Some(aim)=&self.aim {aim.validate(track.samples.len())?;}
+        if let Some(aim) = &self.aim {
+            aim.validate(track.samples.len())?;
+        }
         if self.target == track.camera
             || !scene.actors.iter().any(|a| {
                 a.id == self.target
@@ -282,8 +286,15 @@ impl Navigation {
             .map(|(v, _)| format!("{{{},{},{}}}", v[0], v[1], v[2]))
             .collect::<Vec<_>>()
             .join(",");
-        let aim_header=self.aim.as_ref().map_or_else(String::new,|aim|aim.header());
-        let aim_pointer=if self.aim.is_some() {",&rail_aim_data"} else {""};
+        let aim_header = self
+            .aim
+            .as_ref()
+            .map_or_else(String::new, |aim| aim.header());
+        let aim_pointer = if self.aim.is_some() {
+            ",&rail_aim_data"
+        } else {
+            ""
+        };
         format!(
             "{aim_header}inline uint32_t rail_anchor[{}]={{}};\ninline constexpr RailRoute rail_routes[]={{{}}};\ninline constexpr RailLink rail_links[]={{{}}};\ninline constexpr PackedRailParameter rail_parameters[]={{{params}}};\ninline constexpr int16_t rail_axes[][2]={{{axes}}};\ninline constexpr int32_t rail_settings[][3]={{{settings}}};\ninline constexpr RailNavigationData rail_data={{rail_routes,rail_links,nullptr,rail_anchor,{},{},{},{},rail_parameters,rail_axes,rail_settings{aim_pointer}}};\n",
             words.max(1),

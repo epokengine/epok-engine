@@ -122,7 +122,12 @@ fn bevel_one(doc: &mut Document, selected: Edge, distance: f32) -> Result<(), St
             if (pd <= 0.) != (cd <= 0.) {
                 let t = pd / (pd - cd);
                 let cut = Corner {
-                    color: previous.color.zip(current.color).map(|(a, b)| std::array::from_fn(|c| (f32::from(a[c]) + (f32::from(b[c]) - f32::from(a[c])) * t).round() as u8)),
+                    color: previous.color.zip(current.color).map(|(a, b)| {
+                        std::array::from_fn(|c| {
+                            (f32::from(a[c]) + (f32::from(b[c]) - f32::from(a[c])) * t).round()
+                                as u8
+                        })
+                    }),
                     p: std::array::from_fn(|c| previous.p[c] + (current.p[c] - previous.p[c]) * t),
                     uv: std::array::from_fn(|c| {
                         previous.uv[c] + (current.uv[c] - previous.uv[c]) * t
@@ -214,7 +219,10 @@ fn emit(doc: &mut Document, output: &mut Vec<Face>, polygon: &[Corner], source: 
             group: source.group,
             material: source.material,
             uv: std::array::from_fn(|c| corners[c].uv),
-            vertex_colors: corners.iter().all(|c| c.color.is_some()).then(|| std::array::from_fn(|c| corners[c].color.unwrap())),
+            vertex_colors: corners
+                .iter()
+                .all(|c| c.color.is_some())
+                .then(|| std::array::from_fn(|c| corners[c].color.unwrap())),
         });
     }
 }

@@ -501,16 +501,33 @@ impl Editor {
         // PreparedProject already resolved these resources on the loading worker.
         // Catalog/template refresh can introduce actors, so only resolve again
         // when it actually left an unresolved resource.
-        if self.scene.actors.iter().any(|a| a.editable_mesh.as_ref().is_some_and(|m| m.document.is_none())) {
+        if self.scene.actors.iter().any(|a| {
+            a.editable_mesh
+                .as_ref()
+                .is_some_and(|m| m.document.is_none())
+        }) {
             let _ = crate::mesh::resolve(&mut self.scene, &self.assets.index);
         }
-        if self.scene.actors.iter().any(|a| a.terrain.as_ref().is_some_and(|t| t.document.is_none())) {
+        if self
+            .scene
+            .actors
+            .iter()
+            .any(|a| a.terrain.as_ref().is_some_and(|t| t.document.is_none()))
+        {
             let _ = crate::terrain::resolve(&mut self.scene, &self.assets.index);
         }
-        if self.scene.actors.iter().any(|a| a.skeletal_mesh.as_ref().is_some_and(|s| s.model.is_none())) {
+        if self
+            .scene
+            .actors
+            .iter()
+            .any(|a| a.skeletal_mesh.as_ref().is_some_and(|s| s.model.is_none()))
+        {
             let _ = crate::skeletal::resolve(&mut self.scene, &self.assets.index);
         }
-        if crate::texture::ids(&self.scene).iter().any(|id| !self.scene.textures.contains_key(id)) {
+        if crate::texture::ids(&self.scene)
+            .iter()
+            .any(|id| !self.scene.textures.contains_key(id))
+        {
             let _ = crate::texture::resolve(&mut self.scene, &self.assets.index);
         }
         if let Ok(fingerprint) = project::source_fingerprint(&self.root) {
@@ -704,7 +721,8 @@ impl Editor {
             job_target: None,
             restart_target: None,
             root,
-            bake_current: initial_bake_current.unwrap_or_else(|| crate::lighting::valid_bake(&scene)),
+            bake_current: initial_bake_current
+                .unwrap_or_else(|| crate::lighting::valid_bake(&scene)),
             scene,
             lighting_window: false,
             bake_job: None,
@@ -808,8 +826,13 @@ impl Editor {
         editor.scene_history.reset(&editor.scene);
         editor.observe_playback_sources();
         editor.view = crate::scene_view_state::load(&editor.root, &editor.scene_file, false)
-            .unwrap_or_else(|| crate::scene_view_state::framed(
-                &editor.scene, editor.scene_panel_size, editor.preferences.fly_speed));
+            .unwrap_or_else(|| {
+                crate::scene_view_state::framed(
+                    &editor.scene,
+                    editor.scene_panel_size,
+                    editor.preferences.fly_speed,
+                )
+            });
         editor
     }
     pub fn log(&mut self, s: impl Into<String>) {
@@ -893,14 +916,20 @@ impl Editor {
         let mut last_stage = Instant::now();
         let mut mark = |label| {
             if std::env::var_os("EPOK_PROFILE_STARTUP").is_some() {
-                eprintln!("[scene-handoff] {label}: {:.1} ms", last_stage.elapsed().as_secs_f64() * 1000.);
+                eprintln!(
+                    "[scene-handoff] {label}: {:.1} ms",
+                    last_stage.elapsed().as_secs_f64() * 1000.
+                );
             }
             last_stage = Instant::now();
         };
         // Diagnostic selection belongs to one resolved map, never the next
         // document opened in the same editor. New maps open unrestricted.
         let revision = self.baked_preview.revision.wrapping_add(1);
-        self.baked_preview = crate::baked_preview::State { revision, ..Default::default() };
+        self.baked_preview = crate::baked_preview::State {
+            revision,
+            ..Default::default()
+        };
         // An open embedded Blueprint belongs to the map that is being replaced.
         if self.blueprint_editor.is_embedded()
             && self.blueprint_editor.embedded_map() != Some(prepared.path.as_path())
@@ -941,8 +970,13 @@ impl Editor {
         }
         self.reset_scene_tools();
         self.view = crate::scene_view_state::load(&self.root, &self.scene_file, false)
-            .unwrap_or_else(|| crate::scene_view_state::framed(
-                &self.scene, self.scene_panel_size, self.preferences.fly_speed));
+            .unwrap_or_else(|| {
+                crate::scene_view_state::framed(
+                    &self.scene,
+                    self.scene_panel_size,
+                    self.preferences.fly_speed,
+                )
+            });
         self.reset_instance_baseline();
         self.dirty = prepared.dirty;
         self.bake_current = prepared.bake_current;
@@ -1974,17 +2008,26 @@ impl Editor {
                 }
                 self.class_registry = registry;
                 self.catalog = c;
-                if self.scene.actors.iter().any(|a| a.blueprint_instance.is_some()) {
+                if self
+                    .scene
+                    .actors
+                    .iter()
+                    .any(|a| a.blueprint_instance.is_some())
+                {
                     let previous = self.scene.clone();
                     let result = crate::blueprint_asset::load_all(&self.root).and_then(|files| {
                         crate::blueprint_templates::refresh_instances(
-                            &mut self.scene, &files, &self.class_registry,
+                            &mut self.scene,
+                            &files,
+                            &self.class_registry,
                         )
                     });
                     if let Err(error) = result {
                         self.log(format!("Blueprint instances preserved: {error}"));
                     }
-                    if self.scene != previous { self.changed(); }
+                    if self.scene != previous {
+                        self.changed();
+                    }
                 }
                 self.reset_instance_baseline();
             }
@@ -2323,13 +2366,27 @@ impl Editor {
             input.native_play_assets = Some(self.assets.index.clone());
             self.native_play_request = Some(key);
             if self.record_camera && self.scene.visibility_track.is_some() {
-                let stem = self.scene_path().file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-                let seconds = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
-                let path = self.root.join(".epok/camera-recordings").join(format!("{stem}-{seconds}.jsonl"));
+                let stem = self
+                    .scene_path()
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let seconds = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_secs());
+                let path = self
+                    .root
+                    .join(".epok/camera-recordings")
+                    .join(format!("{stem}-{seconds}.jsonl"));
                 let display = [self.scene.display_size[0], self.scene.display_size[1]];
-                match std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())
-                    .and_then(|_| crate::native_play::record_cameras(Some(&path), display)) {
-                    Ok(()) => self.log(format!("Recording the camera for the visibility bake: {}", path.display())),
+                match std::fs::create_dir_all(path.parent().unwrap())
+                    .map_err(|e| e.to_string())
+                    .and_then(|_| crate::native_play::record_cameras(Some(&path), display))
+                {
+                    Ok(()) => self.log(format!(
+                        "Recording the camera for the visibility bake: {}",
+                        path.display()
+                    )),
                     Err(error) => self.log(format!("Camera recording unavailable: {error}")),
                 }
             }
@@ -2341,7 +2398,8 @@ impl Editor {
             &self.root,
             &self.scene_path(),
             &self.scene,
-            self.scene_registry_error().map_or(Ok(&self.class_registry), Err),
+            self.scene_registry_error()
+                .map_or(Ok(&self.class_registry), Err),
         ) {
             Ok(signature) => signature,
             Err(error) => {
@@ -2810,7 +2868,8 @@ impl Editor {
                         .unwrap_or(&self.scene);
                     let world = scene.world_matrix(i);
                     if let Some((low, high)) = crate::scene_view_state::bounds(scene, Some(i)) {
-                        self.view.frame_bounds_in_panel(low, high, self.scene_panel_size);
+                        self.view
+                            .frame_bounds_in_panel(low, high, self.scene_panel_size);
                         self.view_dirty = true;
                         return;
                     }
@@ -3117,7 +3176,11 @@ impl Editor {
             }
         }
         if !self.job_stale
-            && let Some(bridge) = self.job.as_ref().filter(|j| !j.stopping()).and_then(|j| j.bridge.as_ref())
+            && let Some(bridge) = self
+                .job
+                .as_ref()
+                .filter(|j| !j.stopping())
+                .and_then(|j| j.bridge.as_ref())
         {
             let state = bridge.state.lock().unwrap();
             if let Some(frame) = &state.frame {
@@ -3140,7 +3203,11 @@ impl Editor {
             }
         }
         if !self.job_stale
-            && let Some(native) = self.job.as_ref().filter(|job| !job.stopping()).and_then(|job| job.native.as_ref())
+            && let Some(native) = self
+                .job
+                .as_ref()
+                .filter(|job| !job.stopping())
+                .and_then(|job| job.native.as_ref())
         {
             let state = native.state.lock().unwrap();
             if let Some(frame) = &state.frame {
@@ -4510,7 +4577,10 @@ mod tests {
         assert_eq!(editor.view.yaw, -0.25);
         editor.open_scene(b.clone()).unwrap();
         assert_eq!(editor.view.center, [-709., 95., 999.]);
-        assert_eq!([std::fs::read(a).unwrap(), std::fs::read(b).unwrap()], before);
+        assert_eq!(
+            [std::fs::read(a).unwrap(), std::fs::read(b).unwrap()],
+            before
+        );
         assert!(!editor.dirty && editor.job.is_none());
         drop(editor);
         std::fs::remove_dir_all(root).unwrap();
@@ -4603,7 +4673,11 @@ mod tests {
     #[ignore = "requires isolated EPOK_IDLE_PROJECT and semicolon-separated EPOK_PROFILE_SCENES"]
     fn profile_scene_switch_sequence() {
         let root = PathBuf::from(std::env::var_os("EPOK_IDLE_PROJECT").unwrap());
-        let paths: Vec<_> = std::env::var("EPOK_PROFILE_SCENES").unwrap().split(';').map(|s| root.join(s)).collect();
+        let paths: Vec<_> = std::env::var("EPOK_PROFILE_SCENES")
+            .unwrap()
+            .split(';')
+            .map(|s| root.join(s))
+            .collect();
         let original: Vec<_> = paths.iter().map(|p| std::fs::read(p).unwrap()).collect();
         let start = Instant::now();
         let project = crate::workspace::Project::open(&root).unwrap();
@@ -4616,7 +4690,9 @@ mod tests {
                 let mut maximum = Duration::ZERO;
                 while editor.scene_loading.is_some() {
                     assert!(start.elapsed() < Duration::from_secs(60));
-                    let tick = Instant::now(); editor.tick(); maximum = maximum.max(tick.elapsed());
+                    let tick = Instant::now();
+                    editor.tick();
+                    maximum = maximum.max(tick.elapsed());
                     std::thread::sleep(Duration::from_millis(4));
                 }
                 assert_eq!(editor.scene_path(), *path, "{:?}", editor.logs);
@@ -4625,20 +4701,53 @@ mod tests {
                 let elapsed = start.elapsed();
                 let mut expected = Scene::parse_unresolved(&std::fs::read(path).unwrap()).unwrap();
                 // Old maps acquire their default script in memory only.
-                if expected.scene_script.is_none() { expected.scene_script = editor.scene.scene_script.clone(); }
-                assert_eq!(serde_json::to_value(&editor.scene).unwrap(), serde_json::to_value(&expected).unwrap());
+                if expected.scene_script.is_none() {
+                    expected.scene_script = editor.scene.scene_script.clone();
+                }
+                assert_eq!(
+                    serde_json::to_value(&editor.scene).unwrap(),
+                    serde_json::to_value(&expected).unwrap()
+                );
                 assert_eq!(editor.scene.actors.len(), expected.actors.len());
                 assert_eq!(editor.scene.visibility_track, expected.visibility_track);
-                assert!(editor.scene.actors.iter().filter_map(|a| a.editable_mesh.as_ref()).all(|m| m.document.is_some()));
-                assert!(crate::texture::ids(&editor.scene).iter().all(|id| editor.scene.textures.contains_key(id)));
-                let faces: usize = editor.scene.actors.iter().filter_map(|a| a.editable_mesh.as_ref()?.document.as_ref()).map(|m|m.faces.len()).sum();
-                eprintln!("Sequence round {round}: {}: {:.1} ms, max UI tick {:.1} ms, actors {}, faces {faces}",
-                    path.file_name().unwrap().to_string_lossy(), elapsed.as_secs_f64()*1000., maximum.as_secs_f64()*1000., editor.scene.actors.len());
+                assert!(
+                    editor
+                        .scene
+                        .actors
+                        .iter()
+                        .filter_map(|a| a.editable_mesh.as_ref())
+                        .all(|m| m.document.is_some())
+                );
+                assert!(
+                    crate::texture::ids(&editor.scene)
+                        .iter()
+                        .all(|id| editor.scene.textures.contains_key(id))
+                );
+                let faces: usize = editor
+                    .scene
+                    .actors
+                    .iter()
+                    .filter_map(|a| a.editable_mesh.as_ref()?.document.as_ref())
+                    .map(|m| m.faces.len())
+                    .sum();
+                eprintln!(
+                    "Sequence round {round}: {}: {:.1} ms, max UI tick {:.1} ms, actors {}, faces {faces}",
+                    path.file_name().unwrap().to_string_lossy(),
+                    elapsed.as_secs_f64() * 1000.,
+                    maximum.as_secs_f64() * 1000.,
+                    editor.scene.actors.len()
+                );
             }
         }
-        for (path, bytes) in paths.iter().zip(original) { assert_eq!(std::fs::read(path).unwrap(), bytes); }
+        for (path, bytes) in paths.iter().zip(original) {
+            assert_eq!(std::fs::read(path).unwrap(), bytes);
+        }
         poll_sources(&mut editor);
-        assert!(!editor.pending_build && editor.job.is_none(), "{:?}", editor.logs);
+        assert!(
+            !editor.pending_build && editor.job.is_none(),
+            "{:?}",
+            editor.logs
+        );
     }
     #[test]
     #[ignore = "Requires disposable Ironwood copy in EPOK_IDLE_PROJECT and pinned native build tools"]
@@ -5056,15 +5165,24 @@ mod tests {
             editor.job_target = Some((true, false));
             editor.playing = true;
             editor.tick();
-            assert_eq!(editor.game_error.as_deref(), Some("Real failure before Stop"));
+            assert_eq!(
+                editor.game_error.as_deref(),
+                Some("Real failure before Stop")
+            );
             editor.stop_play();
             assert!(matches!(controls.try_recv(), Ok(Control::Stop)));
             assert!(editor.job.as_ref().unwrap().stopping());
-            set_error(editor.job.as_ref().unwrap(), "Expected disconnect after Stop");
+            set_error(
+                editor.job.as_ref().unwrap(),
+                "Expected disconnect after Stop",
+            );
             events.send(Event::Running(0)).unwrap();
             editor.tick();
             assert!(!editor.focus_game && editor.focus_scene);
-            assert_eq!(editor.game_error.as_deref(), Some("Real failure before Stop"));
+            assert_eq!(
+                editor.game_error.as_deref(),
+                Some("Real failure before Stop")
+            );
             editor.game_error = None;
             editor.tick();
             assert!(editor.game_error.is_none());
@@ -5099,7 +5217,10 @@ mod tests {
                 events.send(Event::Running(0)).unwrap();
             }
             editor.tick();
-            assert!(!editor.focus_game, "A delayed Running event cannot reclaim Game after Stop");
+            assert!(
+                !editor.focus_game,
+                "A delayed Running event cannot reclaim Game after Stop"
+            );
             events.send(Event::Finished(Ok(()))).unwrap();
             editor.tick();
             assert!(editor.focus_scene || late_running);

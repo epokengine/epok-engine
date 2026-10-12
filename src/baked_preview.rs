@@ -66,12 +66,15 @@ pub fn signature(scene: &Scene) -> String {
     );
     // Preserve existing bake signatures for ordinary scenes. A prepared program
     // adds its own identity without invalidating unrelated version-2 bakes.
-    scene.ordered_draw.as_ref().map_or(base.clone(), |program|
-        crate::assets::hash(&serde_json::to_vec(&(3,base,program)).unwrap()))
+    scene.ordered_draw.as_ref().map_or(base.clone(), |program| {
+        crate::assets::hash(&serde_json::to_vec(&(3, base, program)).unwrap())
+    })
 }
 impl Bake {
     pub fn pages(&self, sample: usize) -> BTreeSet<u32> {
-        if let Some(pages)=&self.sample_pages { return pages[sample].clone(); }
+        if let Some(pages) = &self.sample_pages {
+            return pages[sample].clone();
+        }
         self.chunks
             .iter()
             .filter(|c| {
@@ -119,9 +122,12 @@ impl Bake {
         result
     }
     pub fn validate(&self) -> Result<(), String> {
-        if !matches!(self.version,2|3)
-            || (self.version==3)!=self.sample_pages.is_some()
-            || self.sample_pages.as_ref().is_some_and(|s|s.len()!=self.samples.len())
+        if !matches!(self.version, 2 | 3)
+            || (self.version == 3) != self.sample_pages.is_some()
+            || self
+                .sample_pages
+                .as_ref()
+                .is_some_and(|s| s.len() != self.samples.len())
             || self.samples.is_empty()
             || self.pool_pages == 0
             || self.pool_pages > 8
