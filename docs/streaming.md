@@ -124,7 +124,13 @@ triangles that share an edge with the same position, UV and colour, and the
 same material, become one quad packet. Each sample's packets are sorted back
 to front by mean camera depth in steps of `--bake-order-step` world units
 (0.5); within a step they keep the previous sample's order, so consecutive
-lists stay similar and their stored deltas small. Further options:
+lists stay similar and their stored deltas small. Primitives are numbered
+along a Z-order curve through cells of `--bake-order-cell` world units (16),
+then by first appearance: the cooker groups 64 consecutive primitives per
+projection block, and spatially compact blocks take the fast 16-bit GTE path.
+`--bake-min-pixels` (1) lists a face only if it covers at least that many
+display pixels in one of the sample's poses; 0 also keeps faces that never
+cover a whole pixel, which cost a packet each. Further options:
 `--bake-far` (128), `--bake-fill-gaps` (a face hidden for at most 2
 samples between visible ones stays listed, 2), `--bake-view-margin` (widen
 what recorded cameras see; 0), `--bake-path-margin` (widen the track's own
@@ -163,7 +169,12 @@ A list is only as good as the poses it is baked from. A camera that aims at
 a moving target turns away from the recorded path: on the study scene, real
 cameras saw about 3,000 display pixels per view that lists baked from the
 path alone lacked. A 30% path margin cut that to about 220, at 30% more
-faces. Baking from recorded camera poses is the intended remedy, and a
+faces. Baked from the demo's 1,222 cameras with a 10% margin, a 16-unit far
+limit and the defaults above, the study scene's lists hold 902 faces per
+sample (858 imported); the prepared pass costs 1.01x the imported lists'
+(median over the 403-sample sweep; p10 0.96x, p90 1.12x), and the start view
+matches the imported lists' image except for 1,217 pixels of distant
+horizon drawn in a slightly different order. Baking from recorded camera poses is the intended remedy, and a
 recording adds everything its camera saw: record real play, not idle or
 debug cameras (a Native PC session without input, where the camera turns
 back towards a player standing at the start, added up to 1,000 faces per

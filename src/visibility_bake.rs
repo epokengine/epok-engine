@@ -33,6 +33,9 @@ pub struct Options {
     /// depths fall in the same step keep the previous sample's order, so
     /// consecutive lists stay similar and their deltas small.
     pub order_step: f32,
+    /// Spatial cell (world units) used to keep a generated packet order's
+    /// projection blocks compact; see `ordered_program`.
+    pub order_cell: f32,
     /// A face hidden for at most this many consecutive samples of a continuous
     /// stretch, and visible on both sides, stays listed through the gap: fewer
     /// list changes (smaller resident deltas) for a few extra faces.
@@ -47,13 +50,17 @@ pub struct Options {
     /// camera's scale): `near` and `far` are runtime camera units. Set by
     /// `bake` from the scene.
     pub depth_scale: f32,
+    /// List a face only if, in at least one of a sample's poses, it covers at
+    /// least this many display pixels. 0 lists every face that shows at all;
+    /// 1 drops faces that never cover a whole pixel (dust that costs a packet).
+    pub min_pixels: f32,
 }
 impl Default for Options {
     fn default() -> Self {
         // Near and far match the runtime's mesh camera units (0.25 and 128 world
         // units); the far limit is also the default geometry draw distance.
         Self { width: 512, height: 240, scale: 4, substeps: 4, near: 0.25, far: 128., see_through: 0.05,
-            refine_pixels: 2., refine_depth: 6, order_step: 0.5, fill_gaps: 2, view_margin: 0., path_margin: 0., depth_scale: 1. }
+            refine_pixels: 2., refine_depth: 6, order_step: 0.5, order_cell: 16., fill_gaps: 2, view_margin: 0., path_margin: 0., depth_scale: 1., min_pixels: 1. }
     }
 }
 
@@ -428,9 +435,13 @@ pub fn bake_with_cameras(scene: &Scene, track: &Track, options: &Options, record
     };
     let mut out = Vec::with_capacity(poses.len());
     for (i, pose) in poses.iter().enumerate() {
-        let mut union: std::collections::BTreeSet<u16> = std::collections::BTreeSet::new();
+        // Largest coverage (bake pixels) of each face over the sample's poses.
+        let mut union: HashMap<u16, u32> = HashMap::new();
+        let merge = |union: &mut HashMap<u16, u32>, seen: &HashMap<u16, u32>| {
+            for (f, n) in seen { let e = union.entry(*f).or_insert(0); *e = (*e).max(*n); }
+        };
         let first = at(*pose)?;
-        union.extend(first.keys());
+        merge(&mut union, &first);
         if let Some(n) = next[i] {
             // Evenly spaced poses up to and including the next sample, then
             // halve any interval across which a face of note appears.
@@ -448,20 +459,23 @@ pub fn bake_with_cameras(scene: &Scene, track: &Track, options: &Options, record
                     if !differs(&seen[sa].1, &seen[sb].1) { continue; }
                     let m = (a + b) / 2.;
                     let middle = at(pose.lerp(poses[n], m))?;
-                    union.extend(middle.keys());
+                    merge(&mut union, &middle);
                     seen.push((m, middle));
                     stack.push((a, m, depth + 1));
                     stack.push((m, b, depth + 1));
                 }
-                union.extend(current.keys());
+                merge(&mut union, &current);
                 previous = (t, current);
             }
         }
         for camera in by_sample.get(&i).into_iter().flatten() {
             gpu.render_uniform(camera.uniform(options), true)?;
-            union.extend(gpu.read(faces)?);
+            merge(&mut union, &gpu.read_pixels(faces)?.into_iter().collect());
         }
-        out.push(union.into_iter().collect());
+        let keep = (options.min_pixels * (options.scale * options.scale) as f32).max(1.) as u32;
+        let mut list: Vec<u16> = union.into_iter().filter(|(_, n)| *n >= keep).map(|(f, _)| f).collect();
+        list.sort_unstable();
+        out.push(list);
     }
     fill_gaps(&mut out, &next, options.fill_gaps as usize);
     Ok(out)
@@ -873,6 +887,41 @@ pub fn ordered_program(scene: &Scene, track: &Track, lists: &[Vec<u16>], options
         previous = packets.iter().enumerate().map(|(k, x)| (x.2, k)).collect();
         samples.push(packets.into_iter().map(|(_, token, _)| token).collect());
     }
+    // Number primitives so that consecutive ones are close in space: the
+    // cooker groups each 64 consecutive primitives into one projection block,
+    // whose vertices take the fast compact path only when the whole block
+    // lies within the GTE's 16-bit range of the camera. Cells of
+    // `order_cell` world units follow a Z-order (Morton) curve; within a cell,
+    // primitives keep their order of first appearance in the lists, so
+    // packets drawn together also tend to share pages.
+    let mut first_seen = vec![usize::MAX; primitives.len()];
+    let mut rank = 0;
+    for list in &samples {
+        for &token in list {
+            let p = (token >> 2) as usize;
+            if first_seen[p] == usize::MAX { first_seen[p] = rank; rank += 1; }
+        }
+    }
+    let cell = f64::from(options.order_cell.max(1e-3)) * 4096.;
+    let morton = |p: usize| -> u64 {
+        let t = &tris[by_face[&primitives[p].first.face]];
+        let mut key = 0u64;
+        let c: [u64; 3] = std::array::from_fn(|a| {
+            let centre = t.points.iter().map(|q| f64::from(q[a])).sum::<f64>() / 3.;
+            ((centre / cell).floor() as i64 + (1 << 20)).clamp(0, (1 << 21) - 1) as u64
+        });
+        for bit in (0..21).rev() { for axis in c { key = key << 1 | (axis >> bit & 1); } }
+        key
+    };
+    let mut order: Vec<usize> = (0..primitives.len()).collect();
+    let keys: Vec<u64> = (0..primitives.len()).map(morton).collect();
+    order.sort_by_key(|&p| (keys[p], first_seen[p], p));
+    let mut renumber = vec![0u32; primitives.len()];
+    for (new, &old) in order.iter().enumerate() { renumber[old] = new as u32; }
+    let primitives: Vec<_> = order.iter().map(|&p| primitives[p].clone()).collect();
+    let samples = samples.into_iter()
+        .map(|list| list.into_iter().map(|t| renumber[(t >> 2) as usize] << 2 | (t & 3)).collect())
+        .collect();
     Ok(crate::ordered_draw::Program { version: 1, static_world: true, primitives, samples })
 }
 
@@ -910,13 +959,19 @@ pub struct CameraCheck {
 
 impl CameraCheck {
     fn uniform(&self, options: &Options) -> [f32; 16] {
+        // Depth in world units whatever the basis scale (a recording keeps the
+        // runtime's, a converted camera may be unit length): divide by the
+        // forward row's length, which leaves x/z and y/z unchanged. Near and
+        // far are runtime camera units, converted with the track camera's scale.
+        let forward = (0..3).map(|c| self.basis[2][c] * self.basis[2][c]).sum::<f32>().sqrt().max(1e-6);
         let mut u = [0f32; 16];
         for r in 0..3 {
-            for c in 0..3 { u[r * 4 + c] = self.basis[r][c]; }
-            u[r * 4 + 3] = -(0..3).map(|c| self.basis[r][c] * self.origin[c]).sum::<f32>();
+            for c in 0..3 { u[r * 4 + c] = self.basis[r][c] / forward; }
+            u[r * 4 + 3] = -(0..3).map(|c| self.basis[r][c] * self.origin[c]).sum::<f32>() / forward;
         }
         let widen = 1. + options.view_margin.max(0.);
-        u[12] = self.scale[0] / widen; u[13] = self.scale[1] / widen; u[14] = options.near; u[15] = options.far;
+        u[12] = self.scale[0] / widen; u[13] = self.scale[1] / widen;
+        u[14] = options.near * options.depth_scale; u[15] = options.far * options.depth_scale;
         u
     }
     /// Runtime Q12 camera space as JSON {"sample","basis","origin","row_scale"}.
@@ -935,9 +990,9 @@ impl CameraCheck {
     /// Native PC Play records them with --record-camera).
     pub fn load(path: &std::path::Path, options: &Options) -> Result<Vec<Self>, String> {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        if text.trim_start().starts_with("{\"cameras\"") || text.trim_start().starts_with("{\"scope\"") {
-            let json: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
-            return Ok(json["cameras"].as_array().ok_or("No cameras in the camera file")?.iter().map(|c| Self::from_json(c, options)).collect());
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text)
+            && let Some(cameras) = json["cameras"].as_array() {
+            return Ok(cameras.iter().map(|c| Self::from_json(c, options)).collect());
         }
         text.lines().filter(|l| !l.trim().is_empty())
             .map(|l| serde_json::from_str::<serde_json::Value>(l).map(|c| Self::from_json(&c, options)).map_err(|e| e.to_string()))
@@ -954,13 +1009,20 @@ pub fn check_cameras(scene: &Scene, track: &Track, lists: &[Vec<u16>], cameras: 
     let area = f64::from(options.scale * options.scale);
     let (mut faces_lists, mut faces_track, mut pixels_lists, mut pixels_track, mut checked) = (0usize, 0usize, 0f64, 0f64, 0usize);
     let (mut worst_lists, mut worst_track) = ((0usize, 0f64), (0usize, 0f64));
+    // Display pixels each listed face covers at the camera: 0, <1, <4, <16, >=16.
+    let mut coverage_lists = [0usize; 5];
+    let mut coverage_track = [0usize; 5];
+    let bucket = |px: f64| if px <= 0. { 0 } else if px < 1. { 1 } else if px < 4. { 2 } else if px < 16. { 3 } else { 4 };
     // Checks see exactly what each camera sees: no view margin.
-    let exact = Options { view_margin: 0., ..options.clone() };
+    let exact = Options { view_margin: 0., depth_scale: camera_depth_scale(scene, track), ..options.clone() };
     for camera in cameras {
         if camera.sample >= lists.len() { continue; }
         gpu.render_uniform(camera.uniform(&exact), true)?;
         let truth = gpu.read_pixels(track.faces.len())?;
         checked += truth.len();
+        let pixels: HashMap<u16, f64> = truth.iter().map(|(f, n)| (*f, f64::from(*n) / area)).collect();
+        for f in &lists[camera.sample] { coverage_lists[bucket(pixels.get(f).copied().unwrap_or(0.))] += 1; }
+        for f in &track.samples[camera.sample].visible { coverage_track[bucket(pixels.get(f).copied().unwrap_or(0.))] += 1; }
         for (list, faces, pixels, worst) in [
             (&lists[camera.sample], &mut faces_lists, &mut pixels_lists, &mut worst_lists),
             (&track.samples[camera.sample].visible, &mut faces_track, &mut pixels_track, &mut worst_track),
@@ -976,6 +1038,8 @@ pub fn check_cameras(scene: &Scene, track: &Track, lists: &[Vec<u16>], cameras: 
     let n = cameras.len().max(1) as f64;
     Ok(serde_json::json!({
         "cameras": cameras.len(), "visible_faces_checked": checked,
+        "coverage_buckets": "display pixels at the camera: 0, <1, <4, <16, >=16",
+        "lists_coverage": coverage_lists, "track_coverage": coverage_track,
         "lists": {"missing_faces": faces_lists, "missing_display_pixels_per_camera": pixels_lists / n, "worst": worst_lists},
         "track": {"missing_faces": faces_track, "missing_display_pixels_per_camera": pixels_track / n, "worst": worst_track},
     }))
