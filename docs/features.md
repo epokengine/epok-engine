@@ -199,9 +199,13 @@ emulator validation are pending on an SDK machine. See
 - **PNG import.** Convert source PNGs into portable `.epokasset` packages with a
   source snapshot, 8-bit indexed pixels and a 256-color CLUT. Reimport keeps the
   UUID. See [Textures](textures.md).
-- **VRAM packing and validation.** The editor places texture pixels and palettes
-  alongside framebuffers and reserved HUD/loading regions, validating each scene
-  bank against the 1 MiB address space.
+- **Native TIM import.** Indexed 4/8-bit `.tim` sources import through the same
+  Texture workflow and keep every index and all 16 bits of each palette entry.
+- **VRAM packing and validation.** Builds cook textures to 4 bits per texel when
+  every index fits, pad rows to even words and pack pixel rectangles and CLUT
+  rows offline with deterministic MaxRects orderings, without a count-based
+  texture limit. Authored HUD fonts share the packer. Each scene bank is
+  validated against the 1 MiB address space. See [PSX texture cooking](texture-cooking.md).
 - **Materials.** Per-object/face tint, unlit mode, texture assignment, UV region,
   depth bias, UV scrolling and Cutout/Average/Add/Subtract/AddQuarter blend modes
   compile to native GPU packets.
@@ -236,6 +240,11 @@ emulator validation are pending on an SDK machine. See
 
 - **Cameras.** The first active camera is the default; gameplay can select another
   active camera. FOV and world-to-framebuffer projection are available natively.
+- **Camera background.** A flat sky color, or a sky gradient with horizon and
+  ground colors split at the true horizon, so gaps below the horizon read as
+  ground. See [Fog, water and texture animation](environment-effects.md#sky-gradient-background).
+- **Large worlds.** Actor and chunk positions are 32-bit Q12 with camera-relative
+  projection; there is no absolute ±128 world limit. See [World and camera coordinates](camera-space.md).
 - **World sprites.** Fixed, upright and spherical billboards support texture
   regions, tint, blend/depth settings and clipping/culling statistics.
 - **Sprite animation.** Flipbook clips have per-frame duration, looping,
@@ -295,10 +304,20 @@ See the complete [Timeline reference](timelines.md) and the
 
 - **Canvas hierarchy.** Canvas and RectTransform provide anchored parent-relative
   layout in the editor's 2D mode and native HUD renderer.
-- **Widgets.** Solid rectangles, atlas images, nine-slice borders, text and
-  progress bars support color and bounded ordering.
+- **Widgets.** Solid rectangles, atlas images, nine-slice borders, tiled panel
+  images, text and progress bars support color and bounded ordering. The editor's
+  UI menu creates Canvas, Panel, Image, Label, Text Area, Progress Bar, Button and
+  layout containers, with anchor presets and eight resize handles.
+- **Layout containers.** Horizontal, Vertical, Grid, Margin and Center containers
+  with per-element fill/expand/shrink flags, minimum size and stretch, measured
+  and arranged by the same code in the editor and on the console.
+- **Focus and rotation.** Focusable elements with explicit neighbours and a
+  highlight tint move focus with the D-pad; rect rotation about the pivot is
+  inherited by children.
 - **Text.** The bundled bitmap font covers printable ASCII plus documented Spanish
-  characters, wrapping and fixed rows/columns. Generated C++ exposes mutable text.
+  characters, wrapping and fixed rows/columns. Imported TrueType/OpenType fonts
+  become 4bpp glyph atlases with per-glyph advance and Left/Center/Right
+  alignment. Generated C++ exposes mutable text.
 - **Retained rendering.** Static HUD packets can be retained between frames while
   dynamic text/value changes invalidate the appropriate output.
 - **Navigation utilities.** `Focus<N>` and `layout_list` provide allocation-free
@@ -523,7 +542,18 @@ and [performance](performance.md).
   synchronous fallback and scene warmup share the same pool contract. Required
   reads can stall and CD geometry can interact with XA playback.
 - **Visibility.** Precomputed chunk bounds, frustum outcodes, cached basis/bounds
-  tests and spatial chunks reduce submitted geometry.
+  tests and spatial chunks reduce submitted geometry. A Geometry Draw Distance
+  rejects chunks wholly beyond a camera-space distance before loading them.
+- **Camera visibility tracks.** For guided cameras, the build stores which faces
+  each camera sample sees and which pages it needs now and next; the streamer
+  loads exactly those. Optional static-world cooking removes seams between meshes.
+- **Prepared packet order.** Per-sample draw lists, already in draw order, let
+  the renderer skip visibility tests, sorting and per-polygon material setup for
+  static unlit scenery. See [World optimization techniques](world-optimization.md).
+- **Camera paths and visibility bake.** Build > Camera Path authors a guided
+  camera's route from Scene view keys on a timeline; Build > Bake Visibility
+  computes each sample's visible faces on the GPU, optionally from cameras
+  recorded while playing, and generates the packet order.
 - **Retained geometry/HUD.** Optional retained GPU packets reuse unchanged static
   work while preserving per-frame visibility and resource bounds.
 - **Counters.** Runtime structures expose frame timing, dropped fixed steps,
@@ -553,13 +583,14 @@ See [Memory Card service](memory-card.md).
 - **Optional local server.** Authenticated Streamable HTTP binds only to IPv4
   loopback; a stdio bridge connects clients to the already-running editor. The
   feature is disabled by default and requires no specific client provider.
-- **Twenty-four tools.** `editor_state`, `logs_read`, `scene_read`, `scene_schema`,
+- **Twenty-six tools.** `editor_state`, `logs_read`, `scene_read`, `scene_schema`,
   `scene_apply`, `scene_actors`, `scene_add_actor`, `scene_remove_actor`,
-  `scene_set_actor`, `scene_history`, `scene_save`, `scene_open`, `entity_select`,
-  `editor_view`, `viewer_screenshot`, `editor_control`, `game_input`,
-  `project_settings`, `project_files`, `asset_list`, `asset_import`,
-  `mesh_create`, `asset_document` and `asset_manage` cover inspection, guarded
-  scene/actor/file edits, screenshots, imports, build/play and serial preparation.
+  `scene_set_actor`, `scene_history`, `scene_save`, `scene_open`, `actor_select`,
+  `editor_view`, `viewer_screenshot`, `editor_control`, `camera_path`,
+  `visibility_bake`, `game_input`, `project_settings`, `project_files`,
+  `asset_list`, `asset_import`, `mesh_create`, `asset_document` and
+  `asset_manage` cover inspection, guarded scene/actor/file edits, screenshots,
+  imports, camera paths, visibility bakes, build/play and serial preparation.
 - **Transactional guards.** Scene batches are atomic and revision-checked;
   project-file writes require SHA-256 revisions and keep backups; queues and
   responses have limits/timeouts; cancelled queued calls cannot mutate later.
