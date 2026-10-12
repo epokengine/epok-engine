@@ -5151,7 +5151,10 @@ mod tests {
         editor.open = true;
         let mut template = crate::blueprint_templates::Template::root("Root");
         let root = template.actors[0].entity.id;
-        template.actors[0].entity.canvas = Some(crate::hud::Canvas { enabled: false });
+        template.actors[0].entity.canvas = Some(crate::hud::Canvas {
+            enabled: false,
+            ..Default::default()
+        });
         let child = template.add_child(root, "Target Child");
         let other = template.add_child(root, "Other Child");
         let original = template

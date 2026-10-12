@@ -112,10 +112,63 @@ fn place(free: &[Rect], request: Request, top_left: bool) -> Option<Rect> {
 // unused lines between/after PsyQo's framebuffers. Memory reports share it.
 pub const DISPLAY_RESERVE: [u16; 2] = [640, 512];
 
-pub fn layout(scene: &Scene) -> Result<Vec<(Uuid, Placement)>, String> {
+/// The resident VRAM allocation of one scene: its textures and the authored
+/// HUD fonts. Fonts are 4bpp atlases with a sixteen-entry CLUT, packed by the
+/// same allocator as 4bpp textures and in the same space.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Layout {
+    pub textures: Vec<(Uuid, Placement)>,
+    pub fonts: Vec<(Uuid, Placement)>,
+}
+
+fn initial_free() -> Vec<Rect> {
+    let mut free = vec![Rect { x: DISPLAY_RESERVE[0], y: 0, w: 1024 - DISPLAY_RESERVE[0], h: DISPLAY_RESERVE[1] }];
+    // Framebuffers occupy x<640. Loading image and font own this corner.
+    occupy(&mut free, Rect { x: 960, y: 384, w: 64, h: 128 });
+    free
+}
+
+/// Fonts are global and resident for the whole run: one generated header
+/// serves every scene bank. They are therefore placed first, from the font set
+/// alone (every resolved font in `scene.fonts`, by id), so their VRAM is the
+/// same whichever bank's textures are packed around them. Callers packing a
+/// bank give it the build's full font set.
+fn place_fonts(scene: &Scene, free: &mut Vec<Rect>) -> Result<Vec<(Uuid, Placement)>, String> {
+    for id in crate::hud::font_ids(scene) {
+        if !scene.fonts.contains_key(&id) {
+            return Err(format!("Unresolved font {id}"));
+        }
+    }
+    let mut ids: Vec<Uuid> = scene.fonts.keys().copied().collect();
+    ids.sort_unstable();
+    let format = Format::Indexed4;
+    let mut requests = Vec::new();
+    for (index, id) in ids.iter().enumerate() {
+        let f = &scene.fonts[id];
+        requests.push(Request { index, palette: false, w: format.word_width(f.width), h: f.height, format });
+        requests.push(Request { index, palette: true, w: format.colors(), h: 1, format });
+    }
+    requests.sort_by_key(|r| (std::cmp::Reverse(u32::from(r.w) * u32::from(r.h)), r.index, r.palette));
+    let mut placed = vec![Placement { x: 0, y: 0, clut_x: 0, clut_y: 0, format }; ids.len()];
+    for request in requests {
+        // Best fit packs fonts towards the edges of free space, away from the
+        // open area tall texture atlases need.
+        let rect = place(free, request, false).ok_or_else(|| format!(
+            "Font VRAM exhausted: {} fonts cannot be placed beside the framebuffers, loading image and built-in font. Reduce the pixel height or the character set.",
+            ids.len()))?;
+        occupy(free, rect);
+        let p = &mut placed[request.index];
+        if request.palette { p.clut_x = rect.x; p.clut_y = rect.y; } else { p.x = rect.x; p.y = rect.y; }
+    }
+    Ok(ids.into_iter().zip(placed).collect())
+}
+
+pub fn layout(scene: &Scene) -> Result<Layout, String> {
     let ids = crate::texture::ids(scene);
     let data: Vec<_> = ids.iter().map(|id| scene.textures.get(id)
         .ok_or_else(|| format!("Unresolved texture {id}"))).collect::<Result<_, _>>()?;
+    let mut base = initial_free();
+    let fonts = place_fonts(scene, &mut base)?;
     let mut requests = Vec::new();
     for (index, t) in data.iter().enumerate() {
         let format = Format::for_data(t);
@@ -132,9 +185,7 @@ pub fn layout(scene: &Scene) -> Result<Vec<(Uuid, Placement)>, String> {
             (group, std::cmp::Reverse(u32::from(r.w) * u32::from(r.h)),
                 std::cmp::Reverse(r.h), r.index, r.palette)
         });
-        let mut free = vec![Rect { x: DISPLAY_RESERVE[0], y: 0, w: 1024 - DISPLAY_RESERVE[0], h: DISPLAY_RESERVE[1] }];
-        // Framebuffers occupy x<640. Loading image and font own this corner.
-        occupy(&mut free, Rect { x: 960, y: 384, w: 64, h: 128 });
+        let mut free = base.clone();
         let mut placed = vec![Placement { x: 0, y: 0, clut_x: 0, clut_y: 0, format: Format::Indexed8 }; ids.len()];
         let mut complete = true;
         for &request in &requests {
@@ -145,13 +196,13 @@ pub fn layout(scene: &Scene) -> Result<Vec<(Uuid, Placement)>, String> {
             if request.palette { p.clut_x = rect.x; p.clut_y = rect.y; }
             else { p.x = rect.x; p.y = rect.y; }
         }
-        if complete { return Ok(ids.into_iter().zip(placed).collect()); }
+        if complete { return Ok(Layout { textures: ids.into_iter().zip(placed).collect(), fonts }); }
     }
     let bytes: usize = data.iter().map(|t| {
         let f = Format::for_data(t);
         (usize::from(f.word_width(t.width)) * usize::from(t.height) + usize::from(f.colors())) * 2
     }).sum();
-    Err(format!("Texture VRAM exhausted: {} textures need {bytes} packed bytes; cannot place texture pages and CLUTs without overlapping framebuffers, loading image or font. Use texture residency or smaller source resources.", ids.len()))
+    Err(format!("Texture VRAM exhausted: {} textures need {bytes} packed bytes; cannot place texture pages and CLUTs without overlapping framebuffers, loading image, font or {} authored fonts. Use texture residency or smaller source resources.", ids.len(), fonts.len()))
 }
 
 #[cfg(test)]
@@ -193,8 +244,8 @@ mod tests {
     #[test]
     fn hundreds_of_crops_pack_deterministically_without_page_wrap_or_overlap() {
         let scene = fixture(197);
-        let packed = layout(&scene).unwrap();
-        assert_eq!(packed, layout(&scene).unwrap());
+        let packed = layout(&scene).unwrap().textures;
+        assert_eq!(packed, layout(&scene).unwrap().textures);
         validate(&scene, &packed);
         assert!(packed.iter().any(|(_, p)| p.x % 64 != 0));
     }
@@ -240,7 +291,7 @@ mod tests {
         crate::terrain::resolve(&mut scene, &index).unwrap();
         crate::skeletal::resolve(&mut scene, &index).unwrap();
         crate::texture::resolve(&mut scene, &index).unwrap();
-        let packed = layout(&scene).unwrap();
+        let packed = layout(&scene).unwrap().textures;
         validate(&scene, &packed);
         let mut bytes = 0;
         let mut texels = 0;

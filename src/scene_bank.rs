@@ -190,9 +190,11 @@ pub fn resources(scenes: &[Scene]) -> Scene {
     let mut out = scenes[0].clone();
     out.actors.clear();
     out.textures.clear();
+    out.fonts.clear();
     for s in scenes {
         out.actors.extend(s.actors.clone());
         out.textures.extend(s.textures.clone());
+        out.fonts.extend(s.fonts.clone());
     }
     for e in &mut out.actors {
         if let Some(a) = &mut e.audio {
@@ -325,9 +327,16 @@ pub fn header_with_templates_for(
         // enabled, otherwise once in executable memory.
         // Dynamic prototypes use one fixed resident texture layout in every
         // bank. Reject overflow explicitly instead of spawning invisible assets.
-        let layout_scene = if global_layout { &shared } else { s };
+        let bank_scene;
+        let layout_scene = if global_layout {
+            &shared
+        } else {
+            // Fonts are global: pack this bank's textures around every font.
+            bank_scene = Scene { fonts: shared.fonts.clone(), ..s.clone() };
+            &bank_scene
+        };
         crate::texture::header(layout_scene)?;
-        let layout = crate::texture::layout(layout_scene)?;
+        let layout = crate::texture::layout(layout_scene)?.textures;
         let descriptors = ids
             .iter()
             .enumerate()
@@ -378,12 +387,18 @@ pub fn header_with_templates_for(
     let mut headers = Vec::new();
     let mut render_capacity = 0;
     for (bank, s) in scenes.iter().enumerate() {
+        let bank_scene;
         let mut h = crate::project::scene_header_with_registry_for(
             s,
             catalog,
             &shared,
             false,
-            if global_layout { &shared } else { s },
+            if global_layout {
+                &shared
+            } else {
+                bank_scene = Scene { fonts: shared.fonts.clone(), ..s.clone() };
+                &bank_scene
+            },
             class_registry,
             skeletal_queries,
         )?;

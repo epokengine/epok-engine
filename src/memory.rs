@@ -369,7 +369,8 @@ pub fn stage(
         let mut textures = Vec::new();
         let mut palettes = Vec::new();
         let mut rectangles = Vec::new();
-        for (id, p) in crate::texture::layout(layout_scene)? {
+        let allocation = crate::texture::layout(layout_scene)?;
+        for (id, p) in allocation.textures {
             let t = &shared.textures[&id];
             let width = p.format.word_width(t.width);
             let node = resource(
@@ -387,6 +388,30 @@ pub fn stage(
             rectangles.push(VramRect {
                 name: format!("{} palette", node.name),
                 rect: [p.clut_x, p.clut_y, p.format.colors(), 1],
+                category: 2,
+            });
+            palettes.push(node);
+        }
+        // Authored fonts sit in the same shelves, 4bpp and with a sixteen-entry
+        // CLUT of their own, so they show up beside the textures they compete with.
+        for (id, p) in allocation.fonts {
+            let font = &shared.fonts[&id];
+            let words = crate::texture_cook::Format::Indexed4.word_width(font.width);
+            let node = resource(
+                id,
+                u64::from(words) * u64::from(font.height) * 2,
+                "Authored font atlas (4bpp, 16-bit VRAM words)",
+            )?;
+            rectangles.push(VramRect {
+                name: node.name.clone(),
+                rect: [p.x, p.y, words, font.height],
+                category: 1,
+            });
+            textures.push(node);
+            let node = resource(id, 32, "16 palette entries, 16 bits each")?;
+            rectangles.push(VramRect {
+                name: format!("{} palette", node.name),
+                rect: [p.clut_x, p.clut_y, 16, 1],
                 category: 2,
             });
             palettes.push(node);

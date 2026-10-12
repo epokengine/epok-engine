@@ -358,7 +358,7 @@ pub fn compile_with_palette(scenes: &[Scene], pool_pages: usize, triangle_budget
             used = PAGE_BYTES;
         }
         let first_page = bundle.page_count();
-        let layout = crate::texture::layout(scene)?;
+        let layout = crate::texture::layout(scene)?.textures;
         let mut locations = BTreeMap::new();
         let mut lengths = BTreeMap::new();
         let mut preview_chunks = Vec::new();

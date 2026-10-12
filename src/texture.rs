@@ -313,8 +313,9 @@ pub fn validate_region(id: Option<Uuid>, r: [u16; 4], scene: &Scene) -> Result<(
         Ok(())
     }
 }
-pub use crate::texture_cook::Placement;
-pub fn layout(scene: &Scene) -> Result<Vec<(Uuid, Placement)>, String> {
+pub use crate::texture_cook::Layout;
+/// The scene's resident VRAM allocation: textures, then authored fonts.
+pub fn layout(scene: &Scene) -> Result<Layout, String> {
     crate::texture_cook::layout(scene)
 }
 pub fn symbol(id: Uuid) -> String {
@@ -382,7 +383,7 @@ pub fn header(scene: &Scene) -> Result<String, String> {
             }
         }
     }
-    let layout = layout(scene)?;
+    let layout = layout(scene)?.textures;
     let resident_bytes = layout
         .iter()
         .map(|(id, _)| {
@@ -646,7 +647,7 @@ pub(crate) mod tests {
             texture.palette[32] = 0x8123; // Full-width 8-bit atlas, not a three-pixel mock.
             scene.textures.insert(id, std::sync::Arc::new(texture));
         }
-        let packed = layout(&scene).unwrap();
+        let packed = layout(&scene).unwrap().textures;
         assert_eq!(
             packed.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
             ids(&scene)
@@ -666,6 +667,122 @@ pub(crate) mod tests {
         assert_eq!(d.rgba, [0, 0, 0, 255, 0, 0, 0, 0, 255, 0, 0, 255]);
         assert_eq!(d.palette[1] & 0x8000, 0x8000);
         assert_eq!(decode(&png()).unwrap(), d);
+    }
+    /// Fonts are packed by the texture allocator as 4bpp atlases with a
+    /// sixteen-entry CLUT, in the same VRAM as the textures and never over them.
+    #[test]
+    fn fonts_share_the_texture_allocator_without_overlap() {
+        let font = |width: u16| crate::font_asset::FontData {
+            width,
+            height: 32,
+            words: vec![0; usize::from(width) / 4 * 32],
+            palette: crate::font_asset::palette(false),
+            metrics: vec![crate::font_asset::GlyphMetric {
+                codepoint: 65,
+                u: 0,
+                v: 0,
+                width: 6,
+                height: 8,
+                advance: 7,
+                x_offset: 0,
+                y_offset: -8,
+            }],
+            line_height: 12,
+            baseline: 9,
+            rgba: vec![],
+        };
+        let mut scene = Scene::default();
+        scene.actors.clear();
+        let mut canvas = crate::scene::Actor::cube("Canvas".into());
+        canvas.kind = "Empty".into();
+        canvas.canvas = Some(Default::default());
+        scene.actors.push(canvas);
+        let mut texture = decode(&png()).unwrap();
+        texture.width = 256;
+        texture.height = 128;
+        let texture_id = Uuid::new_v4();
+        scene.actors[0].material.texture = Some(texture_id);
+        scene.textures.insert(texture_id, Arc::new(texture));
+        let id = Uuid::new_v4();
+        let mut label = crate::scene::Actor::cube("Label".into());
+        label.kind = "Empty".into();
+        label.parent = Some(0);
+        label.rect = Some(Default::default());
+        label.text = Some(crate::hud::Text {
+            font: Some(id),
+            ..Default::default()
+        });
+        scene.actors.push(label);
+        scene.fonts.insert(id, Arc::new(font(64)));
+        let rects = |packed: &crate::texture::Layout, scene: &Scene| {
+            let mut out = vec![];
+            for (id, p) in &packed.textures {
+                let t = &scene.textures[id];
+                out.push([p.x, p.y, p.format.word_width(t.width), t.height]);
+                out.push([p.clut_x, p.clut_y, p.format.colors(), 1]);
+            }
+            for (id, p) in &packed.fonts {
+                let f = &scene.fonts[id];
+                assert_eq!(p.format, crate::texture_cook::Format::Indexed4);
+                assert_eq!(p.clut_x % 16, 0);
+                // A font row fits its 256-texel texture page.
+                assert!((p.x % 64 + p.format.word_width(f.width)) * 4 <= 256 && p.y % 256 + f.height <= 256);
+                out.push([p.x, p.y, p.format.word_width(f.width), f.height]);
+                out.push([p.clut_x, p.clut_y, 16, 1]);
+            }
+            for (i, a) in out.iter().enumerate() {
+                assert!(a[0] >= 640 && a[0] + a[2] <= 1024 && a[1] + a[3] <= 512, "{a:?}");
+                for b in &out[i + 1..] {
+                    let apart = a[0] + a[2] <= b[0] || b[0] + b[2] <= a[0] || a[1] + a[3] <= b[1] || b[1] + b[3] <= a[1];
+                    assert!(apart, "VRAM overlap {a:?} {b:?}");
+                }
+            }
+        };
+        let packed = layout(&scene).unwrap();
+        assert_eq!(packed.textures.len(), 1);
+        assert_eq!(packed.fonts.len(), 1);
+        assert_eq!(packed.fonts[0].0, id);
+        rects(&packed, &scene);
+        // Fonts are global across scene banks: a bank with other textures
+        // keeps the same font placement and packs its textures around it.
+        let mut other = scene.clone();
+        let other_texture = Uuid::new_v4();
+        let mut tall = decode(&png()).unwrap();
+        tall.width = 256;
+        tall.height = 256;
+        other.textures.clear();
+        other.textures.insert(other_texture, Arc::new(tall));
+        other.actors[0].material.texture = Some(other_texture);
+        let other_packed = layout(&other).unwrap();
+        assert_eq!(other_packed.fonts, packed.fonts);
+        rects(&other_packed, &other);
+        // Unlike the old 32-row CLUT band, many fonts pack beside the texture.
+        let label = |scene: &mut Scene, font: Uuid| {
+            let mut e = crate::scene::Actor::cube("Label".into());
+            e.kind = "Empty".into();
+            e.parent = Some(0);
+            e.rect = Some(Default::default());
+            e.text = Some(crate::hud::Text {
+                font: Some(font),
+                ..Default::default()
+            });
+            scene.actors.push(e);
+        };
+        for _ in 0..39 {
+            let extra = Uuid::new_v4();
+            label(&mut scene, extra);
+            scene.fonts.insert(extra, Arc::new(font(64)));
+        }
+        let packed = layout(&scene).unwrap();
+        assert_eq!(packed.fonts.len(), 40);
+        rects(&packed, &scene);
+        // More atlases than VRAM holds are refused, not overlapped.
+        for _ in 0..400 {
+            let extra = Uuid::new_v4();
+            label(&mut scene, extra);
+            scene.fonts.insert(extra, Arc::new(font(256)));
+        }
+        assert!(layout(&scene).unwrap_err().contains("VRAM exhausted"));
     }
     #[test]
     fn png_import_portable_reimport_mesh_uv_and_hud_roundtrip() {
@@ -689,7 +806,7 @@ pub(crate) mod tests {
         assert!(h.contains("texture_id_"));
         assert!(h.contains("BlendMode::Add"));
         assert!(h.contains("{2048,2048}"));
-        let p = layout(&scene).unwrap()[0].1;
+        let p = layout(&scene).unwrap().textures[0].1;
         assert!(h.contains(&format!("3,1,{},{},2,{},{},texture_0_pixels,texture_0_palette,4", p.x, p.y, p.clut_x, p.clut_y)));
         let saved = serde_json::to_vec(&scene).unwrap();
         let mut decoded: Scene = serde_json::from_slice(&saved).unwrap();
@@ -752,7 +869,7 @@ pub(crate) mod tests {
             scene.actors.last_mut().unwrap().material.texture = Some(id);
             scene.textures.insert(id, Arc::new(d.clone()));
         }
-        for (_, p) in layout(&scene).unwrap() {
+        for (_, p) in layout(&scene).unwrap().textures {
             assert!(p.x >= 640);
             assert_eq!(p.y % 256, 0);
             assert!(p.x + 128 <= 1024 && p.clut_x + 256 <= 1024);

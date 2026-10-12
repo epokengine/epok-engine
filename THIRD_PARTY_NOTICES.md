@@ -47,7 +47,7 @@ PCSX-Redux and the MIPS toolchain are downloaded separately by setup and remain 
 
 ## Rust dependencies
 
-Direct dependencies are imgui, imgui-winit-support, imgui-wgpu, wgpu, pollster, winit, raw-window-handle, serde, serde_json, png, sha2, uuid, symphonia, ufbx, rmcp, tokio, tokio-util, axum, base64, serde_ignored and arboard. Exact direct/transitive versions are recorded in Cargo.lock; source packages carry their own license texts. Dear ImGui is provided by the imgui bindings and is MIT licensed.
+Direct dependencies are imgui, imgui-winit-support, imgui-wgpu, wgpu, pollster, winit, raw-window-handle, serde, serde_json, png, sha2, uuid, symphonia, ufbx, ab_glyph, rmcp, tokio, tokio-util, axum, base64, serde_ignored and arboard. Exact direct/transitive versions are recorded in Cargo.lock; source packages carry their own license texts. Dear ImGui is provided by the imgui bindings and is MIT licensed.
 
 This source repository does not vendor those Rust packages. Binary distributions must include the notices applicable to the resolved libraries and embedded resources.
 
@@ -64,6 +64,11 @@ This source repository does not vendor those Rust packages. Binary distributions
 
 The external tools are pinned in `tools/dependencies.json` and installed under `.tools/`; they are not embedded into exported games. Preserve upstream notices/source-availability requirements when redistributing the tools or editor dependencies. The synthetic MP3 fixture is original test data described in `tests/fixtures/README.md`.
 
+
+## Font importer
+
+- ab_glyph 0.2.32 (Apache-2.0): https://github.com/alexheretic/ab-glyph — rasterizes imported TrueType/OpenType outlines into authored font atlases. It was already resolved transitively through winit's Linux window decorations; the font importer makes it a direct dependency on every host. It includes ab_glyph_rasterizer (Apache-2.0) and owned_ttf_parser/ttf-parser (MIT). It is linked into the desktop editor only; no outline rasterizer ships in a PSX game, which receives the cooked 4bpp atlas.
+- Fonts imported by a project are the project author's content. Epok stores the original file inside the asset and does not relicense it; preserve the upstream font licence when redistributing a game whose atlas was cooked from a third-party face.
 
 ## FBX importer and sample character
 

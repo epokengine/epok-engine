@@ -537,11 +537,17 @@ inline constexpr bool streaming_prefetch_enabled=true;
 namespace epok {
 inline constexpr unsigned hud_layout_budget=128, hud_rectangle_budget=256;
 inline constexpr unsigned hud_text_budget=64, hud_glyph_budget=1024;
+inline constexpr unsigned hud_rotated_budget=128;
 }
 """,
         "hud-font.hh": """#pragma once
 #include <stdint.h>
 namespace epok { alignas(4) inline constexpr uint16_t hud_font_pixels[4096]={}; }
+""",
+        # Per-project font table; Font comes from font_types.hpp through hud_core.hpp.
+        "fonts.hh": """#pragma once
+#include <stddef.h>
+namespace epok { inline constexpr size_t font_count=0; inline constexpr const Font* font_assets=nullptr; }
 """,
         "loading-image.hh": """#pragma once
 namespace epok { inline constexpr LoadingImage default_loading_image{}; }

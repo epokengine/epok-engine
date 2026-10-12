@@ -171,7 +171,7 @@ pub fn cook(
     if pool_pages < 3 || pool_pages > 8 {
         return Err("Ordered drawing needs 3..8 streaming pages".into());
     }
-    let layout = crate::texture::layout(scene)?;
+    let layout = crate::texture::layout(scene)?.textures;
     let (jobs, membership) = draw_jobs(&resolved.points);
     if jobs.iter().any(|job| job.length > PAGE) { return Err("Ordered draw job exceeds a page".into()); }
     let track = scene
