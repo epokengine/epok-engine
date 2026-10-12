@@ -10,6 +10,24 @@ pub const DEFAULT_CAMERA_SKY_COLOR: [f32; 3] = [33. / 255., 40. / 255., 52. / 25
 fn default_camera_sky_color() -> [f32; 3] {
     DEFAULT_CAMERA_SKY_COLOR
 }
+/// Background drawn instead of the flat sky clear: the camera's sky colour
+/// overhead, `horizon` at the horizon and `ground` below it, so gaps in the
+/// world below the horizon show ground rather than sky.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SkyGradient {
+    pub horizon: [f32; 3],
+    pub ground: [f32; 3],
+}
+impl SkyGradient {
+    /// A starting point for a sky colour: a paler horizon and a dark ground.
+    pub fn for_sky(sky: [f32; 3]) -> Self {
+        Self {
+            horizon: sky.map(|c| c + (1. - c) * 0.35),
+            ground: [0.13, 0.11, 0.09],
+        }
+    }
+}
 fn default_active() -> bool {
     true
 }
@@ -123,6 +141,9 @@ pub struct BuiltinData {
     /// exactly as they did before this camera setting existed.
     #[serde(default = "default_camera_sky_color")]
     pub camera_sky_color: [f32; 3],
+    /// Optional sky/horizon/ground background; None keeps the flat clear.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub camera_sky_gradient: Option<SkyGradient>,
     #[serde(default = "default_active")]
     pub active: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -184,6 +205,7 @@ impl BuiltinData {
             camera_fov: 90.,
             camera_mirror_x: false,
             camera_sky_color: default_camera_sky_color(),
+            camera_sky_gradient: None,
             sprite: None,
             sprite_animator: None,
             particle_emitter: None,
@@ -761,6 +783,16 @@ impl Scene {
                 .all(|channel| channel.is_finite() && (0. ..=1.).contains(channel))
             {
                 return Err("Camera sky color channels must be between 0.0 and 1.0".into());
+            }
+            if e.camera_sky_gradient.is_some_and(|g| {
+                !g.horizon
+                    .iter()
+                    .chain(&g.ground)
+                    .all(|channel| channel.is_finite() && (0. ..=1.).contains(channel))
+            }) {
+                return Err(
+                    "Camera horizon and ground color channels must be between 0.0 and 1.0".into(),
+                );
             }
             if e.position
                 .iter()

@@ -49,7 +49,10 @@ using RaycastQuery=RaycastQueryT<Fixed>;
 using MoveResult=MoveResultT<Fixed>;
 // All script transforms are local to the object's parent.
 struct Transform { Fixed position[3]; Fixed rotation[3]; Fixed scale[3]; };
-struct CameraSettings {bool enabled=false;Fixed field_of_view=90.0;uint8_t sky_color[3]={33,40,52};bool mirror_x=false;};
+// sky_gradient: draw the sky, horizon and ground colours along the horizon
+// instead of clearing to sky_color (see sky_gradient.hpp).
+struct CameraSettings {bool enabled=false;Fixed field_of_view=90.0;uint8_t sky_color[3]={33,40,52};bool mirror_x=false;
+    bool sky_gradient=false;uint8_t horizon_color[3]={0,0,0};uint8_t ground_color[3]={0,0,0};};
 inline Fixed projection_focal=1.0;
 inline Fixed projection_focal_x=1.0;
 struct AudioSource {

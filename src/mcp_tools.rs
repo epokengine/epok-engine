@@ -93,6 +93,10 @@ fn actor_patch(entity: &Actor, patch: &Value) -> Result<Actor, String> {
         "audio",
         "skeletal_mesh",
         "editable_mesh",
+        "camera_fov",
+        "camera_mirror_x",
+        "camera_sky_color",
+        "camera_sky_gradient",
     ];
     for key in patch
         .as_object()

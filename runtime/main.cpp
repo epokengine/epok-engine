@@ -42,6 +42,7 @@
 #include "retained.hpp"
 #include "hud.hpp"
 #include "loading_renderer.hpp"
+#include "sky_gradient.hpp"
 #include "debug_hud.hpp"
 #include "serial_debug.hpp"
 #include "lua_runtime.hpp"
@@ -853,6 +854,7 @@ class GameScene final : public psyqo::Scene {
   psyqo::OrderingTable<buckets> background_ordering[2];
   psyqo::Fragments::SimpleFragment<psyqo::Prim::TPage> geometry_pages[2], hud_pages[2];
   epok::FrameClear<epok::display_width,epok::display_height> clear;
+  epok::SkyGradient<epok::display_width,epok::display_height> sky_gradient;
   psyqo::Fragments::SimpleFragment<psyqo::Prim::GouraudTriangle>
       triangles[2][capacity];
   psyqo::Fragments::SimpleFragment<psyqo::Prim::GouraudTexturedTriangle> textured_triangles[2][capacity];
@@ -1128,7 +1130,9 @@ void GameScene::frame() {
   const uint8_t sky_r=sky_color?sky_color[0]:33;
   const uint8_t sky_g=sky_color?sky_color[1]:40;
   const uint8_t sky_b=sky_color?sky_color[2]:52;
-  clear.draw(gpu(),psyqo::Color{{.r = sky_r, .g = sky_g, .b = sky_b}});
+  // A gradient background is drawn once the projection is known, below.
+  const bool gradient_background=clear_camera&&clear_camera->camera_settings.sky_gradient;
+  if(!gradient_background)clear.draw(gpu(),psyqo::Color{{.r = sky_r, .g = sky_g, .b = sky_b}});
   const auto view = camera_view(true,render_world.data());
   EPOK_DETAIL_END(camera, camera_scanlines);
   static constexpr int16_t vertices[8][3] = {
@@ -1166,6 +1170,15 @@ void GameScene::frame() {
       horizontal_pixels == projection_focal_pixels ? epok::projection_focal_x : epok::projection_focal_x * Fixed(horizontal_pixels) / Fixed(projection_focal_pixels),
       epok::projection_focal};
   epok::load_projection_screen(projection_focal_pixels, epok::display_width / 2, epok::display_height / 2);
+  if(gradient_background){
+    const auto& settings=clear_camera->camera_settings;
+    epok::SkyGradientColors colors;
+    for(int c=0;c<3;++c){colors.sky[c]=settings.sky_color[c];colors.horizon[c]=settings.horizon_color[c];colors.ground[c]=settings.ground_color[c];}
+    epok::SkyGradientView sky_view;
+    if(!epok::sky_gradient_view(view.basis,row_scale[0].raw(),row_scale[1].raw(),projection_focal_pixels,epok::display_width/2,epok::display_height/2,sky_view)
+       ||!sky_gradient.draw(gpu(),sky_view,colors))
+      clear.draw(gpu(),psyqo::Color{{.r = sky_r, .g = sky_g, .b = sky_b}});
+  }
   PolygonEmitter emitter{&table, triangles[parity], textured_triangles[parity]};
   emitter.mirror_x=epok::projection_focal_x.raw()<0;
   if constexpr(epok::retained_geometry)frame_packet_slots.begin_frame();

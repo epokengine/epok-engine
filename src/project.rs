@@ -459,11 +459,15 @@ epok::set_visibility_track(nullptr);
         text.push_str(&format!("objects[{i}].set_name({});\n", string(&e.name)));
         text.push_str(&format!("objects[{i}].active={};\n", e.active));
         if e.kind == "Camera" {
+            let gradient = e.camera_sky_gradient.map_or(String::new(), |g| {
+                format!(",true,{{{}}},{{{}}}", color(&g.horizon), color(&g.ground))
+            });
             text.push_str(&format!(
-                "objects[{i}].camera_settings={{true,{},{{{}}},{}}};\n",
+                "objects[{i}].camera_settings={{true,{},{{{}}},{}{}}};\n",
                 fixed(e.camera_fov),
                 color(&e.camera_sky_color),
-                e.camera_mirror_x
+                e.camera_mirror_x,
+                gradient
             ));
         }
         if e.editable_mesh.is_none() && e.terrain.is_none() && e.skeletal_mesh.is_none() {
@@ -1224,6 +1228,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "frame_clear.hpp",
             include_bytes!("../runtime/frame_clear.hpp").as_slice(),
+        ),
+        (
+            "sky_gradient.hpp",
+            include_bytes!("../runtime/sky_gradient.hpp").as_slice(),
         ),
         (
             "transition.hpp",
@@ -2097,6 +2105,25 @@ mod tests {
         assert!(scene_header(&copy, &[]).unwrap().contains(
             "objects[0].camera_settings={true,Fixed(368640, Fixed::RAW),{64,128,255},true};"
         ));
+    }
+    #[test]
+    fn camera_sky_gradient_exports_horizon_and_ground_colours() {
+        let mut scene = Scene::default();
+        scene.actors[0].camera_sky_color = [0.25, 0.5, 1.];
+        scene.actors[0].camera_sky_gradient = Some(crate::scene::SkyGradient {
+            horizon: [1., 1., 1.],
+            ground: [0.25, 0., 0.5],
+        });
+        let copy: Scene = serde_json::from_value(serde_json::to_value(&scene).unwrap()).unwrap();
+        assert_eq!(
+            copy.actors[0].camera_sky_gradient,
+            scene.actors[0].camera_sky_gradient
+        );
+        assert!(scene_header(&copy, &[]).unwrap().contains(
+            "objects[0].camera_settings={true,Fixed(368640, Fixed::RAW),{64,128,255},false,true,{255,255,255},{64,0,128}};"
+        ));
+        scene.actors[0].camera_sky_gradient.as_mut().unwrap().ground[1] = 1.5;
+        assert!(scene.validate().is_err());
     }
     #[test]
     fn background_pass_only_exports_for_selected_actor() {

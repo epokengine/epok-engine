@@ -207,6 +207,8 @@ struct RenderInput<'a> {
     grid: bool,
     effect: Option<&'a [crate::particle_effect_preview::Quad]>,
     background: Option<[f32; 3]>,
+    /// With `background`: draw the camera's sky/horizon/ground gradient.
+    sky_gradient: Option<crate::scene::SkyGradient>,
     revision: Option<u64>,
     split_static: bool,
     baked_selection: Option<&'a crate::baked_preview::Selection>,
@@ -352,7 +354,7 @@ impl SceneGpu {
         });
         let camera = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Scene camera"),
-            contents: &[0; 48],
+            contents: &[0; 112],
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -365,7 +367,8 @@ impl SceneGpu {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    // The background fragment reads the sky gradient colours.
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -639,6 +642,7 @@ impl SceneGpu {
                 grid: editor.grid,
                 effect: None,
                 background: active_camera_sky(scene),
+                sky_gradient: active_camera(scene).and_then(|actor| actor.camera_sky_gradient),
                 revision: None,
                 split_static: false,
                 baked_selection: editor.baked_preview.filter(),
@@ -676,6 +680,10 @@ impl SceneGpu {
                     .camera
                     .and_then(|index| frame.scene.actors.get(index))
                     .map(|actor| actor.camera_sky_color),
+                sky_gradient: frame
+                    .camera
+                    .and_then(|index| frame.scene.actors.get(index))
+                    .and_then(|actor| actor.camera_sky_gradient),
                 revision: Some(frame.number),
                 split_static: true,
                 baked_selection: None,
@@ -710,6 +718,7 @@ impl SceneGpu {
                 grid: false,
                 effect: Some(&preview.quads),
                 background: Some(preview.background),
+                sky_gradient: None,
                 revision: None,
                 split_static: false,
                 baked_selection: None,
@@ -744,6 +753,7 @@ impl SceneGpu {
                 grid: false,
                 effect: None,
                 background: Some([0.10, 0.11, 0.12]),
+                sky_gradient: None,
                 revision: None,
                 split_static: false,
                 baked_selection: None,
@@ -943,6 +953,7 @@ impl SceneGpu {
             0.,
         ]
         .into_iter()
+        .chain(sky_uniform(input.background, input.sky_gradient, self.size))
         .flat_map(f32::to_le_bytes)
         .collect::<Vec<_>>();
         queue.write_buffer(&self.camera, 0, &uniform);
@@ -975,7 +986,7 @@ impl SceneGpu {
             occlusion_query_set: None,
         });
         pass.set_bind_group(0, &self.texture_banks[0].bind_group, &[]);
-        if input.background.is_none() {
+        if input.background.is_none() || input.sky_gradient.is_some() {
             pass.set_pipeline(&self.background_pipeline);
             pass.draw(0..3, 0..1);
         }
@@ -1032,12 +1043,46 @@ impl SceneGpu {
     }
 }
 
-fn active_camera_sky(scene: &crate::scene::Scene) -> Option<[f32; 3]> {
+/// Sky, horizon and ground colours (w = 1 when the gradient is on) and the
+/// target size, for the background shader.
+fn sky_uniform(
+    background: Option<[f32; 3]>,
+    gradient: Option<crate::scene::SkyGradient>,
+    size: wgpu::Extent3d,
+) -> [f32; 16] {
+    let on = background.is_some() && gradient.is_some();
+    let sky = background.unwrap_or([0.; 3]);
+    let g = gradient.unwrap_or(crate::scene::SkyGradient {
+        horizon: [0.; 3],
+        ground: [0.; 3],
+    });
+    [
+        sky[0],
+        sky[1],
+        sky[2],
+        if on { 1. } else { 0. },
+        g.horizon[0],
+        g.horizon[1],
+        g.horizon[2],
+        0.,
+        g.ground[0],
+        g.ground[1],
+        g.ground[2],
+        0.,
+        size.width as f32,
+        size.height as f32,
+        0.,
+        0.,
+    ]
+}
+fn active_camera(scene: &crate::scene::Scene) -> Option<&crate::scene::Actor> {
     scene
         .actors
         .iter()
         .find(|actor| actor.kind == "Camera" && actor.active)
-        .map(|actor| actor.camera_sky_color)
+}
+fn active_camera_sky(scene: &crate::scene::Scene) -> Option<[f32; 3]> {
+    active_camera(scene).map(|actor| actor.camera_sky_color)
 }
 fn vertex(out: &mut Vec<u8>, p: [f32; 3], color: [u8; 3]) {
     for v in p
@@ -1905,6 +1950,100 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires a graphics adapter; reads back the sky gradient background"]
+    fn gpu_sky_gradient_shows_sky_above_and_ground_below_the_horizon() {
+        use super::*;
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: if cfg!(windows) {
+                wgpu::Backends::DX12
+            } else {
+                wgpu::Backends::PRIMARY
+            },
+            ..Default::default()
+        });
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let target = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Sky gradient"),
+            size: SIZE,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let mut scene = crate::scene::Scene::default();
+        for actor in &mut scene.actors {
+            if actor.kind != "Camera" {
+                actor.active = false;
+            }
+        }
+        let gradient = crate::scene::SkyGradient {
+            horizon: [1., 1., 1.],
+            ground: [0., 1., 0.],
+        };
+        let mut renderer = SceneGpu::new(&device, &queue);
+        let mut row = |pitch: f32, y: usize| {
+            let view = crate::viewport::View {
+                yaw: 0.,
+                pitch,
+                distance: 8.,
+                zoom: 0.85,
+                ..Default::default()
+            };
+            let mut encoder = device.create_command_encoder(&Default::default());
+            renderer.render_input(
+                &device,
+                &queue,
+                &mut encoder,
+                &target.create_view(&Default::default()),
+                RenderInput {
+                    scene: &scene,
+                    view: &view,
+                    projection_aspect: None,
+                    selected: None,
+                    mesh: &Default::default(),
+                    terrain: &Default::default(),
+                    wire: false,
+                    grid: false,
+                    effect: None,
+                    background: Some([0., 0., 1.]),
+                    sky_gradient: Some(gradient),
+                    revision: None,
+                    split_static: false,
+                    baked_selection: None,
+                    baked_revision: 0,
+                },
+            );
+            queue.submit(Some(encoder.finish()));
+            let png = crate::platform::capture_png(&device, &queue, &target).unwrap();
+            let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+                .read_info()
+                .unwrap();
+            let mut pixels = vec![0; reader.output_buffer_size()];
+            let info = reader.next_frame(&mut pixels).unwrap();
+            let at = (y * info.width as usize + info.width as usize / 2) * 4;
+            [pixels[at], pixels[at + 1], pixels[at + 2]]
+        };
+        let height = SIZE.height as usize;
+        // Level camera: the horizon is the middle row; sky at the top, ground at the bottom.
+        let top = row(0., 2);
+        let middle = row(0., height / 2);
+        let bottom = row(0., height - 2);
+        assert!(top[2] > top[0] && top[2] > top[1], "{top:?}");
+        assert!(middle.iter().all(|&c| c > 200), "{middle:?}");
+        assert!(
+            bottom[1] > 200 && bottom[0] < 40 && bottom[2] < 40,
+            "{bottom:?}"
+        );
+        // Looking down 60 degrees: the whole view is below the horizon.
+        let down = row(1.05, 2);
+        assert!(down[1] > 200 && down[0] < 40, "{down:?}");
+    }
+
+    #[test]
     #[ignore = "requires a graphics adapter; reads back native per-texel STP in all blend modes"]
     fn gpu_native_stp_keeps_opaque_texels_cutout_and_visible_black() {
         use super::*;
@@ -1937,7 +2076,7 @@ mod tests {
             let mut encoder=device.create_command_encoder(&Default::default());
             renderer.render_input(&device,&queue,&mut encoder,&target.create_view(&Default::default()),RenderInput {
                 scene:&scene,view:&view,projection_aspect:None,selected:None,mesh:&Default::default(),terrain:&Default::default(),wire:false,
-                grid:false,effect:None,background:Some([0.5;3]),revision:None,split_static:false,baked_selection:None,baked_revision:0 });
+                grid:false,effect:None,background:Some([0.5;3]),sky_gradient:None,revision:None,split_static:false,baked_selection:None,baked_revision:0 });
             queue.submit(Some(encoder.finish()));
             let png=crate::platform::capture_png(&device,&queue,&target).unwrap();
             let mut reader=png::Decoder::new(std::io::Cursor::new(png)).read_info().unwrap();
@@ -2044,6 +2183,7 @@ mod tests {
                     grid: false,
                     effect: None,
                     background: Some([0.; 3]),
+                    sky_gradient: None,
                     revision: None,
                     split_static: false,
                     baked_selection: None,
@@ -2262,6 +2402,7 @@ mod tests {
                 grid: false,
                 effect: None,
                 background: None,
+                sky_gradient: None,
                 revision: None,
                 split_static: false,
                 baked_selection: bake.filter(),
@@ -2665,6 +2806,7 @@ mod tests {
                     grid: false,
                     effect: None,
                     background: Some([0.; 3]),
+                    sky_gradient: None,
                     revision: None,
                     split_static: false,
                     baked_selection: None,
