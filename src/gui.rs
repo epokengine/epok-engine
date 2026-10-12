@@ -122,7 +122,7 @@ fn build_menu(ui: &imgui::Ui, e: &mut Editor) {
         }
         if ui
             .menu_item_config("Bake Visibility...")
-            .enabled(e.scene.visibility_track.is_some() && !e.playing)
+            .enabled(!e.playing)
             .build()
         {
             e.visibility_bake.open = true;
@@ -3257,26 +3257,20 @@ fn scene_view(
             e.view.look(ui.io().mouse_delta, true);
             e.view_dirty = true;
         }
-        {
-            let view = e.view;
-            crate::camera_path_ui::overlay(
-                ui,
-                e,
+        let over_path_key = crate::camera_path_ui::overlay(
+            ui,
+            e,
+            [
+                position,
+                [position[0] + available[0], position[1] + available[1]],
+            ],
+            |p| {
                 [
-                    position,
-                    [position[0] + available[0], position[1] + available[1]],
-                ],
-                |p| {
-                    let p = crate::viewport::project(&view, p);
-                    (p[2] > 0.05).then(|| {
-                        [
-                            position[0] + (p[0] - (1. - uv[0]) * 480.) * factor,
-                            position[1] + (p[1] - (1. - uv[1]) * 300.) * factor,
-                        ]
-                    })
-                },
-            );
-        }
+                    position[0] + (p[0] - (1. - uv[0]) * 480.) * factor,
+                    position[1] + (p[1] - (1. - uv[1]) * 300.) * factor,
+                ]
+            },
+        );
         if !e.mesh_editor.open && !e.terrain_editor.sculpting() {
             crate::gizmo::draw(ui, e, position, available, factor, uv);
         }
@@ -3288,6 +3282,7 @@ fn scene_view(
         let eligible = hovered
             && !over_tools
             && !over_axes
+            && !over_path_key
             && !e.playing
             && !ui.io().key_alt
             && !ui.is_mouse_down(imgui::MouseButton::Right)

@@ -100,24 +100,42 @@ answer in world space only. Off by default; without it the cook is unchanged.
 #### Authoring a camera path
 
 **Build > Camera Path...** creates and edits the route a guided camera
-follows. For a scene without a track, pick a root camera and **Create camera
-path**: the new track covers every face of the scene's ordinary editable
-meshes (**Refresh tracked faces** after adding or removing meshes; baked lists
-keep the faces that still exist) and starts with one key at the camera.
+follows. For a scene without a track, the panel explains the three steps;
+pick a root camera and **Create camera path**. The new track covers every
+face of the scene's ordinary editable meshes (Settings > **Refresh tracked
+faces** after adding or removing meshes; baked visibility keeps the faces
+that still exist) and starts with one key at the camera.
+
+The panel then shows where the workflow stands: **1 Path**, **2 Samples**,
+**3 Visibility**, each marked done or pending, and a coloured box naming the
+next step with its button (Update samples, Bake Visibility...).
 
 A key is a camera pose (position, Euler rotation), a horizontal field of view
-and a time in seconds. **Add key from view** appends a key two seconds after
-the last one at the Scene view's camera; **Insert key at time** adds one at
-the preview time; **Set** moves a key to the view, **View** looks through it.
-A **Cut** key makes the camera jump to it instead of travelling. Between keys
-the path follows smooth curves (Hermite, with Catmull-Rom tangents per second;
-easing in and out at the ends and at cuts), turning the short way round. The
-path, its keys and the preview pose are drawn in the Scene view; **Look
-through the path** with the time slider or **Play** previews it through the
-view (the view cannot show roll).
+and a time in seconds. Fly the Scene view to a shot and press **Add key**: it
+appends a key two seconds after the last one, or, with the playhead between
+keys, becomes **Insert key** at the playhead. Between keys the path follows
+smooth curves (Hermite, with Catmull-Rom tangents per second; easing in and
+out at the ends and at cuts), turning the short way round.
 
-**Update samples** evaluates the path every **sample interval** (100 ms by
-default) into the track's samples. The first sample is a cut, so a looping
+- **Timeline:** keys are diamonds (red where the camera cuts), the white line
+  is the playhead. Click or drag to move the playhead, click a key to select
+  it, drag it to retime it, right-click it for Look through, Move to Scene
+  view, Cut and Delete. The wheel zooms around the mouse; Shift+wheel
+  scrolls.
+- **Transport:** go to start, Play/Pause, and the eye, which looks through
+  the path camera at the playhead in the Scene view (the view cannot show
+  roll).
+- **Selected key:** previous/next, Time, Field of view, Transition (*Travel*
+  moves smoothly from the previous key, *Cut* jumps like a film cut), and
+  Look through, Move to view, Delete.
+- **Scene view:** the path is drawn as a curve with a numbered camera per key
+  (only dots beyond 80 keys); the selected key is orange and the playhead
+  camera white. Click a key there to select it.
+- **Shortcuts** with the panel focused: Space plays, K adds a key, Left/Right
+  select the previous/next key, Delete deletes it.
+
+**Update samples** evaluates the path every **sample interval** (Settings;
+100 ms by default) into the track's samples. The first sample is a cut, so a looping
 track jumps back to its start, and a sample is a cut where a cut key falls
 since the previous one. Updating clears the baked lists and the prepared
 packet order: bake visibility again. A track with a route graph
@@ -129,28 +147,28 @@ a tenth of a runtime camera unit or a quarter of a degree. On the study scene
 0.25 degrees.
 
 The `camera_path` and `visibility_bake` MCP tools do the same for agents:
-create, convert, set keys, add a key from the view, update samples, preview,
-then start and poll the bake.
+create, convert, set keys, add a key from the view, select a key, update
+samples, preview, then start and poll the bake.
 
 #### Automatic visibility bake (experimental)
 
-In the editor, **Build > Bake Visibility...** (enabled for a scene with a
-visibility track, outside Play) opens the bake panel:
+In the editor, **Build > Bake Visibility...** opens the bake panel. If the
+camera track does not follow an edited camera path yet, it says so and offers
+**Update samples first**.
 
-- **Preset:** *Guided camera* (recommended; lists faces covering at least one
+- **Quality:** *Balanced* (recommended; draws faces covering at least one
   display pixel), *Maximum quality* (every face that shows at all, no specks,
-  more packets) or *Lighter lists* (faces of at least two pixels; fewer
+  more to draw) or *Fastest drawing* (faces of at least two pixels; fewest
   packets, occasional specks).
 - **Draw distance** in world units (160), converted to the runtime camera's
   units.
-- **Use camera recordings:** bakes from every recording in
-  `.epok/camera-recordings/` (see below), with a **recorded view margin**
-  (0.1).
+- **Include camera recordings:** bakes from every recording in
+  `.epok/camera-recordings/` (see below), with a **view margin** (10%).
 - **Generate prepared packet order:** also rebuilds the scene's packet order
   from the new lists.
 
-The bake runs on the GPU in the background with a progress bar; the editor
-stays usable. When it finishes, the lists (and order) replace the open
+The **Bake** button runs it on the GPU in the background with a progress
+bar, elapsed time and an estimate of the time left; the editor stays usable. When it finishes, the lists (and order) replace the open
 scene's, unless the scene changed meanwhile; save the scene to keep them.
 The command-line options below give finer control.
 

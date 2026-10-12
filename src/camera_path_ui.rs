@@ -1,8 +1,41 @@
 //! Build > Camera Path: author a visibility track's camera path in the
 //! editor (see camera_path.rs). Keys are taken from the Scene view; the path
-//! is drawn in the Scene view and can be previewed through the view.
+//! is drawn in the Scene view, where keys can be picked, and on a timeline
+//! where they can be selected, retimed and previewed.
 use crate::camera_path::{self, Key};
 use crate::editor::Editor;
+
+// Codicon (ea60..) and Font Awesome (f000..) glyphs the editor fonts load
+// (see EDITOR_FA_GLYPHS in platform.rs).
+const ADD: &str = "\u{ea60}";
+const CAMERA: &str = "\u{ead9}";
+const PLAY: &str = "\u{eb2c}";
+const PAUSE: &str = "\u{ead1}";
+const EYE: &str = "\u{f06e}";
+const TRASH: &str = "\u{f1f8}";
+const AIM: &str = "\u{f05b}";
+const START: &str = "\u{f048}";
+const PREVIOUS: &str = "\u{f104}";
+const NEXT: &str = "\u{f105}";
+const CHECK: &str = "\u{f00c}";
+const WARNING: &str = "\u{f071}";
+const TODO: &str = "\u{f111}";
+const SCISSORS: &str = "\u{f0c4}";
+
+const ACCENT: [f32; 4] = [0.33, 0.62, 0.98, 1.];
+const KEY: [f32; 4] = [0.45, 0.78, 1., 1.];
+const SELECTED: [f32; 4] = [1., 0.68, 0.2, 1.];
+const CUT: [f32; 4] = [1., 0.42, 0.38, 1.];
+const GOOD: [f32; 4] = [0.42, 0.85, 0.52, 1.];
+const PENDING: [f32; 4] = [1., 0.76, 0.28, 1.];
+const PLAYHEAD: [f32; 4] = [0.96, 0.96, 0.96, 1.];
+const MUTED: [f32; 4] = [0.6, 0.62, 0.66, 1.];
+
+#[derive(Clone, Copy, PartialEq)]
+enum Drag {
+    Scrub,
+    Key(usize),
+}
 
 pub struct State {
     pub open: bool,
@@ -12,7 +45,13 @@ pub struct State {
     pub playing: bool,
     /// Look through the path at `time` in the Scene view.
     pub preview: bool,
+    pub selected: Option<usize>,
     camera: usize,
+    /// Visible part of the timeline, in seconds; None shows the whole path.
+    range: Option<(f32, f32)>,
+    drag: Option<Drag>,
+    /// The key under the mouse in the Scene view.
+    hovered: Option<usize>,
 }
 impl Default for State {
     fn default() -> Self {
@@ -22,7 +61,11 @@ impl Default for State {
             time: 0.,
             playing: false,
             preview: false,
+            selected: None,
             camera: 0,
+            range: None,
+            drag: None,
+            hovered: None,
         }
     }
 }
@@ -43,15 +86,107 @@ fn look_through(e: &mut Editor, pose: camera_path::Pose) {
     e.view_dirty = true;
 }
 
+/// Moves the playhead, looking through the path when that is on.
+fn seek(e: &mut Editor, time: f32) {
+    let Some(track) = &e.scene.visibility_track else {
+        return;
+    };
+    let time = time.clamp(0., camera_path::duration(&track.path));
+    e.camera_path.time = time;
+    if e.camera_path.preview {
+        let pose = camera_path::pose_at(&track.path, time);
+        look_through(e, pose);
+    }
+}
+
+fn select(e: &mut Editor, n: usize) {
+    let Some(key) = e
+        .scene
+        .visibility_track
+        .as_ref()
+        .and_then(|t| t.path.get(n))
+    else {
+        return;
+    };
+    let time = key.time;
+    e.camera_path.selected = Some(n);
+    e.camera_path.playing = false;
+    seek(e, time);
+}
+
+/// Replaces the path; `gesture` folds a drag into one undo step.
+fn set_path(e: &mut Editor, path: Vec<Key>, gesture: Option<&'static str>) {
+    let Some(track) = e.scene.visibility_track.as_mut() else {
+        return;
+    };
+    track.path = path;
+    match gesture {
+        Some(key) => e.changed_coalesced(key),
+        None => e.changed(),
+    }
+}
+
+/// Where "Add key" puts the next key: at the playhead inside the path, or
+/// two seconds after the last key.
+fn add_time(path: &[Key], time: f32) -> (f32, bool) {
+    let duration = camera_path::duration(path);
+    let inside = path.len() > 1
+        && time > 0.05
+        && time < duration - 0.05
+        && path.iter().all(|k| (k.time - time).abs() > 0.05);
+    if inside {
+        (time, true)
+    } else {
+        (duration + if path.is_empty() { 0. } else { 2. }, false)
+    }
+}
+
+fn add_key(e: &mut Editor) {
+    let Some(track) = &e.scene.visibility_track else {
+        return;
+    };
+    let (time, _) = add_time(&track.path, e.camera_path.time);
+    let mut path = track.path.clone();
+    let at = path.partition_point(|k| k.time < time);
+    path.insert(at, key_from_view(e, time));
+    set_path(e, path, None);
+    e.camera_path.selected = Some(at);
+    e.camera_path.time = time;
+    e.camera_path.range = None;
+}
+
+fn delete_key(e: &mut Editor, n: usize) {
+    let Some(track) = &e.scene.visibility_track else {
+        return;
+    };
+    if track.path.len() < 2 || n >= track.path.len() {
+        return;
+    }
+    let mut path = track.path.clone();
+    path.remove(n);
+    if n == 0 {
+        // The next key starts the path.
+        let offset = path[0].time;
+        for k in &mut path {
+            k.time -= offset;
+        }
+        path[0].cut = false;
+    }
+    let count = path.len();
+    set_path(e, path, None);
+    e.camera_path.selected = Some(n.min(count - 1));
+}
+
 pub fn window(ui: &imgui::Ui, e: &mut Editor) {
     if !e.camera_path.open {
         return;
     }
     let mut opened = true;
-    ui.window("Camera Path")
+    ui.window("\u{ead9} Camera Path###Camera Path")
         .opened(&mut opened)
         .position([140., 120.], imgui::Condition::FirstUseEver)
-        .size([520., 520.], imgui::Condition::FirstUseEver)
+        .size([470., 560.], imgui::Condition::FirstUseEver)
+        .size_constraints([360., 260.], [f32::MAX, f32::MAX])
         .build(|| contents(ui, e));
     if !opened {
         e.camera_path.open = false;
@@ -59,300 +194,916 @@ pub fn window(ui: &imgui::Ui, e: &mut Editor) {
     }
 }
 
+fn wrapped_colored(ui: &imgui::Ui, color: [f32; 4], text: &str) {
+    let _c = ui.push_style_color(imgui::StyleColor::Text, color);
+    ui.text_wrapped(text);
+}
+
+fn primary_button(ui: &imgui::Ui, label: &str, width: f32) -> bool {
+    let _a = ui.push_style_color(imgui::StyleColor::Button, [0.18, 0.42, 0.72, 1.]);
+    let _b = ui.push_style_color(imgui::StyleColor::ButtonHovered, [0.24, 0.52, 0.86, 1.]);
+    let _c = ui.push_style_color(imgui::StyleColor::ButtonActive, [0.14, 0.36, 0.64, 1.]);
+    ui.button_with_size(label, [width, 0.])
+}
+
+fn tip(ui: &imgui::Ui, text: &str) {
+    if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+        ui.tooltip_text(text);
+    }
+}
+
 fn contents(ui: &imgui::Ui, e: &mut Editor) {
-    let _disabled = ui.begin_disabled(e.playing || crate::visibility_bake_ui::busy(e));
-    let Some(track) = &e.scene.visibility_track else {
-        ui.text_wrapped(
-            "A camera path is the route a guided camera follows. Epok samples it into a \
-             visibility track, then Build > Bake Visibility lists what the camera sees \
-             along it.",
-        );
-        let cameras = camera_path::cameras(&e.scene);
-        if cameras.is_empty() {
-            ui.text_wrapped("Add a camera actor at the scene root first.");
-            return;
-        }
-        let state = &mut e.camera_path;
-        let current = cameras.get(state.camera).copied().unwrap_or(cameras[0]);
-        if let Some(_combo) = ui.begin_combo("Camera", &e.scene.actors[current].name) {
-            for (n, &i) in cameras.iter().enumerate() {
-                if ui
-                    .selectable_config(&e.scene.actors[i].name)
-                    .selected(i == current)
-                    .build()
-                {
-                    state.camera = n;
-                }
-            }
-        }
-        if ui.button("Create camera path") {
-            match camera_path::create(&mut e.scene, current) {
-                Ok(()) => {
-                    e.changed();
-                    e.log("Camera path created with one key at the camera. Add keys from the Scene view.");
-                }
-                Err(error) => e.log(format!("Create camera path failed: {error}")),
-            }
-        }
+    if e.playing {
+        wrapped_colored(ui, MUTED, "Stop Play to edit the camera path.");
         return;
+    }
+    if crate::visibility_bake_ui::busy(e) {
+        wrapped_colored(
+            ui,
+            MUTED,
+            "Baking visibility. The path can be edited when the bake finishes.",
+        );
+        return;
+    }
+    let Some(track) = &e.scene.visibility_track else {
+        return empty(ui, e);
     };
     if track.navigation.is_some() {
         ui.text_wrapped(
-            "This track's samples come from a route graph (player-driven rails). \
-             Its path is not editable here.",
+            "This track's samples come from a route graph (player-driven rails), \
+             so its path is not edited here.",
         );
         return;
     }
     if track.path.is_empty() {
+        ui.text_wrapped("This scene's camera track was imported as samples.");
+        ui.spacing();
         ui.text_wrapped(
-            "This track's samples were imported. Convert them to editable keys \
-             (one per second, one at every cut, and more wherever the camera \
-             turns sharply) to edit the path.",
+            "Convert it to keys to edit it here: a key every second, one at every \
+             cut, and more wherever the camera turns sharply, so the path stays \
+             within a fraction of a unit of the original.",
         );
-        if ui.button("Convert samples to keys") {
-            let keys = camera_path::keys_from_samples(
-                track,
-                1.,
-                camera_path::Tolerance::for_track(&e.scene, track),
-            );
-            e.scene.visibility_track.as_mut().unwrap().path = keys;
-            e.changed();
+        ui.spacing();
+        if primary_button(ui, "Convert samples to keys", -1.) {
+            let tolerance = camera_path::Tolerance::for_track(&e.scene, track);
+            let keys = camera_path::keys_from_samples(track, 1., tolerance);
+            let count = keys.len();
+            set_path(e, keys, None);
+            e.camera_path.selected = Some(0);
+            e.log(format!("Converted the camera track to {count} keys."));
         }
         return;
     }
+    steps(ui, e);
+    ui.spacing();
+    transport(ui, e);
+    timeline(ui, e);
+    ui.spacing();
+    selected_key(ui, e);
+    ui.spacing();
+    settings(ui, e);
+    shortcuts(ui, e);
+}
 
-    let samples = camera_path::sample_count(&track.path, track.sample_ms);
-    let duration = camera_path::duration(&track.path);
-    let current = camera_path::samples_current(track);
-    let baked = track.samples.iter().any(|s| !s.visible.is_empty());
-    let faces = track.faces.len();
-    let error = (!current).then(|| camera_path::path_error(track));
+fn empty(ui: &imgui::Ui, e: &mut Editor) {
+    ui.text("Guided camera");
+    ui.separator();
+    ui.text_wrapped(
+        "Draw the route the game camera follows. Epok turns it into a camera \
+         track and works out what the camera sees along it, so only that is \
+         loaded and drawn.",
+    );
+    ui.spacing();
+    for (n, text) in [
+        "Create the path for a camera.",
+        "Fly the Scene view to each shot and press Add key.",
+        "Update samples, then Bake Visibility.",
+    ]
+    .iter()
+    .enumerate()
+    {
+        ui.text_colored(ACCENT, format!("{}", n + 1));
+        ui.same_line();
+        ui.text_wrapped(text);
+    }
+    ui.spacing();
+    let cameras = camera_path::cameras(&e.scene);
+    if cameras.is_empty() {
+        wrapped_colored(
+            ui,
+            PENDING,
+            &format!("{WARNING}  Add a Camera actor at the scene root first."),
+        );
+        return;
+    }
+    let state = &mut e.camera_path;
+    let current = cameras.get(state.camera).copied().unwrap_or(cameras[0]);
+    ui.set_next_item_width(-1.);
+    if let Some(_combo) = ui.begin_combo(
+        "##camera",
+        format!("{CAMERA}  {}", e.scene.actors[current].name),
+    ) {
+        for (n, &i) in cameras.iter().enumerate() {
+            if ui
+                .selectable_config(format!("{CAMERA}  {}", e.scene.actors[i].name))
+                .selected(i == current)
+                .build()
+            {
+                state.camera = n;
+            }
+        }
+    }
+    tip(
+        ui,
+        "The camera the path drives. The path starts at its current pose.",
+    );
+    if primary_button(ui, &format!("{ADD}  Create camera path"), -1.) {
+        match camera_path::create(&mut e.scene, current) {
+            Ok(()) => {
+                e.changed();
+                e.camera_path.selected = Some(0);
+                e.camera_path.time = 0.;
+                e.log("Camera path created with one key at the camera.");
+            }
+            Err(error) => e.log(format!("Create camera path failed: {error}")),
+        }
+    }
+}
+
+/// Where the workflow stands, and the one action that moves it on.
+fn steps(ui: &imgui::Ui, e: &mut Editor) {
+    let track = e.scene.visibility_track.as_ref().unwrap();
     let valid = camera_path::validate(&track.path, track.sample_ms);
-    let mut path = track.path.clone();
-    let mut sample_ms = track.sample_ms;
+    let current = valid.is_ok() && camera_path::samples_current(track);
+    let baked = current && track.samples.iter().any(|s| !s.visible.is_empty());
+    let keys = track.path.len();
+    let pill = |ui: &imgui::Ui, n: usize, label: &str, done: bool, active: bool| {
+        let color = if done {
+            GOOD
+        } else if active {
+            PENDING
+        } else {
+            MUTED
+        };
+        ui.text_colored(
+            color,
+            format!(
+                "{} {n} {label}",
+                if done {
+                    CHECK
+                } else if active {
+                    WARNING
+                } else {
+                    TODO
+                }
+            ),
+        );
+    };
+    pill(
+        ui,
+        1,
+        "Path",
+        valid.is_ok() && keys > 1,
+        valid.is_err() || keys < 2,
+    );
+    ui.same_line();
+    ui.text_disabled(NEXT);
+    ui.same_line();
+    pill(
+        ui,
+        2,
+        "Samples",
+        current,
+        valid.is_ok() && keys > 1 && !current,
+    );
+    ui.same_line();
+    ui.text_disabled(NEXT);
+    ui.same_line();
+    pill(ui, 3, "Visibility", baked, current && !baked);
 
-    // Preview.
+    let (color, message, action): (_, String, Option<&str>) = match &valid {
+        Err(error) => (CUT, format!("Fix the path: {error}."), None),
+        Ok(()) if keys < 2 => (
+            ACCENT,
+            "Fly the Scene view to the next shot (right-drag to look, WASD to move), then press Add key.".into(),
+            None,
+        ),
+        Ok(()) if !current => (
+            PENDING,
+            "The camera track does not follow this path yet. Update its samples; baked visibility is then cleared.".into(),
+            Some("Update samples"),
+        ),
+        Ok(()) if !baked => (
+            PENDING,
+            "Bake what the camera sees along the path.".into(),
+            Some("Bake Visibility..."),
+        ),
+        Ok(()) => (
+            GOOD,
+            "Ready: the camera follows this path and its visibility is baked.".into(),
+            None,
+        ),
+    };
+    let _bg = ui.push_style_color(
+        imgui::StyleColor::ChildBg,
+        [color[0] * 0.18, color[1] * 0.18, color[2] * 0.18, 1.],
+    );
+    let height = if action.is_some() { 64. } else { 42. };
+    ui.child_window("next-step")
+        .size([0., height])
+        .border(false)
+        .build(|| {
+            let start = ui.cursor_screen_pos();
+            ui.get_window_draw_list()
+                .add_rect(start, [start[0] + 3., start[1] + height], color)
+                .filled(true)
+                .build();
+            ui.set_cursor_pos([12., 6.]);
+            wrapped_colored(ui, color, &message);
+            if let Some(action) = action {
+                ui.set_cursor_pos([12., ui.cursor_pos()[1]]);
+                if ui.small_button(action) {
+                    if action == "Update samples" {
+                        match camera_path::apply(&mut e.scene) {
+                            Ok(()) => {
+                                e.changed();
+                                e.log("Camera path sampled. Bake Visibility next.");
+                            }
+                            Err(error) => e.log(format!("Update samples failed: {error}")),
+                        }
+                    } else {
+                        e.visibility_bake.open = true;
+                    }
+                }
+            }
+        });
+}
+
+fn transport(ui: &imgui::Ui, e: &mut Editor) {
+    let track = e.scene.visibility_track.as_ref().unwrap();
+    let duration = camera_path::duration(&track.path);
+    let (add_at, inside) = add_time(&track.path, e.camera_path.time);
     let state = &mut e.camera_path;
     if state.playing {
         state.time += ui.io().delta_time;
         if state.time > duration {
             state.time = 0.;
         }
+        let time = state.time;
+        seek(e, time);
     }
-    state.time = state.time.clamp(0., duration);
-    let mut scrubbed = crate::gui::Drag::new("Time (s)")
-        .speed(0.02)
-        .range(0., duration)
-        .build(ui, &mut state.time);
+    let state = &mut e.camera_path;
+    if crate::gui::icon(ui, START, "start", "Go to the start", false) {
+        state.playing = false;
+        seek(e, 0.);
+    }
     ui.same_line();
-    if ui.button(if state.playing { "Pause" } else { "Play" }) {
-        state.playing = !state.playing;
-        state.preview |= state.playing;
-    }
-    scrubbed |= ui.checkbox("Look through the path", &mut state.preview);
-    ui.same_line();
-    ui.checkbox("Show path in Scene view", &mut state.show);
-    if state.preview && (scrubbed || state.playing) {
-        let pose = camera_path::pose_at(&path, state.time);
-        look_through(e, pose);
-    }
-
-    // Keys.
-    ui.separator();
-    let (mut edited, mut gesture, mut released) = (false, false, false);
-    let mut remove = None;
-    let mut go = None;
-    if let Some(_table) = ui.begin_table_with_flags(
-        "keys",
-        5,
-        imgui::TableFlags::BORDERS_INNER_H
-            | imgui::TableFlags::SCROLL_Y
-            | imgui::TableFlags::SIZING_STRETCH_PROP,
+    let state = &mut e.camera_path;
+    let playing = state.playing;
+    if crate::gui::icon(
+        ui,
+        if playing { PAUSE } else { PLAY },
+        "play",
+        if playing {
+            "Pause (Space)"
+        } else {
+            "Play the path through the Scene view (Space)"
+        },
+        playing,
     ) {
-        for (n, key) in path.iter_mut().enumerate() {
-            let _id = ui.push_id_usize(n);
-            ui.table_next_row();
-            ui.table_next_column();
-            ui.text(format!("{n}"));
-            ui.table_next_column();
-            ui.set_next_item_width(-1.);
-            let _first = ui.begin_disabled(n == 0);
-            gesture |= crate::gui::Drag::new("##time")
-                .speed(0.02)
-                .range(0., 3600.)
-                .display_format("%.2f s")
-                .build(ui, &mut key.time);
-            released |= ui.is_item_deactivated_after_edit();
-            drop(_first);
-            ui.table_next_column();
-            ui.set_next_item_width(-1.);
-            gesture |= crate::gui::Drag::new("##fov")
-                .speed(0.2)
-                .range(25., 120.)
-                .display_format("FOV %.0f")
-                .build(ui, &mut key.fov);
-            released |= ui.is_item_deactivated_after_edit();
-            ui.table_next_column();
-            if n > 0 {
-                edited |= ui.checkbox("Cut", &mut key.cut);
-                if ui.is_item_hovered() {
-                    ui.tooltip_text("The camera jumps to this key instead of travelling to it.");
-                }
-            }
-            ui.table_next_column();
-            if ui.small_button("View") {
-                go = Some(n);
-            }
-            if ui.is_item_hovered() {
-                ui.tooltip_text("Look through this key in the Scene view.");
-            }
-            ui.same_line();
-            if ui.small_button("Set") {
-                *key = Key {
-                    cut: key.cut,
-                    ..key_from_view(e, key.time)
-                };
-                edited = true;
-            }
-            if ui.is_item_hovered() {
-                ui.tooltip_text("Set this key's pose to the Scene view's camera.");
-            }
-            ui.same_line();
-            if ui.small_button("x") {
-                remove = Some(n);
+        state.playing = !playing;
+        if state.playing {
+            state.preview = true;
+            if state.time >= duration {
+                state.time = 0.;
             }
         }
     }
-    if let Some(n) = go {
-        look_through(e, (&path[n]).into());
-        e.camera_path.preview = false;
-        e.camera_path.time = path[n].time;
-    }
-    if let Some(n) = remove.filter(|_| path.len() > 1) {
-        path.remove(n);
-        if n == 0 {
-            path[0].time = 0.;
-            path[0].cut = false;
+    ui.same_line();
+    let state = &mut e.camera_path;
+    let preview = state.preview;
+    if crate::gui::icon(
+        ui,
+        EYE,
+        "look",
+        if preview {
+            "Looking through the path camera. Click to fly the Scene view freely."
+        } else {
+            "Look through the path camera at the playhead"
+        },
+        preview,
+    ) {
+        state.preview = !preview;
+        if state.preview {
+            let time = state.time;
+            seek(e, time);
+        } else {
+            state.playing = false;
         }
-        edited = true;
-    }
-    if ui.button("Add key from view") {
-        let time = duration + 2.;
-        path.push(key_from_view(e, time));
-        edited = true;
-    }
-    if ui.is_item_hovered() {
-        ui.tooltip_text("Append a key, 2 s after the last one, at the Scene view's camera.");
     }
     ui.same_line();
     let time = e.camera_path.time;
-    let insert_ok = time > 0. && path.iter().all(|k| (k.time - time).abs() > 0.01);
-    if ui.button("Insert key at time") && insert_ok {
-        let at = path.partition_point(|k| k.time < time);
-        path.insert(at, key_from_view(e, time));
-        edited = true;
+    ui.text(format!("{time:6.2} s"));
+    ui.same_line();
+    ui.text_disabled(format!("/ {duration:.2} s"));
+    let label = if inside {
+        format!("{ADD}  Insert key")
+    } else {
+        format!("{ADD}  Add key")
+    };
+    let width = ui.calc_text_size(&label)[0] + 18.;
+    ui.same_line_with_pos((ui.content_region_max()[0] - width).max(ui.cursor_pos()[0]));
+    if primary_button(ui, &label, width) {
+        add_key(e);
     }
-    if ui.is_item_hovered() {
-        ui.tooltip_text("Insert a key at the preview time, at the Scene view's camera.");
+    tip(
+        ui,
+        &if inside {
+            format!("Insert a key at the playhead ({add_at:.2} s) from the Scene view camera (K).")
+        } else {
+            format!(
+                "Add a key {add_at:.2} s into the path, 2 s after the last one, from the Scene view camera (K)."
+            )
+        },
+    );
+}
+
+fn nice_step(span: f32, width: f32) -> f32 {
+    let wanted = span * 70. / width.max(1.);
+    [0.1, 0.25, 0.5, 1., 2., 5., 10., 15., 30., 60., 120., 300.]
+        .into_iter()
+        .find(|&s| s >= wanted)
+        .unwrap_or(600.)
+}
+
+fn timeline(ui: &imgui::Ui, e: &mut Editor) {
+    let track = e.scene.visibility_track.as_ref().unwrap();
+    let path = track.path.clone();
+    let duration = camera_path::duration(&path).max(0.5);
+    let width = ui.content_region_avail()[0].max(50.);
+    let height = 58.;
+    let origin = ui.cursor_screen_pos();
+    ui.invisible_button("timeline", [width, height]);
+    let hovered = ui.is_item_hovered();
+    let active = ui.is_item_active();
+    let state = &mut e.camera_path;
+    let (mut t0, mut t1) = state.range.unwrap_or((0., duration));
+    // Zoom around the mouse with the wheel; shift pans.
+    let mouse = ui.io().mouse_pos;
+    let to_time = |x: f32, t0: f32, t1: f32| t0 + (x - origin[0]) / width * (t1 - t0);
+    if hovered && ui.io().mouse_wheel != 0. {
+        let wheel = ui.io().mouse_wheel;
+        if ui.io().key_shift {
+            let shift = -(t1 - t0) * 0.15 * wheel;
+            t0 += shift;
+            t1 += shift;
+        } else {
+            let at = to_time(mouse[0], t0, t1);
+            let scale = 0.85f32.powf(wheel);
+            t0 = at - (at - t0) * scale;
+            t1 = at + (t1 - at) * scale;
+        }
     }
-    ui.set_next_item_width(160.);
-    let mut ms = sample_ms as i32;
-    if ui.input_int("Sample interval (ms)", &mut ms).build() {
-        sample_ms = ms.clamp(16, 1000) as u32;
-        edited = true;
+    if hovered && ui.io().mouse_wheel_h != 0. {
+        let shift = (t1 - t0) * 0.15 * ui.io().mouse_wheel_h;
+        t0 += shift;
+        t1 += shift;
     }
-    if ui.is_item_hovered() {
-        ui.tooltip_text("How often the path is sampled. Shorter intervals follow the path more closely; each sample stores its own visible faces.");
+    let span = (t1 - t0).clamp(0.5, duration);
+    t0 = t0.clamp(0., duration - span);
+    t1 = t0 + span;
+    // Keep the playhead in view while playing.
+    if state.playing && (state.time < t0 || state.time > t1) {
+        t0 = (state.time - span * 0.1).clamp(0., duration - span);
+        t1 = t0 + span;
+    }
+    state.range = ((t1 - t0) < duration - 1e-3).then_some((t0, t1));
+    let x_of = |t: f32| origin[0] + (t - t0) / (t1 - t0) * width;
+    let ruler = 16.;
+    let lane = origin[1] + ruler + (height - ruler) * 0.5;
+
+    // Which key is under the mouse.
+    let near = if hovered && state.drag.is_none() {
+        path.iter()
+            .enumerate()
+            .filter(|(_, k)| k.time >= t0 - 1. && k.time <= t1 + 1.)
+            .map(|(n, k)| (n, (x_of(k.time) - mouse[0]).abs()))
+            .filter(|&(_, d)| d <= 6. && (mouse[1] - lane).abs() <= 14.)
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(n, _)| n)
+    } else {
+        None
+    };
+
+    let draw = ui.get_window_draw_list();
+    draw.add_rect(
+        origin,
+        [origin[0] + width, origin[1] + height],
+        [0.11, 0.115, 0.125, 1.],
+    )
+    .filled(true)
+    .rounding(4.)
+    .build();
+    draw.add_rect(
+        origin,
+        [origin[0] + width, origin[1] + ruler],
+        [0.15, 0.155, 0.17, 1.],
+    )
+    .filled(true)
+    .rounding(4.)
+    .build();
+    draw.with_clip_rect_intersect(origin, [origin[0] + width, origin[1] + height], || {
+        let step = nice_step(t1 - t0, width);
+        let mut t = (t0 / step).floor() * step;
+        while t <= t1 + step {
+            let x = x_of(t);
+            draw.add_line(
+                [x, origin[1] + ruler - 5.],
+                [x, origin[1] + height],
+                [1., 1., 1., 0.07],
+            )
+            .build();
+            let label = if step < 1. {
+                format!("{t:.1}s")
+            } else {
+                format!("{t:.0}s")
+            };
+            draw.add_text([x + 3., origin[1] + 1.], MUTED, label);
+            t += step;
+        }
+        // Travelled segments; cuts break the line.
+        for pair in path.windows(2) {
+            let (a, b) = (x_of(pair[0].time), x_of(pair[1].time));
+            if pair[1].cut {
+                draw.add_line(
+                    [b, origin[1] + ruler + 3.],
+                    [b, origin[1] + height - 3.],
+                    CUT,
+                )
+                .thickness(1.5)
+                .build();
+            } else {
+                draw.add_line([a, lane], [b, lane], [0.45, 0.78, 1., 0.55])
+                    .thickness(2.)
+                    .build();
+            }
+        }
+        for (n, k) in path.iter().enumerate() {
+            let x = x_of(k.time);
+            if x < origin[0] - 8. || x > origin[0] + width + 8. {
+                continue;
+            }
+            let selected = state.selected == Some(n) || state.hovered == Some(n);
+            let size = if selected {
+                7.
+            } else if near == Some(n) {
+                6.5
+            } else {
+                5.
+            };
+            let color = if selected {
+                SELECTED
+            } else if k.cut {
+                CUT
+            } else if near == Some(n) {
+                [0.75, 0.9, 1., 1.]
+            } else {
+                KEY
+            };
+            let (top, right, bottom, left) = (
+                [x, lane - size],
+                [x + size, lane],
+                [x, lane + size],
+                [x - size, lane],
+            );
+            draw.add_triangle(top, right, bottom, color)
+                .filled(true)
+                .build();
+            draw.add_triangle(top, bottom, left, color)
+                .filled(true)
+                .build();
+            if selected {
+                draw.add_text([x - 3., lane + 8.], SELECTED, format!("{n}"));
+            }
+        }
+        let x = x_of(state.time);
+        draw.add_line([x, origin[1]], [x, origin[1] + height], PLAYHEAD)
+            .thickness(1.5)
+            .build();
+        draw.add_triangle(
+            [x - 5., origin[1]],
+            [x + 5., origin[1]],
+            [x, origin[1] + 7.],
+            PLAYHEAD,
+        )
+        .filled(true)
+        .build();
+    });
+
+    if hovered && state.drag.is_none() {
+        if let Some(n) = near {
+            let k = &path[n];
+            ui.tooltip_text(format!(
+                "Key {n} at {:.2} s{}\nClick to select{}. Right-click for options.",
+                k.time,
+                if k.cut { " (cut)" } else { "" },
+                if n > 0 { ", drag to retime" } else { "" }
+            ));
+        } else if state.range.is_none() {
+            ui.tooltip_text("Click or drag to move the playhead. Wheel to zoom.");
+        }
+    }
+    // Interaction.
+    if ui.is_item_clicked() {
+        let state = &mut e.camera_path;
+        state.drag = Some(match near {
+            Some(n) => Drag::Key(n),
+            None => Drag::Scrub,
+        });
+        state.playing = false;
+        match near {
+            Some(n) => select(e, n),
+            None => seek(e, to_time(mouse[0], t0, t1)),
+        }
+    }
+    if ui.is_item_clicked_with_button(imgui::MouseButton::Right)
+        && let Some(n) = near
+    {
+        select(e, n);
+        ui.open_popup("key-menu");
+    }
+    match e.camera_path.drag {
+        Some(Drag::Scrub) if active => seek(e, to_time(mouse[0], t0, t1)),
+        Some(Drag::Key(n)) if active && n > 0 && ui.is_mouse_dragging(imgui::MouseButton::Left) => {
+            let low = path[n - 1].time + 0.05;
+            let high = path.get(n + 1).map_or(f32::MAX, |k| k.time - 0.05);
+            let time = (to_time(mouse[0], t0, t1) * 20.).round() / 20.;
+            let time = time.clamp(low, high.max(low));
+            if (time - path[n].time).abs() > 1e-4 {
+                let mut moved = path.clone();
+                moved[n].time = time;
+                set_path(e, moved, Some("camera-path-key"));
+                e.camera_path.time = time;
+            }
+        }
+        _ => {}
+    }
+    if !active && e.camera_path.drag.is_some() {
+        e.camera_path.drag = None;
+        e.end_coalesced();
+    }
+    key_menu(ui, e);
+    wrapped_colored(
+        ui,
+        MUTED,
+        if e.camera_path.range.is_some() {
+            "Wheel to zoom, Shift+wheel to scroll."
+        } else {
+            "Drag keys to retime them. Wheel to zoom."
+        },
+    );
+}
+
+fn key_menu(ui: &imgui::Ui, e: &mut Editor) {
+    let Some(n) = e.camera_path.selected else {
+        return;
+    };
+    ui.popup("key-menu", || {
+        let Some(key) = e
+            .scene
+            .visibility_track
+            .as_ref()
+            .and_then(|t| t.path.get(n))
+            .copied()
+        else {
+            return;
+        };
+        ui.text_disabled(format!("Key {n} at {:.2} s", key.time));
+        ui.separator();
+        if ui.menu_item(format!("{EYE}  Look through")) {
+            e.camera_path.preview = false;
+            look_through(e, key.into());
+        }
+        if ui.menu_item(format!("{AIM}  Move to Scene view")) {
+            move_to_view(e, n);
+        }
+        if n > 0
+            && ui
+                .menu_item_config(format!("{SCISSORS}  Cut to this key"))
+                .selected(key.cut)
+                .build()
+        {
+            toggle_cut(e, n);
+        }
+        let count = e
+            .scene
+            .visibility_track
+            .as_ref()
+            .map_or(0, |t| t.path.len());
+        if ui
+            .menu_item_config(format!("{TRASH}  Delete"))
+            .enabled(count > 1)
+            .build()
+        {
+            delete_key(e, n);
+        }
+    });
+}
+
+fn move_to_view(e: &mut Editor, n: usize) {
+    let Some(track) = &e.scene.visibility_track else {
+        return;
+    };
+    let mut path = track.path.clone();
+    let Some(key) = path.get_mut(n) else {
+        return;
+    };
+    *key = Key {
+        cut: key.cut,
+        ..key_from_view(e, key.time)
+    };
+    set_path(e, path, None);
+}
+
+fn toggle_cut(e: &mut Editor, n: usize) {
+    let Some(track) = &e.scene.visibility_track else {
+        return;
+    };
+    let mut path = track.path.clone();
+    if n == 0 || n >= path.len() {
+        return;
+    }
+    path[n].cut = !path[n].cut;
+    set_path(e, path, None);
+}
+
+fn selected_key(ui: &imgui::Ui, e: &mut Editor) {
+    let path = e.scene.visibility_track.as_ref().unwrap().path.clone();
+    let Some(n) = e.camera_path.selected.filter(|&n| n < path.len()) else {
+        wrapped_colored(
+            ui,
+            MUTED,
+            "Select a key on the timeline or click one in the Scene view.",
+        );
+        return;
+    };
+    let key = path[n];
+    if crate::gui::icon(
+        ui,
+        PREVIOUS,
+        "previous-key",
+        "Previous key (Left arrow)",
+        false,
+    ) && n > 0
+    {
+        select(e, n - 1);
+    }
+    ui.same_line();
+    ui.text(format!("Key {n}"));
+    ui.same_line();
+    ui.text_disabled(format!("of {}", path.len()));
+    ui.same_line();
+    if crate::gui::icon(ui, NEXT, "next-key", "Next key (Right arrow)", false) && n + 1 < path.len()
+    {
+        select(e, n + 1);
+    }
+    if key.cut {
+        ui.same_line();
+        ui.text_colored(CUT, format!("{SCISSORS} Cut"));
     }
 
-    if edited || gesture {
-        let track = e.scene.visibility_track.as_mut().unwrap();
-        track.path = path;
-        track.sample_ms = sample_ms;
-        if gesture && !edited {
-            e.changed_coalesced("camera-path");
+    let mut edited = key;
+    let mut gesture = false;
+    let mut released = false;
+    let label_width = ui.calc_text_size("Field of view")[0] + 16.;
+    let row = |ui: &imgui::Ui, label: &str| {
+        ui.align_text_to_frame_padding();
+        ui.text(label);
+        ui.same_line_with_pos(label_width);
+        ui.set_next_item_width(-1.);
+    };
+    row(ui, "Time");
+    {
+        let _first = ui.begin_disabled(n == 0);
+        let low = if n == 0 { 0. } else { path[n - 1].time + 0.05 };
+        let high = path.get(n + 1).map_or(36000., |k| k.time - 0.05);
+        gesture |= crate::gui::Drag::new("##key-time")
+            .speed(0.01)
+            .range(low, high.max(low))
+            .display_format("%.2f s")
+            .build(ui, &mut edited.time);
+        released |= ui.is_item_deactivated_after_edit();
+    }
+    tip(
+        ui,
+        if n == 0 {
+            "The first key starts the path at 0 s."
         } else {
-            e.changed();
+            "When the camera reaches this key. Drag, or double-click to type."
+        },
+    );
+    row(ui, "Field of view");
+    gesture |= ui
+        .slider_config("##key-fov", 25., 120.)
+        .display_format("%.0f\u{b0}")
+        .build(&mut edited.fov);
+    released |= ui.is_item_deactivated_after_edit();
+    tip(ui, "Horizontal field of view. Smaller zooms in.");
+    row(ui, "Transition");
+    {
+        let _first = ui.begin_disabled(n == 0);
+        let mut mode = usize::from(edited.cut);
+        let labels = ["Travel", "Cut"];
+        if let Some(_combo) = ui.begin_combo("##key-cut", labels[mode]) {
+            for (i, label) in labels.iter().enumerate() {
+                if ui.selectable_config(label).selected(i == mode).build() {
+                    mode = i;
+                }
+            }
+        }
+        if (mode == 1) != edited.cut {
+            edited.cut = mode == 1;
+            let mut path = path.clone();
+            path[n] = edited;
+            set_path(e, path, None);
+            return;
+        }
+    }
+    tip(
+        ui,
+        "Travel: the camera moves smoothly from the previous key.\nCut: it jumps to this key, like a film cut.",
+    );
+    if gesture && edited != key {
+        let mut path = path.clone();
+        path[n] = edited;
+        set_path(e, path, Some("camera-path-key-fields"));
+        if edited.time != key.time {
+            e.camera_path.time = edited.time;
         }
     }
     if released {
         e.end_coalesced();
     }
 
-    // Samples.
-    ui.separator();
-    ui.text(format!(
-        "{duration:.1} s, {samples} samples, {faces} tracked faces"
-    ));
-    match &valid {
-        Err(error) => ui.text_colored([1., 0.45, 0.35, 1.], error),
-        Ok(()) if !current => {
-            ui.text_colored(
-                [1., 0.8, 0.3, 1.],
-                "The track's samples do not follow the path yet.",
-            );
-            if let Some((position, angle)) = error {
-                ui.text_disabled(format!(
-                    "Path and samples differ by up to {position:.2} units, {angle:.2} degrees."
-                ));
-            }
-            if ui.button("Update samples") {
-                match camera_path::apply(&mut e.scene) {
-                    Ok(()) => {
-                        e.changed();
-                        e.log("Camera path sampled. Bake Visibility next (Build > Bake Visibility...).");
-                    }
-                    Err(error) => e.log(format!("Update samples failed: {error}")),
-                }
-            }
-            if ui.is_item_hovered() {
-                ui.tooltip_text("Replaces the track's samples. Baked lists and the prepared packet order are cleared; bake visibility again.");
-            }
-        }
-        Ok(()) if !baked => {
-            ui.text_colored(
-                [1., 0.8, 0.3, 1.],
-                "Samples follow the path; visibility is not baked.",
-            );
-            if ui.button("Bake Visibility...") {
-                e.visibility_bake.open = true;
-            }
-        }
-        Ok(()) => ui.text("Samples follow the path and visibility is baked."),
+    let third =
+        ((ui.content_region_avail()[0] - 2. * ui.clone_style().item_spacing[0]) / 3.).max(60.);
+    if ui.button_with_size(format!("{EYE}  Look through"), [third, 0.]) {
+        e.camera_path.preview = false;
+        e.camera_path.playing = false;
+        look_through(e, key.into());
     }
-    if ui.button("Refresh tracked faces") {
-        crate::camera_path::refresh_faces(&mut e.scene);
+    tip(ui, "Show this key's shot in the Scene view.");
+    ui.same_line();
+    if ui.button_with_size(format!("{AIM}  Move to view"), [third, 0.]) {
+        move_to_view(e, n);
+    }
+    tip(
+        ui,
+        "Set this key's camera to the Scene view's current shot.",
+    );
+    ui.same_line();
+    {
+        let _one = ui.begin_disabled(path.len() < 2);
+        if ui.button_with_size(format!("{TRASH}  Delete"), [third, 0.]) {
+            delete_key(e, n);
+        }
+    }
+    tip(ui, "Delete this key (Delete).");
+}
+
+fn settings(ui: &imgui::Ui, e: &mut Editor) {
+    let track = e.scene.visibility_track.as_ref().unwrap();
+    let samples = camera_path::sample_count(&track.path, track.sample_ms);
+    let faces = track.faces.len();
+    let camera = e
+        .scene
+        .actors
+        .iter()
+        .find(|a| a.id == track.camera)
+        .map_or("?".to_string(), |a| a.name.clone());
+    let mut sample_ms = track.sample_ms as i32;
+    if !ui.collapsing_header("Settings", imgui::TreeNodeFlags::empty()) {
+        return;
+    }
+    wrapped_colored(
+        ui,
+        MUTED,
+        &format!("{CAMERA}  {camera}  \u{b7}  {samples} samples  \u{b7}  {faces} tracked faces"),
+    );
+    ui.checkbox("Show path in Scene view", &mut e.camera_path.show);
+    tip(ui, "Keep drawing the path while this panel is closed.");
+    ui.set_next_item_width(120.);
+    if ui
+        .input_int("Sample interval (ms)", &mut sample_ms)
+        .step(10)
+        .build()
+    {
+        let track = e.scene.visibility_track.as_mut().unwrap();
+        track.sample_ms = sample_ms.clamp(16, 1000) as u32;
         e.changed();
     }
-    if ui.is_item_hovered() {
-        ui.tooltip_text("Track every face of the scene's ordinary meshes, after adding or removing meshes. Baked lists keep the faces that still exist.");
+    tip(
+        ui,
+        "How often the path is sampled into the camera track. Shorter intervals follow \
+         the path more closely; each sample stores its own visible faces.",
+    );
+    if ui.button("Refresh tracked faces") {
+        camera_path::refresh_faces(&mut e.scene);
+        e.changed();
+    }
+    tip(
+        ui,
+        "Track every face of the scene's meshes again, after adding or removing meshes. \
+         Baked visibility keeps the faces that still exist.",
+    );
+}
+
+fn shortcuts(ui: &imgui::Ui, e: &mut Editor) {
+    if !ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS)
+        || ui.io().want_text_input
+        || ui.is_any_item_active()
+    {
+        return;
+    }
+    let count = e
+        .scene
+        .visibility_track
+        .as_ref()
+        .map_or(0, |t| t.path.len());
+    if ui.is_key_pressed(imgui::Key::Space) {
+        let state = &mut e.camera_path;
+        state.playing = !state.playing;
+        state.preview |= state.playing;
+    }
+    if ui.is_key_pressed(imgui::Key::K) {
+        add_key(e);
+    }
+    if let Some(n) = e.camera_path.selected.filter(|&n| n < count) {
+        if ui.is_key_pressed(imgui::Key::LeftArrow) && n > 0 {
+            select(e, n - 1);
+        }
+        if ui.is_key_pressed(imgui::Key::RightArrow) && n + 1 < count {
+            select(e, n + 1);
+        }
+        if ui.is_key_pressed(imgui::Key::Delete) {
+            delete_key(e, n);
+        }
     }
 }
 
-/// Draws the path over the Scene view image: the curve, a small frustum per
-/// key, and the preview pose. `screen` maps a world point to panel pixels.
+/// Draws the path over the Scene view image: the curve, a small camera per
+/// key (numbered, the selected one highlighted), and the playhead camera.
+/// `to_panel` maps the viewport's 960x600 pixels to panel pixels. Returns
+/// whether the mouse is over a key, which then takes the click.
 pub fn overlay(
     ui: &imgui::Ui,
-    e: &Editor,
+    e: &mut Editor,
     clip: [[f32; 2]; 2],
-    screen: impl Fn([f32; 3]) -> Option<[f32; 2]>,
-) {
-    let state = &e.camera_path;
+    to_panel: impl Fn([f32; 2]) -> [f32; 2],
+) -> bool {
+    e.camera_path.hovered = None;
     let Some(track) = &e.scene.visibility_track else {
-        return;
+        return false;
     };
+    let state = &e.camera_path;
     if !(state.open || state.show) || track.path.is_empty() || e.playing {
-        return;
+        return false;
     }
+    let view = e.view;
+    let screen = |p: [f32; 3]| {
+        let p = crate::viewport::project(&view, p);
+        (p[2] > 0.05).then(|| (to_panel([p[0], p[1]]), p[2]))
+    };
+    let mouse = ui.io().mouse_pos;
+    let inside = mouse[0] >= clip[0][0]
+        && mouse[0] <= clip[1][0]
+        && mouse[1] >= clip[0][1]
+        && mouse[1] <= clip[1][1];
+    // Keys under the mouse: the nearest within a few pixels, only while editing.
+    let hovered = (state.open && inside && !state.preview)
+        .then(|| {
+            track
+                .path
+                .iter()
+                .enumerate()
+                .filter_map(|(n, k)| {
+                    let (p, _) = screen(k.position)?;
+                    let d = ((p[0] - mouse[0]).powi(2) + (p[1] - mouse[1]).powi(2)).sqrt();
+                    (d <= 9.).then_some((n, d))
+                })
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+                .map(|(n, _)| n)
+        })
+        .flatten();
     let draw = ui.get_window_draw_list();
     draw.with_clip_rect(clip[0], clip[1], || {
         let line = |a: [f32; 3], b: [f32; 3], color: [f32; 4], width: f32| {
-            if let (Some(a), Some(b)) = (screen(a), screen(b)) {
+            if let (Some((a, _)), Some((b, _))) = (screen(a), screen(b)) {
                 draw.add_line(a, b, color).thickness(width).build();
             }
         };
         let duration = camera_path::duration(&track.path);
-        let steps = ((duration / 0.05) as usize).clamp(1, 2000);
+        let steps = ((duration / 0.05) as usize).clamp(1, 4000);
         let mut previous = camera_path::pose_at(&track.path, 0.).position;
         for n in 1..=steps {
             let time = duration * n as f32 / steps as f32;
@@ -361,11 +1112,16 @@ pub fn overlay(
                 k.cut && k.time > duration * (n - 1) as f32 / steps as f32 && k.time <= time
             });
             if !jump {
-                line(previous, p, [1., 0.75, 0.2, 1.], 2.);
+                line(previous, p, [1., 0.75, 0.2, 0.9], 2.);
             }
             previous = p;
         }
-        let frustum = |pose: camera_path::Pose, color: [f32; 4], size: f32| {
+        // Cameras keep a steady size on screen: about 4% of the depth.
+        let frustum = |pose: camera_path::Pose, color: [f32; 4], scale: f32, width: f32| {
+            let Some((_, depth)) = screen(pose.position) else {
+                return;
+            };
+            let size = depth * 0.04 * scale;
             let m = crate::transform::Matrix::trs(pose.position, pose.rotation, [1.; 3]);
             let half = (pose.fov.to_radians() * 0.5).tan() * size;
             let corners = [
@@ -376,29 +1132,72 @@ pub fn overlay(
             ]
             .map(|p| m.point(p));
             for j in 0..4 {
-                line(pose.position, corners[j], color, 1.5);
-                line(corners[j], corners[(j + 1) % 4], color, 1.5);
+                line(pose.position, corners[j], color, width);
+                line(corners[j], corners[(j + 1) % 4], color, width);
             }
-            // Up marker.
-            line(corners[0], m.point([0., half * 1.1, size]), color, 1.5);
-            line(m.point([0., half * 1.1, size]), corners[1], color, 1.5);
+            // A small roof marks the camera's up.
+            let roof = m.point([0., half * 1.25, size]);
+            line(corners[0], roof, color, width);
+            line(roof, corners[1], color, width);
         };
-        for key in &track.path {
-            frustum(key.into(), [0.35, 0.75, 1., 1.], 0.8);
+        let many = track.path.len() > 80;
+        for (n, key) in track.path.iter().enumerate() {
+            let selected = state.selected == Some(n) && state.open;
+            let highlighted = selected || hovered == Some(n);
+            let color = if highlighted {
+                SELECTED
+            } else if key.cut {
+                CUT
+            } else {
+                KEY
+            };
+            if !many || highlighted {
+                frustum(
+                    key.into(),
+                    color,
+                    if highlighted { 1.3 } else { 1. },
+                    if highlighted { 2. } else { 1.2 },
+                );
+            }
+            if let Some((p, _)) = screen(key.position) {
+                let radius = match (highlighted, many) {
+                    (true, _) => 5.,
+                    (false, true) => 2.,
+                    (false, false) => 3.5,
+                };
+                draw.add_circle(p, radius, color).filled(true).build();
+                if !many || highlighted {
+                    draw.add_text([p[0] + 6., p[1] - 16.], color, format!("{n}"));
+                }
+            }
         }
         if state.open && !state.preview {
-            frustum(
-                camera_path::pose_at(&track.path, state.time),
-                [1., 0.4, 0.3, 1.],
-                1.2,
-            );
+            let pose = camera_path::pose_at(&track.path, state.time);
+            frustum(pose, PLAYHEAD, 1.4, 2.);
         }
     });
+    if let Some(n) = hovered {
+        let key = track.path[n];
+        ui.tooltip_text(format!(
+            "Key {n} at {:.2} s{}. Click to select it.",
+            key.time,
+            if key.cut { " (cut)" } else { "" }
+        ));
+        e.camera_path.hovered = Some(n);
+        if ui.is_mouse_clicked(imgui::MouseButton::Left) {
+            select(e, n);
+        }
+    }
+    hovered.is_some()
 }
 
 fn status(e: &Editor) -> serde_json::Value {
     let Some(track) = &e.scene.visibility_track else {
-        return serde_json::json!({"exists": false, "cameras": camera_path::cameras(&e.scene).iter().map(|&i| e.scene.actors[i].id).collect::<Vec<_>>()});
+        return serde_json::json!({
+            "exists": false,
+            "cameras": camera_path::cameras(&e.scene).iter().map(|&i| e.scene.actors[i].id).collect::<Vec<_>>(),
+            "revision": crate::mcp_tools::revision(&e.scene),
+        });
     };
     serde_json::json!({
         "exists": true,
@@ -427,6 +1226,23 @@ pub fn mcp(e: &mut Editor, a: &serde_json::Value) -> Result<serde_json::Value, S
     };
     match op {
         "read" => return Ok(status(e)),
+        "select" => {
+            let n = a
+                .get("key")
+                .and_then(serde_json::Value::as_u64)
+                .ok_or("key is required")? as usize;
+            let count = e
+                .scene
+                .visibility_track
+                .as_ref()
+                .map_or(0, |t| t.path.len());
+            if n >= count {
+                return Err("No such key".into());
+            }
+            e.camera_path.open = true;
+            select(e, n);
+            return Ok(status(e));
+        }
         "preview" => {
             let track = e
                 .scene

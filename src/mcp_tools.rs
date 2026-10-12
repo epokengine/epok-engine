@@ -857,12 +857,7 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                 "serial_prepare" => crate::serial_ui::start(e, crate::serial_ui::Action::Prepare),
                 "imports" => e.assets.window = true,
                 "camera_path" => e.camera_path.open = true,
-                "bake_visibility" => {
-                    if e.scene.visibility_track.is_none() {
-                        return Err("The scene has no visibility track".into());
-                    }
-                    e.visibility_bake.open = true;
-                }
+                "bake_visibility" => e.visibility_bake.open = true,
                 "frame_selected" => e.action("frame-selected"),
                 other => return Err(format!("Unknown editor action: {other}")),
             }
@@ -1466,8 +1461,8 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
         ),
         (
             "camera_path",
-            "Author the visibility track's camera path (the route a guided camera follows). ops: read (keys and status; no revision), create(camera UUID, optional: first root camera), convert(every seconds, default 1: imported samples to keys), set_keys(keys:[{time,position[3],rotation[3] Euler degrees,fov horizontal degrees,cut}], first at 0 s, increasing), add_key_from_view(time, default 2 s after the last key: the Scene view camera), sample_ms(sample_ms), update_samples (regenerates samples; clears baked lists and the prepared packet order), preview(time: moves the Scene view through the path; no revision). Then bake with editor_control bake_visibility. No automatic save.",
-            json!({"op":{"enum":["read","create","convert","set_keys","add_key_from_view","sample_ms","update_samples","preview"]},"revision":s,"camera":s,"every":n,"time":n,"sample_ms":{"type":"integer","minimum":16,"maximum":1000},"keys":{"type":"array","items":o}}),
+            "Author the visibility track's camera path (the route a guided camera follows). ops: read (keys and status; no revision), create(camera UUID, optional: first root camera), convert(every seconds, default 1: imported samples to keys), set_keys(keys:[{time,position[3],rotation[3] Euler degrees,fov horizontal degrees,cut}], first at 0 s, increasing), add_key_from_view(time, default 2 s after the last key: the Scene view camera), sample_ms(sample_ms), update_samples (regenerates samples; clears baked lists and the prepared packet order), preview(time: moves the Scene view through the path; no revision), select(key index: selects it in the Camera Path panel; no revision). Then bake with editor_control bake_visibility. No automatic save.",
+            json!({"op":{"enum":["read","create","convert","set_keys","add_key_from_view","sample_ms","update_samples","preview","select"]},"key":{"type":"integer","minimum":0},"revision":s,"camera":s,"every":n,"time":n,"sample_ms":{"type":"integer","minimum":16,"maximum":1000},"keys":{"type":"array","items":o}}),
             vec!["op"],
             false,
         ),
