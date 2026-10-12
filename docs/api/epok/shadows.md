@@ -21,7 +21,7 @@ This module covers static and blob shadow rendering. It documents 1 public calla
 **Exact declaration**
 
 ```cpp
-template<size_t N,typename Table> #ifdef __mips__ __attribute__((noinline,optimize("O3"))) #endif void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const Affine<Fixed>& view)
+template<size_t N,typename Table> #ifdef __mips__ __attribute__((noinline,optimize("O3"))) #endif void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const CameraSpace<Fixed>& view)
 ```
 
 - **Declared at:** [line 16](../../../runtime/shadows.hpp#L16)
@@ -36,7 +36,7 @@ template<size_t N,typename Table> #ifdef __mips__ __attribute__((noinline,optimi
 | `objects` | `const std::array<ActorData, N> &` | Input | Value supplied for `objects`. See the exact type and module contract. |
 | `world` | `const std::array<Affine<Fixed>, N> &` | Input | Value supplied for `world`. See the exact type and module contract. |
 | `count` | `size_t` | Input | Value supplied for `count`. See the exact type and module contract. |
-| `view` | `const Affine<Fixed> &` | Input | Value supplied for `view`. See the exact type and module contract. |
+| `view` | `const CameraSpace<Fixed> &` | Input | Value supplied for `view`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
@@ -56,7 +56,7 @@ template<size_t N,typename Table> #ifdef __mips__ __attribute__((noinline,optimi
 // const std::array<ActorData, N> & objects
 // const std::array<Affine<Fixed>, N> & world
 // size_t count
-// const Affine<Fixed> & view
+// const CameraSpace<Fixed> & view
 
 epok::BlobRenderer& object = /* obtain a valid instance */;
 

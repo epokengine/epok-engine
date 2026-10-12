@@ -25,7 +25,7 @@ This module covers CLUT animation and palette ownership. It documents 2 public c
 void clear()
 ```
 
-- **Declared at:** [line 11](../../../runtime/palette.hpp#L11)
+- **Declared at:** [line 20](../../../runtime/palette.hpp#L20)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -60,7 +60,7 @@ object.clear();
 template<class Objects> void upload(psyqo::GPU& gpu,const Objects& objects,size_t count)
 ```
 
-- **Declared at:** [line 14](../../../runtime/palette.hpp#L14)
+- **Declared at:** [line 23](../../../runtime/palette.hpp#L23)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**

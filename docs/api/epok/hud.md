@@ -35,7 +35,7 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 void begin_text(int index)
 ```
 
-- **Declared at:** [line 81](../../../runtime/hud.hpp#L81)
+- **Declared at:** [line 82](../../../runtime/hud.hpp#L82)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -77,7 +77,7 @@ object.begin_text(index);
 template<size_t N>void draw(psyqo::GPU& gpu,std::array<ActorData,N>& entities,size_t count)
 ```
 
-- **Declared at:** [line 131](../../../runtime/hud.hpp#L131)
+- **Declared at:** [line 132](../../../runtime/hud.hpp#L132)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -128,7 +128,7 @@ object.draw<N>(gpu, entities, count);
 const Font* font(int index)
 ```
 
-- **Declared at:** [line 80](../../../runtime/hud.hpp#L80)
+- **Declared at:** [line 81](../../../runtime/hud.hpp#L81)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -170,7 +170,7 @@ auto result = object.font(index);
 void glyph(int,int index,int u,int v,int x0,int y0,int x1,int y1,const uint8_t* color)
 ```
 
-- **Declared at:** [line 88](../../../runtime/hud.hpp#L88)
+- **Declared at:** [line 89](../../../runtime/hud.hpp#L89)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -228,7 +228,7 @@ object.glyph(arg1, index, u, v, x0, y0, x1, y1, color);
 void glyph_quad(int,int index,const int* x,const int* y,const int* u,const int* v,const uint8_t* color)
 ```
 
-- **Declared at:** [line 116](../../../runtime/hud.hpp#L116)
+- **Declared at:** [line 117](../../../runtime/hud.hpp#L117)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -344,7 +344,7 @@ object.image(arg1, id, x0, y0, x1, y1, u0, v0, u1, v1, color);
 void initialize(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 130](../../../runtime/hud.hpp#L130)
+- **Declared at:** [line 131](../../../runtime/hud.hpp#L131)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -386,7 +386,7 @@ object.initialize(gpu);
 void invalidate()
 ```
 
-- **Declared at:** [line 150](../../../runtime/hud.hpp#L150)
+- **Declared at:** [line 151](../../../runtime/hud.hpp#L151)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -421,7 +421,7 @@ object.invalidate();
 void quad(int,const int* x,const int* y,const uint8_t* color)
 ```
 
-- **Declared at:** [line 97](../../../runtime/hud.hpp#L97)
+- **Declared at:** [line 98](../../../runtime/hud.hpp#L98)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -567,7 +567,7 @@ auto result = object.texture_size(id, width, height);
 void textured_quad(int,int id,const int* x,const int* y,const int* u,const int* v,const uint8_t* color)
 ```
 
-- **Declared at:** [line 103](../../../runtime/hud.hpp#L103)
+- **Declared at:** [line 104](../../../runtime/hud.hpp#L104)
 - **Kind:** `cxx method`
 
 **Parameters**

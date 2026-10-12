@@ -2,7 +2,7 @@
 
 > **Header:** `"texture.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/texture.hpp)
 
-This module covers native text data and HUD text components. It documents 6 public callables declared directly in this header.
+This module covers native text data and HUD text components. It documents 5 public callables declared directly in this header.
 
 ## Callable index
 
@@ -11,7 +11,6 @@ This module covers native text data and HUD text components. It documents 6 publ
 - [`epok::texture_clut`](#epok-texture-clut-1) — Performs `texture clut` as part of native text data and HUD text components.
 - [`epok::texture_page`](#epok-texture-page-1) — Performs `texture page` as part of native text data and HUD text components.
 - [`epok::texture_uv`](#epok-texture-uv-1) — Performs `texture uv` as part of native text data and HUD text components.
-- [`epok::textures_initialize`](#epok-textures-initialize-1) — Performs `textures initialize` as part of native text data and HUD text components.
 
 <a id="epok-fonts-initialize-1"></a>
 
@@ -27,7 +26,7 @@ This module covers native text data and HUD text components. It documents 6 publ
 inline void fonts_initialize(psyqo::GPU& gpu,const Font* fonts,size_t count)
 ```
 
-- **Declared at:** [line 17](../../../runtime/texture.hpp#L17)
+- **Declared at:** [line 16](../../../runtime/texture.hpp#L16)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -221,46 +220,6 @@ inline psyqo::PrimPieces::UVCoords texture_uv(const Texture& t,int32_t u,int32_t
 // int32_t v
 
 auto result = epok::texture_uv(t, u, v);
-```
-
-**Why choose it.** It provides direct, allocation-conscious access to native text data and HUD text components. No exception-based error path is implied by the signature.
-
-**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
-
-<a id="epok-textures-initialize-1"></a>
-
-## `epok::textures_initialize`
-
-**Purpose.** Performs `textures initialize` as part of native text data and HUD text components.
-
-**Exact declaration**
-
-```cpp
-inline void textures_initialize(psyqo::GPU& gpu)
-```
-
-- **Declared at:** [line 13](../../../runtime/texture.hpp#L13)
-- **Kind:** `function decl`
-
-**Parameters**
-
-| Name | Type | Role | Meaning |
-| --- | --- | --- | --- |
-| `gpu` | `psyqo::GPU &` | Input/output; inspect the function contract | Value supplied for `gpu`. See the exact type and module contract. |
-
-**Returns.** No value is returned; observe the documented state change or callback.
-
-**Use it when.** You need native text data and HUD text components and the preconditions in the declaration are already satisfied.
-
-**Usage pattern**
-
-```cpp
-#include "texture.hpp"
-
-// Assume these named values have been initialized with valid data:
-// psyqo::GPU & gpu
-
-epok::textures_initialize(gpu);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to native text data and HUD text components. No exception-based error path is implied by the signature.

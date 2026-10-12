@@ -2,11 +2,11 @@
 
 > **Header:** `"affine.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/affine.hpp)
 
-This module covers fixed-point affine transforms and matrix composition. It documents 5 public callables declared directly in this header.
+This module covers fixed-point affine transforms and matrix composition. It documents 7 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::Affine`
+`epok::Affine`, `epok::CameraSpace`
 
 ## Callable index
 
@@ -15,6 +15,8 @@ This module covers fixed-point affine transforms and matrix composition. It docu
 - [`epok::Affine::point`](#epok-affine-point-1) — Performs `point` as part of fixed-point affine transforms and matrix composition.
 - [`epok::Affine::rotate_rows`](#epok-affine-rotate-rows-1) — Rotate all basis columns with one already-resolved sine/cosine pair.
 - [`epok::Affine::translated`](#epok-affine-translated-1) — Right-compose a translation without multiplying the unchanged basis by an identity matrix.
+- [`epok::CameraSpace::compose`](#epok-cameraspace-compose-1) — Performs `compose` as part of fixed-point affine transforms and matrix composition.
+- [`epok::CameraSpace::point`](#epok-cameraspace-point-1) — Performs `point` as part of fixed-point affine transforms and matrix composition.
 
 <a id="epok-affine-compose-1"></a>
 
@@ -28,7 +30,7 @@ This module covers fixed-point affine transforms and matrix composition. It docu
 Affine compose(const Affine& b) const
 ```
 
-- **Declared at:** [line 37](../../../runtime/affine.hpp#L37)
+- **Declared at:** [line 38](../../../runtime/affine.hpp#L38)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -70,7 +72,7 @@ auto result = object.compose(b);
 static Affine identity()
 ```
 
-- **Declared at:** [line 7](../../../runtime/affine.hpp#L7)
+- **Declared at:** [line 8](../../../runtime/affine.hpp#L8)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `Affine<Number>`. Check the purpose and failure notes before using the value.
@@ -101,7 +103,7 @@ auto result = epok::Affine::identity();
 void point(const Number* in, Number* out) const
 ```
 
-- **Declared at:** [line 23](../../../runtime/affine.hpp#L23)
+- **Declared at:** [line 24](../../../runtime/affine.hpp#L24)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -147,7 +149,7 @@ object.point(in, out);
 void rotate_rows(int axis,Number sine,Number cosine,int columns=3)
 ```
 
-- **Declared at:** [line 15](../../../runtime/affine.hpp#L15)
+- **Declared at:** [line 16](../../../runtime/affine.hpp#L16)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -197,7 +199,7 @@ object.rotate_rows(axis, sine, cosine, columns);
 Affine translated(const Number* offset) const
 ```
 
-- **Declared at:** [line 31](../../../runtime/affine.hpp#L31)
+- **Declared at:** [line 32](../../../runtime/affine.hpp#L32)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -221,6 +223,92 @@ Affine translated(const Number* offset) const
 epok::Affine& object = /* obtain a valid instance */;
 
 auto result = object.translated(offset);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-cameraspace-compose-1"></a>
+
+## `epok::CameraSpace::compose`
+
+**Purpose.** Performs `compose` as part of fixed-point affine transforms and matrix composition.
+
+**Exact declaration**
+
+```cpp
+Affine<Number> compose(const Affine<Number>& world) const
+```
+
+- **Declared at:** [line 107](../../../runtime/affine.hpp#L107)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `world` | `const Affine<Number> &` | Input | Value supplied for `world`. See the exact type and module contract. |
+
+**Returns.** Returns `Affine<Number>`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need fixed-point affine transforms and matrix composition and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "affine.hpp"
+
+// Assume these named values have been initialized with valid data:
+// const Affine<Number> & world
+
+epok::CameraSpace& object = /* obtain a valid instance */;
+
+auto result = object.compose(world);
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-cameraspace-point-1"></a>
+
+## `epok::CameraSpace::point`
+
+**Purpose.** Performs `point` as part of fixed-point affine transforms and matrix composition.
+
+**Exact declaration**
+
+```cpp
+void point(const Number* in,Number* out) const
+```
+
+- **Declared at:** [line 67](../../../runtime/affine.hpp#L67)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `in` | `const Number *` | Input | Value supplied for `in`. See the exact type and module contract. |
+| `out` | `Number *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need fixed-point affine transforms and matrix composition and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "affine.hpp"
+
+// Assume these named values have been initialized with valid data:
+// const Number * in
+// Number * out
+
+epok::CameraSpace& object = /* obtain a valid instance */;
+
+object.point(in, out);
 ```
 
 **Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
