@@ -1462,14 +1462,14 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
         (
             "camera_path",
             "Author the visibility track's camera path (the route a guided camera follows). ops: read (keys and status; no revision), create(camera UUID, optional: first root camera), convert(every seconds, default 1: imported samples to keys), set_keys(keys:[{time,position[3],rotation[3] Euler degrees,fov horizontal degrees,cut}], first at 0 s, increasing), add_key_from_view(time, default 2 s after the last key: the Scene view camera), sample_ms(sample_ms), update_samples (regenerates samples; clears baked lists and the prepared packet order), preview(time: moves the Scene view through the path; no revision), select(key index: selects it in the Camera Path panel; no revision). Then bake with editor_control bake_visibility. No automatic save.",
-            json!({"op":{"enum":["read","create","convert","set_keys","add_key_from_view","sample_ms","update_samples","preview","select"]},"key":{"type":"integer","minimum":0},"revision":s,"camera":s,"every":n,"time":n,"sample_ms":{"type":"integer","minimum":16,"maximum":1000},"keys":{"type":"array","items":o}}),
+            json!({"op":{"enum":["read","create","convert","set_keys","add_key_from_view","sample_ms","update_samples","preview","select"]},"key":{"type":"integer","minimum":0},"revision":s,"camera":s,"every":{"type":"number","minimum":0.05},"time":{"type":"number","minimum":0},"sample_ms":{"type":"integer","minimum":16,"maximum":1000},"keys":{"type":"array","items":o}}),
             vec!["op"],
             false,
         ),
         (
             "visibility_bake",
             "Bake the visibility track's face lists (and optionally the prepared packet order) on the GPU in the background, as Build > Bake Visibility. ops: status (no revision), start. Options for start: preset (guided, exact, light), far (draw distance in world units), use_recordings (camera recordings in .epok/camera-recordings), margin (recorded view margin), ordered (generate the packet order). Poll status until busy is false; the result is applied to the open scene unsaved.",
-            json!({"op":{"enum":["status","start"]},"revision":s,"preset":{"enum":["guided","exact","light"]},"far":n,"use_recordings":b,"margin":n,"ordered":b}),
+            json!({"op":{"enum":["status","start"]},"revision":s,"preset":{"enum":["guided","exact","light"]},"far":{"type":"number","minimum":8,"maximum":4096},"use_recordings":b,"margin":{"type":"number","minimum":0,"maximum":0.5},"ordered":b}),
             vec!["op"],
             false,
         ),
