@@ -201,6 +201,7 @@ pub struct Editor {
     /// bake (Play options). Recordings go to .epok/camera-recordings/.
     pub record_camera: bool,
     pub visibility_bake: crate::visibility_bake_ui::State,
+    pub camera_path: crate::camera_path_ui::State,
     pub search: String,
     pub close_requested: bool,
     pub should_close: bool,
@@ -756,6 +757,7 @@ impl Editor {
             native_play_request: None,
             record_camera: false,
             visibility_bake: Default::default(),
+            camera_path: Default::default(),
             game_error: None,
             focus_game: false,
             game_capture: false,

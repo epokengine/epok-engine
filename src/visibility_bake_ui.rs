@@ -258,6 +258,61 @@ pub fn window(ui: &imgui::Ui, e: &mut Editor) {
     }
 }
 
+/// The `visibility_bake` MCP tool (see its description in mcp_tools.rs).
+pub fn mcp(e: &mut Editor, a: &serde_json::Value) -> std::result::Result<serde_json::Value, String> {
+    let status = |e: &Editor| {
+        let state = &e.visibility_bake;
+        serde_json::json!({
+            "busy": busy(e),
+            "done": state.progress.load(Ordering::Relaxed),
+            "total": state.total,
+            "preset": format!("{:?}", state.preset).to_lowercase(),
+            "far": state.far_world,
+            "use_recordings": state.use_recordings,
+            "recordings": recordings(e).len(),
+            "margin": state.margin,
+            "ordered": state.ordered,
+        })
+    };
+    match a["op"].as_str() {
+        Some("status") => Ok(status(e)),
+        Some("start") => {
+            crate::mcp_tools::editable(e)?;
+            crate::mcp_tools::expect_revision(&e.scene, a)?;
+            if busy(e) {
+                return Err("A visibility bake is already running".into());
+            }
+            if e.scene.visibility_track.is_none() {
+                return Err("The scene has no visibility track".into());
+            }
+            let state = &mut e.visibility_bake;
+            if let Some(preset) = a["preset"].as_str() {
+                state.preset = match preset {
+                    "guided" => Preset::Guided,
+                    "exact" => Preset::Exact,
+                    "light" => Preset::Light,
+                    other => return Err(format!("Unknown preset: {other}")),
+                };
+            }
+            if let Some(far) = a["far"].as_f64() {
+                state.far_world = (far as f32).clamp(8., 4096.);
+            }
+            if let Some(margin) = a["margin"].as_f64() {
+                state.margin = (margin as f32).clamp(0., 0.5);
+            }
+            if let Some(v) = a["use_recordings"].as_bool() {
+                state.use_recordings = v;
+            }
+            if let Some(v) = a["ordered"].as_bool() {
+                state.ordered = v;
+            }
+            start(e);
+            Ok(status(e))
+        }
+        _ => Err("op must be status or start".into()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

@@ -45,13 +45,13 @@ fn inside(root: &Path, relative: &str) -> Result<std::path::PathBuf, String> {
 pub fn revision(scene: &Scene) -> String {
     assets::hash(&serde_json::to_vec(scene).expect("Serializable scene"))
 }
-fn expect_revision(scene: &Scene, args: &Value) -> Result<(), String> {
+pub(crate) fn expect_revision(scene: &Scene, args: &Value) -> Result<(), String> {
     if string(args, "revision")? != revision(scene) {
         return Err("Scene changed. Read scene_read and retry with its revision.".into());
     }
     Ok(())
 }
-fn editable(e: &Editor) -> Result<(), String> {
+pub(crate) fn editable(e: &Editor) -> Result<(), String> {
     if e.job.is_some() || e.dependencies.busy() || e.assets.busy || e.bake_job.is_some() {
         return Err("Wait for installation/build/import/bake or stop Play before editing.".into());
     }
@@ -789,6 +789,8 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
             e.set_buttons(mask);
             Ok(json!({"buttons":mask,"duration_ms":duration}))
         }
+        "camera_path" => crate::camera_path_ui::mcp(e, &a),
+        "visibility_bake" => crate::visibility_bake_ui::mcp(e, &a),
         "editor_control" => {
             match string(&a, "action")?.as_str() {
                 "build" | "play" => {
@@ -854,6 +856,13 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                 "serial_connection" => crate::serial_ui::open(e),
                 "serial_prepare" => crate::serial_ui::start(e, crate::serial_ui::Action::Prepare),
                 "imports" => e.assets.window = true,
+                "camera_path" => e.camera_path.open = true,
+                "bake_visibility" => {
+                    if e.scene.visibility_track.is_none() {
+                        return Err("The scene has no visibility track".into());
+                    }
+                    e.visibility_bake.open = true;
+                }
                 "frame_selected" => e.action("frame-selected"),
                 other => return Err(format!("Unknown editor action: {other}")),
             }
@@ -1451,8 +1460,22 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
         (
             "editor_control",
             "Build, play, stop, pause, resume, reset_psx, step, bake, export, frame selection or open settings/imports. reset_psx reboots an active physical console; step requires the emulator. Jobs return immediately; poll editor_state and logs_read for confirmation.",
-            json!({"action":{"enum":["build","play","stop","pause","resume","reset_psx","step","bake","export","reset_layout","project_settings","editor_preferences","serial_connection","serial_prepare","imports","frame_selected"]}}),
+            json!({"action":{"enum":["build","play","stop","pause","resume","reset_psx","step","bake","export","reset_layout","project_settings","editor_preferences","serial_connection","serial_prepare","imports","camera_path","bake_visibility","frame_selected"]}}),
             vec!["action"],
+            false,
+        ),
+        (
+            "camera_path",
+            "Author the visibility track's camera path (the route a guided camera follows). ops: read (keys and status; no revision), create(camera UUID, optional: first root camera), convert(every seconds, default 1: imported samples to keys), set_keys(keys:[{time,position[3],rotation[3] Euler degrees,fov horizontal degrees,cut}], first at 0 s, increasing), add_key_from_view(time, default 2 s after the last key: the Scene view camera), sample_ms(sample_ms), update_samples (regenerates samples; clears baked lists and the prepared packet order), preview(time: moves the Scene view through the path; no revision). Then bake with editor_control bake_visibility. No automatic save.",
+            json!({"op":{"enum":["read","create","convert","set_keys","add_key_from_view","sample_ms","update_samples","preview"]},"revision":s,"camera":s,"every":n,"time":n,"sample_ms":{"type":"integer","minimum":16,"maximum":1000},"keys":{"type":"array","items":o}}),
+            vec!["op"],
+            false,
+        ),
+        (
+            "visibility_bake",
+            "Bake the visibility track's face lists (and optionally the prepared packet order) on the GPU in the background, as Build > Bake Visibility. ops: status (no revision), start. Options for start: preset (guided, exact, light), far (draw distance in world units), use_recordings (camera recordings in .epok/camera-recordings), margin (recorded view margin), ordered (generate the packet order). Poll status until busy is false; the result is applied to the open scene unsaved.",
+            json!({"op":{"enum":["status","start"]},"revision":s,"preset":{"enum":["guided","exact","light"]},"far":n,"use_recordings":b,"margin":n,"ordered":b}),
+            vec!["op"],
             false,
         ),
         (

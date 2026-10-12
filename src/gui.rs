@@ -114,6 +114,13 @@ fn build_menu(ui: &imgui::Ui, e: &mut Editor) {
             crate::navigation::editor_bake(e);
         }
         if ui
+            .menu_item_config("Camera Path...")
+            .enabled(!e.playing)
+            .build()
+        {
+            e.camera_path.open = true;
+        }
+        if ui
             .menu_item_config("Bake Visibility...")
             .enabled(e.scene.visibility_track.is_some() && !e.playing)
             .build()
@@ -2602,6 +2609,7 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
 pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
     crate::lighting_editor::window(ui, e);
     crate::visibility_bake_ui::window(ui, e);
+    crate::camera_path_ui::window(ui, e);
     let _style = crate::inspector_theme::scope(ui, e.inspector_font);
     ui.window("\u{ea74} Inspector###Inspector").build(|| {
         // Properties are inset from the panel edges; only section bands reach them.
@@ -3248,6 +3256,26 @@ fn scene_view(
         if hovered && ui.is_mouse_dragging(imgui::MouseButton::Left) && ui.io().key_alt {
             e.view.look(ui.io().mouse_delta, true);
             e.view_dirty = true;
+        }
+        {
+            let view = e.view;
+            crate::camera_path_ui::overlay(
+                ui,
+                e,
+                [
+                    position,
+                    [position[0] + available[0], position[1] + available[1]],
+                ],
+                |p| {
+                    let p = crate::viewport::project(&view, p);
+                    (p[2] > 0.05).then(|| {
+                        [
+                            position[0] + (p[0] - (1. - uv[0]) * 480.) * factor,
+                            position[1] + (p[1] - (1. - uv[1]) * 300.) * factor,
+                        ]
+                    })
+                },
+            );
         }
         if !e.mesh_editor.open && !e.terrain_editor.sculpting() {
             crate::gizmo::draw(ui, e, position, available, factor, uv);

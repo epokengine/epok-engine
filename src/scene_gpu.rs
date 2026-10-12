@@ -2133,7 +2133,7 @@ mod tests {
         let state = crate::mesh_editor::State::default();
         let expected = super::geometry(&scene, None, 0., &state, &view);
         assert!(!expected.0.is_empty());
-        scene.visibility_track = Some(crate::visibility_track::Track {
+        scene.visibility_track = Some(crate::visibility_track::Track { path: Vec::new(),
             navigation: None,
             camera: scene.actors[0].id,
             sample_ms: 100,

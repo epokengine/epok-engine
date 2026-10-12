@@ -16,7 +16,7 @@ are not frame-rate claims for a particular game.
 
 | Technique | What it saves | How to enable | Default |
 | --- | --- | --- | --- |
-| [Camera visibility tracks](#camera-visibility-tracks) | Drawing and loading what the camera cannot see | Scene `visibility_track` | Off |
+| [Camera visibility tracks](#camera-visibility-tracks) | Drawing and loading what the camera cannot see | Build > Camera Path, then Bake Visibility | Off |
 | [Geometry streaming](#geometry-streaming) | RAM: worlds larger than memory | Project Settings, geometry streaming | Off |
 | [Static world](#static-world) | Seams between meshes; per-actor matrices | `visibility_track.static_world` | Off |
 | [Prepared packet order](#prepared-packet-order) | Visibility, sorting and setup per polygon at run time | Scene `ordered_draw` program | Off |
@@ -44,11 +44,12 @@ streaming pages those faces need now and next. At run time the renderer only
 considers the faces of the current sample, and the streamer loads exactly the
 pages of the current and next sample.
 
-- **Enable:** a scene `visibility_track` (camera path and samples). The face
-  lists are baked automatically: **Build > Bake Visibility...** in the
-  editor, ideally from cameras recorded while playing (Play options, *Record
-  camera for visibility bake*); see
-  [Automatic visibility bake](streaming.md#automatic-visibility-bake-experimental).
+- **Enable:** draw the camera's route in the editor with **Build > Camera
+  Path...** (keys taken from the Scene view; see
+  [Authoring a camera path](streaming.md#authoring-a-camera-path)), then bake
+  the face lists with **Build > Bake Visibility...**, ideally adding cameras
+  recorded while playing (Play options, *Record camera for visibility bake*);
+  see [Automatic visibility bake](streaming.md#automatic-visibility-bake-experimental).
 - **Cost:** the camera must stay near the recorded path. A route graph
   (`navigation`) lets a player-driven target choose among recorded routes.
 - **Use when:** the camera is guided. A free camera has no path to bake.
@@ -183,10 +184,11 @@ Every renderer change above was checked the same way; keep doing so:
 
 ## Open items
 
-- The camera path of a visibility track is still imported; its face lists
-  and packet order are baked in the editor. Drawing the path in the editor
-  comes next. Baked from a recorded demo's cameras, the study scene's lists
-  cost 1.01x the imported ones in the prepared pass (p10 0.96x, p90 1.12x).
+- The whole guided-camera workflow now runs in the editor: camera path,
+  visibility bake and packet order. Baked from a recorded demo's cameras, the
+  study scene's lists cost 1.01x the imported ones in the prepared pass (p10
+  0.96x, p90 1.12x). Player-driven route graphs (`navigation`) are still
+  imported.
 - The views where Epok remains slowest (1.1 to 1.15x the reference) spend
   more time per polygon walking the list and emitting packets.
 - A face touching the camera can leave a one-pixel edge artifact at the screen

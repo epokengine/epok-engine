@@ -350,7 +350,7 @@ pub(crate) mod tests {
         let mut component = crate::mesh::Component::new(Uuid::new_v4());
         component.document = Some(std::sync::Arc::new(doc));
         actor.editable_mesh = Some(component);
-        scene.visibility_track = Some(crate::visibility_track::Track {
+        scene.visibility_track = Some(crate::visibility_track::Track { path: Vec::new(),
             camera: scene.actors[0].id,
             sample_ms: 100,
             cull_backfaces: false, static_world: false,

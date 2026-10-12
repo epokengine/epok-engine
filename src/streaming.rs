@@ -948,7 +948,7 @@ mod tests {
             .document.as_ref().unwrap().faces.iter().map(|f| f.id).collect::<Vec<_>>()).collect();
         let camera = Scene::default().actors[0].clone();
         let mut scene = Scene { actors: actors.clone(), ..Default::default() };
-        scene.visibility_track = Some(crate::visibility_track::Track {
+        scene.visibility_track = Some(crate::visibility_track::Track { path: Vec::new(),
             camera: camera.id, sample_ms: 100, cull_backfaces: false, static_world: true, navigation: None,
             samples: vec![crate::visibility_track::Sample {
                 position: [0.; 3], rotation: [0.; 3], fov: 90., visible: (0..faces.len() as u16).collect(), cut: true,
@@ -999,7 +999,7 @@ mod tests {
         doc.materials[0].material.uv_scroll=[0.,0.];
         let faces=doc.faces.iter().map(|f|f.id).collect();
         let camera=Scene::default().actors[0].clone();
-        scene.visibility_track=Some(crate::visibility_track::Track {
+        scene.visibility_track=Some(crate::visibility_track::Track { path: Vec::new(),
             camera:camera.id,sample_ms:100,cull_backfaces:false, static_world: false,navigation:None,faces,
             samples:vec![crate::visibility_track::Sample {
                 position:[0.;3],rotation:[0.;3],fov:90.,visible:vec![0,1],cut:true,
@@ -1057,7 +1057,7 @@ mod tests {
         doc.materials[0].material.uv_scroll=[0.;2];
         let faces=doc.faces.iter().map(|f|f.id).collect();
         let camera=Scene::default().actors[0].clone();
-        scene.visibility_track=Some(crate::visibility_track::Track {
+        scene.visibility_track=Some(crate::visibility_track::Track { path: Vec::new(),
             camera:camera.id,sample_ms:100,cull_backfaces:false, static_world: false,navigation:None,faces,
             samples:vec![
                 crate::visibility_track::Sample {position:[0.;3],rotation:[0.;3],fov:90.,visible:vec![0,1],cut:true},
@@ -1123,7 +1123,7 @@ mod tests {
             bits,
             words: 32,
         };
-        let source = crate::visibility_track::Track {
+        let source = crate::visibility_track::Track { path: Vec::new(),
             navigation: None,
             camera: uuid::Uuid::nil(),
             sample_ms: 100,

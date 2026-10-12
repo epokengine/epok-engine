@@ -24,7 +24,7 @@ mod tests {
     fn graph_pairs_include_disabled_links_and_preserve_reverse_endpoints() {
         let mut scene = Scene::default();
         scene.actors.truncate(2);
-        let mut track = Track {
+        let mut track = Track { path: Vec::new(),
             camera: scene.actors[0].id,
             sample_ms: 100,
             cull_backfaces: false, static_world: false,

@@ -186,6 +186,8 @@ mod streaming;
 mod visibility_track;
 mod visibility_bake;
 mod visibility_bake_ui;
+mod camera_path;
+mod camera_path_ui;
 mod baked_draw;
 mod vertex_colors;
 mod baked_preview;

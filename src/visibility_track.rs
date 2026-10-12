@@ -32,6 +32,10 @@ pub struct Track {
     /// without seams. Their runtime transforms no longer move them.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub static_world: bool,
+    /// Camera path authored in the editor; the samples are generated from it
+    /// (see camera_path.rs). Empty for imported tracks.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub path: Vec<crate::camera_path::Key>,
 }
 fn default_cull() -> bool {
     true
@@ -421,7 +425,7 @@ mod tests {
             document: Some(std::sync::Arc::new(doc)),
             error: None,
         });
-        scene.visibility_track = Some(Track {
+        scene.visibility_track = Some(Track { path: Vec::new(),
             navigation: None,
             camera: scene.actors[0].id,
             sample_ms: 100,

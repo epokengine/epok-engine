@@ -68,7 +68,7 @@ size does not imply faster rendering.
 A scene may contain an optional `visibility_track`: a root camera UUID, sample
 duration (`sample_ms`), a stable source-face UUID table, and camera samples with
 position, rotation, horizontal FOV, visible face indices and an optional `cut`.
-This is currently an importer/build interface, not an editor authoring tool.
+Tracks are authored in the editor as a camera path (below) or imported.
 Tracked meshes must list all their faces; missing/stale face IDs fail the build.
 Source-face selections survive chunk partitioning and either vertex width.
 
@@ -96,6 +96,41 @@ matrices leave where, for example, a wall meets the ground. This is an
 explicit opt-in: covered actors must stay static at runtime, since their
 runtime transforms are no longer applied, and mesh vertex queries on them
 answer in world space only. Off by default; without it the cook is unchanged.
+
+#### Authoring a camera path
+
+**Build > Camera Path...** creates and edits the route a guided camera
+follows. For a scene without a track, pick a root camera and **Create camera
+path**: the new track covers every face of the scene's ordinary editable
+meshes (**Refresh tracked faces** after adding or removing meshes; baked lists
+keep the faces that still exist) and starts with one key at the camera.
+
+A key is a camera pose (position, Euler rotation), a horizontal field of view
+and a time in seconds. **Add key from view** appends a key two seconds after
+the last one at the Scene view's camera; **Insert key at time** adds one at
+the preview time; **Set** moves a key to the view, **View** looks through it.
+A **Cut** key makes the camera jump to it instead of travelling. Between keys
+the path follows smooth curves (Hermite, with Catmull-Rom tangents per second;
+easing in and out at the ends and at cuts), turning the short way round. The
+path, its keys and the preview pose are drawn in the Scene view; **Look
+through the path** with the time slider or **Play** previews it through the
+view (the view cannot show roll).
+
+**Update samples** evaluates the path every **sample interval** (100 ms by
+default) into the track's samples. The first sample is a cut, so a looping
+track jumps back to its start, and a sample is a cut where a cut key falls
+since the previous one. Updating clears the baked lists and the prepared
+packet order: bake visibility again. A track with a route graph
+(`navigation`) keeps its imported samples. An imported track without one can
+be edited after **Convert samples to keys**: a key every second and at every
+cut, plus keys wherever the curve would stray from the samples by more than
+a tenth of a runtime camera unit or a quarter of a degree. On the study scene
+1,650 samples became 420 keys within 0.66 world units (camera scale 10) and
+0.25 degrees.
+
+The `camera_path` and `visibility_bake` MCP tools do the same for agents:
+create, convert, set keys, add a key from the view, update samples, preview,
+then start and poll the bake.
 
 #### Automatic visibility bake (experimental)
 
