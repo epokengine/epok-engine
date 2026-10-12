@@ -67,13 +67,28 @@ pub fn encode(previous: &[u32], next: &[u32]) -> Result<Vec<u8>, String> {
 /// Caller explicitly marks camera cuts/route anchors as reset checkpoints.
 /// Periodic checkpoints bound random seek/reverse replay to 31 deltas.
 pub fn pack<'a>(lists: impl IntoIterator<Item=(&'a [u32], bool)>) -> Result<(Vec<Span>, Vec<u8>), String> {
+    pack_within(lists, usize::MAX)
+}
+/// As `pack`, also starting a checkpoint early wherever the current block
+/// (an 8-byte header, 8 bytes per sample and its deltas) would otherwise
+/// exceed `block_budget` bytes, so every block still fits one page when
+/// consecutive lists change a lot.
+pub fn pack_within<'a>(lists: impl IntoIterator<Item=(&'a [u32], bool)>, block_budget: usize) -> Result<(Vec<Span>, Vec<u8>), String> {
     let mut spans = Vec::new();
     let mut bytes = Vec::new();
     let mut previous: &[u32] = &[];
+    let (mut block_rows, mut block_bytes) = (0usize, 0usize);
     for (index, (list, cut)) in lists.into_iter().enumerate() {
         if index >= MAX_COUNT { return Err("Ordered draw track exceeds 65535 samples".into()); }
-        let reset = cut || index % 32 == 0;
-        let delta = encode(if reset { &[] } else { previous }, list)?;
+        let mut reset = cut || index % 32 == 0 || block_rows >= 32;
+        let mut delta = encode(if reset { &[] } else { previous }, list)?;
+        if !reset && 8 + (block_rows + 1) * 8 + block_bytes + delta.len() > block_budget {
+            reset = true;
+            delta = encode(&[], list)?;
+        }
+        if reset { block_rows = 0; block_bytes = 0; }
+        block_rows += 1;
+        block_bytes += delta.len();
         u32::try_from(bytes.len().checked_add(delta.len()).ok_or("Ordered draw size overflow")?)
             .map_err(|_| "Ordered draw archive exceeds 4 GiB")?;
         spans.push(Span {
@@ -114,6 +129,24 @@ mod tests {
             }
         }
         result
+    }
+    #[test]
+    fn blocks_restart_early_to_stay_within_budget() {
+        // Lists that share nothing make every delta a full literal.
+        let lists: Vec<Vec<u32>> = (0..40u32).map(|i| (0..100).map(|v| i * 1000 + v).collect()).collect();
+        let (spans, _) = pack_within(lists.iter().map(|l| (l.as_slice(), false)), 2000).unwrap();
+        let mut start = 0;
+        while start < spans.len() {
+            assert!(spans[start].reset);
+            let end = (start + 1..spans.len()).find(|&i| spans[i].reset).unwrap_or(spans.len());
+            let payload: u32 = spans[start..end].iter().map(|s| s.bytes).sum();
+            assert!(8 + (end - start) * 8 + payload as usize <= 2000 || end - start == 1);
+            start = end;
+        }
+        assert!(spans.iter().filter(|s| s.reset).count() > 2);
+        // Without pressure the periodic checkpoints are unchanged.
+        let (plain, _) = pack(lists.iter().map(|l| (l.as_slice(), false))).unwrap();
+        assert_eq!(plain.iter().filter(|s| s.reset).count(), 2);
     }
     #[test]
     fn reorder_insert_delete_and_empty_preserve_exact_order() {

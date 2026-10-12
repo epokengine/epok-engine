@@ -1309,6 +1309,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(v) = number("--bake-substeps") { options.substeps = v?; }
         if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-see-through") { options.see_through = v[1].parse()?; }
         if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-view-margin") { options.view_margin = v[1].parse()?; }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-path-margin") { options.path_margin = v[1].parse()?; }
         if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-order-step") { options.order_step = v[1].parse()?; }
         if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-far") { options.far = v[1].parse()?; }
         if let Some(v) = number("--bake-fill-gaps") { options.fill_gaps = v?; }
@@ -1364,6 +1365,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(v) = number("--bake-substeps") { options.substeps = v?; }
         if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-see-through") { options.see_through = v[1].parse()?; }
         if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-view-margin") { options.view_margin = v[1].parse()?; }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-path-margin") { options.path_margin = v[1].parse()?; }
         if let Some(v) = number("--bake-diagnose") {
             let v = v? as usize;
             println!("{}", visibility_bake::diagnose(&scene, track, v, &options)?);

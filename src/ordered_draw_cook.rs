@@ -337,11 +337,13 @@ pub fn cook(
                 .collect()
         })
         .collect();
-    let (spans, payload) = crate::draw_order_codec::pack(
+    // Blocks are page-local: restart a checkpoint early rather than overflow.
+    let (spans, payload) = crate::draw_order_codec::pack_within(
         lists
             .iter()
             .zip(&track.samples)
             .map(|(l, s)| (l.as_slice(), s.cut)),
+        PAGE - 32,
     )?;
     let mut first = 0;
     let mut used = PAGE;

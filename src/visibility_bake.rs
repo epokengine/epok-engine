@@ -37,9 +37,12 @@ pub struct Options {
     /// stretch, and visible on both sides, stays listed through the gap: fewer
     /// list changes (smaller resident deltas) for a few extra faces.
     pub fill_gaps: u32,
-    /// Widen the baked view by this fraction in both directions (0.2 = 20%),
-    /// for cameras that turn away from the recorded path (aiming rigs).
+    /// Widen what each recorded camera sees by this fraction in both
+    /// directions (0.1 = 10%), covering poses between recorded sessions.
     pub view_margin: f32,
+    /// The same for the track's own path poses. Recorded cameras already
+    /// follow the real camera, so by default only they are widened.
+    pub path_margin: f32,
     /// World units per runtime camera-space unit along the view (the track
     /// camera's scale): `near` and `far` are runtime camera units. Set by
     /// `bake` from the scene.
@@ -50,7 +53,7 @@ impl Default for Options {
         // Near and far match the runtime's mesh camera units (0.25 and 128 world
         // units); the far limit is also the default geometry draw distance.
         Self { width: 512, height: 240, scale: 4, substeps: 4, near: 0.25, far: 128., see_through: 0.05,
-            refine_pixels: 2., refine_depth: 6, order_step: 0.5, fill_gaps: 2, view_margin: 0., depth_scale: 1. }
+            refine_pixels: 2., refine_depth: 6, order_step: 0.5, fill_gaps: 2, view_margin: 0., path_margin: 0., depth_scale: 1. }
     }
 }
 
@@ -88,7 +91,7 @@ impl Pose {
         for r in 0..3 {
             out[r * 4..r * 4 + 4].copy_from_slice(&view.0[r]);
         }
-        let widen = 1. + options.view_margin.max(0.);
+        let widen = 1. + options.path_margin.max(0.);
         out[12] = horizontal / widen;
         out[13] = horizontal * 4. / 3. / widen;
         out[14] = options.near * options.depth_scale;

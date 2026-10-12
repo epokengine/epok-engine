@@ -125,10 +125,15 @@ same material, become one quad packet. Each sample's packets are sorted back
 to front by mean camera depth in steps of `--bake-order-step` world units
 (0.5); within a step they keep the previous sample's order, so consecutive
 lists stay similar and their stored deltas small. Further options:
-`--bake-far` (128 units), `--bake-fill-gaps` (a face hidden for at most 2
+`--bake-far` (128), `--bake-fill-gaps` (a face hidden for at most 2
 samples between visible ones stays listed, 2), `--bake-view-margin` (widen
-the baked view, for cameras that turn away from the recorded path; 0) and
-`--bake-reuse-lists` (keep the lists, only rebuild the order).
+what recorded cameras see; 0), `--bake-path-margin` (widen the track's own
+path poses; 0) and `--bake-reuse-lists` (keep the lists, only rebuild the
+order). Near and far are runtime camera units, as the runtime applies them:
+a camera actor scaled by 10 makes 128 reach 1,280 world units, so set
+`--bake-far` to the distance the game should draw. Where consecutive lists
+change a lot, the cooker starts a checkpoint early so each block of list
+deltas still fits one page.
 
 `--bake-check-cameras <json>` adds a check against explicit cameras, such as
 those a game actually used: `{"cameras":[{"sample","basis","origin",
@@ -157,8 +162,12 @@ margin, largest single view 14 pixels), at 1,070 (1,168) faces per sample.
 A list is only as good as the poses it is baked from. A camera that aims at
 a moving target turns away from the recorded path: on the study scene, real
 cameras saw about 3,000 display pixels per view that lists baked from the
-path alone lacked. A 30% view margin cut that to about 220, at 30% more
-faces. Baking from recorded camera poses is the intended remedy.
+path alone lacked. A 30% path margin cut that to about 220, at 30% more
+faces. Baking from recorded camera poses is the intended remedy, and a
+recording adds everything its camera saw: record real play, not idle or
+debug cameras (a Native PC session without input, where the camera turns
+back towards a player standing at the start, added up to 1,000 faces per
+sample).
 
 Without `navigation`, this is automatic diagnostic playback. It does not
 reproduce a source game's original polygon ordering. Texture animation,
