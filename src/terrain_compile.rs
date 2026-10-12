@@ -275,6 +275,7 @@ pub fn quads(terrain: &Component) -> Vec<Quad> {
         let (tile, rotation) =
             resolved[usize::from(j) * usize::from(doc.cells()[0]) + usize::from(i)];
         out.push(Quad {
+            vertex_colors: None,
             uv: tile_uv(terrain.atlas, tile, rotation),
             face: 0,
             points,

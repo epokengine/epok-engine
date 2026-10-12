@@ -114,6 +114,20 @@ fn build_menu(ui: &imgui::Ui, e: &mut Editor) {
             crate::navigation::editor_bake(e);
         }
         if ui
+            .menu_item_config("Camera Path...")
+            .enabled(!e.playing)
+            .build()
+        {
+            e.camera_path.open = true;
+        }
+        if ui
+            .menu_item_config("Bake Visibility...")
+            .enabled(!e.playing)
+            .build()
+        {
+            e.visibility_bake.open = true;
+        }
+        if ui
             .menu_item_config("Add Navigation Bake Volume")
             .enabled(enabled)
             .build()
@@ -457,6 +471,87 @@ pub fn theme(style: &mut imgui::Style) {
 }
 
 /// Place labels before values; stack them when a dock panel becomes narrow.
+/// Camera background: a flat sky colour, or a sky/horizon/ground gradient
+/// split at the true horizon, with a swatch of how it reads top to bottom.
+fn sky_background(ui: &imgui::Ui, entity: &mut crate::scene::Actor) {
+    let mut mode = usize::from(entity.camera_sky_gradient.is_some());
+    let labels = ["Flat sky color", "Sky gradient"];
+    ui.set_next_item_width(-1.);
+    if let Some(_combo) = ui.begin_combo(field(ui, "Background"), labels[mode]) {
+        for (i, label) in labels.iter().enumerate() {
+            if ui.selectable_config(label).selected(i == mode).build() {
+                mode = i;
+            }
+        }
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text(
+            "What the camera shows where there is no geometry.\n\
+             Flat sky color: one colour everywhere.\n\
+             Sky gradient: sky overhead, a horizon colour, and a ground colour below \
+             the horizon, so holes in the level look like ground, not sky.",
+        );
+    }
+    match (mode, entity.camera_sky_gradient) {
+        (0, Some(_)) => entity.camera_sky_gradient = None,
+        (1, None) => {
+            entity.camera_sky_gradient =
+                Some(crate::scene::SkyGradient::for_sky(entity.camera_sky_color))
+        }
+        _ => {}
+    }
+    let Some(mut gradient) = entity.camera_sky_gradient else {
+        ui.color_edit3(field(ui, "Sky Color"), &mut entity.camera_sky_color);
+        return;
+    };
+    let mut sky = entity.camera_sky_color;
+    ui.color_edit3(field(ui, "Sky"), &mut sky);
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Colour overhead, reached about 45 degrees above the horizon.");
+    }
+    ui.color_edit3(field(ui, "Horizon"), &mut gradient.horizon);
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Colour along the horizon line.");
+    }
+    ui.color_edit3(field(ui, "Ground"), &mut gradient.ground);
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Colour below the horizon, reached about 15 degrees down. Shown through gaps and pits in the level.");
+    }
+    // Swatch: sky at the top, horizon in the middle, ground at the bottom.
+    let _ = field(ui, "Preview");
+    let width = ui.content_region_avail()[0].max(40.);
+    let height = ui.frame_height() * 2.;
+    let origin = ui.cursor_screen_pos();
+    ui.dummy([width, height]);
+    let rgba = |c: [f32; 3]| imgui::ImColor32::from_rgba_f32s(c[0], c[1], c[2], 1.);
+    let middle = origin[1] + height * 0.55;
+    let draw = ui.get_window_draw_list();
+    draw.add_rect_filled_multicolor(
+        origin,
+        [origin[0] + width, middle],
+        rgba(sky),
+        rgba(sky),
+        rgba(gradient.horizon),
+        rgba(gradient.horizon),
+    );
+    draw.add_rect_filled_multicolor(
+        [origin[0], middle],
+        [origin[0] + width, origin[1] + height],
+        rgba(gradient.horizon),
+        rgba(gradient.horizon),
+        rgba(gradient.ground),
+        rgba(gradient.ground),
+    );
+    draw.add_line(
+        [origin[0], middle],
+        [origin[0] + width, middle],
+        [1., 1., 1., 0.25],
+    )
+    .build();
+    entity.camera_sky_color = sky;
+    entity.camera_sky_gradient = Some(gradient);
+}
+
 pub(crate) fn field(ui: &imgui::Ui, label: &str) -> String {
     let visible = label.split("##").next().unwrap_or(label);
     let start = ui.cursor_pos()[0];
@@ -2698,6 +2793,8 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
 }
 pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
     crate::lighting_editor::window(ui, e);
+    crate::visibility_bake_ui::window(ui, e);
+    crate::camera_path_ui::window(ui, e);
     let _style = crate::inspector_theme::scope(ui, e.inspector_font);
     ui.window("\u{ea74} Inspector###Inspector").build(|| {
         // Properties are inset from the panel edges; only section bands reach them.
@@ -2819,7 +2916,8 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
                     .range(25., 120.)
                     .speed(0.25)
                     .build(ui, &mut entity.camera_fov);
-                ui.color_edit3(field(ui, "Sky Color"), &mut entity.camera_sky_color);
+                sky_background(ui, &mut entity);
+                ui.checkbox(field(ui, "Mirror X"), &mut entity.camera_mirror_x);
                 let _ = field(ui, "Target");
                 ui.text_disabled(format!(
                     "{} x {} / NTSC",
@@ -3278,6 +3376,7 @@ fn scene_view(
                 .build(ui, &mut e.view.fly_speed);
             muted(ui, "RMB + WASD: fly | Q/E: down/up | Alt + LMB: orbit");
             crate::lighting_editor::preview_status(ui, e);
+            crate::baked_preview::ui(ui, e);
             if crate::navigation::selected_volume(&e.scene, e.selected).is_some() {
                 match &e.navigation_preview_status {
                     Some(Ok(count)) => ui.text_colored(
@@ -3358,6 +3457,20 @@ fn scene_view(
             e.view.look(ui.io().mouse_delta, true);
             e.view_dirty = true;
         }
+        let over_path_key = crate::camera_path_ui::overlay(
+            ui,
+            e,
+            [
+                position,
+                [position[0] + available[0], position[1] + available[1]],
+            ],
+            |p| {
+                [
+                    position[0] + (p[0] - (1. - uv[0]) * 480.) * factor,
+                    position[1] + (p[1] - (1. - uv[1]) * 300.) * factor,
+                ]
+            },
+        );
         if !e.mesh_editor.open && !e.terrain_editor.sculpting() {
             crate::gizmo::draw(ui, e, position, available, factor, uv);
         }
@@ -3369,6 +3482,7 @@ fn scene_view(
         let eligible = hovered
             && !over_tools
             && !over_axes
+            && !over_path_key
             && !e.playing
             && !ui.io().key_alt
             && !ui.is_mouse_down(imgui::MouseButton::Right)

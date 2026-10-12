@@ -5,6 +5,9 @@ using namespace epok;
 void reset() {
   stream_pool = {};
   streaming_stats = {};
+  streaming_verify_stats = {};
+  stream_verify_overlap_bytes=0;
+  stream_verification = {};
   streaming_warmup_stats = {};
   stream_lookup_started = stream_lookup_pending = stream_ready = stream_failed = stream_read_pending = false;
   stream_warm_scene = false;
@@ -13,10 +16,20 @@ void reset() {
   fake_cd::pending = {};
   fake_cd::idle = fake_cd::read_ok = true;
   fake_cd::hung = fake_cd::corrupt = false;
+  fake_cd::corrupt_offset = 1234;
+  fake_cd::available = 0;fake_cd::dma_busy = false;
   fake_cd::now = fake_cd::reads = fake_cd::pauses = 0;
 }
 int main() {
+  static_assert(!streaming_descriptor_valid([] { MeshGeometry m; m.vertices={nullptr,7}; return m; }()));
+  static_assert(streaming_descriptor_valid([] { MeshGeometry m; m.vertices={nullptr,12}; m.stream_page=0; m.stream_vertex_offset=65524; return m; }()));
+  static_assert(!streaming_descriptor_valid([] { MeshGeometry m; m.vertices={nullptr,12}; m.stream_page=0; m.stream_vertex_offset=65528; return m; }()));
+  static_assert(!streaming_descriptor_valid([] { MeshGeometry m; m.vertices={nullptr,12}; m.stream_page=0; m.stream_vertex_offset=2; return m; }()));
   static_assert(streaming_descriptor_valid(MeshGeometry{}));
+  // Same terminal offset accepts one compact face but not a 72-byte face.
+  static_assert(streaming_descriptor_valid([] { MeshGeometry m; m.stream_page=0; m.editable=3; m.stream_quad_offset=65504; return m; }()));
+  static_assert(!streaming_descriptor_valid([] { MeshGeometry m; m.stream_page=0; m.editable=1; m.stream_quad_offset=65504; return m; }()));
+  static_assert(!streaming_descriptor_valid([] { MeshGeometry m; m.stream_page=0; m.editable=3; m.stream_quad_offset=65508; return m; }()));
   static_assert(!streaming_descriptor_valid([] { MeshGeometry m; m.stream_page = 0; m.vertex_count = SIZE_MAX; return m; }()));
   static_assert(!streaming_descriptor_valid([] { MeshGeometry m; m.stream_page = 0; m.stream_quad_offset = 65532; return m; }()));
   static_assert(!streaming_descriptor_valid([] { MeshGeometry m; m.stream_page = stream_page_count; return m; }()));
@@ -42,12 +55,37 @@ int main() {
   assert(stream_read_pending && fake_cd::reads == 1);
   auto pending_sample=sample_mesh_vertex(&requested_actor,0,CoordinateSpace::Model);
   assert(!pending_sample.success&&pending_sample.error==MeshVertexError::Pending);
-  gpu.pumpCallbacks(); streaming_tick();
+  gpu.pumpCallbacks();
+  assert(stream_verification.active && stream_read_pending && streaming_verify_stats.bytes == 0);
+  assert(!stream_pool.ready(1) && !stream_pool.pin(1) && !streaming_retry());
+  streaming_tick();
+  assert(stream_verification.offset == stream_verify_slice_bytes && !stream_pool.ready(1));
+  while (stream_verification.active) streaming_tick();
+  assert(streaming_verify_stats.bytes == stream_page_bytes && streaming_verify_stats.batches == stream_page_bytes/stream_verify_slice_bytes);
   auto ready_sample=sample_mesh_vertex(&requested_actor,1,CoordinateSpace::World);
   assert(ready_sample.success&&ready_sample.data_state==MeshDataState::Ready);
   assert(ready_sample.position[0].raw()==0x0101+4096);
   assert(!stream_pool.unpin(1));
   assert(!sample_mesh_vertex(&requested_actor,2,CoordinateSpace::Model).success);
+  // The same page is read at its declared width, including gameplay copies and
+  // lease rebinding. A wide pointer must never silently become a narrow view.
+  requested_mesh.vertices={nullptr,12};
+  const auto wide_sample=sample_mesh_vertex(&requested_actor,1,CoordinateSpace::Model);
+  assert(wide_sample.success&&wide_sample.position[0].raw()==0x01010101);
+  // A static-world chunk stores world points relative to its origin: world
+  // queries add the origin and apply no actor transform; there is no model space.
+  requested_mesh.editable=mesh_baked_draw|mesh_static_world;requested_mesh.origin[0]=-65536;
+  const auto world_sample=sample_mesh_vertex(&requested_actor,1,CoordinateSpace::World);
+  assert(world_sample.success&&world_sample.position[0].raw()==0x01010101-65536);
+  const auto model_sample=sample_mesh_vertex(&requested_actor,1,CoordinateSpace::Model);
+  assert(!model_sample.success&&model_sample.error==MeshVertexError::InvalidCoordinateSpace);
+  requested_mesh.editable=0;requested_mesh.origin[0]=0;
+  {
+    StreamMeshLease wide(requested_mesh,gpu);
+    assert(wide.valid()&&wide.vertices().wide()&&wide.geometry()->vertices.wide());
+    assert(wide.vertices()[1][2]==0x01010101);
+  }
+  assert(!stream_pool.unpin(1));
   reset();
   streaming_prepare();
   const uint8_t *first = streaming_acquire(1, gpu);
@@ -58,6 +96,7 @@ int main() {
   assert(streaming_prefetch(2) && stream_read_pending);
   assert(!stream_pool.ready(2) && first[0] == 1);
   gpu.pumpCallbacks(); streaming_tick();
+  while (stream_verification.active) streaming_tick();
   const auto *second = streaming_acquire(2, gpu);
   assert(second && second[0] == 2 && streaming_stats.stalls == 1);
   assert(!streaming_prefetch(3));
@@ -100,6 +139,8 @@ int main() {
   assert(stream_pool.find(0) >= 0 && !stream_pool.ready(0));
   fake_cd::hung = false; gpu.pumpCallbacks(); streaming_tick();
   assert(!music_data_owner && !stream_read_pending && stream_failed);
+  assert(!stream_verification.active && !stream_pool.ready(0) && stream_pool.find(0) < 0);
+  assert(streaming_stats.errors == 1 && streaming_stats.bytes == 0 && streaming_verify_stats.batches == 0);
   // Warmup validates its working set before I/O and deduplicates shared pages.
   reset();
   const uint32_t oversized[] = {0, 1, 2};
@@ -171,7 +212,7 @@ int main() {
       StreamMeshLease third(third_mesh, gpu, &cursor);
       assert(third.valid() && fake_cd::reads == 3 && stream_pool.evictions == 1);
       assert(!stream_pool.ready(0));
-      assert(reinterpret_cast<const uint8_t *>(third.vertices())[0] == 2);
+      assert(static_cast<const uint8_t *>(third.vertices().data)[0] == 2);
     }
   }
   assert(!stream_pool.unpin(2)); // Renderer scope released its final held pin.
@@ -193,13 +234,109 @@ int main() {
       StreamMeshLease protected_view(first_mesh, gpu, &cursor, streaming_descriptor_valid(first_mesh));
       assert(protected_view.valid());
       const auto blocked = cursor.resolve(second_mesh, gpu);
-      assert(!blocked.valid && reinterpret_cast<const uint8_t *>(first.vertices)[0] == 0);
+      assert(!blocked.valid && static_cast<const uint8_t *>(first.vertices.data)[0] == 0);
     }
     const auto second = cursor.resolve(second_mesh, gpu);
-    assert(second.valid && reinterpret_cast<const uint8_t *>(second.vertices)[0] == 1);
+    assert(second.valid && static_cast<const uint8_t *>(second.vertices.data)[0] == 1);
     const auto third = cursor.resolve(third_mesh, gpu);
     assert(third.valid && !stream_pool.ready(0));
     assert(cursor.release() && !stream_pool.unpin(2));
   }
-  std::puts("streaming backend: CD failures/checksums, XA arbitration, descriptors, leases/cursors, warmup and predictor invalidation passed");
+  // A corrupt LAST byte cannot be published during any earlier slice. The
+  // reservation stays non-evictable even when all other slots are pinned.
+  reset(); music_ready = true;
+  streaming_lookup(); gpu.pumpCallbacks(); streaming_tick();
+  fake_cd::corrupt = true; fake_cd::corrupt_offset = stream_page_bytes - 1;
+  assert(streaming_start_read(0)); gpu.pumpCallbacks();
+  const int held = stream_pool.reserve(1); stream_pool.complete(held, true);
+  assert(stream_pool.pin(1));
+  for (unsigned slice = 0; slice < stream_page_bytes/stream_verify_slice_bytes-1; ++slice) {
+    assert(!stream_pool.ready(0) && !stream_pool.pin(0));
+    assert(stream_pool.reserve(2) == -1 && !streaming_retry());
+    streaming_tick();
+    assert(streaming_stats.bytes == 0 && streaming_stats.errors == 0);
+  }
+  assert(stream_verification.offset == stream_page_bytes-stream_verify_slice_bytes);
+  streaming_scene_changed();
+  assert(stream_read_pending && stream_verification.active && music_data_owner);
+  streaming_tick();
+  assert(stream_failed && !stream_read_pending && !stream_verification.active && !music_data_owner);
+  assert(!stream_pool.ready(0) && stream_pool.find(0) < 0 && streaming_stats.bytes == 0);
+  assert(streaming_stats.errors == 1 && streaming_verify_stats.bytes == stream_page_bytes);
+  assert(stream_pool.unpin(1) && streaming_retry());
+  // Failure during CPU verification can discard a drained DMA slot safely;
+  // repeated ticks must not publish it or double-count the existing error.
+  reset(); music_ready = true;
+  streaming_lookup(); gpu.pumpCallbacks(); streaming_tick();
+  assert(streaming_start_read(0)); gpu.pumpCallbacks(); streaming_tick();
+  stream_failed = true; ++streaming_stats.errors;
+  streaming_tick(); streaming_tick();
+  assert(!stream_read_pending && !stream_verification.active && !music_data_owner);
+  assert(!stream_pool.ready(0) && streaming_stats.bytes == 0 && streaming_stats.errors == 1);
+  assert(streaming_retry());
+  // Interleave 32 sector arrivals with main-thread hashing. Unarrived bytes are
+  // poisoned, and multiple ticks without a new sector must not consume them.
+  for(unsigned outcome:{0u,1u,2u}){
+    const bool late_failure=outcome==1,corrupt_prefix=outcome==2;
+    reset();music_ready=true;
+    streaming_lookup();gpu.pumpCallbacks();streaming_tick();
+    assert(streaming_start_read(0));
+    const int slot=stream_pool.find(0);auto* data=stream_pool.destination(slot);
+    fake_cd::corrupt=corrupt_prefix;fake_cd::corrupt_offset=0;
+    std::memset(data,0xa5,stream_page_bytes);
+    for(unsigned i=0;i<stream_page_sectors;++i){
+      const auto offset=stream_verification.offset;
+      streaming_tick();streaming_tick();assert(stream_verification.offset==offset);
+      std::memset(data+i*2048,0,2048);fake_cd::available=(i+1)*2048;
+      if(corrupt_prefix&&i==0)data[0]=1;
+      streaming_tick();assert(stream_verification.offset==(i+1)*2048);
+      assert(!stream_pool.ready(0)&&!stream_pool.pin(0)&&!streaming_retry());
+      assert(stream_read_pending&&music_data_owner&&streaming_stats.bytes==0);
+    }
+    assert((stream_verification.hash==stream_page_hashes[0])==!corrupt_prefix);
+    assert(!stream_verification.read_complete&&streaming_verify_stats.batches==32);
+    assert(stream_verify_overlap_bytes==stream_page_bytes);
+    // Hash can finish first. It is not transport success and cannot publish.
+    streaming_tick();assert(stream_read_pending&&!stream_pool.ready(0));
+    fake_cd::read_ok=!late_failure;gpu.pumpCallbacks();
+    // Neither success nor failure may release while DMA still owns memory.
+    fake_cd::dma_busy=true;streaming_tick();
+    assert(stream_read_pending&&stream_verification.active&&!stream_pool.ready(0));
+    fake_cd::dma_busy=false;streaming_tick();
+    assert(!stream_read_pending&&!stream_verification.active&&!music_data_owner);
+    const bool valid=!late_failure&&!corrupt_prefix;
+    assert(stream_pool.ready(0)==valid);
+    assert(streaming_stats.bytes==(valid?stream_page_bytes:0));
+    assert(streaming_stats.errors==unsigned(!valid));
+  }
+  // Timeout after a verified prefix must keep the DMA reservation and stop
+  // hashing; a late callback cannot turn that prefix into a successful page.
+  reset();music_ready=true;
+  streaming_lookup();gpu.pumpCallbacks();streaming_tick();assert(streaming_start_read(0));
+  std::memset(stream_pool.destination(stream_pool.find(0)),0,2048);
+  fake_cd::available=2048;streaming_tick();assert(stream_verification.offset==2048);
+  fake_cd::hung=true;fake_cd::dma_busy=true;assert(!streaming_acquire(0,gpu));
+  assert(streaming_stats.timeouts==1&&stream_read_pending&&music_data_owner);
+  fake_cd::hung=false;gpu.pumpCallbacks();streaming_tick();
+  assert(stream_read_pending&&stream_pool.find(0)>=0&&!stream_pool.ready(0));
+  fake_cd::dma_busy=false;streaming_tick();
+  assert(!stream_read_pending&&!stream_verification.active&&!music_data_owner);
+  assert(streaming_stats.errors==1&&streaming_stats.bytes==0&&streaming_verify_stats.bytes==2048);
+  assert(stream_verify_overlap_bytes==2048);
+  assert(stream_pool.find(0)<0&&streaming_retry());
+  // Background verification gets one sector; actual camera demand can borrow
+  // one more, shared across repeated current/next/page-set readiness checks.
+  reset();music_ready=true;
+  streaming_lookup();gpu.pumpCallbacks();streaming_tick();assert(streaming_start_read(0));
+  gpu.pumpCallbacks();streaming_tick();assert(stream_verification.offset==2048);
+  bool serviced=false;
+  assert(!streaming_required_page_ready(1,serviced)&&!serviced&&stream_verification.offset==2048);
+  assert(!streaming_required_page_ready(0,serviced)&&serviced&&stream_verification.offset==4096);
+  for(unsigned i=0;i<16;++i)assert(!streaming_required_page_ready(0,serviced));
+  assert(stream_verification.offset==4096); // Never one boost per lookup/page.
+  while(stream_verification.offset<stream_page_bytes-2048)streaming_tick();
+  serviced=false;assert(streaming_required_page_ready(0,serviced)&&serviced);
+  assert(!stream_verification.active&&!stream_read_pending&&streaming_stats.bytes==stream_page_bytes);
+  serviced=false;assert(streaming_required_page_ready(0,serviced)&&!serviced);
+  std::puts("streaming backend: interleaved sector checksums, final callback/DMA barriers, late failures, XA, queries, leases and warmup passed");
 }

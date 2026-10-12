@@ -168,6 +168,7 @@ pub fn quad_count(e: &Actor) -> usize {
 #[derive(Clone)]
 pub struct Quad {
     pub uv: [[f32; 2]; 4],
+    pub vertex_colors: Option<crate::vertex_colors::Corners>,
     pub face: usize,
     pub points: [[f32; 3]; 4],
     pub normal: [f32; 3],
@@ -203,6 +204,7 @@ pub fn quads(e: &Actor) -> Vec<Quad> {
                     })
                 });
                 out.push(Quad {
+                    vertex_colors: None,
                     uv: [(x, y), (x + 1, y), (x + 1, y + 1), (x, y + 1)]
                         .map(|(x, y)| [x as f32 / n as f32, y as f32 / n as f32]),
                     face,
@@ -280,9 +282,9 @@ pub fn fingerprint(scene: &Scene) -> u64 {
         })
         .collect();
     let mut hash = Fnv(14695981039346656037);
-    // Version 3 keys geometry and baked lights by stable actor identity rather
-    // than hierarchy position. Empty actors therefore do not invalidate a bake.
-    serde_json::to_vec(&(3, &scene.environment, meshes, lights))
+    // Version 4 preserves authored faces instead of subdividing for int16 Q12.
+    // Geometry/lights remain keyed by identity, not hierarchy position.
+    serde_json::to_vec(&(4, &scene.environment, meshes, lights))
         .unwrap_or_default()
         .hash(&mut hash);
     hash.finish()

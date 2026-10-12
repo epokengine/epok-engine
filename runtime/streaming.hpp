@@ -3,16 +3,22 @@
 #include "music.hpp"
 #include "psyqo/gpu.hh"
 #include <new>
+#if defined(__mips__)
+#include "common/hardware/counters.h"
+#endif
 #if __has_include("data-config.hh")
 #include "data-config.hh"
 #endif
 #if EPOK_HOST_DATA
 #include "common/kernel/pcdrv.h"
+#else
+#include "streaming_read.hpp"
 #endif
 
 namespace epok {
 // Generated scene.hh provides stream_page_count, stream_pool_pages and
-// stream_archive_path. Geometry metadata, collisions and textures stay resident.
+// stream_archive_path. Metadata/collisions/palettes stay resident. Upload-only
+// texture pixels may share this archive and reuse the pool during bank loading.
 // Disabled builds have no page payload allocation (only a four-byte placeholder
 // in an otherwise dead-strippable object).
 inline constexpr bool stream_archive_fits = stream_page_count > 0 && stream_page_count <= stream_pool_pages;
@@ -27,6 +33,33 @@ struct StreamingStats {
            gameplay_requests = 0, gameplay_rejected = 0;
 };
 inline StreamingStats streaming_stats;
+// Keep media verification visible separately from the render pass: CD
+// completion callbacks may run in GPU::flip, outside GameScene::frame.
+struct StreamingVerifyStats {
+  uint32_t batches = 0, bytes = 0, scanlines = 0,
+           last_scanlines = 0, max_scanlines = 0;
+};
+inline StreamingVerifyStats streaming_verify_stats;
+// Separate symbol keeps the existing five-word diagnostics ABI intact.
+inline uint32_t stream_verify_overlap_bytes = 0;
+inline uint16_t streaming_verify_clock() {
+#if defined(__mips__)
+  return COUNTERS[1].value;
+#else
+  return 0; // Host fixtures verify state/bytes, not PSX timing.
+#endif
+}
+inline uint32_t streaming_hash_slice(uint32_t hash, const uint8_t* data, uint32_t bytes) {
+  const uint16_t begin = streaming_verify_clock();
+  hash = stream_page_hash_update(hash, data, bytes);
+  const uint16_t elapsed = uint16_t(streaming_verify_clock() - begin);
+  ++streaming_verify_stats.batches;
+  streaming_verify_stats.bytes += bytes;
+  streaming_verify_stats.scanlines += elapsed;
+  streaming_verify_stats.last_scanlines = elapsed;
+  if (elapsed > streaming_verify_stats.max_scanlines) streaming_verify_stats.max_scanlines = elapsed;
+  return hash;
+}
 inline psyqo::ISO9660Parser::DirEntry stream_entry;
 inline bool stream_lookup_started = false, stream_lookup_pending = false,
             stream_ready = false, stream_failed = false, stream_read_pending = false;
@@ -34,6 +67,17 @@ inline bool stream_warm_scene = false;
 inline constexpr uint32_t stream_timeout_us = 10000000;
 inline uint32_t stream_gameplay_requests[8]{};
 inline uint8_t stream_gameplay_request_count = 0;
+// Verify completed sectors while later sectors are still reading. Neither a
+// valid prefix nor a completed DMA is a ready page: require the final successful
+// transport callback AND the complete FNV1a checksum before publishing.
+struct StreamingVerification {
+  uint32_t page = 0, offset = 0, hash = 0;
+  int slot = 0;
+  bool active = false;
+  bool read_complete = false, read_ok = false;
+};
+inline StreamingVerification stream_verification;
+inline constexpr uint32_t stream_verify_slice_bytes = 2048; // One CD sector per normal frame.
 constexpr bool streaming_descriptor_valid(const MeshGeometry &mesh);
 #if EPOK_HOST_DATA
 inline int stream_host_file = -1;
@@ -50,13 +94,71 @@ inline void streaming_prepare() {
 #endif
 }
 
+inline void streaming_finish_read(int slot, uint32_t page, bool ok, bool record_error = true) {
+  stream_pool.complete(slot, ok);
+  if constexpr (stream_archive_fits)
+    if (ok) stream_page_data[page] = stream_pool.destination(slot);
+  stream_read_pending = false;
+  if (ok) streaming_stats.bytes += stream_page_bytes;
+  else {
+    stream_failed = true;
+    stream_warm_scene = false;
+    if (record_error) ++streaming_stats.errors;
+  }
+}
+
+inline void streaming_verify_slice() {
+  if (!stream_verification.active) return;
+  auto& v = stream_verification;
+#if !EPOK_HOST_DATA
+  const bool drained=stream_read_action.dma_idle();
+  const uint32_t available=stream_read_action.available_bytes();
+#else
+  const bool drained=true;
+  const uint32_t available=stream_page_bytes;
+#endif
+  if (stream_failed||(v.read_complete&&!v.read_ok)) {
+    // Even a failed callback can precede the last DMA's drain. A timeout must
+    // never free its destination, and a late success must not resurrect it.
+    if(!v.read_complete||!drained)return;
+    streaming_finish_read(v.slot, v.page, false, !stream_failed);
+    v = {};
+    return;
+  }
+  const uint32_t limit=available<stream_page_bytes?available:stream_page_bytes;
+  if(limit>v.offset){
+    const uint32_t remaining=limit-v.offset;
+    const uint32_t bytes=remaining<stream_verify_slice_bytes?remaining:stream_verify_slice_bytes;
+    v.hash=streaming_hash_slice(v.hash,stream_pool.destination(v.slot)+v.offset,bytes);
+    if(!v.read_complete)stream_verify_overlap_bytes+=bytes;
+    v.offset+=bytes;
+  }
+  if (v.read_complete&&drained&&v.offset == stream_page_bytes) {
+    streaming_finish_read(v.slot, v.page, v.hash == stream_page_hashes[v.page]);
+    v = {};
+  }
+}
+
 // Release the controller only after every parser/read/XA callback has drained.
 // In particular a timeout must never release or reuse an active DMA buffer.
 inline void streaming_tick() {
   if constexpr (stream_page_count == 0) return;
+  streaming_verify_slice();
   if (!music_data_owner) return;
   if (!stream_lookup_pending && !stream_read_pending && !music_active &&
       !music_lookup && music_drive.isIdle()) music_data_owner = false;
+}
+
+// Foreground demand may borrow ONE additional sector slice in this frame.
+// The caller shares `serviced` across all readiness checks, so many missing
+// pages cannot multiply the budget. Speculative reads never receive the boost.
+inline bool streaming_required_page_ready(uint32_t page,bool& serviced) {
+  if(stream_pool.ready(page))return true;
+  if(!serviced&&stream_verification.active&&stream_verification.page==page){
+    serviced=true;
+    streaming_tick();
+  }
+  return stream_pool.ready(page);
 }
 
 inline void streaming_lookup() {
@@ -93,34 +195,64 @@ inline bool streaming_start_read(uint32_t page) {
   ++streaming_stats.reads;
   bool ok = PClseek(stream_host_file, page * stream_page_bytes, PCDRV_SEEK_SET) == int(page * stream_page_bytes);
   if (ok) ok = PCread(stream_host_file, stream_pool.destination(slot), stream_page_bytes) == int(stream_page_bytes);
-  if (ok) ok = stream_page_hash(stream_pool.destination(slot)) == stream_page_hashes[page];
-  stream_pool.complete(slot, ok);
-  if constexpr (stream_archive_fits) if (ok) stream_page_data[page] = stream_pool.destination(slot);
-  stream_read_pending = false;
-  if (ok) streaming_stats.bytes += stream_page_bytes;
-  else { stream_failed = true; stream_warm_scene = false; ++streaming_stats.errors; }
+  if (ok) ok = streaming_hash_slice(2166136261u, stream_pool.destination(slot), stream_page_bytes) == stream_page_hashes[page];
+  streaming_finish_read(slot, page, ok);
   return true;
 #else
   if (page >= stream_page_count || stream_failed || !stream_ready ||
-      stream_read_pending || music_active || music_lookup || !music_drive.isIdle()) return false;
+      stream_read_pending || music_active || music_lookup || !music_drive.isIdle() ||
+      !stream_read_action.dma_idle()) return false;
   if (stream_pool.ready(page)) return true;
   int slot = stream_pool.reserve(page);
   if (slot < 0) return false;
   music_data_owner = stream_read_pending = true;
   ++streaming_stats.reads;
-  music_drive.readSectors(stream_entry.LBA + page * stream_page_sectors,
+  stream_verification={page,0,2166136261u,slot,true,false,false};
+  stream_read_action.start(&music_drive,stream_entry.LBA + page * stream_page_sectors,
                          stream_page_sectors, stream_pool.destination(slot),
-                         [slot, page](bool ok) {
-    if (ok) ok = stream_page_hash(stream_pool.destination(slot)) == stream_page_hashes[page];
-    stream_pool.complete(slot, ok);
-    if constexpr (stream_archive_fits)
-      if (ok) stream_page_data[page] = stream_pool.destination(slot);
-    stream_read_pending = false;
-    if (ok) streaming_stats.bytes += stream_page_bytes;
-    else { stream_failed = true; stream_warm_scene = false; ++streaming_stats.errors; }
+                         [](bool ok) {
+    // No hashing in ISR or completion callbacks. Only streaming_tick can
+    // publish/free the reserved page after both transport and DMA have drained.
+    stream_verification.read_ok=ok;
+    stream_verification.read_complete=true;
   });
   return true;
 #endif
+}
+
+// Camera-driven demand streaming: pin every resident member of this frame's
+// bounded working set, then start at most one missing page. The draw pass only
+// consumes ready members; it never blocks waiting for an off-screen page or
+// cycles through more pages than RAM can hold in one frame.
+template <size_t Capacity>
+inline void streaming_begin_working_set(const StreamPageWorkingSet<Capacity>& pages,
+                                        int (&pins)[Capacity]) {
+  for (size_t i = 0; i < Capacity; ++i) pins[i] = -1;
+  if constexpr (stream_page_count == 0 || stream_archive_fits) return;
+  for (size_t i = 0; i < pages.count(); ++i)
+    pins[i] = stream_pool.pin_slot(pages.page(i));
+  if (stream_failed || !pages.count()) return;
+  if (!stream_ready) { streaming_lookup(); return; }
+  if (stream_read_pending || music_active || music_requested || music_lookup ||
+      music_data_owner || !music_drive.isIdle()) return;
+  for (size_t i = 0; i < pages.count(); ++i)
+    if (!stream_pool.ready(pages.page(i))) {
+      streaming_start_read(pages.page(i));
+      break;
+    }
+}
+template <size_t Capacity>
+inline void streaming_end_working_set(const StreamPageWorkingSet<Capacity>& pages,
+                                      const int (&pins)[Capacity]) {
+  if constexpr (stream_page_count == 0 || stream_archive_fits) return;
+  for (size_t i = 0; i < pages.count(); ++i)
+    if (pins[i] >= 0) stream_pool.unpin_slot(pins[i], pages.page(i));
+}
+template <size_t Capacity>
+inline bool streaming_working_page_ready(const StreamPageWorkingSet<Capacity>& pages,
+                                         uint32_t page) {
+  return page == stream_invalid_page ||
+         (pages.contains(page) && stream_pool.ready(page));
 }
 
 // Gameplay requests are deliberately queued: the script call never performs a
@@ -168,7 +300,7 @@ __attribute__((used)) inline MeshDataState mesh_geometry_state(const MeshGeometr
 
 __attribute__((used)) inline bool request_mesh_geometry(const MeshGeometry* geometry) {
   if (!geometry) return false;
-  if (geometry->stream_page == stream_invalid_page) return geometry->vertices;
+  if (geometry->stream_page == stream_invalid_page) return bool(geometry->vertices);
   return streaming_request_page(geometry->stream_page);
 }
 
@@ -179,7 +311,7 @@ __attribute__((used)) inline MeshVertexSample sample_mesh_vertex(const ActorData
   if (!geometry) return result;
   if (vertex>=geometry->vertex_count) { result.error=MeshVertexError::InvalidVertex; return result; }
   if (space!=CoordinateSpace::Model&&space!=CoordinateSpace::World) { result.error=MeshVertexError::InvalidCoordinateSpace; return result; }
-  const int16_t (*vertices)[3]=geometry->vertices;
+  auto vertices=geometry->vertices;
   int slot=-1;
   if (geometry->stream_page!=stream_invalid_page) {
     if (result.data_state==MeshDataState::Failed) { result.error=MeshVertexError::StreamFailed; return result; }
@@ -188,12 +320,17 @@ __attribute__((used)) inline MeshVertexSample sample_mesh_vertex(const ActorData
     slot=stream_pool.pin_slot(geometry->stream_page);
     if (slot<0) { result.data_state=MeshDataState::Pending; result.error=MeshVertexError::Pending; return result; }
     const auto* data=stream_pool.destination(slot);
-    vertices=reinterpret_cast<const int16_t (*)[3]>(data+geometry->stream_vertex_offset);
+    vertices=geometry->vertices.bind(data+geometry->stream_vertex_offset);
   }
   if (!vertices) { result.data_state=MeshDataState::Unavailable; return result; }
   for (int axis=0;axis<3;++axis) result.position[axis]=Fixed(vertices[vertex][axis],Fixed::RAW);
   if (slot>=0) stream_pool.unpin_slot(slot,geometry->stream_page);
-  if (space==CoordinateSpace::World) {
+  if (geometry->editable&mesh_static_world) {
+    // Cooked in world space (static world): the stored point is the world
+    // position relative to the chunk origin; there is no model-space copy.
+    if (space!=CoordinateSpace::World) { result.error=MeshVertexError::InvalidCoordinateSpace; return result; }
+    for (int axis=0;axis<3;++axis) result.position[axis]=Fixed(int32_t(result.position[axis].raw())+geometry->origin[axis],Fixed::RAW);
+  } else if (space==CoordinateSpace::World) {
     Fixed world[3];
     if (!skeletal_world_point(*entity,result.position,world)) { result.error=MeshVertexError::WorldUnavailable; return result; }
     for (int axis=0;axis<3;++axis) result.position[axis]=world[axis];
@@ -239,6 +376,7 @@ inline int streaming_acquire_slot_slow(uint32_t page, psyqo::GPU &gpu) {
   for (;;) {
     music_tick();
     gpu.pumpCallbacks();
+    streaming_tick(); // Blocking loading paths still finish every verification slice.
     if (music_boot_failed) { stream_failed = true; ++streaming_stats.errors; }
     if (stream_failed) break;
     if (int slot = stream_pool.pin_slot(page); slot >= 0) {
@@ -276,6 +414,19 @@ inline const uint8_t *streaming_acquire(uint32_t page, psyqo::GPU &gpu) {
 }
 inline void streaming_release(uint32_t page) { stream_pool.unpin(page); }
 
+// A failed CD/host operation may be retried only after every callback has
+// relinquished its buffers. Ready checksum-verified pages remain reusable.
+inline bool streaming_retry() {
+  if(stream_read_pending||stream_lookup_pending||music_lookup||music_active||music_requested||!music_drive.isIdle())return false;
+  stream_failed=false;stream_lookup_started=false;stream_ready=false;
+  if(music_boot_failed){music_boot_failed=false;music_booting=false;music_ready=false;}
+#if EPOK_HOST_DATA
+  if(stream_host_file>=0)PCclose(stream_host_file);
+  stream_host_file=-1;
+#endif
+  return true;
+}
+
 // Only whole-archive pools permit unpinned payload views. FixedSlots enforces
 // immutable page identity even for reservations made outside this backend.
 // Failures remain global: a cached pointer must not bypass a later read error.
@@ -298,7 +449,8 @@ inline StreamingWarmupStats streaming_warmup_stats;
 // Validate the entire set before any I/O. A set that cannot fit is rejected,
 // rather than repeatedly evicting pages and calling that work a warmup.
 // All required pages remain pinned until the batch completes. Demand counters
-// retain the real I/O cost; these separate counters identify startup work.
+// retain the real I/O cost; these counters identify explicit warmup batches
+// (startup and discontinuous camera cuts), not ordinary lookahead reads.
 inline bool streaming_warmup(const uint32_t *pages, size_t count, psyqo::GPU &gpu) {
   if constexpr (stream_page_count == 0) return count == 0;
   ++streaming_warmup_stats.attempts;
@@ -369,20 +521,21 @@ inline bool streaming_warmup_scene(const ActorData *objects, size_t count,
 // geometry chain once, then retain that result until the chain changes.
 // Arbitrary callers still get these checks from the default lease constructor.
 constexpr bool streaming_descriptor_valid(const MeshGeometry &mesh) {
-  return mesh.stream_page == stream_invalid_page ||
+  const size_t stride=(mesh.editable&2)?sizeof(BakedDrawFace):sizeof(MeshQuad);
+  return mesh.vertices.valid_format() && (mesh.stream_page == stream_invalid_page ||
          (mesh.stream_page < stream_page_count &&
-          mesh.vertex_count <= stream_page_bytes / 6 &&
-          mesh.quad_count <= stream_page_bytes / sizeof(MeshQuad) &&
-          mesh.stream_vertex_offset % 2 == 0 &&
-          uint32_t(mesh.stream_vertex_offset) + uint32_t(mesh.vertex_count) * 6 <= stream_page_bytes &&
+          mesh.vertex_count <= stream_page_bytes / mesh.vertices.stride &&
+          mesh.quad_count <= stream_page_bytes / stride &&
+          mesh.stream_vertex_offset % (mesh.vertices.wide() ? 4 : 2) == 0 &&
+          uint32_t(mesh.stream_vertex_offset) + uint32_t(mesh.vertex_count) * mesh.vertices.stride <= stream_page_bytes &&
           mesh.stream_quad_offset % 4 == 0 &&
-          uint32_t(mesh.stream_quad_offset) + uint32_t(mesh.quad_count) * sizeof(MeshQuad) <= stream_page_bytes);
+          uint32_t(mesh.stream_quad_offset) + uint32_t(mesh.quad_count) * stride <= stream_page_bytes));
 }
 
 // Scope-bound pin covers CPU geometry consumption. GPU packets contain copied
 // vertices/material data; they must never retain pointers into the page pool.
 struct StreamMeshView {
-  const int16_t (*vertices)[3];
+  MeshVertices vertices;
   const MeshQuad *quads;
   bool valid;
 };
@@ -404,7 +557,7 @@ inline StreamMeshView streaming_resolve_archive_mesh(const MeshGeometry &mesh,
   if (!data) return {nullptr, nullptr, false};
   // Only payload bindings are mutable. Fixed slots preserve these pointers
   // across scene switches; page IDs, offsets and topology remain immutable.
-  mesh.vertices = reinterpret_cast<const int16_t (*)[3]>(data + mesh.stream_vertex_offset);
+  mesh.vertices = mesh.vertices.bind(data + mesh.stream_vertex_offset);
   mesh.quads = reinterpret_cast<const MeshQuad *>(data + mesh.stream_quad_offset);
   return {mesh.vertices, mesh.quads, true};
 }
@@ -505,7 +658,7 @@ public:
     }
     const auto *data = seek(mesh.stream_page, gpu);
     if (!data) return {nullptr, nullptr, false};
-    return {reinterpret_cast<const int16_t (*)[3]>(data + mesh.stream_vertex_offset),
+    return {mesh.vertices.bind(data + mesh.stream_vertex_offset),
             reinterpret_cast<const MeshQuad *>(data + mesh.stream_quad_offset), true};
   }
 };
@@ -524,10 +677,10 @@ public:
   StreamMeshLease(const MeshGeometry &mesh, psyqo::GPU &gpu,
                   StreamPageCursor *cursor = nullptr,
                   bool metadata_validated = false) : source_(&mesh) {
-    static_assert(sizeof(Material) == 24 && sizeof(MeshQuad) == 72,
+    static_assert(sizeof(Material) == 24 && sizeof(MeshQuad) == 80,
                   "geometry archive material/quad ABI changed; update exporter");
     static_assert(offsetof(Material, texture) == 4 && offsetof(Material, blend) == 8 &&
-                  offsetof(Material, depth_bias) == 12 && offsetof(Material, uv_scroll) == 16 &&
+                  offsetof(Material, depth_bias) == 12 && offsetof(Material, double_sided) == 14 && offsetof(Material, uv_scroll) == 16 &&
                   offsetof(MeshQuad, face) == 8 && offsetof(MeshQuad, normal) == 10 &&
                   offsetof(MeshQuad, material) == 16 && offsetof(MeshQuad, color_offset) == 40 &&
                   offsetof(MeshQuad, uv) == 44 && offsetof(MeshQuad, packed_uv) == 60 &&
@@ -560,8 +713,8 @@ public:
   StreamMeshLease(const StreamMeshLease &) = delete;
   StreamMeshLease &operator=(const StreamMeshLease &) = delete;
   bool valid() const { return valid_; }
-  auto vertices() const -> const int16_t (*)[3] {
-    return data_ ? reinterpret_cast<const int16_t (*)[3]>(data_ + source_->stream_vertex_offset) : source_->vertices;
+  MeshVertices vertices() const {
+    return data_ ? source_->vertices.bind(data_ + source_->stream_vertex_offset) : source_->vertices;
   }
   const MeshQuad *quads() const {
     return data_ ? reinterpret_cast<const MeshQuad *>(data_ + source_->stream_quad_offset) : source_->quads;

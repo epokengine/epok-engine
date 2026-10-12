@@ -1,5 +1,6 @@
 #pragma once
 #include "affine.hpp"
+#include "mesh_vertices.hpp"
 #include "psyqo/gte-registers.hh"
 #include "psyqo/gte-kernels.hh"
 
@@ -44,6 +45,14 @@ inline constexpr uint32_t gte_projection_flags = (1u << 24) | (1u << 23) | (1u <
 // Largest Q8 chunk origin that keeps origin + any int16 Q12 vertex within the
 // GTE's 16-bit vector inputs.
 inline constexpr int32_t gte_shared_origin_limit = 32767 - 2048;
+inline bool gte_vertex_bounds_fit(const int32_t* origin8,const int32_t* center12,const int32_t* extent12) {
+    for(int c=0;c<3;++c) {
+        const int64_t low=int64_t(origin8[c])+((int64_t(center12[c])-extent12[c])>>4);
+        const int64_t high=int64_t(origin8[c])+((int64_t(center12[c])+extent12[c])>>4);
+        if(low<-32768||high>32767)return false;
+    }
+    return true;
+}
 template<class Number> bool load_projection_matrix(const Affine<Number>& m) {
     using namespace psyqo::GTE;
     for(int r=0;r<3;++r){
@@ -74,7 +83,7 @@ inline void load_projection_screen(int32_t focal,int32_t centre_x,int32_t centre
 // each vertex so every chunk of an object shares one matrix and identical GTE
 // inputs for shared vertices. `screen` holds SXY2; `flags` is the GTE FLAG
 // register, valid only when no gte_projection_flags bit is set.
-inline void project_geometry_vertex(const int16_t* vertex,const int32_t* offset,int32_t* camera,uint32_t& screen,uint32_t& flags) {
+template<class Vertex> inline void project_geometry_vertex(const Vertex& vertex,const int32_t* offset,int32_t* camera,uint32_t& screen,uint32_t& flags) {
     using namespace psyqo::GTE;
     write<Register::VXY0>(uint32_t(uint16_t(offset[0]+(vertex[0]>>4)))|(uint32_t(uint16_t(offset[1]+(vertex[1]>>4)))<<16));
     write<Register::VZ0>(uint32_t(int32_t(offset[2]+(vertex[2]>>4))));
@@ -87,7 +96,235 @@ inline void project_geometry_vertex(const int16_t* vertex,const int32_t* offset,
 }
 // Interior retained chunks never need camera X/Y for software clipping. RTPT
 // preserves all three screen/depth results in its FIFOs (not MAC1..3).
-inline bool project_geometry_triple(const int16_t (*vertices)[3],const int32_t* offset,
+// The ordered pass checks camera-relative inputs once, then retains exactly
+// the packed words consumed by the GTE. Offset is Q8 derived from signed Q12.
+struct GteProjectionInput {uint32_t xy,z;};
+static_assert(sizeof(GteProjectionInput)==8 && alignof(GteProjectionInput)>=4);
+// Caller validates the signed Q8 translation and retains the loaded rotation.
+inline void load_projection_translation(const int32_t* translation) {
+    using namespace psyqo::GTE;
+    write<Register::TRX>(uint32_t(translation[0]));
+    write<Register::TRY>(uint32_t(-translation[1]));
+    write<Register::TRZ>(uint32_t(translation[2]));
+}
+inline bool pack_projection_input(const int32_t* world,const int32_t* offset,GteProjectionInput& out) {
+    const int32_t x=(world[0]>>4)+offset[0],y=(world[1]>>4)+offset[1],z=(world[2]>>4)+offset[2];
+    out.xy=uint32_t(uint16_t(x))|(uint32_t(uint16_t(y))<<16);out.z=uint32_t(z);
+    return (uint32_t(x+32768)<=65535u)&(uint32_t(y+32768)<=65535u)&(uint32_t(z+32768)<=65535u);
+}
+// Feed each prepared corner straight into its vector registers. Loading an
+// out-of-range value is harmless: the caller must not issue RTPT unless ALL
+// corners fit, and must reload all three after changing the projection anchor.
+// Unlike begin_projection_triple, this path needs no temporary RAM array.
+template<unsigned Slot>
+inline bool load_projection_input(const int32_t* world,const int32_t* offset) {
+    static_assert(Slot<3);
+    GteProjectionInput input;
+    const bool fits=pack_projection_input(world,offset,input);
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    asm volatile(".set push\n.set noreorder\nmtc2 %0, $%2\nmtc2 %1, $%3\n.set pop\n"
+        : : "r"(input.xy), "r"(input.z), "i"(Slot*2), "i"(Slot*2+1));
+#else
+    using namespace psyqo::GTE;
+    constexpr Register xy=Slot==0?Register::VXY0:Slot==1?Register::VXY1:Register::VXY2;
+    constexpr Register z=Slot==0?Register::VZ0:Slot==1?Register::VZ1:Register::VZ2;
+    write<xy>(input.xy);write<z>(input.z);
+#endif
+    return fits;
+}
+// A compact cooked vertex is {Q8 X|Y<<16, Q8 Z | fraction bits << 16}, each
+// relative to its block center. `offset` holds the block center plus the
+// camera-relative lattice offset as one packed X/Y word, its X half, and Z.
+// The caller has proved with the block bounds that every sum fits signed 16
+// bits, so no per-vertex range check is needed: X is added in the low half
+// and its carry out is cancelled before it can reach Y. VZ is a 16-bit GTE
+// register that ignores the upper half of the written word, so the fraction
+// bits need no masking on the console; host emulation gets a clean value.
+struct CompactProjectionOffset {uint32_t xy,x,z;};
+inline GteProjectionInput compact_projection_input(const uint8_t* entry,const CompactProjectionOffset& offset) {
+    const auto* words=reinterpret_cast<const uint32_t*>(entry);
+    const uint32_t xy=words[0];
+    const uint32_t carry=(((xy&0xffffu)+offset.x)>>16)<<16;
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    return {xy+offset.xy-carry,words[1]+offset.z};
+#else
+    return {xy+offset.xy-carry,uint32_t(int32_t(int16_t(words[1]+offset.z)))};
+#endif
+}
+// Per-vertex form for a block whose bounds do not all fit: `sum` is the block
+// center plus the lattice offset. Same packed words as pack_projection_input.
+inline bool checked_compact_projection_input(const uint8_t* entry,const int32_t* sum,GteProjectionInput& out) {
+    const auto* words=reinterpret_cast<const uint32_t*>(entry);
+    const int32_t x=int16_t(words[0])+sum[0],y=int16_t(words[0]>>16)+sum[1],z=int16_t(words[1])+sum[2];
+    out.xy=uint32_t(uint16_t(x))|(uint32_t(uint16_t(y))<<16);out.z=uint32_t(z);
+    return (uint32_t(x+32768)<=65535u)&(uint32_t(y+32768)<=65535u)&(uint32_t(z+32768)<=65535u);
+}
+template<unsigned Slot>
+inline void load_projection_words(const GteProjectionInput& input) {
+    static_assert(Slot<3);
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    asm volatile(".set push\n.set noreorder\nmtc2 %0, $%2\nmtc2 %1, $%3\n.set pop\n"
+        : : "r"(input.xy), "r"(input.z), "i"(Slot*2), "i"(Slot*2+1));
+#else
+    using namespace psyqo::GTE;
+    constexpr Register xy=Slot==0?Register::VXY0:Slot==1?Register::VXY1:Register::VXY2;
+    constexpr Register z=Slot==0?Register::VZ0:Slot==1?Register::VZ1:Register::VZ2;
+    write<xy>(input.xy);write<z>(input.z);
+#endif
+}
+template<unsigned Slot>
+inline void load_compact_projection_input(const uint8_t* entry,const CompactProjectionOffset& offset) {
+    static_assert(Slot<3);
+    const GteProjectionInput input=compact_projection_input(entry,offset);
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    asm volatile(".set push\n.set noreorder\nmtc2 %0, $%2\nmtc2 %1, $%3\n.set pop\n"
+        : : "r"(input.xy), "r"(input.z), "i"(Slot*2), "i"(Slot*2+1));
+#else
+    using namespace psyqo::GTE;
+    constexpr Register xy=Slot==0?Register::VXY0:Slot==1?Register::VXY1:Register::VXY2;
+    constexpr Register z=Slot==0?Register::VZ0:Slot==1?Register::VZ1:Register::VZ2;
+    write<xy>(input.xy);write<z>(input.z);
+#endif
+}
+// AVSZ3/AVSZ4 scale factors; see ordered_gte_depth_average for the contract.
+inline void load_average_depth_scale(int32_t zsf3,int32_t zsf4) {
+    using namespace psyqo::GTE;
+    write<Register::ZSF3>(uint32_t(zsf3));
+    write<Register::ZSF4>(uint32_t(zsf4));
+}
+// Average of the SZ FIFO after RTPT (SZ1..3) or RTPT+RTPS (SZ0..3).
+inline int32_t gte_average_depth(bool quad) {
+    using namespace psyqo::GTE;
+    if(quad)Kernels::avsz4();else Kernels::avsz3();
+    return int32_t(readRaw<Register::OTZ>());
+}
+// gte_average_depth in two halves, so CPU work can run during AVSZ. No other
+// GTE command may come between them.
+inline void begin_average_depth(bool quad) {
+    using namespace psyqo::GTE;
+    if(quad)Kernels::avsz4();else Kernels::avsz3();
+}
+inline int32_t read_average_depth() {
+    using namespace psyqo::GTE;
+    return int32_t(readRaw<Register::OTZ>());
+}
+inline void begin_loaded_projection_triple() {
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    // Do not depend on the optimizer leaving two independent instructions
+    // between the final MTC2 and RTPT (including a branch delay slot).
+    asm volatile(".set push\n.set noreorder\nnop\nnop\ncop2 0x0280030\n.set pop\n");
+#else
+    psyqo::GTE::Kernels::rtpt();
+#endif
+}
+inline void begin_projection_triple(const GteProjectionInput* vertices) {
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    // Batch independent vector-register loads. Only the last LWC2 needs the
+    // two-instruction separation before RTPT; earlier loads fill that gap for
+    // one another. Keep the input memory operand: a pointer alone would not
+    // tell the compiler that the just-packed words must already be stored.
+    asm volatile(
+        ".set push\n.set noreorder\n"
+        "lwc2 $0, 0(%0)\nlwc2 $1, 4(%0)\n"
+        "lwc2 $2, 8(%0)\nlwc2 $3, 12(%0)\n"
+        "lwc2 $4, 16(%0)\nlwc2 $5, 20(%0)\n"
+        "nop\nnop\ncop2 0x0280030\n.set pop\n"
+        : : "r"(vertices), "m"(*reinterpret_cast<const GteProjectionInput (*)[3]>(vertices)));
+#else
+    using namespace psyqo::GTE;
+    write<Register::VXY0>(vertices[0].xy);write<Register::VZ0>(vertices[0].z);
+    write<Register::VXY1>(vertices[1].xy);write<Register::VZ1>(vertices[1].z);
+    write<Register::VXY2>(vertices[2].xy);write<Register::VZ2>(vertices[2].z);
+    Kernels::rtpt();
+#endif
+}
+inline bool finish_projection_triple(uint32_t* screen,int32_t* depth) {
+    using namespace psyqo::GTE;
+    if(readRaw<Register::FLAG>() & gte_projection_flags)return false;
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    // SWC2 transfers directly to the arrays, without MFC2/load-delay/SW pairs.
+    // The safe FLAG read above waits for RTPT and rejects the same flags as the
+    // scalar path. Output memory operands prevent stale/reordered array reads.
+    asm volatile(
+        "swc2 $12, 0(%2)\nswc2 $13, 4(%2)\nswc2 $14, 8(%2)\n"
+        "swc2 $17, 0(%3)\nswc2 $18, 4(%3)\nswc2 $19, 8(%3)\n"
+        : "=m"(*reinterpret_cast<uint32_t (*)[3]>(screen)),
+          "=m"(*reinterpret_cast<int32_t (*)[3]>(depth)) : "r"(screen), "r"(depth));
+#else
+    screen[0]=readRaw<Register::SXY0>();screen[1]=readRaw<Register::SXY1>();screen[2]=readRaw<Register::SXY2>();
+    depth[0]=int32_t(readRaw<Register::SZ1>());depth[1]=int32_t(readRaw<Register::SZ2>());depth[2]=int32_t(readRaw<Register::SZ3>());
+#endif
+    return true;
+}
+// Same outputs as finish_projection_triple, stored even when the GTE flagged
+// the projection; returns whether it was unflagged. Used where a saturated
+// result is accepted as is (inexact near clipping) and by validation.
+inline bool store_projection_triple(uint32_t* screen,int32_t* depth) {
+    using namespace psyqo::GTE;
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    // Reading a GTE register waits for RTPT, so the stores need no FLAG first.
+    asm volatile(
+        "swc2 $12, 0(%2)\nswc2 $13, 4(%2)\nswc2 $14, 8(%2)\n"
+        "swc2 $17, 0(%3)\nswc2 $18, 4(%3)\nswc2 $19, 8(%3)\n"
+        : "=m"(*reinterpret_cast<uint32_t (*)[3]>(screen)),
+          "=m"(*reinterpret_cast<int32_t (*)[3]>(depth)) : "r"(screen), "r"(depth));
+#else
+    screen[0]=readRaw<Register::SXY0>();screen[1]=readRaw<Register::SXY1>();screen[2]=readRaw<Register::SXY2>();
+    depth[0]=int32_t(readRaw<Register::SZ1>());depth[1]=int32_t(readRaw<Register::SZ2>());depth[2]=int32_t(readRaw<Register::SZ3>());
+#endif
+    return !(readRaw<Register::FLAG>() & gte_projection_flags);
+}
+inline bool project_packed_vertex(const GteProjectionInput& vertex,uint32_t& screen,int32_t& depth) {
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    uint32_t flags;
+    // Preserve MAC3 (signed, unlike SZ3) and the one-instruction CFC2 CPU-load
+    // delay. There are still two NOPs between the final input and RTPS.
+    asm volatile(
+        ".set push\n.set noreorder\n"
+        "lwc2 $0, 0(%3)\nlwc2 $1, 4(%3)\nnop\nnop\ncop2 0x0180001\n"
+        "swc2 $27, 0(%4)\nswc2 $14, 0(%5)\ncfc2 %0, $31\nnop\n.set pop\n"
+        : "=r"(flags), "=m"(screen), "=m"(depth)
+        : "r"(&vertex), "r"(&depth), "r"(&screen), "m"(vertex));
+    return !(flags & gte_projection_flags);
+#else
+    using namespace psyqo::GTE;
+    write<Register::VXY0>(vertex.xy);write<Register::VZ0>(vertex.z);
+    Kernels::rtps();
+    depth=int32_t(readRaw<Register::MAC3>());screen=readRaw<Register::SXY2>();
+    return !(readRaw<Register::FLAG>() & gte_projection_flags);
+#endif
+}
+// project_packed_vertex in two halves, so independent CPU work can run
+// while the GTE computes RTPS: begin loads the vertex and issues RTPS;
+// finish (which waits for it) stores the same outputs and returns the same
+// flag verdict. No other GTE access may come between them.
+inline void begin_packed_vertex(const GteProjectionInput& vertex) {
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    asm volatile(
+        ".set push\n.set noreorder\n"
+        "lwc2 $0, 0(%0)\nlwc2 $1, 4(%0)\nnop\nnop\ncop2 0x0180001\n.set pop\n"
+        : : "r"(&vertex), "m"(vertex));
+#else
+    using namespace psyqo::GTE;
+    write<Register::VXY0>(vertex.xy);write<Register::VZ0>(vertex.z);
+    Kernels::rtps();
+#endif
+}
+inline bool finish_packed_vertex(uint32_t& screen,int32_t& depth) {
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    uint32_t flags;
+    asm volatile(
+        ".set push\n.set noreorder\n"
+        "swc2 $27, 0(%3)\nswc2 $14, 0(%4)\ncfc2 %0, $31\nnop\n.set pop\n"
+        : "=r"(flags), "=m"(screen), "=m"(depth) : "r"(&depth), "r"(&screen));
+    return !(flags & gte_projection_flags);
+#else
+    using namespace psyqo::GTE;
+    depth=int32_t(readRaw<Register::MAC3>());screen=readRaw<Register::SXY2>();
+    return !(readRaw<Register::FLAG>() & gte_projection_flags);
+#endif
+}
+template<class Number> inline bool project_geometry_triple(const Number (*vertices)[3],const int32_t* offset,
                                     uint32_t* screen,int32_t* depth) {
     using namespace psyqo::GTE;
     auto xy=[&](unsigned i){return uint32_t(uint16_t(offset[0]+(vertices[i][0]>>4))) |
@@ -100,5 +337,10 @@ inline bool project_geometry_triple(const int16_t (*vertices)[3],const int32_t* 
     screen[0]=readRaw<Register::SXY0>();screen[1]=readRaw<Register::SXY1>();screen[2]=readRaw<Register::SXY2>();
     depth[0]=int32_t(readRaw<Register::SZ1>());depth[1]=int32_t(readRaw<Register::SZ2>());depth[2]=int32_t(readRaw<Register::SZ3>());
     return true;
+}
+inline bool project_geometry_triple(MeshVertices vertices,const int32_t* offset,
+                                    uint32_t* screen,int32_t* depth) {
+    return vertices.wide() ? project_geometry_triple(vertices.wide_data(),offset,screen,depth)
+                          : project_geometry_triple(vertices.narrow_data(),offset,screen,depth);
 }
 }

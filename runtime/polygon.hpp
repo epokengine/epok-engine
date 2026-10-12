@@ -34,11 +34,14 @@ struct QuadPacket {
     uint32_t command = 0x30000000;      // GPU command byte with transparency bit
     int depth_bias = 0;
     bool textured = false;
+    bool gpu_colors = false; // shaded/clip values already use the PSX packet domain
 };
 // Camera-space scale used by the renderer. Near/far match the frustum planes.
-template<int32_t NearPlane, int32_t FarExclusive, int DepthShift> struct CameraUnits {
+template<int32_t NearPlane, int32_t FarExclusive, int DepthShift,class FrustumType=ScreenFrustum<320,240>,bool Bounded=false> struct CameraUnits {
+    using Frustum=FrustumType;
     static constexpr int32_t near = NearPlane;
     static constexpr int32_t far = FarExclusive;
+    static uint8_t outcode(int32_t x,int32_t y,int32_t z){return Frustum::template outcode<near,far,Bounded>(x,y,z);}
     // Ordering table bucket from three depths: (za+zb+zc) / (3 << DepthShift),
     // exact for the frustum range without an integer division.
     static int bucket(int32_t za, int32_t zb, int32_t zc) {
@@ -58,6 +61,14 @@ inline uint32_t modulate_color(uint32_t packed) {
 }
 // a * b / 255 for 0..255 inputs, exact.
 inline uint32_t scale_channel(uint32_t a, uint32_t b) { const uint32_t v = a * b; return (v + 1 + (v >> 8)) >> 8; }
+inline uint32_t tint_color(uint32_t color, uint32_t shade) {
+    return pack_color(scale_channel(color & 255, shade & 255),
+        scale_channel((color >> 8) & 255, (shade >> 8) & 255),
+        scale_channel((color >> 16) & 255, (shade >> 16) & 255));
+}
+inline uint32_t packet_color(uint32_t color, bool textured, bool gpu_colors) {
+    return textured && !gpu_colors ? modulate_color(color) : color;
+}
 // Linear fog: 0 before start, 4096 at or beyond end. Depth and range share
 // one unit; the range must be positive.
 inline uint16_t fog_amount(int32_t depth, int32_t start, int32_t end) {
@@ -73,7 +84,15 @@ inline uint32_t blend_fog(uint32_t packed, uint32_t amount, const uint8_t* fog) 
     const uint32_t b = (((packed >> 16) & 255) * keep + fog[2] * amount + 2048) >> 12;
     return pack_color(r, g, b);
 }
+inline uint32_t blend_vertex_fog(uint32_t packed, uint32_t amount, const uint8_t* fog, bool textured_gpu_colors) {
+    if (!textured_gpu_colors) return blend_fog(packed, amount, fog);
+    const uint8_t target[3] = {uint8_t(modulate_channel(fog[0])), uint8_t(modulate_channel(fog[1])), uint8_t(modulate_channel(fog[2]))};
+    return blend_fog(packed, amount, target);
+}
 // Screen area sign in the GPU's coordinate system; zero for degenerate triangles.
+inline bool screen_backface(int32_t area, bool mirror_x) {
+    return area != 0 && ((area < 0) != mirror_x);
+}
 template<class Vertex> inline int32_t screen_area(const Vertex& a, const Vertex& b, const Vertex& c) {
     return (int32_t(b.screen.x) - a.screen.x) * (int32_t(c.screen.y) - a.screen.y) -
            (int32_t(b.screen.y) - a.screen.y) * (int32_t(c.screen.x) - a.screen.x);
@@ -93,12 +112,14 @@ inline int32_t floor_div(int64_t numerator, int32_t divisor) {
 // overflow; the guard band keeps far outliers software-clipped.
 template<class Units, int Width, int Height> inline void project_cpu(ProjectedVertex& point) {
     const int32_t z = point.camera[2];
-    point.outcode = frustum_outcode_units<Units::near, Units::far>(point.camera[0], point.camera[1], z);
+    point.outcode = Units::outcode(point.camera[0], point.camera[1], z);
     point.visible = z >= Units::near && z < Units::far;
     if (!point.visible) return;
     constexpr int shift = Units::near == 1024 ? 4 : 0;
     const int32_t zs = z >> shift;
-    const int32_t sx = Width / 2 + floor_div(int64_t(point.camera[0] >> shift) * (Width / 2), zs);
+    // Camera X already carries Width/2 divided by H from the projection
+    // matrix. Multiplying by Width/2 here would apply aspect twice at 512x240.
+    const int32_t sx = Width / 2 + floor_div(int64_t(point.camera[0] >> shift) * (Height * 2 / 3), zs);
     const int32_t sy = Height / 2 - floor_div(int64_t(point.camera[1] >> shift) * (Height * 2 / 3), zs);
     point.visible = sx >= -1023 && sx <= 1023 && sy >= -1023 && sy <= 1023;
     point.screen = {{.x = int16_t(sx), .y = int16_t(sy)}};
@@ -107,13 +128,17 @@ struct ClipVertex {
     int32_t p[3];
     int32_t color[3];
     int32_t uv[2];   // 16.16 texture pixels
+    // An input corner may keep its already projected screen position;
+    // intersections never have one and are projected after clipping.
+    uint32_t screen = 0;
+    bool has_screen = false;
 };
 inline uint32_t clip_fraction16(uint32_t numerator,uint32_t denominator) {
     if(numerator==denominator)return 65536;
     if(numerator<=65535)return (numerator<<16)/denominator;
     uint32_t fraction=0;
-    for(int bit=0;bit<16;++bit){numerator<<=1;fraction<<=1;
-        if(numerator>=denominator){numerator-=denominator;fraction|=1;}}
+    for(int bit=0;bit<16;++bit){const bool carry=(numerator&0x80000000u)!=0;numerator<<=1;fraction<<=1;
+        if(carry||numerator>=denominator){numerator-=denominator;fraction|=1;}}
     return fraction;
 }
 // Sutherland-Hodgman against the frustum planes named by `planes` (bit i =
@@ -122,30 +147,26 @@ template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int 
     from = 0;
     for (int plane = 0; plane < 6 && count > 0; ++plane) {
         if (!(planes & (1 << plane))) continue;
-        auto distance = [plane](const ClipVertex& v) -> int32_t {
-            switch (plane) {
-            case 0: return v.p[2] - Units::near;
-            case 1: return Units::far - 1 - v.p[2];
-            case 2: return v.p[2] + v.p[0];
-            case 3: return v.p[2] - v.p[0];
-            case 4: return 3 * v.p[2] + 4 * v.p[1];
-            default: return 3 * v.p[2] - 4 * v.p[1];
-            }
+        auto distance = [plane](const ClipVertex& v) -> int64_t {
+            if(plane==0)return int64_t(v.p[2])-Units::near;
+            if(plane==1)return int64_t(Units::far)-1-v.p[2];
+            return Units::Frustum::distance(plane,int64_t(v.p[0]),int64_t(v.p[1]),int64_t(v.p[2]));
         };
         int next = 0;
         auto* input = buffers[from];
         auto* output = buffers[1 - from];
         const ClipVertex* previous = &input[count - 1];
-        int32_t pd = distance(*previous);
+        int64_t pd = distance(*previous);
         for (int i = 0; i < count; ++i) {
             const ClipVertex& current = input[i];
-            const int32_t cd = distance(current);
+            const int64_t cd = distance(current);
             if ((pd >= 0) != (cd >= 0)) {
-                const uint32_t numerator = pd < 0 ? -pd : pd, denominator = pd - cd < 0 ? cd - pd : pd - cd;
-                const uint32_t fraction=clip_fraction16(numerator,denominator);
-                ClipVertex intersection;
+                const uint64_t numerator = pd < 0 ? -pd : pd, denominator = pd - cd < 0 ? cd - pd : pd - cd;
+                const uint32_t fraction=denominator<=UINT32_MAX?clip_fraction16(uint32_t(numerator),uint32_t(denominator)):
+                    uint32_t((numerator<<16)/denominator);
+                ClipVertex intersection{};
                 for (int d = 0; d < 3; ++d) {
-                    intersection.p[d] = previous->p[d] + int32_t((int64_t(current.p[d] - previous->p[d]) * fraction) >> 16);
+                    intersection.p[d] = int32_t(previous->p[d] + (((int64_t(current.p[d]) - previous->p[d]) * fraction) >> 16));
                     intersection.color[d] = previous->color[d] + int32_t((int64_t(current.color[d] - previous->color[d]) * fraction) >> 16);
                 }
                 for (int d = 0; d < 2; ++d) intersection.uv[d] = previous->uv[d] + int32_t((int64_t(current.uv[d] - previous->uv[d]) * fraction) >> 16);

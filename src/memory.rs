@@ -69,6 +69,47 @@ pub struct VramRect {
     pub rect: [u16; 4],
     pub category: usize,
 }
+
+// Mirror the runtime's PsyQo GPU::getScissor/getClear/flip layout. The
+// allocator excludes all x<640, not just the 480 active framebuffer rows.
+fn display_vram_layout(size: [u16; 2]) -> (u64, Vec<VramRect>) {
+    let width = size[0];
+    let [reserved_width, reserved_height] = crate::texture_cook::DISPLAY_RESERVE;
+    let mut rectangles = Vec::new();
+    if size[1] == 480 {
+        rectangles.push(VramRect {
+            name: "Interlaced framebuffer".into(),
+            rect: [0, 0, width, 480],
+            category: 0,
+        });
+        rectangles.push(VramRect {
+            name: "Reserved display padding".into(),
+            rect: [0, 480, width, reserved_height - 480],
+            category: 3,
+        });
+    } else {
+        for (index, y) in [0, 256].into_iter().enumerate() {
+            rectangles.push(VramRect {
+                name: format!("Framebuffer {index}"),
+                rect: [0, y, width, 240],
+                category: 0,
+            });
+            rectangles.push(VramRect {
+                name: format!("Reserved framebuffer {index} padding"),
+                rect: [0, y + 240, width, 16],
+                category: 3,
+            });
+        }
+    }
+    if width < reserved_width {
+        rectangles.push(VramRect {
+            name: "Reserved display columns".into(),
+            rect: [width, 0, reserved_width - width, reserved_height],
+            category: 3,
+        });
+    }
+    (u64::from(width) * 480 * 2, rectangles)
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SceneReport {
     pub name: String,
@@ -293,7 +334,7 @@ pub fn stage(
             fs::metadata(build.join("GEOMETRY.BIN"))
                 .map_err(|e| e.to_string())?
                 .len(),
-            "External geometry archive; the RAM page pool is counted in the ELF",
+            "External geometry/texture-upload archive; the shared RAM page pool is counted in the ELF",
         ));
     }
     for script in catalog {
@@ -331,7 +372,7 @@ pub fn stage(
         let allocation = crate::texture::layout(layout_scene)?;
         for (id, p) in allocation.textures {
             let t = &shared.textures[&id];
-            let width = t.width.div_ceil(4) * 2;
+            let width = p.format.word_width(t.width);
             let node = resource(
                 id,
                 u64::from(width) * u64::from(t.height) * 2,
@@ -343,10 +384,10 @@ pub fn stage(
                 category: 1,
             });
             textures.push(node);
-            let node = resource(id, 512, "256 palette entries, 16 bits each")?;
+            let node = resource(id, u64::from(p.format.colors()) * 2, "Cooked palette entries, 16 bits each")?;
             rectangles.push(VramRect {
                 name: format!("{} palette", node.name),
-                rect: [640, p.clut_y, 256, 1],
+                rect: [p.clut_x, p.clut_y, p.format.colors(), 1],
                 category: 2,
             });
             palettes.push(node);
@@ -355,7 +396,7 @@ pub fn stage(
         // CLUT of their own, so they show up beside the textures they compete with.
         for (id, p) in allocation.fonts {
             let font = &shared.fonts[&id];
-            let words = font.width / 4;
+            let words = crate::texture_cook::Format::Indexed4.word_width(font.width);
             let node = resource(
                 id,
                 u64::from(words) * u64::from(font.height) * 2,
@@ -370,35 +411,17 @@ pub fn stage(
             let node = resource(id, 32, "16 palette entries, 16 bits each")?;
             rectangles.push(VramRect {
                 name: format!("{} palette", node.name),
-                rect: [640, p.clut_y, 16, 1],
+                rect: [p.clut_x, p.clut_y, 16, 1],
                 category: 2,
             });
             palettes.push(node);
         }
-        let width = s.display_size[0];
-        let framebuffer_bytes = u64::from(width) * 480 * 2;
-        if s.display_size[1] == 480 {
-            rectangles.push(VramRect {
-                name: "Interlaced framebuffer".into(),
-                rect: [0, 0, width, 480],
-                category: 0,
-            });
-        } else {
-            for y in [0, 240] {
-                rectangles.push(VramRect {
-                    name: format!("Framebuffer {}", y / 240),
-                    rect: [0, y, width, 240],
-                    category: 0,
-                });
-            }
-        }
-        if width < 640 {
-            rectangles.push(VramRect {
-                name: "Reserved display columns".into(),
-                rect: [width, 0, 640 - width, 480],
-                category: 3,
-            });
-        }
+        let (framebuffer_bytes, display_rectangles) = display_vram_layout(s.display_size);
+        let display_reservations = display_rectangles.iter().filter(|r| r.category == 3)
+            .map(|r| Node::leaf(&r.name, u64::from(r.rect[2]) * u64::from(r.rect[3]) * 2,
+                "Excluded by the texture allocator, not an active framebuffer"))
+            .collect();
+        rectangles.extend(display_rectangles);
         rectangles.push(VramRect {
             name: "HUD / loading font".into(),
             rect: [960, 448, 64, 64],
@@ -416,18 +439,14 @@ pub fn stage(
                 Node::leaf(
                     "Framebuffers",
                     framebuffer_bytes,
-                    "Progressive: two 240-line buffers. Interlaced: one 480-line surface.",
+                    "Progressive: 240-line buffers at Y=0 and Y=256. Interlaced: one 480-line surface.",
                 ),
                 Node::group("Textures", textures),
                 Node::group("Palettes", palettes),
                 Node::group(
                     "Reserved layout",
                     vec![
-                        Node::leaf(
-                            "Display columns",
-                            640 * 480 * 2 - framebuffer_bytes,
-                            "The current texture allocator excludes the display region",
-                        ),
+                        Node::group("Display layout", display_reservations),
                         Node::leaf(
                             "HUD / loading font",
                             64 * 64 * 2,
@@ -901,6 +920,39 @@ mod tests {
         assert!(runtime_headroom_error(RAM - MIN_RUNTIME_HEADROOM + 1).is_some());
     }
     #[test]
+    fn display_rectangles_match_runtime_and_partition_allocator_reservation() {
+        let [reserved_width, reserved_height] = crate::texture_cook::DISPLAY_RESERVE;
+        for width in [256, 320, 368, 512, 640] {
+            for height in [240, 480] {
+                let (framebuffer_bytes, rectangles) = display_vram_layout([width, height]);
+                let framebuffers: Vec<_> = rectangles.iter().filter(|r| r.category == 0)
+                    .map(|r| r.rect).collect();
+                assert_eq!(framebuffers, if height == 480 {
+                    vec![[0, 0, width, 480]]
+                } else {
+                    vec![[0, 0, width, 240], [0, 256, width, 240]]
+                });
+                assert_eq!(framebuffer_bytes, u64::from(width) * 480 * 2);
+                let mut covered = vec![false; usize::from(reserved_width) * usize::from(reserved_height)];
+                let mut framebuffer_area = 0u64;
+                for r in &rectangles {
+                    let [x, y, w, h] = r.rect;
+                    assert!(w > 0 && h > 0 && x + w <= reserved_width && y + h <= reserved_height);
+                    if r.category == 0 { framebuffer_area += u64::from(w) * u64::from(h); }
+                    for row in y..y + h {
+                        for column in x..x + w {
+                            let cell = &mut covered[usize::from(row) * usize::from(reserved_width) + usize::from(column)];
+                            assert!(!*cell, "Overlapping display rectangles");
+                            *cell = true;
+                        }
+                    }
+                }
+                assert_eq!(framebuffer_area * 2, framebuffer_bytes);
+                assert!(covered.iter().all(|&cell| cell), "Unaccounted allocator reservation");
+            }
+        }
+    }
+    #[test]
     fn staging_manifest_follows_unsaved_current_and_whole_game_inputs() {
         use crate::{
             play::{Content, DataSource, Profile, Target},
@@ -938,6 +990,18 @@ mod tests {
                 serde_json::from_slice(&fs::read(build.join(MANIFEST)).unwrap()).unwrap();
             assert_eq!(manifest.scenes.len(), count);
             assert!(manifest.scenes.iter().any(|s| s.name == "Unsaved other"));
+            for scene in &manifest.scenes {
+                // Empty Basic scene has no textures/palettes. Account for the
+                // full excluded display columns and the font/loading corner.
+                assert_eq!(scene.vram.used, 640 * 512 * 2 + 64 * 128 * 2);
+                // Play normalizes display size from project settings (the
+                // Basic fixture is interlaced), not unsaved scene values.
+                if crate::settings::rendering(&root).unwrap().height == 480 {
+                    assert!(scene.rectangles.iter().any(|r| r.name == "Interlaced framebuffer" && r.rect[1] == 0 && r.rect[3] == 480));
+                } else {
+                    assert!(scene.rectangles.iter().any(|r| r.name == "Framebuffer 1" && r.rect[1] == 256));
+                }
+            }
             assert_eq!(fs::read(&other_path).unwrap(), saved);
             assert!(!build.join("epok.ps-exe").exists());
         }

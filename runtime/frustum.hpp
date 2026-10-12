@@ -1,6 +1,28 @@
 #pragma once
 #include <stdint.h>
 namespace epok {
+constexpr int frustum_gcd(int a,int b){return b?frustum_gcd(b,a%b):a;}
+// GTE-space X/Y already contain the aspect/FOV row scale. H is common to
+// both axes; the clipping planes must match the actual drawing-area extents.
+template<int Width,int Height> struct ScreenFrustum {
+    static constexpr int focal=Height*2/3;
+    static constexpr int gx=frustum_gcd(Width/2,focal),gy=frustum_gcd(Height/2,focal);
+    static constexpr int xz=(Width/2)/gx,xx=focal/gx,yz=(Height/2)/gy,yy=focal/gy;
+    template<class Number> static Number distance(int plane,Number x,Number y,Number z){
+        switch(plane){case 2:return z*xz+x*xx;case 3:return z*xz-x*xx;
+          case 4:return z*yz+y*yy;default:return z*yz-y*yy;}
+    }
+    template<int32_t Near,int32_t Far,bool Bounded=false> static uint8_t outcode(int32_t x,int32_t y,int32_t z){
+        uint8_t result=uint8_t((z<Near?1:0)|(z>=Far?2:0));
+        const auto sides=[](auto x,auto y,auto z){return uint8_t(
+            (z*xz+x*xx<0?4:0)|(z*xz-x*xx<0?8:0)|
+            (z*yz+y*yy<0?16:0)|(z*yz-y*yy<0?32:0));};
+        // Projection MAC inputs are bounded by 2^27. Ordinary display
+        // ratios stay in 32 bits; awkward custom modes retain a wide path.
+        if constexpr(Bounded&&xz+xx<=15&&yz+yy<=15)return result|sides(x,y,z);
+        else return result|sides(int64_t(x),int64_t(y),int64_t(z));
+    }
+};
 // Detect once per object. Pitch-only cameras and axis-aligned object transforms
 // leave local X independent of the other two axes (including reflection/scale).
 inline bool chunk_bounds_isolated_x(const int32_t rows[3][3]) {
@@ -8,13 +30,14 @@ inline bool chunk_bounds_isolated_x(const int32_t rows[3][3]) {
 }
 // Q12 bounds. A margin also covers Q12->Q8 GTE input and translation rounding.
 // The near guard avoids the GTE H/2 divide-overflow interval at 320x240.
-inline bool chunk_fully_inside(const int32_t* center,const int32_t* extent,int32_t focal) {
+template<class Frustum=ScreenFrustum<320,240>> inline bool chunk_fully_inside(const int32_t* center,const int32_t* extent,int32_t focal) {
     constexpr int32_t margin=256;
     const int64_t near_z=int64_t(center[2])-extent[2],far_z=int64_t(center[2])+extent[2];
     if(near_z<(focal/2+1)*16+margin || near_z<1024+margin || far_z>=128*4096-margin)return false;
     const int64_t x=int64_t(center[0]<0?-int64_t(center[0]):center[0])+extent[0];
     const int64_t y=int64_t(center[1]<0?-int64_t(center[1]):center[1])+extent[1];
-    return int64_t(near_z)-x>margin && 3*int64_t(near_z)-4*y>margin*7;
+    return Frustum::xz*near_z-Frustum::xx*x>margin*(Frustum::xz+Frustum::xx) &&
+        Frustum::yz*near_z-Frustum::yy*y>margin*(Frustum::yz+Frustum::yy);
 }
 // Call only when every coefficient has magnitude <16384 and each input vector
 // component has magnitude <131072, as checked by the renderer's narrow path.

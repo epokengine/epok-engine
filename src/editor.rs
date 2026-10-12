@@ -66,6 +66,7 @@ pub struct PreparedProject {
     assets: crate::assets::Index,
     asset_cache: crate::assets::ScanCache,
     external_watch: crate::native_metadata::ExternalWatch,
+    bake_current: bool,
     pub(crate) messages: Vec<crate::scene_loading::Message>,
 }
 impl PreparedProject {
@@ -96,6 +97,8 @@ impl PreparedProject {
         let _ = crate::skeletal::resolve(&mut scene, &assets);
         let _ = crate::texture::resolve(&mut scene, &assets);
         let _ = crate::hud::resolve_fonts(&mut scene, &assets);
+        mark("Checking saved lighting");
+        let bake_current = crate::lighting::valid_bake(&scene);
         mark("Establishing source observation baseline");
         let external_watch =
             crate::native_metadata::ExternalWatch::primed(&project.root).unwrap_or_default(); // Normal polling reports unreadable dependency graphs.
@@ -108,6 +111,7 @@ impl PreparedProject {
             assets,
             asset_cache,
             external_watch,
+            bake_current,
             messages,
         })
     }
@@ -194,6 +198,11 @@ pub struct Editor {
     restart_target: Option<(bool, bool)>,
     native_play_cache: Option<(String, PathBuf)>,
     native_play_request: Option<String>,
+    /// Record the rendered camera during Native PC Play for the visibility
+    /// bake (Play options). Recordings go to .epok/camera-recordings/.
+    pub record_camera: bool,
+    pub visibility_bake: crate::visibility_bake_ui::State,
+    pub camera_path: crate::camera_path_ui::State,
     pub search: String,
     pub close_requested: bool,
     pub should_close: bool,
@@ -225,6 +234,7 @@ pub struct Editor {
     pub rename_focus: bool,
     pub scene_navigation: bool,
     pub navigation_preview_status: Option<Result<usize, String>>,
+    pub baked_preview: crate::baked_preview::State,
     pub scene_look: bool,
     pub raw_look: Option<[f32; 2]>,
     pub scene_view_mode: crate::scene_view_mode::SceneViewMode,
@@ -372,6 +382,7 @@ impl Editor {
             assets,
             asset_cache,
             external_watch,
+            bake_current,
             messages,
         } = prepared;
         let handoff = Instant::now();
@@ -384,6 +395,7 @@ impl Editor {
             false,
             logs,
             Some(scripts),
+            Some(bake_current),
         );
         editor.log_times[..times.len()].clone_from_slice(&times);
         editor.asset_fingerprint = Some(assets.fingerprint());
@@ -393,24 +405,7 @@ impl Editor {
             project.manifest.rendering.width,
             project.manifest.rendering.height,
         ];
-        if let Ok(bytes) = std::fs::read(project.root.join("UserSettings/SceneView.epokprefs"))
-            && let Ok(view) = crate::document::from_slice::<viewport::View>(&bytes)
-            && view
-                .center
-                .iter()
-                .chain([
-                    &view.yaw,
-                    &view.pitch,
-                    &view.zoom,
-                    &view.distance,
-                    &view.fly_speed,
-                    &view.phase,
-                ])
-                .all(|v| v.is_finite())
-            && (0.05..=8.).contains(&view.zoom)
-            && (1.05..=10000.).contains(&view.distance)
-            && (0.01..=1000.).contains(&view.fly_speed)
-        {
+        if let Some(view) = crate::scene_view_state::load(&project.root, &editor.scene_file, true) {
             editor.view = view;
             editor.selected = None;
         }
@@ -503,10 +498,21 @@ impl Editor {
         // Loading/migration and restoring old build metadata are not live edits.
         // Publish their current provenance so old outputs remain stale, without
         // scheduling a build or stealing focus from Project during startup.
-        let _ = crate::mesh::resolve(&mut self.scene, &self.assets.index);
-        let _ = crate::terrain::resolve(&mut self.scene, &self.assets.index);
-        let _ = crate::skeletal::resolve(&mut self.scene, &self.assets.index);
-        let _ = crate::texture::resolve(&mut self.scene, &self.assets.index);
+        // PreparedProject already resolved these resources on the loading worker.
+        // Catalog/template refresh can introduce actors, so only resolve again
+        // when it actually left an unresolved resource.
+        if self.scene.actors.iter().any(|a| a.editable_mesh.as_ref().is_some_and(|m| m.document.is_none())) {
+            let _ = crate::mesh::resolve(&mut self.scene, &self.assets.index);
+        }
+        if self.scene.actors.iter().any(|a| a.terrain.as_ref().is_some_and(|t| t.document.is_none())) {
+            let _ = crate::terrain::resolve(&mut self.scene, &self.assets.index);
+        }
+        if self.scene.actors.iter().any(|a| a.skeletal_mesh.as_ref().is_some_and(|s| s.model.is_none())) {
+            let _ = crate::skeletal::resolve(&mut self.scene, &self.assets.index);
+        }
+        if crate::texture::ids(&self.scene).iter().any(|id| !self.scene.textures.contains_key(id)) {
+            let _ = crate::texture::resolve(&mut self.scene, &self.assets.index);
+        }
         if let Ok(fingerprint) = project::source_fingerprint(&self.root) {
             self.fingerprint = fingerprint;
         }
@@ -616,7 +622,7 @@ impl Editor {
             Scene::default()
         });
         let path = root.join("assets/scenes/SampleScene.epokmap");
-        Self::from_scene(root, path, scene, dirty, logs, None)
+        Self::from_scene(root, path, scene, dirty, logs, None, None)
     }
     fn from_scene(
         root: PathBuf,
@@ -625,6 +631,7 @@ impl Editor {
         dirty: bool,
         mut logs: Vec<String>,
         initial_scripts: Option<ScriptCatalog>,
+        initial_bake_current: Option<bool>,
     ) -> Self {
         let selected = scene
             .actors
@@ -697,7 +704,7 @@ impl Editor {
             job_target: None,
             restart_target: None,
             root,
-            bake_current: crate::lighting::valid_bake(&scene),
+            bake_current: initial_bake_current.unwrap_or_else(|| crate::lighting::valid_bake(&scene)),
             scene,
             lighting_window: false,
             bake_job: None,
@@ -749,6 +756,9 @@ impl Editor {
             native_frame: None,
             native_play_cache: None,
             native_play_request: None,
+            record_camera: false,
+            visibility_bake: Default::default(),
+            camera_path: Default::default(),
             game_error: None,
             focus_game: false,
             game_capture: false,
@@ -768,6 +778,7 @@ impl Editor {
             rename_focus: false,
             scene_navigation: false,
             navigation_preview_status: None,
+            baked_preview: Default::default(),
             scene_look: false,
             raw_look: None,
             scene_view_mode: Default::default(),
@@ -796,6 +807,9 @@ impl Editor {
         editor.ensure_scene_script();
         editor.scene_history.reset(&editor.scene);
         editor.observe_playback_sources();
+        editor.view = crate::scene_view_state::load(&editor.root, &editor.scene_file, false)
+            .unwrap_or_else(|| crate::scene_view_state::framed(
+                &editor.scene, editor.scene_panel_size, editor.preferences.fly_speed));
         editor
     }
     pub fn log(&mut self, s: impl Into<String>) {
@@ -875,6 +889,18 @@ impl Editor {
         Ok(())
     }
     fn accept_scene(&mut self, prepared: crate::scene_loading::Prepared) {
+        let _ = crate::scene_view_state::save(&self.root, &self.scene_file, &self.view);
+        let mut last_stage = Instant::now();
+        let mut mark = |label| {
+            if std::env::var_os("EPOK_PROFILE_STARTUP").is_some() {
+                eprintln!("[scene-handoff] {label}: {:.1} ms", last_stage.elapsed().as_secs_f64() * 1000.);
+            }
+            last_stage = Instant::now();
+        };
+        // Diagnostic selection belongs to one resolved map, never the next
+        // document opened in the same editor. New maps open unrestricted.
+        let revision = self.baked_preview.revision.wrapping_add(1);
+        self.baked_preview = crate::baked_preview::State { revision, ..Default::default() };
         // An open embedded Blueprint belongs to the map that is being replaced.
         if self.blueprint_editor.is_embedded()
             && self.blueprint_editor.embedded_map() != Some(prepared.path.as_path())
@@ -886,6 +912,7 @@ impl Editor {
         // A different document carries its own history; the previous map's
         // steps must never be replayed onto it.
         self.scene_history.reset(&self.scene);
+        mark("scene and history");
         self.selected_actor = None;
         self.scene_file = prepared.path;
         // The first observation publishes the new active document without
@@ -900,6 +927,7 @@ impl Editor {
             .is_some_and(|old| old != &fingerprint);
         self.asset_fingerprint = Some(fingerprint);
         self.assets.adopt(prepared.assets, prepared.cache);
+        mark("asset catalog");
         // Navigation reuses resolved resources, but must still invalidate builds
         // if the scan discovered a real imported-resource change during loading.
         if resources_changed {
@@ -912,9 +940,13 @@ impl Editor {
             self.log("Imported assets changed. Build pending.");
         }
         self.reset_scene_tools();
+        self.view = crate::scene_view_state::load(&self.root, &self.scene_file, false)
+            .unwrap_or_else(|| crate::scene_view_state::framed(
+                &self.scene, self.scene_panel_size, self.preferences.fly_speed));
         self.reset_instance_baseline();
         self.dirty = prepared.dirty;
-        self.bake_current = crate::lighting::valid_bake(&self.scene);
+        self.bake_current = prepared.bake_current;
+        mark("tool reset and lighting");
         self.view_dirty = true;
         self.focus_scene = true;
         self.log(format!("Scene opened: {}", self.scene.name));
@@ -1942,21 +1974,19 @@ impl Editor {
                 }
                 self.class_registry = registry;
                 self.catalog = c;
-                let previous = self.scene.clone();
-                let result = crate::blueprint_asset::load_all(&self.root).and_then(|files| {
-                    crate::blueprint_templates::refresh_instances(
-                        &mut self.scene,
-                        &files,
-                        &self.class_registry,
-                    )
-                });
-                if let Err(error) = result {
-                    self.log(format!("Blueprint instances preserved: {error}"));
+                if self.scene.actors.iter().any(|a| a.blueprint_instance.is_some()) {
+                    let previous = self.scene.clone();
+                    let result = crate::blueprint_asset::load_all(&self.root).and_then(|files| {
+                        crate::blueprint_templates::refresh_instances(
+                            &mut self.scene, &files, &self.class_registry,
+                        )
+                    });
+                    if let Err(error) = result {
+                        self.log(format!("Blueprint instances preserved: {error}"));
+                    }
+                    if self.scene != previous { self.changed(); }
                 }
                 self.reset_instance_baseline();
-                if self.scene != previous {
-                    self.changed();
-                }
             }
             Err(e) => {
                 self.timeline_editor.registry_error = Some(e.clone());
@@ -2292,11 +2322,35 @@ impl Editor {
             input.native_play_catalog = Some(self.catalog.clone());
             input.native_play_assets = Some(self.assets.index.clone());
             self.native_play_request = Some(key);
+            if self.record_camera && self.scene.visibility_track.is_some() {
+                let stem = self.scene_path().file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+                let seconds = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+                let path = self.root.join(".epok/camera-recordings").join(format!("{stem}-{seconds}.jsonl"));
+                let display = [self.scene.display_size[0], self.scene.display_size[1]];
+                match std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())
+                    .and_then(|_| crate::native_play::record_cameras(Some(&path), display)) {
+                    Ok(()) => self.log(format!("Recording the camera for the visibility bake: {}", path.display())),
+                    Err(error) => self.log(format!("Camera recording unavailable: {error}")),
+                }
+            }
         }
         self.active_play_runtime = self.play_profile.runtime;
         self.active_play_target = self.play_profile.target;
         self.console.force_follow();
-        self.memory.building_scene_signature = crate::scene_dependencies::signature(&self.scene);
+        self.memory.building_scene_signature = match crate::scene_dependencies::submit_editor(
+            &self.root,
+            &self.scene_path(),
+            &self.scene,
+            self.scene_registry_error().map_or(Ok(&self.class_registry), Err),
+        ) {
+            Ok(signature) => signature,
+            Err(error) => {
+                self.job_target = None;
+                self.last_error = Some(error.clone());
+                self.log(error);
+                return;
+            }
+        };
         self.memory.stale = true;
         self.memory.report_only = false;
         self.job_progress = None;
@@ -2661,17 +2715,8 @@ impl Editor {
             }
             "play" => {
                 self.memory.status_current = false;
-                if let Some(job) = &self.job {
-                    job.control(Control::Stop);
-                    self.restart_target = None;
-                    self.job_target = None;
-                    self.game_capture = false;
-                    self.set_buttons(0);
-                    self.focus_game = false;
-                    self.focus_console = false;
-                    self.focus_scene = true;
-                    self.log("Stopping...");
-                    self.job_stage = "Cancelling operation...".into();
+                if self.job.is_some() {
+                    self.stop_play();
                 } else {
                     self.build(true);
                 }
@@ -2764,47 +2809,10 @@ impl Editor {
                         .filter(|_| self.timeline_editor.open && !self.playing)
                         .unwrap_or(&self.scene);
                     let world = scene.world_matrix(i);
-                    let points: Vec<_> = scene
-                        .actors
-                        .iter()
-                        .enumerate()
-                        .filter(|(index, actor)| {
-                            actor.kind == "Mesh"
-                                && scene.is_active(*index)
-                                && scene.is_descendant(*index, i)
-                        })
-                        .flat_map(|(index, actor)| {
-                            let world = scene.world_matrix(index);
-                            let points = if let Some(c) = &actor.skeletal_mesh {
-                                c.model
-                                    .as_ref()
-                                    .map(|m| m.points(c.clip, c.time, c.looping))
-                                    .unwrap_or_default()
-                            } else {
-                                crate::lighting::quads(actor)
-                                    .into_iter()
-                                    .flat_map(|q| q.points)
-                                    .collect()
-                            };
-                            points.into_iter().map(move |p| world.point(p))
-                        })
-                        .collect();
-                    {
-                        if !points.is_empty() {
-                            let low: [f32; 3] = std::array::from_fn(|c| {
-                                points.iter().map(|p| p[c]).fold(f32::INFINITY, f32::min)
-                            });
-                            let high: [f32; 3] = std::array::from_fn(|c| {
-                                points
-                                    .iter()
-                                    .map(|p| p[c])
-                                    .fold(f32::NEG_INFINITY, f32::max)
-                            });
-                            self.view
-                                .frame_bounds_in_panel(low, high, self.scene_panel_size);
-                            self.view_dirty = true;
-                            return;
-                        }
+                    if let Some((low, high)) = crate::scene_view_state::bounds(scene, Some(i)) {
+                        self.view.frame_bounds_in_panel(low, high, self.scene_panel_size);
+                        self.view_dirty = true;
+                        return;
                     }
                     let center = world.point([0.; 3]);
                     let extents: [f32; 3] = std::array::from_fn(|i| {
@@ -2830,6 +2838,22 @@ impl Editor {
                 Err(e) => self.log(e),
             },
             _ => {}
+        }
+    }
+    /// Shared toolbar/MCP Stop. Keep the job until its worker acknowledges it,
+    /// but do not accept late frames/errors from the connection we are closing.
+    pub fn stop_play(&mut self) {
+        if let Some(job) = &self.job {
+            job.control(Control::Stop);
+            self.restart_target = None;
+            self.job_target = None;
+            self.game_capture = false;
+            self.set_buttons(0);
+            self.focus_game = false;
+            self.focus_console = false;
+            self.focus_scene = true;
+            self.log("Stopping...");
+            self.job_stage = "Cancelling operation...".into();
         }
     }
     pub fn tick(&mut self) {
@@ -2901,6 +2925,7 @@ impl Editor {
             self.log(message);
         }
         crate::lighting_editor::poll(self);
+        crate::visibility_bake_ui::poll(self);
         profile_mark("asset resolution");
         let events = self
             .job
@@ -2985,6 +3010,9 @@ impl Editor {
                 }
                 Event::Running(pid) => {
                     self.emulator_pid = Some(pid);
+                    if self.job.as_ref().is_some_and(pipeline::Job::stopping) {
+                        continue;
+                    }
                     self.emulator_visible =
                         self.active_play_runtime == crate::play::Runtime::PlayStation;
                     self.focus_game = self.active_play_runtime == crate::play::Runtime::NativePc
@@ -3006,6 +3034,9 @@ impl Editor {
                     }
                 }
                 Event::SerialConnected => {
+                    if self.job.as_ref().is_some_and(pipeline::Job::stopping) {
+                        continue;
+                    }
                     self.playing = true;
                     self.paused = false;
                     self.focus_console = true;
@@ -3030,6 +3061,11 @@ impl Editor {
                 }
                 Event::Finished(result) => {
                     self.serial_ui.command_pending = false;
+                    let frames = crate::native_play::recorded_camera_frames();
+                    if frames > 0 {
+                        self.log(format!("Camera recording finished: {frames} frames"));
+                    }
+                    let _ = crate::native_play::record_cameras(None, [0, 0]);
                     self.external_watch.request_refresh();
                     if std::mem::take(&mut self.memory.pending) {
                         self.memory.open = true;
@@ -3081,7 +3117,7 @@ impl Editor {
             }
         }
         if !self.job_stale
-            && let Some(bridge) = self.job.as_ref().and_then(|j| j.bridge.as_ref())
+            && let Some(bridge) = self.job.as_ref().filter(|j| !j.stopping()).and_then(|j| j.bridge.as_ref())
         {
             let state = bridge.state.lock().unwrap();
             if let Some(frame) = &state.frame {
@@ -3104,7 +3140,7 @@ impl Editor {
             }
         }
         if !self.job_stale
-            && let Some(native) = self.job.as_ref().and_then(|job| job.native.as_ref())
+            && let Some(native) = self.job.as_ref().filter(|job| !job.stopping()).and_then(|job| job.native.as_ref())
         {
             let state = native.state.lock().unwrap();
             if let Some(frame) = &state.frame {
@@ -3338,6 +3374,7 @@ impl Editor {
     // Running games keep their launched snapshot. Cancel only an in-flight
     // build whose inputs changed; never schedule an automatic replacement.
     fn invalidate_running_build(&mut self) {
+        self.baked_preview.invalidate();
         // Any accepted source/asset/settings invalidation also invalidates the
         // zero-scan Native PC fast path. The immutable on-disk cache remains
         // available to normal preparation if its full content hash still fits.
@@ -3347,6 +3384,7 @@ impl Editor {
         self.pending_since = Some(Instant::now());
         if let Some(job) = &self.job
             && !self.job_stale
+            && !job.stopping()
             && !self.playing
         {
             self.restart_target = self.job_target;
@@ -4443,6 +4481,40 @@ mod tests {
         drop(editor);
         std::fs::remove_dir_all(root).unwrap();
     }
+
+    #[test]
+    fn scene_switch_frames_new_map_and_restores_each_authoring_camera() {
+        let root = crate::workspace::tests::temp("scene-camera-switch");
+        std::fs::create_dir_all(root.join("assets/scenes")).unwrap();
+        let a = root.join("assets/scenes/A.epokmap");
+        let b = root.join("assets/scenes/B.epokmap");
+        for (path, position) in [(&a, [600., 20., -400.]), (&b, [-700., 90., 1000.])] {
+            let mut scene = Scene::default();
+            scene.actors = vec![Actor::cube("Map geometry".into())];
+            scene.actors[0].position = position;
+            scene.save(path).unwrap();
+        }
+        let before = [std::fs::read(&a).unwrap(), std::fs::read(&b).unwrap()];
+        let mut editor = Editor::new(root.clone());
+        editor.open_scene(a.clone()).unwrap();
+        assert_eq!(editor.view.center, [600., 20., -400.]);
+        editor.view.center = [603., 22., -405.];
+        editor.view.yaw = -0.25;
+        editor.baked_preview.enabled = true;
+        editor.open_scene(b.clone()).unwrap();
+        assert_eq!(editor.view.center, [-700., 90., 1000.]);
+        assert!(!editor.baked_preview.enabled && !editor.dirty);
+        editor.view.center = [-709., 95., 999.];
+        editor.open_scene(a.clone()).unwrap();
+        assert_eq!(editor.view.center, [603., 22., -405.]);
+        assert_eq!(editor.view.yaw, -0.25);
+        editor.open_scene(b.clone()).unwrap();
+        assert_eq!(editor.view.center, [-709., 95., 999.]);
+        assert_eq!([std::fs::read(a).unwrap(), std::fs::read(b).unwrap()], before);
+        assert!(!editor.dirty && editor.job.is_none());
+        drop(editor);
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     #[ignore = "requires a disposable project copy in EPOK_IDLE_PROJECT"]
     fn profile_scene_open() {
@@ -4526,6 +4598,47 @@ mod tests {
             std::thread::sleep(Duration::from_millis(20));
         }
         println!("Project stayed idle: {}", editor.project_name());
+    }
+    #[test]
+    #[ignore = "requires isolated EPOK_IDLE_PROJECT and semicolon-separated EPOK_PROFILE_SCENES"]
+    fn profile_scene_switch_sequence() {
+        let root = PathBuf::from(std::env::var_os("EPOK_IDLE_PROJECT").unwrap());
+        let paths: Vec<_> = std::env::var("EPOK_PROFILE_SCENES").unwrap().split(';').map(|s| root.join(s)).collect();
+        let original: Vec<_> = paths.iter().map(|p| std::fs::read(p).unwrap()).collect();
+        let start = Instant::now();
+        let project = crate::workspace::Project::open(&root).unwrap();
+        let mut editor = Editor::open(project).unwrap();
+        eprintln!("Sequence project open: {:?}", start.elapsed());
+        for round in 0..2 {
+            for path in &paths {
+                let start = Instant::now();
+                editor.begin_scene_open(path.clone()).unwrap();
+                let mut maximum = Duration::ZERO;
+                while editor.scene_loading.is_some() {
+                    assert!(start.elapsed() < Duration::from_secs(60));
+                    let tick = Instant::now(); editor.tick(); maximum = maximum.max(tick.elapsed());
+                    std::thread::sleep(Duration::from_millis(4));
+                }
+                assert_eq!(editor.scene_path(), *path, "{:?}", editor.logs);
+                assert!(!editor.dirty && !editor.pending_build && editor.job.is_none());
+                assert!(!editor.baked_preview.enabled);
+                let elapsed = start.elapsed();
+                let mut expected = Scene::parse_unresolved(&std::fs::read(path).unwrap()).unwrap();
+                // Old maps acquire their default script in memory only.
+                if expected.scene_script.is_none() { expected.scene_script = editor.scene.scene_script.clone(); }
+                assert_eq!(serde_json::to_value(&editor.scene).unwrap(), serde_json::to_value(&expected).unwrap());
+                assert_eq!(editor.scene.actors.len(), expected.actors.len());
+                assert_eq!(editor.scene.visibility_track, expected.visibility_track);
+                assert!(editor.scene.actors.iter().filter_map(|a| a.editable_mesh.as_ref()).all(|m| m.document.is_some()));
+                assert!(crate::texture::ids(&editor.scene).iter().all(|id| editor.scene.textures.contains_key(id)));
+                let faces: usize = editor.scene.actors.iter().filter_map(|a| a.editable_mesh.as_ref()?.document.as_ref()).map(|m|m.faces.len()).sum();
+                eprintln!("Sequence round {round}: {}: {:.1} ms, max UI tick {:.1} ms, actors {}, faces {faces}",
+                    path.file_name().unwrap().to_string_lossy(), elapsed.as_secs_f64()*1000., maximum.as_secs_f64()*1000., editor.scene.actors.len());
+            }
+        }
+        for (path, bytes) in paths.iter().zip(original) { assert_eq!(std::fs::read(path).unwrap(), bytes); }
+        poll_sources(&mut editor);
+        assert!(!editor.pending_build && editor.job.is_none(), "{:?}", editor.logs);
     }
     #[test]
     #[ignore = "Requires disposable Ironwood copy in EPOK_IDLE_PROJECT and pinned native build tools"]
@@ -4921,6 +5034,48 @@ mod tests {
         assert_eq!(editor.restart_target, None);
     }
     #[test]
+    fn explicit_stop_ignores_late_bridge_errors_but_keeps_real_failures() {
+        for native in [false, true] {
+            let root = crate::workspace::tests::temp("stop-bridge-errors");
+            let mut editor = Editor::new(root.clone());
+            let (mut job, events, controls) = pipeline::Job::test_channels();
+            if native {
+                job.native = Some(crate::native_play::Bridge::new());
+            } else {
+                job.bridge = Some(crate::bridge::Bridge::start(&root).unwrap());
+            }
+            let set_error = |job: &pipeline::Job, error: &str| {
+                if let Some(bridge) = &job.bridge {
+                    bridge.state.lock().unwrap().error = Some(error.into());
+                } else {
+                    job.native.as_ref().unwrap().state.lock().unwrap().error = Some(error.into());
+                }
+            };
+            set_error(&job, "Real failure before Stop");
+            editor.job = Some(job);
+            editor.job_target = Some((true, false));
+            editor.playing = true;
+            editor.tick();
+            assert_eq!(editor.game_error.as_deref(), Some("Real failure before Stop"));
+            editor.stop_play();
+            assert!(matches!(controls.try_recv(), Ok(Control::Stop)));
+            assert!(editor.job.as_ref().unwrap().stopping());
+            set_error(editor.job.as_ref().unwrap(), "Expected disconnect after Stop");
+            events.send(Event::Running(0)).unwrap();
+            editor.tick();
+            assert!(!editor.focus_game && editor.focus_scene);
+            assert_eq!(editor.game_error.as_deref(), Some("Real failure before Stop"));
+            editor.game_error = None;
+            editor.tick();
+            assert!(editor.game_error.is_none());
+            events.send(Event::Finished(Ok(()))).unwrap();
+            editor.tick();
+            assert!(editor.game_error.is_none() && editor.job.is_none());
+            drop(editor);
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+    #[test]
     fn stop_returns_to_scene_even_when_running_arrives_late() {
         for late_running in [false, true] {
             let mut editor = Editor::new(crate::workspace::tests::temp("stop-scene"));
@@ -4943,9 +5098,11 @@ mod tests {
             if late_running {
                 events.send(Event::Running(0)).unwrap();
             }
+            editor.tick();
+            assert!(!editor.focus_game, "A delayed Running event cannot reclaim Game after Stop");
             events.send(Event::Finished(Ok(()))).unwrap();
             editor.tick();
-            assert!(editor.focus_scene);
+            assert!(editor.focus_scene || late_running);
             assert!(!editor.focus_game && !editor.playing && !editor.game_capture);
             assert!(editor.job.is_none());
         }

@@ -4,7 +4,7 @@ use crate::{
     mesh::{cross, face_normal},
 };
 use serde::{Deserialize, Serialize};
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Triangle {
     pub points: [[f32; 3]; 3],
 }

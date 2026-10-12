@@ -44,6 +44,7 @@ rendering:
   height: 480
   retained_geometry: true
   precomputed_visibility: false
+  geometry_draw_distance: 128
   streaming_geometry: false
   streaming_pool_pages: 4
   streaming_triangle_budget: 4096
@@ -55,17 +56,30 @@ static meshes alive between frames: corner colours, page UVs and texture words
 are written once and rebuilt only when the material, lighting, texture bank,
 transform basis or entity generation changes. Each frame writes screen
 coordinates, links the packet into the ordering table and refreshes colours only
-where fog applies. Animated (skeletal) meshes and materials with UV scrolling
-always use the per-frame path. The switch reaches the runtime through
+where fog applies. Unlit skeletal meshes may retain immutable packet attributes;
+lit or baked-color skins and materials with UV scrolling use the per-frame
+path. The switch reaches the runtime through
 `display.hh` and changes nothing in the image; see
 [performance](performance.md) for the measured effect. Turn it off to compare
 against the per-frame path or when RAM is tight: retention uses one record per
 allocated quad, bounded by the per-frame triangle budget in streaming builds.
+Cached addresses are not permanent reservations of that budget: only visible,
+resident chunks claim packet slots for a frame. Dynamic triangles may borrow
+the remaining slots. If they overwrite cached packets, that buffer parity is
+invalidated and rebuilt lazily when the chunk is visible again. A chunk whose
+addresses are already in use falls back to dynamic emission; it never overwrites
+packets already linked for GPU submission.
 
 **Precomputed Visibility — Experimental** (`precomputed_visibility`, default off)
 adds conservative selection of editable-mesh chunks. Camera, object and parent
 transforms remain supported. It does not add occlusion or increase the visible
 range, and it may lower FPS.
+
+**Geometry Draw Distance** (`geometry_draw_distance`, default 128, range 1–128)
+rejects editable-mesh chunks wholly beyond the chosen camera-space distance
+before loading their geometry. Chunks crossing the boundary remain visible;
+this is a streaming/culling budget, not a hard per-polygon far clip. Textures and
+other resources remain resident.
 
 **Position Interpolation** (`motion_interpolation`, default on) under
 **Engine > Rendering > Movement** smooths entity and camera translations between

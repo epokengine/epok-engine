@@ -61,6 +61,7 @@ pub struct Prepared {
     pub assets: assets::Index,
     pub cache: assets::ScanCache,
     pub dirty: bool,
+    pub bake_current: bool,
 }
 impl Prepared {
     pub fn load(
@@ -78,15 +79,18 @@ impl Prepared {
         progress.stage("Refreshing scene bindings", &mut emit);
         // Scripts belong to the project, not the scene. The source watcher owns
         // catalog refresh; navigation must not rerun the native extractor.
-        let previous = scene.clone();
-        if let Err(error) = crate::blueprint_asset::load_all(root).and_then(|files| {
-            crate::blueprint_templates::refresh_instances(&mut scene, &files, registry)
-        }) {
-            emit(Message::new(format!(
-                "Blueprint instances preserved: {error}"
-            )));
+        let mut dirty = false;
+        if scene.actors.iter().any(|a| a.blueprint_instance.is_some()) {
+            let previous = scene.clone();
+            if let Err(error) = crate::blueprint_asset::load_all(root).and_then(|files| {
+                crate::blueprint_templates::refresh_instances(&mut scene, &files, registry)
+            }) {
+                emit(Message::new(format!(
+                    "Blueprint instances preserved: {error}"
+                )));
+            }
+            dirty = scene != previous;
         }
-        let dirty = scene != previous;
         progress.stage("Indexing scene assets", &mut emit);
         let assets = assets::scan(root, &mut cache);
         progress.stage("Resolving scene meshes", &mut emit);
@@ -104,6 +108,8 @@ impl Prepared {
         if let Err(error) = crate::texture::resolve(&mut scene, &assets) {
             emit(Message::new(error));
         }
+        progress.stage("Checking saved lighting", &mut emit);
+        let bake_current = crate::lighting::valid_bake(&scene);
         progress.finish("Scene resources ready", &mut emit);
         Ok(Self {
             path,
@@ -111,6 +117,7 @@ impl Prepared {
             assets,
             cache,
             dirty,
+            bake_current,
         })
     }
 }
@@ -158,5 +165,99 @@ impl Drop for Loading {
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mesh;
+    use std::{fs, sync::Arc};
+
+    #[test]
+    fn scene_switch_reuses_meshes_and_tracks_live_asset_changes() {
+        let root = crate::workspace::tests::temp("scene-resource-cache");
+        fs::create_dir_all(root.join("assets/scenes")).unwrap();
+        let mut doc = mesh::Document::default();
+        doc.primitive(
+            "Plane",
+            [0.; 3],
+            [2.; 3],
+            1,
+            doc.groups[0].id,
+            doc.materials[0].id,
+        );
+        let asset = mesh::create(&root, "assets/mesh.epokasset", &doc).unwrap();
+        let path = root.join("assets/scenes/Map.epokmap");
+        let mut scene = Scene::default();
+        scene.actors[1].editable_mesh = Some(mesh::Component::new(asset));
+        scene.save(&path).unwrap();
+        let source = fs::read(&path).unwrap();
+        let registry = blueprint::Registry::new();
+        let first = Prepared::load(
+            &root,
+            path.clone(),
+            [320, 240],
+            &registry,
+            Default::default(),
+            |_| {},
+        )
+        .unwrap();
+        let second = Prepared::load(
+            &root,
+            path.clone(),
+            [320, 240],
+            &registry,
+            first.cache.clone(),
+            |_| {},
+        )
+        .unwrap();
+        let a = first.scene.actors[1]
+            .editable_mesh
+            .as_ref()
+            .unwrap()
+            .document
+            .as_ref()
+            .unwrap();
+        let b = second.scene.actors[1]
+            .editable_mesh
+            .as_ref()
+            .unwrap()
+            .document
+            .as_ref()
+            .unwrap();
+        assert!(
+            Arc::ptr_eq(a, b),
+            "unchanged resources shared across scene switches"
+        );
+        assert!(!second.dirty);
+        assert_eq!(fs::read(&path).unwrap(), source);
+        let mut edited = (**a).clone();
+        for vertex in &mut edited.vertices {
+            vertex[1] += 0.5;
+        }
+        mesh::save(first.assets.resolve(asset).unwrap(), &edited).unwrap();
+        let third = Prepared::load(
+            &root,
+            path.clone(),
+            [320, 240],
+            &registry,
+            second.cache,
+            |_| {},
+        )
+        .unwrap();
+        assert_eq!(
+            third.scene.actors[1]
+                .editable_mesh
+                .as_ref()
+                .unwrap()
+                .document
+                .as_deref(),
+            Some(&edited)
+        );
+        assert_eq!(a.vertices[0][1], 0., "existing snapshots are immutable");
+        fs::write(&path, "invalid: [").unwrap();
+        assert!(Prepared::load(&root, path, [320, 240], &registry, third.cache, |_| {}).is_err());
+        fs::remove_dir_all(root).unwrap();
     }
 }

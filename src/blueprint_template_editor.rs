@@ -449,6 +449,16 @@ fn draw_inner(
                 .range(25., 120.)
                 .build(ui, &mut entity.camera_fov);
             ui.color_edit3("Sky color", &mut entity.camera_sky_color);
+            let mut gradient = entity.camera_sky_gradient.is_some();
+            if ui.checkbox("Sky gradient", &mut gradient) {
+                entity.camera_sky_gradient =
+                    gradient.then(|| crate::scene::SkyGradient::for_sky(entity.camera_sky_color));
+            }
+            if let Some(g) = entity.camera_sky_gradient.as_mut() {
+                ui.color_edit3("Horizon color", &mut g.horizon);
+                ui.color_edit3("Ground color", &mut g.ground);
+            }
+            ui.checkbox("Mirror X", &mut entity.camera_mirror_x);
         }
         crate::collision_editor::inspector(ui, &mut entity);
         if entity.audio.is_none() && ui.small_button("Add Audio Source") {

@@ -47,12 +47,15 @@ pub fn validate(scene: &crate::scene::Scene) -> Result<(), String> {
     Ok(())
 }
 pub fn fog_color(color: [u8; 3], depth: f32, fog: &Fog) -> [u8; 3] {
+    fog_color_domain(color, depth, fog, 255.)
+}
+pub fn fog_color_domain(color: [u8; 3], depth: f32, fog: &Fog, neutral: f32) -> [u8; 3] {
     if !fog.enabled {
         return color;
     }
     let amount = ((depth - fog.start) / (fog.end - fog.start)).clamp(0., 1.);
     std::array::from_fn(|i| {
-        (color[i] as f32 * (1. - amount) + fog.color[i] * 255. * amount)
+        (color[i] as f32 * (1. - amount) + fog.color[i] * neutral * amount)
             .round()
             .clamp(0., 255.) as u8
     })

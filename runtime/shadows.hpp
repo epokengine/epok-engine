@@ -13,7 +13,7 @@ public:
 #ifdef __mips__
     __attribute__((noinline,optimize("O3")))
 #endif
-    void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const Affine<Fixed>& view){
+    void draw(int parity,Table& table,const std::array<ActorData,N>& objects,const std::array<Affine<Fixed>,N>& world,size_t count,const CameraSpace<Fixed>& view){
         using namespace lighting_detail;size_t used=0,blobs=0;
         for(size_t i=0;i<count && blobs<32;++i){const auto& b=objects[i].blob_shadow;if(!b.enabled||!is_active_slot(i))continue;
             int center[3];for(int c=0;c<3;++c)center[c]=world[i].values[c][3].raw();int highest=INT32_MIN;int lower[3]={},upper[3]={};
@@ -30,7 +30,7 @@ public:
             psyqo::Vertex screen[9];int depths[9];bool visible[9];int radius=clamp(b.radius.raw(),41,8*4096);
             for(int v=0;v<9;++v){Fixed p[3]={Fixed(center[0],Fixed::RAW),Fixed(highest+25,Fixed::RAW),Fixed(center[2],Fixed::RAW)};
                 if(v){p[0]=Fixed(clamp(center[0]+circle[v-1][0]*radius/4096,lower[0],upper[0]),Fixed::RAW);p[2]=Fixed(clamp(center[2]+circle[v-1][1]*radius/4096,lower[2],upper[2]),Fixed::RAW);}
-                Fixed projected[3];view.point(p,projected);projected[0]*=projection_focal;projected[1]*=projection_focal;int z=projected[2].raw();depths[v]=z;visible[v]=z>=1024 && z<128*4096;if(!visible[v])continue;
+                Fixed projected[3];view.point(p,projected);projected[0]*=projection_focal_x;projected[1]*=projection_focal;int z=projected[2].raw();depths[v]=z;visible[v]=z>=1024 && z<128*4096;if(!visible[v])continue;
                 int x=display_width/2+(projected[0].raw()/16)*(display_width/2)/(z/16),y=display_height/2-(projected[1].raw()/16)*(display_height*2/3)/(z/16);visible[v]=x>=-1023 && x<=1023 && y>=-1023 && y<=1023;screen[v]={{.x=int16_t(x),.y=int16_t(y)}};
             }
             for(int v=1;v<=8;++v){int next=v==8?1:v+1;if(!visible[0] || !visible[v] || !visible[next])continue;

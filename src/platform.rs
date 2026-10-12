@@ -1247,6 +1247,7 @@ pub(crate) fn verify_modal_indices(context: &mut imgui::Context) {
 }
 fn save_layout(imgui: &mut imgui::Context, editor: Option<&Editor>, screenshot: bool) {
     if !screenshot && let Some(editor) = editor {
+        let _ = crate::scene_view_state::save(&editor.root, &editor.scene_path(), &editor.view);
         let mut ini = String::new();
         imgui.save_ini_settings(&mut ini);
         let _ = std::fs::write(editor.root.join("UserSettings/editor-layout-v2.ini"), ini);
@@ -1474,7 +1475,7 @@ fn gpu_scene_and_gizmo_projection_agree_at_different_orbit_distances() {
     }
 }
 
-fn capture_png(
+pub(crate) fn capture_png(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     texture: &wgpu::Texture,
@@ -1502,8 +1503,17 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0x25a0, 0x25a0, // square: constant falloff
     0x25d0, 0x25d0, // circle-half-stroke: smooth falloff
     0xf0aa, 0xf0ab, // circle-arrow-up / down: raise, lower
+    0xf00c, 0xf00c, // check: camera path step done
+    0xf048, 0xf048, // backward-step: camera path start
+    0xf05b, 0xf05b, // crosshairs: move a key to the view
+    0xf06e, 0xf06e, // eye: look through the path
+    0xf071, 0xf071, // triangle-exclamation: camera path step pending
+    0xf0c4, 0xf0c4, // scissors: cut key
+    0xf104, 0xf105, // angle-left / right: previous, next key
+    0xf111, 0xf111, // circle: camera path step to do
     0xf140, 0xf140, // bullseye: set height
     0xf1fc, 0xf1fc, // paintbrush: paint tile
+    0xf1f8, 0xf1f8, // trash: delete a key
     0xf1fe, 0xf1fe, // chart-area: linear falloff
     0xf256, 0xf256, // hand: select tool
     0xf2ea, 0xf2ea, // rotate-left: undo

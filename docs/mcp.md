@@ -7,6 +7,12 @@ Epok exposes the open game project through the Model Context Protocol. An MCP cl
 uploads a program. `editor_state.serial` reports the setup window, component
 directory, adapter and setup result; `play` uses the project's saved destination.
 
+`editor_state.game_frame` describes emulator frames (including emulated cycles
+and VSyncs). `editor_state.native_frame` separately reports Native PC sequence,
+dimensions, buttons, actor count and camera index; it does not invent emulator
+counters for native execution. Wait for frames from the selected runtime when
+checking Play readiness. Scene View streaming simulation remains independent.
+
 The server is **off by default**. No external account or provider SDK is needed.
 
 ## Connect
@@ -108,6 +114,28 @@ Scene changes remain unsaved until `scene_save`. Revisions prevent stale edits; 
 For source files, `project_files` returns a SHA256 revision. Supply it for replacement/deletion, or `"absent"` to create a new file. Prior contents are retained under `.epok/mcp-backups/`; the response identifies the backup path for manual recovery. Imported asset trash lives in `UserSettings/AssetTrash/`. The active scene and `.epokasset` packages use their dedicated tools.
 
 Build, Play, import and lighting bake run asynchronously. Poll `editor_state` and read `logs_read` to distinguish completion from failure. Stop Play before authoring changes. The same scene, geometry and PSX budget validators used by the editor apply to MCP edits.
+
+Keep one editor session open throughout a test sequence. Use `viewer_screenshot`
+for renderer/UI captures; restarting the application is not needed between
+captures, scene switches or Play runs. An explicit Play submits the current
+unsaved scene immediately: clients do not need an arbitrary delay after
+`scene_apply` for its source watcher to catch up. Genuine later edits still
+invalidate an in-flight build.
+
+`editor_control` with `action: "stop"` uses the same lifecycle as the toolbar,
+releases MCP-held controller input and returns focus to Scene. `editor_state`
+reports `stopping: true` until the worker acknowledges cancellation; wait for
+`build_or_play_active: false` before starting another operation. Late disconnects
+from that deliberate shutdown do not become game errors. Errors already
+reported before Stop remain available. Stop is a no-op when idle, never Play.
+
+`scene_open` also uses the editor's background scene loader. Its response reports
+`scene_loading: true`; the previous `scene_path` and revision remain current until
+handoff. Poll `editor_state` until `scene_loading` is false, then check the requested
+`scene_path` and `last_error` before editing or starting Play. `operation` reports
+the loading stage; a failed load preserves the previous map. `baked_preview` reports
+whether visibility/streaming simulation is enabled and its current residency; a
+newly opened map defaults to unrestricted viewing.
 
 ## Scope and limits
 

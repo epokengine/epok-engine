@@ -488,7 +488,7 @@ impl Manager {
                     _ => None,
                 })
                 .unwrap_or_default(),
-            texture: lower.ends_with(".png"),
+            texture: crate::texture::source_candidate(&item.source),
             source: item.source.clone(),
             destination,
             settings: existing

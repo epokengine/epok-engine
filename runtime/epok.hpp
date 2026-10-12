@@ -1,4 +1,6 @@
 #pragma once
+#include "baked_draw_types.hpp"
+#include "mesh_vertices.hpp"
 #ifndef EPOK_NATIVE_REQUIREMENTS
 #define EPOK_NATIVE_REQUIREMENTS(...)
 #endif
@@ -17,6 +19,7 @@
 #include "texture_types.hpp"
 #include "resources.hpp"
 #include "visibility.hpp"
+#include "visibility_track.hpp"
 #include "psyqo/fixed-point.hh"
 #include <stddef.h>
 #include <stdint.h>
@@ -46,8 +49,12 @@ using RaycastQuery=RaycastQueryT<Fixed>;
 using MoveResult=MoveResultT<Fixed>;
 // All script transforms are local to the object's parent.
 struct Transform { Fixed position[3]; Fixed rotation[3]; Fixed scale[3]; };
-struct CameraSettings {bool enabled=false;Fixed field_of_view=90.0;uint8_t sky_color[3]={33,40,52};};
+// sky_gradient: draw the sky, horizon and ground colours along the horizon
+// instead of clearing to sky_color (see sky_gradient.hpp).
+struct CameraSettings {bool enabled=false;Fixed field_of_view=90.0;uint8_t sky_color[3]={33,40,52};bool mirror_x=false;
+    bool sky_gradient=false;uint8_t horizon_color[3]={0,0,0};uint8_t ground_color[3]={0,0,0};};
 inline Fixed projection_focal=1.0;
+inline Fixed projection_focal_x=1.0;
 struct AudioSource {
     bool enabled=false; int clip=-1; Fixed volume=1.0,pitch=1.0; bool play_on_start=true;uint8_t priority=128;
     void play(); void stop(); bool is_playing() const;
@@ -55,7 +62,7 @@ struct AudioSource {
 // state: 0 unused, 1 initializing, 2 idle, 3 seeking, 4 playing, 5 stopping, 6 error.
 struct MusicStats {uint32_t state=0,starts=0,ends=0,loops=0,errors=0;int clip=-1;uint32_t error_code=0;};
 extern MusicStats music_stats;
-struct Material { uint8_t color[3]; bool unlit; int texture=-1; BlendMode blend=BlendMode::Cutout; int16_t depth_bias=0;int32_t uv_scroll[2]={}; };
+struct Material { uint8_t color[3]; bool unlit; int texture=-1; BlendMode blend=BlendMode::Cutout; int16_t depth_bias=0;bool double_sided=false;int32_t uv_scroll[2]={}; };
 enum class LightType { Directional, Point };
 enum class LightMode { Baked, Realtime, Mixed };
 enum class ReceiveLighting { Baked, Realtime };
@@ -69,6 +76,8 @@ struct LightingStats { uint32_t active_lights=0,lit_objects=0,gte_normals=0,bake
 extern LightingStats lighting_stats;
 // Last completed frame, in the existing ~64 us scanline timer units. Simulation
 // includes world/collision work; collision includes world synchronization.
+// vertex_scanlines/polygon_scanlines are UINT32_MAX when the frame contains
+// ordered geometry without EPOK_PROFILE_DETAIL (a partial sum is not a timing).
 struct PerformanceStats {
   uint32_t frame=0,frame_scanlines=0,simulation_scanlines=0,world_scanlines=0,
            collision_scanlines=0,render_scanlines=0,vertex_scanlines=0,
@@ -90,7 +99,9 @@ struct PerformanceStats {
            visibility_skipped_chunks=0,streamed_chunks=0,stream_failed_chunks=0,
            // Skeletal work occurs only after the animation envelope is visible.
            skeletal_scanlines=0,skeletal_bone_matrices=0,
-           skeletal_cpu_vertices=0,skeletal_decoded_vertices=0;
+           skeletal_cpu_vertices=0,skeletal_decoded_vertices=0,
+           // Visible chunks intentionally omitted by the bounded page working set.
+           stream_budget_skipped_chunks=0;
 };
 extern PerformanceStats performance_stats;
 struct SkeletalQueryStats {
@@ -115,6 +126,8 @@ struct Image { bool enabled=false; uint8_t color[3]={51,102,166}; int texture=-1
 // this element is the one its canvas points at.
 struct Focusable { bool enabled=false; int16_t neighbors[4]={-1,-1,-1,-1}; uint8_t order=0; uint8_t highlight[3]={255,255,255}; };
 struct ProgressBar { bool enabled=false;Fixed value=0.75;uint8_t color[3]={64,217,77},background[3]={31,31,31}; };
+// Compact immutable draw payload shared with the offline cooker.
+// (Header included outside the namespace at the top of this file.)
 // Values are pinned; this enum only ever grows at the end (saved Blueprint graphs store the numbering).
 enum class LayoutKind : uint8_t { None=0, Horizontal=1, Vertical=2, Grid=3, Margin=4, Center=5 };
 static_assert(sizeof(LayoutKind)==1);
@@ -132,14 +145,16 @@ struct MeshQuad {
   // Exporter-baked 8-bit page coordinates (u | v << 8) for the face texture.
   bool packed_uv=false;
   uint16_t uvw[4]={};
+    bool vertex_colors=false;
+    uint16_t vertex_color_indices[4]={};
 };
 struct ChunkVisibility;
 struct MeshGeometry {
-  mutable const int16_t (*vertices)[3];
+  mutable MeshVertices vertices;
   size_t vertex_count;
   mutable const MeshQuad *quads;
   size_t quad_count;
-  bool editable = false;
+  uint8_t editable = 0; // bit 0 editable; bit 1 compact baked draw payload
   int32_t origin[3] = {};
   int32_t center[3] = {};
   int32_t extent[3] = {2048, 2048, 2048};
@@ -149,6 +164,11 @@ struct MeshGeometry {
   // immutable CD page; the renderer resolves and pins it only after culling.
   uint32_t stream_page = 0xffffffffu;
   uint16_t stream_vertex_offset = 0, stream_quad_offset = 0;
+  // Optional baked camera visibility, aligned to this chunk's cooked faces.
+  const uint32_t* visibility_faces = nullptr;
+  // Root-only offline span covering every chunk of the same tracked object.
+  // Avoid walking descriptor links merely to discover that an object is hidden.
+  uint16_t visibility_words = 0, visibility_chunks = 0;
 };
 struct MeshStats {
   uint32_t tested_chunks = 0, visible_chunks = 0, transformed_vertices = 0,

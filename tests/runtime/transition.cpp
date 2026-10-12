@@ -21,6 +21,12 @@ int main(){
     options.fade_out_ms=options.fade_in_ms=0;
     state.begin(options,42);state.advance(42);assert(state.loading()&&!state.presented);
     state.fail();state.advance(10000000);assert(state.phase==epok::TransitionPhase::Failed&&state.audio_gain==0);
+    state.begin(options,0,true);assert(!state.boot_ready());
+    state.presented=true;assert(state.boot_ready());
+    state.fail();assert(state.loading()&&!state.boot_ready());
+    state.phase=epok::TransitionPhase::Loading;state.presented=false;assert(!state.boot_ready());
+    state.presented=true;assert(state.boot_ready());
+    state.loaded(42);assert(!state.boot_ready());
     epok::Time time;time.reset(0);time.advance(20000);time.begin_tick();time.dropped_steps=5;
     time.set_paused(true);time.synchronize(10000000);assert(time.ticks==1&&time.dropped_steps==5&&time.paused());
     time.set_paused(false);assert(time.advance(10000001)==0);

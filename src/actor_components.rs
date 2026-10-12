@@ -118,7 +118,9 @@ pub fn sync(actor: &mut ActorInstance) {
         material,
         lighting,
         camera_fov,
+        camera_mirror_x,
         camera_sky_color,
+        camera_sky_gradient,
         editable_mesh,
         terrain,
         skeletal_mesh,
@@ -192,7 +194,13 @@ pub fn sync(actor: &mut ActorInstance) {
                 "epok::Camera3DComponent",
                 "Camera",
                 false,
-                json!({"camera_fov":data.camera_fov,"camera_sky_color":data.camera_sky_color}),
+                {
+                    let mut camera = json!({"camera_fov":data.camera_fov,"camera_sky_color":data.camera_sky_color,"camera_mirror_x":data.camera_mirror_x});
+                    if let Some(gradient) = data.camera_sky_gradient {
+                        camera["camera_sky_gradient"] = json!(gradient);
+                    }
+                    camera
+                },
             ));
         }
     }
@@ -360,8 +368,10 @@ pub fn read(actor: &mut ActorInstance) {
             om::CAMERA3D_COMPONENT_ID => {
                 data.kind = "Camera".into();
                 data.camera_fov = decoded(p, "camera_fov").unwrap_or(90.);
+                data.camera_mirror_x = decoded(p, "camera_mirror_x").unwrap_or(false);
                 data.camera_sky_color = decoded(p, "camera_sky_color")
                     .unwrap_or(crate::scene::DEFAULT_CAMERA_SKY_COLOR);
+                data.camera_sky_gradient = decoded(p, "camera_sky_gradient");
             }
             om::RECT_TRANSFORM_COMPONENT_ID => {
                 data.rect = Some(decoded(p, "rect").unwrap_or_default())
@@ -462,7 +472,9 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
         }
         om::CAMERA3D_COMPONENT_ID => {
             check!("camera_fov", f32);
+            check!("camera_mirror_x", bool);
             check!("camera_sky_color", [f32; 3]);
+            check!("camera_sky_gradient", Option<crate::scene::SkyGradient>);
         }
         om::SPRITE3D_COMPONENT_ID => {
             check!("sprite", crate::sprites::Sprite);

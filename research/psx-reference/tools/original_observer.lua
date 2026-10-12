@@ -1,0 +1,322 @@
+-- Read-only PSX observer; controller overrides and save-state restore are explicit.
+-- All transport is an outgoing authenticated connection to the local controller.
+local ffi = require('ffi')
+local client = luv.new_tcp()
+client:nodelay(true)
+local pending, sequence, vsyncs, closed = '', 0, 0, false
+local buttons = {'SELECT','L3','R3','START','UP','RIGHT','DOWN','LEFT',
+                 'L2','R2','L1','R1','TRIANGLE','CIRCLE','CROSS','SQUARE'}
+local pad = PCSX.SIO0.slots[1].pads[1]
+local function set_buttons(mask)
+    for i, name in ipairs(buttons) do
+        local button = PCSX.CONSTS.PAD.BUTTON[name]
+        if button then
+            if bit.band(mask, bit.lshift(1, i-1)) ~= 0 then pad.setOverride(button)
+            else pad.clearOverride(button) end
+        end
+    end
+end
+local profiling, rows, overflow, previous = false, {}, false, nil
+local presentations, presentation_phases, last_vsync = {}, {}, nil
+local world_samples, pending_sample = {}, nil
+-- Every scenery pass: {start cycles, pass cycles, SLST count, list id, packet
+-- bytes}. A list is stored once whenever it differs from the previous pass's,
+-- so passes can be matched to source samples by their complete token order.
+local world_passes, world_lists, pass_list, pass_count = {}, {}, nil, 0
+-- Optional per-instruction cycle profile of the scenery pass, enabled only for
+-- passes whose SLST count equals PC_PROFILE.count, up to PC_PROFILE.passes.
+-- Cycles between consecutive instruction hits are charged to the earlier one
+-- (a call's callee time lands on its delay slot); the pass ends at the common
+-- epilogue, exactly as the pass timing does. Breakpoints stay disabled otherwise.
+local pc_hits, pc_charged, pc_handles, pc_active, pc_done = {}, {}, {}, false, 0
+local pc_last, pc_last_cycles = nil, nil
+local function pc_set(state)
+    for _,handle in ipairs(pc_handles) do if state then handle:enable() else handle:disable() end end
+end
+local function pc_close(now)
+    if pc_last then pc_charged[pc_last]=(pc_charged[pc_last] or 0)+(now-pc_last_cycles) end
+    pc_last=nil
+end
+if PC_PROFILE then
+    local step=function(address)
+        if not pc_active then return true end
+        local now=tonumber(PCSX.getCPUCycles())
+        pc_close(now)
+        pc_hits[address]=(pc_hits[address] or 0)+1
+        pc_last,pc_last_cycles=address,now
+        return true
+    end
+    -- The entry and epilogue have their own hooks below.
+    for address=PC_PROFILE.entry+4,PC_PROFILE.stop-4,4 do
+        if address ~= 0x80041514 then
+            local handle=PCSX.addBreakpoint(address,'Exec',4,'Original pc profile',step)
+            handle:disable()
+            pc_handles[#pc_handles+1]=handle
+        end
+    end
+end
+local world_start, world_cycles, world_calls = nil, 0, 0
+local world_tokens, packet_bytes, packet_begin, world_buffer = 0, 0, nil, nil
+local last_camera, last_callback, last_mode, last_argument = {0,0,0}, 0, 0, 0
+local last_gte = {}
+local callback_error
+-- The bundled Redux predates this optional API. -1 means unavailable, never 0 FPS.
+local function guest_fps()
+    return type(PCSX.GPU.getGuestFPS)=='function' and tonumber(PCSX.GPU.getGuestFPS()) or -1
+end
+local function json_string(value)
+    return '"'..value:gsub('[%z\1-\31\\"]', function(c)
+        return string.format('\\u%04x', string.byte(c))
+    end)..'"'
+end
+local memory = PCSX.getMemPtr()
+local function word(address)
+    assert(address >= 0x80000000 and address <= 0x801ffffc and address % 4 == 0)
+    return tonumber(ffi.cast('const uint32_t*', memory + address - 0x80000000)[0])
+end
+local function half(address)
+    assert(address >= 0x80000000 and address <= 0x801ffffe and address % 2 == 0)
+    return tonumber(ffi.cast('const uint16_t*', memory + address - 0x80000000)[0])
+end
+local function guarded(callback)
+    return function(...)
+        local ok, why = pcall(callback, ...)
+        if not ok then callback_error=tostring(why); profiling=false end
+        return true
+    end
+end
+local camera_trace
+if ORIGINAL_CAMERA_SCRIPT then
+    camera_trace=assert(loadfile(ORIGINAL_CAMERA_SCRIPT))()(word,half,guarded,function() return profiling end)
+end
+-- Entry and common epilogue verified in /SCUS_942.44 in Ghidra.
+ORIGINAL_WORLD_BEGIN = PCSX.addBreakpoint(0x80040ed8, 'Exec', 4, 'Original world begin', guarded(function()
+    if not profiling then return end
+    assert(not world_start, 'Overlapping world invocation')
+    world_start = tonumber(PCSX.getCPUCycles())
+    local registers = PCSX.getRegisters()
+    local count = half(tonumber(registers.GPR.n.a0))
+    assert(count <= 32767, 'Invalid signed SLST count')
+    -- Header count, not count-1: tokens begin at +4 and the reverse cursor
+    -- starts at +2+count*2 (80040f34..50 / 80041058). Do not infer emitted
+    -- packet count from this header; clipping and the special pass still apply.
+    world_tokens = world_tokens + count
+    world_buffer = tonumber(registers.GPR.n.a1)
+    packet_begin = word(world_buffer+8)
+    pass_count = count
+    pass_list = 0
+    if count > 1 and count <= 4096 then
+        local address = tonumber(registers.GPR.n.a0)
+        local last = world_lists[#world_lists]
+        local same = last ~= nil and #last == count
+        if same then
+            for i=1,count do
+                if last[i] ~= half(address+2+i*2) then same=false;break end
+            end
+        end
+        if not same then
+            if #world_lists >= 4096 then overflow=true;profiling=false;return end
+            local tokens={}
+            for i=1,count do tokens[i]=half(address+2+i*2) end
+            world_lists[#world_lists+1]=tokens
+        end
+        pass_list = #world_lists
+    end
+    if PC_PROFILE and pc_done < PC_PROFILE.passes and count == PC_PROFILE.count then
+        pc_active=true;pc_set(true)
+        pc_hits[0x80040ed8]=(pc_hits[0x80040ed8] or 0)+1
+        pc_last,pc_last_cycles=0x80040ed8,world_start
+    end
+    if count > 1 then
+        local config = tonumber(registers.GPR.n.a2)
+        local camera = word(config)
+        for i=1,3 do last_camera[i]=word(camera+(i-1)*4) end
+        last_callback=word(config+0x14);last_mode=word(config+0x28)
+        last_argument=tonumber(registers.GPR.n.a3)
+        if #world_samples < 4 then
+            assert(count <= 4096, 'Study snapshot SLST bound exceeded')
+            local address=tonumber(registers.GPR.n.a0)
+            local sample={world_start,address,count,half(address+2),last_camera[1],last_camera[2],last_camera[3],
+                          last_callback,last_mode,last_argument}
+            local tokens={}
+            for i=1,count do tokens[i]=half(address+2+i*2) end
+            pending_sample={header=sample,tokens=tokens}
+        end
+    end
+end))
+-- Capture after TR=0, ZSF3/4 and the optional setup callback. The observed
+-- callbacks 8003f518/80041e1c do not load R; it is supplied by the caller.
+ORIGINAL_WORLD_SETUP = PCSX.addBreakpoint(0x80041020, 'Exec', 4, 'Original world setup complete', guarded(function()
+    if not profiling then return end
+    local registers = PCSX.getRegisters()
+    for i=0,31 do last_gte[i+1]=tonumber(registers.CP2C.r[i]) end
+    if pending_sample then
+        local sample=pending_sample.header
+        for i=1,32 do sample[#sample+1]=last_gte[i] end
+        for _,token in ipairs(pending_sample.tokens) do sample[#sample+1]=token end
+        world_samples[#world_samples+1]=sample;pending_sample=nil
+    end
+end))
+-- 80041514 also covers the empty-list branch (80040f6c), unlike 8004150c.
+ORIGINAL_WORLD_END = PCSX.addBreakpoint(0x80041514, 'Exec', 4, 'Original world common epilogue', guarded(function()
+    if not profiling then return end
+    if world_start then
+        local cycles=tonumber(PCSX.getCPUCycles())-world_start
+        world_cycles=world_cycles+cycles
+        world_calls=world_calls+1
+        local bytes=word(world_buffer+8)-packet_begin
+        packet_bytes=packet_bytes+bytes
+        local profiled=0
+        if pc_active then
+            pc_close(world_start+cycles)
+            pc_active=false;pc_set(false);pc_done=pc_done+1;profiled=1
+        end
+        if #world_passes < 20000 then
+            world_passes[#world_passes+1]={world_start,cycles,pass_count,pass_list,bytes,profiled}
+        else overflow=true end
+        world_start=nil
+    end
+end))
+ORIGINAL_FRAME = PCSX.addBreakpoint(0x80016634, 'Exec', 4, 'Original frame finalization', guarded(function()
+    if not profiling then return end
+    local now=tonumber(PCSX.getCPUCycles())
+    if previous then
+        if #rows < 12000 then
+            local row={now,now-previous,world_cycles,world_calls,guest_fps(),
+                       word(0x8003ae8c),word(0x80068fa4),vsyncs}
+            for i=1,32 do row[#row+1]=last_gte[i] or 0 end
+            row[#row+1]=world_tokens
+            for i=1,3 do row[#row+1]=last_camera[i] end
+            row[#row+1]=last_callback;row[#row+1]=last_mode;row[#row+1]=last_argument
+            row[#row+1]=packet_bytes
+            rows[#rows+1]=row
+        else overflow=true end
+    end
+    previous=now;world_cycles=0;world_calls=0;world_tokens=0;packet_bytes=0
+end))
+-- SetDispEnv, after the optional debug print and before sending GP1(05h).
+-- Record actual requested display origins; no dependency on newer FPS APIs.
+ORIGINAL_PRESENT = PCSX.addBreakpoint(0x8004ce84, 'Exec', 4, 'Original display origin', guarded(function()
+    if not profiling then return end
+    if #presentations >= 12000 then overflow=true;return end
+    local display=tonumber(PCSX.getRegisters().GPR.n.s0)
+    local now=tonumber(PCSX.getCPUCycles())
+    presentations[#presentations+1]={now,vsyncs,word(display)}
+    -- Optional side channel keeps the established v3 presentation row intact.
+    -- This is phase since Redux's event, not a hardware scanout/tearing oracle.
+    presentation_phases[#presentation_phases+1]={now,last_vsync and (now-last_vsync) or -1}
+end))
+ORIGINAL_VSYNC = PCSX.Events.createEventListener('GPU::Vsync', function()
+    vsyncs=vsyncs+1;last_vsync=tonumber(PCSX.getCPUCycles())
+end)
+local function data(bytes)
+    assert(#bytes <= 32*1024*1024, 'Oversized study payload')
+    client:write({'CSD1 '..#bytes..'\n',bytes})
+end
+local function frame(mask)
+    set_buttons(mask)
+    local ss=PCSX.GPU.takeScreenShot()
+    if ss.width==0 or ss.height==0 then client:write('EPKF0\n');return end
+    local depth=tonumber(ss.bpp)==0 and 2 or 3
+    sequence=sequence+1
+    local header=string.format('CSF1 %d %d %d %d %d %.0f %d %.3f %d\n',
+        ss.width,ss.height,depth,sequence,mask,tonumber(PCSX.getCPUCycles()),vsyncs,
+        guest_fps(),tonumber(PCSX.getRegisters().pc))
+    client:write({header,tostring(ss.data)})
+end
+local function command(line)
+    if line=='M' then data(ffi.string(memory,0x200000));return end
+    if line=='S' then data(tostring(PCSX.createSaveState()));return end
+    if line=='T' then data(PCSX.getSaveStateProtoSchema());return end
+    if line=='H' then PCSX.pauseEmulator();data('paused');return end
+    if line=='C' then PCSX.resumeEmulator();data('running');return end
+    if line=='P' then
+        profiling=true;rows={};presentations={};presentation_phases={};overflow=false;previous=nil;world_start=nil;world_cycles=0;world_calls=0;callback_error=nil
+        world_samples={};pending_sample=nil
+        world_passes={};world_lists={};pass_list=nil;pass_count=0
+        pc_hits={};pc_charged={};pc_active=false;pc_done=0;pc_last=nil;pc_set(false)
+        if camera_trace then camera_trace.reset() end
+        world_tokens=0;packet_bytes=0;last_gte={};last_camera={0,0,0};last_callback=0;last_mode=0;last_argument=0
+        data('profiling');return
+    end
+    if line=='R' then
+        profiling=false
+        local output={'{"version":3,"cpu_clock_hz":'..tonumber(PCSX.CONSTS.CPU.CLOCKSPEED)..',"overflow":'..tostring(overflow)..',"callback_error":'..(callback_error and json_string(callback_error) or 'null')..',"rows":['}
+        for i,row in ipairs(rows) do
+            if i>1 then output[#output+1]=',' end
+            output[#output+1]='['..table.concat(row,',')..']'
+        end
+        output[#output+1]='],"presentations":['
+        for i,row in ipairs(presentations) do
+            if i>1 then output[#output+1]=',' end
+            output[#output+1]='['..table.concat(row,',')..']'
+        end
+        output[#output+1]='],"presentation_phases":['
+        for i,row in ipairs(presentation_phases) do
+            if i>1 then output[#output+1]=',' end
+            output[#output+1]='['..table.concat(row,',')..']'
+        end
+        output[#output+1]='],"world_samples":['
+        for i,row in ipairs(world_samples) do
+            if i>1 then output[#output+1]=',' end
+            output[#output+1]='['..table.concat(row,',')..']'
+        end
+        output[#output+1]='],"world_passes":['
+        for i,row in ipairs(world_passes) do
+            if i>1 then output[#output+1]=',' end
+            output[#output+1]='['..table.concat(row,',')..']'
+        end
+        output[#output+1]='],"world_lists":['
+        for i,row in ipairs(world_lists) do
+            if i>1 then output[#output+1]=',' end
+            output[#output+1]='['..table.concat(row,',')..']'
+        end
+        output[#output+1]=']'
+        if PC_PROFILE then
+            output[#output+1]=',"pc_profile":{"entry":'..PC_PROFILE.entry..',"stop":'..PC_PROFILE.stop
+                ..',"count":'..PC_PROFILE.count..',"passes":'..pc_done..',"pcs":['
+            local n=0
+            for address,hits in pairs(pc_hits) do
+                if n>0 then output[#output+1]=',' end
+                output[#output+1]='['..address..','..hits..','..(pc_charged[address] or 0)..']';n=n+1
+            end
+            output[#output+1]=']}'
+        end
+        if camera_trace then output[#output+1]=',"camera_trace":'..camera_trace.json() end
+        output[#output+1]='}'
+        data(table.concat(output));return
+    end
+    local state=line:match('^L ([%w_.-]+)$')
+    if state then
+        assert(not state:find('..',1,true))
+        local file=Support.File.open(ORIGINAL_FOLDER..'/'..state)
+        PCSX.loadSaveState(file);file:close();data('restored');return
+    end
+    local mask=tonumber(line:match('^F (%d+)$'))
+    assert(mask and mask<=65535,'Invalid study command')
+    frame(mask)
+end
+local function close()
+    if closed then return end
+    closed=true;pcall(set_buttons,0)
+    if not client:is_closing() then client:close() end
+end
+client:connect('127.0.0.1',ORIGINAL_PORT,function(err)
+    if err then close();return end
+    client:write('EPOK '..ORIGINAL_TOKEN..'\n')
+    client:read_start(function(err,chunk)
+        if err or not chunk then close();return end
+        pending=pending..chunk
+        if #pending>256 then close();return end
+        local line,rest=pending:match('^([^\n]*)\n(.*)$')
+        if line then
+            pending=rest
+            PCSX.nextTick(function()
+                if closed then return end
+                local ok,why=pcall(command,line)
+                if not ok then data('ERROR: '..tostring(why)) end
+            end)
+        end
+    end)
+end)
+ORIGINAL_QUIT=PCSX.Events.createEventListener('Quitting',close)

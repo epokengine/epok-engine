@@ -121,7 +121,7 @@ pub fn fonts_header(scene: &Scene) -> Result<String, String> {
         header += &crate::font_asset::header_fragment(data, &symbol);
         header += &format!("inline constexpr int font_id_{}={i};\n", id.simple());
         descriptors.push(format!(
-            "{{{symbol}_pixels,{symbol}_metrics,{symbol}_palette,{},{},{},{},{},{},{},640,{}}}",
+            "{{{symbol}_pixels,{symbol}_metrics,{symbol}_palette,{},{},{},{},{},{},{},{},{}}}",
             data.metrics.len(),
             data.width,
             data.height,
@@ -129,6 +129,7 @@ pub fn fonts_header(scene: &Scene) -> Result<String, String> {
             data.baseline,
             p.x,
             p.y,
+            p.clut_x,
             p.clut_y
         ));
     }
@@ -856,9 +857,15 @@ mod tests {
         let placement = crate::texture::layout(&scene).unwrap().fonts;
         assert_eq!(placement.len(), 1);
         assert_eq!(placement[0].0, id);
-        // No textures, so the font takes the first shelf and the first CLUT row.
-        assert_eq!((placement[0].1.x, placement[0].1.y), (640, 0));
-        assert_eq!(placement[0].1.clut_y, 480);
+        // No textures: the font and its CLUT are placed by the texture
+        // allocator, inside the texture area and apart from each other.
+        let p = placement[0].1;
+        assert_eq!(p.format, crate::texture_cook::Format::Indexed4);
+        assert!(p.x >= 640 && p.clut_x >= 640 && p.clut_x.is_multiple_of(16) && p.y < 512 && p.clut_y < 512);
+        assert!(fonts_header(&scene).unwrap().contains(&format!(
+            "{},{},{},{}}}",
+            p.x, p.y, p.clut_x, p.clut_y
+        )));
         assert_eq!(font_ids(&scene), vec![id]);
     }
     #[test]
