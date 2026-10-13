@@ -358,7 +358,12 @@ See the complete [Timeline reference](timelines.md) and the
 - **2D editor.** Select, move, rotate, scale and pan tools with shortcuts, grid and
   rotation snapping, pixel rulers, real texture and animation previews, collider and
   camera gizmos, drag-and-drop sprite creation, a sprite region editor and a
-  sprite-sheet frame slicer, and a visual 2D Inspector.
+  sprite-sheet frame slicer, and a visual 2D Inspector. Add 2D Node and Add Component
+  search by name, group or purpose, with the project's recent nodes first; node and
+  texture pickers with many choices search too. A node that cannot work as set up
+  shows a warning sign in the Hierarchy and the reasons in its Inspector, with
+  one-click fixes (a collider fitted to the sprite, a picture shown on the HUD, a
+  navigation region over the ground).
 - **Shape editing.** Paths, lines and polygons are edited on the canvas: drag, insert,
   add and delete points, curve handles, smoothing; particle emitters preview live.
 - **Tile editing.** Paint, line, rectangle, bucket fill, picker, eraser and selection
@@ -366,7 +371,10 @@ See the complete [Timeline reference](timelines.md) and the
   and terrains under the view; a TileSet editor for collision, terrains, animation and
   custom data with its own undo.
 - **Platformer 2D template.** A playable side-scroller in C++, Blueprint or Lua, built
-  from tile layers, parallax backgrounds and a screen-space HUD canvas.
+  from tile layers, layered parallax scenery and a screen-space HUD canvas, with a
+  cut-out guide using IK, a navigating companion, a pushable crate, a garland on rope
+  joints and ambient particles, grouped by purpose so a game can start by deleting what
+  it does not need.
 
 See [2D worlds](2d.md).
 
