@@ -111,6 +111,7 @@ mod native_metadata;
 mod native_music;
 mod native_play;
 mod navigation;
+mod navigation2d;
 mod navigation_geometry;
 mod obj_import;
 mod object_model;
@@ -227,6 +228,7 @@ mod visibility_track;
 mod workspace;
 mod world2d;
 mod world2d_editor;
+mod world2d_navigation_editor;
 mod world2d_shapes_editor;
 mod world2d_skeleton_editor;
 use std::{

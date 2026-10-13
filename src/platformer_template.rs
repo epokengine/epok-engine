@@ -518,6 +518,7 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
     let player_id = player.id;
     scene.actors.push(player);
     guide(&mut scene, art.guide, player_id, level);
+    wisp(&mut scene, art.spark, player_id, level);
     for index in coins {
         let pickup = ComponentInstance::new(
             Uuid::new_v4(),
@@ -608,6 +609,75 @@ fn guide(scene: &mut Scene, texture: Uuid, player: Uuid, level: Uuid) {
     if let Some(index) = scene.actor_index(root_id) {
         set(&mut scene.actors[index], world2d::SKELETON2D, &skeleton);
     }
+}
+
+/// A glowing wisp that keeps near the player, flying round the level's solid tiles: a
+/// NavigationRegion2D grid over the Ground layer and a NavigationAgent2D following the
+/// player.
+fn wisp(scene: &mut Scene, spark: Uuid, player: Uuid, level: Uuid) {
+    let Some(ground) = scene
+        .actors
+        .iter()
+        .find(|a| a.name == "Ground")
+        .map(|a| a.id)
+    else {
+        return;
+    };
+    let mut region = world2d::create(Preset::NavigationRegion2D, "WispPaths", [0., 0.]);
+    set(
+        &mut region,
+        world2d::NAVIGATION_REGION2D,
+        &crate::navigation2d::NavigationRegion2D {
+            tile_layer: Some(ground),
+            margin: 3,
+            agent_radius: 4.,
+            ..Default::default()
+        },
+    );
+    region.logical_parent = Some(level);
+    scene.actors.push(region);
+    let mut wisp = world2d::create(Preset::Particles2D, "Wisp", [-236., 40.]);
+    set(
+        &mut wisp,
+        world2d::PARTICLES2D,
+        &Particles2D {
+            amount: 12,
+            lifetime: 0.8,
+            spread: 180.,
+            speed: [2., 6.],
+            gravity: [0., -6.],
+            start_color: [255, 250, 200],
+            end_color: [90, 150, 255],
+            texture: Some(spark),
+            blend: crate::texture::BlendMode::Add,
+            z_index: 4,
+            ..Default::default()
+        },
+    );
+    add(
+        &mut wisp,
+        world2d::SPRITE2D,
+        &Sprite2D {
+            texture: Some(spark),
+            blend: crate::texture::BlendMode::Add,
+            modulate: [255, 255, 220],
+            z_index: 5,
+            ..Default::default()
+        },
+    );
+    add(
+        &mut wisp,
+        world2d::NAVIGATION_AGENT2D,
+        &crate::navigation2d::NavigationAgent2D {
+            target: Some(player),
+            max_speed: 80.,
+            arrive_distance: 20.,
+            repath_interval: 0.3,
+            ..Default::default()
+        },
+    );
+    wisp.logical_parent = Some(level);
+    scene.actors.push(wisp);
 }
 
 pub fn controller_id(flavor: GameplayFlavor) -> &'static str {

@@ -13,6 +13,8 @@
 //   EPOK_WORLD2D_TRIGGER_PAIRS remembered overlapping trigger pairs
 //   EPOK_WORLD2D_DRAW_ITEMS    sprites, tile layers and repeated copies drawn per frame
 //   EPOK_WORLD2D_ARENA_BYTES   GPU packet bytes per frame parity
+//   EPOK_WORLD2D_NAV_CELLS     cells of the largest navigation grid (A* scratch)
+//   EPOK_WORLD2D_NAV_OPEN      A* open-list entries
 // Exceeding any of them drops the extra work and counts it in `world2d::stats`.
 //
 // Tile collision. A movement or ray gathers the solid tiles it can touch (the cells under
@@ -42,6 +44,12 @@
 #endif
 #ifndef EPOK_WORLD2D_DRAW_ITEMS
 #define EPOK_WORLD2D_DRAW_ITEMS 256
+#endif
+#ifndef EPOK_WORLD2D_NAV_CELLS
+#define EPOK_WORLD2D_NAV_CELLS 1
+#endif
+#ifndef EPOK_WORLD2D_NAV_OPEN
+#define EPOK_WORLD2D_NAV_OPEN 1
 #endif
 
 namespace epok {
@@ -184,6 +192,12 @@ class Service {
         Fixed age = 0.0, life = 1.0;
     };
     Particle particles[EPOK_WORLD2D_PARTICLES] = {};
+public:
+    // Grid A* scratch for navigation agents (see world2d_navigation.hpp).
+    uint16_t nav_cost[EPOK_WORLD2D_NAV_CELLS] = {};
+    uint8_t nav_info[EPOK_WORLD2D_NAV_CELLS] = {};
+    uint32_t nav_heap[EPOK_WORLD2D_NAV_OPEN] = {};
+private:
 
     // Uniform [0, 1) from the emitter's own sequence, so emitters stay reproducible.
     static Fixed random_unit(Particles2DComponent& emitter) {
@@ -619,8 +633,88 @@ public:
     // ---- simulation step ---------------------------------------------------------------
     // After the level tick: animate, resolve this step's colliders and triggers, move the
     // cameras to where the actors ended up, then scroll the parallax layers after them.
+    // ---- navigation ----------------------------------------------------------------------
+    // Agents follow their target actor, plan when asked (one path per step for the whole
+    // map, so a crowd never stalls a frame), then walk their path.
+    void navigate(Fixed dt) {
+        bool planned = false;
+        nav_agents.each([&](NavigationAgent2DComponent& agent) {
+            if (!owner_active(agent)) return;
+            SceneComponent2D* root = root_of(agent);
+            Affine2D matrix;
+            if (!root || !world_of(agent, matrix)) return;
+            if (agent.has_target && agent.target_actor.valid()) {
+                SceneComponent2D* other = actor_root(agent.target_actor);
+                Affine2D there;
+                if (!other || !root_world(*other, there)) {
+                    agent.stop();
+                    return;
+                }
+                agent.target[0] = there.t[0];
+                agent.target[1] = there.t[1];
+                agent.clock += dt;
+                const Fixed moved = length_2d(agent.target[0] - agent.planned_for[0], agent.target[1] - agent.planned_for[1]);
+                const Fixed threshold = agent.arrive_distance > Fixed(4.0) ? agent.arrive_distance : Fixed(4.0);
+                if (agent.clock >= agent.repath_interval && moved > threshold) agent.dirty = true;
+            }
+            if (agent.has_target && agent.dirty && !planned) {
+                plan(agent, matrix.t);
+                planned = true;
+            }
+            follow(agent, matrix.t, dt, *root);
+        });
+    }
+    static void plan(NavigationAgent2DComponent& agent, const Fixed* at) {
+        agent.dirty = false;
+        agent.clock = 0.0;
+        agent.planned_for[0] = agent.target[0];
+        agent.planned_for[1] = agent.target[1];
+        agent.path_count = agent.path_index = 0;
+        agent.reachable = false;
+        NavigationRegion2DComponent* region = nullptr;
+        nav_regions.each([&](NavigationRegion2DComponent& r) {
+            if (!region && owner_active(r) && r.covers(at)) region = &r;
+        });
+        bool reached = false;
+        const size_t count = region ? region->find_path(at, agent.target, agent.path, nav_path_limit, reached) : 0;
+        agent.path_count = uint8_t(count);
+        agent.reachable = reached;
+        agent.finished = count == 0;
+    }
+    static void follow(NavigationAgent2DComponent& agent, const Fixed* at, Fixed dt, SceneComponent2D& root) {
+        agent.velocity[0] = agent.velocity[1] = 0.0;
+        if (!agent.has_target || agent.finished) return;
+        while (agent.path_index < agent.path_count &&
+               length_2d(agent.path[agent.path_index][0] - at[0], agent.path[agent.path_index][1] - at[1]) <= agent.arrive_distance)
+            ++agent.path_index;
+        if (agent.path_index >= agent.path_count) {
+            if (agent.path_count && !agent.dirty) {
+                agent.finished = true;
+                if (agent.reachable) agent.arrived = true;
+            }
+            return;
+        }
+        const Fixed dx = agent.path[agent.path_index][0] - at[0], dy = agent.path[agent.path_index][1] - at[1];
+        const int64_t distance = length_2d(dx, dy).raw();
+        if (distance <= 0) return;
+        // Never overshoot the waypoint within one step.
+        int64_t speed = agent.max_speed.raw();
+        if (dt.raw() > 0 && int64_t(speed) * dt.raw() / 4096 > distance) speed = distance * 4096 / dt.raw();
+        agent.velocity[0] = Fixed(int32_t(int64_t(dx.raw()) * speed / distance), Fixed::RAW);
+        agent.velocity[1] = Fixed(int32_t(int64_t(dy.raw()) * speed / distance), Fixed::RAW);
+        if (!agent.drives_body) return;
+        if (auto* body = find<CharacterBody2DComponent>(agent.get_owner())) {
+            body->set_velocity(agent.velocity[0], agent.velocity[1]);
+            body->move_and_slide();
+        } else {
+            const Fixed next[2] = {at[0] + agent.velocity[0] * dt, at[1] + agent.velocity[1] * dt};
+            set_world_position(root, next);
+        }
+    }
+
     template<class LevelType> void step(Fixed dt, LevelType* level) {
         sprites.each([&](Sprite2DComponent& sprite) { sprite.advance(dt); });
+        if (nav_agents.head) navigate(dt);
         tile_clock += dt;
         if (tile_clock > Fixed(65536.0)) tile_clock -= Fixed(65536.0);
         // Path followers move first, so this step's collisions and triggers see them, and
@@ -750,6 +844,7 @@ public:
 inline Service service;
 
 inline void install() {
+    nav_scratch = NavScratch{service.nav_cost, service.nav_info, service.nav_heap, EPOK_WORLD2D_NAV_CELLS, EPOK_WORLD2D_NAV_OPEN};
     hooks.move = [](ActorComponent& body, const Fixed* delta, uint32_t mask, MoveResult2D& result) {
         return service.move(body, delta, mask, result);
     };

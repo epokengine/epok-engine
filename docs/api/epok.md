@@ -2,7 +2,7 @@
 
 Epok's gameplay-facing and engine-runtime callables. Start here for entities, input, collision, audio, scenes, timelines, effects and resource budgets.
 
-**Coverage:** 110 headers · 1859 public callables.
+**Coverage:** 111 headers · 1906 public callables.
 
 ## Modules
 
@@ -105,8 +105,9 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [World2D](epok/world2d.md) | `world2d.hpp` | 49 | Epok runtime API |
 | [World2D Components](epok/world2d-components.md) | `world2d_components.hpp` | 81 | Epok runtime API |
 | [World2D Content](epok/world2d-content.md) | `world2d_content.hpp` | 77 | Epok runtime API |
+| [World2D Navigation](epok/world2d-navigation.md) | `world2d_navigation.hpp` | 44 | Epok runtime API |
 | [World2D Render](epok/world2d-render.md) | `world2d_render.hpp` | 1 | Epok runtime API |
-| [World2D Service](epok/world2d-service.md) | `world2d_service.hpp` | 37 | Epok runtime API |
+| [World2D Service](epok/world2d-service.md) | `world2d_service.hpp` | 40 | Epok runtime API |
 | [World2D Skeleton](epok/world2d-skeleton.md) | `world2d_skeleton.hpp` | 24 | Epok runtime API |
 | [World2D Tiles](epok/world2d-tiles.md) | `world2d_tiles.hpp` | 48 | Epok runtime API |
 | [Blueprint Playback Service](epok/blueprint-playback-service.md) | `blueprint_playback_service.hpp` | 0 | Engine internal |

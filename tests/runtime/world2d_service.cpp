@@ -3,10 +3,14 @@
 // with floor/wall/one-way contacts, trigger delivery to overlap_2d, registration lifetime,
 // the stable draw-item sort, tile map cells and runtime edits, tile collision, rays and
 // overlaps against tiles, tile drawing, parallax and canvas layers, paths and followers,
-// lines, polygons, particles, on-screen notifiers, remote transforms and 2D audio. Compiles the real runtime headers; only the audio service and
-// the cooked class table are provided here, as a generated build would.
+// lines, polygons, particles, on-screen notifiers, remote transforms, 2D audio, cut-out
+// skeletons with IK and navigation. Compiles the real runtime headers; only the audio
+// service and the cooked class table are provided here, as a generated build would.
 #include <cassert>
 #include <cstdio>
+// A navigation scratch large enough for the test grids, as a cooked build would size it.
+#define EPOK_WORLD2D_NAV_CELLS 256
+#define EPOK_WORLD2D_NAV_OPEN 512
 #ifdef _MSC_VER
 #include <crtdbg.h>
 #endif
@@ -77,6 +81,8 @@ const ClassDescriptor object_classes[] = {
     {VisibleOnScreenNotifier2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<VisibleOnScreenNotifier2DComponent>, &object_destruct, sizeof(VisibleOnScreenNotifier2DComponent), alignof(VisibleOnScreenNotifier2DComponent), &ObjectPool<VisibleOnScreenNotifier2DComponent, 4>::acquire, &ObjectPool<VisibleOnScreenNotifier2DComponent, 4>::release},
     {RemoteTransform2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<RemoteTransform2DComponent>, &object_destruct, sizeof(RemoteTransform2DComponent), alignof(RemoteTransform2DComponent), &ObjectPool<RemoteTransform2DComponent, 4>::acquire, &ObjectPool<RemoteTransform2DComponent, 4>::release},
     {Skeleton2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<Skeleton2DComponent>, &object_destruct, sizeof(Skeleton2DComponent), alignof(Skeleton2DComponent), &ObjectPool<Skeleton2DComponent, 4>::acquire, &ObjectPool<Skeleton2DComponent, 4>::release},
+    {NavigationRegion2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<NavigationRegion2DComponent>, &object_destruct, sizeof(NavigationRegion2DComponent), alignof(NavigationRegion2DComponent), &ObjectPool<NavigationRegion2DComponent, 4>::acquire, &ObjectPool<NavigationRegion2DComponent, 4>::release},
+    {NavigationAgent2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<NavigationAgent2DComponent>, &object_destruct, sizeof(NavigationAgent2DComponent), alignof(NavigationAgent2DComponent), &ObjectPool<NavigationAgent2DComponent, 4>::acquire, &ObjectPool<NavigationAgent2DComponent, 4>::release},
     {Listener2D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None, world2d_bit, ObjectClassMultiple, &object_construct<Listener2D>, &object_destruct, sizeof(Listener2D), alignof(Listener2D), &ObjectPool<Listener2D, 4>::acquire, &ObjectPool<Listener2D, 4>::release},
     {Level::static_class_id, Object::static_class_id, ObjectFamily::Level, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Level), alignof(Level), nullptr, nullptr},
 };
@@ -853,6 +859,80 @@ void skeletons() {
     assert(close(real(world_y(hand)), 0, 0.6));
 }
 
+// 20. Navigation: grid A* bends around walls without cutting corners and stops next to
+// an unreachable target; navmesh paths turn at the inner corner; agents walk to targets.
+uint8_t wall_bits[13];
+world2d::NavGrid2D wall_grid(int gap_rows) {
+    for (auto& b : wall_bits) b = 0;
+    // 10 x 10 cells of 16 px; column 4 blocked except the last `gap_rows` rows.
+    for (int y = 0; y < 10 - gap_rows; ++y) {
+        const int i = y * 10 + 4;
+        wall_bits[i >> 3] |= uint8_t(1u << (i & 7));
+    }
+    world2d::NavGrid2D grid;
+    grid.blocked = wall_bits;
+    grid.columns = grid.rows = 10;
+    grid.cell[0] = grid.cell[1] = q(16);
+    return grid;
+}
+void navigation() {
+    reset();
+    Fixed out[world2d::nav_path_limit][2];
+    bool reached = false;
+    auto grid = wall_grid(2);
+    const Fixed from[2] = {q(8), q(8)}, to[2] = {q(136), q(8)};
+    size_t n = world2d::grid_path(grid, from, to, out, world2d::nav_path_limit, reached);
+    assert(reached && n >= 2);
+    bool below = false;
+    for (size_t i = 0; i < n; ++i) below |= real(out[i][1]) > 128;
+    assert(below && real(out[n - 1][0]) == 136 && real(out[n - 1][1]) == 8);
+    // No squeezing between two diagonal blocks.
+    uint8_t corner_bits[2] = {uint8_t((1u << 1) | (1u << 3)), 0};
+    world2d::NavGrid2D corner;
+    corner.blocked = corner_bits;
+    corner.columns = corner.rows = 3;
+    corner.cell[0] = corner.cell[1] = q(16);
+    assert(!world2d::grid_line_of_sight(corner, 0, 0, 1, 1));
+    // A full wall: the path ends at the closest reachable cell.
+    grid = wall_grid(0);
+    n = world2d::grid_path(grid, from, to, out, world2d::nav_path_limit, reached);
+    assert(!reached && n >= 1 && real(out[n - 1][0]) == 3 * 16 + 8 && real(out[n - 1][1]) == 8);
+
+    // An L-shaped navmesh: across the top, then down the right side.
+    static const Fixed vertices[] = {q(0), q(0), q(100), q(0), q(100), q(100), q(70), q(100), q(70), q(30), q(0), q(30)};
+    static const uint8_t triangles[] = {0, 1, 4, 0, 4, 5, 1, 2, 4, 2, 3, 4};
+    static const int8_t neighbours[] = {-1, 2, 1, 0, -1, -1, -1, 3, 0, -1, -1, 2};
+    world2d::NavMesh2D mesh{vertices, triangles, neighbours, 4};
+    const Fixed a[2] = {q(10), q(15)}, b[2] = {q(85), q(90)};
+    n = world2d::mesh_path(mesh, a, b, out, world2d::nav_path_limit, reached);
+    assert(reached && n == 2 && real(out[0][0]) == 70 && real(out[0][1]) == 30 && real(out[1][0]) == 85);
+    // Off the mesh: the closest point on its edge, here on the vertical arm.
+    const Fixed outside[2] = {q(40), q(80)};
+    n = world2d::mesh_path(mesh, a, outside, out, world2d::nav_path_limit, reached);
+    assert(!reached && n >= 1 && close(real(out[n - 1][0]), 70, 0.01) && close(real(out[n - 1][1]), 80, 0.01));
+
+    // An agent on the grid walks round the wall to its target and reports it once.
+    auto* map = spawn<Actor2D>("Floor", 0, 0);
+    auto* region = game_level.add_component<NavigationRegion2DComponent>(*map, "Region");
+    region->grid = wall_grid(2);
+    assert(region->is_walkable(q(8), q(8)) && !region->is_walkable(q(72), q(8)));
+    auto* walker = spawn<Actor2D>("Walker", 8, 8);
+    auto* agent = game_level.add_component<NavigationAgent2DComponent>(*walker, "Agent");
+    agent->max_speed = q(120);
+    agent->set_target_position(q(136), q(8));
+    for (int i = 0; i < 600 && !agent->is_navigation_finished(); ++i) step();
+    assert(agent->is_navigation_finished() && agent->is_target_reachable() && agent->take_arrived() && !agent->take_arrived());
+    assert(close(real(root(walker).transform.position[0]), 136, 4.5) && close(real(root(walker).transform.position[1]), 8, 4.5));
+    // Following an actor re-plans as it moves.
+    auto* goal = spawn<Actor2D>("Goal", 136, 136);
+    agent->set_target_actor(goal->id());
+    for (int i = 0; i < 600 && !agent->is_navigation_finished(); ++i) step();
+    assert(close(real(root(walker).transform.position[1]), 136, 4.5));
+    root(goal).transform.position[0] = q(8);
+    for (int i = 0; i < 900; ++i) step();
+    assert(close(real(root(walker).transform.position[0]), 8, 4.5));
+}
+
 void size_report() {
     std::printf("World2D components (host, %zu-bit pointers): Sprite2D %zu  Camera2D %zu  Collider2D %zu  CharacterBody2D %zu  TileMapLayer %zu  Parallax2D %zu  Skeleton2D %zu\n",
                 sizeof(void*) * 8, sizeof(Sprite2DComponent), sizeof(Camera2DComponent), sizeof(Collider2DComponent),
@@ -884,7 +964,8 @@ int main() {
     remote_transforms();
     audio_2d();
     skeletons();
+    navigation();
     size_report();
-    std::puts("World2D sprite clips, camera, character body, triggers, draw sort, tile map, parallax, canvas layer, path, shape, particle, notifier, remote transform, 2D audio and skeleton tests passed.");
+    std::puts("World2D sprite clips, camera, character body, triggers, draw sort, tile map, parallax, canvas layer, path, shape, particle, notifier, remote transform, 2D audio, skeleton and navigation tests passed.");
     return 0;
 }

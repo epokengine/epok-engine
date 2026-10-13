@@ -501,3 +501,4 @@ private:
 #include "world2d_tiles.hpp"
 #include "world2d_content.hpp"
 #include "world2d_skeleton.hpp"
+#include "world2d_navigation.hpp"

@@ -68,6 +68,8 @@ pub enum Shape {
     Path(Path2D),
     Line(Line2D),
     Polygon(Polygon2D),
+    /// A NavigationRegion2D's navmesh outline.
+    Navigation(crate::navigation2d::NavigationRegion2D),
 }
 impl Shape {
     fn points(&self) -> Vec<[f32; 2]> {
@@ -75,13 +77,14 @@ impl Shape {
             Shape::Path(p) => p.points.iter().map(|p| p.position).collect(),
             Shape::Line(l) => l.points.clone(),
             Shape::Polygon(p) => p.points.clone(),
+            Shape::Navigation(r) => r.outline.clone(),
         }
     }
     fn closed(&self) -> bool {
         match self {
             Shape::Path(p) => p.closed,
             Shape::Line(l) => l.closed,
-            Shape::Polygon(_) => true,
+            Shape::Polygon(_) | Shape::Navigation(_) => true,
         }
     }
     fn label(&self) -> &'static str {
@@ -89,6 +92,7 @@ impl Shape {
             Shape::Path(_) => "Path2D",
             Shape::Line(_) => "Line2D",
             Shape::Polygon(_) => "Polygon2D",
+            Shape::Navigation(_) => "Navmesh outline",
         }
     }
     fn set_point(&mut self, index: usize, value: [f32; 2]) {
@@ -105,6 +109,11 @@ impl Shape {
             }
             Shape::Polygon(p) => {
                 if let Some(point) = p.points.get_mut(index) {
+                    *point = value;
+                }
+            }
+            Shape::Navigation(r) => {
+                if let Some(point) = r.outline.get_mut(index) {
                     *point = value;
                 }
             }
@@ -125,11 +134,17 @@ impl Shape {
                 }
                 p.points.insert(index, value)
             }
+            Shape::Navigation(r) => {
+                if r.outline.len() >= crate::navigation2d::MAX_OUTLINE {
+                    return false;
+                }
+                r.outline.insert(index, value)
+            }
         }
         true
     }
     fn remove(&mut self, index: usize) {
-        let minimum = if matches!(self, Shape::Polygon(_)) {
+        let minimum = if matches!(self, Shape::Polygon(_) | Shape::Navigation(_)) {
             3
         } else {
             2
@@ -143,6 +158,9 @@ impl Shape {
             }
             Shape::Polygon(p) if p.points.len() > minimum => {
                 p.points.remove(index);
+            }
+            Shape::Navigation(r) if r.outline.len() > minimum => {
+                r.outline.remove(index);
             }
             _ => {}
         }
@@ -162,6 +180,12 @@ pub fn shape_of(e: &Editor, actor: Uuid) -> Option<(Uuid, Shape)> {
             }
             Some(world2d::POLYGON2D) => {
                 return Some((component.id, Shape::Polygon(world2d::read(component))));
+            }
+            Some(world2d::NAVIGATION_REGION2D) => {
+                let region: crate::navigation2d::NavigationRegion2D = world2d::read(component);
+                if region.mode == crate::navigation2d::NavMode::Polygon {
+                    return Some((component.id, Shape::Navigation(region)));
+                }
             }
             _ => {}
         }
@@ -183,6 +207,7 @@ fn store(e: &mut Editor, actor: Uuid, component: Uuid, shape: &Shape) {
         Shape::Path(p) => world2d::write(c, p),
         Shape::Line(l) => world2d::write(c, l),
         Shape::Polygon(p) => world2d::write(c, p),
+        Shape::Navigation(r) => world2d::write(c, r),
     }
     e.scene.actors[index].refresh_components();
 }
@@ -213,6 +238,21 @@ pub fn local_bounds(e: &Editor, actor: Uuid) -> Option<([f32; 2], [f32; 2])> {
             Some(world2d::POLYGON2D) => {
                 for p in &world2d::read::<Polygon2D>(component).points {
                     grow(*p, 0.);
+                }
+            }
+            Some(world2d::NAVIGATION_REGION2D) => {
+                let r: crate::navigation2d::NavigationRegion2D = world2d::read(component);
+                match r.mode {
+                    crate::navigation2d::NavMode::Polygon => {
+                        for p in &r.outline {
+                            grow(*p, 0.);
+                        }
+                    }
+                    crate::navigation2d::NavMode::Grid if r.tile_layer.is_none() => {
+                        grow([0., 0.], 0.);
+                        grow(r.size, 0.);
+                    }
+                    crate::navigation2d::NavMode::Grid => grow([0., 0.], 8.),
                 }
             }
             Some(world2d::NOTIFIER2D) => {
@@ -574,7 +614,7 @@ pub fn toolbar(ui: &Ui, e: &mut Editor) {
         Shape::Line(line) => {
             changed |= ui.checkbox("Closed", &mut line.closed);
         }
-        Shape::Polygon(_) => {}
+        Shape::Polygon(_) | Shape::Navigation(_) => {}
     }
     ui.same_line_with_spacing(0., 10.);
     ui.text_disabled(format!("{} points", shape.points().len()));

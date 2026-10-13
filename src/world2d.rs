@@ -34,10 +34,12 @@ pub const AUDIO_PLAYER2D: &str = om::AUDIO_PLAYER2D_COMPONENT_ID;
 pub const NOTIFIER2D: &str = om::NOTIFIER2D_COMPONENT_ID;
 pub const REMOTE_TRANSFORM2D: &str = om::REMOTE_TRANSFORM2D_COMPONENT_ID;
 pub const SKELETON2D: &str = om::SKELETON2D_COMPONENT_ID;
+pub const NAVIGATION_REGION2D: &str = om::NAVIGATION_REGION2D_COMPONENT_ID;
+pub const NAVIGATION_AGENT2D: &str = om::NAVIGATION_AGENT2D_COMPONENT_ID;
 
 /// Every engine 2D component the editor authors and cooks itself: its class id, the
 /// property key holding its record, and its C++ class.
-const BUILTINS: [(&str, &str, &str); 17] = [
+const BUILTINS: [(&str, &str, &str); 19] = [
     (SPRITE2D, "sprite2d", "epok::Sprite2DComponent"),
     (CAMERA2D, "camera2d", "epok::Camera2DComponent"),
     (COLLIDER2D, "collider2d", "epok::Collider2DComponent"),
@@ -79,6 +81,16 @@ const BUILTINS: [(&str, &str, &str); 17] = [
         "epok::RemoteTransform2DComponent",
     ),
     (SKELETON2D, "skeleton2d", "epok::Skeleton2DComponent"),
+    (
+        NAVIGATION_REGION2D,
+        "navigation_region2d",
+        "epok::NavigationRegion2DComponent",
+    ),
+    (
+        NAVIGATION_AGENT2D,
+        "navigation_agent2d",
+        "epok::NavigationAgent2DComponent",
+    ),
 ];
 pub fn is_builtin(class_id: &str) -> bool {
     BUILTINS.iter().any(|b| b.0 == class_id)
@@ -692,6 +704,19 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
         NOTIFIER2D => decode::<Notifier2D>(value).map(|_| ()),
         REMOTE_TRANSFORM2D => decode::<RemoteTransform2D>(value).map(|_| ()),
         SKELETON2D => decode::<crate::skeleton2d::Skeleton2D>(value).and_then(|s| s.validate()),
+        NAVIGATION_REGION2D => {
+            decode::<crate::navigation2d::NavigationRegion2D>(value).and_then(|r| {
+                if r.outline.len() > crate::navigation2d::MAX_OUTLINE {
+                    Err(format!(
+                        "a navigation outline holds at most {} points",
+                        crate::navigation2d::MAX_OUTLINE
+                    ))
+                } else {
+                    Ok(())
+                }
+            })
+        }
+        NAVIGATION_AGENT2D => decode::<crate::navigation2d::NavigationAgent2D>(value).map(|_| ()),
         _ => decode::<CharacterBody2D>(value).map(|_| ()),
     };
     result.map_err(|e| format!("{key}: {e}"))
@@ -718,6 +743,8 @@ fn default_record(class_id: &str) -> serde_json::Value {
         NOTIFIER2D => value::<Notifier2D>(),
         REMOTE_TRANSFORM2D => value::<RemoteTransform2D>(),
         SKELETON2D => value::<crate::skeleton2d::Skeleton2D>(),
+        NAVIGATION_REGION2D => value::<crate::navigation2d::NavigationRegion2D>(),
+        NAVIGATION_AGENT2D => value::<crate::navigation2d::NavigationAgent2D>(),
         _ => value::<CharacterBody2D>(),
     }
 }
@@ -882,14 +909,54 @@ pub fn capacity_defines<'a>(
         + if particles > 1 { particles * 40 } else { 0 })
     .clamp(2048, 262144);
     let (probes, edits) = if layers > 0 { (48, 128) } else { (1, 1) };
+    // The A* scratch covers the largest navigation grid of any map.
+    let nav_cells = scenes
+        .iter()
+        .flat_map(|scene| {
+            scene
+                .actors
+                .iter()
+                .enumerate()
+                .flat_map(move |(index, actor)| {
+                    actor
+                        .components
+                        .iter()
+                        .filter(|c| c.class.class_id.as_deref() == Some(NAVIGATION_REGION2D))
+                        .filter_map(move |c| {
+                            let r: crate::navigation2d::NavigationRegion2D = read(c);
+                            (r.mode == crate::navigation2d::NavMode::Grid).then(|| {
+                                crate::navigation2d::build_grid(
+                                    &r,
+                                    world_point(scene, index, [0., 0.]),
+                                    scene,
+                                    &scene.tilesets,
+                                    Some(actor.id),
+                                )
+                                .map_or(0, |g| g.columns * g.rows)
+                            })
+                        })
+                })
+        })
+        .max()
+        .unwrap_or(0);
+    let nav_open = if nav_cells > 0 {
+        (nav_cells * 2).clamp(64, 4096)
+    } else {
+        1
+    };
     format!(
-        "#define EPOK_WORLD2D 1\n#define EPOK_WORLD2D_COLLIDERS {colliders}\n#define EPOK_WORLD2D_TILE_PROBES {probes}\n#define EPOK_WORLD2D_TILE_EDITS {edits}\n#define EPOK_WORLD2D_PARTICLES {particles}\n#define EPOK_WORLD2D_TRIGGER_PAIRS {}\n#define EPOK_WORLD2D_DRAW_ITEMS {sprites}\n#define EPOK_WORLD2D_ARENA_BYTES {arena}\n",
-        (colliders * 2).clamp(32, 512)
+        "#define EPOK_WORLD2D 1\n#define EPOK_WORLD2D_COLLIDERS {colliders}\n#define EPOK_WORLD2D_TILE_PROBES {probes}\n#define EPOK_WORLD2D_TILE_EDITS {edits}\n#define EPOK_WORLD2D_PARTICLES {particles}\n#define EPOK_WORLD2D_TRIGGER_PAIRS {}\n#define EPOK_WORLD2D_DRAW_ITEMS {sprites}\n#define EPOK_WORLD2D_ARENA_BYTES {arena}\n#define EPOK_WORLD2D_NAV_CELLS {}\n#define EPOK_WORLD2D_NAV_OPEN {nav_open}\n",
+        (colliders * 2).clamp(32, 512),
+        nav_cells.max(1)
     )
 }
 
 /// World position of a 2D actor through its spatial attachments (depth-bounded).
 pub fn world_position(scene: &crate::scene::Scene, index: usize) -> [f32; 2] {
+    world_point(scene, index, [0., 0.])
+}
+/// A point in a 2D actor's local pixels, in world pixels.
+pub fn world_point(scene: &crate::scene::Scene, index: usize, local: [f32; 2]) -> [f32; 2] {
     let mut chain = vec![index];
     let mut current = index;
     for _ in 0..32 {
@@ -907,7 +974,7 @@ pub fn world_position(scene: &crate::scene::Scene, index: usize) -> [f32; 2] {
         current = parent;
     }
     // Compose root-first: p_world = parent(... child(p)).
-    let mut point = [0., 0.];
+    let mut point = local;
     for &i in &chain {
         let t = scene.actors[i]
             .root()
@@ -982,9 +1049,11 @@ pub enum Preset {
     VisibleOnScreenNotifier2D,
     RemoteTransform2D,
     Skeleton2D,
+    NavigationRegion2D,
+    NavigationAgent2D,
 }
 impl Preset {
-    pub const ALL: [Preset; 21] = [
+    pub const ALL: [Preset; 23] = [
         Preset::Node2D,
         Preset::Sprite2D,
         Preset::AnimatedSprite2D,
@@ -1001,6 +1070,8 @@ impl Preset {
         Preset::Particles2D,
         Preset::PointLight2D,
         Preset::Skeleton2D,
+        Preset::NavigationRegion2D,
+        Preset::NavigationAgent2D,
         Preset::CanvasLayer2D,
         Preset::CanvasModulate2D,
         Preset::AudioPlayer2D,
@@ -1021,6 +1092,7 @@ impl Preset {
                 "Drawing and effects"
             }
             Preset::Skeleton2D => "Animation",
+            Preset::NavigationRegion2D | Preset::NavigationAgent2D => "Navigation",
             Preset::CanvasLayer2D | Preset::CanvasModulate2D => "Canvas",
             Preset::AudioPlayer2D
             | Preset::VisibleOnScreenNotifier2D
@@ -1050,6 +1122,8 @@ impl Preset {
             Preset::VisibleOnScreenNotifier2D => "VisibleOnScreenNotifier2D",
             Preset::RemoteTransform2D => "RemoteTransform2D",
             Preset::Skeleton2D => "Skeleton2D",
+            Preset::NavigationRegion2D => "NavigationRegion2D",
+            Preset::NavigationAgent2D => "NavigationAgent2D",
         }
     }
     pub fn description(self) -> &'static str {
@@ -1083,6 +1157,12 @@ impl Preset {
             Preset::Skeleton2D => {
                 "Animates a cut-out character: attached parts are bones; pose keys and IK."
             }
+            Preset::NavigationRegion2D => {
+                "Where agents can walk: a grid from tiles and static bodies, or a navmesh."
+            }
+            Preset::NavigationAgent2D => {
+                "Finds a path to a target and walks it: enemies, NPCs, followers."
+            }
         }
     }
     pub fn components(self) -> &'static [&'static str] {
@@ -1106,6 +1186,8 @@ impl Preset {
             Preset::VisibleOnScreenNotifier2D => &[NOTIFIER2D],
             Preset::RemoteTransform2D => &[REMOTE_TRANSFORM2D],
             Preset::Skeleton2D => &[SKELETON2D],
+            Preset::NavigationRegion2D => &[NAVIGATION_REGION2D],
+            Preset::NavigationAgent2D => &[NAVIGATION_AGENT2D],
         }
     }
 }
@@ -1210,6 +1292,8 @@ pub struct CookContext<'a> {
     pub actor_slot: Option<&'a dyn Fn(Uuid) -> Option<usize>>,
     /// The bank index of an audio clip.
     pub clip: Option<&'a dyn Fn(Uuid) -> Option<usize>>,
+    /// The map being cooked, for components that read other actors (navigation).
+    pub scene: Option<&'a crate::scene::Scene>,
 }
 impl<'a> CookContext<'a> {
     pub fn new(
@@ -1224,7 +1308,12 @@ impl<'a> CookContext<'a> {
             start_view,
             actor_slot: None,
             clip: None,
+            scene: None,
         }
+    }
+    pub fn with_scene(mut self, scene: &'a crate::scene::Scene) -> Self {
+        self.scene = Some(scene);
+        self
     }
     pub fn with_actors(mut self, slot: &'a dyn Fn(Uuid) -> Option<usize>) -> Self {
         self.actor_slot = Some(slot);
@@ -1805,6 +1894,93 @@ pub fn cook(
             }
             body += &format!("c->disable_when_hidden={};", n.disable_when_hidden);
         }
+        NAVIGATION_REGION2D => {
+            let r: crate::navigation2d::NavigationRegion2D = read(component);
+            let scene = context
+                .scene
+                .ok_or_else(|| format!("{label}: navigation needs its map to cook"))?;
+            let index = scene
+                .actors
+                .iter()
+                .position(|a| a.components.iter().any(|c| c.id == component.id))
+                .ok_or_else(|| format!("{label}: the region is not in its map"))?;
+            match r.mode {
+                crate::navigation2d::NavMode::Grid => {
+                    let grid = crate::navigation2d::build_grid(
+                        &r,
+                        world_point(scene, index, [0., 0.]),
+                        scene,
+                        context.tilesets,
+                        Some(scene.actors[index].id),
+                    )
+                    .map_err(|e| format!("{label}: {e}"))?;
+                    let mut bits = vec![0u8; grid.blocked.len().div_ceil(8)];
+                    for (i, blocked) in grid.blocked.iter().enumerate() {
+                        if *blocked {
+                            bits[i / 8] |= 1 << (i % 8);
+                        }
+                    }
+                    out.statics += &format!(
+                        "inline constexpr uint8_t {symbol}_blocked[]={{{}}};\n",
+                        bits.iter().map(u8::to_string).collect::<Vec<_>>().join(",")
+                    );
+                    body += &format!(
+                        "c->is_mesh=false;c->grid.blocked={symbol}_blocked;c->grid.columns={};c->grid.rows={};c->grid.origin[0]={};c->grid.origin[1]={};c->grid.cell[0]={};c->grid.cell[1]={};c->grid.diagonal={};",
+                        grid.columns,
+                        grid.rows,
+                        fixed(grid.origin[0]),
+                        fixed(grid.origin[1]),
+                        fixed(grid.cell[0]),
+                        fixed(grid.cell[1]),
+                        grid.diagonal
+                    );
+                }
+                crate::navigation2d::NavMode::Polygon => {
+                    let outline: Vec<[f32; 2]> = r
+                        .outline
+                        .iter()
+                        .map(|p| world_point(scene, index, *p))
+                        .collect();
+                    let mesh = crate::navigation2d::build_mesh(&outline)
+                        .map_err(|e| format!("{label}: {e}"))?;
+                    out.statics += &format!(
+                        "inline constexpr epok::Fixed {symbol}_vertices[]={{{}}};\ninline constexpr uint8_t {symbol}_triangles[]={{{}}};\ninline constexpr int8_t {symbol}_neighbours[]={{{}}};\n",
+                        fixed_list(mesh.vertices.iter().flat_map(|v| *v)),
+                        mesh.triangles
+                            .iter()
+                            .flat_map(|t| *t)
+                            .map(|v| v.to_string())
+                            .collect::<Vec<_>>()
+                            .join(","),
+                        mesh.neighbours
+                            .iter()
+                            .flat_map(|n| *n)
+                            .map(|v| v.to_string())
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    );
+                    body += &format!(
+                        "c->is_mesh=true;c->mesh.vertices={symbol}_vertices;c->mesh.triangles={symbol}_triangles;c->mesh.neighbours={symbol}_neighbours;c->mesh.triangle_count={};",
+                        mesh.triangles.len()
+                    );
+                }
+            }
+        }
+        NAVIGATION_AGENT2D => {
+            let a: crate::navigation2d::NavigationAgent2D = read(component);
+            if let Some(slot) = context.actor(a.target) {
+                body += &format!(
+                    "c->target_actor=actors[{slot}];c->has_target=true;c->dirty=true;c->finished=false;"
+                );
+            }
+            body += &format!(
+                "c->max_speed={};c->arrive_distance={};c->repath_interval={};c->drives_body={};",
+                fixed(a.max_speed.clamp(0., 4096.)),
+                fixed(a.arrive_distance.clamp(0.5, 256.)),
+                fixed(a.repath_interval.clamp(0., 60.)),
+                a.drives_body
+            );
+        }
         SKELETON2D => {
             let s: crate::skeleton2d::Skeleton2D = read(component);
             let (statics, setters) =
@@ -1843,6 +2019,14 @@ pub fn cook(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn set_record<T: Serialize>(actor: &mut ActorInstance, class: &str, value: &T) {
+        let c = actor
+            .components
+            .iter_mut()
+            .find(|c| c.class.class_id.as_deref() == Some(class))
+            .unwrap();
+        write(c, value);
+    }
     #[test]
     fn presets_build_actor2d_documents_that_round_trip() {
         for preset in Preset::ALL {
@@ -2172,6 +2356,110 @@ mod tests {
         assert_eq!(
             capacity_defines(false, std::slice::from_ref(&scene), std::iter::empty()),
             ""
+        );
+    }
+
+    #[test]
+    fn navigation_cooks_grids_meshes_agents_and_its_scratch() {
+        let mut scene = crate::scene::Scene {
+            actors: Vec::new(),
+            ..Default::default()
+        };
+        let mut region = create(Preset::NavigationRegion2D, "Floor", [16., 32.]);
+        set_record(
+            &mut region,
+            NAVIGATION_REGION2D,
+            &crate::navigation2d::NavigationRegion2D {
+                size: [64., 32.],
+                ..Default::default()
+            },
+        );
+        scene.actors.push(region);
+        let mut wall = create(Preset::StaticBody2D, "Wall", [40., 40.]);
+        set_record(
+            &mut wall,
+            COLLIDER2D,
+            &Collider2D {
+                size: [16., 16.],
+                ..Default::default()
+            },
+        );
+        scene.actors.push(wall);
+        let target = Uuid::from_u128(5);
+        let agent = create(Preset::NavigationAgent2D, "Walker", [0., 0.]);
+        scene.actors.push(agent);
+        let tilesets = BTreeMap::new();
+        let textures = |_| false;
+        let slot = |id: Uuid| (id == target).then_some(7);
+        let mut context = CookContext::new(&textures, &tilesets, [0., 0.])
+            .with_actors(&slot)
+            .with_scene(&scene);
+        let grid = cook(
+            &scene.actors[0].components[1],
+            1,
+            "g",
+            &mut context,
+            "Floor",
+        )
+        .unwrap();
+        // 4 x 2 cells of 16 px from (16, 32); the wall covers cell (1, 0): bit 1.
+        assert!(
+            grid.statics
+                .contains("inline constexpr uint8_t g_blocked[]={2};")
+        );
+        assert!(grid.setters.contains("c->grid.columns=4;c->grid.rows=2;c->grid.origin[0]=epok::Fixed(65536,epok::Fixed::RAW);"));
+        let mut mesh_region = scene.actors[0].clone();
+        set_record(
+            &mut mesh_region,
+            NAVIGATION_REGION2D,
+            &crate::navigation2d::NavigationRegion2D {
+                mode: crate::navigation2d::NavMode::Polygon,
+                ..Default::default()
+            },
+        );
+        scene.actors[0] = mesh_region;
+        let mut context = CookContext::new(&textures, &tilesets, [0., 0.])
+            .with_actors(&slot)
+            .with_scene(&scene);
+        let mesh = cook(
+            &scene.actors[0].components[1],
+            1,
+            "m",
+            &mut context,
+            "Floor",
+        )
+        .unwrap();
+        assert!(
+            mesh.setters.contains("c->is_mesh=true;")
+                && mesh.setters.contains("c->mesh.triangle_count=2;")
+        );
+        assert!(mesh.statics.contains("m_vertices[]={epok::Fixed(65536,epok::Fixed::RAW),epok::Fixed(131072,epok::Fixed::RAW),"));
+        let mut walker = scene.actors[2].clone();
+        set_record(
+            &mut walker,
+            NAVIGATION_AGENT2D,
+            &crate::navigation2d::NavigationAgent2D {
+                target: Some(target),
+                ..Default::default()
+            },
+        );
+        let agent = cook(&walker.components[1], 1, "a", &mut context, "Walker").unwrap();
+        assert!(
+            agent
+                .setters
+                .contains("c->target_actor=actors[7];c->has_target=true;")
+        );
+        // A map with a grid sizes the A* scratch; others keep one entry.
+        let mut grid_scene = scene.clone();
+        grid_scene.actors[0] = create(Preset::NavigationRegion2D, "Floor", [0., 0.]);
+        assert!(
+            capacity_defines(true, std::slice::from_ref(&grid_scene), std::iter::empty()).contains(
+                "#define EPOK_WORLD2D_NAV_CELLS 300\n#define EPOK_WORLD2D_NAV_OPEN 600\n"
+            )
+        );
+        assert!(
+            capacity_defines(true, &[crate::scene::Scene::default()], std::iter::empty())
+                .contains("#define EPOK_WORLD2D_NAV_CELLS 1\n")
         );
     }
 

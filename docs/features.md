@@ -305,8 +305,8 @@ See the complete [Timeline reference](timelines.md) and the
 - **2D nodes.** `Actor2D` actors with a pixel-based, Y-down 2D transform carry engine
   Sprite2D, TileMapLayer, Collider2D, CharacterBody2D, Camera2D, Parallax2D, Path2D,
   PathFollow2D, Line2D, Polygon2D, Particles2D, AudioPlayer2D,
-  VisibleOnScreenNotifier2D, RemoteTransform2D, Skeleton2D, CanvasLayer2D and
-  CanvasModulate2D components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
+  VisibleOnScreenNotifier2D, RemoteTransform2D, Skeleton2D, NavigationRegion2D,
+  NavigationAgent2D, CanvasLayer2D and CanvasModulate2D components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
   purpose, create each kind of node in one click.
 - **Sprites and animation.** Texture regions, sprite-sheet cells, offset, centring,
   flips, modulate, the console blend modes, z-index and y-sort; named frame
@@ -333,6 +333,11 @@ See the complete [Timeline reference](timelines.md) and the
   (shorter-arc rotation blending, loops and one-shots) and up to two two-bone IK
   chains with a chosen elbow side; the editor keys poses from a timeline on the
   skeleton or on any bone, previews them and draws the bones and IK targets.
+- **Navigation.** Grid regions built from tile collision and static bodies (A* with
+  no corner cutting and line-of-sight smoothing) or navmesh outlines (A* plus the
+  funnel algorithm); agents follow a target node or position, drive their
+  CharacterBody2D or node, and stop at the closest point when the target is
+  unreachable; the editor draws regions and predicted paths.
 - **Parallax and canvas layers.** Parallax2D scrolls attached nodes against the camera
   with autoscroll and screen-filling repeats; CanvasLayer2D draws nodes on their own
   layer in screen pixels or world space; CanvasModulate2D tints a whole canvas.

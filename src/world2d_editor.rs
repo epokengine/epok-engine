@@ -79,6 +79,8 @@ pub fn preset_icon(preset: Preset) -> &'static str {
         Preset::VisibleOnScreenNotifier2D => crate::world2d_shapes_editor::ICON_NOTIFIER,
         Preset::RemoteTransform2D => crate::world2d_shapes_editor::ICON_REMOTE,
         Preset::Skeleton2D => crate::world2d_skeleton_editor::ICON_SKELETON,
+        Preset::NavigationRegion2D => crate::world2d_navigation_editor::ICON_REGION,
+        Preset::NavigationAgent2D => crate::world2d_navigation_editor::ICON_AGENT,
     }
 }
 
@@ -514,6 +516,8 @@ pub fn create_command(preset: Preset) -> &'static str {
         Preset::VisibleOnScreenNotifier2D => "create-node2d-VisibleOnScreenNotifier2D",
         Preset::RemoteTransform2D => "create-node2d-RemoteTransform2D",
         Preset::Skeleton2D => "create-node2d-Skeleton2D",
+        Preset::NavigationRegion2D => "create-node2d-NavigationRegion2D",
+        Preset::NavigationAgent2D => "create-node2d-NavigationAgent2D",
     }
 }
 /// Whether the Inspector should show the 2D layout for this actor.
@@ -2396,6 +2400,7 @@ fn draw(
         {
             crate::world2d_shapes_editor::overlay(e, &draw, v, &to_screen);
             crate::world2d_skeleton_editor::overlay(e, &draw, views, &to_screen);
+            crate::world2d_navigation_editor::overlay(e, &draw, views, &to_screen, view.zoom);
         }
         // Hover and selection.
         if let Some(v) = e
@@ -2791,6 +2796,10 @@ pub fn node_icon(actor: &crate::scene::Actor) -> &'static str {
         crate::world2d_shapes_editor::ICON_REMOTE
     } else if has(world2d::SKELETON2D) {
         crate::world2d_skeleton_editor::ICON_SKELETON
+    } else if has(world2d::NAVIGATION_AGENT2D) {
+        crate::world2d_navigation_editor::ICON_AGENT
+    } else if has(world2d::NAVIGATION_REGION2D) {
+        crate::world2d_navigation_editor::ICON_REGION
     } else if has(world2d::CAMERA2D) {
         ICON_CAMERA
     } else if has(world2d::SPRITE2D) {
@@ -2863,6 +2872,7 @@ fn inspector_body(ui: &Ui, e: &mut Editor, id: Uuid) {
             Some(world2d::CANVAS_MODULATE2D) => canvas_modulate_band(ui, e, id, &component),
             _ if crate::world2d_shapes_editor::band(ui, e, id, &component) => {}
             _ if crate::world2d_skeleton_editor::band(ui, e, id, &component) => {}
+            _ if crate::world2d_navigation_editor::band(ui, e, id, &component) => {}
             _ => generic_band(ui, e, id, &component),
         }
     }

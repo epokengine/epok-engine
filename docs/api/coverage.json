@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 110,
-    "types": 489,
-    "callables": 1859,
-    "properties": 2696
+    "headers": 111,
+    "types": 494,
+    "callables": 1906,
+    "properties": 2745
   },
   "psyqo": {
     "headers": 53,
@@ -1070,7 +1070,7 @@
       "callables": 81,
       "types": 7,
       "properties": 74,
-      "source_sha256": "2f2696d6b363ce4ecaaa645640f860268471825794558ecb7fd9f92f62bdc9b5",
+      "source_sha256": "c1c1104757f6ae756abfb261ab69a30ead9d6e8fa527dd8f458fdc8f28a142b4",
       "diagnostics": []
     },
     {
@@ -1081,6 +1081,16 @@
       "types": 9,
       "properties": 103,
       "source_sha256": "43d1fa2c958f2a73c59cf0167af032356e81668094dd247d5b412bcd946301ca",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_navigation.hpp",
+      "slug": "world2d-navigation",
+      "callables": 44,
+      "types": 5,
+      "properties": 46,
+      "source_sha256": "cceb0781867de33b0ccc411d4903328a533e337f2f491d0b7ec6f26903156aae",
       "diagnostics": []
     },
     {
@@ -1097,10 +1107,10 @@
       "family": "epok",
       "header": "world2d_service.hpp",
       "slug": "world2d-service",
-      "callables": 37,
+      "callables": 40,
       "types": 10,
-      "properties": 72,
-      "source_sha256": "0cdadbeadffd68634a27daa8bebd4440bf6bf75daa093a83b3238e1a91874166",
+      "properties": 75,
+      "source_sha256": "d8963d51b5ff6f554290d0c58eec00a7f01794718d37ac1270bdbc3894e5686c",
       "diagnostics": []
     },
     {

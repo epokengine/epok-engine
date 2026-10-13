@@ -1305,6 +1305,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/world2d_skeleton.hpp").as_slice(),
         ),
         (
+            "world2d_navigation.hpp",
+            include_bytes!("../runtime/world2d_navigation.hpp").as_slice(),
+        ),
+        (
             "world2d_service.hpp",
             include_bytes!("../runtime/world2d_service.hpp").as_slice(),
         ),
@@ -1810,7 +1814,8 @@ fn actor_table_with_registry(
         crate::world2d::start_view(scene),
     )
     .with_actors(&actor_slot)
-    .with_clips(&clip_index);
+    .with_clips(&clip_index)
+    .with_scene(scene);
     let mut components_text = String::new();
     // Namespace-scope constants (World2D frame clips) the generated setters reference.
     let mut statics = String::new();

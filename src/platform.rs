@@ -1561,6 +1561,7 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf53f, 0xf53f, // palette: CanvasModulate2D
     0xf546, 0xf546, // ruler-combined: 2D rulers
     0xf547, 0xf547, // ruler-horizontal: flatten
+    0xf554, 0xf554, // person-walking: NavigationAgent2D
     0xf55b, 0xf55b, // bezier-curve: Path2D
     0xf565, 0xf565, // crop-simple: sprite region
     0xf576, 0xf576, // fill-drip: tile bucket fill
