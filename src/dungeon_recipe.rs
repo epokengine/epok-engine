@@ -16,7 +16,7 @@ use crate::assets;
 use crate::dungeon::{Cell, GuardedDoor, Item, Layout, Room, Side};
 use crate::dungeon_random::Random;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use uuid::Uuid;
 
 pub const VERSION: u32 = 1;
@@ -45,12 +45,15 @@ pub enum Step {
         count: u16,
         length: [u16; 2],
     },
-    /// Named items in rooms of `paths`, between `depth` percent of each path's length.
+    /// Named items in rooms of `paths`, between `depth` percent of each path's length,
+    /// placed in their room as `place` says.
     Items {
         name: String,
         paths: Vec<String>,
         count: [u16; 2],
         depth: [u8; 2],
+        #[serde(default)]
+        place: Place,
     },
     /// A key in a room of `key_paths` and the lock it opens on a link into a room of
     /// `lock_paths`.
@@ -60,8 +63,43 @@ pub enum Step {
     },
     /// Links that lead back towards the spawn become one-way, with this chance.
     OneWay { chance: u8 },
-    /// How rooms fill their lattice cells, and the corridor width.
-    Rooms { fill: [u8; 2], corridor_width: u16 },
+    /// Rooms of `paths` become caves: rock fills `density` percent of the room, then
+    /// `smoothing` passes of cellular automaton round it into open chambers.
+    Caves {
+        paths: Vec<String>,
+        density: u8,
+        smoothing: u8,
+    },
+    /// How rooms fill their lattice cells, whether their corners are cut, and the
+    /// corridor width.
+    Rooms {
+        fill: [u8; 2],
+        corridor_width: u16,
+        #[serde(default)]
+        rounded: bool,
+    },
+}
+
+/// Where in its room an item goes.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum Place {
+    /// Any free floor cell, away from the doors.
+    #[default]
+    Anywhere,
+    /// The room's centre, or the free cell nearest to it.
+    Centre,
+    /// A free floor cell against a wall.
+    Edge,
+}
+impl Place {
+    pub const ALL: [Place; 3] = [Place::Anywhere, Place::Centre, Place::Edge];
+    pub fn label(self) -> &'static str {
+        match self {
+            Place::Anywhere => "Anywhere",
+            Place::Centre => "Centre",
+            Place::Edge => "Against a wall",
+        }
+    }
 }
 impl Step {
     pub fn label(&self) -> &'static str {
@@ -72,6 +110,7 @@ impl Step {
             Step::Items { .. } => "Items",
             Step::KeyLock { .. } => "Key and lock",
             Step::OneWay { .. } => "One-way doors",
+            Step::Caves { .. } => "Caves",
             Step::Rooms { .. } => "Rooms",
         }
     }
@@ -87,6 +126,7 @@ impl Step {
             Step::Items { .. } => "Named items in rooms of some paths, by depth along them.",
             Step::KeyLock { .. } => "A key and the door it opens, always solvable.",
             Step::OneWay { .. } => "Shortcuts back towards the spawn that open from one side only.",
+            Step::Caves { .. } => "Rooms of some paths become organic caves instead of rectangles.",
             Step::Rooms { .. } => {
                 "How much of its lattice cell each room fills, and corridor width."
             }
@@ -112,15 +152,22 @@ impl Step {
                 paths: vec![MAIN.into()],
                 count: [1, 2],
                 depth: [60, 100],
+                place: Place::Anywhere,
             },
             Step::KeyLock {
                 key_paths: vec![MAIN.into()],
                 lock_paths: vec![MAIN.into()],
             },
             Step::OneWay { chance: 50 },
+            Step::Caves {
+                paths: vec![MAIN.into()],
+                density: 45,
+                smoothing: 3,
+            },
             Step::Rooms {
                 fill: [60, 100],
                 corridor_width: 1,
+                rounded: false,
             },
         ]
     }
@@ -141,9 +188,9 @@ impl Default for Recipe {
     }
 }
 
-/// The recipe a generator uses when it has none: a main path, two dead-end branches
-/// with treasure, a loop, a key on a branch for a lock on the main path, and one-way
-/// shortcuts back.
+/// The recipe a generator uses when it has none: a main path, two dead-end cave
+/// branches with treasure, a loop, a key on a branch for a lock on the main path,
+/// one-way shortcuts back, and rooms with cut corners.
 pub fn builtin() -> Recipe {
     Recipe {
         version: VERSION,
@@ -172,15 +219,22 @@ pub fn builtin() -> Recipe {
                 paths: vec!["branch".into()],
                 count: [1, 2],
                 depth: [60, 100],
+                place: Place::Anywhere,
             },
             Step::KeyLock {
                 key_paths: vec!["branch".into()],
                 lock_paths: vec![MAIN.into()],
             },
             Step::OneWay { chance: 50 },
+            Step::Caves {
+                paths: vec!["branch".into()],
+                density: 42,
+                smoothing: 3,
+            },
             Step::Rooms {
                 fill: [60, 100],
                 corridor_width: 1,
+                rounded: true,
             },
         ],
     }
@@ -290,6 +344,7 @@ impl Recipe {
                     paths: names,
                     count,
                     depth,
+                    ..
                 } => {
                     if name.trim().is_empty() || name.len() > 32 {
                         return Err(at("name the items (up to 32 characters)".into()));
@@ -312,9 +367,23 @@ impl Recipe {
                         return Err(at("Chance is a percentage, 0-100".into()));
                     }
                 }
+                Step::Caves {
+                    paths: names,
+                    density,
+                    smoothing,
+                } => {
+                    paths(names, &known)?;
+                    if !(20..=70).contains(density) {
+                        return Err(at("Rock is 20-70 percent".into()));
+                    }
+                    if !(1..=8).contains(smoothing) {
+                        return Err(at("Smoothing is 1-8 passes".into()));
+                    }
+                }
                 Step::Rooms {
                     fill,
                     corridor_width,
+                    ..
                 } => {
                     if fill[0] < 20 || fill[1] > 100 || fill[0] > fill[1] {
                         return Err(at("Fill is 20-100 percent, smallest first".into()));
@@ -325,7 +394,7 @@ impl Recipe {
                 }
             }
         }
-        let ((_, span), (_, width)) = (self.lattice(), self.rooms());
+        let ((_, span), (_, width, _)) = (self.lattice(), self.rooms());
         if span < i32::from(min_cell(width as u16)) {
             return Err(format!(
                 "Corridors {width} wide need lattice cells of at least {} grid cells",
@@ -345,17 +414,36 @@ impl Recipe {
             })
             .unwrap_or(([6, 5], 9))
     }
-    fn rooms(&self) -> ([u8; 2], i32) {
+    /// Room fill, corridor width and whether corners are cut.
+    fn rooms(&self) -> ([u8; 2], i32, bool) {
         self.steps
             .iter()
             .find_map(|s| match s {
                 Step::Rooms {
                     fill,
                     corridor_width,
-                } => Some((*fill, i32::from(*corridor_width))),
+                    rounded,
+                } => Some((*fill, i32::from(*corridor_width), *rounded)),
                 _ => None,
             })
-            .unwrap_or(([55, 90], 1))
+            .unwrap_or(([55, 90], 1, false))
+    }
+    /// The cave settings for each path name a Caves step names; later steps win.
+    pub fn caves(&self) -> BTreeMap<String, (u8, u8)> {
+        let mut caves = BTreeMap::new();
+        for step in &self.steps {
+            if let Step::Caves {
+                paths,
+                density,
+                smoothing,
+            } = step
+            {
+                for path in paths {
+                    caves.insert(path.clone(), (*density, *smoothing));
+                }
+            }
+        }
+        caves
     }
 }
 
@@ -404,6 +492,7 @@ pub struct Placed {
     pub name: String,
     /// For keys, the lock they open.
     pub lock: u16,
+    pub place: Place,
 }
 
 /// The room graph a recipe grew.
@@ -644,7 +733,7 @@ fn grow(recipe: &Recipe, random: &mut Random) -> Result<Graph, String> {
     for (index, step) in recipe.steps.iter().enumerate() {
         let fail = |message: &str| format!("Step {} ({}): {message}", index + 1, step.label());
         match step {
-            Step::Lattice { .. } | Step::Rooms { .. } => {}
+            Step::Lattice { .. } | Step::Rooms { .. } | Step::Caves { .. } => {}
             Step::MainPath { length } => {
                 let length = random.range(i32::from(length[0]), i32::from(length[1])) as usize;
                 if length > count {
@@ -715,6 +804,7 @@ fn grow(recipe: &Recipe, random: &mut Random) -> Result<Graph, String> {
                 paths,
                 count: amount,
                 depth,
+                place,
             } => {
                 let amount = random.range(i32::from(amount[0]), i32::from(amount[1])) as usize;
                 let mut candidates: Vec<usize> = Vec::new();
@@ -739,6 +829,7 @@ fn grow(recipe: &Recipe, random: &mut Random) -> Result<Graph, String> {
                         node: candidates[i % candidates.len()],
                         name: name.clone(),
                         lock: 0,
+                        place: *place,
                     });
                 }
             }
@@ -774,6 +865,7 @@ fn grow(recipe: &Recipe, random: &mut Random) -> Result<Graph, String> {
                                 node: key_node,
                                 name: "Key".into(),
                                 lock: key,
+                                place: Place::Centre,
                             });
                             trial.keys = key;
                             // Solvable with every key, and the lock really keeps the
@@ -934,7 +1026,7 @@ fn corridor(
 pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
     let graph = graph(recipe, seed)?;
     let (lattice, span) = recipe.lattice();
-    let (fill, width) = recipe.rooms();
+    let (fill, width, rounded) = recipe.rooms();
     let margin = margin(width);
     let inner = span - 2 * margin;
     if inner < 3 {
@@ -950,9 +1042,16 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
     let mut rooms = Vec::new();
     let lo = (inner * i32::from(fill[0]) / 100).clamp(3.max(width), inner);
     let hi = (inner * i32::from(fill[1]) / 100).clamp(lo, inner);
+    let caves = recipe.caves();
+    let is_cave =
+        |node: usize| graph.path[node].is_some_and(|p| caves.contains_key(&graph.paths[p].0));
     for &node in &nodes {
         let p = graph.point(node);
-        let (w, h) = (random.range(lo, hi), random.range(lo, hi));
+        let (mut w, mut h) = (random.range(lo, hi), random.range(lo, hi));
+        // Caves take their whole slot; their shape comes later.
+        if is_cave(node) {
+            (w, h) = (inner, inner);
+        }
         let base = [1 + p[0] * span + margin, 1 + p[1] * span + margin];
         room_of[node] = rooms.len();
         rooms.push(Room {
@@ -1005,35 +1104,93 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
             one_ways.extend(at_b.iter().copied());
         }
     }
-    // Items on free floor cells of their room: a key at the centre when free, others
-    // away from the walls where the room allows.
+    // Shape the rooms: caves and cut corners keep the centre, every door and a way
+    // between them.
+    let mut room_doors: Vec<Vec<GuardedDoor>> = vec![Vec::new(); rooms.len()];
+    for (link, [at_a, at_b]) in graph.links.iter().zip(&doors) {
+        room_doors[room_of[link.a]].extend(at_a.iter().copied());
+        room_doors[room_of[link.b]].extend(at_b.iter().copied());
+    }
+    for &node in &nodes {
+        let index = room_of[node];
+        let path = graph.path[node].map(|p| graph.paths[p].0.as_str());
+        let shape = match path.and_then(|p| caves.get(p)) {
+            Some(&(density, smoothing)) => Shape::Cave { density, smoothing },
+            None if rounded => Shape::Rounded,
+            None => Shape::Rectangle,
+        };
+        shape_room(
+            &mut cells,
+            size,
+            &rooms[index],
+            index as u16,
+            &room_doors[index],
+            shape,
+            &mut random,
+        );
+    }
+    // Items on free floor cells of their room, as their step places them; keys at
+    // the centre.
     let mut taken: BTreeSet<[i32; 2]> = BTreeSet::new();
     let mut items = Vec::new();
+    let at = |p: [i32; 2]| cells[(p[1] * size[0] + p[0]) as usize];
     for placed in &graph.items {
-        let room = &rooms[room_of[placed.node]];
+        let index = room_of[placed.node];
+        let room = &rooms[index];
         let centre = room.center();
-        let span_of = |inset: i32| -> Vec<[i32; 2]> {
-            (room.min[1] + inset..room.min[1] + room.size[1] - inset)
-                .flat_map(|y| {
-                    (room.min[0] + inset..room.min[0] + room.size[0] - inset).map(move |x| [x, y])
-                })
-                .collect()
-        };
-        let mut pool: Vec<[i32; 2]> = span_of(1)
-            .into_iter()
-            .filter(|p| *p != centre && !taken.contains(p))
+        let doors: BTreeSet<[i32; 2]> = room_doors[index].iter().map(|d| d.cell).collect();
+        let floor: Vec<[i32; 2]> = (room.min[1]..room.min[1] + room.size[1])
+            .flat_map(|y| (room.min[0]..room.min[0] + room.size[0]).map(move |x| [x, y]))
+            .filter(|p| at(*p) == Cell::Room(index as u16) && !taken.contains(p))
             .collect();
-        if pool.is_empty() {
-            pool = span_of(0)
-                .into_iter()
-                .filter(|p| !taken.contains(p))
-                .collect();
-        }
-        let cell = if (placed.lock > 0 && !taken.contains(&centre)) || pool.is_empty() {
-            centre
-        } else {
-            pool[random.below(pool.len() as u32) as usize]
+        let near_door = |p: &[i32; 2]| {
+            doors
+                .iter()
+                .any(|d| (d[0] - p[0]).abs() + (d[1] - p[1]).abs() <= 1)
         };
+        let against_wall = |p: &[i32; 2]| {
+            Side::ALL.iter().any(|s| {
+                let d = s.delta();
+                at([p[0] + d[0], p[1] + d[1]]) == Cell::Empty
+            })
+        };
+        let pick = |pool: Vec<[i32; 2]>, random: &mut Random| {
+            (!pool.is_empty()).then(|| pool[random.below(pool.len() as u32) as usize])
+        };
+        let open: Vec<[i32; 2]> = floor
+            .iter()
+            .copied()
+            .filter(|p| *p != centre && !near_door(p))
+            .collect();
+        let chosen = match placed.place {
+            Place::Centre => floor.iter().copied().min_by_key(|p| {
+                (
+                    (p[0] - centre[0]).abs() + (p[1] - centre[1]).abs(),
+                    p[1],
+                    p[0],
+                )
+            }),
+            Place::Edge => pick(
+                open.iter().copied().filter(|p| against_wall(p)).collect(),
+                &mut random,
+            )
+            .or_else(|| pick(open.clone(), &mut random)),
+            Place::Anywhere => {
+                let inner: Vec<[i32; 2]> =
+                    open.iter().copied().filter(|p| !against_wall(p)).collect();
+                pick(
+                    if inner.is_empty() {
+                        open.clone()
+                    } else {
+                        inner
+                    },
+                    &mut random,
+                )
+            }
+        };
+        let cell = chosen
+            .or_else(|| pick(floor.clone(), &mut random))
+            .unwrap_or(centre);
         taken.insert(cell);
         items.push(Item {
             cell,
@@ -1072,6 +1229,133 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
         items,
         room_paths,
     }))
+}
+
+/// The outline of a room inside its rectangle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shape {
+    Rectangle,
+    /// Corners cut by one cell, or by a three-cell triangle in larger rooms.
+    Rounded,
+    /// Rock scattered at `density` percent, then `smoothing` cellular automaton passes.
+    Cave {
+        density: u8,
+        smoothing: u8,
+    },
+}
+
+/// Turns the floor of room `index` into `shape`, always keeping its centre, its door
+/// cells and a way from each door to the centre, then dropping floor the centre
+/// cannot reach.
+#[allow(clippy::too_many_arguments)]
+fn shape_room(
+    cells: &mut [Cell],
+    size: [i32; 2],
+    room: &Room,
+    index: u16,
+    doors: &[GuardedDoor],
+    shape: Shape,
+    random: &mut Random,
+) {
+    let [w, h] = room.size;
+    let local = |x: i32, y: i32| (y * w + x) as usize;
+    let mut floor = vec![true; (w * h) as usize];
+    match shape {
+        Shape::Rectangle => return,
+        Shape::Rounded => {
+            let cut = match w.min(h) {
+                n if n >= 8 => 2,
+                n if n >= 5 => 1,
+                _ => 0,
+            };
+            for y in 0..h {
+                for x in 0..w {
+                    let (dx, dy) = (x.min(w - 1 - x), y.min(h - 1 - y));
+                    floor[local(x, y)] = dx + dy >= cut;
+                }
+            }
+        }
+        Shape::Cave { density, smoothing } => {
+            // Rock grows likelier towards the walls, so the middle stays open.
+            for y in 0..h {
+                for x in 0..w {
+                    let edge = |v: i32, n: i32| {
+                        let half = (n - 1).max(1) as f32 * 0.5;
+                        ((v as f32 - half).abs() / half).min(1.)
+                    };
+                    let towards = edge(x, w).max(edge(y, h));
+                    let chance = (f32::from(density) * 2. * towards).round() as u32;
+                    floor[local(x, y)] = !random.chance(chance);
+                }
+            }
+            for _ in 0..smoothing {
+                let before = floor.clone();
+                for y in 0..h {
+                    for x in 0..w {
+                        // Outside the room counts as rock, so caves round off their edges.
+                        let rock = (-1..=1)
+                            .flat_map(|dy| (-1..=1).map(move |dx| (dx, dy)))
+                            .filter(|&(dx, dy)| (dx, dy) != (0, 0))
+                            .filter(|&(dx, dy)| {
+                                let (nx, ny) = (x + dx, y + dy);
+                                nx < 0 || ny < 0 || nx >= w || ny >= h || !before[local(nx, ny)]
+                            })
+                            .count();
+                        let was_rock = !before[local(x, y)];
+                        floor[local(x, y)] = !(rock >= 6 || (was_rock && rock >= 4));
+                    }
+                }
+            }
+        }
+    }
+    let centre = [
+        room.center()[0] - room.min[0],
+        room.center()[1] - room.min[1],
+    ];
+    floor[local(centre[0], centre[1])] = true;
+    for door in doors {
+        // From the door straight into the room up to the centre's row or column, then
+        // across to the centre.
+        let mut p = [door.cell[0] - room.min[0], door.cell[1] - room.min[1]];
+        let inward = door.side.opposite().delta();
+        let axis = usize::from(inward[0] == 0);
+        floor[local(p[0], p[1])] = true;
+        while p[axis] != centre[axis] {
+            p[axis] += inward[axis];
+            floor[local(p[0], p[1])] = true;
+        }
+        let other = 1 - axis;
+        while p[other] != centre[other] {
+            p[other] += (centre[other] - p[other]).signum();
+            floor[local(p[0], p[1])] = true;
+        }
+    }
+    let mut reached = vec![false; floor.len()];
+    reached[local(centre[0], centre[1])] = true;
+    let mut stack = vec![centre];
+    while let Some(p) = stack.pop() {
+        for side in Side::ALL {
+            let d = side.delta();
+            let q = [p[0] + d[0], p[1] + d[1]];
+            if q[0] >= 0 && q[1] >= 0 && q[0] < w && q[1] < h {
+                let i = local(q[0], q[1]);
+                if floor[i] && !reached[i] {
+                    reached[i] = true;
+                    stack.push(q);
+                }
+            }
+        }
+    }
+    for y in 0..h {
+        for x in 0..w {
+            if !reached[local(x, y)] {
+                let p = [room.min[0] + x, room.min[1] + y];
+                let i = (p[1] * size[0] + p[0]) as usize;
+                debug_assert_eq!(cells[i], Cell::Room(index));
+                cells[i] = Cell::Empty;
+            }
+        }
+    }
 }
 
 /// Trims the lattice cells no path reached, keeping a one-cell wall margin, so the
@@ -1332,6 +1616,105 @@ mod tests {
     }
 
     #[test]
+    fn caves_and_cut_corners_shape_rooms_around_their_doors() {
+        let recipe = builtin();
+        let (mut caves, mut cut) = (0, 0);
+        for seed in 0..30 {
+            let layout = layout(&recipe, seed).unwrap();
+            for (index, room) in layout.rooms.iter().enumerate() {
+                let own = Cell::Room(index as u16);
+                assert_eq!(layout.at(room.center()), own, "seed {seed}");
+                let area = (room.size[0] * room.size[1]) as usize;
+                let floor = (room.min[1]..room.min[1] + room.size[1])
+                    .flat_map(|y| (room.min[0]..room.min[0] + room.size[0]).map(move |x| [x, y]))
+                    .filter(|p| layout.at(*p) == own)
+                    .count();
+                let corners = [
+                    room.min,
+                    [room.min[0] + room.size[0] - 1, room.min[1]],
+                    [room.min[0], room.min[1] + room.size[1] - 1],
+                    [
+                        room.min[0] + room.size[0] - 1,
+                        room.min[1] + room.size[1] - 1,
+                    ],
+                ];
+                if layout.room_paths[index] == "branch" {
+                    // Caves: organic, and never more than their slot.
+                    assert!(floor < area, "seed {seed}: cave {index} is a rectangle");
+                    caves += 1;
+                } else if room.size[0].min(room.size[1]) >= 5 {
+                    // Cut corners, unless a door needs the cell.
+                    let doors: Vec<[i32; 2]> = crate::dungeon::spots(&layout)
+                        .iter()
+                        .filter(|s| s.kind == crate::dungeon::SpotKind::Door)
+                        .map(|s| s.cell)
+                        .collect();
+                    for corner in corners {
+                        assert!(
+                            layout.at(corner) != own || doors.contains(&corner),
+                            "seed {seed}: room {index} keeps corner {corner:?}"
+                        );
+                    }
+                    cut += 1;
+                }
+            }
+        }
+        assert!(caves > 30 && cut > 30, "{caves} caves, {cut} cut rooms");
+    }
+
+    #[test]
+    fn items_go_where_their_step_places_them() {
+        let mut recipe = builtin();
+        recipe.steps.retain(|s| !matches!(s, Step::Caves { .. }));
+        for (place, name) in [(Place::Centre, "Altar"), (Place::Edge, "Torch")] {
+            recipe.steps.insert(
+                4,
+                Step::Items {
+                    name: name.into(),
+                    paths: vec![MAIN.into()],
+                    count: [3, 3],
+                    depth: [0, 100],
+                    place,
+                },
+            );
+        }
+        for seed in 0..20 {
+            let layout = layout(&recipe, seed).unwrap();
+            let room_of = |p: [i32; 2]| match layout.at(p) {
+                Cell::Room(r) => usize::from(r),
+                other => panic!("seed {seed}: item on {other:?}"),
+            };
+            let mut cells = std::collections::BTreeSet::new();
+            for item in &layout.items {
+                assert!(
+                    cells.insert(item.cell),
+                    "seed {seed}: two items share a cell"
+                );
+                let room = &layout.rooms[room_of(item.cell)];
+                match item.name.as_str() {
+                    "Torch" => assert!(
+                        Side::ALL.iter().any(|s| {
+                            let d = s.delta();
+                            layout.at([item.cell[0] + d[0], item.cell[1] + d[1]]) == Cell::Empty
+                        }),
+                        "seed {seed}: torch away from the walls"
+                    ),
+                    "Altar" | "Key" => {
+                        let c = room.center();
+                        let distance = (item.cell[0] - c[0]).abs() + (item.cell[1] - c[1]).abs();
+                        assert!(
+                            distance <= 2,
+                            "seed {seed}: {} {distance} from the centre",
+                            item.name
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    #[test]
     #[ignore]
     fn print_a_recipe_layout() {
         let seed = std::env::var("EPOK_RECIPE_SEED")
@@ -1342,7 +1725,8 @@ mod tests {
         for (i, room) in layout.rooms.iter().enumerate() {
             let world = |c: i32, k: usize| (c as f32 - layout.size[k] as f32 * 0.5) * 2.;
             println!(
-                "room {i}: x {}..{} z {}..{}",
+                "room {i} ({}): x {}..{} z {}..{}",
+                layout.room_paths[i],
                 world(room.min[0], 0),
                 world(room.min[0] + room.size[0], 0),
                 world(room.min[1], 1),
@@ -1363,6 +1747,7 @@ mod tests {
                 paths: vec!["nowhere".into()],
                 count: [1, 1],
                 depth: [0, 100],
+                place: Place::Anywhere,
             },
         );
         let error = recipe.validate().unwrap_err();

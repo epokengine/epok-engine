@@ -830,6 +830,27 @@ fn dungeon_visual_fixture() {
             ..Visual::default()
         },
     ));
+    // Caves: the built-in recipe's branches get mossy floors and rough rock walls.
+    for (id, spot, color) in [
+        (0x140, floor, [0.30, 0.40, 0.26]),
+        (0x141, wall, [0.44, 0.38, 0.32]),
+    ] {
+        let row = style.nodes.iter().find(|n| n.id == spot).unwrap().position[1];
+        style.nodes.push(piece(
+            id,
+            spot,
+            200.,
+            row,
+            Visual {
+                piece: Piece::Blockout {
+                    color,
+                    texture: None,
+                },
+                path: "branch".into(),
+                ..Visual::default()
+            },
+        ));
+    }
     let style_path = dungeon_style::fresh_path(&root, "Crypt");
     let style_id = dungeon_style::create(&root, &style_path, &style).unwrap();
     let recipe_path = crate::dungeon_recipe::fresh_path(&root, "Crypt Route");

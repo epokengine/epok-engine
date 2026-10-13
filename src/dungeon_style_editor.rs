@@ -442,6 +442,9 @@ fn badges(visual: &Visual) -> String {
     if !visual.item.is_empty() {
         parts.push(format!("\"{}\" only", visual.item));
     }
+    if !visual.path.is_empty() {
+        parts.push(format!("on {}", visual.path));
+    }
     parts.join(" · ")
 }
 
@@ -1191,6 +1194,17 @@ fn details(ui: &Ui, e: &mut Editor, w: &mut Window) {
                         visual.filter = filter;
                     }
                 }
+            }
+            let mut path = visual.path.clone();
+            if ui
+                .input_text(crate::gui::field(ui, "Path"), &mut path)
+                .hint("any path")
+                .build()
+            {
+                visual.path = path.chars().take(32).collect();
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Recipe layouts: only spots in rooms of this path, such as main, or a branch's name. Empty places everywhere; corridors belong to no path.");
             }
             if spot == SpotKind::Item {
                 let mut name = visual.item.clone();

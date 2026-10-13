@@ -164,11 +164,12 @@ The complete interaction and preview contract is in the
   merged meshes, actors of any class and baked lights in 3D, terrains and decoration
   tiles in 2D, with chance, priority, area and limit per piece. A Dungeon Recipe asset
   grows the layout instead from steps (lattice, main path, branches and loops, items by
-  depth, keys and locks, one-way doors, room fill), edited as a step list with a live
+  depth and place in the room, keys and locks, one-way doors, cellular caves, rooms
+  with cut corners), edited as a step list with a live
   room-graph preview; every key-and-lock placement is checked to be solvable and the
   grid layout keeps locked doors from being walked around. Keys, locks, one-way doors
-  and items become style spots, and actors placed on keys and locks receive their lock
-  number. See [Dungeon Generator](dungeons.md).
+  and items become style spots, style pieces can keep to one path's rooms, and actors
+  placed on keys and locks receive their lock number. See [Dungeon Generator](dungeons.md).
 - **Static OBJ/MTL import.** Import triangular or quad OBJ geometry and material
   colors into editable assets with configurable scale. See
   [Static OBJ import](static-mesh-import.md).

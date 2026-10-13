@@ -132,16 +132,17 @@ offer shortcuts back.
 | Lattice | The grid of room slots. Each slot holds at most one room; paths walk between neighbouring slots | Room slots (columns, rows), slot size in grid cells |
 | Main path | The path from the spawn room to the goal room | Length in rooms |
 | Branch | Paths that start next to rooms of other paths. With **Loops back to** empty they are dead ends; otherwise each ends next to a room of those paths and connects to it | Name, starts off, loops back to, count, length |
-| Items | Named items in rooms of some paths, between two depths along each path (0% first room, 100% last) | Name, paths, count, depth |
+| Items | Named items in rooms of some paths, between two depths along each path (0% first room, 100% last), placed anywhere away from the doors, at the room's centre or against a wall | Name, paths, count, depth, in the room |
 | Key and lock | A key in a room of some paths and the locked door it opens, on a link into a room of other paths | Key in, lock on |
 | One-way doors | Links that lead back at least two rooms along the route open from the far side only | Chance |
-| Rooms | How much of its slot each room fills, and the corridor width | Fill, corridor width |
+| Caves | Rooms of some paths become organic caves that fill their slot | Paths, rock, smoothing |
+| Rooms | How much of its slot each room fills, whether corners are cut, and the corridor width | Fill, cut corners, corridor width |
 
-A recipe has one Lattice, one Main path and one Rooms step; Branch, Items and Key and
-lock steps can repeat, and each step can only name paths that earlier steps grow. The
-built-in recipe is a 6 × 5 lattice with a main path of 6–9 rooms, two dead-end branches
-with treasure, a loop, a key on a branch for a lock on the main path, and one-way
-shortcuts.
+A recipe has one Lattice, one Main path and one Rooms step; Branch, Items, Key and
+lock and Caves steps can repeat, and each step can only name paths that earlier steps
+grow. The built-in recipe is a 6 × 5 lattice with a main path of 6–9 rooms, two dead-end
+cave branches with treasure, a loop, a key on a branch for a lock on the main path,
+one-way shortcuts and rooms with cut corners.
 
 ### Always solvable
 
@@ -163,6 +164,17 @@ between neighbouring rooms, or jog once inside the gap between their slots, alwa
 cell clear of every other corridor and room. So the grid connects exactly the rooms the
 graph links: a locked door cannot be walked around through a neighbouring corridor.
 Unused slots are trimmed, keeping the dungeon centred on its generator.
+
+Rooms are rectangles, rectangles with **cut corners** (one cell, or a three-cell
+triangle in rooms at least eight cells across), or **caves**. A cave fills its whole
+slot: rock is scattered more densely towards its edges (**Rock** sets how much), then
+**Smoothing** passes of a cellular automaton turn it into rounded chambers. Every
+shaped room keeps its centre, its doors and a way from each door to the centre, and
+drops any pocket the centre cannot reach, so shapes never break the route or the
+solvability check. Walls, wall tops, collision, navigation and 2D terrain follow the
+shape like any other floor.
+
+![Recipe rooms in 3D: cave branches with mossy floors from a path-filtered style, and rooms with cut corners](images/dungeon-recipe-caves.png)
 
 Recipe layouts add spots for the style (see [Spots](#spots)): **Key**, **Locked door**,
 **One-way door** and **Item**. The built-in 3D look marks them with blockout: a gold
@@ -190,9 +202,12 @@ public:
 Give the door actor a collider so it blocks the doorway, and remove or deactivate it
 when the player holds the key with the same `lock` number. Item pieces can pick items
 by name with **Item name**, so a "Treasure" item can become a chest and a "Potion" a
-bottle.
+bottle, and any piece can keep to the rooms of one path with **Path**: mossy floors and
+rough walls in the cave branches, banners only along the main path.
 
 ![A recipe dungeon on the console: the goal room's locked gate fills the doorway](images/dungeon-recipe-ingame.png)
+
+![A cave branch on the console: mossy floor, rock walls, a treasure pedestal and the key](images/dungeon-recipe-cave-ingame.png)
 
 ## Dungeon Styles
 
@@ -267,6 +282,7 @@ layout; give props that must block the player an Actor piece with a collider ins
 | Where | Anywhere, rooms only or corridors only | Anywhere |
 | Limit | Most placements in one dungeon, spread at random; 0 has no limit | 0 |
 | Item name | Item spots only: just the items with this name (any case); empty takes every item | empty |
+| Path | Recipe layouts: just the spots in rooms of this path (any case), such as `main` or a branch's name; corridors belong to no path | empty |
 | Offset, Rotation, Scale | Relative to the spot (2D: offset in pixels for actors) | 0, 0, 1 |
 
 The built-in pieces do not stop: a piece added to their right decorates on top of them,

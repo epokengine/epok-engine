@@ -160,8 +160,8 @@ authored `.epokasset` of kind `DungeonStyle` whose payload is a JSON document: a
 `version`, whether it is `two_d`, and its `nodes` (spots, and pieces naming their spot
 as `parent`). A Dungeon Recipe is an authored `.epokasset` of kind `DungeonRecipe`
 whose JSON payload is a `version` and an ordered `steps` list, each tagged by `step`
-(`Lattice`, `MainPath`, `Branch`, `Items`, `KeyLock`, `OneWay`, `Rooms`) with its
-settings; ranges are `[smallest, largest]` pairs and paths are named (`main` is the
+(`Lattice`, `MainPath`, `Branch`, `Items`, `KeyLock`, `OneWay`, `Caves`, `Rooms`) with
+its settings; ranges are `[smallest, largest]` pairs and paths are named (`main` is the
 main path). See [Dungeon Generator](dungeons.md).
 
 ### Blueprint asset version 4

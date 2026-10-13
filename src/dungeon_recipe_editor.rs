@@ -4,7 +4,7 @@
 //!
 //! Every finished edit is saved, like the Dungeon Style editor, and has its own undo
 //! history; with Live preview on, the map's dungeons that follow the recipe regenerate.
-use crate::dungeon_recipe::{self, Graph, MAIN, Recipe, Step};
+use crate::dungeon_recipe::{self, Graph, MAIN, Place, Recipe, Step};
 use crate::editor::Editor;
 use imgui::{MouseButton, Ui};
 use uuid::Uuid;
@@ -346,6 +346,7 @@ fn step_icon(step: &Step) -> &'static str {
         Step::Items { .. } => "\u{f3ed}",
         Step::KeyLock { .. } => "\u{f084}",
         Step::OneWay { .. } => "\u{f338}",
+        Step::Caves { .. } => "\u{f6fc}",
         Step::Rooms { .. } => "\u{f5cb}",
     }
 }
@@ -388,24 +389,41 @@ pub fn step_summary(step: &Step) -> String {
             paths,
             count,
             depth,
+            place,
         } => format!(
-            "{} × {name} in {}, {}-{}% deep",
+            "{} × {name} in {}, {}-{}% deep{}",
             range(*count),
             list(paths),
             depth[0],
-            depth[1]
+            depth[1],
+            match place {
+                Place::Anywhere => String::new(),
+                Place::Centre => ", centred".into(),
+                Place::Edge => ", against walls".into(),
+            }
         ),
         Step::KeyLock {
             key_paths,
             lock_paths,
         } => format!("key in {}, lock on {}", list(key_paths), list(lock_paths)),
         Step::OneWay { chance } => format!("{chance}% of links back towards the spawn"),
+        Step::Caves {
+            paths,
+            density,
+            smoothing,
+        } => format!(
+            "{} rooms become caves, {density}% rock, {smoothing} passes",
+            list(paths)
+        ),
         Step::Rooms {
             fill,
             corridor_width,
+            rounded,
         } => format!(
-            "rooms fill {}-{}% of a slot, corridors {corridor_width} wide",
-            fill[0], fill[1]
+            "rooms fill {}-{}% of a slot{}, corridors {corridor_width} wide",
+            fill[0],
+            fill[1],
+            if *rounded { ", corners cut" } else { "" }
         ),
     }
 }
@@ -711,6 +729,7 @@ fn details(ui: &Ui, w: &mut Window) {
             paths,
             count,
             depth,
+            place,
         } => {
             let mut text = name.clone();
             if ui
@@ -737,6 +756,22 @@ fn details(ui: &Ui, w: &mut Window) {
                 0,
                 "Where along each path: 0% is its first room, 100% its last. 60-100% keeps rewards at the far end.",
             );
+            if let Some(_combo) =
+                ui.begin_combo(crate::gui::field(ui, "In the room"), place.label())
+            {
+                for option in Place::ALL {
+                    if ui
+                        .selectable_config(option.label())
+                        .selected(*place == option)
+                        .build()
+                    {
+                        *place = option;
+                    }
+                }
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Where in its room each item goes: any free cell away from the doors, the centre, or against a wall.");
+            }
         }
         Step::KeyLock {
             key_paths,
@@ -774,10 +809,52 @@ fn details(ui: &Ui, w: &mut Window) {
                 ui.tooltip_text("Chance for each link that leads back towards the spawn to open from the far side only, as a shortcut home.");
             }
         }
+        Step::Caves {
+            paths,
+            density,
+            smoothing,
+        } => {
+            path_picker(
+                ui,
+                "Paths",
+                paths,
+                &known,
+                "Rooms of these paths become caves.",
+            );
+            let mut v = i32::from(*density);
+            if ui
+                .slider_config(crate::gui::field(ui, "Rock"), 20, 70)
+                .display_format("%d %%")
+                .build(&mut v)
+            {
+                *density = v.clamp(20, 70) as u8;
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("How much of each cave starts as rock. More rock gives narrower, twistier caves.");
+            }
+            let mut passes = u16::from(*smoothing);
+            number(
+                ui,
+                "Smoothing",
+                &mut passes,
+                (1, 8),
+                "Passes that round the rock into chambers. More passes give smoother walls.",
+            );
+            *smoothing = passes as u8;
+            crate::gui::muted(
+                ui,
+                "Caves always keep their centre, their doors and a way between them.",
+            );
+        }
         Step::Rooms {
             fill,
             corridor_width,
+            rounded,
         } => {
+            let _ = crate::gui::toggle(ui, "Cut corners", rounded);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Cut the corners of rooms that are not caves: one cell, or three in large rooms.");
+            }
             percent_range(
                 ui,
                 "Fill",
@@ -887,6 +964,8 @@ fn graph_view(ui: &Ui, w: &mut Window) {
             .build();
     }
     let room = slot * 0.27;
+    // Cave rooms are drawn round.
+    let caves = w.recipe.caves();
     for link in &graph.links {
         let (a, b) = (centre(link.a), centre(link.b));
         let color = if link.lock.is_some() {
@@ -930,13 +1009,18 @@ fn graph_view(ui: &Ui, w: &mut Window) {
         let c = centre(node);
         let path = graph.path[node].unwrap_or(0);
         let color = PATHS[path % PATHS.len()];
+        let rounding = if caves.contains_key(&graph.paths[path].0) {
+            room
+        } else {
+            4.
+        };
         draw.add_rect(
             [c[0] - room, c[1] - room],
             [c[0] + room, c[1] + room],
             color,
         )
         .filled(true)
-        .rounding(4.)
+        .rounding(rounding)
         .build();
         let label = if node == graph.spawn {
             Some(("S", SPAWN))
@@ -951,7 +1035,7 @@ fn graph_view(ui: &Ui, w: &mut Window) {
                 [c[0] + room, c[1] + room],
                 color,
             )
-            .rounding(4.)
+            .rounding(rounding)
             .thickness(3.)
             .build();
             let size = ui.calc_text_size(text);

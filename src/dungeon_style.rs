@@ -147,6 +147,10 @@ pub struct Visual {
     /// Item spots: only items with this name (any case); empty takes every item.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub item: String,
+    /// Recipe layouts: only spots in rooms of this path (any case); empty places
+    /// everywhere.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub path: String,
     /// Local offset, rotation (degrees) and scale relative to the spot.
     pub offset: [f32; 3],
     pub rotation: [f32; 3],
@@ -161,6 +165,7 @@ impl Default for Visual {
             filter: Filter::Anywhere,
             limit: 0,
             item: String::new(),
+            path: String::new(),
             offset: [0.; 3],
             rotation: [0.; 3],
             scale: [1.; 3],
@@ -616,14 +621,20 @@ pub fn evaluate(style: &Style, layout: &Layout, seed: u32) -> Vec<Placement> {
     out
 }
 
-/// Whether a piece naming an item accepts this spot.
+/// Whether a piece naming an item or a path accepts this spot.
 fn named(visual: &Visual, spot: &Spot, layout: &Layout) -> bool {
-    visual.item.is_empty()
+    let item = visual.item.is_empty()
         || spot.kind != SpotKind::Item
         || layout
             .items
             .get(usize::from(spot.tag))
-            .is_some_and(|i| i.name.eq_ignore_ascii_case(visual.item.trim()))
+            .is_some_and(|i| i.name.eq_ignore_ascii_case(visual.item.trim()));
+    let path = visual.path.is_empty()
+        || spot
+            .room
+            .and_then(|r| layout.room_paths.get(r))
+            .is_some_and(|p| p.eq_ignore_ascii_case(visual.path.trim()));
+    item && path
 }
 
 /// Placement counts per piece node, for the editor.
@@ -721,6 +732,51 @@ mod tests {
             &Default::default(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn pieces_can_keep_to_a_path_and_to_named_items() {
+        let layout = crate::dungeon_recipe::layout(&crate::dungeon_recipe::builtin(), 3).unwrap();
+        let mut style = builtin(false, None);
+        let floor = style.spot_node(SpotKind::Floor).unwrap().id;
+        let moss = Uuid::from_u128(0x77);
+        style.nodes.push(Node {
+            id: moss,
+            position: [900., 0.],
+            kind: NodeKind::Piece {
+                parent: floor,
+                visual: Visual {
+                    piece: Piece::Blockout {
+                        color: [0.2, 0.5, 0.2],
+                        texture: None,
+                    },
+                    path: "Branch".into(),
+                    consume: false,
+                    ..Visual::default()
+                },
+            },
+        });
+        let item = style.spot_node(SpotKind::Item).unwrap().id;
+        let chest = Uuid::from_u128(0x78);
+        style.nodes.push(Node {
+            id: chest,
+            position: [900., 600.],
+            kind: NodeKind::Piece {
+                parent: item,
+                visual: Visual {
+                    piece: Piece::Mesh { asset: None },
+                    item: "nothing like it".into(),
+                    ..Visual::default()
+                },
+            },
+        });
+        let placements = evaluate(&style, &layout, 3);
+        let mossy: Vec<_> = placements.iter().filter(|p| p.node == moss).collect();
+        assert!(!mossy.is_empty());
+        for p in mossy {
+            assert_eq!(layout.room_paths[p.spot.room.unwrap()], "branch");
+        }
+        assert!(!placements.iter().any(|p| p.node == chest));
     }
 
     #[test]
