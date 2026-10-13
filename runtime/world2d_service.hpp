@@ -1160,12 +1160,35 @@ inline uint32_t z_key(int32_t z) {
 // (`scratch` is sort workspace). `texture_size(index, width, height)` reports a texture's
 // size and returns false when it is absent. Returns the number of entries to draw; extra
 // entries are counted as dropped.
+// The camera of the view being collected: the render pass's, else the active one.
+inline bool view_camera(Camera2D& out) {
+    if (render_pass.camera) {
+        out = *render_pass.camera;
+        return true;
+    }
+    if (auto* active = service.active_camera()) {
+        out = active->view();
+        return true;
+    }
+    return false;
+}
+}  // namespace world2d
+inline bool SubViewport2DComponent::view(Camera2D& out) const {
+    Camera2DComponent* source = camera.valid() ? world2d::camera_on(camera) : world2d::service.active_camera();
+    if (!source) return false;
+    out = source->view();
+    out.viewport[0] = out.viewport[1] = 0;
+    out.viewport[2] = int16_t(width);
+    out.viewport[3] = int16_t(height);
+    return true;
+}
+namespace world2d {
 template<class TextureSize>
 size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, size_t capacity, TextureSize&& texture_size) {
     stats.sprites = stats.culled = stats.dropped = stats.tile_layers = stats.tiles = 0;
     if (!sprites.head && !tile_layers.head && !lines.head && !polygons.head && !emitters.head) return 0;
     Camera2D camera;
-    if (auto* active = service.active_camera()) camera = active->view();
+    view_camera(camera);
     const Projector world_projector(camera);
     const Projector screen_projector = Projector::screen();
     const Tints tints;
@@ -1183,9 +1206,16 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
         ++stats.sprites;
         if (!sprite.visible || !is_active(&sprite)) return;
         const Canvas canvas = canvas_of(sprite);
-        if (!canvas.visible) return;
+        if (!canvas.visible || !render_pass.accepts(canvas)) return;
         uint16_t width = 0, height = 0;
-        if (!texture_size(int(sprite.texture), width, height)) { ++stats.culled; return; }
+        const SubViewport2DComponent* picture = sprite.viewport.valid() ? subviewport_on(sprite.viewport) : nullptr;
+        if (picture) {
+            width = picture->width;
+            height = picture->height;
+        } else if (!texture_size(int(sprite.texture), width, height)) {
+            ++stats.culled;
+            return;
+        }
         uint16_t source[4];
         if (!sprite.source_rect(width, height, source)) { ++stats.culled; return; }
         Affine2D matrix;
@@ -1223,7 +1253,8 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
         for (int k = 0; k < 4; ++k) draw.source[k] = source[k];
         for (int k = 0; k < 3; ++k) draw.color[k] = sprite.modulate[k];
         tint(draw.color, tints.of(canvas.layer));
-        draw.texture = sprite.texture;
+        draw.texture = picture ? -2 : sprite.texture;
+        if (picture) draw.component = picture;
         draw.blend = sprite.blend;
         draw.flip_h = sprite.flip_h;
         draw.flip_v = sprite.flip_v;
@@ -1242,14 +1273,15 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
         };
         if (canvas.parallax && (canvas.parallax->repeat_size[0] > 0.0 || canvas.parallax->repeat_size[1] > 0.0))
             repeat_copies(canvas, projector, bounds, emit);
-        else if (!(bounds[2] <= 0 || bounds[3] <= 0 || bounds[0] >= display_width || bounds[1] >= display_height))
+        else if (!(bounds[2] <= render_pass.clip[0] || bounds[3] <= render_pass.clip[1] ||
+                   bounds[0] >= render_pass.clip[0] + render_pass.clip[2] || bounds[1] >= render_pass.clip[1] + render_pass.clip[3]))
             emit(0, 0);
         if (!drawn) ++stats.culled;
     });
     tile_layers.each([&](TileMapLayerComponent& layer) {
         if (!layer.visible || !layer.tileset || !is_active(&layer)) return;
         const Canvas canvas = canvas_of(layer);
-        if (!canvas.visible) return;
+        if (!canvas.visible || !render_pass.accepts(canvas)) return;
         ++stats.tile_layers;
         SpriteDraw draw;
         draw.kind = DrawKind::Tiles;
@@ -1297,7 +1329,7 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
     // Lines, polygons and particle emitters: one entry each, on their canvas.
     auto shape = [&](ActorComponent& component, DrawKind kind, int16_t z, BlendMode blend, int32_t texture) {
         const Canvas canvas = canvas_of(component);
-        if (!canvas.visible) return;
+        if (!canvas.visible || !render_pass.accepts(canvas)) return;
         SpriteDraw draw;
         draw.kind = kind;
         draw.component = &component;
@@ -1368,8 +1400,8 @@ inline bool entry_space(const SpriteDraw& entry, Camera2D& camera, Affine2D& mat
     if (entry.screen) {
         camera.position[0] = Fixed(int32_t(display_width) * 2048, Fixed::RAW);
         camera.position[1] = Fixed(int32_t(display_height) * 2048, Fixed::RAW);
-    } else if (auto* active = service.active_camera()) {
-        camera = active->view();
+    } else {
+        view_camera(camera);
     }
     return world_of(*const_cast<ActorComponent*>(entry.component), matrix);
 }
@@ -1518,8 +1550,7 @@ inline void each_tile(const SpriteDraw& entry, uint16_t texture_width, uint16_t 
     const auto* layer = static_cast<const TileMapLayerComponent*>(entry.component);
     if (!layer->tileset) return;
     Camera2D camera;
-    if (!entry.screen)
-        if (auto* active = service.active_camera()) camera = active->view();
+    if (!entry.screen) view_camera(camera);
     const Projector projector = entry.screen ? Projector::screen() : Projector(camera);
     Fixed origin[2];
     if (!layer->origin(origin)) return;

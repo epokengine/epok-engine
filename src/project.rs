@@ -277,7 +277,9 @@ pub fn scene_header_with_registry_for(
     }
     // Page geometry follows this bank's VRAM layout, the same one its texture
     // descriptors are generated from.
-    let layout = crate::texture::layout(layout_scene)?.textures;
+    let full_layout = crate::texture::layout(layout_scene)?;
+    let pictures = full_layout.pictures.clone();
+    let layout = full_layout.textures;
     // Fonts are cooked once for the whole project, so a label's index addresses
     // the shared resource set rather than this bank's own.
     let fonts = crate::hud::font_ids(resources);
@@ -660,7 +662,12 @@ epok::set_visibility_track(nullptr);
         scene.actors.iter().filter(|e| tiled(e)).count()
     ));
     text.push_str("inline void initialize_scripts() {initialize_components();}\n");
-    text.push_str(&actor_table_with_registry(scene, class_registry, &clips)?);
+    text.push_str(&actor_table_with_registry(
+        scene,
+        class_registry,
+        &clips,
+        &pictures,
+    )?);
     text.push_str("#ifdef EPOK_EDITOR_PREVIEW\ninline void initialize_editor_preview() {initialize_components();}\n#endif\n}\n");
     crate::visibility_track::rewrite(scene, text)
 }
@@ -1313,6 +1320,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/world2d_physics.hpp").as_slice(),
         ),
         (
+            "world2d_viewports.hpp",
+            include_bytes!("../runtime/world2d_viewports.hpp").as_slice(),
+        ),
+        (
             "world2d_service.hpp",
             include_bytes!("../runtime/world2d_service.hpp").as_slice(),
         ),
@@ -1770,6 +1781,7 @@ fn actor_table_with_registry(
     scene: &Scene,
     registry: &crate::blueprint::Registry,
     clips: &[uuid::Uuid],
+    pictures: &[(uuid::Uuid, [u16; 2])],
 ) -> Result<String, String> {
     if scene.actors.is_empty() && scene.scene_script.is_none() {
         return Ok(
@@ -1819,7 +1831,8 @@ fn actor_table_with_registry(
     )
     .with_actors(&actor_slot)
     .with_clips(&clip_index)
-    .with_scene(scene);
+    .with_scene(scene)
+    .with_pictures(pictures);
     let mut components_text = String::new();
     // Namespace-scope constants (World2D frame clips) the generated setters reference.
     let mut statics = String::new();

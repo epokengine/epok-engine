@@ -68,6 +68,24 @@ editor.
 The Platformer 2D template gains a pushable crate and a garland of light bulbs on rope
 joints, its cord a Line2D following the hooks and bulbs.
 
+## 4. Pictures and split screen (`runtime/world2d_viewports.hpp`, `src/viewport2d.rs`)
+
+| Piece | Contract |
+| --- | --- |
+| `RenderPass` | The view being collected: camera (else the active one), world and/or screen canvases, one canvas layer or every layer minus hidden ones, culling rectangle. `collect_sprites`, `entry_space` and `each_tile` read it |
+| `SubViewport2DComponent` | Camera (else active), picture size, background, interval, canvas filter and `hide_layer`; cooked VRAM placement `target_x/y` (64-word column, inside a 256-line page row). `view()` recentres the camera on the picture |
+| PSX renderer | Per picture due this frame: FastFill, drawing area and offset at the picture, the pass, then one cache flush and the framebuffer's area restored before the views. 15-bit textures: `Texture::bits = 16`, page colour mode 2, `texture_base_u` one texel per word |
+| `Sprite2DComponent::viewport` | An actor with a SubViewport2D whose picture replaces the texture (entry texture -2, component = the picture) |
+| `SplitScreen2DComponent` | Two camera actors, side by side or stacked, divider width and colour; each half: drawing area clipped, background panel, world pass; then the divider and one screen-canvas pass |
+| Native PC | Commands 6 (clip), 7 (begin picture n) and 8 (end picture); texture ids from 0x10000 sample picture n; the runner mirrors the console's passes |
+| Texture packer | `Layout::pictures`: reserved before textures; a picture with no room fails the build |
+
+Editor (`src/world2d_viewport_editor.rs`): presets in the Canvas and views group; picture
+band (camera, size with the VRAM cost, background, redraw interval, layer filter, hide
+layer, whether a sprite shows it) and split band (cameras, layout, divider); Sprite2D
+gains a Viewport picker once the map has a picture; sprites showing a picture draw a
+framed stand-in; the selected picture's or split's camera frames are drawn in the view.
+
 ## Validation
 
 | Check | Result |
@@ -78,6 +96,9 @@ joints, its cord a Line2D following the hooks and bulbs.
 | `cargo test` (navigation) | grid building from tiles, one-way tiles, static bodies and radius; grid and navmesh searches; cooking of grids, meshes and agents; scratch capacity |
 | `tests/runtime/world2d_service.cpp` (physics) | falling to rest and sleeping, contact once with its impact, bouncing, friction stopping a slide, elastic exchange between equal bodies, a character pushing (and not pushing) a crate, rolling, a rod pendulum holding its length, a rope going taut, a spring settling at mg/k, breaking a joint, a line following nodes |
 | `cargo test` (physics) | joint lengths from the map, cooking of bodies and joints |
+| `tests/runtime/world2d_service.cpp` (views) | a pass's camera culls, world/screen canvases, one layer, hidden layers, a sprite showing a picture, picture views, split halves and views, inactive split |
+| `cargo test` (views) | picture sizes and halves, VRAM reservation of pictures, cooking of pictures, splits and sprites showing them, rasterizer clipping and pictures |
+| `tests/integration/verify_world2d_views.py` | PCSX-Redux: a minimap SubViewport2D shown by a HUD sprite, then a SplitScreen2D with its divider and two different halves; Native PC Play draws the same |
 | PSX | Platformer 2D in C++, Lua and Blueprint in PCSX-Redux: the guide animates and points at the player, the wisp follows the player, the player pushes the crate and the garland sways |
 | Sample game | static RAM unchanged (976.0 KiB): projects without 2D content compile none of it |
 | Platformer 2D | static RAM 1.31 MiB with the guide, 1.35 MiB with the wisp (11 KiB of A* scratch), 1.41 MiB with the crate and garland |

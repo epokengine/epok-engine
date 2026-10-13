@@ -38,10 +38,12 @@ pub const NAVIGATION_REGION2D: &str = om::NAVIGATION_REGION2D_COMPONENT_ID;
 pub const NAVIGATION_AGENT2D: &str = om::NAVIGATION_AGENT2D_COMPONENT_ID;
 pub const RIGID_BODY2D: &str = om::RIGID_BODY2D_COMPONENT_ID;
 pub const JOINT2D: &str = om::JOINT2D_COMPONENT_ID;
+pub const SUBVIEWPORT2D: &str = om::SUBVIEWPORT2D_COMPONENT_ID;
+pub const SPLIT_SCREEN2D: &str = om::SPLIT_SCREEN2D_COMPONENT_ID;
 
 /// Every engine 2D component the editor authors and cooks itself: its class id, the
 /// property key holding its record, and its C++ class.
-const BUILTINS: [(&str, &str, &str); 21] = [
+const BUILTINS: [(&str, &str, &str); 23] = [
     (SPRITE2D, "sprite2d", "epok::Sprite2DComponent"),
     (CAMERA2D, "camera2d", "epok::Camera2DComponent"),
     (COLLIDER2D, "collider2d", "epok::Collider2DComponent"),
@@ -95,6 +97,16 @@ const BUILTINS: [(&str, &str, &str); 21] = [
     ),
     (RIGID_BODY2D, "rigid_body2d", "epok::RigidBody2DComponent"),
     (JOINT2D, "joint2d", "epok::Joint2DComponent"),
+    (
+        SUBVIEWPORT2D,
+        "subviewport2d",
+        "epok::SubViewport2DComponent",
+    ),
+    (
+        SPLIT_SCREEN2D,
+        "split_screen2d",
+        "epok::SplitScreen2DComponent",
+    ),
 ];
 pub fn is_builtin(class_id: &str) -> bool {
     BUILTINS.iter().any(|b| b.0 == class_id)
@@ -155,6 +167,9 @@ impl Animation2D {
 #[serde(default)]
 pub struct Sprite2D {
     pub texture: Option<Uuid>,
+    /// A node with a SubViewport2D whose picture replaces the texture.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub viewport: Option<Uuid>,
     /// Texel rectangle x, y, width, height; zero width/height use the rest of the texture.
     pub region: [u16; 4],
     pub hframes: u16,
@@ -179,6 +194,7 @@ impl Default for Sprite2D {
     fn default() -> Self {
         Self {
             texture: None,
+            viewport: None,
             region: [0; 4],
             hframes: 1,
             vframes: 1,
@@ -728,6 +744,8 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
         NAVIGATION_AGENT2D => decode::<crate::navigation2d::NavigationAgent2D>(value).map(|_| ()),
         RIGID_BODY2D => decode::<crate::physics2d::RigidBody2D>(value).map(|_| ()),
         JOINT2D => decode::<crate::physics2d::Joint2D>(value).map(|_| ()),
+        SUBVIEWPORT2D => decode::<crate::viewport2d::SubViewport2D>(value).map(|_| ()),
+        SPLIT_SCREEN2D => decode::<crate::viewport2d::SplitScreen2D>(value).map(|_| ()),
         _ => decode::<CharacterBody2D>(value).map(|_| ()),
     };
     result.map_err(|e| format!("{key}: {e}"))
@@ -758,6 +776,8 @@ fn default_record(class_id: &str) -> serde_json::Value {
         NAVIGATION_AGENT2D => value::<crate::navigation2d::NavigationAgent2D>(),
         RIGID_BODY2D => value::<crate::physics2d::RigidBody2D>(),
         JOINT2D => value::<crate::physics2d::Joint2D>(),
+        SUBVIEWPORT2D => value::<crate::viewport2d::SubViewport2D>(),
+        SPLIT_SCREEN2D => value::<crate::viewport2d::SplitScreen2D>(),
         _ => value::<CharacterBody2D>(),
     }
 }
@@ -1066,9 +1086,11 @@ pub enum Preset {
     NavigationAgent2D,
     RigidBody2D,
     Joint2D,
+    SubViewport2D,
+    SplitScreen2D,
 }
 impl Preset {
-    pub const ALL: [Preset; 25] = [
+    pub const ALL: [Preset; 27] = [
         Preset::Node2D,
         Preset::Sprite2D,
         Preset::AnimatedSprite2D,
@@ -1091,6 +1113,8 @@ impl Preset {
         Preset::NavigationAgent2D,
         Preset::CanvasLayer2D,
         Preset::CanvasModulate2D,
+        Preset::SubViewport2D,
+        Preset::SplitScreen2D,
         Preset::AudioPlayer2D,
         Preset::VisibleOnScreenNotifier2D,
         Preset::RemoteTransform2D,
@@ -1114,7 +1138,10 @@ impl Preset {
             }
             Preset::Skeleton2D => "Animation",
             Preset::NavigationRegion2D | Preset::NavigationAgent2D => "Navigation",
-            Preset::CanvasLayer2D | Preset::CanvasModulate2D => "Canvas",
+            Preset::CanvasLayer2D
+            | Preset::CanvasModulate2D
+            | Preset::SubViewport2D
+            | Preset::SplitScreen2D => "Canvas and views",
             Preset::AudioPlayer2D
             | Preset::VisibleOnScreenNotifier2D
             | Preset::RemoteTransform2D => "Audio and helpers",
@@ -1147,6 +1174,8 @@ impl Preset {
             Preset::NavigationAgent2D => "NavigationAgent2D",
             Preset::RigidBody2D => "RigidBody2D",
             Preset::Joint2D => "Joint2D",
+            Preset::SubViewport2D => "SubViewport2D",
+            Preset::SplitScreen2D => "SplitScreen2D",
         }
     }
     pub fn description(self) -> &'static str {
@@ -1188,6 +1217,12 @@ impl Preset {
             }
             Preset::RigidBody2D => "Falls, bounces, slides and gets pushed: crates, balls, rocks.",
             Preset::Joint2D => "Ties a rigid body to a point or another body: rod, rope, spring.",
+            Preset::SubViewport2D => {
+                "Draws a camera's view into a picture a sprite can show: minimaps, monitors."
+            }
+            Preset::SplitScreen2D => {
+                "Shows two cameras side by side or stacked: local multiplayer."
+            }
         }
     }
     pub fn components(self) -> &'static [&'static str] {
@@ -1215,6 +1250,8 @@ impl Preset {
             Preset::NavigationAgent2D => &[NAVIGATION_AGENT2D],
             Preset::RigidBody2D => &[SPRITE2D, COLLIDER2D, RIGID_BODY2D],
             Preset::Joint2D => &[JOINT2D],
+            Preset::SubViewport2D => &[SUBVIEWPORT2D],
+            Preset::SplitScreen2D => &[SPLIT_SCREEN2D],
         }
     }
 }
@@ -1328,6 +1365,8 @@ pub struct CookContext<'a> {
     pub clip: Option<&'a dyn Fn(Uuid) -> Option<usize>>,
     /// The map being cooked, for components that read other actors (navigation).
     pub scene: Option<&'a crate::scene::Scene>,
+    /// VRAM placement of each SubViewport2D picture, by component id.
+    pub pictures: &'a [(Uuid, [u16; 2])],
 }
 impl<'a> CookContext<'a> {
     pub fn new(
@@ -1343,7 +1382,12 @@ impl<'a> CookContext<'a> {
             actor_slot: None,
             clip: None,
             scene: None,
+            pictures: &[],
         }
+    }
+    pub fn with_pictures(mut self, pictures: &'a [(Uuid, [u16; 2])]) -> Self {
+        self.pictures = pictures;
+        self
     }
     pub fn with_scene(mut self, scene: &'a crate::scene::Scene) -> Self {
         self.scene = Some(scene);
@@ -1480,6 +1524,9 @@ pub fn cook(
                     ));
                 }
                 None => body += "c->texture=-1;",
+            }
+            if let Some(slot) = context.actor(s.viewport) {
+                body += &format!("c->viewport=actors[{slot}];");
             }
             body += &format!(
                 "c->region[0]={};c->region[1]={};c->region[2]={};c->region[3]={};c->hframes={};c->vframes={};c->frame={};",
@@ -2011,6 +2058,42 @@ pub fn cook(
                     );
                 }
             }
+        }
+        SUBVIEWPORT2D => {
+            let v: crate::viewport2d::SubViewport2D = read(component);
+            let [w, h] = v.picture();
+            let [x, y] = context
+                .pictures
+                .iter()
+                .find(|(id, _)| *id == component.id)
+                .map(|(_, at)| *at)
+                .ok_or_else(|| format!("{label}: the picture has no VRAM placement"))?;
+            if let Some(slot) = context.actor(v.camera) {
+                body += &format!("c->camera=actors[{slot}];");
+            }
+            body += &format!(
+                "c->width={w};c->height={h};c->interval={};c->layer={};c->hide_layer={};c->enabled={};c->target_x={x};c->target_y={y};",
+                v.interval.max(1),
+                v.layer.map_or(0x7fff, i32::from),
+                v.hide_layer && v.layer.is_some(),
+                v.enabled
+            );
+            body += &colour("background", v.background);
+        }
+        SPLIT_SCREEN2D => {
+            let v: crate::viewport2d::SplitScreen2D = read(component);
+            for (i, camera) in v.cameras.iter().enumerate() {
+                if let Some(slot) = context.actor(*camera) {
+                    body += &format!("c->cameras[{i}]=actors[{slot}];");
+                }
+            }
+            body += &format!(
+                "c->side_by_side={};c->divider={};c->enabled={};",
+                v.side_by_side,
+                v.divider.min(32),
+                v.enabled
+            );
+            body += &colour("divider_color", v.divider_color);
         }
         RIGID_BODY2D => {
             let r: crate::physics2d::RigidBody2D = read(component);
@@ -2555,6 +2638,66 @@ mod tests {
         assert!(
             capacity_defines(true, &[crate::scene::Scene::default()], std::iter::empty())
                 .contains("#define EPOK_WORLD2D_NAV_CELLS 1\n")
+        );
+    }
+
+    #[test]
+    fn views_cook_pictures_split_screens_and_sprites_showing_them() {
+        let tilesets = BTreeMap::new();
+        let textures = |_| false;
+        let camera = Uuid::from_u128(60);
+        let slot = |id: Uuid| (id == camera).then_some(2);
+        let picture = create(Preset::SubViewport2D, "Minimap", [0., 0.]);
+        let component = picture.components[1].clone();
+        let pictures = [(component.id, [384u16, 256u16])];
+        let mut context = CookContext::new(&textures, &tilesets, [0., 0.])
+            .with_actors(&slot)
+            .with_pictures(&pictures);
+        let mut c = component.clone();
+        write(
+            &mut c,
+            &crate::viewport2d::SubViewport2D {
+                camera: Some(camera),
+                size: [100, 64],
+                layer: Some(2),
+                hide_layer: true,
+                ..Default::default()
+            },
+        );
+        let cooked = cook(&c, 1, "p", &mut context, "Minimap").unwrap();
+        assert!(cooked.setters.contains("c->camera=actors[2];c->width=112;c->height=64;c->interval=1;c->layer=2;c->hide_layer=true;c->enabled=true;c->target_x=384;c->target_y=256;"));
+        // Without a placement the build fails instead of drawing over textures.
+        let mut bare = CookContext::new(&textures, &tilesets, [0., 0.]);
+        assert!(cook(&c, 1, "p", &mut bare, "Minimap").is_err());
+        let split = create(Preset::SplitScreen2D, "Split", [0., 0.]);
+        let mut c = split.components[1].clone();
+        write(
+            &mut c,
+            &crate::viewport2d::SplitScreen2D {
+                cameras: [Some(camera), None],
+                side_by_side: false,
+                ..Default::default()
+            },
+        );
+        let cooked = cook(&c, 1, "s", &mut context, "Split").unwrap();
+        assert!(
+            cooked
+                .setters
+                .contains("c->cameras[0]=actors[2];c->side_by_side=false;c->divider=2;")
+        );
+        let sprite = create(Preset::Sprite2D, "Screen", [0., 0.]);
+        let mut c = sprite.components[1].clone();
+        write(
+            &mut c,
+            &Sprite2D {
+                viewport: Some(camera),
+                ..Default::default()
+            },
+        );
+        let cooked = cook(&c, 1, "t", &mut context, "Screen").unwrap();
+        assert!(
+            cooked.setters.contains("c->texture=-1;")
+                && cooked.setters.contains("c->viewport=actors[2];")
         );
     }
 

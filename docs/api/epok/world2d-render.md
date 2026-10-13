@@ -26,7 +26,7 @@ This module covers the world2d render module. It documents 1 public callable dec
 void draw(psyqo::GPU& gpu)
 ```
 
-- **Declared at:** [line 229](../../../runtime/world2d_render.hpp#L229)
+- **Declared at:** [line 301](../../../runtime/world2d_render.hpp#L301)
 - **Kind:** `cxx method`
 
 **Parameters**

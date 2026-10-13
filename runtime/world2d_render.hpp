@@ -14,6 +14,11 @@
 //   EPOK_WORLD2D_ARENA_BYTES   GPU packet bytes per frame parity
 // Packets are placed in a per-parity byte arena, so rectangles, quads and page changes
 // share one budget; exceeding it drops the extra sprites and tiles and counts them.
+//
+// SubViewport2D pictures are drawn first, each into its VRAM rectangle (drawing area and
+// offset moved there, then the texture cache flushed), so the views drawn after sample
+// this frame's picture. A SplitScreen2D draws the world once per half, each clipped to
+// its half, then the screen canvases once over both.
 #include "world2d_service.hpp"
 #include "texture.hpp"
 #include "frame_clear.hpp"
@@ -50,7 +55,7 @@ class Renderer {
     }
     static uint16_t page_word(const Texture& t, BlendMode blend) {
         return uint16_t(((t.x / 64) & 15) | (((t.y / 256) & 1) << 4) | ((blend == BlendMode::Cutout ? 0 : int(blend) - 1) << 5) |
-                        ((t.bits == 4 ? 0 : 1) << 7));
+                        ((t.bits == 4 ? 0 : t.bits == 8 ? 1 : 2) << 7));
     }
     // Untextured primitives draw their colour as is (textured ones treat 128 as 1.0).
     static psyqo::Color flat_color(const uint8_t* color) { return {{.r = color[0], .g = color[1], .b = color[2]}}; }
@@ -65,7 +70,9 @@ class Renderer {
         if (!fragment) return false;
         fragment->primitive.attr.setPageX(page & 15).setPageY((page >> 4) & 1)
             .set(static_cast<psyqo::Prim::TPageAttr::SemiTrans>((page >> 5) & 3))
-            .set((page >> 7) & 1 ? psyqo::Prim::TPageAttr::Tex8Bits : psyqo::Prim::TPageAttr::Tex4Bits)
+            .set(((page >> 7) & 3) == 2   ? psyqo::Prim::TPageAttr::Tex16Bits
+                 : ((page >> 7) & 3) == 1 ? psyqo::Prim::TPageAttr::Tex8Bits
+                                           : psyqo::Prim::TPageAttr::Tex4Bits)
             .setDithering(false);
         configure_display_field<display_interlaced>(fragment->primitive.attr);
         gpu.chain(*fragment);
@@ -223,14 +230,45 @@ class Renderer {
         });
     }
 
-public:
-    // Builds and chains this frame's 2D packets. Call after the 3D ordering table and
-    // before the HUD.
-    void draw(psyqo::GPU& gpu) {
-        parity = gpu.getParity();
-        used = 0;
-        current_page = 0xffffffffu;
-        stats.drawn = stats.rectangles = stats.quads = stats.pages = 0;
+    // A SubViewport2D's picture as a 15-bit texture.
+    static const Texture* picture_of(const SpriteDraw& d, Texture& out) {
+        const auto* picture = static_cast<const SubViewport2DComponent*>(d.component);
+        if (!picture) return nullptr;
+        out = Texture{};
+        out.width = picture->width;
+        out.height = picture->height;
+        out.x = picture->target_x;
+        out.y = picture->target_y;
+        out.word_width = picture->width;
+        out.bits = 16;
+        return &out;
+    }
+    template<class Prim> bool control(psyqo::GPU& gpu, const Prim& primitive) {
+        auto* fragment = allocate<psyqo::Fragments::SimpleFragment<Prim>>();
+        if (!fragment) return false;
+        fragment->primitive = primitive;
+        gpu.chain(*fragment);
+        return true;
+    }
+    // Drawing area (absolute VRAM) and drawing offset.
+    bool scissor(psyqo::GPU& gpu, int16_t x, int16_t y, int16_t w, int16_t h, int16_t ox, int16_t oy) {
+        psyqo::Prim::Scissor s;
+        s.start = psyqo::Prim::DrawingAreaStart(psyqo::Vertex{{.x = x, .y = y}});
+        s.end = psyqo::Prim::DrawingAreaEnd(psyqo::Vertex{{.x = int16_t(x + w), .y = int16_t(y + h)}});
+        s.offset = psyqo::Prim::DrawingOffset(psyqo::Vertex{{.x = ox, .y = oy}});
+        return control(gpu, s);
+    }
+    // A flat rectangle in drawing coordinates.
+    void panel(psyqo::GPU& gpu, int16_t x, int16_t y, int16_t w, int16_t h, const uint8_t* color) {
+        auto* fragment = allocate<psyqo::Fragments::SimpleFragment<psyqo::Prim::Rectangle>>();
+        if (!fragment) return;
+        fragment->primitive.position = {{.x = x, .y = y}};
+        fragment->primitive.size = {{.w = w, .h = h}};
+        fragment->primitive.setColor(flat_color(color)).setOpaque();
+        gpu.chain(*fragment);
+    }
+    // Collects the current render pass and chains its packets.
+    void view(psyqo::GPU& gpu) {
         const size_t count = collect_sprites(draws, items, scratch, EPOK_WORLD2D_DRAW_ITEMS, [](int index, uint16_t& w, uint16_t& h) {
             const Texture* t = texture(index);
             if (!t) return false;
@@ -248,12 +286,86 @@ public:
                 polygon(gpu, d);
                 continue;
             }
-            const Texture* t = texture(int(d.texture));
+            Texture picture;
+            const Texture* t = d.texture == -2 ? picture_of(d, picture) : texture(int(d.texture));
             if (!t) continue;
             if (d.kind == DrawKind::Tiles) tiles(gpu, d, *t);
             else if (d.kind == DrawKind::Particles) each_particle(d, t->width, t->height, [&](const SpriteDraw& p) { sprite(gpu, p, *t); });
             else sprite(gpu, d, *t);
         }
+    }
+
+public:
+    // Builds and chains this frame's 2D packets. Call after the 3D ordering table and
+    // before the HUD.
+    void draw(psyqo::GPU& gpu) {
+        parity = gpu.getParity();
+        used = 0;
+        current_page = 0xffffffffu;
+        stats.drawn = stats.rectangles = stats.quads = stats.pages = 0;
+        // Chained packets draw into the framebuffer after the one on screen.
+        const int16_t base = display_interlaced ? int16_t(0) : int16_t(parity ? 0 : 256);
+        const int16_t width = int16_t(display_width), height = int16_t(display_height);
+        RenderPass main;
+        bool moved = false;
+        subviewports.each([&](SubViewport2DComponent& picture) {
+            if (picture.hide_layer && picture.layer != every_layer) main.hide(int8_t(picture.layer));
+            if (!picture.enabled || !is_active(&picture) || !picture.width || !picture.height) return;
+            if (picture.countdown) {
+                --picture.countdown;
+                return;
+            }
+            picture.countdown = uint8_t(picture.interval > 1 ? picture.interval - 1 : 0);
+            Camera2D through;
+            if (!picture.view(through)) return;
+            psyqo::Prim::FastFill fill;
+            fill.setColor(flat_color(picture.background));
+            fill.rect = psyqo::Rect{int16_t(picture.target_x), int16_t(picture.target_y), int16_t(picture.width), int16_t(picture.height)};
+            if (!control(gpu, fill)) return;
+            scissor(gpu, int16_t(picture.target_x), int16_t(picture.target_y), int16_t(picture.width), int16_t(picture.height),
+                    int16_t(picture.target_x), int16_t(picture.target_y));
+            RenderPass pass;
+            pass.camera = &through;
+            pass.screen = false;
+            pass.only_layer = picture.layer;
+            pass.clip[2] = int16_t(picture.width);
+            pass.clip[3] = int16_t(picture.height);
+            render_pass = pass;
+            current_page = 0xffffffffu;
+            view(gpu);
+            moved = true;
+        });
+        if (moved) {
+            control(gpu, psyqo::Prim::FlushCache{});
+            scissor(gpu, 0, base, width, height, 0, base);
+            current_page = 0xffffffffu;
+        }
+        if (SplitScreen2DComponent* split = active_split()) {
+            for (int i = 0; i < 2; ++i) {
+                Camera2D through;
+                if (!split->view(i, through)) continue;
+                const int16_t* r = through.viewport;
+                scissor(gpu, r[0], int16_t(base + r[1]), r[2], r[3], 0, base);
+                if (Camera2DComponent* camera = camera_on(split->cameras[i])) panel(gpu, r[0], r[1], r[2], r[3], camera->background);
+                RenderPass pass = main;
+                pass.camera = &through;
+                pass.screen = false;
+                for (int k = 0; k < 4; ++k) pass.clip[k] = r[k];
+                render_pass = pass;
+                view(gpu);
+            }
+            scissor(gpu, 0, base, width, height, 0, base);
+            if (split->divider) {
+                int16_t first[4];
+                split->half(0, first);
+                if (split->side_by_side) panel(gpu, first[2], 0, int16_t(split->divider), height, split->divider_color);
+                else panel(gpu, 0, first[3], width, int16_t(split->divider), split->divider_color);
+            }
+            main.world = false;
+        }
+        render_pass = main;
+        view(gpu);
+        render_pass = RenderPass{};
         stats.arena_bytes = uint32_t(used);
     }
 };

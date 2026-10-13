@@ -232,6 +232,9 @@ pub fn display_reserve(size: [u16; 2]) -> [u16; 2] {
 pub struct Layout {
     pub textures: Vec<(Uuid, Placement)>,
     pub fonts: Vec<(Uuid, Placement)>,
+    /// SubViewport2D pictures: (component id, VRAM x and y). Each starts on a 64-word
+    /// column and stays inside one 256-line page row, so it samples as one 15-bit page.
+    pub pictures: Vec<(Uuid, [u16; 2])>,
 }
 
 fn initial_free(reserved_width: u16) -> Vec<Rect> {
@@ -360,6 +363,27 @@ pub fn layout(scene: &Scene) -> Result<Layout, String> {
             },
         );
     }
+    // SubViewport2D pictures before the textures: they need page-aligned columns.
+    let mut pictures = Vec::new();
+    for (id, [w, h]) in crate::viewport2d::pictures(scene) {
+        let spot = [0u16, 256].into_iter().find_map(|y| {
+            (0..1024u16).step_by(64).find_map(|x| {
+                let r = Rect { x, y, w, h };
+                (u32::from(x) + u32::from(w) <= 1024
+                    && base.iter().any(|f| {
+                        f.x <= r.x && f.y <= r.y && r.x + r.w <= f.x + f.w && r.y + r.h <= f.y + f.h
+                    }))
+                .then_some(r)
+            })
+        });
+        let Some(r) = spot else {
+            return Err(format!(
+                "VRAM has no room for a {w} x {h} SubViewport2D picture beside the framebuffers and fonts; make it smaller."
+            ));
+        };
+        occupy(&mut base, r);
+        pictures.push((id, [r.x, r.y]));
+    }
     let mut requests = Vec::new();
     for (index, t) in data.iter().enumerate() {
         let format = Format::for_data(t);
@@ -429,6 +453,7 @@ pub fn layout(scene: &Scene) -> Result<Layout, String> {
             return Ok(Layout {
                 textures: ids.into_iter().zip(placed).collect(),
                 fonts,
+                pictures,
             });
         }
     }
@@ -451,6 +476,48 @@ pub fn layout(scene: &Scene) -> Result<Layout, String> {
 mod tests {
     use super::*;
     use std::sync::Arc;
+    #[test]
+    fn pictures_get_page_aligned_vram_beside_the_framebuffers() {
+        let mut scene = fixture(4);
+        scene.display_size = [320, 240];
+        for size in [[128u16, 96u16], [256, 200]] {
+            let mut actor =
+                crate::world2d::create(crate::world2d::Preset::SubViewport2D, "Picture", [0., 0.]);
+            let c = actor
+                .components
+                .iter_mut()
+                .find(|c| c.class.class_id.as_deref() == Some(crate::world2d::SUBVIEWPORT2D))
+                .unwrap();
+            crate::world2d::write(
+                c,
+                &crate::viewport2d::SubViewport2D {
+                    size,
+                    ..Default::default()
+                },
+            );
+            scene.actors.push(actor);
+        }
+        let layout = layout(&scene).unwrap();
+        assert_eq!(layout.pictures.len(), 2);
+        let mut rects = Vec::new();
+        for (_, [x, y]) in &layout.pictures {
+            assert!(x % 64 == 0 && (*y == 0 || *y == 256), "{x},{y}");
+            assert!(*x >= 320, "outside the framebuffers");
+            rects.push((*x, *y));
+        }
+        // Textures never land on a picture.
+        for (_, p) in &layout.textures {
+            for &(x, y) in &rects {
+                let inside = p.x >= x && p.x < x + 256 && p.y >= y && p.y < y + 200;
+                assert!(
+                    !inside || p.y >= y + 200,
+                    "texture at {},{} over picture {x},{y}",
+                    p.x,
+                    p.y
+                );
+            }
+        }
+    }
     fn fixture(count: usize) -> Scene {
         let mut scene = Scene::default();
         scene.actors.clear();

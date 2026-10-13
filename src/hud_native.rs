@@ -375,6 +375,9 @@ pub fn render_overlay(scene: &Scene, commands: &[Command], seconds: f32, fade: u
     render_with_background(scene, commands, seconds, fade, false)
 }
 
+/// Texture ids at and above this one name a SubViewport2D picture drawn this frame.
+pub const PICTURE_BASE: i32 = 0x10000;
+
 fn render_with_background(
     scene: &Scene,
     commands: &[Command],
@@ -431,7 +434,95 @@ fn render_with_background(
             }))
         }
     };
+    // Pictures (kind 7 opens one, kind 8 returns to the screen) are layers of their own;
+    // kind 6 clips what follows. A texture id of PICTURE_BASE + n samples picture n.
+    struct Layer {
+        width: usize,
+        height: usize,
+        pixels: Vec<u8>,
+    }
+    let mut layers = vec![Layer {
+        width,
+        height,
+        pixels,
+    }];
+    let mut pictures: std::collections::BTreeMap<i32, usize> = Default::default();
+    let mut current = 0usize;
+    let mut clip = [0i32, 0, width as i32, height as i32];
     for Command(c) in commands {
+        match c[0] {
+            6 => {
+                let l = &layers[current];
+                clip = [
+                    c[3].max(0),
+                    c[4].max(0),
+                    c[5].min(l.width as i32),
+                    c[6].min(l.height as i32),
+                ];
+                continue;
+            }
+            7 => {
+                let (w, h) = (c[5].clamp(1, 512) as usize, c[6].clamp(1, 512) as usize);
+                let background = [c[11], c[12], c[13]].map(|v| v.clamp(0, 255) as u8);
+                layers.push(Layer {
+                    width: w,
+                    height: h,
+                    pixels: [background[0], background[1], background[2], 255].repeat(w * h),
+                });
+                current = layers.len() - 1;
+                pictures.insert(c[2], current);
+                clip = [0, 0, w as i32, h as i32];
+                continue;
+            }
+            8 => {
+                current = 0;
+                clip = [0, 0, width as i32, height as i32];
+                continue;
+            }
+            _ => {}
+        }
+        // The texture a kind 1 or 4 command samples: a cooked texture or a picture.
+        let picture = (c[0] == 1 || c[0] == 4) && c[2] >= PICTURE_BASE;
+        let sampled: Option<(i32, i32, Vec<u8>)> = if picture {
+            match pictures.get(&(c[2] - PICTURE_BASE)) {
+                Some(&i) if i != current => Some((
+                    layers[i].width as i32,
+                    layers[i].height as i32,
+                    layers[i].pixels.clone(),
+                )),
+                _ => continue,
+            }
+        } else {
+            None
+        };
+        let cooked = |id: i32| textures.get(id as usize).and_then(|t| t.as_ref());
+        let texel = |id: i32, u: i32, v: i32| -> Option<[u8; 4]> {
+            if let Some((w, h, rgba)) = &sampled {
+                if u < 0 || v < 0 || u >= *w || v >= *h {
+                    return None;
+                }
+                let o = (v as usize * *w as usize + u as usize) * 4;
+                return Some([rgba[o], rgba[o + 1], rgba[o + 2], rgba[o + 3]]);
+            }
+            let (t, rgba) = cooked(id)?;
+            if u < 0 || v < 0 || u >= i32::from(t.width) || v >= i32::from(t.height) {
+                return None;
+            }
+            let o = (v as usize * usize::from(t.width) + u as usize) * 4;
+            Some([rgba[o], rgba[o + 1], rgba[o + 2], rgba[o + 3]])
+        };
+        // Texture modulation is an integer 7-bit gain on PSX.
+        let modulate = |texel: [u8; 4], rgb: [u8; 3]| -> Option<[u8; 3]> {
+            (texel[3] != 0).then(|| {
+                std::array::from_fn(|channel| {
+                    let gain = u32::from(rgb[channel]).div_ceil(2);
+                    let five = ((u32::from(texel[channel]) >> 3) * gain / 128).min(31) as u8;
+                    (five << 3) | (five >> 2)
+                })
+            })
+        };
+        let layer = &mut layers[current];
+        let (lw, lh) = (layer.width, layer.height);
         // Kinds 3, 4 and 5 carry four screen corners instead of a box: fill them
         // as two triangles and interpolate the source corners barycentrically.
         if c[0] >= 3 {
@@ -441,14 +532,9 @@ fn render_with_background(
             let source: [[f32; 2]; 4] =
                 std::array::from_fn(|i| [c[14 + i * 2] as f32, c[15 + i * 2] as f32]);
             let glyph = (c[0] == 5).then_some(c[2]);
-            let texture = if c[0] == 4 {
-                match textures.get(c[2] as usize).and_then(|t| t.as_ref()) {
-                    Some(t) => Some(t),
-                    None => continue,
-                }
-            } else {
-                None
-            };
+            if c[0] == 4 && !picture && cooked(c[2]).is_none() {
+                continue;
+            }
             // A and B before C and D: the corners arrive in the Z order the
             // console's quad class wants, so the two triangles share edge B-C.
             for [i, j, k] in [[0usize, 1, 2], [1, 2, 3]] {
@@ -457,12 +543,14 @@ fn render_with_background(
                 if area.abs() < 1e-3 {
                     continue;
                 }
-                let low = |axis: usize| a[axis].min(b[axis]).min(d[axis]).floor().max(0.) as i32;
-                let high = |axis: usize, limit: usize| {
-                    a[axis].max(b[axis]).max(d[axis]).ceil().min(limit as f32) as i32
+                let low = |axis: usize, floor: i32| {
+                    (a[axis].min(b[axis]).min(d[axis]).floor() as i32).max(floor)
                 };
-                for y in low(1)..high(1, height) {
-                    for x in low(0)..high(0, width) {
+                let high = |axis: usize, limit: i32| {
+                    (a[axis].max(b[axis]).max(d[axis]).ceil() as i32).min(limit)
+                };
+                for y in low(1, clip[1])..high(1, clip[3].min(lh as i32)) {
+                    for x in low(0, clip[0])..high(0, clip[2].min(lw as i32)) {
                         let p = [x as f32 + 0.5, y as f32 + 0.5];
                         let e0 =
                             ((b[0] - p[0]) * (d[1] - p[1]) - (b[1] - p[1]) * (d[0] - p[0])) / area;
@@ -477,31 +565,15 @@ fn render_with_background(
                         });
                         let result = if let Some(font) = glyph {
                             sample(font, uv[0] as i32, uv[1] as i32, rgb)
-                        } else if let Some((t, rgba)) = texture {
-                            let (u, v) = (uv[0] as i32, uv[1] as i32);
-                            if u < 0 || v < 0 || u >= i32::from(t.width) || v >= i32::from(t.height)
-                            {
-                                None
-                            } else {
-                                let offset = (v as usize * usize::from(t.width) + u as usize) * 4;
-                                (rgba[offset + 3] != 0).then(|| {
-                                    std::array::from_fn(|channel| {
-                                        let gain = u32::from(rgb[channel]).div_ceil(2);
-                                        let five = ((u32::from(rgba[offset + channel]) >> 3) * gain
-                                            / 128)
-                                            .min(31)
-                                            as u8;
-                                        (five << 3) | (five >> 2)
-                                    })
-                                })
-                            }
+                        } else if c[0] == 4 {
+                            texel(c[2], uv[0] as i32, uv[1] as i32).and_then(|t| modulate(t, rgb))
                         } else {
                             Some(rgb)
                         };
                         if let Some(rgb) = result {
-                            let offset = (y as usize * width + x as usize) * 4;
-                            pixels[offset..offset + 3].copy_from_slice(&rgb);
-                            pixels[offset + 3] = 255;
+                            let offset = (y as usize * lw + x as usize) * 4;
+                            layer.pixels[offset..offset + 3].copy_from_slice(&rgb);
+                            layer.pixels[offset + 3] = 255;
                         }
                     }
                 }
@@ -514,52 +586,34 @@ fn render_with_background(
         }
         let rgb = [c[11], c[12], c[13]].map(|v| v.clamp(0, 255) as u8);
         let glyph = (c[0] == 2).then_some(c[2]);
-        for y in y0.max(0)..y1.min(height as i32) {
-            for x in x0.max(0)..x1.min(width as i32) {
+        for y in y0.max(clip[1])..y1.min(clip[3]).min(lh as i32) {
+            for x in x0.max(clip[0])..x1.min(clip[2]).min(lw as i32) {
                 let result = match c[0] {
                     0 => Some(rgb),
-                    1 => textures
-                        .get(c[2] as usize)
-                        .and_then(|t| t.as_ref())
-                        .and_then(|(t, rgba)| {
-                            // Source bounds are inclusive, as in PSX quad packets.
-                            // Nearest sampling; GPU subpixel edge rules are validated
-                            // separately from the shared command/layout contract.
-                            let u = c[7]
-                                + ((i64::from(x - x0) * 2 + 1) * i64::from(c[9] - c[7] + 1)
-                                    / (i64::from(x1 - x0) * 2))
-                                    as i32;
-                            let v = c[8]
-                                + ((i64::from(y - y0) * 2 + 1) * i64::from(c[10] - c[8] + 1)
-                                    / (i64::from(y1 - y0) * 2))
-                                    as i32;
-                            if u < 0 || v < 0 || u >= i32::from(t.width) || v >= i32::from(t.height)
-                            {
-                                return None;
-                            }
-                            let offset = (v as usize * usize::from(t.width) + u as usize) * 4;
-                            if rgba[offset + 3] == 0 {
-                                return None;
-                            }
-                            Some(std::array::from_fn(|i| {
-                                // Texture modulation is an integer 7-bit gain on PSX.
-                                let gain = u32::from(rgb[i]).div_ceil(2);
-                                let five =
-                                    ((u32::from(rgba[offset + i]) >> 3) * gain / 128).min(31) as u8;
-                                (five << 3) | (five >> 2)
-                            }))
-                        }),
+                    1 => {
+                        // Source bounds are inclusive, as in PSX quad packets.
+                        // Nearest sampling; GPU subpixel edge rules are validated
+                        // separately from the shared command/layout contract.
+                        let u = c[7]
+                            + ((i64::from(x - x0) * 2 + 1) * i64::from(c[9] - c[7] + 1)
+                                / (i64::from(x1 - x0) * 2)) as i32;
+                        let v = c[8]
+                            + ((i64::from(y - y0) * 2 + 1) * i64::from(c[10] - c[8] + 1)
+                                / (i64::from(y1 - y0) * 2)) as i32;
+                        texel(c[2], u, v).and_then(|t| modulate(t, rgb))
+                    }
                     2 => glyph.and_then(|font| sample(font, c[7] + x - x0, c[8] + y - y0, rgb)),
                     _ => None,
                 };
                 if let Some(rgb) = result {
-                    let offset = (y as usize * width + x as usize) * 4;
-                    pixels[offset..offset + 3].copy_from_slice(&rgb);
-                    pixels[offset + 3] = 255;
+                    let offset = (y as usize * lw + x as usize) * 4;
+                    layer.pixels[offset..offset + 3].copy_from_slice(&rgb);
+                    layer.pixels[offset + 3] = 255;
                 }
             }
         }
     }
+    let mut pixels = layers.swap_remove(0).pixels;
     if fade > 0 {
         for p in pixels.chunks_exact_mut(4) {
             for c in &mut p[..3] {
@@ -591,6 +645,31 @@ mod tests {
         assert_eq!(size_of::<Node>(), FIELDS * 4 + 512);
         assert_eq!(align_of::<Node>(), 4);
         assert_eq!(HUD_PREVIEW_PROTOCOL_VERSION, 6);
+    }
+    #[test]
+    fn clips_and_pictures_compose_like_the_console() {
+        let scene = Scene {
+            display_size: [8, 4],
+            ..Scene::default()
+        };
+        let command = |v: &[i32]| {
+            let mut c = [0i32; 24];
+            c[..v.len()].copy_from_slice(v);
+            Command(c)
+        };
+        let commands = vec![
+            // A green 2 x 2 picture, then the left half clipped and filled with it.
+            command(&[7, -1, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 255, 0]),
+            command(&[8]),
+            command(&[6, -1, -1, 0, 0, 4, 4]),
+            command(&[1, -1, PICTURE_BASE, 0, 0, 8, 4, 0, 0, 1, 1, 255, 255, 255]),
+            command(&[6, -1, -1, 0, 0, 8, 4]),
+        ];
+        let pixels = render(&scene, &commands, 0., 0);
+        let at = |x: usize, y: usize| &pixels[(y * 8 + x) * 4..(y * 8 + x) * 4 + 3];
+        // Inside the clip: the picture's green, through the PSX gain; outside: untouched.
+        assert!(at(1, 1)[1] > 200 && at(1, 1)[0] == 0);
+        assert_eq!(at(6, 1), &[33, 40, 52]);
     }
     fn labelled(text: &str, font: Option<uuid::Uuid>) -> Scene {
         let mut s = Scene::default();

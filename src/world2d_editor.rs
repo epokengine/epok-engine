@@ -83,6 +83,8 @@ pub fn preset_icon(preset: Preset) -> &'static str {
         Preset::NavigationAgent2D => crate::world2d_navigation_editor::ICON_AGENT,
         Preset::RigidBody2D => crate::world2d_physics_editor::ICON_RIGID,
         Preset::Joint2D => crate::world2d_physics_editor::ICON_JOINT,
+        Preset::SubViewport2D => crate::world2d_viewport_editor::ICON_PICTURE,
+        Preset::SplitScreen2D => crate::world2d_viewport_editor::ICON_SPLIT,
     }
 }
 
@@ -522,6 +524,8 @@ pub fn create_command(preset: Preset) -> &'static str {
         Preset::NavigationAgent2D => "create-node2d-NavigationAgent2D",
         Preset::RigidBody2D => "create-node2d-RigidBody2D",
         Preset::Joint2D => "create-node2d-Joint2D",
+        Preset::SubViewport2D => "create-node2d-SubViewport2D",
+        Preset::SplitScreen2D => "create-node2d-SplitScreen2D",
     }
 }
 /// Whether the Inspector should show the 2D layout for this actor.
@@ -668,7 +672,9 @@ pub fn views(e: &mut Editor) -> Vec<View> {
         }
         if let Some((_, s)) = &sprite {
             z += i32::from(s.z_index);
-            if let Some(texture) = s.texture
+            if let Some((lo, hi)) = crate::world2d_viewport_editor::picture_rect(e, s) {
+                grow(lo, hi);
+            } else if let Some(texture) = s.texture
                 && let Some((size, _)) =
                     sprite_size(s, e.world2d.textures.get(texture).map(|t| t.1))
             {
@@ -2397,6 +2403,7 @@ fn draw(
                 .build();
             }
         }
+        crate::world2d_viewport_editor::draw_pictures(e, &draw, views, &to_screen);
         if !e.playing && e.world2d.show_colliders {
             crate::world2d_physics_editor::overlay(e, &draw, &to_screen);
         }
@@ -2408,6 +2415,7 @@ fn draw(
             crate::world2d_shapes_editor::overlay(e, &draw, v, &to_screen);
             crate::world2d_skeleton_editor::overlay(e, &draw, views, &to_screen);
             crate::world2d_navigation_editor::overlay(e, &draw, views, &to_screen, view.zoom);
+            crate::world2d_viewport_editor::overlay(e, &draw, &to_screen);
         }
         // Hover and selection.
         if let Some(v) = e
@@ -2803,6 +2811,10 @@ pub fn node_icon(actor: &crate::scene::Actor) -> &'static str {
         crate::world2d_shapes_editor::ICON_REMOTE
     } else if has(world2d::SKELETON2D) {
         crate::world2d_skeleton_editor::ICON_SKELETON
+    } else if has(world2d::SUBVIEWPORT2D) {
+        crate::world2d_viewport_editor::ICON_PICTURE
+    } else if has(world2d::SPLIT_SCREEN2D) {
+        crate::world2d_viewport_editor::ICON_SPLIT
     } else if has(world2d::RIGID_BODY2D) {
         crate::world2d_physics_editor::ICON_RIGID
     } else if has(world2d::JOINT2D) {
@@ -2885,6 +2897,7 @@ fn inspector_body(ui: &Ui, e: &mut Editor, id: Uuid) {
             _ if crate::world2d_skeleton_editor::band(ui, e, id, &component) => {}
             _ if crate::world2d_navigation_editor::band(ui, e, id, &component) => {}
             _ if crate::world2d_physics_editor::band(ui, e, id, &component) => {}
+            _ if crate::world2d_viewport_editor::band(ui, e, id, &component) => {}
             _ => generic_band(ui, e, id, &component),
         }
     }
@@ -3123,6 +3136,23 @@ fn sprite_band(
             after_thumb[0],
             after_thumb[1].max(ui.cursor_screen_pos()[1]) + 4.,
         ]);
+        // A SubViewport2D's picture in place of the texture, offered once the map has one.
+        let has_picture =
+            |a: &crate::scene::Actor| world2d::component(a, world2d::SUBVIEWPORT2D).is_some();
+        if s.viewport.is_some() || e.scene.actors.iter().any(has_picture) {
+            crate::world2d_shapes_editor::actor_combo(
+                ui,
+                e,
+                "Viewport",
+                "None: the texture",
+                actor,
+                &has_picture,
+                &mut s.viewport,
+            );
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Show a SubViewport2D's picture (drawn while the game runs) instead of the texture");
+            }
+        }
         let mut region = s.region.map(i32::from);
         if crate::gui::Drag::new(crate::gui::field(ui, "Region x/y/w/h"))
             .range(0, 256)

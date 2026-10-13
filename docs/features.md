@@ -306,8 +306,8 @@ See the complete [Timeline reference](timelines.md) and the
   Sprite2D, TileMapLayer, Collider2D, CharacterBody2D, Camera2D, Parallax2D, Path2D,
   PathFollow2D, Line2D, Polygon2D, Particles2D, AudioPlayer2D,
   VisibleOnScreenNotifier2D, RemoteTransform2D, Skeleton2D, NavigationRegion2D,
-  NavigationAgent2D, RigidBody2D, Joint2D, CanvasLayer2D and CanvasModulate2D
-  components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
+  NavigationAgent2D, RigidBody2D, Joint2D, SubViewport2D, SplitScreen2D,
+  CanvasLayer2D and CanvasModulate2D components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
   purpose, create each kind of node in one click.
 - **Sprites and animation.** Texture regions, sprite-sheet cells, offset, centring,
   flips, modulate, the console blend modes, z-index and y-sort; named frame
@@ -343,6 +343,10 @@ See the complete [Timeline reference](timelines.md) and the
   funnel algorithm); agents follow a target node or position, drive their
   CharacterBody2D or node, and stop at the closest point when the target is
   unreachable; the editor draws regions and predicted paths.
+- **Pictures and split screen.** SubViewport2D draws a camera's view (or one canvas
+  layer) into a 15-bit VRAM picture every few frames, which any Sprite2D can show:
+  minimaps, monitors, group transparency; SplitScreen2D shows two cameras side by side
+  or stacked with a divider, the HUD drawn once on top.
 - **Parallax and canvas layers.** Parallax2D scrolls attached nodes against the camera
   with autoscroll and screen-filling repeats; CanvasLayer2D draws nodes on their own
   layer in screen pixels or world space; CanvasModulate2D tints a whole canvas.

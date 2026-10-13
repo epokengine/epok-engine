@@ -129,6 +129,8 @@ public:
 
     // Authored state. The editor cooks it; gameplay changes it through the functions below.
     int32_t texture = -1;
+    // An actor with a SubViewport2D: its picture replaces the texture.
+    ObjectId viewport;
     uint16_t region[4] = {0, 0, 0, 0};
     uint16_t hframes = 1, vframes = 1;
     Fixed offset[2] = {0.0, 0.0};
@@ -143,6 +145,8 @@ public:
     bool playing = false, finished = false;
     uint16_t pending_event = 0;
 
+    // Shows the picture of the SubViewport2D on `actor` (an empty id: the texture again).
+    EPOK_FUNCTION(BlueprintCallable, Id="7b2febaf-a185-4023-a7b9-07608bbde42e") void set_viewport(ObjectId actor) { viewport = actor; }
     EPOK_FUNCTION(BlueprintCallable, Id="232abd11-a1eb-4041-ada7-20a45d58b72e") void play(uint32_t clip) {
         if (!clips || clip >= clip_count || !clips[clip].frame_count) return;
         if (animation != clip || !playing) { animation = uint16_t(clip); frame = 0; elapsed = 0.0; }
@@ -513,3 +517,4 @@ private:
 #include "world2d_skeleton.hpp"
 #include "world2d_navigation.hpp"
 #include "world2d_physics.hpp"
+#include "world2d_viewports.hpp"

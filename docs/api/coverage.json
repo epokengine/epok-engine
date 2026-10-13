@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 112,
-    "types": 497,
-    "callables": 1942,
-    "properties": 2784
+    "headers": 113,
+    "types": 500,
+    "callables": 1967,
+    "properties": 2817
   },
   "psyqo": {
     "headers": 53,
@@ -930,7 +930,7 @@
       "callables": 5,
       "types": 0,
       "properties": 0,
-      "source_sha256": "e74cc04ba966661bcd3be506c466e9f16525bf81d27f69f98f3ebd0cb9413272",
+      "source_sha256": "e62212a9eb077f2a5d5dc595c52ab797c891cfef4ea51fbfa45ca9ac7315b9f2",
       "diagnostics": []
     },
     {
@@ -940,7 +940,7 @@
       "callables": 7,
       "types": 4,
       "properties": 21,
-      "source_sha256": "f97d901083a8794293bfc3fb9aea47c4f8f5fb2235d02f88c7fa5777e42669ed",
+      "source_sha256": "afc05e66203d736bb29d1c4d291629f067ddd4f54a7ce70a878340c06f74c284",
       "diagnostics": []
     },
     {
@@ -1067,10 +1067,10 @@
       "family": "epok",
       "header": "world2d_components.hpp",
       "slug": "world2d-components",
-      "callables": 81,
+      "callables": 82,
       "types": 7,
-      "properties": 76,
-      "source_sha256": "e7a8776a0706e194d30b802a8e3ad78947ea1e575b093ab4260b8f25067fb472",
+      "properties": 77,
+      "source_sha256": "24349d4c74602ac983d7316e00e7fc12672cdbe952c0183b89f3497409515528",
       "diagnostics": []
     },
     {
@@ -1110,17 +1110,17 @@
       "callables": 1,
       "types": 1,
       "properties": 1,
-      "source_sha256": "ec268bbaaf3a9898aea033e24819410fbcc0ba56578c8c4845daf097f2afc45f",
+      "source_sha256": "2e3e2de87c1d7df5c96e6b87710887b793e0a7d9adc87f172e26ca099495ec1a",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "world2d_service.hpp",
       "slug": "world2d-service",
-      "callables": 49,
+      "callables": 50,
       "types": 10,
       "properties": 75,
-      "source_sha256": "14f444ec000a44375d5977bc99f9ef6a1dd6767298d05e8b611b5a9fb28b62f4",
+      "source_sha256": "09360bf6067f4d1e651972de4b12f8419429040ab3434ca5ef9ed02ea4e5612f",
       "diagnostics": []
     },
     {
@@ -1141,6 +1141,16 @@
       "types": 9,
       "properties": 75,
       "source_sha256": "f468a06e0073b2d3b481f1348ca806520a35eeaa509f4bbf3c7b9cd1b61658d3",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_viewports.hpp",
+      "slug": "world2d-viewports",
+      "callables": 23,
+      "types": 3,
+      "properties": 32,
+      "source_sha256": "bd9c2db31c89f3449c68f0fe299b9554eb1595f646def72dafb3579d8943f270",
       "diagnostics": []
     },
     {

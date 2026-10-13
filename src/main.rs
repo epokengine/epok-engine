@@ -221,6 +221,7 @@ mod transform;
 mod vab_import;
 mod vertex_colors;
 mod viewport;
+mod viewport2d;
 mod visibility_bake;
 mod visibility_bake_ui;
 mod visibility_codec;
@@ -233,6 +234,7 @@ mod world2d_navigation_editor;
 mod world2d_physics_editor;
 mod world2d_shapes_editor;
 mod world2d_skeleton_editor;
+mod world2d_viewport_editor;
 use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},

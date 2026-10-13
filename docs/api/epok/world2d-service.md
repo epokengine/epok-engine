@@ -2,7 +2,7 @@
 
 > **Header:** `"world2d_service.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/world2d_service.hpp)
 
-This module covers the world2d service module. It documents 49 public callables declared directly in this header.
+This module covers the world2d service module. It documents 50 public callables declared directly in this header.
 
 ## Declared types
 
@@ -10,7 +10,7 @@ This module covers the world2d service module. It documents 49 public callables 
 
 ## Callable index
 
-- [`epok::world2d::collect_sprites`](#epok-world2d-collect-sprites-1) — Resolves every visible sprite and tile layer through the active camera (or the screen, for a screen canvas) into `draws`, and writes the back-to-front order into `items` (`scratch` is sort workspace).
+- [`epok::world2d::collect_sprites`](#epok-world2d-collect-sprites-1) — Performs `collect sprites` as part of the world2d service module.
 - [`epok::world2d::each_line_quad`](#epok-world2d-each-line-quad-1) — The quads of a Line2D entry, one per segment, extended by half the width at inner joints so corners close.
 - [`epok::world2d::each_particle`](#epok-world2d-each-particle-1) — The particles of an emitter entry as sprites (texel rectangle, colour, corners).
 - [`epok::world2d::each_polygon_triangle`](#epok-world2d-each-polygon-triangle-1) — The triangles of a Polygon2D entry.
@@ -58,15 +58,14 @@ This module covers the world2d service module. It documents 49 public callables 
 - [`epok::world2d::tint`](#epok-world2d-tint-1) — Performs `tint` as part of the world2d service module.
 - [`epok::world2d::Tints::of`](#epok-world2d-tints-of-1) — Performs `of` as part of the world2d service module.
 - [`epok::world2d::Tints::Tints`](#epok-world2d-tints-tints-1) — Constructs `epok::world2d::Tints` for the world2d service module.
+- [`epok::world2d::view_camera`](#epok-world2d-view-camera-1) — Resolves every visible sprite and tile layer through the active camera (or the screen, for a screen canvas) into `draws`, and writes the back-to-front order into `items` (`scratch` is sort workspace).
 - [`epok::world2d::z_key`](#epok-world2d-z-key-1) — Performs `z key` as part of the world2d service module.
 
 <a id="epok-world2d-collect-sprites-1"></a>
 
 ## `epok::world2d::collect_sprites`
 
-**Purpose.** Resolves every visible sprite and tile layer through the active camera (or the screen, for a screen canvas) into `draws`, and writes the back-to-front order into `items` (`scratch` is sort workspace).
-
-**Details.** `texture_size(index, width, height)` reports a texture's size and returns false when it is absent. Returns the number of entries to draw; extra entries are counted as dropped.
+**Purpose.** Performs `collect sprites` as part of the world2d service module.
 
 **Exact declaration**
 
@@ -74,7 +73,7 @@ This module covers the world2d service module. It documents 49 public callables 
 template<class TextureSize> size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, size_t capacity, TextureSize&& texture_size)
 ```
 
-- **Declared at:** [line 1164](../../../runtime/world2d_service.hpp#L1164)
+- **Declared at:** [line 1187](../../../runtime/world2d_service.hpp#L1187)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -89,7 +88,7 @@ template<class TextureSize> size_t collect_sprites(SpriteDraw* draws, DrawItem* 
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
 
-**Use it when.** `texture_size(index, width, height)` reports a texture's size and returns false when it is absent. Returns the number of entries to draw; extra entries are counted as dropped.
+**Use it when.** You need the world2d service module and the preconditions in the declaration are already satisfied.
 
 **Usage pattern**
 
@@ -127,7 +126,7 @@ auto result = object.collect_sprites<TextureSize>(draws, items, scratch, capacit
 template<class Visit> inline void each_line_quad(const SpriteDraw& entry, Visit&& visit)
 ```
 
-- **Declared at:** [line 1382](../../../runtime/world2d_service.hpp#L1382)
+- **Declared at:** [line 1414](../../../runtime/world2d_service.hpp#L1414)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -174,7 +173,7 @@ object.each_line_quad<Visit>(entry, visit);
 template<class Visit> inline void each_particle(const SpriteDraw& entry, uint16_t texture_width, uint16_t texture_height, Visit&& visit)
 ```
 
-- **Declared at:** [line 1470](../../../runtime/world2d_service.hpp#L1470)
+- **Declared at:** [line 1502](../../../runtime/world2d_service.hpp#L1502)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -225,7 +224,7 @@ object.each_particle<Visit>(entry, texture_width, texture_height, visit);
 template<class Visit> inline void each_polygon_triangle(const SpriteDraw& entry, Visit&& visit)
 ```
 
-- **Declared at:** [line 1436](../../../runtime/world2d_service.hpp#L1436)
+- **Declared at:** [line 1468](../../../runtime/world2d_service.hpp#L1468)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -274,7 +273,7 @@ object.each_polygon_triangle<Visit>(entry, visit);
 template<class Visit> inline void each_tile(const SpriteDraw& entry, uint16_t texture_width, uint16_t texture_height, Visit&& visit)
 ```
 
-- **Declared at:** [line 1516](../../../runtime/world2d_service.hpp#L1516)
+- **Declared at:** [line 1548](../../../runtime/world2d_service.hpp#L1548)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -325,7 +324,7 @@ object.each_tile<Visit>(entry, texture_width, texture_height, visit);
 inline bool entry_space(const SpriteDraw& entry, Camera2D& camera, Affine2D& matrix)
 ```
 
-- **Declared at:** [line 1366](../../../runtime/world2d_service.hpp#L1366)
+- **Declared at:** [line 1398](../../../runtime/world2d_service.hpp#L1398)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -442,7 +441,7 @@ epok::world2d::install();
 inline uint8_t mix(uint8_t a, uint8_t b, Fixed t, uint8_t tint)
 ```
 
-- **Declared at:** [line 1376](../../../runtime/world2d_service.hpp#L1376)
+- **Declared at:** [line 1408](../../../runtime/world2d_service.hpp#L1408)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2146,6 +2145,48 @@ epok::world2d::Tints value();
 **Why choose it.** It provides direct, allocation-conscious access to the world2d service module. No exception-based error path is implied by the signature.
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-world2d-view-camera-1"></a>
+
+## `epok::world2d::view_camera`
+
+**Purpose.** Resolves every visible sprite and tile layer through the active camera (or the screen, for a screen canvas) into `draws`, and writes the back-to-front order into `items` (`scratch` is sort workspace).
+
+**Details.** `texture_size(index, width, height)` reports a texture's size and returns false when it is absent. Returns the number of entries to draw; extra entries are counted as dropped. The camera of the view being collected: the render pass's, else the active one.
+
+**Exact declaration**
+
+```cpp
+inline bool view_camera(Camera2D& out)
+```
+
+- **Declared at:** [line 1164](../../../runtime/world2d_service.hpp#L1164)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `out` | `Camera2D &` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** `texture_size(index, width, height)` reports a texture's size and returns false when it is absent. Returns the number of entries to draw; extra entries are counted as dropped. The camera of the view being collected: the render pass's, else the active one.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Camera2D & out
+
+auto result = epok::world2d::view_camera(out);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
 <a id="epok-world2d-z-key-1"></a>
 

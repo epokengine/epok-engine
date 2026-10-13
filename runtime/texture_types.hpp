@@ -10,7 +10,7 @@ struct Texture {
 };
 inline constexpr bool texture_present(const Texture& t){return t.pixels||t.stream_page!=UINT32_MAX;}
 inline constexpr uint16_t texture_colors(const Texture& t){return t.bits==4?16:256;}
-inline constexpr uint16_t texture_base_u(const Texture& t){return uint16_t((t.x%64)*(t.bits==4?4:2));}
+inline constexpr uint16_t texture_base_u(const Texture& t){return uint16_t((t.x%64)*(t.bits==4?4:t.bits==8?2:1));}
 inline constexpr uint16_t texture_packed_uv(const Texture& t,int32_t u,int32_t v){
     u=u<0?0:u>4096?4096:u;v=v<0?0:v>4096?4096:v;
     return uint16_t((texture_base_u(t)+u*(t.width-1)/4096)|((t.y%256+v*(t.height-1)/4096)<<8));

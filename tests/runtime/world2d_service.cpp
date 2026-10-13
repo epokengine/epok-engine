@@ -86,6 +86,8 @@ const ClassDescriptor object_classes[] = {
     {NavigationAgent2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<NavigationAgent2DComponent>, &object_destruct, sizeof(NavigationAgent2DComponent), alignof(NavigationAgent2DComponent), &ObjectPool<NavigationAgent2DComponent, 4>::acquire, &ObjectPool<NavigationAgent2DComponent, 4>::release},
     {RigidBody2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<RigidBody2DComponent>, &object_destruct, sizeof(RigidBody2DComponent), alignof(RigidBody2DComponent), &ObjectPool<RigidBody2DComponent, 4>::acquire, &ObjectPool<RigidBody2DComponent, 4>::release},
     {Joint2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<Joint2DComponent>, &object_destruct, sizeof(Joint2DComponent), alignof(Joint2DComponent), &ObjectPool<Joint2DComponent, 4>::acquire, &ObjectPool<Joint2DComponent, 4>::release},
+    {SubViewport2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<SubViewport2DComponent>, &object_destruct, sizeof(SubViewport2DComponent), alignof(SubViewport2DComponent), &ObjectPool<SubViewport2DComponent, 4>::acquire, &ObjectPool<SubViewport2DComponent, 4>::release},
+    {SplitScreen2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<SplitScreen2DComponent>, &object_destruct, sizeof(SplitScreen2DComponent), alignof(SplitScreen2DComponent), &ObjectPool<SplitScreen2DComponent, 4>::acquire, &ObjectPool<SplitScreen2DComponent, 4>::release},
     {Listener2D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None, world2d_bit, ObjectClassMultiple, &object_construct<Listener2D>, &object_destruct, sizeof(Listener2D), alignof(Listener2D), &ObjectPool<Listener2D, 4>::acquire, &ObjectPool<Listener2D, 4>::release},
     {Level::static_class_id, Object::static_class_id, ObjectFamily::Level, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Level), alignof(Level), nullptr, nullptr},
 };
@@ -1077,6 +1079,82 @@ void rigid_bodies() {
     assert(real(root(bob).transform.position[1]) > 50);
 }
 
+// 22. Render passes: a pass's camera and canvas filter decide what is collected, a sprite
+// can show a SubViewport2D's picture, and a split screen halves the display.
+void viewports() {
+    reset();
+    auto size = [](int index, uint16_t& w, uint16_t& h) { if (index != 3) return false; w = 16; h = 16; return true; };
+    auto* hero = spawn<Actor2D>("Hero", 0, 0);
+    game_level.add_component<Camera2DComponent>(*hero, "Camera");
+    auto* rival = spawn<Actor2D>("Rival", 600, 0);
+    auto* second = game_level.add_component<Camera2DComponent>(*rival, "Camera");
+    second->current = false;
+    auto* crate = spawn<Actor2D>("Crate", 0, 0);
+    game_level.add_component<Sprite2DComponent>(*crate, "Sprite")->texture = 3;
+    auto* hud = spawn<Actor2D>("Hud", 0, 0);
+    game_level.add_component<CanvasLayer2DComponent>(*hud, "Canvas");
+    auto* icon = spawn<Actor2D>("Icon", 20, 30);
+    root(icon).attach_parent = root(hud).id();
+    game_level.add_component<Sprite2DComponent>(*icon, "Sprite")->texture = 3;
+    step();
+    world2d::SpriteDraw draws[4];
+    world2d::DrawItem items[4], scratch[4];
+    assert(world2d::collect_sprites(draws, items, scratch, 4, size) == 2);
+    // Through the rival's camera the crate is far off screen; the screen canvas stays.
+    Camera2D far = second->view();
+    world2d::render_pass.camera = &far;
+    assert(world2d::collect_sprites(draws, items, scratch, 4, size) == 1);
+    // World canvases only, then canvas 1 only, then canvas 1 hidden.
+    world2d::render_pass = world2d::RenderPass{};
+    world2d::render_pass.screen = false;
+    assert(world2d::collect_sprites(draws, items, scratch, 4, size) == 1);
+    world2d::render_pass = world2d::RenderPass{};
+    world2d::render_pass.only_layer = 1;
+    assert(world2d::collect_sprites(draws, items, scratch, 4, size) == 1 && draws[items[0].index].x[0] == 12);
+    world2d::render_pass = world2d::RenderPass{};
+    world2d::render_pass.hide(1);
+    assert(world2d::collect_sprites(draws, items, scratch, 4, size) == 1 && draws[items[0].index].x[0] != 12);
+    world2d::render_pass = world2d::RenderPass{};
+    // A sprite showing a SubViewport2D's picture: its size, no texture lookup.
+    auto* monitor = spawn<Actor2D>("Monitor", 0, 0);
+    auto* picture = game_level.add_component<SubViewport2DComponent>(*monitor, "Viewport");
+    picture->width = 64;
+    picture->height = 32;
+    auto* screen = spawn<Actor2D>("Screen", 0, 0);
+    auto* shows = game_level.add_component<Sprite2DComponent>(*screen, "Sprite");
+    shows->set_viewport(monitor->id());
+    world2d::render_pass.screen = false;
+    const size_t count = world2d::collect_sprites(draws, items, scratch, 4, size);
+    bool found = false;
+    for (size_t i = 0; i < count; ++i) {
+        const auto& d = draws[items[i].index];
+        if (d.texture == -2) {
+            found = d.component == picture && d.source[2] == 64 && d.source[3] == 32 && d.x[1] - d.x[0] == 64;
+        }
+    }
+    assert(found);
+    world2d::render_pass = world2d::RenderPass{};
+    Camera2D view;
+    assert(picture->view(view) && view.viewport[2] == 64 && view.viewport[3] == 32);
+    // The two halves of a split screen and the views centred on them.
+    auto* split_node = spawn<Actor2D>("Split", 0, 0);
+    auto* split = game_level.add_component<SplitScreen2DComponent>(*split_node, "Split");
+    split->cameras[0] = hero->id();
+    split->cameras[1] = rival->id();
+    assert(world2d::active_split() == split);
+    int16_t left[4], right[4];
+    split->half(0, left);
+    split->half(1, right);
+    assert(left[0] == 0 && left[2] + split->divider + right[2] == display_width && right[0] == left[2] + split->divider);
+    Camera2D through;
+    assert(split->view(1, through) && through.viewport[0] == right[0] && real(through.position[0]) == 600);
+    split->set_side_by_side(false);
+    split->half(1, right);
+    assert(right[0] == 0 && right[2] == display_width && right[1] > 0);
+    split->cameras[1] = ObjectId{};
+    assert(!world2d::active_split());
+}
+
 void size_report() {
     std::printf("World2D components (host, %zu-bit pointers): Sprite2D %zu  Camera2D %zu  Collider2D %zu  CharacterBody2D %zu  TileMapLayer %zu  Parallax2D %zu  Skeleton2D %zu\n",
                 sizeof(void*) * 8, sizeof(Sprite2DComponent), sizeof(Camera2DComponent), sizeof(Collider2DComponent),
@@ -1110,7 +1188,8 @@ int main() {
     skeletons();
     navigation();
     rigid_bodies();
+    viewports();
     size_report();
-    std::puts("World2D sprite clips, camera, character body, triggers, draw sort, tile map, parallax, canvas layer, path, shape, particle, notifier, remote transform, 2D audio, skeleton, navigation and rigid body tests passed.");
+    std::puts("World2D sprite clips, camera, character body, triggers, draw sort, tile map, parallax, canvas layer, path, shape, particle, notifier, remote transform, 2D audio, skeleton, navigation, rigid body and viewport tests passed.");
     return 0;
 }
