@@ -1,6 +1,6 @@
 # HUD and 2D entities
 
-Create Canvas, Panel, Image, Text, Button or Progress Bar through GameObject > UI or Hierarchy's context menu. Epok adds a Canvas automatically when necessary. These are ordinary scene entities with hierarchy, scripts, renaming, duplication and persistence.
+Create Canvas, Panel, Image, Text, Button, Check Box, Slider or Progress Bar through GameObject > UI or Hierarchy's context menu. Epok adds a Canvas automatically when necessary. These are ordinary scene entities with hierarchy, scripts, renaming, duplication and persistence.
 
 Panel combines RectTransform and Image. Text and ProgressBar are independent graphics components. Add Component can add Canvas to an empty root entity, RectTransform to a UI child, and graphics to an entity with RectTransform.
 
@@ -37,6 +37,30 @@ Image's **Nine-slice borders** hold back the left, top, right and bottom strips 
 ## Focus and D-pad navigation
 
 **Button** is a recipe — a rect with an Image, an unwrapped Text and a **Focusable** — not a new component type. Focusable names the element reached by each D-pad direction, a tab **Order**, and a **Highlight** colour. Focus itself is one index on the Canvas, its **Initial focus**, which the runtime then moves: on a direction's press edge it follows that link if the target is alive, active and focusable, and otherwise stays put. Nothing searches, so a menu of any size costs the same. While an element holds focus its Image and Progress Bar colours are multiplied by its Highlight, which lights a button up without emitting a single extra primitive. Neighbours are stored as actor indices, so reordering actors means revisiting the links; the inspector picks them by name, and the viewport draws each one as a line from the selected element to its target.
+
+### Pressing, check boxes and sliders
+
+**Cross** presses the focused element and **Circle** cancels on it. Neither moves the focus; each leaves an event on the element that gameplay collects once, through `FocusableComponent::take_pressed()`, `take_changed()` and `take_cancelled()` (Blueprint and Lua get the same calls). An event nobody reads is simply overwritten by the next one, so a menu that only cares about Cross ignores the rest at no cost.
+
+A **Check Box** is the same Focusable with **Kind** set to **Toggle**: Cross flips its **Checked** state and raises a changed event, and the box itself is drawn at the right edge of the rect, three fills — frame, well and, when checked, a mark — beside the element's own Text. `is_checked()` and `set_checked()` read and set it from gameplay.
+
+A **Slider** is a Progress Bar with a **Slider step** above zero on a focusable element. While it holds focus, Left and Right move its value by that step, clamped to 0..1, and raise a changed event instead of moving the focus; Up and Down still follow the neighbour links. It draws a handle at the end of its fill — one more rectangle — and gameplay reads the value with `value()` as for any Progress Bar.
+
+The Button, Check Box and Slider recipes start with an amber **Highlight**, so the focused element shows without any setup; a check box's frame and a slider's handle carry that tint too. Set it back to white for a widget that should not change when focused.
+
+## Colour tags
+
+A Text may recolour part of itself: `[color=#ff4040]LOW[/color] HEALTH` draws `LOW` in red and the rest in the Text's colour. Tags take no room and cost nothing at runtime beyond the glyphs they colour; a malformed tag is drawn as plain text. They work in the Strings table too, and the Inspector's **Insert colour tag** button appends an empty pair to fill in.
+
+## Localization
+
+**Window > Strings (Localization)** opens the project's string table — created on first use as `assets/Localization/Strings.epokasset` — as a grid of keys and languages. The first language is the one the game starts in; a language's menu makes another the start language or removes it. Untranslated entries are counted per language and highlighted in the grid; they fall back to the first language at runtime. **Preview in** shows the open map in any language, and **Export CSV** / **Import CSV** round-trip `assets/Localization/strings.csv` (a header row `key,<language>,...` and one row per key) for spreadsheets or translators.
+
+![The Strings window with a two-language table, and a Text using its key in the Inspector](images/hud-strings.png)
+
+A Text picks a **String key** in the Inspector, under its text; the field then shows what the key reads in the preview language. Gameplay switches language with `LocalizationLibrary::set_language(index)` (Blueprint and Lua: **Localization > set_language**), which rewrites every keyed text of the scene at once and is remembered across scene changes; `language()`, `language_count()` and `key_count()` describe the table. A text created or changed at runtime uses `TextComponent::set_text_key(index)`, the **#** column of the table.
+
+Only scenes with keyed texts carry the table. It is cooked into that scene's bank, every language in it, so each language adds its strings' bytes to the bank's RAM. Tables are limited to 4096 keys, 16 languages and 511 bytes per entry, and a keyed text budgets glyphs for its longest translation. Characters follow the Text's font: the built-in font covers ASCII and the Spanish set, so other scripts need an imported font with those glyphs.
 
 ## Rotation
 
@@ -103,6 +127,8 @@ Image supports an imported Texture UUID and an atlas rectangle in pixels. Zero w
 Text accepts up to 511 UTF-8 bytes, explicit newlines and optional character wrapping, with the built-in bitmap or an imported font (see **Fonts** above). Wrapping breaks before the first glyph whose advance would cross the right edge; without wrapping that glyph is dropped rather than moved. Text clips to its own rect and the screen. ProgressBar retains its fill/background colors.
 
 The scene's `hud_budget` configures layouts, rectangles, text components and glyphs. Defaults are 128 / 256 / 64 / 1024; maximums are 128 / 512 / 64 / 2048. Edit them in **Map Settings**, opened by clicking the map root at the top of the Hierarchy; Project Settings > Rendering keeps the heading and a button that opens it. Nine-slice images budget nine rectangles. The editor rejects authored over-budget scenes; dynamic excess is omitted and counted in `hud_stats.dropped`. Standalone builds reserve the maximum requested by their registered scenes.
+
+Scroll containers, tab bars and shared themes are not part of this profile yet; a long list is a Vertical Box whose position the game moves, and a tab bar a row of Buttons that activate one panel each.
 
 `utility.hpp` supplies generic `Focus`, `EventQueue`, and `layout_list` APIs. Focus skips inactive/destroyed handles, supports forward/reverse navigation, and emits activation/cancel events. These are primitives for the game's UI logic. Parent masks and world-space Canvas remain outside this profile; so does scaling a font at runtime, which is an import-time choice.
 

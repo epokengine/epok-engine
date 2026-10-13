@@ -281,6 +281,24 @@ pub struct Text {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font: Option<uuid::Uuid>,
     pub align: TextAlign,
+    /// A string table key: the text shows that entry, in the game's language.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub key: String,
+}
+impl Text {
+    /// What the text shows in `language`: its key's entry when the table has it.
+    pub fn shown<'a>(
+        &'a self,
+        strings: Option<&'a crate::localization::StringTable>,
+        language: usize,
+    ) -> &'a str {
+        if self.key.is_empty() {
+            return &self.text;
+        }
+        strings
+            .and_then(|t| t.lookup(&self.key, language))
+            .unwrap_or(&self.text)
+    }
 }
 impl Default for Text {
     fn default() -> Self {
@@ -291,6 +309,7 @@ impl Default for Text {
             wrap: true,
             font: None,
             align: TextAlign::Left,
+            key: String::new(),
         }
     }
 }
@@ -331,6 +350,8 @@ pub struct ProgressBar {
     pub color: [f32; 3],
     pub background: [f32; 3],
     pub enabled: bool,
+    /// Above zero the bar is a slider: Left/Right on the focused bar move it by this.
+    pub step: f32,
 }
 impl Default for ProgressBar {
     fn default() -> Self {
@@ -339,8 +360,46 @@ impl Default for ProgressBar {
             color: [0.25, 0.85, 0.3],
             background: [0.12; 3],
             enabled: true,
+            step: 0.,
         }
     }
+}
+/// What pressing Cross does to a focused element. Mirrors `epok::FocusKind`; the
+/// numbering is pinned.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum FocusKind {
+    #[default]
+    Button,
+    Toggle,
+}
+/// A text with its `[color=#rrggbb]` and `[/color]` tags removed: what draws.
+pub fn visible_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find('[') {
+        out.push_str(&rest[..at]);
+        let tail = &rest[at..];
+        let tag = if tail.starts_with("[/color]") {
+            Some(8)
+        } else if tail.len() >= 15
+            && tail.starts_with("[color=#")
+            && tail.as_bytes()[14] == b']'
+            && tail[8..14].chars().all(|c| c.is_ascii_hexdigit())
+        {
+            Some(15)
+        } else {
+            None
+        };
+        match tag {
+            Some(length) => rest = &tail[length..],
+            None => {
+                out.push('[');
+                rest = &tail[1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 /// Mirrors `epok::LayoutKind`. The numbering is pinned: saved Blueprint graphs
 /// store it, so the type only ever grows at the end.
@@ -449,6 +508,9 @@ pub struct Focusable {
     pub order: u8,
     /// Multiplied into the image and fill colours while this element is focused.
     pub highlight: [f32; 3],
+    /// A Toggle flips `checked` when pressed and draws a check box.
+    pub kind: FocusKind,
+    pub checked: bool,
 }
 impl Default for Focusable {
     fn default() -> Self {
@@ -457,6 +519,18 @@ impl Default for Focusable {
             neighbors: [-1; 4],
             order: 0,
             highlight: [1.; 3],
+            kind: FocusKind::Button,
+            checked: false,
+        }
+    }
+}
+impl Focusable {
+    /// What the Button, Check Box and Slider recipes start with: an amber highlight,
+    /// so the focused element shows without any setup.
+    pub fn lit() -> Self {
+        Self {
+            highlight: [1., 0.82, 0.35],
+            ..Default::default()
         }
     }
 }
@@ -679,12 +753,34 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
                 .and_then(|id| scene.textures.get(&id))
                 .map_or([256, 256], |t| [t.width, t.height]);
             image_primitives(v, dimensions, size)
-        }) + 2 * usize::from(e.progress.as_ref().is_some_and(|v| v.enabled));
-        let letters = e
-            .text
-            .as_ref()
-            .filter(|t| t.enabled)
-            .map_or(0, |t| t.text.chars().filter(|c| *c != '\n').count());
+        }) + 2 * usize::from(e.progress.as_ref().is_some_and(|v| v.enabled))
+            // A Toggle's check box: frame, well and mark.
+            + 3 * usize::from(
+                e.focusable
+                    .as_ref()
+                    .is_some_and(|f| f.enabled && f.kind == FocusKind::Toggle),
+            )
+            // A slider's handle.
+            + usize::from(
+                e.progress.as_ref().is_some_and(|p| p.enabled && p.step > 0.)
+                    && e.focusable.as_ref().is_some_and(|f| f.enabled),
+            );
+        // A keyed text costs its longest translation.
+        let letters = e.text.as_ref().filter(|t| t.enabled).map_or(0, |t| {
+            let languages = scene
+                .strings
+                .as_ref()
+                .map_or(1, |s| s.languages.len().max(1));
+            (0..languages)
+                .map(|language| {
+                    visible_text(t.shown(scene.strings.as_deref(), language))
+                        .chars()
+                        .filter(|c| *c != '\n')
+                        .count()
+                })
+                .max()
+                .unwrap_or(0)
+        });
         if e.rect.as_ref().is_some_and(|r| r.rotation != 0.) {
             rotated += pictures + letters;
         } else {
@@ -1051,11 +1147,22 @@ mod tests {
         }
         assert_eq!(ImageTiling::from(9), ImageTiling::None);
         assert_eq!(ImageTiling::ALL.len(), 3);
+        // Colour tags draw nothing; malformed ones are ordinary text.
+        assert_eq!(
+            visible_text("Get [color=#ffcc00]10[/color] coins"),
+            "Get 10 coins"
+        );
+        assert_eq!(
+            visible_text("[color=#zzzzzz]x[/color"),
+            "[color=#zzzzzz]x[/color"
+        );
         let focus = Focusable {
             enabled: true,
             neighbors: [3, -1, 0, 7],
             order: 4,
             highlight: [0.5, 1., 0.25],
+            kind: FocusKind::Toggle,
+            checked: true,
         };
         let text = serde_json::to_string(&focus).unwrap();
         assert_eq!(serde_json::from_str::<Focusable>(&text).unwrap(), focus);

@@ -80,7 +80,9 @@ inline void audio_parameters(int i){
     const auto& voice=audio_voices[i];const auto& source=*voice.owner;
     int volume=source.volume.raw();if(volume<0)volume=0;if(volume>4095)volume=4095;
     volume=int(uint32_t(volume)*transition_audio_gain()/4096);
-    SPU_VOICES[i].volumeLeft=volume*4;SPU_VOICES[i].volumeRight=volume*4;
+    // Panning lowers the far side only, so a centred source keeps its full volume.
+    const int pan=source.pan;
+    SPU_VOICES[i].volumeLeft=uint16_t(volume*4*(pan>0?127-pan:127)/127);SPU_VOICES[i].volumeRight=uint16_t(volume*4*(pan<0?127+pan:127)/127);
     int raw=source.pitch.raw();if(raw<1024)raw=1024;if(raw>16384)raw=16384;
     int pitch=audio_bank[voice.clip].rate*raw/44100;
     if(pitch<1)pitch=1;if(pitch>0x3fff)pitch=0x3fff;

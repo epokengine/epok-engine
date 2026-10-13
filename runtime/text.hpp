@@ -15,12 +15,31 @@ struct Text {
     // -1 is the built-in 8x16 atlas; anything else indexes the cooked fonts.
     int font=-1;
     TextAlign align=TextAlign::Left;
+    // The string table key this text shows, or -1 for its own text. Switching the
+    // language rewrites every keyed text.
+    int16_t key=-1;
     void set_text(const char* text) {
         size_t n=0;
         while(text&&*text&&n<511)value[n++]=*text++;
         value[n]=0;
     }
 };
+// The project's string table, installed by the generated scene code: `strings`
+// holds `keys` strings per language, language after language. `apply` rewrites
+// the loaded scene's keyed texts in the current language.
+struct Localization {
+    const char* const* strings=nullptr;
+    uint16_t keys=0,languages=0,language=0;
+    void (*apply)()=nullptr;
+    const char* get(int key) const {
+        if(!strings||key<0||key>=keys||!languages)return "";
+        // A language chosen in a scene with a smaller table reads as the first one.
+        const char* value=strings[uint32_t(language<languages?language:0)*keys+uint32_t(key)];
+        // An untranslated entry falls back to the first language.
+        return value&&*value?value:strings[uint32_t(key)];
+    }
+};
+inline Localization localization;
 // `rotated` counts quads emitted through the rotated path; they come out of
 // hud_rotated_budget rather than the rectangle and glyph pools.
 struct HudStats {uint32_t rectangles=0,glyphs=0,texts=0,images=0,dropped=0,rotated=0;};

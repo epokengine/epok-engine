@@ -212,9 +212,18 @@ fn place(free: &[Rect], request: Request, top_left: bool) -> Option<Rect> {
     best.map(|(_, r)| r)
 }
 
-// The allocator excludes these columns at every VRAM row, including the
-// unused lines between/after PsyQo's framebuffers. Memory reports share it.
+// The widest display reservation: every column a 640-wide framebuffer can use,
+// at every VRAM row. Authored fonts are global and are always placed outside
+// it, so their VRAM never depends on the project's resolution.
 pub const DISPLAY_RESERVE: [u16; 2] = [640, 512];
+
+/// Columns the framebuffers of a `size` display occupy, at every VRAM row
+/// (including the unused lines between and after PsyQo's buffers). Textures may
+/// use everything to the right: a 320-wide project gains 320 columns, about
+/// 320 KiB, over the fixed 640-column reservation. Memory reports share it.
+pub fn display_reserve(size: [u16; 2]) -> [u16; 2] {
+    [size[0].clamp(256, DISPLAY_RESERVE[0]), DISPLAY_RESERVE[1]]
+}
 
 /// The resident VRAM allocation of one scene: its textures and the authored
 /// HUD fonts. Fonts are 4bpp atlases with a sixteen-entry CLUT, packed by the
@@ -223,16 +232,19 @@ pub const DISPLAY_RESERVE: [u16; 2] = [640, 512];
 pub struct Layout {
     pub textures: Vec<(Uuid, Placement)>,
     pub fonts: Vec<(Uuid, Placement)>,
+    /// SubViewport2D pictures: (component id, VRAM x and y). Each starts on a 64-word
+    /// column and stays inside one 256-line page row, so it samples as one 15-bit page.
+    pub pictures: Vec<(Uuid, [u16; 2])>,
 }
 
-fn initial_free() -> Vec<Rect> {
+fn initial_free(reserved_width: u16) -> Vec<Rect> {
     let mut free = vec![Rect {
-        x: DISPLAY_RESERVE[0],
+        x: reserved_width,
         y: 0,
-        w: 1024 - DISPLAY_RESERVE[0],
+        w: 1024 - reserved_width,
         h: DISPLAY_RESERVE[1],
     }];
-    // Framebuffers occupy x<640. Loading image and font own this corner.
+    // Framebuffers occupy x<width. Loading image and font own this corner.
     occupy(
         &mut free,
         Rect {
@@ -324,8 +336,54 @@ pub fn layout(scene: &Scene) -> Result<Layout, String> {
                 .ok_or_else(|| format!("Unresolved texture {id}"))
         })
         .collect::<Result<_, _>>()?;
-    let mut base = initial_free();
-    let fonts = place_fonts(scene, &mut base)?;
+    // Fonts are placed in the resolution-independent region first, then the
+    // same rectangles are excluded from the texture space of this display.
+    let mut legacy = initial_free(DISPLAY_RESERVE[0]);
+    let fonts = place_fonts(scene, &mut legacy)?;
+    let mut base = initial_free(display_reserve(scene.display_size)[0]);
+    for (id, p) in &fonts {
+        let f = &scene.fonts[id];
+        let format = Format::Indexed4;
+        occupy(
+            &mut base,
+            Rect {
+                x: p.x,
+                y: p.y,
+                w: format.word_width(f.width),
+                h: f.height,
+            },
+        );
+        occupy(
+            &mut base,
+            Rect {
+                x: p.clut_x,
+                y: p.clut_y,
+                w: format.colors(),
+                h: 1,
+            },
+        );
+    }
+    // SubViewport2D pictures before the textures: they need page-aligned columns.
+    let mut pictures = Vec::new();
+    for (id, [w, h]) in crate::viewport2d::pictures(scene) {
+        let spot = [0u16, 256].into_iter().find_map(|y| {
+            (0..1024u16).step_by(64).find_map(|x| {
+                let r = Rect { x, y, w, h };
+                (u32::from(x) + u32::from(w) <= 1024
+                    && base.iter().any(|f| {
+                        f.x <= r.x && f.y <= r.y && r.x + r.w <= f.x + f.w && r.y + r.h <= f.y + f.h
+                    }))
+                .then_some(r)
+            })
+        });
+        let Some(r) = spot else {
+            return Err(format!(
+                "VRAM has no room for a {w} x {h} SubViewport2D picture beside the framebuffers and fonts; make it smaller."
+            ));
+        };
+        occupy(&mut base, r);
+        pictures.push((id, [r.x, r.y]));
+    }
     let mut requests = Vec::new();
     for (index, t) in data.iter().enumerate() {
         let format = Format::for_data(t);
@@ -395,6 +453,7 @@ pub fn layout(scene: &Scene) -> Result<Layout, String> {
             return Ok(Layout {
                 textures: ids.into_iter().zip(placed).collect(),
                 fonts,
+                pictures,
             });
         }
     }
@@ -417,6 +476,48 @@ pub fn layout(scene: &Scene) -> Result<Layout, String> {
 mod tests {
     use super::*;
     use std::sync::Arc;
+    #[test]
+    fn pictures_get_page_aligned_vram_beside_the_framebuffers() {
+        let mut scene = fixture(4);
+        scene.display_size = [320, 240];
+        for size in [[128u16, 96u16], [256, 200]] {
+            let mut actor =
+                crate::world2d::create(crate::world2d::Preset::SubViewport2D, "Picture", [0., 0.]);
+            let c = actor
+                .components
+                .iter_mut()
+                .find(|c| c.class.class_id.as_deref() == Some(crate::world2d::SUBVIEWPORT2D))
+                .unwrap();
+            crate::world2d::write(
+                c,
+                &crate::viewport2d::SubViewport2D {
+                    size,
+                    ..Default::default()
+                },
+            );
+            scene.actors.push(actor);
+        }
+        let layout = layout(&scene).unwrap();
+        assert_eq!(layout.pictures.len(), 2);
+        let mut rects = Vec::new();
+        for (_, [x, y]) in &layout.pictures {
+            assert!(x % 64 == 0 && (*y == 0 || *y == 256), "{x},{y}");
+            assert!(*x >= 320, "outside the framebuffers");
+            rects.push((*x, *y));
+        }
+        // Textures never land on a picture.
+        for (_, p) in &layout.textures {
+            for &(x, y) in &rects {
+                let inside = p.x >= x && p.x < x + 256 && p.y >= y && p.y < y + 200;
+                assert!(
+                    !inside || p.y >= y + 200,
+                    "texture at {},{} over picture {x},{y}",
+                    p.x,
+                    p.y
+                );
+            }
+        }
+    }
     fn fixture(count: usize) -> Scene {
         let mut scene = Scene::default();
         scene.actors.clear();
@@ -474,7 +575,11 @@ mod tests {
                     h: 1,
                 },
             ] {
-                assert!(r.x >= 640 && r.right() <= 1024 && r.bottom() <= 512);
+                assert!(
+                    r.x >= display_reserve(scene.display_size)[0]
+                        && r.right() <= 1024
+                        && r.bottom() <= 512
+                );
                 assert!(!r.overlaps(Rect {
                     x: 960,
                     y: 384,
@@ -545,7 +650,43 @@ mod tests {
             d.words = vec![0x2030; 32768];
             d.palette[32] = 0x8123;
         }
+        scene.display_size = [640, 480];
         assert!(layout(&scene).unwrap_err().contains("VRAM exhausted"));
+        // The same eight 256x256 8bpp atlases fit beside 320-wide framebuffers,
+        // which leave 320 more columns at every row to the textures.
+        scene.display_size = [320, 240];
+        let packed = layout(&scene).unwrap().textures;
+        validate(&scene, &packed);
+        assert!(packed.iter().any(|(_, p)| p.x < 640));
+    }
+    #[test]
+    fn fonts_keep_their_placement_whatever_the_display_width() {
+        let mut scene = fixture(4);
+        let id = Uuid::from_u128(0xf0);
+        scene.fonts.insert(
+            id,
+            Arc::new(crate::font_asset::FontData {
+                width: 96,
+                height: 40,
+                words: vec![0; 24 * 40],
+                palette: [0; 16],
+                metrics: vec![],
+                line_height: 16,
+                baseline: 12,
+                rgba: vec![],
+            }),
+        );
+        scene.display_size = [640, 480];
+        let wide = layout(&scene).unwrap();
+        scene.display_size = [256, 240];
+        let narrow = layout(&scene).unwrap();
+        assert_eq!(wide.fonts, narrow.fonts);
+        assert!(
+            narrow
+                .fonts
+                .iter()
+                .all(|(_, p)| p.x >= 640 && p.clut_x >= 640)
+        );
     }
     #[test]
     #[ignore = "requires EPOK_TEXTURE_PROJECT and EPOK_TEXTURE_SCENE"]

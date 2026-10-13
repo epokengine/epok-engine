@@ -3,6 +3,7 @@
 // is +Y up, so the top edge of a rect is y + h and a Vertical box walks down.
 #include <cassert>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 #ifdef _MSC_VER
 #include <crtdbg.h>
@@ -519,6 +520,11 @@ void the_exported_aggregates_keep_their_field_order() {
     assert(rect.rotation.raw() == 45 * 4096 && rect.size[1].raw() == 5 * 4096);
     const Focusable focus{true, {0, 1, 2, 3}, 4, {5, 6, 7}};
     assert(focus.order == 4 && focus.highlight[2] == 7 && focus.neighbors[3] == 3);
+    assert(focus.kind == FocusKind::Button && !focus.checked && !focus.events);
+    const Focusable toggle{true, {0, 1, 2, 3}, 4, {5, 6, 7}, FocusKind(1), true};
+    assert(toggle.kind == FocusKind::Toggle && toggle.checked);
+    const ProgressBar bar{true, 0.5, {1, 2, 3}, {4, 5, 6}, 0.25};
+    assert(bar.step.raw() == 1024 && bar.background[2] == 6);
     const Canvas canvas{true, 9};
     assert(canvas.focused == 9);
 }
@@ -554,15 +560,17 @@ void canvas_with_label(const char* value, int width, int height, const Font* fon
 void the_builtin_font_emits_the_cells_it_always_did() {
     canvas_with_label("Hi \xc3\xb1", 160, 32, nullptr);
     run(2, true);
+    // The space advances without drawing: its cell holds the atlas's CLUT.
     const char* ascii = "Hi ";
-    assert(sink.commands.size() == 4);
-    for (size_t i = 0; i < 4; ++i) {
+    const size_t columns[3] = {0, 1, 3};
+    assert(sink.commands.size() == 3);
+    for (size_t i = 0; i < 3; ++i) {
         // The cell arithmetic src/bitmap_font.rs bakes: ASCII in order from 32,
         // then the sixteen extras; 'n' with a tilde is the seventh of those.
-        const int cell = i < 3 ? int(ascii[i]) - 32 : 95 + 6;
+        const int cell = i < 2 ? int(ascii[i]) - 32 : 95 + 6;
         const auto& draw = sink.commands[i];
         assert(draw.kind == 2 && draw.owner == 1 && draw.subject == -1);
-        assert(draw.x0 == int(i) * 8 && draw.x1 == int(i) * 8 + 8);
+        assert(draw.x0 == int(columns[i]) * 8 && draw.x1 == int(columns[i]) * 8 + 8);
         assert(draw.y0 == screen_height - 32 && draw.y1 == screen_height - 16);
         assert(draw.u0 == (cell % 32) * 8 && draw.v0 == (cell / 32) * 16);
     }
@@ -637,6 +645,121 @@ void a_missing_glyph_falls_back_to_the_question_mark() {
 // The reflected component identities are the ones the editor mirrors.
 static_assert(FocusableComponent::static_class_id == 0x35443a7ad04b3989ull, "FocusableComponent identity");
 static_assert(sizeof(ImageTiling) == 1, "ImageTiling must fit the reflected 32-bit enum rule trivially");
+// (w) Cross presses the focused element and flips a Toggle; Circle cancels; a
+// focused slider takes Left/Right instead of moving the focus.
+void buttons_toggles_and_sliders_answer_the_pad() {
+    canvas_with(3, 40, 16);
+    objects[0].canvas.focused = 1;
+    for (size_t i = 1; i <= 3; ++i) objects[i].focusable.enabled = true;
+    objects[1].focusable.neighbors[1] = 2;
+    objects[2].focusable.kind = FocusKind::Toggle;
+    objects[2].focusable.neighbors[1] = 3;
+    objects[3].progress.enabled = true;
+    objects[3].progress.value = 0.5;
+    objects[3].progress.step = 0.25;
+    objects[3].focusable.neighbors[0] = 2;
+    const uint32_t cross = 1u << unsigned(Button::Cross), circle = 1u << unsigned(Button::Circle);
+    const uint32_t right = 1u << unsigned(Button::Right), left = 1u << unsigned(Button::Left), up = 1u << unsigned(Button::Up);
+    hud_focus_update(objects, 4, cross);
+    assert(objects[1].focusable.events == focus_pressed && !objects[2].focusable.events);
+    hud_focus_update(objects, 4, right);
+    hud_focus_update(objects, 4, cross);
+    assert(objects[2].focusable.checked && (objects[2].focusable.events & focus_changed));
+    hud_focus_update(objects, 4, cross | circle);
+    assert(!objects[2].focusable.checked && (objects[2].focusable.events & focus_cancelled));
+    // On the slider, Left and Right move the value by its step and keep the focus.
+    hud_focus_update(objects, 4, right);
+    assert(objects[0].canvas.focused == 3);
+    hud_focus_update(objects, 4, right);
+    hud_focus_update(objects, 4, right);
+    hud_focus_update(objects, 4, right);
+    assert(objects[3].progress.value.raw() == 4096 && objects[0].canvas.focused == 3);
+    hud_focus_update(objects, 4, left);
+    assert(objects[3].progress.value.raw() == 3072 && (objects[3].focusable.events & focus_changed));
+    // Up still follows the table (no neighbour up: the focus stays).
+    hud_focus_update(objects, 4, up);
+    assert(objects[0].canvas.focused == 3);
+}
+
+// (x) A Toggle draws its check box at the right edge of its rect; the mark only
+// when checked.
+void a_toggle_draws_its_box_at_the_right_edge() {
+    canvas_with(1, 100, 20);
+    objects[1].rect.anchor_min[0] = objects[1].rect.anchor_min[1] = 0.0;
+    objects[1].rect.anchor_max[0] = objects[1].rect.anchor_max[1] = 0.0;
+    objects[1].rect.pivot[0] = objects[1].rect.pivot[1] = 0.0;
+    objects[1].focusable.enabled = true;
+    objects[1].focusable.kind = FocusKind::Toggle;
+    run(2, true);
+    assert(sink.commands.size() == 2);
+    // A 14 pixel frame three pixels inside the right edge, vertically centred.
+    assert(sink.commands[0].x1 == 97 && sink.commands[0].x0 == 83 && sink.commands[0].y1 - sink.commands[0].y0 == 14);
+    objects[1].focusable.checked = true;
+    run(2, true);
+    assert(sink.commands.size() == 3 && sink.commands[2].color[1] == 217);
+}
+
+// (x2) A slider draws a handle at the end of its fill, tinted by the focus highlight.
+void a_slider_draws_its_handle_at_the_value() {
+    canvas_with(1, 100, 12);
+    objects[1].rect.anchor_min[0] = objects[1].rect.anchor_min[1] = 0.0;
+    objects[1].rect.anchor_max[0] = objects[1].rect.anchor_max[1] = 0.0;
+    objects[1].rect.pivot[0] = objects[1].rect.pivot[1] = 0.0;
+    objects[1].rect.position[1] = 20.0;  // Off the screen's bottom edge, which would clip the handle.
+    objects[1].progress.enabled = true;
+    objects[1].progress.value = 0.5;
+    run(2, true);
+    // A plain progress bar: track and fill only.
+    assert(sink.commands.size() == 2);
+    objects[1].progress.step = 0.1;
+    objects[1].focusable.enabled = true;
+    run(2, true);
+    assert(sink.commands.size() == 3);
+    // Six pixels wide (half the height), centred on the value, two pixels past the track.
+    const auto& knob = sink.commands[2];
+    assert(knob.x0 == 47 && knob.x1 == 53 && knob.y1 - knob.y0 == 16 && knob.color[0] == 230);
+    // At the ends it stays inside the track.
+    objects[1].progress.value = 1.0;
+    run(2, true);
+    assert(sink.commands[2].x1 == 100);
+    // Focused, it takes the highlight.
+    objects[0].canvas.focused = 1;
+    objects[1].focusable.highlight[2] = 0;
+    run(2, true);
+    assert(sink.commands[2].color[0] == 230 && sink.commands[2].color[2] == 0);
+}
+
+// (y) Colour tags recolour the glyphs between them and draw nothing themselves.
+void colour_tags_recolour_their_words() {
+    canvas_with_label("A[color=#ff0000]B[/color]C", 100, 16, nullptr);
+    objects[1].text.color[0] = objects[1].text.color[1] = objects[1].text.color[2] = 255;
+    run(2, true);
+    assert(sink.commands.size() == 3);
+    assert(sink.commands[0].color[1] == 255 && sink.commands[1].color[0] == 255 && sink.commands[1].color[1] == 0);
+    assert(sink.commands[2].color[1] == 255);
+    // The second glyph sits one cell after the first: tags take no room.
+    assert(sink.commands[1].x0 - sink.commands[0].x0 == 8);
+    // A malformed tag is plain text.
+    canvas_with_label("[color=#ff]", 200, 16, nullptr);
+    run(2, true);
+    assert(sink.commands.size() == 11);
+}
+
+void the_string_table_falls_back_to_the_first_language() {
+    static const char* const strings[] = {"Start", "Quit", "", "Salir"};
+    Localization table{strings, 2, 2, 0, nullptr};
+    assert(std::strcmp(table.get(0), "Start") == 0);
+    table.language = 1;
+    // An untranslated entry shows the first language; a missing key shows nothing.
+    assert(std::strcmp(table.get(0), "Start") == 0);
+    assert(std::strcmp(table.get(1), "Salir") == 0);
+    assert(*table.get(2) == 0 && *table.get(-1) == 0);
+    assert(*Localization{}.get(0) == 0);
+    // A language beyond this table reads as the first language.
+    table.language = 5;
+    assert(std::strcmp(table.get(1), "Quit") == 0);
+}
+
 static_assert(LayoutElementComponent::static_class_id == 0x7e1486803f88bac6ull, "LayoutElementComponent identity");
 static_assert(LayoutContainerComponent::static_class_id == 0xf37f18bd6de6c69eull, "LayoutContainerComponent identity");
 static_assert(sizeof(LayoutKind) == 1, "LayoutKind must fit the reflected 32-bit enum rule trivially");
@@ -669,5 +792,10 @@ int main() {
     alignment_offsets_the_line_by_its_measured_width();
     wrap_breaks_at_the_first_overflowing_advance();
     a_missing_glyph_falls_back_to_the_question_mark();
-    std::puts("Runtime HUD layout, tiling, focus, rotation and font tests passed.");
+    buttons_toggles_and_sliders_answer_the_pad();
+    a_toggle_draws_its_box_at_the_right_edge();
+    a_slider_draws_its_handle_at_the_value();
+    colour_tags_recolour_their_words();
+    the_string_table_falls_back_to_the_first_language();
+    std::puts("Runtime HUD layout, tiling, focus, rotation, font, toggle, slider handle, colour tag and string table tests passed.");
 }

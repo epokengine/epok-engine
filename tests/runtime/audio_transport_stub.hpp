@@ -4,7 +4,7 @@
 namespace epok {
 struct Fixed { int raw() const { return 4096; } };
 struct AudioSource {
-    bool enabled=true; int clip=-1; uint8_t priority=128; Fixed volume, pitch;
+    bool enabled=true; int clip=-1; uint8_t priority=128; int8_t pan=0; Fixed volume, pitch;
     void play(); void stop(); bool is_playing() const;
 };
 inline uint32_t transition_audio_gain(){return 4096;}

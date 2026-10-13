@@ -54,7 +54,7 @@ pub struct State {
     history_index: usize,
     selected: BTreeSet<String>,
     anchor: Option<String>,
-    drag: Vec<String>,
+    pub(crate) drag: Vec<String>,
     collection: Option<String>,
     tree_search: String,
     favorites_search: String,
@@ -217,6 +217,8 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
             assets::Kind::Material => "Material",
             assets::Kind::Skeleton => "Skeleton",
             assets::Kind::Font => "Font",
+            assets::Kind::TileSet => "TileSet",
+            assets::Kind::StringTable => "String Table",
         };
     }
     if entry.path.ends_with(".epokbp") {
@@ -719,6 +721,16 @@ fn creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
         if let Err(error) = crate::terrain_editor::create(e) {
             s.error = Some(error);
         }
+        s.refresh(e);
+    }
+    if ui.menu_item("TileSet") {
+        match crate::tileset_editor::create_empty(e) {
+            Ok(_) => s.refresh(e),
+            Err(error) => s.error = Some(error),
+        }
+    }
+    if ui.menu_item("String Table") {
+        crate::localization_editor::open(e);
         s.refresh(e);
     }
     ui.separator();
@@ -1474,6 +1486,8 @@ fn open(e: &mut Editor, s: &mut State, entry: &Entry) {
         match record.meta.kind {
             assets::Kind::EditableMesh => crate::mesh_editor::open(e, record, None),
             assets::Kind::Terrain => crate::terrain_editor::open(e, record, None),
+            assets::Kind::TileSet => crate::tileset_editor::open(e, record.meta.id),
+            assets::Kind::StringTable => crate::localization_editor::open(e),
             assets::Kind::Texture
             | assets::Kind::Font
             | assets::Kind::AudioClip

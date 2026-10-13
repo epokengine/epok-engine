@@ -14,7 +14,7 @@ pub struct Info {
     preview: &'static [u8],
 }
 
-pub const CATALOG: [Info; 3] = [
+pub const CATALOG: [Info; 4] = [
     Info {
         template: Template::Basic,
         title: "Basic",
@@ -55,6 +55,21 @@ starting point, not a demo.",
             "Orbit camera with collision-aware boom",
         ],
         preview: include_bytes!("../resources/templates/previews/third-person.png"),
+    },
+    Info {
+        template: Template::Platformer2D,
+        title: "Platformer 2D",
+        summary: "A side-scroller built from 2D nodes.",
+        description: "A playable 2D level at 320 x 240: an animated character that runs and \
+jumps with a following camera, solid ground and crates, one-way platforms and spinning coins \
+to collect. Every piece is an ordinary 2D node you can select, move and edit in the 2D view.",
+        features: &[
+            "CharacterBody2D player with idle and run animations",
+            "Camera2D with smoothing and level limits",
+            "Solid ground, crates and one-way platforms",
+            "Spinning coins collected through trigger shapes",
+        ],
+        preview: include_bytes!("../resources/templates/previews/platformer-2d.png"),
     },
 ];
 

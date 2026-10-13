@@ -60,10 +60,9 @@ impl SceneViewMode {
 
 /// Screen pixels covered by one 2D world unit at zoom 1.
 ///
-/// This is `epok::pixels_per_unit_2d` from `runtime/world2d.hpp`; the editor and
-/// the runtime must agree or an author would place content against a different
-/// density than the game shows.
-pub const PIXELS_PER_UNIT_2D: f32 = 32.;
+/// This is `epok::pixels_per_unit_2d` from `runtime/world2d.hpp`: World2D units
+/// are pixels, so the editor, the runtime and a texture all share one density.
+pub const PIXELS_PER_UNIT_2D: f32 = 1.;
 
 /// The Scene window's orthographic 2D camera.
 ///
@@ -73,7 +72,7 @@ pub const PIXELS_PER_UNIT_2D: f32 = 32.;
 /// screen = viewport_centre + (world - centre) * zoom * PIXELS_PER_UNIT_2D
 /// ```
 ///
-/// with **world Y up and screen Y down**, which is the only sign difference. The
+/// World and screen share their axes (X right, **Y down**). The
 /// editor camera has no rotation - rotating the authoring view would make the
 /// handles ambiguous - so the runtime's `R(-camera.rotation)` term is identity
 /// here. `centre` is the world position drawn at the middle of the viewport.
@@ -86,15 +85,14 @@ impl Default for SceneView2D {
     fn default() -> Self {
         Self {
             centre: [0., 0.],
-            zoom: 1.,
+            zoom: 2.,
         }
     }
 }
 impl SceneView2D {
-    /// Below this the grid stops being readable; above it a world unit no longer
-    /// fits the viewport. Both bounds are editor ergonomics, not document rules.
-    pub const MIN_ZOOM: f32 = 0.05;
-    pub const MAX_ZOOM: f32 = 16.;
+    /// From a whole level overview to single-pixel editing.
+    pub const MIN_ZOOM: f32 = 1. / 32.;
+    pub const MAX_ZOOM: f32 = 32.;
     /// Screen pixels per world unit at the current zoom.
     pub fn scale(&self) -> f32 {
         self.zoom * PIXELS_PER_UNIT_2D
@@ -103,30 +101,43 @@ impl SceneView2D {
         let k = self.scale();
         [
             origin[0] + size[0] * 0.5 + (world[0] - self.centre[0]) * k,
-            origin[1] + size[1] * 0.5 - (world[1] - self.centre[1]) * k,
+            origin[1] + size[1] * 0.5 + (world[1] - self.centre[1]) * k,
         ]
     }
     pub fn screen_to_world(&self, screen: [f32; 2], origin: [f32; 2], size: [f32; 2]) -> [f32; 2] {
         let k = self.scale();
         [
             self.centre[0] + (screen[0] - origin[0] - size[0] * 0.5) / k,
-            self.centre[1] - (screen[1] - origin[1] - size[1] * 0.5) / k,
+            self.centre[1] + (screen[1] - origin[1] - size[1] * 0.5) / k,
         ]
     }
     /// Drags the world with the cursor: the point under the mouse stays under it.
     pub fn pan_pixels(&mut self, delta: [f32; 2]) {
         let k = self.scale();
         self.centre[0] -= delta[0] / k;
-        self.centre[1] += delta[1] / k;
+        self.centre[1] -= delta[1] / k;
     }
     /// Wheel zoom anchored on the cursor, so the world point under the mouse
     /// does not move. `wheel` is ImGui's notch count.
     pub fn zoom_at(&mut self, wheel: f32, screen: [f32; 2], origin: [f32; 2], size: [f32; 2]) {
+        self.zoom_to(self.zoom * 1.2_f32.powf(wheel), screen, origin, size);
+    }
+    /// Sets the zoom keeping the world point under `screen` fixed.
+    pub fn zoom_to(&mut self, zoom: f32, screen: [f32; 2], origin: [f32; 2], size: [f32; 2]) {
         let anchor = self.screen_to_world(screen, origin, size);
-        self.zoom = (self.zoom * 1.2_f32.powf(wheel)).clamp(Self::MIN_ZOOM, Self::MAX_ZOOM);
+        self.zoom = zoom.clamp(Self::MIN_ZOOM, Self::MAX_ZOOM);
         let after = self.screen_to_world(screen, origin, size);
         self.centre[0] += anchor[0] - after[0];
         self.centre[1] += anchor[1] - after[1];
+    }
+    /// Centres and zooms on a world rectangle (min, max) with a margin.
+    pub fn frame(&mut self, min: [f32; 2], max: [f32; 2], size: [f32; 2]) {
+        self.centre = [(min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5];
+        let extent = [(max[0] - min[0]).max(16.), (max[1] - min[1]).max(16.)];
+        let fit = (size[0] / extent[0]).min(size[1] / extent[1]) * 0.8;
+        // Snap to a power of two so pixel art stays crisp after framing.
+        let level = fit.max(Self::MIN_ZOOM).log2().floor();
+        self.zoom = 2_f32.powf(level).clamp(Self::MIN_ZOOM, Self::MAX_ZOOM);
     }
     pub fn reset(&mut self) {
         *self = Self::default();
@@ -143,9 +154,9 @@ impl SceneView2D {
 /// runtime default rather than hiding the actor.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Transform2D {
-    /// World units, Y up. `runtime/world2d.hpp` clamps to ±8192.
+    /// Pixels, Y down. `runtime/world2d.hpp` clamps to ±65536.
     pub position: [f32; 2],
-    /// Degrees, counter-clockwise (+X towards +Y).
+    /// Degrees; positive turns +X towards +Y (clockwise on screen).
     pub rotation: f32,
     pub scale: [f32; 2],
     pub draw_order: i32,
@@ -189,29 +200,6 @@ pub fn read_transform_2d(
             .map(|v| v as i32)
             .unwrap_or(default.draw_order),
     }
-}
-
-/// Writes a dragged position back, keeping the shape the document already uses:
-/// a nested `transform` object stays nested, anything else writes the flat key.
-/// The key is always marked as an override, because a drag is an explicit edit
-/// even when it lands exactly on the class default.
-pub fn write_position_2d(
-    properties: &mut std::collections::BTreeMap<String, serde_json::Value>,
-    overrides: &mut std::collections::BTreeSet<String>,
-    position: [f32; 2],
-) {
-    let value = serde_json::json!([position[0], position[1]]);
-    if !properties.contains_key("position")
-        && let Some(object) = properties
-            .get_mut("transform")
-            .and_then(|v| v.as_object_mut())
-    {
-        object.insert("position".into(), value);
-        overrides.insert("transform".into());
-        return;
-    }
-    properties.insert("position".into(), value);
-    overrides.insert("position".into());
 }
 
 /// A bounded undo/redo stack over whole snapshots.
@@ -387,7 +375,7 @@ mod tests {
 
     #[test]
     fn a_2d_transform_reads_flat_or_nested_keys_and_defaults_to_identity() {
-        use std::collections::{BTreeMap, BTreeSet};
+        use std::collections::BTreeMap;
         assert_eq!(read_transform_2d(&BTreeMap::new()), Transform2D::default());
         let flat: BTreeMap<String, serde_json::Value> = serde_json::from_value(serde_json::json!({
             "position": [2.0, -3.5], "rotation": 90.0, "scale": [2.0, 0.5], "draw_order": -4
@@ -409,30 +397,21 @@ mod tests {
             serde_json::from_value(serde_json::json!({"position": "nowhere", "scale": [1.0]}))
                 .unwrap();
         assert_eq!(read_transform_2d(&broken), Transform2D::default());
-        // Writing keeps the document's existing shape and always marks an override.
-        let mut properties = nested.clone();
-        let mut overrides = BTreeSet::new();
-        write_position_2d(&mut properties, &mut overrides, [5., 6.]);
-        assert!(!properties.contains_key("position"));
-        assert_eq!(read_transform_2d(&properties).position, [5., 6.]);
-        assert!(overrides.contains("transform"));
-        let mut properties = BTreeMap::new();
-        let mut overrides = BTreeSet::new();
-        write_position_2d(&mut properties, &mut overrides, [0., 0.]);
-        assert_eq!(properties["position"], serde_json::json!([0.0, 0.0]));
-        assert!(overrides.contains("position"));
     }
 
     #[test]
     fn the_2d_camera_matches_the_runtime_projection() {
         let origin = [100., 50.];
         let size = [640., 480.];
-        let view = SceneView2D::default();
-        // The centre of the viewport is the camera centre; world Y is up.
+        let view = SceneView2D {
+            centre: [0., 0.],
+            zoom: 1.,
+        };
+        // The centre of the viewport is the camera centre; world Y is down.
         assert_eq!(view.world_to_screen([0., 0.], origin, size), [420., 290.]);
         assert_eq!(
             view.world_to_screen([1., 1.], origin, size),
-            [420. + PIXELS_PER_UNIT_2D, 290. - PIXELS_PER_UNIT_2D]
+            [420. + PIXELS_PER_UNIT_2D, 290. + PIXELS_PER_UNIT_2D]
         );
         // Round trip through both directions, panned and zoomed.
         let mut view = SceneView2D {
@@ -450,6 +429,10 @@ mod tests {
         let after = view.world_to_screen([1., 1.], origin, size);
         assert!((after[0] - before[0] - 10.).abs() < 1e-3);
         assert!((after[1] - before[1] + 6.).abs() < 1e-3);
+        // Framing fits a rectangle at a power-of-two zoom.
+        view.frame([0., 0.], [100., 50.], size);
+        assert_eq!(view.centre, [50., 25.]);
+        assert_eq!(view.zoom, 4.);
         // Wheel zoom keeps the world point under the cursor in place.
         let cursor = [180., 120.];
         let anchor = view.screen_to_world(cursor, origin, size);

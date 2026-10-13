@@ -13,8 +13,10 @@
 // widened EpokHudCommand for the rotated quad kinds.
 // Version 5 added the text's font index and alignment, and turned the glyph
 // kinds from a character code into a font index plus an atlas source rect.
+// Version 6 added the Toggle flags (2048 kind, 4096 checked) and the slider step
+// in progress[7].
 #define EPOK_HUD_PREVIEW_MAGIC 0x31445548u   // "HUD1"
-#define EPOK_HUD_PREVIEW_PROTOCOL_VERSION 5u
+#define EPOK_HUD_PREVIEW_PROTOCOL_VERSION 6u
 // Capabilities the child reports in every frame header. The editor shows a
 // diagnostic instead of pretending an absent capability worked.
 //   SIMULATE  the session runs gameplay: BeginPlay/start, update, frame_update.
@@ -32,10 +34,11 @@
 // canvas_focused: the focused actor index of this node's canvas, or -1.
 // font: the cooked font this text draws from, or -1 for the built-in atlas.
 // align: 0 Left, 1 Center, 2 Right.
-// flags bit 256 enables the element, 512 the container, 1024 the focus record;
-// bits 1..128 are taken.
+// flags bit 256 enables the element, 512 the container, 1024 the focus record,
+// 2048 makes it a Toggle and 4096 checks it; bits 1..128 are taken.
+// progress: value, colour r/g/b, background r/g/b, slider step (Q12).
 struct EpokHudNode {
-    int32_t parent,flags,rect[11],texture,tiling,image_color[3],region[4],borders[4],text_color[3],progress[7],layout_element[5],layout_container[8],focusable[9],canvas_focused,font,align;
+    int32_t parent,flags,rect[11],texture,tiling,image_color[3],region[4],borders[4],text_color[3],progress[8],layout_element[5],layout_container[8],focusable[9],canvas_focused,font,align;
     char text[512];
 };
 // Command kinds: 0 rectangle, 1 image, 2 glyph, 3 quad, 4 textured quad,

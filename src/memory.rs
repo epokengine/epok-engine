@@ -74,7 +74,7 @@ pub struct VramRect {
 // allocator excludes all x<640, not just the 480 active framebuffer rows.
 fn display_vram_layout(size: [u16; 2]) -> (u64, Vec<VramRect>) {
     let width = size[0];
-    let [reserved_width, reserved_height] = crate::texture_cook::DISPLAY_RESERVE;
+    let [reserved_width, reserved_height] = crate::texture_cook::display_reserve(size);
     let mut rectangles = Vec::new();
     if size[1] == 480 {
         rectangles.push(VramRect {
@@ -932,9 +932,11 @@ mod tests {
     }
     #[test]
     fn display_rectangles_match_runtime_and_partition_allocator_reservation() {
-        let [reserved_width, reserved_height] = crate::texture_cook::DISPLAY_RESERVE;
         for width in [256, 320, 368, 512, 640] {
             for height in [240, 480] {
+                let [reserved_width, reserved_height] =
+                    crate::texture_cook::display_reserve([width, height]);
+                assert_eq!(reserved_width, width);
                 let (framebuffer_bytes, rectangles) = display_vram_layout([width, height]);
                 let framebuffers: Vec<_> = rectangles
                     .iter()

@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 104,
-    "types": 446,
-    "callables": 1565,
-    "properties": 2311
+    "headers": 113,
+    "types": 500,
+    "callables": 1967,
+    "properties": 2817
   },
   "psyqo": {
     "headers": 53,
@@ -50,7 +50,7 @@
       "callables": 7,
       "types": 3,
       "properties": 16,
-      "source_sha256": "957a19feff5d2d4d6d4192816432e5b413dede2b9dff5b347f010f693b7927a4",
+      "source_sha256": "2880e6c631547412a1679a7bfd69bfcbc26c88566c26eb22adc95258a168bc13",
       "diagnostics": []
     },
     {
@@ -218,9 +218,9 @@
       "header": "epok.hpp",
       "slug": "epok",
       "callables": 54,
-      "types": 61,
-      "properties": 358,
-      "source_sha256": "c6d93d7b10456ba0707ef0d56f069628340d2d36d523ccd8bf6f4f6ef81819b1",
+      "types": 62,
+      "properties": 368,
+      "source_sha256": "7e4cb376c2cafbaf0151ef5c1c9f8477cd30c15118a3eb0d0e18482a14da70a2",
       "diagnostics": []
     },
     {
@@ -277,10 +277,10 @@
       "family": "epok",
       "header": "gameplay_api.hpp",
       "slug": "gameplay-api",
-      "callables": 90,
-      "types": 32,
-      "properties": 108,
-      "source_sha256": "eefc36e47fe76329897b42770a5ceeb091dc0956606e2a5ff5be45ec7a63d427",
+      "callables": 96,
+      "types": 34,
+      "properties": 114,
+      "source_sha256": "b9d465648d57e32c77928705e7d200ebdb9a554b5ebfa92e0bfbf9d0fd68f4b0",
       "diagnostics": []
     },
     {
@@ -300,7 +300,7 @@
       "callables": 12,
       "types": 1,
       "properties": 0,
-      "source_sha256": "95a7c31c40ae97f1e1aca8a2ae3e01501026dd558f7893d0f158ccfc877ab1f8",
+      "source_sha256": "705775ce460551405c5accd40cb96c5f29e5a4839324af3d734c8362b587bd59",
       "diagnostics": []
     },
     {
@@ -310,7 +310,7 @@
       "callables": 14,
       "types": 5,
       "properties": 16,
-      "source_sha256": "0312de472297b85f0fe6d553b669d826f7234bcc9138de4578e073465fadd52c",
+      "source_sha256": "18d101ab79b0b34099d4c5a7b463d4c28dd555f6e0860c4865dd9c3315e5a0e4",
       "diagnostics": []
     },
     {
@@ -320,7 +320,7 @@
       "callables": 3,
       "types": 0,
       "properties": 0,
-      "source_sha256": "2529619b466a71d28fe2fbd6444a5e1e006e6ce2bbbc326d45c2ed7b645d9f76",
+      "source_sha256": "57224b3bfb63b73074bbb90858eaecfcd3b9d01536d096b80a8e9c0379cfc7d3",
       "diagnostics": []
     },
     {
@@ -527,10 +527,10 @@
       "family": "epok",
       "header": "object_model.hpp",
       "slug": "object-model",
-      "callables": 350,
+      "callables": 364,
       "types": 52,
       "properties": 157,
-      "source_sha256": "05e102aa6753641b09d29ec7b438543e2415912d1e387ba76ad27113624e696a",
+      "source_sha256": "f7754b1b0d05a113d38fe0997c204bd877f9bdb0202bad39c212d681f28da55c",
       "diagnostics": []
     },
     {
@@ -917,10 +917,10 @@
       "family": "epok",
       "header": "text.hpp",
       "slug": "text",
-      "callables": 1,
-      "types": 3,
-      "properties": 16,
-      "source_sha256": "0e34ab246f67d2de802a0beb156264188400333271725a7616f4210dff0e5f42",
+      "callables": 2,
+      "types": 4,
+      "properties": 23,
+      "source_sha256": "6c6369c137522573e06da06cce64ce79baed92ba552b54748c2e2a058e2b5563",
       "diagnostics": []
     },
     {
@@ -930,17 +930,17 @@
       "callables": 5,
       "types": 0,
       "properties": 0,
-      "source_sha256": "e74cc04ba966661bcd3be506c466e9f16525bf81d27f69f98f3ebd0cb9413272",
+      "source_sha256": "e62212a9eb077f2a5d5dc595c52ab797c891cfef4ea51fbfa45ca9ac7315b9f2",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "texture_types.hpp",
       "slug": "texture-types",
-      "callables": 6,
+      "callables": 7,
       "types": 4,
       "properties": 21,
-      "source_sha256": "d1feb09e577fb9c35eedf1905cdcd78d6e7083aea58260bd9dd18f7356bacc87",
+      "source_sha256": "afc05e66203d736bb29d1c4d291629f067ddd4f54a7ce70a878340c06f74c284",
       "diagnostics": []
     },
     {
@@ -1057,10 +1057,100 @@
       "family": "epok",
       "header": "world2d.hpp",
       "slug": "world2d",
-      "callables": 45,
-      "types": 11,
+      "callables": 49,
+      "types": 12,
+      "properties": 54,
+      "source_sha256": "ee9ce639f77c9e927fed528206af47de0a91fdfd48c816a6692bc48a85e65eb2",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_components.hpp",
+      "slug": "world2d-components",
+      "callables": 82,
+      "types": 7,
+      "properties": 77,
+      "source_sha256": "24349d4c74602ac983d7316e00e7fc12672cdbe952c0183b89f3497409515528",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_content.hpp",
+      "slug": "world2d-content",
+      "callables": 79,
+      "types": 9,
+      "properties": 106,
+      "source_sha256": "05ff9367e909b3f5c08575f2025612642d785664fb25e9aa60b3f2513d66e695",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_navigation.hpp",
+      "slug": "world2d-navigation",
+      "callables": 44,
+      "types": 5,
       "properties": 46,
-      "source_sha256": "c99c417c7e6e40122285091e0e13b7604c6b839dacc297174ee0b8417f7e31b5",
+      "source_sha256": "cceb0781867de33b0ccc411d4903328a533e337f2f491d0b7ec6f26903156aae",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_physics.hpp",
+      "slug": "world2d-physics",
+      "callables": 25,
+      "types": 3,
+      "properties": 34,
+      "source_sha256": "aa4533145dc0afc8e5de016de80a115031043fabd7b18043f351ad5bc2212ee8",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_render.hpp",
+      "slug": "world2d-render",
+      "callables": 1,
+      "types": 1,
+      "properties": 1,
+      "source_sha256": "2e3e2de87c1d7df5c96e6b87710887b793e0a7d9adc87f172e26ca099495ec1a",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_service.hpp",
+      "slug": "world2d-service",
+      "callables": 50,
+      "types": 10,
+      "properties": 75,
+      "source_sha256": "09360bf6067f4d1e651972de4b12f8419429040ab3434ca5ef9ed02ea4e5612f",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_skeleton.hpp",
+      "slug": "world2d-skeleton",
+      "callables": 24,
+      "types": 3,
+      "properties": 29,
+      "source_sha256": "e5f58c632e61219da13597a5c265b166a65c17e49a7903d04cb538726276bc1c",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_tiles.hpp",
+      "slug": "world2d-tiles",
+      "callables": 48,
+      "types": 9,
+      "properties": 75,
+      "source_sha256": "f468a06e0073b2d3b481f1348ca806520a35eeaa509f4bbf3c7b9cd1b61658d3",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_viewports.hpp",
+      "slug": "world2d-viewports",
+      "callables": 23,
+      "types": 3,
+      "properties": 32,
+      "source_sha256": "bd9c2db31c89f3449c68f0fe299b9554eb1595f646def72dafb3579d8943f270",
       "diagnostics": []
     },
     {

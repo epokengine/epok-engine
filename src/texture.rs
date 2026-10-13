@@ -290,12 +290,18 @@ pub fn ids(scene: &Scene) -> Vec<Uuid> {
         if let Some(model) = e.skeletal_mesh.as_ref().and_then(|m| m.model.as_ref()) {
             ids.extend(model.materials.iter().filter_map(|m| m.texture));
         }
+        ids.extend(crate::world2d::texture_ids(e, &scene.tilesets));
     }
     ids.into_iter().collect()
 }
 pub fn resolve(scene: &mut Scene, index: &assets::Index) -> Result<(), String> {
     scene.textures.clear();
     let mut errors = vec![];
+    // Tile layers draw their TileSet's texture: load the TileSets first.
+    if let Err(error) = crate::tileset::resolve(scene, index) {
+        errors.push(error);
+    }
+    crate::localization::resolve(scene, index);
     for id in ids(scene) {
         let load = || {
             let r = index.resolve(id)?;
@@ -965,6 +971,7 @@ pub(crate) mod tests {
     #[test]
     fn vram_rejects_overflow_without_touching_framebuffer_or_font() {
         let mut scene = Scene::default();
+        scene.display_size = [640, 480];
         let mut d = decode(&png()).unwrap();
         d.width = 256;
         d.height = 256;
@@ -992,5 +999,10 @@ pub(crate) mod tests {
             scene.textures.insert(id, Arc::new(d.clone()));
         }
         assert!(layout(&scene).is_err());
+        // Narrow framebuffers free their unused columns, never the used ones.
+        scene.display_size = [320, 240];
+        for (_, p) in layout(&scene).unwrap().textures {
+            assert!(p.x >= 320 && p.clut_x >= 320);
+        }
     }
 }

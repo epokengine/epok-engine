@@ -10,10 +10,20 @@ struct Texture {
 };
 inline constexpr bool texture_present(const Texture& t){return t.pixels||t.stream_page!=UINT32_MAX;}
 inline constexpr uint16_t texture_colors(const Texture& t){return t.bits==4?16:256;}
-inline constexpr uint16_t texture_base_u(const Texture& t){return uint16_t((t.x%64)*(t.bits==4?4:2));}
+inline constexpr uint16_t texture_base_u(const Texture& t){return uint16_t((t.x%64)*(t.bits==4?4:t.bits==8?2:1));}
 inline constexpr uint16_t texture_packed_uv(const Texture& t,int32_t u,int32_t v){
     u=u<0?0:u>4096?4096:u;v=v<0?0:v>4096?4096:v;
     return uint16_t((texture_base_u(t)+u*(t.width-1)/4096)|((t.y%256+v*(t.height-1)/4096)<<8));
+}
+// Every cooked bank asserts this. The allocator leaves the framebuffer columns
+// of the configured display free; a texture or CLUT inside them would be
+// overwritten by rendering, so a stale or mismatched layout fails to compile.
+template<size_t N> constexpr bool textures_clear_of_display(const Texture (&bank)[N],int width){
+    for(size_t i=0;i<N;++i){
+        const auto& t=bank[i];if(!texture_present(t))continue;
+        if(int(t.x)<width||int(t.clut_x)<width)return false;
+    }
+    return true;
 }
 // Immutable generated banks know their VRAM placement before compilation.
 // One word packs CLUT (high half), base TPAGE (low half) and presence (bit 31).

@@ -53,9 +53,10 @@ pub struct Hub {
     pub previews: [Option<imgui::TextureId>; Template::ALL.len()],
     /// Hit targets the interaction test clicks: 0 Create, 1 Open in the popup,
     /// 2 New project, 3 Open project, 4 Projects, 5 the first recent row,
-    /// 6-8 the template cards, 12 Cancel, and the named list indices below.
+    /// 12 Cancel, the named list indices below, and the template cards from
+    /// `TEMPLATE_CARDS`.
     #[cfg(test)]
-    buttons: [[f32; 2]; 16],
+    buttons: [[f32; 2]; TEMPLATE_CARDS + Template::ALL.len()],
     pub error: Option<String>,
 }
 impl Hub {
@@ -92,7 +93,7 @@ impl Hub {
             lockup: None,
             previews: [None; Template::ALL.len()],
             #[cfg(test)]
-            buttons: [[0.; 2]; 16],
+            buttons: [[0.; 2]; TEMPLATE_CARDS + Template::ALL.len()],
         }
     }
 
@@ -710,7 +711,7 @@ impl Hub {
             let hovered = ui.is_item_hovered();
             #[cfg(test)]
             {
-                self.buttons[6 + index] = button_center(ui);
+                self.buttons[TEMPLATE_CARDS + index] = button_center(ui);
             }
             let end = [origin[0] + width, origin[1] + height];
             let draw = ui.get_window_draw_list();
@@ -1126,6 +1127,9 @@ pub fn close_project_dialog(ui: &imgui::Ui, editor: &mut Editor) {
 /// is up, so the test clicks the list, reads them, and clicks again.
 #[cfg(test)]
 const GAMEPLAY_LIST: usize = 9;
+/// First hit target of the template cards, one per `Template::ALL` entry.
+#[cfg(test)]
+const TEMPLATE_CARDS: usize = 16;
 #[cfg(test)]
 const TARGET_LIST: usize = 10;
 #[cfg(test)]
@@ -1203,7 +1207,7 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     // The whole card selects, not only its title: the click lands on the body,
     // to the right of the thumbnail and below the text.
     for (slot, template) in Template::ALL.into_iter().enumerate() {
-        click(context, &mut hub, 6 + slot);
+        click(context, &mut hub, TEMPLATE_CARDS + slot);
         assert_eq!(hub.template, template, "card {slot} did not select");
     }
     // Each default is a list: the first click opens it, which is also what
@@ -1250,12 +1254,12 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     frame(context, &mut hub);
     click(context, &mut hub, 2);
     assert_eq!(hub.panel(), Panel::New);
-    assert_eq!(hub.template, Template::ThirdPerson);
+    assert_eq!(hub.template, *Template::ALL.last().unwrap());
 
     // Cancel returns to the project list with the selections untouched.
     click(context, &mut hub, 12);
     assert!(!hub.creating);
-    assert_eq!(hub.template, Template::ThirdPerson);
+    assert_eq!(hub.template, *Template::ALL.last().unwrap());
     assert_eq!(hub.gameplay, workspace::GameplayFlavor::Lua);
     click(context, &mut hub, 2);
     assert!(hub.creating);

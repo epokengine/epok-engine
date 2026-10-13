@@ -48,6 +48,26 @@ pub const COLLIDER3D_COMPONENT_ID: &str = "e8431f94-e526-4d7d-aace-8c8fae7955e6"
 pub const SPRITE2D_COMPONENT_ID: &str = "892ac5c9-eae8-48b8-853a-db93d20a537b";
 pub const CAMERA2D_COMPONENT_ID: &str = "7245e90e-d900-4976-b738-0f95caa1d15d";
 pub const COLLIDER2D_COMPONENT_ID: &str = "aad9ca37-7c63-4ca9-8a23-5f4ff49e35fe";
+pub const CHARACTER_BODY2D_COMPONENT_ID: &str = "8a092515-6374-4792-985c-9ff9a967a82d";
+pub const TILEMAP_LAYER_COMPONENT_ID: &str = "66f7568f-41eb-4d1b-8fbf-1cb55848a9ac";
+pub const PARALLAX2D_COMPONENT_ID: &str = "24128b3f-e0c0-4617-9154-55f2cb577ff4";
+pub const CANVAS_LAYER2D_COMPONENT_ID: &str = "bd384e4b-5903-485c-b114-5ffb6a330538";
+pub const CANVAS_MODULATE2D_COMPONENT_ID: &str = "8611633e-7385-4b5e-9f25-92d524dd2005";
+pub const PATH2D_COMPONENT_ID: &str = "fb44120d-2561-4ac3-943a-333fef57fcd0";
+pub const PATH_FOLLOW2D_COMPONENT_ID: &str = "2977d643-f30d-43c1-a6cc-15dc8cddf158";
+pub const LINE2D_COMPONENT_ID: &str = "22d9a692-8fa0-4009-b7e3-a2d73755cd9a";
+pub const POLYGON2D_COMPONENT_ID: &str = "4fd4cdc4-46bb-4707-9328-40c8881c97b7";
+pub const PARTICLES2D_COMPONENT_ID: &str = "79892328-8fd3-43c8-a03b-cfa57b483c64";
+pub const AUDIO_PLAYER2D_COMPONENT_ID: &str = "41b14829-fc1d-429b-abe4-f49c68592e7c";
+pub const NOTIFIER2D_COMPONENT_ID: &str = "8dd738bf-e8e5-4064-afb7-9700388cff08";
+pub const REMOTE_TRANSFORM2D_COMPONENT_ID: &str = "118db825-4d5a-4595-9c4e-6d889a54a7d3";
+pub const SKELETON2D_COMPONENT_ID: &str = "b933c773-9256-4b9b-98ff-ef7900a02a9e";
+pub const NAVIGATION_REGION2D_COMPONENT_ID: &str = "1aa4252c-57a2-4d29-b92c-33a976a8ff5f";
+pub const NAVIGATION_AGENT2D_COMPONENT_ID: &str = "a9d058fe-bf11-4aee-834e-13dae4281bcc";
+pub const RIGID_BODY2D_COMPONENT_ID: &str = "5f046abe-757c-4499-96bb-35461de71053";
+pub const JOINT2D_COMPONENT_ID: &str = "033cc190-e131-43f7-a4ea-54dc87817c1e";
+pub const SUBVIEWPORT2D_COMPONENT_ID: &str = "f5dc7806-fd18-40aa-9984-3b475e48df5d";
+pub const SPLIT_SCREEN2D_COMPONENT_ID: &str = "54813814-1419-4a34-b8f1-6183acb48376";
 pub const CANVAS_COMPONENT_ID: &str = "f2cfb26b-af53-4a46-9d91-1debea72e01b";
 pub const IMAGE_COMPONENT_ID: &str = "d04c78d6-23bd-40d7-88f1-b1afc1b05b5b";
 pub const TEXT_COMPONENT_ID: &str = "fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34";
@@ -83,8 +103,26 @@ const PSX_CAPABILITIES: &[&str] = &[
     "shadow",
 ];
 /// Provided only when `runtime/world2d.hpp` is part of the cooked runtime source
-/// set; the 2D collision world lives entirely in that header.
-const PHYSICS2D_CAPABILITY: &str = "physics2d";
+/// set: the 2D world and every 2D component live in it and the headers it includes.
+const WORLD2D_CAPABILITIES: &[&str] = &[
+    "sprite2d",
+    "camera2d",
+    "collider2d",
+    "body2d",
+    "tilemap2d",
+    "parallax2d",
+    "canvas2d",
+    "path2d",
+    "line2d",
+    "polygon2d",
+    "particles2d",
+    "notifier2d",
+    "remote2d",
+    "skeleton2d",
+    "navigation2d",
+    "physics2d",
+    "viewport2d",
+];
 
 /// What the build target can actually provide. Components declare `Capability=`
 /// tokens; `Model::validate_capabilities` compares the two and reports the gap.
@@ -110,7 +148,7 @@ impl TargetCapabilities {
         let mut names: BTreeSet<String> =
             PSX_CAPABILITIES.iter().map(|s| (*s).to_string()).collect();
         if world2d {
-            names.insert(PHYSICS2D_CAPABILITY.to_string());
+            names.extend(WORLD2D_CAPABILITIES.iter().map(|s| (*s).to_string()));
         }
         Self { names }
     }
@@ -1692,6 +1730,23 @@ mod tests {
         assert!(psx.provides("physics2d"));
         assert!(TargetCapabilities::psx_with_world2d(true).provides("physics2d"));
         assert!(!TargetCapabilities::psx_with_world2d(false).provides("physics2d"));
+        assert!(!TargetCapabilities::psx_with_world2d(false).provides("sprite2d"));
+        // Every component token a cooked runtime header declares is one the target
+        // provides: otherwise placing that component fails validation in the editor.
+        for (name, source) in crate::project::runtime_sources() {
+            let source = String::from_utf8_lossy(source);
+            let classes = source.lines().filter(|line| line.contains("EPOK_CLASS("));
+            for token in classes.flat_map(|line| line.split("Capability=").skip(1)) {
+                let token: String = token
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+                    .collect();
+                assert!(
+                    psx.provides(&token),
+                    "{name} declares `{token}`, which PSX lacks"
+                );
+            }
+        }
         assert!(!psx.provides("shader-graph"));
         assert!(!TargetCapabilities::none().provides("audio"));
         assert!(TargetCapabilities::none().with("audio").provides("audio"));

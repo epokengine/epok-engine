@@ -443,6 +443,7 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
         }
         Ok(())
     }
+    crate::world2d::validate(component)?;
     let p = &component.properties;
     macro_rules! check {
         ($key:literal,$ty:ty) => {

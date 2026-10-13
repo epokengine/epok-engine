@@ -2459,9 +2459,12 @@ impl<'a> Lower<'a> {
             }
             _ => return Err("Foreign receiver is not an object reference".into()),
         };
+        // Declared references name their class; `epok.cast` yields its identity.
         let class = self
             .registry
-            .named(class_id)
+            .classes
+            .get(class_id)
+            .or_else(|| self.registry.named(class_id))
             .ok_or_else(|| format!("Unknown receiver class {class_id}"))?;
         let mut visible = BTreeMap::<String, schema::Function>::new();
         for ancestor in self.registry.ancestry(&class.cpp_name) {
@@ -2506,9 +2509,12 @@ impl<'a> Lower<'a> {
             }
             _ => return Err("Foreign property receiver is not an object reference".into()),
         };
+        // Declared references name their class; `epok.cast` yields its identity.
         let class = self
             .registry
-            .named(class_id)
+            .classes
+            .get(class_id)
+            .or_else(|| self.registry.named(class_id))
             .ok_or_else(|| format!("Unknown receiver class {class_id}"))?;
         let property = self
             .registry

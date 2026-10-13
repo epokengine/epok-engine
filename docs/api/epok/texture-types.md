@@ -2,7 +2,7 @@
 
 > **Header:** `"texture_types.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/texture_types.hpp)
 
-This module covers native text data and HUD text components. It documents 6 public callables declared directly in this header.
+This module covers native text data and HUD text components. It documents 7 public callables declared directly in this header.
 
 ## Declared types
 
@@ -16,6 +16,7 @@ This module covers native text data and HUD text components. It documents 6 publ
 - [`epok::texture_colors`](#epok-texture-colors-1) — Performs `texture colors` as part of native text data and HUD text components.
 - [`epok::texture_packed_uv`](#epok-texture-packed-uv-1) — Performs `texture packed uv` as part of native text data and HUD text components.
 - [`epok::texture_present`](#epok-texture-present-1) — Performs `texture present` as part of native text data and HUD text components.
+- [`epok::textures_clear_of_display`](#epok-textures-clear-of-display-1) — Every cooked bank asserts this.
 
 <a id="epok-bake-texture-packets-1"></a>
 
@@ -29,7 +30,7 @@ This module covers native text data and HUD text components. It documents 6 publ
 template<size_t N> constexpr BakedTextureTable<N> bake_texture_packets(const Texture (&bank)[N])
 ```
 
-- **Declared at:** [line 24](../../../runtime/texture_types.hpp#L24)
+- **Declared at:** [line 34](../../../runtime/texture_types.hpp#L34)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -72,7 +73,7 @@ auto result = epok::bake_texture_packets<N>(bank);
 template<bool Interlaced,bool Dithering> inline BakedTexturePacket baked_texture_packet(const uint32_t* bank,size_t count, uint16_t index,BlendMode blend)
 ```
 
-- **Declared at:** [line 37](../../../runtime/texture_types.hpp#L37)
+- **Declared at:** [line 47](../../../runtime/texture_types.hpp#L47)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -272,3 +273,50 @@ auto result = epok::texture_present(t);
 **Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-textures-clear-of-display-1"></a>
+
+## `epok::textures_clear_of_display`
+
+**Purpose.** Every cooked bank asserts this.
+
+**Details.** The allocator leaves the framebuffer columns of the configured display free; a texture or CLUT inside them would be overwritten by rendering, so a stale or mismatched layout fails to compile.
+
+**Exact declaration**
+
+```cpp
+template<size_t N> constexpr bool textures_clear_of_display(const Texture (&bank)[N],int width)
+```
+
+- **Declared at:** [line 21](../../../runtime/texture_types.hpp#L21)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `bank` | `const Texture (&)[N]` | Input | Value supplied for `bank`. See the exact type and module contract. |
+| `width` | `int` | Input | Value supplied for `width`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** The allocator leaves the framebuffer columns of the configured display free; a texture or CLUT inside them would be overwritten by rendering, so a stale or mismatched layout fails to compile.
+
+**Usage pattern**
+
+```cpp
+#include "texture_types.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// N
+
+// Assume these named values have been initialized with valid data:
+// const Texture (&)[N] bank
+// int width
+
+auto result = epok::textures_clear_of_display<N>(bank, width);
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.

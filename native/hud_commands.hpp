@@ -24,6 +24,11 @@ struct EpokHudSink {
     void quad(int owner,const int* x,const int* y,const uint8_t* c){commands.push_back(rotated(3,owner,-1,x,y,nullptr,nullptr,c));}
     void textured_quad(int owner,int id,const int* x,const int* y,const int* u,const int* v,const uint8_t* c){commands.push_back(rotated(4,owner,id,x,y,u,v,c));}
     void glyph_quad(int owner,int index,const int* x,const int* y,const int* u,const int* v,const uint8_t* c){commands.push_back(rotated(5,owner,index,x,y,u,v,c));}
+    // Clip what follows to a screen box; draw into picture `index` (a SubViewport2D) until
+    // end_picture. Texture id 0x10000 + index then samples the picture.
+    void clip(int x0,int y0,int x1,int y1){commands.push_back({{6,-1,-1,x0,y0,x1,y1,0,0,0,0,0,0,0,0,0}});}
+    void begin_picture(int index,int w,int h,const uint8_t* c){commands.push_back({{7,-1,index,0,0,w,h,0,0,0,0,c[0],c[1],c[2],0,0}});}
+    void end_picture(){commands.push_back({{8,-1,-1,0,0,0,0,0,0,0,0,0,0,0,0,0}});}
     // Rebuild the runtime descriptors from the flat wire table. VRAM placement
     // is absent there: nothing on this side draws from real VRAM.
     void load_fonts(const int32_t* table,uint32_t words){

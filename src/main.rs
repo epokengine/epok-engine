@@ -80,6 +80,8 @@ mod library_preview;
 mod lighting;
 mod lighting_editor;
 mod loading;
+mod localization;
+mod localization_editor;
 mod lua_aot;
 mod lua_api_stub;
 mod lua_asset;
@@ -109,6 +111,7 @@ mod native_metadata;
 mod native_music;
 mod native_play;
 mod navigation;
+mod navigation2d;
 mod navigation_geometry;
 mod obj_import;
 mod object_model;
@@ -121,9 +124,11 @@ mod particle_effect_editor;
 mod particle_effect_preview;
 mod particle_effect_scene;
 mod particles;
+mod physics2d;
 mod picking;
 mod pipeline;
 mod platform;
+mod platformer_template;
 mod play;
 mod play_cache;
 mod play_ui;
@@ -176,11 +181,13 @@ mod settings;
 mod settings_ui;
 mod sf2;
 mod shadows;
+mod shape2d;
 mod skeletal;
 mod skeletal_compile;
 #[cfg(test)]
 mod skeletal_tests;
 mod skeletal_ui;
+mod skeleton2d;
 mod sound_bank;
 mod soundfont_asset;
 mod source_cache;
@@ -196,6 +203,10 @@ mod texture;
 mod texture_cook;
 mod third_person;
 mod third_person_blueprint;
+mod tilemap;
+mod tilemap_editor;
+mod tileset;
+mod tileset_editor;
 mod timeline;
 mod timeline_adapters;
 mod timeline_compile;
@@ -210,12 +221,23 @@ mod transform;
 mod vab_import;
 mod vertex_colors;
 mod viewport;
+mod viewport2d;
 mod visibility_bake;
 mod visibility_bake_ui;
 mod visibility_codec;
 mod visibility_packing;
 mod visibility_track;
 mod workspace;
+mod world2d;
+mod world2d_editor;
+mod world2d_navigation_editor;
+mod world2d_physics_editor;
+mod world2d_shapes_editor;
+mod world2d_skeleton_editor;
+#[cfg(test)]
+mod world2d_usability_tests;
+mod world2d_viewport_editor;
+mod world2d_warnings;
 use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
@@ -1848,6 +1870,64 @@ fn prepare_editor(editor: &mut editor::Editor) {
     }
     if args.iter().any(|a| a == "--screenshot-2d") {
         editor.set_scene_view_mode(scene_view_mode::SceneViewMode::TwoD);
+    }
+    // Screenshot automation: select an actor by name before the capture.
+    if let Some(name) = args
+        .windows(2)
+        .find(|a| a[0] == "--select-actor")
+        .map(|a| a[1].clone())
+        && let Some(id) = editor
+            .scene
+            .actors
+            .iter()
+            .find(|a| a.name == name)
+            .map(|a| a.id)
+    {
+        editor.select_actor(Some(id));
+    }
+    // Screenshot automation: open the 2D view's Add 2D Node menu, with a search typed.
+    if let Some(query) = args
+        .windows(2)
+        .find(|a| a[0] == "--open-add-2d-node")
+        .map(|a| a[1].clone())
+    {
+        editor.world2d.open_add_node = Some((query, 0));
+    }
+    // Screenshot automation: open the selected 2D node's Add Component list with a search.
+    if let Some(query) = args
+        .windows(2)
+        .find(|a| a[0] == "--open-add-component")
+        .map(|a| a[1].clone())
+    {
+        editor.world2d.open_add_component = Some((query, 0));
+    }
+    // Screenshot automation: open the Strings (localization) window.
+    if args.iter().any(|a| a == "--open-strings") {
+        localization_editor::open(editor);
+    }
+    // Screenshot automation: open the TileSet editor of the selected tile layer.
+    if args.iter().any(|a| a == "--open-tileset-editor")
+        && let Some(id) = editor.selected_actor.and_then(|id| {
+            let index = editor.scene.actor_index(id)?;
+            let layer = world2d::component(&editor.scene.actors[index], world2d::TILEMAP_LAYER)?;
+            world2d::read::<world2d::TileMapLayer>(layer).tile_set
+        })
+    {
+        tileset_editor::open(editor, id);
+        if let Some(mode) = args
+            .windows(2)
+            .find(|a| a[0] == "--tileset-mode")
+            .map(|a| a[1].clone())
+            && let Some(window) = &mut editor.world2d.tileset_window
+        {
+            window.mode = match mode.as_str() {
+                "collision" => tileset_editor::Mode::Collision,
+                "terrains" => tileset_editor::Mode::Terrains,
+                "animation" => tileset_editor::Mode::Animation,
+                "custom" => tileset_editor::Mode::CustomData,
+                _ => tileset_editor::Mode::Tiles,
+            };
+        }
     }
     if args.iter().any(|a| a == "--screenshot-package-disc") {
         export_ui::open(editor);

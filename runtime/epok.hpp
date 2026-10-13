@@ -56,7 +56,8 @@ struct CameraSettings {bool enabled=false;Fixed field_of_view=90.0;uint8_t sky_c
 inline Fixed projection_focal=1.0;
 inline Fixed projection_focal_x=1.0;
 struct AudioSource {
-    bool enabled=false; int clip=-1; Fixed volume=1.0,pitch=1.0; bool play_on_start=true;uint8_t priority=128;
+    // `pan` places the sound from -127 (left) to 127 (right); 0 is centred.
+    bool enabled=false; int clip=-1; Fixed volume=1.0,pitch=1.0; bool play_on_start=true;uint8_t priority=128;int8_t pan=0;
     void play(); void stop(); bool is_playing() const;
 };
 // state: 0 unused, 1 initializing, 2 idle, 3 seeking, 4 playing, 5 stopping, 6 error.
@@ -123,9 +124,17 @@ static_assert(sizeof(ImageTiling)==1);
 struct Image { bool enabled=false; uint8_t color[3]={51,102,166}; int texture=-1; uint16_t region[4]={}; uint16_t borders[4]={}; ImageTiling tiling=ImageTiling::None; };
 // neighbors is left, right, up, down; each an actor index into the scene's
 // objects array, -1 for none. highlight multiplies the fill/image colour while
-// this element is the one its canvas points at.
-struct Focusable { bool enabled=false; int16_t neighbors[4]={-1,-1,-1,-1}; uint8_t order=0; uint8_t highlight[3]={255,255,255}; };
-struct ProgressBar { bool enabled=false;Fixed value=0.75;uint8_t color[3]={64,217,77},background[3]={31,31,31}; };
+// this element is the one its canvas points at. A Toggle flips `checked` when
+// pressed and draws a check box at its right edge. `events` latches what happened
+// to the element since gameplay last read it (focus_pressed, focus_changed,
+// focus_cancelled).
+// Values are pinned; this enum only ever grows at the end.
+enum class FocusKind : uint8_t { Button=0, Toggle=1 };
+inline constexpr uint8_t focus_pressed=1,focus_changed=2,focus_cancelled=4;
+struct Focusable { bool enabled=false; int16_t neighbors[4]={-1,-1,-1,-1}; uint8_t order=0; uint8_t highlight[3]={255,255,255}; FocusKind kind=FocusKind::Button; bool checked=false; uint8_t events=0; };
+// A bar with a `step` above zero is a slider: while it is focused, Left and Right
+// move its value by one step instead of moving the focus.
+struct ProgressBar { bool enabled=false;Fixed value=0.75;uint8_t color[3]={64,217,77},background[3]={31,31,31};Fixed step=0.0; };
 // Compact immutable draw payload shared with the offline cooker.
 // (Header included outside the namespace at the top of this file.)
 // Values are pinned; this enum only ever grows at the end (saved Blueprint graphs store the numbering).
@@ -369,5 +378,6 @@ inline uint32_t blueprint_scene_generation=1;
 #endif
 #if !defined(EPOK_INCLUDE_FROM_GAMEPLAY_API) && !defined(EPOK_INCLUDE_FROM_SKELETAL) && !defined(EPOK_INCLUDE_FROM_BLUEPRINT_API) && !defined(EPOK_INCLUDE_FROM_BLUEPRINT_RUNTIME) && !defined(EPOK_INCLUDE_FROM_UTILITY)
 #include "gameplay_api.hpp"
+#include "world2d_components.hpp"
 #endif
 #endif
