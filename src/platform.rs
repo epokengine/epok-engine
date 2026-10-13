@@ -1575,6 +1575,7 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf6d9, 0xf6d9, // dungeon: Dungeon Generator
     0xf6fc, 0xf6fc, // mountain: sharp falloff
     0xf70c, 0xf70c, // person-running: CharacterBody2D
+    0xf70e, 0xf70e, // scroll: Dungeon Recipe
     0xf715, 0xf715, // slash: tile line tool
     0xf773, 0xf773, // water: smooth
     0xf84c, 0xf84c, // border-all: TileMapLayer

@@ -238,6 +238,7 @@ pub struct Editor {
     pub dungeon: crate::dungeon_editor::State,
     /// The open Dungeon Style editor.
     pub dungeon_style: Option<crate::dungeon_style_editor::Window>,
+    pub dungeon_recipe: Option<crate::dungeon_recipe_editor::Window>,
     /// Screenshot automation: a pad schedule played from the first Play frame.
     pub screenshot_input: Option<(crate::input_replay::Replay, Option<Instant>)>,
     pub baked_preview: crate::baked_preview::State,
@@ -808,6 +809,7 @@ impl Editor {
             navigation_preview_status: None,
             dungeon: Default::default(),
             dungeon_style: None,
+            dungeon_recipe: None,
             screenshot_input: None,
             baked_preview: Default::default(),
             scene_look: false,

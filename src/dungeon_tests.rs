@@ -126,7 +126,7 @@ fn spawn_actor_moves_to_the_spawn_room() {
     scene.dungeons[0].spawn_actor = Some(player_id);
     scene.actors[0].position = [10., 0., -4.];
     dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
-    let layout = crate::dungeon::layout(&scene.dungeons[0]).unwrap();
+    let layout = crate::dungeon::layout(&scene.dungeons[0], &Default::default()).unwrap();
     let spawn = crate::dungeon::spots(&layout)
         .into_iter()
         .find(|s| s.kind == SpotKind::Spawn)
@@ -181,7 +181,7 @@ fn a_2d_dungeon_paints_one_tile_layer_with_solid_walls() {
         .map(crate::world2d::read::<crate::world2d::TileMapLayer>)
         .unwrap();
     let cells = crate::tilemap::decode(&layer.cells).unwrap();
-    let layout = crate::dungeon::layout(&scene.dungeons[0]).unwrap();
+    let layout = crate::dungeon::layout(&scene.dungeons[0], &Default::default()).unwrap();
     let offset = [layout.size[0] / 2, layout.size[1] / 2];
     for (p, cell) in &cells {
         let tile = set.tile(cell.atlas).unwrap();
@@ -417,6 +417,231 @@ fn actor_pieces_need_classes_and_2d_tiles_fill_a_decoration_layer() {
     std::fs::remove_dir_all(parent).unwrap();
 }
 
+#[test]
+fn recipe_dungeons_bake_markers_within_budget_and_cook() {
+    use crate::dungeon::Source;
+    let (parent, root) = project("recipe");
+    for seed in [1, 7, 21] {
+        let (mut scene, id) = scene_3d(seed);
+        scene.dungeons[0].source = Source::Recipe;
+        let report = dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
+        assert!(report.summary.contains("key and lock"), "{report:?}");
+        assert!(report.actors <= 16, "{report:?}");
+        assert!(report.quads < SCENE_QUADS, "{report:?}");
+        assert!(report.navigation_nodes > 0, "{report:?}");
+        let g = &scene.dungeons[0];
+        assert!(!g.output.recipe.is_empty());
+        assert!(!g.recipe_stale(&crate::dungeon_recipe::digest(
+            &crate::dungeon_recipe::builtin()
+        )));
+        // The built-in style marks keys, locks and items with their own materials.
+        let index = crate::assets::scan(&root, &mut Default::default());
+        let names: std::collections::BTreeSet<String> = g
+            .output
+            .assets
+            .iter()
+            .filter_map(|a| crate::mesh::document(index.resolve(*a).ok()?).ok())
+            .flat_map(|d| d.materials.into_iter().map(|m| m.name))
+            .collect();
+        for marker in ["Key", "Locked door", "Item"] {
+            assert!(names.contains(marker), "seed {seed}: {names:?}");
+        }
+    }
+    // A recipe asset drives the layout, and editing it marks the output stale.
+    let mut recipe = crate::dungeon_recipe::builtin();
+    let path = crate::dungeon_recipe::fresh_path(&root, "Crypt Route");
+    let recipe_id = crate::dungeon_recipe::create(&root, &path, &recipe).unwrap();
+    let (mut scene, id) = scene_3d(5);
+    scene.dungeons[0].source = Source::Recipe;
+    scene.dungeons[0].recipe = Some(recipe_id);
+    dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
+    recipe
+        .steps
+        .retain(|s| !matches!(s, crate::dungeon_recipe::Step::OneWay { .. }));
+    let index = crate::assets::scan(&root, &mut Default::default());
+    crate::dungeon_recipe::save(index.resolve(recipe_id).unwrap(), &recipe).unwrap();
+    let index = crate::assets::scan(&root, &mut Default::default());
+    let (_, digest) = crate::dungeon_recipe::of(&index, &scene.dungeons[0]).unwrap();
+    assert!(scene.dungeons[0].recipe_stale(&digest));
+    // The map cooks.
+    let mut cooked = scene.clone();
+    for actor in &mut cooked.actors {
+        actor
+            .components
+            .retain(|c| c.class.class_id.as_deref() != Some(crate::navigation::VOLUME));
+    }
+    let catalog = crate::scripts::catalog(&root).unwrap();
+    crate::project::scene_header(&cooked, &catalog).unwrap();
+    // A missing recipe is reported, not replaced by the built-in one.
+    scene.dungeons[0].recipe = Some(Uuid::from_u128(0xbad));
+    let error = dungeon_bake::generate(&root, &mut scene, id, None).unwrap_err();
+    assert!(error.contains("Dungeon Recipe is missing"), "{error}");
+    std::fs::remove_dir_all(parent).unwrap();
+}
+
+#[test]
+fn recipe_markers_turn_with_their_doors_in_2d() {
+    let (parent, root) = project("recipe-2d");
+    let mut scene = Scene::default();
+    scene.actors.clear();
+    let actor = crate::world2d::create(crate::world2d::Preset::Node2D, "Dungeon", [0., 0.]);
+    let mut generator = Generator::new(actor.id);
+    generator.source = crate::dungeon::Source::Recipe;
+    generator.seed = 7;
+    let gid = generator.id;
+    scene.actors.push(actor);
+    scene.dungeons.push(generator);
+    scene.refresh_actor_hierarchy();
+    dungeon_bake::generate(&root, &mut scene, gid, None).unwrap();
+    // Generating pins the built-in tiles on the generator; its look stays current.
+    let index = crate::assets::scan(&root, &mut Default::default());
+    let (_, digest) = dungeon_bake::style_of(&index, &scene.dungeons[0], true).unwrap();
+    assert!(scene.dungeons[0].tile_set.is_some());
+    assert!(!scene.dungeons[0].style_stale(&digest));
+    let layout = crate::dungeon::layout(&scene.dungeons[0], &Default::default()).unwrap();
+    let details = scene
+        .actors
+        .iter()
+        .filter_map(|a| {
+            crate::world2d::component(a, crate::object_model::TILEMAP_LAYER_COMPONENT_ID)
+        })
+        .map(crate::world2d::read::<crate::world2d::TileMapLayer>)
+        .find(|l| !l.collision_enabled)
+        .expect("a marker layer");
+    let cells = crate::tilemap::decode(&details.cells).unwrap();
+    let offset = [layout.size[0] / 2, layout.size[1] / 2];
+    let at = |p: [i32; 2]| cells.get(&[p[0] - offset[0], p[1] - offset[1]]);
+    for lock in &layout.locks {
+        let cell = at(lock.cell).expect("a gate tile on the locked door");
+        assert_eq!(cell.atlas, [5, 0]);
+        assert_eq!(cell.flags, dungeon_bake::marker_flags(lock.side));
+    }
+    for item in &layout.items {
+        let cell = at(item.cell).expect("a marker on every key and item");
+        assert_eq!(cell.atlas, if item.lock > 0 { [4, 0] } else { [7, 0] });
+    }
+    // The project's built-in tiles hold the markers, and a new style keeps pointing at
+    // them when its generator paints with another TileSet.
+    let (tiles, set) = dungeon_bake::builtin_tiles(&root).unwrap();
+    assert!(set.tile([6, 0]).is_some());
+    let mut style = crate::dungeon_style::builtin(true, None);
+    dungeon_bake::pin_markers(&root, &mut style).unwrap();
+    assert!(style.references().contains(&tiles));
+    std::fs::remove_dir_all(parent).unwrap();
+}
+
+/// Faces are drawn only from the front on the PSX: every vertical face of walls,
+/// corner pillars and doorway beams must look into a walkable cell.
+#[test]
+fn wall_corner_and_doorway_faces_look_into_the_floor() {
+    use crate::dungeon_style::{Node, NodeKind, Piece, Visual};
+    let mut style = crate::dungeon_style::builtin(false, None);
+    let corner = Uuid::from_u128(0xc0);
+    style.nodes.push(Node {
+        id: corner,
+        position: [0., 900.],
+        kind: NodeKind::Spot {
+            spot: SpotKind::Corner,
+        },
+    });
+    style.nodes.push(Node {
+        id: Uuid::from_u128(0xc1),
+        position: [300., 900.],
+        kind: NodeKind::Piece {
+            parent: corner,
+            visual: Visual {
+                piece: Piece::Blockout {
+                    color: [0.4, 0.4, 0.4],
+                    texture: None,
+                },
+                ..Visual::default()
+            },
+        },
+    });
+    for source in [
+        crate::dungeon::Source::Rooms,
+        crate::dungeon::Source::Recipe,
+    ] {
+        let mut g = Generator {
+            seed: 11,
+            source,
+            ..Generator::default()
+        };
+        g.door_height = 2.;
+        let layout = crate::dungeon::layout(&g, &Default::default()).unwrap();
+        let placements = crate::dungeon_style::evaluate(&style, &layout, g.seed);
+        let plan = dungeon_bake::plan_3d(&g, &layout, &placements, &Default::default()).unwrap();
+        let frame = dungeon_bake::Frame {
+            size: layout.size,
+            cell: g.cell_size,
+        };
+        let mut checked = 0;
+        for section in &plan.sections {
+            let d = &section.document;
+            for face in &d.faces {
+                let group = &d.groups.iter().find(|g| g.id == face.group).unwrap().name;
+                if group != "Walls" && group != "Doorways" && group != "Pieces" {
+                    continue;
+                }
+                let p = face.vertices.map(|v| {
+                    let v = d.vertices[v as usize];
+                    [v[0] + section.origin[0], v[1], v[2] + section.origin[2]]
+                });
+                let (a, b) = (
+                    [p[1][0] - p[0][0], p[1][1] - p[0][1], p[1][2] - p[0][2]],
+                    [p[2][0] - p[0][0], p[2][1] - p[0][1], p[2][2] - p[0][2]],
+                );
+                let n = [
+                    a[1] * b[2] - a[2] * b[1],
+                    a[2] * b[0] - a[0] * b[2],
+                    a[0] * b[1] - a[1] * b[0],
+                ];
+                if n[1].abs() > 1e-4 {
+                    continue; // tops and beams' undersides
+                }
+                let length = (n[0] * n[0] + n[2] * n[2]).sqrt();
+                let centre = [0, 2].map(|k| p.iter().map(|v| v[k]).sum::<f32>() / 4.);
+                if group == "Pieces" {
+                    // Key and item pedestals stand in the middle of their cell and
+                    // show their outside; gates are seen from both sides.
+                    let cell = [
+                        (centre[0] / frame.cell + layout.size[0] as f32 * 0.5).floor() as i32,
+                        (centre[1] / frame.cell + layout.size[1] as f32 * 0.5).floor() as i32,
+                    ];
+                    let middle = frame.center(cell);
+                    let (dx, dz) = (centre[0] - middle[0], centre[1] - middle[2]);
+                    if dx.abs().max(dz.abs()) < frame.cell * 0.3 {
+                        assert!(dx * n[0] + dz * n[2] > 0., "pedestal face looks inwards");
+                        checked += 1;
+                    }
+                    continue;
+                }
+                let probe = [
+                    centre[0] + n[0] / length * 0.05,
+                    centre[1] + n[2] / length * 0.05,
+                ];
+                let cell = [
+                    (probe[0] / frame.cell + layout.size[0] as f32 * 0.5).floor() as i32,
+                    (probe[1] / frame.cell + layout.size[1] as f32 * 0.5).floor() as i32,
+                ];
+                assert!(
+                    layout.at(cell).walkable(),
+                    "{source:?} {group} face at {centre:?} looks into solid cell {cell:?}"
+                );
+                // And towards the middle of that cell, not into a pillar.
+                let middle = frame.center(cell);
+                let towards = (middle[0] - centre[0]) * n[0] + (middle[2] - centre[1]) * n[2];
+                assert!(
+                    towards > 0.,
+                    "{source:?} {group} face at {centre:?} looks away from cell {cell:?}"
+                );
+                checked += 1;
+            }
+        }
+        assert!(checked > 100, "{checked}");
+    }
+}
+
 /// Writes a Third Person project with a styled Dungeon Generator for screenshots:
 /// `EPOK_DUNGEON_FIXTURE=/tmp/Crypt cargo test dungeon_visual_fixture -- --ignored`,
 /// then `epok-editor --project /tmp/Crypt --generate-dungeon Dungeon`, which places the
@@ -563,8 +788,54 @@ fn dungeon_visual_fixture() {
             ..Visual::default()
         },
     ));
+    // Recipes: a gate actor receives its lock number, and keys glow.
+    std::fs::write(
+        root.join("assets/scripts/DungeonGate.hpp"),
+        "#pragma once\n#include \"epok.hpp\"\n\n// A locked dungeon door; the Dungeon Generator sets `lock` to its key's number.\nclass EPOK_CLASS(Blueprintable, Domain=World3D, Id=\"3b0f6c55-8e3e-4d0a-9a51-0e6f1d2c7a41\") DungeonGate : public epok::Actor3D {\npublic:\n    EPOK_PROPERTY(EditAnywhere) uint32_t lock = 0;\n};\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("assets/scripts/DungeonGate.cpp"),
+        "#include \"DungeonGate.hpp\"\n",
+    )
+    .unwrap();
+    let lock = style.spot_node(SpotKind::Lock).unwrap().id;
+    style.nodes.push(piece(
+        0x130,
+        lock,
+        490.,
+        style.spot_node(SpotKind::Lock).unwrap().position[1],
+        Visual {
+            piece: Piece::Actor {
+                class: Some("DungeonGate".into()),
+            },
+            consume: false,
+            ..Visual::default()
+        },
+    ));
+    let key = style.spot_node(SpotKind::Key).unwrap().id;
+    style.nodes.push(piece(
+        0x131,
+        key,
+        490.,
+        style.spot_node(SpotKind::Key).unwrap().position[1],
+        Visual {
+            piece: Piece::Light {
+                color: [1., 0.82, 0.3],
+                intensity: 1.4,
+                range: 4.,
+            },
+            offset: [0., 1.2, 0.],
+            consume: false,
+            ..Visual::default()
+        },
+    ));
     let style_path = dungeon_style::fresh_path(&root, "Crypt");
     let style_id = dungeon_style::create(&root, &style_path, &style).unwrap();
+    let recipe_path = crate::dungeon_recipe::fresh_path(&root, "Crypt Route");
+    let recipe_id =
+        crate::dungeon_recipe::create(&root, &recipe_path, &crate::dungeon_recipe::builtin())
+            .unwrap();
     let mut actor = crate::scene::Actor::cube("Dungeon".into());
     actor.kind = "Empty".into();
     actor.position = [0.; 3];
@@ -573,6 +844,8 @@ fn dungeon_visual_fixture() {
     let mut generator = Generator::new(actor_id);
     generator.seed = 1207;
     generator.style = Some(style_id);
+    generator.source = crate::dungeon::Source::Recipe;
+    generator.recipe = Some(recipe_id);
     generator.spawn_actor = scene
         .actors
         .iter()

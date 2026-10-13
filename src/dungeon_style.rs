@@ -144,6 +144,9 @@ pub struct Visual {
     pub filter: Filter,
     /// Most placements in one dungeon; 0 places everywhere the chance allows.
     pub limit: u16,
+    /// Item spots: only items with this name (any case); empty takes every item.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub item: String,
     /// Local offset, rotation (degrees) and scale relative to the spot.
     pub offset: [f32; 3],
     pub rotation: [f32; 3],
@@ -157,6 +160,7 @@ impl Default for Visual {
             consume: true,
             filter: Filter::Anywhere,
             limit: 0,
+            item: String::new(),
             offset: [0.; 3],
             rotation: [0.; 3],
             scale: [1.; 3],
@@ -233,7 +237,7 @@ impl Style {
                     return Err("Every piece must belong to a spot node".into());
                 }
                 if visual.chance > 100 {
-                    return Err("Chance is a percentage, 0–100".into());
+                    return Err("Chance is a percentage, 0-100".into());
                 }
                 let finite = visual
                     .offset
@@ -250,14 +254,14 @@ impl Style {
                 if let Piece::Blockout { color, .. } | Piece::Light { color, .. } = &visual.piece
                     && color.iter().any(|c| !(0. ..=1.).contains(c))
                 {
-                    return Err("Colours are 0–1 per channel".into());
+                    return Err("Colours are 0-1 per channel".into());
                 }
                 if let Piece::Light {
                     intensity, range, ..
                 } = &visual.piece
                     && (!(0. ..=8.).contains(intensity) || !(0.25..=64.).contains(range))
                 {
-                    return Err("Light intensity is 0–8 and range 0.25–64".into());
+                    return Err("Light intensity is 0-8 and range 0.25-64".into());
                 }
             }
         }
@@ -417,9 +421,22 @@ pub const CORRIDOR_FLOOR: [f32; 3] = [0.36, 0.34, 0.33];
 pub const WALL: [f32; 3] = [0.66, 0.61, 0.54];
 pub const WALL_TOP: [f32; 3] = [0.30, 0.28, 0.30];
 pub const DOORWAY: [f32; 3] = [0.48, 0.33, 0.21];
+pub const KEY: [f32; 3] = [0.92, 0.74, 0.24];
+pub const LOCK: [f32; 3] = [0.72, 0.18, 0.16];
+pub const ONE_WAY: [f32; 3] = [0.22, 0.46, 0.78];
+pub const ITEM: [f32; 3] = [0.30, 0.66, 0.44];
+/// Built-in dungeon tiles drawn as markers for recipe spots.
+pub const MARKER_TILES: [(SpotKind, [u8; 2]); 4] = [
+    (SpotKind::Key, [4, 0]),
+    (SpotKind::Lock, [5, 0]),
+    (SpotKind::OneWay, [6, 0]),
+    (SpotKind::Item, [7, 0]),
+];
 
 /// The style a generator without one uses: blockout geometry in 3D, the built-in
 /// dungeon tiles (or `tile_set`) in 2D. It is also what a new style starts from.
+/// Recipe spots get markers: blockout pedestals, gates and plates in 3D, marker tiles
+/// of the built-in dungeon tiles in 2D (left out when `tile_set` replaces them).
 ///
 /// Its pieces do not consume their spots: a piece added to their right decorates on
 /// top of them, and one added to their left that consumes replaces them.
@@ -443,7 +460,7 @@ pub fn builtin(two_d: bool, tile_set: Option<Uuid>) -> Style {
             consume: false,
             ..Visual::default()
         };
-        vec![
+        let mut rows = vec![
             (
                 SpotKind::Floor,
                 vec![terrain(crate::dungeon_bake::FLOOR_TERRAIN)],
@@ -452,7 +469,23 @@ pub fn builtin(two_d: bool, tile_set: Option<Uuid>) -> Style {
                 SpotKind::Solid,
                 vec![terrain(crate::dungeon_bake::WALL_TERRAIN)],
             ),
-        ]
+        ];
+        if tile_set.is_none() {
+            for (spot, atlas) in MARKER_TILES {
+                rows.push((
+                    spot,
+                    vec![Visual {
+                        piece: Piece::Tile {
+                            tile_set: None,
+                            atlas,
+                        },
+                        consume: false,
+                        ..Visual::default()
+                    }],
+                ));
+            }
+        }
+        rows
     } else {
         vec![
             (
@@ -465,6 +498,10 @@ pub fn builtin(two_d: bool, tile_set: Option<Uuid>) -> Style {
             (SpotKind::Wall, vec![blockout(WALL, Filter::Anywhere)]),
             (SpotKind::Solid, vec![blockout(WALL_TOP, Filter::Anywhere)]),
             (SpotKind::Doorway, vec![blockout(DOORWAY, Filter::Anywhere)]),
+            (SpotKind::Key, vec![blockout(KEY, Filter::Anywhere)]),
+            (SpotKind::Lock, vec![blockout(LOCK, Filter::Anywhere)]),
+            (SpotKind::OneWay, vec![blockout(ONE_WAY, Filter::Anywhere)]),
+            (SpotKind::Item, vec![blockout(ITEM, Filter::Anywhere)]),
         ]
     };
     for (row, (spot, visuals)) in rows.into_iter().enumerate() {
@@ -478,6 +515,40 @@ pub fn builtin(two_d: bool, tile_set: Option<Uuid>) -> Style {
         two_d,
         nodes,
     }
+}
+
+/// Points a 2D style's built-in marker tiles at the project's copy of the built-in
+/// dungeon tiles, so they keep drawing the markers when a generator uses its own TileSet.
+pub fn pin_markers(style: &mut Style, tiles: Uuid) {
+    let spots: Vec<Uuid> = MARKER_TILES
+        .iter()
+        .filter_map(|(kind, _)| style.spot_node(*kind).map(|n| n.id))
+        .collect();
+    for node in &mut style.nodes {
+        if let NodeKind::Piece { parent, visual } = &mut node.kind
+            && spots.contains(parent)
+            && let Piece::Tile { tile_set, atlas } = &mut visual.piece
+            && tile_set.is_none()
+            && MARKER_TILES.iter().any(|(_, a)| a == atlas)
+        {
+            *tile_set = Some(tiles);
+        }
+    }
+}
+
+/// Removes the built-in marker tile pieces, for TileSets without them.
+pub fn strip_markers(style: &mut Style) {
+    let spots: Vec<Uuid> = MARKER_TILES
+        .iter()
+        .filter_map(|(kind, _)| style.spot_node(*kind).map(|n| n.id))
+        .collect();
+    style.nodes.retain(|node| {
+        !matches!(
+            &node.kind,
+            NodeKind::Piece { parent, visual: Visual { piece: Piece::Tile { tile_set: None, atlas }, .. } }
+                if spots.contains(parent) && MARKER_TILES.iter().any(|(_, a)| a == atlas)
+        )
+    });
 }
 
 // ---- evaluation ------------------------------------------------------------------------------
@@ -513,7 +584,11 @@ pub fn evaluate(style: &Style, layout: &Layout, seed: u32) -> Vec<Placement> {
                 // Every candidate draws, so the outcome at one spot does not depend on
                 // which other spots were consumed.
                 let roll = random.chance(u32::from(visual.chance));
-                if !consumed[index] && visual.filter.accepts(spot) && roll {
+                if !consumed[index]
+                    && visual.filter.accepts(spot)
+                    && named(visual, spot, layout)
+                    && roll
+                {
                     chosen.push(index);
                 }
             }
@@ -541,6 +616,16 @@ pub fn evaluate(style: &Style, layout: &Layout, seed: u32) -> Vec<Placement> {
     out
 }
 
+/// Whether a piece naming an item accepts this spot.
+fn named(visual: &Visual, spot: &Spot, layout: &Layout) -> bool {
+    visual.item.is_empty()
+        || spot.kind != SpotKind::Item
+        || layout
+            .items
+            .get(usize::from(spot.tag))
+            .is_some_and(|i| i.name.eq_ignore_ascii_case(visual.item.trim()))
+}
+
 /// Placement counts per piece node, for the editor.
 pub fn counts(placements: &[Placement]) -> BTreeMap<Uuid, usize> {
     let mut out = BTreeMap::new();
@@ -559,7 +644,7 @@ pub fn frame(spot: &Spot, grid: &crate::dungeon_bake::Frame) -> crate::transform
     let [x, y] = spot.cell;
     let center = grid.center(spot.cell);
     let (origin, forward) = match (spot.kind, spot.side) {
-        (SpotKind::Wall | SpotKind::Door, Some(side)) => {
+        (SpotKind::Wall | SpotKind::Door | SpotKind::Lock | SpotKind::OneWay, Some(side)) => {
             let d = side.delta();
             (
                 [
@@ -628,10 +713,13 @@ mod tests {
     use crate::dungeon::Generator;
 
     fn layout() -> Layout {
-        crate::dungeon::layout(&Generator {
-            seed: 3,
-            ..Generator::default()
-        })
+        crate::dungeon::layout(
+            &Generator {
+                seed: 3,
+                ..Generator::default()
+            },
+            &Default::default(),
+        )
         .unwrap()
     }
 

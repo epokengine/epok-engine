@@ -459,6 +459,7 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             Kind::TileSet => "TileSet",
             Kind::StringTable => "String Table",
             Kind::DungeonStyle => "Dungeon Style",
+            Kind::DungeonRecipe => "Dungeon Recipe",
         }
         .into();
         details.fields.extend([

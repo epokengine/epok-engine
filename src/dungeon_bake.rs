@@ -135,6 +135,8 @@ pub struct Spawn {
     pub node: Uuid,
     pub transform: Matrix,
     pub piece: Piece,
+    /// The lock number at key and locked-door spots; 0 elsewhere.
+    pub lock: u16,
 }
 
 pub struct Plan3d {
@@ -350,6 +352,24 @@ struct Context<'a> {
     meshes: &'a HashMap<Uuid, Arc<Document>>,
 }
 
+/// The edge on `side` of `cell`, its endpoints ordered so a face along it looks into
+/// the cell.
+fn edge(frame: &Frame, cell: [i32; 2], side: Side) -> ([f32; 2], [f32; 2]) {
+    let [x, y] = cell;
+    match side {
+        Side::North => ([frame.x(x), frame.z(y)], [frame.x(x + 1), frame.z(y)]),
+        Side::South => (
+            [frame.x(x + 1), frame.z(y + 1)],
+            [frame.x(x), frame.z(y + 1)],
+        ),
+        Side::West => ([frame.x(x), frame.z(y + 1)], [frame.x(x), frame.z(y)]),
+        Side::East => (
+            [frame.x(x + 1), frame.z(y)],
+            [frame.x(x + 1), frame.z(y + 1)],
+        ),
+    }
+}
+
 fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
     let (layout, frame, g) = (cx.layout, cx.frame, cx.g);
     let c = frame.cell;
@@ -385,21 +405,57 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                         (GROUP_FLOORS, slot),
                     ),
                     (SpotKind::Wall, Some(side)) => {
-                        // Edge endpoints ordered so the face looks into the cell.
-                        let (a, bb) = match side {
-                            Side::North => ([frame.x(x), frame.z(y)], [frame.x(x + 1), frame.z(y)]),
-                            Side::South => (
-                                [frame.x(x + 1), frame.z(y + 1)],
-                                [frame.x(x), frame.z(y + 1)],
-                            ),
-                            Side::West => ([frame.x(x), frame.z(y + 1)], [frame.x(x), frame.z(y)]),
-                            Side::East => (
-                                [frame.x(x + 1), frame.z(y)],
-                                [frame.x(x + 1), frame.z(y + 1)],
-                            ),
-                        };
+                        let (a, bb) = edge(frame, spot.cell, side);
                         // Walls reach a little below the floor, covering the seam.
                         b.vertical(a, bb, [-WALL_SKIRT, h], (GROUP_WALLS, slot));
+                    }
+                    (SpotKind::Key | SpotKind::Item, _) => {
+                        // A pedestal: tall and thin for keys, low and wide for items.
+                        let (half, top) = if spot.kind == SpotKind::Key {
+                            (c * 0.14, 0.7)
+                        } else {
+                            (c * 0.2, 0.45)
+                        };
+                        let centre = frame.center(spot.cell);
+                        let (x0, x1) = (centre[0] - half, centre[0] + half);
+                        let (z0, z1) = (centre[2] - half, centre[2] + half);
+                        let paint = (GROUP_PIECES, slot);
+                        b.horizontal([x0, x1], [z0, z1], top, true, paint);
+                        b.vertical([x0, z1], [x1, z1], [0., top], paint);
+                        b.vertical([x1, z0], [x0, z0], [0., top], paint);
+                        b.vertical([x1, z1], [x1, z0], [0., top], paint);
+                        b.vertical([x0, z0], [x0, z1], [0., top], paint);
+                    }
+                    (SpotKind::Lock, Some(side)) => {
+                        // A gate filling the door opening, seen from both sides.
+                        let (a, bb) = edge(frame, spot.cell, side);
+                        let top = g.door_height.min(h);
+                        b.vertical(a, bb, [0., top], (GROUP_PIECES, slot));
+                        b.vertical(bb, a, [0., top], (GROUP_PIECES, slot));
+                    }
+                    (SpotKind::OneWay, Some(side)) => {
+                        // An arrow on the floor pointing from the door into the room.
+                        let d = side.delta().map(|v| v as f32);
+                        let across = [-d[1], d[0]];
+                        let centre = frame.center(spot.cell);
+                        let at = |forward: f32, side: f32| {
+                            [
+                                centre[0] + (d[0] * forward + across[0] * side) * c,
+                                0.03,
+                                centre[2] + (d[1] * forward + across[1] * side) * c,
+                            ]
+                        };
+                        let mut p = [at(0.42, -0.32), at(0.42, 0.32), at(-0.2, 0.)];
+                        // Counter-clockwise seen from above.
+                        let (u, v) = (
+                            [p[1][0] - p[0][0], p[1][2] - p[0][2]],
+                            [p[2][0] - p[0][0], p[2][2] - p[0][2]],
+                        );
+                        if u[1] * v[0] - u[0] * v[1] < 0. {
+                            p.swap(1, 2);
+                        }
+                        let uv = [p[0], p[1], p[2], p[2]].map(|q| [q[0] / c, q[2] / c]);
+                        b.face([p[0], p[1], p[2], p[2]], uv, None, (GROUP_PIECES, slot));
                     }
                     (SpotKind::Solid, _) => match tops.iter_mut().find(|(s, _)| *s == slot) {
                         Some((_, cells)) => {
@@ -454,34 +510,35 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                         b.horizontal([x0, x1], [z0, z1], h, true, (GROUP_WALLS, slot));
                         let inner_x = if sx > 0. { x1 } else { x0 };
                         let inner_z = if sz > 0. { z1 } else { z0 };
-                        // The face parallel to X, at inner_z, facing ±Z.
+                        // The face parallel to X, at inner_z, facing away from the
+                        // corner (+Z when the pillar grows towards +Z).
                         if sz > 0. {
                             b.vertical(
-                                [x1, inner_z],
                                 [x0, inner_z],
+                                [x1, inner_z],
                                 [-WALL_SKIRT, h],
                                 (GROUP_WALLS, slot),
                             );
                         } else {
                             b.vertical(
-                                [x0, inner_z],
                                 [x1, inner_z],
+                                [x0, inner_z],
                                 [-WALL_SKIRT, h],
                                 (GROUP_WALLS, slot),
                             );
                         }
-                        // The face parallel to Z, at inner_x, facing ±X.
+                        // The face parallel to Z, at inner_x, facing away from the corner.
                         if sx > 0. {
                             b.vertical(
-                                [inner_x, z0],
                                 [inner_x, z1],
+                                [inner_x, z0],
                                 [-WALL_SKIRT, h],
                                 (GROUP_WALLS, slot),
                             );
                         } else {
                             b.vertical(
-                                [inner_x, z1],
                                 [inner_x, z0],
+                                [inner_x, z1],
                                 [-WALL_SKIRT, h],
                                 (GROUP_WALLS, slot),
                             );
@@ -568,10 +625,10 @@ pub fn plan_3d(
     meshes: &HashMap<Uuid, Arc<Document>>,
 ) -> Result<Plan3d, String> {
     g.validate()?;
-    if g.half_extent() > 127. {
+    if g.half_extent(layout.size) > 127. {
         return Err(format!(
             "The dungeon spans {:.0} units; keep grid size × cell size within 254 units (reduce the cell size or the grid)",
-            g.half_extent() * 2.
+            g.half_extent(layout.size) * 2.
         ));
     }
     let frame = Frame {
@@ -633,6 +690,7 @@ pub fn plan_3d(
             node: p.node,
             transform: dungeon_style::transform(p, &frame),
             piece: p.visual.piece.clone(),
+            lock: lock_of(&p.spot),
         })
         .collect();
     Ok(Plan3d {
@@ -697,6 +755,7 @@ fn navigation(g: &Generator, layout: &Layout, frame: &Frame) -> Option<Navigatio
 
 pub const TILES_PATH: &str = "assets/Dungeons/DungeonTiles.epokasset";
 const TILES_IMAGE: &str = "assets/Dungeons/DungeonTiles.png";
+const TILES_TEXTURE: &str = "assets/Dungeons/DungeonTilesTexture.epokasset";
 pub const FLOOR_TERRAIN: &str = "Floor";
 pub const WALL_TERRAIN: &str = "Wall";
 
@@ -722,6 +781,28 @@ pub struct Spawn2d {
     pub node: Uuid,
     pub position: [f32; 2],
     pub class: String,
+    /// The lock number at key and locked-door spots; 0 elsewhere.
+    pub lock: u16,
+}
+
+fn lock_of(spot: &dungeon::Spot) -> u16 {
+    if matches!(spot.kind, SpotKind::Key | SpotKind::Lock) {
+        spot.tag
+    } else {
+        0
+    }
+}
+
+/// Tile flags turning a marker drawn pointing south so it points from the door on
+/// `side` into the room.
+pub fn marker_flags(side: Side) -> u8 {
+    use crate::tileset::{FLIP_V, TRANSPOSE};
+    match side {
+        Side::North => 0,
+        Side::South => FLIP_V,
+        Side::West => TRANSPOSE,
+        Side::East => TRANSPOSE | FLIP_V,
+    }
 }
 
 pub struct Plan2d {
@@ -825,10 +906,14 @@ pub fn plan_2d(
                     ));
                 }
             };
+            let mut cell = crate::tilemap::Cell::new(*atlas);
+            if let (SpotKind::Lock | SpotKind::OneWay, Some(side)) = (p.spot.kind, p.spot.side) {
+                cell.flags = marker_flags(side);
+            }
             decorations[index]
                 .1
                 .entry(shift(dungeon_style::tile_cell(&p.spot)))
-                .or_insert(crate::tilemap::Cell::new(*atlas));
+                .or_insert(cell);
         }
     }
     let tile = sets
@@ -848,6 +933,7 @@ pub fn plan_2d(
                 node: p.node,
                 position: pixel(p.spot.cell, p.visual.offset),
                 class: class.clone(),
+                lock: lock_of(&p.spot),
             }),
             _ => None,
         })
@@ -874,20 +960,65 @@ pub fn builtin_tiles(root: &Path) -> Result<(Uuid, crate::tileset::TileSet), Str
                 && r.path == assets::inside(root, TILES_PATH).unwrap_or_default()
         })
         .cloned();
-    if let Some(record) = existing {
-        return Ok((record.meta.id, crate::tileset::document(&record)?));
+    let current = |set: &crate::tileset::TileSet| {
+        dungeon_style::MARKER_TILES
+            .iter()
+            .all(|(_, atlas)| set.tile(*atlas).is_some())
+    };
+    if let Some(record) = &existing {
+        let set = crate::tileset::document(record)?;
+        if current(&set) {
+            return Ok((record.meta.id, set));
+        }
     }
+    // First use, or tiles from before the recipe markers: draw them (again).
     crate::project::write_changed(&assets::inside(root, TILES_IMAGE)?, &art::tiles()?)?;
+    let texture_path = assets::inside(root, TILES_TEXTURE)?;
+    let texture_record = index
+        .assets
+        .values()
+        .flatten()
+        .find(|r| r.meta.kind == assets::Kind::Texture && r.path == texture_path)
+        .cloned();
     let texture = assets::commit(crate::texture::prepare(
         root,
         TILES_IMAGE,
-        "assets/Dungeons/DungeonTilesTexture.epokasset",
-        None,
+        TILES_TEXTURE,
+        texture_record.as_ref(),
         false,
     )?)?;
     let set = art::tileset(texture);
-    let id = crate::tileset::create(root, TILES_PATH, &set)?;
+    let id = match existing {
+        Some(record) => {
+            crate::tileset::save(&record, &set)?;
+            record.meta.id
+        }
+        None => crate::tileset::create(root, TILES_PATH, &set)?,
+    };
     Ok((id, set))
+}
+
+/// Points a new 2D style's marker tiles at the project's built-in dungeon tiles,
+/// creating them if needed.
+pub fn pin_markers(root: &Path, style: &mut Style) -> Result<(), String> {
+    let unpinned = style.two_d
+        && style.nodes.iter().any(|n| {
+            matches!(
+                &n.kind,
+                dungeon_style::NodeKind::Piece {
+                    visual: dungeon_style::Visual {
+                        piece: Piece::Tile { tile_set: None, .. },
+                        ..
+                    },
+                    ..
+                }
+            )
+        });
+    if unpinned {
+        let (tiles, _) = builtin_tiles(root)?;
+        dungeon_style::pin_markers(style, tiles);
+    }
+    Ok(())
 }
 
 // ---- styles ---------------------------------------------------------------------------------
@@ -912,7 +1043,23 @@ pub fn style_of(
             }
             style
         }
-        None => dungeon_style::builtin(two_d, None),
+        None => {
+            let mut style = dungeon_style::builtin(two_d, None);
+            // Marker tiles come from the built-in dungeon tiles, even when the
+            // generator paints its floors and walls with another TileSet.
+            if two_d && let Some(set) = g.tile_set {
+                let tiles = index
+                    .usable()
+                    .find(|r| r.meta.kind == assets::Kind::TileSet && r.path.ends_with(TILES_PATH))
+                    .map(|r| r.meta.id);
+                match tiles {
+                    Some(tiles) if tiles == set => {}
+                    Some(tiles) => dungeon_style::pin_markers(&mut style, tiles),
+                    None => dungeon_style::strip_markers(&mut style),
+                }
+            }
+            style
+        }
     };
     let digest = dungeon_style::digest(&style);
     Ok((style, digest))
@@ -1067,6 +1214,49 @@ fn place_piece(
     Ok((placed, ids))
 }
 
+/// The property a key or locked-door class declares to receive its lock number.
+pub const LOCK_PROPERTY: &str = "lock";
+
+/// Gives the actors of a placed key or locked door their lock number, wherever their
+/// classes or their components' classes declare an editable number named `lock`.
+fn set_lock(scene: &mut Scene, classes: &Classes, ids: &[Uuid], lock: u16) {
+    use crate::reflection_schema::Type;
+    let declares = |class: &crate::actor_document::ClassReference| {
+        let id = class.class_id.as_deref().unwrap_or(&class.name);
+        classes.model.class(id).is_some_and(|model| {
+            model.ancestry.iter().any(|ancestor| {
+                classes.registry.classes.get(ancestor).is_some_and(|c| {
+                    c.properties.iter().any(|p| {
+                        p.name == LOCK_PROPERTY
+                            && p.editable
+                            && matches!(p.value_type, Type::Int32 | Type::UInt32 | Type::Fixed)
+                    })
+                })
+            })
+        })
+    };
+    for id in ids {
+        let Some(index) = scene.actor_index(*id) else {
+            continue;
+        };
+        let actor = &mut scene.actors[index];
+        if declares(&actor.class) {
+            actor
+                .properties
+                .insert(LOCK_PROPERTY.into(), serde_json::json!(lock));
+            actor.overrides.insert(LOCK_PROPERTY.into());
+        }
+        for component in &mut actor.components {
+            if declares(&component.class) {
+                component
+                    .properties
+                    .insert(LOCK_PROPERTY.into(), serde_json::json!(lock));
+                component.overrides.insert(LOCK_PROPERTY.into());
+            }
+        }
+    }
+}
+
 /// Generates the layout of generator `id` and replaces its previous output in `scene`.
 /// `classes` places Actor pieces; without it a style that uses them is refused. On
 /// error the scene may be partly changed; callers keep a copy to restore.
@@ -1086,9 +1276,13 @@ pub fn generate(
     let root_index = scene
         .actor_index(g.root)
         .ok_or("The Dungeon Generator's actor was deleted")?;
-    let layout = dungeon::layout(&g)?;
     let two_d = is_2d(scene, g.root);
     let asset_index = assets::scan(root, &mut Default::default());
+    let recipe_digest = match g.source {
+        dungeon::Source::Rooms => String::new(),
+        dungeon::Source::Recipe => crate::dungeon_recipe::of(&asset_index, &g)?.1,
+    };
+    let layout = dungeon::layout(&g, &asset_index)?;
     let (style, style_digest) = style_of(&asset_index, &g, two_d)?;
     let placements = dungeon_style::evaluate(&style, &layout, g.seed);
     let needs_classes = placements
@@ -1184,6 +1378,9 @@ pub fn generate(
                     .properties
                     .insert("position".into(), serde_json::json!(spawn.position));
                 component.overrides.insert("position".into());
+            }
+            if spawn.lock > 0 {
+                set_lock(scene, classes, &ids, spawn.lock);
             }
             placed_ids.extend(ids);
         }
@@ -1335,6 +1532,9 @@ pub fn generate(
                     let actor = &mut scene.actors[placed];
                     actor.position = position;
                     actor.rotation[1] += yaw;
+                    if spawn.lock > 0 {
+                        set_lock(scene, classes, &ids, spawn.lock);
+                    }
                     placed_ids.extend(ids);
                 }
                 _ => {}
@@ -1373,6 +1573,7 @@ pub fn generate(
         assets: assets_written,
         fingerprint: g.fingerprint(),
         style: style_digest,
+        recipe: recipe_digest,
     };
     scene.actors.extend(actors);
     scene.refresh_actor_hierarchy();
@@ -1494,6 +1695,88 @@ mod art {
         }
     }
 
+    /// Recipe markers in row 0, columns 4 to 7, on transparent backgrounds: a key, a
+    /// locked gate, a one-way arrow and a chest. Directional ones point south.
+    fn markers(c: &mut Canvas) {
+        const GOLD: Rgba = [232, 188, 64, 255];
+        const GOLD_DARK: Rgba = [150, 108, 30, 255];
+        const IRON: Rgba = [70, 70, 84, 255];
+        const IRON_LIGHT: Rgba = [130, 130, 150, 255];
+        const RED: Rgba = [190, 48, 40, 255];
+        const BLUE: Rgba = [70, 130, 220, 255];
+        const BLUE_DARK: Rgba = [30, 62, 120, 255];
+        const WOOD: Rgba = [130, 82, 44, 255];
+        const WOOD_DARK: Rgba = [78, 46, 24, 255];
+        let mut paint = |column: usize, f: &dyn Fn(i32, i32) -> Option<Rgba>| {
+            for y in 0..TILE {
+                for x in 0..TILE {
+                    if let Some(colour) = f(x as i32, y as i32) {
+                        c.set(column * TILE + x, y, colour);
+                    }
+                }
+            }
+        };
+        paint(4, &|x, y| {
+            // A key: a ring at the top, a shaft down the middle, teeth to the right.
+            let (dx, dy) = (x - 7, y - 4);
+            let ring = dx * dx + dy * dy;
+            if (5..=13).contains(&ring) {
+                return Some(if dy > 0 { GOLD_DARK } else { GOLD });
+            }
+            if (7..=8).contains(&x) && (7..=14).contains(&y) {
+                return Some(if x == 8 { GOLD_DARK } else { GOLD });
+            }
+            if (9..=10).contains(&x) && (y == 11 || y == 13) {
+                return Some(GOLD);
+            }
+            None
+        });
+        paint(5, &|x, y| {
+            // A gate: bars along the north edge and a padlock below them.
+            if y <= 5 && (x % 3 == 1 || y == 0 || y == 5) {
+                return Some(if y == 0 { IRON_LIGHT } else { IRON });
+            }
+            let (dx, dy) = (x - 7, y - 8);
+            if dy <= 0 && dx * dx + dy * dy <= 9 && dx * dx + dy * dy >= 4 && y >= 6 {
+                return Some(IRON_LIGHT);
+            }
+            if (4..=11).contains(&x) && (9..=14).contains(&y) {
+                return Some(if (7..=8).contains(&x) && (11..=12).contains(&y) {
+                    IRON
+                } else {
+                    RED
+                });
+            }
+            None
+        });
+        paint(6, &|x, y| {
+            // Two chevrons pointing south.
+            for top in [2, 8] {
+                let dy = y - top;
+                if (0..5).contains(&dy) && ((x - 7).abs() == dy || (x - 8).abs() == dy) {
+                    return Some(BLUE);
+                }
+                if (0..5).contains(&dy) && ((x - 7).abs() == dy + 1 || (x - 8).abs() == dy + 1) {
+                    return Some(BLUE_DARK);
+                }
+            }
+            None
+        });
+        paint(7, &|x, y| {
+            // A chest: a wooden box with a lid line and a gold clasp.
+            if !(2..=13).contains(&x) || !(4..=13).contains(&y) {
+                return None;
+            }
+            if x == 2 || x == 13 || y == 4 || y == 13 || y == 8 {
+                return Some(WOOD_DARK);
+            }
+            if (7..=8).contains(&x) && (7..=10).contains(&y) {
+                return Some(GOLD);
+            }
+            Some(WOOD)
+        });
+    }
+
     pub fn tiles() -> Result<Vec<u8>, String> {
         let (width, height) = (COLUMNS * TILE, ROWS * TILE);
         let mut canvas = Canvas {
@@ -1505,6 +1788,7 @@ mod art {
         for mask in 0..16 {
             wall(&mut canvas, mask);
         }
+        markers(&mut canvas);
         let mut bytes = Vec::new();
         {
             let mut encoder = png::Encoder::new(&mut bytes, width as u32, height as u32);
@@ -1545,6 +1829,9 @@ mod art {
                 tile.peering[side * 2] = Some(0);
             }
             set.tiles.push(tile);
+        }
+        for (_, atlas) in crate::dungeon_style::MARKER_TILES {
+            set.tiles.push(Tile::new(atlas));
         }
         for mask in 0..16usize {
             let mut tile = Tile::new([(mask % COLUMNS) as u8, (1 + mask / COLUMNS) as u8]);

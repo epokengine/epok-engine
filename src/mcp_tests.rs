@@ -1181,3 +1181,80 @@ fn dungeon_styles_are_created_read_and_edited_through_mcp() {
             .all(|slot| slot.material.color == [0.2, 0.4, 0.6])
     );
 }
+
+#[test]
+fn dungeon_recipes_are_created_edited_and_followed_through_mcp() {
+    let mut e = editor();
+    let mut state = mcp::State::default();
+    let revision = mcp_tools::revision(&e.scene);
+    let reply = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "dungeon_generate",
+        json!({"revision":revision,"create":"3d","seed":4,"new_recipe":"Crypt Route"}),
+    )
+    .unwrap();
+    assert_eq!(reply["generator"]["source"], "Recipe");
+    let recipe = reply["generator"]["recipe"].as_str().unwrap().to_owned();
+    let record = e
+        .assets
+        .index
+        .resolve(uuid::Uuid::parse_str(&recipe).unwrap())
+        .unwrap()
+        .clone();
+    let path = record
+        .path
+        .strip_prefix(&e.root)
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    assert!(path.starts_with("assets/Dungeons/Recipes/CryptRoute"));
+    // Lengthen the main path and drop the one-way doors.
+    let read =
+        mcp_tools::execute(&mut e, &mut state, "asset_document", json!({"path":path})).unwrap();
+    let mut document = read["document"].clone();
+    let steps = document["steps"].as_array_mut().unwrap();
+    steps.retain(|s| s["step"] != "OneWay");
+    for step in steps.iter_mut() {
+        if step["step"] == "MainPath" {
+            step["length"] = json!([10, 10]);
+        }
+    }
+    mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "asset_document",
+        json!({"path":path,"document":document,"revision":read["revision"]}),
+    )
+    .unwrap();
+    // A recipe naming a path no step grows is refused.
+    let read =
+        mcp_tools::execute(&mut e, &mut state, "asset_document", json!({"path":path})).unwrap();
+    let mut broken = read["document"].clone();
+    broken["steps"][4]["paths"] = json!(["nowhere"]);
+    let error = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "asset_document",
+        json!({"path":path,"document":broken,"revision":read["revision"]}),
+    )
+    .unwrap_err();
+    assert!(error.contains("nowhere"), "{error}");
+    // Regenerating follows the edited recipe.
+    let name = e.scene.actors[e.scene.actor_index(e.scene.dungeons[0].root).unwrap()]
+        .name
+        .clone();
+    let revision = mcp_tools::revision(&e.scene);
+    let reply = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "dungeon_generate",
+        json!({"revision":revision,"actor":name}),
+    )
+    .unwrap();
+    let summary = reply.to_string();
+    assert!(!summary.contains("one-way"), "{summary}");
+    let layout = crate::dungeon::layout(&e.scene.dungeons[0], &e.assets.index).unwrap();
+    assert!(layout.one_ways.is_empty());
+    assert!(layout.rooms.len() >= 10);
+}

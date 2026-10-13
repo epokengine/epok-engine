@@ -93,6 +93,10 @@ pub fn generate(settings: &RoomSettings, seed: u32) -> Result<Layout, String> {
         goal: 0,
         requested: usize::from(settings.rooms),
         loops: 0,
+        locks: Vec::new(),
+        one_ways: Vec::new(),
+        items: Vec::new(),
+        room_paths: Vec::new(),
     };
     let (links, loops) = connections(&layout);
     layout.links = links;
@@ -190,16 +194,16 @@ fn spanning_tree(count: usize, edges: &[[usize; 2]]) -> (Vec<[usize; 2]>, Vec<[u
     (tree, rest)
 }
 
-struct Grid {
+pub(crate) struct Grid {
     size: [i32; 2],
-    cells: Vec<Cell>,
+    pub(crate) cells: Vec<Cell>,
     /// For each cell, the rooms whose one-cell ring covers it (rooms have at most two
     /// rings overlapping thanks to the spacing, but corners can see more).
     rings: Vec<Vec<u16>>,
 }
 
 impl Grid {
-    fn new(size: [i32; 2], rooms: &[Room]) -> Self {
+    pub(crate) fn new(size: [i32; 2], rooms: &[Room]) -> Self {
         let count = (size[0] * size[1]) as usize;
         let mut grid = Self {
             size,
@@ -225,7 +229,7 @@ impl Grid {
         (p[0] >= 0 && p[1] >= 0 && p[0] < self.size[0] && p[1] < self.size[1])
             .then(|| (p[1] * self.size[0] + p[0]) as usize)
     }
-    fn point(&self, index: usize) -> [i32; 2] {
+    pub(crate) fn point(&self, index: usize) -> [i32; 2] {
         [index as i32 % self.size[0], index as i32 / self.size[0]]
     }
     /// The step cost of entering a cell on a corridor between rooms `a` and `b`, or None
@@ -258,20 +262,19 @@ impl Grid {
         }
         Some(cost)
     }
-    /// Routes and carves a corridor between rooms `a` and `b`; false when blocked.
-    fn route(
+    /// Routes and carves a corridor between rooms `a` and `b`, returning the route's
+    /// cells from inside `a` to inside `b`; None when blocked.
+    pub(crate) fn route(
         &mut self,
         rooms: &[Room],
         a: usize,
         b: usize,
         width: i32,
         random: &mut Random,
-    ) -> bool {
+    ) -> Option<Vec<usize>> {
         const DIRECTIONS: [[i32; 2]; 4] = [[1, 0], [0, 1], [-1, 0], [0, -1]];
         let (ra, rb) = (a as u16, b as u16);
-        let Some(start) = self.index(rooms[a].center()) else {
-            return false;
-        };
+        let start = self.index(rooms[a].center())?;
         let target = rooms[b].center();
         // A random preferred first axis varies otherwise identical L-shaped choices.
         let bias = random.below(2) as usize;
@@ -315,15 +318,14 @@ impl Grid {
                 }
             }
         }
-        let Some(mut current) = end else {
-            return false;
-        };
+        let mut current = end?;
         let mut path = Vec::new();
         while current != usize::MAX {
             path.push(current / 5);
             current = from[current];
         }
-        for cell in path {
+        path.reverse();
+        for &cell in &path {
             if self.cells[cell] != Cell::Empty {
                 continue;
             }
@@ -339,7 +341,7 @@ impl Grid {
                 }
             }
         }
-        true
+        Some(path)
     }
     /// A group number per room: rooms reachable from each other share one.
     fn groups(&self, rooms: &[Room]) -> Vec<usize> {

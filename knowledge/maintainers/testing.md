@@ -427,8 +427,11 @@ epok-editor --project /tmp/Crypt --screenshot walk.png --screenshot-game --scree
 
 `--frame-dungeon` selects the first generator and frames its grid (add
 `--screenshot-2d` for a 2D one); `--open-dungeon-style` opens the first generator's
-style with a piece selected. A styled Third Person fixture (pillars, room lights, crates
-and banners) is written by
+style with a piece selected, and `--open-dungeon-recipe N` its recipe with step N
+selected. `--dungeon-settings '{"source":"Recipe"}'` switches a generator to the
+built-in recipe; `--dungeon-new-recipe <name>` creates a recipe asset for it. A styled Third Person fixture (a recipe layout with a key, a locked door and
+one-way shortcuts; pillars, room lights, crates, banners, a glowing key and a
+`DungeonGate` actor class that receives its lock number) is written by
 `EPOK_DUNGEON_FIXTURE=/tmp/Crypt cargo test dungeon_visual_fixture -- --ignored`
 and generated with `--generate-dungeon Dungeon`, which also places its Actor piece. `--screenshot-input` presses pad buttons on a
 `milliseconds:mask` schedule from the first Play frame and delays the capture until it

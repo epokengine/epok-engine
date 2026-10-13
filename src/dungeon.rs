@@ -7,6 +7,7 @@
 //! cells in 2D. Decisions use integers and `dungeon_random`, so a seed always produces
 //! the same dungeon.
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use uuid::Uuid;
 
 /// Settings of the rooms-and-corridors layout, in grid cells.
@@ -48,11 +49,11 @@ impl RoomSettings {
     pub fn validate(&self) -> Result<(), String> {
         let (lo, hi) = GRID_LIMITS;
         if self.size.iter().any(|s| !(lo..=hi).contains(s)) {
-            return Err(format!("Grid size must be {lo}–{hi} cells per side"));
+            return Err(format!("Grid size must be {lo}-{hi} cells per side"));
         }
         if !(ROOM_LIMITS.0..=ROOM_LIMITS.1).contains(&self.rooms) {
             return Err(format!(
-                "Room count must be {}–{}",
+                "Room count must be {}-{}",
                 ROOM_LIMITS.0, ROOM_LIMITS.1
             ));
         }
@@ -62,7 +63,7 @@ impl RoomSettings {
             || self.room_min > self.room_max
         {
             return Err(format!(
-                "Room sizes must be {min}–{max} cells, smallest first"
+                "Room sizes must be {min}-{max} cells, smallest first"
             ));
         }
         if usize::from(self.room_max) + 2 > usize::from(*self.size.iter().min().unwrap()) {
@@ -70,18 +71,18 @@ impl RoomSettings {
         }
         if !(SPACING_LIMITS.0..=SPACING_LIMITS.1).contains(&self.spacing) {
             return Err(format!(
-                "Room spacing must be {}–{} cells",
+                "Room spacing must be {}-{} cells",
                 SPACING_LIMITS.0, SPACING_LIMITS.1
             ));
         }
         if !(CORRIDOR_LIMITS.0..=CORRIDOR_LIMITS.1).contains(&self.corridor_width) {
             return Err(format!(
-                "Corridor width must be {}–{} cells",
+                "Corridor width must be {}-{} cells",
                 CORRIDOR_LIMITS.0, CORRIDOR_LIMITS.1
             ));
         }
         if self.loops > 100 {
-            return Err("Loops is a percentage, 0–100".into());
+            return Err("Loops is a percentage, 0-100".into());
         }
         Ok(())
     }
@@ -98,10 +99,32 @@ pub struct Output {
     /// Digest of the Dungeon Style it was generated with.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub style: String,
+    /// Digest of the Dungeon Recipe it was generated with; empty for rooms layouts.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub recipe: String,
 }
 impl Output {
     pub fn is_empty(&self) -> bool {
         self.actors.is_empty() && self.assets.is_empty()
+    }
+}
+
+/// Where a generator's rooms come from.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum Source {
+    /// Rooms scattered over the grid and joined by corridors.
+    #[default]
+    Rooms,
+    /// A Dungeon Recipe: a main path, branches, loops, items, keys and locks.
+    Recipe,
+}
+impl Source {
+    pub const ALL: [Source; 2] = [Source::Rooms, Source::Recipe];
+    pub fn label(self) -> &'static str {
+        match self {
+            Source::Rooms => "Rooms and corridors",
+            Source::Recipe => "Recipe",
+        }
     }
 }
 
@@ -113,7 +136,11 @@ pub struct Generator {
     pub id: Uuid,
     pub root: Uuid,
     pub seed: u32,
+    pub source: Source,
     pub rooms: RoomSettings,
+    /// The Dungeon Recipe a `Source::Recipe` generator follows; None uses the built-in one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recipe: Option<Uuid>,
     /// 3D world units per grid cell.
     pub cell_size: f32,
     pub wall_height: f32,
@@ -138,7 +165,9 @@ impl Default for Generator {
             id: Uuid::nil(),
             root: Uuid::nil(),
             seed: 1,
+            source: Source::Rooms,
             rooms: RoomSettings::default(),
+            recipe: None,
             cell_size: 2.,
             wall_height: 3.,
             door_height: 2.25,
@@ -162,24 +191,27 @@ impl Generator {
         }
     }
     pub fn validate(&self) -> Result<(), String> {
-        self.rooms.validate()?;
+        if self.source == Source::Rooms {
+            self.rooms.validate()?;
+        }
         let (lo, hi) = CELL_SIZE_LIMITS;
         if !(lo..=hi).contains(&self.cell_size) {
-            return Err(format!("Cell size must be {lo}–{hi} units"));
+            return Err(format!("Cell size must be {lo}-{hi} units"));
         }
         let (lo, hi) = WALL_HEIGHT_LIMITS;
         if !(lo..=hi).contains(&self.wall_height) {
-            return Err(format!("Wall height must be {lo}–{hi} units"));
+            return Err(format!("Wall height must be {lo}-{hi} units"));
         }
         if !(0.5..=self.wall_height).contains(&self.door_height) {
             return Err("Door height must be at least 0.5 and at most the wall height".into());
         }
         Ok(())
     }
-    /// Half the 3D footprint along the longer axis. Compound collider parts and mesh
-    /// vertices are local to the root and must stay within ±128 units.
-    pub fn half_extent(&self) -> f32 {
-        f32::from(*self.rooms.size.iter().max().unwrap()) * self.cell_size * 0.5
+    /// Half the 3D footprint of a layout of `size` cells along the longer axis.
+    /// Compound collider parts and mesh vertices are local to the root and must stay
+    /// within ±128 units.
+    pub fn half_extent(&self, size: [i32; 2]) -> f32 {
+        size[0].max(size[1]) as f32 * self.cell_size * 0.5
     }
     /// A short stable digest of everything that shapes the output.
     pub fn fingerprint(&self) -> String {
@@ -199,6 +231,10 @@ impl Generator {
     /// The output exists and was produced by a different version of its style.
     pub fn style_stale(&self, digest: &str) -> bool {
         !self.output.is_empty() && self.output.style != digest
+    }
+    /// The output exists and was produced by a different version of its recipe.
+    pub fn recipe_stale(&self, digest: &str) -> bool {
+        !self.output.is_empty() && self.output.recipe != digest
     }
     /// A stable identity for generated content with this role.
     pub fn derived_id(&self, role: &str) -> Uuid {
@@ -291,6 +327,32 @@ pub struct Layout {
     pub requested: usize,
     /// Connections beyond a spanning tree.
     pub loops: usize,
+    /// Doors that need a key, on the side of the room they guard.
+    pub locks: Vec<GuardedDoor>,
+    /// Doors passable only into their room.
+    pub one_ways: Vec<GuardedDoor>,
+    /// Keys and other items placed on floor cells.
+    pub items: Vec<Item>,
+    /// The recipe path each room belongs to; empty for rooms-and-corridors layouts.
+    pub room_paths: Vec<String>,
+}
+
+/// A door on a room's side: `cell` is the room cell, `side` faces the corridor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GuardedDoor {
+    pub cell: [i32; 2],
+    pub side: Side,
+    /// The key that opens it, for locked doors; 0 otherwise.
+    pub lock: u16,
+}
+
+/// Something a recipe places in a room: a key (with the lock it opens) or a named item.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Item {
+    pub cell: [i32; 2],
+    pub name: String,
+    /// The lock this key opens, 1 and up; 0 for other items.
+    pub lock: u16,
 }
 impl Layout {
     pub fn inside(&self, p: [i32; 2]) -> bool {
@@ -348,13 +410,21 @@ pub enum SpotKind {
     Corner,
     /// The centre of every room.
     Room,
+    /// A key a recipe placed; the lock it opens is the spot's tag.
+    Key,
+    /// A door that needs a key, on the guarded room's side, facing into it.
+    Lock,
+    /// A door passable only into its room, facing into it.
+    OneWay,
+    /// A named item a recipe placed.
+    Item,
     /// The centre of the spawn room.
     Spawn,
     /// The centre of the goal room.
     Goal,
 }
 impl SpotKind {
-    pub const ALL: [SpotKind; 9] = [
+    pub const ALL: [SpotKind; 13] = [
         SpotKind::Floor,
         SpotKind::Wall,
         SpotKind::Door,
@@ -362,6 +432,10 @@ impl SpotKind {
         SpotKind::Solid,
         SpotKind::Corner,
         SpotKind::Room,
+        SpotKind::Key,
+        SpotKind::Lock,
+        SpotKind::OneWay,
+        SpotKind::Item,
         SpotKind::Spawn,
         SpotKind::Goal,
     ];
@@ -374,6 +448,10 @@ impl SpotKind {
             SpotKind::Solid => "Solid",
             SpotKind::Corner => "Corner",
             SpotKind::Room => "Room",
+            SpotKind::Key => "Key",
+            SpotKind::Lock => "Locked door",
+            SpotKind::OneWay => "One-way door",
+            SpotKind::Item => "Item",
             SpotKind::Spawn => "Spawn",
             SpotKind::Goal => "Goal",
         }
@@ -387,6 +465,12 @@ impl SpotKind {
             SpotKind::Solid => "Each solid cell of the ring that encloses the floor.",
             SpotKind::Corner => "Each inner corner where two walls of a floor cell meet.",
             SpotKind::Room => "The centre of every room, once per room.",
+            SpotKind::Key => "Each key a recipe placed; actors here get the lock number it opens.",
+            SpotKind::Lock => {
+                "Each door that needs a key, facing into the room it guards; actors here get the lock number."
+            }
+            SpotKind::OneWay => "Each door passable only into its room, facing into it.",
+            SpotKind::Item => "Each item a recipe placed; pieces can pick items by name.",
             SpotKind::Spawn => "The centre of the spawn room.",
             SpotKind::Goal => "The centre of the goal room, the furthest from the spawn.",
         }
@@ -403,6 +487,8 @@ pub struct Spot {
     pub room: Option<usize>,
     /// Corridor floor rather than room floor.
     pub corridor: bool,
+    /// Keys and locked doors: the lock number. Items: the index in `Layout::items`.
+    pub tag: u16,
 }
 
 /// Every spot of a layout: per cell in grid order its floor, walls, doors and corners,
@@ -421,6 +507,7 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                         side: None,
                         room: None,
                         corridor: false,
+                        tag: 0,
                     });
                 }
                 continue;
@@ -435,6 +522,7 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                 side,
                 room,
                 corridor: cell == Cell::Corridor,
+                tag: 0,
             };
             out.push(spot(SpotKind::Floor, None));
             let closed = |side| !layout.open([x, y], side) && !layout.door([x, y], side);
@@ -448,6 +536,7 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                         side: Some(side.opposite()),
                         room: None,
                         corridor: true,
+                        tag: 0,
                     });
                 } else if closed(side) {
                     out.push(spot(SpotKind::Wall, Some(side)));
@@ -461,6 +550,10 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
         }
     }
     out.extend(doorways);
+    let room_of = |p: [i32; 2]| match layout.at(p) {
+        Cell::Room(r) => Some(usize::from(r)),
+        _ => None,
+    };
     for (index, room) in layout.rooms.iter().enumerate() {
         out.push(Spot {
             kind: SpotKind::Room,
@@ -468,6 +561,40 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
             side: None,
             room: Some(index),
             corridor: false,
+            tag: 0,
+        });
+    }
+    for (kind, doors) in [
+        (SpotKind::Lock, &layout.locks),
+        (SpotKind::OneWay, &layout.one_ways),
+    ] {
+        for door in doors {
+            out.push(Spot {
+                kind,
+                cell: door.cell,
+                side: Some(door.side),
+                room: room_of(door.cell),
+                corridor: false,
+                tag: door.lock,
+            });
+        }
+    }
+    for (index, item) in layout.items.iter().enumerate() {
+        out.push(Spot {
+            kind: if item.lock > 0 {
+                SpotKind::Key
+            } else {
+                SpotKind::Item
+            },
+            cell: item.cell,
+            side: None,
+            room: room_of(item.cell),
+            corridor: layout.at(item.cell) == Cell::Corridor,
+            tag: if item.lock > 0 {
+                item.lock
+            } else {
+                index as u16
+            },
         });
     }
     for (kind, room) in [
@@ -481,6 +608,7 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                 side: None,
                 room: Some(room),
                 corridor: false,
+                tag: 0,
             });
         }
     }
@@ -488,9 +616,18 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
 }
 
 /// Generates the layout a generator describes.
-pub fn layout(generator: &Generator) -> Result<Layout, String> {
-    generator.rooms.validate()?;
-    crate::dungeon_rooms::generate(&generator.rooms, generator.seed)
+/// The layout of a generator's settings. Recipe layouts find their recipe in `index`.
+pub fn layout(generator: &Generator, index: &crate::assets::Index) -> Result<Layout, String> {
+    match generator.source {
+        Source::Rooms => {
+            generator.rooms.validate()?;
+            crate::dungeon_rooms::generate(&generator.rooms, generator.seed)
+        }
+        Source::Recipe => {
+            let (recipe, _) = crate::dungeon_recipe::of(index, generator)?;
+            crate::dungeon_recipe::layout(&recipe, generator.seed)
+        }
+    }
 }
 
 /// One sentence describing a layout for the Inspector and logs.
@@ -506,6 +643,32 @@ pub fn summary(layout: &Layout) -> String {
     );
     if rooms < layout.requested {
         text.push_str(&format!(" · {} of {} rooms fit", rooms, layout.requested));
+    }
+    let count =
+        |n: usize, one: &str, many: &str| format!(" · {n} {}", if n == 1 { one } else { many });
+    let keys: BTreeSet<u16> = layout.locks.iter().map(|l| l.lock).collect();
+    if !keys.is_empty() {
+        text.push_str(&count(keys.len(), "key and lock", "keys and locks"));
+    }
+    // Doors wider than a cell hold one entry per cell; count each run once.
+    let one_ways = layout
+        .one_ways
+        .iter()
+        .filter(|d| {
+            let along = d.side.next().delta();
+            let before = [d.cell[0] - along[0], d.cell[1] - along[1]];
+            !layout
+                .one_ways
+                .iter()
+                .any(|o| o.side == d.side && o.cell == before)
+        })
+        .count();
+    if one_ways > 0 {
+        text.push_str(&count(one_ways, "one-way door", "one-way doors"));
+    }
+    let items = layout.items.iter().filter(|i| i.lock == 0).count();
+    if items > 0 {
+        text.push_str(&count(items, "item", "items"));
     }
     text
 }
@@ -566,15 +729,18 @@ mod tests {
 
     #[test]
     fn seeds_are_reproducible_and_distinct() {
-        let a = layout(&generator(5)).unwrap();
-        assert_eq!(a, layout(&generator(5)).unwrap());
-        assert_ne!(a.cells, layout(&generator(6)).unwrap().cells);
+        let a = layout(&generator(5), &Default::default()).unwrap();
+        assert_eq!(a, layout(&generator(5), &Default::default()).unwrap());
+        assert_ne!(
+            a.cells,
+            layout(&generator(6), &Default::default()).unwrap().cells
+        );
     }
 
     #[test]
     fn every_walkable_cell_is_reachable_from_the_spawn() {
         for seed in 0..120 {
-            let layout = layout(&generator(seed)).unwrap();
+            let layout = layout(&generator(seed), &Default::default()).unwrap();
             assert!(layout.rooms.len() >= 2, "seed {seed}");
             assert_ne!(layout.spawn, layout.goal);
             assert_eq!(
@@ -603,7 +769,7 @@ mod tests {
         // door somewhere along that room's side, so 2D maps always have a wall between
         // a room and a corridor that merely passes by.
         for seed in 0..60 {
-            let layout = layout(&generator(seed)).unwrap();
+            let layout = layout(&generator(seed), &Default::default()).unwrap();
             for y in 0..layout.size[1] {
                 for x in 0..layout.size[0] {
                     if layout.at([x, y]) != Cell::Corridor {
@@ -631,7 +797,10 @@ mod tests {
         none.rooms.loops = 0;
         let mut all = generator(11);
         all.rooms.loops = 100;
-        let (none, all) = (layout(&none).unwrap(), layout(&all).unwrap());
+        let (none, all) = (
+            layout(&none, &Default::default()).unwrap(),
+            layout(&all, &Default::default()).unwrap(),
+        );
         assert!(all.loops > none.loops, "{} vs {}", all.loops, none.loops);
     }
 
@@ -652,7 +821,7 @@ mod tests {
         crowded.rooms.room_min = 9;
         crowded.rooms.room_max = 9;
         assert!(
-            layout(&crowded)
+            layout(&crowded, &Default::default())
                 .unwrap_err()
                 .contains("Fewer than two rooms")
         );
@@ -675,7 +844,7 @@ mod tests {
     #[test]
     #[ignore]
     fn print_a_layout() {
-        let layout = layout(&generator(1)).unwrap();
+        let layout = layout(&generator(1), &Default::default()).unwrap();
         println!("{}\n{}", summary(&layout), picture(&layout));
     }
 }

@@ -213,6 +213,7 @@ fn manager_body(ui: &Ui, m: &mut Manager, scene: &crate::scene::Scene) {
                                     | assets::Kind::Terrain
                                     | assets::Kind::StringTable
                                     | assets::Kind::DungeonStyle
+                                    | assets::Kind::DungeonRecipe
                             ) {
                                 "Double-click this asset in Project to open its editor."
                             } else {

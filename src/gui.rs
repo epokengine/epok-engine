@@ -2877,6 +2877,7 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
 pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
     crate::dungeon_editor::apply_pending(e);
     crate::dungeon_style_editor::window(ui, e);
+    crate::dungeon_recipe_editor::window(ui, e);
     crate::world2d_editor::dialogs(ui, e);
     crate::localization_editor::window(ui, e);
     crate::lighting_editor::window(ui, e);

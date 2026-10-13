@@ -56,6 +56,8 @@ mod dungeon;
 mod dungeon_bake;
 mod dungeon_editor;
 mod dungeon_random;
+mod dungeon_recipe;
+mod dungeon_recipe_editor;
 mod dungeon_rooms;
 mod dungeon_style;
 mod dungeon_style_editor;
@@ -1423,6 +1425,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let id = dungeon_editor::mcp_target(&mut scene, &request)?;
         if let Some(name) = args
             .windows(2)
+            .find(|v| v[0] == "--dungeon-new-recipe")
+            .map(|v| v[1].clone())
+        {
+            let recipe = dungeon_editor::new_recipe(&root, &scene, id, &name)?;
+            if let Some(g) = scene.dungeons.iter_mut().find(|g| g.id == id) {
+                g.source = dungeon::Source::Recipe;
+                g.recipe = Some(recipe);
+            }
+            println!("Dungeon Recipe created: {recipe}");
+        }
+        if let Some(name) = args
+            .windows(2)
             .find(|v| v[0] == "--dungeon-new-style")
             .map(|v| v[1].clone())
         {
@@ -2002,6 +2016,35 @@ fn prepare_editor(editor: &mut editor::Editor) {
         if let Some(style) = style {
             dungeon_style_editor::open(editor, style);
             dungeon_style_editor::select_first_piece(editor);
+        }
+    }
+    // Screenshot automation: open the first generator's Dungeon Recipe (or the first
+    // recipe asset), selecting step N with `--open-dungeon-recipe N`.
+    if let Some(step) = args
+        .iter()
+        .position(|a| a == "--open-dungeon-recipe")
+        .map(|i| {
+            args.get(i + 1)
+                .and_then(|v| v.parse::<usize>().ok())
+                .unwrap_or(1)
+        })
+    {
+        let recipe = editor
+            .scene
+            .dungeons
+            .iter()
+            .find_map(|g| g.recipe)
+            .or_else(|| {
+                editor
+                    .assets
+                    .index
+                    .usable()
+                    .find(|r| r.meta.kind == assets::Kind::DungeonRecipe)
+                    .map(|r| r.meta.id)
+            });
+        if let Some(recipe) = recipe {
+            dungeon_recipe_editor::open(editor, recipe);
+            dungeon_recipe_editor::select_step(editor, step.saturating_sub(1));
         }
     }
     // Screenshot automation: select the first Dungeon Generator and frame its grid.

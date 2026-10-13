@@ -137,7 +137,8 @@ pub fn select_first_piece(e: &mut Editor) {
 }
 
 /// Creates a style asset starting from `from` (or the built-in style) and opens it.
-pub fn create(e: &mut Editor, name: &str, from: Style) -> Result<Uuid, String> {
+pub fn create(e: &mut Editor, name: &str, mut from: Style) -> Result<Uuid, String> {
+    crate::dungeon_bake::pin_markers(&e.root, &mut from)?;
     let path = dungeon_style::fresh_path(&e.root, name);
     let id = dungeon_style::create(&e.root, &path, &from)?;
     e.assets.index = crate::assets::scan(&e.root, &mut Default::default());
@@ -437,6 +438,9 @@ fn badges(visual: &Visual) -> String {
     }
     if visual.limit > 0 {
         parts.push(format!("max {}", visual.limit));
+    }
+    if !visual.item.is_empty() {
+        parts.push(format!("\"{}\" only", visual.item));
     }
     parts.join(" · ")
 }
@@ -1188,6 +1192,29 @@ fn details(ui: &Ui, e: &mut Editor, w: &mut Window) {
                     }
                 }
             }
+            if spot == SpotKind::Item {
+                let mut name = visual.item.clone();
+                if ui
+                    .input_text(crate::gui::field(ui, "Item name"), &mut name)
+                    .hint("any item")
+                    .build()
+                {
+                    visual.item = name.chars().take(32).collect();
+                }
+                if ui.is_item_hovered() {
+                    ui.tooltip_text(
+                        "Only items a recipe's Items step names this way; empty takes every item.",
+                    );
+                }
+            }
+            if matches!(spot, SpotKind::Key | SpotKind::Lock)
+                && matches!(visual.piece, Piece::Actor { .. })
+            {
+                crate::gui::muted(
+                    ui,
+                    "Actors placed here get the lock number in a number property named lock, on the actor or its components.",
+                );
+            }
             let mut limit = i32::from(visual.limit);
             if crate::gui::Drag::new(crate::gui::field(ui, "Limit"))
                 .range(0, 999)
@@ -1525,7 +1552,7 @@ fn placement_counts(e: &mut Editor, w: &Window) -> Option<std::collections::BTre
         .iter()
         .find(|g| g.style == Some(w.asset))?
         .clone();
-    let layout = crate::dungeon::layout(&g).ok()?;
+    let layout = crate::dungeon::layout(&g, &e.assets.index).ok()?;
     Some(dungeon_style::counts(&dungeon_style::evaluate(
         &w.style, &layout, g.seed,
     )))
