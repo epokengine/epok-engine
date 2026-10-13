@@ -498,6 +498,23 @@ pub(crate) enum Runner {
     NativePlay,
 }
 
+/// What the HUD preview builds. It runs no Blueprint, so the map's scene script (always a
+/// Blueprint) and the Blueprint classes stay out of it instead of failing the build for
+/// generated headers it never has.
+fn preview_inputs(scene: &Scene, catalog: &[Script]) -> (Scene, Vec<Script>) {
+    let scripts = catalog
+        .iter()
+        .filter(|s| !s.classes.iter().any(|c| c.provider.id == "blueprint"))
+        .cloned()
+        .collect();
+    (
+        Scene {
+            scene_script: None,
+            ..scene.clone()
+        },
+        scripts,
+    )
+}
 pub(crate) fn build_runner(
     root: &Path,
     scene: &Scene,
@@ -516,6 +533,13 @@ pub(crate) fn build_runner(
             "{BLUEPRINT_UNSUPPORTED} `{entity}` is driven by a Blueprint class."
         ));
     }
+    let prepared;
+    let (scene, catalog) = if runner == Runner::HudPreview {
+        prepared = preview_inputs(scene, catalog);
+        (&prepared.0, prepared.1.as_slice())
+    } else {
+        (scene, catalog)
+    };
     if scene
         .actors
         .iter()
@@ -1106,6 +1130,34 @@ mod tests {
         assert!(error.contains(BLUEPRINT_UNSUPPORTED));
         catalog[0].classes[0].provider = crate::reflection_schema::native_provider();
         assert_eq!(blueprint_driven(&scene, &catalog), None);
+    }
+    #[test]
+    fn the_hud_preview_leaves_scene_scripts_and_blueprints_out() {
+        let mut scene = Scene::default();
+        scene.ensure_scene_script(None);
+        assert!(scene.scene_script.is_some());
+        let script = |name: &str, blueprint: bool| {
+            let mut class = crate::actor_document::tests::class(
+                &format!("id-{name}"),
+                name,
+                Some(crate::object_model::UI_ACTOR_ID),
+            );
+            if blueprint {
+                class.provider = crate::script_backend::blueprint_provider();
+            }
+            Script {
+                name: name.into(),
+                parent: Some("epok::UIActor".into()),
+                properties: vec![],
+                header: format!("{name}.hpp").into(),
+                classes: vec![class],
+            }
+        };
+        let (scene, scripts) =
+            preview_inputs(&scene, &[script("Menu", true), script("Probe", false)]);
+        assert!(scene.scene_script.is_none());
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0].name, "Probe");
     }
     #[test]
     #[ignore = "Requires pinned libclang/MIPS SDK, host C++ compiler and cargo build --bins"]

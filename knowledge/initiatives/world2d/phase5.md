@@ -24,3 +24,14 @@ Lua, Blueprint) still share one scene.
 | `tests/runtime/hud_layout.cpp` | the built-in font advances over spaces without emitting them |
 | PSX | Platformer 2D in C++, Lua and Blueprint in PCSX-Redux; the help line renders clean |
 | Static RAM | 1.49 MiB of 2 MiB (from 1.41 MiB): the new nodes' pools, scene data and four small textures |
+
+## Editor usability pass
+
+A review of the 2D workflow as a newcomer meets it, after phase 4 doubled the node list.
+
+| Change | Detail |
+| --- | --- |
+| Add 2D Node search | The toolbar menu opens with focus in a search field and filters by name, purpose or group as you type; Enter creates the first match. It drops down from its button and is as tall as its results (`world2d_editor::add_node_popup`) |
+| Hierarchy warnings | `world2d_warnings::of` lists why a node will not work (body without a solid collider, joint without Body B, picture nobody shows, agent without a region, bone-less skeleton, follower without a path...); the Hierarchy draws an amber sign on the row with the reasons on hover. Cheap checks only: every visible row asks every frame |
+| HUD preview fix | The HUD editor's Interact preview failed to build on a new project: its scene script and Blueprint classes went into the native preview runner. `hud_simulation::preview_inputs` leaves both out of the preview, which only needs the HUD scene |
+| Scripted capture | `--open-add-2d-node <query>` opens the menu with a query for screenshots and tests |

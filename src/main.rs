@@ -235,6 +235,7 @@ mod world2d_physics_editor;
 mod world2d_shapes_editor;
 mod world2d_skeleton_editor;
 mod world2d_viewport_editor;
+mod world2d_warnings;
 use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
@@ -1881,6 +1882,14 @@ fn prepare_editor(editor: &mut editor::Editor) {
             .map(|a| a.id)
     {
         editor.select_actor(Some(id));
+    }
+    // Screenshot automation: open the 2D view's Add 2D Node menu, with a search typed.
+    if let Some(query) = args
+        .windows(2)
+        .find(|a| a[0] == "--open-add-2d-node")
+        .map(|a| a[1].clone())
+    {
+        editor.world2d.open_add_node = Some((query, 0));
     }
     // Screenshot automation: open the Strings (localization) window.
     if args.iter().any(|a| a == "--open-strings") {

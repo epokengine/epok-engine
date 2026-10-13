@@ -232,6 +232,10 @@ pub struct State {
     pub points: crate::world2d_shapes_editor::State,
     /// Skeleton2D timeline and animation preview.
     pub skeleton: crate::world2d_skeleton_editor::State,
+    /// The Add 2D Node search text, and a request to open the menu (screenshots).
+    pub node_search: String,
+    /// A scripted request to show the menu with a search typed, and frames shown so far.
+    pub open_add_node: Option<(String, u8)>,
 }
 impl Default for State {
     fn default() -> Self {
@@ -263,6 +267,8 @@ impl Default for State {
             tileset_window: None,
             points: Default::default(),
             skeleton: Default::default(),
+            node_search: String::new(),
+            open_add_node: None,
         }
     }
 }
@@ -1063,8 +1069,24 @@ fn toolbar(ui: &Ui, e: &mut Editor) {
         }
         ui.same_line_with_spacing(0., 10.);
     }
-    if ui.button(format!("{ICON_PLUS} Add 2D Node")) {
+    // A scripted request reopens the menu until it has stayed up: focus changes while
+    // the docked layout settles close popups.
+    let open = unsafe { imgui::sys::igIsPopupOpen_Str(c"add-2d-node".as_ptr(), 0) };
+    let requested = e.world2d.open_add_node.is_some() && !open;
+    if ui.button(format!("{ICON_PLUS} Add 2D Node")) || requested {
         ui.open_popup("add-2d-node");
+    }
+    // The menu drops down from its button rather than from wherever the mouse is.
+    let below = [ui.item_rect_min()[0], ui.item_rect_max()[1] + 2.];
+    unsafe {
+        imgui::sys::igSetNextWindowPos(
+            imgui::sys::ImVec2 {
+                x: below[0],
+                y: below[1],
+            },
+            imgui::sys::ImGuiCond_Appearing as i32,
+            imgui::sys::ImVec2 { x: 0., y: 0. },
+        );
     }
     let centre = e.view_2d.centre;
     add_node_popup(ui, e, "add-2d-node", centre);
@@ -1072,29 +1094,83 @@ fn toolbar(ui: &Ui, e: &mut Editor) {
 /// The 2D node palette: presets with a one-line description of each.
 pub fn add_node_popup(ui: &Ui, e: &mut Editor, id: &str, position: [f32; 2]) {
     ui.popup(id, || {
-        ui.text_disabled("Create 2D node");
-        let mut category = "";
-        for preset in Preset::ALL {
-            if preset.category() != category {
-                category = preset.category();
-                ui.separator();
-                ui.text_disabled(category);
+        // Type to filter by name, purpose or group; Enter creates the first match.
+        if ui.is_window_appearing() {
+            e.world2d.node_search = e
+                .world2d
+                .open_add_node
+                .as_ref()
+                .map(|r| r.0.clone())
+                .unwrap_or_default();
+            ui.set_keyboard_focus_here();
+        }
+        if let Some((_, shown)) = &mut e.world2d.open_add_node {
+            *shown += 1;
+            if *shown > 30 {
+                e.world2d.open_add_node = None;
             }
-            let clicked = ui
-                .selectable_config(format!(
-                    "{}  {}##{}",
-                    preset_icon(preset),
-                    preset.label(),
-                    preset.label()
-                ))
-                .size([250., 0.])
-                .build();
-            if ui.is_item_hovered() {
-                ui.tooltip_text(preset.description());
-            }
-            if clicked {
-                create_node(e, preset, snapped(e, position));
-            }
+        }
+        ui.set_next_item_width(270.);
+        let enter = ui
+            .input_text("##node-search", &mut e.world2d.node_search)
+            .hint("Search 2D nodes")
+            .enter_returns_true(true)
+            .build();
+        let query = e.world2d.node_search.trim().to_lowercase();
+        let matches: Vec<Preset> = Preset::ALL
+            .into_iter()
+            .filter(|p| {
+                query.is_empty()
+                    || [p.label(), p.description(), p.category()]
+                        .iter()
+                        .any(|t| t.to_lowercase().contains(&query))
+            })
+            .collect();
+        if enter && let Some(first) = matches.first() {
+            create_node(e, *first, snapped(e, position));
+            ui.close_current_popup();
+            return;
+        }
+        let mut chosen = None;
+        let groups = {
+            let mut seen: Vec<&str> = matches.iter().map(|p| p.category()).collect();
+            seen.dedup();
+            seen.len()
+        };
+        // As tall as its rows, up to a screenful: a short result list makes a short popup.
+        let rows = (matches.len() + groups).max(1) as f32;
+        ui.child_window("##node-list")
+            .size([270., 420_f32.min(ui.text_line_height_with_spacing() * rows)])
+            .build(|| {
+                let mut category = "";
+                for preset in &matches {
+                    if preset.category() != category {
+                        category = preset.category();
+                        ui.text_disabled(category);
+                    }
+                    let clicked = ui
+                        .selectable_config(format!(
+                            "{}  {}##{}",
+                            preset_icon(*preset),
+                            preset.label(),
+                            preset.label()
+                        ))
+                        .size([250., 0.])
+                        .build();
+                    if ui.is_item_hovered() {
+                        ui.tooltip_text(preset.description());
+                    }
+                    if clicked {
+                        chosen = Some(*preset);
+                    }
+                }
+                if matches.is_empty() {
+                    ui.text_disabled("No 2D node matches.");
+                }
+            });
+        if let Some(preset) = chosen {
+            create_node(e, preset, snapped(e, position));
+            ui.close_current_popup();
         }
     });
 }

@@ -1805,7 +1805,27 @@ fn actor_node(
     let node = ui.tree_node_config(label).flags(flags).push();
     #[cfg(test)]
     record_script_control(ui, &format!("Hierarchy actor {id}"));
-    if ui.is_item_hovered() {
+    // A 2D node that will not work as authored carries a warning sign at the row's end.
+    let warnings = crate::world2d_warnings::of(&e.scene, index);
+    let row = [ui.item_rect_min(), ui.item_rect_max()];
+    let sign = [row[1][0] - 20., row[0][1]];
+    if !warnings.is_empty() {
+        ui.get_window_draw_list().add_text(
+            [sign[0], sign[1] + 1.],
+            [1., 0.72, 0.3, 1.],
+            crate::world2d_warnings::ICON_WARNING,
+        );
+    }
+    if ui.is_item_hovered() && !warnings.is_empty() && ui.is_mouse_hovering_rect(sign, row[1]) {
+        ui.tooltip(|| {
+            for warning in &warnings {
+                ui.text(format!(
+                    "{} {warning}",
+                    crate::world2d_warnings::ICON_WARNING
+                ));
+            }
+        });
+    } else if ui.is_item_hovered() {
         if cx.resolved[index] {
             ui.tooltip_text(&e.scene.actors[index].class.name);
         } else {
