@@ -40,7 +40,7 @@ This plan is based on the working tree under `D:/GitProjects/GameEngines/Epok/Ep
 
 Evidence: [Cargo manifest](D:/GitProjects/GameEngines/Epok/EpokEngine/Cargo.toml:1), [host module composition](D:/GitProjects/GameEngines/Epok/EpokEngine/src/main.rs:1), [native host build](D:/GitProjects/GameEngines/Epok/EpokEngine/build.rs:1), [runtime build](D:/GitProjects/GameEngines/Epok/EpokEngine/runtime/Makefile:1).
 
-The inspected host manifest pins Rust 1.97.1 separately in `rust-toolchain.toml`; `tools/dependencies.json` records Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`, GCC MIPS 16.2.0, PCSX-Redux `25270.20260904.6.x64`, psxavenc 0.3.1, and mkpsxiso 2.30. These are repository configuration facts, not an assertion that the archives were freshly installed or validated in this study. A future N64 configuration must provide equally explicit provenance.
+The inspected host manifest pins Rust 1.97.1 separately in `rust-toolchain.toml`; `tools/dependencies.json` records Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`, GCC MIPS 16.2.0, PCSX-Redux `26877.20261008.9.x64`, psxavenc 0.3.1, and mkpsxiso 2.30. These are repository configuration facts, not an assertion that the archives were freshly installed or validated in this study. A future N64 configuration must provide equally explicit provenance.
 
 ### 2.2 Runtime and game behavior
 
