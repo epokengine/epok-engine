@@ -188,7 +188,8 @@ template<class Sink> class Compiler {
     struct Placed { int u=0,v=0,width=0,height=0,advance=0,dx=0,dy=0;bool ink=false; };
     static Placed place_glyph(const Font* font,uint32_t c){
         Placed g;
-        if(!font){const int cell=builtin_cell(c);g={(cell%32)*8,(cell/32)*16,8,16,8,0,0,true};return g;}
+        // The built-in space draws nothing: its cell holds the atlas's CLUT.
+        if(!font){const int cell=builtin_cell(c);g={(cell%32)*8,(cell/32)*16,8,16,8,0,0,c!=' '};return g;}
         const GlyphMetric* m=find_glyph(*font,c);
         if(!m)m=find_glyph(*font,'?');
         if(!m){const GlyphMetric* space=find_glyph(*font,' ');g.advance=space?int(space->advance):0;return g;}

@@ -12,4 +12,4 @@ into a complete 2D game workflow: authored components, a native PSX 2D renderer,
 | 2 | Tile worlds: TileSet asset, TileMap layers, tile painting, terrains, tile collision, Parallax2D, canvas layers | delivered ([phase2.md](phase2.md)) |
 | 3 | Content and polish: Path2D/PathFollow2D, Line2D, Polygon2D, 2D particles, 2D audio, notifiers, remote transforms, UI gaps | delivered ([phase3.md](phase3.md)); scroll containers, tabs, themes, interactive XA music, timeline 2D tracks and scene import deferred |
 | 4 | Advanced: Skeleton2D cut-out animation and IK, grid/navmesh navigation, bounded rigid bodies and joints, render-to-VRAM groups | delivered ([phase4.md](phase4.md)) |
-| 5 | Showcase template: the Platformer 2D template made more attractive (more parallax layers, effects, ambience) while staying simple to start a game from | planned |
+| 5 | Showcase template: the Platformer 2D template made more attractive (more parallax layers, effects, ambience) while staying simple to start a game from | delivered ([phase5.md](phase5.md)) |

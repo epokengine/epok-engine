@@ -177,8 +177,14 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
         scene.actors.push(actor);
         id
     };
+    // The Hierarchy reads top to bottom like the screen is built: scenery behind, the
+    // level, who lives in it, props, coins, effects, then the HUD.
+    let scenery = group(&mut scene, "Scenery");
     let level = group(&mut scene, "Level");
+    let characters = group(&mut scene, "Characters");
+    let props_group = group(&mut scene, "Props");
     let collectibles = group(&mut scene, "Coins");
+    let effects = group(&mut scene, "Effects");
     // Parallax backgrounds: hills scroll at half the camera's speed and repeat every
     // 256 pixels; clouds drift slowly and repeat every 768.
     let mut hills = world2d::create(Preset::Parallax2D, "Hills", [0., GROUND - 32.]);
@@ -517,9 +523,33 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
     player.refresh_components();
     let player_id = player.id;
     scene.actors.push(player);
-    guide(&mut scene, art.guide, player_id, level);
-    wisp(&mut scene, art.spark, player_id, level);
-    props(&mut scene, art.tiles, art.guide, level);
+    guide(&mut scene, art.guide, player_id, characters);
+    wisp(&mut scene, art.spark, player_id, characters);
+    props(&mut scene, art.tiles, art.guide, props_group);
+    scenery_layers(&mut scene, &art, scenery);
+    ambience(&mut scene, art.spark, effects);
+    controls_hint(&mut scene);
+    // Top-level nodes join their group; attached nodes stay under what they hang from.
+    for actor in &mut scene.actors {
+        if actor.logical_parent.is_some() || actor.attach.is_some() {
+            continue;
+        }
+        actor.logical_parent = match actor.name.as_str() {
+            "Hills" | "Clouds" => Some(scenery),
+            "Player" => Some(characters),
+            "Fireflies" => Some(effects),
+            _ => None,
+        };
+    }
+    for actor in &mut scene.actors {
+        if actor.name == "Fireflies" || actor.name == "WispPaths" {
+            actor.logical_parent = Some(if actor.name == "Fireflies" {
+                effects
+            } else {
+                level
+            });
+        }
+    }
     for index in coins {
         let pickup = ComponentInstance::new(
             Uuid::new_v4(),
@@ -817,6 +847,170 @@ fn props(scene: &mut Scene, tiles: Uuid, sheet: Uuid, level: Uuid) {
     }
 }
 
+/// The sky behind every canvas (a gradient stretched over the screen and the sun), a
+/// tree line between the hills and the level, and dark bushes in front of everything,
+/// scrolling faster than the camera.
+fn scenery_layers(scene: &mut Scene, art: &art::Textures, scenery: Uuid) {
+    let sprite = |texture: Uuid| Sprite2D {
+        texture: Some(texture),
+        ..Default::default()
+    };
+    let push = |scene: &mut Scene, mut actor: Actor, parent: Uuid, attach: bool| {
+        actor.logical_parent = Some(parent);
+        if attach {
+            actor.attach = Some(crate::actor_document::Attachment {
+                actor: parent,
+                component: None,
+            });
+        }
+        let id = actor.id;
+        scene.actors.push(actor);
+        id
+    };
+    let mut sky_layer = world2d::create(Preset::CanvasLayer2D, "SkyLayer", [0., 0.]);
+    set(
+        &mut sky_layer,
+        world2d::CANVAS_LAYER2D,
+        &CanvasLayer2D {
+            layer: -20,
+            ..Default::default()
+        },
+    );
+    let sky_layer = push(scene, sky_layer, scenery, false);
+    // Stretched to cover any display up to 640 x 480.
+    let mut sky = world2d::create(Preset::Sprite2D, "Sky", [0., 0.]);
+    set(
+        &mut sky,
+        world2d::SPRITE2D,
+        &Sprite2D {
+            centered: false,
+            ..sprite(art.sky)
+        },
+    );
+    if let Some(root) = sky.components.iter_mut().find(|c| c.root) {
+        root.properties.insert("scale".into(), json!([40., 7.5]));
+    }
+    push(scene, sky, sky_layer, true);
+    let mut sun = world2d::create(Preset::Sprite2D, "Sun", [252., 46.]);
+    set(
+        &mut sun,
+        world2d::SPRITE2D,
+        &Sprite2D {
+            blend: crate::texture::BlendMode::Add,
+            z_index: 1,
+            ..sprite(art.sun)
+        },
+    );
+    push(scene, sun, sky_layer, true);
+    let mut trees = world2d::create(Preset::Parallax2D, "Treeline", [0., GROUND - 20.]);
+    set(
+        &mut trees,
+        world2d::PARALLAX2D,
+        &Parallax2D {
+            scroll_scale: [0.7, 1.],
+            repeat_size: [256., 0.],
+            ..Default::default()
+        },
+    );
+    add(
+        &mut trees,
+        world2d::SPRITE2D,
+        &Sprite2D {
+            z_index: -8,
+            ..sprite(art.trees)
+        },
+    );
+    push(scene, trees, scenery, false);
+    let mut front = world2d::create(Preset::Parallax2D, "Foreground", [0., GROUND + 14.]);
+    set(
+        &mut front,
+        world2d::PARALLAX2D,
+        &Parallax2D {
+            scroll_scale: [1.25, 1.],
+            repeat_size: [128., 0.],
+            ..Default::default()
+        },
+    );
+    add(
+        &mut front,
+        world2d::SPRITE2D,
+        &Sprite2D {
+            z_index: 20,
+            ..sprite(art.bushes)
+        },
+    );
+    push(scene, front, scenery, false);
+}
+/// Petals drifting down over the screen, on a canvas of their own in front of the world.
+fn ambience(scene: &mut Scene, spark: Uuid, effects: Uuid) {
+    let mut layer = world2d::create(Preset::CanvasLayer2D, "Ambience", [0., 0.]);
+    set(
+        &mut layer,
+        world2d::CANVAS_LAYER2D,
+        &CanvasLayer2D {
+            layer: 2,
+            ..Default::default()
+        },
+    );
+    layer.logical_parent = Some(effects);
+    let layer_id = layer.id;
+    scene.actors.push(layer);
+    let mut petals = world2d::create(Preset::Particles2D, "Petals", [160., -8.]);
+    set(
+        &mut petals,
+        world2d::PARTICLES2D,
+        &Particles2D {
+            amount: 12,
+            lifetime: 7.,
+            direction: 90.,
+            spread: 30.,
+            speed: [6., 14.],
+            gravity: [5., 3.],
+            shape: EmissionShape::Rectangle,
+            extents: [176., 4.],
+            start_color: [255, 170, 210],
+            end_color: [255, 240, 250],
+            scale: [1., 0.6],
+            texture: Some(spark),
+            ..Default::default()
+        },
+    );
+    petals.logical_parent = Some(layer_id);
+    petals.attach = Some(crate::actor_document::Attachment {
+        actor: layer_id,
+        component: None,
+    });
+    scene.actors.push(petals);
+}
+/// A line of help at the top of the screen: a HUD canvas and its text.
+fn controls_hint(scene: &mut Scene) {
+    let mut canvas = Actor::cube("HelpCanvas".into());
+    canvas.kind = "Empty".into();
+    canvas.data.canvas = Some(Default::default());
+    let parent = scene.actors.len();
+    scene.actors.push(canvas);
+    let mut hint = Actor::cube("ControlsHint".into());
+    hint.kind = "Empty".into();
+    hint.data.parent = Some(parent);
+    hint.data.rect = Some(crate::hud::RectTransform {
+        anchor_min: [0.5, 1.],
+        anchor_max: [0.5, 1.],
+        pivot: [0.5, 1.],
+        position: [0., -6.],
+        size: [240., 16.],
+        ..Default::default()
+    });
+    hint.data.text = Some(crate::hud::Text {
+        text: "LEFT/RIGHT MOVE   X JUMP".into(),
+        color: [1., 0.96, 0.86],
+        wrap: false,
+        align: crate::hud::TextAlign::Center,
+        ..Default::default()
+    });
+    scene.actors.push(hint);
+    scene.sync_actor_components();
+}
+
 pub fn controller_id(flavor: GameplayFlavor) -> &'static str {
     match flavor {
         GameplayFlavor::Cpp => CPP_CONTROLLER_ID,
@@ -925,6 +1119,10 @@ mod art {
         pub cloud: Uuid,
         pub spark: Uuid,
         pub guide: Uuid,
+        pub sky: Uuid,
+        pub sun: Uuid,
+        pub trees: Uuid,
+        pub bushes: Uuid,
     }
     type Rgba = [u8; 4];
     const CLEAR: Rgba = [0, 0, 0, 0];
@@ -1289,6 +1487,109 @@ mod art {
         }
         c
     }
+    /// A 16 x 64 vertical gradient from deep blue at the top to a pale horizon,
+    /// stretched over the whole screen behind everything.
+    fn sky() -> Canvas {
+        let mut c = Canvas::new(16, 64);
+        let (top, horizon) = ([58., 112., 206.], [176., 218., 246.]);
+        for y in 0..64 {
+            let t = (y as f32 / 63.).powf(1.6);
+            let colour = [0, 1, 2].map(|k| (top[k] + (horizon[k] - top[k]) * t) as u8);
+            c.rect(0, y, 16, 1, [colour[0], colour[1], colour[2], 255]);
+        }
+        c
+    }
+    /// A 32 x 32 sun: a bright disc inside a soft ring, drawn additively.
+    fn sun() -> Canvas {
+        let mut c = Canvas::new(32, 32);
+        for y in 0..32 {
+            for x in 0..32 {
+                let (dx, dy) = (x as f32 - 15.5, y as f32 - 15.5);
+                let d = (dx * dx + dy * dy).sqrt();
+                let colour = if d < 7. {
+                    [255, 244, 196]
+                } else if d < 15.5 {
+                    // A glow that fades with distance; dark texels add little.
+                    let t = 1. - (d - 7.) / 8.5;
+                    [(200. * t) as u8, (150. * t) as u8, (70. * t) as u8]
+                } else {
+                    continue;
+                };
+                if colour.iter().all(|v| *v < 8) {
+                    continue;
+                }
+                c.set(x, y, [colour[0], colour[1], colour[2], 255]);
+            }
+        }
+        c
+    }
+    /// A 256 x 48 row of tree crowns and trunks, darker than the hills behind it.
+    fn trees() -> Canvas {
+        const CROWN: Rgba = [52, 120, 80, 255];
+        const CROWN_LIGHT: Rgba = [70, 140, 92, 255];
+        const TRUNK: Rgba = [70, 54, 44, 255];
+        let mut c = Canvas::new(256, 48);
+        for (i, (cx, r)) in [
+            (14, 13),
+            (40, 16),
+            (70, 11),
+            (96, 15),
+            (128, 12),
+            (156, 17),
+            (190, 13),
+            (220, 15),
+            (246, 11),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let base = 48 - 8;
+            c.rect(cx - 1, base - 6, 3, 14, TRUNK);
+            let cy = base - 6 - r + 2;
+            for y in (cy - r).max(0)..=(cy + r).min(47) {
+                for x in cx - r..=cx + r {
+                    let (dx, dy) = (x - cx, y - cy);
+                    if dx * dx + dy * dy <= r * r {
+                        let lit = dx + dy < -r / 2 && (x + y + i as i32) % 3 != 0;
+                        c.set(x.rem_euclid(256), y, if lit { CROWN_LIGHT } else { CROWN });
+                    }
+                }
+            }
+        }
+        // A ground strip, so the row sits on the hills without a gap.
+        c.rect(0, 40, 256, 8, CROWN);
+        c
+    }
+    /// A 128 x 24 strip of dark foreground bushes and grass blades.
+    fn bushes() -> Canvas {
+        const DARK: Rgba = [30, 74, 46, 255];
+        const BLADE: Rgba = [40, 92, 54, 255];
+        let mut c = Canvas::new(128, 24);
+        for (cx, r) in [
+            (10i32, 9i32),
+            (26, 7),
+            (60, 10),
+            (78, 6),
+            (104, 8),
+            (118, 7),
+        ] {
+            for y in 0..24 {
+                for x in cx - r..=cx + r {
+                    let (dx, dy) = (x - cx, y - 24);
+                    if dx * dx + dy * dy <= r * r * 2 {
+                        c.set(x.rem_euclid(128), y, DARK);
+                    }
+                }
+            }
+        }
+        for x in (2..128).step_by(5) {
+            let h = 6 + (noise(x, 3, 7) % 7) as i32;
+            for y in 24 - h..24 {
+                c.set(x, y, BLADE);
+            }
+        }
+        c
+    }
     fn cloud() -> Canvas {
         let mut c = Canvas::new(64, 24);
         for (cx, cy, r) in [
@@ -1338,6 +1639,10 @@ mod art {
             cloud: import("Cloud", cloud())?,
             spark: import("Spark", spark())?,
             guide: import("Guide", guide())?,
+            sky: import("Sky", sky())?,
+            sun: import("Sun", sun())?,
+            trees: import("Trees", trees())?,
+            bushes: import("Bushes", bushes())?,
         })
     }
 }

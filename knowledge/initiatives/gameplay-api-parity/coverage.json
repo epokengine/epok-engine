@@ -2,10 +2,10 @@
   "schema_version": 2,
   "initiative": "gameplay-api-parity",
   "baseline": {
-    "commit": "888658bc99715f1fe2ca89b3c733fa48769204ca",
+    "commit": "00334cac47d5e5afd49671c8cde2792995067db5",
     "branch": "features/2d-improvements",
     "catalog": "docs/api/catalog.json",
-    "catalog_sha256": "23154dbf0169b9834207908d20265425091d21baaa7d65acfe8a85d0d8a15af3",
+    "catalog_sha256": "eac52aaf29f35e68cf685f739a37c1f5882c143f08c1039b0818e8d5aa50fe1a",
     "catalog_schema": 1,
     "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
     "source_hashes": {
@@ -38,7 +38,7 @@
       "runtime/gameplay_api.hpp": "b9d465648d57e32c77928705e7d200ebdb9a554b5ebfa92e0bfbf9d0fd68f4b0",
       "runtime/gte_geometry.hpp": "190984eec4efa6fded9ff7a2d8b9c3d9fd72486ca891e5317015f3a3c3e97aa2",
       "runtime/hud.hpp": "705775ce460551405c5accd40cb96c5f29e5a4839324af3d734c8362b587bd59",
-      "runtime/hud_core.hpp": "94ab8379eeea3418228d8ed8a4530775289c9b8bf358008ab08938b75ddfc5cc",
+      "runtime/hud_core.hpp": "18d101ab79b0b34099d4c5a7b463d4c28dd555f6e0860c4865dd9c3315e5a0e4",
       "runtime/hud_focus.hpp": "57224b3bfb63b73074bbb90858eaecfcd3b9d01536d096b80a8e9c0379cfc7d3",
       "runtime/input.hpp": "f1d8b49e13af877a7bf49095d2febc8373c9b58ccf28b1a1829c7ff54ea0867d",
       "runtime/instrument_allocator.hpp": "5987ee2bfd8e5d18593f205d8d00ccecda7349805f84fe4422a3605d41862fbd",
@@ -118442,7 +118442,7 @@
           "kind": "callable",
           "qualified": "epok::hud_core::Compiler::Compiler<Sink>",
           "source": "runtime/hud_core.hpp",
-          "line": 451,
+          "line": 452,
           "signature": "Compiler(Sink& sink,int width,int height,Budget budget):sin",
           "result": "",
           "parameters": [
@@ -118473,7 +118473,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "2ed910559588e104b83c78a28226957e96db556aa50d0d7d848cfe82e276725f",
+      "declaration_hash": "a56c70024a7a1fee90c3f73b51d818ea6936d10f72eb97cbf6b5dd8f36971ad5",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Compiler(Sink& sink,int width,int height,Budget budget):sin",
@@ -118557,7 +118557,7 @@
           "kind": "callable",
           "qualified": "epok::hud_core::Compiler::draw",
           "source": "runtime/hud_core.hpp",
-          "line": 462,
+          "line": 463,
           "signature": "void draw(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines)",
           "result": "void",
           "parameters": [
@@ -118603,7 +118603,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "4c488e7f3003cb38c609493b4245f641a7993ce2886b46f07f9e9809ee101b3c",
+      "declaration_hash": "b1e4d2410517f22bbad29a540267fe739fcf921fbd6c44f994392d657aec3ad5",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "void draw(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines)",
@@ -118702,7 +118702,7 @@
           "kind": "callable",
           "qualified": "epok::hud_core::Compiler::layout",
           "source": "runtime/hud_core.hpp",
-          "line": 454,
+          "line": 455,
           "signature": "void layout(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines)",
           "result": "void",
           "parameters": [
@@ -118748,7 +118748,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "129e075c4d4cd5d2a745420c88e0792b1b65e4611e4f9c2e6ab5d984e0a10b69",
+      "declaration_hash": "dfedfab4c66b9b73200600d68e2c0dba704215efa2d45068d6be40dfdc3a8959",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "void layout(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines)",
@@ -318932,14 +318932,14 @@
           "kind": "field",
           "qualified": "epok::hud_core::Compiler::stats",
           "source": "runtime/hud_core.hpp",
-          "line": 450,
+          "line": 451,
           "signature": "HudStats stats",
           "value_type": "HudStats",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "1c14a92ff7cc38df7afe7c0def97af81d63a63cf4ca01409dd34438361b0fa42",
+      "declaration_hash": "d11602e3b8907081fd16d2f0a7ee71557c63893f0a8e52880136ca7b6ec2c55d",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "HudStats stats",

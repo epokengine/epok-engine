@@ -560,15 +560,17 @@ void canvas_with_label(const char* value, int width, int height, const Font* fon
 void the_builtin_font_emits_the_cells_it_always_did() {
     canvas_with_label("Hi \xc3\xb1", 160, 32, nullptr);
     run(2, true);
+    // The space advances without drawing: its cell holds the atlas's CLUT.
     const char* ascii = "Hi ";
-    assert(sink.commands.size() == 4);
-    for (size_t i = 0; i < 4; ++i) {
+    const size_t columns[3] = {0, 1, 3};
+    assert(sink.commands.size() == 3);
+    for (size_t i = 0; i < 3; ++i) {
         // The cell arithmetic src/bitmap_font.rs bakes: ASCII in order from 32,
         // then the sixteen extras; 'n' with a tilde is the seventh of those.
-        const int cell = i < 3 ? int(ascii[i]) - 32 : 95 + 6;
+        const int cell = i < 2 ? int(ascii[i]) - 32 : 95 + 6;
         const auto& draw = sink.commands[i];
         assert(draw.kind == 2 && draw.owner == 1 && draw.subject == -1);
-        assert(draw.x0 == int(i) * 8 && draw.x1 == int(i) * 8 + 8);
+        assert(draw.x0 == int(columns[i]) * 8 && draw.x1 == int(columns[i]) * 8 + 8);
         assert(draw.y0 == screen_height - 32 && draw.y1 == screen_height - 16);
         assert(draw.u0 == (cell % 32) * 8 && draw.v0 == (cell / 32) * 16);
     }

@@ -134,7 +134,7 @@ system `PATH`; the local compiler build can take several minutes.
 3. Press **Play** to compile and run the game.
 4. Use **Pause**, **Step** and **Stop** to inspect it. Save scene changes with **Ctrl+S**.
 
-Choose the **Third Person** template for an optimized editable arena and an animated player with camera-relative movement, jumping, collision and an orbit camera, or **Platformer 2D** for a side-scroller with an animated player, a tile-map level with one-way platforms, parallax backgrounds, coins and a following camera. New Project also asks how its starter gameplay should be written — C++, Blueprint or Lua — and generates the same scene either way; the choice never locks the project to one system.
+Choose the **Third Person** template for an optimized editable arena and an animated player with camera-relative movement, jumping, collision and an orbit camera, or **Platformer 2D** for a side-scroller with an animated player, a tile-map level with one-way platforms, layered parallax scenery, a cut-out character, a navigating companion, physics props, coins and a following camera. New Project also asks how its starter gameplay should be written — C++, Blueprint or Lua — and generates the same scene either way; the choice never locks the project to one system.
 
 See [Getting started](docs/getting-started.md) for configuration and troubleshooting.
 
@@ -172,7 +172,7 @@ See [Sprites and particles](docs/sprites-particles.md), [Textures](docs/textures
 
 ![The Platformer 2D template running in PCSX-Redux](docs/images/platformer-2d.png)
 
-<p align="center"><sub>The same level on the console at 320 × 240, captured in PCSX-Redux mid-jump. The artwork is original pixel art the template generates.</sub></p>
+<p align="center"><sub>The same level on the console at 320 × 240, captured in PCSX-Redux: a layered sky and parallax scenery, the cut-out guide pointing at the player with IK, the navigating wisp, a crate being pushed and a garland swaying on rope joints. The artwork is original pixel art the template generates.</sub></p>
 
 Choose the **Platformer 2D** template, or switch the Scene window to **2D** and add nodes. See [2D worlds](docs/2d.md).
 
