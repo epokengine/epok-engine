@@ -965,6 +965,7 @@ pub(crate) mod tests {
     #[test]
     fn vram_rejects_overflow_without_touching_framebuffer_or_font() {
         let mut scene = Scene::default();
+        scene.display_size = [640, 480];
         let mut d = decode(&png()).unwrap();
         d.width = 256;
         d.height = 256;
@@ -992,5 +993,10 @@ pub(crate) mod tests {
             scene.textures.insert(id, Arc::new(d.clone()));
         }
         assert!(layout(&scene).is_err());
+        // Narrow framebuffers free their unused columns, never the used ones.
+        scene.display_size = [320, 240];
+        for (_, p) in layout(&scene).unwrap().textures {
+            assert!(p.x >= 320 && p.clut_x >= 320);
+        }
     }
 }

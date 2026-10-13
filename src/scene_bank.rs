@@ -378,7 +378,7 @@ pub fn header_with_templates_for(
             }
         );
         textures += &format!(
-            "inline constexpr auto bank_texture_packets_{bank}=bake_texture_packets(bank_textures_{bank});\n"
+            "inline constexpr auto bank_texture_packets_{bank}=bake_texture_packets(bank_textures_{bank});\nstatic_assert(textures_clear_of_display(bank_textures_{bank},display_width),\"Scene bank {bank} places a texture inside the framebuffer columns\");\n"
         );
     }
     // Resolve once per ordered world pass, not once per face. Unknown/custom

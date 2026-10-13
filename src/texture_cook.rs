@@ -212,9 +212,18 @@ fn place(free: &[Rect], request: Request, top_left: bool) -> Option<Rect> {
     best.map(|(_, r)| r)
 }
 
-// The allocator excludes these columns at every VRAM row, including the
-// unused lines between/after PsyQo's framebuffers. Memory reports share it.
+// The widest display reservation: every column a 640-wide framebuffer can use,
+// at every VRAM row. Authored fonts are global and are always placed outside
+// it, so their VRAM never depends on the project's resolution.
 pub const DISPLAY_RESERVE: [u16; 2] = [640, 512];
+
+/// Columns the framebuffers of a `size` display occupy, at every VRAM row
+/// (including the unused lines between and after PsyQo's buffers). Textures may
+/// use everything to the right: a 320-wide project gains 320 columns, about
+/// 320 KiB, over the fixed 640-column reservation. Memory reports share it.
+pub fn display_reserve(size: [u16; 2]) -> [u16; 2] {
+    [size[0].clamp(256, DISPLAY_RESERVE[0]), DISPLAY_RESERVE[1]]
+}
 
 /// The resident VRAM allocation of one scene: its textures and the authored
 /// HUD fonts. Fonts are 4bpp atlases with a sixteen-entry CLUT, packed by the
@@ -225,14 +234,14 @@ pub struct Layout {
     pub fonts: Vec<(Uuid, Placement)>,
 }
 
-fn initial_free() -> Vec<Rect> {
+fn initial_free(reserved_width: u16) -> Vec<Rect> {
     let mut free = vec![Rect {
-        x: DISPLAY_RESERVE[0],
+        x: reserved_width,
         y: 0,
-        w: 1024 - DISPLAY_RESERVE[0],
+        w: 1024 - reserved_width,
         h: DISPLAY_RESERVE[1],
     }];
-    // Framebuffers occupy x<640. Loading image and font own this corner.
+    // Framebuffers occupy x<width. Loading image and font own this corner.
     occupy(
         &mut free,
         Rect {
@@ -324,8 +333,33 @@ pub fn layout(scene: &Scene) -> Result<Layout, String> {
                 .ok_or_else(|| format!("Unresolved texture {id}"))
         })
         .collect::<Result<_, _>>()?;
-    let mut base = initial_free();
-    let fonts = place_fonts(scene, &mut base)?;
+    // Fonts are placed in the resolution-independent region first, then the
+    // same rectangles are excluded from the texture space of this display.
+    let mut legacy = initial_free(DISPLAY_RESERVE[0]);
+    let fonts = place_fonts(scene, &mut legacy)?;
+    let mut base = initial_free(display_reserve(scene.display_size)[0]);
+    for (id, p) in &fonts {
+        let f = &scene.fonts[id];
+        let format = Format::Indexed4;
+        occupy(
+            &mut base,
+            Rect {
+                x: p.x,
+                y: p.y,
+                w: format.word_width(f.width),
+                h: f.height,
+            },
+        );
+        occupy(
+            &mut base,
+            Rect {
+                x: p.clut_x,
+                y: p.clut_y,
+                w: format.colors(),
+                h: 1,
+            },
+        );
+    }
     let mut requests = Vec::new();
     for (index, t) in data.iter().enumerate() {
         let format = Format::for_data(t);
@@ -474,7 +508,11 @@ mod tests {
                     h: 1,
                 },
             ] {
-                assert!(r.x >= 640 && r.right() <= 1024 && r.bottom() <= 512);
+                assert!(
+                    r.x >= display_reserve(scene.display_size)[0]
+                        && r.right() <= 1024
+                        && r.bottom() <= 512
+                );
                 assert!(!r.overlaps(Rect {
                     x: 960,
                     y: 384,
@@ -545,7 +583,43 @@ mod tests {
             d.words = vec![0x2030; 32768];
             d.palette[32] = 0x8123;
         }
+        scene.display_size = [640, 480];
         assert!(layout(&scene).unwrap_err().contains("VRAM exhausted"));
+        // The same eight 256x256 8bpp atlases fit beside 320-wide framebuffers,
+        // which leave 320 more columns at every row to the textures.
+        scene.display_size = [320, 240];
+        let packed = layout(&scene).unwrap().textures;
+        validate(&scene, &packed);
+        assert!(packed.iter().any(|(_, p)| p.x < 640));
+    }
+    #[test]
+    fn fonts_keep_their_placement_whatever_the_display_width() {
+        let mut scene = fixture(4);
+        let id = Uuid::from_u128(0xf0);
+        scene.fonts.insert(
+            id,
+            Arc::new(crate::font_asset::FontData {
+                width: 96,
+                height: 40,
+                words: vec![0; 24 * 40],
+                palette: [0; 16],
+                metrics: vec![],
+                line_height: 16,
+                baseline: 12,
+                rgba: vec![],
+            }),
+        );
+        scene.display_size = [640, 480];
+        let wide = layout(&scene).unwrap();
+        scene.display_size = [256, 240];
+        let narrow = layout(&scene).unwrap();
+        assert_eq!(wide.fonts, narrow.fonts);
+        assert!(
+            narrow
+                .fonts
+                .iter()
+                .all(|(_, p)| p.x >= 640 && p.clut_x >= 640)
+        );
     }
     #[test]
     #[ignore = "requires EPOK_TEXTURE_PROJECT and EPOK_TEXTURE_SCENE"]

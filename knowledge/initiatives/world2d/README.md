@@ -1,0 +1,17 @@
+# World2D initiative
+
+Turns the `Actor2D` runtime contract (`runtime/world2d.hpp`, actor-architecture P8)
+into a complete 2D game workflow: authored components, a native PSX 2D renderer,
+2D physics and navigation, tile worlds and a Godot-class 2D editor. Work happens on
+`features/2d-improvements`, one pushed checkpoint per phase.
+
+| Phase | Scope | Status |
+| --- | --- | --- |
+| 0 | Foundations: target validation of the 2D/actor runtime, measured MIPS sizes, resolution-aware VRAM reservation | delivered ([phase0.md](phase0.md)) |
+| 1 | Playable 2D: Sprite2D/AnimatedSprite2D, Camera2D, Collider2D, CharacterBody2D, 2D render path, 2D gameplay API, 2D editor tools | planned |
+| 2 | Tile worlds: TileSet asset, TileMap layers, tile painting, terrains, tile collision, Parallax2D, canvas layers | planned |
+| 3 | Content and polish: Path2D/PathFollow2D, Line2D, Polygon2D, 2D particles, 2D audio, notifiers, remote transforms, UI gaps | planned |
+| 4 | Advanced: Skeleton2D cut-out animation and IK, grid/navmesh navigation, bounded rigid bodies and joints, render-to-VRAM groups | planned |
+
+The capability comparison against Godot that motivated the phases is summarized in
+[comparison.md](comparison.md).
