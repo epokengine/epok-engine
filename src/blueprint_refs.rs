@@ -120,6 +120,7 @@ pub fn resources(
         result.actors.push(entity);
     }
     crate::texture::resolve(&mut result, index)?;
+    crate::hud::resolve_fonts(&mut result, index)?;
     crate::audio::validate_assets(&result, index)?;
     Ok(result)
 }

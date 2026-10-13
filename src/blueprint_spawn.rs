@@ -40,6 +40,7 @@ pub fn prepare(
         crate::terrain::resolve(&mut scene, index)?;
         crate::skeletal::resolve(&mut scene, index)?;
         crate::texture::resolve(&mut scene, index)?;
+        crate::hud::resolve_fonts(&mut scene, index)?;
         crate::audio::validate_assets(&scene, index)?;
         result.push(CookedTemplate {
             class: class.id.clone(),

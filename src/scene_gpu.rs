@@ -13,6 +13,113 @@ pub const NATIVE_PLAY_SIZE: wgpu::Extent3d = wgpu::Extent3d {
     depth_or_array_layers: 1,
 };
 pub const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+// The default WebGPU device supports 256 array layers. Reserve white layer 0
+// in every bank; additional banks remove any scene-wide texture count limit.
+const TEXTURES_PER_BANK: usize = 255;
+type DrawRange = (u32, u32, usize, usize); // first vertex, count, pipeline, bank
+
+fn mirrored_pipeline(mode: usize, mirror_x: bool) -> usize {
+    mode + if mirror_x && mode >= 5 { 5 } else { 0 }
+}
+
+fn texture_slot(index: usize) -> (usize, u32) {
+    (
+        index / TEXTURES_PER_BANK,
+        (index % TEXTURES_PER_BANK + 1) as u32,
+    )
+}
+fn texture_bank_sizes(count: usize) -> Vec<u32> {
+    (0..count.div_ceil(TEXTURES_PER_BANK).max(1))
+        .map(|bank| {
+            (count
+                .saturating_sub(bank * TEXTURES_PER_BANK)
+                .min(TEXTURES_PER_BANK)
+                + 1) as u32
+        })
+        .collect()
+}
+struct TextureBank {
+    texture: wgpu::Texture,
+    bind_group: wgpu::BindGroup,
+}
+impl TextureBank {
+    fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layout: &wgpu::BindGroupLayout,
+        camera: &wgpu::Buffer,
+        sampler: &wgpu::Sampler,
+        layers: u32,
+    ) -> Self {
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Scene texture bank"),
+            size: wgpu::Extent3d {
+                width: 256,
+                height: 256,
+                depth_or_array_layers: layers,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            ..Default::default()
+        });
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Scene texture bank"),
+            layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(sampler),
+                },
+            ],
+        });
+        let bank = Self {
+            texture,
+            bind_group,
+        };
+        bank.write(queue, 0, &vec![255; 256 * 256 * 4]);
+        bank
+    }
+    fn write(&self, queue: &wgpu::Queue, layer: u32, bytes: &[u8]) {
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: layer,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            bytes,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(1024),
+                rows_per_image: Some(256),
+            },
+            wgpu::Extent3d {
+                width: 256,
+                height: 256,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+}
 struct Vertices {
     buffer: wgpu::Buffer,
     capacity: u64,
@@ -51,15 +158,17 @@ pub struct SceneGpu {
     size: wgpu::Extent3d,
     preview_started: std::time::Instant,
     mesh_pipelines: Vec<wgpu::RenderPipeline>,
-    draw_ranges: Vec<(u32, u32, usize)>,
-    textures: wgpu::Texture,
+    draw_ranges: Vec<DrawRange>,
+    texture_banks: Vec<TextureBank>,
+    texture_layout: wgpu::BindGroupLayout,
+    texture_sampler: wgpu::Sampler,
     cached_angles: [f32; 2],
+    cached_view_dependent_geometry: bool,
     shadow_pipeline: wgpu::RenderPipeline,
     shadows: Vertices,
     line_pipeline: wgpu::RenderPipeline,
     background_pipeline: wgpu::RenderPipeline,
     camera: wgpu::Buffer,
-    bind_group: wgpu::BindGroup,
     depth: wgpu::TextureView,
     mesh: Vertices,
     static_mesh: Vertices,
@@ -67,8 +176,9 @@ pub struct SceneGpu {
     grid: Vertices,
     cached_scene: Option<Scene>,
     cached_revision: Option<u64>,
+    cached_bake_revision: u64,
     cached_textures: Option<Vec<(uuid::Uuid, usize, usize)>>,
-    static_draw_ranges: Vec<(u32, u32, usize)>,
+    static_draw_ranges: Vec<DrawRange>,
     static_mask: Option<Vec<bool>>,
     cached_skeletal_poses: SkeletalPoseKey,
     cached_selected: Option<usize>,
@@ -87,6 +197,9 @@ pub struct SceneGpu {
 struct RenderInput<'a> {
     scene: &'a Scene,
     view: &'a crate::viewport::View,
+    // None keeps the free editor observer's square-pixel projection. Game
+    // rendering uses the runtime's normalized focal ratio, not target w/h.
+    projection_aspect: Option<f32>,
     selected: Option<usize>,
     mesh: &'a crate::mesh_editor::State,
     terrain: &'a crate::terrain_editor::State,
@@ -94,8 +207,12 @@ struct RenderInput<'a> {
     grid: bool,
     effect: Option<&'a [crate::particle_effect_preview::Quad]>,
     background: Option<[f32; 3]>,
+    /// With `background`: draw the camera's sky/horizon/ground gradient.
+    sky_gradient: Option<crate::scene::SkyGradient>,
     revision: Option<u64>,
     split_static: bool,
+    baked_selection: Option<&'a crate::baked_preview::Selection>,
+    baked_revision: u64,
 }
 /// Runtime-only skeletal state that changes the generated vertex buffer.
 ///
@@ -137,23 +254,71 @@ fn skeletal_pose_key(scene: &Scene) -> SkeletalPoseKey {
         .collect()
 }
 
+// Scene's document equality serializes every actor to JSON. That is useful for
+// authoring semantics, but costs a full allocation-heavy document conversion
+// on every camera frame. The preview already holds a snapshot, so compare its
+// render inputs directly. Keep the document equality used by undo unchanged.
+fn same_render_scene(a: &Scene, b: &Scene) -> bool {
+    a.version == b.version
+        && a.name == b.name
+        && a.fog == b.fog
+        && a.hud_budget == b.hud_budget
+        && a.environment == b.environment
+        && a.bake == b.bake
+        && a.scene_script == b.scene_script
+        && a.navigation == b.navigation
+        && a.textures.len() == b.textures.len()
+        && a.textures.iter().all(|(id, data)| {
+            b.textures
+                .get(id)
+                .is_some_and(|other| std::sync::Arc::ptr_eq(data, other))
+        })
+        && a.actors.len() == b.actors.len()
+        && a.actors.iter().zip(&b.actors).all(|(left, right)| {
+            left.id == right.id
+                && left.class == right.class
+                && left.name == right.name
+                && left.active == right.active
+                && left.logical_parent == right.logical_parent
+                && left.attach == right.attach
+                && left.components == right.components
+                && left.properties == right.properties
+                && left.overrides == right.overrides
+                && left.data == right.data
+        })
+}
+
+fn view_dependent_geometry(scene: &Scene, ranges: &[DrawRange]) -> bool {
+    scene.fog.enabled
+        || ranges.iter().any(|&(_, _, mode, _)| mode % 5 != 0)
+        || scene.actors.iter().enumerate().any(|(index, actor)| {
+            scene.is_active(index)
+                && (actor.sprite.as_ref().is_some_and(|sprite| sprite.enabled)
+                    || actor
+                        .particle_emitter
+                        .as_ref()
+                        .is_some_and(|emitter| emitter.enabled))
+        })
+}
+
 fn texture_key(scene: &Scene, seconds: f32) -> Vec<(uuid::Uuid, usize, usize)> {
     crate::texture::ids(scene)
         .into_iter()
-        .take(32)
-        .filter_map(|id| {
-            let data = scene.textures.get(&id)?;
+        .map(|id| {
             let shift = scene.actors.iter().enumerate().find_map(|(index, actor)| {
                 actor.palette_animator.as_ref().and_then(|animator| {
                     (scene.is_active(index) && animator.enabled && animator.texture == Some(id))
                         .then(|| crate::palette::offset(animator, seconds))
                 })
             });
-            Some((
+            (
                 id,
-                std::sync::Arc::as_ptr(data) as usize,
+                scene
+                    .textures
+                    .get(&id)
+                    .map_or(0, |data| std::sync::Arc::as_ptr(data) as usize),
                 shift.unwrap_or(0),
-            ))
+            )
         })
         .collect()
 }
@@ -189,26 +354,8 @@ impl SceneGpu {
         });
         let camera = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Scene camera"),
-            contents: &[0; 48],
+            contents: &[0; 112],
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let textures = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("PSX texture previews"),
-            size: wgpu::Extent3d {
-                width: 256,
-                height: 256,
-                depth_or_array_layers: 33,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        let texture_view = textures.create_view(&wgpu::TextureViewDescriptor {
-            dimension: Some(wgpu::TextureViewDimension::D2Array),
-            ..Default::default()
         });
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             mag_filter: wgpu::FilterMode::Nearest,
@@ -220,7 +367,8 @@ impl SceneGpu {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    // The background fragment reads the sky gradient colours.
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -246,30 +394,15 @@ impl SceneGpu {
                 },
             ],
         });
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Scene camera"),
-            layout: &layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&texture_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
-                },
-            ],
-        });
+        let texture_banks = vec![TextureBank::new(
+            device, queue, &layout, &camera, &sampler, 1,
+        )];
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Scene pipeline layout"),
             bind_group_layouts: &[&layout],
             push_constant_ranges: &[],
         });
-        let make_pipeline = |topology, background, shadow: bool, blend: usize, cull: bool| {
+        let make_pipeline = |topology, background, shadow: bool, blend: usize, cull: usize| {
             const ATTRIBUTES: [wgpu::VertexAttribute; 3] =
                 wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x4];
             let buffers = [wgpu::VertexBufferLayout {
@@ -296,8 +429,12 @@ impl SceneGpu {
                 },
                 primitive: wgpu::PrimitiveState {
                     topology,
-                    front_face: wgpu::FrontFace::Cw,
-                    cull_mode: cull.then_some(wgpu::Face::Back),
+                    front_face: if cull == 2 {
+                        wgpu::FrontFace::Ccw
+                    } else {
+                        wgpu::FrontFace::Cw
+                    },
+                    cull_mode: (cull != 0).then_some(wgpu::Face::Back),
                     ..Default::default()
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
@@ -414,30 +551,32 @@ impl SceneGpu {
         Self {
             size,
             preview_started: std::time::Instant::now(),
-            mesh_pipelines: (0..10)
+            mesh_pipelines: (0..15)
                 .map(|b| {
                     make_pipeline(
                         wgpu::PrimitiveTopology::TriangleList,
                         false,
                         false,
                         b % 5,
-                        b >= 5,
+                        b / 5,
                     )
                 })
                 .collect(),
             draw_ranges: vec![],
-            textures,
+            texture_banks,
+            texture_layout: layout,
+            texture_sampler: sampler,
             cached_angles: [f32::NAN; 2],
-            line_pipeline: make_pipeline(wgpu::PrimitiveTopology::LineList, false, false, 0, false),
+            cached_view_dependent_geometry: false,
+            line_pipeline: make_pipeline(wgpu::PrimitiveTopology::LineList, false, false, 0, 0),
             background_pipeline: make_pipeline(
                 wgpu::PrimitiveTopology::TriangleList,
                 true,
                 false,
                 0,
-                false,
+                0,
             ),
             camera,
-            bind_group,
             depth,
             mesh: Vertices::new(device),
             static_mesh: Vertices::new(device),
@@ -447,12 +586,13 @@ impl SceneGpu {
                 false,
                 true,
                 0,
-                false,
+                0,
             ),
             edges: Vertices::new(device),
             grid,
             cached_scene: None,
             cached_revision: None,
+            cached_bake_revision: 0,
             cached_textures: None,
             static_draw_ranges: vec![],
             static_mask: None,
@@ -494,6 +634,7 @@ impl SceneGpu {
             RenderInput {
                 scene,
                 view: &editor.view,
+                projection_aspect: None,
                 selected: editor.selected,
                 mesh: &editor.mesh_editor,
                 terrain: &editor.terrain_editor,
@@ -501,8 +642,11 @@ impl SceneGpu {
                 grid: editor.grid,
                 effect: None,
                 background: active_camera_sky(scene),
+                sky_gradient: active_camera(scene).and_then(|actor| actor.camera_sky_gradient),
                 revision: None,
                 split_static: false,
+                baked_selection: editor.baked_preview.filter(),
+                baked_revision: editor.baked_preview.revision,
             },
         );
     }
@@ -523,6 +667,10 @@ impl SceneGpu {
             RenderInput {
                 scene: &frame.scene,
                 view: &view,
+                projection_aspect: frame
+                    .camera
+                    .filter(|&index| index < frame.scene.actors.len())
+                    .map(|_| crate::native_play::GAME_PROJECTION_ASPECT),
                 selected: None,
                 mesh: &Default::default(),
                 terrain: &Default::default(),
@@ -533,8 +681,14 @@ impl SceneGpu {
                     .camera
                     .and_then(|index| frame.scene.actors.get(index))
                     .map(|actor| actor.camera_sky_color),
+                sky_gradient: frame
+                    .camera
+                    .and_then(|index| frame.scene.actors.get(index))
+                    .and_then(|actor| actor.camera_sky_gradient),
                 revision: Some(frame.number),
                 split_static: true,
+                baked_selection: None,
+                baked_revision: 0,
             },
         );
     }
@@ -557,6 +711,7 @@ impl SceneGpu {
             RenderInput {
                 scene: &simulation.resources,
                 view: &preview.camera,
+                projection_aspect: None,
                 selected: None,
                 mesh: &Default::default(),
                 terrain: &Default::default(),
@@ -564,8 +719,11 @@ impl SceneGpu {
                 grid: false,
                 effect: Some(&preview.quads),
                 background: Some(preview.background),
+                sky_gradient: None,
                 revision: None,
                 split_static: false,
+                baked_selection: None,
+                baked_revision: 0,
             },
         );
     }
@@ -588,6 +746,7 @@ impl SceneGpu {
             RenderInput {
                 scene,
                 view: &preview.camera,
+                projection_aspect: None,
                 selected: None,
                 mesh: &Default::default(),
                 terrain: &Default::default(),
@@ -595,8 +754,11 @@ impl SceneGpu {
                 grid: false,
                 effect: None,
                 background: Some([0.10, 0.11, 0.12]),
+                sky_gradient: None,
                 revision: None,
                 split_static: false,
+                baked_selection: None,
+                baked_revision: 0,
             },
         );
     }
@@ -616,12 +778,17 @@ impl SceneGpu {
         let scene_changed = if let Some(revision) = input.revision {
             self.cached_revision != Some(revision)
         } else {
-            self.cached_revision.is_some() || self.cached_scene.as_ref() != Some(scene)
+            self.cached_revision.is_some()
+                || self
+                    .cached_scene
+                    .as_ref()
+                    .is_none_or(|cached| !same_render_scene(cached, scene))
         };
         if input.effect.is_some()
+            || self.cached_bake_revision != input.baked_revision
             || scene_changed
             || self.cached_skeletal_poses != skeletal_poses
-            || self.cached_angles != [view.yaw, view.pitch]
+            || (self.cached_view_dependent_geometry && self.cached_angles != [view.yaw, view.pitch])
             || self.cached_selected != selected
             || self.cached_wire != input.wire
             || self.cached_phase != preview_time
@@ -652,7 +819,9 @@ impl SceneGpu {
             }
             self.navigation_fill.upload(device, queue, &nav_fill);
             self.navigation_edges.upload(device, queue, &nav_lines);
-            let pass = if input.split_static {
+            let pass = if let Some(selection) = input.baked_selection {
+                GeometryPass::Baked(selection)
+            } else if input.split_static {
                 if self.static_mask.is_none() {
                     let mask = static_mesh_mask(scene);
                     let (mesh, _, ranges) = geometry_with_effects(
@@ -684,48 +853,58 @@ impl SceneGpu {
                 pass,
             );
             self.cached_fog_center = view.center;
+            self.cached_bake_revision = input.baked_revision;
             self.cached_fog_distance = view.distance;
             self.draw_ranges = ranges;
             self.cached_angles = [view.yaw, view.pitch];
+            // Camera motion changes only the uniform for opaque static meshes.
+            // Rebuild vertices when billboard sprites, particles, fog, or
+            // translucent sorting actually depend on the view direction.
+            self.cached_view_dependent_geometry = view_dependent_geometry(scene, &self.draw_ranges);
             let texture_key = texture_key(scene, preview_time);
             if self.cached_textures.as_ref() != Some(&texture_key) {
-                let mut layers = vec![(None, vec![255u8; 256 * 256 * 4])];
-                for id in crate::texture::ids(scene).into_iter().take(32) {
+                let sizes = texture_bank_sizes(texture_key.len());
+                let reallocated = self
+                    .texture_banks
+                    .iter()
+                    .map(|bank| bank.texture.depth_or_array_layers())
+                    .ne(sizes.iter().copied());
+                if reallocated {
+                    self.texture_banks = sizes
+                        .into_iter()
+                        .map(|layers| {
+                            TextureBank::new(
+                                device,
+                                queue,
+                                &self.texture_layout,
+                                &self.camera,
+                                &self.texture_sampler,
+                                layers,
+                            )
+                        })
+                        .collect();
+                }
+                for (index, &(id, _, _)) in texture_key.iter().enumerate() {
+                    // A palette animation or reimport uploads only the affected
+                    // layer, not every texture in a large authoring scene.
+                    if !reallocated
+                        && self.cached_textures.as_ref().and_then(|old| old.get(index))
+                            == texture_key.get(index)
+                    {
+                        continue;
+                    }
                     let mut bytes = vec![0; 256 * 256 * 4];
                     if let Some(t) = scene.textures.get(&id) {
-                        let palette_rgba = crate::palette::preview_rgba(scene, id, preview_time, t);
+                        let palette_rgba =
+                            crate::palette::preview_gpu_rgba(scene, id, preview_time, t);
                         for y in 0..t.height as usize {
                             let len = t.width as usize * 4;
                             bytes[y * 1024..y * 1024 + len]
                                 .copy_from_slice(&palette_rgba[y * len..y * len + len]);
                         }
                     }
-                    layers.push((Some(id), bytes));
-                }
-                for (i, (_, bytes)) in layers.iter().enumerate() {
-                    queue.write_texture(
-                        wgpu::TexelCopyTextureInfo {
-                            texture: &self.textures,
-                            mip_level: 0,
-                            origin: wgpu::Origin3d {
-                                x: 0,
-                                y: 0,
-                                z: i as u32,
-                            },
-                            aspect: wgpu::TextureAspect::All,
-                        },
-                        bytes,
-                        wgpu::TexelCopyBufferLayout {
-                            offset: 0,
-                            bytes_per_row: Some(1024),
-                            rows_per_image: Some(256),
-                        },
-                        wgpu::Extent3d {
-                            width: 256,
-                            height: 256,
-                            depth_or_array_layers: 1,
-                        },
-                    );
+                    let (bank, layer) = texture_slot(index);
+                    self.texture_banks[bank].write(queue, layer, &bytes);
                 }
                 self.cached_textures = Some(texture_key);
             }
@@ -770,11 +949,14 @@ impl SceneGpu {
             view.center[2],
             view.zoom,
             view.distance,
-            self.size.width as f32 / self.size.height as f32,
-            0.,
+            input
+                .projection_aspect
+                .unwrap_or(self.size.width as f32 / self.size.height as f32),
+            if view.mirror_x { -1. } else { 1. },
             0.,
         ]
         .into_iter()
+        .chain(sky_uniform(input.background, input.sky_gradient, self.size))
         .flat_map(f32::to_le_bytes)
         .collect::<Vec<_>>();
         queue.write_buffer(&self.camera, 0, &uniform);
@@ -806,23 +988,25 @@ impl SceneGpu {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
-        pass.set_bind_group(0, &self.bind_group, &[]);
-        if input.background.is_none() {
+        pass.set_bind_group(0, &self.texture_banks[0].bind_group, &[]);
+        if input.background.is_none() || input.sky_gradient.is_some() {
             pass.set_pipeline(&self.background_pipeline);
             pass.draw(0..3, 0..1);
         }
         if !input.wire {
             if input.split_static && self.static_mesh.count > 0 {
                 pass.set_vertex_buffer(0, self.static_mesh.buffer.slice(..));
-                for &(start, count, mode) in &self.static_draw_ranges {
-                    pass.set_pipeline(&self.mesh_pipelines[mode]);
+                for &(start, count, mode, bank) in &self.static_draw_ranges {
+                    pass.set_bind_group(0, &self.texture_banks[bank].bind_group, &[]);
+                    pass.set_pipeline(&self.mesh_pipelines[mirrored_pipeline(mode, view.mirror_x)]);
                     pass.draw(start..start + count, 0..1);
                 }
             }
             if self.mesh.count > 0 {
                 pass.set_vertex_buffer(0, self.mesh.buffer.slice(..));
-                for &(start, count, mode) in &self.draw_ranges {
-                    pass.set_pipeline(&self.mesh_pipelines[mode]);
+                for &(start, count, mode, bank) in &self.draw_ranges {
+                    pass.set_bind_group(0, &self.texture_banks[bank].bind_group, &[]);
+                    pass.set_pipeline(&self.mesh_pipelines[mirrored_pipeline(mode, view.mirror_x)]);
                     pass.draw(start..start + count, 0..1);
                 }
             }
@@ -862,12 +1046,46 @@ impl SceneGpu {
     }
 }
 
-fn active_camera_sky(scene: &crate::scene::Scene) -> Option<[f32; 3]> {
+/// Sky, horizon and ground colours (w = 1 when the gradient is on) and the
+/// target size, for the background shader.
+fn sky_uniform(
+    background: Option<[f32; 3]>,
+    gradient: Option<crate::scene::SkyGradient>,
+    size: wgpu::Extent3d,
+) -> [f32; 16] {
+    let on = background.is_some() && gradient.is_some();
+    let sky = background.unwrap_or([0.; 3]);
+    let g = gradient.unwrap_or(crate::scene::SkyGradient {
+        horizon: [0.; 3],
+        ground: [0.; 3],
+    });
+    [
+        sky[0],
+        sky[1],
+        sky[2],
+        if on { 1. } else { 0. },
+        g.horizon[0],
+        g.horizon[1],
+        g.horizon[2],
+        0.,
+        g.ground[0],
+        g.ground[1],
+        g.ground[2],
+        0.,
+        size.width as f32,
+        size.height as f32,
+        0.,
+        0.,
+    ]
+}
+fn active_camera(scene: &crate::scene::Scene) -> Option<&crate::scene::Actor> {
     scene
         .actors
         .iter()
         .find(|actor| actor.kind == "Camera" && actor.active)
-        .map(|actor| actor.camera_sky_color)
+}
+fn active_camera_sky(scene: &crate::scene::Scene) -> Option<[f32; 3]> {
+    active_camera(scene).map(|actor| actor.camera_sky_color)
 }
 fn vertex(out: &mut Vec<u8>, p: [f32; 3], color: [u8; 3]) {
     for v in p
@@ -941,19 +1159,21 @@ fn brush_overlay(scene: &Scene, state: &crate::terrain_editor::State) -> (Vec<u8
     }
     (fill, ring)
 }
-type GeometryBuffers = (Vec<u8>, Vec<u8>, Vec<(u32, u32, usize)>);
+type GeometryBuffers = (Vec<u8>, Vec<u8>, Vec<DrawRange>);
 struct Draw {
     points: [[f32; 3]; 4],
     colors: [[u8; 3]; 4],
     uv: [[f32; 2]; 4],
     material: crate::scene::Material,
     cull: bool,
+    gpu_colors: bool,
 }
 #[derive(Clone, Copy)]
 enum GeometryPass<'a> {
     All,
     Static(&'a [bool]),
     Dynamic(&'a [bool]),
+    Baked(&'a crate::baked_preview::Selection),
 }
 fn static_mesh_mask(scene: &Scene) -> Vec<bool> {
     if scene.fog.enabled {
@@ -1015,7 +1235,7 @@ fn geometry_with_effects(
         e.kind == "Mesh"
             && scene.is_active(*i)
             && match pass {
-                GeometryPass::All => true,
+                GeometryPass::All | GeometryPass::Baked(_) => true,
                 GeometryPass::Static(mask) => mask.get(*i).copied().unwrap_or(false),
                 GeometryPass::Dynamic(mask) => !mask.get(*i).copied().unwrap_or(false),
             }
@@ -1063,6 +1283,14 @@ fn geometry_with_effects(
             .as_ref()
             .and_then(|b| b.preview_colors(e.id, quads.len() * 4));
         for (qi, q) in quads.iter().enumerate() {
+            if let GeometryPass::Baked(selection) = pass {
+                if selection
+                    .get(&e.id)
+                    .is_some_and(|faces| !faces.contains(&qi))
+                {
+                    continue;
+                }
+            }
             let p = q.points.map(|v| world.point(v));
             let n = crate::lighting::transform_normal(world, q.normal);
             let colors: [[u8; 3]; 4] = std::array::from_fn(|v| {
@@ -1084,26 +1312,46 @@ fn geometry_with_effects(
                     }
                 };
                 let color = crate::lighting::modulate(rgb, q.material.color);
+                let color = q
+                    .vertex_colors
+                    .map_or(color, |colors| crate::vertex_colors::tint(colors[v], color));
                 if state.open
                     && state.target == Some(index)
                     && q.id.is_some_and(|id| state.selected.contains(&id))
                 {
-                    std::array::from_fn(|c| ((color[c] as u16 + [255, 180, 55][c]) / 2) as u8)
+                    let highlight = if q.vertex_colors.is_some() && q.material.texture.is_some() {
+                        [128, 90, 28]
+                    } else {
+                        [255, 180, 55]
+                    };
+                    std::array::from_fn(|c| ((color[c] as u16 + highlight[c]) / 2) as u8)
                 } else {
                     color
                 }
             });
             draws.push(Draw {
+                gpu_colors: q.vertex_colors.is_some(),
                 points: p,
                 colors,
                 uv: q.uv,
                 material: q.material.clone(),
-                cull: e.editable_mesh.is_some() || e.terrain.is_some() || e.skeletal_mesh.is_some(),
+                cull: (e.editable_mesh.is_some()
+                    || e.terrain.is_some()
+                    || e.skeletal_mesh.is_some())
+                    && !q.material.double_sided,
             });
         }
-        for q in quads.iter().filter(|_| {
+        for (qi, q) in quads.iter().enumerate().filter(|_| {
             wire || selected == Some(index) || (state.open && state.target == Some(index))
         }) {
+            if let GeometryPass::Baked(selection) = pass {
+                if selection
+                    .get(&e.id)
+                    .is_some_and(|faces| !faces.contains(&qi))
+                {
+                    continue;
+                }
+            }
             let p = q.points.map(|v| world.point(v));
             let color = if state.open
                 && state.target == Some(index)
@@ -1271,6 +1519,7 @@ fn geometry_with_effects(
             };
             draws.push(Draw {
                 points: q.points,
+                gpu_colors: false,
                 cull: false,
                 colors: [crate::lighting::modulate(light, sprite.color); 4],
                 uv: crate::sprites::uv(sprite, size.0, size.1),
@@ -1278,6 +1527,7 @@ fn geometry_with_effects(
                     uv_scroll: [0.; 2],
                     color: sprite.color,
                     unlit: sprite.unlit,
+                    double_sided: true,
                     texture: sprite.texture,
                     blend: sprite.blend,
                     depth_bias: sprite.depth_bias,
@@ -1314,25 +1564,37 @@ fn encode_draws(
     view_center: [f32; 3],
     view_distance: f32,
     [sy, cy, sp, cp]: [f32; 4],
-) -> (Vec<u8>, Vec<(u32, u32, usize)>) {
+) -> (Vec<u8>, Vec<DrawRange>) {
     let ids = crate::texture::ids(scene);
     let mut triangles = Vec::new();
-    let mut ranges = Vec::<(u32, u32, usize)>::new();
+    let mut ranges = Vec::<DrawRange>::new();
+    let opaque_texels: std::collections::BTreeSet<_> = scene
+        .textures
+        .iter()
+        .filter_map(|(&id, t)| t.has_opaque_texels().then_some(id))
+        .collect();
     for draw in draws {
         let mode = draw.material.blend as usize;
-        let pipeline = mode + if draw.cull { 5 } else { 0 };
-        let start = (triangles.len() / 40) as u32;
-        let layer = draw
+        let split_stp = mode != 0
+            && draw
+                .material
+                .texture
+                .is_some_and(|id| opaque_texels.contains(&id));
+        let (bank, layer) = draw
             .material
             .texture
             .and_then(|id| ids.iter().position(|candidate| *candidate == id))
-            .filter(|index| *index < 32)
-            .map_or(0, |index| index + 1);
+            .map_or((0, 0), texture_slot);
         let size = draw
             .material
             .texture
             .and_then(|id| scene.textures.get(&id))
             .map_or((256, 256), |texture| (texture.width, texture.height));
+        let neutral = if draw.gpu_colors && layer != 0 {
+            128.
+        } else {
+            255.
+        };
         let mut emitted = Vec::new();
         for triple in [[0, 1, 2], [0, 2, 3]] {
             let input = triple.map(|index| {
@@ -1341,7 +1603,12 @@ fn encode_draws(
                 let depth = view_distance + point[0] * sy * cp + point[2] * cy * cp - point[1] * sp;
                 crate::effects::Vertex {
                     point: draw.points[index],
-                    color: crate::effects::fog_color(draw.colors[index], depth, &scene.fog),
+                    color: crate::effects::fog_color_domain(
+                        draw.colors[index],
+                        depth,
+                        &scene.fog,
+                        neutral,
+                    ),
                     uv: draw.uv[index],
                 }
             });
@@ -1355,28 +1622,38 @@ fn encode_draws(
                 phase,
             ));
         }
-        let count = (emitted.len() * 3) as u32;
-        if let Some(last) = ranges.last_mut().filter(|range| range.2 == pipeline) {
-            last.1 += count;
-        } else {
-            ranges.push((start, count, pipeline));
-        }
-        for vertex in emitted.into_iter().flatten() {
-            let uv = if layer == 0 {
-                [0., 0.]
-            } else {
-                [
-                    (vertex.uv[0].clamp(0., 1.) * size.0.saturating_sub(1) as f32 + 0.5) / 256.,
-                    (vertex.uv[1].clamp(0., 1.) * size.1.saturating_sub(1) as f32 + 0.5) / 256.,
-                ]
-            };
-            for value in vertex
-                .point
-                .into_iter()
-                .chain(vertex.color.map(|channel| channel as f32 / 255.))
-                .chain([uv[0], uv[1], layer as f32, mode as f32])
+        // Mixed native CLUTs need two mutually exclusive fragment masks. Keep
+        // both passes adjacent: regrouping by texture would reorder blending.
+        // Legacy PNGs emit exactly the same single pass/vertex count as before.
+        for pass in [8, mode].into_iter().skip(usize::from(!split_stp)) {
+            let pipeline = (if pass == 8 { 0 } else { mode }) + if draw.cull { 5 } else { 0 };
+            let start = (triangles.len() / 40) as u32;
+            let count = (emitted.len() * 3) as u32;
+            if let Some(last) = ranges
+                .last_mut()
+                .filter(|range| range.2 == pipeline && range.3 == bank)
             {
-                triangles.extend_from_slice(&value.to_le_bytes());
+                last.1 += count;
+            } else {
+                ranges.push((start, count, pipeline, bank));
+            }
+            for vertex in emitted.iter().flatten() {
+                let uv = if layer == 0 {
+                    [0., 0.]
+                } else {
+                    [
+                        (vertex.uv[0].clamp(0., 1.) * size.0.saturating_sub(1) as f32 + 0.5) / 256.,
+                        (vertex.uv[1].clamp(0., 1.) * size.1.saturating_sub(1) as f32 + 0.5) / 256.,
+                    ]
+                };
+                for value in vertex
+                    .point
+                    .into_iter()
+                    .chain(vertex.color.map(|channel| channel as f32 / neutral))
+                    .chain([uv[0], uv[1], layer as f32, pass as f32])
+                {
+                    triangles.extend_from_slice(&value.to_le_bytes());
+                }
             }
         }
     }
@@ -1439,6 +1716,939 @@ pub fn profile(project: crate::workspace::Project) -> Result<(), Box<dyn std::er
 
 #[cfg(test)]
 mod tests {
+    fn projection_frame(size: [u16; 2]) -> crate::native_play::Frame {
+        let mut camera = crate::scene::Actor::cube("Camera".into());
+        camera.kind = "Camera".into();
+        camera.position = [0.; 3];
+        camera.rotation = [0.; 3];
+        camera.camera_sky_color = [0.; 3];
+        crate::native_play::Frame {
+            scene: crate::scene::Scene {
+                actors: vec![camera],
+                display_size: size,
+                ..Default::default()
+            },
+            number: 0,
+            buttons: 0,
+            actor_count: 1,
+            camera: Some(0),
+            hud_rgba: vec![],
+            hud_size: size.map(u32::from),
+            stats: [0; 5],
+            audio_voices: 0,
+            audio_pending: 0,
+            track_sample: None,
+        }
+    }
+
+    #[test]
+    fn native_projection_scale_matches_runtime_across_ntsc_modes() {
+        for (width, height) in crate::settings::Rendering::MODES {
+            let mut frame = projection_frame([width, height]);
+            for fov in [-10_f32, 25., 60., 90., 120., 160.] {
+                frame.scene.actors[0].camera_fov = fov;
+                let focal = 1. / (fov.clamp(25., 120.).to_radians() / 2.).tan();
+                let view = frame.view();
+                let focal_x = f32::from(width) / 2. * 2.9
+                    / crate::native_play::GAME_PROJECTION_ASPECT
+                    * view.zoom;
+                let focal_y = f32::from(height) / 2. * 2.9 * view.zoom;
+                assert!((focal_x - f32::from(width / 2) * focal).abs() < 0.001);
+                assert!((focal_y - f32::from(height * 2 / 3) * focal).abs() < 0.001);
+                assert_eq!(view.center, [0., 0., 1.]);
+                assert_eq!(view.distance, 1.);
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "requires a graphics adapter; no window or desktop capture"]
+    fn native_game_projection_matches_runtime_focals_in_every_video_mode() {
+        use super::*;
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: if cfg!(windows) {
+                wgpu::Backends::DX12
+            } else {
+                wgpu::Backends::PRIMARY
+            },
+            ..Default::default()
+        });
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let mut checked = 0;
+        for (width, height) in crate::settings::Rendering::MODES {
+            let size = wgpu::Extent3d {
+                width: u32::from(width),
+                height: u32::from(height),
+                depth_or_array_layers: 1,
+            };
+            let texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Native game focal regression"),
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: FORMAT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+                view_formats: &[],
+            });
+            let target = texture.create_view(&Default::default());
+            let mut renderer = SceneGpu::new_with_size(&device, &queue, size);
+            let mut frame = projection_frame([width, height]);
+            let mut doc = crate::mesh::Document::default();
+            doc.materials[0].material.color = [1., 0., 0.];
+            doc.materials[0].material.unlit = true;
+            doc.add_face(
+                [
+                    [1., 0.5, 16.],
+                    [1., 1.5, 16.],
+                    [3., 1.5, 16.],
+                    [3., 0.5, 16.],
+                ],
+                doc.groups[0].id,
+                doc.materials[0].id,
+            );
+            let mut marker = crate::scene::Actor::cube("Projected marker".into());
+            marker.position = [0.; 3];
+            marker.editable_mesh = Some(crate::mesh::Component {
+                document: Some(std::sync::Arc::new(doc)),
+                ..crate::mesh::Component::new(uuid::Uuid::new_v4())
+            });
+            frame.scene.actors.push(marker);
+            frame.actor_count = 2;
+            for fov in [-10_f32, 25., 60., 90., 120., 160.] {
+                for mirror in [false, true] {
+                    frame.number += 1;
+                    frame.scene.actors[0].camera_fov = fov;
+                    frame.scene.actors[0].camera_mirror_x = mirror;
+                    let mut encoder = device.create_command_encoder(&Default::default());
+                    renderer.render_game(&device, &queue, &mut encoder, &target, &frame);
+                    queue.submit(Some(encoder.finish()));
+                    let png = crate::platform::capture_png(&device, &queue, &texture).unwrap();
+                    let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+                        .read_info()
+                        .unwrap();
+                    let mut pixels = vec![0; reader.output_buffer_size()];
+                    let info = reader.next_frame(&mut pixels).unwrap();
+                    assert_eq!(
+                        [info.width, info.height],
+                        [u32::from(width), u32::from(height)]
+                    );
+                    let mut bounds = [u32::MAX, u32::MAX, 0, 0];
+                    let mut red_pixels = 0;
+                    for (index, pixel) in pixels.chunks_exact(4).enumerate() {
+                        if pixel[0] > 200 && pixel[1] < 20 && pixel[2] < 20 {
+                            let x = index as u32 % u32::from(width);
+                            let y = index as u32 / u32::from(width);
+                            bounds[0] = bounds[0].min(x);
+                            bounds[1] = bounds[1].min(y);
+                            bounds[2] = bounds[2].max(x + 1);
+                            bounds[3] = bounds[3].max(y + 1);
+                            red_pixels += 1;
+                        }
+                    }
+                    assert!(
+                        red_pixels > 0,
+                        "marker absent: {width}x{height} FOV {fov} mirror {mirror}"
+                    );
+                    // Independent reference: camera_project in both PSX and
+                    // native C++ uses w/2 and h*2/3, not the editor's 2.9 scale.
+                    let focal = 1. / (fov.clamp(25., 120.).to_radians() / 2.).tan();
+                    let sx = |x| {
+                        f32::from(width / 2)
+                            + x * focal * f32::from(width / 2) / 16. * if mirror { -1. } else { 1. }
+                    };
+                    let sy =
+                        |y| f32::from(height / 2) - y * focal * f32::from(height * 2 / 3) / 16.;
+                    let expected = [sx(1.).min(sx(3.)), sy(1.5), sx(1.).max(sx(3.)), sy(0.5)];
+                    for (actual, expected) in bounds.into_iter().zip(expected) {
+                        assert!(
+                            (actual as f32 - expected).abs() <= 1.,
+                            "{width}x{height} FOV {fov} mirror {mirror}: {bounds:?}, boundary {expected}"
+                        );
+                    }
+                    checked += 1;
+                }
+            }
+        }
+        println!(
+            "Native game projection: {checked} GPU readbacks, ten video modes, six FOV inputs, both mirror states."
+        );
+    }
+
+    fn texture_scene(count: usize) -> crate::scene::Scene {
+        let mut scene = crate::scene::Scene::default();
+        scene.actors.clear();
+        for index in 0..count {
+            let mut actor = crate::scene::Actor::cube(format!("Texture {index}"));
+            actor.active = false;
+            actor.material.texture = Some(uuid::Uuid::from_u128(index as u128 + 1));
+            actor.material.unlit = true;
+            actor.material.double_sided = true;
+            actor.material.color = [1.; 3];
+            scene.actors.push(actor);
+        }
+        scene
+    }
+
+    #[test]
+    fn authored_vertex_colors_preserve_packet_gain_through_preview_scroll_and_fog() {
+        use super::*;
+        let mut scene = texture_scene(1);
+        let mut draw = Draw {
+            gpu_colors: true,
+            points: [[-1., -1., 0.], [1., -1., 0.], [1., 1., 0.], [-1., 1., 0.]],
+            colors: [[185, 128, 64]; 4],
+            uv: [[0., 0.], [1., 0.], [1., 1.], [0., 1.]],
+            material: scene.actors[0].material.clone(),
+            cull: false,
+        };
+        let check = |draw: &Draw, scene: &Scene, expected: [f32; 3]| {
+            let (bytes, _) = encode_draws(
+                std::slice::from_ref(draw),
+                scene,
+                0.5,
+                [0.; 3],
+                8.,
+                [0., 1., 0., 1.],
+            );
+            assert!(!bytes.is_empty());
+            for vertex in bytes.chunks_exact(40) {
+                for c in 0..3 {
+                    let value =
+                        f32::from_le_bytes(vertex[12 + c * 4..16 + c * 4].try_into().unwrap());
+                    assert!((value - expected[c]).abs() < 1e-6, "channel {c}: {value}");
+                }
+            }
+        };
+        check(&draw, &scene, [185. / 128., 1., 0.5]);
+        draw.material.uv_scroll = [0.5, -0.75];
+        check(&draw, &scene, [185. / 128., 1., 0.5]);
+        scene.fog = crate::effects::Fog {
+            enabled: true,
+            start: 0.,
+            end: 4.,
+            color: [1., 0.5, 0.],
+        };
+        check(&draw, &scene, [1., 0.5, 0.]);
+        scene.fog.enabled = false;
+        draw.material.texture = None;
+        check(&draw, &scene, [185. / 255., 128. / 255., 64. / 255.]);
+        draw.material = scene.actors[0].material.clone();
+        draw.gpu_colors = false;
+        check(&draw, &scene, [185. / 255., 128. / 255., 64. / 255.]);
+    }
+
+    #[test]
+    fn texture_banks_cover_every_slot_and_preserve_draw_order() {
+        use super::*;
+        assert_eq!(texture_bank_sizes(0), [1]);
+        assert_eq!(texture_bank_sizes(32), [33]);
+        assert_eq!(texture_bank_sizes(255), [256]);
+        assert_eq!(texture_bank_sizes(511), [256, 256, 2]);
+        let scene = texture_scene(511);
+        let indices = [32, 255, 254, 510, 32];
+        let draws: Vec<_> = indices
+            .iter()
+            .map(|&i| Draw {
+                gpu_colors: false,
+                points: [[-1., -1., 0.], [1., -1., 0.], [1., 1., 0.], [-1., 1., 0.]],
+                colors: [[255; 3]; 4],
+                uv: [[0.; 2]; 4],
+                material: crate::scene::Material {
+                    blend: crate::texture::BlendMode::Average,
+                    ..scene.actors[i].material.clone()
+                },
+                cull: false,
+            })
+            .collect();
+        let (vertices, ranges) = encode_draws(&draws, &scene, 0., [0.; 3], 8., [0., 1., 0., 1.]);
+        assert_eq!(
+            ranges,
+            [
+                (0, 6, 1, 0),
+                (6, 6, 1, 1),
+                (12, 6, 1, 0),
+                (18, 6, 1, 2),
+                (24, 6, 1, 0)
+            ],
+            "never regroup transparent draws by texture bank"
+        );
+        for (i, &index) in indices.iter().enumerate() {
+            let offset = i * 6 * 40 + 32;
+            assert_eq!(
+                f32::from_le_bytes(vertices[offset..offset + 4].try_into().unwrap()),
+                texture_slot(index).1 as f32
+            );
+        }
+        let key = texture_key(&scene, 0.);
+        assert_eq!(
+            key.len(),
+            511,
+            "unresolved texture slots must retain their identity too"
+        );
+        let mut changed = scene.clone();
+        changed.actors[510].material.texture = Some(uuid::Uuid::from_u128(800));
+        assert_ne!(texture_key(&changed, 0.), key);
+    }
+
+    #[test]
+    fn native_stp_passes_are_adjacent_and_legacy_png_is_single_pass() {
+        use super::*;
+        let mut scene = texture_scene(1);
+        let id = scene.actors[0].material.texture.unwrap();
+        let mut palette = [0; 16];
+        palette[0] = 0x001f;
+        palette[1] = 0x801f;
+        let tim = crate::texture::tests::tim_fixture(4, &palette, 1, 1, &[0x10, 0x01]);
+        let data = crate::texture::decode(&tim).unwrap();
+        assert_eq!(
+            crate::palette::preview_gpu_rgba(&scene, id, 0., &data),
+            [
+                255, 0, 0, 128, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 128
+            ]
+        );
+        assert!(
+            crate::palette::preview_rgba(&scene, id, 0., &data)
+                .chunks_exact(4)
+                .all(|p| p[3] == 255)
+        );
+        scene.textures.insert(id, std::sync::Arc::new(data));
+        let mut draw = Draw {
+            points: [[-1., -1., 0.], [1., -1., 0.], [1., 1., 0.], [-1., 1., 0.]],
+            gpu_colors: false,
+            cull: false,
+            colors: [[255; 3]; 4],
+            uv: [[0.; 2]; 4],
+            material: scene.actors[0].material.clone(),
+        };
+        for cull in [false, true] {
+            for blend in [
+                crate::texture::BlendMode::Cutout,
+                crate::texture::BlendMode::Average,
+                crate::texture::BlendMode::Add,
+                crate::texture::BlendMode::Subtract,
+                crate::texture::BlendMode::AddQuarter,
+            ] {
+                draw.material.blend = blend;
+                draw.cull = cull;
+                let (vertices, ranges) = encode_draws(
+                    std::slice::from_ref(&draw),
+                    &scene,
+                    0.,
+                    [0.; 3],
+                    8.,
+                    [0., 1., 0., 1.],
+                );
+                let c = if cull { 5 } else { 0 };
+                if blend == crate::texture::BlendMode::Cutout {
+                    assert_eq!(ranges, [(0, 6, c, 0)]);
+                } else {
+                    assert_eq!(ranges, [(0, 6, c, 0), (6, 6, c + blend as usize, 0)]);
+                    for v in vertices[..6 * 40].chunks_exact(40) {
+                        assert_eq!(f32::from_le_bytes(v[36..40].try_into().unwrap()), 8.);
+                    }
+                }
+            }
+        }
+        scene.textures.insert(
+            id,
+            std::sync::Arc::new(crate::texture::decode(&crate::texture::tests::png()).unwrap()),
+        );
+        let (_, ranges) = encode_draws(&[draw], &scene, 0., [0.; 3], 8., [0., 1., 0., 1.]);
+        assert_eq!(ranges, [(0, 6, 9, 0)]);
+    }
+
+    #[test]
+    #[ignore = "requires a graphics adapter; reads back the sky gradient background"]
+    fn gpu_sky_gradient_shows_sky_above_and_ground_below_the_horizon() {
+        use super::*;
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: if cfg!(windows) {
+                wgpu::Backends::DX12
+            } else {
+                wgpu::Backends::PRIMARY
+            },
+            ..Default::default()
+        });
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let target = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Sky gradient"),
+            size: SIZE,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let mut scene = crate::scene::Scene::default();
+        for actor in &mut scene.actors {
+            if actor.kind != "Camera" {
+                actor.active = false;
+            }
+        }
+        let gradient = crate::scene::SkyGradient {
+            horizon: [1., 1., 1.],
+            ground: [0., 1., 0.],
+        };
+        let mut renderer = SceneGpu::new(&device, &queue);
+        let mut row = |pitch: f32, y: usize| {
+            let view = crate::viewport::View {
+                yaw: 0.,
+                pitch,
+                distance: 8.,
+                zoom: 0.85,
+                ..Default::default()
+            };
+            let mut encoder = device.create_command_encoder(&Default::default());
+            renderer.render_input(
+                &device,
+                &queue,
+                &mut encoder,
+                &target.create_view(&Default::default()),
+                RenderInput {
+                    scene: &scene,
+                    view: &view,
+                    projection_aspect: None,
+                    selected: None,
+                    mesh: &Default::default(),
+                    terrain: &Default::default(),
+                    wire: false,
+                    grid: false,
+                    effect: None,
+                    background: Some([0., 0., 1.]),
+                    sky_gradient: Some(gradient),
+                    revision: None,
+                    split_static: false,
+                    baked_selection: None,
+                    baked_revision: 0,
+                },
+            );
+            queue.submit(Some(encoder.finish()));
+            let png = crate::platform::capture_png(&device, &queue, &target).unwrap();
+            let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+                .read_info()
+                .unwrap();
+            let mut pixels = vec![0; reader.output_buffer_size()];
+            let info = reader.next_frame(&mut pixels).unwrap();
+            let at = (y * info.width as usize + info.width as usize / 2) * 4;
+            [pixels[at], pixels[at + 1], pixels[at + 2]]
+        };
+        let height = SIZE.height as usize;
+        // Level camera: the horizon is the middle row; sky at the top, ground at the bottom.
+        let top = row(0., 2);
+        let middle = row(0., height / 2);
+        let bottom = row(0., height - 2);
+        assert!(top[2] > top[0] && top[2] > top[1], "{top:?}");
+        assert!(middle.iter().all(|&c| c > 200), "{middle:?}");
+        assert!(
+            bottom[1] > 200 && bottom[0] < 40 && bottom[2] < 40,
+            "{bottom:?}"
+        );
+        // Looking down 60 degrees: the whole view is below the horizon.
+        let down = row(1.05, 2);
+        assert!(down[1] > 200 && down[0] < 40, "{down:?}");
+    }
+
+    #[test]
+    #[ignore = "requires a graphics adapter; reads back native per-texel STP in all blend modes"]
+    fn gpu_native_stp_keeps_opaque_texels_cutout_and_visible_black() {
+        use super::*;
+        let mut scene = texture_scene(1);
+        let id = scene.actors[0].material.texture.unwrap();
+        let mut palette = [0; 16];
+        palette[..4].copy_from_slice(&[0x001f, 0x801f, 0, 0x8000]);
+        let tim = crate::texture::tests::tim_fixture(4, &palette, 1, 1, &[0x10, 0x32]);
+        scene.textures.insert(
+            id,
+            std::sync::Arc::new(crate::texture::decode(&tim).unwrap()),
+        );
+        scene.actors[0].active = true;
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: if cfg!(windows) {
+                wgpu::Backends::DX12
+            } else {
+                wgpu::Backends::PRIMARY
+            },
+            ..Default::default()
+        });
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let target = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Native STP regression"),
+            size: SIZE,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = crate::viewport::View {
+            yaw: 0.,
+            pitch: 0.,
+            distance: 8.,
+            zoom: 0.85,
+            ..Default::default()
+        };
+        let mut renderer = SceneGpu::new(&device, &queue);
+        let srgb = |v: f32| {
+            let v = v.clamp(0., 1.);
+            ((if v <= 0.0031308 {
+                v * 12.92
+            } else {
+                1.055 * v.powf(1. / 2.4) - 0.055
+            }) * 255.)
+                .round() as u8
+        };
+        for blend in [
+            crate::texture::BlendMode::Cutout,
+            crate::texture::BlendMode::Average,
+            crate::texture::BlendMode::Add,
+            crate::texture::BlendMode::Subtract,
+            crate::texture::BlendMode::AddQuarter,
+        ] {
+            let mut doc = crate::mesh::Document::default();
+            doc.materials[0].material = scene.actors[0].material.clone();
+            doc.materials[0].material.blend = blend;
+            doc.add_face(
+                [[-2., -1., 0.], [2., -1., 0.], [2., 1., 0.], [-2., 1., 0.]],
+                doc.groups[0].id,
+                doc.materials[0].id,
+            );
+            doc.faces[0].uv = [[0., 0.], [1., 0.], [1., 1.], [0., 1.]];
+            scene.actors[0].editable_mesh = Some(crate::mesh::Component {
+                document: Some(std::sync::Arc::new(doc)),
+                ..crate::mesh::Component::new(uuid::Uuid::new_v4())
+            });
+            let mut encoder = device.create_command_encoder(&Default::default());
+            renderer.render_input(
+                &device,
+                &queue,
+                &mut encoder,
+                &target.create_view(&Default::default()),
+                RenderInput {
+                    scene: &scene,
+                    view: &view,
+                    projection_aspect: None,
+                    selected: None,
+                    mesh: &Default::default(),
+                    terrain: &Default::default(),
+                    wire: false,
+                    grid: false,
+                    effect: None,
+                    background: Some([0.5; 3]),
+                    sky_gradient: None,
+                    revision: None,
+                    split_static: false,
+                    baked_selection: None,
+                    baked_revision: 0,
+                },
+            );
+            queue.submit(Some(encoder.finish()));
+            let png = crate::platform::capture_png(&device, &queue, &target).unwrap();
+            let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+                .read_info()
+                .unwrap();
+            let mut pixels = vec![0; reader.output_buffer_size()];
+            let info = reader.next_frame(&mut pixels).unwrap();
+            for (index, x) in [340, 430, 530, 620].into_iter().enumerate() {
+                let expected: [u8; 3] = std::array::from_fn(|channel| {
+                    // RenderInput background is a linear attachment clear;
+                    // scene preview blending is linear, not PSX integer RGB5.
+                    let f = if index < 2 && channel == 0 { 1. } else { 0. };
+                    let b = 0.5;
+                    if index == 2 {
+                        return srgb(b);
+                    }
+                    srgb(if index == 0 {
+                        f
+                    } else {
+                        match blend {
+                            crate::texture::BlendMode::Cutout => f,
+                            crate::texture::BlendMode::Average => (b + f) * 0.5,
+                            crate::texture::BlendMode::Add => b + f,
+                            crate::texture::BlendMode::Subtract => b - f,
+                            crate::texture::BlendMode::AddQuarter => b + f * 0.25,
+                        }
+                    })
+                });
+                let start = (300 * 960 + x) * info.color_type.samples();
+                for channel in 0..3 {
+                    assert!(
+                        pixels[start + channel].abs_diff(expected[channel]) <= 2,
+                        "{blend:?} texel {index}, channel {channel}: actual {}, expected {}",
+                        pixels[start + channel],
+                        expected[channel]
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "requires a graphics adapter; validates actual texture-bank sampling"]
+    fn gpu_samples_textures_beyond_32_and_across_banks() {
+        use super::*;
+        let mut scene = texture_scene(256);
+        for (column, (index, color)) in [
+            (32, [255, 0, 0, 255]),
+            (255, [0, 255, 0, 255]),
+            (254, [0, 0, 255, 255]),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let actor = &mut scene.actors[index];
+            actor.active = true;
+            actor.position = [column as f32 * 2. - 2., 0., 0.];
+            scene.textures.insert(
+                actor.material.texture.unwrap(),
+                std::sync::Arc::new(crate::texture::Data {
+                    width: 1,
+                    height: 1,
+                    rgba: color.to_vec(),
+                    words: vec![],
+                    palette: vec![],
+                }),
+            );
+        }
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: if cfg!(windows) {
+                wgpu::Backends::DX12
+            } else {
+                wgpu::Backends::PRIMARY
+            },
+            ..Default::default()
+        });
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let target = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Texture-bank regression"),
+            size: SIZE,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = crate::viewport::View {
+            yaw: 0.,
+            pitch: 0.,
+            distance: 8.,
+            zoom: 0.85,
+            ..Default::default()
+        };
+        let mut renderer = SceneGpu::new(&device, &queue);
+        for pass in 0..4 {
+            // Verify reuse and resource shrinkage after a scene switch too.
+            if pass == 2 {
+                let id = scene.actors[32].material.texture.unwrap();
+                let mut data = (**scene.textures.get(&id).unwrap()).clone();
+                data.rgba = vec![255, 0, 255, 255];
+                scene.textures.insert(id, std::sync::Arc::new(data));
+            }
+            if pass == 3 {
+                scene.actors.truncate(33);
+            }
+            let mut encoder = device.create_command_encoder(&Default::default());
+            renderer.render_input(
+                &device,
+                &queue,
+                &mut encoder,
+                &target.create_view(&Default::default()),
+                RenderInput {
+                    scene: &scene,
+                    view: &view,
+                    projection_aspect: None,
+                    selected: None,
+                    mesh: &Default::default(),
+                    terrain: &Default::default(),
+                    wire: false,
+                    grid: false,
+                    effect: None,
+                    background: Some([0.; 3]),
+                    sky_gradient: None,
+                    revision: None,
+                    split_static: false,
+                    baked_selection: None,
+                    baked_revision: 0,
+                },
+            );
+            queue.submit(Some(encoder.finish()));
+            let png = crate::platform::capture_png(&device, &queue, &target).unwrap();
+            let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+                .read_info()
+                .unwrap();
+            let mut pixels = vec![0; reader.output_buffer_size()];
+            let info = reader.next_frame(&mut pixels).unwrap();
+            for (x, expected) in [(295, [255, 0, 0]), (480, [0, 255, 0]), (665, [0, 0, 255])] {
+                let offset = (300 * 960 + x) * info.color_type.samples();
+                let expected = if pass == 3 && x != 295 {
+                    [0; 3]
+                } else if pass >= 2 && x == 295 {
+                    [255, 0, 255]
+                } else {
+                    expected
+                };
+                assert_eq!(
+                    &pixels[offset..offset + 3],
+                    &expected,
+                    "pass {pass}, pixel {x}"
+                );
+            }
+            assert_eq!(renderer.texture_banks.len(), if pass == 3 { 1 } else { 2 });
+        }
+    }
+
+    #[test]
+    fn baked_preview_filters_exact_cooked_quads_without_mutating_authoring() {
+        let mut scene = crate::scene::Scene::default();
+        scene.actors.truncate(2);
+        let actor = scene.actors[1].id;
+        let state = crate::mesh_editor::State::default();
+        let view = crate::viewport::View::default();
+        let all = super::geometry(&scene, None, 0., &state, &view);
+        let filter =
+            crate::baked_preview::Selection::from([(actor, std::collections::BTreeSet::new())]);
+        let hidden = super::geometry_with_effects(
+            &scene,
+            None,
+            0.,
+            &state,
+            &view,
+            &[],
+            false,
+            super::GeometryPass::Baked(&filter),
+        );
+        assert!(!all.0.is_empty());
+        assert!(hidden.0.is_empty());
+        let filter =
+            crate::baked_preview::Selection::from([(actor, std::collections::BTreeSet::from([0]))]);
+        let one = super::geometry_with_effects(
+            &scene,
+            None,
+            0.,
+            &state,
+            &view,
+            &[],
+            false,
+            super::GeometryPass::Baked(&filter),
+        );
+        assert!(!one.0.is_empty() && one.0.len() < all.0.len());
+        assert_eq!(super::geometry(&scene, None, 0., &state, &view), all);
+    }
+    #[test]
+    fn authoring_preview_ignores_runtime_visibility_track() {
+        let mut doc = crate::mesh::Document::default();
+        doc.add_face(
+            [[-1., -1., 0.], [-1., 1., 0.], [1., 1., 0.], [1., -1., 0.]],
+            doc.groups[0].id,
+            doc.materials[0].id,
+        );
+        let face = doc.faces[0].id;
+        let mut actor = crate::scene::Actor::cube("Tracked surface".into());
+        actor.editable_mesh = Some(crate::mesh::Component {
+            document: Some(std::sync::Arc::new(doc)),
+            ..crate::mesh::Component::new(uuid::Uuid::new_v4())
+        });
+        let mut scene = crate::scene::Scene::default();
+        scene.actors.push(actor);
+        let view = crate::viewport::View::default();
+        let state = crate::mesh_editor::State::default();
+        let expected = super::geometry(&scene, None, 0., &state, &view);
+        assert!(!expected.0.is_empty());
+        scene.visibility_track = Some(crate::visibility_track::Track {
+            path: Vec::new(),
+            navigation: None,
+            camera: scene.actors[0].id,
+            sample_ms: 100,
+            cull_backfaces: false,
+            static_world: false,
+            faces: vec![face],
+            samples: vec![crate::visibility_track::Sample {
+                position: [1000.; 3],
+                rotation: [90.; 3],
+                fov: 30.,
+                visible: vec![],
+                cut: true,
+            }],
+        });
+        assert_eq!(super::geometry(&scene, None, 0., &state, &view), expected);
+        assert!(super::same_render_scene(&scene, &{
+            let mut untracked = scene.clone();
+            untracked.visibility_track = None;
+            untracked
+        }));
+    }
+
+    /// Reproducible offscreen capture of the actual authoring renderer, not the
+    /// runtime/PVS. Set EPOK_PREVIEW_SCENE, EPOK_PREVIEW_OUTPUT and optionally a
+    /// JSON EPOK_PREVIEW_VIEW. Does not change the open editor or project files.
+    #[test]
+    #[ignore = "requires a graphics adapter and an explicit local scene/output"]
+    fn capture_authoring_preview() {
+        use super::*;
+        let path = std::env::var("EPOK_PREVIEW_SCENE").expect("EPOK_PREVIEW_SCENE");
+        let output = std::env::var("EPOK_PREVIEW_OUTPUT").expect("EPOK_PREVIEW_OUTPUT");
+        let mut scene = Scene::load(std::path::Path::new(&path)).unwrap();
+        if std::env::var_os("EPOK_PREVIEW_FLAT").is_some() {
+            let flatten = |material: &mut crate::scene::Material| {
+                material.texture = None;
+                material.unlit = true;
+                material.color = [0.8; 3];
+            };
+            for actor in &mut scene.actors {
+                flatten(&mut actor.material);
+                if let Some(mesh) = &mut actor.editable_mesh {
+                    for material in mesh.materials.values_mut() {
+                        flatten(material);
+                    }
+                    if let Some(doc) = &mut mesh.document {
+                        for slot in &mut std::sync::Arc::make_mut(doc).materials {
+                            flatten(&mut slot.material);
+                        }
+                    }
+                }
+            }
+        }
+        let mut bake = crate::baked_preview::State::default();
+        if let Ok(sample) = std::env::var("EPOK_PREVIEW_BAKED_SAMPLE") {
+            let root = std::path::Path::new(&path)
+                .ancestors()
+                .find(|p| p.join("assets").is_dir())
+                .unwrap();
+            bake.enabled = true;
+            bake.sample = sample.parse().unwrap();
+            bake.load(root, &scene);
+            assert!(bake.error.is_none(), "{:?}", bake.error);
+            assert!(bake.filter().is_some());
+            println!(
+                "Baked sample {}: {} selected faces, {} pages",
+                bake.sample,
+                bake.selection.values().map(|s| s.len()).sum::<usize>(),
+                bake.bake.as_ref().unwrap().pages(bake.sample).len()
+            );
+        }
+        let mut view = std::env::var("EPOK_PREVIEW_VIEW")
+            .ok()
+            .map(|v| serde_json::from_str::<crate::viewport::View>(&v).unwrap())
+            .unwrap_or_else(|| crate::scene_view_state::framed(&scene, [960., 600.], 5.));
+        if let Ok(sample) = std::env::var("EPOK_PREVIEW_CAMERA_SAMPLE") {
+            let sample =
+                &scene.visibility_track.as_ref().unwrap().samples[sample.parse::<usize>().unwrap()];
+            view.yaw = sample.rotation[1].to_radians();
+            view.pitch = sample.rotation[0].to_radians();
+            view.zoom = 480. / (870. * (sample.fov.to_radians() * 0.5).tan());
+            let forward = view.basis()[2];
+            view.center = std::array::from_fn(|i| sample.position[i] + forward[i] * view.distance);
+        }
+        println!("Capture view: {}", serde_json::to_string(&view).unwrap());
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: if cfg!(windows) {
+                wgpu::Backends::DX12
+            } else {
+                wgpu::Backends::PRIMARY
+            },
+            ..Default::default()
+        });
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Authoring preview capture"),
+            size: SIZE,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let mut renderer = SceneGpu::new(&device, &queue);
+        // Diagnostic capture only; never changes the normal editor pipelines.
+        if std::env::var_os("EPOK_PREVIEW_TWO_SIDED").is_some() {
+            for i in 0..5 {
+                renderer.mesh_pipelines[5 + i] = renderer.mesh_pipelines[i].clone();
+            }
+        }
+        let mut encoder = device.create_command_encoder(&Default::default());
+        renderer.render_input(
+            &device,
+            &queue,
+            &mut encoder,
+            &texture.create_view(&Default::default()),
+            RenderInput {
+                scene: &scene,
+                view: &view,
+                projection_aspect: None,
+                selected: None,
+                mesh: &crate::mesh_editor::State::default(),
+                terrain: &crate::terrain_editor::State::default(),
+                wire: false,
+                grid: false,
+                effect: None,
+                background: None,
+                sky_gradient: None,
+                revision: None,
+                split_static: false,
+                baked_selection: bake.filter(),
+                baked_revision: bake.revision,
+            },
+        );
+        queue.submit(Some(encoder.finish()));
+        println!(
+            "Texture slots: {}, banks: {}, vertices: {}",
+            renderer.cached_textures.as_ref().unwrap().len(),
+            renderer.texture_banks.len(),
+            renderer.mesh.count
+        );
+        std::fs::write(
+            output,
+            crate::platform::capture_png(&device, &queue, &texture).unwrap(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn camera_rotation_reuses_opaque_geometry_but_not_billboards_or_transparency() {
+        let mut scene = crate::scene::Scene::default();
+        assert!(!super::view_dependent_geometry(
+            &scene,
+            &[(0, 6, 0, 0), (6, 6, 5, 0)]
+        ));
+        assert!(super::view_dependent_geometry(&scene, &[(0, 6, 1, 0)]));
+
+        scene.actors[1].sprite = Some(Default::default());
+        assert!(super::view_dependent_geometry(&scene, &[(0, 6, 0, 0)]));
+        scene.actors[1].sprite = None;
+        scene.fog.enabled = true;
+        assert!(super::view_dependent_geometry(&scene, &[(0, 6, 0, 0)]));
+    }
+
+    #[test]
+    fn render_cache_detects_authored_transform_and_material_changes() {
+        let scene = crate::scene::Scene::default();
+        let mut changed = scene.clone();
+        assert!(super::same_render_scene(&scene, &changed));
+
+        changed.actors[1].position[0] += 1.;
+        assert!(!super::same_render_scene(&scene, &changed));
+        changed = scene.clone();
+        changed.actors[1].material.color[0] = 0.25;
+        assert!(!super::same_render_scene(&scene, &changed));
+        changed = scene.clone();
+        changed.environment.ambient[0] = 0.25;
+        assert!(!super::same_render_scene(&scene, &changed));
+    }
+
     #[test]
     fn skeletal_pose_cache_tracks_transient_animation_time() {
         use std::sync::Arc;
@@ -1694,7 +2904,14 @@ mod tests {
     #[ignore = "requires a graphics adapter"]
     fn scene_preview_culls_reversed_faces_and_keeps_shaded_surfaces_clean() {
         use super::*;
-        let instance = wgpu::Instance::default();
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: if cfg!(windows) {
+                wgpu::Backends::DX12
+            } else {
+                wgpu::Backends::PRIMARY
+            },
+            ..Default::default()
+        });
         let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
         let (device, queue) =
             pollster::block_on(adapter.request_device(&Default::default())).unwrap();
@@ -1723,15 +2940,27 @@ mod tests {
             distance: 4.,
             ..Default::default()
         };
-        for (reverse, active, expected_red) in [
-            (false, true, true),
-            (true, true, false),
-            (false, false, false),
-        ] {
+        let mut previous_centroid: Option<f64> = None;
+        for (reverse, active, double_sided, expected_red, mirror_x) in [
+            (false, true, false, true),
+            (true, true, false, false),
+            (false, false, false, false),
+            (true, true, true, true),
+            (false, true, true, true),
+            (true, false, true, false),
+        ]
+        .into_iter()
+        .flat_map(|(r, a, d, e)| [false, true].map(|m| (r, a, d, e, m)))
+        {
+            let view = crate::viewport::View { mirror_x, ..view };
             let mut doc = crate::mesh::Document::default();
             doc.materials[0].material.color = [1., 0., 0.];
             doc.materials[0].material.unlit = true;
+            doc.materials[0].material.double_sided = double_sided;
             let mut points = [[-1., -1., 0.], [-1., 1., 0.], [1., 1., 0.], [1., -1., 0.]];
+            for point in &mut points {
+                point[0] += 0.4;
+            }
             if reverse {
                 points.reverse();
             }
@@ -1763,6 +2992,7 @@ mod tests {
                 RenderInput {
                     scene: &scene,
                     view: &view,
+                    projection_aspect: None,
                     selected: None,
                     mesh: &state,
                     terrain: &crate::terrain_editor::State::default(),
@@ -1770,8 +3000,11 @@ mod tests {
                     grid: false,
                     effect: None,
                     background: Some([0.; 3]),
+                    sky_gradient: None,
                     revision: None,
                     split_static: false,
+                    baked_selection: None,
+                    baked_revision: 0,
                 },
             );
             encoder.copy_texture_to_buffer(
@@ -1798,8 +3031,23 @@ mod tests {
             assert_eq!(
                 pixel[0] > 200 && pixel[1] < 20 && pixel[2] < 20,
                 expected_red,
-                "{reverse}/{active}: {pixel:?}"
+                "{reverse}/{active}/{double_sided}/{mirror_x}: {pixel:?}"
             );
+            if expected_red {
+                let xs: Vec<_> = bytes
+                    .chunks_exact(4)
+                    .enumerate()
+                    .filter(|(_, p)| p[0] > 200 && p[1] < 20 && p[2] < 20)
+                    .map(|(i, _)| (i % 960) as f64)
+                    .collect();
+                assert!(!xs.is_empty());
+                let centroid = xs.iter().sum::<f64>() / xs.len() as f64;
+                if mirror_x {
+                    assert!((centroid + previous_centroid.unwrap() - 959_f64).abs() < 1.);
+                } else {
+                    previous_centroid = Some(centroid);
+                }
+            }
             drop(bytes);
             buffer.unmap();
         }

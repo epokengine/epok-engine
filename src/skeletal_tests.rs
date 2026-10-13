@@ -870,7 +870,12 @@ fn seam_coordinates_survive_rigid_reordering_without_duplicating_positions() {
 
 #[test]
 fn page_coordinates_match_the_shared_mapping_in_both_storage_modes() {
-    let page = (64_u16, 32_u16, 256_u16);
+    let page = crate::texture_cook::Page {
+        width: 64,
+        height: 32,
+        u: 16,
+        v: 0,
+    };
     let texture = Uuid::from_u128(5);
     let lookup = |id: Uuid| (id == texture).then_some(page);
     let expected = [[0., 0.], [0.5, 0.], [0.5, 0.5], [0.5, 0.5]]
@@ -1177,7 +1182,9 @@ fn model_budget_uses_the_target_layout_and_reports_a_breakdown_on_overflow() {
     assert_eq!(budget.animator_bytes, compile::ANIMATOR_BYTES);
     assert_eq!(
         budget.scratch_bytes,
-        skeletal::MAX_BONES * compile::AFFINE_BYTES + skeletal::MAX_VERTICES * 6 + 72
+        skeletal::MAX_BONES * compile::AFFINE_BYTES
+            + skeletal::MAX_VERTICES * 6
+            + compile::MESH_GEOMETRY_BYTES
     );
     assert!(budget.target_animation_bytes() <= skeletal::MAX_CLIP_BYTES);
 

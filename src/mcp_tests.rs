@@ -16,6 +16,142 @@ fn editor() -> crate::editor::Editor {
     e
 }
 #[test]
+fn editor_state_exposes_native_frames_without_emulator_counters() {
+    let mut e = editor();
+    let root = e.root.clone();
+    let mut state = mcp::State::default();
+    let before = mcp_tools::execute(&mut e, &mut state, "editor_state", json!({})).unwrap();
+    assert!(before["native_frame"].is_null());
+    e.native_frame = Some(std::sync::Arc::new(crate::native_play::Frame {
+        scene: e.scene.clone(),
+        number: 37,
+        buttons: 2048,
+        actor_count: 46,
+        camera: Some(3),
+        hud_rgba: vec![],
+        hud_size: [512, 240],
+        stats: [0; 5],
+        audio_voices: 0,
+        audio_pending: 0,
+        track_sample: None,
+    }));
+    let reply = mcp_tools::execute(&mut e, &mut state, "editor_state", json!({})).unwrap();
+    assert!(reply["game_frame"].is_null());
+    assert_eq!(
+        reply["native_frame"],
+        json!({"sequence":37,"width":512,"height":240,
+        "buttons":2048,"actors":46,"camera":3})
+    );
+    drop(e);
+    fs::remove_dir_all(root).unwrap();
+}
+#[test]
+fn scene_open_reports_async_progress_and_preserves_the_current_map_on_failure() {
+    let mut e = editor();
+    e.auto_build = false;
+    let mut state = mcp::State::default();
+    let mut next = e.scene.clone();
+    next.name = "MCP next map".into();
+    let path = e.root.join("assets/scenes/McpNext.epokmap");
+    fs::write(&path, crate::document::to_vec(&next).unwrap()).unwrap();
+    let original = e.scene_path();
+    let revision = mcp_tools::revision(&e.scene);
+    e.dirty = true;
+    let args = json!({"path":"assets/scenes/McpNext.epokmap","revision":revision});
+    assert!(mcp_tools::execute(&mut e, &mut state, "scene_open", args.clone()).is_err());
+    assert!(e.scene_loading.is_none());
+    e.dirty = false;
+    let result = mcp_tools::execute(&mut e, &mut state, "scene_open", args).unwrap();
+    assert_eq!(result["scene_loading"], true);
+    assert_eq!(result["editing_locked"], true);
+    assert_eq!(result["operation"], "Opening scene");
+    assert_eq!(e.scene_path(), original);
+    assert!(
+        mcp_tools::execute(
+            &mut e,
+            &mut state,
+            "editor_control",
+            json!({"action":"play"})
+        )
+        .is_err()
+    );
+    assert!(mcp_tools::execute(&mut e, &mut state, "logs_read", json!({})).is_ok());
+    let wait = |e: &mut crate::editor::Editor| {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while e.scene_loading.is_some() {
+            assert!(Instant::now() < deadline);
+            e.tick();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    };
+    wait(&mut e);
+    let result = mcp_tools::execute(&mut e, &mut state, "editor_state", json!({})).unwrap();
+    assert_eq!(result["scene_loading"], false);
+    assert_eq!(result["scene_path"], "assets/scenes/McpNext.epokmap");
+    assert_eq!(result["baked_preview"]["enabled"], false);
+    assert!(result["last_error"].is_null());
+    assert!(!e.dirty && e.job.is_none());
+    let bad = e.root.join("assets/scenes/McpBroken.epokmap");
+    fs::write(&bad, "malformed: [").unwrap();
+    let args =
+        json!({"path":"assets/scenes/McpBroken.epokmap","revision":mcp_tools::revision(&e.scene)});
+    mcp_tools::execute(&mut e, &mut state, "scene_open", args).unwrap();
+    wait(&mut e);
+    assert_eq!(e.scene_path(), path);
+    assert!(e.last_error.is_some());
+    let root = e.root.clone();
+    drop(e);
+    fs::remove_dir_all(root).unwrap();
+}
+#[test]
+fn mcp_stop_uses_editor_lifecycle_and_releases_held_input() {
+    let mut e = editor();
+    let root = e.root.clone();
+    let mut state = mcp::State::default();
+    let (job, events, controls) = crate::pipeline::Job::test_channels();
+    e.job = Some(job);
+    e.playing = true;
+    e.game_capture = true;
+    e.focus_game = true;
+    state.buttons = 8;
+    state.buttons_until = Some(Instant::now() + Duration::from_secs(5));
+    let reply = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "editor_control",
+        json!({"action":"stop"}),
+    )
+    .unwrap();
+    assert_eq!(reply["state"]["stopping"], true);
+    assert!(matches!(
+        controls.try_recv(),
+        Ok(crate::pipeline::Control::Stop)
+    ));
+    assert!(e.job.as_ref().unwrap().stopping());
+    assert!(e.focus_scene && !e.focus_game && !e.game_capture);
+    assert_eq!(state.buttons, 0);
+    assert!(state.buttons_until.is_none());
+    assert!(mcp_tools::execute(&mut e, &mut state, "game_input", json!({"buttons":8})).is_err());
+    events
+        .send(crate::pipeline::Event::Finished(Ok(())))
+        .unwrap();
+    e.tick();
+    assert!(e.job.is_none() && !e.playing);
+    let reply = mcp_tools::execute(&mut e, &mut state, "editor_state", json!({})).unwrap();
+    assert_eq!(reply["stopping"], false);
+    // Stop when idle is not the toolbar's Play toggle.
+    mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "editor_control",
+        json!({"action":"stop"}),
+    )
+    .unwrap();
+    assert!(e.job.is_none());
+    drop(e);
+    fs::remove_dir_all(root).unwrap();
+}
+#[test]
 fn serial_controls_report_pending_and_guard_reset_target() {
     let mut e = editor();
     e.auto_build = false;
@@ -105,7 +241,7 @@ fn scene_batches_are_atomic_versioned_and_reversible() {
     let initial = mcp_tools::revision(&e.scene);
     let original = e.scene.clone();
     e.rename = Some((0, "Pending rename".into()));
-    e.hud_drag = Some((0, false));
+    e.hud_drag = Some((0, crate::hud_editor::HudHandle::Move));
     let run = |e: &mut crate::editor::Editor, s: &mut mcp::State, ops| {
         mcp_tools::execute(
             e,

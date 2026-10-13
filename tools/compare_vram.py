@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--png", type=Path, help="Write before/after/difference strip")
+    parser.add_argument("--after-png", type=Path, help="Render the second capture alone as a framebuffer preview")
     parser.add_argument("--json", type=Path)
     args = parser.parse_args()
     a = args.before.read_bytes()
@@ -53,7 +54,7 @@ def main():
     print(json.dumps(report, indent=2))
     if args.json:
         documents.write_text(args.json, json.dumps(report, indent=2))
-    if args.png:
+    if args.png or args.after_png:
         from PIL import Image
         strip = Image.new("RGB", (width * 3, height))
         for index, data in enumerate((a, b)):
@@ -61,7 +62,10 @@ def main():
             for y in range(height):
                 for word in struct.unpack_from(f"<{width}H", data, y * 2048):
                     pixels.extend(rgb(word))
-            strip.paste(Image.frombytes("RGB", (width, height), bytes(pixels)), (index * width, 0))
+            frame = Image.frombytes("RGB", (width, height), bytes(pixels))
+            strip.paste(frame, (index * width, 0))
+            if index == 1 and args.after_png:
+                frame.save(args.after_png)
         pixels = bytearray()
         for y in range(height):
             row_a = struct.unpack_from(f"<{width}H", a, y * 2048)
@@ -69,7 +73,8 @@ def main():
             for x in range(width):
                 pixels.extend((255, 255, 255) if row_a[x] != row_b[x] else (0, 0, 0))
         strip.paste(Image.frombytes("RGB", (width, height), bytes(pixels)), (2 * width, 0))
-        strip.save(args.png)
+        if args.png:
+            strip.save(args.png)
     return 0
 
 

@@ -454,18 +454,53 @@ pub fn create(path: &Path, asset: &BlueprintAsset) -> Result<(), String> {
 /// compiles even when no entity in the map carries a Behaviour.
 pub fn load_all(root: &Path) -> Result<Vec<AssetFile>, String> {
     fn scene_script(path: &Path, result: &mut Vec<AssetFile>) -> Result<(), String> {
-        let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        // Maps without a scene Blueprint are the common case and are never parsed.
-        if !bytes
-            .windows(b"scene_script".len())
-            .any(|window| window == b"scene_script")
-        {
-            return Ok(());
+        // The class catalog needs only script + reference identities, never
+        // geometry or the potentially multi-megabyte baked visibility payload.
+        #[derive(Default, Serialize, Deserialize)]
+        struct Metadata {
+            #[serde(default)]
+            scene_script: Option<crate::actor_document::SceneScript>,
+            #[serde(default)]
+            actors: Vec<ActorScope>,
         }
-        let scene: crate::scene::Scene = crate::document::from_slice(&bytes)
-            .map_err(|e| format!("{}: scene Blueprint discovery failed: {e}", path.display()))?;
-        if let Some(file) = embedded(path, &scene) {
-            result.push(file);
+        #[derive(Serialize, Deserialize)]
+        struct ActorScope {
+            id: uuid::Uuid,
+            #[serde(default)]
+            components: Vec<ComponentScope>,
+        }
+        #[derive(Serialize, Deserialize)]
+        struct ComponentScope {
+            id: uuid::Uuid,
+        }
+        let metadata = crate::source_cache::load(path, "scene-script-index-v1", |bytes| {
+            if !bytes
+                .windows(b"scene_script".len())
+                .any(|w| w == b"scene_script")
+            {
+                return Ok(Metadata::default());
+            }
+            crate::document::from_slice::<Metadata>(bytes)
+        })
+        .map_err(|e| format!("{}: scene Blueprint discovery failed: {e}", path.display()))?;
+        if let Some(script) = &metadata.scene_script {
+            let mut asset = script.blueprint.clone();
+            if let Some(class_id) = &script.parent.class_id {
+                asset.parent = class_id.clone();
+            }
+            asset.version = VERSION;
+            result.push(AssetFile {
+                path: path.to_path_buf(),
+                asset,
+                source: AssetSource::EmbeddedScene(MapScope {
+                    actors: metadata.actors.iter().map(|a| a.id).collect(),
+                    components: metadata
+                        .actors
+                        .iter()
+                        .flat_map(|a| a.components.iter().map(|c| c.id))
+                        .collect(),
+                }),
+            });
         }
         Ok(())
     }
@@ -520,6 +555,37 @@ pub fn load_all(root: &Path) -> Result<Vec<AssetFile>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cached_scene_script_index_matches_embedded_scope_and_tracks_changes() {
+        let root = crate::workspace::tests::temp("scene-script-index");
+        fs::create_dir_all(root.join("assets/scenes")).unwrap();
+        let path = root.join("assets/scenes/Test.epokmap");
+        let mut scene = crate::scene::Scene::default();
+        scene.ensure_scene_script(None);
+        scene.save(&path).unwrap();
+        let bytes = fs::read(&path).unwrap();
+        for _ in 0..2 {
+            let files = load_all(&root).unwrap();
+            let canonical = crate::scene::Scene::load_unresolved(&path).unwrap();
+            let expected = embedded(&path, &canonical).unwrap();
+            assert_eq!(files.len(), 1);
+            assert_eq!(files[0].scope(), expected.scope());
+            assert_eq!(
+                files[0].asset.semantic_hash(),
+                expected.asset.semantic_hash()
+            );
+            assert_eq!(fs::read(&path).unwrap(), bytes);
+        }
+        scene.scene_script.as_mut().unwrap().blueprint.name = "ChangedSceneScript".into();
+        scene.actors.pop();
+        scene.save(&path).unwrap();
+        let files = load_all(&root).unwrap();
+        assert_eq!(files[0].asset.name, "ChangedSceneScript");
+        assert_eq!(files[0].scope().unwrap().actors.len(), scene.actors.len());
+        fs::remove_file(path).unwrap();
+        assert!(load_all(&root).unwrap().is_empty());
+        fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn layout_does_not_invalidate_generated_code() {
         let mut a = BlueprintAsset::new("Boss".into(), "enemy".into());

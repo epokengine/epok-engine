@@ -127,6 +127,105 @@ static void skeletal_matrix_fast_paths() {
     }
 }
 
+static void visible_packet_ownership() {
+    // Main regression: an invisible cache covers 2,044 slots, but no GPU
+    // packet is claimed. All 2,048 dynamic triangles must still fit.
+    epok::FramePacketSlots<2048> slots;
+    epok::RetainedGeometry<3,1024> cache;
+    epok::MeshGeometry geometry{};
+    assert(cache.allocate(0,&geometry,1022,2048));
+    cache.state(0).key[0].valid=cache.state(0).key[1].valid=true;
+    slots.begin_frame();
+    for(uint32_t i=2048;i>0;--i)assert(slots.allocate_dynamic()==i-1);
+    assert(slots.allocate_dynamic()==2048);
+    cache.invalidate_borrowed(0,slots.dynamic_low());
+    assert(!cache.state(0).key[0].valid&&cache.state(0).key[1].valid);
+    // Invalidation survives invisible frames; only the overwritten parity
+    // rebuilds when the object eventually comes back into view.
+    slots.begin_frame();
+    cache.invalidate_borrowed(1,slots.dynamic_low());
+    assert(!cache.state(0).key[0].valid&&cache.state(0).key[1].valid);
+
+    epok::FramePacketSlots<70> mixed;
+    mixed.begin_frame();
+    assert(mixed.claim(30,5)); // straddles two bitmap words
+    assert(!mixed.claim(0,71)&&!mixed.claim(UINT32_MAX,2));
+    assert(!mixed.claim(10,21)); // rejection must not claim its prefix
+    assert(mixed.claim(10,20));
+    assert(!mixed.claim(10,0)&&!mixed.claim(30,5));
+    bool seen[70]={};
+    for(unsigned n=0;n<45;++n){
+        const auto slot=mixed.allocate_dynamic();
+        assert(slot<70&&!seen[slot]&&(slot<10||slot>=35));seen[slot]=true;
+    }
+    assert(mixed.allocate_dynamic()==70);
+    mixed.begin_frame();
+    assert(mixed.allocate_dynamic()==69);
+    assert(!mixed.claim(68,2)); // cannot overwrite already-linked dynamic work
+    assert(mixed.claim(0,69));
+    assert(mixed.allocate_dynamic()==70);
+    mixed.begin_frame();
+    assert(mixed.claim(0,70)&&mixed.allocate_dynamic()==70);
+
+    mixed.begin_frame();
+    assert(mixed.claim(67,2)); // Slot 69 alone cannot hold a quad.
+    assert(mixed.allocate_dynamic_pair()==65); // 65,66 are adjacent and free.
+    assert(!mixed.claim(66,1));
+    assert(mixed.allocate_dynamic()==64);
+    mixed.begin_frame();
+    assert(mixed.claim(1,69));
+    assert(mixed.allocate_dynamic_pair()==70);
+    assert(mixed.allocate_dynamic()==0); // Failed pair preserves the singleton.
+
+    uint32_t pair_rng=41768;
+    for(unsigned frame=0;frame<400;++frame){
+        mixed.begin_frame();bool occupied[70]={};uint32_t cursor=70;
+        for(unsigned step=0;step<150;++step){
+            pair_rng=pair_rng*1664525u+1013904223u;
+            const unsigned operation=(pair_rng>>16)%3;
+            if(operation==0){
+                const uint32_t first=(pair_rng>>8)%76,count=(pair_rng>>20)%40;
+                bool expected=count&&first<cursor&&count<=cursor-first;
+                if(expected)for(uint32_t s=first;s<first+count;++s)expected&=!occupied[s];
+                assert(mixed.claim(first,count)==expected);
+                if(expected)for(uint32_t s=first;s<first+count;++s)occupied[s]=true;
+            }else if(operation==1){
+                uint32_t at=cursor,expected=70;
+                while(at){--at;if(!occupied[at]){expected=at;break;}}
+                assert(mixed.allocate_dynamic()==expected);
+                cursor=expected<70?expected:0;
+                if(expected<70)occupied[expected]=true;
+            }else{
+                uint32_t expected=70;
+                for(uint32_t at=cursor;at>=2;--at)if(!occupied[at-1]&&!occupied[at-2]){expected=at-2;break;}
+                assert(mixed.allocate_dynamic_pair()==expected);
+                if(expected<70){occupied[expected]=occupied[expected+1]=true;cursor=expected;}
+            }
+        }
+    }
+
+    // Differential allocator test, including partial final words, overlaps,
+    // exhaustion, arbitrary object ordering and frame resets.
+    uint32_t rng=17;
+    for(unsigned frame=0;frame<1000;++frame){
+        mixed.begin_frame();bool occupied[70]={};uint32_t cursor=70;
+        for(unsigned step=0;step<150;++step){
+            rng=rng*1664525u+1013904223u;
+            if(rng&1){
+                const uint32_t first=(rng>>8)%76,count=(rng>>20)%40;
+                bool expected=count&&first<cursor&&count<=cursor-first;
+                if(expected)for(uint32_t s=first;s<first+count;++s)expected&=!occupied[s];
+                assert(mixed.claim(first,count)==expected);
+                if(expected)for(uint32_t s=first;s<first+count;++s)occupied[s]=true;
+            }else{
+                uint32_t expected=70;
+                while(cursor){--cursor;if(!occupied[cursor]){expected=cursor;occupied[cursor]=true;break;}}
+                assert(mixed.allocate_dynamic()==expected);
+            }
+        }
+    }
+}
+
 static void animated_packet_retention() {
     assert(epok::retain_mesh_packets(true,false,false));
     assert(!epok::retain_mesh_packets(true,true,false));
@@ -366,6 +465,7 @@ int main() {
     skeletal_queries();
     skeletal_matrix_fast_paths();
     animated_packet_retention();
+    visible_packet_ownership();
     scene_fog_range();
     scene_screen_fade_clamps_and_round_trips();
     persistent_utilities();

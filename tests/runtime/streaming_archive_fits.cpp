@@ -7,6 +7,8 @@ static void reset() {
   stream_pool = {};
   for (auto &data : stream_page_data) data = nullptr;
   streaming_stats = {};
+  streaming_verify_stats = {};
+  stream_verification = {};
   stream_entry = {};
   stream_lookup_started = stream_lookup_pending = stream_ready = stream_failed = stream_read_pending = false;
   stream_warm_scene = false;
@@ -28,6 +30,8 @@ int main() {
   assert(stream_pool.find(1) == 1 && !stream_page_data[1]);
   assert(!stream_pool.pin(1));
   gpu.pumpCallbacks(); streaming_tick();
+  assert(!stream_page_data[1] && stream_verification.active && !stream_pool.ready(1));
+  while (stream_verification.active) streaming_tick();
   assert(stream_page_data[1] == stream_pool.destination(1));
   const auto *one = stream_page_data[1];
   assert(one[1234] == 1);
@@ -38,10 +42,16 @@ int main() {
   const auto before_time = fake_cd::now;
   for (unsigned i = 0; i < 1000; ++i) {
     const auto view = cursor.resolve(mesh, gpu, true);
-    assert(view.valid && reinterpret_cast<const uint8_t *>(view.vertices) == one);
+    assert(view.valid && static_cast<const uint8_t *>(view.vertices.data) == one);
   }
   assert(stream_pool.hits == before_hits && fake_cd::now == before_time);
-  assert(reinterpret_cast<const uint8_t *>(mesh.vertices) == one && mesh.quads);
+  assert(static_cast<const uint8_t *>(mesh.vertices.data) == one && mesh.quads);
+  MeshGeometry wide;
+  wide.vertices={nullptr,12};wide.stream_page=1;
+  auto wide_view=cursor.resolve(wide,gpu);
+  assert(wide_view.valid&&wide_view.vertices.wide()&&wide.vertices.wide());
+  assert(wide_view.vertices[0][0]==0x01010101);
+  assert(cursor.resolve(wide,gpu).vertices[0][2]==0x01010101);
   assert(!stream_pool.unpin(1)); // Raw views add no pin or lookup-counter writes.
   // Changing topology creates a fresh descriptor, without a previous binding.
   mesh = {};
@@ -50,7 +60,7 @@ int main() {
   assert(zero.valid && stream_page_data[0] == stream_pool.destination(0));
   assert(streaming_stats.reads == 2 && streaming_stats.stalls == 1);
   assert(!stream_pool.unpin(0) && stream_pool.evictions == 0);
-  assert(one[1234] == 1 && reinterpret_cast<const uint8_t *>(zero.vertices)[1234] == 0);
+  assert(one[1234] == 1 && static_cast<const uint8_t *>(zero.vertices.data)[1234] == 0);
   // The pool policy itself forbids introducing a third identity, even with no pins.
   assert(stream_pool.reserve(2) == -1 && stream_pool.reserve(UINT32_MAX) == -1);
   assert(stream_pool.reserve(0) == 0 && stream_pool.reserve(1) == 1);
@@ -61,7 +71,7 @@ int main() {
     MeshGeometry other;
     other.stream_page = 1;
     assert(cursor.resolve(other, gpu).valid); // Stable views cannot invalidate the lease.
-    assert(reinterpret_cast<const uint8_t *>(lease.vertices())[1234] == 0);
+    assert(static_cast<const uint8_t *>(lease.vertices().data)[1234] == 0);
   }
   assert(cursor.release());
   mesh = {};

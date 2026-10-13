@@ -209,6 +209,7 @@ pub fn scene_header_with_registry_for(
     text.push_str(&navigation_table);
     if emit_resources {
         text.push_str(&crate::texture::header(resources)?);
+        text.push_str(&crate::vertex_colors::Palette::scene(resources)?.header());
     }
     let texture_ids = crate::texture::ids(resources);
     let (sprite_tables, sprite_init) = crate::sprites::generate(scene, &texture_ids);
@@ -271,19 +272,28 @@ pub fn scene_header_with_registry_for(
     }
     // Page geometry follows this bank's VRAM layout, the same one its texture
     // descriptors are generated from.
-    let layout = crate::texture::layout(layout_scene)?;
+    let layout = crate::texture::layout(layout_scene)?.textures;
+    // Fonts are cooked once for the whole project, so a label's index addresses
+    // the shared resource set rather than this bank's own.
+    let fonts = crate::hud::font_ids(resources);
     let pages = |id: uuid::Uuid| {
         let placement = layout.iter().find(|(v, _)| *v == id)?;
         let t = scene.textures.get(&id)?;
-        Some((t.width, t.height, placement.1.y))
+        Some(placement.1.page(t))
     };
+    let vertex_colors = crate::vertex_colors::Palette::scene(resources)?;
     for (index, e) in scene
         .actors
         .iter()
         .enumerate()
         .filter(|(_, e)| e.kind == "Mesh" && e.editable_mesh.is_some())
     {
-        text.push_str(&crate::mesh_compile::header_with_pages(e, index, &pages)?);
+        text.push_str(&crate::mesh_compile::header_with_colors(
+            e,
+            index,
+            &pages,
+            &vertex_colors,
+        )?);
     }
     for (index, e) in scene
         .actors
@@ -317,20 +327,28 @@ pub fn scene_header_with_registry_for(
     ));
     let fixed = |v: f32| format!("Fixed({}, Fixed::RAW)", (v as f64 * 4096.).round() as i32);
     for (index, e) in scene.actors.iter().enumerate() {
-        if e.position.iter().any(|v| v.abs() > 128.) || e.scale.iter().any(|v| *v > 64.) {
-            return Err(format!(
-                "{}: initial PSX renderer supports positions ±128 and scales up to 64",
-                e.name
-            ));
+        if e.scale.iter().any(|v| *v > 64.) {
+            return Err(format!("{}: PSX export supports scales up to 64", e.name));
         }
         let world = scene.world_matrix(index);
         if world
             .0
             .iter()
-            .any(|row| row[3].abs() > 128. || row[..3].iter().any(|v| v.abs() > 64.))
+            .any(|row| row[..3].iter().any(|v| !v.is_finite() || v.abs() > 64.))
         {
             return Err(format!(
-                "{}: inherited world transform exceeds PSX positions ±128 or basis ±64",
+                "{}: inherited world transform exceeds PSX basis ±64",
+                e.name
+            ));
+        }
+        // Translations are signed 32-bit Q12, not the GTE's signed 16-bit
+        // vertex input. Do not silently saturate an inherited world position.
+        if world.0.iter().any(|row| {
+            let raw = (f64::from(row[3]) * 4096.).round();
+            !raw.is_finite() || raw < f64::from(i32::MIN) || raw > f64::from(i32::MAX)
+        }) {
+            return Err(format!(
+                "{}: inherited world position exceeds signed 32-bit PSX Q12",
                 e.name
             ));
         }
@@ -395,6 +413,7 @@ pub fn scene_header_with_registry_for(
     text.push_str(
         r#"
 inline void initialize_components(){
+epok::set_visibility_track(nullptr);
 "#,
     );
     let color = |c: &[f32; 3]| {
@@ -448,10 +467,15 @@ inline void initialize_components(){
         text.push_str(&format!("objects[{i}].set_name({});\n", string(&e.name)));
         text.push_str(&format!("objects[{i}].active={};\n", e.active));
         if e.kind == "Camera" {
+            let gradient = e.camera_sky_gradient.map_or(String::new(), |g| {
+                format!(",true,{{{}}},{{{}}}", color(&g.horizon), color(&g.ground))
+            });
             text.push_str(&format!(
-                "objects[{i}].camera_settings={{true,{},{{{}}}}};\n",
+                "objects[{i}].camera_settings={{true,{},{{{}}},{}{}}};\n",
                 fixed(e.camera_fov),
-                color(&e.camera_sky_color)
+                color(&e.camera_sky_color),
+                e.camera_mirror_x,
+                gradient
             ));
         }
         if e.editable_mesh.is_none() && e.terrain.is_none() && e.skeletal_mesh.is_none() {
@@ -500,34 +524,44 @@ inline void initialize_components(){
             ));
         }
         if let Some(c) = &e.canvas {
-            text.push_str(&format!("objects[{i}].canvas.enabled={};\n", c.enabled));
+            text.push_str(&format!(
+                "objects[{i}].canvas.enabled={};objects[{i}].canvas.focused={};\n",
+                c.enabled, c.focused
+            ));
         }
         if let Some(r) = &e.rect {
             text.push_str(&format!(
-                "objects[{i}].rect=RectTransform{{true,{{{}}},{{{}}},{{{}}},{{{}}},{{{}}}}};\n",
+                "objects[{i}].rect=RectTransform{{true,{{{}}},{{{}}},{{{}}},{{{}}},{{{}}},{}}};\n",
                 vec2(&r.anchor_min),
                 vec2(&r.anchor_max),
                 vec2(&r.pivot),
                 vec2(&r.position),
-                vec2(&r.size)
+                vec2(&r.size),
+                fixed(r.rotation)
             ));
         }
         if let Some(c) = &e.image {
             text.push_str(&format!(
-                "objects[{i}].image=Image{{{},{{{}}},{},{{{}}},{{{}}}}};\n",
+                "objects[{i}].image=Image{{{},{{{}}},{},{{{}}},{{{}}},ImageTiling({})}};\n",
                 c.enabled,
                 color(&c.color),
                 c.texture.map(crate::texture::symbol).unwrap_or("-1".into()),
                 c.region.map(|v| v.to_string()).join(","),
-                c.borders.map(|v| v.to_string()).join(",")
+                c.borders.map(|v| v.to_string()).join(","),
+                c.tiling as u8
             ));
         }
         if let Some(c) = &e.text {
             text.push_str(&format!(
-                "objects[{i}].text=Text{{{},{{{}}}}};objects[{i}].text.set_text({});objects[{i}].text.wrap={};\n",
+                "objects[{i}].text=Text{{{},{{{}}}}};objects[{i}].text.set_text({});objects[{i}].text.wrap={};objects[{i}].text.font={};objects[{i}].text.align=TextAlign({});\n",
                 c.enabled,
                 color(&c.color),
-                string(&c.text),c.wrap
+                string(&c.text),
+                c.wrap,
+                c.font
+                    .and_then(|id| fonts.iter().position(|v| *v == id))
+                    .map_or("-1".into(), |i| i.to_string()),
+                c.align as u8
             ));
         }
         if let Some(c) = &e.progress {
@@ -537,6 +571,39 @@ inline void initialize_components(){
                 fixed(c.value),
                 color(&c.color),
                 color(&c.background)
+            ));
+        }
+        if let Some(c) = &e.layout_element {
+            text.push_str(&format!(
+                "objects[{i}].layout_element=LayoutElement{{{},{},{},{{{}}},{}}};\n",
+                c.enabled,
+                c.horizontal,
+                c.vertical,
+                vec2(&c.minimum),
+                fixed(c.stretch)
+            ));
+        }
+        if let Some(c) = &e.layout_container {
+            text.push_str(&format!(
+                "objects[{i}].layout_container=LayoutContainer{{{},LayoutKind({}),{{{}}},{{{}}},{}}};\n",
+                c.enabled,
+                c.kind as u8,
+                vec2(&c.spacing),
+                c.padding.map(fixed).join(","),
+                c.columns
+            ));
+        }
+        if let Some(c) = &e.focusable {
+            text.push_str(&format!(
+                "objects[{i}].focusable=Focusable{{{},{{{}}},{},{{{}}}}};\n",
+                c.enabled,
+                c.neighbors.map(|v| v.to_string()).join(","),
+                c.order,
+                c.highlight
+                    .iter()
+                    .map(|v| ((v.clamp(0., 1.) * 255.).round() as u8).to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
             ));
         }
     }
@@ -576,7 +643,7 @@ inline void initialize_components(){
     text.push_str("inline void initialize_scripts() {initialize_components();}\n");
     text.push_str(&actor_table_with_registry(scene, class_registry, &clips)?);
     text.push_str("#ifdef EPOK_EDITOR_PREVIEW\ninline void initialize_editor_preview() {initialize_components();}\n#endif\n}\n");
-    Ok(text)
+    crate::visibility_track::rewrite(scene, text)
 }
 fn tiled(e: &crate::scene::Actor) -> bool {
     crate::lighting::tiled(e)
@@ -780,6 +847,10 @@ fn stage_with_playback(
         &mut resolved,
         &crate::assets::scan(root, &mut Default::default()),
     )?;
+    crate::hud::resolve_fonts(
+        &mut resolved,
+        &crate::assets::scan(root, &mut Default::default()),
+    )?;
     let scene = &resolved;
     // A failed script compilation must never leave generated code from the
     // previous mode or revision behind in the staged build.
@@ -842,6 +913,7 @@ fn stage_with_playback(
         crate::terrain::validate_scene(bank)?;
         crate::skeletal::resolve(bank, &asset_index)?;
         crate::texture::resolve(bank, &asset_index)?;
+        crate::hud::resolve_fonts(bank, &asset_index)?;
         bank.validate()?;
         if !rendering.streaming_geometry
             && bank
@@ -865,6 +937,7 @@ fn stage_with_playback(
         hud_budget.rectangles = hud_budget.rectangles.max(bank.hud_budget.rectangles);
         hud_budget.texts = hud_budget.texts.max(bank.hud_budget.texts);
         hud_budget.glyphs = hud_budget.glyphs.max(bank.hud_budget.glyphs);
+        hud_budget.rotated = hud_budget.rotated.max(bank.hud_budget.rotated);
     }
     let mut timeline_scenes = banks.clone();
     timeline_scenes.extend(templates.iter().map(|t| t.scene.clone()));
@@ -908,20 +981,6 @@ fn stage_with_playback(
             .chain(effects.iter().map(|p| &p.compiled)),
         &effect_registry,
     )?;
-    let stream = if rendering.streaming_geometry {
-        Some(crate::streaming::compile_with_budget(
-            &banks,
-            rendering.streaming_pool_pages as usize,
-            usize::from(rendering.streaming_triangle_budget),
-        )?)
-    } else {
-        None
-    };
-    if let Some(bundle) = &stream {
-        bundle.write(build)?;
-    } else {
-        crate::streaming::clear(build)?;
-    }
     let mut resource_scenes = banks.clone();
     for template in &templates {
         resource_scenes.push(template.scene.clone());
@@ -931,6 +990,7 @@ fn stage_with_playback(
             .max(template.scene.hud_budget.rectangles);
         hud_budget.texts = hud_budget.texts.max(template.scene.hud_budget.texts);
         hud_budget.glyphs = hud_budget.glyphs.max(template.scene.hud_budget.glyphs);
+        hud_budget.rotated = hud_budget.rotated.max(template.scene.hud_budget.rotated);
     }
     let playback_sources = || {
         timelines
@@ -953,6 +1013,20 @@ fn stage_with_playback(
         &asset_index,
         &extra_resources,
     )?;
+    let mut vertex_color_sources = resource_scenes.clone();
+    vertex_color_sources.push(referenced.clone());
+    let vertex_colors =
+        crate::vertex_colors::Palette::scene(&crate::scene_bank::resources(&vertex_color_sources))?;
+    let mut stream = if rendering.streaming_geometry {
+        Some(crate::streaming::compile_with_palette(
+            &banks,
+            rendering.streaming_pool_pages as usize,
+            usize::from(rendering.streaming_triangle_budget),
+            &vertex_colors,
+        )?)
+    } else {
+        None
+    };
     // Scene actor records may refer directly to SDK-native classes. Those classes are
     // deliberately absent from the project script catalog, so use the authoritative
     // reflection registry for both validation and the cooked runtime class table.
@@ -970,6 +1044,14 @@ fn stage_with_playback(
             .runtime_capabilities
             .contains("skeletal-bone-query"),
     };
+    resource_scenes.push(referenced.clone());
+    let shared_resources = crate::scene_bank::resources(&resource_scenes);
+    if let Some(bundle) = &mut stream {
+        bundle.append_texture_pixels(&shared_resources)?;
+        bundle.write(build)?;
+    } else {
+        crate::streaming::clear(build)?;
+    }
     let generated = crate::scene_bank::header_with_templates_for(
         &banks,
         &catalog,
@@ -981,8 +1063,6 @@ fn stage_with_playback(
         class_registry,
         skeletal_queries,
     )?;
-    resource_scenes.push(referenced);
-    let shared_resources = crate::scene_bank::resources(&resource_scenes);
     let streamed_music = crate::audio::clip_ids(&shared_resources)
         .into_iter()
         .map(|id| asset_index.resolve(id))
@@ -1020,6 +1100,11 @@ fn stage_with_playback(
         }
     }
     crate::hud::stage(build, &hud_budget)?;
+    playback.resources(vec![crate::hud::stage_fonts(
+        build,
+        &shared_resources,
+        &asset_index,
+    )?])?;
     stage_runtime(build)?;
     for timeline in &timelines {
         let header = crate::timeline_runtime::header(&timeline.compiled, &blueprint_registry)?;
@@ -1193,8 +1278,16 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/actor_tables.hpp").as_slice(),
         ),
         (
+            "font_types.hpp",
+            include_bytes!("../runtime/font_types.hpp").as_slice(),
+        ),
+        (
             "hud_core.hpp",
             include_bytes!("../runtime/hud_core.hpp").as_slice(),
+        ),
+        (
+            "hud_focus.hpp",
+            include_bytes!("../runtime/hud_focus.hpp").as_slice(),
         ),
         (
             "serial_kernel.hpp",
@@ -1211,6 +1304,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "frame_clear.hpp",
             include_bytes!("../runtime/frame_clear.hpp").as_slice(),
+        ),
+        (
+            "sky_gradient.hpp",
+            include_bytes!("../runtime/sky_gradient.hpp").as_slice(),
         ),
         (
             "transition.hpp",
@@ -1282,8 +1379,48 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/streaming.hpp").as_slice(),
         ),
         (
+            "streaming_read.hpp",
+            include_bytes!("../runtime/streaming_read.hpp").as_slice(),
+        ),
+        (
             "streaming_pool.hpp",
             include_bytes!("../runtime/streaming_pool.hpp").as_slice(),
+        ),
+        (
+            "visibility_track.hpp",
+            include_bytes!("../runtime/visibility_track.hpp").as_slice(),
+        ),
+        (
+            "ordered_draw_types.hpp",
+            include_bytes!("../runtime/ordered_draw_types.hpp").as_slice(),
+        ),
+        (
+            "ordered_draw.hpp",
+            include_bytes!("../runtime/ordered_draw.hpp").as_slice(),
+        ),
+        (
+            "ordered_renderer.hpp",
+            include_bytes!("../runtime/ordered_renderer.hpp").as_slice(),
+        ),
+        (
+            "ordered_projection.hpp",
+            include_bytes!("../runtime/ordered_projection.hpp").as_slice(),
+        ),
+        (
+            "draw_order.hpp",
+            include_bytes!("../runtime/draw_order.hpp").as_slice(),
+        ),
+        (
+            "baked_packet.hpp",
+            include_bytes!("../runtime/baked_packet.hpp").as_slice(),
+        ),
+        (
+            "rail_navigation_types.hpp",
+            include_bytes!("../runtime/rail_navigation_types.hpp").as_slice(),
+        ),
+        (
+            "rail_navigation.hpp",
+            include_bytes!("../runtime/rail_navigation.hpp").as_slice(),
         ),
         (
             "effects.hpp",
@@ -1329,6 +1466,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "texture.hpp",
             include_bytes!("../runtime/texture.hpp").as_slice(),
+        ),
+        (
+            "texture_upload.hpp",
+            include_bytes!("../runtime/texture_upload.hpp").as_slice(),
         ),
         (
             "sprites.hpp",
@@ -1436,6 +1577,26 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/affine.hpp").as_slice(),
         ),
         (
+            "fixed_trigonometry.hpp",
+            include_bytes!("../runtime/fixed_trigonometry.hpp").as_slice(),
+        ),
+        (
+            "camera_aim.hpp",
+            include_bytes!("../runtime/camera_aim.hpp").as_slice(),
+        ),
+        (
+            "camera_direction.hpp",
+            include_bytes!("../runtime/camera_direction.hpp").as_slice(),
+        ),
+        (
+            "rail_camera_aim.hpp",
+            include_bytes!("../runtime/rail_camera_aim.hpp").as_slice(),
+        ),
+        (
+            "track_camera_pose.hpp",
+            include_bytes!("../runtime/track_camera_pose.hpp").as_slice(),
+        ),
+        (
             "transform_cache.hpp",
             include_bytes!("../runtime/transform_cache.hpp").as_slice(),
         ),
@@ -1450,6 +1611,18 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "gte_geometry.hpp",
             include_bytes!("../runtime/gte_geometry.hpp").as_slice(),
+        ),
+        (
+            "mesh_vertices.hpp",
+            include_bytes!("../runtime/mesh_vertices.hpp").as_slice(),
+        ),
+        (
+            "baked_draw_types.hpp",
+            include_bytes!("../runtime/baked_draw_types.hpp").as_slice(),
+        ),
+        (
+            "baked_selection.hpp",
+            include_bytes!("../runtime/baked_selection.hpp").as_slice(),
         ),
         (
             "polygon.hpp",
@@ -1999,11 +2172,34 @@ mod tests {
         let mut scene = Scene::default();
         scene.actors[0].camera_sky_color = [0.25, 0.5, 1.];
         let header = scene_header(&scene, &[]).unwrap();
-        assert!(
-            header.contains(
-                "objects[0].camera_settings={true,Fixed(368640, Fixed::RAW),{64,128,255}};"
-            )
+        assert!(header.contains(
+            "objects[0].camera_settings={true,Fixed(368640, Fixed::RAW),{64,128,255},false};"
+        ));
+        scene.actors[0].camera_mirror_x = true;
+        let copy: Scene = serde_json::from_value(serde_json::to_value(&scene).unwrap()).unwrap();
+        assert!(copy.actors[0].camera_mirror_x);
+        assert!(scene_header(&copy, &[]).unwrap().contains(
+            "objects[0].camera_settings={true,Fixed(368640, Fixed::RAW),{64,128,255},true};"
+        ));
+    }
+    #[test]
+    fn camera_sky_gradient_exports_horizon_and_ground_colours() {
+        let mut scene = Scene::default();
+        scene.actors[0].camera_sky_color = [0.25, 0.5, 1.];
+        scene.actors[0].camera_sky_gradient = Some(crate::scene::SkyGradient {
+            horizon: [1., 1., 1.],
+            ground: [0.25, 0., 0.5],
+        });
+        let copy: Scene = serde_json::from_value(serde_json::to_value(&scene).unwrap()).unwrap();
+        assert_eq!(
+            copy.actors[0].camera_sky_gradient,
+            scene.actors[0].camera_sky_gradient
         );
+        assert!(scene_header(&copy, &[]).unwrap().contains(
+            "objects[0].camera_settings={true,Fixed(368640, Fixed::RAW),{64,128,255},false,true,{255,255,255},{64,0,128}};"
+        ));
+        scene.actors[0].camera_sky_gradient.as_mut().unwrap().ground[1] = 1.5;
+        assert!(scene.validate().is_err());
     }
     #[test]
     fn background_pass_only_exports_for_selected_actor() {
@@ -2220,6 +2416,35 @@ mod tests {
         assert!(graph.nodes["stage:.epok/build"].stale.is_empty());
     }
     #[test]
+    fn psx_export_preserves_large_world_positions() {
+        let mut scene = Scene::default();
+        scene.actors[0].position = [120.74, 24.04, 906.76];
+        scene.actors[1].position = [120.74, 20.04, 914.76];
+        let before = scene.actors[1].position;
+        let header = scene_header(&scene, &[]).unwrap();
+        for value in before {
+            assert!(header.contains(&format!(
+                "Fixed({}, Fixed::RAW)",
+                (f64::from(value) * 4096.).round() as i32
+            )));
+        }
+        assert_eq!(scene.actors[1].position, before);
+        // A distant parent is allowed; its child retains local coordinates.
+        scene.actors[3].position = [10000.; 3];
+        scene.actors[3].scale = [1.; 3];
+        scene.actors[1].parent = Some(3);
+        assert!(scene_header(&scene, &[]).is_ok());
+        // But a hierarchy that actually exceeds the runtime's Q12 storage is not.
+        scene.actors[3].scale = [64.; 3];
+        scene.actors[1].position = [10000.; 3];
+        scene.actors[1].scale = [1.; 3];
+        assert!(
+            scene_header(&scene, &[])
+                .unwrap_err()
+                .contains("world position exceeds signed 32-bit")
+        );
+    }
+    #[test]
     fn native_export_keeps_local_transforms_materials_and_parent_first_order() {
         let mut s = Scene::default();
         s.actors[3].kind = "Empty".into();
@@ -2235,6 +2460,103 @@ mod tests {
         s.actors[3].scale = [64.; 3];
         s.actors[1].scale = [2.; 3];
         assert!(scene_header(&s, &[]).is_err());
+    }
+    #[test]
+    fn layout_components_export_positionally_in_the_runtime_field_order() {
+        let mut s = Scene::default();
+        let canvas = s.actors.len();
+        let mut root = crate::scene::Actor::cube("Canvas".into());
+        root.kind = "Empty".into();
+        root.position = [0.; 3];
+        root.canvas = Some(Default::default());
+        s.actors.push(root);
+        let mut box_actor = crate::scene::Actor::cube("Grid".into());
+        box_actor.kind = "Empty".into();
+        box_actor.position = [0.; 3];
+        box_actor.parent = Some(canvas);
+        box_actor.rect = Some(Default::default());
+        box_actor.layout_container = Some(crate::hud::LayoutContainer {
+            kind: crate::hud::LayoutKind::Grid,
+            spacing: [4., 8.],
+            padding: [1., 2., 3., 4.],
+            columns: 3,
+            enabled: true,
+        });
+        box_actor.layout_element = Some(crate::hud::LayoutElement {
+            enabled: true,
+            horizontal: 3,
+            vertical: 8,
+            minimum: [16., 32.],
+            stretch: 2.,
+        });
+        let index = s.actors.len();
+        s.actors.push(box_actor);
+        s.sync_actor_components();
+        let header = scene_header(&s, &[]).unwrap();
+        let q = |raw: i32| format!("Fixed({raw}, Fixed::RAW)");
+        assert!(header.contains(&format!(
+            "objects[{index}].layout_element=LayoutElement{{true,3,8,{{{},{}}},{}}};",
+            q(65536),
+            q(131072),
+            q(8192)
+        )));
+        assert!(header.contains(&format!(
+            "objects[{index}].layout_container=LayoutContainer{{true,LayoutKind(3),{{{},{}}},{{{},{},{},{}}},3}};",
+            q(16384),
+            q(32768),
+            q(4096),
+            q(8192),
+            q(12288),
+            q(16384)
+        )));
+        // Tiling, rotation, canvas focus and the focus table are appended to the
+        // aggregates they belong to, so the positional forms must show them last.
+        s.actors[index].image = Some(crate::hud::Image {
+            color: [0.; 3],
+            enabled: true,
+            texture: None,
+            region: [1, 2, 64, 64],
+            borders: [5, 6, 7, 8],
+            tiling: crate::hud::ImageTiling::TileFit,
+        });
+        s.actors[index].rect.as_mut().unwrap().rotation = 45.;
+        s.actors[index].focusable = Some(crate::hud::Focusable {
+            enabled: true,
+            neighbors: [3, -1, 0, 2],
+            order: 7,
+            highlight: [1., 0.5, 0.],
+        });
+        s.actors[canvas].canvas.as_mut().unwrap().focused = 1;
+        s.sync_actor_components();
+        let header = scene_header(&s, &[]).unwrap();
+        assert!(header.contains(&format!(
+            "objects[{index}].image=Image{{true,{{0,0,0}},-1,{{1,2,64,64}},{{5,6,7,8}},ImageTiling(2)}};"
+        )));
+        assert!(header.contains(&format!(
+            ",{{{},{}}},{}}};",
+            q(409600),
+            q(131072),
+            q(184320)
+        )));
+        assert!(header.contains(&format!(
+            "objects[{index}].focusable=Focusable{{true,{{3,-1,0,2}},7,{{255,128,0}}}};"
+        )));
+        assert!(header.contains(&format!("objects[{canvas}].canvas.focused=1;")));
+        // A label's font index and alignment are appended after its wrap flag;
+        // the built-in atlas keeps index -1 so unchanged scenes are unchanged.
+        s.actors[index].text = Some(crate::hud::Text {
+            text: "Hi".into(),
+            color: [1.; 3],
+            enabled: true,
+            wrap: false,
+            font: None,
+            align: crate::hud::TextAlign::Right,
+        });
+        s.sync_actor_components();
+        let header = scene_header(&s, &[]).unwrap();
+        assert!(header.contains(&format!(
+            "objects[{index}].text.wrap=false;objects[{index}].text.font=-1;objects[{index}].text.align=TextAlign(2);"
+        )));
     }
     #[test]
     fn missing_script_fails_before_build() {

@@ -1,5 +1,6 @@
 use crate::project::{self, Config};
 use std::{
+    cell::Cell,
     fs,
     io::{BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
@@ -42,6 +43,7 @@ pub struct Job {
     pub native: Option<crate::native_play::Bridge>,
     pub events: Receiver<Event>,
     controls: Sender<Control>,
+    stopping: Cell<bool>,
     worker: Option<thread::JoinHandle<()>>,
 }
 impl Job {
@@ -81,6 +83,7 @@ impl Job {
             native: None,
             events,
             controls,
+            stopping: Cell::new(false),
             worker: Some(worker),
         }
     }
@@ -134,6 +137,7 @@ impl Job {
             native: None,
             events,
             controls,
+            stopping: Cell::new(false),
             worker: Some(worker),
         }
     }
@@ -147,6 +151,7 @@ impl Job {
                 native: None,
                 events,
                 controls,
+                stopping: Cell::new(false),
                 worker: None,
             },
             sender,
@@ -239,11 +244,18 @@ impl Job {
             native: native_bridge,
             events,
             controls,
+            stopping: Cell::new(false),
             worker: Some(worker),
         }
     }
     pub fn control(&self, control: Control) {
+        if matches!(control, Control::Stop) {
+            self.stopping.set(true);
+        }
         let _ = self.controls.send(control);
+    }
+    pub fn stopping(&self) -> bool {
+        self.stopping.get()
     }
 }
 impl Drop for Job {
@@ -268,6 +280,20 @@ pub fn quiet(command: &mut Command) {
     }
     let _ = command;
 }
+
+/// The OpenBIOS image shipped with the emulator, preferring its fast-boot
+/// variant. Windows and Linux distributions place it beside the executable;
+/// the macOS application bundle keeps it under Contents/Resources. Without an
+/// explicit image the emulator falls back to its own default, which is not
+/// guaranteed to be the fast-boot build.
+fn openbios(executable_dir: &Path) -> Option<PathBuf> {
+    let resources = executable_dir.join("../Resources/share/pcsx-redux/resources");
+    [executable_dir, resources.as_path()]
+        .into_iter()
+        .flat_map(|dir| [dir.join("openbios-fastboot.bin"), dir.join("openbios.bin")])
+        .find(|bios| bios.is_file())
+}
+
 pub(crate) fn stop(child: &mut Child) {
     #[cfg(windows)]
     {
@@ -801,16 +827,8 @@ fn execute(
     } else {
         command.arg("-no-pcdrv");
     }
-    if let Some(parent) = emulator.parent() {
-        let fast = parent.join("openbios-fastboot.bin");
-        let bios = if fast.is_file() {
-            fast
-        } else {
-            parent.join("openbios.bin")
-        };
-        if bios.is_file() {
-            command.arg("-bios").arg(bios);
-        }
+    if let Some(bios) = emulator.parent().and_then(openbios) {
+        command.arg("-bios").arg(bios);
     }
     quiet(&mut command);
     drop(reservation);
@@ -994,5 +1012,27 @@ mod output_tests {
         ] {
             assert!(!native_command_echo(line), "{line}");
         }
+    }
+
+    #[test]
+    fn openbios_is_found_beside_the_executable_or_in_the_macos_bundle() {
+        let root = std::env::temp_dir().join(format!("epok-openbios-{}", uuid::Uuid::new_v4()));
+        let macos = root.join("PCSX-Redux.app/Contents/MacOS");
+        let resources = root.join("PCSX-Redux.app/Contents/Resources/share/pcsx-redux/resources");
+        std::fs::create_dir_all(&macos).unwrap();
+        std::fs::create_dir_all(&resources).unwrap();
+        assert_eq!(super::openbios(&macos), None);
+        std::fs::write(resources.join("openbios.bin"), b"").unwrap();
+        let bundled = super::openbios(&macos).unwrap();
+        assert!(bundled.ends_with("Resources/share/pcsx-redux/resources/openbios.bin"));
+        std::fs::write(resources.join("openbios-fastboot.bin"), b"").unwrap();
+        assert!(
+            super::openbios(&macos)
+                .unwrap()
+                .ends_with("openbios-fastboot.bin")
+        );
+        std::fs::write(macos.join("openbios.bin"), b"").unwrap();
+        assert_eq!(super::openbios(&macos), Some(macos.join("openbios.bin")));
+        std::fs::remove_dir_all(&root).unwrap();
     }
 }

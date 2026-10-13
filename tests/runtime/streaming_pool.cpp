@@ -4,7 +4,26 @@
 
 using epok::StreamPagePool;
 int main() {
+  uint8_t hash_input[257];
+  for (unsigned i = 0; i < sizeof(hash_input); ++i) hash_input[i] = uint8_t(i * 43);
+  for (unsigned split = 0; split <= sizeof(hash_input); ++split) {
+    const auto prefix = epok::stream_page_hash_update(2166136261u, hash_input, split);
+    assert(epok::stream_page_hash_update(prefix, hash_input + split, sizeof(hash_input) - split) ==
+           epok::stream_page_hash(hash_input, sizeof(hash_input)));
+  }
   assert(epok::stream_page_hash(reinterpret_cast<const uint8_t *>("hello"), 5) == 0x4f9f2cabu);
+  epok::StreamPageWorkingSet<3> view;
+  view.consider(9, 90);
+  view.consider(3, 30);
+  view.consider(7, 70);
+  view.consider(4, 40);
+  assert(view.count() == 3 && view.page(0) == 3 && view.page(1) == 4 && view.page(2) == 7);
+  view.consider(7, 10);
+  view.consider(2, 10);
+  assert(view.page(0) == 2 && view.page(1) == 7 && view.page(2) == 3);
+  assert(view.contains(7) && !view.contains(9));
+  view.clear();
+  assert(view.count() == 0 && view.page(0) == epok::stream_invalid_page);
   static StreamPagePool<2> pool;
   assert(pool.find(0) == -1 && !pool.ready(0));
   assert(pool.reserve(epok::stream_invalid_page) == -1);

@@ -133,6 +133,10 @@ disabled by default and may lower FPS or stall frames. See
 for defaults and ranges. Lower triangle budgets save RAM but can omit triangles;
 inspect dropped-triangle counters when changing the budget.
 
+For large worlds, [World optimization techniques](world-optimization.md)
+lists the build-time techniques (visibility tracks, static world, prepared
+packet order and others), when to use each and what they measured.
+
 ## Skeletal characters
 
 `tools/benchmark_skeletal.py` measures skeletal workloads repeatably. It builds

@@ -439,6 +439,7 @@ pub fn quads(c: &Component) -> Vec<crate::lighting::Quad> {
             let [a, b, d] = t.indices.map(|v| vertices[v as usize]);
             let points = [a, b, d, d];
             crate::lighting::Quad {
+                vertex_colors: None,
                 uv: corner_uv(t),
                 face: 0,
                 normal: crate::mesh::face_normal(points),

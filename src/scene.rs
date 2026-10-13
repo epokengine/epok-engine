@@ -10,6 +10,24 @@ pub const DEFAULT_CAMERA_SKY_COLOR: [f32; 3] = [33. / 255., 40. / 255., 52. / 25
 fn default_camera_sky_color() -> [f32; 3] {
     DEFAULT_CAMERA_SKY_COLOR
 }
+/// Background drawn instead of the flat sky clear: the camera's sky colour
+/// overhead, `horizon` at the horizon and `ground` below it, so gaps in the
+/// world below the horizon show ground rather than sky.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SkyGradient {
+    pub horizon: [f32; 3],
+    pub ground: [f32; 3],
+}
+impl SkyGradient {
+    /// A starting point for a sky colour: a paler horizon and a dark ground.
+    pub fn for_sky(sky: [f32; 3]) -> Self {
+        Self {
+            horizon: sky.map(|c| c + (1. - c) * 0.35),
+            ground: [0.13, 0.11, 0.09],
+        }
+    }
+}
 fn default_active() -> bool {
     true
 }
@@ -21,6 +39,8 @@ pub struct Material {
     pub uv_scroll: [f32; 2],
     pub color: [f32; 3],
     pub unlit: bool,
+    /// Surface is visible from either side; independent of visibility/streaming.
+    pub double_sided: bool,
     pub texture: Option<uuid::Uuid>,
     pub blend: crate::texture::BlendMode,
     pub depth_bias: i16,
@@ -31,6 +51,7 @@ impl Default for Material {
             uv_scroll: [0.; 2],
             color: [1.; 3],
             unlit: false,
+            double_sided: false,
             texture: None,
             blend: Default::default(),
             depth_bias: 0,
@@ -112,11 +133,17 @@ pub struct BuiltinData {
     pub blueprint_instance: Option<crate::blueprint_templates::Instance>,
     #[serde(default = "default_fov")]
     pub camera_fov: f32,
+    /// Mirror the camera projection, not world transforms or the free Scene view.
+    #[serde(default)]
+    pub camera_mirror_x: bool,
     /// Flat clear colour used whenever this camera is active. It deliberately
     /// starts at the runtime's historic blue-grey clear so old projects render
     /// exactly as they did before this camera setting existed.
     #[serde(default = "default_camera_sky_color")]
     pub camera_sky_color: [f32; 3],
+    /// Optional sky/horizon/ground background; None keeps the flat clear.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub camera_sky_gradient: Option<SkyGradient>,
     #[serde(default = "default_active")]
     pub active: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -160,6 +187,12 @@ pub struct BuiltinData {
     pub text: Option<crate::hud::Text>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress: Option<crate::hud::ProgressBar>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout_element: Option<crate::hud::LayoutElement>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout_container: Option<crate::hud::LayoutContainer>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focusable: Option<crate::hud::Focusable>,
     #[serde(default)]
     pub lighting: crate::lighting::MeshLighting,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -176,7 +209,9 @@ impl BuiltinData {
             blueprint_instance: None,
             active: true,
             camera_fov: 90.,
+            camera_mirror_x: false,
             camera_sky_color: default_camera_sky_color(),
+            camera_sky_gradient: None,
             sprite: None,
             sprite_animator: None,
             particle_emitter: None,
@@ -199,6 +234,9 @@ impl BuiltinData {
             image: None,
             text: None,
             progress: None,
+            layout_element: None,
+            layout_container: None,
+            focusable: None,
             lighting: Default::default(),
             light: None,
             blob_shadow: None,
@@ -215,6 +253,10 @@ pub struct Scene {
     pub hud_budget: crate::hud::Budget,
     #[serde(skip)]
     pub textures: BTreeMap<uuid::Uuid, std::sync::Arc<crate::texture::Data>>,
+    /// Cooked authored fonts, resolved from the asset index exactly as
+    /// `textures` is. Never serialized into a scene.
+    #[serde(skip)]
+    pub fonts: BTreeMap<uuid::Uuid, std::sync::Arc<crate::font_asset::FontData>>,
     /// Project output size used by HUD authoring; never serialized into a scene.
     #[serde(skip, default = "legacy_display_size")]
     pub display_size: [u16; 2],
@@ -230,6 +272,10 @@ pub struct Scene {
     /// The map's own Blueprint, one `SceneScriptActor` subclass per scene.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scene_script: Option<crate::actor_document::SceneScript>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visibility_track: Option<crate::visibility_track::Track>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ordered_draw: Option<crate::ordered_draw::Program>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -250,6 +296,10 @@ struct SceneDocument {
     navigation: Option<crate::navigation::Bake>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     scene_script: Option<crate::actor_document::SceneScript>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    visibility_track: Option<crate::visibility_track::Track>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ordered_draw: Option<crate::ordered_draw::Program>,
 }
 impl From<Scene> for SceneDocument {
     fn from(mut scene: Scene) -> Self {
@@ -264,6 +314,8 @@ impl From<Scene> for SceneDocument {
             bake: scene.bake,
             navigation: scene.navigation,
             scene_script: scene.scene_script,
+            visibility_track: scene.visibility_track,
+            ordered_draw: scene.ordered_draw,
         }
     }
 }
@@ -279,7 +331,10 @@ impl From<SceneDocument> for Scene {
             bake: doc.bake,
             navigation: doc.navigation,
             scene_script: doc.scene_script,
+            visibility_track: doc.visibility_track,
+            ordered_draw: doc.ordered_draw,
             textures: Default::default(),
+            fonts: Default::default(),
             display_size: legacy_display_size(),
         };
         scene.refresh_actor_hierarchy();
@@ -296,7 +351,28 @@ impl From<SceneDocument> for Scene {
 }
 impl PartialEq for Scene {
     fn eq(&self, other: &Self) -> bool {
-        serde_json::to_value(self).ok() == serde_json::to_value(other).ok()
+        // Bulk baked data already has structural equality. Expanding millions
+        // of visibility indices into JSON Values on the frame thread merely to
+        // accept a background observation caused a visible hitch after loading.
+        if self.visibility_track != other.visibility_track
+            || self.ordered_draw != other.ordered_draw
+            || self.bake != other.bake
+            || self.navigation != other.navigation
+        {
+            return false;
+        }
+        let mut left = self.clone();
+        let mut right = other.clone();
+        left.visibility_track = None;
+        right.visibility_track = None;
+        left.ordered_draw = None;
+        right.ordered_draw = None;
+        left.bake = None;
+        right.bake = None;
+        left.navigation = None;
+        right.navigation = None;
+        // Preserve Actor/component projection and serialized-only semantics.
+        serde_json::to_value(left).ok() == serde_json::to_value(right).ok()
     }
 }
 
@@ -322,10 +398,13 @@ impl Default for Scene {
             navigation: None,
             display_size: legacy_display_size(),
             textures: Default::default(),
+            fonts: Default::default(),
             version: crate::actor_document::SCENE_VERSION,
             name: "SampleScene".into(),
             actors: vec![camera, Actor::cube("Cube".into()), second, floor],
             scene_script: None,
+            visibility_track: None,
+            ordered_draw: None,
         }
     }
 }
@@ -396,23 +475,32 @@ impl Scene {
             crate::actor_components::domain(&next)
                 == crate::actor_components::domain(&self.actors[*p])
         });
-        if keep_world && let Some(r) = next.rect.as_mut() {
-            let old = crate::hud::layout(self, index).ok_or("Invalid HUD hierarchy")?;
-            let p = spatial_parent
-                .and_then(|p| crate::hud::layout(self, p))
-                .unwrap_or([
-                    0.,
-                    0.,
-                    self.display_size[0] as f32,
-                    self.display_size[1] as f32,
-                ]);
-            for i in 0..2 {
-                r.size[i] = old[i + 2] - p[i + 2] * (r.anchor_max[i] - r.anchor_min[i]);
-                r.position[i] = old[i]
-                    - p[i]
-                    - p[i + 2]
-                        * (r.anchor_min[i] + (r.anchor_max[i] - r.anchor_min[i]) * r.pivot[i])
-                    + old[i + 2] * r.pivot[i];
+        if keep_world && next.rect.is_some() {
+            // One layout pass answers for the element and its new parent. A rect
+            // the pass never placed has no world rectangle to preserve — it is
+            // hidden under a container that assigns its rect wherever it lands —
+            // so the move keeps the authored values instead of failing.
+            let boxes = crate::hud::layouts(self);
+            if let Some(old) = boxes.get(index).copied().flatten().map(|p| p.rect)
+                && let Some(r) = next.rect.as_mut()
+            {
+                let p = spatial_parent
+                    .and_then(|p| boxes.get(p).copied().flatten())
+                    .map(|p| p.rect)
+                    .unwrap_or([
+                        0.,
+                        0.,
+                        self.display_size[0] as f32,
+                        self.display_size[1] as f32,
+                    ]);
+                for i in 0..2 {
+                    r.size[i] = old[i + 2] - p[i + 2] * (r.anchor_max[i] - r.anchor_min[i]);
+                    r.position[i] = old[i]
+                        - p[i]
+                        - p[i + 2]
+                            * (r.anchor_min[i] + (r.anchor_max[i] - r.anchor_min[i]) * r.pivot[i])
+                        + old[i + 2] * r.pivot[i];
+                }
             }
         } else if keep_world {
             let inverse =
@@ -450,11 +538,24 @@ impl Scene {
     pub fn duplicate_identities(&mut self) {
         self.sync_actor_components();
         let map = crate::actor_document::fresh_identities(&self.actors);
+        if let Some(program) = &mut self.ordered_draw {
+            program.remap_actors(&map);
+        }
         for actor in &mut self.actors {
             crate::actor_document::remap_actor(actor, &map);
         }
         if let Some(script) = &mut self.scene_script {
             crate::actor_document::remap_scene_script(script, &map, true);
+        }
+        if let Some(track) = &mut self.visibility_track {
+            if let Some(camera) = map.get(&track.camera) {
+                track.camera = *camera;
+            }
+            if let Some(nav) = &mut track.navigation {
+                if let Some(target) = map.get(&nav.target) {
+                    nav.target = *target;
+                }
+            }
         }
         self.refresh_actor_hierarchy();
     }
@@ -622,6 +723,12 @@ impl Scene {
         &self,
         model: Option<&crate::object_model::Model>,
     ) -> Result<(), String> {
+        if let Some(track) = &self.visibility_track {
+            track.validate(self)?;
+        }
+        if let Some(program) = &self.ordered_draw {
+            program.validate(self)?;
+        }
         if self.version > crate::actor_document::SCENE_VERSION {
             return Err(format!(
                 "This scene was written by a newer editor (document version {}, this editor supports up to {}). Update the editor rather than opening it: the document is never loaded as empty.",
@@ -701,6 +808,16 @@ impl Scene {
             {
                 return Err("Camera sky color channels must be between 0.0 and 1.0".into());
             }
+            if e.camera_sky_gradient.is_some_and(|g| {
+                !g.horizon
+                    .iter()
+                    .chain(&g.ground)
+                    .all(|channel| channel.is_finite() && (0. ..=1.).contains(channel))
+            }) {
+                return Err(
+                    "Camera horizon and ground color channels must be between 0.0 and 1.0".into(),
+                );
+            }
             if e.position
                 .iter()
                 .chain(&e.rotation)
@@ -753,19 +870,26 @@ impl Scene {
             let _ = crate::terrain::resolve(&mut scene, &index);
             let _ = crate::skeletal::resolve(&mut scene, &index);
             let _ = crate::texture::resolve(&mut scene, &index);
+            let _ = crate::hud::resolve_fonts(&mut scene, &index);
         }
         Ok(scene)
     }
     pub fn load_unresolved(path: &Path) -> Result<Self, String> {
-        let bytes = fs::read(path).map_err(|e| e.to_string())?;
-        let document: serde_json::Value = crate::document::from_slice(&bytes)?;
+        let cached = crate::source_cache::load(path, "scene-v1", Self::parse_unresolved)?;
+        let scene = (*cached).clone();
+        // Validation remains authoritative, including after a disk-cache hit.
+        scene.validate()?;
+        Ok(scene)
+    }
+    pub(crate) fn parse_unresolved(bytes: &[u8]) -> Result<Self, String> {
+        let document: serde_json::Value = crate::document::from_slice(bytes)?;
         if document["version"]
             .as_u64()
             .is_none_or(|version| version < u64::from(crate::actor_document::SCENE_VERSION))
         {
             return Err("This map uses the retired Entity/Behaviour format; recreate the project with the Actor templates.".into());
         }
-        let mut scene: Self = crate::document::from_slice(&bytes).map_err(|e| e.to_string())?;
+        let mut scene: Self = serde_json::from_value(document).map_err(|e| e.to_string())?;
         let indices: BTreeMap<_, _> = scene
             .actors
             .iter()

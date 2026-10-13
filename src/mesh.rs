@@ -51,6 +51,10 @@ pub struct Face {
     pub material: Uuid,
     #[serde(default = "default_uv")]
     pub uv: [[f32; 2]; 4],
+    /// Optional authored PSX packet-domain Gouraud colours. Per corner (not
+    /// welded position); textured 128 is neutral, untextured 255 is white.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vertex_colors: Option<crate::vertex_colors::Corners>,
 }
 fn default_uv() -> [[f32; 2]; 4] {
     [[0., 0.], [1., 0.], [1., 1.], [0., 1.]]
@@ -176,7 +180,6 @@ impl Document {
         {
             return Err("Editable vertices must stay within local ±128 units".into());
         }
-        let mut compiled = 0;
         for f in &self.faces {
             if f.vertices
                 .iter()
@@ -196,14 +199,6 @@ impl Document {
                 return Err("A face collapses at PSX Q12 precision; increase its size".into());
             }
             let n = face_normal(p);
-            let [nx, ny] = crate::mesh_compile::subdivisions(p);
-            compiled += nx * ny;
-            if compiled > 3500 {
-                return Err(
-                    "Compiled geometry exceeds 7000 triangles after large-surface subdivision"
-                        .into(),
-                );
-            }
             if crate::lighting::dot(n, n) < 0.5 {
                 return Err("Degenerate face: vertices are collinear or repeated".into());
             }
@@ -244,6 +239,7 @@ impl Document {
             group,
             material,
             uv: default_uv(),
+            vertex_colors: None,
         });
         id
     }
@@ -331,6 +327,8 @@ impl Document {
                 let j = (i + 1) % 4;
                 if p[i] != p[j] {
                     self.add_face([p[i], p[j], top[j], top[i]], f.group, f.material);
+                    self.faces.last_mut().unwrap().vertex_colors =
+                        f.vertex_colors.map(|c| [c[i], c[j], c[j], c[i]]);
                 }
             }
         }
@@ -368,6 +366,24 @@ impl Document {
                     uv_center,
                     std::array::from_fn(|c| (f.uv[i][c] + f.uv[(i + count - 1) % count][c]) * 0.5),
                 ];
+                self.faces.last_mut().unwrap().vertex_colors = f.vertex_colors.map(|colors| {
+                    let mix = |a: usize, b: usize| {
+                        std::array::from_fn(|c| {
+                            ((u16::from(colors[a][c]) + u16::from(colors[b][c]) + 1) / 2) as u8
+                        })
+                    };
+                    let center = std::array::from_fn(|c| {
+                        ((colors[..count].iter().map(|v| u32::from(v[c])).sum::<u32>()
+                            + count as u32 / 2)
+                            / count as u32) as u8
+                    });
+                    [
+                        colors[i],
+                        mix(i, (i + 1) % count),
+                        center,
+                        mix(i, (i + count - 1) % count),
+                    ]
+                });
             }
         }
     }
@@ -444,9 +460,25 @@ pub fn resolve(scene: &mut Scene, index: &assets::Index) -> Result<(), String> {
     let mut loaded = BTreeMap::new();
     for e in &mut scene.actors {
         if let Some(m) = &mut e.editable_mesh {
-            let result = loaded
-                .entry(m.asset)
-                .or_insert_with(|| index.resolve(m.asset).and_then(document).map(Arc::new));
+            let result = loaded.entry(m.asset).or_insert_with(|| {
+                index.resolve(m.asset).and_then(|record| {
+                    crate::source_cache::load(
+                        &record.path,
+                        &format!("editable-mesh-v1-{}", m.asset),
+                        |bytes| {
+                            let package = assets::Package::parse(bytes)?;
+                            if package.meta.kind != assets::Kind::EditableMesh
+                                || package.meta.id != m.asset
+                            {
+                                return Err(
+                                    "The mesh asset was replaced; refresh the asset index".into()
+                                );
+                            }
+                            Document::parse(&package.source)
+                        },
+                    )
+                })
+            });
             match result {
                 Ok(doc) => {
                     m.document = Some(doc.clone());
@@ -530,6 +562,31 @@ pub fn pick(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    #[test]
+    fn authored_vertex_colors_roundtrip_and_topology_keep_corners() {
+        let mut doc = shape("Plane");
+        assert!(
+            !String::from_utf8(serde_json::to_vec(&doc).unwrap())
+                .unwrap()
+                .contains("vertex_colors")
+        );
+        let colors = [[0, 128, 185], [255, 1, 127], [64, 128, 255], [10, 20, 30]];
+        doc.faces[0].vertex_colors = Some(colors);
+        let decoded = Document::parse(&serde_json::to_vec(&doc).unwrap()).unwrap();
+        assert_eq!(decoded, doc);
+        let selected = BTreeSet::from([doc.faces[0].id]);
+        let mut extruded = doc.clone();
+        extruded.extrude(&selected, 1.).unwrap();
+        assert_eq!(extruded.faces[0].vertex_colors, Some(colors));
+        for face in &extruded.faces {
+            assert!(face.vertex_colors.is_some());
+        }
+        doc.split(&selected);
+        assert_eq!(doc.faces.len(), 4);
+        for (i, face) in doc.faces.iter().enumerate() {
+            assert_eq!(face.vertex_colors.unwrap()[0], colors[i]);
+        }
+    }
     pub fn shape(shape: &str) -> Document {
         let mut doc = Document::default();
         doc.primitive(
@@ -577,7 +634,7 @@ pub(crate) mod tests {
         }
     }
     #[test]
-    fn validation_rejects_cycles_concavity_bad_ids_and_build_expansion() {
+    fn validation_rejects_cycles_concavity_bad_ids_but_accepts_large_faces() {
         let original = shape("Box");
         let mut doc = original.clone();
         doc.groups[0].parent = Some(doc.groups[0].id);
@@ -593,7 +650,7 @@ pub(crate) mod tests {
             v[0] *= 128.;
             v[2] *= 128.;
         }
-        assert!(doc.validate().unwrap_err().contains("7000"));
+        doc.validate().unwrap();
         let mut doc = original;
         doc.faces[0].vertices[0] = u32::MAX;
         assert!(doc.validate().is_err());
@@ -712,7 +769,7 @@ pub(crate) mod tests {
         assert!(header.contains("{0,0,255}"));
     }
     #[test]
-    fn long_thin_faces_subdivide_only_along_the_long_axis() {
+    fn large_faces_keep_authored_topology_uvs_and_q12_precision() {
         let mut doc = Document::default();
         doc.vertices = vec![[0., 0., 0.], [32., 0., 0.], [32., 0., 0.5], [0., 0., 0.5]];
         doc.faces.push(Face {
@@ -721,26 +778,41 @@ pub(crate) mod tests {
             group: doc.groups[0].id,
             material: doc.materials[0].id,
             uv: default_uv(),
+            vertex_colors: None,
         });
         doc.validate().unwrap();
-        assert_eq!(
-            crate::mesh_compile::subdivisions(doc.points(&doc.faces[0])),
-            [8, 1]
-        );
         let mut e = Actor::cube("Thin cap".into());
         let mut mesh = Component::new(Uuid::new_v4());
         mesh.document = Some(Arc::new(doc));
         let quads = crate::mesh_compile::quads(&e, &mesh);
-        assert_eq!(quads.len(), 8);
-        for (i, q) in quads.iter().enumerate() {
-            assert_eq!(q.points[0], [i as f32 * 4., 0., 0.]);
-            assert_eq!(q.points[2], [(i + 1) as f32 * 4., 0., 0.5]);
-            assert_eq!(q.uv[0], [i as f32 / 8., 0.]);
-            assert_eq!(q.uv[2], [(i + 1) as f32 / 8., 1.]);
+        assert_eq!(quads.len(), 1);
+        assert_eq!(
+            quads[0].points,
+            mesh.document
+                .as_ref()
+                .unwrap()
+                .points(&mesh.document.as_ref().unwrap().faces[0])
+        );
+        assert_eq!(quads[0].uv, default_uv());
+        let chunks = crate::mesh_compile::chunks(&quads).unwrap();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].vertex_stride(), 12);
+        assert_eq!(chunks[0].vertices.len(), 4);
+        for (corner, index) in chunks[0].faces[0].0.iter().enumerate() {
+            for axis in 0..3 {
+                let origin = (chunks[0].origin[axis] * 4096.) as i32;
+                let local = chunks[0].vertices[usize::from(*index)][axis];
+                let world = (quads[0].points[corner][axis] * 4096.) as i32;
+                assert_eq!(origin + local, world);
+                assert_eq!((origin >> 4) + (local >> 4), world >> 4);
+            }
         }
-        crate::mesh_compile::chunks(&quads).unwrap();
         e.editable_mesh = Some(mesh);
-        assert!(crate::mesh_compile::header(&e, 0).is_ok());
+        assert!(
+            crate::mesh_compile::header(&e, 0)
+                .unwrap()
+                .contains("int32_t editable_0_0_vertices")
+        );
     }
     #[test]
     fn wide_chunk_groups_split_without_changing_quantized_vertices() {

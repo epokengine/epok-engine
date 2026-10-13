@@ -17,8 +17,9 @@ static_assert(sizeof(BoneTrack)==8,"BoneTrack layout changed; update the editor'
 static_assert(sizeof(VertexFrame)==12,"VertexFrame layout changed; update the editor's size constants");
 static_assert(sizeof(AnimationClip)==20,"AnimationClip layout changed; update the editor's size constants");
 static_assert(sizeof(Material)==24,"Material layout changed; update the editor's size constants");
-static_assert(sizeof(MeshQuad)==72,"MeshQuad layout changed; update the editor's size constants");
-static_assert(sizeof(MeshGeometry)==72,"MeshGeometry layout changed; update the editor's size constants");
+static_assert(sizeof(MeshQuad)==80,"MeshQuad layout changed; update the editor's size constants");
+static_assert(sizeof(MeshVertices)==8,"MeshVertices must be a pointer plus one padded format byte");
+static_assert(sizeof(MeshGeometry)==84,"MeshGeometry layout changed; update the editor's size constants");
 static_assert(sizeof(SkeletalMesh)==40,"SkeletalMesh layout changed; update the editor's size constants");
 static_assert(sizeof(Animator)==20,"Animator layout changed; update the editor's size constants");
 static_assert(sizeof(Affine<Fixed>)==48,"Affine<Fixed> layout changed; update the editor's size constants");
@@ -120,7 +121,7 @@ struct Scratch {
     }
 };
 #ifdef __mips__
-static_assert(sizeof(Scratch)==64*48+512*6+72,"Shared skeletal scratch layout changed; update the editor's size constants");
+static_assert(sizeof(Scratch)==64*48+512*6+84,"Shared skeletal scratch layout changed; update the editor's size constants");
 #endif
 inline Scratch scratch;
 }
@@ -159,7 +160,7 @@ inline bool pose_all(const SkeletalMesh& model,const Animator& animator,int16_t 
 }
 inline bool baked_vertex(const SkeletalMesh& model,const Animator& animator,uint32_t vertex,PoseKind pose,Fixed* output) {
     if(!model.geometry||vertex>=model.geometry->vertex_count)return false;
-    const auto* bind=model.geometry->vertices[vertex];
+    const auto bind=model.geometry->vertices[vertex];
     if(pose==PoseKind::Bind||animator.clip<0||size_t(animator.clip)>=model.clip_count){for(int c=0;c<3;++c)output[c]=Fixed(bind[c],Fixed::RAW);return true;}
     const auto& clip=model.clips[animator.clip];
     if(!clip.vertex_frames||!clip.vertex_data){for(int c=0;c<3;++c)output[c]=Fixed(bind[c],Fixed::RAW);return true;}

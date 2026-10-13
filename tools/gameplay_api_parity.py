@@ -45,9 +45,13 @@ DISPOSITIONS = {
 # behavior.  They remain explicit inventory rows; none is silently skipped.
 INTERNAL_MODULES = {
     "actor-tables",
+    "baked-draw-types",
+    "baked-packet",
+    "baked-selection",
     "blueprint-runtime",
     "blueprint-spawn",
     "debug-hud",
+    "draw-order",
     "frame-clear",
     "gte-geometry",
     "instrument-allocator",
@@ -57,7 +61,12 @@ INTERNAL_MODULES = {
     "instrument-synth",
     "loading-renderer",
     "memory-card-backend",
+    "mesh-vertices",
     "motion-interpolation",
+    "ordered-draw",
+    "ordered-draw-types",
+    "ordered-projection",
+    "ordered-renderer",
     "particle-effect-runtime",
     "polygon",
     "retained",
@@ -69,9 +78,14 @@ INTERNAL_MODULES = {
     "sequence-lock",
     "serial-debug",
     "serial-kernel",
+    "sky-gradient",
     "streaming-pool",
+    "streaming-read",
+    "texture-upload",
     "timeline-runtime",
+    "track-camera-pose",
     "transform-cache",
+    "visibility-track",
 }
 
 HARDWARE_MODULES = {

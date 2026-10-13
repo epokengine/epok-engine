@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 82,
-    "types": 379,
-    "callables": 1330,
-    "properties": 1976
+    "headers": 104,
+    "types": 446,
+    "callables": 1565,
+    "properties": 2311
   },
   "psyqo": {
     "headers": 53,
@@ -37,10 +37,10 @@
       "family": "epok",
       "header": "affine.hpp",
       "slug": "affine",
-      "callables": 5,
-      "types": 1,
-      "properties": 1,
-      "source_sha256": "9eb76ceab024c9365a089e06a658749df5e72569cad91f431e9af22589ba083f",
+      "callables": 7,
+      "types": 2,
+      "properties": 3,
+      "source_sha256": "8a4da44b5642ce2c35af61520075763641113029ec0c3f863c9b6ffb14157caf",
       "diagnostics": []
     },
     {
@@ -51,6 +51,36 @@
       "types": 3,
       "properties": 16,
       "source_sha256": "957a19feff5d2d4d6d4192816432e5b413dede2b9dff5b347f010f693b7927a4",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "baked_draw_types.hpp",
+      "slug": "baked-draw-types",
+      "callables": 7,
+      "types": 1,
+      "properties": 16,
+      "source_sha256": "2755bccb7a182df578b3494a8ce2b379ecc4cd05ce7a0868deab40ff997595df",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "baked_packet.hpp",
+      "slug": "baked-packet",
+      "callables": 4,
+      "types": 3,
+      "properties": 6,
+      "source_sha256": "1433aee024d8ffc87df93fbd0b042ce95d79642cdafa7db13e94dca6aeca9b5e",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "baked_selection.hpp",
+      "slug": "baked-selection",
+      "callables": 1,
+      "types": 2,
+      "properties": 5,
+      "source_sha256": "a95fc7b2b31383353576137a44b447348acdcc274b9fbe2407f50c203ef8ac7c",
       "diagnostics": []
     },
     {
@@ -115,6 +145,26 @@
     },
     {
       "family": "epok",
+      "header": "camera_aim.hpp",
+      "slug": "camera-aim",
+      "callables": 5,
+      "types": 1,
+      "properties": 6,
+      "source_sha256": "7352af512ec4cc2688b05d01aba60b92144bb4a64b40334b94978924b1519fe0",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "camera_direction.hpp",
+      "slug": "camera-direction",
+      "callables": 4,
+      "types": 1,
+      "properties": 2,
+      "source_sha256": "65eaae5fcf7524dc48954cec8320ae348f3788b157c05870733be5363d8ede04",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
       "header": "collision.hpp",
       "slug": "collision",
       "callables": 18,
@@ -131,6 +181,16 @@
       "types": 1,
       "properties": 16,
       "source_sha256": "bd6c768da1e7b4728fbf53968671dc836feba360d7e356fa79d599faeea2c667",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "draw_order.hpp",
+      "slug": "draw-order",
+      "callables": 2,
+      "types": 1,
+      "properties": 4,
+      "source_sha256": "2fd81c3c92f1b220dcd4558a2f7d9854802c302aac8ba5a01343453401aa8e54",
       "diagnostics": []
     },
     {
@@ -157,10 +217,10 @@
       "family": "epok",
       "header": "epok.hpp",
       "slug": "epok",
-      "callables": 53,
-      "types": 56,
-      "properties": 317,
-      "source_sha256": "ac467445ff4cbe1245342f7181bd771a57d03e02c1a1f3c9b274969b21585f54",
+      "callables": 54,
+      "types": 61,
+      "properties": 358,
+      "source_sha256": "c6d93d7b10456ba0707ef0d56f069628340d2d36d523ccd8bf6f4f6ef81819b1",
       "diagnostics": []
     },
     {
@@ -171,6 +231,26 @@
       "types": 0,
       "properties": 1,
       "source_sha256": "d5bf28107f11a801ab3f8f4ccfd7efefaff9a5c71cf0a6609f809db24eaf9276",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "fixed_trigonometry.hpp",
+      "slug": "fixed-trigonometry",
+      "callables": 4,
+      "types": 1,
+      "properties": 2,
+      "source_sha256": "f5688f7cb9626fb0d27cb419132b29ab222d64d3ed1205d1ac65ff4feceb1627",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "font_types.hpp",
+      "slug": "font-types",
+      "callables": 3,
+      "types": 2,
+      "properties": 20,
+      "source_sha256": "33d0682a7c7b749b8bac41f5ebb087221b6f58b4b13110b69073ae09a6b0995b",
       "diagnostics": []
     },
     {
@@ -187,10 +267,10 @@
       "family": "epok",
       "header": "frustum.hpp",
       "slug": "frustum",
-      "callables": 7,
-      "types": 0,
-      "properties": 0,
-      "source_sha256": "f3bd227116e42492949a57cefc40b6f390ff9b0af4b0469642587f6ca2a26f2f",
+      "callables": 10,
+      "types": 1,
+      "properties": 7,
+      "source_sha256": "bbe6a39a555d6d31f98d29e953e6b0c24a8f47894dc933931564f2b815e30f81",
       "diagnostics": []
     },
     {
@@ -207,30 +287,40 @@
       "family": "epok",
       "header": "gte_geometry.hpp",
       "slug": "gte-geometry",
-      "callables": 6,
-      "types": 0,
-      "properties": 2,
-      "source_sha256": "bb3f385accbc850c7b9d526b93993e259e568ab6653a609aadcbe862b00848a9",
+      "callables": 26,
+      "types": 2,
+      "properties": 7,
+      "source_sha256": "190984eec4efa6fded9ff7a2d8b9c3d9fd72486ca891e5317015f3a3c3e97aa2",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "hud.hpp",
       "slug": "hud",
-      "callables": 8,
+      "callables": 12,
       "types": 1,
       "properties": 0,
-      "source_sha256": "7ccd5a2722759f6505e160c16833c18588fe87e504412aad5db77b9039f79d73",
+      "source_sha256": "95a7c31c40ae97f1e1aca8a2ae3e01501026dd558f7893d0f158ccfc877ab1f8",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "hud_core.hpp",
       "slug": "hud-core",
-      "callables": 5,
-      "types": 3,
-      "properties": 9,
-      "source_sha256": "79904537bc9eebdf1440c09c8ed6cc052b87dd5da39984cfa42c8036d76b2027",
+      "callables": 14,
+      "types": 5,
+      "properties": 16,
+      "source_sha256": "0312de472297b85f0fe6d553b669d826f7234bcc9138de4578e073465fadd52c",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "hud_focus.hpp",
+      "slug": "hud-focus",
+      "callables": 3,
+      "types": 0,
+      "properties": 0,
+      "source_sha256": "2529619b466a71d28fe2fbd6444a5e1e006e6ce2bbbc326d45c2ed7b645d9f76",
       "diagnostics": []
     },
     {
@@ -297,7 +387,7 @@
       "family": "epok",
       "header": "lifecycle.hpp",
       "slug": "lifecycle",
-      "callables": 3,
+      "callables": 2,
       "types": 0,
       "properties": 1,
       "source_sha256": "4acab904c8b924ccd380d598637be43408ac7a509967cb143b8ce6beed77e3d0",
@@ -351,6 +441,16 @@
       "types": 1,
       "properties": 0,
       "source_sha256": "04a94350d9a11332bce18eabc6a9f71799a1a71283179ebfdd3f478f64326e4d",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "mesh_vertices.hpp",
+      "slug": "mesh-vertices",
+      "callables": 15,
+      "types": 2,
+      "properties": 3,
+      "source_sha256": "1e8774a1099e681969a203690ae40962e920c6570c59f2c94077767f07aec6bb",
       "diagnostics": []
     },
     {
@@ -427,11 +527,58 @@
       "family": "epok",
       "header": "object_model.hpp",
       "slug": "object-model",
-      "callables": 300,
-      "types": 49,
-      "properties": 154,
-      "source_sha256": "4fe1fbfa15fa61ecbaedaf1138a073ab23e0a2da8224ab470bbc2a0c74a6db67",
+      "callables": 350,
+      "types": 52,
+      "properties": 157,
+      "source_sha256": "05e102aa6753641b09d29ec7b438543e2415912d1e387ba76ad27113624e696a",
       "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "ordered_draw.hpp",
+      "slug": "ordered-draw",
+      "callables": 7,
+      "types": 1,
+      "properties": 0,
+      "source_sha256": "a186ec21d9a74f68e8df0c605723e1caf11c43bd18a24cf8e53a9642396edc59",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "ordered_draw_types.hpp",
+      "slug": "ordered-draw-types",
+      "callables": 3,
+      "types": 4,
+      "properties": 40,
+      "source_sha256": "3b2f0a353382bed17f732be840b41e1550b1ac16d9c893bebb29465a093116b9",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "ordered_projection.hpp",
+      "slug": "ordered-projection",
+      "callables": 11,
+      "types": 2,
+      "properties": 8,
+      "source_sha256": "1454853063eb67e6542e9c91612c0efa2a60d87618352f572c078e3e38bbc7dd",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "ordered_renderer.hpp",
+      "slug": "ordered-renderer",
+      "callables": 0,
+      "types": 2,
+      "properties": 0,
+      "source_sha256": "eecdd8a7c49d4d48b810c2d2196be07b523e33ab27cd2a3b965f171ff6a310d4",
+      "diagnostics": [
+        "runtime/ordered_renderer.hpp:3:31: error: no member named 'ordered_draw_capacity' in namespace 'epok'",
+        "runtime/ordered_renderer.hpp:74:63: error: unknown type name 'PolygonEmitter'",
+        "runtime/ordered_renderer.hpp:74:90: error: member reference type 'std::nullptr_t' is not a pointer",
+        "runtime/ordered_renderer.hpp:128:5: error: unknown type name 'PolygonEmitter'",
+        "runtime/ordered_renderer.hpp:128:53: error: use of undeclared identifier 'Fixed'",
+        "runtime/ordered_renderer.hpp:128:72: error: unknown type name 'Fixed'"
+      ]
     },
     {
       "family": "epok",
@@ -440,8 +587,11 @@
       "callables": 2,
       "types": 1,
       "properties": 0,
-      "source_sha256": "70158d8896728b39759bea97bcaf8fad01ac0ef6afe14bf4efd77a8c5cf0431f",
-      "diagnostics": []
+      "source_sha256": "55896399091dacc0158033f7a427830abcff9498b4cd381e8f8a716aa2285a4f",
+      "diagnostics": [
+        "runtime/palette.hpp:10:20: error: use of undeclared identifier 'texture_count'",
+        "runtime/palette.hpp:10:34: error: use of undeclared identifier 'texture_count'"
+      ]
     },
     {
       "family": "epok",
@@ -507,10 +657,40 @@
       "family": "epok",
       "header": "polygon.hpp",
       "slug": "polygon",
-      "callables": 13,
-      "types": 8,
-      "properties": 21,
-      "source_sha256": "a9e048fab8eebedeae8f407c0e0e4a6975272dd73bcdb734e38bdf0710308288",
+      "callables": 18,
+      "types": 9,
+      "properties": 24,
+      "source_sha256": "9108e846fd15fcbd6a23396df7c651acd5d2391da0b5d420158018314ca4a5ea",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "rail_camera_aim.hpp",
+      "slug": "rail-camera-aim",
+      "callables": 2,
+      "types": 2,
+      "properties": 11,
+      "source_sha256": "724a1fae45f9e7f1f6e166ac6d9a405a9214ccba33384a6da8cef97aa5e0078d",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "rail_navigation.hpp",
+      "slug": "rail-navigation",
+      "callables": 6,
+      "types": 0,
+      "properties": 0,
+      "source_sha256": "e429ab1e1b1e04f48a60906dbe768b0b346dd1158a6839235b4281dc5cb76679",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "rail_navigation_types.hpp",
+      "slug": "rail-navigation-types",
+      "callables": 1,
+      "types": 6,
+      "properties": 41,
+      "source_sha256": "2af9a3a500fc23437b475668a98cbc88f3e14ddf62a20332458ba13aa17f1c8c",
       "diagnostics": []
     },
     {
@@ -527,10 +707,10 @@
       "family": "epok",
       "header": "retained.hpp",
       "slug": "retained",
-      "callables": 11,
-      "types": 6,
+      "callables": 19,
+      "types": 7,
       "properties": 38,
-      "source_sha256": "a4393ba0060af49799e281a08a057e5eff17af955122d4ceac980a7d8f4f61d6",
+      "source_sha256": "19fc97d820f908b2a3f9530a30c322221729ad1ddb183b2284753747d88e8dea",
       "diagnostics": []
     },
     {
@@ -640,7 +820,7 @@
       "callables": 1,
       "types": 1,
       "properties": 0,
-      "source_sha256": "1cb27989e09d218a244cc2faf3c5a3f201148959f9b688384686bae27949171d",
+      "source_sha256": "d4859c223e6b1627df5079f89d13da460828dff459f3d0e7fc576a884604ffcf",
       "diagnostics": []
     },
     {
@@ -650,7 +830,17 @@
       "callables": 19,
       "types": 2,
       "properties": 5,
-      "source_sha256": "ecc58bb0ac0444c09c1b2b675959af7c729bf4352a54c312d77632d297924b37",
+      "source_sha256": "4d289396cbd5b4aaf0e91881dcddb3276367631bf0f5499b73a5dc87f7f57124",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "sky_gradient.hpp",
+      "slug": "sky-gradient",
+      "callables": 6,
+      "types": 3,
+      "properties": 11,
+      "source_sha256": "5ace633768640d522d20154b227e32553e315cdd321e7c9f6f09db0b7aba9659",
       "diagnostics": []
     },
     {
@@ -680,7 +870,7 @@
       "callables": 5,
       "types": 2,
       "properties": 0,
-      "source_sha256": "7240f80905938a8b352b681b47f259a27f5763d0095498e0b6fd71bb7c379642",
+      "source_sha256": "cc3d6a906e88fa377496ac83dd040a18ec628c85f6e83ec812093f0e46cfb37c",
       "diagnostics": []
     },
     {
@@ -697,20 +887,30 @@
       "family": "epok",
       "header": "streaming.hpp",
       "slug": "streaming",
-      "callables": 36,
-      "types": 6,
-      "properties": 37,
-      "source_sha256": "71f172c62212e2f11f9dd3235e9cd0819650abc97c005d4e9fc5d911faa6ad33",
+      "callables": 45,
+      "types": 8,
+      "properties": 53,
+      "source_sha256": "c60c91f0b798f60ca43f7be2b2966c8f94c48ae5a7ee5c5e3a586bf46749dfd5",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "streaming_pool.hpp",
       "slug": "streaming-pool",
-      "callables": 13,
-      "types": 1,
+      "callables": 21,
+      "types": 2,
       "properties": 8,
-      "source_sha256": "a8d8cfe15cd65701265fbcd66698a6555cb84e77b3b3c5feb25022334c01b7de",
+      "source_sha256": "00f54a378c72880d7644a14fc1f3804807891c8ef6197a53c8853f80d3bf1d65",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "streaming_read.hpp",
+      "slug": "streaming-read",
+      "callables": 8,
+      "types": 2,
+      "properties": 8,
+      "source_sha256": "c7340f67bdc316daa5426c20d1e3c734eb98afed8b3348e618e1e2df4ad2e7d5",
       "diagnostics": []
     },
     {
@@ -718,9 +918,9 @@
       "header": "text.hpp",
       "slug": "text",
       "callables": 1,
-      "types": 2,
-      "properties": 10,
-      "source_sha256": "3f84490294858946cf09e6775ae206b27e68a5a58a480b9d075d8633b075103f",
+      "types": 3,
+      "properties": 16,
+      "source_sha256": "0e34ab246f67d2de802a0beb156264188400333271725a7616f4210dff0e5f42",
       "diagnostics": []
     },
     {
@@ -730,17 +930,27 @@
       "callables": 5,
       "types": 0,
       "properties": 0,
-      "source_sha256": "789bd0eccd2af9114417557836cc9ade2477ff8b41ebd776f0f44545088df1bb",
+      "source_sha256": "e74cc04ba966661bcd3be506c466e9f16525bf81d27f69f98f3ebd0cb9413272",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "texture_types.hpp",
       "slug": "texture-types",
-      "callables": 0,
+      "callables": 6,
+      "types": 4,
+      "properties": 21,
+      "source_sha256": "d1feb09e577fb9c35eedf1905cdcd78d6e7083aea58260bd9dd18f7356bacc87",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "texture_upload.hpp",
+      "slug": "texture-upload",
+      "callables": 1,
       "types": 2,
-      "properties": 14,
-      "source_sha256": "5b18bc9f694d27bb9a933d80ec83ead4fa1f8b1f7ff63da03f068b1be5b57082",
+      "properties": 9,
+      "source_sha256": "0faad6cc9e1073e6ccb88f639fb7457abc69b509c2cdda6803fca15b0e165d2a",
       "diagnostics": []
     },
     {
@@ -785,6 +995,16 @@
     },
     {
       "family": "epok",
+      "header": "track_camera_pose.hpp",
+      "slug": "track-camera-pose",
+      "callables": 2,
+      "types": 1,
+      "properties": 3,
+      "source_sha256": "d7939a402a4aff145f24505833c3afeeb34d7e1643db10eef2a9eff4904bd7ff",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
       "header": "transform_cache.hpp",
       "slug": "transform-cache",
       "callables": 4,
@@ -797,10 +1017,10 @@
       "family": "epok",
       "header": "transition.hpp",
       "slug": "transition",
-      "callables": 7,
+      "callables": 8,
       "types": 5,
       "properties": 23,
-      "source_sha256": "a4260851e19c3065b3e284f45ed88fee22c636192a4a8301905216d75ee3918e",
+      "source_sha256": "fb39caf7bf507019a3ece28847ef9c2f0599439d5f1432a4712c1e699ddf5d87",
       "diagnostics": []
     },
     {
@@ -825,12 +1045,22 @@
     },
     {
       "family": "epok",
+      "header": "visibility_track.hpp",
+      "slug": "visibility-track",
+      "callables": 15,
+      "types": 6,
+      "properties": 43,
+      "source_sha256": "ca4dda467e86645b3cf55f3555827a3b54faf77d1090da7d102d0616741e2d8b",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
       "header": "world2d.hpp",
       "slug": "world2d",
       "callables": 45,
       "types": 11,
       "properties": 46,
-      "source_sha256": "fe74d215c3d452c6f155dd67a8d335cb080696a8a9ba067d05c8e5e215821bbe",
+      "source_sha256": "c99c417c7e6e40122285091e0e13b7604c6b839dacc297174ee0b8417f7e31b5",
       "diagnostics": []
     },
     {

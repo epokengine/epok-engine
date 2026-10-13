@@ -17,6 +17,8 @@ mod audio_contract_tests;
 mod audio_decode;
 mod audio_import;
 mod audio_ir;
+mod baked_draw;
+mod baked_preview;
 mod bank_compat;
 mod bitmap_font;
 mod blueprint;
@@ -38,6 +40,8 @@ mod brush;
 mod build_inputs;
 mod build_report;
 mod busy_ui;
+mod camera_path;
+mod camera_path_ui;
 mod collision;
 mod collision_editor;
 mod console;
@@ -47,11 +51,13 @@ mod controls_ui;
 mod dependencies;
 mod disc;
 mod document;
+mod draw_order_codec;
 mod editor;
 mod effects;
 mod export;
 mod export_ui;
 mod file_watch;
+mod font_asset;
 mod gizmo;
 mod gui;
 mod hub;
@@ -60,6 +66,7 @@ mod hud_editor;
 mod hud_native;
 mod hud_simulation;
 mod import_settings;
+mod input_replay;
 mod inspector_theme;
 mod instrument_dsp;
 mod instrument_ir;
@@ -106,6 +113,8 @@ mod navigation_geometry;
 mod obj_import;
 mod object_model;
 mod operation;
+mod ordered_draw;
+mod ordered_draw_cook;
 mod palette;
 mod particle_effect;
 mod particle_effect_editor;
@@ -132,6 +141,8 @@ mod psx_loop_quality;
 mod psx_music_optimizer;
 mod psx_music_settings;
 mod psx_sequence;
+mod rail_aim;
+mod rail_navigation;
 mod reflection;
 mod reflection_schema;
 #[cfg(test)]
@@ -145,6 +156,7 @@ mod scene_dependencies;
 mod scene_gpu;
 mod scene_loading;
 mod scene_view_mode;
+mod scene_view_state;
 mod script_backend;
 mod script_ir;
 mod script_values;
@@ -171,6 +183,7 @@ mod skeletal_tests;
 mod skeletal_ui;
 mod sound_bank;
 mod soundfont_asset;
+mod source_cache;
 mod sprites;
 mod sprites_editor;
 mod spu_encoder;
@@ -180,6 +193,7 @@ mod terrain;
 mod terrain_compile;
 mod terrain_editor;
 mod texture;
+mod texture_cook;
 mod third_person;
 mod third_person_blueprint;
 mod timeline;
@@ -194,7 +208,13 @@ mod timeline_scene_preview;
 mod timeline_section;
 mod transform;
 mod vab_import;
+mod vertex_colors;
 mod viewport;
+mod visibility_bake;
+mod visibility_bake_ui;
+mod visibility_codec;
+mod visibility_packing;
+mod visibility_track;
 mod workspace;
 use std::{
     path::{Path, PathBuf},
@@ -302,6 +322,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--generate-asset-report",
             "--bake-lighting",
             "--bake-navigation",
+            "--bake-visibility-report",
+            "--bake-visibility",
             "--add-actor",
             "--profile-scene",
             "--profile-scene-cpu",
@@ -314,6 +336,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--import-fbx",
             "--import-obj",
             "--import-texture",
+            "--import-font",
             "--reimport-asset",
             "--duplicate-music-sequence",
             "--render-music-sequence",
@@ -679,6 +702,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Ok(());
     }
+    if let Some(source) = value("--import-font") {
+        let destination = value("--asset").map(str::to_owned).unwrap_or_else(|| {
+            std::path::Path::new(source)
+                .with_extension("epokasset")
+                .to_string_lossy()
+                .into_owned()
+        });
+        let settings = value("--font-settings")
+            .map(|s| serde_json::from_str(s).map_err(|e| format!("--font-settings: {e}")))
+            .transpose()?
+            .unwrap_or_default();
+        println!(
+            "Imported Font: {}",
+            assets::commit(font_asset::prepare(
+                &root,
+                source,
+                &destination,
+                settings,
+                None,
+                false
+            )?)?
+        );
+        return Ok(());
+    }
     if let Some(path) = value("--reimport-asset") {
         let path = assets::inside(&root, path)?;
         let p = assets::Package::load(&path)?;
@@ -694,6 +741,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &root,
                     source,
                     &assets::path_string(&root, &path),
+                    Some(r),
+                    args.iter().any(|a| a == "--snapshot")
+                )?)?
+            );
+            return Ok(());
+        }
+        if p.meta.kind == assets::Kind::Font {
+            let index = assets::scan(&root, &mut Default::default());
+            let r = index.resolve(p.meta.id)?;
+            let source = index
+                .linked_source(r)?
+                .map_or(p.meta.source.as_str(), |s| s.path.as_str());
+            let settings = match value("--font-settings") {
+                Some(s) => serde_json::from_str(s).map_err(|e| format!("--font-settings: {e}"))?,
+                None => p.meta.settings.font()?.clone(),
+            };
+            println!(
+                "Reimported Font: {}",
+                assets::commit(font_asset::prepare(
+                    &root,
+                    source,
+                    &assets::path_string(&root, &path),
+                    settings,
                     Some(r),
                     args.iter().any(|a| a == "--snapshot")
                 )?)?
@@ -1278,6 +1348,222 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Ok(());
     }
+    if args.iter().any(|a| a == "--bake-visibility") {
+        // Replaces the visibility track's lists with a GPU bake and, when the
+        // scene has a prepared packet order, regenerates it from those lists.
+        let path = args
+            .windows(2)
+            .find(|v| v[0] == "--scene")
+            .map(|v| root.join(&v[1]))
+            .map_or_else(|| workspace::startup_scene(&root), Ok)?;
+        let mut scene = scene::Scene::load(&path)?;
+        let track = scene
+            .visibility_track
+            .clone()
+            .ok_or("The scene has no visibility track")?;
+        let mut options = visibility_bake::Options::default();
+        let number = |flag: &str| {
+            args.windows(2)
+                .find(|v| v[0] == flag)
+                .map(|v| v[1].parse::<u32>())
+        };
+        if let Some(v) = number("--bake-scale") {
+            options.scale = v?;
+        }
+        if let Some(v) = number("--bake-substeps") {
+            options.substeps = v?;
+        }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-see-through") {
+            options.see_through = v[1].parse()?;
+        }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-view-margin") {
+            options.view_margin = v[1].parse()?;
+        }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-min-pixels") {
+            options.min_pixels = v[1].parse()?;
+        }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-path-margin") {
+            options.path_margin = v[1].parse()?;
+        }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-order-step") {
+            options.order_step = v[1].parse()?;
+        }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-order-cell") {
+            options.order_cell = v[1].parse()?;
+        }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-far") {
+            options.far = v[1].parse()?;
+        }
+        if let Some(v) = number("--bake-fill-gaps") {
+            options.fill_gaps = v?;
+        }
+        let start = Instant::now();
+        // --bake-reuse-lists keeps the track's lists and only rebuilds the packet order.
+        let lists = if args.iter().any(|a| a == "--bake-reuse-lists") {
+            track.samples.iter().map(|s| s.visible.clone()).collect()
+        } else {
+            // Each --bake-recorded-cameras names a recording, or a folder of
+            // .jsonl recordings (such as .epok/camera-recordings).
+            let mut recorded = Vec::new();
+            for v in args
+                .windows(2)
+                .filter(|v| v[0] == "--bake-recorded-cameras")
+            {
+                let path = std::path::Path::new(&v[1]);
+                let files: Vec<std::path::PathBuf> = if path.is_dir() {
+                    let mut files: Vec<_> = std::fs::read_dir(path)?
+                        .filter_map(|e| e.ok().map(|e| e.path()))
+                        .filter(|p| p.extension().is_some_and(|x| x == "jsonl"))
+                        .collect();
+                    files.sort();
+                    files
+                } else {
+                    vec![path.to_path_buf()]
+                };
+                for file in files {
+                    recorded.extend(visibility_bake::CameraCheck::load(&file, &options)?);
+                }
+            }
+            if !recorded.is_empty() {
+                println!("Recorded cameras: {}", recorded.len());
+            }
+            visibility_bake::bake_with_cameras(&scene, &track, &options, &recorded)?
+        };
+        let program = if scene.ordered_draw.is_some() || args.iter().any(|a| a == "--bake-ordered")
+        {
+            Some(visibility_bake::ordered_program(
+                &scene, &track, &lists, &options,
+            )?)
+        } else {
+            None
+        };
+        let track = scene.visibility_track.as_mut().unwrap();
+        for (sample, list) in track.samples.iter_mut().zip(&lists) {
+            sample.visible = list.clone();
+        }
+        let packets = program.as_ref().map(|p| {
+            (
+                p.primitives.len(),
+                p.primitives.iter().filter(|q| q.second.is_some()).count(),
+            )
+        });
+        if let Some(program) = program {
+            program.validate(&scene)?;
+            scene.ordered_draw = Some(program);
+        }
+        scene.save(&path)?;
+        let faces: usize = lists.iter().map(Vec::len).sum();
+        println!(
+            "Visibility baked: {} samples, {:.1} faces per sample, {:.0} s{}; {}",
+            lists.len(),
+            faces as f64 / lists.len().max(1) as f64,
+            start.elapsed().as_secs_f64(),
+            packets.map_or(String::new(), |(n, q)| format!(
+                ", packet order with {n} packets ({q} paired quads)"
+            )),
+            path.display()
+        );
+        return Ok(());
+    }
+    if args.iter().any(|a| a == "--bake-visibility-report") {
+        // Bakes the scene's visibility track lists on the GPU and compares them
+        // with the lists the scene already holds. Read-only on the scene.
+        let path = args
+            .windows(2)
+            .find(|v| v[0] == "--scene")
+            .map(|v| root.join(&v[1]))
+            .map_or_else(|| workspace::startup_scene(&root), Ok)?;
+        let scene = scene::Scene::load(&path)?;
+        let track = scene
+            .visibility_track
+            .as_ref()
+            .ok_or("The scene has no visibility track")?;
+        let mut options = visibility_bake::Options::default();
+        let number = |flag: &str| {
+            args.windows(2)
+                .find(|v| v[0] == flag)
+                .map(|v| v[1].parse::<u32>())
+        };
+        if let Some(v) = number("--bake-scale") {
+            options.scale = v?;
+        }
+        if let Some(v) = number("--bake-substeps") {
+            options.substeps = v?;
+        }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-see-through") {
+            options.see_through = v[1].parse()?;
+        }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-view-margin") {
+            options.view_margin = v[1].parse()?;
+        }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-min-pixels") {
+            options.min_pixels = v[1].parse()?;
+        }
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-path-margin") {
+            options.path_margin = v[1].parse()?;
+        }
+        if let Some(v) = number("--bake-diagnose") {
+            let v = v? as usize;
+            println!("{}", visibility_bake::diagnose(&scene, track, v, &options)?);
+            print!(
+                "{}",
+                visibility_bake::diagnose_differences(&scene, track, v, &options)?
+            );
+            println!("{}", visibility_bake::list_depths(&scene, track)?);
+            return Ok(());
+        }
+        let start = Instant::now();
+        // --bake-reuse-lists reports on the track's own lists instead of baking.
+        let baked: Vec<Vec<u16>> = if args.iter().any(|a| a == "--bake-reuse-lists") {
+            track.samples.iter().map(|s| s.visible.clone()).collect()
+        } else {
+            // Each --bake-recorded-cameras names a recording, or a folder of
+            // .jsonl recordings (such as .epok/camera-recordings).
+            let mut recorded = Vec::new();
+            for v in args
+                .windows(2)
+                .filter(|v| v[0] == "--bake-recorded-cameras")
+            {
+                let path = std::path::Path::new(&v[1]);
+                let files: Vec<std::path::PathBuf> = if path.is_dir() {
+                    let mut files: Vec<_> = std::fs::read_dir(path)?
+                        .filter_map(|e| e.ok().map(|e| e.path()))
+                        .filter(|p| p.extension().is_some_and(|x| x == "jsonl"))
+                        .collect();
+                    files.sort();
+                    files
+                } else {
+                    vec![path.to_path_buf()]
+                };
+                for file in files {
+                    recorded.extend(visibility_bake::CameraCheck::load(&file, &options)?);
+                }
+            }
+            if !recorded.is_empty() {
+                println!("Recorded cameras: {}", recorded.len());
+            }
+            visibility_bake::bake_with_cameras(&scene, track, &options, &recorded)?
+        };
+        let mut report = visibility_bake::compare(track, &baked);
+        report["holes_between_samples"] =
+            visibility_bake::holes(&scene, track, &baked, &options, &[0.25, 0.5, 0.75])?;
+        // --bake-check-cameras <json>: {"cameras":[{"sample","basis","origin","row_scale"}]} in
+        // runtime Q12 camera space (row_scale folds the projection into rows 0 and 1).
+        if let Some(v) = args.windows(2).find(|v| v[0] == "--bake-check-cameras") {
+            let cameras =
+                visibility_bake::CameraCheck::load(std::path::Path::new(&v[1]), &options)?;
+            report["reference_cameras"] =
+                visibility_bake::check_cameras(&scene, track, &baked, &cameras, &options)?;
+        }
+        report["seconds"] = serde_json::json!(start.elapsed().as_secs_f64());
+        report["options"] = serde_json::json!({"scale": options.scale, "substeps": options.substeps, "see_through": options.see_through});
+        let text = serde_json::to_string_pretty(&report)?;
+        match args.windows(2).find(|v| v[0] == "--report") {
+            Some(v) => std::fs::write(&v[1], &text)?,
+            None => println!("{text}"),
+        }
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--profile-scene") {
         return scene_gpu::profile(project);
     }
@@ -1315,6 +1601,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             || a == "--analyze-memory"
             || a == "--generate-asset-report"
     }) {
+        let replay = args
+            .windows(2)
+            .find(|v| v[0] == "--input-replay")
+            .map(|v| input_replay::Replay::parse(&v[1]))
+            .transpose()?;
+        if replay.is_some() && !args.iter().any(|a| a == "--play-psx") {
+            return Err("--input-replay requires --play-psx".into());
+        }
         let job = if args.iter().any(|a| a == "--generate-asset-report") {
             let summary =
                 build_report::Summary::load(&root, args.iter().any(|a| a == "--blueprint-debug"))
@@ -1328,6 +1622,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .map(|v| root.join(&v[1]))
                 .map_or_else(|| workspace::startup_scene(&root), Ok)?;
             let native = args.iter().any(|a| a == "--play-native");
+            // --record-camera <file>: record each frame's rendered camera and
+            // visibility track sample for the visibility bake (JSON lines).
+            if let Some(v) = args.windows(2).find(|v| v[0] == "--record-camera") {
+                if !native {
+                    return Err("--record-camera needs --play-native".into());
+                }
+                let rendering = settings::rendering(&root)?;
+                native_play::record_cameras(
+                    Some(std::path::Path::new(&v[1])),
+                    [rendering.width, rendering.height],
+                )?;
+            }
             let mut scene = scene_dependencies::Input::load(&scene_path)?;
             if native {
                 let mut profile = play::Profile::load(&root).unwrap_or_default();
@@ -1335,11 +1641,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 profile.content = play::Content::CurrentScene;
                 scene = play::saved_input(&root, &scene_path, profile)?;
             } else if analyze || args.iter().any(|a| a == "--use-play-profile") {
-                scene = play::saved_input(
-                    &root,
-                    &workspace::startup_scene(&root)?,
-                    play::Profile::load(&root)?,
-                )?;
+                // --scene is the current scene, as in the editor; startup otherwise.
+                scene = play::saved_input(&root, &scene_path, play::Profile::load(&root)?)?;
             }
             if analyze {
                 pipeline::Job::analyze(root, scene, args.iter().any(|a| a == "--blueprint-debug"))
@@ -1359,6 +1662,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|v| v[1].parse::<u64>().ok());
         let mut started = None;
         loop {
+            if let (Some(replay), Some(started), Some(bridge)) = (&replay, started, &job.bridge) {
+                let started: Instant = started;
+                bridge.buttons.store(
+                    replay.buttons(started.elapsed().as_millis() as u64),
+                    std::sync::atomic::Ordering::Relaxed,
+                );
+            }
             if started.is_some_and(|t: Instant| {
                 stop_after.is_some_and(|secs| t.elapsed() > Duration::from_secs(secs))
             }) {
@@ -1399,7 +1709,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     started = Some(Instant::now());
                 }
                 Ok(pipeline::Event::SerialCommandPending(_)) => {}
-                Ok(pipeline::Event::Finished(result)) => return result.map_err(Into::into),
+                Ok(pipeline::Event::Finished(result)) => {
+                    if native_play::recorded_camera_frames() > 0 {
+                        println!(
+                            "Recorded {} camera frames",
+                            native_play::recorded_camera_frames()
+                        );
+                    }
+                    native_play::record_cameras(None, [0, 0])?;
+                    return result.map_err(Into::into);
+                }
                 Ok(pipeline::Event::Paused(_)) => {}
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
                 Err(e) => return Err(e.into()),

@@ -25,17 +25,17 @@ class PlaneCache {
     bool has_view=false,valid[2]={};
 public:
     void clear(){has_view=false;valid[0]=valid[1]=false;}
-    void transform(const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixed>& view,
+    void transform(const Sprite& sprite,const Affine<Fixed>& world,const CameraSpace<Fixed>& view,
                    Affine<Fixed>& model,Affine<Fixed>& camera){
         if(sprite.orientation==SpriteOrientation::Fixed){model=world;camera=view.compose(world);return;}
         bool changed=!has_view;
-        if(!changed)for(int r=0;r<3;++r)for(int c=0;c<4;++c)
-            changed|=previous_view.values[r][c].raw()!=view.values[r][c].raw();
-        if(changed){previous_view=view;has_view=true;valid[0]=valid[1]=false;}
+        if(!changed)for(int r=0;r<3;++r)for(int c=0;c<3;++c)
+            changed|=previous_view.values[r][c].raw()!=view.basis.values[r][c].raw();
+        if(changed){previous_view=view.basis;has_view=true;valid[0]=valid[1]=false;}
         const unsigned index=sprite.orientation==SpriteOrientation::Upright?1:0;
         if(!valid[index]){
-            unit_model[index]=plane(sprite,Affine<Fixed>::identity(),view);
-            unit_view[index]=view.compose(unit_model[index]);valid[index]=true;
+            unit_model[index]=plane(sprite,Affine<Fixed>::identity(),view.basis);
+            unit_view[index]=view.basis.compose(unit_model[index]);valid[index]=true;
         }
         model=unit_model[index];bool unit=true;
         for(int axis=0;axis<2;++axis){
@@ -61,10 +61,10 @@ template<size_t Capacity=2048>class SpriteRenderer {
 public:
     void begin(bool dither=false){used=0;dithering=dither;sprite_stats={};planes.clear();}
     // LightingRenderer::shade(owner,objects,world,true) must prepare GTE before a lit draw.
-    template<class Table>void draw(int parity,Table& table,const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixed>& view,bool receive_lighting=true){
+    template<class Table>void draw(int parity,Table& table,const Sprite& sprite,const Affine<Fixed>& world,const CameraSpace<Fixed>& view,bool receive_lighting=true){
         if(!sprite.enabled)return;const auto* tex=texture(sprite.texture);if(!tex){++sprite_stats.culled;return;}
         Affine<Fixed> model,mv;planes.transform(sprite,world,view,model,mv);
-        for(int r=0;r<2;++r)for(int c=0;c<4;++c)mv.values[r][c]*=projection_focal;
+        for(int r=0;r<2;++r)for(int c=0;c<4;++c)mv.values[r][c]*=r==0?projection_focal_x:projection_focal;
         if(sprite.region[0]>=tex->width||sprite.region[1]>=tex->height){++sprite_stats.culled;return;}
         auto w=sprite.region[2]?sprite.region[2]:tex->width-sprite.region[0],h=sprite.region[3]?sprite.region[3]:tex->height-sprite.region[1];
         if(!w||!h||uint32_t(sprite.region[0])+w>tex->width||uint32_t(sprite.region[1])+h>tex->height){++sprite_stats.culled;return;}
@@ -72,7 +72,7 @@ public:
         Clip buffers[2][12];int from=0,count=4;
         static constexpr int xy[4][2]={{0,1},{1,1},{1,0},{0,0}};
         for(int i=0;i<4;++i){Fixed local[3]={(Fixed(xy[i][0]*4096,Fixed::RAW)-sprite.pivot[0])*sprite.size[0],(Fixed(xy[i][1]*4096,Fixed::RAW)-sprite.pivot[1])*sprite.size[1],0.0},p[3];mv.point(local,p);for(int c=0;c<3;++c)buffers[0][i].p[c]=p[c].raw();
-            const int u=sprite.flip_x?1-xy[i][0]:xy[i][0],v=sprite.flip_y?xy[i][1]:1-xy[i][1];buffers[0][i].uv[0]=(sprite.region[0]+u*(w-1))*4096;buffers[0][i].uv[1]=(tex->y%256+sprite.region[1]+v*(h-1))*4096;}
+            const int u=sprite.flip_x?1-xy[i][0]:xy[i][0],v=sprite.flip_y?xy[i][1]:1-xy[i][1];buffers[0][i].uv[0]=(texture_base_u(*tex)+sprite.region[0]+u*(w-1))*4096;buffers[0][i].uv[1]=(tex->y%256+sprite.region[1]+v*(h-1))*4096;}
         bool clipped=false,inside=true;
         for(int i=0;i<4;++i){const auto* p=buffers[0][i].p;inside&=sprite_detail::interior(p[0],p[1],p[2]);}
         // An interior quad is already the exact output of all six clip passes.

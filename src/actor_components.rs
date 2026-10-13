@@ -49,6 +49,9 @@ pub fn native(id: &str) -> bool {
             | om::IMAGE_COMPONENT_ID
             | om::TEXT_COMPONENT_ID
             | om::PROGRESS_BAR_COMPONENT_ID
+            | om::LAYOUT_ELEMENT_COMPONENT_ID
+            | om::LAYOUT_CONTAINER_COMPONENT_ID
+            | om::FOCUSABLE_COMPONENT_ID
             | om::AUDIO_COMPONENT_ID
             | PARTICLES
             | TIMELINE
@@ -115,7 +118,9 @@ pub fn sync(actor: &mut ActorInstance) {
         material,
         lighting,
         camera_fov,
+        camera_mirror_x,
         camera_sky_color,
+        camera_sky_gradient,
         editable_mesh,
         terrain,
         skeletal_mesh,
@@ -129,6 +134,9 @@ pub fn sync(actor: &mut ActorInstance) {
         image,
         text,
         progress,
+        layout_element,
+        layout_container,
+        focusable,
         particle_emitter,
         palette_animator,
         blob_shadow,
@@ -186,7 +194,13 @@ pub fn sync(actor: &mut ActorInstance) {
                 "epok::Camera3DComponent",
                 "Camera",
                 false,
-                json!({"camera_fov":data.camera_fov,"camera_sky_color":data.camera_sky_color}),
+                {
+                    let mut camera = json!({"camera_fov":data.camera_fov,"camera_sky_color":data.camera_sky_color,"camera_mirror_x":data.camera_mirror_x});
+                    if let Some(gradient) = data.camera_sky_gradient {
+                        camera["camera_sky_gradient"] = json!(gradient);
+                    }
+                    camera
+                },
             ));
         }
     }
@@ -255,6 +269,24 @@ pub fn sync(actor: &mut ActorInstance) {
             om::PROGRESS_BAR_COMPONENT_ID,
             "epok::ProgressBarComponent",
             "Progress Bar"
+        );
+        optional!(
+            layout_element,
+            om::LAYOUT_ELEMENT_COMPONENT_ID,
+            "epok::LayoutElementComponent",
+            "Layout Element"
+        );
+        optional!(
+            layout_container,
+            om::LAYOUT_CONTAINER_COMPONENT_ID,
+            "epok::LayoutContainerComponent",
+            "Layout Container"
+        );
+        optional!(
+            focusable,
+            om::FOCUSABLE_COMPONENT_ID,
+            "epok::FocusableComponent",
+            "Focusable"
         );
     }
     optional!(
@@ -336,8 +368,10 @@ pub fn read(actor: &mut ActorInstance) {
             om::CAMERA3D_COMPONENT_ID => {
                 data.kind = "Camera".into();
                 data.camera_fov = decoded(p, "camera_fov").unwrap_or(90.);
+                data.camera_mirror_x = decoded(p, "camera_mirror_x").unwrap_or(false);
                 data.camera_sky_color = decoded(p, "camera_sky_color")
                     .unwrap_or(crate::scene::DEFAULT_CAMERA_SKY_COLOR);
+                data.camera_sky_gradient = decoded(p, "camera_sky_gradient");
             }
             om::RECT_TRANSFORM_COMPONENT_ID => {
                 data.rect = Some(decoded(p, "rect").unwrap_or_default())
@@ -358,6 +392,15 @@ pub fn read(actor: &mut ActorInstance) {
             om::TEXT_COMPONENT_ID => data.text = Some(decoded(p, "text").unwrap_or_default()),
             om::PROGRESS_BAR_COMPONENT_ID => {
                 data.progress = Some(decoded(p, "progress").unwrap_or_default())
+            }
+            om::LAYOUT_ELEMENT_COMPONENT_ID => {
+                data.layout_element = Some(decoded(p, "layout_element").unwrap_or_default())
+            }
+            om::LAYOUT_CONTAINER_COMPONENT_ID => {
+                data.layout_container = Some(decoded(p, "layout_container").unwrap_or_default())
+            }
+            om::FOCUSABLE_COMPONENT_ID => {
+                data.focusable = Some(decoded(p, "focusable").unwrap_or_default())
             }
             PARTICLES => {
                 data.particle_emitter = Some(decoded(p, "particle_emitter").unwrap_or_default())
@@ -429,7 +472,9 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
         }
         om::CAMERA3D_COMPONENT_ID => {
             check!("camera_fov", f32);
+            check!("camera_mirror_x", bool);
             check!("camera_sky_color", [f32; 3]);
+            check!("camera_sky_gradient", Option<crate::scene::SkyGradient>);
         }
         om::SPRITE3D_COMPONENT_ID => {
             check!("sprite", crate::sprites::Sprite);
@@ -455,6 +500,15 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
         }
         om::PROGRESS_BAR_COMPONENT_ID => {
             check!("progress", crate::hud::ProgressBar);
+        }
+        om::LAYOUT_ELEMENT_COMPONENT_ID => {
+            check!("layout_element", crate::hud::LayoutElement);
+        }
+        om::LAYOUT_CONTAINER_COMPONENT_ID => {
+            check!("layout_container", crate::hud::LayoutContainer);
+        }
+        om::FOCUSABLE_COMPONENT_ID => {
+            check!("focusable", crate::hud::Focusable);
         }
         PARTICLES => {
             check!("particle_emitter", crate::particles::Emitter);

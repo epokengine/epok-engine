@@ -2,7 +2,7 @@
 
 > **Header:** `"transition.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/transition.hpp)
 
-This module covers scene loading transitions and fade state. It documents 7 public callables declared directly in this header.
+This module covers scene loading transitions and fade state. It documents 8 public callables declared directly in this header.
 
 ## Declared types
 
@@ -13,6 +13,7 @@ This module covers scene loading transitions and fade state. It documents 7 publ
 - [`epok::transition_audio_gain`](#epok-transition-audio-gain-1) — Read-only to gameplay.
 - [`epok::TransitionState::advance`](#epok-transitionstate-advance-1) — Performs `advance` as part of scene loading transitions and fade state.
 - [`epok::TransitionState::begin`](#epok-transitionstate-begin-1) — Begins begin as part of scene loading transitions and fade state.
+- [`epok::TransitionState::boot_ready`](#epok-transitionstate-boot-ready-1) — A failed boot stays latched until an explicit retry enters Loading again.
 - [`epok::TransitionState::busy`](#epok-transitionstate-busy-1) — Performs `busy` as part of scene loading transitions and fade state.
 - [`epok::TransitionState::fail`](#epok-transitionstate-fail-1) — Performs `fail` as part of scene loading transitions and fade state.
 - [`epok::TransitionState::loaded`](#epok-transitionstate-loaded-1) — Loads ed as part of scene loading transitions and fade state.
@@ -32,7 +33,7 @@ This module covers scene loading transitions and fade state. It documents 7 publ
 inline uint16_t transition_audio_gain()
 ```
 
-- **Declared at:** [line 60](../../../runtime/transition.hpp#L60)
+- **Declared at:** [line 62](../../../runtime/transition.hpp#L62)
 - **Kind:** `function decl`
 
 **Returns.** Returns `uint16_t`. Check the purpose and failure notes before using the value.
@@ -63,7 +64,7 @@ auto result = epok::transition_audio_gain();
 void advance(uint32_t now)
 ```
 
-- **Declared at:** [line 45](../../../runtime/transition.hpp#L45)
+- **Declared at:** [line 47](../../../runtime/transition.hpp#L47)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -139,6 +140,39 @@ object.begin(value, now, initial);
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-transitionstate-boot-ready-1"></a>
+
+## `epok::TransitionState::boot_ready`
+
+**Purpose.** A failed boot stays latched until an explicit retry enters Loading again.
+
+**Exact declaration**
+
+```cpp
+bool boot_ready() const
+```
+
+- **Declared at:** [line 46](../../../runtime/transition.hpp#L46)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need scene loading transitions and fade state and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "transition.hpp"
+
+epok::TransitionState& object = /* obtain a valid instance */;
+
+auto result = object.boot_ready();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
 <a id="epok-transitionstate-busy-1"></a>
 
 ## `epok::TransitionState::busy`
@@ -184,7 +218,7 @@ auto result = object.busy();
 void fail()
 ```
 
-- **Declared at:** [line 56](../../../runtime/transition.hpp#L56)
+- **Declared at:** [line 58](../../../runtime/transition.hpp#L58)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -217,7 +251,7 @@ object.fail();
 void loaded(uint32_t now)
 ```
 
-- **Declared at:** [line 55](../../../runtime/transition.hpp#L55)
+- **Declared at:** [line 57](../../../runtime/transition.hpp#L57)
 - **Kind:** `cxx method`
 
 **Parameters**

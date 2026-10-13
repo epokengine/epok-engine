@@ -12,6 +12,16 @@ pub fn index(c: char) -> Option<usize> {
         EXTRA.chars().position(|v| v == c).map(|v| 95 + v)
     }
 }
+/// The inverse of `index`: the character an atlas cell draws. The runtime and
+/// the preview address the built-in atlas by cell, so both can name a glyph
+/// without carrying the character code alongside it.
+pub fn character(cell: usize) -> Option<char> {
+    if cell < 95 {
+        char::from_u32(cell as u32 + 32)
+    } else {
+        EXTRA.chars().nth(cell - 95)
+    }
+}
 pub fn glyph(c: char) -> Option<[u8; 16]> {
     let i = index(c)?;
     let font = include_bytes!("../resources/editor/psx-font.bin");

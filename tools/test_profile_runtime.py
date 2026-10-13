@@ -3,23 +3,94 @@ import struct
 import unittest
 
 from profile_runtime import (STREAMING_FIELDS, WARMUP_FIELDS, counter_summary,
-                             read_counters, symbol_address, normalize_streamed_chunks, frame_medians,
-                             PLAYBACK_STATS, playback_addresses, playback_summary)
+                             read_counters, symbol_address, normalize_streamed_chunks, frame_medians, validate_gte_rows,
+                             latch_ordered_frame, ORDERED_DRAW_FIELDS, ORDERED_CAMERA_FIELDS,
+                             PLAYBACK_STATS, playback_addresses, playback_summary, rail_state_layout, read_rail_state)
 
 
 class NativeCounterTests(unittest.TestCase):
+    def test_ordered_frame_requires_last_published_identity_and_latches_clock(self):
+        self.assertEqual(len(ORDERED_DRAW_FIELDS)*4, 116)
+        self.assertEqual(len(ORDERED_CAMERA_FIELDS), 17)
+        row = {"frame": 10, "frame_microseconds": 999,
+               "ordered_draw": {"frame": 10, "sample": 7, "frame_microseconds": 123}}
+        self.assertTrue(latch_ordered_frame(row))
+        self.assertEqual(row["frame_microseconds"], 123)
+        for frame in (0, 9, 11):
+            self.assertFalse(latch_ordered_frame(dict(row, ordered_draw=dict(row["ordered_draw"], frame=frame))))
+        inactive = dict(row, ordered_draw=dict(row["ordered_draw"], sample=0xffffffff), frame_microseconds=999)
+        self.assertTrue(latch_ordered_frame(inactive))
+        self.assertEqual(inactive["frame_microseconds"], 999)
+        self.assertTrue(latch_ordered_frame({"frame": 1}))
+        self.assertTrue(latch_ordered_frame({"frame": 1, "ordered_draw": {"frame": 1}}))
+
+    def test_ordered_validation_preserves_cumulative_failures_and_peak_gauges(self):
+        _, fields, gauges = PLAYBACK_STATS["ordered_validation"]
+        first = dict.fromkeys(fields, 0)
+        first.update(vertices=100, triples=30, camera_errors=1,
+                     max_camera_delta=3, first_error_kind=1, first_error_sample=7)
+        last = dict(first, vertices=200, triples=60)
+        report = playback_summary([
+            {"frame": 10, "ordered_validation": first},
+            {"frame": 30, "ordered_validation": last},
+        ], "ordered_validation", fields, gauges)
+        self.assertEqual(report["during_capture"]["vertices"], 100)
+        self.assertEqual(report["during_capture"]["camera_errors"], 0)
+        self.assertEqual(report["last"]["camera_errors"], 1)
+        self.assertNotIn("max_camera_delta", report["during_capture"])
+        self.assertNotIn("first_error_sample", report["during_capture"])
+        self.assertEqual(report["maximum_observed"]["max_camera_delta"], 3)
+
+    def test_gte_validation_allows_empty_startup_but_requires_projection(self):
+        empty = {"gte_vertices": 0, "gte_validation_errors": 0}
+        projected = {"gte_vertices": 24, "gte_validation_errors": 0}
+        validate_gte_rows([empty, projected])
+        for rows in ([], [empty], [projected, {"gte_vertices": 0, "gte_validation_errors": 1}]):
+            with self.assertRaises(AssertionError):
+                validate_gte_rows(rows)
+
+    def test_gte_validation_rejects_a_cumulative_error_before_the_first_poll(self):
+        ordered = dict.fromkeys(PLAYBACK_STATS["ordered_validation"][1], 0)
+        row = {"gte_vertices": 24, "gte_validation_errors": 0, "ordered_validation": ordered}
+        validate_gte_rows([row])
+        for field in ("camera_errors", "batch_errors", "screen_errors", "first_error_kind"):
+            with self.assertRaises(AssertionError):
+                validate_gte_rows([dict(row, ordered_validation=dict(ordered, **{field: 1}))])
+
+    def test_rail_state_accepts_initialized_data_and_ignores_discarded_section(self):
+        symbols=(".data._ZN4epok21rail_navigation_stateE\n 0x00000000 0x58 unused.o\n"
+                 ".data._ZN4epok21rail_navigation_stateE\n 0x80000100 0x64 main.o\n"
+                 "0x80000100 epok::rail_navigation_state\n")
+        address,position=rail_state_layout(symbols)
+        self.assertEqual((address,position),(256,True))
+        ram=bytearray(512)
+        struct.pack_into("<3i",ram,address+88,-4096,3277,409600)
+        self.assertEqual(read_rail_state(ram,address,position)["target_position"],[-1,3277/4096,100])
+        self.assertEqual(rail_state_layout(""),(None,False))
+        with self.assertRaises(ValueError):rail_state_layout(symbols.replace("0x64 main.o","0x70 main.o"))
+
     def test_playback_layout_uses_live_section_not_discarded_duplicate(self):
         symbols = (".bss._ZN4epok14sequence_statsE\n 0x00000000 0x34 unused.o\n"
                    ".bss._ZN4epok14sequence_statsE\n 0x80000100 0x34 main.o\n"
                    "0x80000100 epok::sequence_stats\n")
         addresses = playback_addresses(symbols)
-        self.assertEqual(addresses, {"sequence": 0x100, "effect": None, "particle": None})
+        self.assertEqual(addresses, {key: 0x100 if key == "sequence" else None for key in PLAYBACK_STATS})
         fields = PLAYBACK_STATS["sequence"][1]
         ram = bytearray(512)
         struct.pack_into("<13I", ram, 0x100, *range(13))
         self.assertEqual(read_counters(ram, addresses["sequence"], fields)["diagnostics_dropped"], 12)
         with self.assertRaises(ValueError):
             playback_addresses(symbols.replace("0x80000100 0x34", "0x80000100 0x30"))
+
+    def test_playback_scalar_accepts_small_data_sections_and_checks_size(self):
+        for section in ("bss", "sbss", "data", "sdata"):
+            symbols = (f".{section}._ZN4epok27stream_verify_overlap_bytesE\n 0x00000000 0x4 unused.o\n"
+                       f".{section}._ZN4epok27stream_verify_overlap_bytesE\n 0x80000100 0x4 main.o\n"
+                       "0x80000100 epok::stream_verify_overlap_bytes\n")
+            self.assertEqual(playback_addresses(symbols)["streaming_overlap"], 0x100)
+            with self.assertRaises(ValueError):
+                playback_addresses(symbols.replace("0x80000100 0x4", "0x80000100 0x2"))
+        self.assertIsNone(playback_addresses("")["streaming_overlap"])
 
     def test_playback_gauges_deltas_resets_and_saturation(self):
         _, fields, gauges = PLAYBACK_STATS["particle"]
@@ -51,6 +122,17 @@ class NativeCounterTests(unittest.TestCase):
         self.assertIsNone(read_counters(ram, None, STREAMING_FIELDS))
         with self.assertRaises(ValueError):
             read_counters(ram[:270], 0x100, STREAMING_FIELDS)
+
+    def test_streaming_verification_separates_work_from_slice_gauges(self):
+        _, fields, gauges = PLAYBACK_STATS["streaming_verify"]
+        first = dict(zip(fields, [16, 65536, 1008, 63, 64]))
+        last = dict(zip(fields, [32, 131072, 2017, 64, 64]))
+        report = playback_summary([
+            {"frame": 10, "streaming_verify": first},
+            {"frame": 30, "streaming_verify": last},
+        ], "streaming_verify", fields, gauges)
+        self.assertEqual(report["during_capture"], {"batches": 16, "bytes": 65536, "scanlines": 1009})
+        self.assertEqual(report["maximum_observed"]["max_scanlines"], 64)
 
     def test_startup_totals_remain_visible_when_capture_has_no_reads(self):
         counters = dict(zip(WARMUP_FIELDS, [1, 2, 2, 1100000, 0, 0]))
@@ -93,6 +175,17 @@ class NativeCounterTests(unittest.TestCase):
         rows[1]["streamed_chunks"] = 0xffffffff
         normalize_streamed_chunks(rows[1])
         self.assertIsNone(frame_medians(rows)["streamed_chunks"])
+
+    def test_ordered_subtimers_never_report_sentinel_or_partial_medians(self):
+        for field in ("vertex_scanlines", "polygon_scanlines"):
+            rows = [{"frame": 1, field: 0}, {"frame": 2, field: 12}]
+            for row in rows: normalize_streamed_chunks(row)
+            self.assertEqual(frame_medians(rows)[field], 6)
+            rows[1][field] = 0xffffffff
+            normalize_streamed_chunks(rows[1])
+            self.assertIsNone(rows[1][field])
+            self.assertFalse(rows[1][field + "_available"])
+            self.assertIsNone(frame_medians(rows)[field])
 
 
 if __name__ == "__main__":

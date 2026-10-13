@@ -934,7 +934,8 @@ pub fn window(ui: &Ui, e: &mut Editor) {
                         component.document=Some(Arc::new(doc.clone()));entity.editable_mesh=Some(component);
                         let quads=crate::lighting::quads(&entity);
                         if let Ok(chunks)=crate::mesh_compile::chunks(&quads) {
-                            ui.text_wrapped(format!("{} compiled triangles / {} spatial chunks / {} indexed vertices",quads.len()*2,chunks.len(),chunks.iter().map(|c|c.vertices.len()).sum::<usize>()));
+                            let triangles: usize=quads.iter().map(|q|if q.points[2]==q.points[3]{1}else{2}).sum();
+                            ui.text_wrapped(format!("{} compiled triangles / {} spatial chunks / {} indexed vertices",triangles,chunks.len(),chunks.iter().map(|c|c.vertices.len()).sum::<usize>()));
                         }
                         ui.text_wrapped("PSX: chunk culling, shared positions, backface rejection and clipping. Scene build budget: 7000 base triangles plus clipping reserve. Measure performance in Play.");
                         ui.text_wrapped("Materials support color and Unlit. UV coordinates are stored; texture import/rendering is a separate feature.");
@@ -1166,9 +1167,11 @@ fn edit_panel(ui: &Ui, e: &mut Editor, doc: &Document) {
                     if f.vertices[2] == f.vertices[3] {
                         f.vertices = [f.vertices[0], f.vertices[2], f.vertices[1], f.vertices[1]];
                         f.uv = [f.uv[0], f.uv[2], f.uv[1], f.uv[1]];
+                        f.vertex_colors = f.vertex_colors.map(|c| [c[0], c[2], c[1], c[1]]);
                     } else {
                         f.vertices = [f.vertices[0], f.vertices[3], f.vertices[2], f.vertices[1]];
                         f.uv = [f.uv[0], f.uv[3], f.uv[2], f.uv[1]];
+                        f.vertex_colors = f.vertex_colors.map(|c| [c[0], c[3], c[2], c[1]]);
                     }
                 }
             }

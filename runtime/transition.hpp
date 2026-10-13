@@ -42,6 +42,8 @@ struct TransitionState {
     }
     bool busy() const {return phase!=TransitionPhase::Idle;}
     bool loading() const {return phase==TransitionPhase::Loading||phase==TransitionPhase::Failed;}
+    // A failed boot stays latched until an explicit retry enters Loading again.
+    bool boot_ready() const {return phase==TransitionPhase::Loading&&boot&&presented;}
     void advance(uint32_t now) {
         if(phase!=TransitionPhase::FadeOut&&phase!=TransitionPhase::FadeIn)return;
         const bool outgoing=phase==TransitionPhase::FadeOut;

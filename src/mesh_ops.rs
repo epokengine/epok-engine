@@ -20,6 +20,7 @@ pub fn edges(f: &Face) -> Vec<Edge> {
 struct Corner {
     p: [f32; 3],
     uv: [f32; 2],
+    color: Option<[u8; 3]>,
 }
 
 /// Clip a convex closed solid by a plane parallel to its selected edge.
@@ -110,6 +111,7 @@ fn bevel_one(doc: &mut Document, selected: Edge, distance: f32) -> Result<(), St
             .map(|i| Corner {
                 p: doc.vertices[f.vertices[i] as usize],
                 uv: f.uv[i],
+                color: f.vertex_colors.map(|c| c[i]),
             })
             .collect::<Vec<_>>();
         let mut polygon = Vec::new();
@@ -120,6 +122,12 @@ fn bevel_one(doc: &mut Document, selected: Edge, distance: f32) -> Result<(), St
             if (pd <= 0.) != (cd <= 0.) {
                 let t = pd / (pd - cd);
                 let cut = Corner {
+                    color: previous.color.zip(current.color).map(|(a, b)| {
+                        std::array::from_fn(|c| {
+                            (f32::from(a[c]) + (f32::from(b[c]) - f32::from(a[c])) * t).round()
+                                as u8
+                        })
+                    }),
                     p: std::array::from_fn(|c| previous.p[c] + (current.p[c] - previous.p[c]) * t),
                     uv: std::array::from_fn(|c| {
                         previous.uv[c] + (current.uv[c] - previous.uv[c]) * t
@@ -172,6 +180,7 @@ fn bevel_one(doc: &mut Document, selected: Edge, distance: f32) -> Result<(), St
         .map(|p| Corner {
             p,
             uv: [dot(sub(p, center), u), dot(sub(p, center), v)],
+            color: None, // Newly authored cap inherits its material, not a cut face's corner ordering.
         })
         .collect::<Vec<_>>();
     let mut material = source;
@@ -210,6 +219,10 @@ fn emit(doc: &mut Document, output: &mut Vec<Face>, polygon: &[Corner], source: 
             group: source.group,
             material: source.material,
             uv: std::array::from_fn(|c| corners[c].uv),
+            vertex_colors: corners
+                .iter()
+                .all(|c| c.color.is_some())
+                .then(|| std::array::from_fn(|c| corners[c].color.unwrap())),
         });
     }
 }
@@ -391,6 +404,7 @@ fn triangulate_bent(doc: &mut Document) {
             group: f.group,
             material: f.material,
             uv: [f.uv[0], f.uv[1], f.uv[2], f.uv[2]],
+            vertex_colors: f.vertex_colors.map(|c| [c[0], c[1], c[2], c[2]]),
         };
         let second = Face {
             id: Uuid::new_v4(),
@@ -398,6 +412,7 @@ fn triangulate_bent(doc: &mut Document) {
             group: f.group,
             material: f.material,
             uv: [f.uv[0], f.uv[2], f.uv[3], f.uv[3]],
+            vertex_colors: f.vertex_colors.map(|c| [c[0], c[2], c[3], c[3]]),
         };
         splits.push((index, first, second));
     }
