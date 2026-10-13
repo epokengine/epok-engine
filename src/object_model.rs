@@ -61,6 +61,7 @@ pub const PARTICLES2D_COMPONENT_ID: &str = "79892328-8fd3-43c8-a03b-cfa57b483c64
 pub const AUDIO_PLAYER2D_COMPONENT_ID: &str = "41b14829-fc1d-429b-abe4-f49c68592e7c";
 pub const NOTIFIER2D_COMPONENT_ID: &str = "8dd738bf-e8e5-4064-afb7-9700388cff08";
 pub const REMOTE_TRANSFORM2D_COMPONENT_ID: &str = "118db825-4d5a-4595-9c4e-6d889a54a7d3";
+pub const SKELETON2D_COMPONENT_ID: &str = "b933c773-9256-4b9b-98ff-ef7900a02a9e";
 pub const CANVAS_COMPONENT_ID: &str = "f2cfb26b-af53-4a46-9d91-1debea72e01b";
 pub const IMAGE_COMPONENT_ID: &str = "d04c78d6-23bd-40d7-88f1-b1afc1b05b5b";
 pub const TEXT_COMPONENT_ID: &str = "fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34";

@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 109,
-    "types": 486,
-    "callables": 1835,
-    "properties": 2667
+    "headers": 110,
+    "types": 489,
+    "callables": 1859,
+    "properties": 2696
   },
   "psyqo": {
     "headers": 53,
@@ -1070,7 +1070,7 @@
       "callables": 81,
       "types": 7,
       "properties": 74,
-      "source_sha256": "04dc9553a2e883cbd2d5a535c2b6d46906f8920c226ff0282560276ec24291a1",
+      "source_sha256": "2f2696d6b363ce4ecaaa645640f860268471825794558ecb7fd9f92f62bdc9b5",
       "diagnostics": []
     },
     {
@@ -1100,7 +1100,17 @@
       "callables": 37,
       "types": 10,
       "properties": 72,
-      "source_sha256": "bdb48036986719f970ae0fe29e38e7ffb36ca648970957fa5187249e7de9236d",
+      "source_sha256": "0cdadbeadffd68634a27daa8bebd4440bf6bf75daa093a83b3238e1a91874166",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_skeleton.hpp",
+      "slug": "world2d-skeleton",
+      "callables": 24,
+      "types": 3,
+      "properties": 29,
+      "source_sha256": "e5f58c632e61219da13597a5c265b166a65c17e49a7903d04cb538726276bc1c",
       "diagnostics": []
     },
     {

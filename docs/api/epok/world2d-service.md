@@ -62,7 +62,7 @@ This module covers the world2d service module. It documents 37 public callables 
 template<class TextureSize> size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, size_t capacity, TextureSize&& texture_size)
 ```
 
-- **Declared at:** [line 878](../../../runtime/world2d_service.hpp#L878)
+- **Declared at:** [line 882](../../../runtime/world2d_service.hpp#L882)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -115,7 +115,7 @@ auto result = object.collect_sprites<TextureSize>(draws, items, scratch, capacit
 template<class Visit> inline void each_line_quad(const SpriteDraw& entry, Visit&& visit)
 ```
 
-- **Declared at:** [line 1096](../../../runtime/world2d_service.hpp#L1096)
+- **Declared at:** [line 1100](../../../runtime/world2d_service.hpp#L1100)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -162,7 +162,7 @@ object.each_line_quad<Visit>(entry, visit);
 template<class Visit> inline void each_particle(const SpriteDraw& entry, uint16_t texture_width, uint16_t texture_height, Visit&& visit)
 ```
 
-- **Declared at:** [line 1184](../../../runtime/world2d_service.hpp#L1184)
+- **Declared at:** [line 1188](../../../runtime/world2d_service.hpp#L1188)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -213,7 +213,7 @@ object.each_particle<Visit>(entry, texture_width, texture_height, visit);
 template<class Visit> inline void each_polygon_triangle(const SpriteDraw& entry, Visit&& visit)
 ```
 
-- **Declared at:** [line 1150](../../../runtime/world2d_service.hpp#L1150)
+- **Declared at:** [line 1154](../../../runtime/world2d_service.hpp#L1154)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -262,7 +262,7 @@ object.each_polygon_triangle<Visit>(entry, visit);
 template<class Visit> inline void each_tile(const SpriteDraw& entry, uint16_t texture_width, uint16_t texture_height, Visit&& visit)
 ```
 
-- **Declared at:** [line 1230](../../../runtime/world2d_service.hpp#L1230)
+- **Declared at:** [line 1234](../../../runtime/world2d_service.hpp#L1234)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -313,7 +313,7 @@ object.each_tile<Visit>(entry, texture_width, texture_height, visit);
 inline bool entry_space(const SpriteDraw& entry, Camera2D& camera, Affine2D& matrix)
 ```
 
-- **Declared at:** [line 1080](../../../runtime/world2d_service.hpp#L1080)
+- **Declared at:** [line 1084](../../../runtime/world2d_service.hpp#L1084)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -399,7 +399,7 @@ auto result = epok::world2d::floor_div64(value, size);
 inline void install()
 ```
 
-- **Declared at:** [line 748](../../../runtime/world2d_service.hpp#L748)
+- **Declared at:** [line 752](../../../runtime/world2d_service.hpp#L752)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -430,7 +430,7 @@ epok::world2d::install();
 inline uint8_t mix(uint8_t a, uint8_t b, Fixed t, uint8_t tint)
 ```
 
-- **Declared at:** [line 1090](../../../runtime/world2d_service.hpp#L1090)
+- **Declared at:** [line 1094](../../../runtime/world2d_service.hpp#L1094)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -589,7 +589,7 @@ auto result = epok::world2d::Projector::screen();
 template<class Visit> inline void repeat_copies(const Canvas& canvas, const Projector& projector, const int16_t* bounds, Visit&& visit)
 ```
 
-- **Declared at:** [line 823](../../../runtime/world2d_service.hpp#L823)
+- **Declared at:** [line 827](../../../runtime/world2d_service.hpp#L827)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -680,7 +680,7 @@ auto result = epok::world2d::screen_pixel(value);
 Camera2DComponent* active_camera()
 ```
 
-- **Declared at:** [line 719](../../../runtime/world2d_service.hpp#L719)
+- **Declared at:** [line 723](../../../runtime/world2d_service.hpp#L723)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Camera2DComponent *`. Check the purpose and failure notes before using the value.
@@ -755,7 +755,7 @@ auto result = object.actor_at(index);
 const uint8_t* background()
 ```
 
-- **Declared at:** [line 727](../../../runtime/world2d_service.hpp#L727)
+- **Declared at:** [line 731](../../../runtime/world2d_service.hpp#L731)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `const uint8_t *`. Check the purpose and failure notes before using the value.
@@ -788,7 +788,7 @@ auto result = object.background();
 template<class LevelType> static void dispatch(LevelType& level, ObjectId actor, ObjectId other, TriggerPhase phase)
 ```
 
-- **Declared at:** [line 708](../../../runtime/world2d_service.hpp#L708)
+- **Declared at:** [line 712](../../../runtime/world2d_service.hpp#L712)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -1072,7 +1072,7 @@ auto result = object.move(body, delta, mask, result);
 static void notice(VisibleOnScreenNotifier2DComponent& notifier, const Projector& projector)
 ```
 
-- **Declared at:** [line 684](../../../runtime/world2d_service.hpp#L684)
+- **Declared at:** [line 688](../../../runtime/world2d_service.hpp#L688)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1254,7 +1254,7 @@ object.release(emitter);
 void reset()
 ```
 
-- **Declared at:** [line 731](../../../runtime/world2d_service.hpp#L731)
+- **Declared at:** [line 735](../../../runtime/world2d_service.hpp#L735)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1518,7 +1518,7 @@ auto result = epok::world2d::tile_box(tile, value, cell_origin, width, height, o
 inline void tint(uint8_t* color, const uint8_t* by)
 ```
 
-- **Declared at:** [line 816](../../../runtime/world2d_service.hpp#L816)
+- **Declared at:** [line 820](../../../runtime/world2d_service.hpp#L820)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1560,7 +1560,7 @@ epok::world2d::tint(color, by);
 const uint8_t* of(int8_t layer) const
 ```
 
-- **Declared at:** [line 861](../../../runtime/world2d_service.hpp#L861)
+- **Declared at:** [line 865](../../../runtime/world2d_service.hpp#L865)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1602,7 +1602,7 @@ auto result = object.of(layer);
 Tints()
 ```
 
-- **Declared at:** [line 851](../../../runtime/world2d_service.hpp#L851)
+- **Declared at:** [line 855](../../../runtime/world2d_service.hpp#L855)
 - **Kind:** `constructor`
 
 **Use it when.** You need the world2d service module and the preconditions in the declaration are already satisfied.
@@ -1631,7 +1631,7 @@ epok::world2d::Tints value();
 inline uint32_t z_key(int32_t z)
 ```
 
-- **Declared at:** [line 867](../../../runtime/world2d_service.hpp#L867)
+- **Declared at:** [line 871](../../../runtime/world2d_service.hpp#L871)
 - **Kind:** `function decl`
 
 **Parameters**

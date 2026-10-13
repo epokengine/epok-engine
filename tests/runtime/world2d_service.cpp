@@ -76,6 +76,7 @@ const ClassDescriptor object_classes[] = {
     {AudioPlayer2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<AudioPlayer2DComponent>, &object_destruct, sizeof(AudioPlayer2DComponent), alignof(AudioPlayer2DComponent), &ObjectPool<AudioPlayer2DComponent, 4>::acquire, &ObjectPool<AudioPlayer2DComponent, 4>::release},
     {VisibleOnScreenNotifier2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<VisibleOnScreenNotifier2DComponent>, &object_destruct, sizeof(VisibleOnScreenNotifier2DComponent), alignof(VisibleOnScreenNotifier2DComponent), &ObjectPool<VisibleOnScreenNotifier2DComponent, 4>::acquire, &ObjectPool<VisibleOnScreenNotifier2DComponent, 4>::release},
     {RemoteTransform2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<RemoteTransform2DComponent>, &object_destruct, sizeof(RemoteTransform2DComponent), alignof(RemoteTransform2DComponent), &ObjectPool<RemoteTransform2DComponent, 4>::acquire, &ObjectPool<RemoteTransform2DComponent, 4>::release},
+    {Skeleton2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<Skeleton2DComponent>, &object_destruct, sizeof(Skeleton2DComponent), alignof(Skeleton2DComponent), &ObjectPool<Skeleton2DComponent, 4>::acquire, &ObjectPool<Skeleton2DComponent, 4>::release},
     {Listener2D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None, world2d_bit, ObjectClassMultiple, &object_construct<Listener2D>, &object_destruct, sizeof(Listener2D), alignof(Listener2D), &ObjectPool<Listener2D, 4>::acquire, &ObjectPool<Listener2D, 4>::release},
     {Level::static_class_id, Object::static_class_id, ObjectFamily::Level, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Level), alignof(Level), nullptr, nullptr},
 };
@@ -767,10 +768,95 @@ void audio_2d() {
     assert(player->source.volume.raw() == 0 && player->source.pan == -127);
 }
 
+// 19. Skeletons blend poses (rotations along the shorter arc), loop or finish, and
+// two-bone IK puts the tip on the target, bending to the chosen side.
+Fixed world_x(Actor* actor) {
+    Affine2D m;
+    assert(world2d::root_world(root(actor), m));
+    return m.t[0];
+}
+Fixed world_y(Actor* actor) {
+    Affine2D m;
+    assert(world2d::root_world(root(actor), m));
+    return m.t[1];
+}
+void skeletons() {
+    reset();
+    auto* body = spawn<Actor2D>("Body", 0, 0);
+    auto* arm = spawn<Actor2D>("Arm", 10, 0);
+    root(arm).attach_parent = root(body).id();
+    auto* skeleton = game_level.add_component<Skeleton2DComponent>(*body, "Skeleton");
+    assert(skeleton);
+    static const Fixed rest[] = {q(0), q(10), q(0)};
+    static const Fixed times[] = {q(0), q(1)};
+    static const Fixed poses[] = {q(0), q(10), q(0), q(90), q(10), q(4)};
+    static const Fixed wrap_times[] = {q(0), q(1)};
+    static const Fixed wrap_poses[] = {q(170), q(0), q(0), q(-170), q(0), q(0)};
+    static SkeletonClip2D clips[3];
+    clips[0] = SkeletonClip2D{times, poses, 2, true, q(2)};
+    clips[1] = SkeletonClip2D{wrap_times, wrap_poses, 2, false, q(1)};
+    clips[2] = SkeletonClip2D{times, poses, 2, false, q(1)};
+    skeleton->bones[0] = arm->id();
+    skeleton->rest = rest;
+    skeleton->bone_count = 1;
+    skeleton->clips = clips;
+    skeleton->clip_count = 3;
+    skeleton->play(0);
+    skeleton->seek(q(0.5));
+    assert(close(real(root(arm).transform.rotation), 45, 0.01) && close(real(root(arm).transform.position[1]), 2, 0.01));
+    // Past the last key a loop blends back into the first pose.
+    skeleton->seek(q(1.5));
+    assert(close(real(root(arm).transform.rotation), 45, 0.01));
+    skeleton->seek(q(2.5));
+    assert(close(real(skeleton->get_time()), 0.5, 0.001));
+    // 170 to -170 crosses 180, not 0.
+    skeleton->play(1);
+    skeleton->seek(q(0.5));
+    assert(close(real(root(arm).transform.rotation) < 0 ? -real(root(arm).transform.rotation) : real(root(arm).transform.rotation), 180, 0.01));
+    // A non-looping animation stops on its last pose and reports it once.
+    skeleton->play(2);
+    for (int i = 0; i < 90; ++i) step();
+    assert(!skeleton->is_playing() && skeleton->take_finished() && !skeleton->take_finished());
+    assert(close(real(root(arm).transform.rotation), 90, 0.01));
+    skeleton->reset_pose();
+    assert(real(root(arm).transform.rotation) == 0 && real(root(arm).transform.position[1]) == 0);
+
+    // IK: shoulder, elbow 10 px along, hand 10 px further.
+    reset();
+    auto* shoulder = spawn<Actor2D>("Shoulder", 0, 0);
+    auto* elbow = spawn<Actor2D>("Elbow", 10, 0);
+    auto* hand = spawn<Actor2D>("Hand", 10, 0);
+    auto* target = spawn<Actor2D>("Target", 10, 10);
+    root(elbow).attach_parent = root(shoulder).id();
+    root(hand).attach_parent = root(elbow).id();
+    auto* rig = game_level.add_component<Skeleton2DComponent>(*shoulder, "Skeleton");
+    rig->bones[0] = shoulder->id();
+    rig->bones[1] = elbow->id();
+    rig->bone_count = 2;
+    rig->ik[0] = SkeletonIk2D{0, 1, hand->id(), target->id(), true, true};
+    rig->ik_count = 1;
+    step();
+    assert(close(real(world_x(hand)), 10, 0.6) && close(real(world_y(hand)), 10, 0.6));
+    const double bent = real(world_y(elbow)) - 5;  // the elbow leaves the shoulder-target line
+    rig->ik[0].bend_positive = false;
+    step();
+    assert(close(real(world_x(hand)), 10, 0.6) && close(real(world_y(hand)), 10, 0.6));
+    assert((real(world_y(elbow)) - 5) * bent < 0);
+    // Out of reach: the arm points straight at the target.
+    root(target).transform.position[0] = q(100);
+    root(target).transform.position[1] = q(0);
+    step();
+    assert(close(real(world_x(hand)), 20, 0.6) && close(real(world_y(hand)), 0, 0.6));
+    rig->set_ik_enabled(0, false);
+    root(target).transform.position[1] = q(50);
+    step();
+    assert(close(real(world_y(hand)), 0, 0.6));
+}
+
 void size_report() {
-    std::printf("World2D components (host, %zu-bit pointers): Sprite2D %zu  Camera2D %zu  Collider2D %zu  CharacterBody2D %zu  TileMapLayer %zu  Parallax2D %zu\n",
+    std::printf("World2D components (host, %zu-bit pointers): Sprite2D %zu  Camera2D %zu  Collider2D %zu  CharacterBody2D %zu  TileMapLayer %zu  Parallax2D %zu  Skeleton2D %zu\n",
                 sizeof(void*) * 8, sizeof(Sprite2DComponent), sizeof(Camera2DComponent), sizeof(Collider2DComponent),
-                sizeof(CharacterBody2DComponent), sizeof(TileMapLayerComponent), sizeof(Parallax2DComponent));
+                sizeof(CharacterBody2DComponent), sizeof(TileMapLayerComponent), sizeof(Parallax2DComponent), sizeof(Skeleton2DComponent));
 }
 }  // namespace
 
@@ -797,7 +883,8 @@ int main() {
     notifiers();
     remote_transforms();
     audio_2d();
+    skeletons();
     size_report();
-    std::puts("World2D sprite clips, camera, character body, triggers, draw sort, tile map, parallax, canvas layer, path, shape, particle, notifier, remote transform and 2D audio tests passed.");
+    std::puts("World2D sprite clips, camera, character body, triggers, draw sort, tile map, parallax, canvas layer, path, shape, particle, notifier, remote transform, 2D audio and skeleton tests passed.");
     return 0;
 }

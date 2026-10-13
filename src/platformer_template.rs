@@ -515,7 +515,9 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
     }
     player.components.push(controller);
     player.refresh_components();
+    let player_id = player.id;
     scene.actors.push(player);
+    guide(&mut scene, art.guide, player_id, level);
     for index in coins {
         let pickup = ComponentInstance::new(
             Uuid::new_v4(),
@@ -527,6 +529,85 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
     }
     install_gameplay(root, flavor)?;
     Ok(scene)
+}
+
+/// A cut-out guide near the start: a Skeleton2D whose robe breathes and head nods on a
+/// looping animation while a two-bone IK arm points at the player.
+fn guide(scene: &mut Scene, texture: Uuid, player: Uuid, level: Uuid) {
+    let mut root = world2d::create(Preset::Skeleton2D, "Guide", [-208., GROUND - 8.]);
+    root.logical_parent = Some(level);
+    let root_id = root.id;
+    scene.actors.push(root);
+    let mut part = |name: &str, parent: Uuid, at: [f32; 2], region: [u16; 4], z_index: i16| {
+        let centred = z_index != 3;
+        let mut actor = world2d::create(Preset::Sprite2D, name, at);
+        set(
+            &mut actor,
+            world2d::SPRITE2D,
+            &Sprite2D {
+                texture: Some(texture),
+                region,
+                centered: centred,
+                // Limbs hang off their joint along +X.
+                offset: if centred { [0., 0.] } else { [0., -2.] },
+                z_index,
+                ..Default::default()
+            },
+        );
+        actor.logical_parent = Some(parent);
+        actor.attach = Some(crate::actor_document::Attachment {
+            actor: parent,
+            component: None,
+        });
+        let id = actor.id;
+        scene.actors.push(actor);
+        id
+    };
+    // z 3 marks the limbs, drawn from their joint; the hand sits on top of the forearm.
+    let torso = part("Robe", root_id, [0., 0.], [0, 0, 12, 16], 1);
+    let head = part("Head", torso, [0., -13.], [16, 0, 12, 12], 2);
+    let upper = part("UpperArm", torso, [3., -5.], [32, 0, 10, 4], 3);
+    let fore = part("Forearm", upper, [9., 0.], [32, 6, 10, 4], 3);
+    let hand = part("Hand", fore, [9., 0.], [48, 0, 4, 4], 4);
+    let bones = [
+        (torso, [0., 0., 0.]),
+        (head, [0., 0., -13.]),
+        (upper, [0., 3., -5.]),
+        (fore, [0., 9., 0.]),
+    ];
+    let mut skeleton = crate::skeleton2d::Skeleton2D {
+        bones: bones
+            .iter()
+            .map(|(id, rest)| crate::skeleton2d::Bone {
+                actor: Some(*id),
+                rest: *rest,
+            })
+            .collect(),
+        animations: vec![crate::skeleton2d::Animation {
+            name: "idle".into(),
+            length: 2.,
+            looping: true,
+            keys: Vec::new(),
+        }],
+        autoplay: Some(0),
+        ik: vec![crate::skeleton2d::Ik {
+            upper: 2,
+            lower: 3,
+            tip: Some(hand),
+            target: Some(player),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let rest: Vec<[f32; 3]> = bones.iter().map(|(_, r)| *r).collect();
+    let mut breathe = rest.clone();
+    breathe[0] = [-3., 0., 1.];
+    breathe[1] = [8., 0., -12.];
+    skeleton.key_pose(0, 0., rest);
+    skeleton.key_pose(0, 1., breathe);
+    if let Some(index) = scene.actor_index(root_id) {
+        set(&mut scene.actors[index], world2d::SKELETON2D, &skeleton);
+    }
 }
 
 pub fn controller_id(flavor: GameplayFlavor) -> &'static str {
@@ -636,6 +717,7 @@ mod art {
         pub hills: Uuid,
         pub cloud: Uuid,
         pub spark: Uuid,
+        pub guide: Uuid,
     }
     type Rgba = [u8; 4];
     const CLEAR: Rgba = [0, 0, 0, 0];
@@ -877,6 +959,43 @@ mod art {
         }
         c
     }
+    /// The guide's cut-out parts on one 64 x 16 sheet: robe (0,0 12x16), head (16,0
+    /// 12x12), upper arm (32,0 10x4) and forearm (32,6 10x4) drawn along +X from their
+    /// joint, and a hand (48,0 4x4).
+    fn guide() -> Canvas {
+        const ROBE: Rgba = [124, 84, 178, 255];
+        const ROBE_DARK: Rgba = [92, 60, 140, 255];
+        const BELT: Rgba = [232, 196, 92, 255];
+        const SKIN: Rgba = [255, 206, 170, 255];
+        const BEARD: Rgba = [236, 236, 244, 255];
+        const EYE: Rgba = [24, 22, 36, 255];
+        let mut c = Canvas::new(64, 16);
+        // Robe, widening towards the hem.
+        c.rect(3, 1, 6, 6, ROBE);
+        c.rect(2, 7, 8, 5, ROBE);
+        c.rect(1, 12, 10, 3, ROBE_DARK);
+        c.rect(2, 8, 8, 1, BELT);
+        c.outline(0, 0, 12, 16);
+        // Head under a pointed hat, with a white beard.
+        c.rect(19, 5, 6, 5, SKIN);
+        c.rect(19, 9, 6, 2, BEARD);
+        c.rect(20, 11, 4, 1, BEARD);
+        c.set(23, 7, EYE);
+        c.rect(18, 4, 8, 1, ROBE_DARK);
+        c.rect(19, 2, 5, 2, ROBE);
+        c.rect(20, 1, 3, 1, ROBE);
+        c.set(21, 0, BELT);
+        c.outline(16, 0, 12, 12);
+        // Sleeves.
+        c.rect(32, 1, 9, 2, ROBE);
+        c.outline(32, 0, 10, 4);
+        c.rect(32, 7, 9, 2, ROBE_DARK);
+        c.outline(32, 6, 10, 4);
+        // Hand.
+        c.rect(49, 1, 2, 2, SKIN);
+        c.outline(48, 0, 4, 4);
+        c
+    }
     /// A soft 4 x 4 dot for particles (additive: dark texels add little).
     fn spark() -> Canvas {
         let mut c = Canvas::new(4, 4);
@@ -1005,6 +1124,7 @@ mod art {
             hills: import("Hills", hills())?,
             cloud: import("Cloud", cloud())?,
             spark: import("Spark", spark())?,
+            guide: import("Guide", guide())?,
         })
     }
 }

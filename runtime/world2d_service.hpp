@@ -635,6 +635,10 @@ public:
                 if (body.get_owner() != owner && body.on_floor && body.last_collider == id) displace_owner(body, moved);
             });
         });
+        // Skeletons pose their bones (and solve IK) before the colliders are gathered.
+        skeletons.each([&](Skeleton2DComponent& skeleton) {
+            if (owner_active(skeleton)) skeleton.advance(dt);
+        });
         sync(true);
         world.update_triggers([&](const TriggerEvent& event) {
             const ObjectId a = actor_at(event.first), b = actor_at(event.second);

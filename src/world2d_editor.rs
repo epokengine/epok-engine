@@ -78,6 +78,7 @@ pub fn preset_icon(preset: Preset) -> &'static str {
         Preset::AudioPlayer2D => crate::world2d_shapes_editor::ICON_AUDIO,
         Preset::VisibleOnScreenNotifier2D => crate::world2d_shapes_editor::ICON_NOTIFIER,
         Preset::RemoteTransform2D => crate::world2d_shapes_editor::ICON_REMOTE,
+        Preset::Skeleton2D => crate::world2d_skeleton_editor::ICON_SKELETON,
     }
 }
 
@@ -223,6 +224,8 @@ pub struct State {
     pub tileset_window: Option<crate::tileset_editor::Window>,
     /// Point editing of paths, lines and polygons.
     pub points: crate::world2d_shapes_editor::State,
+    /// Skeleton2D timeline and animation preview.
+    pub skeleton: crate::world2d_skeleton_editor::State,
 }
 impl Default for State {
     fn default() -> Self {
@@ -253,6 +256,7 @@ impl Default for State {
             tiles: Default::default(),
             tileset_window: None,
             points: Default::default(),
+            skeleton: Default::default(),
         }
     }
 }
@@ -509,6 +513,7 @@ pub fn create_command(preset: Preset) -> &'static str {
         Preset::AudioPlayer2D => "create-node2d-AudioPlayer2D",
         Preset::VisibleOnScreenNotifier2D => "create-node2d-VisibleOnScreenNotifier2D",
         Preset::RemoteTransform2D => "create-node2d-RemoteTransform2D",
+        Preset::Skeleton2D => "create-node2d-Skeleton2D",
     }
 }
 /// Whether the Inspector should show the 2D layout for this actor.
@@ -527,7 +532,7 @@ pub fn is_world2d_actor(e: &Editor, id: Uuid) -> bool {
                 })
         })
 }
-fn root_transform(actor: &crate::scene::Actor) -> Transform2D {
+pub(crate) fn root_transform(actor: &crate::scene::Actor) -> Transform2D {
     actor
         .root()
         .map(|c| crate::scene_view_mode::read_transform_2d(&c.properties))
@@ -762,7 +767,11 @@ fn snap_value(value: f32, step: f32) -> f32 {
 
 // ---- document edits --------------------------------------------------------------------
 /// Edits the root transform of one actor. Returns whether the actor exists.
-fn edit_transform(e: &mut Editor, id: Uuid, edit: impl FnOnce(&mut Transform2D)) -> bool {
+pub(crate) fn edit_transform(
+    e: &mut Editor,
+    id: Uuid,
+    edit: impl FnOnce(&mut Transform2D),
+) -> bool {
     let Some(index) = e.scene.actor_index(id) else {
         return false;
     };
@@ -1085,6 +1094,7 @@ fn snapped(e: &Editor, position: [f32; 2]) -> [f32; 2] {
 
 /// The Scene window in 2D mode.
 pub fn viewport(ui: &Ui, e: &mut Editor) {
+    crate::world2d_skeleton_editor::tick(e);
     toolbar(ui, e);
     // A selected TileMapLayer gets the tile tools and, while painting, the palette.
     let painting = crate::tilemap_editor::painting(e);
@@ -2385,6 +2395,7 @@ fn draw(
             && let Some(v) = views.iter().find(|v| Some(v.id) == e.selected_actor)
         {
             crate::world2d_shapes_editor::overlay(e, &draw, v, &to_screen);
+            crate::world2d_skeleton_editor::overlay(e, &draw, views, &to_screen);
         }
         // Hover and selection.
         if let Some(v) = e
@@ -2778,6 +2789,8 @@ pub fn node_icon(actor: &crate::scene::Actor) -> &'static str {
         crate::world2d_shapes_editor::ICON_NOTIFIER
     } else if has(world2d::REMOTE_TRANSFORM2D) {
         crate::world2d_shapes_editor::ICON_REMOTE
+    } else if has(world2d::SKELETON2D) {
+        crate::world2d_skeleton_editor::ICON_SKELETON
     } else if has(world2d::CAMERA2D) {
         ICON_CAMERA
     } else if has(world2d::SPRITE2D) {
@@ -2849,9 +2862,12 @@ fn inspector_body(ui: &Ui, e: &mut Editor, id: Uuid) {
             Some(world2d::CANVAS_LAYER2D) => canvas_layer_band(ui, e, id, &component),
             Some(world2d::CANVAS_MODULATE2D) => canvas_modulate_band(ui, e, id, &component),
             _ if crate::world2d_shapes_editor::band(ui, e, id, &component) => {}
+            _ if crate::world2d_skeleton_editor::band(ui, e, id, &component) => {}
             _ => generic_band(ui, e, id, &component),
         }
     }
+    // A bone of a skeleton keys its pose from its own Inspector.
+    crate::world2d_skeleton_editor::bone_band(ui, e, id);
     ui.dummy([0., 7.]);
     let width = ui.content_region_avail()[0];
     ui.set_cursor_pos([

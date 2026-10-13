@@ -305,8 +305,8 @@ See the complete [Timeline reference](timelines.md) and the
 - **2D nodes.** `Actor2D` actors with a pixel-based, Y-down 2D transform carry engine
   Sprite2D, TileMapLayer, Collider2D, CharacterBody2D, Camera2D, Parallax2D, Path2D,
   PathFollow2D, Line2D, Polygon2D, Particles2D, AudioPlayer2D,
-  VisibleOnScreenNotifier2D, RemoteTransform2D, CanvasLayer2D and CanvasModulate2D
-  components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
+  VisibleOnScreenNotifier2D, RemoteTransform2D, Skeleton2D, CanvasLayer2D and
+  CanvasModulate2D components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
   purpose, create each kind of node in one click.
 - **Sprites and animation.** Texture regions, sprite-sheet cells, offset, centring,
   flips, modulate, the console blend modes, z-index and y-sort; named frame
@@ -329,6 +329,10 @@ See the complete [Timeline reference](timelines.md) and the
   scale and colour over life; additive PointLight2D glows; AudioPlayer2D sounds that
   fade and pan with the camera; on-screen notifiers that can pause nodes; remote
   transforms; colliders fitted to a sprite's visible pixels.
+- **Cut-out skeletons.** Skeleton2D animates attached parts as bones with pose keys
+  (shorter-arc rotation blending, loops and one-shots) and up to two two-bone IK
+  chains with a chosen elbow side; the editor keys poses from a timeline on the
+  skeleton or on any bone, previews them and draws the bones and IK targets.
 - **Parallax and canvas layers.** Parallax2D scrolls attached nodes against the camera
   with autoscroll and screen-filling repeats; CanvasLayer2D draws nodes on their own
   layer in screen pixels or world space; CanvasModulate2D tints a whole canvas.

@@ -989,7 +989,7 @@ fn points_list(ui: &Ui, points: &mut Vec<[f32; 2]>) {
     }
 }
 /// A combo of the map's 2D actors (other than `exclude`), with a "none" entry.
-fn actor_combo(
+pub(crate) fn actor_combo(
     ui: &Ui,
     e: &Editor,
     label: &str,

@@ -185,6 +185,7 @@ mod skeletal_compile;
 #[cfg(test)]
 mod skeletal_tests;
 mod skeletal_ui;
+mod skeleton2d;
 mod sound_bank;
 mod soundfont_asset;
 mod source_cache;
@@ -227,6 +228,7 @@ mod workspace;
 mod world2d;
 mod world2d_editor;
 mod world2d_shapes_editor;
+mod world2d_skeleton_editor;
 use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},

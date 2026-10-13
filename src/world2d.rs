@@ -33,10 +33,11 @@ pub const PARTICLES2D: &str = om::PARTICLES2D_COMPONENT_ID;
 pub const AUDIO_PLAYER2D: &str = om::AUDIO_PLAYER2D_COMPONENT_ID;
 pub const NOTIFIER2D: &str = om::NOTIFIER2D_COMPONENT_ID;
 pub const REMOTE_TRANSFORM2D: &str = om::REMOTE_TRANSFORM2D_COMPONENT_ID;
+pub const SKELETON2D: &str = om::SKELETON2D_COMPONENT_ID;
 
 /// Every engine 2D component the editor authors and cooks itself: its class id, the
 /// property key holding its record, and its C++ class.
-const BUILTINS: [(&str, &str, &str); 16] = [
+const BUILTINS: [(&str, &str, &str); 17] = [
     (SPRITE2D, "sprite2d", "epok::Sprite2DComponent"),
     (CAMERA2D, "camera2d", "epok::Camera2DComponent"),
     (COLLIDER2D, "collider2d", "epok::Collider2DComponent"),
@@ -77,6 +78,7 @@ const BUILTINS: [(&str, &str, &str); 16] = [
         "remote_transform2d",
         "epok::RemoteTransform2DComponent",
     ),
+    (SKELETON2D, "skeleton2d", "epok::Skeleton2DComponent"),
 ];
 pub fn is_builtin(class_id: &str) -> bool {
     BUILTINS.iter().any(|b| b.0 == class_id)
@@ -689,6 +691,7 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
         AUDIO_PLAYER2D => decode::<AudioPlayer2D>(value).map(|_| ()),
         NOTIFIER2D => decode::<Notifier2D>(value).map(|_| ()),
         REMOTE_TRANSFORM2D => decode::<RemoteTransform2D>(value).map(|_| ()),
+        SKELETON2D => decode::<crate::skeleton2d::Skeleton2D>(value).and_then(|s| s.validate()),
         _ => decode::<CharacterBody2D>(value).map(|_| ()),
     };
     result.map_err(|e| format!("{key}: {e}"))
@@ -714,6 +717,7 @@ fn default_record(class_id: &str) -> serde_json::Value {
         AUDIO_PLAYER2D => value::<AudioPlayer2D>(),
         NOTIFIER2D => value::<Notifier2D>(),
         REMOTE_TRANSFORM2D => value::<RemoteTransform2D>(),
+        SKELETON2D => value::<crate::skeleton2d::Skeleton2D>(),
         _ => value::<CharacterBody2D>(),
     }
 }
@@ -977,9 +981,10 @@ pub enum Preset {
     AudioPlayer2D,
     VisibleOnScreenNotifier2D,
     RemoteTransform2D,
+    Skeleton2D,
 }
 impl Preset {
-    pub const ALL: [Preset; 20] = [
+    pub const ALL: [Preset; 21] = [
         Preset::Node2D,
         Preset::Sprite2D,
         Preset::AnimatedSprite2D,
@@ -995,6 +1000,7 @@ impl Preset {
         Preset::Polygon2D,
         Preset::Particles2D,
         Preset::PointLight2D,
+        Preset::Skeleton2D,
         Preset::CanvasLayer2D,
         Preset::CanvasModulate2D,
         Preset::AudioPlayer2D,
@@ -1014,6 +1020,7 @@ impl Preset {
             Preset::Line2D | Preset::Polygon2D | Preset::Particles2D | Preset::PointLight2D => {
                 "Drawing and effects"
             }
+            Preset::Skeleton2D => "Animation",
             Preset::CanvasLayer2D | Preset::CanvasModulate2D => "Canvas",
             Preset::AudioPlayer2D
             | Preset::VisibleOnScreenNotifier2D
@@ -1042,6 +1049,7 @@ impl Preset {
             Preset::AudioPlayer2D => "AudioPlayer2D",
             Preset::VisibleOnScreenNotifier2D => "VisibleOnScreenNotifier2D",
             Preset::RemoteTransform2D => "RemoteTransform2D",
+            Preset::Skeleton2D => "Skeleton2D",
         }
     }
     pub fn description(self) -> &'static str {
@@ -1072,6 +1080,9 @@ impl Preset {
                 "Reports entering and leaving the view; can pause its node."
             }
             Preset::RemoteTransform2D => "Pushes this node's transform onto another node.",
+            Preset::Skeleton2D => {
+                "Animates a cut-out character: attached parts are bones; pose keys and IK."
+            }
         }
     }
     pub fn components(self) -> &'static [&'static str] {
@@ -1094,6 +1105,7 @@ impl Preset {
             Preset::AudioPlayer2D => &[AUDIO_PLAYER2D],
             Preset::VisibleOnScreenNotifier2D => &[NOTIFIER2D],
             Preset::RemoteTransform2D => &[REMOTE_TRANSFORM2D],
+            Preset::Skeleton2D => &[SKELETON2D],
         }
     }
 }
@@ -1793,6 +1805,13 @@ pub fn cook(
             }
             body += &format!("c->disable_when_hidden={};", n.disable_when_hidden);
         }
+        SKELETON2D => {
+            let s: crate::skeleton2d::Skeleton2D = read(component);
+            let (statics, setters) =
+                crate::skeleton2d::cook(&s, symbol, &|id| context.actor(id), &fixed, label)?;
+            out.statics += &statics;
+            body += &setters;
+        }
         REMOTE_TRANSFORM2D => {
             let r: RemoteTransform2D = read(component);
             if let Some(slot) = context.actor(r.target) {
@@ -2255,6 +2274,34 @@ mod tests {
         assert!(
             remote.setters.contains("c->target=actors[3];")
                 && remote.setters.contains("c->update_scale=false;")
+        );
+        let skeleton = cook_one(Preset::Skeleton2D, &|c| {
+            let mut s = crate::skeleton2d::Skeleton2D {
+                bones: vec![crate::skeleton2d::Bone {
+                    actor: Some(target),
+                    rest: [0., 4., 0.],
+                }],
+                animations: vec![crate::skeleton2d::Animation::default()],
+                autoplay: Some(0),
+                ..Default::default()
+            };
+            s.key_pose(0, 0., vec![[30., 4., 0.]]);
+            write(c, &s)
+        })
+        .unwrap();
+        assert!(skeleton.setters.starts_with("if(auto* c=registry.resolve<epok::Skeleton2DComponent>(components[1])){c->bones[0]=actors[3];c->bone_count=1;c->rest=n_rest;"));
+        assert!(skeleton.statics.contains("inline constexpr epok::SkeletonClip2D n_clips[]={epok::SkeletonClip2D{n_a0_times,n_a0_poses,1,true,epok::Fixed(4096,epok::Fixed::RAW)}};"));
+        assert!(skeleton.setters.contains("c->clip=0;c->playing=true;"));
+        // A bone outside the map fails the build rather than animating nothing.
+        assert!(
+            cook_one(Preset::Skeleton2D, &|c| write(
+                c,
+                &crate::skeleton2d::Skeleton2D {
+                    bones: vec![crate::skeleton2d::Bone::default()],
+                    ..Default::default()
+                }
+            ))
+            .is_err()
         );
         let notifier = cook_one(Preset::VisibleOnScreenNotifier2D, &|_| {}).unwrap();
         assert!(

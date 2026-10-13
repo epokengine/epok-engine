@@ -500,3 +500,4 @@ private:
 // Tile maps, parallax, canvas layers and the content nodes build on the components above.
 #include "world2d_tiles.hpp"
 #include "world2d_content.hpp"
+#include "world2d_skeleton.hpp"
