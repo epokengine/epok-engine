@@ -54,7 +54,7 @@ pub struct State {
     history_index: usize,
     selected: BTreeSet<String>,
     anchor: Option<String>,
-    drag: Vec<String>,
+    pub(crate) drag: Vec<String>,
     collection: Option<String>,
     tree_search: String,
     favorites_search: String,

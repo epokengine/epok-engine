@@ -46,6 +46,7 @@ the **[complete feature catalog](docs/features.md)**.
 | **Build your world** | Arrange entities in a dockable editor with transform gizmos, parenting and a component Inspector. Create and edit geometry with [Blockout](docs/blockout.md), including extrusion, bevels and geometry Undo/Redo. Sculpt and paint ground with [Terrain](docs/terrain.md). |
 | **Bring in your assets** | Import [PNG textures](docs/textures.md), [OBJ/MTL models](docs/static-mesh-import.md) and [FBX characters](docs/skeletal.md). Asset identities survive moves and reimports. |
 | **Animate and add effects** | Build layered effects in the [VFX editor](docs/vfx-editor.md) with presets, Q12 curves, bursts and preview controls. Reuse [timelines](docs/timelines.md) for scene sequences and connect their markers to Blueprint gameplay. Use sprites, flipbooks, [particle emitters](docs/sprites-particles.md), fog and palette cycling. |
+| **Make 2D games** | Build [2D worlds](docs/2d.md) from Sprite2D, AnimatedSprite2D, Camera2D, CharacterBody2D, StaticBody2D and Area2D nodes in a pixel-accurate 2D editor with move/rotate/scale tools, snapping, rulers, a sprite region editor and a sprite-sheet slicer. Sprites, one-way platforms, `move_and_slide`, triggers and a smoothed, limited camera run natively on the console. |
 | **Model your game objects** | Compose maps from [actors and components](docs/actors.md): `Actor3D`, `Actor2D` and `UIActor` classes written in C++ or as Blueprints, with typed components, per-map scene Blueprints and a 3D / 2D / UI authoring mode. Maps use one Actor collection. Older projects must be recreated; see [project recreation](docs/migration-actors.md). |
 | **Write native gameplay** | Author C++20 behaviours with Inspector properties. Connect [input and collision](docs/input-collision.md), [scene transitions and object lifecycle](docs/runtime-services.md), cameras, tweens and [Memory Card storage](docs/memory-card.md). |
 | **Navigate NPCs** | Bake a bounded [NavLite](docs/navigation.md) walking graph from static box colliders, then reuse `NavigationAgentComponent` with a shared PSX search budget. Version 1 supports flat surfaces and obstacles. |
@@ -133,7 +134,7 @@ system `PATH`; the local compiler build can take several minutes.
 3. Press **Play** to compile and run the game.
 4. Use **Pause**, **Step** and **Stop** to inspect it. Save scene changes with **Ctrl+S**.
 
-Choose the **Third Person** template for an optimized editable arena and an animated player with camera-relative movement, jumping, collision and an orbit camera. New Project also asks how its starter gameplay should be written — C++, Blueprint or Lua — and generates the same scene either way; the choice never locks the project to one system.
+Choose the **Third Person** template for an optimized editable arena and an animated player with camera-relative movement, jumping, collision and an orbit camera, or **Platformer 2D** for a side-scroller with an animated player, one-way platforms, coins and a following camera. New Project also asks how its starter gameplay should be written — C++, Blueprint or Lua — and generates the same scene either way; the choice never locks the project to one system.
 
 See [Getting started](docs/getting-started.md) for configuration and troubleshooting.
 
@@ -162,6 +163,18 @@ A release build produces the editor executable. On macOS, `make app` additionall
 <p align="center"><sub>Native 640 × 480 output captured in PCSX-Redux. A visual showcase of world sprites, textured geometry and HUD rendering. Character and environment artwork is synthetic prototype imagery prepared for PSX textures.</sub></p>
 
 See [Sprites and particles](docs/sprites-particles.md), [Textures](docs/textures.md) and [HUD](docs/hud.md) for the engine features used in this scene.
+
+### A 2D platformer
+
+![The Epok 2D editor with a platformer level, the sprite and animation Inspector and the camera bounds](docs/images/world2d-editor.png)
+
+<p align="center"><sub>The Platformer 2D template open in the 2D editor: real sprites, collision shapes, the game camera's view and the 2D Inspector.</sub></p>
+
+![The Platformer 2D template running in PCSX-Redux](docs/images/platformer-2d.png)
+
+<p align="center"><sub>The same level on the console at 320 × 240, captured in PCSX-Redux mid-jump. The artwork is original pixel art the template generates.</sub></p>
+
+Choose the **Platformer 2D** template, or switch the Scene window to **2D** and add nodes. See [2D worlds](docs/2d.md).
 
 ### A playable third-person scene
 
@@ -210,7 +223,7 @@ Browse the **[Epok documentation](docs/getting-started.md)** for guides, workflo
 | Area | Guides |
 | --- | --- |
 | **Start and configure** | [Complete feature catalog](docs/features.md) · [Getting started](docs/getting-started.md) · [Projects](docs/projects.md) · [Settings](docs/settings.md) · [Editor](docs/editor.md) · [Migrating to actors](docs/migration-actors.md) |
-| **Create content** | [Blockout](docs/blockout.md) · [Terrain](docs/terrain.md) · [Third Person arena](docs/third-person.md) · [Static model import](docs/static-mesh-import.md) · [Skeletal characters](docs/skeletal.md) |
+| **Create content** | [2D worlds](docs/2d.md) · [Blockout](docs/blockout.md) · [Terrain](docs/terrain.md) · [Third Person arena](docs/third-person.md) · [Static model import](docs/static-mesh-import.md) · [Skeletal characters](docs/skeletal.md) |
 | **Render and animate** | [Textures](docs/textures.md) · [Lighting](docs/lighting.md) · [Sprites and particles](docs/sprites-particles.md) · [Environment effects](docs/environment-effects.md) · [Palette animation](docs/palette-animation.md) |
 | **Build gameplay** | [Gameplay API](docs/gameplay-api.md) · [Actors and components](docs/actors.md) · [Blueprints](docs/blueprints.md) · [C++ scripting](docs/scripting.md) · [Lua scripting](docs/lua-scripting.md) · [Input and collision](docs/input-collision.md) · [Runtime services](docs/runtime-services.md) · [Cameras and resources](docs/camera-resources.md) · [Memory Card](docs/memory-card.md) |
 | **Look up C++ APIs** | [Complete API reference](docs/api/index.md) · [Epok runtime API](docs/api/epok.md) · [PsyQo API](docs/api/psyqo.md) |
@@ -223,7 +236,7 @@ Epok targets the original hardware's constraints. Keep these boundaries in mind 
 
 - **Animation:** rigid GTE skinning and compressed baked vertex clips are selectable per imported model; skeletal textures, blended skin weights and animation blending remain future work.
 - **Editing:** the open map's last 32 scene edits, Blueprint graphs/templates, Blockout geometry and MCP scene batches have Undo/Redo. Entity multiselection remains future work.
-- **Actors:** actor and component classes, per-map scene Blueprints and the 3D/2D/UI modes are host-validated; PSX build and emulator validation of actor content is pending on an SDK machine. There are no Pawn/Character archetypes, no positional audio and no 2D rigid-body physics.
+- **Actors:** actor and component classes, per-map scene Blueprints and the 3D/2D/UI modes are validated on the host and, for 2D actors in C++, Blueprint and Lua, in PSX builds running in PCSX-Redux. There are no Pawn/Character archetypes, no positional audio and no 2D rigid-body physics.
 - **Rendering:** frustum clipping and ordering tables are used; intersecting polygons can still produce sorting artifacts. Capacity limits are not frame-rate guarantees.
 - **Simulation:** measured time drives fixed 60 Hz steps with bounded catch-up. Collision uses conservative AABBs, rather than rigid-body physics.
 - **Resources:** prelinked scene banks share resources and reuse active objects and VRAM. Resident data must fit PSX RAM; arbitrary map streaming from CD is not implemented.

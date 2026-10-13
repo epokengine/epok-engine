@@ -246,6 +246,8 @@ pub struct Editor {
     pub actor_rename_focus: bool,
     /// The Scene window's 2D camera (`SceneViewMode::TwoD`).
     pub view_2d: crate::scene_view_mode::SceneView2D,
+    /// Tools, previews and dialogs of the 2D world editor.
+    pub world2d: crate::world2d_editor::State,
     /// The actor being dragged in the 2D view and the world offset between its
     /// origin and the grab point, so the actor does not jump to the cursor.
     pub drag_2d: Option<(uuid::Uuid, [f32; 2])>,
@@ -804,6 +806,7 @@ impl Editor {
             actor_rename: None,
             actor_rename_focus: false,
             view_2d: Default::default(),
+            world2d: Default::default(),
             drag_2d: None,
             map_settings: false,
             map_scene_script_parent: String::new(),
@@ -2628,6 +2631,17 @@ impl Editor {
     }
 
     pub fn action(&mut self, action: &str) {
+        if let Some(label) = action.strip_prefix("create-node2d-") {
+            if let Some(preset) = crate::world2d::Preset::ALL
+                .into_iter()
+                .find(|p| p.label() == label)
+            {
+                self.set_scene_view_mode(crate::scene_view_mode::SceneViewMode::TwoD);
+                let centre = self.view_2d.centre;
+                crate::world2d_editor::create_node(self, preset, centre);
+            }
+            return;
+        }
         if action == "instantiate-actor" || action == "instantiate-child-actor" {
             let parent = (action == "instantiate-child-actor")
                 .then_some(self.selected)

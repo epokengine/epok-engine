@@ -124,6 +124,7 @@ mod particles;
 mod picking;
 mod pipeline;
 mod platform;
+mod platformer_template;
 mod play;
 mod play_cache;
 mod play_ui;
@@ -216,6 +217,8 @@ mod visibility_codec;
 mod visibility_packing;
 mod visibility_track;
 mod workspace;
+mod world2d;
+mod world2d_editor;
 use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
@@ -1848,6 +1851,20 @@ fn prepare_editor(editor: &mut editor::Editor) {
     }
     if args.iter().any(|a| a == "--screenshot-2d") {
         editor.set_scene_view_mode(scene_view_mode::SceneViewMode::TwoD);
+    }
+    // Screenshot automation: select an actor by name before the capture.
+    if let Some(name) = args
+        .windows(2)
+        .find(|a| a[0] == "--select-actor")
+        .map(|a| a[1].clone())
+        && let Some(id) = editor
+            .scene
+            .actors
+            .iter()
+            .find(|a| a.name == name)
+            .map(|a| a.id)
+    {
+        editor.select_actor(Some(id));
     }
     if args.iter().any(|a| a == "--screenshot-package-disc") {
         export_ui::open(editor);

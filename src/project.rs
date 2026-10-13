@@ -201,6 +201,11 @@ pub fn scene_header_with_registry_for(
     let mut text = String::from(
         "// Generated. Edit the scene and scripts, not this file.\n#pragma once\n#include \"epok.hpp\"\n#include \"actor_tables.hpp\"\n#include <array>\n",
     );
+    text.push_str(&crate::world2d::capacity_defines(
+        crate::world2d::project_uses_world2d(std::iter::once(scene), class_registry),
+        std::slice::from_ref(scene),
+        std::iter::empty(),
+    ));
     for script in catalog {
         text.push_str(&format!("#include \"scripts/{}\"\n", script.header_path()));
     }
@@ -1270,6 +1275,18 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/world2d.hpp").as_slice(),
         ),
         (
+            "world2d_components.hpp",
+            include_bytes!("../runtime/world2d_components.hpp").as_slice(),
+        ),
+        (
+            "world2d_service.hpp",
+            include_bytes!("../runtime/world2d_service.hpp").as_slice(),
+        ),
+        (
+            "world2d_render.hpp",
+            include_bytes!("../runtime/world2d_render.hpp").as_slice(),
+        ),
+        (
             "actor_blueprint.hpp",
             include_bytes!("../runtime/actor_blueprint.hpp").as_slice(),
         ),
@@ -1757,7 +1774,10 @@ fn actor_table_with_registry(
         depth
     });
     let slot = |id: uuid::Uuid| order.iter().position(|i| scene.actors[*i].id == id);
+    let bank_textures = crate::texture::ids(scene);
     let mut components_text = String::new();
+    // Namespace-scope constants (World2D frame clips) the generated setters reference.
+    let mut statics = String::new();
     let mut applies = String::new();
     let mut rows = Vec::new();
     let mut registry_slots = 0usize;
@@ -1826,6 +1846,11 @@ fn actor_table_with_registry(
                     .unwrap_or(serde_json::json!([0, 0]));
                 let scale = p.get("scale").cloned().unwrap_or(serde_json::json!([1, 1]));
                 let rotation = p.get("rotation").cloned().unwrap_or(serde_json::json!(0));
+                let draw_order = p
+                    .get("draw_order")
+                    .and_then(serde_json::Value::as_i64)
+                    .unwrap_or(0)
+                    .clamp(-4096, 4096);
                 let ty = crate::reflection_schema::Type::Vector { length: 2 };
                 let body = crate::script_values::assignment(
                     "component->transform.position",
@@ -1841,7 +1866,7 @@ fn actor_table_with_registry(
                     &crate::reflection_schema::Type::Fixed,
                 )?;
                 setters += &format!(
-                    "if(auto* component=registry.resolve<epok::SceneComponent2D>(components[{position_index}])){{{body}}}\n",
+                    "if(auto* component=registry.resolve<epok::SceneComponent2D>(components[{position_index}])){{{body}component->transform.draw_order={draw_order};}}\n",
                     position_index = position
                 );
             }
@@ -1878,7 +1903,20 @@ fn actor_table_with_registry(
                     audio.priority
                 );
             }
-            if !crate::actor_components::native(&component_class.id) {
+            if crate::world2d::is_builtin(&component_class.id) {
+                let cooked = crate::world2d::cook(
+                    component,
+                    position,
+                    &format!("w2d_{index}_{position}"),
+                    &|id| bank_textures.contains(&id),
+                    &format!(
+                        "{}: actor {} component {}",
+                        scene.name, actor.name, component.name
+                    ),
+                )?;
+                statics.push_str(&cooked.statics);
+                setters.push_str(&cooked.setters);
+            } else if !crate::actor_components::native(&component_class.id) {
                 setters.push_str(&property_setters(
                     &format!(
                         "registry.resolve<{}>(components[{position}])",
@@ -1961,7 +1999,8 @@ fn actor_table_with_registry(
         }
     };
     let (reference_text, reference_fields) = scene_reference_table(scene, &model, &order)?;
-    let mut text = applies;
+    let mut text = statics;
+    text.push_str(&applies);
     text.push_str(&components_text);
     text.push_str(&reference_text);
     if rows.is_empty() {

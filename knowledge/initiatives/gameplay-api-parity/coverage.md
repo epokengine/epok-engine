@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `a0b96994d124599318d7bd9e5f2808bb5767d59a`. Frozen semantic candidate rows: **3826**.
+Baseline commit: `8ad89b760a4f2cae1255fd31a55d71c113f84a5b`. Frozen semantic candidate rows: **4046**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -12,8 +12,8 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | --- | ---: |
 | `compatibility_alias` | 44 |
 | `hardware_backend` | 6 |
-| `internal_implementation` | 3247 |
-| `public_gameplay` | 529 |
+| `internal_implementation` | 3458 |
+| `public_gameplay` | 538 |
 
 ## Public gameplay gaps
 
@@ -33,17 +33,17 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `cameras_scenes` | 48 |
 | `collision_3d` | 55 |
 | `components_hierarchy` | 7 |
-| `gameplay_2d` | 91 |
-| `implementation_support` | 1270 |
+| `gameplay_2d` | 102 |
+| `implementation_support` | 1468 |
 | `input_time` | 51 |
 | `language_adapter` | 130 |
-| `materials_visuals` | 60 |
+| `materials_visuals` | 61 |
 | `math_values` | 10 |
 | `memory_card` | 70 |
-| `objects_actors` | 577 |
+| `objects_actors` | 579 |
 | `particles_effects` | 169 |
 | `resources_diagnostics` | 58 |
-| `runtime_facade` | 606 |
+| `runtime_facade` | 614 |
 | `skeletal_animation` | 24 |
 | `sprites_palettes` | 72 |
 | `static_editable_meshes` | 96 |
@@ -66,6 +66,7 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::Actor::on_disable` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Actor::on_enable` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Actor::on_frame` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Actor::overlap_2d` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Actor::root_id` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Actor::set_active` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Actor::set_wants_tick` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -353,6 +354,8 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::UtilityVectorLibrary::vector_tween_schedule` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::UtilityVectorLibrary::vector_tween_start` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::UtilityVectorLibrary::vector_tween_value` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::World2DLibrary::overlap_box_2d` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::World2DLibrary::raycast_2d` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::World2DLibrary::screen_to_world` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::World2DLibrary::world_to_screen` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::BoneSample::basis_x` | `epok` | yes | yes | yes | yes | yes | `implemented` |
@@ -366,6 +369,12 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::CardFileSample::blocks` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CardFileSample::name_hash` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CardFileSample::valid` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHit2DSample::actor` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHit2DSample::fraction` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHit2DSample::hit` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHit2DSample::normal` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHit2DSample::point` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHit2DSample::started_inside` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::actor` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::fraction` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::hit` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |

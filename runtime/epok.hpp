@@ -369,5 +369,6 @@ inline uint32_t blueprint_scene_generation=1;
 #endif
 #if !defined(EPOK_INCLUDE_FROM_GAMEPLAY_API) && !defined(EPOK_INCLUDE_FROM_SKELETAL) && !defined(EPOK_INCLUDE_FROM_BLUEPRINT_API) && !defined(EPOK_INCLUDE_FROM_BLUEPRINT_RUNTIME) && !defined(EPOK_INCLUDE_FROM_UTILITY)
 #include "gameplay_api.hpp"
+#include "world2d_components.hpp"
 #endif
 #endif

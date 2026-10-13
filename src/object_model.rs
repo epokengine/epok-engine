@@ -48,6 +48,7 @@ pub const COLLIDER3D_COMPONENT_ID: &str = "e8431f94-e526-4d7d-aace-8c8fae7955e6"
 pub const SPRITE2D_COMPONENT_ID: &str = "892ac5c9-eae8-48b8-853a-db93d20a537b";
 pub const CAMERA2D_COMPONENT_ID: &str = "7245e90e-d900-4976-b738-0f95caa1d15d";
 pub const COLLIDER2D_COMPONENT_ID: &str = "aad9ca37-7c63-4ca9-8a23-5f4ff49e35fe";
+pub const CHARACTER_BODY2D_COMPONENT_ID: &str = "8a092515-6374-4792-985c-9ff9a967a82d";
 pub const CANVAS_COMPONENT_ID: &str = "f2cfb26b-af53-4a46-9d91-1debea72e01b";
 pub const IMAGE_COMPONENT_ID: &str = "d04c78d6-23bd-40d7-88f1-b1afc1b05b5b";
 pub const TEXT_COMPONENT_ID: &str = "fd7f11d1-7ccf-40e8-a7ea-56d89deb3f34";

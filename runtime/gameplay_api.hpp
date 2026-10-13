@@ -43,6 +43,14 @@ struct EPOK_VALUE(Id="aeb84ccb-e308-456a-a59f-31bed0cb08a4") GameplayCamera2D {
     Fixed zoom=1.0,rotation=0.0;
     int32_t viewport_x=0,viewport_y=0,viewport_width=320,viewport_height=240;
 };
+// One World2D query hit: the actor owning the collider, the entry fraction along the
+// segment, the contact point and the axis normal, in pixels.
+struct EPOK_VALUE(Id="7d7ee869-9f9b-4c44-b32b-5d2653266f86") CollisionHit2DSample {
+    bool hit=false,started_inside=false;
+    ObjectId actor{};
+    Fixed fraction=1.0;
+    GameplayVector2 point{},normal{};
+};
 struct EPOK_VALUE(Id="cb5a92d0-066e-48dc-a3b4-b96cce6e019b") GameplayAabb {
     GameplayVector3 minimum{},maximum{};
 };
@@ -238,6 +246,24 @@ struct EPOK_FUNCTION_LIBRARY(Category="Utilities", Id="07422ba3-cdbf-4384-bde6-1
 };
 
 struct EPOK_FUNCTION_LIBRARY(Category="World 2D", Id="624ed546-973a-40d1-8496-055eec580f18") World2DLibrary {
+    // Nearest Collider2D along origin + displacement (pixels). Triggers are ignored unless
+    // `triggers` is set; one-way platforms only stop a ray travelling down onto their top.
+    EPOK_FUNCTION(BlueprintCallable, Id="ccda001f-4cb1-4a46-943e-8d5a219325f8") static CollisionHit2DSample raycast_2d(GameplayVector2 origin,GameplayVector2 displacement,uint32_t mask,bool triggers){
+        CollisionHit2DSample result;if(!world2d::hooks.raycast)return result;
+        const Fixed o[2]={origin.x,origin.y},d[2]={displacement.x,displacement.y};
+        const auto hit=world2d::hooks.raycast(o,d,mask,triggers);if(!hit)return result;
+        result.hit=true;result.started_inside=hit.started_inside;result.fraction=hit.fraction;
+        result.actor=world2d::hooks.hit_actor?world2d::hooks.hit_actor(hit.index):ObjectId{};
+        result.point={hit.point[0],hit.point[1]};result.normal={hit.normal[0],hit.normal[1]};return result;
+    }
+    // Actors whose Collider2D bounds overlap the box centred on `center` with `half_extents`.
+    EPOK_FUNCTION(BlueprintCallable, Id="c76f47ea-149d-47c5-ac80-7b6e437669a6") static ObjectBatch8 overlap_box_2d(GameplayVector2 center,GameplayVector2 half_extents,uint32_t mask,bool triggers){
+        ObjectBatch8 result;if(!world2d::hooks.overlap)return result;
+        Aabb2D box;box.min[0]=center.x-half_extents.x;box.min[1]=center.y-half_extents.y;box.max[0]=center.x+half_extents.x;box.max[1]=center.y+half_extents.y;
+        ObjectId found[8]{};result.total=uint32_t(world2d::hooks.overlap(box,found,8,mask,triggers));
+        result.count=result.total<8?result.total:8;ObjectId* out[8]={&result.item0,&result.item1,&result.item2,&result.item3,&result.item4,&result.item5,&result.item6,&result.item7};
+        for(uint32_t i=0;i<result.count;++i)*out[i]=found[i];return result;
+    }
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="21b3ccb4-f31a-4e45-97f8-8df32e539768") static GameplayVector2 world_to_screen(GameplayCamera2D value,GameplayVector2 world){Camera2D camera;camera.position[0]=value.position.x;camera.position[1]=value.position.y;camera.zoom=value.zoom;camera.rotation=value.rotation;camera.viewport[0]=gameplay_i16(value.viewport_x);camera.viewport[1]=gameplay_i16(value.viewport_y);camera.viewport[2]=gameplay_i16(value.viewport_width);camera.viewport[3]=gameplay_i16(value.viewport_height);Fixed input[2]={world.x,world.y},output[2]={};epok::world_to_screen(camera,input,output);return {output[0],output[1]};}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="308085e2-43c4-473d-b225-24ef48aa4d1d") static GameplayVector2 screen_to_world(GameplayCamera2D value,GameplayVector2 screen){Camera2D camera;camera.position[0]=value.position.x;camera.position[1]=value.position.y;camera.zoom=value.zoom;camera.rotation=value.rotation;camera.viewport[0]=gameplay_i16(value.viewport_x);camera.viewport[1]=gameplay_i16(value.viewport_y);camera.viewport[2]=gameplay_i16(value.viewport_width);camera.viewport[3]=gameplay_i16(value.viewport_height);Fixed input[2]={screen.x,screen.y},output[2]={};epok::screen_to_world(camera,input,output);return {output[0],output[1]};}
 };
@@ -337,3 +363,4 @@ struct EPOK_FUNCTION_LIBRARY(Category="Memory Card", Id="6073b812-ff1e-4764-9ba2
 };
 
 } // namespace epok
+#include "world2d_components.hpp"

@@ -774,6 +774,7 @@ pub fn run(
                 if let Some(editor) = session.as_mut() {
                     editor.project_browser.previews.upload(&device, &queue, &mut renderer);
                     editor.asset_inspector.media.upload(&device, &queue, &mut renderer);
+                    editor.world2d.textures.upload(&device, &queue, &mut renderer, &editor.scene.textures);
                     editor.asset_inspector.visible = false;
                     editor.asset_inspector.texture = asset_renderer.as_ref().map(|(_,id,_)|*id);
                 }
@@ -1503,16 +1504,42 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0x25a0, 0x25a0, // square: constant falloff
     0x25d0, 0x25d0, // circle-half-stroke: smooth falloff
     0xf0aa, 0xf0ab, // circle-arrow-up / down: raise, lower
+    0xf005, 0xf005, // star: default animation
+    0xf008, 0xf008, // film: AnimatedSprite2D, animations
+    0xf00a, 0xf00a, // table-cells: 2D grid
     0xf00c, 0xf00c, // check: camera path step done
+    0xf00e, 0xf00e, // magnifying-glass-plus: 2D zoom in
+    0xf010, 0xf010, // magnifying-glass-minus: 2D zoom out
+    0xf03d, 0xf03d, // video: Camera2D
+    0xf03e, 0xf03e, // image: Sprite2D
     0xf048, 0xf048, // backward-step: camera path start
-    0xf05b, 0xf05b, // crosshairs: move a key to the view
+    0xf05a, 0xf05a, // circle-info: 2D hints
+    0xf05b, 0xf05b, // crosshairs: move a key to the view, Node2D
+    0xf065, 0xf065, // expand: frame selection
+    0xf067, 0xf067, // plus: add 2D node
+    0xf04b, 0xf04c, // play / pause: animation preview
+    0xf051, 0xf051, // forward-step: move frame later
+    0xf076, 0xf076, // magnet: 2D snapping
     0xf06e, 0xf06e, // eye: look through the path
     0xf071, 0xf071, // triangle-exclamation: camera path step pending
-    0xf0c4, 0xf0c4, // scissors: cut key
+    0xf0b2, 0xf0b2, // up-down-left-right: 2D move tool
+    0xf0c4, 0xf0c4, // scissors: cut key, sprite sheet slicer
+    0xf0ec, 0xf0ec, // arrow-right-arrow-left: flip horizontally
     0xf104, 0xf105, // angle-left / right: previous, next key
     0xf111, 0xf111, // circle: camera path step to do
-    0xf140, 0xf140, // bullseye: set height
+    0xf140, 0xf140, // bullseye: set height, Area2D
     0xf1fc, 0xf1fc, // paintbrush: paint tile
+    0xf245, 0xf245, // arrow-pointer: 2D select tool
+    0xf24d, 0xf24d, // clone: duplicate
+    0xf2f1, 0xf2f1, // rotate: 2D rotate tool
+    0xf338, 0xf338, // up-down: flip vertically
+    0xf424, 0xf424, // up-right-and-down-left-from-center: 2D scale tool
+    0xf45c, 0xf45c, // square-full: StaticBody2D, Collider2D
+    0xf546, 0xf546, // ruler-combined: 2D rulers
+    0xf565, 0xf565, // crop-simple: sprite region
+    0xf5cb, 0xf5cb, // vector-square: collision shapes
+    0xf5fd, 0xf5fd, // layer-group: z index
+    0xf70c, 0xf70c, // person-running: CharacterBody2D
     0xf1f8, 0xf1f8, // trash: delete a key
     0xf1fe, 0xf1fe, // chart-area: linear falloff
     0xf256, 0xf256, // hand: select tool
@@ -1522,5 +1549,6 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf547, 0xf547, // ruler-horizontal: flatten
     0xf6fc, 0xf6fc, // mountain: sharp falloff
     0xf773, 0xf773, // water: smooth
+    0xe2ca, 0xe2ca, // wand-magic-sparkles: fit to sprite / scene
     0,
 ];

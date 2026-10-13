@@ -14,19 +14,19 @@
 // ---------------------------------------------------------------------------------------
 // Units and ranges (the contract every 2D document and tool must respect)
 // ---------------------------------------------------------------------------------------
-//   * Position: world units in Q12 (`epok::Fixed`), exactly the same scale as the 3D world.
-//     A 2D world unit is NOT a pixel; see `pixels_per_unit_2d` below. Valid range is
-//     |position[k]| <= `world2d_position_limit` (8192 world units). The limit keeps every
-//     intermediate of the fixed-point math below inside int64 without saturation and keeps
-//     squared distances (used by circle tests) inside 2^51.
+//   * Position: Q12 PIXELS (`epok::Fixed`) at zoom 1, with X pointing right and Y pointing
+//     DOWN, exactly like the screen and a texture. Valid range is
+//     |position[k]| <= `world2d_position_limit` (65536 pixels, over two hundred 320-pixel
+//     screens). The limit keeps every intermediate of the fixed-point math below inside
+//     int64 without saturation and keeps squared distances (circle tests) inside 2^59.
 //   * Rotation: degrees, stored as `Fixed`, exactly like the 3D `Transform::rotation`
-//     components. Positive rotation turns counter-clockwise in world space (+X towards +Y).
-//     Any value is accepted; it is wrapped into one turn before use.
+//     components. Positive rotation turns +X towards +Y, which is clockwise on screen
+//     because Y points down. Any value is accepted; it is wrapped into one turn before use.
 //   * Scale: per axis, valid range is (0, `world2d_scale_limit`] = (0, 64]. Zero or
 //     negative scale is rejected rather than silently mirrored: a mirrored sprite is a
 //     rendering flag, not a degenerate matrix.
-//   * Draw order: `Transform2D::draw_order` is an int16 combined with an int8 layer and the
-//     creation index into a stable sort key (see `draw_key_2d`).
+//   * Draw order: `Transform2D::draw_order` is an int16 z-index combined with an int8 layer
+//     and the creation index into a stable sort key (see `draw_key_2d`).
 // ---------------------------------------------------------------------------------------
 #include "object_model.hpp"
 #include <stddef.h>
@@ -36,10 +36,10 @@ namespace epok {
 
 // ---- units, limits and validation ----------------------------------------------------
 
-// Screen pixels covered by one world unit at zoom 1. 32 px/unit puts 10 world units across
-// a 320 px display, which is the density the 2D fixture is authored at.
-inline constexpr int pixels_per_unit_2d = 32;
-inline constexpr Fixed world2d_position_limit = 8192.0;
+// Screen pixels covered by one world unit at zoom 1. World units ARE pixels, so a 16x16
+// sprite or tile is 16 units across and a 320-pixel display shows 320 units.
+inline constexpr int pixels_per_unit_2d = 1;
+inline constexpr Fixed world2d_position_limit = 65536.0;
 inline constexpr Fixed world2d_scale_limit = 64.0;
 // Maximum length of an attachment chain resolved in one call (root included).
 inline constexpr size_t world2d_depth_limit = 32;
@@ -203,12 +203,11 @@ inline bool world_matrix_2d(const SceneComponent2D& leaf, Resolver&& resolve, Af
 //
 // Projection convention (no dependency whatsoever on the 3D camera or on projection_focal):
 //   screen = viewport_center + R(-camera.rotation) * (world - camera.position) * k
-// with k = zoom * pixels_per_unit_2d, and the screen Y axis pointing DOWN while the world
-// Y axis points UP, so the Y component is negated. Screen coordinates are Q12 pixels
-// (sub-pixel precision) relative to the display origin, not to the viewport origin.
-// Positions far outside the viewport saturate instead of wrapping: |world| <= 8192 at
-// zoom 64 exceeds the Q12 range, and a saturated off-screen coordinate is still rejected
-// by every clip test.
+// with k = zoom * pixels_per_unit_2d. World and screen share axes (X right, Y down), so
+// nothing is mirrored: the camera position is the world point drawn at the viewport
+// centre. Screen coordinates are Q12 pixels (sub-pixel precision) relative to the display
+// origin, not to the viewport origin. Positions far outside the viewport saturate instead
+// of wrapping, and a saturated off-screen coordinate is still rejected by every clip test.
 struct Camera2D {
     Fixed position[2] = {0.0, 0.0};
     Fixed zoom = 1.0;
@@ -233,7 +232,7 @@ inline void world_to_screen(const Camera2D& camera, const Fixed* world_xy, Fixed
     Fixed center[2];
     camera2d_viewport_center(camera, center);
     screen_xy[0] = center[0] + detail::mul_2d(rx, k);
-    screen_xy[1] = center[1] - detail::mul_2d(ry, k);
+    screen_xy[1] = center[1] + detail::mul_2d(ry, k);
 }
 // Exact inverse of world_to_screen up to Q12 rounding. A zoom of zero has no inverse and
 // returns the camera position.
@@ -246,7 +245,7 @@ inline void screen_to_world(const Camera2D& camera, const Fixed* screen_xy, Fixe
         world_xy[1] = camera.position[1];
         return;
     }
-    const Fixed px = (screen_xy[0] - center[0]) / k, py = -((screen_xy[1] - center[1]) / k);
+    const Fixed px = (screen_xy[0] - center[0]) / k, py = (screen_xy[1] - center[1]) / k;
     const Fixed s = sin_degrees(camera.rotation), c = cos_degrees(camera.rotation);
     world_xy[0] = camera.position[0] + detail::mul_2d(px, c) - detail::mul_2d(py, s);
     world_xy[1] = camera.position[1] + detail::mul_2d(px, s) + detail::mul_2d(py, c);
@@ -297,16 +296,22 @@ inline void sort_draw_order(uint16_t* indices, size_t count, Key&& key) {
 //     overlapping (open intervals, matching epok::aabb_overlap), the inclusive one treats
 //     exact contact as an overlap. Triggers use the strict rule so a mover that stops
 //     exactly at a wall does not enter it.
+//   * A one-way collider (`one_way`) is a platform that only blocks movers falling onto
+//     its top edge (moving +Y, i.e. down the screen) whose bottom was no deeper than
+//     `one_way_margin` pixels into it. Everything else passes through it, including a
+//     mover jumping up from below; it never reports an unresolved overlap.
 struct Collider2D {
     enum Shape : uint8_t { Box, Circle };
     Shape shape = Box;
-    Fixed half_extents[2] = {0.5, 0.5};
-    Fixed radius = 0.5;
+    Fixed half_extents[2] = {8.0, 8.0};
+    Fixed radius = 8.0;
     Fixed offset[2] = {0.0, 0.0};
     uint32_t layer = 1;
     uint32_t layer_mask = 0xffffffffu;
     bool trigger = false;
     bool enabled = true;
+    bool one_way = false;
+    Fixed one_way_margin = 1.0;
 };
 struct Aabb2D { Fixed min[2], max[2]; };
 
@@ -348,7 +353,7 @@ inline Aabb2D collider2d_bounds(const Collider2D& collider, const Fixed* world_x
     }
     return out;
 }
-// Squared distance in raw Q24; |position| <= 8192 keeps this inside 2^51.
+// Squared distance in raw Q24; |position| <= 65536 keeps this inside 2^59.
 inline int64_t distance_squared_raw_2d(const Fixed* a, const Fixed* b) {
     const int64_t dx = int64_t(a[0].raw()) - b[0].raw(), dy = int64_t(a[1].raw()) - b[1].raw();
     return dx * dx + dy * dy;
@@ -405,6 +410,8 @@ struct SpatialHit2D {
 struct MoveResult2D {
     Fixed displacement[2] = {}, normal[2] = {};
     int index = -1;
+    // Per axis: the collider that clipped the motion on that axis, or -1.
+    int blocker[2] = {-1, -1};
     bool blocked = false;
     bool unresolved_overlap = false;
 };
@@ -516,6 +523,11 @@ public:
     const Fixed* position(size_t index) const {
         return index < Capacity && entries[index].enabled ? entries[index].position : nullptr;
     }
+    const Collider2D* collider(size_t index) const {
+        return index < Capacity && entries[index].enabled ? &entries[index].collider : nullptr;
+    }
+    uint32_t generation(size_t index) const { return index < Capacity ? entries[index].generation : 0; }
+    static constexpr size_t capacity() { return Capacity; }
     // Returns the total number of matches; only the first `output_capacity` are written.
     // Broad phase only: circles are tested through their bounding box.
     size_t overlap(const Aabb2D& box, uint16_t* output, size_t output_capacity, uint32_t mask = 0xffffffffu,
@@ -536,6 +548,10 @@ public:
         int64_t best = one + 1;
         for (size_t i = 0; i < limit; ++i) {
             if (!match(i, mask, ignore, triggers)) continue;
+            // A one-way platform is only solid to a ray travelling down onto its top.
+            if (entries[i].collider.one_way &&
+                (displacement[1].raw() <= 0 || origin[1] > entries[i].box.min[1]))
+                continue;
             int64_t t = 0;
             int axis = -1, sign = 0;
             bool inside = false;
@@ -560,7 +576,12 @@ public:
         MoveResult2D result;
         if (index >= Capacity || !entries[index].enabled) return result;
         Aabb2D box = entries[index].box;
-        if (overlap(box, nullptr, 0, mask, int(index), false)) result.unresolved_overlap = true;
+        for (size_t i = 0; i < limit; ++i)
+            if (match(i, mask, int(index), false) && !entries[i].collider.one_way &&
+                aabb2d_overlap(box, entries[i].box)) {
+                result.unresolved_overlap = true;
+                break;
+            }
         for (int axis = 0; axis < 2; ++axis) {
             const Fixed wanted = displacement[axis];
             if (!wanted.raw()) continue;
@@ -571,6 +592,14 @@ public:
                 if (!match(i, mask, int(index), false)) continue;
                 const Aabb2D& b = entries[i].box;
                 if (box.max[other] <= b.min[other] || box.min[other] >= b.max[other]) continue;
+                if (entries[i].collider.one_way) {
+                    // Only a fall onto the top edge lands; a shallow sink is lifted back on top.
+                    if (axis != 1 || wanted <= 0.0 || box.max[1] > b.min[1] + entries[i].collider.one_way_margin)
+                        continue;
+                    const Fixed gap = b.min[1] - box.max[1];
+                    if (gap < allowed) { allowed = gap; blocker = int(i); }
+                    continue;
+                }
                 if (wanted > 0.0 && box.max[axis] <= b.min[axis]) {
                     const Fixed gap = b.min[axis] - box.max[axis];
                     if (gap < allowed) { allowed = gap; blocker = int(i); }
@@ -585,6 +614,7 @@ public:
             if (blocker >= 0 && allowed.raw() != wanted.raw()) {
                 result.blocked = true;
                 result.index = blocker;
+                result.blocker[axis] = blocker;
                 result.normal[axis] = wanted > 0.0 ? Fixed(-4096, Fixed::RAW) : Fixed(4096, Fixed::RAW);
             }
         }
@@ -635,6 +665,20 @@ public:
         for (size_t i = 0; i < count; ++i) previous[i] = next[i];
     }
 };
+
+// ---- service hooks -------------------------------------------------------------------
+namespace world2d {
+// Installed by world2d_service.hpp when the build has 2D content; null otherwise, and
+// every query that needs them reports nothing. `move` moves the owner of `body` by `delta` pixels
+// through its first solid collider and reports the resolved motion.
+struct Hooks {
+    bool (*move)(ActorComponent& body, const Fixed* delta, uint32_t mask, MoveResult2D& result) = nullptr;
+    SpatialHit2D (*raycast)(const Fixed* origin, const Fixed* delta, uint32_t mask, bool triggers) = nullptr;
+    ObjectId (*hit_actor)(int index) = nullptr;
+    size_t (*overlap)(const Aabb2D& box, ObjectId* actors, size_t capacity, uint32_t mask, bool triggers) = nullptr;
+};
+inline Hooks hooks;
+}  // namespace world2d
 
 // ---- picking -------------------------------------------------------------------------
 

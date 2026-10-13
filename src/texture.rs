@@ -290,6 +290,7 @@ pub fn ids(scene: &Scene) -> Vec<Uuid> {
         if let Some(model) = e.skeletal_mesh.as_ref().and_then(|m| m.model.as_ref()) {
             ids.extend(model.materials.iter().filter_map(|m| m.texture));
         }
+        ids.extend(crate::world2d::texture_ids(e));
     }
     ids.into_iter().collect()
 }

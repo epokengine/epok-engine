@@ -506,6 +506,11 @@ pub fn header_with_templates_for(
     let mut out = format!(
         "// Generated prelinked scene banks.\n#pragma once\n#include \"epok.hpp\"\n#define EPOK_OBJECT_REGISTRY_CAPACITY {object_registry_capacity}\n#include \"actor_tables.hpp\"\n#include <array>\n"
     );
+    let world2d = crate::world2d::project_uses_world2d(
+        scenes.iter().chain(templates.iter().map(|t| &t.scene)),
+        class_registry,
+    );
+    out += &crate::world2d::capacity_defines(world2d, scenes, templates.iter().map(|t| &t.scene));
     for s in catalog {
         out += &format!("#include \"scripts/{}\"\n", s.header_path());
     }

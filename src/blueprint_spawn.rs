@@ -87,7 +87,7 @@ pub fn object_class_table(catalog: &[Script]) -> Result<String, String> {
 pub fn object_class_table_with_registry(
     registry: &crate::blueprint::Registry,
 ) -> Result<String, String> {
-    object_class_table_with_capacities(registry, &BTreeMap::new())
+    object_class_table_with_capacities(registry, &BTreeMap::new(), true)
 }
 pub fn object_class_table_for_scenes(
     registry: &crate::blueprint::Registry,
@@ -147,11 +147,16 @@ pub fn object_class_table_for_scenes_and_templates(
     for (id, count) in dynamic {
         *capacities.entry(id).or_default() += 4 * count.saturating_sub(1);
     }
-    object_class_table_with_capacities(registry, &capacities)
+    let world2d = crate::world2d::project_uses_world2d(
+        scenes.iter().chain(templates.iter().map(|t| &t.scene)),
+        registry,
+    );
+    object_class_table_with_capacities(registry, &capacities, world2d)
 }
 fn object_class_table_with_capacities(
     registry: &crate::blueprint::Registry,
     capacities: &BTreeMap<String, usize>,
+    world2d: bool,
 ) -> Result<String, String> {
     let model = match registry.model() {
         Ok(model) => model,
@@ -244,7 +249,10 @@ fn object_class_table_with_capacities(
             return Err(format!("Invalid reflected C++ class name {name}"));
         }
         let capacity = capacities.get(&class.id).copied().unwrap_or(0) + 4;
-        let storage = if class.instantiable() {
+        // A build without 2D content compiles no 2D service, so 2D classes get no pool:
+        // a 3D game pays nothing for them.
+        let pooled = world2d || class.domain != crate::reflection_schema::Domain::World2D;
+        let storage = if class.instantiable() && pooled {
             budgets.push(format!(
                 "epok::ObjectPool<{name},{capacity}>::storage_bytes"
             ));

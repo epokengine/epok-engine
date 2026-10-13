@@ -67,7 +67,7 @@ above the viewport.
 | Mode | Shows |
 | --- | --- |
 | 3D | The 3D world: the shaded viewport, its camera controls, grid and gizmos |
-| 2D | The 2D world. Camera2D authoring arrives in a later release; the mode already lists this map's 2D actors in the Hierarchy |
+| 2D | The 2D world editor: select/move/rotate/scale tools, snapping, rulers, real sprite and collider previews and camera bounds. See [2D worlds](2d.md) |
 | UI | The Canvas / HUD editor described in [HUD and 2D entities](hud.md) |
 
 Switching modes never edits the map and never restarts the 3D preview: the camera,

@@ -23,7 +23,7 @@ unbounded or validated on every host and console. See [Known boundaries](#known-
   name, startup scene, Play profile and transition settings. Paths passed to the
   editor can be either the folder or descriptor. Canonical path resolution and
   a per-project lock prevent the same project being edited twice.
-- **Templates.** New-project choices are Basic, Sample and Third Person, each with a C++, Blueprint or Lua gameplay flavor that decides only the starter implementation.
+- **Templates.** New-project choices are Basic, Sample, Third Person and Platformer 2D, each with a C++, Blueprint or Lua gameplay flavor that decides only the starter implementation.
   Creation claims a new directory and never merges into existing content.
 - **Template browser and project defaults.** New project presents a thumbnail,
   title and summary per template with a large preview, and a Project Defaults
@@ -299,6 +299,33 @@ emulator validation are pending on an SDK machine. See
 
 See the complete [Timeline reference](timelines.md) and the
 [troubleshooting guide](blueprints-vfx-troubleshooting.md).
+
+## 2D worlds
+
+- **2D nodes.** `Actor2D` actors with a pixel-based, Y-down 2D transform carry engine
+  Sprite2D, Collider2D, CharacterBody2D and Camera2D components, plus any C++,
+  Blueprint or Lua component. Ready-made Node2D, Sprite2D, AnimatedSprite2D, Camera2D,
+  CharacterBody2D, StaticBody2D and Area2D presets create them in one click.
+- **Sprites and animation.** Texture regions, sprite-sheet cells, offset, centring,
+  flips, modulate, the console blend modes, z-index and y-sort; named frame
+  animations with speed, looping, autoplay, per-frame durations and events.
+- **Physics.** Box and circle colliders with 32-bit layers and masks, solid, trigger
+  and one-way modes; `move_and_slide` with floor, wall and ceiling detection and floor
+  snapping; Enter/Stay/Exit overlaps delivered to the actor's `overlap_2d` event and to
+  its components; `raycast_2d` and `overlap_box_2d` queries.
+- **Camera2D.** Follow with drag margins, limits, smoothing, offset, zoom, rotation,
+  shake and the background colour the game clears to.
+- **Native renderer.** Exact-texel hardware rectangles for unscaled sprites and
+  textured quads otherwise, sorted by a stable radix key, drawn over the 3D world and
+  under the HUD from a cooked, per-project packet budget; Native PC Play draws the same
+  frame. Projects without 2D content compile none of it.
+- **2D editor.** Select, move, rotate, scale and pan tools with shortcuts, grid and
+  rotation snapping, pixel rulers, real texture and animation previews, collider and
+  camera gizmos, drag-and-drop sprite creation, a sprite region editor and a
+  sprite-sheet frame slicer, and a visual 2D Inspector.
+- **Platformer 2D template.** A playable side-scroller in C++, Blueprint or Lua.
+
+See [2D worlds](2d.md).
 
 ## HUD and 2D interface
 
@@ -663,8 +690,9 @@ features:
   Timelines/Effects, Blockout, Content Browser moves and MCP scene batches as
   documented by each tool.
 - The actor model has no Pawn/Character archetypes or positional 2D/3D audio.
-  The bounded 2D collision toolkit provides box/circle overlap, raycasts, sliding
-  movement and triggers, not a general rigid-body solver. Actor hierarchy editing
+  2D physics provides box/circle colliders, one-way platforms, raycasts, sliding
+  character movement and triggers, not a general rigid-body solver; boxes ignore
+  their owner's rotation. Actor hierarchy editing
   and compatible component add/remove are implemented; cross-domain conversion is
   not offered.
 - Scene banks, textures, scripts and resident audio must fit PSX memory. Geometry
@@ -693,6 +721,7 @@ live beside the corresponding implementation and are summarized under
 | Texture/model/audio import | `texture`, `model_import`, `obj_import`, `audio_decode`, `audio_import`, `preview_audio` |
 | Scene and preview | `scene`, `transform`, `viewport`, `scene_gpu`, `picking`, `gizmo`, `scene_bank`, `scene_dependencies`, `scene_view_mode` |
 | Object/Actor model | `object_model`, `actor_document` |
+| 2D worlds | `world2d`, `world2d_editor`, `platformer_template` |
 | Geometry and rendering | `mesh`, `mesh_ops`, `mesh_editor`, `mesh_compile`, `lighting`, `lighting_editor`, `shadows`, `effects`, `palette` |
 | Components and UI | `bitmap_font`, `collision`, `collision_editor`, `hud`, `hud_editor`, `sprites`, `sprites_editor`, `particles`, `skeletal`, `skeletal_compile`, `skeletal_ui`, `third_person` |
 | Native scripting/reflection | `scripts`, `script_values`, `script_backend`, `reflection`, `reflection_schema`, `header_extract`, `header_tool`, `native`, `native_metadata` |
@@ -708,6 +737,7 @@ live beside the corresponding implementation and are summarized under
 | --- | --- |
 | Core scene/lifetime | `epok.hpp`, `lifecycle.hpp`, `scene_service.hpp`, `affine.hpp`, `transform_cache.hpp`, `time.hpp`, `transition.hpp`, `loading_renderer.hpp`, `utility.hpp` |
 | Object/Actor model | `object_model.hpp`, `actor_tables.hpp`, `actor_blueprint.hpp`, `world2d.hpp` |
+| 2D worlds | `world2d.hpp`, `world2d_components.hpp`, `world2d_service.hpp`, `world2d_render.hpp` |
 | Rendering/resources | `frame_clear.hpp`, `gte_geometry.hpp`, `frustum.hpp`, `polygon.hpp`, `visibility.hpp`, `retained.hpp`, `texture_types.hpp`, `texture.hpp`, `resources.hpp`, `lighting.hpp`, `shadows.hpp` |
 | Visual content | `sprite_types.hpp`, `sprites.hpp`, `particle_types.hpp`, `particles.hpp`, `effect_types.hpp`, `effects.hpp`, `particle_effect_runtime.hpp`, `particle_effect_service.hpp`, `palette_types.hpp`, `palette.hpp`, `skeletal.hpp`, `hud.hpp`, `text.hpp` |
 | Gameplay services | `input.hpp`, `collision.hpp`, `audio.hpp`, `music.hpp`, `memory_card.hpp`, `memory_card_backend.hpp`, `streaming_pool.hpp`, `streaming.hpp` |

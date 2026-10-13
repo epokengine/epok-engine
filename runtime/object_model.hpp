@@ -56,8 +56,9 @@ enum class ObjectState : uint8_t { Unused, Reserved, Initialized, Playing, Endin
 enum class EndPlayReason : uint8_t { Destroyed, LevelUnloaded, Quit };
 enum class ObjectDomain : uint8_t { None, World3D, World2D, UI };
 enum class ObjectFamily : uint8_t { Object, Actor, Component, World, Level };
-// 2D world transform: XY position, rotation about the view axis, per-axis scale and a
-// stable draw order. Q12 units match the 3D world; screen conversion belongs to Camera2D.
+// 2D world transform: XY position in Q12 pixels (Y points down, as on screen),
+// rotation in degrees about the view axis, per-axis scale and a z-index draw order.
+// Screen conversion belongs to Camera2D; see world2d.hpp for the full contract.
 struct Transform2D {
     Fixed position[2] = {0.0, 0.0};
     Fixed rotation = 0.0;
@@ -430,6 +431,9 @@ public:
     EPOK_FUNCTION(BlueprintEvent) virtual void on_enable() {}
     EPOK_FUNCTION(BlueprintEvent) virtual void on_disable() {}
     EPOK_FUNCTION(BlueprintEvent, Id="5c57d8df-b3f0-42f9-a46e-77ce16248221") virtual void on_frame(uint32_t frame_microseconds) {(void)frame_microseconds;}
+    // World2D: a trigger Collider2D of this actor overlaps another actor's collider (or
+    // the reverse). `other` is that actor. Enter and Exit arrive once, Stay every step.
+    EPOK_FUNCTION(BlueprintEvent, Id="5fa12600-cb9a-4cc2-9719-da58c938d55d") virtual void overlap_2d(ObjectId other, TriggerPhase phase) {(void)other;(void)phase;}
     virtual void frame_update(uint32_t frame_microseconds) {on_frame(frame_microseconds);}
     // Runtime hook, not reflected: the declarative root component embedded in the actor.
     virtual ActorComponent* default_root() { return nullptr; }
@@ -490,6 +494,10 @@ public:
     virtual void blueprint_observe() {}
     virtual void frame_update(uint32_t frame_microseconds) {on_frame(frame_microseconds);}
     virtual ObjectId* attach_slot() { return nullptr; }
+    // Runtime hook, not reflected: the Level just bound this component to its owner.
+    // Services that keep their own lists (World2D) register here; a Blueprint or Lua
+    // subclass cannot override it, so it cannot forget to call it.
+    virtual void level_attached() {}
     // Forward-only collision hook. The Level does not own collision; the collision
     // service calls dispatch_trigger(Level&, ...) which fans the event out to the
     // owner's components. Nothing in the object model generates trigger events.
@@ -1337,6 +1345,7 @@ protected:
         if (auto* rect = m_registry->resolve<RectTransformComponent>(id)) rect->bind_local();
         root->m_owner = actor.id();
         root->set_name("Root");
+        root->level_attached();
         actor.m_root = id;
         actor.m_components[actor.m_component_count++] = id;
         refresh_component_callbacks(actor);
@@ -1363,6 +1372,7 @@ protected:
         component.set_name(name);
         owner.m_components[owner.m_component_count++] = component.id();
         refresh_component_callbacks(owner);
+        component.level_attached();
     }
     void refresh_component_callbacks(Actor& owner) {
         static_assert(actor_component_capacity<=8,"Widen the callback masks with the component capacity");
