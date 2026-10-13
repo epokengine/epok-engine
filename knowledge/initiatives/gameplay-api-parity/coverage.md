@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `785929174e0d4e7a0d87ead73b0439704c56ced8`. Frozen semantic candidate rows: **4418**.
+Baseline commit: `5e4af9840b37a35d48376bc6ce8689ad1dddd68b`. Frozen semantic candidate rows: **4451**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -12,8 +12,8 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | --- | ---: |
 | `compatibility_alias` | 44 |
 | `hardware_backend` | 6 |
-| `internal_implementation` | 3830 |
-| `public_gameplay` | 538 |
+| `internal_implementation` | 3848 |
+| `public_gameplay` | 553 |
 
 ## Public gameplay gaps
 
@@ -40,15 +40,15 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `materials_visuals` | 61 |
 | `math_values` | 10 |
 | `memory_card` | 70 |
-| `objects_actors` | 579 |
+| `objects_actors` | 591 |
 | `particles_effects` | 169 |
 | `resources_diagnostics` | 58 |
-| `runtime_facade` | 615 |
+| `runtime_facade` | 628 |
 | `skeletal_animation` | 24 |
 | `sprites_palettes` | 72 |
 | `static_editable_meshes` | 96 |
 | `timelines_sequences` | 72 |
-| `ui_text` | 59 |
+| `ui_text` | 67 |
 | `utilities_events` | 119 |
 
 ## Public gameplay rows
@@ -131,13 +131,20 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::FocusLibrary::navigate` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusLibrary::snapshot` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::is_checked` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::is_focused` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::is_toggle` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::neighbor` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::order` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::set_checked` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_highlight` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_neighbor` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_order` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::set_toggle` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::take_cancelled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::take_changed` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::take_pressed` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::set_borders` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::set_color` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -187,6 +194,10 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::Light3DComponent::set_mode` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Light3DComponent::set_range` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Light3DComponent::set_type` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalizationLibrary::key_count` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalizationLibrary::language` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalizationLibrary::language_count` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalizationLibrary::set_language` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::add` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::clamp` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::cosine_degrees` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -273,7 +284,9 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::ProgressBarComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::set_colors` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProgressBarComponent::set_step` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::set_value` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProgressBarComponent::step` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::value` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::rotation` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -333,9 +346,11 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::TextComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_font_index` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_number` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::TextComponent::set_text_key` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_text_word` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_unsigned` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_wrap` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::TextComponent::text_key` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::text_word` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TimeLibrary::paused` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TimeLibrary::set_paused` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |

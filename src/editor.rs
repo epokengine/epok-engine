@@ -248,6 +248,8 @@ pub struct Editor {
     pub view_2d: crate::scene_view_mode::SceneView2D,
     /// Tools, previews and dialogs of the 2D world editor.
     pub world2d: crate::world2d_editor::State,
+    /// The string table window.
+    pub localization: crate::localization_editor::State,
     /// The actor being dragged in the 2D view and the world offset between its
     /// origin and the grab point, so the actor does not jump to the cursor.
     pub drag_2d: Option<(uuid::Uuid, [f32; 2])>,
@@ -807,6 +809,7 @@ impl Editor {
             actor_rename_focus: false,
             view_2d: Default::default(),
             world2d: Default::default(),
+            localization: Default::default(),
             drag_2d: None,
             map_settings: false,
             map_scene_script_parent: String::new(),
@@ -2575,7 +2578,31 @@ impl Editor {
                         wrap: false,
                         ..Default::default()
                     });
-                    entity.focusable = Some(Default::default());
+                    entity.focusable = Some(crate::hud::Focusable::lit());
+                }
+                // A check box is a Toggle: its label on the left, the box drawn at
+                // the right edge, flipped by Cross while focused.
+                "checkbox" => {
+                    entity.rect.as_mut().unwrap().size = [140., 20.];
+                    entity.text = Some(crate::hud::Text {
+                        text: "Option".into(),
+                        wrap: false,
+                        ..Default::default()
+                    });
+                    entity.focusable = Some(crate::hud::Focusable {
+                        kind: crate::hud::FocusKind::Toggle,
+                        ..crate::hud::Focusable::lit()
+                    });
+                }
+                // A slider is a focusable progress bar with a step.
+                "slider" => {
+                    entity.rect.as_mut().unwrap().size = [120., 12.];
+                    entity.progress = Some(crate::hud::ProgressBar {
+                        value: 0.5,
+                        step: 0.1,
+                        ..Default::default()
+                    });
+                    entity.focusable = Some(crate::hud::Focusable::lit());
                 }
                 // The five containers are one component with a different kind;
                 // only Grid needs a second column to be worth creating.
@@ -4967,7 +4994,19 @@ mod tests {
         let focus = button.focusable.as_ref().unwrap();
         assert!(focus.enabled);
         assert_eq!(focus.neighbors, [-1; 4]);
-        assert_eq!(focus.highlight, [1.; 3]);
+        // The focus shows from the start: an amber highlight.
+        assert_eq!(focus.highlight, crate::hud::Focusable::lit().highlight);
+        e.scene.validate().unwrap();
+        // Check Box and Slider are recipes too.
+        e.create_hud("checkbox");
+        let toggle = &e.scene.actors[e.selected.unwrap()];
+        let focus = toggle.focusable.as_ref().unwrap();
+        assert!(focus.kind == crate::hud::FocusKind::Toggle && focus.highlight[2] < 1.);
+        e.create_hud("slider");
+        let slider = &e.scene.actors[e.selected.unwrap()];
+        assert!(
+            slider.progress.as_ref().is_some_and(|p| p.step > 0.) && slider.focusable.is_some()
+        );
         e.scene.validate().unwrap();
         let before = e.scene.clone();
         e.playing = true;

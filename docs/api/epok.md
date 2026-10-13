@@ -2,7 +2,7 @@
 
 Epok's gameplay-facing and engine-runtime callables. Start here for entities, input, collision, audio, scenes, timelines, effects and resource budgets.
 
-**Coverage:** 109 headers · 1818 public callables.
+**Coverage:** 109 headers · 1835 public callables.
 
 ## Modules
 
@@ -32,7 +32,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Font Types](epok/font-types.md) | `font_types.hpp` | 3 | Epok runtime API |
 | [Frame Clear](epok/frame-clear.md) | `frame_clear.hpp` | 2 | Epok runtime API |
 | [Frustum](epok/frustum.md) | `frustum.hpp` | 10 | Epok runtime API |
-| [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 92 | Epok runtime API |
+| [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 96 | Epok runtime API |
 | [Gte Geometry](epok/gte-geometry.md) | `gte_geometry.hpp` | 26 | Epok runtime API |
 | [Hud](epok/hud.md) | `hud.hpp` | 12 | Epok runtime API |
 | [Hud Core](epok/hud-core.md) | `hud_core.hpp` | 14 | Epok runtime API |
@@ -56,7 +56,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Native Music Service](epok/native-music-service.md) | `native_music_service.hpp` | 1 | Epok runtime API |
 | [Navigation](epok/navigation.md) | `navigation.hpp` | 17 | Epok runtime API |
 | [Navigation Components](epok/navigation-components.md) | `navigation_components.hpp` | 21 | Epok runtime API |
-| [Object Model](epok/object-model.md) | `object_model.hpp` | 352 | Epok runtime API |
+| [Object Model](epok/object-model.md) | `object_model.hpp` | 364 | Epok runtime API |
 | [Ordered Draw](epok/ordered-draw.md) | `ordered_draw.hpp` | 7 | Epok runtime API |
 | [Ordered Draw Types](epok/ordered-draw-types.md) | `ordered_draw_types.hpp` | 3 | Epok runtime API |
 | [Ordered Projection](epok/ordered-projection.md) | `ordered_projection.hpp` | 11 | Epok runtime API |
@@ -90,7 +90,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Spu Transfer](epok/spu-transfer.md) | `spu_transfer.hpp` | 6 | Epok runtime API |
 | [Streaming](epok/streaming.md) | `streaming.hpp` | 45 | Epok runtime API |
 | [Streaming Read](epok/streaming-read.md) | `streaming_read.hpp` | 8 | Epok runtime API |
-| [Text](epok/text.md) | `text.hpp` | 1 | Epok runtime API |
+| [Text](epok/text.md) | `text.hpp` | 2 | Epok runtime API |
 | [Texture](epok/texture.md) | `texture.hpp` | 5 | Epok runtime API |
 | [Texture Types](epok/texture-types.md) | `texture_types.hpp` | 7 | Epok runtime API |
 | [Texture Upload](epok/texture-upload.md) | `texture_upload.hpp` | 1 | Epok runtime API |

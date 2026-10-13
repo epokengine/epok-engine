@@ -6,7 +6,7 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 
 ## Callable index
 
-- [`epok::hud_focus_edges`](#epok-hud-focus-edges-1) — This frame's direction edges across every port, for callers that read the shared Input rather than a wire message.
+- [`epok::hud_focus_edges`](#epok-hud-focus-edges-1) — This frame's direction, Cross and Circle edges across every port, for callers that read the shared Input rather than a wire message.
 - [`epok::hud_focus_reachable`](#epok-hud-focus-reachable-1) — D-pad focus movement over the authored neighbour table.
 - [`epok::hud_focus_update`](#epok-hud-focus-update-1) — `pressed` holds this frame's press edges in Button bit order.
 
@@ -14,7 +14,7 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 
 ## `epok::hud_focus_edges`
 
-**Purpose.** This frame's direction edges across every port, for callers that read the shared Input rather than a wire message.
+**Purpose.** This frame's direction, Cross and Circle edges across every port, for callers that read the shared Input rather than a wire message.
 
 **Exact declaration**
 
@@ -22,7 +22,7 @@ This module covers native HUD layout, drawing and focus navigation. It documents
 inline uint32_t hud_focus_edges()
 ```
 
-- **Declared at:** [line 34](../../../runtime/hud_focus.hpp#L34)
+- **Declared at:** [line 52](../../../runtime/hud_focus.hpp#L52)
 - **Kind:** `function decl`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -93,13 +93,15 @@ auto result = epok::hud_focus_reachable(entities, count, index);
 
 **Purpose.** `pressed` holds this frame's press edges in Button bit order.
 
+**Details.** Cross presses the focused element (a Toggle flips), Circle cancels on it, and Left/Right adjust a focused slider; the D-pad otherwise moves the focus.
+
 **Exact declaration**
 
 ```cpp
 inline void hud_focus_update(ActorData* entities,size_t count,uint32_t pressed)
 ```
 
-- **Declared at:** [line 15](../../../runtime/hud_focus.hpp#L15)
+- **Declared at:** [line 17](../../../runtime/hud_focus.hpp#L17)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -112,7 +114,7 @@ inline void hud_focus_update(ActorData* entities,size_t count,uint32_t pressed)
 
 **Returns.** No value is returned; observe the documented state change or callback.
 
-**Use it when.** You need native HUD layout, drawing and focus navigation and the preconditions in the declaration are already satisfied.
+**Use it when.** Cross presses the focused element (a Toggle flips), Circle cancels on it, and Left/Right adjust a focused slider; the D-pad otherwise moves the focus.
 
 **Usage pattern**
 

@@ -831,6 +831,9 @@ fn draw_workspace(
             if ui.menu_item("Lighting") {
                 e.lighting_window = true;
             }
+            if ui.menu_item("Strings (Localization)") {
+                crate::localization_editor::open(e);
+            }
             for name in [
                 c"\u{eb86} Hierarchy###Hierarchy",
                 c"\u{eb29} Scene###Scene",
@@ -1403,7 +1406,7 @@ fn actor_domain(
 /// The UI widget recipes offered by the creation menu. Each command reaches
 /// `Editor::create_hud` through the `ui-` prefix that `Editor::action` strips,
 /// so the menu and the recipe table have a single spelling between them.
-const UI_WIDGETS: [(&str, &str); 12] = [
+const UI_WIDGETS: [(&str, &str); 14] = [
     ("Canvas", "ui-canvas"),
     ("Panel", "ui-panel"),
     ("Image", "ui-image"),
@@ -1411,6 +1414,8 @@ const UI_WIDGETS: [(&str, &str); 12] = [
     ("Text Area", "ui-textarea"),
     ("Progress Bar", "ui-progress"),
     ("Button", "ui-button"),
+    ("Check Box", "ui-checkbox"),
+    ("Slider", "ui-slider"),
     ("Horizontal Box", "ui-hbox"),
     ("Vertical Box", "ui-vbox"),
     ("Grid", "ui-grid"),
@@ -1418,7 +1423,7 @@ const UI_WIDGETS: [(&str, &str); 12] = [
     ("Center", "ui-center"),
 ];
 /// The containers start here; the menu rules a line above them.
-const UI_CONTAINERS: usize = 7;
+const UI_CONTAINERS: usize = 9;
 fn creation_menu(
     ui: &imgui::Ui,
     child: bool,
@@ -2818,6 +2823,7 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
 }
 pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
     crate::world2d_editor::dialogs(ui, e);
+    crate::localization_editor::window(ui, e);
     crate::lighting_editor::window(ui, e);
     crate::visibility_bake_ui::window(ui, e);
     crate::camera_path_ui::window(ui, e);
@@ -2875,12 +2881,17 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             actor_header(ui, &mut entity, glyph);
             ui.separator();
             entity_actor_inspector(ui, e, index);
-            crate::hud_editor::inspector(
+            let strings = crate::localization::project_table(&e.assets.index).map(|(_, t)| t);
+            if crate::hud_editor::inspector(
                 ui,
                 &mut entity,
                 &focus_targets,
                 &crate::hud_editor::font_choices(&e.assets.index),
-            );
+                strings.as_ref(),
+                e.scene.preview_language,
+            ) {
+                crate::localization_editor::open(e);
+            }
             let mut reset_transform = false;
             if entity.rect.is_none()
                 && entity.canvas.is_none()

@@ -261,6 +261,12 @@ pub struct Scene {
     /// atlas textures). Never serialized into a scene.
     #[serde(skip)]
     pub tilesets: BTreeMap<uuid::Uuid, std::sync::Arc<crate::tileset::TileSet>>,
+    /// The project's string table when a text shows a key, resolved with the textures.
+    #[serde(skip)]
+    pub strings: Option<std::sync::Arc<crate::localization::StringTable>>,
+    /// The language the editor previews keyed texts in. Never serialized.
+    #[serde(skip)]
+    pub preview_language: usize,
     /// Project output size used by HUD authoring; never serialized into a scene.
     #[serde(skip, default = "legacy_display_size")]
     pub display_size: [u16; 2],
@@ -340,6 +346,8 @@ impl From<SceneDocument> for Scene {
             textures: Default::default(),
             fonts: Default::default(),
             tilesets: Default::default(),
+            strings: None,
+            preview_language: 0,
             display_size: legacy_display_size(),
         };
         scene.refresh_actor_hierarchy();
@@ -405,6 +413,8 @@ impl Default for Scene {
             textures: Default::default(),
             fonts: Default::default(),
             tilesets: Default::default(),
+            strings: None,
+            preview_language: 0,
             version: crate::actor_document::SCENE_VERSION,
             name: "SampleScene".into(),
             actors: vec![camera, Actor::cube("Cube".into()), second, floor],

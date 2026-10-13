@@ -80,6 +80,8 @@ mod library_preview;
 mod lighting;
 mod lighting_editor;
 mod loading;
+mod localization;
+mod localization_editor;
 mod lua_aot;
 mod lua_api_stub;
 mod lua_asset;
@@ -1871,6 +1873,10 @@ fn prepare_editor(editor: &mut editor::Editor) {
             .map(|a| a.id)
     {
         editor.select_actor(Some(id));
+    }
+    // Screenshot automation: open the Strings (localization) window.
+    if args.iter().any(|a| a == "--open-strings") {
+        localization_editor::open(editor);
     }
     // Screenshot automation: open the TileSet editor of the selected tile layer.
     if args.iter().any(|a| a == "--open-tileset-editor")

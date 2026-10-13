@@ -2,9 +2,9 @@
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
     "headers": 109,
-    "types": 483,
-    "callables": 1818,
-    "properties": 2651
+    "types": 486,
+    "callables": 1835,
+    "properties": 2667
   },
   "psyqo": {
     "headers": 53,
@@ -218,9 +218,9 @@
       "header": "epok.hpp",
       "slug": "epok",
       "callables": 54,
-      "types": 61,
-      "properties": 359,
-      "source_sha256": "a4476dec5a4b543311b47a96ae8ce24242f025faf9c90ac7e1dad72b03eaa3a7",
+      "types": 62,
+      "properties": 368,
+      "source_sha256": "7e4cb376c2cafbaf0151ef5c1c9f8477cd30c15118a3eb0d0e18482a14da70a2",
       "diagnostics": []
     },
     {
@@ -277,10 +277,10 @@
       "family": "epok",
       "header": "gameplay_api.hpp",
       "slug": "gameplay-api",
-      "callables": 92,
-      "types": 33,
+      "callables": 96,
+      "types": 34,
       "properties": 114,
-      "source_sha256": "6fceb8973e085f14dc4b09a10719921b4e67d1ba5cc005e8ad09922496cc0cb6",
+      "source_sha256": "b9d465648d57e32c77928705e7d200ebdb9a554b5ebfa92e0bfbf9d0fd68f4b0",
       "diagnostics": []
     },
     {
@@ -300,7 +300,7 @@
       "callables": 12,
       "types": 1,
       "properties": 0,
-      "source_sha256": "95a7c31c40ae97f1e1aca8a2ae3e01501026dd558f7893d0f158ccfc877ab1f8",
+      "source_sha256": "705775ce460551405c5accd40cb96c5f29e5a4839324af3d734c8362b587bd59",
       "diagnostics": []
     },
     {
@@ -310,7 +310,7 @@
       "callables": 14,
       "types": 5,
       "properties": 16,
-      "source_sha256": "0312de472297b85f0fe6d553b669d826f7234bcc9138de4578e073465fadd52c",
+      "source_sha256": "94ab8379eeea3418228d8ed8a4530775289c9b8bf358008ab08938b75ddfc5cc",
       "diagnostics": []
     },
     {
@@ -320,7 +320,7 @@
       "callables": 3,
       "types": 0,
       "properties": 0,
-      "source_sha256": "2529619b466a71d28fe2fbd6444a5e1e006e6ce2bbbc326d45c2ed7b645d9f76",
+      "source_sha256": "57224b3bfb63b73074bbb90858eaecfcd3b9d01536d096b80a8e9c0379cfc7d3",
       "diagnostics": []
     },
     {
@@ -527,10 +527,10 @@
       "family": "epok",
       "header": "object_model.hpp",
       "slug": "object-model",
-      "callables": 352,
+      "callables": 364,
       "types": 52,
       "properties": 157,
-      "source_sha256": "3944707e57e81749310409ab2b353a9fc57bdd636e4f33faa0ba071dba4a759f",
+      "source_sha256": "f7754b1b0d05a113d38fe0997c204bd877f9bdb0202bad39c212d681f28da55c",
       "diagnostics": []
     },
     {
@@ -917,10 +917,10 @@
       "family": "epok",
       "header": "text.hpp",
       "slug": "text",
-      "callables": 1,
-      "types": 3,
-      "properties": 16,
-      "source_sha256": "0e34ab246f67d2de802a0beb156264188400333271725a7616f4210dff0e5f42",
+      "callables": 2,
+      "types": 4,
+      "properties": 23,
+      "source_sha256": "6c6369c137522573e06da06cce64ce79baed92ba552b54748c2e2a058e2b5563",
       "diagnostics": []
     },
     {

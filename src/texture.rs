@@ -301,6 +301,7 @@ pub fn resolve(scene: &mut Scene, index: &assets::Index) -> Result<(), String> {
     if let Err(error) = crate::tileset::resolve(scene, index) {
         errors.push(error);
     }
+    crate::localization::resolve(scene, index);
     for id in ids(scene) {
         let load = || {
             let r = index.resolve(id)?;

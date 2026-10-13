@@ -90,6 +90,31 @@ template<class Sink> class Compiler {
         if(x1<=x0||y1<=y0||!primitive_available())return;
         ++stats.rectangles;sink.rectangle(owner,x0,y0,x1,y1,c);
     }
+    // A Toggle's box at the right edge of its rect: a frame, a dark well and, when
+    // checked, a mark. Three fills, tinted by the focus highlight like the rest.
+    void check_box(Rect r,bool checked){
+        static constexpr uint8_t frame[3]={230,230,230},well[3]={31,31,31},mark[3]={64,217,77};
+        const int h=pixel(r.h),side=(h-6<6?6:h-6>14?14:h-6);
+        const Fixed s=Fixed(side*4096,Fixed::RAW),margin=Fixed(3*4096,Fixed::RAW);
+        Rect box{r.x+r.w-s-margin,r.y+(r.h-s)/2,s,s};
+        if(box.x<r.x)box.x=r.x;
+        fill(box,frame);
+        const Fixed one=Fixed(4096,Fixed::RAW),two=Fixed(2*4096,Fixed::RAW);
+        Rect inner{box.x+one,box.y+one,box.w-two,box.h-two};
+        fill(inner,well);
+        if(checked){Rect dot{inner.x+one,inner.y+one,inner.w-two,inner.h-two};fill(dot,mark);}
+    }
+    // A slider's handle: a light bar across the end of the fill, two pixels taller
+    // than the track on each side. Tinted like the rest, so it carries the focus.
+    void handle(Rect r,Fixed value){
+        static constexpr uint8_t light[3]={230,230,230};
+        const int h=pixel(r.h),w=(h/2<3?3:h/2>6?6:h/2);
+        const Fixed width=Fixed(w*4096,Fixed::RAW),two=Fixed(2*4096,Fixed::RAW);
+        Fixed x=r.x+r.w*value-width/2;
+        if(x+width>r.x+r.w)x=r.x+r.w-width;
+        if(x<r.x)x=r.x;
+        fill(Rect{x,r.y-two,width,r.h+two+two},light);
+    }
     void picture(Rect r,const Image& image){
         int texture_width=0,texture_height=0;
         if(!sink.texture_size(image.texture,texture_width,texture_height)){fill(r,image.color);return;}
@@ -177,6 +202,22 @@ template<class Sink> class Compiler {
     // Alignment has to know a line's width before its first glyph is placed, so
     // it measures into this table; Left needs no measure and is unbounded.
     static constexpr int measured_rows=32;
+    static int hex_digit(char c){return c>='0'&&c<='9'?c-'0':c>='a'&&c<='f'?c-'a'+10:c>='A'&&c<='F'?c-'A'+10:-1;}
+    // Inline colour markup: `[color=#rrggbb]` switches the glyph colour and
+    // `[/color]` restores the text's own. Consumes one tag at `n`; false otherwise.
+    static bool markup(const char* s,size_t& n,uint8_t* color,const uint8_t* base){
+        if(s[n]!='[')return false;
+        static constexpr char open[]="[color=#",close[]="[/color]";
+        size_t k=0;while(close[k]&&n+k<511&&s[n+k]==close[k])++k;
+        if(!close[k]){for(int c=0;c<3;++c)color[c]=base[c];n+=k;return true;}
+        k=0;while(open[k]&&n+k<511&&s[n+k]==open[k])++k;
+        if(open[k]||n+k+7>511)return false;
+        uint8_t parsed[3];
+        for(int c=0;c<3;++c){const int hi=hex_digit(s[n+k+2*c]),lo=hex_digit(s[n+k+2*c+1]);if(hi<0||lo<0)return false;parsed[c]=uint8_t(hi*16+lo);}
+        if(s[n+k+6]!=']')return false;
+        for(int c=0;c<3;++c)color[c]=parsed[c];
+        n+=k+7;return true;
+    }
     void label(Rect r,const Text& text){
         if(stats.texts>=budget.texts){++stats.dropped;return;}
         const Font* font=font_for(text.font);
@@ -189,7 +230,9 @@ template<class Sink> class Compiler {
         if(text.align!=TextAlign::Left){
             if(rows>measured_rows)rows=measured_rows;
             int pen=0,row=0;
+            uint8_t ignored[3];
             for(size_t n=0;n<511&&text.value[n];){
+                if(markup(text.value,n,ignored,text.color))continue;
                 const uint32_t c=utf8_scalar(text.value,n);
                 if(c==10){pen=0;if(++row>=rows)break;continue;}
                 const Placed g=place_glyph(font,c);
@@ -201,7 +244,9 @@ template<class Sink> class Compiler {
         ++stats.texts;sink.begin_text(text.font);
         const int left=pixel(r.x),top=height-pixel(r.y+r.h);
         int pen=0,row=0;
+        uint8_t ink[3]={text.color[0],text.color[1],text.color[2]};
         for(size_t n=0;n<511&&text.value[n];){
+            if(markup(text.value,n,ink,text.color))continue;
             const uint32_t c=utf8_scalar(text.value,n);
             if(c==10){pen=0;++row;continue;}
             const Placed g=place_glyph(font,c);
@@ -220,13 +265,13 @@ template<class Sink> class Compiler {
                 const Rect cell{Fixed(x*4096,Fixed::RAW),Fixed((height-y-g.height)*4096,Fixed::RAW),Fixed(g.width*4096,Fixed::RAW),Fixed(g.height*4096,Fixed::RAW)};
                 int px[4],py[4];corners(cell,px,py);
                 const int su[4]={g.u,g.u+g.width,g.u,g.u+g.width},sv[4]={g.v,g.v,g.v+g.height,g.v+g.height};
-                ++stats.rotated;sink.glyph_quad(owner,text.font,px,py,su,sv,text.color);
+                ++stats.rotated;sink.glyph_quad(owner,text.font,px,py,su,sv,ink);
                 continue;
             }
             if(x>=width||y>=height||x+g.width<=0||y+g.height<=0)continue;
             if(stats.glyphs>=budget.glyphs){++stats.dropped;break;}
             int x0=clamp(x,width),y0=clamp(y,height),x1=clamp(x+g.width,width),y1=clamp(y+g.height,height);
-            ++stats.glyphs;sink.glyph(owner,text.font,g.u+(x0-x),g.v+(y0-y),x0,y0,x1,y1,text.color);
+            ++stats.glyphs;sink.glyph(owner,text.font,g.u+(x0-x),g.v+(y0-y),x0,y0,x1,y1,ink);
         }
     }
     static bool root_of_layout(const ActorData& e){return (e.canvas.enabled||e.rect.enabled)&&e.parent<0;}
@@ -393,8 +438,12 @@ template<class Sink> class Compiler {
         const bool lit=e.focusable.enabled&&focused==index;
         for(int k=0;k<3;++k)tint[k]=lit?e.focusable.highlight[k]:uint8_t(255);
         if(e.image.enabled)picture(r,e.image);
-        if(e.progress.enabled){fill(r,e.progress.background);auto part=r;auto value=e.progress.value;if(value.raw()<0)value=0.0;if(value.raw()>4096)value=1.0;part.w*=value;fill(part,e.progress.color);}
+        if(e.progress.enabled){
+            fill(r,e.progress.background);auto part=r;auto value=e.progress.value;if(value.raw()<0)value=0.0;if(value.raw()>4096)value=1.0;part.w*=value;fill(part,e.progress.color);
+            if(e.focusable.enabled&&e.progress.step.raw()>0)handle(r,value);
+        }
         if(e.text.enabled)label(r,e.text);
+        if(e.focusable.enabled&&e.focusable.kind==FocusKind::Toggle)check_box(r,e.focusable.checked);
         for(int child=first[index];child>=0;child=next[child])if(entities[child].rect.enabled)emit(entities,count,child,first,next,depth+1,counted);
     }
 public:

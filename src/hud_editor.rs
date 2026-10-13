@@ -69,12 +69,17 @@ pub fn font_choices(index: &crate::assets::Index) -> Vec<(uuid::Uuid, String)> {
     out.sort_by(|a, b| a.1.cmp(&b.1));
     out
 }
+/// The HUD component bands of an actor. Returns true when the string table editor
+/// should open.
 pub fn inspector(
     ui: &imgui::Ui,
     e: &mut Actor,
     targets: FocusTargets,
     fonts: &[(uuid::Uuid, String)],
-) {
+    strings: Option<&crate::localization::StringTable>,
+    language: usize,
+) -> bool {
+    let mut open_strings = false;
     if let Some(c) = &mut e.canvas
         && heading(ui, "Canvas")
     {
@@ -180,9 +185,61 @@ pub fn inspector(
         });
     if text_open && let Some(c) = &mut e.text {
         crate::gui::toggle(ui, "Enabled##text", &mut c.enabled);
-        ui.set_next_item_width(-1.);
-        ui.input_text_multiline("##hud-text", &mut c.text, [-1., 80.])
-            .build();
+        let none = "None (its own text)";
+        let current = if c.key.is_empty() {
+            none.to_string()
+        } else {
+            c.key.clone()
+        };
+        let id = crate::gui::field(ui, "String key");
+        ui.set_next_item_width((ui.content_region_avail()[0] - 76.).max(60.));
+        if let Some(_combo) = ui.begin_combo(id, current) {
+            if ui.selectable(none) {
+                c.key.clear();
+            }
+            match strings {
+                Some(table) if !table.entries.is_empty() => {
+                    for (index, entry) in table.entries.iter().enumerate() {
+                        let preview = table.lookup(&entry.key, language).unwrap_or("");
+                        let preview: String = preview.chars().take(28).collect();
+                        if ui
+                            .selectable_config(format!(
+                                "#{index}  {}   {preview}##key{index}",
+                                entry.key
+                            ))
+                            .selected(c.key == entry.key)
+                            .build()
+                        {
+                            c.key = entry.key.clone();
+                        }
+                    }
+                }
+                _ => ui.text_disabled("No strings yet: open Strings... to add some."),
+            }
+        }
+        ui.same_line();
+        if ui.small_button("Strings...") {
+            open_strings = true;
+        }
+        if ui.is_item_hovered() {
+            ui.tooltip_text("Edit the project's translated texts");
+        }
+        if c.key.is_empty() {
+            ui.set_next_item_width(-1.);
+            ui.input_text_multiline("##hud-text", &mut c.text, [-1., 80.])
+                .build();
+        } else {
+            match strings.and_then(|t| t.lookup(&c.key, language)) {
+                Some(shown) => crate::gui::muted(ui, format!("Shows: {shown}")),
+                None => ui.text_colored(
+                    [1., 0.6, 0.3, 1.],
+                    format!(
+                        "The key {} is not in the string table: its own text shows.",
+                        c.key
+                    ),
+                ),
+            }
+        }
         crate::gui::toggle(ui, "Wrap text##hud", &mut c.wrap);
         ui.color_edit3(crate::gui::field(ui, "Color##text"), &mut c.color);
         let label = match c.font {
@@ -209,9 +266,15 @@ pub fn inspector(
                 }
             }
         }
+        if ui.small_button("Insert colour tag") {
+            c.text.push_str("[color=#ffcc00][/color]");
+        }
+        if ui.is_item_hovered() {
+            ui.tooltip_text("Words between [color=#rrggbb] and [/color] draw in that colour");
+        }
         crate::gui::muted(
             ui,
-            "Built-in is 8 x 16 with Spanish glyphs; an imported font brings its own advances, line height and VRAM cost. Multiline, 511 UTF-8 bytes.",
+            "Built-in is 8 x 16 with Spanish glyphs; an imported font brings its own advances, line height and VRAM cost. Multiline, 511 UTF-8 bytes. [color=#rrggbb]...[/color] colours part of the text.",
         );
     }
     let progress_open = e.progress.is_some()
@@ -226,6 +289,12 @@ pub fn inspector(
             crate::gui::field(ui, "Background##progress"),
             &mut c.background,
         );
+        ui.slider(crate::gui::field(ui, "Slider step"), 0., 0.5, &mut c.step);
+        if ui.is_item_hovered() {
+            ui.tooltip_text(
+                "Above zero, a focused bar is a slider: Left and Right move its value by this step",
+            );
+        }
     }
     let element_open = e.layout_element.is_some()
         && crate::gui::section(ui, "Layout Element", || {
@@ -312,9 +381,20 @@ pub fn inspector(
             c.order = order.clamp(0, 255) as u8;
         }
         ui.color_edit3(crate::gui::field(ui, "Highlight##focus"), &mut c.highlight);
+        let mut kind = usize::from(c.kind == hud::FocusKind::Toggle);
+        if crate::world2d_editor::segmented(ui, "Kind##focus", &["Button", "Toggle"], &mut kind) {
+            c.kind = if kind == 1 {
+                hud::FocusKind::Toggle
+            } else {
+                hud::FocusKind::Button
+            };
+        }
+        if c.kind == hud::FocusKind::Toggle {
+            crate::gui::toggle(ui, "Checked##focus", &mut c.checked);
+        }
         crate::gui::muted(
             ui,
-            "The D-pad follows these links; the highlight multiplies this element's colours while it holds focus.",
+            "The D-pad follows these links; the highlight multiplies this element's colours while it holds focus. Cross presses the focused element (a Toggle flips its check box) and Circle cancels: gameplay reads take_pressed, take_changed, take_cancelled and is_checked.",
         );
     }
     if remove_image {
@@ -335,6 +415,7 @@ pub fn inspector(
     if remove_focusable {
         e.focusable = None;
     }
+    open_strings
 }
 /// The four neighbour links, in the order `Focusable::neighbors` stores them.
 const NEIGHBOURS: [&str; 4] = ["Left", "Right", "Up", "Down"];

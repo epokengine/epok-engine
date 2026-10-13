@@ -127,7 +127,7 @@ auto result = epok::hud_core::clamp(v, hi);
 Compiler(Sink& sink,int width,int height,Budget budget):sin
 ```
 
-- **Declared at:** [line 402](../../../runtime/hud_core.hpp#L402)
+- **Declared at:** [line 451](../../../runtime/hud_core.hpp#L451)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -171,7 +171,7 @@ epok::hud_core::Compiler value(sink, width, height, budget);
 void draw(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines)
 ```
 
-- **Declared at:** [line 413](../../../runtime/hud_core.hpp#L413)
+- **Declared at:** [line 462](../../../runtime/hud_core.hpp#L462)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -225,7 +225,7 @@ object.draw(entities, count, first, next, sizes, boxes, affines);
 void layout(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines)
 ```
 
-- **Declared at:** [line 405](../../../runtime/hud_core.hpp#L405)
+- **Declared at:** [line 454](../../../runtime/hud_core.hpp#L454)
 - **Kind:** `cxx method`
 
 **Parameters**

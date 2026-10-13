@@ -218,6 +218,7 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
             assets::Kind::Skeleton => "Skeleton",
             assets::Kind::Font => "Font",
             assets::Kind::TileSet => "TileSet",
+            assets::Kind::StringTable => "String Table",
         };
     }
     if entry.path.ends_with(".epokbp") {
@@ -727,6 +728,10 @@ fn creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
             Ok(_) => s.refresh(e),
             Err(error) => s.error = Some(error),
         }
+    }
+    if ui.menu_item("String Table") {
+        crate::localization_editor::open(e);
+        s.refresh(e);
     }
     ui.separator();
     if ui.menu_item("Install Timeline Adapters") {
@@ -1482,6 +1487,7 @@ fn open(e: &mut Editor, s: &mut State, entry: &Entry) {
             assets::Kind::EditableMesh => crate::mesh_editor::open(e, record, None),
             assets::Kind::Terrain => crate::terrain_editor::open(e, record, None),
             assets::Kind::TileSet => crate::tileset_editor::open(e, record.meta.id),
+            assets::Kind::StringTable => crate::localization_editor::open(e),
             assets::Kind::Texture
             | assets::Kind::Font
             | assets::Kind::AudioClip

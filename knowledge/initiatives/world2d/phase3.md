@@ -38,7 +38,35 @@ lines as flat quads per segment and triangles as quads with a repeated corner.
   longer show the empty-node cross; parallax repeats include shapes.
 - Collider2D: **Fit to Visible Pixels** (tight box of the frame's opaque texels).
 
-## 3. Validation
+## 3. UI widgets and localization
+
+User guide: [docs/hud.md](../../../docs/hud.md) (Pressing, check boxes and sliders;
+Colour tags; Localization).
+
+| Piece | Contract |
+| --- | --- |
+| `Focusable` | `kind` (`FocusKind::Button` / `Toggle`), `checked`, `events` (`focus_pressed`, `focus_changed`, `focus_cancelled`); with `ProgressBar::step`, `ActorData` grows 8 bytes per slot |
+| `hud_focus_update` | Cross sets pressed (a Toggle flips and sets changed), Circle sets cancelled; Left/Right on a focused Progress Bar with `step > 0` move the value by the step (clamped) instead of the focus |
+| `ProgressBar::step` | Slider step; a focusable bar with a step draws a handle (one rectangle, tinted by the highlight) |
+| `hud_core::check_box` | Frame, well and mark at the right edge of a Toggle's rect (3 rectangles, counted by the editor's budget check) |
+| `hud_core::markup` | `[color=#rrggbb]` / `[/color]` recolour glyphs; tags draw nothing and take no room; malformed tags are text |
+| `Localization` / `LocalizationLibrary` | Language-major `const char*` table; `get` falls back to the first language; `set_language` keeps the choice across banks; `language`, `language_count`, `key_count` |
+| `Text::key`, `TextComponent::set_text_key` | Keyed texts; the bank's `apply` rewrites them after a switch |
+| Cooking | A bank with keyed texts declares its own table in its namespace and installs it with `apply`; any other bank clears both, so nothing points into an unloaded bank |
+
+Editor: Check Box and Slider recipes (amber highlight by default, also on Button);
+Inspector Kind / Checked / Slider step / String key with "Shows:" preview and
+Insert colour tag; **Window > Strings (Localization)** with languages, start language,
+preview language, CSV import/export, untranslated counts, search and per-key grid
+(`src/localization.rs`, `src/localization_editor.rs`, asset kind `StringTable`).
+Native preview protocol 6 carries toggle, checked and step.
+
+Deferred from the phase 3 UI scope, documented in docs/hud.md: scroll containers,
+tab bars and shared themes. Also deferred from phase 3: interactive XA music
+(segment switching), Timeline tracks driving 2D components, and an importer for
+scenes from other engines.
+
+## 4. Validation
 
 | Check | Result |
 | --- | --- |
@@ -46,4 +74,7 @@ lines as flat quads per segment and triangles as quads with a repeated corner.
 | `cargo test` | path sampling and smoothing, triangulation (concave, both windings, crossing rejection), particle preview, cooking of every content node and capacities, opaque bounds |
 | PSX builds | Platformer 2D with a path lift, vine, fireflies and parallax mountains, in C++, Lua and Blueprint, played in PCSX-Redux |
 | Native PC Play | draws lines, polygons and particles |
-| Sample game | static RAM unchanged (973.7 KiB) |
+| `tests/runtime/hud_layout.cpp` | pressed / changed / cancelled events, toggles, slider steps and clamping, check box and slider handle geometry and tint, colour tags, string table fallback |
+| `cargo test` | string table validation, CSV round trip, cooking of keyed texts and per-bank tables, recipes, budget counts |
+| `tests/integration/verify_hud_widgets.py` | PCSX-Redux: a keyed label switched to the second language by a C++ component is pixel-identical to a plain label; Cross clears the check box; Down then Right raises the slider |
+| Sample game | 2D content: static RAM unchanged (973.7 KiB). UI widgets: 976.0 KiB (+8 bytes per actor slot, the rest is code) |

@@ -5,7 +5,7 @@ use crate::{hud, scene::Scene};
 /// it, so a cached executable built from an older header is rejected instead of
 /// being misread. Bump on any frame-header or command-record change.
 pub const HUD_PREVIEW_MAGIC: u32 = 0x3144_5548; // "HUD1"
-pub const HUD_PREVIEW_PROTOCOL_VERSION: u32 = 5;
+pub const HUD_PREVIEW_PROTOCOL_VERSION: u32 = 6;
 /// The child runs gameplay: BeginPlay/start, update, frame_update. Clear in the
 /// edit phase, which only calls `editor_preview` construction hooks.
 pub const HUD_PREVIEW_CAP_SIMULATE: u32 = 1;
@@ -30,7 +30,8 @@ struct Node {
     region: [i32; 4],
     borders: [i32; 4],
     text_color: [i32; 3],
-    progress: [i32; 7],
+    /// Value, colour r/g/b, background r/g/b, slider step in Q12.
+    progress: [i32; 8],
     /// Horizontal flags, vertical flags, minimum x/y and stretch in Q12.
     layout_element: [i32; 5],
     /// Kind, spacing x/y, padding left/top/right/bottom, columns.
@@ -162,7 +163,7 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid], font_ids: &[uuid::Uuid]) -> Vec<Node
                 region: [0; 4],
                 borders: [0; 4],
                 text_color: [0; 3],
-                progress: [0; 7],
+                progress: [0; 8],
                 layout_element: [1, 1, 0, 0, 0],
                 layout_container: [0, 0, 0, 0, 0, 0, 0, 1],
                 focusable: [0, -1, -1, -1, -1, 0, 255, 255, 255],
@@ -206,7 +207,9 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid], font_ids: &[uuid::Uuid]) -> Vec<Node
                     .and_then(|id| font_ids.iter().position(|v| *v == id))
                     .map_or(-1, |i| i as i32);
                 n.align = i32::from(c.align as u8);
-                let bytes = c.text.as_bytes();
+                let bytes = c
+                    .shown(scene.strings.as_deref(), scene.preview_language)
+                    .as_bytes();
                 let end = bytes.len().min(511);
                 n.text[..end].copy_from_slice(&bytes[..end]);
             }
@@ -217,6 +220,7 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid], font_ids: &[uuid::Uuid]) -> Vec<Node
                 n.progress[0] = fixed(c.value);
                 n.progress[1..4].copy_from_slice(&color(c.color));
                 n.progress[4..7].copy_from_slice(&color(c.background));
+                n.progress[7] = fixed(c.step);
             }
             if let Some(c) = &e.layout_element {
                 if c.enabled {
@@ -247,6 +251,12 @@ fn nodes(scene: &Scene, ids: &[uuid::Uuid], font_ids: &[uuid::Uuid]) -> Vec<Node
                 n.focusable[1..5].copy_from_slice(&c.neighbors);
                 n.focusable[5] = i32::from(c.order);
                 n.focusable[6..9].copy_from_slice(&color(c.highlight));
+                if c.kind == hud::FocusKind::Toggle {
+                    n.flags |= 2048;
+                }
+                if c.checked {
+                    n.flags |= 4096;
+                }
             }
             n
         })
@@ -577,10 +587,10 @@ mod tests {
     /// on one side without the other would otherwise be read as garbage.
     #[test]
     fn the_wire_node_matches_the_protocol_it_declares() {
-        const FIELDS: usize = 1 + 1 + 11 + 1 + 1 + 3 + 4 + 4 + 3 + 7 + 5 + 8 + 9 + 1 + 1 + 1;
+        const FIELDS: usize = 1 + 1 + 11 + 1 + 1 + 3 + 4 + 4 + 3 + 8 + 5 + 8 + 9 + 1 + 1 + 1;
         assert_eq!(size_of::<Node>(), FIELDS * 4 + 512);
         assert_eq!(align_of::<Node>(), 4);
-        assert_eq!(HUD_PREVIEW_PROTOCOL_VERSION, 5);
+        assert_eq!(HUD_PREVIEW_PROTOCOL_VERSION, 6);
     }
     fn labelled(text: &str, font: Option<uuid::Uuid>) -> Scene {
         let mut s = Scene::default();

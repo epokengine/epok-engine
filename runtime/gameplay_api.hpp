@@ -175,6 +175,24 @@ struct EPOK_FUNCTION_LIBRARY(Category="Time", Id="5f34fef1-021f-4d96-85ad-427be2
     static void set_paused(bool paused) { time.set_paused(paused); }
 };
 
+// The game's language. Every text that shows a string table key switches with it.
+struct EPOK_FUNCTION_LIBRARY(Category="Localization", Id="c8e1aeab-b60e-4a89-924f-1dd5ba9fec44") LocalizationLibrary {
+    EPOK_FUNCTION(BlueprintCallable, Id="41efe00f-87ee-462e-9f35-c82dd8d3f31a")
+    static void set_language(uint32_t index) {
+        // A scene without keyed texts has no table loaded; the choice is kept for the
+        // next one that does.
+        if(index>0xffffu||(localization.languages&&index>=localization.languages))return;
+        localization.language=uint16_t(index);
+        if(localization.apply)localization.apply();
+    }
+    EPOK_FUNCTION(BlueprintPure, Id="e8e99661-a2ab-45de-9264-5fca48be38bd")
+    static uint32_t language() { return localization.language; }
+    EPOK_FUNCTION(BlueprintPure, Id="a7dac804-b164-49d7-b73d-916d93bc604e")
+    static uint32_t language_count() { return localization.languages; }
+    EPOK_FUNCTION(BlueprintPure, Id="453bf6d9-921e-4509-bc76-4ba569782fa0")
+    static uint32_t key_count() { return localization.keys; }
+};
+
 struct EPOK_FUNCTION_LIBRARY(Category="Math", Id="895f8595-ac0d-4584-b749-df23ae5dfbde") MathLibrary {
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="6b6ba8bd-8446-4fef-a147-e41b61f88a61") static Fixed clamp(Fixed value,Fixed minimum,Fixed maximum){return value<minimum?minimum:value>maximum?maximum:value;}
     EPOK_FUNCTION(BlueprintPure, PureValue, Id="53a63dd4-901c-4f40-92b3-241c879e96a7") static Fixed lerp(Fixed from,Fixed to,Fixed alpha){return from+(to-from)*clamp(alpha,0.0,1.0);}

@@ -358,18 +358,25 @@ See [2D worlds](2d.md).
   layout in the editor's 2D mode and native HUD renderer.
 - **Widgets.** Solid rectangles, atlas images, nine-slice borders, tiled panel
   images, text and progress bars support color and bounded ordering. The editor's
-  UI menu creates Canvas, Panel, Image, Label, Text Area, Progress Bar, Button and
-  layout containers, with anchor presets and eight resize handles.
+  UI menu creates Canvas, Panel, Image, Label, Text Area, Progress Bar, Button,
+  Check Box, Slider and layout containers, with anchor presets and eight resize
+  handles.
 - **Layout containers.** Horizontal, Vertical, Grid, Margin and Center containers
   with per-element fill/expand/shrink flags, minimum size and stretch, measured
   and arranged by the same code in the editor and on the console.
 - **Focus and rotation.** Focusable elements with explicit neighbours and a
-  highlight tint move focus with the D-pad; rect rotation about the pivot is
+  highlight tint move focus with the D-pad; Cross presses the focused element, a
+  check box flips, Left/Right move a slider by its step, and gameplay reads the
+  pressed, changed and cancelled events. Rect rotation about the pivot is
   inherited by children.
 - **Text.** The bundled bitmap font covers printable ASCII plus documented Spanish
   characters, wrapping and fixed rows/columns. Imported TrueType/OpenType fonts
   become 4bpp glyph atlases with per-glyph advance and Left/Center/Right
-  alignment. Generated C++ exposes mutable text.
+  alignment. `[color=#rrggbb]` tags recolour part of a text. Generated C++
+  exposes mutable text.
+- **Localization.** A project string table (keys × languages, CSV import and
+  export, untranslated counts) feeds keyed texts; the editor previews any
+  language and gameplay switches it at runtime with `set_language`.
 - **Retained rendering.** Static HUD packets can be retained between frames while
   dynamic text/value changes invalidate the appropriate output.
 - **Navigation utilities.** `Focus<N>` and `layout_list` provide allocation-free
