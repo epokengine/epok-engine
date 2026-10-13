@@ -195,13 +195,23 @@ static void frame(){
         if(!camera_entity())if(const uint8_t* background=epok::world2d::service.background())sink.rectangle(-1,0,0,epok::display_width,epok::display_height,background);
         const size_t count=epok::world2d::collect_sprites(draws,items,scratch,EPOK_WORLD2D_DRAW_ITEMS,[](int index,uint16_t& w,uint16_t& h){
             if(index<0||size_t(index)>=epok::texture_count)return false;w=epok::texture_assets[index].width;h=epok::texture_assets[index].height;return w>0&&h>0;});
+        // Corners A, B, C, D; a transpose swaps the texture axes (B and C exchange texels).
+        auto quad=[&](int texture,const int16_t* sx,const int16_t* sy,int su,int sv,int sw,int sh,bool flip_h,bool flip_v,bool transpose,const uint8_t* color){
+            int x[4],y[4];for(int k=0;k<4;++k){x[k]=sx[k];y[k]=sy[k];}
+            const int u0=su,u1=su+sw-1,v0=sv,v1=sv+sh-1;
+            const int ul=flip_h?u1:u0,ur=flip_h?u0:u1,vt=flip_v?v1:v0,vb=flip_v?v0:v1;
+            const int u[4]={ul,transpose?ul:ur,transpose?ur:ul,ur},v[4]={vt,transpose?vb:vt,transpose?vt:vb,vb};
+            sink.textured_quad(-1,texture,x,y,u,v,color);
+        };
         for(size_t i=0;i<count;++i){
             const auto& d=draws[items[i].index];
-            int x[4],y[4];for(int k=0;k<4;++k){x[k]=d.x[k];y[k]=d.y[k];}
-            const int u0=d.source[0],u1=d.source[0]+d.source[2]-1,v0=d.source[1],v1=d.source[1]+d.source[3]-1;
-            const int ul=d.flip_h?u1:u0,ur=d.flip_h?u0:u1,vt=d.flip_v?v1:v0,vb=d.flip_v?v0:v1;
-            const int u[4]={ul,ur,ul,ur},v[4]={vt,vt,vb,vb};
-            sink.textured_quad(-1,int(d.texture),x,y,u,v,d.color);
+            if(d.tiles){
+                if(d.texture<0||size_t(d.texture)>=epok::texture_count)continue;
+                const auto& t=epok::texture_assets[d.texture];
+                epok::world2d::each_tile(d,t.width,t.height,[&](const epok::world2d::TileDraw& tile){quad(int(d.texture),tile.x,tile.y,tile.u,tile.v,tile.w,tile.h,tile.flip_h,tile.flip_v,tile.transpose,d.color);});
+                continue;
+            }
+            quad(int(d.texture),d.x,d.y,d.source[0],d.source[1],d.source[2],d.source[3],d.flip_h,d.flip_v,false,d.color);
         }
     }
 #endif

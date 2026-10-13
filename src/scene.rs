@@ -257,6 +257,10 @@ pub struct Scene {
     /// `textures` is. Never serialized into a scene.
     #[serde(skip)]
     pub fonts: BTreeMap<uuid::Uuid, std::sync::Arc<crate::font_asset::FontData>>,
+    /// TileSets the map's tile layers use, resolved with the textures (they name the
+    /// atlas textures). Never serialized into a scene.
+    #[serde(skip)]
+    pub tilesets: BTreeMap<uuid::Uuid, std::sync::Arc<crate::tileset::TileSet>>,
     /// Project output size used by HUD authoring; never serialized into a scene.
     #[serde(skip, default = "legacy_display_size")]
     pub display_size: [u16; 2],
@@ -335,6 +339,7 @@ impl From<SceneDocument> for Scene {
             ordered_draw: doc.ordered_draw,
             textures: Default::default(),
             fonts: Default::default(),
+            tilesets: Default::default(),
             display_size: legacy_display_size(),
         };
         scene.refresh_actor_hierarchy();
@@ -399,6 +404,7 @@ impl Default for Scene {
             display_size: legacy_display_size(),
             textures: Default::default(),
             fonts: Default::default(),
+            tilesets: Default::default(),
             version: crate::actor_document::SCENE_VERSION,
             name: "SampleScene".into(),
             actors: vec![camera, Actor::cube("Cube".into()), second, floor],

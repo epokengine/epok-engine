@@ -511,6 +511,11 @@ public:
         if (entry.enabled) note_enabled(index);
     }
     void disable(size_t index) { if (index < Capacity) entries[index].enabled = false; }
+    // Drops trailing disabled slots from the scanned range after a burst of temporary
+    // entries, so later queries do not walk them.
+    void shrink() {
+        while (limit && !entries[limit - 1].enabled) --limit;
+    }
     size_t live() const {
         size_t count = 0;
         for (size_t i = 0; i < limit; ++i)

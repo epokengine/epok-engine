@@ -1,16 +1,19 @@
 #pragma once
-// World2D renderer (World2D initiative, phase 1). Sprites are drawn after the 3D world
-// and before the HUD, back to front by a stable key: z-index (the owner's draw_order plus
-// the sprite's z_index) first, then, for y-sorted sprites, the world Y of their origin;
-// equal keys keep creation order. An unrotated, unscaled, unflipped sprite seen through an
-// unrotated camera at zoom 1 is emitted as a GP0 rectangle (`Sprite`: exact texels, less
-// setup); everything else becomes a textured quad.
+// World2D renderer (World2D initiative). Sprites and tile layers are drawn after the 3D
+// world and before the HUD, back to front by canvas layer, then a stable key: z-index (the
+// owner's draw_order plus the drawable's z_index) first, then, for y-sorted sprites, the
+// world Y of their origin; equal keys keep creation order.
+//
+// An unrotated, unscaled, unflipped sprite seen through an unrotated camera at zoom 1 is
+// emitted as a GP0 rectangle (`Sprite`: exact texels, less setup); everything else becomes
+// a textured quad. Tiles follow the same rule, and 8 x 8 and 16 x 16 tiles use the GPU's
+// fixed-size rectangles, the cheapest primitive it has.
 //
 // Capacities come from the cooked scene header (defaults below):
-//   EPOK_WORLD2D_DRAW_ITEMS    sprites drawn per frame
+//   EPOK_WORLD2D_DRAW_ITEMS    sprites, tile layers and parallax copies drawn per frame
 //   EPOK_WORLD2D_ARENA_BYTES   GPU packet bytes per frame parity
 // Packets are placed in a per-parity byte arena, so rectangles, quads and page changes
-// share one budget; exceeding it drops the extra sprites and counts them.
+// share one budget; exceeding it drops the extra sprites and tiles and counts them.
 #include "world2d_service.hpp"
 #include "texture.hpp"
 #include "frame_clear.hpp"
@@ -35,6 +38,7 @@ class Renderer {
     DrawItem items[EPOK_WORLD2D_DRAW_ITEMS], scratch[EPOK_WORLD2D_DRAW_ITEMS];
     size_t used = 0;
     unsigned parity = 0;
+    uint32_t current_page = 0xffffffffu;
 
     template<class Fragment> Fragment* allocate() {
         constexpr size_t size = (sizeof(Fragment) + 3) & ~size_t(3);
@@ -47,9 +51,98 @@ class Renderer {
         return uint16_t(((t.x / 64) & 15) | (((t.y / 256) & 1) << 4) | ((blend == BlendMode::Cutout ? 0 : int(blend) - 1) << 5) |
                         ((t.bits == 4 ? 0 : 1) << 7));
     }
-    static psyqo::Color color_of(const SpriteDraw& draw) {
-        return {{.r = uint8_t((unsigned(draw.color[0]) + 1) / 2), .g = uint8_t((unsigned(draw.color[1]) + 1) / 2),
-                 .b = uint8_t((unsigned(draw.color[2]) + 1) / 2)}};
+    static psyqo::Color color_of(const uint8_t* color) {
+        return {{.r = uint8_t((unsigned(color[0]) + 1) / 2), .g = uint8_t((unsigned(color[1]) + 1) / 2),
+                 .b = uint8_t((unsigned(color[2]) + 1) / 2)}};
+    }
+    // Rectangles draw with the current texture page: change it only when it differs.
+    bool use_page(psyqo::GPU& gpu, uint16_t page) {
+        if (page == current_page) return true;
+        auto* fragment = allocate<psyqo::Fragments::SimpleFragment<psyqo::Prim::TPage>>();
+        if (!fragment) return false;
+        fragment->primitive.attr.setPageX(page & 15).setPageY((page >> 4) & 1)
+            .set(static_cast<psyqo::Prim::TPageAttr::SemiTrans>((page >> 5) & 3))
+            .set((page >> 7) & 1 ? psyqo::Prim::TPageAttr::Tex8Bits : psyqo::Prim::TPageAttr::Tex4Bits)
+            .setDithering(false);
+        configure_display_field<display_interlaced>(fragment->primitive.attr);
+        gpu.chain(*fragment);
+        current_page = page;
+        ++stats.pages;
+        return true;
+    }
+    // A fixed-size or sized GP0 rectangle with exact texels.
+    template<class Prim> bool rectangle(psyqo::GPU& gpu, const Texture& t, BlendMode blend, const uint8_t* color, int16_t x, int16_t y,
+                                        uint16_t u, uint16_t v, uint16_t w, uint16_t h) {
+        auto* fragment = allocate<psyqo::Fragments::SimpleFragment<Prim>>();
+        if (!fragment) return false;
+        auto& p = fragment->primitive;
+        p.setColor(color_of(color));
+        if (blend == BlendMode::Cutout) p.setOpaque();
+        else p.setSemiTrans();
+        p.position = {{.x = x, .y = y}};
+        if constexpr (requires { p.size; }) p.size = {{.w = int16_t(w), .h = int16_t(h)}};
+        p.texInfo.u = uint8_t(texture_base_u(t) + u);
+        p.texInfo.v = uint8_t((t.y & 255) + v);
+        p.texInfo.clut = texture_clut(t);
+        gpu.chain(*fragment);
+        ++stats.rectangles;
+        return true;
+    }
+    // A textured quad: corners A, B, C, D and the texel rectangle mapped onto them.
+    bool quad(psyqo::GPU& gpu, const Texture& t, BlendMode blend, const uint8_t* color, const int16_t* x, const int16_t* y,
+              uint16_t u, uint16_t v, uint16_t w, uint16_t h, bool flip_h, bool flip_v, bool transpose) {
+        auto* fragment = allocate<psyqo::Fragments::SimpleFragment<psyqo::Prim::TexturedQuad>>();
+        if (!fragment) return false;
+        auto& q = fragment->primitive;
+        q.pointA = {{.x = x[0], .y = y[0]}};
+        q.pointB = {{.x = x[1], .y = y[1]}};
+        q.pointC = {{.x = x[2], .y = y[2]}};
+        q.pointD = {{.x = x[3], .y = y[3]}};
+        // The GPU omits a polygon's last column and row, so the span is a full texel count.
+        auto clamp_uv = [](int value) { return uint8_t(value < 0 ? 0 : value > 255 ? 255 : value); };
+        const int base_u = texture_base_u(t), base_v = t.y & 255;
+        const int u0 = base_u + u, u1 = u0 + w, v0 = base_v + v, v1 = v0 + h;
+        const int ul = flip_h ? u1 - 1 : u0, ur = flip_h ? u0 - 1 : u1;
+        const int vt = flip_v ? v1 - 1 : v0, vb = flip_v ? v0 - 1 : v1;
+        // Corner texels before a transpose: A (ul, vt), B (ur, vt), C (ul, vb), D (ur, vb).
+        // Transposing swaps the texture's axes, which exchanges the B and C texels.
+        q.uvA.u = clamp_uv(ul); q.uvA.v = clamp_uv(vt);
+        q.uvD.u = clamp_uv(ur); q.uvD.v = clamp_uv(vb);
+        if (transpose) {
+            q.uvB.u = clamp_uv(ul); q.uvB.v = clamp_uv(vb);
+            q.uvC.u = clamp_uv(ur); q.uvC.v = clamp_uv(vt);
+        } else {
+            q.uvB.u = clamp_uv(ur); q.uvB.v = clamp_uv(vt);
+            q.uvC.u = clamp_uv(ul); q.uvC.v = clamp_uv(vb);
+        }
+        q.clutIndex = texture_clut(t);
+        q.tpage = texture_page(t, blend);
+        q.setColor(color_of(color));
+        if (blend == BlendMode::Cutout) q.setOpaque();
+        else q.setSemiTrans();
+        gpu.chain(*fragment);
+        current_page = page_word(t, blend);  // a textured polygon also sets the drawing texpage
+        ++stats.quads;
+        return true;
+    }
+    void tiles(psyqo::GPU& gpu, const SpriteDraw& d, const Texture& t) {
+        const uint16_t page = page_word(t, d.blend);
+        each_tile(d, t.width, t.height, [&](const TileDraw& tile) {
+            bool ok;
+            if (tile.rectangle) {
+                if (!use_page(gpu, page)) return;
+                if (tile.w == 16 && tile.h == 16)
+                    ok = rectangle<psyqo::Prim::Sprite16x16>(gpu, t, d.blend, d.color, tile.x[0], tile.y[0], tile.u, tile.v, 16, 16);
+                else if (tile.w == 8 && tile.h == 8)
+                    ok = rectangle<psyqo::Prim::Sprite8x8>(gpu, t, d.blend, d.color, tile.x[0], tile.y[0], tile.u, tile.v, 8, 8);
+                else
+                    ok = rectangle<psyqo::Prim::Sprite>(gpu, t, d.blend, d.color, tile.x[0], tile.y[0], tile.u, tile.v, tile.w, tile.h);
+            } else {
+                ok = quad(gpu, t, d.blend, d.color, tile.x, tile.y, tile.u, tile.v, tile.w, tile.h, tile.flip_h, tile.flip_v,
+                          tile.transpose);
+            }
+            if (ok) ++stats.drawn;
+        });
     }
 
 public:
@@ -58,6 +151,7 @@ public:
     void draw(psyqo::GPU& gpu) {
         parity = gpu.getParity();
         used = 0;
+        current_page = 0xffffffffu;
         stats.drawn = stats.rectangles = stats.quads = stats.pages = 0;
         const size_t count = collect_sprites(draws, items, scratch, EPOK_WORLD2D_DRAW_ITEMS, [](int index, uint16_t& w, uint16_t& h) {
             const Texture* t = texture(index);
@@ -66,66 +160,24 @@ public:
             h = t->height;
             return true;
         });
-        uint32_t current_page = 0xffffffffu;
         for (size_t i = 0; i < count; ++i) {
             const SpriteDraw& d = draws[items[i].index];
             const Texture* t = texture(int(d.texture));
             if (!t) continue;
-            const uint16_t base_u = texture_base_u(*t), base_v = uint16_t(t->y & 255);
-            const uint16_t page = page_word(*t, d.blend);
-            if (d.rectangle) {
-                if (page != current_page) {
-                    auto* fragment = allocate<psyqo::Fragments::SimpleFragment<psyqo::Prim::TPage>>();
-                    if (!fragment) continue;
-                    fragment->primitive.attr.setPageX(page & 15).setPageY((page >> 4) & 1)
-                        .set(static_cast<psyqo::Prim::TPageAttr::SemiTrans>((page >> 5) & 3))
-                        .set((page >> 7) & 1 ? psyqo::Prim::TPageAttr::Tex8Bits : psyqo::Prim::TPageAttr::Tex4Bits)
-                        .setDithering(false);
-                    configure_display_field<display_interlaced>(fragment->primitive.attr);
-                    gpu.chain(*fragment);
-                    current_page = page;
-                    ++stats.pages;
-                }
-                auto* fragment = allocate<psyqo::Fragments::SimpleFragment<psyqo::Prim::Sprite>>();
-                if (!fragment) continue;
-                auto& p = fragment->primitive;
-                p.setColor(color_of(d));
-                if (d.blend == BlendMode::Cutout) p.setOpaque();
-                else p.setSemiTrans();
-                p.position = {{.x = d.x[0], .y = d.y[0]}};
-                p.size = {{.w = int16_t(d.source[2]), .h = int16_t(d.source[3])}};
-                p.texInfo.u = uint8_t(base_u + d.source[0]);
-                p.texInfo.v = uint8_t(base_v + d.source[1]);
-                p.texInfo.clut = texture_clut(*t);
-                gpu.chain(*fragment);
-                ++stats.rectangles;
-            } else {
-                auto* fragment = allocate<psyqo::Fragments::SimpleFragment<psyqo::Prim::TexturedQuad>>();
-                if (!fragment) continue;
-                auto& q = fragment->primitive;
-                q.pointA = {{.x = d.x[0], .y = d.y[0]}};
-                q.pointB = {{.x = d.x[1], .y = d.y[1]}};
-                q.pointC = {{.x = d.x[2], .y = d.y[2]}};
-                q.pointD = {{.x = d.x[3], .y = d.y[3]}};
-                // The GPU omits a polygon's last column and row, so the span is a full texel count.
-                auto clamp_uv = [](int value) { return uint8_t(value < 0 ? 0 : value > 255 ? 255 : value); };
-                const int u0 = base_u + d.source[0], u1 = u0 + d.source[2], v0 = base_v + d.source[1], v1 = v0 + d.source[3];
-                const int ul = d.flip_h ? u1 - 1 : u0, ur = d.flip_h ? u0 - 1 : u1;
-                const int vt = d.flip_v ? v1 - 1 : v0, vb = d.flip_v ? v0 - 1 : v1;
-                q.uvA.u = clamp_uv(ul); q.uvA.v = clamp_uv(vt);
-                q.uvB.u = clamp_uv(ur); q.uvB.v = clamp_uv(vt);
-                q.uvC.u = clamp_uv(ul); q.uvC.v = clamp_uv(vb);
-                q.uvD.u = clamp_uv(ur); q.uvD.v = clamp_uv(vb);
-                q.clutIndex = texture_clut(*t);
-                q.tpage = texture_page(*t, d.blend);
-                q.setColor(color_of(d));
-                if (d.blend == BlendMode::Cutout) q.setOpaque();
-                else q.setSemiTrans();
-                gpu.chain(*fragment);
-                current_page = page;  // a textured polygon also sets the drawing texpage
-                ++stats.quads;
+            if (d.tiles) {
+                tiles(gpu, d, *t);
+                continue;
             }
-            ++stats.drawn;
+            bool ok;
+            if (d.rectangle) {
+                if (!use_page(gpu, page_word(*t, d.blend))) continue;
+                ok = rectangle<psyqo::Prim::Sprite>(gpu, *t, d.blend, d.color, d.x[0], d.y[0], d.source[0], d.source[1], d.source[2],
+                                                    d.source[3]);
+            } else {
+                ok = quad(gpu, *t, d.blend, d.color, d.x, d.y, d.source[0], d.source[1], d.source[2], d.source[3], d.flip_h, d.flip_v,
+                          false);
+            }
+            if (ok) ++stats.drawn;
         }
         stats.arena_bytes = uint32_t(used);
     }

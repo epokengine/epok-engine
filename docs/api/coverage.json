@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 107,
-    "types": 460,
-    "callables": 1668,
-    "properties": 2429
+    "headers": 108,
+    "types": 471,
+    "callables": 1733,
+    "properties": 2531
   },
   "psyqo": {
     "headers": 53,
@@ -1057,20 +1057,20 @@
       "family": "epok",
       "header": "world2d.hpp",
       "slug": "world2d",
-      "callables": 48,
+      "callables": 49,
       "types": 12,
       "properties": 54,
-      "source_sha256": "7759438c04ae4bb17ae299b8e5fda745ce67bb06f56851fa3ad339cbac7cda63",
+      "source_sha256": "ee9ce639f77c9e927fed528206af47de0a91fdfd48c816a6692bc48a85e65eb2",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "world2d_components.hpp",
       "slug": "world2d-components",
-      "callables": 78,
-      "types": 6,
-      "properties": 71,
-      "source_sha256": "db53ded20a7fc29f502d5c23992856082bb2f770c82a337e350e6f6dedec0e08",
+      "callables": 81,
+      "types": 7,
+      "properties": 74,
+      "source_sha256": "c046aaa0a5765131c98cc44f78badc601b3057d445fe5cdaeb23827c319e4eab",
       "diagnostics": []
     },
     {
@@ -1080,17 +1080,27 @@
       "callables": 1,
       "types": 1,
       "properties": 1,
-      "source_sha256": "cf7e10016cd9ef4f89387f522dae851fa0ed8dd827d1bc4ff9e39f74b2b30d01",
+      "source_sha256": "a2a09cd051300673b464982b3bd3c60bf08670dc6584215883eea156c96b27d5",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "world2d_service.hpp",
       "slug": "world2d-service",
-      "callables": 16,
-      "types": 5,
-      "properties": 32,
-      "source_sha256": "d85591aa2ed9dfcd4cbca5665335fb1e0760c9097e7ac2ca314c605513f4077b",
+      "callables": 29,
+      "types": 7,
+      "properties": 56,
+      "source_sha256": "5e80134deb5da99a31b4eed867f5d42f27fc37e0acf51a914b9b51570178962b",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_tiles.hpp",
+      "slug": "world2d-tiles",
+      "callables": 48,
+      "types": 9,
+      "properties": 75,
+      "source_sha256": "f468a06e0073b2d3b481f1348ca806520a35eeaa509f4bbf3c7b9cd1b61658d3",
       "diagnostics": []
     },
     {

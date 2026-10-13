@@ -197,6 +197,10 @@ mod texture;
 mod texture_cook;
 mod third_person;
 mod third_person_blueprint;
+mod tilemap;
+mod tilemap_editor;
+mod tileset;
+mod tileset_editor;
 mod timeline;
 mod timeline_adapters;
 mod timeline_compile;
@@ -1865,6 +1869,30 @@ fn prepare_editor(editor: &mut editor::Editor) {
             .map(|a| a.id)
     {
         editor.select_actor(Some(id));
+    }
+    // Screenshot automation: open the TileSet editor of the selected tile layer.
+    if args.iter().any(|a| a == "--open-tileset-editor")
+        && let Some(id) = editor.selected_actor.and_then(|id| {
+            let index = editor.scene.actor_index(id)?;
+            let layer = world2d::component(&editor.scene.actors[index], world2d::TILEMAP_LAYER)?;
+            world2d::read::<world2d::TileMapLayer>(layer).tile_set
+        })
+    {
+        tileset_editor::open(editor, id);
+        if let Some(mode) = args
+            .windows(2)
+            .find(|a| a[0] == "--tileset-mode")
+            .map(|a| a[1].clone())
+            && let Some(window) = &mut editor.world2d.tileset_window
+        {
+            window.mode = match mode.as_str() {
+                "collision" => tileset_editor::Mode::Collision,
+                "terrains" => tileset_editor::Mode::Terrains,
+                "animation" => tileset_editor::Mode::Animation,
+                "custom" => tileset_editor::Mode::CustomData,
+                _ => tileset_editor::Mode::Tiles,
+            };
+        }
     }
     if args.iter().any(|a| a == "--screenshot-package-disc") {
         export_ui::open(editor);

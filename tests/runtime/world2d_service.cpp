@@ -1,7 +1,8 @@
 // Host contract tests for the World2D components and service (World2D initiative,
-// phase 1): sprite frame clips, Camera2D following, CharacterBody2D move_and_slide with
-// floor/wall/one-way contacts, trigger delivery to overlap_2d, registration lifetime and
-// the stable draw-item sort. Compiles the real runtime headers; only the audio service and
+// phases 1 and 2): sprite frame clips, Camera2D following, CharacterBody2D move_and_slide
+// with floor/wall/one-way contacts, trigger delivery to overlap_2d, registration lifetime,
+// the stable draw-item sort, tile map cells and runtime edits, tile collision, rays and
+// overlaps against tiles, tile drawing, parallax and canvas layers. Compiles the real runtime headers; only the audio service and
 // the cooked class table are provided here, as a generated build would.
 #include <cassert>
 #include <cstdio>
@@ -62,6 +63,10 @@ const ClassDescriptor object_classes[] = {
     {Camera2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<Camera2DComponent>, &object_destruct, sizeof(Camera2DComponent), alignof(Camera2DComponent), &ObjectPool<Camera2DComponent, 4>::acquire, &ObjectPool<Camera2DComponent, 4>::release},
     {Collider2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<Collider2DComponent>, &object_destruct, sizeof(Collider2DComponent), alignof(Collider2DComponent), &ObjectPool<Collider2DComponent, 8>::acquire, &ObjectPool<Collider2DComponent, 8>::release},
     {CharacterBody2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<CharacterBody2DComponent>, &object_destruct, sizeof(CharacterBody2DComponent), alignof(CharacterBody2DComponent), &ObjectPool<CharacterBody2DComponent, 4>::acquire, &ObjectPool<CharacterBody2DComponent, 4>::release},
+    {TileMapLayerComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<TileMapLayerComponent>, &object_destruct, sizeof(TileMapLayerComponent), alignof(TileMapLayerComponent), &ObjectPool<TileMapLayerComponent, 4>::acquire, &ObjectPool<TileMapLayerComponent, 4>::release},
+    {Parallax2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<Parallax2DComponent>, &object_destruct, sizeof(Parallax2DComponent), alignof(Parallax2DComponent), &ObjectPool<Parallax2DComponent, 4>::acquire, &ObjectPool<Parallax2DComponent, 4>::release},
+    {CanvasLayer2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<CanvasLayer2DComponent>, &object_destruct, sizeof(CanvasLayer2DComponent), alignof(CanvasLayer2DComponent), &ObjectPool<CanvasLayer2DComponent, 4>::acquire, &ObjectPool<CanvasLayer2DComponent, 4>::release},
+    {CanvasModulate2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<CanvasModulate2DComponent>, &object_destruct, sizeof(CanvasModulate2DComponent), alignof(CanvasModulate2DComponent), &ObjectPool<CanvasModulate2DComponent, 4>::acquire, &ObjectPool<CanvasModulate2DComponent, 4>::release},
     {Listener2D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None, world2d_bit, ObjectClassMultiple, &object_construct<Listener2D>, &object_destruct, sizeof(Listener2D), alignof(Listener2D), &ObjectPool<Listener2D, 4>::acquire, &ObjectPool<Listener2D, 4>::release},
     {Level::static_class_id, Object::static_class_id, ObjectFamily::Level, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Level), alignof(Level), nullptr, nullptr},
 };
@@ -69,7 +74,7 @@ const size_t object_class_count = sizeof(object_classes) / sizeof(object_classes
 }  // namespace epok
 
 namespace {
-ObjectRegistryStorage<64> registry_storage;
+ObjectRegistryStorage<96> registry_storage;
 Level game_level;
 void reset() {
     if (game_level.registry()) {
@@ -271,7 +276,7 @@ void triggers() {
 void draw_sort() {
     world2d::DrawItem items[6], scratch[6];
     const uint32_t keys[6] = {0x80000005u, 0x7fff0000u, 0x80000005u, 0x80010000u, 0x80000001u, 0x80000005u};
-    for (int i = 0; i < 6; ++i) items[i] = world2d::DrawItem{keys[i], uint16_t(i + 1)};
+    for (int i = 0; i < 6; ++i) items[i] = world2d::DrawItem{keys[i], uint16_t(i + 1), 128};
     world2d::sort_draw_items(items, scratch, 6);
     const uint16_t expected[6] = {2, 5, 1, 3, 6, 4};
     for (int i = 0; i < 6; ++i) assert(items[i].index == expected[i]);
@@ -312,10 +317,252 @@ void sprite_resolution() {
     assert(count == 2 && draws[items[1].index].y[0] < 0 + display_height / 2);
 }
 
+
+// ---- tile maps --------------------------------------------------------------------------
+// A 16 x 16 tile set: a solid block (atlas 0, 0), a one-way ledge whose shape is the top
+// 4 pixels (atlas 1, 0) and an animated, non-colliding flower (atlas 0, 1; 2 frames).
+constexpr TileInfo tile_infos[] = {
+    {{0, 0}, 0, 0, TileCollision::Full, 0, {0, 0, 0, 0}, 1, 0, {0, 0}, Fixed(0.0)},
+    {{1, 0}, 16, 0, TileCollision::Rect, tile_one_way, {0, 0, 16, 4}, 1, 0, {0, 0}, Fixed(0.0)},
+    {{0, 1}, 0, 16, TileCollision::None, 0, {0, 0, 0, 0}, 2, 0, {16, 0}, Fixed(0.25)},
+};
+constexpr int32_t tile_custom[] = {7, 0, 3, 1, 0, 2};  // two layers per tile
+constexpr TileSetData tile_set = {16, 16, 3, tile_infos, 2, tile_custom};
+// Two chunks side by side: a floor on row 6 across both (x 0..31), a wall at x = 10 on
+// rows 3..5, a one-way ledge at x 2..5 on row 3 and a flower at (12, 5).
+uint16_t tile_cells[2 * tile_chunk_cells];
+constexpr int16_t tile_grid[2] = {0, 1};
+void build_tiles() {
+    for (auto& cell : tile_cells) cell = 0;
+    auto put = [](int x, int y, uint16_t value) { tile_cells[(x >> 4) * tile_chunk_cells + (y & 15) * 16 + (x & 15)] = value; };
+    for (int x = 0; x < 32; ++x) put(x, 6, 1);
+    for (int y = 3; y <= 5; ++y) put(10, y, 1);
+    for (int x = 2; x <= 5; ++x) put(x, 3, 2);
+    put(12, 5, 3);
+}
+TileMapLayerComponent* tile_layer(Actor* actor) {
+    build_tiles();
+    auto* layer = game_level.add_component<TileMapLayerComponent>(*actor, "Tiles");
+    assert(layer);
+    layer->tileset = &tile_set;
+    layer->texture = 3;
+    layer->cells = tile_cells;
+    layer->grid = tile_grid;
+    layer->grid_size[0] = 2;
+    layer->grid_size[1] = 1;
+    return layer;
+}
+
+// 7. Cells, atlas lookups, custom data, map conversion and runtime edits.
+void tile_cells_and_edits() {
+    reset();
+    auto* map = spawn<Actor2D>("Map", -32, 0);
+    auto* layer = tile_layer(map);
+    assert(world2d::tile_layers.count == 1 && layer->slot);
+    assert(!layer->is_cell_empty(0, 6) && layer->is_cell_empty(0, 5) && layer->is_cell_empty(-1, 6) && layer->is_cell_empty(40, 6));
+    assert(layer->get_cell_atlas_x(3, 3) == 1 && layer->get_cell_atlas_y(3, 3) == 0 && layer->get_cell_atlas_x(3, 4) == -1);
+    assert(layer->is_cell_solid(10, 4) && layer->is_cell_solid(3, 3) && !layer->is_cell_solid(12, 5));
+    assert(layer->get_cell_custom_data(10, 4, 0) == 7 && layer->get_cell_custom_data(12, 5, 1) == 2 && layer->get_cell_custom_data(12, 5, 9) == 0);
+    // The grid starts at the owner's position; negative coordinates floor.
+    assert(layer->world_to_map_x(q(-32)) == 0 && layer->world_to_map_x(q(-33)) == -1 && layer->world_to_map_y(q(15.9)) == 0);
+    assert(real(layer->map_to_world_x(0)) == -24 && real(layer->map_to_world_y(6)) == 104);
+    // Edits override cooked cells, and restoring the authored tile frees the entry.
+    assert(layer->set_cell(1, 1, 0, 0) && layer->get_cell_atlas_x(1, 1) == 0 && layer->edit_count == 1);
+    assert(layer->erase_cell(0, 6) && layer->is_cell_empty(0, 6) && layer->edit_count == 2);
+    assert(layer->set_cell(0, 6, 0, 0) && !layer->is_cell_empty(0, 6) && layer->edit_count == 1);
+    assert(!layer->set_cell(2, 2, 5, 5));  // not a tile of the set
+    assert(layer->set_cell_flipped(-5, -5, 1, 0, true, false, false));
+    assert((layer->cell(-5, -5) & tile_flip_h) && layer->get_cell_atlas_x(-5, -5) == 1);
+    // The table is bounded and reports a full table instead of overwriting.
+    for (int i = 0; i < EPOK_WORLD2D_TILE_EDITS; ++i) layer->set_cell(100 + i, 0, 0, 0);
+    assert(world2d::stats.dropped_tile_edits > 0 && world2d::stats.tile_edits == EPOK_WORLD2D_TILE_EDITS);
+    // Destroying the layer forgets its edits.
+    game_level.destroy_actor(map->id());
+    registry_storage.collect_quarantined();
+    assert(world2d::tile_layers.count == 0 && world2d::stats.tile_edits == 0);
+}
+
+// 8. Bodies land on, walk along and are blocked by tiles; one-way tiles only catch falls.
+void tile_collision() {
+    reset();
+    auto* map = spawn<Actor2D>("Map", 0, 0);
+    tile_layer(map);
+    auto* hero = spawn<Actor2D>("Hero", 40, 40);
+    box(hero, 12, 24);
+    auto* body = game_level.add_component<CharacterBody2DComponent>(*hero, "Body");
+    const Fixed dt(epok::time.delta_raw, Fixed::RAW);
+    auto run = [&](double vx, double vy, int steps) {
+        for (int i = 0; i < steps; ++i) {
+            body->set_velocity(q(vx), q(vy));
+            epok::time.begin_tick();
+            body->move_and_slide();
+        }
+    };
+    // The floor's top is y = 96: the body's centre rests 12 pixels above it.
+    for (int i = 0; i < 120 && !body->is_on_floor(); ++i) {
+        body->set_velocity(q(0), body->velocity_y() + q(600) * dt);
+        epok::time.begin_tick();
+        body->move_and_slide();
+    }
+    assert(body->is_on_floor() && real(root(hero).transform.position[1]) == 84);
+    assert(body->last_collision_actor() == map->id() && body->last_collision_is_tile() && body->last_tile_y() == 6);
+    // Walking right slides along the floor and stops at the wall's left face (x = 160).
+    run(120, 10, 120);
+    assert(close(real(root(hero).transform.position[0]), 160 - 6, 1e-3) && body->is_on_wall());
+    // Walking left crosses tile seams without catching and keeps its floor.
+    run(-120, 10, 30);
+    assert(real(root(hero).transform.position[0]) < 120 && body->is_on_floor());
+    // Jumping from below passes the one-way ledge (top y = 48)...
+    root(hero).transform.position[0] = q(56);
+    root(hero).transform.position[1] = q(84);
+    run(0, -400, 12);
+    assert(real(root(hero).transform.position[1]) < 48 - 12);
+    // ...and falling back lands on its top edge.
+    for (int i = 0; i < 120 && !(body->is_on_floor() && real(root(hero).transform.position[1]) < 60); ++i) run(0, 300, 1);
+    assert(body->is_on_floor() && real(root(hero).transform.position[1]) == 36);
+    assert(body->last_tile_y() == 3 && body->last_tile_x() >= 2 && body->last_tile_x() <= 5);
+    // A disabled tile layer stops colliding.
+    world2d::find<TileMapLayerComponent>(map)->set_collision_enabled(false);
+    run(0, 300, 4);
+    assert(!body->is_on_floor() && real(root(hero).transform.position[1]) > 36);
+}
+
+// 9. Rays and overlap queries see tiles, nearest first.
+void tile_queries() {
+    reset();
+    auto* map = spawn<Actor2D>("Map", 0, 0);
+    tile_layer(map);
+    const Fixed origin[2] = {q(8), q(0)}, down[2] = {q(0), q(200)};
+    const SpatialHit2D hit = world2d::service.raycast(origin, down, 0xffffffffu, false);
+    assert(hit && close(real(hit.point[1]), 96, 0.01) && world2d::service.actor_at(hit.index) == map->id());
+    // A long diagonal ray crosses many cells and still stops at the first solid one.
+    const Fixed start[2] = {q(-40), q(-40)}, across[2] = {q(400), q(400)};
+    const SpatialHit2D diagonal = world2d::service.raycast(start, across, 0xffffffffu, false);
+    assert(diagonal && real(diagonal.point[1]) <= 96.01 && real(diagonal.point[1]) >= 47.99);
+    // A ray up through the one-way ledge passes it.
+    const Fixed below[2] = {q(40), q(80)}, up[2] = {q(0), q(-80)};
+    assert(!world2d::service.raycast(below, up, 0xffffffffu, false));
+    ObjectId found[4];
+    const Aabb2D on_floor = {{q(20), q(90)}, {q(30), q(100)}}, in_air = {{q(20), q(70)}, {q(30), q(80)}};
+    assert(world2d::service.overlap(on_floor, found, 4, 0xffffffffu, false) == 1 && found[0] == map->id());
+    assert(world2d::service.overlap(in_air, found, 4, 0xffffffffu, false) == 0);
+}
+
+// 10. Tile layers draw as one sorted entry each; tiles cull, animate and flip.
+void tile_drawing() {
+    reset();
+    auto size = [](int index, uint16_t& w, uint16_t& h) { if (index != 3) return false; w = 64; h = 64; return true; };
+    auto* map = spawn<Actor2D>("Map", -display_width / 2., -display_height / 2.);
+    auto* layer = tile_layer(map);
+    world2d::SpriteDraw draws[16];
+    world2d::DrawItem items[16], scratch[16];
+    size_t count = world2d::collect_sprites(draws, items, scratch, 16, size);
+    assert(count == 1 && draws[items[0].index].tiles == layer);
+    // The map's origin is the screen's top-left corner: the floor tiles that fit on screen,
+    // 3 wall, 4 ledge and 1 flower tiles, all exact rectangles.
+    const unsigned visible = (display_width / 16 < 32 ? display_width / 16 : 32) + 8;
+    unsigned tiles = 0, rectangles = 0, flower_u = 0;
+    auto visit = [&](const world2d::TileDraw& tile) {
+        ++tiles;
+        rectangles += tile.rectangle;
+        if (tile.v == 16) flower_u = tile.u;
+    };
+    world2d::each_tile(draws[items[0].index], 64, 64, visit);
+    assert(tiles == visible && rectangles == visible && flower_u == 0);
+    // Animation time moves the flower to its second frame.
+    while (world2d::tile_clock < q(0.3)) step();
+    tiles = rectangles = 0;
+    world2d::each_tile(draws[items[0].index], 64, 64, visit);
+    assert(flower_u == 16);
+    // A flipped tile falls back to a quad; scrolling the map off screen culls tiles.
+    layer->set_cell_flipped(0, 6, 0, 0, false, true, false);
+    tiles = rectangles = 0;
+    world2d::each_tile(draws[items[0].index], 64, 64, visit);
+    assert(tiles == visible && rectangles == visible - 1);
+    root(map).transform.position[0] = q(-1000);
+    tiles = 0;
+    world2d::each_tile(draws[items[0].index], 64, 64, visit);
+    assert(tiles == 0);
+    // An invisible layer is not collected.
+    layer->set_visible(false);
+    assert(world2d::collect_sprites(draws, items, scratch, 16, size) == 0);
+}
+
+// 11. Parallax layers scroll against the camera, drift and repeat to fill the screen.
+void parallax() {
+    reset();
+    auto size = [](int index, uint16_t& w, uint16_t& h) { if (index != 3) return false; w = 64; h = 32; return true; };
+    auto* hero = spawn<Actor2D>("Hero", 0, 0);
+    game_level.add_component<Camera2DComponent>(*hero, "Camera");
+    auto* hills = spawn<Actor2D>("Hills", 10, 20);
+    auto* parallax = game_level.add_component<Parallax2DComponent>(*hills, "Parallax");
+    parallax->set_scroll_scale(q(0.5), q(1));
+    step();
+    assert(real(root(hills).transform.position[0]) == 10 && real(root(hills).transform.position[1]) == 20);
+    // The camera moves 100 pixels right: a half-speed layer follows by 50.
+    root(hero).transform.position[0] = q(100);
+    step();
+    assert(real(root(hills).transform.position[0]) == 60 && real(root(hills).transform.position[1]) == 20);
+    // Autoscroll drifts by its speed every second.
+    parallax->set_autoscroll(q(30), q(0));
+    for (int i = 0; i < 60; ++i) step();
+    const double seconds = 60 * real(Fixed(epok::time.delta_raw, Fixed::RAW));
+    assert(close(real(root(hills).transform.position[0]), 60 + 30 * seconds, 0.6));
+    // A repeating sprite is copied across the screen at its period.
+    parallax->set_autoscroll(q(0), q(0));
+    parallax->set_repeat_size(q(64), q(0));
+    auto* sprite = game_level.add_component<Sprite2DComponent>(*hills, "Sprite");
+    sprite->texture = 3;
+    world2d::SpriteDraw draws[32];
+    world2d::DrawItem items[32], scratch[32];
+    const size_t count = world2d::collect_sprites(draws, items, scratch, 32, size);
+    assert(count >= size_t(display_width / 64) && count <= size_t(display_width / 64) + 3);
+    for (size_t i = 1; i < count; ++i) assert(draws[items[i].index].x[0] - draws[items[i - 1].index].x[0] == 64);
+}
+
+// 12. Canvas layers order whole canvases, screen canvases ignore the camera and a
+// CanvasModulate2D tints only its own canvas.
+void canvas_layers() {
+    reset();
+    auto size = [](int index, uint16_t& w, uint16_t& h) { if (index != 3) return false; w = 16; h = 16; return true; };
+    auto* hero = spawn<Actor2D>("Hero", 500, 0);
+    game_level.add_component<Camera2DComponent>(*hero, "Camera");
+    auto* world_sprite = spawn<Actor2D>("World", 500, 0);
+    auto* hud = spawn<Actor2D>("Hud", 0, 0);
+    auto* canvas = game_level.add_component<CanvasLayer2DComponent>(*hud, "Canvas");
+    auto* icon = spawn<Actor2D>("Icon", 20, 30);
+    root(icon).attach_parent = root(hud).id();
+    Sprite2DComponent* a = game_level.add_component<Sprite2DComponent>(*world_sprite, "Sprite");
+    Sprite2DComponent* b = game_level.add_component<Sprite2DComponent>(*icon, "Sprite");
+    a->texture = b->texture = 3;
+    a->set_z_index(100);  // a higher z on the world canvas still draws under canvas 1
+    auto* night = spawn<Actor2D>("Night", 0, 0);
+    auto* modulate = game_level.add_component<CanvasModulate2DComponent>(*night, "Tint");
+    modulate->set_color(128, 128, 255);
+    step();
+    world2d::SpriteDraw draws[4];
+    world2d::DrawItem items[4], scratch[4];
+    size_t count = world2d::collect_sprites(draws, items, scratch, 4, size);
+    assert(count == 2);
+    const auto& under = draws[items[0].index];
+    const auto& over = draws[items[1].index];
+    // The icon is drawn in screen pixels at its position, centred on (20, 30).
+    assert(over.x[0] == 12 && over.y[0] == 22 && over.rectangle);
+    assert(under.x[0] == display_width / 2 - 8);
+    // The modulate sits on the world canvas: only the world sprite is tinted.
+    assert(under.color[0] == 128 && under.color[2] == 255 && over.color[0] == 255);
+    // Moving the canvas behind the world reverses the order; hiding it hides the icon.
+    canvas->set_layer(-1);
+    count = world2d::collect_sprites(draws, items, scratch, 4, size);
+    assert(count == 2 && draws[items[0].index].x[0] == 12);
+    canvas->set_visible(false);
+    assert(world2d::collect_sprites(draws, items, scratch, 4, size) == 1);
+}
+
 void size_report() {
-    std::printf("World2D components (host, %zu-bit pointers): Sprite2D %zu  Camera2D %zu  Collider2D %zu  CharacterBody2D %zu\n",
+    std::printf("World2D components (host, %zu-bit pointers): Sprite2D %zu  Camera2D %zu  Collider2D %zu  CharacterBody2D %zu  TileMapLayer %zu  Parallax2D %zu\n",
                 sizeof(void*) * 8, sizeof(Sprite2DComponent), sizeof(Camera2DComponent), sizeof(Collider2DComponent),
-                sizeof(CharacterBody2DComponent));
+                sizeof(CharacterBody2DComponent), sizeof(TileMapLayerComponent), sizeof(Parallax2DComponent));
 }
 }  // namespace
 
@@ -330,7 +577,13 @@ int main() {
     triggers();
     draw_sort();
     sprite_resolution();
+    tile_cells_and_edits();
+    tile_collision();
+    tile_queries();
+    tile_drawing();
+    parallax();
+    canvas_layers();
     size_report();
-    std::puts("World2D sprite clips, camera, character body, triggers and draw sort tests passed.");
+    std::puts("World2D sprite clips, camera, character body, triggers, draw sort, tile map, parallax and canvas layer tests passed.");
     return 0;
 }

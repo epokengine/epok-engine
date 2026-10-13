@@ -2,11 +2,11 @@
 
 > **Header:** `"world2d_components.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/world2d_components.hpp)
 
-This module covers the world2d components module. It documents 78 public callables declared directly in this header.
+This module covers the world2d components module. It documents 81 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::Camera2DComponent`, `epok::CharacterBody2DComponent`, `epok::Collider2DComponent`, `epok::Sprite2DComponent`, `epok::world2d::Link`, `epok::world2d::List`
+`epok::Camera2DComponent`, `epok::CharacterBody2DComponent`, `epok::Collider2DComponent`, `epok::Sprite2DComponent`, `epok::TileMapLayerComponent`, `epok::world2d::Link`, `epok::world2d::List`
 
 ## Callable index
 
@@ -31,8 +31,11 @@ This module covers the world2d components module. It documents 78 public callabl
 - [`epok::CharacterBody2DComponent::is_on_floor`](#epok-characterbody2dcomponent-is-on-floor-1) — Reports whether on floor as part of the world2d components module.
 - [`epok::CharacterBody2DComponent::is_on_wall`](#epok-characterbody2dcomponent-is-on-wall-1) — Reports whether on wall as part of the world2d components module.
 - [`epok::CharacterBody2DComponent::last_collision_actor`](#epok-characterbody2dcomponent-last-collision-actor-1) — Performs `last collision actor` as part of the world2d components module.
+- [`epok::CharacterBody2DComponent::last_collision_is_tile`](#epok-characterbody2dcomponent-last-collision-is-tile-1) — Whether the last collision was a tile of a TileMapLayer (last_collision_actor is its actor).
 - [`epok::CharacterBody2DComponent::last_motion_x`](#epok-characterbody2dcomponent-last-motion-x-1) — Performs `last motion x` as part of the world2d components module.
 - [`epok::CharacterBody2DComponent::last_motion_y`](#epok-characterbody2dcomponent-last-motion-y-1) — Performs `last motion y` as part of the world2d components module.
+- [`epok::CharacterBody2DComponent::last_tile_x`](#epok-characterbody2dcomponent-last-tile-x-1) — Cell column / row of that tile.
+- [`epok::CharacterBody2DComponent::last_tile_y`](#epok-characterbody2dcomponent-last-tile-y-1) — Performs `last tile y` as part of the world2d components module.
 - [`epok::CharacterBody2DComponent::level_attached`](#epok-characterbody2dcomponent-level-attached-1) — Performs `level attached` as part of the world2d components module.
 - [`epok::CharacterBody2DComponent::move_and_collide`](#epok-characterbody2dcomponent-move-and-collide-1) — Moves by an explicit displacement (pixels) and stops at the first obstacle.
 - [`epok::CharacterBody2DComponent::move_and_slide`](#epok-characterbody2dcomponent-move-and-slide-1) — Moves by velocity * step, slides along what it hits, zeroes the velocity components pushing into the obstacle and refreshes the floor/wall/ceiling state.
@@ -101,7 +104,7 @@ This module covers the world2d components module. It documents 78 public callabl
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 244](../../../runtime/world2d_components.hpp#L244)
+- **Declared at:** [line 248](../../../runtime/world2d_components.hpp#L248)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -134,7 +137,7 @@ auto result = object.class_id();
 void clear_limits()
 ```
 
-- **Declared at:** [line 284](../../../runtime/world2d_components.hpp#L284)
+- **Declared at:** [line 288](../../../runtime/world2d_components.hpp#L288)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -167,7 +170,7 @@ object.clear_limits();
 void follow(const Fixed* target, Fixed dt)
 ```
 
-- **Declared at:** [line 296](../../../runtime/world2d_components.hpp#L296)
+- **Declared at:** [line 300](../../../runtime/world2d_components.hpp#L300)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -211,7 +214,7 @@ object.follow(target, dt);
 Fixed get_zoom() const
 ```
 
-- **Declared at:** [line 278](../../../runtime/world2d_components.hpp#L278)
+- **Declared at:** [line 282](../../../runtime/world2d_components.hpp#L282)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -244,7 +247,7 @@ auto result = object.get_zoom();
 bool is_current() const
 ```
 
-- **Declared at:** [line 274](../../../runtime/world2d_components.hpp#L274)
+- **Declared at:** [line 278](../../../runtime/world2d_components.hpp#L278)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -277,7 +280,7 @@ auto result = object.is_current();
 void level_attached() override
 ```
 
-- **Declared at:** [line 245](../../../runtime/world2d_components.hpp#L245)
+- **Declared at:** [line 249](../../../runtime/world2d_components.hpp#L249)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -310,7 +313,7 @@ object.level_attached();
 void make_current()
 ```
 
-- **Declared at:** [line 271](../../../runtime/world2d_components.hpp#L271)
+- **Declared at:** [line 275](../../../runtime/world2d_components.hpp#L275)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -343,7 +346,7 @@ object.make_current();
 void reset_smoothing()
 ```
 
-- **Declared at:** [line 291](../../../runtime/world2d_components.hpp#L291)
+- **Declared at:** [line 295](../../../runtime/world2d_components.hpp#L295)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -376,7 +379,7 @@ object.reset_smoothing();
 Fixed screen_center_x() const
 ```
 
-- **Declared at:** [line 292](../../../runtime/world2d_components.hpp#L292)
+- **Declared at:** [line 296](../../../runtime/world2d_components.hpp#L296)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -409,7 +412,7 @@ auto result = object.screen_center_x();
 Fixed screen_center_y() const
 ```
 
-- **Declared at:** [line 293](../../../runtime/world2d_components.hpp#L293)
+- **Declared at:** [line 297](../../../runtime/world2d_components.hpp#L297)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -442,7 +445,7 @@ auto result = object.screen_center_y();
 void set_limits(Fixed left, Fixed top, Fixed right, Fixed bottom)
 ```
 
-- **Declared at:** [line 280](../../../runtime/world2d_components.hpp#L280)
+- **Declared at:** [line 284](../../../runtime/world2d_components.hpp#L284)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -490,7 +493,7 @@ object.set_limits(left, top, right, bottom);
 void set_offset(Fixed x, Fixed y)
 ```
 
-- **Declared at:** [line 279](../../../runtime/world2d_components.hpp#L279)
+- **Declared at:** [line 283](../../../runtime/world2d_components.hpp#L283)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -534,7 +537,7 @@ object.set_offset(x, y);
 void set_zoom(Fixed value)
 ```
 
-- **Declared at:** [line 275](../../../runtime/world2d_components.hpp#L275)
+- **Declared at:** [line 279](../../../runtime/world2d_components.hpp#L279)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -576,7 +579,7 @@ object.set_zoom(value);
 void shake(Fixed amplitude, Fixed seconds)
 ```
 
-- **Declared at:** [line 286](../../../runtime/world2d_components.hpp#L286)
+- **Declared at:** [line 290](../../../runtime/world2d_components.hpp#L290)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -620,7 +623,7 @@ object.shake(amplitude, seconds);
 Camera2D view()
 ```
 
-- **Declared at:** [line 329](../../../runtime/world2d_components.hpp#L329)
+- **Declared at:** [line 333](../../../runtime/world2d_components.hpp#L333)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Camera2D`. Check the purpose and failure notes before using the value.
@@ -653,7 +656,7 @@ auto result = object.view();
 ~Camera2DComponent() override
 ```
 
-- **Declared at:** [line 246](../../../runtime/world2d_components.hpp#L246)
+- **Declared at:** [line 250](../../../runtime/world2d_components.hpp#L250)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d components module and the preconditions in the declaration are already satisfied.
@@ -682,7 +685,7 @@ auto result = object.view();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 394](../../../runtime/world2d_components.hpp#L394)
+- **Declared at:** [line 398](../../../runtime/world2d_components.hpp#L398)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -715,7 +718,7 @@ auto result = object.class_id();
 bool is_on_ceiling() const
 ```
 
-- **Declared at:** [line 416](../../../runtime/world2d_components.hpp#L416)
+- **Declared at:** [line 423](../../../runtime/world2d_components.hpp#L423)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -748,7 +751,7 @@ auto result = object.is_on_ceiling();
 bool is_on_floor() const
 ```
 
-- **Declared at:** [line 414](../../../runtime/world2d_components.hpp#L414)
+- **Declared at:** [line 421](../../../runtime/world2d_components.hpp#L421)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -781,7 +784,7 @@ auto result = object.is_on_floor();
 bool is_on_wall() const
 ```
 
-- **Declared at:** [line 415](../../../runtime/world2d_components.hpp#L415)
+- **Declared at:** [line 422](../../../runtime/world2d_components.hpp#L422)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -814,7 +817,7 @@ auto result = object.is_on_wall();
 ObjectId last_collision_actor() const
 ```
 
-- **Declared at:** [line 417](../../../runtime/world2d_components.hpp#L417)
+- **Declared at:** [line 424](../../../runtime/world2d_components.hpp#L424)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
@@ -835,6 +838,39 @@ auto result = object.last_collision_actor();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-characterbody2dcomponent-last-collision-is-tile-1"></a>
+
+## `epok::CharacterBody2DComponent::last_collision_is_tile`
+
+**Purpose.** Whether the last collision was a tile of a TileMapLayer (last_collision_actor is its actor).
+
+**Exact declaration**
+
+```cpp
+bool last_collision_is_tile() const
+```
+
+- **Declared at:** [line 428](../../../runtime/world2d_components.hpp#L428)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d components module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_components.hpp"
+
+epok::CharacterBody2DComponent& object = /* obtain a valid instance */;
+
+auto result = object.last_collision_is_tile();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
 <a id="epok-characterbody2dcomponent-last-motion-x-1"></a>
 
 ## `epok::CharacterBody2DComponent::last_motion_x`
@@ -847,7 +883,7 @@ auto result = object.last_collision_actor();
 Fixed last_motion_x() const
 ```
 
-- **Declared at:** [line 418](../../../runtime/world2d_components.hpp#L418)
+- **Declared at:** [line 425](../../../runtime/world2d_components.hpp#L425)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -880,7 +916,7 @@ auto result = object.last_motion_x();
 Fixed last_motion_y() const
 ```
 
-- **Declared at:** [line 419](../../../runtime/world2d_components.hpp#L419)
+- **Declared at:** [line 426](../../../runtime/world2d_components.hpp#L426)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -901,6 +937,72 @@ auto result = object.last_motion_y();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-characterbody2dcomponent-last-tile-x-1"></a>
+
+## `epok::CharacterBody2DComponent::last_tile_x`
+
+**Purpose.** Cell column / row of that tile.
+
+**Exact declaration**
+
+```cpp
+int32_t last_tile_x() const
+```
+
+- **Declared at:** [line 430](../../../runtime/world2d_components.hpp#L430)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d components module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_components.hpp"
+
+epok::CharacterBody2DComponent& object = /* obtain a valid instance */;
+
+auto result = object.last_tile_x();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-characterbody2dcomponent-last-tile-y-1"></a>
+
+## `epok::CharacterBody2DComponent::last_tile_y`
+
+**Purpose.** Performs `last tile y` as part of the world2d components module.
+
+**Exact declaration**
+
+```cpp
+int32_t last_tile_y() const
+```
+
+- **Declared at:** [line 431](../../../runtime/world2d_components.hpp#L431)
+- **Kind:** `cxx method`; qualifiers: `const`
+
+**Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d components module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_components.hpp"
+
+epok::CharacterBody2DComponent& object = /* obtain a valid instance */;
+
+auto result = object.last_tile_y();
+```
+
+**Why choose it.** The method is `const`, so it does not mutate the object through this API surface.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-characterbody2dcomponent-level-attached-1"></a>
 
 ## `epok::CharacterBody2DComponent::level_attached`
@@ -913,7 +1015,7 @@ auto result = object.last_motion_y();
 void level_attached() override
 ```
 
-- **Declared at:** [line 395](../../../runtime/world2d_components.hpp#L395)
+- **Declared at:** [line 399](../../../runtime/world2d_components.hpp#L399)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -946,7 +1048,7 @@ object.level_attached();
 bool move_and_collide(Fixed dx, Fixed dy)
 ```
 
-- **Declared at:** [line 452](../../../runtime/world2d_components.hpp#L452)
+- **Declared at:** [line 464](../../../runtime/world2d_components.hpp#L464)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -992,7 +1094,7 @@ auto result = object.move_and_collide(dx, dy);
 bool move_and_slide()
 ```
 
-- **Declared at:** [line 424](../../../runtime/world2d_components.hpp#L424)
+- **Declared at:** [line 436](../../../runtime/world2d_components.hpp#L436)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1025,7 +1127,7 @@ auto result = object.move_and_slide();
 void set_velocity(Fixed x, Fixed y)
 ```
 
-- **Declared at:** [line 411](../../../runtime/world2d_components.hpp#L411)
+- **Declared at:** [line 418](../../../runtime/world2d_components.hpp#L418)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1069,7 +1171,7 @@ object.set_velocity(x, y);
 Fixed velocity_x() const
 ```
 
-- **Declared at:** [line 412](../../../runtime/world2d_components.hpp#L412)
+- **Declared at:** [line 419](../../../runtime/world2d_components.hpp#L419)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -1102,7 +1204,7 @@ auto result = object.velocity_x();
 Fixed velocity_y() const
 ```
 
-- **Declared at:** [line 413](../../../runtime/world2d_components.hpp#L413)
+- **Declared at:** [line 420](../../../runtime/world2d_components.hpp#L420)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -1135,7 +1237,7 @@ auto result = object.velocity_y();
 ~CharacterBody2DComponent() override
 ```
 
-- **Declared at:** [line 396](../../../runtime/world2d_components.hpp#L396)
+- **Declared at:** [line 400](../../../runtime/world2d_components.hpp#L400)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d components module and the preconditions in the declaration are already satisfied.
@@ -1164,7 +1266,7 @@ auto result = object.velocity_y();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 356](../../../runtime/world2d_components.hpp#L356)
+- **Declared at:** [line 360](../../../runtime/world2d_components.hpp#L360)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -1197,7 +1299,7 @@ auto result = object.class_id();
 uint32_t collision_layer() const
 ```
 
-- **Declared at:** [line 370](../../../runtime/world2d_components.hpp#L370)
+- **Declared at:** [line 374](../../../runtime/world2d_components.hpp#L374)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -1230,7 +1332,7 @@ auto result = object.collision_layer();
 uint32_t collision_mask() const
 ```
 
-- **Declared at:** [line 371](../../../runtime/world2d_components.hpp#L371)
+- **Declared at:** [line 375](../../../runtime/world2d_components.hpp#L375)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -1263,7 +1365,7 @@ auto result = object.collision_mask();
 bool is_enabled() const
 ```
 
-- **Declared at:** [line 366](../../../runtime/world2d_components.hpp#L366)
+- **Declared at:** [line 370](../../../runtime/world2d_components.hpp#L370)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1296,7 +1398,7 @@ auto result = object.is_enabled();
 bool is_trigger() const
 ```
 
-- **Declared at:** [line 367](../../../runtime/world2d_components.hpp#L367)
+- **Declared at:** [line 371](../../../runtime/world2d_components.hpp#L371)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1329,7 +1431,7 @@ auto result = object.is_trigger();
 void level_attached() override
 ```
 
-- **Declared at:** [line 357](../../../runtime/world2d_components.hpp#L357)
+- **Declared at:** [line 361](../../../runtime/world2d_components.hpp#L361)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1362,7 +1464,7 @@ object.level_attached();
 void set_box_size(Fixed width, Fixed height)
 ```
 
-- **Declared at:** [line 373](../../../runtime/world2d_components.hpp#L373)
+- **Declared at:** [line 377](../../../runtime/world2d_components.hpp#L377)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1406,7 +1508,7 @@ object.set_box_size(width, height);
 void set_circle_radius(Fixed radius)
 ```
 
-- **Declared at:** [line 378](../../../runtime/world2d_components.hpp#L378)
+- **Declared at:** [line 382](../../../runtime/world2d_components.hpp#L382)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1448,7 +1550,7 @@ object.set_circle_radius(radius);
 void set_collision_layer(uint32_t value)
 ```
 
-- **Declared at:** [line 368](../../../runtime/world2d_components.hpp#L368)
+- **Declared at:** [line 372](../../../runtime/world2d_components.hpp#L372)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1490,7 +1592,7 @@ object.set_collision_layer(value);
 void set_collision_mask(uint32_t value)
 ```
 
-- **Declared at:** [line 369](../../../runtime/world2d_components.hpp#L369)
+- **Declared at:** [line 373](../../../runtime/world2d_components.hpp#L373)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1532,7 +1634,7 @@ object.set_collision_mask(value);
 void set_enabled(bool value)
 ```
 
-- **Declared at:** [line 365](../../../runtime/world2d_components.hpp#L365)
+- **Declared at:** [line 369](../../../runtime/world2d_components.hpp#L369)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1574,7 +1676,7 @@ object.set_enabled(value);
 ~Collider2DComponent() override
 ```
 
-- **Declared at:** [line 358](../../../runtime/world2d_components.hpp#L358)
+- **Declared at:** [line 362](../../../runtime/world2d_components.hpp#L362)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d components module and the preconditions in the declaration are already satisfied.
@@ -1605,7 +1707,7 @@ object.set_enabled(value);
 void advance(Fixed dt)
 ```
 
-- **Declared at:** [line 192](../../../runtime/world2d_components.hpp#L192)
+- **Declared at:** [line 196](../../../runtime/world2d_components.hpp#L196)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1647,7 +1749,7 @@ object.advance(dt);
 uint32_t animation_count() const
 ```
 
-- **Declared at:** [line 153](../../../runtime/world2d_components.hpp#L153)
+- **Declared at:** [line 157](../../../runtime/world2d_components.hpp#L157)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -1680,7 +1782,7 @@ auto result = object.animation_count();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 121](../../../runtime/world2d_components.hpp#L121)
+- **Declared at:** [line 125](../../../runtime/world2d_components.hpp#L125)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -1713,7 +1815,7 @@ auto result = object.class_id();
 uint32_t current_animation() const
 ```
 
-- **Declared at:** [line 152](../../../runtime/world2d_components.hpp#L152)
+- **Declared at:** [line 156](../../../runtime/world2d_components.hpp#L156)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -1746,7 +1848,7 @@ auto result = object.current_animation();
 uint32_t current_frame() const
 ```
 
-- **Declared at:** [line 154](../../../runtime/world2d_components.hpp#L154)
+- **Declared at:** [line 158](../../../runtime/world2d_components.hpp#L158)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -1779,7 +1881,7 @@ auto result = object.current_frame();
 bool is_flipped_h() const
 ```
 
-- **Declared at:** [line 167](../../../runtime/world2d_components.hpp#L167)
+- **Declared at:** [line 171](../../../runtime/world2d_components.hpp#L171)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1812,7 +1914,7 @@ auto result = object.is_flipped_h();
 bool is_playing() const
 ```
 
-- **Declared at:** [line 151](../../../runtime/world2d_components.hpp#L151)
+- **Declared at:** [line 155](../../../runtime/world2d_components.hpp#L155)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1845,7 +1947,7 @@ auto result = object.is_playing();
 bool is_visible() const
 ```
 
-- **Declared at:** [line 169](../../../runtime/world2d_components.hpp#L169)
+- **Declared at:** [line 173](../../../runtime/world2d_components.hpp#L173)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1878,7 +1980,7 @@ auto result = object.is_visible();
 void level_attached() override
 ```
 
-- **Declared at:** [line 122](../../../runtime/world2d_components.hpp#L122)
+- **Declared at:** [line 126](../../../runtime/world2d_components.hpp#L126)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1911,7 +2013,7 @@ object.level_attached();
 void pause()
 ```
 
-- **Declared at:** [line 150](../../../runtime/world2d_components.hpp#L150)
+- **Declared at:** [line 154](../../../runtime/world2d_components.hpp#L154)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1944,7 +2046,7 @@ object.pause();
 void play(uint32_t clip)
 ```
 
-- **Declared at:** [line 142](../../../runtime/world2d_components.hpp#L142)
+- **Declared at:** [line 146](../../../runtime/world2d_components.hpp#L146)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1986,7 +2088,7 @@ object.play(clip);
 bool play_named(const char* name)
 ```
 
-- **Declared at:** [line 182](../../../runtime/world2d_components.hpp#L182)
+- **Declared at:** [line 186](../../../runtime/world2d_components.hpp#L186)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2028,7 +2130,7 @@ auto result = object.play_named(name);
 void set_flip_h(bool value)
 ```
 
-- **Declared at:** [line 165](../../../runtime/world2d_components.hpp#L165)
+- **Declared at:** [line 169](../../../runtime/world2d_components.hpp#L169)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2070,7 +2172,7 @@ object.set_flip_h(value);
 void set_flip_v(bool value)
 ```
 
-- **Declared at:** [line 166](../../../runtime/world2d_components.hpp#L166)
+- **Declared at:** [line 170](../../../runtime/world2d_components.hpp#L170)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2112,7 +2214,7 @@ object.set_flip_v(value);
 void set_frame(uint32_t value)
 ```
 
-- **Declared at:** [line 155](../../../runtime/world2d_components.hpp#L155)
+- **Declared at:** [line 159](../../../runtime/world2d_components.hpp#L159)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2154,7 +2256,7 @@ object.set_frame(value);
 void set_modulate(uint32_t red, uint32_t green, uint32_t blue)
 ```
 
-- **Declared at:** [line 170](../../../runtime/world2d_components.hpp#L170)
+- **Declared at:** [line 174](../../../runtime/world2d_components.hpp#L174)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2200,7 +2302,7 @@ object.set_modulate(red, green, blue);
 void set_speed_scale(Fixed value)
 ```
 
-- **Declared at:** [line 164](../../../runtime/world2d_components.hpp#L164)
+- **Declared at:** [line 168](../../../runtime/world2d_components.hpp#L168)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2242,7 +2344,7 @@ object.set_speed_scale(value);
 void set_texture_region(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 ```
 
-- **Declared at:** [line 178](../../../runtime/world2d_components.hpp#L178)
+- **Declared at:** [line 182](../../../runtime/world2d_components.hpp#L182)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2290,7 +2392,7 @@ object.set_texture_region(x, y, width, height);
 void set_visible(bool value)
 ```
 
-- **Declared at:** [line 168](../../../runtime/world2d_components.hpp#L168)
+- **Declared at:** [line 172](../../../runtime/world2d_components.hpp#L172)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2332,7 +2434,7 @@ object.set_visible(value);
 void set_z_index(int32_t value)
 ```
 
-- **Declared at:** [line 175](../../../runtime/world2d_components.hpp#L175)
+- **Declared at:** [line 179](../../../runtime/world2d_components.hpp#L179)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2376,7 +2478,7 @@ object.set_z_index(value);
 bool source_rect(uint16_t texture_width, uint16_t texture_height, uint16_t* out) const
 ```
 
-- **Declared at:** [line 211](../../../runtime/world2d_components.hpp#L211)
+- **Declared at:** [line 215](../../../runtime/world2d_components.hpp#L215)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -2422,7 +2524,7 @@ auto result = object.source_rect(texture_width, texture_height, out);
 void stop()
 ```
 
-- **Declared at:** [line 149](../../../runtime/world2d_components.hpp#L149)
+- **Declared at:** [line 153](../../../runtime/world2d_components.hpp#L153)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2455,7 +2557,7 @@ object.stop();
 bool take_animation_finished()
 ```
 
-- **Declared at:** [line 161](../../../runtime/world2d_components.hpp#L161)
+- **Declared at:** [line 165](../../../runtime/world2d_components.hpp#L165)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2488,7 +2590,7 @@ auto result = object.take_animation_finished();
 uint32_t take_frame_event()
 ```
 
-- **Declared at:** [line 163](../../../runtime/world2d_components.hpp#L163)
+- **Declared at:** [line 167](../../../runtime/world2d_components.hpp#L167)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -2521,7 +2623,7 @@ auto result = object.take_frame_event();
 ~Sprite2DComponent() override
 ```
 
-- **Declared at:** [line 123](../../../runtime/world2d_components.hpp#L123)
+- **Declared at:** [line 127](../../../runtime/world2d_components.hpp#L127)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d components module and the preconditions in the declaration are already satisfied.
@@ -2552,7 +2654,7 @@ auto result = object.take_frame_event();
 template<class T> T* find(Actor* actor)
 ```
 
-- **Declared at:** [line 100](../../../runtime/world2d_components.hpp#L100)
+- **Declared at:** [line 104](../../../runtime/world2d_components.hpp#L104)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -2597,7 +2699,7 @@ auto result = object.find<T>(actor);
 Link() = default
 ```
 
-- **Declared at:** [line 38](../../../runtime/world2d_components.hpp#L38)
+- **Declared at:** [line 39](../../../runtime/world2d_components.hpp#L39)
 - **Kind:** `constructor`
 
 **Use it when.** You need the world2d components module and the preconditions in the declaration are already satisfied.
@@ -2626,7 +2728,7 @@ epok::world2d::Link value();
 Link(const Link&)
 ```
 
-- **Declared at:** [line 39](../../../runtime/world2d_components.hpp#L39)
+- **Declared at:** [line 40](../../../runtime/world2d_components.hpp#L40)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -2664,7 +2766,7 @@ epok::world2d::Link value(arg1);
 Link& operator=(const Link&)
 ```
 
-- **Declared at:** [line 40](../../../runtime/world2d_components.hpp#L40)
+- **Declared at:** [line 41](../../../runtime/world2d_components.hpp#L41)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2706,7 +2808,7 @@ auto result = object.operator=(arg1);
 void add(T* item)
 ```
 
-- **Declared at:** [line 46](../../../runtime/world2d_components.hpp#L46)
+- **Declared at:** [line 47](../../../runtime/world2d_components.hpp#L47)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2748,7 +2850,7 @@ object.add(item);
 template<class F> void each(F&& visit) const
 ```
 
-- **Declared at:** [line 69](../../../runtime/world2d_components.hpp#L69)
+- **Declared at:** [line 70](../../../runtime/world2d_components.hpp#L70)
 - **Kind:** `function template`; qualifiers: `const, template`
 
 **Parameters**
@@ -2793,7 +2895,7 @@ object.each<F>(visit);
 void remove(T* item)
 ```
 
-- **Declared at:** [line 57](../../../runtime/world2d_components.hpp#L57)
+- **Declared at:** [line 58](../../../runtime/world2d_components.hpp#L58)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2835,7 +2937,7 @@ object.remove(item);
 inline const SceneComponent2D* resolve_scene2d(ObjectId id)
 ```
 
-- **Declared at:** [line 89](../../../runtime/world2d_components.hpp#L89)
+- **Declared at:** [line 93](../../../runtime/world2d_components.hpp#L93)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2875,7 +2977,7 @@ auto result = epok::world2d::resolve_scene2d(id);
 inline SceneComponent2D* root_of(ActorComponent& component)
 ```
 
-- **Declared at:** [line 84](../../../runtime/world2d_components.hpp#L84)
+- **Declared at:** [line 88](../../../runtime/world2d_components.hpp#L88)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2915,7 +3017,7 @@ auto result = epok::world2d::root_of(component);
 inline Fixed step_seconds()
 ```
 
-- **Declared at:** [line 97](../../../runtime/world2d_components.hpp#L97)
+- **Declared at:** [line 101](../../../runtime/world2d_components.hpp#L101)
 - **Kind:** `function decl`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -2946,7 +3048,7 @@ auto result = epok::world2d::step_seconds();
 inline bool world_of(ActorComponent& component, Affine2D& out)
 ```
 
-- **Declared at:** [line 93](../../../runtime/world2d_components.hpp#L93)
+- **Declared at:** [line 97](../../../runtime/world2d_components.hpp#L97)
 - **Kind:** `function decl`
 
 **Parameters**

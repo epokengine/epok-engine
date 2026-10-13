@@ -2,7 +2,7 @@
 
 > **Header:** `"world2d.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/world2d.hpp)
 
-This module covers the world2d module. It documents 48 public callables declared directly in this header.
+This module covers the world2d module. It documents 49 public callables declared directly in this header.
 
 ## Declared types
 
@@ -36,6 +36,7 @@ This module covers the world2d module. It documents 48 public callables declared
 - [`epok::CollisionWorld2D::position`](#epok-collisionworld2d-position-1) — Performs `position` as part of the world2d module.
 - [`epok::CollisionWorld2D::raycast2d`](#epok-collisionworld2d-raycast2d-1) — `displacement` is the complete segment, not a unit direction.
 - [`epok::CollisionWorld2D::set`](#epok-collisionworld2d-set-1) — Sets set as part of the world2d module.
+- [`epok::CollisionWorld2D::shrink`](#epok-collisionworld2d-shrink-1) — Drops trailing disabled slots from the scanned range after a burst of temporary entries, so later queries do not walk them.
 - [`epok::CollisionWorld2D::sync`](#epok-collisionworld2d-sync-1) — Replaces the whole live set in one call; slots beyond `count` become disabled and therefore produce trigger exits on the next update_triggers().
 - [`epok::CollisionWorld2D::update_triggers`](#epok-collisionworld2d-update-triggers-1) — Enter/Stay/Exit per pair, exactly once each, using the exact shape tests.
 - [`epok::compose`](#epok-compose-1) — parent * child: the child's local matrix expressed in the parent's space.
@@ -668,7 +669,7 @@ auto result = epok::collider2d_overlap(a, world_a, b, world_b, inclusive);
 const Aabb2D* bounds(size_t index) const
 ```
 
-- **Declared at:** [line 520](../../../runtime/world2d.hpp#L520)
+- **Declared at:** [line 525](../../../runtime/world2d.hpp#L525)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -710,7 +711,7 @@ auto result = object.bounds(index);
 static constexpr size_t capacity()
 ```
 
-- **Declared at:** [line 530](../../../runtime/world2d.hpp#L530)
+- **Declared at:** [line 535](../../../runtime/world2d.hpp#L535)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -774,7 +775,7 @@ object.clear();
 const Collider2D* collider(size_t index) const
 ```
 
-- **Declared at:** [line 526](../../../runtime/world2d.hpp#L526)
+- **Declared at:** [line 531](../../../runtime/world2d.hpp#L531)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -858,7 +859,7 @@ object.disable(index);
 uint32_t generation(size_t index) const
 ```
 
-- **Declared at:** [line 529](../../../runtime/world2d.hpp#L529)
+- **Declared at:** [line 534](../../../runtime/world2d.hpp#L534)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -900,7 +901,7 @@ auto result = object.generation(index);
 size_t live() const
 ```
 
-- **Declared at:** [line 514](../../../runtime/world2d.hpp#L514)
+- **Declared at:** [line 519](../../../runtime/world2d.hpp#L519)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -935,7 +936,7 @@ auto result = object.live();
 MoveResult2D move_and_slide_2d(size_t index, const Fixed* displacement, uint32_t mask = 0xffffffffu)
 ```
 
-- **Declared at:** [line 575](../../../runtime/world2d.hpp#L575)
+- **Declared at:** [line 580](../../../runtime/world2d.hpp#L580)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -983,7 +984,7 @@ auto result = object.move_and_slide_2d(index, displacement, mask);
 size_t overlap(const Aabb2D& box, uint16_t* output, size_t output_capacity, uint32_t mask = 0xffffffffu, int ignore = -1, bool triggers = true) const
 ```
 
-- **Declared at:** [line 533](../../../runtime/world2d.hpp#L533)
+- **Declared at:** [line 538](../../../runtime/world2d.hpp#L538)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1035,7 +1036,7 @@ auto result = object.overlap(box, output, output_capacity, mask, ignore, trigger
 const Fixed* position(size_t index) const
 ```
 
-- **Declared at:** [line 523](../../../runtime/world2d.hpp#L523)
+- **Declared at:** [line 528](../../../runtime/world2d.hpp#L528)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1079,7 +1080,7 @@ auto result = object.position(index);
 SpatialHit2D raycast2d(const Fixed* origin, const Fixed* displacement, uint32_t mask = 0xffffffffu, int ignore = -1, bool triggers = false) const
 ```
 
-- **Declared at:** [line 545](../../../runtime/world2d.hpp#L545)
+- **Declared at:** [line 550](../../../runtime/world2d.hpp#L550)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1161,6 +1162,39 @@ object.set(index, value);
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-collisionworld2d-shrink-1"></a>
+
+## `epok::CollisionWorld2D::shrink`
+
+**Purpose.** Drops trailing disabled slots from the scanned range after a burst of temporary entries, so later queries do not walk them.
+
+**Exact declaration**
+
+```cpp
+void shrink()
+```
+
+- **Declared at:** [line 516](../../../runtime/world2d.hpp#L516)
+- **Kind:** `cxx method`
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the world2d module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d.hpp"
+
+epok::CollisionWorld2D& object = /* obtain a valid instance */;
+
+object.shrink();
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-collisionworld2d-sync-1"></a>
 
 ## `epok::CollisionWorld2D::sync`
@@ -1219,7 +1253,7 @@ object.sync(list, count);
 template <class Callback> void update_triggers(Callback&& callback)
 ```
 
-- **Declared at:** [line 630](../../../runtime/world2d.hpp#L630)
+- **Declared at:** [line 635](../../../runtime/world2d.hpp#L635)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1711,7 +1745,7 @@ auto result = epok::local_matrix(transform);
 inline bool pick_2d(const Camera2D& camera, const Fixed* screen_xy, const Pick2DEntry* entries, size_t count, size_t& out_index)
 ```
 
-- **Declared at:** [line 695](../../../runtime/world2d.hpp#L695)
+- **Declared at:** [line 700](../../../runtime/world2d.hpp#L700)
 - **Kind:** `function decl`
 
 **Parameters**

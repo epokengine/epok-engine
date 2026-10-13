@@ -303,9 +303,9 @@ See the complete [Timeline reference](timelines.md) and the
 ## 2D worlds
 
 - **2D nodes.** `Actor2D` actors with a pixel-based, Y-down 2D transform carry engine
-  Sprite2D, Collider2D, CharacterBody2D and Camera2D components, plus any C++,
-  Blueprint or Lua component. Ready-made Node2D, Sprite2D, AnimatedSprite2D, Camera2D,
-  CharacterBody2D, StaticBody2D and Area2D presets create them in one click.
+  Sprite2D, TileMapLayer, Collider2D, CharacterBody2D, Camera2D, Parallax2D,
+  CanvasLayer2D and CanvasModulate2D components, plus any C++, Blueprint or Lua
+  component. Ready-made presets create each kind of node in one click.
 - **Sprites and animation.** Texture regions, sprite-sheet cells, offset, centring,
   flips, modulate, the console blend modes, z-index and y-sort; named frame
   animations with speed, looping, autoplay, per-frame durations and events.
@@ -315,15 +315,29 @@ See the complete [Timeline reference](timelines.md) and the
   its components; `raycast_2d` and `overlap_box_2d` queries.
 - **Camera2D.** Follow with drag margins, limits, smoothing, offset, zoom, rotation,
   shake and the background colour the game clears to.
+- **Tile maps.** TileSet assets cut a texture into tiles with full, partial or one-way
+  collision, animation, probabilities, custom data and saved patterns; terrain sets
+  (corners and sides, sides or corners) autotile as you paint. TileMapLayers cook only
+  their used 16 x 16-cell chunks, collide with bodies, rays and overlap queries, and
+  can be read and changed at runtime (`set_cell`, `get_cell_custom_data`, ...).
+- **Parallax and canvas layers.** Parallax2D scrolls attached nodes against the camera
+  with autoscroll and screen-filling repeats; CanvasLayer2D draws nodes on their own
+  layer in screen pixels or world space; CanvasModulate2D tints a whole canvas.
 - **Native renderer.** Exact-texel hardware rectangles for unscaled sprites and
-  textured quads otherwise, sorted by a stable radix key, drawn over the 3D world and
-  under the HUD from a cooked, per-project packet budget; Native PC Play draws the same
-  frame. Projects without 2D content compile none of it.
+  tiles (fixed-size 8 x 8 and 16 x 16 rectangles for tiles) and textured quads
+  otherwise, sorted by canvas and a stable radix key, drawn over the 3D world and under
+  the HUD from a cooked, per-project packet budget; Native PC Play draws the same frame.
+  Projects without 2D content compile none of it.
 - **2D editor.** Select, move, rotate, scale and pan tools with shortcuts, grid and
   rotation snapping, pixel rulers, real texture and animation previews, collider and
   camera gizmos, drag-and-drop sprite creation, a sprite region editor and a
   sprite-sheet frame slicer, and a visual 2D Inspector.
-- **Platformer 2D template.** A playable side-scroller in C++, Blueprint or Lua.
+- **Tile editing.** Paint, line, rectangle, bucket fill, picker, eraser and selection
+  tools with random scatter, flips and quarter turns; a palette with tiles, patterns
+  and terrains under the view; a TileSet editor for collision, terrains, animation and
+  custom data with its own undo.
+- **Platformer 2D template.** A playable side-scroller in C++, Blueprint or Lua, built
+  from tile layers, parallax backgrounds and a screen-space HUD canvas.
 
 See [2D worlds](2d.md).
 

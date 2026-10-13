@@ -1550,5 +1550,16 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf6fc, 0xf6fc, // mountain: sharp falloff
     0xf773, 0xf773, // water: smooth
     0xe2ca, 0xe2ca, // wand-magic-sparkles: fit to sprite / scene
+    0xf0c8, 0xf0c8, // square: tile rectangle tool
+    0xf125, 0xf125, // crop: tile selection tool
+    0xf12d, 0xf12d, // eraser: tile eraser
+    0xf1fb, 0xf1fb, // eyedropper: tile picker
+    0xf247, 0xf247, // object-group: tile patterns
+    0xf302, 0xf302, // images: Parallax2D
+    0xf304, 0xf304, // pen: edit TileSet
+    0xf53f, 0xf53f, // palette: CanvasModulate2D
+    0xf576, 0xf576, // fill-drip: tile bucket fill
+    0xf715, 0xf715, // slash: tile line tool
+    0xf84c, 0xf84c, // border-all: TileMapLayer
     0,
 ];

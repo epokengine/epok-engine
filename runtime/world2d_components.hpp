@@ -27,6 +27,7 @@ class Sprite2DComponent;
 class Camera2DComponent;
 class Collider2DComponent;
 class CharacterBody2DComponent;
+class TileMapLayerComponent;
 
 namespace world2d {
 // Intrusive list link. Copying a component (bank reset assigns default state) never
@@ -79,6 +80,9 @@ inline List<Camera2DComponent> cameras;
 inline List<Collider2DComponent> colliders;
 inline List<CharacterBody2DComponent> bodies;
 
+// The tile map cell behind a collision index, installed by the service when tile maps
+// collide: false when `index` is an ordinary collider.
+inline bool (*tile_cell_at)(int index, int32_t& x, int32_t& y) = nullptr;
 
 // The root SceneComponent2D of a component's owner, or null.
 inline SceneComponent2D* root_of(ActorComponent& component) {
@@ -407,6 +411,9 @@ public:
     bool on_floor = false, on_wall = false, on_ceiling = false;
     Fixed last_motion[2] = {0.0, 0.0};
     ObjectId last_collider;
+    // Cell of the last tile hit, when the last collision was a TileMapLayer.
+    int32_t last_tile[2] = {0, 0};
+    bool last_hit_tile = false;
 
     EPOK_FUNCTION(BlueprintCallable, Id="8cbd83fc-9005-4378-b295-17b7db2423c2") void set_velocity(Fixed x, Fixed y) { velocity[0] = x; velocity[1] = y; }
     EPOK_FUNCTION(BlueprintPure, Id="d6100b9e-dd13-4083-a4eb-f8e71657d540") Fixed velocity_x() const { return velocity[0]; }
@@ -417,6 +424,11 @@ public:
     EPOK_FUNCTION(BlueprintPure, Id="69face40-226b-4f78-adb9-ed49e2531e2f") ObjectId last_collision_actor() const { return last_collider; }
     EPOK_FUNCTION(BlueprintPure, Id="c7262c81-371a-43f0-91d5-ab34543035b1") Fixed last_motion_x() const { return last_motion[0]; }
     EPOK_FUNCTION(BlueprintPure, Id="ea8cd1c9-186a-4add-98db-f2515356314c") Fixed last_motion_y() const { return last_motion[1]; }
+    // Whether the last collision was a tile of a TileMapLayer (last_collision_actor is its actor).
+    EPOK_FUNCTION(BlueprintPure, Id="2430b34e-f480-40ea-a461-33642fc4a076") bool last_collision_is_tile() const { return last_hit_tile; }
+    // Cell column / row of that tile.
+    EPOK_FUNCTION(BlueprintPure, Id="5901e1e6-c254-4a4f-a73d-82f57ef9758b") int32_t last_tile_x() const { return last_tile[0]; }
+    EPOK_FUNCTION(BlueprintPure, Id="319ef726-f36f-42fd-a4a9-a8b95aa208bb") int32_t last_tile_y() const { return last_tile[1]; }
 
     // Moves by velocity * step, slides along what it hits, zeroes the velocity components
     // pushing into the obstacle and refreshes the floor/wall/ceiling state. Returns whether
@@ -471,6 +483,7 @@ private:
             if (result.blocker[axis] < 0) continue;
             hit = true;
             if (world2d::hooks.hit_actor) last_collider = world2d::hooks.hit_actor(result.blocker[axis]);
+            last_hit_tile = world2d::tile_cell_at && world2d::tile_cell_at(result.blocker[axis], last_tile[0], last_tile[1]);
             const Fixed n[2] = {axis == 0 ? result.normal[0] : Fixed(0.0), axis == 1 ? result.normal[1] : Fixed(0.0)};
             const Fixed facing = n[0] * up_direction[0] + n[1] * up_direction[1];
             if (!floating && facing >= limit) on_floor = true;
@@ -483,3 +496,6 @@ private:
     }
 };
 }  // namespace epok
+
+// Tile maps, parallax and canvas layers build on the components above.
+#include "world2d_tiles.hpp"

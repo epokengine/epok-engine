@@ -1,6 +1,7 @@
 //! The Platformer 2D starter: a side-scrolling level built entirely from World2D
-//! nodes - an animated CharacterBody2D player with a following Camera2D, solid
-//! ground and crates, one-way platforms, spinning coins and decorative hills -
+//! nodes - an animated CharacterBody2D player with a following Camera2D, a tile map
+//! painted from a TileSet (autotiled ground, crates, one-way platforms, animated
+//! flowers), parallax hills and clouds, spinning coins and a screen-space coin icon -
 //! with its gameplay written in the selected flavor. The artwork is original pixel
 //! art generated here at creation time, so the template ships no binary files.
 use crate::{
@@ -8,11 +9,20 @@ use crate::{
     blueprint_asset::{BinaryOp, BlueprintAsset, Builtin, Graph, Input, Node, NodeKind, Variable},
     reflection_schema::{self as schema, Type},
     scene::{Actor, Scene},
+    tilemap::{Cell, Cells},
+    tileset::{self, PatternCell, TileSet},
     workspace::GameplayFlavor,
-    world2d::{self, Animation2D, Camera2D, Collider2D, Frame2D, Preset, Sprite2D},
+    world2d::{
+        self, Animation2D, Camera2D, CanvasLayer2D, Collider2D, Frame2D, Parallax2D, Preset,
+        Sprite2D, TileMapLayer,
+    },
 };
 use serde_json::json;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+    sync::Arc,
+};
 use uuid::Uuid;
 
 pub const CONTROLLER: &str = "PlatformerController";
@@ -30,6 +40,121 @@ const BLUEPRINT_COIN_PATH: &str = "assets/Blueprints/CoinPickup.epokbp";
 
 /// Ground top edge, in world pixels (Y down).
 const GROUND: f32 = 96.;
+/// The ground's first tile row (16-pixel tiles).
+const GROUND_ROW: i32 = 6;
+
+/// The template's TileSet: 16 ground tiles (one per combination of connected sides, a
+/// "Sides" terrain) on rows 0-1, then a 2 x 2 crate, a three-piece one-way platform,
+/// an animated flower and two plants.
+fn tileset(texture: Uuid) -> TileSet {
+    let mut set = TileSet {
+        texture: Some(texture),
+        terrain_sets: vec![tileset::TerrainSet {
+            name: "Ground".into(),
+            mode: tileset::TerrainMode::Sides,
+            terrains: vec![tileset::Terrain {
+                name: "Grass".into(),
+                color: [104, 198, 76],
+            }],
+        }],
+        ..Default::default()
+    };
+    for mask in 0u8..16 {
+        let mut tile = tileset::Tile::new([mask % 8, mask / 8]);
+        tile.collision = tileset::Collision::Full;
+        tile.terrain_set = Some(0);
+        tile.terrain = Some(0);
+        for side in 0..4 {
+            if mask & (1 << side) != 0 {
+                tile.peering[side * 2] = Some(0);
+            }
+        }
+        set.tiles.push(tile);
+    }
+    for atlas in [[0, 2], [1, 2], [0, 3], [1, 3]] {
+        let mut tile = tileset::Tile::new(atlas);
+        tile.collision = tileset::Collision::Full;
+        set.tiles.push(tile);
+    }
+    for column in 2..5 {
+        let mut tile = tileset::Tile::new([column, 2]);
+        tile.collision = tileset::Collision::Rect;
+        tile.rect = [0, 0, 16, 6];
+        tile.one_way = true;
+        set.tiles.push(tile);
+    }
+    let mut flower = tileset::Tile::new([5, 2]);
+    flower.frames = 2;
+    flower.fps = 3.;
+    set.tiles.push(flower);
+    set.tiles.push(tileset::Tile::new([2, 3]));
+    set.tiles.push(tileset::Tile::new([3, 3]));
+    set.patterns.push(tileset::Pattern {
+        name: "Crate".into(),
+        cells: [[0, 0], [1, 0], [0, 1], [1, 1]]
+            .map(|o| PatternCell {
+                offset: o,
+                atlas: [o[0], o[1] + 2],
+                flags: 0,
+            })
+            .to_vec(),
+    });
+    set.patterns.push(tileset::Pattern {
+        name: "Platform".into(),
+        cells: (0..3)
+            .map(|x| PatternCell {
+                offset: [x, 0],
+                atlas: [x + 2, 2],
+                flags: 0,
+            })
+            .collect(),
+    });
+    set.sort();
+    set
+}
+/// Paints the level: autotiled ground, crates and one-way platforms on the solid layer,
+/// plants on the decoration layer.
+fn paint_level(set: &TileSet) -> (Cells, Cells) {
+    let mut solid = Cells::new();
+    let ground: BTreeSet<[i32; 2]> = (-28..28)
+        .flat_map(|x| (GROUND_ROW..GROUND_ROW + 2).map(move |y| [x, y]))
+        .collect();
+    let terrain_of = |p: [i32; 2]| ground.contains(&p).then_some(0u8);
+    for (p, atlas) in tileset::solve(set, 0, &ground, &terrain_of) {
+        solid.insert(p, Cell::new(atlas));
+    }
+    let stamp = |cells: &mut Cells, pattern: usize, at: [i32; 2]| {
+        for c in &set.patterns[pattern].cells {
+            cells.insert(
+                [
+                    at[0] + i32::from(c.offset[0]),
+                    at[1] + i32::from(c.offset[1]),
+                ],
+                Cell::new(c.atlas),
+            );
+        }
+    };
+    for at in [[-28, 4], [-28, 2], [15, 4]] {
+        stamp(&mut solid, 0, at);
+    }
+    for at in [[-13, 2], [-2, 0], [8, -2], [20, 2]] {
+        stamp(&mut solid, 1, at);
+    }
+    let mut decor = Cells::new();
+    for (x, atlas) in [
+        (-22, [5, 2]),
+        (-19, [2, 3]),
+        (-9, [3, 3]),
+        (-5, [5, 2]),
+        (3, [2, 3]),
+        (11, [5, 2]),
+        (18, [3, 3]),
+        (24, [5, 2]),
+    ] {
+        decor.insert([x, GROUND_ROW - 1], Cell::new(atlas));
+    }
+    (solid, decor)
+}
 
 pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
     let art = art::install(root)?;
@@ -50,23 +175,42 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
         scene.actors.push(actor);
         id
     };
-    let decor = group(&mut scene, "Decor");
     let level = group(&mut scene, "Level");
     let collectibles = group(&mut scene, "Coins");
-    // Decoration first: drawn behind everything at z -10.
-    for (i, x) in [-384., -128., 128., 384.].into_iter().enumerate() {
-        let mut hills = world2d::create(Preset::Sprite2D, &format!("Hills{i}"), [x, GROUND - 32.]);
-        set(
-            &mut hills,
-            world2d::SPRITE2D,
-            &Sprite2D {
-                z_index: -10,
-                ..sprite(art.hills)
-            },
-        );
-        hills.logical_parent = Some(decor);
-        scene.actors.push(hills);
-    }
+    // Parallax backgrounds: hills scroll at half the camera's speed and repeat every
+    // 256 pixels; clouds drift slowly and repeat every 768.
+    let mut hills = world2d::create(Preset::Parallax2D, "Hills", [0., GROUND - 32.]);
+    set(
+        &mut hills,
+        world2d::PARALLAX2D,
+        &Parallax2D {
+            scroll_scale: [0.5, 1.],
+            repeat_size: [256., 0.],
+            ..Default::default()
+        },
+    );
+    add(
+        &mut hills,
+        world2d::SPRITE2D,
+        &Sprite2D {
+            z_index: -10,
+            ..sprite(art.hills)
+        },
+    );
+    scene.actors.push(hills);
+    let sky = world2d::create(Preset::Parallax2D, "Clouds", [0., 0.]);
+    let sky_id = sky.id;
+    scene.actors.push(sky);
+    let clouds = scene.actors.len() - 1;
+    set(
+        &mut scene.actors[clouds],
+        world2d::PARALLAX2D,
+        &Parallax2D {
+            scroll_scale: [0.25, 0.5],
+            repeat_size: [768., 0.],
+            autoscroll: [-6., 0.],
+        },
+    );
     for (i, [x, y]) in [[-300., -70.], [-40., -96.], [180., -60.], [400., -88.]]
         .into_iter()
         .enumerate()
@@ -80,67 +224,40 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
                 ..sprite(art.cloud)
             },
         );
-        cloud.logical_parent = Some(decor);
+        cloud.logical_parent = Some(sky_id);
+        cloud.attach = Some(crate::actor_document::Attachment {
+            actor: sky_id,
+            component: None,
+        });
         scene.actors.push(cloud);
     }
-    // Solid ground, seven 128-pixel strips from x = -448 to 448.
-    for i in 0..7 {
-        let x = -384. + 128. * i as f32;
-        let mut ground = world2d::create(
-            Preset::StaticBody2D,
-            &format!("Ground{i}"),
-            [x, GROUND + 16.],
-        );
-        set(
-            &mut ground,
-            world2d::COLLIDER2D,
-            &Collider2D {
-                size: [128., 32.],
-                ..Default::default()
-            },
-        );
-        add(&mut ground, world2d::SPRITE2D, &sprite(art.ground));
-        ground.logical_parent = Some(level);
-        scene.actors.push(ground);
-    }
-    for (i, [x, y]) in [
-        [-424., GROUND - 16.],
-        [-424., GROUND - 48.],
-        [256., GROUND - 16.],
-    ]
-    .into_iter()
-    .enumerate()
+    // The level: a solid tile layer and a decoration layer painted from one TileSet.
+    let tiles = tileset(art.tiles);
+    let set_id = tileset::create(root, "assets/TileSets/Tiles.epokasset", &tiles)?;
+    let (solid, decor) = paint_level(&tiles);
+    for (name, cells, z, collision) in [("Ground", &solid, 0, true), ("Details", &decor, -1, false)]
     {
-        let mut crate_ = world2d::create(Preset::StaticBody2D, &format!("Crate{i}"), [x, y]);
+        let mut layer = world2d::create(Preset::TileMapLayer, name, [0., 0.]);
         set(
-            &mut crate_,
-            world2d::COLLIDER2D,
-            &Collider2D {
-                size: [32., 32.],
+            &mut layer,
+            world2d::TILEMAP_LAYER,
+            &TileMapLayer {
+                tile_set: Some(set_id),
+                cells: crate::tilemap::encode(cells),
+                z_index: z,
+                collision_enabled: collision,
                 ..Default::default()
             },
         );
-        add(&mut crate_, world2d::SPRITE2D, &sprite(art.crate_));
-        crate_.logical_parent = Some(level);
-        scene.actors.push(crate_);
+        layer.logical_parent = Some(level);
+        scene.actors.push(layer);
     }
-    let platforms = [[-176., 44.], [-16., 8.], [144., -20.], [336., 36.]];
-    for (i, [x, y]) in platforms.into_iter().enumerate() {
-        let mut platform = world2d::create(Preset::StaticBody2D, &format!("Platform{i}"), [x, y]);
-        set(
-            &mut platform,
-            world2d::COLLIDER2D,
-            &Collider2D {
-                size: [48., 10.],
-                one_way: true,
-                one_way_margin: 3.,
-                ..Default::default()
-            },
-        );
-        add(&mut platform, world2d::SPRITE2D, &sprite(art.platform));
-        platform.logical_parent = Some(level);
-        scene.actors.push(platform);
-    }
+    scene.tilesets.insert(set_id, Arc::new(tiles));
+    // A screen-space coin icon in the top-left corner, drawn over the world.
+    let mut hud = world2d::create(Preset::CanvasLayer2D, "HUD", [0., 0.]);
+    set(&mut hud, world2d::CANVAS_LAYER2D, &CanvasLayer2D::default());
+    let hud_id = hud.id;
+    scene.actors.push(hud);
     let spin = Animation2D {
         name: "spin".into(),
         fps: 10.,
@@ -152,15 +269,30 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
             })
             .collect(),
     };
+    let mut icon = world2d::create(Preset::AnimatedSprite2D, "CoinIcon", [14., 14.]);
+    set(
+        &mut icon,
+        world2d::SPRITE2D,
+        &Sprite2D {
+            animations: vec![spin.clone()],
+            ..sprite(art.coin)
+        },
+    );
+    icon.logical_parent = Some(hud_id);
+    icon.attach = Some(crate::actor_document::Attachment {
+        actor: hud_id,
+        component: None,
+    });
+    scene.actors.push(icon);
     let mut coins = Vec::new();
     for (i, [x, y]) in [
-        [-192., 24.],
-        [-160., 24.],
-        [-16., -12.],
-        [144., -40.],
+        [-200., 16.],
+        [-168., 16.],
+        [-8., -16.],
+        [152., -48.],
         [96., 72.],
         [128., 72.],
-        [336., 16.],
+        [344., 16.],
         [-300., 72.],
     ]
     .into_iter()
@@ -380,9 +512,7 @@ mod art {
 
     pub struct Textures {
         pub player: Uuid,
-        pub ground: Uuid,
-        pub crate_: Uuid,
-        pub platform: Uuid,
+        pub tiles: Uuid,
         pub coin: Uuid,
         pub hills: Uuid,
         pub cloud: Uuid,
@@ -515,31 +645,115 @@ mod art {
         }
         c
     }
-    fn ground() -> Canvas {
-        let mut c = Canvas::new(128, 32);
-        for y in 0..32 {
-            for x in 0..128 {
-                let n = noise(x, y, 7) % 100;
-                let colour = match y {
-                    0 => [124, 214, 88, 255],
-                    1..=4 => {
-                        if n < 18 {
-                            [96, 188, 72, 255]
-                        } else {
-                            [104, 198, 76, 255]
+    const GRASS_LIGHT: Rgba = [124, 214, 88, 255];
+    const GRASS: Rgba = [104, 198, 76, 255];
+    const GRASS_SHADE: Rgba = [96, 188, 72, 255];
+    const GRASS_DARK: Rgba = [62, 140, 56, 255];
+    const DIRT: Rgba = [136, 90, 56, 255];
+    const DIRT_LIGHT: Rgba = [154, 104, 66, 255];
+    const DIRT_DARK: Rgba = [92, 60, 40, 255];
+    /// The 128 x 64 tile atlas (16-pixel tiles); see `super::tileset` for the layout.
+    fn tiles() -> Canvas {
+        let mut c = Canvas::new(128, 64);
+        for mask in 0..16i32 {
+            let (ox, oy) = ((mask % 8) * 16, (mask / 8) * 16);
+            let (right, bottom, left, top) =
+                (mask & 1 != 0, mask & 2 != 0, mask & 4 != 0, mask & 8 != 0);
+            for y in 0..16 {
+                for x in 0..16 {
+                    let n = noise(ox + x, oy + y, 7) % 100;
+                    let mut colour = if n < 6 {
+                        DIRT_DARK
+                    } else if n < 14 {
+                        DIRT_LIGHT
+                    } else {
+                        DIRT
+                    };
+                    let edge = (!left && x == 0) || (!right && x == 15) || (!bottom && y == 15);
+                    if edge {
+                        colour = DIRT_DARK;
+                    }
+                    if !top {
+                        colour = match y {
+                            0 => GRASS_LIGHT,
+                            1..=4 if n < 18 => GRASS_SHADE,
+                            1..=4 => GRASS,
+                            5 => GRASS_DARK,
+                            _ => colour,
+                        };
+                        if y < 6 && ((!left && x == 0) || (!right && x == 15)) {
+                            colour = GRASS_DARK;
                         }
                     }
-                    5 => [62, 140, 56, 255],
-                    _ if n < 6 => [92, 60, 40, 255],
-                    _ if n < 14 => [154, 104, 66, 255],
-                    _ => [136, 90, 56, 255],
-                };
-                c.set(x, y, colour);
+                    c.set(ox + x, oy + y, colour);
+                }
             }
-            // Grass blades hanging over the dirt.
+            if !top {
+                // Grass blades hanging over the dirt, continuous across tiles.
+                for x in 0..16 {
+                    if (ox + x) % 7 == 3 && (left || x > 0) && (right || x < 15) {
+                        c.set(ox + x, oy + 6, GRASS_DARK);
+                    }
+                }
+            }
         }
-        for x in (3..128).step_by(7) {
-            c.set(x, 6, [62, 140, 56, 255]);
+        // A 32 x 32 crate as four tiles at (0, 2).
+        let crate_ = crate_box();
+        for y in 0..32 {
+            for x in 0..32 {
+                c.set(x, 32 + y, crate_.get(x, y));
+            }
+        }
+        // One-way platform: left cap, middle, right cap at (2..4, 2).
+        for piece in 0..3 {
+            let ox = 32 + piece * 16;
+            c.rect(ox, 32, 16, 6, [206, 170, 108, 255]);
+            c.rect(ox, 32, 16, 2, [232, 204, 144, 255]);
+            c.rect(ox, 36, 16, 2, [156, 118, 70, 255]);
+            if piece == 1 {
+                c.rect(ox + 7, 34, 1, 2, [156, 118, 70, 255]);
+            }
+            if piece == 0 {
+                c.rect(ox, 32, 1, 6, CLEAR);
+            }
+            if piece == 2 {
+                c.rect(ox + 15, 32, 1, 6, CLEAR);
+            }
+            // Support posts under the caps.
+            if piece != 1 {
+                c.rect(ox + 6, 38, 3, 6, [156, 118, 70, 255]);
+            }
+        }
+        c.outline(32, 32, 48, 16);
+        // A flower with two frames (5, 2) and (6, 2): the head sways.
+        for (frame, sway) in [(0, 0), (1, 1)] {
+            let ox = 80 + frame * 16;
+            c.rect(ox + 7, 40, 2, 8, GRASS_DARK);
+            c.rect(ox + 5, 44, 2, 2, GRASS);
+            c.rect(ox + 5 + sway, 35, 6, 6, [240, 96, 120, 255]);
+            c.rect(ox + 7 + sway, 37, 2, 2, [255, 226, 110, 255]);
+            c.outline(ox, 32, 16, 16);
+        }
+        // A bush (2, 3) and a grass tuft (3, 3).
+        for y in 0..8 {
+            for x in 0..14 {
+                let (dx, dy) = (x as f32 - 6.5, y as f32 - 7.);
+                if dx * dx / 49. + dy * dy / 64. <= 1. {
+                    c.set(
+                        33 + x,
+                        56 + y,
+                        if noise(x, y, 3).is_multiple_of(5) {
+                            GRASS_SHADE
+                        } else {
+                            GRASS
+                        },
+                    );
+                }
+            }
+        }
+        c.outline(32, 48, 16, 16);
+        for (x, h) in [(52, 5), (54, 7), (56, 4), (58, 6), (60, 3)] {
+            c.rect(x, 64 - h, 1, h, GRASS_DARK);
         }
         c
     }
@@ -557,17 +771,6 @@ mod art {
         for (x, y) in [(1, 1), (30, 1), (1, 30), (30, 30)] {
             c.set(x, y, [70, 46, 26, 255]);
         }
-        c
-    }
-    fn platform() -> Canvas {
-        let mut c = Canvas::new(48, 10);
-        c.rect(1, 1, 46, 8, [206, 170, 108, 255]);
-        c.rect(1, 1, 46, 2, [232, 204, 144, 255]);
-        c.rect(1, 7, 46, 2, [156, 118, 70, 255]);
-        for x in [12, 24, 36] {
-            c.rect(x, 3, 1, 4, [156, 118, 70, 255]);
-        }
-        c.outline(0, 0, 48, 10);
         c
     }
     fn coin() -> Canvas {
@@ -656,9 +859,7 @@ mod art {
         };
         Ok(Textures {
             player: import("Player", player())?,
-            ground: import("Ground", ground())?,
-            crate_: import("Crate", crate_box())?,
-            platform: import("Platform", platform())?,
+            tiles: import("Tiles", tiles())?,
             coin: import("Coin", coin())?,
             hills: import("Hills", hills())?,
             cloud: import("Cloud", cloud())?,
@@ -1155,7 +1356,7 @@ mod tests {
             // Every sprite points at an imported texture of the project.
             let index = crate::assets::scan(&root, &mut Default::default());
             for actor in &scene.actors {
-                for id in world2d::texture_ids(actor) {
+                for id in world2d::texture_ids(actor, &scene.tilesets) {
                     assert_eq!(
                         index.resolve(id).unwrap().meta.kind,
                         crate::assets::Kind::Texture

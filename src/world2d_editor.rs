@@ -1,7 +1,8 @@
 //! The 2D world editor (World2D initiative): a 2D viewport with select,
-//! move, rotate, scale and pan tools, grid snapping, rulers, real sprite previews,
-//! collider and camera gizmos, drag-and-drop sprite creation, plus the 2D Inspector and
-//! its sprite region and sprite-sheet dialogs.
+//! move, rotate, scale and pan tools, grid snapping, rulers, real sprite and tile
+//! previews, collider and camera gizmos, drag-and-drop sprite creation, plus the 2D
+//! Inspector and its sprite region and sprite-sheet dialogs. Tile painting lives in
+//! `tilemap_editor.rs` and the TileSet editor in `tileset_editor.rs`.
 //!
 //! Everything here edits the same Actor documents as the rest of the editor: the root
 //! `SceneComponent2D` holds the transform and each engine 2D component one typed record
@@ -11,8 +12,8 @@ use crate::{
     object_model as om,
     scene_view_mode::{SceneView2D, Transform2D},
     world2d::{
-        self, Animation2D, Camera2D, CharacterBody2D, Collider2D, Frame2D, Preset, Shape2D,
-        Sprite2D,
+        self, Animation2D, Camera2D, CanvasLayer2D, CanvasModulate2D, CharacterBody2D, Collider2D,
+        Frame2D, Parallax2D, Preset, Shape2D, Sprite2D,
     },
 };
 use imgui::{MouseButton, Ui};
@@ -51,6 +52,9 @@ pub const ICON_INFO: &str = "\u{f05a}";
 pub const ICON_WAND: &str = "\u{e2ca}";
 pub const ICON_LEFT: &str = "\u{f048}";
 pub const ICON_RIGHT: &str = "\u{f051}";
+pub const ICON_PARALLAX: &str = "\u{f302}";
+pub const ICON_CANVAS: &str = "\u{f5fd}";
+pub const ICON_MODULATE: &str = "\u{f53f}";
 
 pub fn preset_icon(preset: Preset) -> &'static str {
     match preset {
@@ -61,6 +65,10 @@ pub fn preset_icon(preset: Preset) -> &'static str {
         Preset::StaticBody2D => ICON_BODY,
         Preset::Area2D => ICON_AREA,
         Preset::CharacterBody2D => ICON_RUN,
+        Preset::TileMapLayer => crate::tilemap_editor::ICON_TILEMAP,
+        Preset::Parallax2D => ICON_PARALLAX,
+        Preset::CanvasLayer2D => ICON_CANVAS,
+        Preset::CanvasModulate2D => ICON_MODULATE,
     }
 }
 
@@ -200,6 +208,10 @@ pub struct State {
     slicer_cell: [u16; 2],
     /// The map the view last framed automatically.
     framed: Option<String>,
+    /// Tile painting and the palette under the view.
+    pub tiles: crate::tilemap_editor::State,
+    /// The TileSet editor window, when open.
+    pub tileset_window: Option<crate::tileset_editor::Window>,
 }
 impl Default for State {
     fn default() -> Self {
@@ -227,6 +239,8 @@ impl Default for State {
             right_dragged: false,
             slicer_cell: [16, 16],
             framed: None,
+            tiles: Default::default(),
+            tileset_window: None,
         }
     }
 }
@@ -376,11 +390,78 @@ pub struct View {
     pub sprite: Option<(Uuid, Sprite2D)>,
     pub colliders: Vec<(Uuid, Collider2D)>,
     pub camera: Option<Camera2D>,
+    /// The first TileMapLayer of the actor.
+    pub tiles: Option<TileLayerView>,
+    pub parallax: Option<Parallax2D>,
+    pub canvas_layer: Option<CanvasLayer2D>,
+    pub modulate: Option<CanvasModulate2D>,
+    /// The canvas the actor draws on and the repeat of its nearest Parallax2D.
+    pub canvas: i8,
+    pub repeat: [f32; 2],
     /// A grouping node: other actors name it as their logical parent.
     pub group: bool,
     /// Local bounds (min, max) used for picking and the selection box.
     pub bounds: ([f32; 2], [f32; 2]),
     pub order: (i32, f32, usize),
+}
+
+/// A tile layer as the view draws it: cells at the owner's world position.
+#[derive(Clone)]
+pub struct TileLayerView {
+    pub component: Uuid,
+    pub layer: world2d::TileMapLayer,
+    pub cells: std::sync::Arc<crate::tilemap::Cells>,
+    pub tileset: Option<std::sync::Arc<crate::tileset::TileSet>>,
+    pub origin: [f32; 2],
+}
+impl std::fmt::Debug for TileLayerView {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TileLayerView")
+            .field("component", &self.component)
+            .field("cells", &self.cells.len())
+            .finish()
+    }
+}
+impl TileLayerView {
+    fn tile_size(&self) -> [f32; 2] {
+        self.tileset
+            .as_ref()
+            .map_or([16., 16.], |t| t.tile_size.map(|v| f32::from(v.max(1))))
+    }
+    /// Whether a painted cell covers a world point.
+    fn covers(&self, world: [f32; 2]) -> bool {
+        let size = self.tile_size();
+        let cell = [0, 1].map(|k| ((world[k] - self.origin[k]) / size[k]).floor() as i32);
+        self.cells.contains_key(&cell)
+    }
+}
+/// The canvas layer and parallax repeat an actor inherits through its attachments.
+fn canvas_of(scene: &crate::scene::Scene, index: usize) -> (i8, [f32; 2]) {
+    let mut current = index;
+    let mut repeat = None;
+    for _ in 0..32 {
+        let actor = &scene.actors[current];
+        if repeat.is_none()
+            && let Some(p) = world2d::component(actor, world2d::PARALLAX2D)
+        {
+            repeat = Some(world2d::read::<Parallax2D>(p).repeat_size);
+        }
+        if let Some(c) = world2d::component(actor, world2d::CANVAS_LAYER2D) {
+            return (
+                world2d::read::<CanvasLayer2D>(c).layer,
+                repeat.unwrap_or_default(),
+            );
+        }
+        let Some(parent) = actor
+            .attach
+            .as_ref()
+            .and_then(|a| scene.actor_index(a.actor))
+        else {
+            break;
+        };
+        current = parent;
+    }
+    (0, repeat.unwrap_or_default())
 }
 
 fn is_2d(actor: &crate::scene::Actor) -> bool {
@@ -403,6 +484,10 @@ pub fn create_command(preset: Preset) -> &'static str {
         Preset::StaticBody2D => "create-node2d-StaticBody2D",
         Preset::Area2D => "create-node2d-Area2D",
         Preset::CharacterBody2D => "create-node2d-CharacterBody2D",
+        Preset::TileMapLayer => "create-node2d-TileMapLayer",
+        Preset::Parallax2D => "create-node2d-Parallax2D",
+        Preset::CanvasLayer2D => "create-node2d-CanvasLayer2D",
+        Preset::CanvasModulate2D => "create-node2d-CanvasModulate2D",
     }
 }
 /// Whether the Inspector should show the 2D layout for this actor.
@@ -473,6 +558,8 @@ pub fn views(e: &mut Editor) -> Vec<View> {
         let mut sprite = None;
         let mut colliders = Vec::new();
         let mut camera = None;
+        let mut tile_record = None;
+        let (mut parallax, mut canvas_layer, mut modulate) = (None, None, None);
         for component in &actor.components {
             match component.class.class_id.as_deref() {
                 Some(world2d::SPRITE2D) => {
@@ -482,11 +569,41 @@ pub fn views(e: &mut Editor) -> Vec<View> {
                     colliders.push((component.id, world2d::read::<Collider2D>(component)))
                 }
                 Some(world2d::CAMERA2D) => camera = Some(world2d::read::<Camera2D>(component)),
+                Some(world2d::TILEMAP_LAYER) if tile_record.is_none() => {
+                    tile_record = Some((
+                        component.id,
+                        world2d::read::<world2d::TileMapLayer>(component),
+                    ))
+                }
+                Some(world2d::PARALLAX2D) => {
+                    parallax = Some(world2d::read::<Parallax2D>(component))
+                }
+                Some(world2d::CANVAS_LAYER2D) => {
+                    canvas_layer = Some(world2d::read::<CanvasLayer2D>(component))
+                }
+                Some(world2d::CANVAS_MODULATE2D) => {
+                    modulate = Some(world2d::read::<CanvasModulate2D>(component))
+                }
                 _ => {}
             }
         }
+        let (canvas, repeat) = canvas_of(&e.scene, index);
         let local = root_transform(actor);
         let (id, name, active) = (actor.id, actor.name.clone(), actor.active);
+        let tiles = tile_record.map(|(component, layer)| {
+            let cells =
+                crate::tilemap_editor::cells_of(&mut e.world2d.tiles, component, &layer.cells);
+            let tileset = layer
+                .tile_set
+                .and_then(|id| crate::tilemap_editor::tileset(e, id));
+            TileLayerView {
+                component,
+                layer,
+                cells,
+                tileset,
+                origin: world.t,
+            }
+        });
         let group = e.scene.actors.iter().any(|a| a.logical_parent == Some(id));
         let mut min = [f32::MAX; 2];
         let mut max = [f32::MIN; 2];
@@ -497,6 +614,9 @@ pub fn views(e: &mut Editor) -> Vec<View> {
             }
         };
         let mut z = local.draw_order;
+        if let Some(t) = &tiles {
+            z += i32::from(t.layer.z_index);
+        }
         if let Some((_, s)) = &sprite {
             z += i32::from(s.z_index);
             if let Some(texture) = s.texture
@@ -510,6 +630,25 @@ pub fn views(e: &mut Editor) -> Vec<View> {
         for (_, c) in &colliders {
             let (lo, hi) = c.bounds();
             grow(lo, hi);
+        }
+        // A tile layer's bounds are its painted cells, in the node's unrotated frame.
+        if let Some(t) = &tiles
+            && let Some((lo, hi)) = crate::tilemap::bounds(&t.cells)
+            && let Some(inverse) = world.inverse()
+        {
+            let size = t.tile_size();
+            let a = inverse.point([
+                t.origin[0] + lo[0] as f32 * size[0],
+                t.origin[1] + lo[1] as f32 * size[1],
+            ]);
+            let b = inverse.point([
+                t.origin[0] + (hi[0] + 1) as f32 * size[0],
+                t.origin[1] + (hi[1] + 1) as f32 * size[1],
+            ]);
+            grow(
+                [a[0].min(b[0]), a[1].min(b[1])],
+                [a[0].max(b[0]), a[1].max(b[1])],
+            );
         }
         if min[0] > max[0] {
             min = [-8., -8.];
@@ -526,9 +665,19 @@ pub fn views(e: &mut Editor) -> Vec<View> {
             sprite,
             colliders,
             camera,
+            tiles,
+            parallax,
+            canvas_layer,
+            modulate,
+            canvas,
+            repeat,
             group,
             bounds: (min, max),
-            order: (z, if y_sort { world.t[1] } else { f32::MIN }, index),
+            order: (
+                z + i32::from(canvas) * 65536,
+                if y_sort { world.t[1] } else { f32::MIN },
+                index,
+            ),
         });
     }
     out.sort_by(|a, b| {
@@ -548,6 +697,15 @@ fn corners(view: &View) -> [[f32; 2]; 4] {
     ]
 }
 fn contains(view: &View, world: [f32; 2]) -> bool {
+    // A tile layer is picked by its painted cells, not by the box around them, so the
+    // nodes standing on a large map stay clickable.
+    if let Some(t) = &view.tiles
+        && view.sprite.is_none()
+        && view.colliders.is_empty()
+        && !t.cells.is_empty()
+    {
+        return t.covers(world);
+    }
     let Some(inverse) = view.world.inverse() else {
         return false;
     };
@@ -870,10 +1028,33 @@ fn snapped(e: &Editor, position: [f32; 2]) -> [f32; 2] {
 /// The Scene window in 2D mode.
 pub fn viewport(ui: &Ui, e: &mut Editor) {
     toolbar(ui, e);
+    // A selected TileMapLayer gets the tile tools and, while painting, the palette.
+    let painting = crate::tilemap_editor::painting(e);
+    let layer_selected = e.selected_actor.is_some_and(|id| {
+        e.scene.actor_index(id).is_some_and(|i| {
+            world2d::component(&e.scene.actors[i], world2d::TILEMAP_LAYER).is_some()
+        })
+    });
+    if layer_selected && !e.playing {
+        crate::tilemap_editor::toolbar(ui, e);
+    }
     let origin = ui.cursor_screen_pos();
     let available = ui.content_region_avail();
     let status = ui.text_line_height_with_spacing() + 2.;
-    let size = [available[0].max(1.), (available[1] - status).max(1.)];
+    let panel = if painting {
+        e.world2d.tiles.panel_height = e
+            .world2d
+            .tiles
+            .panel_height
+            .clamp(120., (available[1] * 0.65).max(120.));
+        e.world2d.tiles.panel_height + 8.
+    } else {
+        0.
+    };
+    let size = [
+        available[0].max(1.),
+        (available[1] - status - panel).max(1.),
+    ];
     ui.invisible_button_flags(
         "##world2d-canvas",
         size,
@@ -896,7 +1077,7 @@ pub fn viewport(ui: &Ui, e: &mut Editor) {
     if std::mem::take(&mut e.world2d.frame_request) {
         frame(e, &before, size);
     }
-    input(ui, e, &before, origin, size, hovered, world_mouse);
+    input(ui, e, &before, origin, size, hovered, world_mouse, painting);
     let after = views(e);
     draw(ui, e, &after, origin, size, world_mouse);
     if e.world2d.open_context {
@@ -909,8 +1090,33 @@ pub fn viewport(ui: &Ui, e: &mut Editor) {
     }
     ui.set_cursor_screen_pos([origin[0], origin[1] + size[1] + 2.]);
     status_bar(ui, e, &after, world_mouse, hovered);
+    if painting {
+        // A splitter to resize the palette, then the palette itself.
+        let start = ui.cursor_screen_pos();
+        ui.invisible_button("##palette-splitter", [available[0].max(1.), 6.]);
+        if ui.is_item_hovered() || ui.is_item_active() {
+            ui.set_mouse_cursor(Some(imgui::MouseCursor::ResizeNS));
+        }
+        if ui.is_item_active() {
+            e.world2d.tiles.panel_height -= ui.io().mouse_delta[1];
+        }
+        ui.get_window_draw_list()
+            .add_line(
+                [start[0] + available[0] * 0.5 - 18., start[1] + 3.],
+                [start[0] + available[0] * 0.5 + 18., start[1] + 3.],
+                [1., 1., 1., 0.25],
+            )
+            .thickness(2.)
+            .build();
+        let height = e.world2d.tiles.panel_height;
+        crate::tilemap_editor::palette(ui, e, height);
+    }
     if hovered || ui.is_window_focused() {
-        shortcuts(ui, e, &after, size);
+        let handled = painting && crate::tilemap_editor::shortcuts(ui, e);
+        if !handled {
+            let painting = crate::tilemap_editor::painting(e);
+            shortcuts(ui, e, &after, size, painting);
+        }
     }
     crate::gui::scene_shortcuts(ui, e);
 }
@@ -1107,6 +1313,7 @@ fn input(
     size: [f32; 2],
     hovered: bool,
     world: [f32; 2],
+    painting: bool,
 ) {
     let io = ui.io();
     let mouse = io.mouse_pos;
@@ -1115,6 +1322,20 @@ fn input(
         e.view_2d.zoom_at(io.mouse_wheel, mouse, origin, size);
     }
     let space = hovered && !typing && ui.is_key_down(imgui::Key::Space);
+    if painting {
+        // The right button erases while painting: pan with the middle button or Space.
+        if (ui.is_mouse_dragging(MouseButton::Middle)
+            || (ui.is_key_down(imgui::Key::Space) && ui.is_mouse_dragging(MouseButton::Left)))
+            && (hovered
+                || ui.is_mouse_down(MouseButton::Middle)
+                || ui.is_mouse_down(MouseButton::Left))
+        {
+            e.view_2d.pan_pixels(io.mouse_delta);
+        }
+        e.world2d.hovered = None;
+        crate::tilemap_editor::input(ui, e, hovered, world);
+        return;
+    }
     if (ui.is_mouse_dragging(MouseButton::Middle)
         || ui.is_mouse_dragging_with_threshold(MouseButton::Right, 4.))
         && (hovered
@@ -1375,12 +1596,25 @@ fn scale_drag(view: &View, world: [f32; 2], axes: [bool; 2]) -> Option<DragKind>
         start: view.local.scale,
     })
 }
-fn shortcuts(ui: &Ui, e: &mut Editor, views: &[View], size: [f32; 2]) {
+fn shortcuts(ui: &Ui, e: &mut Editor, views: &[View], size: [f32; 2], painting: bool) {
     if crate::gui::text_input_active(ui) || e.playing {
         return;
     }
     let io = ui.io();
     let command = io.key_ctrl || io.key_super;
+    if painting {
+        // Painting owns the letter keys, Delete and the arrows; framing and zoom stay.
+        if !command && ui.is_key_pressed_no_repeat(imgui::Key::F) {
+            frame(e, views, size);
+        }
+        if ui.is_key_pressed(imgui::Key::Equal) || ui.is_key_pressed(imgui::Key::KeypadAdd) {
+            e.view_2d.zoom = (e.view_2d.zoom * 2.).min(SceneView2D::MAX_ZOOM);
+        }
+        if ui.is_key_pressed(imgui::Key::Minus) || ui.is_key_pressed(imgui::Key::KeypadSubtract) {
+            e.view_2d.zoom = (e.view_2d.zoom / 2.).max(SceneView2D::MIN_ZOOM);
+        }
+        return;
+    }
     if !command {
         for (key, tool) in [
             (imgui::Key::Q, Tool::Select),
@@ -1569,6 +1803,16 @@ fn status_bar(ui: &Ui, e: &Editor, views: &[View], world: [f32; 2], hovered: boo
     let mut text = String::new();
     if hovered {
         text += &format!("X {:>6.0}  Y {:>6.0}   ", world[0], world[1]);
+        if let Some(cell) = e.world2d.tiles.hovered_cell()
+            && e.world2d.tiles.tool.is_some()
+            && let Some(t) = selected.and_then(|v| v.tiles.as_ref())
+        {
+            text += &format!("Cell ({}, {})", cell[0], cell[1]);
+            if let Some(c) = t.cells.get(&cell) {
+                text += &format!(" tile ({}, {})", c.atlas[0], c.atlas[1]);
+            }
+            text += "   ";
+        }
     }
     text += &format!(
         "Zoom {:.0}%   {} node{}",
@@ -1628,7 +1872,13 @@ fn preview_rect(
     }
     sprite.source_rect(size)
 }
-fn dashed(draw: &imgui::DrawListMut, a: [f32; 2], b: [f32; 2], colour: [f32; 4], dash: f32) {
+pub(crate) fn dashed(
+    draw: &imgui::DrawListMut,
+    a: [f32; 2],
+    b: [f32; 2],
+    colour: [f32; 4],
+    dash: f32,
+) {
     let d = [b[0] - a[0], b[1] - a[1]];
     let length = (d[0] * d[0] + d[1] * d[1]).sqrt();
     if length < 1. {
@@ -1757,10 +2007,109 @@ fn draw(
                 }
             }
         }
+        // CanvasModulate2D tints, per canvas (the first one wins, as on the console).
+        let mut tints: BTreeMap<i8, [f32; 3]> = BTreeMap::new();
+        for v in views.iter().filter(|v| v.active) {
+            if let Some(m) = &v.modulate {
+                tints
+                    .entry(v.canvas)
+                    .or_insert(m.color.map(|c| f32::from(c) / 255.));
+            }
+        }
+        let visible = (
+            view.screen_to_world(origin, origin, size),
+            view.screen_to_world(corner, origin, size),
+        );
+        let painting = crate::tilemap_editor::painting(e)
+            .then_some(e.selected_actor)
+            .flatten();
+        // Screen canvases draw their nodes in screen pixels from the origin.
+        if e.world2d.show_camera
+            && views
+                .iter()
+                .any(|v| v.canvas_layer.as_ref().is_some_and(|c| !c.follow_viewport))
+        {
+            let a = to_screen([0., 0.]);
+            let b = to_screen(display);
+            let colour = [0.55, 0.85, 0.75, 0.55];
+            for (p, q) in [
+                (a, [b[0], a[1]]),
+                ([b[0], a[1]], b),
+                (b, [a[0], b[1]]),
+                ([a[0], b[1]], a),
+            ] {
+                dashed(&draw, p, q, colour, 5.);
+            }
+            draw.add_text(
+                [a[0] + 4., b[1] - 16.],
+                colour,
+                format!("{ICON_CANVAS} Screen canvas"),
+            );
+        }
         // Content, back to front.
         for v in views {
             let fade = if v.active { 1. } else { 0.35 };
+            let tint = tints.get(&v.canvas).copied().unwrap_or([1.; 3]);
             let mut drew = false;
+            // Parallax repeats: the original plus faded copies across the visible area.
+            let mut shifts = vec![[0., 0.]];
+            for k in 0..2 {
+                let period = v.repeat[k];
+                if period >= 4. {
+                    let span = visible.1[k] - visible.0[k];
+                    let copies = ((span / period).ceil() as i32 + 1).min(24);
+                    let base: Vec<[f32; 2]> = shifts.clone();
+                    for b in base {
+                        for n in -copies..=copies {
+                            if n != 0 {
+                                let mut shifted = b;
+                                shifted[k] += n as f32 * period;
+                                shifts.push(shifted);
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(t) = &v.tiles
+                && t.layer.visible
+                && let Some(tileset) = &t.tileset
+            {
+                let texture = tileset.texture.and_then(|id| e.world2d.textures.get(id));
+                let dim = if painting.is_some_and(|p| p != v.id) {
+                    0.45
+                } else {
+                    1.
+                };
+                for (n, shift) in shifts.iter().enumerate() {
+                    let origin_world = [t.origin[0] + shift[0], t.origin[1] + shift[1]];
+                    let cells = crate::tilemap_editor::visible_cells(
+                        &t.cells,
+                        origin_world,
+                        t.tile_size(),
+                        visible,
+                    );
+                    let m = t.layer.modulate.map(|c| f32::from(c) / 255.);
+                    let alpha = match t.layer.blend {
+                        crate::texture::BlendMode::Cutout => 1.,
+                        crate::texture::BlendMode::AddQuarter => 0.3,
+                        _ => 0.6,
+                    } * fade
+                        * dim
+                        * if n == 0 { 1. } else { 0.45 };
+                    crate::tilemap_editor::draw_cells(
+                        &draw,
+                        texture,
+                        tileset,
+                        cells.into_iter(),
+                        origin_world,
+                        &to_screen,
+                        visible,
+                        [m[0] * tint[0], m[1] * tint[1], m[2] * tint[2], alpha],
+                        if e.world2d.animate { seconds } else { 0. },
+                    );
+                }
+                drew = true;
+            }
             if let Some((_, sprite)) = &v.sprite
                 && sprite.visible
                 && let Some(texture) = sprite.texture
@@ -1768,8 +2117,6 @@ fn draw(
                 && let Some(rect) = preview_rect(sprite, texture_size, seconds, e.world2d.animate)
             {
                 let (lo, hi) = sprite_local_rect(sprite, [f32::from(rect[2]), f32::from(rect[3])]);
-                let quad =
-                    [lo, [hi[0], lo[1]], hi, [lo[0], hi[1]]].map(|p| to_screen(v.world.point(p)));
                 let (w, h) = (f32::from(texture_size[0]), f32::from(texture_size[1]));
                 let (mut u0, mut u1) = (f32::from(rect[0]) / w, f32::from(rect[0] + rect[2]) / w);
                 let (mut v0, mut v1) = (f32::from(rect[1]) / h, f32::from(rect[1] + rect[3]) / h);
@@ -1779,20 +2126,27 @@ fn draw(
                 if sprite.flip_v {
                     std::mem::swap(&mut v0, &mut v1);
                 }
-                let tint = [
-                    f32::from(sprite.modulate[0]) / 255.,
-                    f32::from(sprite.modulate[1]) / 255.,
-                    f32::from(sprite.modulate[2]) / 255.,
-                    match sprite.blend {
-                        crate::texture::BlendMode::Cutout => 1.,
-                        crate::texture::BlendMode::AddQuarter => 0.3,
-                        _ => 0.6,
-                    } * fade,
-                ];
-                draw.add_image_quad(texture_id, quad[0], quad[1], quad[2], quad[3])
-                    .uv([u0, v0], [u1, v0], [u1, v1], [u0, v1])
-                    .col(tint)
-                    .build();
+                for (n, shift) in shifts.iter().enumerate() {
+                    let quad = [lo, [hi[0], lo[1]], hi, [lo[0], hi[1]]].map(|p| {
+                        let w = v.world.point(p);
+                        to_screen([w[0] + shift[0], w[1] + shift[1]])
+                    });
+                    let colour = [
+                        f32::from(sprite.modulate[0]) / 255. * tint[0],
+                        f32::from(sprite.modulate[1]) / 255. * tint[1],
+                        f32::from(sprite.modulate[2]) / 255. * tint[2],
+                        match sprite.blend {
+                            crate::texture::BlendMode::Cutout => 1.,
+                            crate::texture::BlendMode::AddQuarter => 0.3,
+                            _ => 0.6,
+                        } * fade
+                            * if n == 0 { 1. } else { 0.45 },
+                    ];
+                    draw.add_image_quad(texture_id, quad[0], quad[1], quad[2], quad[3])
+                        .uv([u0, v0], [u1, v0], [u1, v1], [u0, v1])
+                        .col(colour)
+                        .build();
+                }
                 drew = true;
             } else if let Some((_, sprite)) = &v.sprite {
                 // Missing or not yet uploaded texture: a placeholder card.
@@ -1867,6 +2221,15 @@ fn draw(
                     drew = true;
                 }
             }
+            if v.parallax.is_some() && v.sprite.is_none() && v.tiles.is_none() {
+                let c = to_screen(v.world.t);
+                draw.add_text(
+                    [c[0] - 7., c[1] - 7.],
+                    [0.55, 0.85, 0.75, fade],
+                    ICON_PARALLAX,
+                );
+                drew = true;
+            }
             if v.camera.is_some() {
                 let c = to_screen(v.world.t);
                 draw.add_text(
@@ -1876,7 +2239,7 @@ fn draw(
                 );
                 drew = true;
             }
-            if (!drew || v.sprite.is_none()) && !v.group {
+            if (!drew || (v.sprite.is_none() && v.tiles.is_none())) && !v.group {
                 // Node2D marker: a small cross at the origin.
                 let c = to_screen(v.world.t);
                 draw.add_line(
@@ -1894,6 +2257,9 @@ fn draw(
                 .thickness(1.5)
                 .build();
             }
+        }
+        if painting.is_some() {
+            crate::tilemap_editor::overlay(ui, e, &draw, origin, size);
         }
         // Hover and selection.
         if let Some(v) = e
@@ -1927,7 +2293,7 @@ fn draw(
                 SELECTION,
             )
             .build();
-            if e.world2d.tool == Tool::Select && !e.playing {
+            if e.world2d.tool == Tool::Select && !e.playing && painting.is_none() {
                 draw.add_line(h.top, h.knob, SELECTION).build();
                 draw.add_circle(h.knob, HANDLE * 0.7, [0.12, 0.12, 0.14, 1.])
                     .filled(true)
@@ -2127,7 +2493,7 @@ fn segmented(ui: &Ui, label: &str, options: &[&str], selected: &mut usize) -> bo
     changed
 }
 /// A 32-bit collision layer or mask as a grid of numbered cells.
-fn layer_grid(ui: &Ui, label: &str, value: &mut u32) -> bool {
+pub(crate) fn layer_grid(ui: &Ui, label: &str, value: &mut u32) -> bool {
     let id = crate::gui::field(ui, label);
     let _id = ui.push_id(&id);
     let mut changed = false;
@@ -2178,7 +2544,7 @@ fn colour_u8(ui: &Ui, label: &str, colour: &mut [u8; 3]) -> bool {
     }
     false
 }
-fn checker(draw: &imgui::DrawListMut, min: [f32; 2], max: [f32; 2], cell: f32) {
+pub(crate) fn checker(draw: &imgui::DrawListMut, min: [f32; 2], max: [f32; 2], cell: f32) {
     draw.add_rect(min, max, [0.22, 0.22, 0.24, 1.])
         .filled(true)
         .build();
@@ -2263,6 +2629,14 @@ pub fn node_icon(actor: &crate::scene::Actor) -> &'static str {
     };
     if has(world2d::CHARACTER_BODY2D) {
         ICON_RUN
+    } else if has(world2d::TILEMAP_LAYER) {
+        crate::tilemap_editor::ICON_TILEMAP
+    } else if has(world2d::PARALLAX2D) {
+        ICON_PARALLAX
+    } else if has(world2d::CANVAS_LAYER2D) {
+        ICON_CANVAS
+    } else if has(world2d::CANVAS_MODULATE2D) {
+        ICON_MODULATE
     } else if has(world2d::CAMERA2D) {
         ICON_CAMERA
     } else if has(world2d::SPRITE2D) {
@@ -2329,6 +2703,10 @@ fn inspector_body(ui: &Ui, e: &mut Editor, id: Uuid) {
             Some(world2d::COLLIDER2D) => collider_band(ui, e, id, &component),
             Some(world2d::CHARACTER_BODY2D) => body_band(ui, e, id, &component),
             Some(world2d::CAMERA2D) => camera_band(ui, e, id, &component),
+            Some(world2d::TILEMAP_LAYER) => tilemap_band(ui, e, id, &component),
+            Some(world2d::PARALLAX2D) => parallax_band(ui, e, id, &component),
+            Some(world2d::CANVAS_LAYER2D) => canvas_layer_band(ui, e, id, &component),
+            Some(world2d::CANVAS_MODULATE2D) => canvas_modulate_band(ui, e, id, &component),
             _ => generic_band(ui, e, id, &component),
         }
     }
@@ -2387,6 +2765,21 @@ fn finish_band(
                 world2d::COLLIDER2D => world2d::write(c, &Collider2D::default()),
                 world2d::CHARACTER_BODY2D => world2d::write(c, &CharacterBody2D::default()),
                 world2d::CAMERA2D => world2d::write(c, &Camera2D::default()),
+                world2d::TILEMAP_LAYER => {
+                    // Reset keeps the painted map and its TileSet.
+                    let old = world2d::read::<world2d::TileMapLayer>(c);
+                    world2d::write(
+                        c,
+                        &world2d::TileMapLayer {
+                            tile_set: old.tile_set,
+                            cells: old.cells,
+                            ..Default::default()
+                        },
+                    )
+                }
+                world2d::PARALLAX2D => world2d::write(c, &Parallax2D::default()),
+                world2d::CANVAS_LAYER2D => world2d::write(c, &CanvasLayer2D::default()),
+                world2d::CANVAS_MODULATE2D => world2d::write(c, &CanvasModulate2D::default()),
                 _ => {}
             }
             e.scene.actors[index].refresh_components();
@@ -3085,6 +3478,175 @@ fn camera_band(
     }
     finish_band(e, actor, component, remove, reset);
 }
+fn tilemap_band(
+    ui: &Ui,
+    e: &mut Editor,
+    actor: Uuid,
+    component: &crate::actor_document::ComponentInstance,
+) {
+    let (mut remove, mut reset) = (false, false);
+    let open = band(
+        ui,
+        &format!("{} TileMapLayer", crate::tilemap_editor::ICON_TILEMAP),
+        &mut remove,
+        &mut reset,
+        true,
+    );
+    if open && crate::tilemap_editor::band(ui, e, actor, component) {
+        e.changed_coalesced("world2d-inspector");
+    }
+    finish_band(e, actor, component, remove, reset);
+}
+fn parallax_band(
+    ui: &Ui,
+    e: &mut Editor,
+    actor: Uuid,
+    component: &crate::actor_document::ComponentInstance,
+) {
+    let (mut remove, mut reset) = (false, false);
+    let open = band(
+        ui,
+        &format!("{ICON_PARALLAX} Parallax2D"),
+        &mut remove,
+        &mut reset,
+        true,
+    );
+    if open {
+        let mut p: Parallax2D = world2d::read(component);
+        let before = p.clone();
+        vec2(ui, "Scroll scale", &mut p.scroll_scale, 0.01, "%.2f");
+        if ui.is_item_hovered() {
+            ui.tooltip_text("1 moves with the world, 0.5 is a distant layer, 0 stays on screen");
+        }
+        let _ = crate::gui::field(ui, "Presets");
+        for (label, value) in [("Far", 0.25), ("Mid", 0.5), ("Near", 0.75), ("Sky", 0.)] {
+            if ui.small_button(label) {
+                p.scroll_scale = [value, if value == 0. { 0. } else { 1. }];
+            }
+            ui.same_line();
+        }
+        ui.new_line();
+        vec2(ui, "Repeat size", &mut p.repeat_size, 1., "%.0f");
+        p.repeat_size = p.repeat_size.map(|v| v.max(0.));
+        // The width of the actor's own sprite is the usual repeat.
+        let sprite_size = e.scene.actor_index(actor).and_then(|i| {
+            let s = world2d::component(&e.scene.actors[i], world2d::SPRITE2D)
+                .map(world2d::read::<Sprite2D>)?;
+            let size = e.world2d.textures.get(s.texture?)?.1;
+            s.source_rect(size)
+                .map(|r| [f32::from(r[2]), f32::from(r[3])])
+        });
+        if let Some(size) = sprite_size {
+            if ui.button(format!("{ICON_WAND}  Repeat Sprite Horizontally")) {
+                p.repeat_size = [size[0], 0.];
+            }
+        } else {
+            ui.text_disabled("Attach sprites or tile layers to this node; with a repeat size they tile across the screen.");
+        }
+        vec2(ui, "Autoscroll (px/s)", &mut p.autoscroll, 0.5, "%.1f");
+        crate::gui::muted(
+            ui,
+            "The layer sits where you placed it when the game camera starts here; it scrolls from there.",
+        );
+        if p != before {
+            commit(e, actor, component.id, &p);
+        }
+    }
+    finish_band(e, actor, component, remove, reset);
+}
+fn canvas_layer_band(
+    ui: &Ui,
+    e: &mut Editor,
+    actor: Uuid,
+    component: &crate::actor_document::ComponentInstance,
+) {
+    let (mut remove, mut reset) = (false, false);
+    let open = band(
+        ui,
+        &format!("{ICON_CANVAS} CanvasLayer2D"),
+        &mut remove,
+        &mut reset,
+        true,
+    );
+    if open {
+        let mut c: CanvasLayer2D = world2d::read(component);
+        let before = c.clone();
+        let mut layer = i32::from(c.layer);
+        if crate::gui::Drag::new(crate::gui::field(ui, "Layer"))
+            .range(-64, 64)
+            .speed(0.05)
+            .build(ui, &mut layer)
+        {
+            c.layer = layer.clamp(-64, 64) as i8;
+        }
+        if ui.is_item_hovered() {
+            ui.tooltip_text(
+                "The world is layer 0: negative layers draw behind it, positive ones in front",
+            );
+        }
+        let mut mode = usize::from(c.follow_viewport);
+        if segmented(ui, "Space", &["Screen", "World"], &mut mode) {
+            c.follow_viewport = mode == 1;
+        }
+        if !c.follow_viewport {
+            vec2(ui, "Offset", &mut c.offset, 0.5, "%.0f");
+        }
+        crate::gui::toggle(ui, "Visible", &mut c.visible);
+        crate::gui::muted(
+            ui,
+            if c.follow_viewport {
+                "Attached nodes follow the camera but draw on this layer."
+            } else {
+                "Attached nodes are placed in screen pixels (0, 0 is the top-left corner) and ignore the camera."
+            },
+        );
+        if c != before {
+            commit(e, actor, component.id, &c);
+        }
+    }
+    finish_band(e, actor, component, remove, reset);
+}
+fn canvas_modulate_band(
+    ui: &Ui,
+    e: &mut Editor,
+    actor: Uuid,
+    component: &crate::actor_document::ComponentInstance,
+) {
+    let (mut remove, mut reset) = (false, false);
+    let open = band(
+        ui,
+        &format!("{ICON_MODULATE} CanvasModulate2D"),
+        &mut remove,
+        &mut reset,
+        true,
+    );
+    if open {
+        let mut m: CanvasModulate2D = world2d::read(component);
+        let before = m.clone();
+        colour_u8(ui, "Color", &mut m.color);
+        let _ = crate::gui::field(ui, "Presets");
+        for (label, colour) in [
+            ("Day", [255, 255, 255]),
+            ("Dusk", [255, 190, 150]),
+            ("Night", [110, 120, 190]),
+            ("Cave", [150, 140, 130]),
+        ] {
+            if ui.small_button(label) {
+                m.color = colour;
+            }
+            ui.same_line();
+        }
+        ui.new_line();
+        crate::gui::muted(
+            ui,
+            "Multiplies everything on this node's canvas; 255 leaves colours unchanged.",
+        );
+        if m != before {
+            commit(e, actor, component.id, &m);
+        }
+    }
+    finish_band(e, actor, component, remove, reset);
+}
 fn generic_band(
     ui: &Ui,
     e: &mut Editor,
@@ -3175,6 +3737,34 @@ fn add_component_popup(ui: &Ui, e: &mut Editor, actor: Uuid) {
                 "Follow, smoothing, limits, drag margins",
                 false,
             ),
+            (
+                world2d::TILEMAP_LAYER,
+                crate::tilemap_editor::ICON_TILEMAP,
+                "TileMapLayer",
+                "A grid of tiles painted from a TileSet",
+                true,
+            ),
+            (
+                world2d::PARALLAX2D,
+                ICON_PARALLAX,
+                "Parallax2D",
+                "Scroll attached nodes against the camera; repeat",
+                false,
+            ),
+            (
+                world2d::CANVAS_LAYER2D,
+                ICON_CANVAS,
+                "CanvasLayer2D",
+                "A drawing layer, in screen pixels or following the camera",
+                false,
+            ),
+            (
+                world2d::CANVAS_MODULATE2D,
+                ICON_MODULATE,
+                "CanvasModulate2D",
+                "Tint everything on this canvas",
+                false,
+            ),
         ] {
             let taken = !multiple && present.iter().any(|p| p == id);
             let clicked = ui
@@ -3208,6 +3798,10 @@ fn add_component_popup(ui: &Ui, e: &mut Editor, actor: Uuid) {
                         | "epok::Collider2DComponent"
                         | "epok::CharacterBody2DComponent"
                         | "epok::Camera2DComponent"
+                        | "epok::TileMapLayerComponent"
+                        | "epok::Parallax2DComponent"
+                        | "epok::CanvasLayer2DComponent"
+                        | "epok::CanvasModulate2DComponent"
                 )
             })
             .collect();
@@ -3240,6 +3834,8 @@ fn texture_drop(ui: &Ui, e: &Editor, texture: &mut Option<Uuid>) {
 pub fn dialogs(ui: &Ui, e: &mut Editor) {
     region_editor(ui, e);
     sheet_slicer(ui, e);
+    crate::tilemap_editor::dialogs(ui, e);
+    crate::tileset_editor::window(ui, e);
 }
 fn texture_canvas(
     ui: &Ui,
