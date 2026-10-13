@@ -57,6 +57,8 @@ mod dungeon_bake;
 mod dungeon_editor;
 mod dungeon_random;
 mod dungeon_rooms;
+mod dungeon_style;
+mod dungeon_style_editor;
 #[cfg(test)]
 mod dungeon_tests;
 mod editor;
@@ -1419,7 +1421,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             request["settings"] = settings;
         }
         let id = dungeon_editor::mcp_target(&mut scene, &request)?;
-        let report = dungeon_bake::generate(&root, &mut scene, id)?;
+        if let Some(name) = args
+            .windows(2)
+            .find(|v| v[0] == "--dungeon-new-style")
+            .map(|v| v[1].clone())
+        {
+            let style = dungeon_editor::new_style(&root, &scene, id, &name)?;
+            if let Some(g) = scene.dungeons.iter_mut().find(|g| g.id == id) {
+                g.style = Some(style);
+            }
+            println!("Dungeon Style created: {style}");
+        }
+        // Actor pieces need the class model; a project whose classes do not resolve can
+        // still generate styles without them.
+        let registry = scripts::declaration_registry(&root).ok();
+        let model = registry.as_ref().and_then(|r| r.model().ok());
+        let classes = registry
+            .as_ref()
+            .zip(model.as_ref())
+            .map(|(registry, model)| dungeon_bake::Classes { registry, model });
+        let report = dungeon_bake::generate(&root, &mut scene, id, classes.as_ref())?;
         scene.save(&path)?;
         println!(
             "Dungeon generated: {} · {} actors, {} quads, {} collision boxes, {} navigation nodes · {}",
@@ -1960,6 +1981,27 @@ fn prepare_editor(editor: &mut editor::Editor) {
         match input_replay::Replay::parse(&schedule) {
             Ok(replay) => editor.screenshot_input = Some((replay, None)),
             Err(error) => editor.log(format!("--screenshot-input: {error}")),
+        }
+    }
+    // Screenshot automation: open the first generator's Dungeon Style (or the first
+    // style asset) with its first piece selected.
+    if args.iter().any(|a| a == "--open-dungeon-style") {
+        let style = editor
+            .scene
+            .dungeons
+            .iter()
+            .find_map(|g| g.style)
+            .or_else(|| {
+                editor
+                    .assets
+                    .index
+                    .usable()
+                    .find(|r| r.meta.kind == assets::Kind::DungeonStyle)
+                    .map(|r| r.meta.id)
+            });
+        if let Some(style) = style {
+            dungeon_style_editor::open(editor, style);
+            dungeon_style_editor::select_first_piece(editor);
         }
     }
     // Screenshot automation: select the first Dungeon Generator and frame its grid.

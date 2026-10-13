@@ -10,7 +10,7 @@ Work happens on `feature/dungeon-generator`, one pushed checkpoint per phase.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Generator core: seeded random streams (Rust and C++ twins), layout model, spots, rooms-and-corridors layouts, 3D bake (merged mesh sections, compound static collider, navigation volume, spawn/goal markers), 2D bake (TileMapLayer with terrain solving), PSX budget meter, editor workflow, MCP tool | delivered ([phase1.md](phase1.md)) |
-| 2 | Dungeon Styles: a reusable asset that maps spots (Floor, Wall, Door, Corner, Spawn, ...) to meshes, mesh variations, Blueprint templates, lights, particle effects and 2D terrains, with probabilities, offsets and first-match rules; a node-graph style editor with live preview | planned |
+| 2 | Dungeon Styles: a reusable asset that maps spots (Floor, Wall, Door, Corner, Spawn, ...) to meshes, mesh variations, Blueprint templates, lights, particle effects and 2D terrains, with probabilities, offsets and first-match rules; a node-graph style editor with live preview | delivered ([phase2.md](phase2.md)) |
 | 3 | Dungeon Recipes: designer-authored step lists that grow a room graph (main path, branches, loops), place items by path depth, add keys and locks that are always solvable, and promote one-way shortcuts; recipe editor with a room-graph preview | planned |
 | 4 | Recipe tilemaps: rasterize the room graph into rooms, corridors and cellular caves with doors, locked doors, walls and item placement, baked through the same 3D and 2D paths and styles | planned |
 

@@ -941,9 +941,9 @@ pub fn run(
                     && ((capture_loading && loading.is_some()) ||
                         (!capture_loading && loading.is_none() && (session.is_none() || project_frames > 10)
                             && if session.is_some() { project_started.elapsed() > Duration::from_secs(2) } else { started.elapsed() > Duration::from_secs(2) }))
-                    && session.as_ref().and_then(|e| e.screenshot_input.as_ref()).is_none_or(|(replay, started)| {
+                    && (session.as_ref().and_then(|e| e.screenshot_input.as_ref()).is_none_or(|(replay, started)| {
                         started.is_some_and(|s| s.elapsed().as_millis() as u64 > replay.end() + 400)
-                    })
+                    }) || project_started.elapsed() > Duration::from_secs(60))
                     && (!capture_game
                         || session.as_ref().and_then(|e| e.game_frame.as_ref()).is_some_and(|f| f.sequence > 90)
                         || session.as_ref().and_then(|e| e.native_frame.as_ref()).is_some_and(|f| f.number > 90)

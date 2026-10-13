@@ -1,20 +1,25 @@
 //! Bakes a generated layout into ordinary map content.
 //!
-//! 3D: walls are the empty cells around every floor, so each room and corridor is
-//! enclosed by solid blocks. Floors, wall faces, wall tops and doorway lintels are
-//! merged into large faces inside one EditableMesh per section; collision is one
-//! compound collider; navigation, spawn and goal are separate actors. The output stays
-//! a handful of actors whatever the size of the dungeon.
+//! A Dungeon Style decides what each spot becomes (see `dungeon_style`).
 //!
-//! 2D: floors and walls are terrains of a TileSet, painted into one TileMapLayer and
-//! solved with the TileSet's own terrain rules.
+//! 3D: walls are the solid cells around every floor, so each room and corridor is
+//! enclosed by blocks. Blockout pieces and meshes are merged into one EditableMesh per
+//! section; collision is one compound collider built from the layout; navigation,
+//! spawn, goal, lights and actor pieces are separate actors. Without actor and light
+//! pieces the output stays a handful of actors whatever the size of the dungeon.
+//!
+//! 2D: Terrain pieces paint floors and solid cells into one TileMapLayer, solved with
+//! the TileSet's own terrain rules; Tile pieces fill decoration layers above it.
 use crate::actor_document::Attachment;
 use crate::assets;
-use crate::dungeon::{self, Cell, Generator, Layout, Side, SpotKind};
+use crate::dungeon::{self, Generator, Layout, Side, SpotKind};
+use crate::dungeon_style::{self, Piece, Placement, Style};
 use crate::mesh::{Document, Face, Group, Slot};
 use crate::reflection_schema::Domain;
 use crate::scene::{Actor, Material, Scene};
-use std::collections::{BTreeSet, HashMap};
+use crate::tileset::TileSet;
+use crate::transform::Matrix;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -50,13 +55,6 @@ pub fn is_2d(scene: &Scene, root: Uuid) -> bool {
 }
 
 // ---- grid helpers --------------------------------------------------------------------------
-
-/// An empty cell next to a floor, including diagonally: the solid ring around rooms
-/// and corridors.
-pub fn wall_cell(layout: &Layout, p: [i32; 2]) -> bool {
-    layout.at(p) == Cell::Empty
-        && (-1..=1).any(|dy| (-1..=1).any(|dx| layout.at([p[0] + dx, p[1] + dy]).walkable()))
-}
 
 /// Cells just beyond a room door: the corridor cells that carry a lintel.
 fn doorway_cells(layout: &Layout) -> BTreeSet<[i32; 2]> {
@@ -131,6 +129,14 @@ pub struct Navigation {
 /// Volumes beyond this many cost more actors than navigation is worth here.
 const NAVIGATION_VOLUMES: usize = 6;
 
+/// An actor a style piece places, relative to the generator root.
+#[derive(Clone, Debug)]
+pub struct Spawn {
+    pub node: Uuid,
+    pub transform: Matrix,
+    pub piece: Piece,
+}
+
 pub struct Plan3d {
     pub sections: Vec<Section>,
     pub boxes: Vec<[f32; 6]>,
@@ -139,31 +145,24 @@ pub struct Plan3d {
     /// None when the floor is too large for the node budget.
     pub navigation: Option<Navigation>,
     pub quads: usize,
+    pub spawns: Vec<Spawn>,
 }
 
 /// How far wall faces continue below the floor.
 const WALL_SKIRT: f32 = 0.08;
 /// How far merged wall tops reach past their cells.
 const CAP_OVERLAP: f32 = 0.03;
-const SLOT_FLOOR: usize = 0;
-const SLOT_CORRIDOR: usize = 1;
-const SLOT_WALL: usize = 2;
-const SLOT_TOP: usize = 3;
-const SLOT_DOORWAY: usize = 4;
-const SLOTS: [(&str, [f32; 3]); 5] = [
-    ("Floor", [0.46, 0.43, 0.40]),
-    ("Corridor Floor", [0.36, 0.34, 0.33]),
-    ("Wall", [0.66, 0.61, 0.54]),
-    ("Wall Top", [0.30, 0.28, 0.30]),
-    ("Doorway", [0.48, 0.33, 0.21]),
-];
-const GROUPS: [&str; 3] = ["Floors", "Walls", "Doorways"];
-/// A face's group and material slot.
-type Paint = (usize, usize);
+const GROUPS: [&str; 4] = ["Floors", "Walls", "Doorways", "Pieces"];
+const GROUP_FLOORS: usize = 0;
+const GROUP_WALLS: usize = 1;
+const GROUP_DOORWAYS: usize = 2;
+const GROUP_PIECES: usize = 3;
 
 struct Builder {
     document: Document,
     vertices: HashMap<[u32; 3], u32>,
+    slots: HashMap<String, usize>,
+    owner: Uuid,
     seed: u128,
     origin: [f32; 3],
     /// World units per texture repeat.
@@ -172,7 +171,6 @@ struct Builder {
 }
 impl Builder {
     fn new(owner: Uuid, origin: [f32; 3], cell: f32) -> Self {
-        let id = |role: &str| dungeon::derived_id(owner, role);
         Self {
             document: Document {
                 version: 1,
@@ -181,29 +179,44 @@ impl Builder {
                 groups: GROUPS
                     .iter()
                     .map(|name| Group {
-                        id: id(&format!("group-{name}")),
+                        id: dungeon::derived_id(owner, &format!("group-{name}")),
                         name: (*name).into(),
                         parent: None,
                     })
                     .collect(),
-                materials: SLOTS
-                    .iter()
-                    .map(|(name, color)| Slot {
-                        id: id(&format!("slot-{name}")),
-                        name: (*name).into(),
-                        material: Material {
-                            color: *color,
-                            ..Material::default()
-                        },
-                    })
-                    .collect(),
+                materials: Vec::new(),
             },
             vertices: HashMap::new(),
+            slots: HashMap::new(),
+            owner,
             seed: owner.as_u128(),
             origin,
             cell,
             quads: 0,
         }
+    }
+    /// The slot for `material`, shared by every face with the same key.
+    fn slot(&mut self, key: &str, name: &str, material: &Material) -> usize {
+        if let Some(index) = self.slots.get(key) {
+            return *index;
+        }
+        let index = self.document.materials.len();
+        self.document.materials.push(Slot {
+            id: dungeon::derived_id(self.owner, &format!("slot-{key}")),
+            name: name.chars().take(120).collect(),
+            material: material.clone(),
+        });
+        self.slots.insert(key.to_owned(), index);
+        index
+    }
+    fn blockout(&mut self, spot: SpotKind, color: [f32; 3], texture: Option<Uuid>) -> usize {
+        let key = format!("blockout-{color:?}-{texture:?}");
+        let material = Material {
+            color,
+            texture,
+            ..Material::default()
+        };
+        self.slot(&key, spot.label(), &material)
     }
     fn vertex(&mut self, p: [f32; 3]) -> u32 {
         let local: [f32; 3] = std::array::from_fn(|k| p[k] - self.origin[k]);
@@ -216,8 +229,15 @@ impl Builder {
         self.vertices.insert(key, index);
         index
     }
-    /// A quad given counter-clockwise when seen from its front.
-    fn quad(&mut self, p: [[f32; 3]; 4], uv: [[f32; 2]; 4], paint: Paint, size: [f32; 2]) {
+    /// A quad given counter-clockwise when seen from its front; the last two points
+    /// may repeat for a triangle.
+    fn face(
+        &mut self,
+        p: [[f32; 3]; 4],
+        uv: [[f32; 2]; 4],
+        colors: Option<crate::vertex_colors::Corners>,
+        paint: (usize, usize),
+    ) {
         let (group, slot) = paint;
         let vertices = p.map(|v| self.vertex(v));
         let n = self.document.faces.len() as u128 + 1;
@@ -229,13 +249,17 @@ impl Builder {
             group: self.document.groups[group].id,
             material: self.document.materials[slot].id,
             uv,
-            vertex_colors: None,
+            vertex_colors: colors,
         });
-        self.quads += compiled(size[0], size[1]);
+        let length =
+            |a: [f32; 3], b: [f32; 3]| (0..3).map(|k| (a[k] - b[k]).powi(2)).sum::<f32>().sqrt();
+        self.quads += compiled(
+            length(p[0], p[1]),
+            length(p[0], p[3]).max(length(p[1], p[2])),
+        );
     }
     /// A horizontal rectangle facing up (or down) at height `y`.
-    fn horizontal(&mut self, x: [f32; 2], z: [f32; 2], y: f32, up: bool, paint: Paint) {
-        let cell = self.cell;
+    fn horizontal(&mut self, x: [f32; 2], z: [f32; 2], y: f32, up: bool, paint: (usize, usize)) {
         let mut p = [
             [x[0], y, z[0]],
             [x[0], y, z[1]],
@@ -245,23 +269,54 @@ impl Builder {
         if !up {
             p.reverse();
         }
+        let cell = self.cell;
         let uv = p.map(|v| [v[0] / cell, v[2] / cell]);
-        self.quad(p, uv, paint, [x[1] - x[0], z[1] - z[0]]);
+        self.face(p, uv, None, paint);
     }
     /// A vertical rectangle along an edge from `a` to `b` (x, z), between heights `y`,
     /// facing the side to the left of a→b.
-    fn vertical(&mut self, a: [f32; 2], b: [f32; 2], y: [f32; 2], paint: Paint) {
-        let cell = self.cell;
+    fn vertical(&mut self, a: [f32; 2], b: [f32; 2], y: [f32; 2], paint: (usize, usize)) {
         let p = [
             [a[0], y[0], a[1]],
             [b[0], y[0], b[1]],
             [b[0], y[1], b[1]],
             [a[0], y[1], a[1]],
         ];
-        let length = (b[0] - a[0]).abs() + (b[1] - a[1]).abs();
         let along = |v: [f32; 3]| (v[0] - a[0]).abs() + (v[2] - a[1]).abs();
+        let cell = self.cell;
         let uv = p.map(|v| [along(v) / cell, -v[1] / cell]);
-        self.quad(p, uv, paint, [length, y[1] - y[0]]);
+        self.face(p, uv, None, paint);
+    }
+    /// Every face of `source`, moved by `transform`, with its own materials.
+    fn mesh(&mut self, source: &Document, asset: Uuid, transform: Matrix) {
+        let m = transform.0;
+        let determinant = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+        for face in &source.faces {
+            let Some(material) = source.materials.iter().find(|s| s.id == face.material) else {
+                continue;
+            };
+            let slot = self.slot(
+                &format!("mesh-{asset}-{}", material.id),
+                &material.name,
+                &material.material,
+            );
+            let triangle = face.vertices[2] == face.vertices[3];
+            // A mirroring transform reverses the winding; restore it.
+            let order: [usize; 4] = match (determinant < 0., triangle) {
+                (false, _) => [0, 1, 2, 3],
+                (true, true) => [0, 2, 1, 1],
+                (true, false) => [0, 3, 2, 1],
+            };
+            let points = source.points(face).map(|v| transform.point(v));
+            self.face(
+                order.map(|i| points[i]),
+                order.map(|i| face.uv[i]),
+                face.vertex_colors.map(|c| order.map(|i| c[i])),
+                (GROUP_PIECES, slot),
+            );
+        }
     }
 }
 
@@ -286,14 +341,17 @@ impl Frame {
     }
 }
 
-fn build_section(
-    g: &Generator,
-    layout: &Layout,
-    frame: &Frame,
-    region: [i32; 4],
-    doorways: &BTreeSet<[i32; 2]>,
-    owner: Uuid,
-) -> Section {
+/// What every section of one generation shares.
+struct Context<'a> {
+    g: &'a Generator,
+    layout: &'a Layout,
+    frame: &'a Frame,
+    placements: &'a [Placement],
+    meshes: &'a HashMap<Uuid, Arc<Document>>,
+}
+
+fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
+    let (layout, frame, g) = (cx.layout, cx.frame, cx.g);
     let c = frame.cell;
     let h = g.wall_height;
     let origin = [
@@ -301,89 +359,156 @@ fn build_section(
         0.,
         (frame.z(region[1]) + frame.z(region[3])) * 0.5,
     ];
+    let inside = |p: [i32; 2]| {
+        p[0] >= region[0] && p[0] < region[2] && p[1] >= region[1] && p[1] < region[3]
+    };
     let mut b = Builder::new(owner, origin, c);
-    // Floors and walls are one face per cell or cell side. Every vertex then sits on
-    // the grid lattice, so no edge ends in the middle of a neighbour's edge: on the PSX
-    // such T-junctions show one-pixel cracks. One face per cell also gives baked
-    // lighting a vertex per cell corner.
-    for y in region[1]..region[3] {
-        for x in region[0]..region[2] {
-            let cell = layout.at([x, y]);
-            if !cell.walkable() {
-                continue;
-            }
-            let slot = if cell == Cell::Corridor {
-                SLOT_CORRIDOR
-            } else {
-                SLOT_FLOOR
-            };
-            b.horizontal(
-                [frame.x(x), frame.x(x + 1)],
-                [frame.z(y), frame.z(y + 1)],
-                0.,
-                true,
-                (0, slot),
-            );
-            for side in Side::ALL {
-                if layout.open([x, y], side) || layout.door([x, y], side) {
-                    continue;
+    // Wall tops are merged per material once every solid cell is known.
+    let mut tops: Vec<(usize, BTreeSet<[i32; 2]>)> = Vec::new();
+    for placement in cx.placements.iter().filter(|p| inside(p.spot.cell)) {
+        let spot = &placement.spot;
+        let [x, y] = spot.cell;
+        match &placement.visual.piece {
+            Piece::Blockout { color, texture } => {
+                let slot = b.blockout(spot.kind, *color, *texture);
+                match (spot.kind, spot.side) {
+                    // Floors and walls are one face per cell or cell side. Every vertex
+                    // then sits on the grid lattice, so no edge ends in the middle of a
+                    // neighbour's edge: on the PSX such T-junctions show one-pixel
+                    // cracks. One face per cell also gives baked lighting a vertex per
+                    // cell corner.
+                    (SpotKind::Floor, _) => b.horizontal(
+                        [frame.x(x), frame.x(x + 1)],
+                        [frame.z(y), frame.z(y + 1)],
+                        0.,
+                        true,
+                        (GROUP_FLOORS, slot),
+                    ),
+                    (SpotKind::Wall, Some(side)) => {
+                        // Edge endpoints ordered so the face looks into the cell.
+                        let (a, bb) = match side {
+                            Side::North => ([frame.x(x), frame.z(y)], [frame.x(x + 1), frame.z(y)]),
+                            Side::South => (
+                                [frame.x(x + 1), frame.z(y + 1)],
+                                [frame.x(x), frame.z(y + 1)],
+                            ),
+                            Side::West => ([frame.x(x), frame.z(y + 1)], [frame.x(x), frame.z(y)]),
+                            Side::East => (
+                                [frame.x(x + 1), frame.z(y)],
+                                [frame.x(x + 1), frame.z(y + 1)],
+                            ),
+                        };
+                        // Walls reach a little below the floor, covering the seam.
+                        b.vertical(a, bb, [-WALL_SKIRT, h], (GROUP_WALLS, slot));
+                    }
+                    (SpotKind::Solid, _) => match tops.iter_mut().find(|(s, _)| *s == slot) {
+                        Some((_, cells)) => {
+                            cells.insert(spot.cell);
+                        }
+                        None => tops.push((slot, BTreeSet::from([spot.cell]))),
+                    },
+                    (SpotKind::Doorway, _) if g.door_height < h - 0.01 => {
+                        let (x0, x1, z0, z1) =
+                            (frame.x(x), frame.x(x + 1), frame.z(y), frame.z(y + 1));
+                        b.horizontal(
+                            [x0, x1],
+                            [z0, z1],
+                            g.door_height,
+                            false,
+                            (GROUP_DOORWAYS, slot),
+                        );
+                        for side in Side::ALL {
+                            // Faces towards the open sides of the doorway cell.
+                            if !layout.open(spot.cell, side) {
+                                continue;
+                            }
+                            let (a, bb) = match side {
+                                Side::North => ([x0, z0], [x1, z0]),
+                                Side::South => ([x1, z1], [x0, z1]),
+                                Side::West => ([x0, z1], [x0, z0]),
+                                Side::East => ([x1, z0], [x1, z1]),
+                            };
+                            // Seen from the neighbour, so the winding is reversed.
+                            b.vertical(bb, a, [g.door_height, h], (GROUP_DOORWAYS, slot));
+                        }
+                    }
+                    (SpotKind::Corner, Some(side)) => {
+                        // A square pillar in the corner, showing its two faces that
+                        // look into the cell and its top.
+                        let (da, db) = (side.delta(), side.next().delta());
+                        let size = (c * 0.2).min(0.4);
+                        let corner = [
+                            frame.x(x) + c * 0.5 * (1 + da[0] + db[0]) as f32,
+                            frame.z(y) + c * 0.5 * (1 + da[1] + db[1]) as f32,
+                        ];
+                        let sx = -(da[0] + db[0]) as f32;
+                        let sz = -(da[1] + db[1]) as f32;
+                        let (x0, x1) = (
+                            corner[0].min(corner[0] + sx * size),
+                            corner[0].max(corner[0] + sx * size),
+                        );
+                        let (z0, z1) = (
+                            corner[1].min(corner[1] + sz * size),
+                            corner[1].max(corner[1] + sz * size),
+                        );
+                        b.horizontal([x0, x1], [z0, z1], h, true, (GROUP_WALLS, slot));
+                        let inner_x = if sx > 0. { x1 } else { x0 };
+                        let inner_z = if sz > 0. { z1 } else { z0 };
+                        // The face parallel to X, at inner_z, facing ±Z.
+                        if sz > 0. {
+                            b.vertical(
+                                [x1, inner_z],
+                                [x0, inner_z],
+                                [-WALL_SKIRT, h],
+                                (GROUP_WALLS, slot),
+                            );
+                        } else {
+                            b.vertical(
+                                [x0, inner_z],
+                                [x1, inner_z],
+                                [-WALL_SKIRT, h],
+                                (GROUP_WALLS, slot),
+                            );
+                        }
+                        // The face parallel to Z, at inner_x, facing ±X.
+                        if sx > 0. {
+                            b.vertical(
+                                [inner_x, z0],
+                                [inner_x, z1],
+                                [-WALL_SKIRT, h],
+                                (GROUP_WALLS, slot),
+                            );
+                        } else {
+                            b.vertical(
+                                [inner_x, z1],
+                                [inner_x, z0],
+                                [-WALL_SKIRT, h],
+                                (GROUP_WALLS, slot),
+                            );
+                        }
+                    }
+                    _ => {}
                 }
-                // Edge endpoints ordered so the face looks into the cell.
-                let (a, bb) = match side {
-                    Side::North => ([frame.x(x), frame.z(y)], [frame.x(x + 1), frame.z(y)]),
-                    Side::South => (
-                        [frame.x(x + 1), frame.z(y + 1)],
-                        [frame.x(x), frame.z(y + 1)],
-                    ),
-                    Side::West => ([frame.x(x), frame.z(y + 1)], [frame.x(x), frame.z(y)]),
-                    Side::East => (
-                        [frame.x(x + 1), frame.z(y)],
-                        [frame.x(x + 1), frame.z(y + 1)],
-                    ),
-                };
-                // Walls also reach a little below the floor, covering the seam.
-                b.vertical(a, bb, [-WALL_SKIRT, h], (1, SLOT_WALL));
             }
+            Piece::Mesh { asset: Some(asset) } => {
+                if let Some(source) = cx.meshes.get(asset) {
+                    b.mesh(source, *asset, dungeon_style::transform(placement, frame));
+                }
+            }
+            _ => {}
         }
     }
-    // Wall tops over the solid ring and over doorways, merged into rectangles that
-    // overlap their neighbours slightly so the top edges cannot crack either.
-    for [x0, y0, x1, y1] in rectangles(region, &|p| wall_cell(layout, p) || doorways.contains(&p)) {
-        b.horizontal(
-            [frame.x(x0) - CAP_OVERLAP, frame.x(x1) + CAP_OVERLAP],
-            [frame.z(y0) - CAP_OVERLAP, frame.z(y1) + CAP_OVERLAP],
-            h,
-            true,
-            (1, SLOT_TOP),
-        );
-    }
-    // Doorway lintels: the corridor cell just outside each door gets a beam between
-    // door height and the wall top, open underneath.
-    if g.door_height < h - 0.01 {
-        for p in doorways.iter().filter(|p| {
-            p[0] >= region[0] && p[0] < region[2] && p[1] >= region[1] && p[1] < region[3]
-        }) {
-            let (x0, x1, z0, z1) = (
-                frame.x(p[0]),
-                frame.x(p[0] + 1),
-                frame.z(p[1]),
-                frame.z(p[1] + 1),
+    // Wall tops merged into rectangles that overlap their neighbours slightly so the top
+    // edges cannot crack either.
+    for (slot, cells) in tops {
+        for [x0, y0, x1, y1] in rectangles(region, &|p| cells.contains(&p)) {
+            b.horizontal(
+                [frame.x(x0) - CAP_OVERLAP, frame.x(x1) + CAP_OVERLAP],
+                [frame.z(y0) - CAP_OVERLAP, frame.z(y1) + CAP_OVERLAP],
+                h,
+                true,
+                (GROUP_WALLS, slot),
             );
-            b.horizontal([x0, x1], [z0, z1], g.door_height, false, (2, SLOT_DOORWAY));
-            for side in Side::ALL {
-                // Faces towards the open sides of the doorway cell.
-                if !layout.open(*p, side) {
-                    continue;
-                }
-                let (a, bb) = match side {
-                    Side::North => ([x0, z0], [x1, z0]),
-                    Side::South => ([x1, z1], [x0, z1]),
-                    Side::West => ([x0, z1], [x0, z0]),
-                    Side::East => ([x1, z0], [x1, z1]),
-                };
-                // Seen from the neighbour, so the winding is reversed.
-                b.vertical(bb, a, [g.door_height, h], (2, SLOT_DOORWAY));
-            }
         }
     }
     let quads = b.quads;
@@ -395,17 +520,14 @@ fn build_section(
 }
 
 /// Splits the grid until every section fits one EditableMesh.
-fn sections(g: &Generator, layout: &Layout, frame: &Frame, owner: Uuid) -> Vec<Section> {
-    let doorways = doorway_cells(layout);
+fn sections(cx: &Context, owner: Uuid) -> Vec<Section> {
+    let layout = cx.layout;
     let mut pending = vec![[0, 0, layout.size[0], layout.size[1]]];
     let mut out = Vec::new();
     while let Some(region) = pending.pop() {
         let section = build_section(
-            g,
-            layout,
-            frame,
+            cx,
             region,
-            &doorways,
             dungeon::derived_id(
                 owner,
                 &format!(
@@ -414,9 +536,10 @@ fn sections(g: &Generator, layout: &Layout, frame: &Frame, owner: Uuid) -> Vec<S
                 ),
             ),
         );
-        let span = (region[2] - region[0]).max(region[3] - region[1]) as f32 * frame.cell;
+        let span = (region[2] - region[0]).max(region[3] - region[1]) as f32 * cx.frame.cell;
         let too_big = section.document.faces.len() > SECTION_FACES
             || section.document.vertices.len() > 16000
+            || section.document.materials.len() > 64
             || span * 0.5 > SECTION_HALF_SPAN;
         if too_big && (region[2] - region[0] > 1 || region[3] - region[1] > 1) {
             let [x0, y0, x1, y1] = region;
@@ -438,7 +561,12 @@ fn sections(g: &Generator, layout: &Layout, frame: &Frame, owner: Uuid) -> Vec<S
     out
 }
 
-pub fn plan_3d(g: &Generator, layout: &Layout) -> Result<Plan3d, String> {
+pub fn plan_3d(
+    g: &Generator,
+    layout: &Layout,
+    placements: &[Placement],
+    meshes: &HashMap<Uuid, Arc<Document>>,
+) -> Result<Plan3d, String> {
     g.validate()?;
     if g.half_extent() > 127. {
         return Err(format!(
@@ -450,14 +578,21 @@ pub fn plan_3d(g: &Generator, layout: &Layout) -> Result<Plan3d, String> {
         size: layout.size,
         cell: g.cell_size,
     };
-    let sections = sections(g, layout, &frame, g.id);
+    let cx = Context {
+        g,
+        layout,
+        frame: &frame,
+        placements,
+        meshes,
+    };
+    let sections = sections(&cx, g.id);
     let h = g.wall_height;
     let all = [0, 0, layout.size[0], layout.size[1]];
     let mut boxes = Vec::new();
     for [x0, y0, x1, y1] in rectangles(all, &|p| layout.at(p).walkable()) {
         boxes.push([frame.x(x0), -0.5, frame.z(y0), frame.x(x1), 0., frame.z(y1)]);
     }
-    for [x0, y0, x1, y1] in rectangles(all, &|p| wall_cell(layout, p)) {
+    for [x0, y0, x1, y1] in rectangles(all, &|p| layout.solid(p)) {
         boxes.push([frame.x(x0), 0., frame.z(y0), frame.x(x1), h, frame.z(y1)]);
     }
     if g.door_height < h - 0.01 {
@@ -486,6 +621,20 @@ pub fn plan_3d(g: &Generator, layout: &Layout) -> Result<Plan3d, String> {
         None
     };
     let quads = sections.iter().map(|s| s.quads).sum();
+    let spawns = placements
+        .iter()
+        .filter(|p| {
+            matches!(
+                p.visual.piece,
+                Piece::Actor { class: Some(_) } | Piece::Light { .. }
+            )
+        })
+        .map(|p| Spawn {
+            node: p.node,
+            transform: dungeon_style::transform(p, &frame),
+            piece: p.visual.piece.clone(),
+        })
+        .collect();
     Ok(Plan3d {
         sections,
         boxes,
@@ -493,6 +642,7 @@ pub fn plan_3d(g: &Generator, layout: &Layout) -> Result<Plan3d, String> {
         goal: frame.center(layout.rooms[layout.goal].center()),
         navigation,
         quads,
+        spawns,
     })
 }
 
@@ -550,67 +700,165 @@ const TILES_IMAGE: &str = "assets/Dungeons/DungeonTiles.png";
 pub const FLOOR_TERRAIN: &str = "Floor";
 pub const WALL_TERRAIN: &str = "Wall";
 
-/// The terrain set and the Floor and Wall terrain indices a TileSet offers.
-pub fn terrains(set: &crate::tileset::TileSet) -> Option<(usize, u8, u8)> {
+/// The terrain set holding every terrain name in `names`, and their indices in it.
+pub fn terrain_indices(set: &TileSet, names: &[&str]) -> Option<(usize, Vec<u8>)> {
     set.terrain_sets.iter().enumerate().find_map(|(index, s)| {
-        let find = |name: &str| {
-            s.terrains
-                .iter()
-                .position(|t| t.name.eq_ignore_ascii_case(name))
-                .map(|t| t as u8)
-        };
-        Some((index, find(FLOOR_TERRAIN)?, find(WALL_TERRAIN)?))
+        let found: Option<Vec<u8>> = names
+            .iter()
+            .map(|name| {
+                s.terrains
+                    .iter()
+                    .position(|t| t.name.eq_ignore_ascii_case(name))
+                    .map(|t| t as u8)
+            })
+            .collect();
+        Some((index, found?))
     })
 }
 
-pub struct Plan2d {
-    pub cells: crate::tilemap::Cells,
-    pub spawn: [f32; 2],
-    pub goal: [f32; 2],
+/// An actor a 2D style piece places, in pixels relative to the generator root.
+#[derive(Clone, Debug)]
+pub struct Spawn2d {
+    pub node: Uuid,
+    pub position: [f32; 2],
+    pub class: String,
 }
 
-pub fn plan_2d(layout: &Layout, set: &crate::tileset::TileSet) -> Result<Plan2d, String> {
-    let (terrain_set, floor, wall) = terrains(set).ok_or(
-        "The TileSet needs a terrain set with terrains named Floor and Wall; choose the built-in dungeon tiles or add them in the TileSet editor",
-    )?;
+pub struct Plan2d {
+    /// The TileSet the floor and solid cells are painted with, if any terrain is used.
+    pub tile_set: Option<Uuid>,
+    pub cells: crate::tilemap::Cells,
+    /// Decoration layers, one per TileSet.
+    pub decorations: Vec<(Uuid, crate::tilemap::Cells)>,
+    pub spawn: [f32; 2],
+    pub goal: [f32; 2],
+    pub spawns: Vec<Spawn2d>,
+}
+
+/// Decoration layers one 2D dungeon may add.
+const DECORATION_LAYERS: usize = 4;
+
+pub fn plan_2d(
+    layout: &Layout,
+    placements: &[Placement],
+    default_set: Uuid,
+    sets: &BTreeMap<Uuid, Arc<TileSet>>,
+) -> Result<Plan2d, String> {
     let offset = [layout.size[0] / 2, layout.size[1] / 2];
-    let painted: BTreeSet<[i32; 2]> = (0..layout.size[1])
-        .flat_map(|y| (0..layout.size[0]).map(move |x| [x, y]))
-        .filter(|p| layout.at(*p).walkable() || wall_cell(layout, *p))
-        .collect();
-    // Everything beyond the painted cells reads as wall, so outer wall tiles show no
-    // edge towards the void.
-    let terrain_of = |p: [i32; 2]| {
-        Some(
-            if layout.at([p[0] + offset[0], p[1] + offset[1]]).walkable() {
-                floor
-            } else {
-                wall
-            },
-        )
-    };
-    let shifted: BTreeSet<[i32; 2]> = painted
-        .iter()
-        .map(|p| [p[0] - offset[0], p[1] - offset[1]])
-        .collect();
-    let solved = crate::tileset::solve(set, terrain_set, &shifted, &terrain_of);
-    let cells = solved
-        .into_iter()
-        .filter(|(p, _)| shifted.contains(p))
-        .map(|(p, atlas)| (p, crate::tilemap::Cell::new(atlas)))
-        .collect();
-    let tile = [f32::from(set.tile_size[0]), f32::from(set.tile_size[1])];
-    let center = |room: usize| {
-        let c = layout.rooms[room].center();
+    let shift = |p: [i32; 2]| [p[0] - offset[0], p[1] - offset[1]];
+    // Terrains: every Terrain piece paints with one TileSet.
+    let mut terrain_set = None;
+    let mut names: Vec<String> = Vec::new();
+    let mut assigned: BTreeMap<[i32; 2], String> = BTreeMap::new();
+    let mut defaults: BTreeMap<SpotKind, String> = BTreeMap::new();
+    for p in placements {
+        if let Piece::Terrain { tile_set, terrain } = &p.visual.piece {
+            let set = tile_set.unwrap_or(default_set);
+            if terrain_set.is_some_and(|t| t != set) {
+                return Err(
+                    "All Terrain pieces of a style must paint with the same TileSet".into(),
+                );
+            }
+            terrain_set = Some(set);
+            if !names.contains(terrain) {
+                names.push(terrain.clone());
+            }
+            assigned
+                .entry(p.spot.cell)
+                .or_insert_with(|| terrain.clone());
+            defaults
+                .entry(p.spot.kind)
+                .or_insert_with(|| terrain.clone());
+        }
+    }
+    let mut cells = crate::tilemap::Cells::new();
+    if let Some(set_id) = terrain_set {
+        let set = sets
+            .get(&set_id)
+            .ok_or("A Terrain piece's TileSet is missing from the project")?;
+        let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+        let (index, indices) = terrain_indices(set, &refs).ok_or_else(|| {
+            format!(
+                "The TileSet has no terrain set holding {}",
+                names.join(", ")
+            )
+        })?;
+        let number = |name: &str| indices[names.iter().position(|n| n == name).unwrap_or(0)];
+        let floor = defaults.get(&SpotKind::Floor).map(|n| number(n));
+        let solid = defaults.get(&SpotKind::Solid).map(|n| number(n));
+        let numbered: BTreeMap<[i32; 2], u8> = assigned
+            .iter()
+            .map(|(p, name)| (shift(*p), number(name)))
+            .collect();
+        // Unpainted neighbours read as their kind's terrain, and everything beyond the
+        // dungeon as solid, so outer walls show no edge towards the void.
+        let terrain_of = |p: [i32; 2]| {
+            numbered.get(&p).copied().or_else(|| {
+                if layout.at([p[0] + offset[0], p[1] + offset[1]]).walkable() {
+                    floor
+                } else {
+                    solid
+                }
+            })
+        };
+        let painted: BTreeSet<[i32; 2]> = numbered.keys().copied().collect();
+        cells = crate::tileset::solve(set, index, &painted, &terrain_of)
+            .into_iter()
+            .filter(|(p, _)| painted.contains(p))
+            .map(|(p, atlas)| (p, crate::tilemap::Cell::new(atlas)))
+            .collect();
+    }
+    // Decorations: one layer per TileSet, first tile per cell.
+    let mut decorations: Vec<(Uuid, crate::tilemap::Cells)> = Vec::new();
+    for p in placements {
+        if let Piece::Tile { tile_set, atlas } = &p.visual.piece {
+            let set = tile_set.or(terrain_set).unwrap_or(default_set);
+            let index = match decorations.iter().position(|(s, _)| *s == set) {
+                Some(index) => index,
+                None if decorations.len() < DECORATION_LAYERS => {
+                    decorations.push((set, crate::tilemap::Cells::new()));
+                    decorations.len() - 1
+                }
+                None => {
+                    return Err(format!(
+                        "Tile pieces use more than {DECORATION_LAYERS} TileSets"
+                    ));
+                }
+            };
+            decorations[index]
+                .1
+                .entry(shift(dungeon_style::tile_cell(&p.spot)))
+                .or_insert(crate::tilemap::Cell::new(*atlas));
+        }
+    }
+    let tile = sets
+        .get(&terrain_set.unwrap_or(default_set))
+        .map_or([16., 16.], |s| s.tile_size.map(f32::from));
+    let pixel = |cell: [i32; 2], offset_px: [f32; 3]| {
+        let p = shift(cell);
         [
-            ((c[0] - offset[0]) as f32 + 0.5) * tile[0],
-            ((c[1] - offset[1]) as f32 + 0.5) * tile[1],
+            (p[0] as f32 + 0.5) * tile[0] + offset_px[0],
+            (p[1] as f32 + 0.5) * tile[1] + offset_px[1],
         ]
     };
+    let spawns = placements
+        .iter()
+        .filter_map(|p| match &p.visual.piece {
+            Piece::Actor { class: Some(class) } => Some(Spawn2d {
+                node: p.node,
+                position: pixel(p.spot.cell, p.visual.offset),
+                class: class.clone(),
+            }),
+            _ => None,
+        })
+        .collect();
     Ok(Plan2d {
+        tile_set: terrain_set,
         cells,
-        spawn: center(layout.spawn),
-        goal: center(layout.goal),
+        decorations,
+        spawn: pixel(layout.rooms[layout.spawn].center(), [0.; 3]),
+        goal: pixel(layout.rooms[layout.goal].center(), [0.; 3]),
+        spawns,
     })
 }
 
@@ -640,6 +888,59 @@ pub fn builtin_tiles(root: &Path) -> Result<(Uuid, crate::tileset::TileSet), Str
     let set = art::tileset(texture);
     let id = crate::tileset::create(root, TILES_PATH, &set)?;
     Ok((id, set))
+}
+
+// ---- styles ---------------------------------------------------------------------------------
+
+/// The style a generator uses and a digest of it, so a changed style marks the
+/// output stale.
+pub fn style_of(
+    index: &assets::Index,
+    g: &Generator,
+    two_d: bool,
+) -> Result<(Style, String), String> {
+    let style = match g.style {
+        Some(id) => {
+            let record = index.resolve(id)?;
+            let style = dungeon_style::document(record)?;
+            if style.two_d != two_d {
+                return Err(format!(
+                    "The Dungeon Style is for {} dungeons; choose a {} style",
+                    if style.two_d { "2D" } else { "3D" },
+                    if two_d { "2D" } else { "3D" }
+                ));
+            }
+            style
+        }
+        None => dungeon_style::builtin(two_d, None),
+    };
+    let digest = dungeon_style::digest(&style);
+    Ok((style, digest))
+}
+
+/// The EditableMesh documents Mesh pieces merge in.
+pub fn piece_meshes(
+    index: &assets::Index,
+    placements: &[Placement],
+) -> Result<HashMap<Uuid, Arc<Document>>, String> {
+    let mut meshes = HashMap::new();
+    for p in placements {
+        if let Piece::Mesh { asset: Some(asset) } = p.visual.piece
+            && !meshes.contains_key(&asset)
+        {
+            let record = index
+                .resolve(asset)
+                .map_err(|e| format!("A Mesh piece's asset is missing: {e}"))?;
+            meshes.insert(asset, Arc::new(crate::mesh::document(record)?));
+        }
+    }
+    Ok(meshes)
+}
+
+/// The class model and registry that Actor pieces are placed with.
+pub struct Classes<'a> {
+    pub registry: &'a crate::blueprint::Registry,
+    pub model: &'a crate::object_model::Model,
 }
 
 // ---- writing --------------------------------------------------------------------------------
@@ -712,9 +1013,69 @@ fn stable_components(actor: &mut Actor) {
     }
 }
 
+/// Places a class instance under the generator and gives the placed branch stable
+/// identities derived from `role`. Returns the identities of every placed actor.
+fn place_piece(
+    root: &Path,
+    scene: &mut Scene,
+    classes: &Classes,
+    class: &str,
+    owner: Uuid,
+    role: &str,
+    parent: Uuid,
+) -> Result<(usize, Vec<Uuid>), String> {
+    let first = scene.actors.len();
+    let placed = crate::editor::place_class(scene, root, classes.registry, classes.model, class)?;
+    // Template placements append their whole branch; remap it to stable identities.
+    let mut actor_map = BTreeMap::new();
+    let mut component_map = BTreeMap::new();
+    for (k, actor) in scene.actors[first..].iter().enumerate() {
+        let id = dungeon::derived_id(owner, &format!("{role}-{k}"));
+        actor_map.insert(actor.id, id);
+        for (j, component) in actor.components.iter().enumerate() {
+            component_map.insert(
+                component.id,
+                dungeon::derived_id(id, &format!("component-{j}")),
+            );
+        }
+    }
+    for actor in &mut scene.actors[first..] {
+        actor.id = actor_map[&actor.id];
+        actor.data.id = actor.id;
+        for component in &mut actor.components {
+            component.id = component_map[&component.id];
+        }
+        if let Some(p) = actor.logical_parent.and_then(|p| actor_map.get(&p)) {
+            actor.logical_parent = Some(*p);
+        }
+        if let Some(attach) = &mut actor.attach {
+            if let Some(a) = actor_map.get(&attach.actor) {
+                attach.actor = *a;
+            }
+            if let Some(c) = attach.component.and_then(|c| component_map.get(&c)) {
+                attach.component = Some(*c);
+            }
+        }
+    }
+    let root_actor = &mut scene.actors[placed];
+    root_actor.logical_parent = Some(parent);
+    root_actor.attach = Some(Attachment {
+        actor: parent,
+        component: None,
+    });
+    let ids = scene.actors[first..].iter().map(|a| a.id).collect();
+    Ok((placed, ids))
+}
+
 /// Generates the layout of generator `id` and replaces its previous output in `scene`.
-/// On error the scene may be partly changed; callers keep a copy to restore.
-pub fn generate(root: &Path, scene: &mut Scene, id: Uuid) -> Result<Report, String> {
+/// `classes` places Actor pieces; without it a style that uses them is refused. On
+/// error the scene may be partly changed; callers keep a copy to restore.
+pub fn generate(
+    root: &Path,
+    scene: &mut Scene,
+    id: Uuid,
+    classes: Option<&Classes>,
+) -> Result<Report, String> {
     let index = scene
         .dungeons
         .iter()
@@ -727,60 +1088,114 @@ pub fn generate(root: &Path, scene: &mut Scene, id: Uuid) -> Result<Report, Stri
         .ok_or("The Dungeon Generator's actor was deleted")?;
     let layout = dungeon::layout(&g)?;
     let two_d = is_2d(scene, g.root);
+    let asset_index = assets::scan(root, &mut Default::default());
+    let (style, style_digest) = style_of(&asset_index, &g, two_d)?;
+    let placements = dungeon_style::evaluate(&style, &layout, g.seed);
+    let needs_classes = placements
+        .iter()
+        .any(|p| matches!(p.visual.piece, Piece::Actor { class: Some(_) }));
+    if needs_classes && classes.is_none() {
+        return Err("The style places actors; their classes need the project's class model, which is unavailable".into());
+    }
     scene.sync_actor_components();
     for actor in &g.output.actors {
         scene.delete_actor_branch(*actor);
     }
     let root_name = scene.actors[root_index].name.clone();
     let mut actors: Vec<Actor> = Vec::new();
+    let mut placed_ids: Vec<Uuid> = Vec::new();
     let mut assets_written = Vec::new();
     let mut report = Report {
         summary: dungeon::summary(&layout),
         ..Default::default()
     };
     if two_d {
-        let (set_id, set) = match g.tile_set {
-            Some(set) => {
-                let index = assets::scan(root, &mut Default::default());
-                let record = index.resolve(set)?;
-                (set, crate::tileset::document(record)?)
-            }
-            None => builtin_tiles(root)?,
+        let default_set = match g.tile_set {
+            Some(set) => set,
+            None => builtin_tiles(root)?.0,
         };
-        g.tile_set = Some(set_id);
-        let plan = plan_2d(&layout, &set)?;
-        let mut layer =
-            crate::world2d::create(crate::world2d::Preset::TileMapLayer, "Tiles", [0., 0.]);
-        if let Some(component) = layer.components.iter_mut().find(|c| {
-            c.class.class_id.as_deref() == Some(crate::object_model::TILEMAP_LAYER_COMPONENT_ID)
-        }) {
-            crate::world2d::write(
-                component,
-                &crate::world2d::TileMapLayer {
-                    tile_set: Some(set_id),
-                    cells: crate::tilemap::encode(&plan.cells),
-                    ..Default::default()
-                },
-            );
+        let asset_index = assets::scan(root, &mut Default::default());
+        let mut sets = BTreeMap::new();
+        for id in style.references().into_iter().chain([default_set]) {
+            if let Ok(record) = asset_index.resolve(id)
+                && record.meta.kind == assets::Kind::TileSet
+            {
+                sets.insert(id, Arc::new(crate::tileset::document(record)?));
+            }
         }
-        let layer = child(
-            scene,
-            layer,
-            g.derived_id("tiles"),
-            &format!("{root_name} Tiles"),
-            g.root,
-        );
-        actors.push(layer);
+        let plan = plan_2d(&layout, &placements, default_set, &sets)?;
+        let mut layers: Vec<(Uuid, crate::tilemap::Cells, &str, i16, bool)> = Vec::new();
+        if let Some(set) = plan.tile_set {
+            layers.push((set, plan.cells.clone(), "Tiles", 0, true));
+        }
+        for (set, cells) in &plan.decorations {
+            layers.push((*set, cells.clone(), "Details", 1, false));
+        }
+        for (i, (set, cells, label, z, collision)) in layers.into_iter().enumerate() {
+            let mut layer =
+                crate::world2d::create(crate::world2d::Preset::TileMapLayer, label, [0., 0.]);
+            if let Some(component) = layer.components.iter_mut().find(|c| {
+                c.class.class_id.as_deref() == Some(crate::object_model::TILEMAP_LAYER_COMPONENT_ID)
+            }) {
+                crate::world2d::write(
+                    component,
+                    &crate::world2d::TileMapLayer {
+                        tile_set: Some(set),
+                        cells: crate::tilemap::encode(&cells),
+                        z_index: z,
+                        collision_enabled: collision,
+                        ..Default::default()
+                    },
+                );
+            }
+            let role = if i == 0 && collision {
+                "tiles".to_owned()
+            } else {
+                format!("details-{i}")
+            };
+            let layer = child(
+                scene,
+                layer,
+                g.derived_id(&role),
+                &format!("{root_name} {label}"),
+                g.root,
+            );
+            actors.push(layer);
+            report.notes.push(format!("{label}: {} tiles", cells.len()));
+        }
         for (role, label, position) in [("spawn", "Spawn", plan.spawn), ("goal", "Goal", plan.goal)]
         {
             let marker = crate::world2d::create(crate::world2d::Preset::Node2D, label, position);
             actors.push(child(scene, marker, g.derived_id(role), label, g.root));
         }
-        scene.tilesets.insert(set_id, Arc::new(set));
-        report.notes.push(format!("{} tiles", plan.cells.len()));
+        for (n, spawn) in plan.spawns.iter().enumerate() {
+            let classes = classes.expect("checked above");
+            let (placed, ids) = place_piece(
+                root,
+                scene,
+                classes,
+                &spawn.class,
+                g.id,
+                &format!("piece-{}-{n}", spawn.node),
+                g.root,
+            )?;
+            if let Some(component) = scene.actors[placed].components.iter_mut().find(|c| c.root) {
+                component
+                    .properties
+                    .insert("position".into(), serde_json::json!(spawn.position));
+                component.overrides.insert("position".into());
+            }
+            placed_ids.extend(ids);
+        }
+        for (set_id, set) in sets {
+            scene.tilesets.insert(set_id, set);
+        }
+        if g.tile_set.is_none() && style.references().is_empty() {
+            g.tile_set = Some(default_set);
+        }
     } else {
-        let plan = plan_3d(&g, &layout)?;
-        let asset_index = assets::scan(root, &mut Default::default());
+        let meshes = piece_meshes(&asset_index, &placements)?;
+        let plan = plan_3d(&g, &layout, &placements, &meshes)?;
         let folder = format!("{DUNGEON_FOLDER}/{}", folder_name(&root_name));
         let count = plan.sections.len();
         for (i, section) in plan.sections.iter().enumerate() {
@@ -867,12 +1282,17 @@ pub fn generate(root: &Path, scene: &mut Scene, id: Uuid) -> Result<Report, Stri
             marker.position = position;
             actors.push(child(scene, marker, g.derived_id(role), label, g.root));
         }
+        let style_lights = plan
+            .spawns
+            .iter()
+            .any(|s| matches!(s.piece, Piece::Light { .. }));
         // A baked map without any light renders at ambient level only.
         let generated: BTreeSet<Uuid> = actors.iter().map(|a| a.id).collect();
-        if !scene
-            .actors
-            .iter()
-            .any(|a| a.light.is_some() && !generated.contains(&a.id))
+        if !style_lights
+            && !scene
+                .actors
+                .iter()
+                .any(|a| a.light.is_some() && !generated.contains(&a.id))
         {
             let mut sun = Actor::cube("Light".into());
             sun.kind = "Empty".into();
@@ -883,6 +1303,42 @@ pub fn generate(root: &Path, scene: &mut Scene, id: Uuid) -> Result<Report, Stri
                 ..Default::default()
             });
             actors.push(child(scene, sun, g.derived_id("light"), "Light", g.root));
+        }
+        for (n, spawn) in plan.spawns.iter().enumerate() {
+            let position = spawn.transform.point([0.; 3]);
+            let forward = spawn.transform.vector([0., 0., 1.]);
+            let yaw = forward[0].atan2(forward[2]).to_degrees();
+            let role = format!("piece-{}-{n}", spawn.node);
+            match &spawn.piece {
+                Piece::Light {
+                    color,
+                    intensity,
+                    range,
+                } => {
+                    let mut light = Actor::cube("Light".into());
+                    light.kind = "Empty".into();
+                    light.position = position;
+                    light.light = Some(crate::lighting::Light {
+                        kind: crate::lighting::LightType::Point,
+                        mode: crate::lighting::LightMode::Baked,
+                        color: *color,
+                        intensity: *intensity,
+                        range: *range,
+                        ..Default::default()
+                    });
+                    actors.push(child(scene, light, g.derived_id(&role), "Light", g.root));
+                }
+                Piece::Actor { class: Some(class) } => {
+                    let classes = classes.expect("checked above");
+                    let (placed, ids) =
+                        place_piece(root, scene, classes, class, g.id, &role, g.root)?;
+                    let actor = &mut scene.actors[placed];
+                    actor.position = position;
+                    actor.rotation[1] += yaw;
+                    placed_ids.extend(ids);
+                }
+                _ => {}
+            }
         }
         report.sections = count;
         report.quads = plan.quads;
@@ -908,11 +1364,15 @@ pub fn generate(root: &Path, scene: &mut Scene, id: Uuid) -> Result<Report, Stri
         crate::actor_components::sync(actor);
         stable_components(actor);
     }
-    report.actors = actors.len();
+    report.actors = actors.len() + placed_ids.len();
+    let mut output_actors: Vec<Uuid> = actors.iter().map(|a| a.id).collect();
+    // Placed branches are removed through their roots; listing every actor is harmless.
+    output_actors.extend(placed_ids);
     g.output = dungeon::Output {
-        actors: actors.iter().map(|a| a.id).collect(),
+        actors: output_actors,
         assets: assets_written,
         fingerprint: g.fingerprint(),
+        style: style_digest,
     };
     scene.actors.extend(actors);
     scene.refresh_actor_hierarchy();

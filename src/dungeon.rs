@@ -95,6 +95,9 @@ pub struct Output {
     pub assets: Vec<Uuid>,
     /// `fingerprint` of the settings that produced this output.
     pub fingerprint: String,
+    /// Digest of the Dungeon Style it was generated with.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub style: String,
 }
 impl Output {
     pub fn is_empty(&self) -> bool {
@@ -120,9 +123,13 @@ pub struct Generator {
     /// An actor moved to the spawn point after generating (usually the player).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub spawn_actor: Option<Uuid>,
-    /// 2D: the TileSet drawn with; None uses the built-in dungeon tiles.
+    /// 2D: the TileSet a style's terrains and tiles use when they name none; None uses
+    /// the built-in dungeon tiles.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tile_set: Option<Uuid>,
+    /// The Dungeon Style deciding what each spot becomes; None uses the built-in one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style: Option<Uuid>,
     pub output: Output,
 }
 impl Default for Generator {
@@ -138,6 +145,7 @@ impl Default for Generator {
             navigation: true,
             spawn_actor: None,
             tile_set: None,
+            style: None,
             output: Output::default(),
         }
     }
@@ -188,6 +196,10 @@ impl Generator {
     pub fn stale(&self) -> bool {
         !self.output.is_empty() && self.output.fingerprint != self.fingerprint()
     }
+    /// The output exists and was produced by a different version of its style.
+    pub fn style_stale(&self, digest: &str) -> bool {
+        !self.output.is_empty() && self.output.style != digest
+    }
     /// A stable identity for generated content with this role.
     pub fn derived_id(&self, role: &str) -> Uuid {
         derived_id(self.id, role)
@@ -234,6 +246,18 @@ impl Side {
             Side::West => [-1, 0],
             Side::North => [0, -1],
         }
+    }
+    /// The next side clockwise (east, south, west, north).
+    pub fn next(self) -> Side {
+        match self {
+            Side::East => Side::South,
+            Side::South => Side::West,
+            Side::West => Side::North,
+            Side::North => Side::East,
+        }
+    }
+    pub fn opposite(self) -> Side {
+        self.next().next()
     }
 }
 
@@ -297,18 +321,76 @@ impl Layout {
             (Cell::Room(_), Cell::Corridor)
         )
     }
+    /// An empty cell next to a floor, including diagonally: the solid ring around
+    /// rooms and corridors.
+    pub fn solid(&self, p: [i32; 2]) -> bool {
+        self.at(p) == Cell::Empty
+            && (-1..=1).any(|dy| (-1..=1).any(|dx| self.at([p[0] + dx, p[1] + dy]).walkable()))
+    }
     pub fn walkable_cells(&self) -> usize {
         self.cells.iter().filter(|c| c.walkable()).count()
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum SpotKind {
+    /// Every walkable cell.
     Floor,
+    /// A closed side of a walkable cell, facing into it.
     Wall,
+    /// A room side that opens onto a corridor.
     Door,
+    /// The corridor cell just outside a door, facing the room.
+    Doorway,
+    /// A solid cell of the ring around rooms and corridors.
+    Solid,
+    /// An inner corner where two closed sides of a walkable cell meet.
+    Corner,
+    /// The centre of every room.
+    Room,
+    /// The centre of the spawn room.
     Spawn,
+    /// The centre of the goal room.
     Goal,
+}
+impl SpotKind {
+    pub const ALL: [SpotKind; 9] = [
+        SpotKind::Floor,
+        SpotKind::Wall,
+        SpotKind::Door,
+        SpotKind::Doorway,
+        SpotKind::Solid,
+        SpotKind::Corner,
+        SpotKind::Room,
+        SpotKind::Spawn,
+        SpotKind::Goal,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            SpotKind::Floor => "Floor",
+            SpotKind::Wall => "Wall",
+            SpotKind::Door => "Door",
+            SpotKind::Doorway => "Doorway",
+            SpotKind::Solid => "Solid",
+            SpotKind::Corner => "Corner",
+            SpotKind::Room => "Room",
+            SpotKind::Spawn => "Spawn",
+            SpotKind::Goal => "Goal",
+        }
+    }
+    pub fn description(self) -> &'static str {
+        match self {
+            SpotKind::Floor => "Every floor cell of rooms and corridors.",
+            SpotKind::Wall => "Each closed side of a floor cell, facing into the cell.",
+            SpotKind::Door => "Each room side that opens onto a corridor, facing into the room.",
+            SpotKind::Doorway => "The corridor cell just outside each door, facing the room.",
+            SpotKind::Solid => "Each solid cell of the ring that encloses the floor.",
+            SpotKind::Corner => "Each inner corner where two walls of a floor cell meet.",
+            SpotKind::Room => "The centre of every room, once per room.",
+            SpotKind::Spawn => "The centre of the spawn room.",
+            SpotKind::Goal => "The centre of the goal room, the furthest from the spawn.",
+        }
+    }
 }
 
 /// A named place in the layout where content belongs.
@@ -323,44 +405,70 @@ pub struct Spot {
     pub corridor: bool,
 }
 
-/// Every spot of a layout, in grid order: floors, then walls and doors per side, then
-/// the spawn and goal.
+/// Every spot of a layout: per cell in grid order its floor, walls, doors and corners,
+/// or its solid block; then doorways, the spawn and the goal.
 pub fn spots(layout: &Layout) -> Vec<Spot> {
     let mut out = Vec::new();
+    let mut doorways = Vec::new();
     for y in 0..layout.size[1] {
         for x in 0..layout.size[0] {
             let cell = layout.at([x, y]);
             if !cell.walkable() {
+                if layout.solid([x, y]) {
+                    out.push(Spot {
+                        kind: SpotKind::Solid,
+                        cell: [x, y],
+                        side: None,
+                        room: None,
+                        corridor: false,
+                    });
+                }
                 continue;
             }
             let room = match cell {
                 Cell::Room(r) => Some(usize::from(r)),
                 _ => None,
             };
-            out.push(Spot {
-                kind: SpotKind::Floor,
+            let spot = |kind, side| Spot {
+                kind,
                 cell: [x, y],
-                side: None,
+                side,
                 room,
                 corridor: cell == Cell::Corridor,
-            });
+            };
+            out.push(spot(SpotKind::Floor, None));
+            let closed = |side| !layout.open([x, y], side) && !layout.door([x, y], side);
             for side in Side::ALL {
-                let kind = if layout.door([x, y], side) {
-                    SpotKind::Door
-                } else if layout.open([x, y], side) {
-                    continue;
-                } else {
-                    SpotKind::Wall
-                };
-                out.push(Spot {
-                    kind,
-                    cell: [x, y],
-                    side: Some(side),
-                    room,
-                    corridor: cell == Cell::Corridor,
-                });
+                if layout.door([x, y], side) {
+                    out.push(spot(SpotKind::Door, Some(side)));
+                    let d = side.delta();
+                    doorways.push(Spot {
+                        kind: SpotKind::Doorway,
+                        cell: [x + d[0], y + d[1]],
+                        side: Some(side.opposite()),
+                        room: None,
+                        corridor: true,
+                    });
+                } else if closed(side) {
+                    out.push(spot(SpotKind::Wall, Some(side)));
+                }
+            }
+            for side in Side::ALL {
+                if closed(side) && closed(side.next()) {
+                    out.push(spot(SpotKind::Corner, Some(side)));
+                }
             }
         }
+    }
+    out.extend(doorways);
+    for (index, room) in layout.rooms.iter().enumerate() {
+        out.push(Spot {
+            kind: SpotKind::Room,
+            cell: room.center(),
+            side: None,
+            room: Some(index),
+            corridor: false,
+        });
     }
     for (kind, room) in [
         (SpotKind::Spawn, layout.spawn),

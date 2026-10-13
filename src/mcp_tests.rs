@@ -1099,3 +1099,85 @@ fn dungeon_generate_creates_regenerates_and_undoes() {
             .any(|tool| tool.name == "dungeon_generate")
     );
 }
+#[test]
+fn dungeon_styles_are_created_read_and_edited_through_mcp() {
+    let mut e = editor();
+    let mut state = mcp::State::default();
+    let revision = mcp_tools::revision(&e.scene);
+    let reply = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "dungeon_generate",
+        json!({"revision":revision,"create":"3d","seed":3,"new_style":"Crypt Look"}),
+    )
+    .unwrap();
+    let style = reply["generator"]["style"].as_str().unwrap().to_owned();
+    let record = e
+        .assets
+        .index
+        .resolve(uuid::Uuid::parse_str(&style).unwrap())
+        .unwrap()
+        .clone();
+    let path = record
+        .path
+        .strip_prefix(&e.root)
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    assert!(path.starts_with("assets/Dungeons/Styles/CryptLook"));
+    let read =
+        mcp_tools::execute(&mut e, &mut state, "asset_document", json!({"path":path})).unwrap();
+    let mut document = read["document"].clone();
+    assert_eq!(document["two_d"], false);
+    // Recolour every blockout piece and write it back.
+    for node in document["nodes"].as_array_mut().unwrap() {
+        if node["kind"]["visual"]["piece"]["piece"] == "Blockout" {
+            node["kind"]["visual"]["piece"]["color"] = json!([0.2, 0.4, 0.6]);
+        }
+    }
+    mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "asset_document",
+        json!({"path":path,"document":document,"revision":read["revision"]}),
+    )
+    .unwrap();
+    // An invalid style is refused.
+    let read =
+        mcp_tools::execute(&mut e, &mut state, "asset_document", json!({"path":path})).unwrap();
+    let mut broken = read["document"].clone();
+    broken["version"] = json!(99);
+    assert!(
+        mcp_tools::execute(
+            &mut e,
+            &mut state,
+            "asset_document",
+            json!({"path":path,"document":broken,"revision":read["revision"]}),
+        )
+        .is_err()
+    );
+    // Regenerating picks up the edited style.
+    let name = e.scene.actors[e.scene.actor_index(e.scene.dungeons[0].root).unwrap()]
+        .name
+        .clone();
+    let revision = mcp_tools::revision(&e.scene);
+    mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "dungeon_generate",
+        json!({"revision":revision,"actor":name}),
+    )
+    .unwrap();
+    let section = e
+        .assets
+        .index
+        .resolve(e.scene.dungeons[0].output.assets[0])
+        .unwrap()
+        .clone();
+    let mesh = crate::mesh::document(&section).unwrap();
+    assert!(
+        mesh.materials
+            .iter()
+            .all(|slot| slot.material.color == [0.2, 0.4, 0.6])
+    );
+}

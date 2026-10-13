@@ -11,6 +11,7 @@ console runs the baked map and does no generation work of its own.
 | Collision | One compound collider holding every floor, wall and doorway box | The TileSet's tile collision |
 | Navigation | Navigation bake volumes over the floor, spaced for the node budget | — |
 | Gameplay points | `Spawn` and `Goal` actors at the centres of the two rooms furthest apart | `Spawn` and `Goal` Node2D actors |
+| Look | A [Dungeon Style](#dungeon-styles): built-in blockout, or meshes, lights and actors | A Dungeon Style: the built-in tiles, or any TileSet's terrains and tiles |
 
 ## Create a dungeon
 
@@ -80,12 +81,88 @@ of another face, and gives baked lighting a vertex at every cell corner. Run
 
 ![A generated 2D dungeon painted with the built-in dungeon tiles](images/dungeon-generator-2d.png)
 
-**Tile set** chooses the TileSet the layer is painted with. *Built-in dungeon tiles*
-creates `assets/Dungeons/DungeonTiles.epokasset` on first use: stone floor variants and
-solid walls with a brick face towards the room. Any TileSet works when it has a
-terrain set holding terrains named **Floor** and **Wall**; the TileSet's own terrain
-rules choose the tiles, and its tile collision makes walls solid. One grid cell is one
-tile.
+**Tile set** is the TileSet the style's terrains and tiles use when they name none.
+*Built-in dungeon tiles* creates `assets/Dungeons/DungeonTiles.epokasset` on first use:
+stone floor variants and solid walls with a brick face towards the room. Any TileSet
+works when it has a terrain set holding the terrains the style paints (the built-in
+look uses **Floor** and **Wall**); the TileSet's own terrain rules choose the tiles,
+and its tile collision makes walls solid. One grid cell is one tile.
+
+## Dungeon Styles
+
+A Dungeon Style decides what every spot of a dungeon becomes. It is an asset, so one
+style can dress many dungeons, and changing it restyles them all. Without a style a
+generator uses the built-in look: blockout geometry in 3D, the built-in tiles in 2D.
+
+- In the generator band, **Style** chooses the style. **New** creates a style asset
+  holding the current look (under `assets/Dungeons/Styles/`) and opens it; **Edit**
+  opens the chosen one. The Project browser's **Add > Dungeon Style (3D)** and
+  **(2D)** create one too, and double-clicking a style opens it.
+- The editor shows **spots** on the left and the **pieces** each spot becomes to their
+  right. Pieces are tried from left to right, and each piece header shows its place in
+  that order: drag a piece left or right to change its priority.
+- **Add** (or right-click the canvas) adds a spot or a piece, with a search field.
+  Dragging from a spot's dot to empty canvas adds a piece to that spot; dropping a
+  piece on another spot moves it there. **Delete** removes the selection; **Ctrl+Z**
+  and **Ctrl+Shift+Z** undo and redo; the wheel zooms and **F** or **Frame all** shows
+  the whole style.
+- Every finished edit is saved. With **Live preview** on, the dungeons of the open map
+  that use the style regenerate at once, so the Scene view shows the result; those
+  regenerations are one undo step in the map.
+- A piece that cannot place anything (no mesh chosen, a 2D piece in a 3D style, a
+  terrain on a wall spot) has an amber outline and says why. The details panel counts
+  how many times the selected piece is placed in the open map.
+
+![The Dungeon Style editor with spots, ordered pieces and the details of a floor piece](images/dungeon-style-editor.png)
+
+### Spots
+
+| Spot | Where | Facing (+Z) |
+| --- | --- | --- |
+| Floor | Every floor cell of rooms and corridors | — |
+| Wall | Each closed side of a floor cell | into the floor cell |
+| Door | Each room side that opens onto a corridor | into the room |
+| Doorway | The corridor cell just outside each door | towards the room |
+| Solid | Each solid cell of the ring that encloses the floor | — |
+| Corner | Each inner corner where two walls of a floor cell meet | away from the first wall |
+| Room | The centre of every room, once per room | — |
+| Spawn, Goal | The centres of the spawn and goal rooms | — |
+
+Spots sit at floor level. Wall and door spots are on the cell edge, corner spots on the
+corner point, the others at the cell centre.
+
+### Pieces
+
+| Piece | 3D / 2D | What it places | Cost |
+| --- | --- | --- | --- |
+| Blockout | 3D | The generator's own geometry for the spot: a floor tile, wall panel, wall top, doorway beam or corner pillar, in a colour or texture | Merged geometry |
+| Mesh | 3D | An EditableMesh, merged into the dungeon's sections with its own materials | Merged geometry, no actor |
+| Actor | both | An actor of any placeable class (C++, Blueprint or Lua), including Blueprint templates with child actors | One actor per placement |
+| Light | 3D | A baked point light | One actor per placement |
+| Terrain | 2D | The terrain a Floor or Solid cell is painted with | Tiles |
+| Tile | 2D | One tile on a decoration layer above the floor, without collision | Tiles; one layer per TileSet |
+
+Model meshes around the spot: floor level at 0, centred on the cell or the edge, and
+facing +Z into the room for walls and doors. Generated collision always comes from the
+layout; give props that must block the player an Actor piece with a collider instead.
+
+### Placement
+
+| Field | Meaning | Default |
+| --- | --- | ---: |
+| Chance | Percentage of eligible spots that get the piece | 100 |
+| Stop here | When the piece places, pieces to its right are skipped at that spot. Off, it decorates and the next pieces are tried too | on |
+| Where | Anywhere, rooms only or corridors only | Anywhere |
+| Limit | Most placements in one dungeon, spread at random; 0 has no limit | 0 |
+| Offset, Rotation, Scale | Relative to the spot (2D: offset in pixels for actors) | 0, 0, 1 |
+
+The built-in pieces do not stop: a piece added to their right decorates on top of them,
+and one added to their left that stops replaces them. For example, a wall mesh with a
+15% chance placed left of the blockout wall replaces 15% of the walls; a torch mesh
+placed to its right adds torches to 15% of them. Each piece draws its own random
+numbers from the seed, so editing one piece never reshuffles another.
+
+![A styled dungeon on the console: a room lit by a baked point light, with a crate merged into the geometry](images/dungeon-style-ingame.png)
 
 ## PSX budget
 
@@ -94,7 +171,7 @@ build is visible before it is generated.
 
 | Meter | Limit | Notes |
 | --- | ---: | --- |
-| Actors | 64 per map | A 3D dungeon uses about eight: geometry sections, collision, navigation volumes, spawn, goal and a light when the map has none. |
+| Actors | 64 per map | A 3D dungeon uses about eight: geometry sections, collision, navigation volumes, spawn, goal and a light when the map has none. Actor and Light pieces add one each. |
 | Geometry | 3,500 quads per map | Counts the whole map. Surfaces are split every 4 units when compiled. |
 | Collision | 2,048 boxes | One compound collider per dungeon. |
 | Navigation | 512 nodes | Spacing grows with the floor area; very large floors skip navigation. |
@@ -115,12 +192,15 @@ rotated or scaled.
 ## Automation
 
 - MCP `dungeon_generate` regenerates a generator named by its actor, or creates one
-  with `create: "3d"` or `"2d"`. `seed` and `settings` change it first; `clear` removes
-  the generated content. The change is one entry in `scene_history`.
+  with `create: "3d"` or `"2d"`. `seed` and `settings` change it first (`style` takes a
+  Dungeon Style asset id); `new_style` creates a style from the current look and
+  assigns it; `clear` removes the generated content. The change is one entry in
+  `scene_history`. `asset_document` reads and replaces a style's document.
 - `--generate-dungeon <actor>` regenerates headlessly and saves the map;
   `--generate-dungeon 3d` or `2d` adds a new generator. `--dungeon-seed N` and
   `--dungeon-settings '<json>'` (for example `{"rooms":{"rooms":14},"spawn_actor":"Player"}`)
-  apply before generating.
+  apply before generating; `--dungeon-new-style <name>` creates a style from the current
+  look and assigns it.
 
 ## Determinism
 

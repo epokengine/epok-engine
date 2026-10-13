@@ -154,8 +154,10 @@ settings of one Dungeon Generator: its `id`, the `root` actor that places it, th
 `tile_set`, and `output` — the actors and assets the last generation wrote, with a
 `fingerprint` of the settings that produced them. The cook reads only the generated
 actors and assets. A `Collider3DComponent` may hold a `boxes` list (minimum and maximum
-corners in the actor's local space) for a compound collider. See
-[Dungeon Generator](dungeons.md).
+corners in the actor's local space) for a compound collider. A Dungeon Style is an
+authored `.epokasset` of kind `DungeonStyle` whose payload is a JSON document: a
+`version`, whether it is `two_d`, and its `nodes` (spots, and pieces naming their spot
+as `parent`). See [Dungeon Generator](dungeons.md).
 
 ### Blueprint asset version 4
 

@@ -43,6 +43,7 @@ pub enum Kind {
     Font,
     TileSet,
     StringTable,
+    DungeonStyle,
 }
 impl Kind {
     pub fn playable(&self) -> bool {
@@ -345,6 +346,7 @@ impl Package {
             (Kind::Terrain, crate::import_settings::Settings::Authored) => {}
             (Kind::TileSet, crate::import_settings::Settings::Authored) => {}
             (Kind::StringTable, crate::import_settings::Settings::Authored) => {}
+            (Kind::DungeonStyle, crate::import_settings::Settings::Authored) => {}
             (Kind::ModelSource, crate::import_settings::Settings::Fbx(s)) => s.validate()?,
             (Kind::Font, crate::import_settings::Settings::Font(s)) => s.validate()?,
             (
@@ -403,6 +405,9 @@ impl Package {
             }
             Kind::StringTable => {
                 crate::localization::StringTable::parse(&self.source)?;
+            }
+            Kind::DungeonStyle => {
+                crate::dungeon_style::Style::parse(&self.source)?;
             }
             Kind::Font => {
                 crate::font_asset::decode(&self.source, self.meta.settings.font()?)?;

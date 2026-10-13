@@ -19,6 +19,8 @@ pub struct Preview {
     pub fingerprint: String,
     pub layout: Result<Layout, String>,
     pub budget: Option<Budget>,
+    /// The style's digest, or why the style cannot be used.
+    pub style: Result<String, String>,
 }
 
 /// The PSX budget after generating with the current settings.
@@ -38,11 +40,15 @@ enum Request {
     Clear(Uuid),
     Reset(Uuid),
     ResetTransform(Uuid),
+    NewStyle(Uuid),
+    EditStyle(Uuid),
 }
 
 #[derive(Default)]
 pub struct State {
     previews: BTreeMap<Uuid, Preview>,
+    /// Whether each style asset is a 2D style, by asset revision.
+    style_domains: BTreeMap<Uuid, (String, bool)>,
     pub reports: BTreeMap<Uuid, Report>,
     pending: Option<Request>,
 }
@@ -136,13 +142,41 @@ pub fn frame(e: &mut Editor, id: Uuid) {
 
 /// Generates and records one undo step. On failure the map is left untouched.
 pub fn generate(e: &mut Editor, id: Uuid) {
+    run(e, id, false);
+}
+
+/// Regenerates every dungeon of the map that uses style `style`, folding the
+/// regenerations of one editing session into a single undo step. Returns how many.
+pub fn regenerate_with_style(e: &mut Editor, style: Uuid) -> usize {
+    let ids: Vec<Uuid> = e
+        .scene
+        .dungeons
+        .iter()
+        .filter(|g| g.style == Some(style))
+        .map(|g| g.id)
+        .collect();
+    let mut done = 0;
+    for id in ids {
+        if run(e, id, true) {
+            done += 1;
+        }
+    }
+    done
+}
+
+fn run(e: &mut Editor, id: Uuid, coalesced: bool) -> bool {
     if e.playing {
         e.log("Stop the emulator before generating.");
-        return;
+        return false;
     }
     let before = e.scene.clone();
     let selected = e.selected_actor;
-    match dungeon_bake::generate(&e.root, &mut e.scene, id) {
+    let model = e.object_model();
+    let classes = model.as_deref().map(|model| dungeon_bake::Classes {
+        registry: &e.class_registry,
+        model,
+    });
+    match dungeon_bake::generate(&e.root, &mut e.scene, id, classes.as_ref()) {
         Ok(report) => {
             e.assets.refresh();
             let index = crate::assets::scan(&e.root, &mut Default::default());
@@ -158,13 +192,19 @@ pub fn generate(e: &mut Editor, id: Uuid) {
             if selected.is_some() {
                 e.select_actor(selected);
             }
-            e.changed();
+            if coalesced {
+                e.changed_coalesced("dungeon-style-preview");
+            } else {
+                e.changed();
+            }
+            true
         }
         Err(error) => {
             e.scene = before;
             e.select_actor(selected);
             e.last_error = Some(format!("Dungeon not generated: {error}"));
             e.log(format!("Dungeon not generated: {error}"));
+            false
         }
     }
 }
@@ -200,6 +240,33 @@ pub fn apply_pending(e: &mut Editor) {
                 e.changed();
             }
         }
+        Request::NewStyle(id) => {
+            let Some(g) = e.scene.dungeons.iter().find(|g| g.id == id).cloned() else {
+                return;
+            };
+            let two_d = dungeon_bake::is_2d(&e.scene, g.root);
+            let start = dungeon_bake::style_of(&e.assets.index, &g, two_d)
+                .map(|(style, _)| style)
+                .unwrap_or_else(|_| crate::dungeon_style::builtin(two_d, None));
+            let name = e
+                .scene
+                .actor_index(g.root)
+                .map(|i| format!("{} Style", e.scene.actors[i].name))
+                .unwrap_or_else(|| "Dungeon Style".into());
+            match crate::dungeon_style_editor::create(e, &name, start) {
+                Ok(style) => {
+                    if let Some(g) = e.scene.dungeons.iter_mut().find(|g| g.id == id) {
+                        g.style = Some(style);
+                    }
+                    generate(e, id);
+                }
+                Err(error) => {
+                    e.last_error = Some(error.clone());
+                    e.log(error);
+                }
+            }
+        }
+        Request::EditStyle(style) => crate::dungeon_style_editor::open(e, style),
         Request::ResetTransform(id) => {
             if let Some(root) = e.scene.dungeons.iter().find(|g| g.id == id).map(|g| g.root)
                 && let Some(index) = e.scene.actor_index(root)
@@ -308,16 +375,39 @@ pub fn mcp_target(scene: &mut crate::scene::Scene, a: &serde_json::Value) -> Res
     Ok(id)
 }
 
+/// Creates a Dungeon Style asset holding generator `id`'s current look (its style, or
+/// the built-in one) and returns its id.
+pub fn new_style(
+    root: &std::path::Path,
+    scene: &crate::scene::Scene,
+    id: Uuid,
+    name: &str,
+) -> Result<Uuid, String> {
+    let g = scene
+        .dungeons
+        .iter()
+        .find(|g| g.id == id)
+        .ok_or("The Dungeon Generator was removed")?;
+    let two_d = dungeon_bake::is_2d(scene, g.root);
+    let index = crate::assets::scan(root, &mut Default::default());
+    let (style, _) = dungeon_bake::style_of(&index, g, two_d)?;
+    let path = crate::dungeon_style::fresh_path(root, name);
+    crate::dungeon_style::create(root, &path, &style)
+}
+
 // ---- preview -------------------------------------------------------------------------------
 
-/// The layout and budget of a generator's current settings, cached by fingerprint.
+/// The layout and budget of a generator's current settings and style, cached until
+/// either changes.
 pub fn preview(e: &mut Editor, id: Uuid) -> Option<Preview> {
     let generator = e.scene.dungeons.iter().find(|g| g.id == id)?.clone();
-    let fingerprint = format!(
-        "{}-{}",
-        generator.fingerprint(),
-        dungeon_bake::is_2d(&e.scene, generator.root)
-    );
+    let two_d = dungeon_bake::is_2d(&e.scene, generator.root);
+    let style_revision = generator
+        .style
+        .and_then(|s| e.assets.index.resolve(s).ok())
+        .map(|r| r.revision.clone())
+        .unwrap_or_default();
+    let fingerprint = format!("{}-{two_d}-{style_revision}", generator.fingerprint());
     if let Some(cached) = e.dungeon.previews.get(&id)
         && cached.fingerprint == fingerprint
     {
@@ -326,20 +416,31 @@ pub fn preview(e: &mut Editor, id: Uuid) -> Option<Preview> {
     let layout = generator
         .validate()
         .and_then(|_| dungeon::layout(&generator));
-    let budget = layout
-        .as_ref()
-        .ok()
-        .and_then(|layout| budget(&e.scene, &generator, layout).ok());
+    let style = dungeon_bake::style_of(&e.assets.index, &generator, two_d);
+    let budget = match (&layout, &style) {
+        (Ok(layout), Ok((style, _))) => {
+            budget(&e.scene, &e.assets.index, &generator, layout, style).ok()
+        }
+        _ => None,
+    };
     let preview = Preview {
         fingerprint,
         layout,
         budget,
+        style: style.map(|(_, digest)| digest),
     };
     e.dungeon.previews.insert(id, preview.clone());
     Some(preview)
 }
 
-fn budget(scene: &crate::scene::Scene, g: &Generator, layout: &Layout) -> Result<Budget, String> {
+fn budget(
+    scene: &crate::scene::Scene,
+    index: &crate::assets::Index,
+    g: &Generator,
+    layout: &Layout,
+    style: &crate::dungeon_style::Style,
+) -> Result<Budget, String> {
+    use crate::dungeon_style::Piece;
     let output: std::collections::BTreeSet<Uuid> = g
         .output
         .actors
@@ -347,27 +448,52 @@ fn budget(scene: &crate::scene::Scene, g: &Generator, layout: &Layout) -> Result
         .flat_map(|a| scene.actor_branch(*a))
         .collect();
     let others = scene.actors.iter().filter(|a| !output.contains(&a.id));
+    let placements = crate::dungeon_style::evaluate(style, layout, g.seed);
+    let pieces = placements
+        .iter()
+        .filter(|p| {
+            matches!(
+                p.visual.piece,
+                Piece::Actor { class: Some(_) } | Piece::Light { .. }
+            )
+        })
+        .count();
     if dungeon_bake::is_2d(scene, g.root) {
         let tiles = (0..layout.size[1])
             .flat_map(|y| (0..layout.size[0]).map(move |x| [x, y]))
-            .filter(|p| layout.at(*p).walkable() || dungeon_bake::wall_cell(layout, *p))
+            .filter(|p| layout.at(*p).walkable() || layout.solid(*p))
             .count();
+        let mut layers: Vec<Option<Uuid>> = placements
+            .iter()
+            .filter_map(|p| match &p.visual.piece {
+                Piece::Tile { tile_set, .. } => Some(*tile_set),
+                _ => None,
+            })
+            .collect();
+        layers.sort();
+        layers.dedup();
         return Ok(Budget {
-            actors: others.count() + 3,
+            actors: others.count() + 3 + layers.len() + pieces,
             tiles,
             ..Default::default()
         });
     }
     let other_quads: usize = others.clone().map(crate::lighting::quad_count).sum();
-    let plan = dungeon_bake::plan_3d(g, layout)?;
-    let light = !scene
-        .actors
+    let meshes = dungeon_bake::piece_meshes(index, &placements)?;
+    let plan = dungeon_bake::plan_3d(g, layout, &placements, &meshes)?;
+    let style_lights = placements
         .iter()
-        .any(|a| a.light.is_some() && !output.contains(&a.id));
+        .any(|p| matches!(p.visual.piece, Piece::Light { .. }));
+    let light = !style_lights
+        && !scene
+            .actors
+            .iter()
+            .any(|a| a.light.is_some() && !output.contains(&a.id));
     let generated = plan.sections.len()
         + 3
         + plan.navigation.as_ref().map_or(0, |n| n.volumes.len())
-        + usize::from(light);
+        + usize::from(light)
+        + pieces;
     Ok(Budget {
         actors: others.count() + generated,
         quads: other_quads + plan.quads,
@@ -563,6 +689,16 @@ fn warnings(
             "The settings changed since the dungeon was generated.".into(),
             Some(("Regenerate", Request::Generate(id))),
         ));
+    } else if let Some(Ok(digest)) = preview.map(|p| &p.style)
+        && g.style_stale(digest)
+    {
+        list.push((
+            "The style changed since the dungeon was generated.".into(),
+            Some(("Regenerate", Request::Generate(id))),
+        ));
+    }
+    if let Some(Err(error)) = preview.map(|p| &p.style) {
+        list.push((error.clone(), None));
     }
     if !two_d {
         if let Some(index) = e.scene.actor_index(g.root)
@@ -704,6 +840,7 @@ fn settings(ui: &Ui, e: &mut Editor, id: Uuid, two_d: bool) {
     if ui.is_item_hovered() {
         ui.tooltip_text("The same seed and settings always give the same dungeon.");
     }
+    style_row(ui, e, &mut g, two_d);
     let _ = crate::gui::field(ui, "Layout");
     ui.text("Rooms and corridors");
     ui.spacing();
@@ -849,6 +986,122 @@ fn settings(ui: &Ui, e: &mut Editor, id: Uuid, two_d: bool) {
     if g != e.scene.dungeons[index] {
         e.scene.dungeons[index] = g;
         e.changed_coalesced("dungeon-settings");
+    }
+}
+
+/// The Style choice: built-in or any project style of the same domain, with New and
+/// Edit buttons.
+fn style_row(ui: &Ui, e: &mut Editor, g: &mut Generator, two_d: bool) {
+    let records: Vec<(Uuid, String, String)> = e
+        .assets
+        .index
+        .usable()
+        .filter(|r| r.meta.kind == crate::assets::Kind::DungeonStyle)
+        .map(|r| {
+            (
+                r.meta.id,
+                r.path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+                r.revision.clone(),
+            )
+        })
+        .collect();
+    let mut styles = Vec::new();
+    for (id, name, revision) in records {
+        let cached = e
+            .dungeon
+            .style_domains
+            .get(&id)
+            .filter(|(r, _)| *r == revision)
+            .map(|(_, d)| *d);
+        let domain = match cached {
+            Some(domain) => domain,
+            None => {
+                let domain = e
+                    .assets
+                    .index
+                    .resolve(id)
+                    .ok()
+                    .and_then(|r| crate::dungeon_style::document(r).ok())
+                    .is_some_and(|s| s.two_d);
+                e.dungeon.style_domains.insert(id, (revision, domain));
+                domain
+            }
+        };
+        if domain == two_d {
+            styles.push((id, name));
+        }
+    }
+    styles.sort_by(|a, b| a.1.cmp(&b.1));
+    let builtin = if two_d {
+        "Built-in dungeon tiles"
+    } else {
+        "Built-in blockout"
+    };
+    let current = g
+        .style
+        .and_then(|id| {
+            styles
+                .iter()
+                .find(|(s, _)| *s == id)
+                .map(|(_, n)| n.clone())
+        })
+        .unwrap_or_else(|| {
+            if g.style.is_some() {
+                "Missing style".into()
+            } else {
+                builtin.into()
+            }
+        });
+    let id = crate::gui::field(ui, "Style");
+    let width = ui.content_region_avail()[0];
+    ui.set_next_item_width((width - 110.).max(80.));
+    if let Some(_combo) = ui.begin_combo(id, &current) {
+        if ui
+            .selectable_config(builtin)
+            .selected(g.style.is_none())
+            .build()
+        {
+            g.style = None;
+        }
+        for (style, name) in &styles {
+            if ui
+                .selectable_config(name)
+                .selected(g.style == Some(*style))
+                .build()
+            {
+                g.style = Some(*style);
+            }
+        }
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("What each spot becomes: a Dungeon Style asset, or the built-in look.");
+    }
+    ui.same_line();
+    if ui.small_button("New") {
+        e.dungeon.pending = Some(Request::NewStyle(g.id));
+    }
+    #[cfg(test)]
+    crate::gui::record_script_control(ui, "New dungeon style");
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Create a style asset from the current look and open it.");
+    }
+    ui.same_line();
+    ui.disabled(g.style.is_none(), || {
+        if ui.small_button("Edit")
+            && let Some(style) = g.style
+        {
+            e.dungeon.pending = Some(Request::EditStyle(style));
+        }
+    });
+    if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+        ui.tooltip_text(if g.style.is_some() {
+            "Open the style in the Dungeon Style editor."
+        } else {
+            "The built-in look cannot be edited; press New to make an editable copy."
+        });
     }
 }
 
