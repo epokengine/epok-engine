@@ -288,7 +288,12 @@ pub fn scene_header_with_registry_for(
         .enumerate()
         .filter(|(_, e)| e.kind == "Mesh" && e.editable_mesh.is_some())
     {
-        text.push_str(&crate::mesh_compile::header_with_colors(e, index, &pages, &vertex_colors)?);
+        text.push_str(&crate::mesh_compile::header_with_colors(
+            e,
+            index,
+            &pages,
+            &vertex_colors,
+        )?);
     }
     for (index, e) in scene
         .actors
@@ -1010,13 +1015,18 @@ fn stage_with_playback(
     )?;
     let mut vertex_color_sources = resource_scenes.clone();
     vertex_color_sources.push(referenced.clone());
-    let vertex_colors = crate::vertex_colors::Palette::scene(&crate::scene_bank::resources(&vertex_color_sources))?;
+    let vertex_colors =
+        crate::vertex_colors::Palette::scene(&crate::scene_bank::resources(&vertex_color_sources))?;
     let mut stream = if rendering.streaming_geometry {
         Some(crate::streaming::compile_with_palette(
-            &banks, rendering.streaming_pool_pages as usize,
-            usize::from(rendering.streaming_triangle_budget), &vertex_colors,
+            &banks,
+            rendering.streaming_pool_pages as usize,
+            usize::from(rendering.streaming_triangle_budget),
+            &vertex_colors,
         )?)
-    } else { None };
+    } else {
+        None
+    };
     // Scene actor records may refer directly to SDK-native classes. Those classes are
     // deliberately absent from the project script catalog, so use the authoritative
     // reflection registry for both validation and the cooked runtime class table.

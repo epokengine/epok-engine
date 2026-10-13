@@ -40,7 +40,16 @@ pub struct Chunk {
 impl Chunk {
     /// On-disc and resident vertex width; not the host cooker's working type.
     pub fn vertex_stride(&self) -> usize {
-        if self.vertices.iter().flatten().all(|v| i16::try_from(*v).is_ok()) { 6 } else { 12 }
+        if self
+            .vertices
+            .iter()
+            .flatten()
+            .all(|v| i16::try_from(*v).is_ok())
+        {
+            6
+        } else {
+            12
+        }
     }
 }
 #[path = "mesh_visibility.rs"]
@@ -85,16 +94,21 @@ pub(crate) fn encode_chunks(
     // Retain compact partitions when all constituent faces fit narrow Q12.
     // If any face itself needs wide coordinates, widening its chunk preserves
     // topology; subdividing the polygon would add work and alter affine UVs.
-    let needs_wide_face = part.iter().any(|&i| (0..3).any(|c| {
-        let (mut low, mut high) = (i32::MAX, i32::MIN);
-        for p in quads[i].points {
-            let q = (p[c] * 4096.).round() as i32;
-            low = low.min(q); high = high.max(q);
-        }
-        i64::from(high) - i64::from(low) > 65504
-    }));
-    if part.len() > 1 && !needs_wide_face
-        && (0..3).any(|c| i64::from(world_high[c]) - i64::from(world_low[c]) > 65504) {
+    let needs_wide_face = part.iter().any(|&i| {
+        (0..3).any(|c| {
+            let (mut low, mut high) = (i32::MAX, i32::MIN);
+            for p in quads[i].points {
+                let q = (p[c] * 4096.).round() as i32;
+                low = low.min(q);
+                high = high.max(q);
+            }
+            i64::from(high) - i64::from(low) > 65504
+        })
+    });
+    if part.len() > 1
+        && !needs_wide_face
+        && (0..3).any(|c| i64::from(world_high[c]) - i64::from(world_low[c]) > 65504)
+    {
         let (a, b) = part.split_at(part.len() / 2);
         encode_chunks(quads, a, chunks)?;
         encode_chunks(quads, b, chunks)?;
@@ -116,7 +130,8 @@ pub(crate) fn encode_chunks(
         for (j, p) in quads[i].points.iter().enumerate() {
             let mut local = [0_i32; 3];
             for c in 0..3 {
-                let v = ((p[c] * 4096.).round() as i32).checked_sub(origin_raw[c])
+                let v = ((p[c] * 4096.).round() as i32)
+                    .checked_sub(origin_raw[c])
                     .ok_or("Chunk coordinate overflow")?;
                 local[c] = v;
                 low[c] = low[c].min(v);
@@ -142,11 +157,16 @@ pub(crate) fn encode_chunks(
 /// A local mesh point in world space, rounded once to Q12. The ordered draw
 /// and static-world cooks share it, so coincident corners of different
 /// actors land on the same Q12 point.
-pub fn world_q12(transform: &crate::transform::Matrix, point: [f32; 3]) -> Result<[i32; 3], String> {
+pub fn world_q12(
+    transform: &crate::transform::Matrix,
+    point: [f32; 3],
+) -> Result<[i32; 3], String> {
     let mut out = [0; 3];
     for axis in 0..3 {
         let world = f64::from(transform.0[axis][3])
-            + (0..3).map(|c| f64::from(transform.0[axis][c]) * f64::from(point[c])).sum::<f64>();
+            + (0..3)
+                .map(|c| f64::from(transform.0[axis][c]) * f64::from(point[c]))
+                .sum::<f64>();
         let fixed = (world * 4096.).round();
         if !fixed.is_finite() || fixed < f64::from(i32::MIN) || fixed > f64::from(i32::MAX) {
             return Err("World coordinate exceeds Q12 range".into());
@@ -165,10 +185,18 @@ pub struct WorldChunk {
     pub center: [i32; 3],
     pub extent: [i32; 3],
 }
-pub fn world_chunk(doc: &Document, transform: &crate::transform::Matrix, chunk: &Chunk) -> Result<WorldChunk, String> {
+pub fn world_chunk(
+    doc: &Document,
+    transform: &crate::transform::Matrix,
+    chunk: &Chunk,
+) -> Result<WorldChunk, String> {
     let mut world = vec![None; chunk.vertices.len()];
     for (indices, face) in &chunk.faces {
-        let raw = doc.points(doc.faces.get(*face).ok_or("Static world face out of range")?);
+        let raw = doc.points(
+            doc.faces
+                .get(*face)
+                .ok_or("Static world face out of range")?,
+        );
         for (corner, &vertex) in indices.iter().enumerate() {
             let slot = &mut world[usize::from(vertex)];
             if slot.is_none() {
@@ -176,19 +204,31 @@ pub fn world_chunk(doc: &Document, transform: &crate::transform::Matrix, chunk: 
             }
         }
     }
-    let world: Vec<[i32; 3]> = world.into_iter().collect::<Option<_>>().ok_or("Static world vertex without a face")?;
+    let world: Vec<[i32; 3]> = world
+        .into_iter()
+        .collect::<Option<_>>()
+        .ok_or("Static world vertex without a face")?;
     let mut low = [i32::MAX; 3];
     let mut high = [i32::MIN; 3];
     for v in &world {
-        for c in 0..3 { low[c] = low[c].min(v[c]); high[c] = high[c].max(v[c]); }
+        for c in 0..3 {
+            low[c] = low[c].min(v[c]);
+            high[c] = high[c].max(v[c]);
+        }
     }
     let origin: [i32; 3] = std::array::from_fn(|c| {
         ((i64::from(low[c]) + i64::from(high[c])) / 2).div_euclid(16) as i32 * 16
     });
-    let vertices: Vec<[i32; 3]> = world.iter().map(|v| std::array::from_fn(|c| v[c] - origin[c])).collect();
+    let vertices: Vec<[i32; 3]> = world
+        .iter()
+        .map(|v| std::array::from_fn(|c| v[c] - origin[c]))
+        .collect();
     let (mut low, mut high) = ([i32::MAX; 3], [i32::MIN; 3]);
     for v in &vertices {
-        for c in 0..3 { low[c] = low[c].min(v[c]); high[c] = high[c].max(v[c]); }
+        for c in 0..3 {
+            low[c] = low[c].min(v[c]);
+            high[c] = high[c].max(v[c]);
+        }
     }
     Ok(WorldChunk {
         vertices,
@@ -206,7 +246,12 @@ pub fn header(e: &Actor, index: usize) -> Result<String, String> {
 /// Packed page UVs replicate the runtime's texture_uv mapping so the renderer
 /// copies them instead of scaling four Q12 pairs per drawn quad.
 pub fn packed_uv(uv: [f32; 2], page: crate::texture_cook::Page) -> u16 {
-    let crate::texture_cook::Page { width, height, u: base_u, v: base_v } = page;
+    let crate::texture_cook::Page {
+        width,
+        height,
+        u: base_u,
+        v: base_v,
+    } = page;
     let q = |v: f32| (v.clamp(0., 1.) * 4096.).round() as i32;
     let u = (i32::from(base_u) + q(uv[0]) * (i32::from(width) - 1) / 4096) & 255;
     let v = (i32::from(base_v) + q(uv[1]) * (i32::from(height) - 1) / 4096) & 255;
@@ -216,7 +261,12 @@ pub fn header_with_pages(e: &Actor, index: usize, pages: PageLookup) -> Result<S
     let palette = crate::vertex_colors::Palette::quads(&crate::lighting::quads(e))?;
     header_with_colors(e, index, pages, &palette)
 }
-pub fn header_with_colors(e: &Actor, index: usize, pages: PageLookup, palette: &crate::vertex_colors::Palette) -> Result<String, String> {
+pub fn header_with_colors(
+    e: &Actor,
+    index: usize,
+    pages: PageLookup,
+    palette: &crate::vertex_colors::Palette,
+) -> Result<String, String> {
     let mesh = e.editable_mesh.as_ref().unwrap();
     let _doc: &Document = mesh.document.as_deref().ok_or_else(|| {
         mesh.error
@@ -226,7 +276,8 @@ pub fn header_with_colors(e: &Actor, index: usize, pages: PageLookup, palette: &
     let qs = crate::lighting::quads(e);
     if qs.len() > 3500 {
         return Err(
-            "Compiled mesh exceeds 3500 faces. Split the authored mesh into separate assets.".into(),
+            "Compiled mesh exceeds 3500 faces. Split the authored mesh into separate assets."
+                .into(),
         );
     }
     let chunks = chunks(&qs)?;
@@ -238,13 +289,29 @@ pub fn header_with_colors(e: &Actor, index: usize, pages: PageLookup, palette: &
 /// emitter rather than growing a second symbol namespace the runtime,
 /// streaming archive and visibility bake would all have to learn.
 pub fn header_for(index: usize, qs: &[Quad], chunks: &[Chunk], pages: PageLookup) -> String {
-    header_for_colors(index, qs, chunks, pages, &crate::vertex_colors::Palette::quads(qs).expect("validated mesh palette"))
+    header_for_colors(
+        index,
+        qs,
+        chunks,
+        pages,
+        &crate::vertex_colors::Palette::quads(qs).expect("validated mesh palette"),
+    )
 }
-fn header_for_colors(index: usize, qs: &[Quad], chunks: &[Chunk], pages: PageLookup, palette: &crate::vertex_colors::Palette) -> String {
+fn header_for_colors(
+    index: usize,
+    qs: &[Quad],
+    chunks: &[Chunk],
+    pages: PageLookup,
+    palette: &crate::vertex_colors::Palette,
+) -> String {
     let mut text = visibility::header(chunks, index);
     for (c, chunk) in chunks.iter().enumerate().rev() {
         let key = format!("editable_{index}_{c}");
-        let vertex_type = if chunk.vertex_stride() == 6 { "int16_t" } else { "int32_t" };
+        let vertex_type = if chunk.vertex_stride() == 6 {
+            "int16_t"
+        } else {
+            "int32_t"
+        };
         text.push_str(&format!(
             "inline constexpr {vertex_type} {key}_vertices[][3]={{{}}};\n",
             chunk
@@ -272,8 +339,15 @@ fn header_for_colors(index: usize, qs: &[Quad], chunks: &[Chunk], pages: PageLoo
                                 .join(",")
                         )
                     });
-                    let color_indices = q.vertex_colors.map(|c| palette.indices(c)).unwrap_or([0; 4]);
-                    let colors = format!("{},{{{}}}", q.vertex_colors.is_some(), color_indices.map(|i| i.to_string()).join(","));
+                    let color_indices = q
+                        .vertex_colors
+                        .map(|c| palette.indices(c))
+                        .unwrap_or([0; 4]);
+                    let colors = format!(
+                        "{},{{{}}}",
+                        q.vertex_colors.is_some(),
+                        color_indices.map(|i| i.to_string()).join(",")
+                    );
                     format!(
                         "{{{{{},{},{},{}}},0,{{{},{},{}}},{},{},{},{},{}}}",
                         v[0],
@@ -332,16 +406,35 @@ mod audit_tests {
         let mut actors = vec![];
         let mut totals = [0_usize; 6];
         for (i, actor) in scene.actors.iter().enumerate() {
-            if !scene.is_active(i) { continue; }
-            let Some(mesh) = &actor.editable_mesh else { continue; };
+            if !scene.is_active(i) {
+                continue;
+            }
+            let Some(mesh) = &actor.editable_mesh else {
+                continue;
+            };
             let doc = mesh.document.as_ref().expect("resolved source mesh");
             let quads = crate::lighting::quads(actor);
             let chunks = super::chunks(&quads).unwrap();
             let vertices: usize = chunks.iter().map(|c| c.vertices.len()).sum();
-            let vertex_bytes: usize = chunks.iter().map(|c| c.vertices.len() * c.vertex_stride()).sum();
-            let triangles: usize = quads.iter().map(|q| if q.points[2] == q.points[3] { 1 } else { 2 }).sum();
-            let values = [doc.faces.len(), quads.len(), triangles, chunks.len(), vertices, vertex_bytes];
-            for (total, value) in totals.iter_mut().zip(values) { *total += value; }
+            let vertex_bytes: usize = chunks
+                .iter()
+                .map(|c| c.vertices.len() * c.vertex_stride())
+                .sum();
+            let triangles: usize = quads
+                .iter()
+                .map(|q| if q.points[2] == q.points[3] { 1 } else { 2 })
+                .sum();
+            let values = [
+                doc.faces.len(),
+                quads.len(),
+                triangles,
+                chunks.len(),
+                vertices,
+                vertex_bytes,
+            ];
+            for (total, value) in totals.iter_mut().zip(values) {
+                *total += value;
+            }
             actors.push(serde_json::json!({"id": actor.id, "name": actor.name,
                 "source_faces": values[0], "cooked_faces": values[1], "cooked_triangles": values[2],
                 "chunks": values[3], "vertices": values[4], "vertex_bytes": values[5],
@@ -350,8 +443,13 @@ mod audit_tests {
         let data = serde_json::json!({"scene": path, "source_sha256": format!("{:x}", Sha256::digest(source)),
             "source_faces": totals[0], "cooked_faces": totals[1], "cooked_triangles": totals[2],
             "chunks": totals[3], "vertices": totals[4], "vertex_bytes": totals[5], "actors": actors});
-        let mut file = std::fs::OpenOptions::new().create_new(true).write(true).open(report).unwrap();
-        file.write_all(serde_json::to_string_pretty(&data).unwrap().as_bytes()).unwrap();
+        let mut file = std::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(report)
+            .unwrap();
+        file.write_all(serde_json::to_string_pretty(&data).unwrap().as_bytes())
+            .unwrap();
         println!("cook totals: {totals:?}");
     }
 }

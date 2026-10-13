@@ -515,9 +515,19 @@ mod tests {
         assert!(!legacy.dither_3d);
         assert!(legacy.header().unwrap().contains("dither_3d = false"));
         assert!(legacy.gte_depth_average);
-        assert!(legacy.header().unwrap().contains("gte_depth_average = true"));
+        assert!(
+            legacy
+                .header()
+                .unwrap()
+                .contains("gte_depth_average = true")
+        );
         assert!(legacy.exact_near_clipping);
-        assert!(legacy.header().unwrap().contains("exact_near_clipping = true"));
+        assert!(
+            legacy
+                .header()
+                .unwrap()
+                .contains("exact_near_clipping = true")
+        );
         let enabled = super::Rendering {
             dither_3d: true,
             ..legacy

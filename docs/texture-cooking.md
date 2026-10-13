@@ -14,6 +14,9 @@ builds derive indexed GPU data in `texture_cook.rs`:
 - Keep pixels inside a 256x256-texel page using the correct 4/8-bit word density.
   Generated mesh, streaming, baked-draw and skeletal UVs include both page-local
   origins. Dynamic geometry, sprites and HUD use the same runtime convention.
+- Place authored HUD fonts first, as 4bpp atlases with a sixteen-entry CLUT,
+  from the build's font set alone. Fonts are global, so every scene bank packs
+  its textures around the same font placement.
 - Reserve all VRAM columns before 640, and the loading-image/font corner at
   `(960,384,64,128)`. The remaining layout has 376,832 bytes before fragmentation.
   This is the engine's conservative layout, not a count-based texture limit.

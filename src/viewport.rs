@@ -362,7 +362,11 @@ pub fn render(
                     let rgb = crate::vertex_colors::tint(colors[v], shade);
                     // The software wire/blockout fallback has no texture sampler.
                     // Show modulation against white; the GPU preview retains HDR gain.
-                    if q.material.texture.is_some() { rgb.map(|c| (u32::from(c) * 255 / 128).min(255) as u8) } else { rgb }
+                    if q.material.texture.is_some() {
+                        rgb.map(|c| (u32::from(c) * 255 / 128).min(255) as u8)
+                    } else {
+                        rgb
+                    }
                 })
             });
             polygons.push((

@@ -93,7 +93,8 @@ impl Frame {
             // SceneGpu's orbit shader multiplies vertical coordinates by 2.9.
             // Match the runtime's normalized vertical focal length, 4/3*cot.
             zoom: (1. / (camera.camera_fov.clamp(25., 120.).to_radians() * 0.5).tan())
-                * GAME_PROJECTION_ASPECT / 2.9,
+                * GAME_PROJECTION_ASPECT
+                / 2.9,
             distance,
             phase: self.number as f32 / 60.,
             fly_speed: 5.,
@@ -315,7 +316,11 @@ pub fn record_cameras(path: Option<&Path>, display: [u16; 2]) -> Result<(), Stri
     }
     if let Some(path) = path {
         let file = std::fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        *recorder = Some(CameraRecorder { file: std::io::BufWriter::new(file), display, frames: 0 });
+        *recorder = Some(CameraRecorder {
+            file: std::io::BufWriter::new(file),
+            display,
+            frames: 0,
+        });
     }
     Ok(())
 }
@@ -347,12 +352,16 @@ impl Frame {
 }
 fn record_frame(frame: &Frame) {
     let mut recorder = RECORDER.lock().unwrap();
-    let Some(recorder) = recorder.as_mut() else { return };
+    let Some(recorder) = recorder.as_mut() else {
+        return;
+    };
     if let Some(camera) = frame.runtime_camera(recorder.display)
         && writeln!(recorder.file, "{camera}").is_ok()
     {
         recorder.frames += 1;
-        if recorder.frames % 60 == 0 { let _ = recorder.file.flush(); }
+        if recorder.frames % 60 == 0 {
+            let _ = recorder.file.flush();
+        }
     }
 }
 
@@ -853,7 +862,23 @@ mod tests {
     #[test]
     fn packet_bounds_are_rejected_before_allocation() {
         let mut bytes = Vec::new();
-        for value in [MAGIC, 0, 0, 2048, 0, u32::MAX, 0, 0, 0, 0, 0, 0, 0, 0, u32::MAX] {
+        for value in [
+            MAGIC,
+            0,
+            0,
+            2048,
+            0,
+            u32::MAX,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            u32::MAX,
+        ] {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
         assert!(read_packet(&mut &bytes[..]).unwrap_err().contains("bounds"));
@@ -922,33 +947,63 @@ mod tests {
     #[test]
     #[ignore = "requires EPOK_NATIVE_PROJECT and an EPOK_NATIVE_SCENE with RailProbe and rail aim"]
     fn project_runner_advances_rail_camera_and_target_aim() {
-        let root=PathBuf::from(std::env::var_os("EPOK_NATIVE_PROJECT").unwrap());
-        let path=PathBuf::from(std::env::var_os("EPOK_NATIVE_SCENE").unwrap());
-        let scene=Scene::load(&path).unwrap();
-        let nav=scene.visibility_track.as_ref().unwrap().navigation.as_ref().unwrap();
+        let root = PathBuf::from(std::env::var_os("EPOK_NATIVE_PROJECT").unwrap());
+        let path = PathBuf::from(std::env::var_os("EPOK_NATIVE_SCENE").unwrap());
+        let scene = Scene::load(&path).unwrap();
+        let nav = scene
+            .visibility_track
+            .as_ref()
+            .unwrap()
+            .navigation
+            .as_ref()
+            .unwrap();
         assert!(nav.aim.is_some());
-        let target=scene.actors.iter().position(|a|a.id==nav.target).unwrap();
-        let exe=prepare(&root,scene,false,None,&AtomicBool::new(false)).unwrap();
-        let mut still=Session::launch(&exe).unwrap();
-        let mut moving=Session::launch(&exe).unwrap();
-        let mut a=still.receive(Duration::from_secs(10)).unwrap();
-        let mut b=moving.receive(Duration::from_secs(10)).unwrap();
-        let camera=a.camera.unwrap();
-        let initial_position=a.actors[camera].position;
-        let mut pads=[crate::controls::PadState::default();4];
-        pads[0].buttons=(1u16<<crate::controls::Button::R1 as u32)|(1u16<<crate::controls::Button::R2 as u32);
+        let target = scene
+            .actors
+            .iter()
+            .position(|a| a.id == nav.target)
+            .unwrap();
+        let exe = prepare(&root, scene, false, None, &AtomicBool::new(false)).unwrap();
+        let mut still = Session::launch(&exe).unwrap();
+        let mut moving = Session::launch(&exe).unwrap();
+        let mut a = still.receive(Duration::from_secs(10)).unwrap();
+        let mut b = moving.receive(Duration::from_secs(10)).unwrap();
+        let camera = a.camera.unwrap();
+        let initial_position = a.actors[camera].position;
+        let mut pads = [crate::controls::PadState::default(); 4];
+        pads[0].buttons = (1u16 << crate::controls::Button::R1 as u32)
+            | (1u16 << crate::controls::Button::R2 as u32);
         for _ in 0..240 {
-            still.request(33334,[crate::controls::PadState::default();4],&[]).unwrap();
-            moving.request(33334,pads,&[]).unwrap();
-            a=still.receive(Duration::from_secs(5)).unwrap();
-            b=moving.receive(Duration::from_secs(5)).unwrap();
+            still
+                .request(33334, [crate::controls::PadState::default(); 4], &[])
+                .unwrap();
+            moving.request(33334, pads, &[]).unwrap();
+            a = still.receive(Duration::from_secs(5)).unwrap();
+            b = moving.receive(Duration::from_secs(5)).unwrap();
         }
-        assert_ne!(a.actors[camera].position,initial_position,"Native rail never advanced");
-        assert!(b.actors[target].position[1]>a.actors[target].position[1],"Probe input never reached the target");
-        assert_eq!(a.actors[camera].position,b.actors[camera].position,"Vertical aim must not move the rail");
-        assert_ne!(a.actors[camera].rotation[0],b.actors[camera].rotation[0],"Camera did not aim at the changed target height");
-        println!("Native rail/aim: 240 paired frames; camera {:?}; pitch still={} moving={}; target Y still={} moving={}",
-            a.actors[camera].position,a.actors[camera].rotation[0],b.actors[camera].rotation[0],
-            a.actors[target].position[1],b.actors[target].position[1]);
+        assert_ne!(
+            a.actors[camera].position, initial_position,
+            "Native rail never advanced"
+        );
+        assert!(
+            b.actors[target].position[1] > a.actors[target].position[1],
+            "Probe input never reached the target"
+        );
+        assert_eq!(
+            a.actors[camera].position, b.actors[camera].position,
+            "Vertical aim must not move the rail"
+        );
+        assert_ne!(
+            a.actors[camera].rotation[0], b.actors[camera].rotation[0],
+            "Camera did not aim at the changed target height"
+        );
+        println!(
+            "Native rail/aim: 240 paired frames; camera {:?}; pitch still={} moving={}; target Y still={} moving={}",
+            a.actors[camera].position,
+            a.actors[camera].rotation[0],
+            b.actors[camera].rotation[0],
+            a.actors[target].position[1],
+            b.actors[target].position[1]
+        );
     }
 }

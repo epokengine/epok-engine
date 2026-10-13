@@ -2,16 +2,18 @@
 
 > **Header:** `"polygon.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/polygon.hpp)
 
-This module covers PSX polygon preparation, clipping and submission. It documents 13 public callables declared directly in this header.
+This module covers PSX polygon preparation, clipping and submission. It documents 18 public callables declared directly in this header.
 
 ## Declared types
 
-`epok::CameraQ12`, `epok::CameraQ8`, `epok::CameraUnits`, `epok::ClipVertex`, `epok::CompactProjectedVertex`, `epok::CompactProjectedVertex::Depth`, `epok::ProjectedVertex`, `epok::QuadPacket`
+`epok::CameraQ12`, `epok::CameraQ8`, `epok::CameraUnits`, `epok::CameraUnits::Frustum`, `epok::ClipVertex`, `epok::CompactProjectedVertex`, `epok::CompactProjectedVertex::Depth`, `epok::ProjectedVertex`, `epok::QuadPacket`
 
 ## Callable index
 
 - [`epok::blend_fog`](#epok-blend-fog-1) — Performs `blend fog` as part of PSX polygon preparation, clipping and submission.
+- [`epok::blend_vertex_fog`](#epok-blend-vertex-fog-1) — Performs `blend vertex fog` as part of PSX polygon preparation, clipping and submission.
 - [`epok::CameraUnits::bucket`](#epok-cameraunits-bucket-1) — Ordering table bucket from three depths: (za+zb+zc) / (3 << DepthShift), exact for the frustum range without an integer division.
+- [`epok::CameraUnits::outcode`](#epok-cameraunits-outcode-1) — Performs `outcode` as part of PSX polygon preparation, clipping and submission.
 - [`epok::clip_fraction16`](#epok-clip-fraction16-1) — Performs `clip fraction16` as part of PSX polygon preparation, clipping and submission.
 - [`epok::clip_polygon`](#epok-clip-polygon-1) — Sutherland-Hodgman against the frustum planes named by `planes` (bit i = plane i of frustum_outcode).
 - [`epok::CompactProjectedVertex::Depth::operator[]`](#epok-compactprojectedvertex-depth-operator-1) — Performs `operator []` as part of PSX polygon preparation, clipping and submission.
@@ -20,9 +22,12 @@ This module covers PSX polygon preparation, clipping and submission. It document
 - [`epok::modulate_channel`](#epok-modulate-channel-1) — (c * 128 + 127) / 255 for c in 0..255, exact without a division.
 - [`epok::modulate_color`](#epok-modulate-color-1) — Performs `modulate color` as part of PSX polygon preparation, clipping and submission.
 - [`epok::pack_color`](#epok-pack-color-1) — Performs `pack color` as part of PSX polygon preparation, clipping and submission.
+- [`epok::packet_color`](#epok-packet-color-1) — Performs `packet color` as part of PSX polygon preparation, clipping and submission.
 - [`epok::project_cpu`](#epok-project-cpu-1) — CPU perspective for clipped or fallback vertices, rounding like the GTE so mixed triangles share edges.
 - [`epok::scale_channel`](#epok-scale-channel-1) — a * b / 255 for 0..255 inputs, exact.
-- [`epok::screen_area`](#epok-screen-area-1) — Screen area sign in the GPU's coordinate system; zero for degenerate triangles.
+- [`epok::screen_area`](#epok-screen-area-1) — Performs `screen area` as part of PSX polygon preparation, clipping and submission.
+- [`epok::screen_backface`](#epok-screen-backface-1) — Screen area sign in the GPU's coordinate system; zero for degenerate triangles.
+- [`epok::tint_color`](#epok-tint-color-1) — Performs `tint color` as part of PSX polygon preparation, clipping and submission.
 
 <a id="epok-blend-fog-1"></a>
 
@@ -36,7 +41,7 @@ This module covers PSX polygon preparation, clipping and submission. It document
 inline uint32_t blend_fog(uint32_t packed, uint32_t amount, const uint8_t* fog)
 ```
 
-- **Declared at:** [line 68](../../../runtime/polygon.hpp#L68)
+- **Declared at:** [line 79](../../../runtime/polygon.hpp#L79)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -68,6 +73,52 @@ auto result = epok::blend_fog(packed, amount, fog);
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-blend-vertex-fog-1"></a>
+
+## `epok::blend_vertex_fog`
+
+**Purpose.** Performs `blend vertex fog` as part of PSX polygon preparation, clipping and submission.
+
+**Exact declaration**
+
+```cpp
+inline uint32_t blend_vertex_fog(uint32_t packed, uint32_t amount, const uint8_t* fog, bool textured_gpu_colors)
+```
+
+- **Declared at:** [line 87](../../../runtime/polygon.hpp#L87)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `packed` | `uint32_t` | Input | Value supplied for `packed`. See the exact type and module contract. |
+| `amount` | `uint32_t` | Input | Value supplied for `amount`. See the exact type and module contract. |
+| `fog` | `const uint8_t *` | Input | Value supplied for `fog`. See the exact type and module contract. |
+| `textured_gpu_colors` | `bool` | Input | Value supplied for `textured_gpu_colors`. See the exact type and module contract. |
+
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "polygon.hpp"
+
+// Assume these named values have been initialized with valid data:
+// uint32_t packed
+// uint32_t amount
+// const uint8_t * fog
+// bool textured_gpu_colors
+
+auto result = epok::blend_vertex_fog(packed, amount, fog, textured_gpu_colors);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to PSX polygon preparation, clipping and submission. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-cameraunits-bucket-1"></a>
 
 ## `epok::CameraUnits::bucket`
@@ -80,7 +131,7 @@ auto result = epok::blend_fog(packed, amount, fog);
 static int bucket(int32_t za, int32_t zb, int32_t zc)
 ```
 
-- **Declared at:** [line 44](../../../runtime/polygon.hpp#L44)
+- **Declared at:** [line 47](../../../runtime/polygon.hpp#L47)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -112,6 +163,50 @@ auto result = epok::CameraUnits::bucket(za, zb, zc);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-cameraunits-outcode-1"></a>
+
+## `epok::CameraUnits::outcode`
+
+**Purpose.** Performs `outcode` as part of PSX polygon preparation, clipping and submission.
+
+**Exact declaration**
+
+```cpp
+static uint8_t outcode(int32_t x,int32_t y,int32_t z)
+```
+
+- **Declared at:** [line 44](../../../runtime/polygon.hpp#L44)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `x` | `int32_t` | Input | Value supplied for `x`. See the exact type and module contract. |
+| `y` | `int32_t` | Input | Value supplied for `y`. See the exact type and module contract. |
+| `z` | `int32_t` | Input | Value supplied for `z`. See the exact type and module contract. |
+
+**Returns.** Returns `uint8_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "polygon.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int32_t x
+// int32_t y
+// int32_t z
+
+auto result = epok::CameraUnits::outcode(x, y, z);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to PSX polygon preparation, clipping and submission. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-clip-fraction16-1"></a>
 
 ## `epok::clip_fraction16`
@@ -124,7 +219,7 @@ auto result = epok::CameraUnits::bucket(za, zb, zc);
 inline uint32_t clip_fraction16(uint32_t numerator,uint32_t denominator)
 ```
 
-- **Declared at:** [line 111](../../../runtime/polygon.hpp#L111)
+- **Declared at:** [line 136](../../../runtime/polygon.hpp#L136)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -168,7 +263,7 @@ auto result = epok::clip_fraction16(numerator, denominator);
 template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from)
 ```
 
-- **Declared at:** [line 121](../../../runtime/polygon.hpp#L121)
+- **Declared at:** [line 146](../../../runtime/polygon.hpp#L146)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -259,7 +354,7 @@ auto result = object.operator[](axis);
 inline int32_t floor_div(int64_t numerator, int32_t divisor)
 ```
 
-- **Declared at:** [line 82](../../../runtime/polygon.hpp#L82)
+- **Declared at:** [line 101](../../../runtime/polygon.hpp#L101)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -303,7 +398,7 @@ auto result = epok::floor_div(numerator, divisor);
 inline uint16_t fog_amount(int32_t depth, int32_t start, int32_t end)
 ```
 
-- **Declared at:** [line 63](../../../runtime/polygon.hpp#L63)
+- **Declared at:** [line 74](../../../runtime/polygon.hpp#L74)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -347,7 +442,7 @@ auto result = epok::fog_amount(depth, start, end);
 inline uint32_t modulate_channel(uint32_t c)
 ```
 
-- **Declared at:** [line 55](../../../runtime/polygon.hpp#L55)
+- **Declared at:** [line 58](../../../runtime/polygon.hpp#L58)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -387,7 +482,7 @@ auto result = epok::modulate_channel(c);
 inline uint32_t modulate_color(uint32_t packed)
 ```
 
-- **Declared at:** [line 56](../../../runtime/polygon.hpp#L56)
+- **Declared at:** [line 59](../../../runtime/polygon.hpp#L59)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -427,7 +522,7 @@ auto result = epok::modulate_color(packed);
 inline uint32_t pack_color(uint32_t r, uint32_t g, uint32_t b)
 ```
 
-- **Declared at:** [line 53](../../../runtime/polygon.hpp#L53)
+- **Declared at:** [line 56](../../../runtime/polygon.hpp#L56)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -459,6 +554,50 @@ auto result = epok::pack_color(r, g, b);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-packet-color-1"></a>
+
+## `epok::packet_color`
+
+**Purpose.** Performs `packet color` as part of PSX polygon preparation, clipping and submission.
+
+**Exact declaration**
+
+```cpp
+inline uint32_t packet_color(uint32_t color, bool textured, bool gpu_colors)
+```
+
+- **Declared at:** [line 69](../../../runtime/polygon.hpp#L69)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `color` | `uint32_t` | Input | Value supplied for `color`. See the exact type and module contract. |
+| `textured` | `bool` | Input | Value supplied for `textured`. See the exact type and module contract. |
+| `gpu_colors` | `bool` | Input | Value supplied for `gpu_colors`. See the exact type and module contract. |
+
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "polygon.hpp"
+
+// Assume these named values have been initialized with valid data:
+// uint32_t color
+// bool textured
+// bool gpu_colors
+
+auto result = epok::packet_color(color, textured, gpu_colors);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to PSX polygon preparation, clipping and submission. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-project-cpu-1"></a>
 
 ## `epok::project_cpu`
@@ -473,7 +612,7 @@ auto result = epok::pack_color(r, g, b);
 template<class Units, int Width, int Height> inline void project_cpu(ProjectedVertex& point)
 ```
 
-- **Declared at:** [line 94](../../../runtime/polygon.hpp#L94)
+- **Declared at:** [line 113](../../../runtime/polygon.hpp#L113)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -516,7 +655,7 @@ epok::project_cpu<Units, Width, Height>(point);
 inline uint32_t scale_channel(uint32_t a, uint32_t b)
 ```
 
-- **Declared at:** [line 60](../../../runtime/polygon.hpp#L60)
+- **Declared at:** [line 63](../../../runtime/polygon.hpp#L63)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -550,7 +689,7 @@ auto result = epok::scale_channel(a, b);
 
 ## `epok::screen_area`
 
-**Purpose.** Screen area sign in the GPU's coordinate system; zero for degenerate triangles.
+**Purpose.** Performs `screen area` as part of PSX polygon preparation, clipping and submission.
 
 **Exact declaration**
 
@@ -558,7 +697,7 @@ auto result = epok::scale_channel(a, b);
 template<class Vertex> inline int32_t screen_area(const Vertex& a, const Vertex& b, const Vertex& c)
 ```
 
-- **Declared at:** [line 77](../../../runtime/polygon.hpp#L77)
+- **Declared at:** [line 96](../../../runtime/polygon.hpp#L96)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -592,3 +731,87 @@ auto result = epok::screen_area<Vertex>(a, b, c);
 **Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection.
 
 **Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-screen-backface-1"></a>
+
+## `epok::screen_backface`
+
+**Purpose.** Screen area sign in the GPU's coordinate system; zero for degenerate triangles.
+
+**Exact declaration**
+
+```cpp
+inline bool screen_backface(int32_t area, bool mirror_x)
+```
+
+- **Declared at:** [line 93](../../../runtime/polygon.hpp#L93)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `area` | `int32_t` | Input | Value supplied for `area`. See the exact type and module contract. |
+| `mirror_x` | `bool` | Input | Value supplied for `mirror_x`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "polygon.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int32_t area
+// bool mirror_x
+
+auto result = epok::screen_backface(area, mirror_x);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
+<a id="epok-tint-color-1"></a>
+
+## `epok::tint_color`
+
+**Purpose.** Performs `tint color` as part of PSX polygon preparation, clipping and submission.
+
+**Exact declaration**
+
+```cpp
+inline uint32_t tint_color(uint32_t color, uint32_t shade)
+```
+
+- **Declared at:** [line 64](../../../runtime/polygon.hpp#L64)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `color` | `uint32_t` | Input | Value supplied for `color`. See the exact type and module contract. |
+| `shade` | `uint32_t` | Input | Value supplied for `shade`. See the exact type and module contract. |
+
+**Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need PSX polygon preparation, clipping and submission and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "polygon.hpp"
+
+// Assume these named values have been initialized with valid data:
+// uint32_t color
+// uint32_t shade
+
+auto result = epok::tint_color(color, shade);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to PSX polygon preparation, clipping and submission. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.

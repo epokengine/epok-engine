@@ -2442,8 +2442,8 @@ fn import(e: &mut Editor, s: &mut State, source: &Path) -> bool {
             .unwrap_or_default()
             .to_lowercase();
         if ![
-            "png", "tim", "wav", "mp3", "flac", "ogg", "mid", "midi", "seq", "sep", "vab", "vh", "vb",
-            "sf2", "sf3", "fbx", "obj", "ttf", "otf",
+            "png", "tim", "wav", "mp3", "flac", "ogg", "mid", "midi", "seq", "sep", "vab", "vh",
+            "vb", "sf2", "sf3", "fbx", "obj", "ttf", "otf",
         ]
         .contains(&ext.as_str())
         {

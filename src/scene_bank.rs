@@ -267,7 +267,7 @@ pub fn header_with_templates_for(
     if scenes.is_empty() || scenes.len() > 16 {
         return Err("Scene registry needs 1..16 scenes".into());
     }
-    if streaming.is_none()&&scenes.iter().any(|scene|scene.ordered_draw.is_some()) {
+    if streaming.is_none() && scenes.iter().any(|scene| scene.ordered_draw.is_some()) {
         return Err("Ordered draw programs require cooked streaming pages".into());
     }
     let mut all_resources = scenes.to_vec();
@@ -332,7 +332,10 @@ pub fn header_with_templates_for(
             &shared
         } else {
             // Fonts are global: pack this bank's textures around every font.
-            bank_scene = Scene { fonts: shared.fonts.clone(), ..s.clone() };
+            bank_scene = Scene {
+                fonts: shared.fonts.clone(),
+                ..s.clone()
+            };
             &bank_scene
         };
         crate::texture::header(layout_scene)?;
@@ -344,7 +347,9 @@ pub fn header_with_templates_for(
                 if let Some((_, p)) = layout.iter().find(|(v, _)| v == id) {
                     let t = &shared.textures[id];
                     let (pixels, location) = match streaming.and_then(|s| s.texture_pixels(*id)) {
-                        Some((page, offset)) => ("nullptr".to_owned(), format!(",{page}u,{offset}")),
+                        Some((page, offset)) => {
+                            ("nullptr".to_owned(), format!(",{page}u,{offset}"))
+                        }
                         None => (format!("texture_{i}_pixels"), String::new()),
                     };
                     format!(
@@ -380,7 +385,8 @@ pub fn header_with_templates_for(
     // banks use the existing descriptor path; publication still follows upload.
     textures += "inline const uint32_t* baked_texture_bank(const Texture* bank){\n";
     for bank in 0..scenes.len() {
-        textures += &format!("if(bank==bank_textures_{bank})return bank_texture_packets_{bank}.words;\n");
+        textures +=
+            &format!("if(bank==bank_textures_{bank})return bank_texture_packets_{bank}.words;\n");
     }
     textures += "return nullptr;\n}\n";
     let capacity = scenes.iter().map(|s| s.actors.len() + 32).max().unwrap();
@@ -396,7 +402,10 @@ pub fn header_with_templates_for(
             if global_layout {
                 &shared
             } else {
-                bank_scene = Scene { fonts: shared.fonts.clone(), ..s.clone() };
+                bank_scene = Scene {
+                    fonts: shared.fonts.clone(),
+                    ..s.clone()
+                };
                 &bank_scene
             },
             class_registry,
@@ -428,10 +437,16 @@ pub fn header_with_templates_for(
                 scene
                     .actors
                     .iter()
-                    .filter(|actor| !scene.visibility_track.as_ref().is_some_and(|track| {
-                        actor.editable_mesh.as_ref().and_then(|m|m.document.as_ref())
-                            .and_then(|d|d.faces.first()).is_some_and(|f|track.faces.contains(&f.id))
-                    }))
+                    .filter(|actor| {
+                        !scene.visibility_track.as_ref().is_some_and(|track| {
+                            actor
+                                .editable_mesh
+                                .as_ref()
+                                .and_then(|m| m.document.as_ref())
+                                .and_then(|d| d.faces.first())
+                                .is_some_and(|f| track.faces.contains(&f.id))
+                        })
+                    })
                     .map(crate::lighting::quad_count)
                     .sum::<usize>()
                     + 32 * dynamic_quads
@@ -514,7 +529,9 @@ pub fn header_with_templates_for(
     out += "namespace epok {\n";
     let vertex_colors = crate::vertex_colors::Palette::scene(&shared)?;
     if streaming.is_some_and(|bundle| bundle.vertex_colors() != &vertex_colors) {
-        return Err("Streamed geometry and scene headers use different vertex colour palettes".into());
+        return Err(
+            "Streamed geometry and scene headers use different vertex colour palettes".into(),
+        );
     }
     out += &vertex_colors.header();
     out += &format!("inline constexpr size_t retained_quad_capacity={retained_quad_capacity};\n");
@@ -765,8 +782,12 @@ mod tests {
         );
         assert!(h.contains("objects[j].generation=generation"));
         for bank in 0..2 {
-            assert!(h.contains(&format!("bank_texture_packets_{bank}=bake_texture_packets(bank_textures_{bank})")));
-            assert!(h.contains(&format!("if(bank==bank_textures_{bank})return bank_texture_packets_{bank}.words;")));
+            assert!(h.contains(&format!(
+                "bank_texture_packets_{bank}=bake_texture_packets(bank_textures_{bank})"
+            )));
+            assert!(h.contains(&format!(
+                "if(bank==bank_textures_{bank})return bank_texture_packets_{bank}.words;"
+            )));
         }
         assert!(h.contains("return nullptr;\n}\n"));
     }

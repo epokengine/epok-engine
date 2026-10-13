@@ -68,7 +68,7 @@ This module covers the world2d module. It documents 45 public callables declared
 inline bool aabb2d_contains(const Aabb2D& box, const Fixed* point)
 ```
 
-- **Declared at:** [line 324](../../../runtime/world2d.hpp#L324)
+- **Declared at:** [line 323](../../../runtime/world2d.hpp#L323)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -110,7 +110,7 @@ auto result = epok::aabb2d_contains(box, point);
 inline bool aabb2d_overlap(const Aabb2D& a, const Aabb2D& b)
 ```
 
-- **Declared at:** [line 314](../../../runtime/world2d.hpp#L314)
+- **Declared at:** [line 313](../../../runtime/world2d.hpp#L313)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -152,7 +152,7 @@ auto result = epok::aabb2d_overlap(a, b);
 inline bool aabb2d_touch(const Aabb2D& a, const Aabb2D& b)
 ```
 
-- **Declared at:** [line 319](../../../runtime/world2d.hpp#L319)
+- **Declared at:** [line 318](../../../runtime/world2d.hpp#L318)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -194,7 +194,7 @@ auto result = epok::aabb2d_touch(a, b);
 inline Aabb2D aabb2d_translated(Aabb2D box, const Fixed* delta)
 ```
 
-- **Declared at:** [line 329](../../../runtime/world2d.hpp#L329)
+- **Declared at:** [line 328](../../../runtime/world2d.hpp#L328)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -236,7 +236,7 @@ auto result = epok::aabb2d_translated(box, delta);
 void direction(const Fixed* in, Fixed* out) const
 ```
 
-- **Declared at:** [line 151](../../../runtime/world2d.hpp#L151)
+- **Declared at:** [line 150](../../../runtime/world2d.hpp#L150)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -280,7 +280,7 @@ object.direction(in, out);
 static Affine2D identity()
 ```
 
-- **Declared at:** [line 140](../../../runtime/world2d.hpp#L140)
+- **Declared at:** [line 139](../../../runtime/world2d.hpp#L139)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Returns.** Returns `Affine2D`. Check the purpose and failure notes before using the value.
@@ -311,7 +311,7 @@ auto result = epok::Affine2D::identity();
 void point(const Fixed* in, Fixed* out) const
 ```
 
-- **Declared at:** [line 146](../../../runtime/world2d.hpp#L146)
+- **Declared at:** [line 145](../../../runtime/world2d.hpp#L145)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -355,7 +355,7 @@ object.point(in, out);
 inline bool box_circle_overlap_2d(const Aabb2D& box, const Fixed* center, Fixed radius, bool inclusive = false)
 ```
 
-- **Declared at:** [line 363](../../../runtime/world2d.hpp#L363)
+- **Declared at:** [line 362](../../../runtime/world2d.hpp#L362)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -401,7 +401,7 @@ auto result = epok::box_circle_overlap_2d(box, center, radius, inclusive);
 inline Fixed camera2d_pixels_per_unit(const Camera2D& camera)
 ```
 
-- **Declared at:** [line 221](../../../runtime/world2d.hpp#L221)
+- **Declared at:** [line 220](../../../runtime/world2d.hpp#L220)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -441,7 +441,7 @@ auto result = epok::camera2d_pixels_per_unit(camera);
 inline void camera2d_viewport_center(const Camera2D& camera, Fixed* out)
 ```
 
-- **Declared at:** [line 224](../../../runtime/world2d.hpp#L224)
+- **Declared at:** [line 223](../../../runtime/world2d.hpp#L223)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -483,7 +483,7 @@ epok::camera2d_viewport_center(camera, out);
 inline bool circle_overlap_2d(const Fixed* a, Fixed radius_a, const Fixed* b, Fixed radius_b, bool inclusive = false)
 ```
 
-- **Declared at:** [line 357](../../../runtime/world2d.hpp#L357)
+- **Declared at:** [line 356](../../../runtime/world2d.hpp#L356)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -531,7 +531,7 @@ auto result = epok::circle_overlap_2d(a, radius_a, b, radius_b, inclusive);
 inline Aabb2D collider2d_bounds(const Collider2D& collider, const Fixed* world_xy)
 ```
 
-- **Declared at:** [line 341](../../../runtime/world2d.hpp#L341)
+- **Declared at:** [line 340](../../../runtime/world2d.hpp#L340)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -573,7 +573,7 @@ auto result = epok::collider2d_bounds(collider, world_xy);
 inline void collider2d_center(const Collider2D& collider, const Fixed* world_xy, Fixed* out)
 ```
 
-- **Declared at:** [line 337](../../../runtime/world2d.hpp#L337)
+- **Declared at:** [line 336](../../../runtime/world2d.hpp#L336)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -617,7 +617,7 @@ epok::collider2d_center(collider, world_xy, out);
 inline bool collider2d_overlap(const Collider2D& a, const Fixed* world_a, const Collider2D& b, const Fixed* world_b, bool inclusive = false)
 ```
 
-- **Declared at:** [line 375](../../../runtime/world2d.hpp#L375)
+- **Declared at:** [line 374](../../../runtime/world2d.hpp#L374)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -665,7 +665,7 @@ auto result = epok::collider2d_overlap(a, world_a, b, world_b, inclusive);
 const Aabb2D* bounds(size_t index) const
 ```
 
-- **Declared at:** [line 514](../../../runtime/world2d.hpp#L514)
+- **Declared at:** [line 513](../../../runtime/world2d.hpp#L513)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -707,7 +707,7 @@ auto result = object.bounds(index);
 void clear()
 ```
 
-- **Declared at:** [line 481](../../../runtime/world2d.hpp#L481)
+- **Declared at:** [line 480](../../../runtime/world2d.hpp#L480)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -740,7 +740,7 @@ object.clear();
 void disable(size_t index)
 ```
 
-- **Declared at:** [line 507](../../../runtime/world2d.hpp#L507)
+- **Declared at:** [line 506](../../../runtime/world2d.hpp#L506)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -782,7 +782,7 @@ object.disable(index);
 size_t live() const
 ```
 
-- **Declared at:** [line 508](../../../runtime/world2d.hpp#L508)
+- **Declared at:** [line 507](../../../runtime/world2d.hpp#L507)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `size_t`. Check the purpose and failure notes before using the value.
@@ -817,7 +817,7 @@ auto result = object.live();
 MoveResult2D move_and_slide_2d(size_t index, const Fixed* displacement, uint32_t mask = 0xffffffffu)
 ```
 
-- **Declared at:** [line 560](../../../runtime/world2d.hpp#L560)
+- **Declared at:** [line 559](../../../runtime/world2d.hpp#L559)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -865,7 +865,7 @@ auto result = object.move_and_slide_2d(index, displacement, mask);
 size_t overlap(const Aabb2D& box, uint16_t* output, size_t output_capacity, uint32_t mask = 0xffffffffu, int ignore = -1, bool triggers = true) const
 ```
 
-- **Declared at:** [line 522](../../../runtime/world2d.hpp#L522)
+- **Declared at:** [line 521](../../../runtime/world2d.hpp#L521)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -917,7 +917,7 @@ auto result = object.overlap(box, output, output_capacity, mask, ignore, trigger
 const Fixed* position(size_t index) const
 ```
 
-- **Declared at:** [line 517](../../../runtime/world2d.hpp#L517)
+- **Declared at:** [line 516](../../../runtime/world2d.hpp#L516)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -961,7 +961,7 @@ auto result = object.position(index);
 SpatialHit2D raycast2d(const Fixed* origin, const Fixed* displacement, uint32_t mask = 0xffffffffu, int ignore = -1, bool triggers = false) const
 ```
 
-- **Declared at:** [line 534](../../../runtime/world2d.hpp#L534)
+- **Declared at:** [line 533](../../../runtime/world2d.hpp#L533)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1011,7 +1011,7 @@ auto result = object.raycast2d(origin, displacement, mask, ignore, triggers);
 void set(size_t index, const ColliderEntry2D& value)
 ```
 
-- **Declared at:** [line 496](../../../runtime/world2d.hpp#L496)
+- **Declared at:** [line 495](../../../runtime/world2d.hpp#L495)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1055,7 +1055,7 @@ object.set(index, value);
 void sync(const ColliderEntry2D* list, size_t count)
 ```
 
-- **Declared at:** [line 489](../../../runtime/world2d.hpp#L489)
+- **Declared at:** [line 488](../../../runtime/world2d.hpp#L488)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1101,7 +1101,7 @@ object.sync(list, count);
 template <class Callback> void update_triggers(Callback&& callback)
 ```
 
-- **Declared at:** [line 601](../../../runtime/world2d.hpp#L601)
+- **Declared at:** [line 600](../../../runtime/world2d.hpp#L600)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1146,7 +1146,7 @@ object.update_triggers<Callback>(callback);
 inline Affine2D compose(const Affine2D& parent, const Affine2D& child)
 ```
 
-- **Declared at:** [line 156](../../../runtime/world2d.hpp#L156)
+- **Declared at:** [line 155](../../../runtime/world2d.hpp#L155)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1188,7 +1188,7 @@ auto result = epok::compose(parent, child);
 inline Fixed cos_degrees(Fixed degrees)
 ```
 
-- **Declared at:** [line 131](../../../runtime/world2d.hpp#L131)
+- **Declared at:** [line 130](../../../runtime/world2d.hpp#L130)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1228,7 +1228,7 @@ auto result = epok::cos_degrees(degrees);
 inline Fixed clamp_raw_2d(int64_t value)
 ```
 
-- **Declared at:** [line 111](../../../runtime/world2d.hpp#L111)
+- **Declared at:** [line 110](../../../runtime/world2d.hpp#L110)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1268,7 +1268,7 @@ auto result = epok::detail::clamp_raw_2d(value);
 consteval SineTable2D make_sine_table_2d()
 ```
 
-- **Declared at:** [line 90](../../../runtime/world2d.hpp#L90)
+- **Declared at:** [line 89](../../../runtime/world2d.hpp#L89)
 - **Kind:** `function decl`
 
 **Returns.** Returns `SineTable2D`. Check the purpose and failure notes before using the value.
@@ -1299,7 +1299,7 @@ auto result = epok::detail::make_sine_table_2d();
 inline Fixed mul_2d(Fixed a, Fixed b)
 ```
 
-- **Declared at:** [line 116](../../../runtime/world2d.hpp#L116)
+- **Declared at:** [line 115](../../../runtime/world2d.hpp#L115)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1341,7 +1341,7 @@ auto result = epok::detail::mul_2d(a, b);
 inline int32_t sine_quarter_2d(int32_t raw_degrees)
 ```
 
-- **Declared at:** [line 103](../../../runtime/world2d.hpp#L103)
+- **Declared at:** [line 102](../../../runtime/world2d.hpp#L102)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1381,7 +1381,7 @@ auto result = epok::detail::sine_quarter_2d(raw_degrees);
 constexpr double sine_series_2d(double x)
 ```
 
-- **Declared at:** [line 81](../../../runtime/world2d.hpp#L81)
+- **Declared at:** [line 80](../../../runtime/world2d.hpp#L80)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1421,7 +1421,7 @@ auto result = epok::detail::sine_series_2d(x);
 inline int64_t distance_squared_raw_2d(const Fixed* a, const Fixed* b)
 ```
 
-- **Declared at:** [line 353](../../../runtime/world2d.hpp#L353)
+- **Declared at:** [line 352](../../../runtime/world2d.hpp#L352)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1465,7 +1465,7 @@ auto result = epok::distance_squared_raw_2d(a, b);
 inline uint64_t draw_key_2d(int8_t layer, int16_t draw_order, uint16_t creation)
 ```
 
-- **Declared at:** [line 262](../../../runtime/world2d.hpp#L262)
+- **Declared at:** [line 261](../../../runtime/world2d.hpp#L261)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1551,7 +1551,7 @@ auto result = epok::fixed_in_range(value, limit);
 inline Affine2D local_matrix(const Transform2D& transform)
 ```
 
-- **Declared at:** [line 167](../../../runtime/world2d.hpp#L167)
+- **Declared at:** [line 166](../../../runtime/world2d.hpp#L166)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1593,7 +1593,7 @@ auto result = epok::local_matrix(transform);
 inline bool pick_2d(const Camera2D& camera, const Fixed* screen_xy, const Pick2DEntry* entries, size_t count, size_t& out_index)
 ```
 
-- **Declared at:** [line 652](../../../runtime/world2d.hpp#L652)
+- **Declared at:** [line 651](../../../runtime/world2d.hpp#L651)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1643,7 +1643,7 @@ auto result = epok::pick_2d(camera, screen_xy, entries, count, out_index);
 inline void screen_to_world(const Camera2D& camera, const Fixed* screen_xy, Fixed* world_xy)
 ```
 
-- **Declared at:** [line 241](../../../runtime/world2d.hpp#L241)
+- **Declared at:** [line 240](../../../runtime/world2d.hpp#L240)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1689,7 +1689,7 @@ epok::screen_to_world(camera, screen_xy, world_xy);
 inline Fixed sin_degrees(Fixed degrees)
 ```
 
-- **Declared at:** [line 120](../../../runtime/world2d.hpp#L120)
+- **Declared at:** [line 119](../../../runtime/world2d.hpp#L119)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1731,7 +1731,7 @@ auto result = epok::sin_degrees(degrees);
 template <class Key> inline void sort_draw_order(uint16_t* indices, size_t count, Key&& key)
 ```
 
-- **Declared at:** [line 272](../../../runtime/world2d.hpp#L272)
+- **Declared at:** [line 271](../../../runtime/world2d.hpp#L271)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1778,7 +1778,7 @@ epok::sort_draw_order<Key>(indices, count, key);
 explicit operator bool() const
 ```
 
-- **Declared at:** [line 404](../../../runtime/world2d.hpp#L404)
+- **Declared at:** [line 403](../../../runtime/world2d.hpp#L403)
 - **Kind:** `conversion function`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1897,7 +1897,7 @@ auto result = epok::transform2d_valid(transform);
 template <class Resolver> inline bool world_matrix_2d(const SceneComponent2D& leaf, Resolver&& resolve, Affine2D& out)
 ```
 
-- **Declared at:** [line 185](../../../runtime/world2d.hpp#L185)
+- **Declared at:** [line 184](../../../runtime/world2d.hpp#L184)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1944,7 +1944,7 @@ auto result = epok::world_matrix_2d<Resolver>(leaf, resolve, out);
 inline void world_to_screen(const Camera2D& camera, const Fixed* world_xy, Fixed* screen_xy)
 ```
 
-- **Declared at:** [line 228](../../../runtime/world2d.hpp#L228)
+- **Declared at:** [line 227](../../../runtime/world2d.hpp#L227)
 - **Kind:** `function decl`
 
 **Parameters**

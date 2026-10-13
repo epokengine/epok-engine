@@ -44,7 +44,7 @@ This module covers rigid skeletal animation and pose evaluation. It documents 19
 inline Affine<Fixed> aim_pitch_matrix(Fixed degrees)
 ```
 
-- **Declared at:** [line 45](../../../runtime/skeletal.hpp#L45)
+- **Declared at:** [line 46](../../../runtime/skeletal.hpp#L46)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -84,7 +84,7 @@ auto result = epok::skeletal_detail::aim_pitch_matrix(degrees);
 inline Affine<Fixed> local_pose_matrix(const BonePose& pose,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,size_t bone)
 ```
 
-- **Declared at:** [line 58](../../../runtime/skeletal.hpp#L58)
+- **Declared at:** [line 59](../../../runtime/skeletal.hpp#L59)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -132,7 +132,7 @@ auto result = epok::skeletal_detail::local_pose_matrix(pose, aim_bone, aim_stop_
 inline Affine<Fixed> pose_matrix(const BonePose& p)
 ```
 
-- **Declared at:** [line 28](../../../runtime/skeletal.hpp#L28)
+- **Declared at:** [line 29](../../../runtime/skeletal.hpp#L29)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -172,7 +172,7 @@ auto result = epok::skeletal_detail::pose_matrix(p);
 __attribute__((noinline,optimize("O3"))) #endif void decode_vertices(const SkeletalMesh& model,const Animator& animator)
 ```
 
-- **Declared at:** [line 101](../../../runtime/skeletal.hpp#L101)
+- **Declared at:** [line 102](../../../runtime/skeletal.hpp#L102)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -216,7 +216,7 @@ object.decode_vertices(model, animator);
 static uint32_t frame_index(const AnimationClip* clip,const Animator& animator)
 ```
 
-- **Declared at:** [line 70](../../../runtime/skeletal.hpp#L70)
+- **Declared at:** [line 71](../../../runtime/skeletal.hpp#L71)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -258,7 +258,7 @@ auto result = epok::skeletal_detail::Scratch::frame_index(clip, animator);
 void pose(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch)
 ```
 
-- **Declared at:** [line 117](../../../runtime/skeletal.hpp#L117)
+- **Declared at:** [line 118](../../../runtime/skeletal.hpp#L118)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -308,7 +308,7 @@ object.pose(model, animator, aim_bone, aim_stop_bones, aim_pitch);
 __attribute__((noinline,optimize("O3"))) #endif void pose_bones(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch)
 ```
 
-- **Declared at:** [line 81](../../../runtime/skeletal.hpp#L81)
+- **Declared at:** [line 82](../../../runtime/skeletal.hpp#L82)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -358,7 +358,7 @@ object.pose_bones(model, animator, aim_bone, aim_stop_bones, aim_pitch);
 void skin_vertices(const SkeletalMesh& model)
 ```
 
-- **Declared at:** [line 90](../../../runtime/skeletal.hpp#L90)
+- **Declared at:** [line 91](../../../runtime/skeletal.hpp#L91)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -400,7 +400,7 @@ object.skin_vertices(model);
 inline bool apply_space(const ActorData& entity,CoordinateSpace space,Fixed* position,SkeletalError& error)
 ```
 
-- **Declared at:** [line 184](../../../runtime/skeletal.hpp#L184)
+- **Declared at:** [line 185](../../../runtime/skeletal.hpp#L185)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -446,7 +446,7 @@ auto result = epok::skeletal_query_detail::apply_space(entity, space, position, 
 inline bool baked_vertex(const SkeletalMesh& model,const Animator& animator,uint32_t vertex,PoseKind pose,Fixed* output)
 ```
 
-- **Declared at:** [line 160](../../../runtime/skeletal.hpp#L160)
+- **Declared at:** [line 161](../../../runtime/skeletal.hpp#L161)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -494,7 +494,7 @@ auto result = epok::skeletal_query_detail::baked_vertex(model, animator, vertex,
 inline BatchScratch& batch_scratch()
 ```
 
-- **Declared at:** [line 155](../../../runtime/skeletal.hpp#L155)
+- **Declared at:** [line 156](../../../runtime/skeletal.hpp#L156)
 - **Kind:** `function decl`
 
 **Returns.** Returns `BatchScratch &`. Check the purpose and failure notes before using the value.
@@ -525,7 +525,7 @@ auto result = epok::skeletal_query_detail::batch_scratch();
 inline bool bone_matrix(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t bone,PoseKind pose,Affine<Fixed>& output)
 ```
 
-- **Declared at:** [line 142](../../../runtime/skeletal.hpp#L142)
+- **Declared at:** [line 143](../../../runtime/skeletal.hpp#L143)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -579,7 +579,7 @@ auto result = epok::skeletal_query_detail::bone_matrix(model, animator, aim_bone
 inline bool model_vertex(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,uint32_t portable,PoseKind pose,Fixed* output,SkeletalError& error)
 ```
 
-- **Declared at:** [line 175](../../../runtime/skeletal.hpp#L175)
+- **Declared at:** [line 176](../../../runtime/skeletal.hpp#L176)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -635,7 +635,7 @@ auto result = epok::skeletal_query_detail::model_vertex(model, animator, aim_bon
 inline bool pose_all(const SkeletalMesh& model,const Animator& animator,int16_t aim_bone,const int16_t* aim_stop_bones,Fixed aim_pitch,PoseKind pose)
 ```
 
-- **Declared at:** [line 156](../../../runtime/skeletal.hpp#L156)
+- **Declared at:** [line 157](../../../runtime/skeletal.hpp#L157)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -685,7 +685,7 @@ auto result = epok::skeletal_query_detail::pose_all(model, animator, aim_bone, a
 inline const BonePose* selected_pose(const SkeletalMesh& model,const Animator& animator,size_t bone,PoseKind kind)
 ```
 
-- **Declared at:** [line 132](../../../runtime/skeletal.hpp#L132)
+- **Declared at:** [line 133](../../../runtime/skeletal.hpp#L133)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -731,7 +731,7 @@ auto result = epok::skeletal_query_detail::selected_pose(model, animator, bone, 
 inline SkeletalQueryStats& stats()
 ```
 
-- **Declared at:** [line 129](../../../runtime/skeletal.hpp#L129)
+- **Declared at:** [line 130](../../../runtime/skeletal.hpp#L130)
 - **Kind:** `function decl`
 
 **Returns.** Returns `SkeletalQueryStats &`. Check the purpose and failure notes before using the value.
@@ -762,7 +762,7 @@ auto result = epok::skeletal_query_detail::stats();
 inline bool valid_pose(PoseKind pose)
 ```
 
-- **Declared at:** [line 130](../../../runtime/skeletal.hpp#L130)
+- **Declared at:** [line 131](../../../runtime/skeletal.hpp#L131)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -802,7 +802,7 @@ auto result = epok::skeletal_query_detail::valid_pose(pose);
 inline bool valid_space(CoordinateSpace space)
 ```
 
-- **Declared at:** [line 131](../../../runtime/skeletal.hpp#L131)
+- **Declared at:** [line 132](../../../runtime/skeletal.hpp#L132)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -842,7 +842,7 @@ auto result = epok::skeletal_query_detail::valid_space(space);
 inline VertexSample skeletal_sample_vertex_impl(const ActorData* entity,uint32_t vertex,PoseKind pose,CoordinateSpace space,bool account_request)
 ```
 
-- **Declared at:** [line 191](../../../runtime/skeletal.hpp#L191)
+- **Declared at:** [line 192](../../../runtime/skeletal.hpp#L192)
 - **Kind:** `function decl`
 
 **Parameters**

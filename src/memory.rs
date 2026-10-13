@@ -384,7 +384,11 @@ pub fn stage(
                 category: 1,
             });
             textures.push(node);
-            let node = resource(id, u64::from(p.format.colors()) * 2, "Cooked palette entries, 16 bits each")?;
+            let node = resource(
+                id,
+                u64::from(p.format.colors()) * 2,
+                "Cooked palette entries, 16 bits each",
+            )?;
             rectangles.push(VramRect {
                 name: format!("{} palette", node.name),
                 rect: [p.clut_x, p.clut_y, p.format.colors(), 1],
@@ -417,9 +421,16 @@ pub fn stage(
             palettes.push(node);
         }
         let (framebuffer_bytes, display_rectangles) = display_vram_layout(s.display_size);
-        let display_reservations = display_rectangles.iter().filter(|r| r.category == 3)
-            .map(|r| Node::leaf(&r.name, u64::from(r.rect[2]) * u64::from(r.rect[3]) * 2,
-                "Excluded by the texture allocator, not an active framebuffer"))
+        let display_reservations = display_rectangles
+            .iter()
+            .filter(|r| r.category == 3)
+            .map(|r| {
+                Node::leaf(
+                    &r.name,
+                    u64::from(r.rect[2]) * u64::from(r.rect[3]) * 2,
+                    "Excluded by the texture allocator, not an active framebuffer",
+                )
+            })
             .collect();
         rectangles.extend(display_rectangles);
         rectangles.push(VramRect {
@@ -925,30 +936,43 @@ mod tests {
         for width in [256, 320, 368, 512, 640] {
             for height in [240, 480] {
                 let (framebuffer_bytes, rectangles) = display_vram_layout([width, height]);
-                let framebuffers: Vec<_> = rectangles.iter().filter(|r| r.category == 0)
-                    .map(|r| r.rect).collect();
-                assert_eq!(framebuffers, if height == 480 {
-                    vec![[0, 0, width, 480]]
-                } else {
-                    vec![[0, 0, width, 240], [0, 256, width, 240]]
-                });
+                let framebuffers: Vec<_> = rectangles
+                    .iter()
+                    .filter(|r| r.category == 0)
+                    .map(|r| r.rect)
+                    .collect();
+                assert_eq!(
+                    framebuffers,
+                    if height == 480 {
+                        vec![[0, 0, width, 480]]
+                    } else {
+                        vec![[0, 0, width, 240], [0, 256, width, 240]]
+                    }
+                );
                 assert_eq!(framebuffer_bytes, u64::from(width) * 480 * 2);
-                let mut covered = vec![false; usize::from(reserved_width) * usize::from(reserved_height)];
+                let mut covered =
+                    vec![false; usize::from(reserved_width) * usize::from(reserved_height)];
                 let mut framebuffer_area = 0u64;
                 for r in &rectangles {
                     let [x, y, w, h] = r.rect;
                     assert!(w > 0 && h > 0 && x + w <= reserved_width && y + h <= reserved_height);
-                    if r.category == 0 { framebuffer_area += u64::from(w) * u64::from(h); }
+                    if r.category == 0 {
+                        framebuffer_area += u64::from(w) * u64::from(h);
+                    }
                     for row in y..y + h {
                         for column in x..x + w {
-                            let cell = &mut covered[usize::from(row) * usize::from(reserved_width) + usize::from(column)];
+                            let cell = &mut covered[usize::from(row) * usize::from(reserved_width)
+                                + usize::from(column)];
                             assert!(!*cell, "Overlapping display rectangles");
                             *cell = true;
                         }
                     }
                 }
                 assert_eq!(framebuffer_area * 2, framebuffer_bytes);
-                assert!(covered.iter().all(|&cell| cell), "Unaccounted allocator reservation");
+                assert!(
+                    covered.iter().all(|&cell| cell),
+                    "Unaccounted allocator reservation"
+                );
             }
         }
     }
@@ -997,9 +1021,21 @@ mod tests {
                 // Play normalizes display size from project settings (the
                 // Basic fixture is interlaced), not unsaved scene values.
                 if crate::settings::rendering(&root).unwrap().height == 480 {
-                    assert!(scene.rectangles.iter().any(|r| r.name == "Interlaced framebuffer" && r.rect[1] == 0 && r.rect[3] == 480));
+                    assert!(
+                        scene
+                            .rectangles
+                            .iter()
+                            .any(|r| r.name == "Interlaced framebuffer"
+                                && r.rect[1] == 0
+                                && r.rect[3] == 480)
+                    );
                 } else {
-                    assert!(scene.rectangles.iter().any(|r| r.name == "Framebuffer 1" && r.rect[1] == 256));
+                    assert!(
+                        scene
+                            .rectangles
+                            .iter()
+                            .any(|r| r.name == "Framebuffer 1" && r.rect[1] == 256)
+                    );
                 }
             }
             assert_eq!(fs::read(&other_path).unwrap(), saved);

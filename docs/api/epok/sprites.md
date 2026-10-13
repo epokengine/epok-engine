@@ -102,7 +102,7 @@ object.clear();
 **Exact declaration**
 
 ```cpp
-void transform(const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixed>& view, Affine<Fixed>& model,Affine<Fixed>& camera)
+void transform(const Sprite& sprite,const Affine<Fixed>& world,const CameraSpace<Fixed>& view, Affine<Fixed>& model,Affine<Fixed>& camera)
 ```
 
 - **Declared at:** [line 28](../../../runtime/sprites.hpp#L28)
@@ -114,7 +114,7 @@ void transform(const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixe
 | --- | --- | --- | --- |
 | `sprite` | `const Sprite &` | Input | Value supplied for `sprite`. See the exact type and module contract. |
 | `world` | `const Affine<Fixed> &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `view` | `const Affine<Fixed> &` | Input | Value supplied for `view`. See the exact type and module contract. |
+| `view` | `const CameraSpace<Fixed> &` | Input | Value supplied for `view`. See the exact type and module contract. |
 | `model` | `Affine<Fixed> &` | Input/output; inspect the function contract | Value supplied for `model`. See the exact type and module contract. |
 | `camera` | `Affine<Fixed> &` | Input/output; inspect the function contract | Value supplied for `camera`. See the exact type and module contract. |
 
@@ -130,7 +130,7 @@ void transform(const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixe
 // Assume these named values have been initialized with valid data:
 // const Sprite & sprite
 // const Affine<Fixed> & world
-// const Affine<Fixed> & view
+// const CameraSpace<Fixed> & view
 // Affine<Fixed> & model
 // Affine<Fixed> & camera
 
@@ -194,7 +194,7 @@ object.begin(dither);
 **Exact declaration**
 
 ```cpp
-template<class Table>void draw(int parity,Table& table,const Sprite& sprite,const Affine<Fixed>& world,const Affine<Fixed>& view,bool receive_lighting=true)
+template<class Table>void draw(int parity,Table& table,const Sprite& sprite,const Affine<Fixed>& world,const CameraSpace<Fixed>& view,bool receive_lighting=true)
 ```
 
 - **Declared at:** [line 64](../../../runtime/sprites.hpp#L64)
@@ -208,7 +208,7 @@ template<class Table>void draw(int parity,Table& table,const Sprite& sprite,cons
 | `table` | `Table &` | Input/output; inspect the function contract | Value supplied for `table`. See the exact type and module contract. |
 | `sprite` | `const Sprite &` | Input | Value supplied for `sprite`. See the exact type and module contract. |
 | `world` | `const Affine<Fixed> &` | Input | Value supplied for `world`. See the exact type and module contract. |
-| `view` | `const Affine<Fixed> &` | Input | Value supplied for `view`. See the exact type and module contract. |
+| `view` | `const CameraSpace<Fixed> &` | Input | Value supplied for `view`. See the exact type and module contract. |
 | `receive_lighting` | `bool` | Input | Value supplied for `receive_lighting`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -228,7 +228,7 @@ template<class Table>void draw(int parity,Table& table,const Sprite& sprite,cons
 // Table & table
 // const Sprite & sprite
 // const Affine<Fixed> & world
-// const Affine<Fixed> & view
+// const CameraSpace<Fixed> & view
 // bool receive_lighting
 
 epok::SpriteRenderer& object = /* obtain a valid instance */;
