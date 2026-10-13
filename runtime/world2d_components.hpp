@@ -410,6 +410,10 @@ public:
 
     bool on_floor = false, on_wall = false, on_ceiling = false;
     Fixed last_motion[2] = {0.0, 0.0};
+    // The velocity the last move_and_slide lost against what it hit, and the actor of the
+    // wall it hit (characters push rigid bodies with them).
+    Fixed blocked_velocity[2] = {0.0, 0.0};
+    ObjectId wall_collider;
     ObjectId last_collider;
     // Cell of the last tile hit, when the last collision was a TileMapLayer.
     int32_t last_tile[2] = {0, 0};
@@ -440,6 +444,7 @@ public:
         MoveResult2D result;
         on_floor = on_wall = on_ceiling = false;
         last_motion[0] = last_motion[1] = 0.0;
+        blocked_velocity[0] = blocked_velocity[1] = 0.0;
         if (!move(delta, result)) return false;
         bool hit = classify(result, true);
         // Snap: stay grounded across small drops while not moving away from the floor.
@@ -488,9 +493,14 @@ private:
             const Fixed facing = n[0] * up_direction[0] + n[1] * up_direction[1];
             if (!floating && facing >= limit) on_floor = true;
             else if (!floating && facing <= -limit) on_ceiling = true;
-            else on_wall = true;
-            if (stop_velocity && ((velocity[axis] > 0.0 && n[axis] < 0.0) || (velocity[axis] < 0.0 && n[axis] > 0.0)))
+            else {
+                on_wall = true;
+                if (world2d::hooks.hit_actor) wall_collider = world2d::hooks.hit_actor(result.blocker[axis]);
+            }
+            if (stop_velocity && ((velocity[axis] > 0.0 && n[axis] < 0.0) || (velocity[axis] < 0.0 && n[axis] > 0.0))) {
+                blocked_velocity[axis] = velocity[axis];
                 velocity[axis] = 0.0;
+            }
         }
         return hit;
     }
@@ -502,3 +512,4 @@ private:
 #include "world2d_content.hpp"
 #include "world2d_skeleton.hpp"
 #include "world2d_navigation.hpp"
+#include "world2d_physics.hpp"

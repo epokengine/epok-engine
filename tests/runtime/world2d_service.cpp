@@ -7,6 +7,7 @@
 // skeletons with IK and navigation. Compiles the real runtime headers; only the audio
 // service and the cooked class table are provided here, as a generated build would.
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 // A navigation scratch large enough for the test grids, as a cooked build would size it.
 #define EPOK_WORLD2D_NAV_CELLS 256
@@ -83,6 +84,8 @@ const ClassDescriptor object_classes[] = {
     {Skeleton2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<Skeleton2DComponent>, &object_destruct, sizeof(Skeleton2DComponent), alignof(Skeleton2DComponent), &ObjectPool<Skeleton2DComponent, 4>::acquire, &ObjectPool<Skeleton2DComponent, 4>::release},
     {NavigationRegion2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<NavigationRegion2DComponent>, &object_destruct, sizeof(NavigationRegion2DComponent), alignof(NavigationRegion2DComponent), &ObjectPool<NavigationRegion2DComponent, 4>::acquire, &ObjectPool<NavigationRegion2DComponent, 4>::release},
     {NavigationAgent2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<NavigationAgent2DComponent>, &object_destruct, sizeof(NavigationAgent2DComponent), alignof(NavigationAgent2DComponent), &ObjectPool<NavigationAgent2DComponent, 4>::acquire, &ObjectPool<NavigationAgent2DComponent, 4>::release},
+    {RigidBody2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<RigidBody2DComponent>, &object_destruct, sizeof(RigidBody2DComponent), alignof(RigidBody2DComponent), &ObjectPool<RigidBody2DComponent, 4>::acquire, &ObjectPool<RigidBody2DComponent, 4>::release},
+    {Joint2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<Joint2DComponent>, &object_destruct, sizeof(Joint2DComponent), alignof(Joint2DComponent), &ObjectPool<Joint2DComponent, 4>::acquire, &ObjectPool<Joint2DComponent, 4>::release},
     {Listener2D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None, world2d_bit, ObjectClassMultiple, &object_construct<Listener2D>, &object_destruct, sizeof(Listener2D), alignof(Listener2D), &ObjectPool<Listener2D, 4>::acquire, &ObjectPool<Listener2D, 4>::release},
     {Level::static_class_id, Object::static_class_id, ObjectFamily::Level, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Level), alignof(Level), nullptr, nullptr},
 };
@@ -933,6 +936,147 @@ void navigation() {
     assert(close(real(root(walker).transform.position[0]), 8, 4.5));
 }
 
+// 21. Rigid bodies fall, bounce, slide to a stop, trade momentum, get pushed by
+// characters, roll, sleep, and joints hold them as rods, ropes and springs.
+RigidBody2DComponent* rigid(Actor* actor, double size, bool circle = false) {
+    auto* shape = box(actor, size, size);
+    if (circle) {
+        shape->shape.shape = Collider2D::Circle;
+        shape->shape.radius = q(size / 2);
+    }
+    auto* body = game_level.add_component<RigidBody2DComponent>(*actor, "Body");
+    assert(body);
+    return body;
+}
+void rigid_bodies() {
+    reset();
+    auto* floor = spawn<Actor2D>("Floor", 0, 100);
+    box(floor, 400, 20);
+    auto* crate = spawn<Actor2D>("Crate", 0, 0);
+    auto* body = rigid(crate, 16);
+    body->bounce = q(0);
+    for (int i = 0; i < 120; ++i) step();
+    // Resting on the floor's top (90), centred 8 above it, asleep, contact reported once.
+    assert(close(real(root(crate).transform.position[1]), 82, 0.5));
+    assert(body->is_sleeping() && body->take_contact() && !body->take_contact() && real(body->get_impact()) > 100);
+    // A bouncy ball comes back up after its first contact.
+    auto* ball = spawn<Actor2D>("Ball", 100, 0);
+    auto* bouncy = rigid(ball, 16, true);
+    bouncy->bounce = q(0.6);
+    bool rose = false;
+    for (int i = 0; i < 90; ++i) {
+        step();
+        rose |= bouncy->velocity[1].raw() < 0;
+    }
+    assert(rose);
+    // Friction brings a sliding body to rest; an impulse wakes it.
+    body->apply_impulse(q(120), q(0));
+    assert(!body->is_sleeping());
+    const double start = real(root(crate).transform.position[0]);
+    for (int i = 0; i < 120; ++i) step();
+    assert(real(root(crate).transform.position[0]) > start + 4 && body->velocity[0].raw() == 0);
+
+    // Two equal bodies, perfectly elastic: the moving one stops, the other takes its speed.
+    reset();
+    auto* ground = spawn<Actor2D>("Ground", 0, 100);
+    box(ground, 400, 20);
+    auto* left = spawn<Actor2D>("Left", -40, 82);
+    auto* right = spawn<Actor2D>("Right", 0, 82);
+    auto* a = rigid(left, 16);
+    auto* b = rigid(right, 16);
+    a->bounce = b->bounce = q(1);
+    a->friction = b->friction = q(0);
+    a->set_velocity(q(120), q(0));
+    for (int i = 0; i < 40; ++i) step();
+    assert(real(b->velocity[0]) > 100 && close(real(a->velocity[0]), 0, 1));
+
+    // A character walking into a pushable crate moves it.
+    reset();
+    auto* level_floor = spawn<Actor2D>("Floor", 0, 100);
+    box(level_floor, 400, 20);
+    auto* hero = spawn<Actor2D>("Hero", -30, 80);
+    box(hero, 12, 20);
+    auto* walker = game_level.add_component<CharacterBody2DComponent>(*hero, "Body");
+    auto* pushed = spawn<Actor2D>("Crate", 0, 82);
+    auto* crate_body = rigid(pushed, 16);
+    for (int i = 0; i < 90; ++i) {
+        epok::time.begin_tick();
+        walker->set_velocity(q(60), walker->velocity_y() + q(12));
+        walker->move_and_slide();
+        world2d::service.step(Fixed(epok::time.delta_raw, Fixed::RAW), &game_level);
+    }
+    assert(real(root(pushed).transform.position[0]) > 20 && real(root(hero).transform.position[0]) > -10);
+    crate_body->pushable = false;
+    const double held = real(root(pushed).transform.position[0]);
+    for (int i = 0; i < 30; ++i) {
+        epok::time.begin_tick();
+        walker->set_velocity(q(60), walker->velocity_y() + q(12));
+        walker->move_and_slide();
+        world2d::service.step(Fixed(epok::time.delta_raw, Fixed::RAW), &game_level);
+    }
+    // Only the last push's momentum carries it on, a few pixels before friction stops it.
+    assert(real(root(pushed).transform.position[0]) < held + 4 && crate_body->velocity[0].raw() == 0);
+
+    // A ball rolling along the floor turns.
+    reset();
+    auto* lane = spawn<Actor2D>("Lane", 0, 100);
+    box(lane, 600, 20);
+    auto* wheel = spawn<Actor2D>("Wheel", 0, 82);
+    auto* rolling = rigid(wheel, 16, true);
+    rolling->friction = q(0);
+    rolling->set_velocity(q(50), q(0));
+    for (int i = 0; i < 30; ++i) step();
+    assert(rolling->get_angular_velocity().raw() > 0 && root(wheel).transform.rotation.raw() != 0);
+
+    // A rod pendulum from the joint node keeps its length and swings down.
+    reset();
+    auto* pivot = spawn<Actor2D>("Pivot", 0, 0);
+    auto* bob = spawn<Actor2D>("Bob", 32, 0);
+    auto* weight = rigid(bob, 8);
+    weight->can_sleep = false;
+    auto* rod = game_level.add_component<Joint2DComponent>(*pivot, "Rod");
+    rod->body_b = bob->id();
+    rod->length = q(32);
+    double lowest = 0;
+    for (int i = 0; i < 40; ++i) {
+        step();
+        const double x = real(root(bob).transform.position[0]), y = real(root(bob).transform.position[1]);
+        assert(close(std::sqrt(x * x + y * y), 32, 1.0));
+        if (y > lowest) lowest = y;
+    }
+    assert(lowest > 28);
+    // A rope lets the body fall until it is taut.
+    rod->kind = JointKind2D::Rope;
+    rod->length = q(48);
+    root(bob).transform.position[0] = q(0);
+    root(bob).transform.position[1] = q(10);
+    weight->set_velocity(q(0), q(0));
+    step();
+    assert(real(root(bob).transform.position[1]) > 10);
+    for (int i = 0; i < 60; ++i) step();
+    assert(close(real(root(bob).transform.position[1]), 48, 1.0));
+    // A spring settles below its length by the weight it carries.
+    rod->kind = JointKind2D::Spring;
+    rod->length = q(32);
+    rod->stiffness = q(60);
+    rod->damping = q(8);
+    weight->linear_damping = q(1);
+    for (int i = 0; i < 600; ++i) step();
+    // mg / k = 720 / 60 = 12 px of stretch.
+    assert(close(real(root(bob).transform.position[1]), 44, 2.0));
+    // A line from the pivot through the bob follows it.
+    auto* cord = game_level.add_component<Line2DComponent>(*pivot, "Cord");
+    cord->follow[0] = pivot->id();
+    cord->follow[1] = bob->id();
+    cord->follow_count = 2;
+    step();
+    assert(cord->point_count == 2 && real(cord->points[0][0]) == 0);
+    assert(cord->points[1][0].raw() == root(bob).transform.position[0].raw() && cord->points[1][1].raw() == root(bob).transform.position[1].raw());
+    rod->break_joint();
+    for (int i = 0; i < 20; ++i) step();
+    assert(real(root(bob).transform.position[1]) > 50);
+}
+
 void size_report() {
     std::printf("World2D components (host, %zu-bit pointers): Sprite2D %zu  Camera2D %zu  Collider2D %zu  CharacterBody2D %zu  TileMapLayer %zu  Parallax2D %zu  Skeleton2D %zu\n",
                 sizeof(void*) * 8, sizeof(Sprite2DComponent), sizeof(Camera2DComponent), sizeof(Collider2DComponent),
@@ -965,7 +1109,8 @@ int main() {
     audio_2d();
     skeletons();
     navigation();
+    rigid_bodies();
     size_report();
-    std::puts("World2D sprite clips, camera, character body, triggers, draw sort, tile map, parallax, canvas layer, path, shape, particle, notifier, remote transform, 2D audio, skeleton and navigation tests passed.");
+    std::puts("World2D sprite clips, camera, character body, triggers, draw sort, tile map, parallax, canvas layer, path, shape, particle, notifier, remote transform, 2D audio, skeleton, navigation and rigid body tests passed.");
     return 0;
 }

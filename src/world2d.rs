@@ -36,10 +36,12 @@ pub const REMOTE_TRANSFORM2D: &str = om::REMOTE_TRANSFORM2D_COMPONENT_ID;
 pub const SKELETON2D: &str = om::SKELETON2D_COMPONENT_ID;
 pub const NAVIGATION_REGION2D: &str = om::NAVIGATION_REGION2D_COMPONENT_ID;
 pub const NAVIGATION_AGENT2D: &str = om::NAVIGATION_AGENT2D_COMPONENT_ID;
+pub const RIGID_BODY2D: &str = om::RIGID_BODY2D_COMPONENT_ID;
+pub const JOINT2D: &str = om::JOINT2D_COMPONENT_ID;
 
 /// Every engine 2D component the editor authors and cooks itself: its class id, the
 /// property key holding its record, and its C++ class.
-const BUILTINS: [(&str, &str, &str); 19] = [
+const BUILTINS: [(&str, &str, &str); 21] = [
     (SPRITE2D, "sprite2d", "epok::Sprite2DComponent"),
     (CAMERA2D, "camera2d", "epok::Camera2DComponent"),
     (COLLIDER2D, "collider2d", "epok::Collider2DComponent"),
@@ -91,6 +93,8 @@ const BUILTINS: [(&str, &str, &str); 19] = [
         "navigation_agent2d",
         "epok::NavigationAgent2DComponent",
     ),
+    (RIGID_BODY2D, "rigid_body2d", "epok::RigidBody2DComponent"),
+    (JOINT2D, "joint2d", "epok::Joint2DComponent"),
 ];
 pub fn is_builtin(class_id: &str) -> bool {
     BUILTINS.iter().any(|b| b.0 == class_id)
@@ -478,6 +482,9 @@ impl Default for PathFollow2D {
 #[serde(default)]
 pub struct Line2D {
     pub points: Vec<[f32; 2]>,
+    /// Nodes the line runs through, in order; its points follow them while the game runs.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub follow: Vec<Uuid>,
     pub width: f32,
     pub begin_color: [u8; 3],
     pub end_color: [u8; 3],
@@ -490,6 +497,7 @@ impl Default for Line2D {
     fn default() -> Self {
         Self {
             points: vec![[0., 0.], [64., 0.]],
+            follow: Vec::new(),
             width: 2.,
             begin_color: [255; 3],
             end_color: [255; 3],
@@ -502,6 +510,7 @@ impl Default for Line2D {
 }
 /// Line2D points the console stores (`line2d_max_points` in world2d_content.hpp).
 pub const LINE_MAX_POINTS: usize = 32;
+pub const LINE_FOLLOW_MAX: usize = 16;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Polygon2D {
@@ -717,6 +726,8 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
             })
         }
         NAVIGATION_AGENT2D => decode::<crate::navigation2d::NavigationAgent2D>(value).map(|_| ()),
+        RIGID_BODY2D => decode::<crate::physics2d::RigidBody2D>(value).map(|_| ()),
+        JOINT2D => decode::<crate::physics2d::Joint2D>(value).map(|_| ()),
         _ => decode::<CharacterBody2D>(value).map(|_| ()),
     };
     result.map_err(|e| format!("{key}: {e}"))
@@ -745,6 +756,8 @@ fn default_record(class_id: &str) -> serde_json::Value {
         SKELETON2D => value::<crate::skeleton2d::Skeleton2D>(),
         NAVIGATION_REGION2D => value::<crate::navigation2d::NavigationRegion2D>(),
         NAVIGATION_AGENT2D => value::<crate::navigation2d::NavigationAgent2D>(),
+        RIGID_BODY2D => value::<crate::physics2d::RigidBody2D>(),
+        JOINT2D => value::<crate::physics2d::Joint2D>(),
         _ => value::<CharacterBody2D>(),
     }
 }
@@ -1051,9 +1064,11 @@ pub enum Preset {
     Skeleton2D,
     NavigationRegion2D,
     NavigationAgent2D,
+    RigidBody2D,
+    Joint2D,
 }
 impl Preset {
-    pub const ALL: [Preset; 23] = [
+    pub const ALL: [Preset; 25] = [
         Preset::Node2D,
         Preset::Sprite2D,
         Preset::AnimatedSprite2D,
@@ -1061,6 +1076,8 @@ impl Preset {
         Preset::CharacterBody2D,
         Preset::StaticBody2D,
         Preset::Area2D,
+        Preset::RigidBody2D,
+        Preset::Joint2D,
         Preset::TileMapLayer,
         Preset::Parallax2D,
         Preset::Path2D,
@@ -1084,7 +1101,11 @@ impl Preset {
             Preset::Node2D | Preset::Sprite2D | Preset::AnimatedSprite2D | Preset::Camera2D => {
                 "Basics"
             }
-            Preset::CharacterBody2D | Preset::StaticBody2D | Preset::Area2D => "Physics",
+            Preset::CharacterBody2D
+            | Preset::StaticBody2D
+            | Preset::Area2D
+            | Preset::RigidBody2D
+            | Preset::Joint2D => "Physics",
             Preset::TileMapLayer | Preset::Parallax2D | Preset::Path2D | Preset::PathFollow2D => {
                 "Level"
             }
@@ -1124,6 +1145,8 @@ impl Preset {
             Preset::Skeleton2D => "Skeleton2D",
             Preset::NavigationRegion2D => "NavigationRegion2D",
             Preset::NavigationAgent2D => "NavigationAgent2D",
+            Preset::RigidBody2D => "RigidBody2D",
+            Preset::Joint2D => "Joint2D",
         }
     }
     pub fn description(self) -> &'static str {
@@ -1163,6 +1186,8 @@ impl Preset {
             Preset::NavigationAgent2D => {
                 "Finds a path to a target and walks it: enemies, NPCs, followers."
             }
+            Preset::RigidBody2D => "Falls, bounces, slides and gets pushed: crates, balls, rocks.",
+            Preset::Joint2D => "Ties a rigid body to a point or another body: rod, rope, spring.",
         }
     }
     pub fn components(self) -> &'static [&'static str] {
@@ -1188,6 +1213,8 @@ impl Preset {
             Preset::Skeleton2D => &[SKELETON2D],
             Preset::NavigationRegion2D => &[NAVIGATION_REGION2D],
             Preset::NavigationAgent2D => &[NAVIGATION_AGENT2D],
+            Preset::RigidBody2D => &[SPRITE2D, COLLIDER2D, RIGID_BODY2D],
+            Preset::Joint2D => &[JOINT2D],
         }
     }
 }
@@ -1229,6 +1256,13 @@ pub fn create(preset: Preset, name: &str, position: [f32; 2]) -> ActorInstance {
                     &mut component,
                     &Collider2D {
                         size: [64., 16.],
+                        ..Default::default()
+                    },
+                ),
+                (Preset::RigidBody2D, COLLIDER2D) => write(
+                    &mut component,
+                    &Collider2D {
+                        size: [16., 16.],
                         ..Default::default()
                     },
                 ),
@@ -1757,6 +1791,18 @@ pub fn cook(
             );
             body += &colour("begin_color", l.begin_color);
             body += &colour("end_color", l.end_color);
+            let followed: Vec<usize> = l
+                .follow
+                .iter()
+                .take(LINE_FOLLOW_MAX)
+                .filter_map(|id| context.actor(Some(*id)))
+                .collect();
+            for (i, slot) in followed.iter().enumerate() {
+                body += &format!("c->follow[{i}]=actors[{slot}];");
+            }
+            if !followed.is_empty() {
+                body += &format!("c->follow_count={};", followed.len());
+            }
         }
         POLYGON2D => {
             let poly: Polygon2D = read(component);
@@ -1965,6 +2011,55 @@ pub fn cook(
                     );
                 }
             }
+        }
+        RIGID_BODY2D => {
+            let r: crate::physics2d::RigidBody2D = read(component);
+            body += &format!(
+                "c->mass={};c->bounce={};c->friction={};c->linear_damping={};c->gravity[0]={};c->gravity[1]={};c->collision_mask={}u;c->frozen={};c->pushable={};c->can_sleep={};c->rolls={};c->velocity[0]={};c->velocity[1]={};",
+                fixed(r.mass.clamp(0.01, 1000.)),
+                fixed(r.bounce.clamp(0., 1.)),
+                fixed(r.friction.clamp(0., 1.)),
+                fixed(r.linear_damping.clamp(0., 60.)),
+                fixed(r.gravity[0].clamp(-8192., 8192.)),
+                fixed(r.gravity[1].clamp(-8192., 8192.)),
+                r.collision_mask,
+                r.frozen,
+                r.pushable,
+                r.can_sleep,
+                r.rolls,
+                fixed(r.velocity[0].clamp(-8192., 8192.)),
+                fixed(r.velocity[1].clamp(-8192., 8192.))
+            );
+        }
+        JOINT2D => {
+            let j: crate::physics2d::Joint2D = read(component);
+            let scene = context
+                .scene
+                .ok_or_else(|| format!("{label}: a joint needs its map to cook"))?;
+            let index = scene
+                .actors
+                .iter()
+                .position(|a| a.components.iter().any(|c| c.id == component.id))
+                .ok_or_else(|| format!("{label}: the joint is not in its map"))?;
+            let b = j
+                .body_b
+                .and_then(|id| scene.actors.iter().find(|a| a.id == id))
+                .filter(|a| self::component(a, RIGID_BODY2D).is_some())
+                .ok_or_else(|| format!("{label}: Body B must be a node with a RigidBody2D"))?;
+            if let Some(slot) = context.actor(Some(b.id)) {
+                body += &format!("c->body_b=actors[{slot}];");
+            }
+            if let Some(slot) = context.actor(j.body_a) {
+                body += &format!("c->body_a=actors[{slot}];");
+            }
+            body += &format!(
+                "c->kind={};c->length={};c->stiffness={};c->damping={};c->enabled={};",
+                j.kind.cpp(),
+                fixed(crate::physics2d::cooked_length(scene, index, &j).clamp(0., 8192.)),
+                fixed(j.stiffness.clamp(0., 100000.)),
+                fixed(j.damping.clamp(0., 10000.)),
+                j.enabled
+            );
         }
         NAVIGATION_AGENT2D => {
             let a: crate::navigation2d::NavigationAgent2D = read(component);

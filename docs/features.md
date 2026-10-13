@@ -306,7 +306,8 @@ See the complete [Timeline reference](timelines.md) and the
   Sprite2D, TileMapLayer, Collider2D, CharacterBody2D, Camera2D, Parallax2D, Path2D,
   PathFollow2D, Line2D, Polygon2D, Particles2D, AudioPlayer2D,
   VisibleOnScreenNotifier2D, RemoteTransform2D, Skeleton2D, NavigationRegion2D,
-  NavigationAgent2D, CanvasLayer2D and CanvasModulate2D components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
+  NavigationAgent2D, RigidBody2D, Joint2D, CanvasLayer2D and CanvasModulate2D
+  components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
   purpose, create each kind of node in one click.
 - **Sprites and animation.** Texture regions, sprite-sheet cells, offset, centring,
   flips, modulate, the console blend modes, z-index and y-sort; named frame
@@ -333,6 +334,10 @@ See the complete [Timeline reference](timelines.md) and the
   (shorter-arc rotation blending, loops and one-shots) and up to two two-bone IK
   chains with a chosen elbow side; the editor keys poses from a timeline on the
   skeleton or on any bone, previews them and draws the bones and IK targets.
+- **Rigid bodies and joints.** Box and circle RigidBody2D bodies swept through tiles
+  and colliders with restitution, friction, damping, per-body gravity, momentum
+  exchange, sleeping, rolling circles and character pushing; rod, rope and spring
+  Joint2D links; Line2D lines that follow nodes draw ropes and chains.
 - **Navigation.** Grid regions built from tile collision and static bodies (A* with
   no corner cutting and line-of-sight smoothing) or navmesh outlines (A* plus the
   funnel algorithm); agents follow a target node or position, drive their

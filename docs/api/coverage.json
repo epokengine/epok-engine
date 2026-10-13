@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 111,
-    "types": 494,
-    "callables": 1906,
-    "properties": 2745
+    "headers": 112,
+    "types": 497,
+    "callables": 1942,
+    "properties": 2784
   },
   "psyqo": {
     "headers": 53,
@@ -1069,18 +1069,18 @@
       "slug": "world2d-components",
       "callables": 81,
       "types": 7,
-      "properties": 74,
-      "source_sha256": "c1c1104757f6ae756abfb261ab69a30ead9d6e8fa527dd8f458fdc8f28a142b4",
+      "properties": 76,
+      "source_sha256": "e7a8776a0706e194d30b802a8e3ad78947ea1e575b093ab4260b8f25067fb472",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "world2d_content.hpp",
       "slug": "world2d-content",
-      "callables": 77,
+      "callables": 79,
       "types": 9,
-      "properties": 103,
-      "source_sha256": "43d1fa2c958f2a73c59cf0167af032356e81668094dd247d5b412bcd946301ca",
+      "properties": 106,
+      "source_sha256": "05ff9367e909b3f5c08575f2025612642d785664fb25e9aa60b3f2513d66e695",
       "diagnostics": []
     },
     {
@@ -1091,6 +1091,16 @@
       "types": 5,
       "properties": 46,
       "source_sha256": "cceb0781867de33b0ccc411d4903328a533e337f2f491d0b7ec6f26903156aae",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_physics.hpp",
+      "slug": "world2d-physics",
+      "callables": 25,
+      "types": 3,
+      "properties": 34,
+      "source_sha256": "aa4533145dc0afc8e5de016de80a115031043fabd7b18043f351ad5bc2212ee8",
       "diagnostics": []
     },
     {
@@ -1107,10 +1117,10 @@
       "family": "epok",
       "header": "world2d_service.hpp",
       "slug": "world2d-service",
-      "callables": 40,
+      "callables": 49,
       "types": 10,
       "properties": 75,
-      "source_sha256": "d8963d51b5ff6f554290d0c58eec00a7f01794718d37ac1270bdbc3894e5686c",
+      "source_sha256": "14f444ec000a44375d5977bc99f9ef6a1dd6767298d05e8b611b5a9fb28b62f4",
       "diagnostics": []
     },
     {

@@ -124,6 +124,7 @@ mod particle_effect_editor;
 mod particle_effect_preview;
 mod particle_effect_scene;
 mod particles;
+mod physics2d;
 mod picking;
 mod pipeline;
 mod platform;
@@ -229,6 +230,7 @@ mod workspace;
 mod world2d;
 mod world2d_editor;
 mod world2d_navigation_editor;
+mod world2d_physics_editor;
 mod world2d_shapes_editor;
 mod world2d_skeleton_editor;
 use std::{

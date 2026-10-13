@@ -2,7 +2,7 @@
 
 > **Header:** `"world2d_service.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/world2d_service.hpp)
 
-This module covers the world2d service module. It documents 40 public callables declared directly in this header.
+This module covers the world2d service module. It documents 49 public callables declared directly in this header.
 
 ## Declared types
 
@@ -27,23 +27,32 @@ This module covers the world2d service module. It documents 40 public callables 
 - [`epok::world2d::Service::active_camera`](#epok-world2d-service-active-camera-1) — Performs `active camera` as part of the world2d service module.
 - [`epok::world2d::Service::actor_at`](#epok-world2d-service-actor-at-1) — Performs `actor at` as part of the world2d service module.
 - [`epok::world2d::Service::background`](#epok-world2d-service-background-1) — Background colour of the active camera, or null to keep the engine default.
+- [`epok::world2d::Service::constrain`](#epok-world2d-service-constrain-1) — Performs `constrain` as part of the world2d service module.
 - [`epok::world2d::Service::dispatch`](#epok-world2d-service-dispatch-1) — Performs `dispatch` as part of the world2d service module.
 - [`epok::world2d::Service::each_particle_of`](#epok-world2d-service-each-particle-of-1) — Visits (position, age fraction) of every live particle of `emitter`, oldest slots first.
 - [`epok::world2d::Service::edit_forget`](#epok-world2d-service-edit-forget-1) — Performs `edit forget` as part of the world2d service module.
 - [`epok::world2d::Service::edit_lookup`](#epok-world2d-service-edit-lookup-1) — ---- runtime tile edits ------------------------------------------------------------
 - [`epok::world2d::Service::edit_store`](#epok-world2d-service-edit-store-1) — Performs `edit store` as part of the world2d service module.
+- [`epok::world2d::Service::exchange`](#epok-world2d-service-exchange-1) — A one-dimensional collision along `axis`, with the lower restitution of the two.
 - [`epok::world2d::Service::follow`](#epok-world2d-service-follow-1) — Performs `follow` as part of the world2d service module.
+- [`epok::world2d::Service::joint_ends`](#epok-world2d-service-joint-ends-1) — The two ends of a joint: positions, bodies (null for a fixed end) and whether valid.
+- [`epok::world2d::Service::magnitude`](#epok-world2d-service-magnitude-1) — Performs `magnitude` as part of the world2d service module.
 - [`epok::world2d::Service::move`](#epok-world2d-service-move-1) — Performs `move` as part of the world2d service module.
 - [`epok::world2d::Service::navigate`](#epok-world2d-service-navigate-1) — ---- simulation step --------------------------------------------------------------- After the level tick: animate, resolve this step's colliders and triggers, move the cameras to where the actors ended up, then scroll the parallax layers after them.
 - [`epok::world2d::Service::notice`](#epok-world2d-service-notice-1) — Whether a notifier's rectangle is inside the view; reports changes and, when asked, deactivates its owner off screen.
 - [`epok::world2d::Service::overlap`](#epok-world2d-service-overlap-1) — Performs `overlap` as part of the world2d service module.
 - [`epok::world2d::Service::plan`](#epok-world2d-service-plan-1) — Performs `plan` as part of the world2d service module.
+- [`epok::world2d::Service::position_of`](#epok-world2d-service-position-of-1) — Performs `position of` as part of the world2d service module.
 - [`epok::world2d::Service::raycast`](#epok-world2d-service-raycast-1) — Performs `raycast` as part of the world2d service module.
 - [`epok::world2d::Service::release`](#epok-world2d-service-release-1) — ---- particles ---------------------------------------------------------------------
 - [`epok::world2d::Service::reset`](#epok-world2d-service-reset-1) — Resets reset as part of the world2d service module.
+- [`epok::world2d::Service::rigid_of`](#epok-world2d-service-rigid-of-1) — ---- rigid bodies --------------------------------------------------------------------
+- [`epok::world2d::Service::simulate_bodies`](#epok-world2d-service-simulate-bodies-1) — Performs `simulate bodies` as part of the world2d service module.
+- [`epok::world2d::Service::spring`](#epok-world2d-service-spring-1) — Performs `spring` as part of the world2d service module.
 - [`epok::world2d::Service::step`](#epok-world2d-service-step-1) — Performs `step` as part of the world2d service module.
 - [`epok::world2d::Service::sync`](#epok-world2d-service-sync-1) — ---- collision ---------------------------------------------------------------------
 - [`epok::world2d::Service::tile_at`](#epok-world2d-service-tile-at-1) — Performs `tile at` as part of the world2d service module.
+- [`epok::world2d::Service::times`](#epok-world2d-service-times-1) — Performs `times` as part of the world2d service module.
 - [`epok::world2d::sort_draw_items`](#epok-world2d-sort-draw-items-1) — Performs `sort draw items` as part of the world2d service module.
 - [`epok::world2d::tile_box`](#epok-world2d-tile-box-1) — World box of one tile's collision shape, honouring the cell's flip and transpose flags.
 - [`epok::world2d::tint`](#epok-world2d-tint-1) — Performs `tint` as part of the world2d service module.
@@ -65,7 +74,7 @@ This module covers the world2d service module. It documents 40 public callables 
 template<class TextureSize> size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, size_t capacity, TextureSize&& texture_size)
 ```
 
-- **Declared at:** [line 977](../../../runtime/world2d_service.hpp#L977)
+- **Declared at:** [line 1164](../../../runtime/world2d_service.hpp#L1164)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -118,7 +127,7 @@ auto result = object.collect_sprites<TextureSize>(draws, items, scratch, capacit
 template<class Visit> inline void each_line_quad(const SpriteDraw& entry, Visit&& visit)
 ```
 
-- **Declared at:** [line 1195](../../../runtime/world2d_service.hpp#L1195)
+- **Declared at:** [line 1382](../../../runtime/world2d_service.hpp#L1382)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -165,7 +174,7 @@ object.each_line_quad<Visit>(entry, visit);
 template<class Visit> inline void each_particle(const SpriteDraw& entry, uint16_t texture_width, uint16_t texture_height, Visit&& visit)
 ```
 
-- **Declared at:** [line 1283](../../../runtime/world2d_service.hpp#L1283)
+- **Declared at:** [line 1470](../../../runtime/world2d_service.hpp#L1470)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -216,7 +225,7 @@ object.each_particle<Visit>(entry, texture_width, texture_height, visit);
 template<class Visit> inline void each_polygon_triangle(const SpriteDraw& entry, Visit&& visit)
 ```
 
-- **Declared at:** [line 1249](../../../runtime/world2d_service.hpp#L1249)
+- **Declared at:** [line 1436](../../../runtime/world2d_service.hpp#L1436)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -265,7 +274,7 @@ object.each_polygon_triangle<Visit>(entry, visit);
 template<class Visit> inline void each_tile(const SpriteDraw& entry, uint16_t texture_width, uint16_t texture_height, Visit&& visit)
 ```
 
-- **Declared at:** [line 1329](../../../runtime/world2d_service.hpp#L1329)
+- **Declared at:** [line 1516](../../../runtime/world2d_service.hpp#L1516)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -316,7 +325,7 @@ object.each_tile<Visit>(entry, texture_width, texture_height, visit);
 inline bool entry_space(const SpriteDraw& entry, Camera2D& camera, Affine2D& matrix)
 ```
 
-- **Declared at:** [line 1179](../../../runtime/world2d_service.hpp#L1179)
+- **Declared at:** [line 1366](../../../runtime/world2d_service.hpp#L1366)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -402,7 +411,7 @@ auto result = epok::world2d::floor_div64(value, size);
 inline void install()
 ```
 
-- **Declared at:** [line 846](../../../runtime/world2d_service.hpp#L846)
+- **Declared at:** [line 1033](../../../runtime/world2d_service.hpp#L1033)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -433,7 +442,7 @@ epok::world2d::install();
 inline uint8_t mix(uint8_t a, uint8_t b, Fixed t, uint8_t tint)
 ```
 
-- **Declared at:** [line 1189](../../../runtime/world2d_service.hpp#L1189)
+- **Declared at:** [line 1376](../../../runtime/world2d_service.hpp#L1376)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -592,7 +601,7 @@ auto result = epok::world2d::Projector::screen();
 template<class Visit> inline void repeat_copies(const Canvas& canvas, const Projector& projector, const int16_t* bounds, Visit&& visit)
 ```
 
-- **Declared at:** [line 922](../../../runtime/world2d_service.hpp#L922)
+- **Declared at:** [line 1109](../../../runtime/world2d_service.hpp#L1109)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -683,7 +692,7 @@ auto result = epok::world2d::screen_pixel(value);
 Camera2DComponent* active_camera()
 ```
 
-- **Declared at:** [line 817](../../../runtime/world2d_service.hpp#L817)
+- **Declared at:** [line 1004](../../../runtime/world2d_service.hpp#L1004)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `Camera2DComponent *`. Check the purpose and failure notes before using the value.
@@ -758,7 +767,7 @@ auto result = object.actor_at(index);
 const uint8_t* background()
 ```
 
-- **Declared at:** [line 825](../../../runtime/world2d_service.hpp#L825)
+- **Declared at:** [line 1012](../../../runtime/world2d_service.hpp#L1012)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `const uint8_t *`. Check the purpose and failure notes before using the value.
@@ -779,6 +788,48 @@ auto result = object.background();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-world2d-service-constrain-1"></a>
+
+## `epok::world2d::Service::constrain`
+
+**Purpose.** Performs `constrain` as part of the world2d service module.
+
+**Exact declaration**
+
+```cpp
+void constrain(Joint2DComponent& joint)
+```
+
+- **Declared at:** [line 861](../../../runtime/world2d_service.hpp#L861)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `joint` | `Joint2DComponent &` | Input/output; inspect the function contract | Value supplied for `joint`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the world2d service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Joint2DComponent & joint
+
+epok::world2d::Service& object = /* obtain a valid instance */;
+
+object.constrain(joint);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d service module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-world2d-service-dispatch-1"></a>
 
 ## `epok::world2d::Service::dispatch`
@@ -791,7 +842,7 @@ auto result = object.background();
 template<class LevelType> static void dispatch(LevelType& level, ObjectId actor, ObjectId other, TriggerPhase phase)
 ```
 
-- **Declared at:** [line 806](../../../runtime/world2d_service.hpp#L806)
+- **Declared at:** [line 993](../../../runtime/world2d_service.hpp#L993)
 - **Kind:** `function template`; qualifiers: `static, template`
 
 **Parameters**
@@ -1015,6 +1066,50 @@ auto result = object.edit_store(layer, x, y, value);
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-world2d-service-exchange-1"></a>
+
+## `epok::world2d::Service::exchange`
+
+**Purpose.** A one-dimensional collision along `axis`, with the lower restitution of the two.
+
+**Exact declaration**
+
+```cpp
+static void exchange(RigidBody2DComponent& a, RigidBody2DComponent& b, int axis)
+```
+
+- **Declared at:** [line 731](../../../runtime/world2d_service.hpp#L731)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `a` | `RigidBody2DComponent &` | Input/output; inspect the function contract | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `RigidBody2DComponent &` | Input/output; inspect the function contract | Value supplied for `b`. See the exact type and module contract. |
+| `axis` | `int` | Input | Value supplied for `axis`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the world2d service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// RigidBody2DComponent & a
+// RigidBody2DComponent & b
+// int axis
+
+epok::world2d::Service::exchange(a, b, axis);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d service module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-world2d-service-follow-1"></a>
 
 ## `epok::world2d::Service::follow`
@@ -1060,6 +1155,96 @@ epok::world2d::Service::follow(agent, at, dt, root);
 **Why choose it.** It provides direct, allocation-conscious access to the world2d service module. No exception-based error path is implied by the signature.
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-world2d-service-joint-ends-1"></a>
+
+## `epok::world2d::Service::joint_ends`
+
+**Purpose.** The two ends of a joint: positions, bodies (null for a fixed end) and whether valid.
+
+**Exact declaration**
+
+```cpp
+bool joint_ends(Joint2DComponent& joint, Fixed* pa, Fixed* pb, RigidBody2DComponent*& a, RigidBody2DComponent*& b)
+```
+
+- **Declared at:** [line 831](../../../runtime/world2d_service.hpp#L831)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `joint` | `Joint2DComponent &` | Input/output; inspect the function contract | Value supplied for `joint`. See the exact type and module contract. |
+| `pa` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `pa`. See the exact type and module contract. |
+| `pb` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `pb`. See the exact type and module contract. |
+| `a` | `RigidBody2DComponent *&` | Input/output; inspect the function contract | Value supplied for `a`. See the exact type and module contract. |
+| `b` | `RigidBody2DComponent *&` | Input/output; inspect the function contract | Value supplied for `b`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Joint2DComponent & joint
+// Fixed * pa
+// Fixed * pb
+// RigidBody2DComponent *& a
+// RigidBody2DComponent *& b
+
+epok::world2d::Service& object = /* obtain a valid instance */;
+
+auto result = object.joint_ends(joint, pa, pb, a, b);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-world2d-service-magnitude-1"></a>
+
+## `epok::world2d::Service::magnitude`
+
+**Purpose.** Performs `magnitude` as part of the world2d service module.
+
+**Exact declaration**
+
+```cpp
+static Fixed magnitude(Fixed v)
+```
+
+- **Declared at:** [line 722](../../../runtime/world2d_service.hpp#L722)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `v` | `Fixed` | Input | Value supplied for `v`. See the exact type and module contract. |
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Fixed v
+
+auto result = epok::world2d::Service::magnitude(v);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d service module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
 <a id="epok-world2d-service-move-1"></a>
 
@@ -1165,7 +1350,7 @@ object.navigate(dt);
 static void notice(VisibleOnScreenNotifier2DComponent& notifier, const Projector& projector)
 ```
 
-- **Declared at:** [line 782](../../../runtime/world2d_service.hpp#L782)
+- **Declared at:** [line 969](../../../runtime/world2d_service.hpp#L969)
 - **Kind:** `cxx method`; qualifiers: `static`
 
 **Parameters**
@@ -1287,6 +1472,48 @@ epok::world2d::Service::plan(agent, at);
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-world2d-service-position-of-1"></a>
+
+## `epok::world2d::Service::position_of`
+
+**Purpose.** Performs `position of` as part of the world2d service module.
+
+**Exact declaration**
+
+```cpp
+static bool position_of(ActorComponent& component, Fixed* out)
+```
+
+- **Declared at:** [line 723](../../../runtime/world2d_service.hpp#L723)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `component` | `ActorComponent &` | Input/output; inspect the function contract | Value supplied for `component`. See the exact type and module contract. |
+| `out` | `Fixed *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ActorComponent & component
+// Fixed * out
+
+auto result = epok::world2d::Service::position_of(component, out);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-world2d-service-raycast-1"></a>
 
 ## `epok::world2d::Service::raycast`
@@ -1389,7 +1616,7 @@ object.release(emitter);
 void reset()
 ```
 
-- **Declared at:** [line 829](../../../runtime/world2d_service.hpp#L829)
+- **Declared at:** [line 1016](../../../runtime/world2d_service.hpp#L1016)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1410,6 +1637,130 @@ object.reset();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-world2d-service-rigid-of-1"></a>
+
+## `epok::world2d::Service::rigid_of`
+
+**Purpose.** ---- rigid bodies --------------------------------------------------------------------
+
+**Exact declaration**
+
+```cpp
+static RigidBody2DComponent* rigid_of(ObjectId actor)
+```
+
+- **Declared at:** [line 716](../../../runtime/world2d_service.hpp#L716)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `actor` | `ObjectId` | Input | Value supplied for `actor`. See the exact type and module contract. |
+
+**Returns.** Returns `RigidBody2DComponent *`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// ObjectId actor
+
+auto result = epok::world2d::Service::rigid_of(actor);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d service module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-world2d-service-simulate-bodies-1"></a>
+
+## `epok::world2d::Service::simulate_bodies`
+
+**Purpose.** Performs `simulate bodies` as part of the world2d service module.
+
+**Exact declaration**
+
+```cpp
+void simulate_bodies(Fixed dt)
+```
+
+- **Declared at:** [line 744](../../../runtime/world2d_service.hpp#L744)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `dt` | `Fixed` | Input | Value supplied for `dt`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the world2d service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Fixed dt
+
+epok::world2d::Service& object = /* obtain a valid instance */;
+
+object.simulate_bodies(dt);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d service module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-world2d-service-spring-1"></a>
+
+## `epok::world2d::Service::spring`
+
+**Purpose.** Performs `spring` as part of the world2d service module.
+
+**Exact declaration**
+
+```cpp
+void spring(Joint2DComponent& joint)
+```
+
+- **Declared at:** [line 846](../../../runtime/world2d_service.hpp#L846)
+- **Kind:** `cxx method`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `joint` | `Joint2DComponent &` | Input/output; inspect the function contract | Value supplied for `joint`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the world2d service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Joint2DComponent & joint
+
+epok::world2d::Service& object = /* obtain a valid instance */;
+
+object.spring(joint);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d service module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
 <a id="epok-world2d-service-step-1"></a>
 
 ## `epok::world2d::Service::step`
@@ -1422,7 +1773,7 @@ object.reset();
 template<class LevelType> void step(Fixed dt, LevelType* level)
 ```
 
-- **Declared at:** [line 715](../../../runtime/world2d_service.hpp#L715)
+- **Declared at:** [line 897](../../../runtime/world2d_service.hpp#L897)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1545,6 +1896,48 @@ auto result = object.tile_at(index, x, y);
 
 **Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
 
+<a id="epok-world2d-service-times-1"></a>
+
+## `epok::world2d::Service::times`
+
+**Purpose.** Performs `times` as part of the world2d service module.
+
+**Exact declaration**
+
+```cpp
+static Fixed times(Fixed value, int64_t q12)
+```
+
+- **Declared at:** [line 721](../../../runtime/world2d_service.hpp#L721)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `value` | `Fixed` | Input | Value supplied for `value`. See the exact type and module contract. |
+| `q12` | `int64_t` | Input | Value supplied for `q12`. See the exact type and module contract. |
+
+**Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the world2d service module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_service.hpp"
+
+// Assume these named values have been initialized with valid data:
+// Fixed value
+// int64_t q12
+
+auto result = epok::world2d::Service::times(value, q12);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d service module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-world2d-sort-draw-items-1"></a>
 
 ## `epok::world2d::sort_draw_items`
@@ -1653,7 +2046,7 @@ auto result = epok::world2d::tile_box(tile, value, cell_origin, width, height, o
 inline void tint(uint8_t* color, const uint8_t* by)
 ```
 
-- **Declared at:** [line 915](../../../runtime/world2d_service.hpp#L915)
+- **Declared at:** [line 1102](../../../runtime/world2d_service.hpp#L1102)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1695,7 +2088,7 @@ epok::world2d::tint(color, by);
 const uint8_t* of(int8_t layer) const
 ```
 
-- **Declared at:** [line 960](../../../runtime/world2d_service.hpp#L960)
+- **Declared at:** [line 1147](../../../runtime/world2d_service.hpp#L1147)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1737,7 +2130,7 @@ auto result = object.of(layer);
 Tints()
 ```
 
-- **Declared at:** [line 950](../../../runtime/world2d_service.hpp#L950)
+- **Declared at:** [line 1137](../../../runtime/world2d_service.hpp#L1137)
 - **Kind:** `constructor`
 
 **Use it when.** You need the world2d service module and the preconditions in the declaration are already satisfied.
@@ -1766,7 +2159,7 @@ epok::world2d::Tints value();
 inline uint32_t z_key(int32_t z)
 ```
 
-- **Declared at:** [line 966](../../../runtime/world2d_service.hpp#L966)
+- **Declared at:** [line 1153](../../../runtime/world2d_service.hpp#L1153)
 - **Kind:** `function decl`
 
 **Parameters**

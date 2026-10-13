@@ -47,6 +47,27 @@ stopping short) with the editor's port of the searches.
 The Platformer 2D template gains a wisp: a navigation agent on a grid over the Ground
 layer that follows the player round the solid tiles with a glowing particle trail.
 
+## 3. Rigid bodies and joints (`runtime/world2d_physics.hpp`, `src/physics2d.rs`)
+
+| Piece | Contract |
+| --- | --- |
+| `RigidBody2DComponent` | Shape: the node's solid Collider2D. Integrates gravity (per body), one-step forces and damping, then sweeps through the collision world with the CharacterBody2D sweep (tiles and colliders, no tunnelling). Per blocked axis: rigid other → 1D momentum exchange with the lower restitution; static → restitution (small bounces settle) and Coulomb-style friction on the other axis. Circles roll (rotation from speed and radius). Sleeps after 0.5 s of resting contact; impulses, forces, pushes and joints wake it. Boxes do not rotate |
+| Characters | `CharacterBody2D::blocked_velocity` and `wall_collider` (new) record what a move lost against a wall; the service turns that into a push on a pushable rigid body, three quarters of the speed divided by the mass above 1 |
+| `Joint2DComponent` | Rod / rope: four position passes after the bodies move, split by inverse mass, plus removal of the relative speed along the joint; spring: a force before integration. Body A may be any node (fixed when not rigid) or none (the joint node). `set_length`, `break_joint` |
+| `Line2DComponent::follow` | Up to 16 nodes the line runs through; the service moves its points onto them every step, after everything else moved |
+| Gameplay | `apply_impulse`, `apply_force`, `set_velocity`, `get_velocity_x/y`, `get_angular_velocity`, `is_sleeping`, `wake`, `set_frozen`, `is_frozen`, `take_contact`, `get_impact`, `is_touching`; joints `set_enabled`, `is_enabled`, `set_length`, `get_length`, `break_joint`; lines `stop_following` |
+
+Editor (`src/world2d_physics_editor.rs`): RigidBody2D and Joint2D presets in the
+Physics group; bands with mass, bounce, friction, damping, gravity, start velocity,
+pushable, frozen, can sleep and rolls (circles), and warnings for a missing solid
+collider or an attachment; joint kind, ends, length (0 = the map distance, shown),
+stiffness and damping; joints drawn while colliders are shown. Line2D gains Follow
+nodes; a following line draws through its nodes in the view and leaves the points
+editor.
+
+The Platformer 2D template gains a pushable crate and a garland of light bulbs on rope
+joints, its cord a Line2D following the hooks and bulbs.
+
 ## Validation
 
 | Check | Result |
@@ -55,5 +76,8 @@ layer that follows the player round the solid tiles with a glowing particle trai
 | `cargo test` | sampling, keying within a frame, normalization of new bones, bone removal, IK turns, validation, cooking (bank path included) |
 | `tests/runtime/world2d_service.cpp` (navigation) | grid paths around a wall, no corner squeezing, closest cell when unreachable; navmesh path turning at an L's inner corner, off-mesh clamping; an agent walking to a position and following a moving actor, arrival reported once |
 | `cargo test` (navigation) | grid building from tiles, one-way tiles, static bodies and radius; grid and navmesh searches; cooking of grids, meshes and agents; scratch capacity |
-| PSX | Platformer 2D in C++, Lua and Blueprint in PCSX-Redux: the guide animates and points at the player, and the wisp follows the player as it runs and jumps |
+| `tests/runtime/world2d_service.cpp` (physics) | falling to rest and sleeping, contact once with its impact, bouncing, friction stopping a slide, elastic exchange between equal bodies, a character pushing (and not pushing) a crate, rolling, a rod pendulum holding its length, a rope going taut, a spring settling at mg/k, breaking a joint, a line following nodes |
+| `cargo test` (physics) | joint lengths from the map, cooking of bodies and joints |
+| PSX | Platformer 2D in C++, Lua and Blueprint in PCSX-Redux: the guide animates and points at the player, the wisp follows the player, the player pushes the crate and the garland sways |
 | Sample game | static RAM unchanged (976.0 KiB): projects without 2D content compile none of it |
+| Platformer 2D | static RAM 1.31 MiB with the guide, 1.35 MiB with the wisp (11 KiB of A* scratch), 1.41 MiB with the crate and garland |

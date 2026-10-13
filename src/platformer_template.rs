@@ -519,6 +519,7 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
     scene.actors.push(player);
     guide(&mut scene, art.guide, player_id, level);
     wisp(&mut scene, art.spark, player_id, level);
+    props(&mut scene, art.tiles, art.guide, level);
     for index in coins {
         let pickup = ComponentInstance::new(
             Uuid::new_v4(),
@@ -678,6 +679,142 @@ fn wisp(scene: &mut Scene, spark: Uuid, player: Uuid, level: Uuid) {
     );
     wisp.logical_parent = Some(level);
     scene.actors.push(wisp);
+}
+
+/// Physics props near the start: a crate the player can push, and a garland of light
+/// bulbs on rope joints, its cord a Line2D through the anchors and bulbs, swaying.
+fn props(scene: &mut Scene, tiles: Uuid, sheet: Uuid, level: Uuid) {
+    let mut crate_box = world2d::create(Preset::RigidBody2D, "PushCrate", [-164., GROUND - 16.]);
+    set(
+        &mut crate_box,
+        world2d::SPRITE2D,
+        &Sprite2D {
+            texture: Some(tiles),
+            region: [0, 32, 32, 32],
+            z_index: 1,
+            ..Default::default()
+        },
+    );
+    set(
+        &mut crate_box,
+        world2d::COLLIDER2D,
+        &Collider2D {
+            size: [32., 32.],
+            ..Default::default()
+        },
+    );
+    set(
+        &mut crate_box,
+        world2d::RIGID_BODY2D,
+        &crate::physics2d::RigidBody2D {
+            mass: 2.,
+            bounce: 0.,
+            friction: 0.6,
+            ..Default::default()
+        },
+    );
+    crate_box.logical_parent = Some(level);
+    scene.actors.push(crate_box);
+
+    let garland = world2d::create(Preset::Node2D, "Garland", [0., 0.]);
+    let garland_id = garland.id;
+    scene.actors.push(garland);
+    let node = |scene: &mut Scene, preset: Preset, name: &str, at: [f32; 2]| {
+        let mut actor = world2d::create(preset, name, at);
+        actor.logical_parent = Some(garland_id);
+        let id = actor.id;
+        scene.actors.push(actor);
+        id
+    };
+    let (left, right) = ([-316., -6.], [-196., -6.]);
+    let left_id = node(scene, Preset::Node2D, "HookLeft", left);
+    let colours = [
+        [255, 60, 60],
+        [255, 220, 70],
+        [90, 255, 110],
+        [90, 160, 255],
+        [255, 110, 220],
+    ];
+    let mut previous = left_id;
+    let mut chain = vec![left_id];
+    for (i, colour) in colours.iter().enumerate() {
+        let t = (i as f32 + 1.) / (colours.len() as f32 + 1.);
+        let x = left[0] + (right[0] - left[0]) * t;
+        let sag = 24. * (1. - (2. * t - 1.).powi(2));
+        let id = node(
+            scene,
+            Preset::Sprite2D,
+            &format!("Bulb{i}"),
+            [x, left[1] + sag],
+        );
+        let index = scene.actors.len() - 1;
+        let bulb = &mut scene.actors[index];
+        set(
+            bulb,
+            world2d::SPRITE2D,
+            &Sprite2D {
+                texture: Some(sheet),
+                region: [56, 0, 6, 8],
+                offset: [0., 3.],
+                modulate: *colour,
+                z_index: 2,
+                ..Default::default()
+            },
+        );
+        add(
+            bulb,
+            world2d::RIGID_BODY2D,
+            &crate::physics2d::RigidBody2D {
+                mass: 0.3,
+                can_sleep: false,
+                // The middle bulb starts the garland swaying.
+                velocity: if i == 2 { [40., 0.] } else { [0., 0.] },
+                ..Default::default()
+            },
+        );
+        add(
+            bulb,
+            world2d::JOINT2D,
+            &crate::physics2d::Joint2D {
+                body_a: Some(previous),
+                body_b: Some(id),
+                kind: crate::physics2d::JointKind::Rope,
+                ..Default::default()
+            },
+        );
+        previous = id;
+        chain.push(id);
+    }
+    let right_id = node(scene, Preset::Joint2D, "HookRight", right);
+    let index = scene.actors.len() - 1;
+    set(
+        &mut scene.actors[index],
+        world2d::JOINT2D,
+        &crate::physics2d::Joint2D {
+            body_b: Some(previous),
+            kind: crate::physics2d::JointKind::Rope,
+            ..Default::default()
+        },
+    );
+    chain.push(right_id);
+    // The cord, drawn through the hooks and bulbs as they move.
+    if let Some(index) = scene.actor_index(left_id) {
+        add(
+            &mut scene.actors[index],
+            world2d::LINE2D,
+            &Line2D {
+                follow: chain,
+                width: 1.,
+                begin_color: [40, 64, 40],
+                end_color: [40, 64, 40],
+                z_index: 1,
+                ..Default::default()
+            },
+        );
+    }
+    if let Some(index) = scene.actor_index(garland_id) {
+        scene.actors[index].logical_parent = Some(level);
+    }
 }
 
 pub fn controller_id(flavor: GameplayFlavor) -> &'static str {
@@ -1031,7 +1168,7 @@ mod art {
     }
     /// The guide's cut-out parts on one 64 x 16 sheet: robe (0,0 12x16), head (16,0
     /// 12x12), upper arm (32,0 10x4) and forearm (32,6 10x4) drawn along +X from their
-    /// joint, and a hand (48,0 4x4).
+    /// joint, a hand (48,0 4x4), and the garland's light bulb (56,0 6x8).
     fn guide() -> Canvas {
         const ROBE: Rgba = [124, 84, 178, 255];
         const ROBE_DARK: Rgba = [92, 60, 140, 255];
@@ -1064,6 +1201,12 @@ mod art {
         // Hand.
         c.rect(49, 1, 2, 2, SKIN);
         c.outline(48, 0, 4, 4);
+        // A light bulb (56,0 6x8), pale so a sprite's modulate colours it.
+        c.rect(58, 0, 2, 2, [70, 70, 80, 255]);
+        c.rect(57, 2, 4, 4, [236, 236, 236, 255]);
+        c.rect(58, 6, 2, 1, [236, 236, 236, 255]);
+        c.set(57, 2, [255, 255, 255, 255]);
+        c.outline(56, 0, 6, 8);
         c
     }
     /// A soft 4 x 4 dot for particles (additive: dark texels add little).

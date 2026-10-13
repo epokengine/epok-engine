@@ -12,6 +12,7 @@
 #include "world2d_tiles.hpp"
 
 namespace epok {
+inline constexpr size_t line2d_follow_limit = 16;
 class Path2DComponent;
 class PathFollow2DComponent;
 class Line2DComponent;
@@ -272,6 +273,10 @@ public:
 
     Fixed points[line2d_max_points][2] = {};
     uint16_t point_count = 0;
+    // Nodes the line runs through, in order: the service moves the points onto them
+    // every step (ropes, chains, beams between moving things).
+    ObjectId follow[line2d_follow_limit];
+    uint8_t follow_count = 0;
     Fixed width = 2.0;
     uint8_t begin_color[3] = {255, 255, 255}, end_color[3] = {255, 255, 255};
     BlendMode blend = BlendMode::Cutout;
@@ -297,6 +302,31 @@ public:
         --point_count;
     }
     EPOK_FUNCTION(BlueprintCallable, Id="5934f674-c2a8-4074-b21c-c6b9c257685f") void clear_points() { point_count = 0; }
+    // Stops following nodes: the points stay where they are and are the line's own again.
+    EPOK_FUNCTION(BlueprintCallable, Id="15b0ab21-b5e2-42ae-bdac-84e1a53c73a0") void stop_following() { follow_count = 0; }
+    // Moves the points onto the followed nodes. Called by the service every step.
+    void follow_nodes() {
+        if (!follow_count) return;
+        Affine2D matrix;
+        if (!world2d::world_of(*this, matrix)) return;
+        // Inverse of the owner's world transform, to bring the nodes into local pixels.
+        const int64_t a = matrix.m[0][0].raw(), b = matrix.m[0][1].raw(), c = matrix.m[1][0].raw(), d = matrix.m[1][1].raw();
+        const int64_t determinant = (a * d - b * c) / 4096;
+        if (!determinant) return;
+        uint16_t count = 0;
+        for (uint8_t i = 0; i < follow_count && count < line2d_max_points; ++i) {
+            auto* registry = active_object_registry;
+            auto* actor = registry && follow[i].valid() ? registry->resolve<Actor>(follow[i]) : nullptr;
+            auto* root = actor ? registry->resolve<SceneComponent2D>(actor->root_id()) : nullptr;
+            Affine2D there;
+            if (!root || !world_matrix_2d(*root, [](ObjectId id) { return world2d::resolve_scene2d(id); }, there)) continue;
+            const int64_t x = int64_t(there.t[0].raw()) - matrix.t[0].raw(), y = int64_t(there.t[1].raw()) - matrix.t[1].raw();
+            points[count][0] = detail::clamp_raw_2d((d * x - b * y) / determinant);
+            points[count][1] = detail::clamp_raw_2d((a * y - c * x) / determinant);
+            ++count;
+        }
+        point_count = count;
+    }
     EPOK_FUNCTION(BlueprintCallable, Id="5fa86eb7-f3aa-4922-9303-a2394a2d7943") void set_width(Fixed value) { width = value < 0.0 ? Fixed(0.0) : value; }
     EPOK_FUNCTION(BlueprintCallable, Id="007cb579-204e-449f-93c2-64888ce4d1c7") void set_colors(uint32_t red, uint32_t green, uint32_t blue, uint32_t end_red, uint32_t end_green, uint32_t end_blue) {
         const uint32_t values[6] = {red, green, blue, end_red, end_green, end_blue};

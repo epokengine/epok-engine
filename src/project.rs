@@ -1309,6 +1309,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/world2d_navigation.hpp").as_slice(),
         ),
         (
+            "world2d_physics.hpp",
+            include_bytes!("../runtime/world2d_physics.hpp").as_slice(),
+        ),
+        (
             "world2d_service.hpp",
             include_bytes!("../runtime/world2d_service.hpp").as_slice(),
         ),

@@ -81,6 +81,8 @@ pub fn preset_icon(preset: Preset) -> &'static str {
         Preset::Skeleton2D => crate::world2d_skeleton_editor::ICON_SKELETON,
         Preset::NavigationRegion2D => crate::world2d_navigation_editor::ICON_REGION,
         Preset::NavigationAgent2D => crate::world2d_navigation_editor::ICON_AGENT,
+        Preset::RigidBody2D => crate::world2d_physics_editor::ICON_RIGID,
+        Preset::Joint2D => crate::world2d_physics_editor::ICON_JOINT,
     }
 }
 
@@ -518,6 +520,8 @@ pub fn create_command(preset: Preset) -> &'static str {
         Preset::Skeleton2D => "create-node2d-Skeleton2D",
         Preset::NavigationRegion2D => "create-node2d-NavigationRegion2D",
         Preset::NavigationAgent2D => "create-node2d-NavigationAgent2D",
+        Preset::RigidBody2D => "create-node2d-RigidBody2D",
+        Preset::Joint2D => "create-node2d-Joint2D",
     }
 }
 /// Whether the Inspector should show the 2D layout for this actor.
@@ -2393,6 +2397,9 @@ fn draw(
                 .build();
             }
         }
+        if !e.playing && e.world2d.show_colliders {
+            crate::world2d_physics_editor::overlay(e, &draw, &to_screen);
+        }
         if painting.is_some() {
             crate::tilemap_editor::overlay(ui, e, &draw, origin, size);
         } else if !e.playing
@@ -2796,6 +2803,10 @@ pub fn node_icon(actor: &crate::scene::Actor) -> &'static str {
         crate::world2d_shapes_editor::ICON_REMOTE
     } else if has(world2d::SKELETON2D) {
         crate::world2d_skeleton_editor::ICON_SKELETON
+    } else if has(world2d::RIGID_BODY2D) {
+        crate::world2d_physics_editor::ICON_RIGID
+    } else if has(world2d::JOINT2D) {
+        crate::world2d_physics_editor::ICON_JOINT
     } else if has(world2d::NAVIGATION_AGENT2D) {
         crate::world2d_navigation_editor::ICON_AGENT
     } else if has(world2d::NAVIGATION_REGION2D) {
@@ -2873,6 +2884,7 @@ fn inspector_body(ui: &Ui, e: &mut Editor, id: Uuid) {
             _ if crate::world2d_shapes_editor::band(ui, e, id, &component) => {}
             _ if crate::world2d_skeleton_editor::band(ui, e, id, &component) => {}
             _ if crate::world2d_navigation_editor::band(ui, e, id, &component) => {}
+            _ if crate::world2d_physics_editor::band(ui, e, id, &component) => {}
             _ => generic_band(ui, e, id, &component),
         }
     }

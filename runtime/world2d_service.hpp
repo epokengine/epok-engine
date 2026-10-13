@@ -712,6 +712,188 @@ public:
         }
     }
 
+    // ---- rigid bodies --------------------------------------------------------------------
+    static RigidBody2DComponent* rigid_of(ObjectId actor) {
+        auto* registry = active_object_registry;
+        auto* owner = registry && actor.valid() ? registry->resolve<Actor>(actor) : nullptr;
+        return owner ? find<RigidBody2DComponent>(owner) : nullptr;
+    }
+    static Fixed times(Fixed value, int64_t q12) { return detail::clamp_raw_2d(int64_t(value.raw()) * q12 / 4096); }
+    static Fixed magnitude(Fixed v) { return v.raw() < 0 ? -v : v; }
+    static bool position_of(ActorComponent& component, Fixed* out) {
+        Affine2D m;
+        if (!world_of(component, m)) return false;
+        out[0] = m.t[0];
+        out[1] = m.t[1];
+        return true;
+    }
+    // A one-dimensional collision along `axis`, with the lower restitution of the two.
+    static void exchange(RigidBody2DComponent& a, RigidBody2DComponent& b, int axis) {
+        Fixed pa[2], pb[2];
+        if (!position_of(a, pa) || !position_of(b, pb)) return;
+        const int32_t towards = pb[axis] > pa[axis] ? 1 : -1;
+        const int64_t u1 = a.velocity[axis].raw(), u2 = b.velocity[axis].raw();
+        if ((u1 - u2) * towards <= 0) return;  // already separating
+        const int64_t m1 = a.mass.raw() > 0 ? a.mass.raw() : 1, m2 = b.mass.raw() > 0 ? b.mass.raw() : 1;
+        const int64_t e = (a.bounce < b.bounce ? a.bounce : b.bounce).raw();
+        const int64_t p = m1 * u1 + m2 * u2, total = m1 + m2;
+        a.velocity[axis] = detail::clamp_raw_2d((p - m2 * e * (u1 - u2) / 4096) / total);
+        b.velocity[axis] = detail::clamp_raw_2d((p + m1 * e * (u1 - u2) / 4096) / total);
+        b.wake();
+    }
+    void simulate_bodies(Fixed dt) {
+        // Characters push the pushable bodies they walk into; heavier ones move slower.
+        bodies.each([&](CharacterBody2DComponent& character) {
+            if (!character.on_wall || !owner_active(character) || !character.blocked_velocity[0].raw()) return;
+            RigidBody2DComponent* rigid = rigid_of(character.wall_collider);
+            Fixed pc[2], pr[2];
+            if (!rigid || rigid->frozen || !rigid->pushable || !position_of(character, pc) || !position_of(*rigid, pr)) return;
+            if ((pr[0] > pc[0]) != (character.blocked_velocity[0] > 0.0)) return;
+            const int64_t mass = rigid->mass.raw() > 4096 ? rigid->mass.raw() : 4096;
+            rigid->velocity[0] = Fixed(int32_t(int64_t(character.blocked_velocity[0].raw()) * 3 * 4096 / (4 * mass)), Fixed::RAW);
+            rigid->wake();
+        });
+        // Springs pull before the bodies integrate.
+        joints.each([&](Joint2DComponent& joint) {
+            if (joint.enabled && joint.kind == JointKind2D::Spring && owner_active(joint)) spring(joint);
+        });
+        rigid_bodies.each([&](RigidBody2DComponent& body) {
+            if (!owner_active(body)) return;
+            if (body.frozen || body.sleeping) {
+                body.force[0] = body.force[1] = 0.0;
+                return;
+            }
+            const int64_t inverse = body.inverse_mass();
+            for (int k = 0; k < 2; ++k) {
+                const Fixed accel = body.gravity[k] + times(body.force[k], inverse);
+                body.velocity[k] += accel * dt;
+                if (body.linear_damping.raw() > 0) body.velocity[k] -= body.velocity[k] * body.linear_damping * dt;
+                body.force[k] = 0.0;
+            }
+            const Fixed delta[2] = {body.velocity[0] * dt, body.velocity[1] * dt};
+            MoveResult2D result;
+            if (!move(body, delta, body.collision_mask, result)) return;
+            bool hit = false;
+            Fixed impact = 0.0;
+            for (int axis = 0; axis < 2; ++axis) {
+                if (result.blocker[axis] < 0) continue;
+                hit = true;
+                const Fixed normal_speed = magnitude(body.velocity[axis]);
+                if (normal_speed > impact) impact = normal_speed;
+                RigidBody2DComponent* other = rigid_of(actor_at(result.blocker[axis]));
+                if (other && other != &body && !other->frozen) {
+                    exchange(body, *other, axis);
+                    continue;
+                }
+                // Bounce off a static obstacle; slow resting bounces settle to zero.
+                Fixed bounced = -times(body.velocity[axis], body.bounce.raw());
+                if (magnitude(bounced) < Fixed(16.0)) bounced = 0.0;
+                body.velocity[axis] = bounced;
+                // Friction along the surface, in proportion to how hard it was hit.
+                const int other_axis = 1 - axis;
+                const Fixed grip = times(normal_speed, body.friction.raw() + times(body.friction, body.bounce.raw()).raw());
+                if (magnitude(body.velocity[other_axis]) <= grip) body.velocity[other_axis] = 0.0;
+                else body.velocity[other_axis] -= body.velocity[other_axis] > 0.0 ? grip : -grip;
+            }
+            // Circles roll along what they stand on (visual: the node turns).
+            const Collider2DComponent* shape = solid_collider_of(body);
+            SceneComponent2D* root = root_of(body);
+            if (body.rolls && shape && root && shape->shape.shape == Collider2D::Circle && shape->shape.radius.raw() > 0) {
+                // Rolling without slipping: degrees per second = speed / radius * 57.2958.
+                if (result.blocker[1] >= 0)
+                    body.angular_velocity = detail::clamp_raw_2d(int64_t(body.velocity[0].raw()) * 234684 / shape->shape.radius.raw());
+                root->transform.rotation = Fixed(wrap_degrees_raw(root->transform.rotation.raw() + (body.angular_velocity * dt).raw()), Fixed::RAW);
+            }
+            if (hit && !body.touching) {
+                body.contact = true;
+                body.impact = impact;
+            }
+            body.touching = hit;
+            // Sleep after half a second of resting contact.
+            const bool still = magnitude(body.velocity[0]) < Fixed(3.0) && magnitude(body.velocity[1]) < Fixed(3.0);
+            if (body.can_sleep && hit && still) {
+                body.rest_clock += dt;
+                if (body.rest_clock > Fixed(0.5)) {
+                    body.sleeping = true;
+                    body.velocity[0] = body.velocity[1] = 0.0;
+                }
+            } else {
+                body.rest_clock = 0.0;
+            }
+        });
+        // Rods and ropes hold their length, a few passes so chains settle.
+        for (int pass = 0; pass < 4; ++pass)
+            joints.each([&](Joint2DComponent& joint) {
+                if (joint.enabled && joint.kind != JointKind2D::Spring && owner_active(joint)) constrain(joint);
+            });
+    }
+    // The two ends of a joint: positions, bodies (null for a fixed end) and whether valid.
+    bool joint_ends(Joint2DComponent& joint, Fixed* pa, Fixed* pb, RigidBody2DComponent*& a, RigidBody2DComponent*& b) {
+        b = rigid_of(joint.body_b);
+        if (!b || !position_of(*b, pb)) return false;
+        a = rigid_of(joint.body_a);
+        if (a) return position_of(*a, pa);
+        if (joint.body_a.valid()) {
+            SceneComponent2D* other = actor_root(joint.body_a);
+            Affine2D m;
+            if (!other || !root_world(*other, m)) return false;
+            pa[0] = m.t[0];
+            pa[1] = m.t[1];
+            return true;
+        }
+        return position_of(joint, pa);
+    }
+    void spring(Joint2DComponent& joint) {
+        Fixed pa[2], pb[2];
+        RigidBody2DComponent *a, *b;
+        if (!joint_ends(joint, pa, pb, a, b)) return;
+        const Fixed dx = pb[0] - pa[0], dy = pb[1] - pa[1];
+        const int64_t d = length_2d(dx, dy).raw();
+        if (d <= 0) return;
+        // Stretch times stiffness, plus damping of the closing speed, along the joint.
+        const Fixed va[2] = {a ? a->velocity[0] : Fixed(0.0), a ? a->velocity[1] : Fixed(0.0)};
+        const int64_t closing = (int64_t(b->velocity[0].raw() - va[0].raw()) * dx.raw() + int64_t(b->velocity[1].raw() - va[1].raw()) * dy.raw()) / d;
+        const int64_t pull = (d - joint.length.raw()) * joint.stiffness.raw() / 4096 + closing * joint.damping.raw() / 4096;
+        const Fixed f[2] = {detail::clamp_raw_2d(pull * dx.raw() / d), detail::clamp_raw_2d(pull * dy.raw() / d)};
+        b->apply_force(-f[0], -f[1]);
+        if (a) a->apply_force(f[0], f[1]);
+    }
+    void constrain(Joint2DComponent& joint) {
+        Fixed pa[2], pb[2];
+        RigidBody2DComponent *a, *b;
+        if (!joint_ends(joint, pa, pb, a, b)) return;
+        const Fixed dx = pb[0] - pa[0], dy = pb[1] - pa[1];
+        const int64_t d = length_2d(dx, dy).raw();
+        if (d <= 0) return;
+        const int64_t stretch = d - joint.length.raw();
+        if (joint.kind == JointKind2D::Rope && stretch <= 0) return;
+        const int64_t wa = a ? a->inverse_mass() : 0, wb = b->inverse_mass();
+        if (wa + wb <= 0) return;
+        // Move both ends along the joint, in proportion to their inverse masses.
+        const Fixed n[2] = {Fixed(int32_t(int64_t(dx.raw()) * 4096 / d), Fixed::RAW), Fixed(int32_t(int64_t(dy.raw()) * 4096 / d), Fixed::RAW)};
+        const int64_t share_b = wb * 4096 / (wa + wb), share_a = 4096 - share_b;
+        Fixed next_b[2], next_a[2];
+        for (int k = 0; k < 2; ++k) {
+            next_b[k] = pb[k] - detail::clamp_raw_2d(stretch * n[k].raw() / 4096 * share_b / 4096);
+            next_a[k] = pa[k] + detail::clamp_raw_2d(stretch * n[k].raw() / 4096 * share_a / 4096);
+        }
+        if (SceneComponent2D* root = root_of(*b)) set_world_position(*root, next_b);
+        if (a && wa)
+            if (SceneComponent2D* root = root_of(*a)) set_world_position(*root, next_a);
+        // Remove the relative speed along the joint, so it holds without bouncing.
+        const Fixed va[2] = {a ? a->velocity[0] : Fixed(0.0), a ? a->velocity[1] : Fixed(0.0)};
+        const int64_t along = (int64_t(b->velocity[0].raw() - va[0].raw()) * n[0].raw() + int64_t(b->velocity[1].raw() - va[1].raw()) * n[1].raw()) / 4096;
+        if (joint.kind == JointKind2D::Rope && along <= 0) return;
+        for (int k = 0; k < 2; ++k) {
+            b->velocity[k] -= detail::clamp_raw_2d(along * n[k].raw() / 4096 * share_b / 4096);
+            if (a && wa) a->velocity[k] += detail::clamp_raw_2d(along * n[k].raw() / 4096 * share_a / 4096);
+        }
+        if (stretch > 64 || stretch < -64) {
+            b->wake();
+            if (a) a->wake();
+        }
+    }
+
     template<class LevelType> void step(Fixed dt, LevelType* level) {
         sprites.each([&](Sprite2DComponent& sprite) { sprite.advance(dt); });
         if (nav_agents.head) navigate(dt);
@@ -733,6 +915,7 @@ public:
         skeletons.each([&](Skeleton2DComponent& skeleton) {
             if (owner_active(skeleton)) skeleton.advance(dt);
         });
+        if (rigid_bodies.head) simulate_bodies(dt);
         sync(true);
         world.update_triggers([&](const TriggerEvent& event) {
             const ObjectId a = actor_at(event.first), b = actor_at(event.second);
@@ -762,6 +945,10 @@ public:
         }
         remotes.each([](RemoteTransform2DComponent& remote) {
             if (is_active(&remote)) remote.push();
+        });
+        // Lines through nodes follow them once everything has moved this step.
+        lines.each([](Line2DComponent& line) {
+            if (line.follow_count && is_active(&line)) line.follow_nodes();
         });
         if (notifiers.head || audio_players.head) {
             Camera2D camera;

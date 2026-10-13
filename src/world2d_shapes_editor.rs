@@ -175,8 +175,12 @@ pub fn shape_of(e: &Editor, actor: Uuid) -> Option<(Uuid, Shape)> {
             Some(world2d::PATH2D) => {
                 return Some((component.id, Shape::Path(world2d::read(component))));
             }
+            // A line that follows nodes takes its points from them, not from the view.
             Some(world2d::LINE2D) => {
-                return Some((component.id, Shape::Line(world2d::read(component))));
+                let line: Line2D = world2d::read(component);
+                if line.follow.is_empty() {
+                    return Some((component.id, Shape::Line(line)));
+                }
             }
             Some(world2d::POLYGON2D) => {
                 return Some((component.id, Shape::Polygon(world2d::read(component))));
@@ -737,7 +741,8 @@ pub fn draw_view(
                 drew = true;
             }
             Some(world2d::LINE2D) => {
-                let line: Line2D = world2d::read(component);
+                let mut line: Line2D = world2d::read(component);
+                line.points = line_points(e, view, &line);
                 if !line.visible || line.points.len() < 2 {
                     continue;
                 }
@@ -1028,6 +1033,61 @@ fn points_list(ui: &Ui, points: &mut Vec<[f32; 2]>) {
         }
     }
 }
+/// The nodes a Line2D runs through: a rope between moving bodies, a chain, a beam.
+fn follow_list(ui: &Ui, e: &Editor, actor: Uuid, follow: &mut Vec<Uuid>) {
+    let label = if follow.is_empty() {
+        "Follow nodes".to_string()
+    } else {
+        format!("Follow nodes ({})", follow.len())
+    };
+    if let Some(_node) = ui.tree_node(label) {
+        let mut remove = None;
+        for (i, id) in follow.iter_mut().enumerate() {
+            let _id = ui.push_id_usize(i);
+            let mut value = Some(*id);
+            let any = |_: &crate::scene::Actor| true;
+            if actor_combo(
+                ui,
+                e,
+                &format!("Node {}", i + 1),
+                "(remove)",
+                actor,
+                &any,
+                &mut value,
+            ) {
+                match value {
+                    Some(v) => *id = v,
+                    None => remove = Some(i),
+                }
+            }
+        }
+        if let Some(i) = remove {
+            follow.remove(i);
+        }
+        if follow.len() < world2d::LINE_FOLLOW_MAX && ui.small_button("Add node") {
+            // Start from the selection's last node, or the line's own node.
+            follow.push(follow.last().copied().unwrap_or(actor));
+        }
+        crate::gui::muted(
+            ui,
+            "The line runs through these nodes in order and follows them while the game runs: ropes on rigid bodies, chains, beams between moving things.",
+        );
+    }
+}
+/// The line's points: its own, or its followed nodes in its local pixels.
+pub(crate) fn line_points(e: &Editor, view: &View, line: &Line2D) -> Vec<[f32; 2]> {
+    if line.follow.is_empty() {
+        return line.points.clone();
+    }
+    let Some(inverse) = view.world.inverse() else {
+        return line.points.clone();
+    };
+    line.follow
+        .iter()
+        .filter_map(|id| e.scene.actor_index(*id))
+        .map(|i| inverse.point(world2d::world_position(&e.scene, i)))
+        .collect()
+}
 /// A combo of the map's 2D actors (other than `exclude`), with a "none" entry.
 pub(crate) fn actor_combo(
     ui: &Ui,
@@ -1249,7 +1309,7 @@ pub fn band(
                     "Bodies standing on this node's solid collider ride along: moving platforms.",
                 );
             }),
-            world2d::LINE2D => record::<Line2D>(e, actor, component, |_, l| {
+            world2d::LINE2D => record::<Line2D>(e, actor, component, |e, l| {
                 crate::gui::Drag::new(crate::gui::field(ui, "Width (px)"))
                     .range(0., 256.)
                     .speed(0.1)
@@ -1261,8 +1321,11 @@ pub fn band(
                 blend_combo(ui, &mut l.blend);
                 z_drag(ui, &mut l.z_index);
                 crate::gui::toggle(ui, "Visible", &mut l.visible);
-                points_list(ui, &mut l.points);
-                l.points.truncate(world2d::LINE_MAX_POINTS);
+                follow_list(ui, e, actor, &mut l.follow);
+                if l.follow.is_empty() {
+                    points_list(ui, &mut l.points);
+                    l.points.truncate(world2d::LINE_MAX_POINTS);
+                }
             }),
             world2d::POLYGON2D => record::<Polygon2D>(e, actor, component, |e, p| {
                 colour_u8(ui, "Colour", &mut p.color);

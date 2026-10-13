@@ -2,7 +2,7 @@
 
 > **Header:** `"world2d_content.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/world2d_content.hpp)
 
-This module covers the world2d content module. It documents 77 public callables declared directly in this header.
+This module covers the world2d content module. It documents 79 public callables declared directly in this header.
 
 ## Declared types
 
@@ -27,6 +27,7 @@ This module covers the world2d content module. It documents 77 public callables 
 - [`epok::Line2DComponent::add_point`](#epok-line2dcomponent-add-point-1) — Adds point as part of the world2d content module.
 - [`epok::Line2DComponent::class_id`](#epok-line2dcomponent-class-id-1) — Performs `class id` as part of the world2d content module.
 - [`epok::Line2DComponent::clear_points`](#epok-line2dcomponent-clear-points-1) — Clears points as part of the world2d content module.
+- [`epok::Line2DComponent::follow_nodes`](#epok-line2dcomponent-follow-nodes-1) — Moves the points onto the followed nodes.
 - [`epok::Line2DComponent::get_point_count`](#epok-line2dcomponent-get-point-count-1) — Returns point count as part of the world2d content module.
 - [`epok::Line2DComponent::get_point_x`](#epok-line2dcomponent-get-point-x-1) — Returns point x as part of the world2d content module.
 - [`epok::Line2DComponent::get_point_y`](#epok-line2dcomponent-get-point-y-1) — Returns point y as part of the world2d content module.
@@ -36,6 +37,7 @@ This module covers the world2d content module. It documents 77 public callables 
 - [`epok::Line2DComponent::set_point`](#epok-line2dcomponent-set-point-1) — Sets point as part of the world2d content module.
 - [`epok::Line2DComponent::set_visible`](#epok-line2dcomponent-set-visible-1) — Sets visible as part of the world2d content module.
 - [`epok::Line2DComponent::set_width`](#epok-line2dcomponent-set-width-1) — Sets width as part of the world2d content module.
+- [`epok::Line2DComponent::stop_following`](#epok-line2dcomponent-stop-following-1) — Stops following nodes: the points stay where they are and are the line's own again.
 - [`epok::Line2DComponent::~Line2DComponent`](#epok-line2dcomponent-line2dcomponent-1) — Releases the resources owned by `epok::Line2DComponent`.
 - [`epok::Particles2DComponent::class_id`](#epok-particles2dcomponent-class-id-1) — Performs `class id` as part of the world2d content module.
 - [`epok::Particles2DComponent::get_alive_count`](#epok-particles2dcomponent-get-alive-count-1) — Returns alive count as part of the world2d content module.
@@ -100,7 +102,7 @@ This module covers the world2d content module. It documents 77 public callables 
 void begin_play() override
 ```
 
-- **Declared at:** [line 433](../../../runtime/world2d_content.hpp#L433)
+- **Declared at:** [line 463](../../../runtime/world2d_content.hpp#L463)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -133,7 +135,7 @@ object.begin_play();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 413](../../../runtime/world2d_content.hpp#L413)
+- **Declared at:** [line 443](../../../runtime/world2d_content.hpp#L443)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -166,7 +168,7 @@ auto result = object.class_id();
 void end_play(EndPlayReason) override
 ```
 
-- **Declared at:** [line 437](../../../runtime/world2d_content.hpp#L437)
+- **Declared at:** [line 467](../../../runtime/world2d_content.hpp#L467)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -208,7 +210,7 @@ object.end_play(arg1);
 bool is_playing() const
 ```
 
-- **Declared at:** [line 427](../../../runtime/world2d_content.hpp#L427)
+- **Declared at:** [line 457](../../../runtime/world2d_content.hpp#L457)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -241,7 +243,7 @@ auto result = object.is_playing();
 void level_attached() override
 ```
 
-- **Declared at:** [line 414](../../../runtime/world2d_content.hpp#L414)
+- **Declared at:** [line 444](../../../runtime/world2d_content.hpp#L444)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -274,7 +276,7 @@ object.level_attached();
 void on_disable() override
 ```
 
-- **Declared at:** [line 436](../../../runtime/world2d_content.hpp#L436)
+- **Declared at:** [line 466](../../../runtime/world2d_content.hpp#L466)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -307,7 +309,7 @@ object.on_disable();
 void play()
 ```
 
-- **Declared at:** [line 425](../../../runtime/world2d_content.hpp#L425)
+- **Declared at:** [line 455](../../../runtime/world2d_content.hpp#L455)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -340,7 +342,7 @@ object.play();
 bool releasable() const override
 ```
 
-- **Declared at:** [line 438](../../../runtime/world2d_content.hpp#L438)
+- **Declared at:** [line 468](../../../runtime/world2d_content.hpp#L468)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -373,7 +375,7 @@ auto result = object.releasable();
 void set_clip(int32_t value)
 ```
 
-- **Declared at:** [line 430](../../../runtime/world2d_content.hpp#L430)
+- **Declared at:** [line 460](../../../runtime/world2d_content.hpp#L460)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -415,7 +417,7 @@ object.set_clip(value);
 void set_pitch(Fixed value)
 ```
 
-- **Declared at:** [line 429](../../../runtime/world2d_content.hpp#L429)
+- **Declared at:** [line 459](../../../runtime/world2d_content.hpp#L459)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -457,7 +459,7 @@ object.set_pitch(value);
 void set_volume(Fixed value)
 ```
 
-- **Declared at:** [line 428](../../../runtime/world2d_content.hpp#L428)
+- **Declared at:** [line 458](../../../runtime/world2d_content.hpp#L458)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -499,7 +501,7 @@ object.set_volume(value);
 void spatialize(const Fixed* here, const Fixed* listener, Fixed half_width)
 ```
 
-- **Declared at:** [line 440](../../../runtime/world2d_content.hpp#L440)
+- **Declared at:** [line 470](../../../runtime/world2d_content.hpp#L470)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -545,7 +547,7 @@ object.spatialize(here, listener, half_width);
 void stop()
 ```
 
-- **Declared at:** [line 426](../../../runtime/world2d_content.hpp#L426)
+- **Declared at:** [line 456](../../../runtime/world2d_content.hpp#L456)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -578,7 +580,7 @@ object.stop();
 ~AudioPlayer2DComponent() override
 ```
 
-- **Declared at:** [line 415](../../../runtime/world2d_content.hpp#L415)
+- **Declared at:** [line 445](../../../runtime/world2d_content.hpp#L445)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d content module and the preconditions in the declaration are already satisfied.
@@ -607,7 +609,7 @@ object.stop();
 bool add_point(Fixed x, Fixed y)
 ```
 
-- **Declared at:** [line 282](../../../runtime/world2d_content.hpp#L282)
+- **Declared at:** [line 287](../../../runtime/world2d_content.hpp#L287)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -651,7 +653,7 @@ auto result = object.add_point(x, y);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 268](../../../runtime/world2d_content.hpp#L268)
+- **Declared at:** [line 269](../../../runtime/world2d_content.hpp#L269)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -684,7 +686,7 @@ auto result = object.class_id();
 void clear_points()
 ```
 
-- **Declared at:** [line 299](../../../runtime/world2d_content.hpp#L299)
+- **Declared at:** [line 304](../../../runtime/world2d_content.hpp#L304)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -705,6 +707,41 @@ object.clear_points();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-line2dcomponent-follow-nodes-1"></a>
+
+## `epok::Line2DComponent::follow_nodes`
+
+**Purpose.** Moves the points onto the followed nodes.
+
+**Details.** Called by the service every step.
+
+**Exact declaration**
+
+```cpp
+void follow_nodes()
+```
+
+- **Declared at:** [line 308](../../../runtime/world2d_content.hpp#L308)
+- **Kind:** `cxx method`
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** Called by the service every step.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_content.hpp"
+
+epok::Line2DComponent& object = /* obtain a valid instance */;
+
+object.follow_nodes();
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d content module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-line2dcomponent-get-point-count-1"></a>
 
 ## `epok::Line2DComponent::get_point_count`
@@ -717,7 +754,7 @@ object.clear_points();
 uint32_t get_point_count() const
 ```
 
-- **Declared at:** [line 281](../../../runtime/world2d_content.hpp#L281)
+- **Declared at:** [line 286](../../../runtime/world2d_content.hpp#L286)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -750,7 +787,7 @@ auto result = object.get_point_count();
 Fixed get_point_x(uint32_t index) const
 ```
 
-- **Declared at:** [line 292](../../../runtime/world2d_content.hpp#L292)
+- **Declared at:** [line 297](../../../runtime/world2d_content.hpp#L297)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -792,7 +829,7 @@ auto result = object.get_point_x(index);
 Fixed get_point_y(uint32_t index) const
 ```
 
-- **Declared at:** [line 293](../../../runtime/world2d_content.hpp#L293)
+- **Declared at:** [line 298](../../../runtime/world2d_content.hpp#L298)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -834,7 +871,7 @@ auto result = object.get_point_y(index);
 void level_attached() override
 ```
 
-- **Declared at:** [line 269](../../../runtime/world2d_content.hpp#L269)
+- **Declared at:** [line 270](../../../runtime/world2d_content.hpp#L270)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -867,7 +904,7 @@ object.level_attached();
 void remove_point(uint32_t index)
 ```
 
-- **Declared at:** [line 294](../../../runtime/world2d_content.hpp#L294)
+- **Declared at:** [line 299](../../../runtime/world2d_content.hpp#L299)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -909,7 +946,7 @@ object.remove_point(index);
 void set_colors(uint32_t red, uint32_t green, uint32_t blue, uint32_t end_red, uint32_t end_green, uint32_t end_blue)
 ```
 
-- **Declared at:** [line 301](../../../runtime/world2d_content.hpp#L301)
+- **Declared at:** [line 331](../../../runtime/world2d_content.hpp#L331)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -961,7 +998,7 @@ object.set_colors(red, green, blue, end_red, end_green, end_blue);
 void set_point(uint32_t index, Fixed x, Fixed y)
 ```
 
-- **Declared at:** [line 289](../../../runtime/world2d_content.hpp#L289)
+- **Declared at:** [line 294](../../../runtime/world2d_content.hpp#L294)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1007,7 +1044,7 @@ object.set_point(index, x, y);
 void set_visible(bool value)
 ```
 
-- **Declared at:** [line 308](../../../runtime/world2d_content.hpp#L308)
+- **Declared at:** [line 338](../../../runtime/world2d_content.hpp#L338)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1049,7 +1086,7 @@ object.set_visible(value);
 void set_width(Fixed value)
 ```
 
-- **Declared at:** [line 300](../../../runtime/world2d_content.hpp#L300)
+- **Declared at:** [line 330](../../../runtime/world2d_content.hpp#L330)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1079,6 +1116,39 @@ object.set_width(value);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-line2dcomponent-stop-following-1"></a>
+
+## `epok::Line2DComponent::stop_following`
+
+**Purpose.** Stops following nodes: the points stay where they are and are the line's own again.
+
+**Exact declaration**
+
+```cpp
+void stop_following()
+```
+
+- **Declared at:** [line 306](../../../runtime/world2d_content.hpp#L306)
+- **Kind:** `cxx method`
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the world2d content module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "world2d_content.hpp"
+
+epok::Line2DComponent& object = /* obtain a valid instance */;
+
+object.stop_following();
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the world2d content module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
 <a id="epok-line2dcomponent-line2dcomponent-1"></a>
 
 ## `epok::Line2DComponent::~Line2DComponent`
@@ -1091,7 +1161,7 @@ object.set_width(value);
 ~Line2DComponent() override
 ```
 
-- **Declared at:** [line 270](../../../runtime/world2d_content.hpp#L270)
+- **Declared at:** [line 271](../../../runtime/world2d_content.hpp#L271)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d content module and the preconditions in the declaration are already satisfied.
@@ -1120,7 +1190,7 @@ object.set_width(value);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 352](../../../runtime/world2d_content.hpp#L352)
+- **Declared at:** [line 382](../../../runtime/world2d_content.hpp#L382)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -1153,7 +1223,7 @@ auto result = object.class_id();
 uint32_t get_alive_count() const
 ```
 
-- **Declared at:** [line 395](../../../runtime/world2d_content.hpp#L395)
+- **Declared at:** [line 425](../../../runtime/world2d_content.hpp#L425)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -1186,7 +1256,7 @@ auto result = object.get_alive_count();
 bool is_emitting() const
 ```
 
-- **Declared at:** [line 387](../../../runtime/world2d_content.hpp#L387)
+- **Declared at:** [line 417](../../../runtime/world2d_content.hpp#L417)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1219,7 +1289,7 @@ auto result = object.is_emitting();
 void level_attached() override
 ```
 
-- **Declared at:** [line 353](../../../runtime/world2d_content.hpp#L353)
+- **Declared at:** [line 383](../../../runtime/world2d_content.hpp#L383)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1252,7 +1322,7 @@ object.level_attached();
 void restart()
 ```
 
-- **Declared at:** [line 389](../../../runtime/world2d_content.hpp#L389)
+- **Declared at:** [line 419](../../../runtime/world2d_content.hpp#L419)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1285,7 +1355,7 @@ object.restart();
 void set_emitting(bool value)
 ```
 
-- **Declared at:** [line 383](../../../runtime/world2d_content.hpp#L383)
+- **Declared at:** [line 413](../../../runtime/world2d_content.hpp#L413)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1327,7 +1397,7 @@ object.set_emitting(value);
 void set_visible(bool value)
 ```
 
-- **Declared at:** [line 402](../../../runtime/world2d_content.hpp#L402)
+- **Declared at:** [line 432](../../../runtime/world2d_content.hpp#L432)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1369,7 +1439,7 @@ object.set_visible(value);
 bool take_finished()
 ```
 
-- **Declared at:** [line 397](../../../runtime/world2d_content.hpp#L397)
+- **Declared at:** [line 427](../../../runtime/world2d_content.hpp#L427)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1402,7 +1472,7 @@ auto result = object.take_finished();
 ~Particles2DComponent() override
 ```
 
-- **Declared at:** [line 354](../../../runtime/world2d_content.hpp#L354)
+- **Declared at:** [line 384](../../../runtime/world2d_content.hpp#L384)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d content module and the preconditions in the declaration are already satisfied.
@@ -1431,7 +1501,7 @@ auto result = object.take_finished();
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 100](../../../runtime/world2d_content.hpp#L100)
+- **Declared at:** [line 101](../../../runtime/world2d_content.hpp#L101)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -1464,7 +1534,7 @@ auto result = object.class_id();
 Fixed get_length() const
 ```
 
-- **Declared at:** [line 110](../../../runtime/world2d_content.hpp#L110)
+- **Declared at:** [line 111](../../../runtime/world2d_content.hpp#L111)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -1497,7 +1567,7 @@ auto result = object.get_length();
 void level_attached() override
 ```
 
-- **Declared at:** [line 101](../../../runtime/world2d_content.hpp#L101)
+- **Declared at:** [line 102](../../../runtime/world2d_content.hpp#L102)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1530,7 +1600,7 @@ object.level_attached();
 bool sample_local(Fixed distance, Fixed* point, Fixed* direction) const
 ```
 
-- **Declared at:** [line 115](../../../runtime/world2d_content.hpp#L115)
+- **Declared at:** [line 116](../../../runtime/world2d_content.hpp#L116)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1576,7 +1646,7 @@ auto result = object.sample_local(distance, point, direction);
 Fixed sample_x(Fixed distance) const
 ```
 
-- **Declared at:** [line 153](../../../runtime/world2d_content.hpp#L153)
+- **Declared at:** [line 154](../../../runtime/world2d_content.hpp#L154)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1618,7 +1688,7 @@ auto result = object.sample_x(distance);
 Fixed sample_y(Fixed distance) const
 ```
 
-- **Declared at:** [line 154](../../../runtime/world2d_content.hpp#L154)
+- **Declared at:** [line 155](../../../runtime/world2d_content.hpp#L155)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -1660,7 +1730,7 @@ auto result = object.sample_y(distance);
 ~Path2DComponent() override
 ```
 
-- **Declared at:** [line 102](../../../runtime/world2d_content.hpp#L102)
+- **Declared at:** [line 103](../../../runtime/world2d_content.hpp#L103)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d content module and the preconditions in the declaration are already satisfied.
@@ -1691,7 +1761,7 @@ auto result = object.sample_y(distance);
 bool advance(Fixed dt, Fixed* moved)
 ```
 
-- **Declared at:** [line 218](../../../runtime/world2d_content.hpp#L218)
+- **Declared at:** [line 219](../../../runtime/world2d_content.hpp#L219)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1735,7 +1805,7 @@ auto result = object.advance(dt, moved);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 175](../../../runtime/world2d_content.hpp#L175)
+- **Declared at:** [line 176](../../../runtime/world2d_content.hpp#L176)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -1768,7 +1838,7 @@ auto result = object.class_id();
 Fixed get_progress() const
 ```
 
-- **Declared at:** [line 189](../../../runtime/world2d_content.hpp#L189)
+- **Declared at:** [line 190](../../../runtime/world2d_content.hpp#L190)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -1801,7 +1871,7 @@ auto result = object.get_progress();
 Fixed get_progress_ratio() const
 ```
 
-- **Declared at:** [line 194](../../../runtime/world2d_content.hpp#L194)
+- **Declared at:** [line 195](../../../runtime/world2d_content.hpp#L195)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -1834,7 +1904,7 @@ auto result = object.get_progress_ratio();
 Fixed get_speed() const
 ```
 
-- **Declared at:** [line 200](../../../runtime/world2d_content.hpp#L200)
+- **Declared at:** [line 201](../../../runtime/world2d_content.hpp#L201)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -1867,7 +1937,7 @@ auto result = object.get_speed();
 bool is_moving() const
 ```
 
-- **Declared at:** [line 202](../../../runtime/world2d_content.hpp#L202)
+- **Declared at:** [line 203](../../../runtime/world2d_content.hpp#L203)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1900,7 +1970,7 @@ auto result = object.is_moving();
 void level_attached() override
 ```
 
-- **Declared at:** [line 176](../../../runtime/world2d_content.hpp#L176)
+- **Declared at:** [line 177](../../../runtime/world2d_content.hpp#L177)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -1933,7 +2003,7 @@ object.level_attached();
 Path2DComponent* resolve_path() const
 ```
 
-- **Declared at:** [line 205](../../../runtime/world2d_content.hpp#L205)
+- **Declared at:** [line 206](../../../runtime/world2d_content.hpp#L206)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Path2DComponent *`. Check the purpose and failure notes before using the value.
@@ -1966,7 +2036,7 @@ auto result = object.resolve_path();
 void set_moving(bool value)
 ```
 
-- **Declared at:** [line 201](../../../runtime/world2d_content.hpp#L201)
+- **Declared at:** [line 202](../../../runtime/world2d_content.hpp#L202)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2008,7 +2078,7 @@ object.set_moving(value);
 void set_progress(Fixed value)
 ```
 
-- **Declared at:** [line 188](../../../runtime/world2d_content.hpp#L188)
+- **Declared at:** [line 189](../../../runtime/world2d_content.hpp#L189)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2050,7 +2120,7 @@ object.set_progress(value);
 void set_progress_ratio(Fixed value)
 ```
 
-- **Declared at:** [line 191](../../../runtime/world2d_content.hpp#L191)
+- **Declared at:** [line 192](../../../runtime/world2d_content.hpp#L192)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2092,7 +2162,7 @@ object.set_progress_ratio(value);
 void set_speed(Fixed value)
 ```
 
-- **Declared at:** [line 199](../../../runtime/world2d_content.hpp#L199)
+- **Declared at:** [line 200](../../../runtime/world2d_content.hpp#L200)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2134,7 +2204,7 @@ object.set_speed(value);
 ~PathFollow2DComponent() override
 ```
 
-- **Declared at:** [line 177](../../../runtime/world2d_content.hpp#L177)
+- **Declared at:** [line 178](../../../runtime/world2d_content.hpp#L178)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d content module and the preconditions in the declaration are already satisfied.
@@ -2163,7 +2233,7 @@ object.set_speed(value);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 318](../../../runtime/world2d_content.hpp#L318)
+- **Declared at:** [line 348](../../../runtime/world2d_content.hpp#L348)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -2196,7 +2266,7 @@ auto result = object.class_id();
 void level_attached() override
 ```
 
-- **Declared at:** [line 319](../../../runtime/world2d_content.hpp#L319)
+- **Declared at:** [line 349](../../../runtime/world2d_content.hpp#L349)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2229,7 +2299,7 @@ object.level_attached();
 void set_color(uint32_t red, uint32_t green, uint32_t blue)
 ```
 
-- **Declared at:** [line 333](../../../runtime/world2d_content.hpp#L333)
+- **Declared at:** [line 363](../../../runtime/world2d_content.hpp#L363)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2275,7 +2345,7 @@ object.set_color(red, green, blue);
 void set_visible(bool value)
 ```
 
-- **Declared at:** [line 338](../../../runtime/world2d_content.hpp#L338)
+- **Declared at:** [line 368](../../../runtime/world2d_content.hpp#L368)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2317,7 +2387,7 @@ object.set_visible(value);
 ~Polygon2DComponent() override
 ```
 
-- **Declared at:** [line 320](../../../runtime/world2d_content.hpp#L320)
+- **Declared at:** [line 350](../../../runtime/world2d_content.hpp#L350)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d content module and the preconditions in the declaration are already satisfied.
@@ -2346,7 +2416,7 @@ object.set_visible(value);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 489](../../../runtime/world2d_content.hpp#L489)
+- **Declared at:** [line 519](../../../runtime/world2d_content.hpp#L519)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -2379,7 +2449,7 @@ auto result = object.class_id();
 ObjectId get_target() const
 ```
 
-- **Declared at:** [line 498](../../../runtime/world2d_content.hpp#L498)
+- **Declared at:** [line 528](../../../runtime/world2d_content.hpp#L528)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
@@ -2412,7 +2482,7 @@ auto result = object.get_target();
 void level_attached() override
 ```
 
-- **Declared at:** [line 490](../../../runtime/world2d_content.hpp#L490)
+- **Declared at:** [line 520](../../../runtime/world2d_content.hpp#L520)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2447,7 +2517,7 @@ object.level_attached();
 void push()
 ```
 
-- **Declared at:** [line 500](../../../runtime/world2d_content.hpp#L500)
+- **Declared at:** [line 530](../../../runtime/world2d_content.hpp#L530)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2480,7 +2550,7 @@ object.push();
 void set_target(ObjectId value)
 ```
 
-- **Declared at:** [line 497](../../../runtime/world2d_content.hpp#L497)
+- **Declared at:** [line 527](../../../runtime/world2d_content.hpp#L527)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -2522,7 +2592,7 @@ object.set_target(value);
 ~RemoteTransform2DComponent() override
 ```
 
-- **Declared at:** [line 491](../../../runtime/world2d_content.hpp#L491)
+- **Declared at:** [line 521](../../../runtime/world2d_content.hpp#L521)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d content module and the preconditions in the declaration are already satisfied.
@@ -2551,7 +2621,7 @@ object.set_target(value);
 uint64_t class_id() const override
 ```
 
-- **Declared at:** [line 468](../../../runtime/world2d_content.hpp#L468)
+- **Declared at:** [line 498](../../../runtime/world2d_content.hpp#L498)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint64_t`. Check the purpose and failure notes before using the value.
@@ -2584,7 +2654,7 @@ auto result = object.class_id();
 bool is_on_screen() const
 ```
 
-- **Declared at:** [line 477](../../../runtime/world2d_content.hpp#L477)
+- **Declared at:** [line 507](../../../runtime/world2d_content.hpp#L507)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2617,7 +2687,7 @@ auto result = object.is_on_screen();
 void level_attached() override
 ```
 
-- **Declared at:** [line 469](../../../runtime/world2d_content.hpp#L469)
+- **Declared at:** [line 499](../../../runtime/world2d_content.hpp#L499)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -2650,7 +2720,7 @@ object.level_attached();
 bool take_screen_entered()
 ```
 
-- **Declared at:** [line 478](../../../runtime/world2d_content.hpp#L478)
+- **Declared at:** [line 508](../../../runtime/world2d_content.hpp#L508)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2683,7 +2753,7 @@ auto result = object.take_screen_entered();
 bool take_screen_exited()
 ```
 
-- **Declared at:** [line 479](../../../runtime/world2d_content.hpp#L479)
+- **Declared at:** [line 509](../../../runtime/world2d_content.hpp#L509)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -2716,7 +2786,7 @@ auto result = object.take_screen_exited();
 ~VisibleOnScreenNotifier2DComponent() override
 ```
 
-- **Declared at:** [line 470](../../../runtime/world2d_content.hpp#L470)
+- **Declared at:** [line 500](../../../runtime/world2d_content.hpp#L500)
 - **Kind:** `destructor`
 
 **Use it when.** You need the world2d content module and the preconditions in the declaration are already satisfied.
@@ -2747,7 +2817,7 @@ auto result = object.take_screen_exited();
 inline Fixed angle_degrees(Fixed x, Fixed y)
 ```
 
-- **Declared at:** [line 53](../../../runtime/world2d_content.hpp#L53)
+- **Declared at:** [line 54](../../../runtime/world2d_content.hpp#L54)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2789,7 +2859,7 @@ auto result = epok::world2d::angle_degrees(x, y);
 inline int64_t isqrt64(int64_t value)
 ```
 
-- **Declared at:** [line 38](../../../runtime/world2d_content.hpp#L38)
+- **Declared at:** [line 39](../../../runtime/world2d_content.hpp#L39)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2829,7 +2899,7 @@ auto result = epok::world2d::isqrt64(value);
 inline Fixed length_2d(Fixed x, Fixed y)
 ```
 
-- **Declared at:** [line 67](../../../runtime/world2d_content.hpp#L67)
+- **Declared at:** [line 68](../../../runtime/world2d_content.hpp#L68)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -2871,7 +2941,7 @@ auto result = epok::world2d::length_2d(x, y);
 inline bool set_world_position(SceneComponent2D& root, const Fixed* world)
 ```
 
-- **Declared at:** [line 72](../../../runtime/world2d_content.hpp#L72)
+- **Declared at:** [line 73](../../../runtime/world2d_content.hpp#L73)
 - **Kind:** `function decl`
 
 **Parameters**

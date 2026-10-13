@@ -718,7 +718,7 @@ auto result = object.class_id();
 bool is_on_ceiling() const
 ```
 
-- **Declared at:** [line 423](../../../runtime/world2d_components.hpp#L423)
+- **Declared at:** [line 427](../../../runtime/world2d_components.hpp#L427)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -751,7 +751,7 @@ auto result = object.is_on_ceiling();
 bool is_on_floor() const
 ```
 
-- **Declared at:** [line 421](../../../runtime/world2d_components.hpp#L421)
+- **Declared at:** [line 425](../../../runtime/world2d_components.hpp#L425)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -784,7 +784,7 @@ auto result = object.is_on_floor();
 bool is_on_wall() const
 ```
 
-- **Declared at:** [line 422](../../../runtime/world2d_components.hpp#L422)
+- **Declared at:** [line 426](../../../runtime/world2d_components.hpp#L426)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -817,7 +817,7 @@ auto result = object.is_on_wall();
 ObjectId last_collision_actor() const
 ```
 
-- **Declared at:** [line 424](../../../runtime/world2d_components.hpp#L424)
+- **Declared at:** [line 428](../../../runtime/world2d_components.hpp#L428)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `ObjectId`. Check the purpose and failure notes before using the value.
@@ -850,7 +850,7 @@ auto result = object.last_collision_actor();
 bool last_collision_is_tile() const
 ```
 
-- **Declared at:** [line 428](../../../runtime/world2d_components.hpp#L428)
+- **Declared at:** [line 432](../../../runtime/world2d_components.hpp#L432)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -883,7 +883,7 @@ auto result = object.last_collision_is_tile();
 Fixed last_motion_x() const
 ```
 
-- **Declared at:** [line 425](../../../runtime/world2d_components.hpp#L425)
+- **Declared at:** [line 429](../../../runtime/world2d_components.hpp#L429)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -916,7 +916,7 @@ auto result = object.last_motion_x();
 Fixed last_motion_y() const
 ```
 
-- **Declared at:** [line 426](../../../runtime/world2d_components.hpp#L426)
+- **Declared at:** [line 430](../../../runtime/world2d_components.hpp#L430)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -949,7 +949,7 @@ auto result = object.last_motion_y();
 int32_t last_tile_x() const
 ```
 
-- **Declared at:** [line 430](../../../runtime/world2d_components.hpp#L430)
+- **Declared at:** [line 434](../../../runtime/world2d_components.hpp#L434)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
@@ -982,7 +982,7 @@ auto result = object.last_tile_x();
 int32_t last_tile_y() const
 ```
 
-- **Declared at:** [line 431](../../../runtime/world2d_components.hpp#L431)
+- **Declared at:** [line 435](../../../runtime/world2d_components.hpp#L435)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
@@ -1048,7 +1048,7 @@ object.level_attached();
 bool move_and_collide(Fixed dx, Fixed dy)
 ```
 
-- **Declared at:** [line 464](../../../runtime/world2d_components.hpp#L464)
+- **Declared at:** [line 469](../../../runtime/world2d_components.hpp#L469)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1094,7 +1094,7 @@ auto result = object.move_and_collide(dx, dy);
 bool move_and_slide()
 ```
 
-- **Declared at:** [line 436](../../../runtime/world2d_components.hpp#L436)
+- **Declared at:** [line 440](../../../runtime/world2d_components.hpp#L440)
 - **Kind:** `cxx method`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -1127,7 +1127,7 @@ auto result = object.move_and_slide();
 void set_velocity(Fixed x, Fixed y)
 ```
 
-- **Declared at:** [line 418](../../../runtime/world2d_components.hpp#L418)
+- **Declared at:** [line 422](../../../runtime/world2d_components.hpp#L422)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1171,7 +1171,7 @@ object.set_velocity(x, y);
 Fixed velocity_x() const
 ```
 
-- **Declared at:** [line 419](../../../runtime/world2d_components.hpp#L419)
+- **Declared at:** [line 423](../../../runtime/world2d_components.hpp#L423)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
@@ -1204,7 +1204,7 @@ auto result = object.velocity_x();
 Fixed velocity_y() const
 ```
 
-- **Declared at:** [line 420](../../../runtime/world2d_components.hpp#L420)
+- **Declared at:** [line 424](../../../runtime/world2d_components.hpp#L424)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `Fixed`. Check the purpose and failure notes before using the value.
