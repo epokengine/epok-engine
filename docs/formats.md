@@ -146,6 +146,17 @@ The shape, shown as JSON (the file on disk is the same structure encoded as YAML
   file is therefore the Blueprint's own source: diagnostics point at the map, and
   saving the Blueprint saves the map.
 
+### Dungeon generators
+
+A map may carry a `dungeons` list, omitted when empty. Each entry holds the editor-only
+settings of one Dungeon Generator: its `id`, the `root` actor that places it, the
+`seed`, the `rooms` layout settings, the 3D sizes, the optional `spawn_actor` and
+`tile_set`, and `output` — the actors and assets the last generation wrote, with a
+`fingerprint` of the settings that produced them. The cook reads only the generated
+actors and assets. A `Collider3DComponent` may hold a `boxes` list (minimum and maximum
+corners in the actor's local space) for a compound collider. See
+[Dungeon Generator](dungeons.md).
+
 ### Blueprint asset version 4
 
 Version 4 adds one optional `family` hint to a `.epokbp` document. The hint is

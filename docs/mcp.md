@@ -74,6 +74,7 @@ Tools publish their argument schemas and descriptions through `tools/list`.
 | `project_files` | List directories and read/write text or base64 files under `assets/`, including gameplay scripts and source media. Delete individual source files. |
 | `asset_list`, `asset_import` | Inspect asset UUIDs, metadata and pending imports; import/reimport FBX or audio sources through the normal pipeline. |
 | `mesh_create`, `asset_document` | Create Blockout primitives or custom geometry; read/edit mesh, skeleton, animation and material documents while preserving asset UUIDs. |
+| `dungeon_generate` | Create or regenerate a [Dungeon Generator](dungeons.md) with an optional seed and settings, or remove its generated content. One `scene_history` step. |
 | `asset_manage` | Move, duplicate or move imported assets to the existing recoverable trash. Referenced assets cannot be trashed. |
 
 `editor_view` takes `view_mode` with the value `"3d"`, `"2d"` or `"ui"`. The older `scene_2d`

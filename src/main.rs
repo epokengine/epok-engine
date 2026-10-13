@@ -52,6 +52,13 @@ mod dependencies;
 mod disc;
 mod document;
 mod draw_order_codec;
+mod dungeon;
+mod dungeon_bake;
+mod dungeon_editor;
+mod dungeon_random;
+mod dungeon_rooms;
+#[cfg(test)]
+mod dungeon_tests;
 mod editor;
 mod effects;
 mod export;
@@ -344,6 +351,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--generate-asset-report",
             "--bake-lighting",
             "--bake-navigation",
+            "--generate-dungeon",
             "--bake-visibility-report",
             "--bake-visibility",
             "--add-actor",
@@ -1370,6 +1378,63 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Ok(());
     }
+    // Headless generation: `--generate-dungeon <actor>` regenerates that generator;
+    // `--generate-dungeon 3d|2d` adds a new one. `--dungeon-seed N` sets the seed first.
+    if let Some(target) = args
+        .windows(2)
+        .find(|v| v[0] == "--generate-dungeon")
+        .map(|v| v[1].clone())
+    {
+        let path = args
+            .windows(2)
+            .find(|v| v[0] == "--scene")
+            .map(|v| root.join(&v[1]))
+            .map_or_else(|| workspace::startup_scene(&root), Ok)?;
+        let mut scene = scene::Scene::load(&path)?;
+        let mut request = if (target == "3d" || target == "2d")
+            && !scene.actors.iter().any(|a| a.name == target)
+        {
+            serde_json::json!({"create": target})
+        } else {
+            serde_json::json!({"actor": target})
+        };
+        if let Some(seed) = args
+            .windows(2)
+            .find(|v| v[0] == "--dungeon-seed")
+            .map(|v| {
+                v[1].parse::<u32>()
+                    .map_err(|e| format!("--dungeon-seed: {e}"))
+            })
+            .transpose()?
+        {
+            request["seed"] = serde_json::json!(seed);
+        }
+        if let Some(settings) = args
+            .windows(2)
+            .find(|v| v[0] == "--dungeon-settings")
+            .map(|v| serde_json::from_str::<serde_json::Value>(&v[1]))
+            .transpose()
+            .map_err(|e| format!("--dungeon-settings: {e}"))?
+        {
+            request["settings"] = settings;
+        }
+        let id = dungeon_editor::mcp_target(&mut scene, &request)?;
+        let report = dungeon_bake::generate(&root, &mut scene, id)?;
+        scene.save(&path)?;
+        println!(
+            "Dungeon generated: {} · {} actors, {} quads, {} collision boxes, {} navigation nodes · {}",
+            report.summary,
+            report.actors,
+            report.quads,
+            report.boxes,
+            report.navigation_nodes,
+            path.display()
+        );
+        for note in report.notes {
+            println!("{note}");
+        }
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--bake-visibility") {
         // Replaces the visibility track's lists with a GPU bake and, when the
         // scene has a prepared packet order, regenerates it from those lists.
@@ -1884,6 +1949,25 @@ fn prepare_editor(editor: &mut editor::Editor) {
             .map(|a| a.id)
     {
         editor.select_actor(Some(id));
+    }
+    // Screenshot automation: press pad buttons on a schedule once the game runs, so a
+    // --screenshot-game capture can show gameplay (milliseconds:mask,..., ending in 0).
+    if let Some(schedule) = args
+        .windows(2)
+        .find(|a| a[0] == "--screenshot-input")
+        .map(|a| a[1].clone())
+    {
+        match input_replay::Replay::parse(&schedule) {
+            Ok(replay) => editor.screenshot_input = Some((replay, None)),
+            Err(error) => editor.log(format!("--screenshot-input: {error}")),
+        }
+    }
+    // Screenshot automation: select the first Dungeon Generator and frame its grid.
+    if args.iter().any(|a| a == "--frame-dungeon")
+        && let Some((root, id)) = editor.scene.dungeons.first().map(|g| (g.root, g.id))
+    {
+        editor.select_actor(Some(root));
+        dungeon_editor::frame(editor, id);
     }
     // Screenshot automation: open the 2D view's Add 2D Node menu, with a search typed.
     if let Some(query) = args

@@ -286,6 +286,10 @@ pub struct Scene {
     pub visibility_track: Option<crate::visibility_track::Track>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ordered_draw: Option<crate::ordered_draw::Program>,
+    /// Dungeon Generators placed in this map. Editor data: the cook reads only the
+    /// actors and assets they generate.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dungeons: Vec<crate::dungeon::Generator>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -310,6 +314,8 @@ struct SceneDocument {
     visibility_track: Option<crate::visibility_track::Track>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     ordered_draw: Option<crate::ordered_draw::Program>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    dungeons: Vec<crate::dungeon::Generator>,
 }
 impl From<Scene> for SceneDocument {
     fn from(mut scene: Scene) -> Self {
@@ -326,6 +332,7 @@ impl From<Scene> for SceneDocument {
             scene_script: scene.scene_script,
             visibility_track: scene.visibility_track,
             ordered_draw: scene.ordered_draw,
+            dungeons: scene.dungeons,
         }
     }
 }
@@ -343,6 +350,7 @@ impl From<SceneDocument> for Scene {
             scene_script: doc.scene_script,
             visibility_track: doc.visibility_track,
             ordered_draw: doc.ordered_draw,
+            dungeons: doc.dungeons,
             textures: Default::default(),
             fonts: Default::default(),
             tilesets: Default::default(),
@@ -421,6 +429,7 @@ impl Default for Scene {
             scene_script: None,
             visibility_track: None,
             ordered_draw: None,
+            dungeons: Vec::new(),
         }
     }
 }

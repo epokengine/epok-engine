@@ -800,6 +800,42 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
         }
         "camera_path" => crate::camera_path_ui::mcp(e, &a),
         "visibility_bake" => crate::visibility_bake_ui::mcp(e, &a),
+        "dungeon_generate" => {
+            editable(e)?;
+            expect_revision(&e.scene, &a)?;
+            let before = e.scene.clone();
+            let mut scene = before.clone();
+            let id = crate::dungeon_editor::mcp_target(&mut scene, &a)?;
+            let report = if a["clear"].as_bool() == Some(true) {
+                crate::dungeon_bake::clear(&mut scene, id);
+                None
+            } else {
+                Some(crate::dungeon_bake::generate(&e.root, &mut scene, id)?)
+            };
+            commit(e, state, before, scene)?;
+            refresh(e);
+            let generator = e.scene.dungeons.iter().find(|g| g.id == id).cloned();
+            e.log(format!(
+                "MCP: dungeon {}",
+                report
+                    .as_ref()
+                    .map_or("cleared".to_owned(), |r| r.summary.clone())
+            ));
+            Ok(json!({
+                "revision": revision(&e.scene),
+                "generator": generator,
+                "report": report.map(|r| json!({
+                    "summary": r.summary,
+                    "actors": r.actors,
+                    "sections": r.sections,
+                    "quads": r.quads,
+                    "collision_boxes": r.boxes,
+                    "navigation_nodes": r.navigation_nodes,
+                    "notes": r.notes,
+                })),
+                "saved": false,
+            }))
+        }
         "editor_control" => {
             match string(&a, "action")?.as_str() {
                 "build" | "play" => {
@@ -1548,6 +1584,13 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
             "Create an EditableMesh asset from a Box/Plane/Ramp/Stairs primitive or a complete mesh document. Returns UUID and component to attach via scene_apply.",
             json!({"path":s,"shape":{"enum":["Box","Plane","Ramp","Stairs"]},"size":{"type":"array","items":{"type":"number"},"minItems":3,"maxItems":3},"steps":{"type":"integer","minimum":1,"maximum":64},"document":o}),
             vec!["path"],
+            false,
+        ),
+        (
+            "dungeon_generate",
+            "Generate a seeded dungeon into the open scene. Name the generator's actor (name or id), or pass create \"3d\"/\"2d\" to add a new Dungeon Generator. Optional seed and settings (any Generator field, rooms merged key by key) change it first; clear removes the generated content instead. Undoable through scene_history.",
+            json!({"revision":s,"actor":s,"create":{"enum":["3d","2d"]},"seed":n,"settings":o,"clear":b}),
+            vec!["revision"],
             false,
         ),
         (

@@ -234,6 +234,10 @@ pub struct Editor {
     pub rename_focus: bool,
     pub scene_navigation: bool,
     pub navigation_preview_status: Option<Result<usize, String>>,
+    /// Dungeon Generator previews, last reports and the pending Inspector command.
+    pub dungeon: crate::dungeon_editor::State,
+    /// Screenshot automation: a pad schedule played from the first Play frame.
+    pub screenshot_input: Option<(crate::input_replay::Replay, Option<Instant>)>,
     pub baked_preview: crate::baked_preview::State,
     pub scene_look: bool,
     pub raw_look: Option<[f32; 2]>,
@@ -800,6 +804,8 @@ impl Editor {
             rename_focus: false,
             scene_navigation: false,
             navigation_preview_status: None,
+            dungeon: Default::default(),
+            screenshot_input: None,
             baked_preview: Default::default(),
             scene_look: false,
             raw_look: None,
@@ -2705,6 +2711,7 @@ impl Editor {
                 "add-child",
                 "blockout-mesh",
                 "terrain-create",
+                "dungeon-create",
                 "empty",
                 "child",
                 "duplicate",
@@ -2771,6 +2778,7 @@ impl Editor {
                 self.changed();
             }
             "blockout-mesh" => crate::mesh_editor::allocate_actor_data(self),
+            "dungeon-create" => crate::dungeon_editor::create_3d(self),
             "terrain-create" => {
                 if let Err(error) = crate::terrain_editor::create(self) {
                     self.log(error);
@@ -2957,6 +2965,13 @@ impl Editor {
         }
     }
     pub fn tick(&mut self) {
+        if self.playing
+            && self.game_frame.is_some()
+            && let Some((replay, started)) = &mut self.screenshot_input
+        {
+            let start = *started.get_or_insert_with(Instant::now);
+            self.mcp.buttons = replay.buttons(start.elapsed().as_millis() as u64);
+        }
         // Continue collecting child results/timeouts even when Scene is hidden.
         // Rendering cadence and input still belong to the visible HUD viewport.
         if self.hud_simulation.update(0., false) {

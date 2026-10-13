@@ -1030,3 +1030,72 @@ fn soundfont_mcp_import_detects_library_and_accepts_partial_bank_settings() {
         }
     }
 }
+#[test]
+fn dungeon_generate_creates_regenerates_and_undoes() {
+    let mut e = editor();
+    let mut state = mcp::State::default();
+    let original = e.scene.clone();
+    let revision = mcp_tools::revision(&e.scene);
+    let created = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "dungeon_generate",
+        json!({"revision":revision,"create":"3d","seed":5}),
+    )
+    .unwrap();
+    assert!(
+        created["report"]["actors"].as_u64().unwrap() >= 5,
+        "{created}"
+    );
+    assert_eq!(e.scene.dungeons.len(), 1);
+    let root = e.scene.dungeons[0].root;
+    let name = e.scene.actors[e.scene.actor_index(root).unwrap()]
+        .name
+        .clone();
+    // Regenerate by name with merged settings: same actors, new seed and room count.
+    let revision = mcp_tools::revision(&e.scene);
+    let reply = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "dungeon_generate",
+        json!({"revision":revision,"actor":name,"seed":6,"settings":{"rooms":{"rooms":6}}}),
+    )
+    .unwrap();
+    assert_eq!(reply["generator"]["seed"], 6);
+    assert_eq!(reply["generator"]["rooms"]["rooms"], 6);
+    assert_eq!(reply["generator"]["rooms"]["size"], json!([40, 40]));
+    // The previous output was replaced, not added to: the original actors, the
+    // generator and exactly what this generation reports.
+    assert_eq!(
+        e.scene.actors.len(),
+        original.actors.len() + 1 + reply["report"]["actors"].as_u64().unwrap() as usize
+    );
+    // Bad settings and unknown actors change nothing.
+    let revision = mcp_tools::revision(&e.scene);
+    for bad in [
+        json!({"revision":revision,"actor":name,"settings":{"cell_size":99}}),
+        json!({"revision":revision,"actor":name,"settings":{"typo":1}}),
+        json!({"revision":revision,"actor":"Nobody"}),
+    ] {
+        assert!(mcp_tools::execute(&mut e, &mut state, "dungeon_generate", bad).is_err());
+    }
+    assert_eq!(mcp_tools::revision(&e.scene), revision);
+    // Each call is one history step.
+    for _ in 0..2 {
+        let revision = mcp_tools::revision(&e.scene);
+        mcp_tools::execute(
+            &mut e,
+            &mut state,
+            "scene_history",
+            json!({"revision":revision,"action":"undo"}),
+        )
+        .unwrap();
+    }
+    assert_eq!(e.scene.dungeons, original.dungeons);
+    assert_eq!(e.scene.actors.len(), original.actors.len());
+    assert!(
+        mcp_tools::catalog()
+            .iter()
+            .any(|tool| tool.name == "dungeon_generate")
+    );
+}

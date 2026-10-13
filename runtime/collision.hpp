@@ -30,6 +30,13 @@ template<class Number> struct ColliderT {
     const int16_t* heights=nullptr;
     uint16_t height_cells[2]={0,0};
     Number height_step=1.0;
+    // A compound static collider: `box_count` solid boxes of six Q8 values each
+    // (minimum x, y, z, then maximum x, y, z), relative to the owner's position.
+    // The collider's own box encloses them and is the broad phase; queries then
+    // test the parts. Like a height grid, the owner must be translated only: the
+    // cooker rejects a rotated or scaled compound collider.
+    const int16_t* boxes=nullptr;
+    uint16_t box_count=0;
 };
 template<class Number> struct AabbT { Number min[3],max[3]; };
 template<class Number> struct RaycastQueryT {Number origin[3],displacement[3];};
@@ -79,6 +86,7 @@ template<class Number,size_t Capacity,size_t PairCapacity=256> class CollisionWo
         Number center[3]={},half_extents[3]={};uint32_t world_revision=0;bool cached=false;
         Number slope_rise{};uint8_t slope_axis=0;
         const int16_t* heights=nullptr;uint16_t height_cells[2]={0,0};Number height_step{};
+        const int16_t* boxes=nullptr;uint16_t box_count=0;Number origin[3]={};
     };
     Entry entries[Capacity];
     // Highest enabled slot + 1 and the number of enabled triggers, refreshed by
@@ -137,6 +145,31 @@ template<class Number,size_t Capacity,size_t PairCapacity=256> class CollisionWo
     // A standable entry is resolved by lifting the character onto its surface
     // instead of by pushing it sideways. Ramps and height grids both qualify.
     static bool ramp(const Entry& e) { return e.slope_rise.raw()!=0||field(e); }
+    static bool compound(const Entry& e) { return e.boxes&&e.box_count; }
+    // Calls `visit` with every solid box of an entry: its parts when compound,
+    // otherwise the entry's own box. Parts are Q8 offsets from the owner origin.
+    template<class Visit> static void parts(const Entry& e,Visit&& visit) {
+        if(!compound(e)) { visit(e.box); return; }
+        for(uint16_t n=0;n<e.box_count;++n) {
+            const int16_t* p=e.boxes+size_t(n)*6;AabbT<Number> b;
+            for(int k=0;k<3;++k) {
+                b.min[k]=raw(e.origin[k].raw()+int32_t(p[k])*16);
+                b.max[k]=raw(e.origin[k].raw()+int32_t(p[k+3])*16);
+            }
+            visit(b);
+        }
+    }
+    static bool parts_overlap(const Entry& e,const AabbT<Number>& box) {
+        bool hit=false;parts(e,[&](const AabbT<Number>& b){ if(!hit&&aabb_overlap(box,b))hit=true; });
+        return hit;
+    }
+    // Trigger pairs compare a compound entry's parts, so a trigger inside the
+    // enclosing box of a compound collider is not mistaken for a contact.
+    static bool touching(const Entry& x,const Entry& y) {
+        if(compound(x))return parts_overlap(x,y.box);
+        if(compound(y))return parts_overlap(y,x.box);
+        return true;
+    }
     static bool same(const Pair& a,const Pair& b) { return a.a==b.a&&a.b==b.b&&a.ga==b.ga&&a.gb==b.gb; }
     bool match(size_t i,uint32_t mask,int ignore,bool triggers) const {
         return entries[i].enabled&&int(i)!=ignore&&(entries[i].layer&mask)&&(triggers||!entries[i].trigger);
@@ -176,6 +209,8 @@ public:
         entries[index].height_cells[0]=collider.height_cells[0];
         entries[index].height_cells[1]=collider.height_cells[1];
         entries[index].height_step=collider.height_step;
+        entries[index].boxes=collider.boxes;entries[index].box_count=collider.box_count;
+        for(int k=0;k<3;++k)entries[index].origin[k]=matrix.values[k][3];
         if(entries[index].enabled)note_enabled(index);
     }
     // Returns whether bounds were rebuilt. Metadata remains live even when a
@@ -187,12 +222,14 @@ public:
         e.slope_rise=collider.slope_rise;e.slope_axis=collider.slope_axis<3?collider.slope_axis:0;
         e.heights=collider.heights;e.height_cells[0]=collider.height_cells[0];
         e.height_cells[1]=collider.height_cells[1];e.height_step=collider.height_step;
+        e.boxes=collider.boxes;e.box_count=collider.box_count;
         if(!e.enabled)return false;
         note_enabled(index);
         bool dirty=!e.cached||e.world_revision!=revision;
         for(int k=0;k<3;++k){dirty|=e.center[k].raw()!=collider.center[k].raw()||e.half_extents[k].raw()!=collider.half_extents[k].raw();}
         if(dirty){
             e.box=collider_bounds(collider,matrix);e.world_revision=revision;e.cached=true;
+            for(int k=0;k<3;++k)e.origin[k]=matrix.values[k][3];
             for(int k=0;k<3;++k){e.center[k]=collider.center[k];e.half_extents[k]=collider.half_extents[k];}
         }
         return dirty;
@@ -202,6 +239,7 @@ public:
     size_t overlap(const AabbT<Number>& box,uint16_t* output,size_t output_capacity,uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=true) const {
         size_t count=0;
         for(size_t i=0;i<limit;++i)if(match(i,mask,ignore,triggers)&&aabb_overlap(box,entries[i].box)) {
+            if(compound(entries[i])&&!parts_overlap(entries[i],box))continue;
             if(output&&count<output_capacity)output[count]=uint16_t(i);++count;
         }
         return count;
@@ -212,11 +250,14 @@ public:
         AabbT<Number> point;for(int k=0;k<3;++k)point.min[k]=point.max[k]=origin[k];
         const auto sweep=swept_bounds(point,delta);
         for(size_t i=0;i<limit;++i)if(match(i,mask,ignore,triggers)&&aabb_may_touch(sweep,entries[i].box)) {
-            int64_t t;int axis,sign;bool inside;
-            if(segment(origin,delta,entries[i].box,t,axis,sign,false,inside)&&t<best) {
-                best=t;hit.entity=int(i);hit.generation=entries[i].generation;hit.started_inside=inside;hit.fraction=raw(int32_t(t*4096/one));
-                for(int k=0;k<3;++k) { hit.point[k]=origin[k]+raw(int32_t(int64_t(delta[k].raw())*t/one));hit.normal[k]=raw(k==axis?sign*4096:0); }
-            }
+            parts(entries[i],[&](const AabbT<Number>& box) {
+                if(!aabb_may_touch(sweep,box))return;
+                int64_t t;int axis,sign;bool inside;
+                if(segment(origin,delta,box,t,axis,sign,false,inside)&&t<best) {
+                    best=t;hit.entity=int(i);hit.generation=entries[i].generation;hit.started_inside=inside;hit.fraction=raw(int32_t(t*4096/one));
+                    for(int k=0;k<3;++k) { hit.point[k]=origin[k]+raw(int32_t(int64_t(delta[k].raw())*t/one));hit.normal[k]=raw(k==axis?sign*4096:0); }
+                }
+            });
         }
         return hit;
     }
@@ -231,16 +272,19 @@ public:
         SpatialHitT<Number> hit;if(distance<0.0)return hit;
         Number best=distance;
         for(size_t i=0;i<limit;++i)if(match(i,mask,ignore,false)) {
-            const auto& b=entries[i].box;
-            if(box.max[0]<=b.min[0]||box.min[0]>=b.max[0]||box.max[2]<=b.min[2]||box.min[2]>=b.max[2])continue;
-            Number probe[3];for(int k=0;k<3;++k)probe[k]=(box.min[k]+box.max[k])/2;
-            const auto top=surface(entries[i],probe);
-            auto gap=box.min[1]-top;
-            if(gap<0.0||gap>best)continue;
-            if(hit.entity>=0&&gap==best)continue;
-            best=gap;hit.entity=int(i);hit.generation=entries[i].generation;hit.normal[1]=1.0;
-            hit.fraction=distance>0.0?gap/distance:raw(0);
-            hit.point[0]=(box.min[0]+box.max[0])/2;hit.point[1]=top;hit.point[2]=(box.min[2]+box.max[2])/2;
+            const auto& outer=entries[i].box;
+            if(box.max[0]<=outer.min[0]||box.min[0]>=outer.max[0]||box.max[2]<=outer.min[2]||box.min[2]>=outer.max[2])continue;
+            parts(entries[i],[&](const AabbT<Number>& b) {
+                if(box.max[0]<=b.min[0]||box.min[0]>=b.max[0]||box.max[2]<=b.min[2]||box.min[2]>=b.max[2])return;
+                Number probe[3];for(int k=0;k<3;++k)probe[k]=(box.min[k]+box.max[k])/2;
+                const auto top=compound(entries[i])?b.max[1]:surface(entries[i],probe);
+                auto gap=box.min[1]-top;
+                if(gap<0.0||gap>best)return;
+                if(hit.entity>=0&&gap==best)return;
+                best=gap;hit.entity=int(i);hit.generation=entries[i].generation;hit.normal[1]=1.0;
+                hit.fraction=distance>0.0?gap/distance:raw(0);
+                hit.point[0]=(box.min[0]+box.max[0])/2;hit.point[1]=top;hit.point[2]=(box.min[2]+box.max[2])/2;
+            });
         }
         return hit;
     }
@@ -250,7 +294,6 @@ public:
         for(unsigned pass=0;pass<8;++pass) {
             bool found=false;int best_axis=0,best_entity=-1;int64_t best=INT64_MAX;
             for(size_t i=0;i<limit;++i)if(match(i,mask,ignore,false)&&aabb_overlap(box,entries[i].box)) {
-                const auto& b=entries[i].box;
                 if(ramp(entries[i])) {
                     // Standing on a ramp is the only way to resolve against it:
                     // pushing sideways would let a character be shoved off a
@@ -260,11 +303,14 @@ public:
                     if(up>0&&(!found||abs64(up)<abs64(best))) { found=true;best=up;best_axis=1;best_entity=int(i); }
                     continue;
                 }
-                for(int k=0;k<3;++k) {
-                    int64_t neg=int64_t(b.min[k].raw())-box.max[k].raw()-1,pos=int64_t(b.max[k].raw())-box.min[k].raw()+1;
-                    int64_t d=abs64(neg)<abs64(pos)?neg:pos;
-                    if(!found||abs64(d)<abs64(best)) { found=true;best=d;best_axis=k;best_entity=int(i); }
-                }
+                parts(entries[i],[&](const AabbT<Number>& part) {
+                    if(!aabb_overlap(box,part))return;
+                    for(int k=0;k<3;++k) {
+                        int64_t neg=int64_t(part.min[k].raw())-box.max[k].raw()-1,pos=int64_t(part.max[k].raw())-box.min[k].raw()+1;
+                        int64_t d=abs64(neg)<abs64(pos)?neg:pos;
+                        if(!found||abs64(d)<abs64(best)) { found=true;best=d;best_axis=k;best_entity=int(i); }
+                    }
+                });
             }
             if(!found)break;
             auto shift=raw(int32_t(best));box.min[best_axis]+=shift;box.max[best_axis]+=shift;result.displacement[best_axis]+=shift;
@@ -273,7 +319,7 @@ public:
         }
         // A ramp always overlaps the character standing on it, by design; only a
         // solid box still intersecting here is genuinely unresolved.
-        for(size_t i=0;i<limit;++i)if(match(i,mask,ignore,false)&&!ramp(entries[i])&&aabb_overlap(box,entries[i].box)) {
+        for(size_t i=0;i<limit;++i)if(match(i,mask,ignore,false)&&!ramp(entries[i])&&aabb_overlap(box,entries[i].box)&&parts_overlap(entries[i],box)) {
             result.unresolved_overlap=true;return result;
         }
         // Axis-aligned contact normals need at most three sliding planes.
@@ -284,10 +330,13 @@ public:
             for(int k=0;k<3;++k) { center[k]=(box.min[k]+box.max[k])/2;extent[k]=(box.max[k]-box.min[k])/2; }
             int64_t best=one+1;int best_axis=-1,best_sign=0,best_entity=-1;
             for(size_t i=0;i<limit;++i)if(match(i,mask,ignore,false)&&!ramp(entries[i])&&aabb_may_touch(sweep,entries[i].box)) {
-                auto expanded=entries[i].box;
-                for(int k=0;k<3;++k) { expanded.min[k]-=extent[k];expanded.max[k]+=extent[k]; }
-                int64_t t;int axis,sign;bool inside;
-                if(segment(center,remaining,expanded,t,axis,sign,true,inside)&&axis>=0&&t<best) { best=t;best_axis=axis;best_sign=sign;best_entity=int(i); }
+                parts(entries[i],[&](const AabbT<Number>& part) {
+                    if(!aabb_may_touch(sweep,part))return;
+                    auto expanded=part;
+                    for(int k=0;k<3;++k) { expanded.min[k]-=extent[k];expanded.max[k]+=extent[k]; }
+                    int64_t t;int axis,sign;bool inside;
+                    if(segment(center,remaining,expanded,t,axis,sign,true,inside)&&axis>=0&&t<best) { best=t;best_axis=axis;best_sign=sign;best_entity=int(i); }
+                });
             }
             // The common unobstructed step needs neither a Q24 multiply nor
             // another pass. This is exactly fraction==one in the path below.
@@ -312,7 +361,7 @@ public:
         // previously overlapping pairs still receive their exit events.
         if(trigger_count)for(size_t a=0;a<limit;++a)if(entries[a].enabled)for(size_t b=a+1;b<limit;++b) {
             const auto& x=entries[a];const auto& y=entries[b];
-            if(!y.enabled||(!x.trigger&&!y.trigger)||!(x.layer&y.mask)||!(y.layer&x.mask)||!aabb_overlap(x.box,y.box))continue;
+            if(!y.enabled||(!x.trigger&&!y.trigger)||!(x.layer&y.mask)||!(y.layer&x.mask)||!aabb_overlap(x.box,y.box)||!touching(x,y))continue;
             if(count>=PairCapacity) { ++dropped_trigger_pairs;continue; }
             next[count++]={uint16_t(a),uint16_t(b),x.generation,y.generation};
         }
