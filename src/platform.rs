@@ -1561,5 +1561,12 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf576, 0xf576, // fill-drip: tile bucket fill
     0xf715, 0xf715, // slash: tile line tool
     0xf84c, 0xf84c, // border-all: TileMapLayer
+    0xf028, 0xf028, // volume-high: AudioPlayer2D
+    0xf06d, 0xf06d, // fire: Particles2D
+    0xf0c1, 0xf0c1, // link: RemoteTransform2D
+    0xf0eb, 0xf0eb, // lightbulb: PointLight2D
+    0xf4d7, 0xf4d7, // route: PathFollow2D
+    0xf55b, 0xf55b, // bezier-curve: Path2D
+    0xf5ee, 0xf5ee, // draw-polygon: Polygon2D
     0,
 ];

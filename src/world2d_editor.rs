@@ -69,6 +69,15 @@ pub fn preset_icon(preset: Preset) -> &'static str {
         Preset::Parallax2D => ICON_PARALLAX,
         Preset::CanvasLayer2D => ICON_CANVAS,
         Preset::CanvasModulate2D => ICON_MODULATE,
+        Preset::Path2D => crate::world2d_shapes_editor::ICON_PATH,
+        Preset::PathFollow2D => crate::world2d_shapes_editor::ICON_FOLLOW,
+        Preset::Line2D => crate::world2d_shapes_editor::ICON_LINE,
+        Preset::Polygon2D => crate::world2d_shapes_editor::ICON_POLYGON,
+        Preset::Particles2D => crate::world2d_shapes_editor::ICON_PARTICLES,
+        Preset::PointLight2D => crate::world2d_shapes_editor::ICON_LIGHT,
+        Preset::AudioPlayer2D => crate::world2d_shapes_editor::ICON_AUDIO,
+        Preset::VisibleOnScreenNotifier2D => crate::world2d_shapes_editor::ICON_NOTIFIER,
+        Preset::RemoteTransform2D => crate::world2d_shapes_editor::ICON_REMOTE,
     }
 }
 
@@ -212,6 +221,8 @@ pub struct State {
     pub tiles: crate::tilemap_editor::State,
     /// The TileSet editor window, when open.
     pub tileset_window: Option<crate::tileset_editor::Window>,
+    /// Point editing of paths, lines and polygons.
+    pub points: crate::world2d_shapes_editor::State,
 }
 impl Default for State {
     fn default() -> Self {
@@ -241,6 +252,7 @@ impl Default for State {
             framed: None,
             tiles: Default::default(),
             tileset_window: None,
+            points: Default::default(),
         }
     }
 }
@@ -488,6 +500,15 @@ pub fn create_command(preset: Preset) -> &'static str {
         Preset::Parallax2D => "create-node2d-Parallax2D",
         Preset::CanvasLayer2D => "create-node2d-CanvasLayer2D",
         Preset::CanvasModulate2D => "create-node2d-CanvasModulate2D",
+        Preset::Path2D => "create-node2d-Path2D",
+        Preset::PathFollow2D => "create-node2d-PathFollow2D",
+        Preset::Line2D => "create-node2d-Line2D",
+        Preset::Polygon2D => "create-node2d-Polygon2D",
+        Preset::Particles2D => "create-node2d-Particles2D",
+        Preset::PointLight2D => "create-node2d-PointLight2D",
+        Preset::AudioPlayer2D => "create-node2d-AudioPlayer2D",
+        Preset::VisibleOnScreenNotifier2D => "create-node2d-VisibleOnScreenNotifier2D",
+        Preset::RemoteTransform2D => "create-node2d-RemoteTransform2D",
     }
 }
 /// Whether the Inspector should show the 2D layout for this actor.
@@ -513,6 +534,21 @@ fn root_transform(actor: &crate::scene::Actor) -> Transform2D {
         .unwrap_or_default()
 }
 /// World transform of an actor through its spatial attachments (depth-bounded).
+/// (parent, world) transforms of a scene actor, for other 2D editors.
+pub(crate) fn world_of_index(scene: &crate::scene::Scene, index: usize) -> (Affine, Affine) {
+    world_of(scene, index)
+}
+/// The local rectangle (min, max) the actor's sprite draws, when its texture is loaded.
+pub(crate) fn sprite_bounds(e: &mut Editor, actor: Uuid) -> Option<([f32; 2], [f32; 2])> {
+    let index = e.scene.actor_index(actor)?;
+    let sprite: Sprite2D = world2d::read(world2d::component(
+        &e.scene.actors[index],
+        world2d::SPRITE2D,
+    )?);
+    let size = e.world2d.textures.get(sprite.texture?)?.1;
+    let (size, _) = sprite_size(&sprite, Some(size))?;
+    Some(sprite_local_rect(&sprite, size))
+}
 fn world_of(scene: &crate::scene::Scene, index: usize) -> (Affine, Affine) {
     let mut chain = vec![index];
     let mut current = index;
@@ -629,6 +665,9 @@ pub fn views(e: &mut Editor) -> Vec<View> {
         }
         for (_, c) in &colliders {
             let (lo, hi) = c.bounds();
+            grow(lo, hi);
+        }
+        if let Some((lo, hi)) = crate::world2d_shapes_editor::local_bounds(e, id) {
             grow(lo, hi);
         }
         // A tile layer's bounds are its painted cells, in the node's unrotated frame.
@@ -810,6 +849,20 @@ pub fn create_node(e: &mut Editor, preset: Preset, position: [f32; 2]) -> Option
         e.last_error = Some(error.clone());
         e.log(error);
         return None;
+    }
+    if preset == Preset::PointLight2D {
+        match crate::world2d_shapes_editor::light_texture(e) {
+            Ok(texture) => {
+                if let Some(index) = e.scene.actor_index(id)
+                    && let Some(component) =
+                        world2d::component(&e.scene.actors[index], world2d::SPRITE2D).map(|c| c.id)
+                {
+                    edit_component::<Sprite2D>(e, id, component, |s| s.texture = Some(texture));
+                    let _ = crate::texture::resolve(&mut e.scene, &e.assets.index);
+                }
+            }
+            Err(error) => e.log(format!("The light texture could not be created: {error}")),
+        }
     }
     e.select_actor(Some(id));
     e.changed();
@@ -997,8 +1050,13 @@ fn toolbar(ui: &Ui, e: &mut Editor) {
 pub fn add_node_popup(ui: &Ui, e: &mut Editor, id: &str, position: [f32; 2]) {
     ui.popup(id, || {
         ui.text_disabled("Create 2D node");
-        ui.separator();
+        let mut category = "";
         for preset in Preset::ALL {
+            if preset.category() != category {
+                category = preset.category();
+                ui.separator();
+                ui.text_disabled(category);
+            }
             let clicked = ui
                 .selectable_config(format!(
                     "{}  {}##{}",
@@ -1037,6 +1095,12 @@ pub fn viewport(ui: &Ui, e: &mut Editor) {
     });
     if layer_selected && !e.playing {
         crate::tilemap_editor::toolbar(ui, e);
+    }
+    if !e.playing
+        && e.selected_actor
+            .is_some_and(|id| crate::world2d_shapes_editor::shape_of(e, id).is_some())
+    {
+        crate::world2d_shapes_editor::toolbar(ui, e);
     }
     let origin = ui.cursor_screen_pos();
     let available = ui.content_region_avail();
@@ -1346,6 +1410,34 @@ fn input(
         e.view_2d.pan_pixels(io.mouse_delta);
         e.world2d.right_dragged = true;
     }
+    // Points of the selected path, line or polygon take clicks before the node tools.
+    if !e.playing
+        && matches!(e.world2d.tool, Tool::Select | Tool::Move)
+        && e.world2d.drag.is_none()
+        && let Some(view) = views
+            .iter()
+            .find(|v| Some(v.id) == e.selected_actor)
+            .cloned()
+    {
+        let camera = e.view_2d;
+        let to_screen = move |p: [f32; 2]| camera.world_to_screen(p, origin, size);
+        let (snap_on, step) = (e.world2d.snap, e.world2d.grid_step);
+        let snap = move |p: [f32; 2]| {
+            if snap_on {
+                p.map(|v| snap_value(v, step))
+            } else {
+                p.map(|v| v.round())
+            }
+        };
+        let right = hovered && ui.is_mouse_clicked(MouseButton::Right);
+        if crate::world2d_shapes_editor::input(ui, e, &view, &to_screen, hovered, world, &snap) {
+            if right {
+                // The click deleted a point: no context menu on release.
+                e.world2d.right_dragged = true;
+            }
+            return;
+        }
+    }
     if hovered && ui.is_mouse_clicked(MouseButton::Right) {
         e.world2d.right_dragged = false;
     }
@@ -1652,7 +1744,10 @@ fn shortcuts(ui: &Ui, e: &mut Editor, views: &[View], size: [f32; 2], painting: 
         || ui.is_key_pressed_no_repeat(imgui::Key::Backspace))
         && !command
     {
-        e.delete_actor(selected);
+        // A selected path, line or polygon point goes first, then the node.
+        if !crate::world2d_shapes_editor::delete_selected_point(e) {
+            e.delete_actor(selected);
+        }
         return;
     }
     if command && ui.is_key_pressed_no_repeat(imgui::Key::D) {
@@ -1687,7 +1782,15 @@ fn context_menu(ui: &Ui, e: &mut Editor) {
     ui.popup("world2d-context", || {
         let position = e.world2d.context;
         if let Some(_menu) = ui.begin_menu(format!("{ICON_PLUS}  Add 2D Node Here")) {
+            let mut category = "";
             for preset in Preset::ALL {
+                if preset.category() != category {
+                    if !category.is_empty() {
+                        ui.separator();
+                    }
+                    category = preset.category();
+                    ui.text_disabled(category);
+                }
                 if ui.menu_item(format!("{}  {}", preset_icon(preset), preset.label())) {
                     create_node(e, preset, snapped(e, position));
                 }
@@ -2221,6 +2324,24 @@ fn draw(
                     drew = true;
                 }
             }
+            let mut shapes = false;
+            for (n, shift) in shifts.iter().enumerate() {
+                shapes |= crate::world2d_shapes_editor::draw_view(
+                    e,
+                    &draw,
+                    v,
+                    &to_screen,
+                    view.zoom,
+                    seconds,
+                    e.world2d.animate,
+                    tint,
+                    fade * if n == 0 { 1. } else { 0.45 },
+                    n == 0 && Some(v.id) == e.selected_actor,
+                    n == 0,
+                    *shift,
+                );
+            }
+            drew |= shapes;
             if v.parallax.is_some() && v.sprite.is_none() && v.tiles.is_none() {
                 let c = to_screen(v.world.t);
                 draw.add_text(
@@ -2239,7 +2360,7 @@ fn draw(
                 );
                 drew = true;
             }
-            if (!drew || (v.sprite.is_none() && v.tiles.is_none())) && !v.group {
+            if (!drew || (v.sprite.is_none() && v.tiles.is_none() && !shapes)) && !v.group {
                 // Node2D marker: a small cross at the origin.
                 let c = to_screen(v.world.t);
                 draw.add_line(
@@ -2260,6 +2381,10 @@ fn draw(
         }
         if painting.is_some() {
             crate::tilemap_editor::overlay(ui, e, &draw, origin, size);
+        } else if !e.playing
+            && let Some(v) = views.iter().find(|v| Some(v.id) == e.selected_actor)
+        {
+            crate::world2d_shapes_editor::overlay(e, &draw, v, &to_screen);
         }
         // Hover and selection.
         if let Some(v) = e
@@ -2464,7 +2589,7 @@ fn vec2(ui: &Ui, label: &str, values: &mut [f32; 2], speed: f32, format: &str) -
     changed
 }
 /// Two or more mutually exclusive options as a row of buttons.
-fn segmented(ui: &Ui, label: &str, options: &[&str], selected: &mut usize) -> bool {
+pub(crate) fn segmented(ui: &Ui, label: &str, options: &[&str], selected: &mut usize) -> bool {
     let id = crate::gui::field(ui, label);
     let _id = ui.push_id(&id);
     let width = ((ui.content_region_avail()[0] - (options.len() as f32 - 1.) * 2.)
@@ -2637,6 +2762,22 @@ pub fn node_icon(actor: &crate::scene::Actor) -> &'static str {
         ICON_CANVAS
     } else if has(world2d::CANVAS_MODULATE2D) {
         ICON_MODULATE
+    } else if has(world2d::PARTICLES2D) {
+        crate::world2d_shapes_editor::ICON_PARTICLES
+    } else if has(world2d::PATH_FOLLOW2D) {
+        crate::world2d_shapes_editor::ICON_FOLLOW
+    } else if has(world2d::PATH2D) {
+        crate::world2d_shapes_editor::ICON_PATH
+    } else if has(world2d::LINE2D) {
+        crate::world2d_shapes_editor::ICON_LINE
+    } else if has(world2d::POLYGON2D) {
+        crate::world2d_shapes_editor::ICON_POLYGON
+    } else if has(world2d::AUDIO_PLAYER2D) {
+        crate::world2d_shapes_editor::ICON_AUDIO
+    } else if has(world2d::NOTIFIER2D) {
+        crate::world2d_shapes_editor::ICON_NOTIFIER
+    } else if has(world2d::REMOTE_TRANSFORM2D) {
+        crate::world2d_shapes_editor::ICON_REMOTE
     } else if has(world2d::CAMERA2D) {
         ICON_CAMERA
     } else if has(world2d::SPRITE2D) {
@@ -2707,6 +2848,7 @@ fn inspector_body(ui: &Ui, e: &mut Editor, id: Uuid) {
             Some(world2d::PARALLAX2D) => parallax_band(ui, e, id, &component),
             Some(world2d::CANVAS_LAYER2D) => canvas_layer_band(ui, e, id, &component),
             Some(world2d::CANVAS_MODULATE2D) => canvas_modulate_band(ui, e, id, &component),
+            _ if crate::world2d_shapes_editor::band(ui, e, id, &component) => {}
             _ => generic_band(ui, e, id, &component),
         }
     }
@@ -3312,6 +3454,32 @@ fn collider_band(
             if ui.is_item_hovered() {
                 ui.tooltip_text("Match the shape to the sprite's drawn rectangle");
             }
+            ui.same_line();
+            if ui.button(format!("{ICON_WAND}  Fit to Visible Pixels"))
+                && let Some(data) = e.scene.textures.get(&texture)
+                && let Some((min, max)) = opaque_bounds(data, rect)
+            {
+                // The tight box of the frame's opaque texels, placed like the sprite draws it
+                // (flips mirror the box inside the frame).
+                let (lo, _) = sprite_local_rect(&sprite, [f32::from(rect[2]), f32::from(rect[3])]);
+                let (w, h) = (f32::from(rect[2]), f32::from(rect[3]));
+                let (mut x0, mut x1) = (min[0], max[0]);
+                let (mut y0, mut y1) = (min[1], max[1]);
+                if sprite.flip_h {
+                    (x0, x1) = (w - x1, w - x0);
+                }
+                if sprite.flip_v {
+                    (y0, y1) = (h - y1, h - y0);
+                }
+                c.shape = Shape2D::Box;
+                c.size = [x1 - x0, y1 - y0];
+                c.offset = [lo[0] + (x0 + x1) * 0.5, lo[1] + (y0 + y1) * 0.5];
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text(
+                    "A box around the frame's visible pixels, ignoring its transparent margins",
+                );
+            }
         }
         crate::gui::muted(
             ui,
@@ -3326,6 +3494,26 @@ fn collider_band(
         }
     }
     finish_band(e, actor, component, remove, reset);
+}
+/// Bounds (min, max) of the texels with alpha inside `rect` (x, y, w, h), relative to
+/// the rectangle, or None when the rectangle is fully transparent.
+pub(crate) fn opaque_bounds(
+    data: &crate::texture::Data,
+    rect: [u16; 4],
+) -> Option<([f32; 2], [f32; 2])> {
+    let mut lo = [u32::MAX; 2];
+    let mut hi = [0u32; 2];
+    for y in 0..u32::from(rect[3]) {
+        for x in 0..u32::from(rect[2]) {
+            let (tx, ty) = (u32::from(rect[0]) + x, u32::from(rect[1]) + y);
+            let at = ((ty * u32::from(data.width) + tx) * 4 + 3) as usize;
+            if data.rgba.get(at).is_some_and(|a| *a > 0) {
+                lo = [lo[0].min(x), lo[1].min(y)];
+                hi = [hi[0].max(x + 1), hi[1].max(y + 1)];
+            }
+        }
+    }
+    (lo[0] <= hi[0]).then(|| (lo.map(|v| v as f32), hi.map(|v| v as f32)))
 }
 fn body_band(
     ui: &Ui,
@@ -4224,5 +4412,35 @@ fn sheet_slicer(ui: &Ui, e: &mut Editor) {
         e.world2d.slicer = None;
     } else if e.world2d.slicer.is_some() {
         e.world2d.slicer = Some(state);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn opaque_bounds_trim_transparent_margins() {
+        let mut rgba = vec![0u8; 8 * 4 * 4];
+        for (x, y) in [(3, 1), (5, 2)] {
+            rgba[(y * 8 + x) * 4 + 3] = 255;
+        }
+        let data = crate::texture::Data {
+            width: 8,
+            height: 4,
+            rgba,
+            words: Vec::new(),
+            palette: Vec::new(),
+        };
+        assert_eq!(
+            opaque_bounds(&data, [0, 0, 8, 4]),
+            Some(([3., 1.], [6., 3.]))
+        );
+        // Relative to the frame rectangle, and empty for a transparent frame.
+        assert_eq!(
+            opaque_bounds(&data, [2, 0, 4, 4]),
+            Some(([1., 1.], [4., 3.]))
+        );
+        assert_eq!(opaque_bounds(&data, [6, 0, 2, 4]), None);
     }
 }

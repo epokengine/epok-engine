@@ -1283,6 +1283,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/world2d_tiles.hpp").as_slice(),
         ),
         (
+            "world2d_content.hpp",
+            include_bytes!("../runtime/world2d_content.hpp").as_slice(),
+        ),
+        (
             "world2d_service.hpp",
             include_bytes!("../runtime/world2d_service.hpp").as_slice(),
         ),
@@ -1780,11 +1784,15 @@ fn actor_table_with_registry(
     let slot = |id: uuid::Uuid| order.iter().position(|i| scene.actors[*i].id == id);
     let bank_textures = crate::texture::ids(scene);
     let bank_texture = |id| bank_textures.contains(&id);
+    let actor_slot = |id: uuid::Uuid| slot(id);
+    let clip_index = |id: uuid::Uuid| clips.iter().position(|v| *v == id);
     let mut world2d = crate::world2d::CookContext::new(
         &bank_texture,
         &scene.tilesets,
         crate::world2d::start_view(scene),
-    );
+    )
+    .with_actors(&actor_slot)
+    .with_clips(&clip_index);
     let mut components_text = String::new();
     // Namespace-scope constants (World2D frame clips) the generated setters reference.
     let mut statics = String::new();

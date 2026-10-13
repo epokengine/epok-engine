@@ -497,5 +497,6 @@ private:
 };
 }  // namespace epok
 
-// Tile maps, parallax and canvas layers build on the components above.
+// Tile maps, parallax, canvas layers and the content nodes build on the components above.
 #include "world2d_tiles.hpp"
+#include "world2d_content.hpp"

@@ -25,55 +25,67 @@ pub const TILEMAP_LAYER: &str = om::TILEMAP_LAYER_COMPONENT_ID;
 pub const PARALLAX2D: &str = om::PARALLAX2D_COMPONENT_ID;
 pub const CANVAS_LAYER2D: &str = om::CANVAS_LAYER2D_COMPONENT_ID;
 pub const CANVAS_MODULATE2D: &str = om::CANVAS_MODULATE2D_COMPONENT_ID;
+pub const PATH2D: &str = om::PATH2D_COMPONENT_ID;
+pub const PATH_FOLLOW2D: &str = om::PATH_FOLLOW2D_COMPONENT_ID;
+pub const LINE2D: &str = om::LINE2D_COMPONENT_ID;
+pub const POLYGON2D: &str = om::POLYGON2D_COMPONENT_ID;
+pub const PARTICLES2D: &str = om::PARTICLES2D_COMPONENT_ID;
+pub const AUDIO_PLAYER2D: &str = om::AUDIO_PLAYER2D_COMPONENT_ID;
+pub const NOTIFIER2D: &str = om::NOTIFIER2D_COMPONENT_ID;
+pub const REMOTE_TRANSFORM2D: &str = om::REMOTE_TRANSFORM2D_COMPONENT_ID;
 
-pub const SPRITE_KEY: &str = "sprite2d";
-pub const CAMERA_KEY: &str = "camera2d";
-pub const COLLIDER_KEY: &str = "collider2d";
-pub const BODY_KEY: &str = "body2d";
-pub const TILEMAP_KEY: &str = "tilemap2d";
-pub const PARALLAX_KEY: &str = "parallax2d";
-pub const CANVAS_LAYER_KEY: &str = "canvas_layer2d";
-pub const CANVAS_MODULATE_KEY: &str = "canvas_modulate2d";
-
-/// Every engine 2D component the editor authors and cooks itself.
+/// Every engine 2D component the editor authors and cooks itself: its class id, the
+/// property key holding its record, and its C++ class.
+const BUILTINS: [(&str, &str, &str); 16] = [
+    (SPRITE2D, "sprite2d", "epok::Sprite2DComponent"),
+    (CAMERA2D, "camera2d", "epok::Camera2DComponent"),
+    (COLLIDER2D, "collider2d", "epok::Collider2DComponent"),
+    (CHARACTER_BODY2D, "body2d", "epok::CharacterBody2DComponent"),
+    (TILEMAP_LAYER, "tilemap2d", "epok::TileMapLayerComponent"),
+    (PARALLAX2D, "parallax2d", "epok::Parallax2DComponent"),
+    (
+        CANVAS_LAYER2D,
+        "canvas_layer2d",
+        "epok::CanvasLayer2DComponent",
+    ),
+    (
+        CANVAS_MODULATE2D,
+        "canvas_modulate2d",
+        "epok::CanvasModulate2DComponent",
+    ),
+    (PATH2D, "path2d", "epok::Path2DComponent"),
+    (
+        PATH_FOLLOW2D,
+        "path_follow2d",
+        "epok::PathFollow2DComponent",
+    ),
+    (LINE2D, "line2d", "epok::Line2DComponent"),
+    (POLYGON2D, "polygon2d", "epok::Polygon2DComponent"),
+    (PARTICLES2D, "particles2d", "epok::Particles2DComponent"),
+    (
+        AUDIO_PLAYER2D,
+        "audio_player2d",
+        "epok::AudioPlayer2DComponent",
+    ),
+    (
+        NOTIFIER2D,
+        "notifier2d",
+        "epok::VisibleOnScreenNotifier2DComponent",
+    ),
+    (
+        REMOTE_TRANSFORM2D,
+        "remote_transform2d",
+        "epok::RemoteTransform2DComponent",
+    ),
+];
 pub fn is_builtin(class_id: &str) -> bool {
-    matches!(
-        class_id,
-        SPRITE2D
-            | CAMERA2D
-            | COLLIDER2D
-            | CHARACTER_BODY2D
-            | TILEMAP_LAYER
-            | PARALLAX2D
-            | CANVAS_LAYER2D
-            | CANVAS_MODULATE2D
-    )
+    BUILTINS.iter().any(|b| b.0 == class_id)
 }
 pub fn key(class_id: &str) -> Option<&'static str> {
-    match class_id {
-        SPRITE2D => Some(SPRITE_KEY),
-        CAMERA2D => Some(CAMERA_KEY),
-        COLLIDER2D => Some(COLLIDER_KEY),
-        CHARACTER_BODY2D => Some(BODY_KEY),
-        TILEMAP_LAYER => Some(TILEMAP_KEY),
-        PARALLAX2D => Some(PARALLAX_KEY),
-        CANVAS_LAYER2D => Some(CANVAS_LAYER_KEY),
-        CANVAS_MODULATE2D => Some(CANVAS_MODULATE_KEY),
-        _ => None,
-    }
+    BUILTINS.iter().find(|b| b.0 == class_id).map(|b| b.1)
 }
 pub fn class_name(class_id: &str) -> Option<&'static str> {
-    match class_id {
-        SPRITE2D => Some("epok::Sprite2DComponent"),
-        CAMERA2D => Some("epok::Camera2DComponent"),
-        COLLIDER2D => Some("epok::Collider2DComponent"),
-        CHARACTER_BODY2D => Some("epok::CharacterBody2DComponent"),
-        TILEMAP_LAYER => Some("epok::TileMapLayerComponent"),
-        PARALLAX2D => Some("epok::Parallax2DComponent"),
-        CANVAS_LAYER2D => Some("epok::CanvasLayer2DComponent"),
-        CANVAS_MODULATE2D => Some("epok::CanvasModulate2DComponent"),
-        _ => None,
-    }
+    BUILTINS.iter().find(|b| b.0 == class_id).map(|b| b.2)
 }
 
 // ---- document records ------------------------------------------------------------------
@@ -390,6 +402,243 @@ impl Default for CanvasModulate2D {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct PathPoint {
+    pub position: [f32; 2],
+    /// Curve handles, relative to the point; zero handles make straight segments.
+    pub handle_in: [f32; 2],
+    pub handle_out: [f32; 2],
+}
+impl PathPoint {
+    pub fn at(position: [f32; 2]) -> Self {
+        Self {
+            position,
+            ..Default::default()
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Path2D {
+    pub points: Vec<PathPoint>,
+    pub closed: bool,
+}
+impl Default for Path2D {
+    fn default() -> Self {
+        Self {
+            points: vec![PathPoint::at([0., 0.]), PathPoint::at([96., 0.])],
+            closed: false,
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct PathFollow2D {
+    /// The actor whose Path2D to follow; none follows the actor this one is attached to.
+    pub path: Option<Uuid>,
+    pub progress: f32,
+    pub speed: f32,
+    /// Along and across the path.
+    pub offset: [f32; 2],
+    pub looping: bool,
+    pub ping_pong: bool,
+    pub rotates: bool,
+    pub moving: bool,
+}
+impl Default for PathFollow2D {
+    fn default() -> Self {
+        Self {
+            path: None,
+            progress: 0.,
+            speed: 48.,
+            offset: [0.; 2],
+            looping: true,
+            ping_pong: false,
+            rotates: false,
+            moving: true,
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Line2D {
+    pub points: Vec<[f32; 2]>,
+    pub width: f32,
+    pub begin_color: [u8; 3],
+    pub end_color: [u8; 3],
+    pub closed: bool,
+    pub blend: BlendMode,
+    pub z_index: i16,
+    pub visible: bool,
+}
+impl Default for Line2D {
+    fn default() -> Self {
+        Self {
+            points: vec![[0., 0.], [64., 0.]],
+            width: 2.,
+            begin_color: [255; 3],
+            end_color: [255; 3],
+            closed: false,
+            blend: BlendMode::Cutout,
+            z_index: 0,
+            visible: true,
+        }
+    }
+}
+/// Line2D points the console stores (`line2d_max_points` in world2d_content.hpp).
+pub const LINE_MAX_POINTS: usize = 32;
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Polygon2D {
+    pub points: Vec<[f32; 2]>,
+    pub color: [u8; 3],
+    pub texture: Option<Uuid>,
+    /// Texel drawn at the polygon's local origin; the texture is not scaled.
+    pub texture_offset: [f32; 2],
+    pub blend: BlendMode,
+    pub z_index: i16,
+    pub visible: bool,
+}
+impl Default for Polygon2D {
+    fn default() -> Self {
+        Self {
+            points: vec![[-16., -16.], [16., -16.], [16., 16.], [-16., 16.]],
+            color: [255; 3],
+            texture: None,
+            texture_offset: [0.; 2],
+            blend: BlendMode::Cutout,
+            z_index: 0,
+            visible: true,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum EmissionShape {
+    #[default]
+    Point,
+    Rectangle,
+    Circle,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Particles2D {
+    pub emitting: bool,
+    pub one_shot: bool,
+    pub local_coords: bool,
+    pub visible: bool,
+    pub amount: u16,
+    pub lifetime: f32,
+    /// 0 is a steady stream, 1 releases the whole amount at once.
+    pub explosiveness: f32,
+    /// Degrees: 0 right, 90 down, -90 up.
+    pub direction: f32,
+    pub spread: f32,
+    /// Minimum and maximum launch speed, pixels per second.
+    pub speed: [f32; 2],
+    pub gravity: [f32; 2],
+    pub damping: f32,
+    /// Start and end scale.
+    pub scale: [f32; 2],
+    pub start_color: [u8; 3],
+    pub end_color: [u8; 3],
+    pub shape: EmissionShape,
+    /// Rectangle half size, or the circle radius in the first value.
+    pub extents: [f32; 2],
+    pub texture: Option<Uuid>,
+    pub region: [u16; 4],
+    /// Frames across the region, played over each particle's life.
+    pub hframes: u16,
+    pub blend: BlendMode,
+    pub z_index: i16,
+    pub seed: u32,
+}
+impl Default for Particles2D {
+    fn default() -> Self {
+        Self {
+            emitting: true,
+            one_shot: false,
+            local_coords: false,
+            visible: true,
+            amount: 16,
+            lifetime: 1.,
+            explosiveness: 0.,
+            direction: -90.,
+            spread: 30.,
+            speed: [40., 80.],
+            gravity: [0., 98.],
+            damping: 0.,
+            scale: [1., 1.],
+            start_color: [255; 3],
+            end_color: [255; 3],
+            shape: EmissionShape::Point,
+            extents: [8.; 2],
+            texture: None,
+            region: [0; 4],
+            hframes: 1,
+            blend: BlendMode::Add,
+            z_index: 0,
+            seed: 1,
+        }
+    }
+}
+/// The 2D particle budget a build cooks at most, shared by every emitter.
+pub const MAX_PARTICLES: usize = 512;
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct AudioPlayer2D {
+    pub audio: crate::audio::AudioSource,
+    pub max_distance: f32,
+    pub attenuation: f32,
+    pub panning: f32,
+}
+impl Default for AudioPlayer2D {
+    fn default() -> Self {
+        Self {
+            audio: crate::audio::AudioSource {
+                play_on_start: false,
+                ..Default::default()
+            },
+            max_distance: 400.,
+            attenuation: 1.,
+            panning: 1.,
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Notifier2D {
+    /// x, y, width, height around the owner.
+    pub rect: [f32; 4],
+    pub disable_when_hidden: bool,
+}
+impl Default for Notifier2D {
+    fn default() -> Self {
+        Self {
+            rect: [-10., -10., 20., 20.],
+            disable_when_hidden: false,
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct RemoteTransform2D {
+    pub target: Option<Uuid>,
+    pub update_position: bool,
+    pub update_rotation: bool,
+    pub update_scale: bool,
+}
+impl Default for RemoteTransform2D {
+    fn default() -> Self {
+        Self {
+            target: None,
+            update_position: true,
+            update_rotation: true,
+            update_scale: true,
+        }
+    }
+}
+
 // ---- document access -------------------------------------------------------------------
 
 pub fn read<T: DeserializeOwned + Default>(component: &ComponentInstance) -> T {
@@ -414,20 +663,59 @@ pub fn validate(component: &ComponentInstance) -> Result<(), String> {
     let Some(value) = component.properties.get(key).filter(|v| !v.is_null()) else {
         return Ok(());
     };
+    fn decode<T: DeserializeOwned>(value: &serde_json::Value) -> Result<T, String> {
+        serde_json::from_value(value.clone()).map_err(|e| e.to_string())
+    }
     let result = match id {
-        SPRITE2D => serde_json::from_value::<Sprite2D>(value.clone()).map(|_| ()),
-        CAMERA2D => serde_json::from_value::<Camera2D>(value.clone()).map(|_| ()),
-        COLLIDER2D => serde_json::from_value::<Collider2D>(value.clone()).map(|_| ()),
-        TILEMAP_LAYER => serde_json::from_value::<TileMapLayer>(value.clone())
-            .map_err(|e| e.to_string())
-            .and_then(|layer| crate::tilemap::decode(&layer.cells).map(|_| ()))
-            .map_err(serde::de::Error::custom),
-        PARALLAX2D => serde_json::from_value::<Parallax2D>(value.clone()).map(|_| ()),
-        CANVAS_LAYER2D => serde_json::from_value::<CanvasLayer2D>(value.clone()).map(|_| ()),
-        CANVAS_MODULATE2D => serde_json::from_value::<CanvasModulate2D>(value.clone()).map(|_| ()),
-        _ => serde_json::from_value::<CharacterBody2D>(value.clone()).map(|_| ()),
+        SPRITE2D => decode::<Sprite2D>(value).map(|_| ()),
+        CAMERA2D => decode::<Camera2D>(value).map(|_| ()),
+        COLLIDER2D => decode::<Collider2D>(value).map(|_| ()),
+        TILEMAP_LAYER => decode::<TileMapLayer>(value)
+            .and_then(|layer| crate::tilemap::decode(&layer.cells).map(|_| ())),
+        PARALLAX2D => decode::<Parallax2D>(value).map(|_| ()),
+        CANVAS_LAYER2D => decode::<CanvasLayer2D>(value).map(|_| ()),
+        CANVAS_MODULATE2D => decode::<CanvasModulate2D>(value).map(|_| ()),
+        PATH2D => decode::<Path2D>(value).map(|_| ()),
+        PATH_FOLLOW2D => decode::<PathFollow2D>(value).map(|_| ()),
+        LINE2D => decode::<Line2D>(value).and_then(|line| {
+            if line.points.len() > LINE_MAX_POINTS {
+                Err(format!("a Line2D holds at most {LINE_MAX_POINTS} points"))
+            } else {
+                Ok(())
+            }
+        }),
+        POLYGON2D => decode::<Polygon2D>(value).map(|_| ()),
+        PARTICLES2D => decode::<Particles2D>(value).map(|_| ()),
+        AUDIO_PLAYER2D => decode::<AudioPlayer2D>(value).map(|_| ()),
+        NOTIFIER2D => decode::<Notifier2D>(value).map(|_| ()),
+        REMOTE_TRANSFORM2D => decode::<RemoteTransform2D>(value).map(|_| ()),
+        _ => decode::<CharacterBody2D>(value).map(|_| ()),
     };
-    result.map_err(|e: serde_json::Error| format!("{key}: {e}"))
+    result.map_err(|e| format!("{key}: {e}"))
+}
+/// The default record of a built-in component, as stored in a document.
+fn default_record(class_id: &str) -> serde_json::Value {
+    fn value<T: Serialize + Default>() -> serde_json::Value {
+        serde_json::to_value(T::default()).expect("World2D record")
+    }
+    match class_id {
+        SPRITE2D => value::<Sprite2D>(),
+        CAMERA2D => value::<Camera2D>(),
+        COLLIDER2D => value::<Collider2D>(),
+        TILEMAP_LAYER => value::<TileMapLayer>(),
+        PARALLAX2D => value::<Parallax2D>(),
+        CANVAS_LAYER2D => value::<CanvasLayer2D>(),
+        CANVAS_MODULATE2D => value::<CanvasModulate2D>(),
+        PATH2D => value::<Path2D>(),
+        PATH_FOLLOW2D => value::<PathFollow2D>(),
+        LINE2D => value::<Line2D>(),
+        POLYGON2D => value::<Polygon2D>(),
+        PARTICLES2D => value::<Particles2D>(),
+        AUDIO_PLAYER2D => value::<AudioPlayer2D>(),
+        NOTIFIER2D => value::<Notifier2D>(),
+        REMOTE_TRANSFORM2D => value::<RemoteTransform2D>(),
+        _ => value::<CharacterBody2D>(),
+    }
 }
 pub fn component<'a>(actor: &'a ActorInstance, class_id: &str) -> Option<&'a ComponentInstance> {
     actor
@@ -443,16 +731,7 @@ pub fn new_component(actor: &ActorInstance, class_id: &str) -> Option<ComponentI
         ClassReference::new(class, class_id),
         &crate::actor_document::unique_component_name(actor, base),
     );
-    match class_id {
-        SPRITE2D => write(&mut component, &Sprite2D::default()),
-        CAMERA2D => write(&mut component, &Camera2D::default()),
-        COLLIDER2D => write(&mut component, &Collider2D::default()),
-        TILEMAP_LAYER => write(&mut component, &TileMapLayer::default()),
-        PARALLAX2D => write(&mut component, &Parallax2D::default()),
-        CANVAS_LAYER2D => write(&mut component, &CanvasLayer2D::default()),
-        CANVAS_MODULATE2D => write(&mut component, &CanvasModulate2D::default()),
-        _ => write(&mut component, &CharacterBody2D::default()),
-    }
+    write(&mut component, &default_record(class_id));
     Some(component)
 }
 /// Textures the actor's 2D components draw: sprites directly, tile layers through their
@@ -470,6 +749,8 @@ pub fn texture_ids<'a>(
                 .tile_set
                 .and_then(|id| tilesets.get(&id))
                 .and_then(|set| set.texture),
+            Some(POLYGON2D) => read::<Polygon2D>(c).texture,
+            Some(PARTICLES2D) => read::<Particles2D>(c).texture,
             _ => None,
         })
 }
@@ -496,18 +777,9 @@ pub fn scene_uses_world2d(scene: &crate::scene::Scene) -> bool {
 
 /// Engine classes of the 2D world. A project class of the 2D domain is the project's
 /// own 2D content even when no map places it yet (code may spawn it).
-const ENGINE_2D_CLASSES: [&str; 10] = [
-    om::ACTOR2D_ID,
-    om::SCENE_COMPONENT2D_ID,
-    SPRITE2D,
-    CAMERA2D,
-    COLLIDER2D,
-    CHARACTER_BODY2D,
-    TILEMAP_LAYER,
-    PARALLAX2D,
-    CANVAS_LAYER2D,
-    CANVAS_MODULATE2D,
-];
+fn engine_2d_class(id: &str) -> bool {
+    id == om::ACTOR2D_ID || id == om::SCENE_COMPONENT2D_ID || is_builtin(id)
+}
 /// Whether a build needs the World2D service: a map or Blueprint template holds 2D
 /// content, or the project declares a class of the 2D domain. Without it the build
 /// compiles no 2D service and gives the engine 2D classes no object storage.
@@ -518,7 +790,7 @@ pub fn project_uses_world2d<'a>(
     scenes.into_iter().any(scene_uses_world2d)
         || registry.classes.values().any(|class| {
             class.domain == Some(crate::reflection_schema::Domain::World2D)
-                && !ENGINE_2D_CLASSES.contains(&class.id.as_str())
+                && !engine_2d_class(&class.id)
         })
 }
 /// `#define`s that switch the World2D service on for this build and size it, or nothing
@@ -547,8 +819,35 @@ pub fn capacity_defines<'a>(
     let colliders = (largest(COLLIDER2D) + 16).clamp(16, 960);
     let layers = largest(TILEMAP_LAYER);
     let parallaxes = largest(PARALLAX2D);
+    let shapes = largest(LINE2D) + largest(POLYGON2D) + largest(PARTICLES2D);
     // Parallax copies fill the screen once per repeating drawable.
-    let sprites = (largest(SPRITE2D) + layers + parallaxes * 24 + 32).clamp(32, 1024);
+    let sprites = (largest(SPRITE2D) + layers + shapes + parallaxes * 24 + 32).clamp(32, 1024);
+    // Particles, line segments and polygon triangles, per scene.
+    let sum = |scene: &crate::scene::Scene, measure: &dyn Fn(&ComponentInstance) -> usize| {
+        scene
+            .actors
+            .iter()
+            .flat_map(|a| a.components.iter())
+            .map(measure)
+            .sum::<usize>()
+    };
+    let amount = |c: &ComponentInstance| {
+        if c.class.class_id.as_deref() == Some(PARTICLES2D) {
+            usize::from(read::<Particles2D>(c).amount.max(1))
+        } else {
+            0
+        }
+    };
+    let pieces = |c: &ComponentInstance| match c.class.class_id.as_deref() {
+        Some(LINE2D) => read::<Line2D>(c).points.len() * 40,
+        Some(POLYGON2D) => read::<Polygon2D>(c).points.len().saturating_sub(2) * 32,
+        _ => 0,
+    };
+    let particles = scenes.iter().map(|s| sum(s, &amount)).max().unwrap_or(0)
+        + templates.iter().map(|t| sum(t, &amount)).sum::<usize>() * 4;
+    let shape_bytes = scenes.iter().map(|s| sum(s, &pieces)).max().unwrap_or(0)
+        + templates.iter().map(|t| sum(t, &pieces)).sum::<usize>() * 4;
+    let particles = particles.clamp(1, MAX_PARTICLES);
     // A textured quad fragment is 40 bytes, a rectangle 20 (16 for 8 and 16 pixel tiles)
     // and a page change 8. Tile layers draw at most a screen of cells each.
     let tiles: usize = scenes
@@ -572,10 +871,15 @@ pub fn capacity_defines<'a>(
         })
         .max()
         .unwrap_or(0);
-    let arena = (sprites * 48 + tiles * 20 + layers * 16).clamp(2048, 262144);
+    let arena = (sprites * 48
+        + tiles * 20
+        + layers * 16
+        + shape_bytes
+        + if particles > 1 { particles * 40 } else { 0 })
+    .clamp(2048, 262144);
     let (probes, edits) = if layers > 0 { (48, 128) } else { (1, 1) };
     format!(
-        "#define EPOK_WORLD2D 1\n#define EPOK_WORLD2D_COLLIDERS {colliders}\n#define EPOK_WORLD2D_TILE_PROBES {probes}\n#define EPOK_WORLD2D_TILE_EDITS {edits}\n#define EPOK_WORLD2D_TRIGGER_PAIRS {}\n#define EPOK_WORLD2D_DRAW_ITEMS {sprites}\n#define EPOK_WORLD2D_ARENA_BYTES {arena}\n",
+        "#define EPOK_WORLD2D 1\n#define EPOK_WORLD2D_COLLIDERS {colliders}\n#define EPOK_WORLD2D_TILE_PROBES {probes}\n#define EPOK_WORLD2D_TILE_EDITS {edits}\n#define EPOK_WORLD2D_PARTICLES {particles}\n#define EPOK_WORLD2D_TRIGGER_PAIRS {}\n#define EPOK_WORLD2D_DRAW_ITEMS {sprites}\n#define EPOK_WORLD2D_ARENA_BYTES {arena}\n",
         (colliders * 2).clamp(32, 512)
     )
 }
@@ -664,21 +968,58 @@ pub enum Preset {
     Parallax2D,
     CanvasLayer2D,
     CanvasModulate2D,
+    Path2D,
+    PathFollow2D,
+    Line2D,
+    Polygon2D,
+    Particles2D,
+    PointLight2D,
+    AudioPlayer2D,
+    VisibleOnScreenNotifier2D,
+    RemoteTransform2D,
 }
 impl Preset {
-    pub const ALL: [Preset; 11] = [
+    pub const ALL: [Preset; 20] = [
         Preset::Node2D,
         Preset::Sprite2D,
         Preset::AnimatedSprite2D,
-        Preset::TileMapLayer,
         Preset::Camera2D,
         Preset::CharacterBody2D,
         Preset::StaticBody2D,
         Preset::Area2D,
+        Preset::TileMapLayer,
         Preset::Parallax2D,
+        Preset::Path2D,
+        Preset::PathFollow2D,
+        Preset::Line2D,
+        Preset::Polygon2D,
+        Preset::Particles2D,
+        Preset::PointLight2D,
         Preset::CanvasLayer2D,
         Preset::CanvasModulate2D,
+        Preset::AudioPlayer2D,
+        Preset::VisibleOnScreenNotifier2D,
+        Preset::RemoteTransform2D,
     ];
+    /// Menu groups, in the order of `ALL`.
+    pub fn category(self) -> &'static str {
+        match self {
+            Preset::Node2D | Preset::Sprite2D | Preset::AnimatedSprite2D | Preset::Camera2D => {
+                "Basics"
+            }
+            Preset::CharacterBody2D | Preset::StaticBody2D | Preset::Area2D => "Physics",
+            Preset::TileMapLayer | Preset::Parallax2D | Preset::Path2D | Preset::PathFollow2D => {
+                "Level"
+            }
+            Preset::Line2D | Preset::Polygon2D | Preset::Particles2D | Preset::PointLight2D => {
+                "Drawing and effects"
+            }
+            Preset::CanvasLayer2D | Preset::CanvasModulate2D => "Canvas",
+            Preset::AudioPlayer2D
+            | Preset::VisibleOnScreenNotifier2D
+            | Preset::RemoteTransform2D => "Audio and helpers",
+        }
+    }
     pub fn label(self) -> &'static str {
         match self {
             Preset::Node2D => "Node2D",
@@ -692,6 +1033,15 @@ impl Preset {
             Preset::Parallax2D => "Parallax2D",
             Preset::CanvasLayer2D => "CanvasLayer2D",
             Preset::CanvasModulate2D => "CanvasModulate2D",
+            Preset::Path2D => "Path2D",
+            Preset::PathFollow2D => "PathFollow2D",
+            Preset::Line2D => "Line2D",
+            Preset::Polygon2D => "Polygon2D",
+            Preset::Particles2D => "Particles2D",
+            Preset::PointLight2D => "PointLight2D",
+            Preset::AudioPlayer2D => "AudioPlayer2D",
+            Preset::VisibleOnScreenNotifier2D => "VisibleOnScreenNotifier2D",
+            Preset::RemoteTransform2D => "RemoteTransform2D",
         }
     }
     pub fn description(self) -> &'static str {
@@ -709,12 +1059,25 @@ impl Preset {
             }
             Preset::CanvasLayer2D => "Draws attached nodes on their own layer, in screen pixels.",
             Preset::CanvasModulate2D => "Tints everything on its canvas: night, flashes, fades.",
+            Preset::Path2D => "A curve to move things along: patrols, moving platforms, rails.",
+            Preset::PathFollow2D => {
+                "Moves its actor along a Path2D; carries bodies standing on it."
+            }
+            Preset::Line2D => "A polyline with width and a colour gradient: ropes, lasers, trails.",
+            Preset::Polygon2D => "A filled, optionally textured shape: terrain, shadows, decals.",
+            Preset::Particles2D => "Sparks, smoke, dust and rain from a CPU particle emitter.",
+            Preset::PointLight2D => "A soft additive glow: lamps, torches, magic.",
+            Preset::AudioPlayer2D => "Plays a sound that fades and pans with the camera.",
+            Preset::VisibleOnScreenNotifier2D => {
+                "Reports entering and leaving the view; can pause its node."
+            }
+            Preset::RemoteTransform2D => "Pushes this node's transform onto another node.",
         }
     }
     pub fn components(self) -> &'static [&'static str] {
         match self {
             Preset::Node2D => &[],
-            Preset::Sprite2D | Preset::AnimatedSprite2D => &[SPRITE2D],
+            Preset::Sprite2D | Preset::AnimatedSprite2D | Preset::PointLight2D => &[SPRITE2D],
             Preset::TileMapLayer => &[TILEMAP_LAYER],
             Preset::Camera2D => &[CAMERA2D],
             Preset::StaticBody2D => &[COLLIDER2D],
@@ -723,6 +1086,14 @@ impl Preset {
             Preset::Parallax2D => &[PARALLAX2D],
             Preset::CanvasLayer2D => &[CANVAS_LAYER2D],
             Preset::CanvasModulate2D => &[CANVAS_MODULATE2D],
+            Preset::Path2D => &[PATH2D],
+            Preset::PathFollow2D => &[PATH_FOLLOW2D],
+            Preset::Line2D => &[LINE2D],
+            Preset::Polygon2D => &[POLYGON2D],
+            Preset::Particles2D => &[PARTICLES2D],
+            Preset::AudioPlayer2D => &[AUDIO_PLAYER2D],
+            Preset::VisibleOnScreenNotifier2D => &[NOTIFIER2D],
+            Preset::RemoteTransform2D => &[REMOTE_TRANSFORM2D],
         }
     }
 }
@@ -774,6 +1145,15 @@ pub fn create(preset: Preset, name: &str, position: [f32; 2]) -> ActorInstance {
                         ..Default::default()
                     },
                 ),
+                // A glow adds light; the editor gives it the generated light texture.
+                (Preset::PointLight2D, SPRITE2D) => write(
+                    &mut component,
+                    &Sprite2D {
+                        blend: BlendMode::Add,
+                        modulate: [200, 180, 140],
+                        ..Default::default()
+                    },
+                ),
                 _ => {}
             }
             actor.components.push(component);
@@ -814,6 +1194,10 @@ pub struct CookContext<'a> {
     pub tilesets: &'a BTreeMap<Uuid, Arc<crate::tileset::TileSet>>,
     pub emitted: BTreeSet<Uuid>,
     pub start_view: [f32; 2],
+    /// The actor table slot of a map actor (`actors[slot]` in the generated setters).
+    pub actor_slot: Option<&'a dyn Fn(Uuid) -> Option<usize>>,
+    /// The bank index of an audio clip.
+    pub clip: Option<&'a dyn Fn(Uuid) -> Option<usize>>,
 }
 impl<'a> CookContext<'a> {
     pub fn new(
@@ -826,8 +1210,30 @@ impl<'a> CookContext<'a> {
             tilesets,
             emitted: BTreeSet::new(),
             start_view,
+            actor_slot: None,
+            clip: None,
         }
     }
+    pub fn with_actors(mut self, slot: &'a dyn Fn(Uuid) -> Option<usize>) -> Self {
+        self.actor_slot = Some(slot);
+        self
+    }
+    pub fn with_clips(mut self, clip: &'a dyn Fn(Uuid) -> Option<usize>) -> Self {
+        self.clip = Some(clip);
+        self
+    }
+    fn actor(&self, id: Option<Uuid>) -> Option<usize> {
+        self.actor_slot.and_then(|slot| id.and_then(slot))
+    }
+}
+fn fixed_list(values: impl Iterator<Item = f32>) -> String {
+    values.map(fixed).collect::<Vec<_>>().join(",")
+}
+fn colour(field: &str, value: [u8; 3]) -> String {
+    format!(
+        "c->{field}[0]={};c->{field}[1]={};c->{field}[2]={};",
+        value[0], value[1], value[2]
+    )
 }
 fn tileset_symbol(id: Uuid) -> String {
     format!("w2d_tileset_{}", id.simple())
@@ -1184,6 +1590,219 @@ pub fn cook(
                 m.color[0], m.color[1], m.color[2]
             );
         }
+        PATH2D => {
+            let path: Path2D = read(component);
+            let points = crate::shape2d::sample_path(&path);
+            if points.len() > 2048 {
+                return Err(format!(
+                    "{label}: the path samples to more than 2048 points"
+                ));
+            }
+            let lengths = crate::shape2d::cumulative_lengths(&points);
+            if points.is_empty() {
+                body += "c->points=nullptr;c->lengths=nullptr;c->point_count=0;";
+            } else {
+                out.statics += &format!(
+                    "inline constexpr epok::Fixed {symbol}_points[]={{{}}};\ninline constexpr epok::Fixed {symbol}_lengths[]={{{}}};\n",
+                    fixed_list(points.iter().flat_map(|p| [p[0], p[1]])),
+                    fixed_list(lengths.iter().copied())
+                );
+                body += &format!(
+                    "c->points={symbol}_points;c->lengths={symbol}_lengths;c->point_count={};",
+                    points.len()
+                );
+            }
+            body += &format!("c->closed={};", path.closed && path.points.len() > 2);
+        }
+        PATH_FOLLOW2D => {
+            let f: PathFollow2D = read(component);
+            if let Some(slot) = context.actor(f.path) {
+                body += &format!("c->path=actors[{slot}];");
+            }
+            body += &format!(
+                "c->progress={};c->speed={};c->offset[0]={};c->offset[1]={};c->looping={};c->ping_pong={};c->rotates={};c->moving={};",
+                fixed(f.progress),
+                fixed(f.speed.clamp(-8192., 8192.)),
+                fixed(f.offset[0]),
+                fixed(f.offset[1]),
+                f.looping,
+                f.ping_pong,
+                f.rotates,
+                f.moving
+            );
+        }
+        LINE2D => {
+            let l: Line2D = read(component);
+            if l.points.len() > LINE_MAX_POINTS {
+                return Err(format!(
+                    "{label}: a Line2D holds at most {LINE_MAX_POINTS} points"
+                ));
+            }
+            for (i, p) in l.points.iter().enumerate() {
+                body += &format!(
+                    "c->points[{i}][0]={};c->points[{i}][1]={};",
+                    fixed(p[0]),
+                    fixed(p[1])
+                );
+            }
+            body += &format!(
+                "c->point_count={};c->width={};c->closed={};c->blend={};c->z_index={};c->visible={};",
+                l.points.len(),
+                fixed(l.width.clamp(0., 256.)),
+                l.closed && l.points.len() > 2,
+                blend(l.blend),
+                l.z_index.clamp(-4096, 4096),
+                l.visible
+            );
+            body += &colour("begin_color", l.begin_color);
+            body += &colour("end_color", l.end_color);
+        }
+        POLYGON2D => {
+            let poly: Polygon2D = read(component);
+            let triangles =
+                crate::shape2d::triangulate(&poly.points).map_err(|e| format!("{label}: {e}"))?;
+            out.statics += &format!(
+                "inline constexpr epok::Fixed {symbol}_vertices[]={{{}}};\ninline constexpr uint16_t {symbol}_triangles[]={{{}}};\n",
+                fixed_list(poly.points.iter().flat_map(|p| [p[0], p[1]])),
+                triangles
+                    .iter()
+                    .flatten()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+            body += &format!(
+                "c->vertices={symbol}_vertices;c->triangles={symbol}_triangles;c->vertex_count={};c->triangle_count={};c->blend={};c->z_index={};c->visible={};",
+                poly.points.len(),
+                triangles.len(),
+                blend(poly.blend),
+                poly.z_index.clamp(-4096, 4096),
+                poly.visible
+            );
+            body += &colour("color", poly.color);
+            match poly.texture {
+                Some(texture) if textures(texture) => {
+                    out.statics += &format!(
+                        "inline constexpr uint16_t {symbol}_texels[]={{{}}};\n",
+                        poly.points
+                            .iter()
+                            .flat_map(|p| {
+                                [0, 1].map(|k| {
+                                    ((p[k] + poly.texture_offset[k]).round().clamp(0., 255.) as u16)
+                                        .to_string()
+                                })
+                            })
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    );
+                    body += &format!(
+                        "c->texels={symbol}_texels;c->texture={};",
+                        crate::texture::symbol(texture)
+                    );
+                }
+                Some(texture) => {
+                    return Err(format!(
+                        "{label}: texture {texture} is missing from the bank's resources"
+                    ));
+                }
+                None => body += "c->texels=nullptr;c->texture=-1;",
+            }
+        }
+        PARTICLES2D => {
+            let p: Particles2D = read(component);
+            let texture = match p.texture {
+                Some(texture) if textures(texture) => crate::texture::symbol(texture),
+                Some(texture) => {
+                    return Err(format!(
+                        "{label}: texture {texture} is missing from the bank's resources"
+                    ));
+                }
+                None => "-1".into(),
+            };
+            body += &format!(
+                "c->emitting={};c->one_shot={};c->local_coords={};c->visible={};c->amount={};c->lifetime={};c->explosiveness={};",
+                p.emitting,
+                p.one_shot,
+                p.local_coords,
+                p.visible,
+                p.amount.clamp(1, MAX_PARTICLES as u16),
+                fixed(p.lifetime.clamp(0.05, 60.)),
+                fixed(p.explosiveness.clamp(0., 1.))
+            );
+            body += &format!(
+                "c->direction={};c->spread={};c->speed[0]={};c->speed[1]={};c->gravity[0]={};c->gravity[1]={};c->damping={};c->scale[0]={};c->scale[1]={};",
+                fixed(p.direction),
+                fixed(p.spread.clamp(0., 180.)),
+                fixed(p.speed[0]),
+                fixed(p.speed[1]),
+                fixed(p.gravity[0]),
+                fixed(p.gravity[1]),
+                fixed(p.damping.max(0.)),
+                fixed(p.scale[0].clamp(0., 16.)),
+                fixed(p.scale[1].clamp(0., 16.))
+            );
+            body += &colour("start_color", p.start_color);
+            body += &colour("end_color", p.end_color);
+            body += &format!(
+                "c->shape=epok::EmissionShape2D::{};c->extents[0]={};c->extents[1]={};c->texture={texture};c->region[0]={};c->region[1]={};c->region[2]={};c->region[3]={};c->hframes={};c->blend={};c->z_index={};c->seed={}u;",
+                match p.shape {
+                    EmissionShape::Point => "Point",
+                    EmissionShape::Rectangle => "Rectangle",
+                    EmissionShape::Circle => "Circle",
+                },
+                fixed(p.extents[0].abs()),
+                fixed(p.extents[1].abs()),
+                p.region[0],
+                p.region[1],
+                p.region[2],
+                p.region[3],
+                p.hframes.max(1),
+                blend(p.blend),
+                p.z_index.clamp(-4096, 4096),
+                p.seed.max(1)
+            );
+        }
+        AUDIO_PLAYER2D => {
+            let a: AudioPlayer2D = read(component);
+            let clip = match a.audio.clip {
+                Some(id) => context
+                    .clip
+                    .and_then(|clip| clip(id))
+                    .map(|i| i as i32)
+                    .ok_or_else(|| {
+                        format!("{label}: audio clip {id} is missing from the resource bank")
+                    })?,
+                None => -1,
+            };
+            body += &format!(
+                "c->source.enabled={};c->source.clip={clip};c->source.pitch={};c->source.priority={};c->volume={};c->autoplay={};c->max_distance={};c->attenuation={};c->panning={};",
+                clip >= 0,
+                fixed(a.audio.pitch.clamp(0.25, 4.)),
+                a.audio.priority,
+                fixed(a.audio.volume.clamp(0., 1.)),
+                a.audio.play_on_start,
+                fixed(a.max_distance.max(0.)),
+                fixed(a.attenuation.clamp(1., 4.)),
+                fixed(a.panning.clamp(0., 1.))
+            );
+        }
+        NOTIFIER2D => {
+            let n: Notifier2D = read(component);
+            for k in 0..4 {
+                body += &format!("c->rect[{k}]={};", fixed(n.rect[k]));
+            }
+            body += &format!("c->disable_when_hidden={};", n.disable_when_hidden);
+        }
+        REMOTE_TRANSFORM2D => {
+            let r: RemoteTransform2D = read(component);
+            if let Some(slot) = context.actor(r.target) {
+                body += &format!("c->target=actors[{slot}];");
+            }
+            body += &format!(
+                "c->update_position={};c->update_rotation={};c->update_scale={};",
+                r.update_position, r.update_rotation, r.update_scale
+            );
+        }
         _ => {
             let b: CharacterBody2D = read(component);
             body += &format!(
@@ -1534,6 +2153,131 @@ mod tests {
         assert_eq!(
             capacity_defines(false, std::slice::from_ref(&scene), std::iter::empty()),
             ""
+        );
+    }
+
+    #[test]
+    fn content_nodes_cook_shapes_references_and_clips() {
+        let tilesets = BTreeMap::new();
+        let textures = |_| false;
+        let target = Uuid::from_u128(40);
+        let clip = Uuid::from_u128(41);
+        let slot = |id: Uuid| (id == target).then_some(3);
+        let clips = |id: Uuid| (id == clip).then_some(4);
+        let mut context = CookContext::new(&textures, &tilesets, [0., 0.])
+            .with_actors(&slot)
+            .with_clips(&clips);
+        let mut cook_one = |preset: Preset, edit: &dyn Fn(&mut ComponentInstance)| {
+            let mut actor = create(preset, "Node", [0., 0.]);
+            edit(&mut actor.components[1]);
+            cook(&actor.components[1], 1, "n", &mut context, "Node")
+        };
+        let path = cook_one(Preset::Path2D, &|_| {}).unwrap();
+        assert!(path.statics.contains("inline constexpr epok::Fixed n_lengths[]={epok::Fixed(0,epok::Fixed::RAW),epok::Fixed(393216,epok::Fixed::RAW)};"));
+        assert!(path.setters.contains("c->point_count=2;c->closed=false;"));
+        let follow = cook_one(Preset::PathFollow2D, &|c| {
+            write(
+                c,
+                &PathFollow2D {
+                    path: Some(target),
+                    ping_pong: true,
+                    ..Default::default()
+                },
+            )
+        })
+        .unwrap();
+        assert!(
+            follow.setters.contains("c->path=actors[3];")
+                && follow.setters.contains("c->ping_pong=true;")
+        );
+        let line = cook_one(Preset::Line2D, &|_| {}).unwrap();
+        assert!(line.setters.contains("c->points[1][0]=epok::Fixed(262144,epok::Fixed::RAW);c->points[1][1]=epok::Fixed(0,epok::Fixed::RAW);c->point_count=2;"));
+        let polygon = cook_one(Preset::Polygon2D, &|_| {}).unwrap();
+        assert!(
+            polygon
+                .setters
+                .contains("c->vertex_count=4;c->triangle_count=2;")
+                && polygon.setters.contains("c->texels=nullptr;")
+        );
+        assert!(
+            cook_one(Preset::Polygon2D, &|c| {
+                write(
+                    c,
+                    &Polygon2D {
+                        points: vec![[0., 0.], [10., 10.], [10., 0.], [0., 10.]],
+                        ..Default::default()
+                    },
+                )
+            })
+            .is_err()
+        );
+        let particles = cook_one(Preset::Particles2D, &|_| {}).unwrap();
+        assert!(
+            particles.setters.contains("c->texture=-1;")
+                && particles
+                    .setters
+                    .contains("c->shape=epok::EmissionShape2D::Point;")
+        );
+        assert!(
+            cook_one(Preset::Particles2D, &|c| {
+                write(
+                    c,
+                    &Particles2D {
+                        texture: Some(Uuid::from_u128(9)),
+                        ..Default::default()
+                    },
+                )
+            })
+            .is_err()
+        );
+        let mut sound = AudioPlayer2D::default();
+        sound.audio.clip = Some(clip);
+        let audio = cook_one(Preset::AudioPlayer2D, &|c| write(c, &sound)).unwrap();
+        assert!(
+            audio
+                .setters
+                .contains("c->source.enabled=true;c->source.clip=4;")
+        );
+        let mut missing = AudioPlayer2D::default();
+        missing.audio.clip = Some(Uuid::from_u128(77));
+        assert!(cook_one(Preset::AudioPlayer2D, &|c| write(c, &missing)).is_err());
+        let remote = cook_one(Preset::RemoteTransform2D, &|c| {
+            write(
+                c,
+                &RemoteTransform2D {
+                    target: Some(target),
+                    update_scale: false,
+                    ..Default::default()
+                },
+            )
+        })
+        .unwrap();
+        assert!(
+            remote.setters.contains("c->target=actors[3];")
+                && remote.setters.contains("c->update_scale=false;")
+        );
+        let notifier = cook_one(Preset::VisibleOnScreenNotifier2D, &|_| {}).unwrap();
+        assert!(
+            notifier
+                .setters
+                .contains("c->rect[2]=epok::Fixed(81920,epok::Fixed::RAW);")
+        );
+        // Particles size the shared pool; content-free builds keep a single slot.
+        let mut scene = crate::scene::Scene {
+            display_size: [320, 240],
+            ..Default::default()
+        };
+        scene
+            .actors
+            .push(create(Preset::Particles2D, "Sparks", [0., 0.]));
+        assert!(
+            capacity_defines(true, std::slice::from_ref(&scene), std::iter::empty())
+                .contains("#define EPOK_WORLD2D_PARTICLES 16\n")
+        );
+        scene.actors.clear();
+        assert!(
+            capacity_defines(true, std::slice::from_ref(&scene), std::iter::empty())
+                .contains("#define EPOK_WORLD2D_PARTICLES 1\n")
         );
     }
 }

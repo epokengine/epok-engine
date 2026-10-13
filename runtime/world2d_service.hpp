@@ -9,6 +9,7 @@
 //   EPOK_WORLD2D_COLLIDERS     colliders resolved per step (CollisionWorld2D capacity)
 //   EPOK_WORLD2D_TILE_PROBES   tiles one movement or ray may test against
 //   EPOK_WORLD2D_TILE_EDITS    runtime tile edits remembered for the loaded map
+//   EPOK_WORLD2D_PARTICLES     2D particles alive at once, shared by every emitter
 //   EPOK_WORLD2D_TRIGGER_PAIRS remembered overlapping trigger pairs
 //   EPOK_WORLD2D_DRAW_ITEMS    sprites, tile layers and repeated copies drawn per frame
 //   EPOK_WORLD2D_ARENA_BYTES   GPU packet bytes per frame parity
@@ -33,6 +34,9 @@
 #ifndef EPOK_WORLD2D_TILE_EDITS
 #define EPOK_WORLD2D_TILE_EDITS 128
 #endif
+#ifndef EPOK_WORLD2D_PARTICLES
+#define EPOK_WORLD2D_PARTICLES 64
+#endif
 #ifndef EPOK_WORLD2D_TRIGGER_PAIRS
 #define EPOK_WORLD2D_TRIGGER_PAIRS 64
 #endif
@@ -47,6 +51,7 @@ struct Stats {
     uint32_t sprites = 0, drawn = 0, rectangles = 0, quads = 0, pages = 0, culled = 0, dropped = 0;
     uint32_t arena_bytes = 0, colliders = 0, dropped_colliders = 0, trigger_pairs = 0, dropped_trigger_pairs = 0;
     uint32_t tile_layers = 0, tiles = 0, tile_probes = 0, dropped_tile_probes = 0, tile_edits = 0, dropped_tile_edits = 0;
+    uint32_t particles = 0, dropped_particles = 0, shapes = 0;
 };
 inline Stats stats;
 
@@ -173,6 +178,114 @@ class Service {
     };
     TileEdit edits[EPOK_WORLD2D_TILE_EDITS] = {};
     size_t edit_count = 0;
+    struct Particle {
+        Particles2DComponent* owner = nullptr;
+        Fixed position[2] = {0.0, 0.0}, velocity[2] = {0.0, 0.0};
+        Fixed age = 0.0, life = 1.0;
+    };
+    Particle particles[EPOK_WORLD2D_PARTICLES] = {};
+
+    // Uniform [0, 1) from the emitter's own sequence, so emitters stay reproducible.
+    static Fixed random_unit(Particles2DComponent& emitter) {
+        emitter.seed = emitter.seed * 1664525u + 1013904223u;
+        return Fixed(int32_t((emitter.seed >> 12) & 4095), Fixed::RAW);
+    }
+    static Fixed lerp(Fixed a, Fixed b, Fixed t) { return a + detail::mul_2d(b - a, t); }
+    void spawn(Particles2DComponent& e, const Affine2D& matrix) {
+        Particle* slot = nullptr;
+        for (auto& p : particles)
+            if (!p.owner) { slot = &p; break; }
+        if (!slot) { ++stats.dropped_particles; return; }
+        Fixed local[2] = {0.0, 0.0};
+        if (e.shape == EmissionShape2D::Rectangle) {
+            for (int k = 0; k < 2; ++k) local[k] = detail::mul_2d(random_unit(e) * 2 - Fixed(1.0), e.extents[k]);
+        } else if (e.shape == EmissionShape2D::Circle) {
+            const Fixed angle = random_unit(e) * 360;
+            const Fixed radius = detail::mul_2d(random_unit(e), e.extents[0]);
+            local[0] = detail::mul_2d(cos_degrees(angle), radius);
+            local[1] = detail::mul_2d(sin_degrees(angle), radius);
+        }
+        const Fixed angle = e.direction + detail::mul_2d(random_unit(e) * 2 - Fixed(1.0), e.spread);
+        const Fixed speed = lerp(e.speed[0], e.speed[1], random_unit(e));
+        Fixed velocity[2] = {detail::mul_2d(cos_degrees(angle), speed), detail::mul_2d(sin_degrees(angle), speed)};
+        if (!e.local_coords) {
+            // Launch in the emitter's world orientation.
+            Fixed world[2];
+            matrix.point(local, world);
+            local[0] = world[0];
+            local[1] = world[1];
+            const Fixed vx = velocity[0], vy = velocity[1];
+            const Fixed sx = length_2d(matrix.m[0][0], matrix.m[1][0]), sy = length_2d(matrix.m[0][1], matrix.m[1][1]);
+            velocity[0] = (sx.raw() ? detail::mul_2d(matrix.m[0][0] / sx, vx) : vx) + (sy.raw() ? detail::mul_2d(matrix.m[0][1] / sy, vy) : Fixed(0.0));
+            velocity[1] = (sx.raw() ? detail::mul_2d(matrix.m[1][0] / sx, vx) : Fixed(0.0)) + (sy.raw() ? detail::mul_2d(matrix.m[1][1] / sy, vy) : vy);
+        }
+        slot->owner = &e;
+        slot->position[0] = local[0];
+        slot->position[1] = local[1];
+        slot->velocity[0] = velocity[0];
+        slot->velocity[1] = velocity[1];
+        slot->age = 0.0;
+        slot->life = e.lifetime.raw() > 0 ? e.lifetime : Fixed(1.0);
+        ++e.alive;
+        ++e.emitted;
+    }
+    void simulate_particles(Fixed dt) {
+        stats.particles = 0;
+        for (auto& p : particles) {
+            if (!p.owner) continue;
+            p.age += dt;
+            if (p.age >= p.life) {
+                if (p.owner->alive) --p.owner->alive;
+                p.owner = nullptr;
+                continue;
+            }
+            auto& e = *p.owner;
+            Fixed keep = 1.0;
+            if (e.damping.raw() > 0) {
+                keep = Fixed(1.0) - e.damping * dt;
+                if (keep < 0.0) keep = 0.0;
+            }
+            for (int k = 0; k < 2; ++k) {
+                p.velocity[k] = detail::mul_2d(p.velocity[k] + e.gravity[k] * dt, keep);
+                p.position[k] += p.velocity[k] * dt;
+            }
+            ++stats.particles;
+        }
+        emitters.each([&](Particles2DComponent& e) {
+            // A finished one-shot burst reports once, when its last particle is gone.
+            if (!e.emitting) {
+                if (e.one_shot && e.emitted && !e.alive) {
+                    e.finished = true;
+                    e.emitted = 0;
+                }
+                return;
+            }
+            Affine2D matrix;
+            if (!is_active(&e) || !world_of(e, matrix)) return;
+            const uint16_t amount = e.amount ? e.amount : 1;
+            const Fixed life = e.lifetime.raw() > 0 ? e.lifetime : Fixed(1.0);
+            if (e.explosiveness >= 1.0) {
+                // Bursts: the whole amount at once, once per lifetime.
+                e.accumulator -= dt;
+                if (e.accumulator <= 0.0) {
+                    for (uint16_t i = 0; i < amount && e.alive < amount; ++i) spawn(e, matrix);
+                    e.accumulator = life;
+                    if (e.one_shot) e.emitting = false;
+                }
+                return;
+            }
+            e.accumulator += dt * int32_t(amount) / life;
+            if (e.accumulator > Fixed(int32_t(amount) * 4096, Fixed::RAW)) e.accumulator = Fixed(int32_t(amount) * 4096, Fixed::RAW);
+            while (e.accumulator >= 1.0 && e.alive < amount) {
+                e.accumulator -= 1.0;
+                spawn(e, matrix);
+                if (e.one_shot && e.emitted >= amount) {
+                    e.emitting = false;
+                    break;
+                }
+            }
+        });
+    }
 
     static bool owner_active(ActorComponent& component) { return is_active(&component); }
     static ObjectId owner_of(ActorComponent* component) {
@@ -446,6 +559,19 @@ public:
         return total;
     }
 
+    // ---- particles ---------------------------------------------------------------------
+    void release(Particles2DComponent& emitter) {
+        for (auto& p : particles)
+            if (p.owner == &emitter) p.owner = nullptr;
+        emitter.alive = 0;
+    }
+    // Visits (position, age fraction) of every live particle of `emitter`, oldest slots
+    // first. Positions are world pixels, or emitter-local with local coordinates.
+    template<class Visit> void each_particle_of(const Particles2DComponent& emitter, Visit&& visit) const {
+        for (const auto& p : particles)
+            if (p.owner == &emitter) visit(p.position, p.life.raw() > 0 ? p.age / p.life : Fixed(0.0));
+    }
+
     // ---- runtime tile edits ------------------------------------------------------------
     void edit_lookup(const TileMapLayerComponent& layer, int32_t x, int32_t y, uint16_t& value) const {
         if (!cell_in_range(x, y)) return;
@@ -497,6 +623,18 @@ public:
         sprites.each([&](Sprite2DComponent& sprite) { sprite.advance(dt); });
         tile_clock += dt;
         if (tile_clock > Fixed(65536.0)) tile_clock -= Fixed(65536.0);
+        // Path followers move first, so this step's collisions and triggers see them, and
+        // carry the bodies standing on them.
+        followers.each([&](PathFollow2DComponent& follower) {
+            if (!owner_active(follower)) return;
+            Fixed moved[2];
+            if (!follower.advance(dt, moved) || (!moved[0].raw() && !moved[1].raw())) return;
+            Actor* owner = follower.get_owner();
+            const ObjectId id = owner ? owner->id() : ObjectId{};
+            bodies.each([&](CharacterBody2DComponent& body) {
+                if (body.get_owner() != owner && body.on_floor && body.last_collider == id) displace_owner(body, moved);
+            });
+        });
         sync(true);
         world.update_triggers([&](const TriggerEvent& event) {
             const ObjectId a = actor_at(event.first), b = actor_at(event.second);
@@ -524,6 +662,48 @@ public:
                 if (owner_active(parallax)) parallax.follow(center, dt);
             });
         }
+        remotes.each([](RemoteTransform2DComponent& remote) {
+            if (is_active(&remote)) remote.push();
+        });
+        if (notifiers.head || audio_players.head) {
+            Camera2D camera;
+            if (auto* active = active_camera()) camera = active->view();
+            const Projector projector(camera);
+            notifiers.each([&](VisibleOnScreenNotifier2DComponent& notifier) { notice(notifier, projector); });
+            const Fixed listener[2] = {camera.position[0], camera.position[1]};
+            const Fixed half = camera.zoom.raw() > 0 ? Fixed(int32_t(display_width) * 2048, Fixed::RAW) / camera.zoom : Fixed(160.0);
+            audio_players.each([&](AudioPlayer2DComponent& player) {
+                Affine2D matrix;
+                if (is_active(&player) && world_of(player, matrix)) player.spatialize(matrix.t, listener, half);
+            });
+        }
+        simulate_particles(dt);
+    }
+    // Whether a notifier's rectangle is inside the view; reports changes and, when asked,
+    // deactivates its owner off screen.
+    static void notice(VisibleOnScreenNotifier2DComponent& notifier, const Projector& projector) {
+        Affine2D matrix;
+        if (!world_of(notifier, matrix)) return;
+        const Fixed* r = notifier.rect;
+        const Fixed corners[4][2] = {{r[0], r[1]}, {r[0] + r[2], r[1]}, {r[0], r[1] + r[3]}, {r[0] + r[2], r[1] + r[3]}};
+        int32_t bounds[4] = {0x7fffffff, 0x7fffffff, -0x7fffffff, -0x7fffffff};
+        for (const auto& corner : corners) {
+            Fixed world[2], screen[2];
+            matrix.point(corner, world);
+            projector.point(world, screen);
+            const int32_t x = screen[0].raw() >> 12, y = screen[1].raw() >> 12;
+            if (x < bounds[0]) bounds[0] = x;
+            if (y < bounds[1]) bounds[1] = y;
+            if (x > bounds[2]) bounds[2] = x;
+            if (y > bounds[3]) bounds[3] = y;
+        }
+        const bool on = bounds[2] >= 0 && bounds[3] >= 0 && bounds[0] < display_width && bounds[1] < display_height;
+        if (notifier.known && on == notifier.on_screen) return;
+        if (notifier.known) (on ? notifier.entered : notifier.exited) = true;
+        notifier.on_screen = on;
+        notifier.known = true;
+        if (notifier.disable_when_hidden)
+            if (Actor* owner = notifier.get_owner()) owner->set_active(on);
     }
     template<class LevelType> static void dispatch(LevelType& level, ObjectId actor, ObjectId other, TriggerPhase phase) {
         auto* registry = level.registry();
@@ -558,6 +738,8 @@ public:
         edit_count = 0;
         tile_layers.each([](TileMapLayerComponent& layer) { layer.edit_count = 0; });
         tile_clock = 0.0;
+        for (auto& p : particles) p.owner = nullptr;
+        emitters.each([](Particles2DComponent& e) { e.alive = 0; });
         stats = {};
     }
 };
@@ -582,13 +764,17 @@ inline void install() {
         return service.edit_store(layer, x, y, value);
     };
     tile_hooks.forget = [](TileMapLayerComponent& layer) { service.edit_forget(layer); };
+    release_particles = [](Particles2DComponent& emitter) { service.release(emitter); };
 }
 
 
 // ---- draw list ----------------------------------------------------------------------------
+enum class DrawKind : uint8_t { Sprite, Tiles, Line, Polygon, Particles };
 // One entry of the frame's draw list: a sprite resolved to screen corners (A top-left,
 // B top-right, C bottom-left, D bottom-right in the sprite's own frame), its texel
-// rectangle, colour and blend; or a whole tile layer (`tiles`), expanded by the renderer.
+// rectangle, colour and blend; or a whole tile layer, line, polygon or particle emitter,
+// expanded by the renderer (`each_tile`, `each_line_quad`, `each_polygon_triangle`,
+// `each_particle`).
 // Shared by the PSX renderer and the native PC runner, so both draw the same frame.
 struct SpriteDraw {
     uint32_t key = 0;
@@ -600,11 +786,23 @@ struct SpriteDraw {
     bool flip_h = false, flip_v = false;
     // Unrotated, unscaled, unflipped at zoom 1: a GP0 rectangle reproduces it exactly.
     bool rectangle = false;
-    // Tile layer entries: the layer, whether it is drawn in screen pixels, and the screen
-    // shift of a repeated parallax copy (plus a screen canvas offset).
-    const TileMapLayerComponent* tiles = nullptr;
+    // Entries the renderer expands (tile layers, lines, polygons, particles): the
+    // component, whether it is drawn in screen pixels, and the screen shift of a repeated
+    // parallax copy (plus a screen canvas offset). `color` is then the canvas tint.
+    DrawKind kind = DrawKind::Sprite;
+    const ActorComponent* component = nullptr;
     bool screen = false;
     int16_t shift[2] = {0, 0};
+};
+// One quad of a Line2D (corners as in SpriteDraw) with a colour per corner.
+struct ShapeQuad {
+    int16_t x[4], y[4];
+    uint8_t color[4][3];
+};
+// One triangle of a Polygon2D, with texels when the polygon is textured.
+struct ShapeTriangle {
+    int16_t x[3], y[3];
+    uint16_t u[3], v[3];
 };
 // One tile resolved for drawing (corners as in SpriteDraw).
 struct TileDraw {
@@ -679,7 +877,7 @@ inline uint32_t z_key(int32_t z) {
 template<class TextureSize>
 size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, size_t capacity, TextureSize&& texture_size) {
     stats.sprites = stats.culled = stats.dropped = stats.tile_layers = stats.tiles = 0;
-    if (!sprites.head && !tile_layers.head) return 0;
+    if (!sprites.head && !tile_layers.head && !lines.head && !polygons.head && !emitters.head) return 0;
     Camera2D camera;
     if (auto* active = service.active_camera()) camera = active->view();
     const Projector world_projector(camera);
@@ -768,7 +966,8 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
         if (!canvas.visible) return;
         ++stats.tile_layers;
         SpriteDraw draw;
-        draw.tiles = &layer;
+        draw.kind = DrawKind::Tiles;
+        draw.component = &layer;
         draw.screen = canvas.screen;
         draw.texture = layer.texture;
         draw.blend = layer.blend;
@@ -809,16 +1008,229 @@ size_t collect_sprites(SpriteDraw* draws, DrawItem* items, DrawItem* scratch, si
             push(copy, canvas.layer);
         });
     });
+    // Lines, polygons and particle emitters: one entry each, on their canvas.
+    auto shape = [&](ActorComponent& component, DrawKind kind, int16_t z, BlendMode blend, int32_t texture) {
+        const Canvas canvas = canvas_of(component);
+        if (!canvas.visible) return;
+        SpriteDraw draw;
+        draw.kind = kind;
+        draw.component = &component;
+        draw.screen = canvas.screen;
+        draw.blend = blend;
+        draw.texture = texture;
+        if (const uint8_t* by = tints.of(canvas.layer))
+            for (int k = 0; k < 3; ++k) draw.color[k] = by[k];
+        if (canvas.screen) {
+            draw.shift[0] = screen_pixel(canvas.offset[0]);
+            draw.shift[1] = screen_pixel(canvas.offset[1]);
+        }
+        const auto* owner_root = root_of(component);
+        draw.key = z_key(int32_t(z) + (owner_root ? int32_t(owner_root->transform.draw_order) : 0));
+        ++stats.shapes;
+        const bool repeats = canvas.parallax && (canvas.parallax->repeat_size[0] > 0.0 || canvas.parallax->repeat_size[1] > 0.0);
+        Affine2D matrix;
+        if (!repeats || kind == DrawKind::Particles || !world_of(component, matrix)) {
+            push(draw, canvas.layer);
+            return;
+        }
+        // A repeating line or polygon: copies across the screen, from its points' bounds.
+        const Projector& projector = canvas.screen ? screen_projector : world_projector;
+        int16_t bounds[4] = {32767, 32767, -32768, -32768};
+        auto grow = [&](const Fixed* local) {
+            Fixed world[2], screen[2];
+            matrix.point(local, world);
+            projector.point(world, screen);
+            const int16_t x = int16_t(screen_pixel(screen[0]) + draw.shift[0]), y = int16_t(screen_pixel(screen[1]) + draw.shift[1]);
+            if (x < bounds[0]) bounds[0] = x;
+            if (x > bounds[2]) bounds[2] = x;
+            if (y < bounds[1]) bounds[1] = y;
+            if (y > bounds[3]) bounds[3] = y;
+        };
+        if (kind == DrawKind::Line) {
+            const auto& line = static_cast<Line2DComponent&>(component);
+            for (uint16_t i = 0; i < line.point_count && i < line2d_max_points; ++i) grow(line.points[i]);
+        } else {
+            const auto& polygon = static_cast<Polygon2DComponent&>(component);
+            for (uint16_t i = 0; i < polygon.vertex_count && polygon.vertices; ++i) grow(polygon.vertices + 2 * i);
+        }
+        repeat_copies(canvas, projector, bounds, [&](int16_t dx, int16_t dy) {
+            SpriteDraw copy = draw;
+            copy.shift[0] = int16_t(draw.shift[0] + dx);
+            copy.shift[1] = int16_t(draw.shift[1] + dy);
+            push(copy, canvas.layer);
+        });
+    };
+    stats.shapes = 0;
+    lines.each([&](Line2DComponent& line) {
+        if (line.visible && line.point_count >= 2 && is_active(&line)) shape(line, DrawKind::Line, line.z_index, line.blend, -1);
+    });
+    polygons.each([&](Polygon2DComponent& polygon) {
+        if (polygon.visible && polygon.triangle_count && is_active(&polygon))
+            shape(polygon, DrawKind::Polygon, polygon.z_index, polygon.blend, polygon.texture);
+    });
+    emitters.each([&](Particles2DComponent& emitter) {
+        if (emitter.visible && emitter.alive && is_active(&emitter))
+            shape(emitter, DrawKind::Particles, emitter.z_index, emitter.blend, emitter.texture);
+    });
     sort_draw_items(items, scratch, count);
     return count;
+}
+
+// The projection an expanded entry draws through, and its owner's world matrix.
+inline bool entry_space(const SpriteDraw& entry, Camera2D& camera, Affine2D& matrix) {
+    if (!entry.component) return false;
+    if (entry.screen) {
+        camera.position[0] = Fixed(int32_t(display_width) * 2048, Fixed::RAW);
+        camera.position[1] = Fixed(int32_t(display_height) * 2048, Fixed::RAW);
+    } else if (auto* active = service.active_camera()) {
+        camera = active->view();
+    }
+    return world_of(*const_cast<ActorComponent*>(entry.component), matrix);
+}
+inline uint8_t mix(uint8_t a, uint8_t b, Fixed t, uint8_t tint) {
+    const int32_t value = int32_t(a) + ((int32_t(b) - int32_t(a)) * t.raw()) / 4096;
+    return uint8_t((value * int32_t(tint) + 127) / 255);
+}
+// The quads of a Line2D entry, one per segment, extended by half the width at inner
+// joints so corners close.
+template<class Visit> inline void each_line_quad(const SpriteDraw& entry, Visit&& visit) {
+    if (entry.kind != DrawKind::Line) return;
+    const auto& line = *static_cast<const Line2DComponent*>(entry.component);
+    Camera2D camera;
+    Affine2D matrix;
+    if (!entry_space(entry, camera, matrix)) return;
+    const Projector projector(camera);
+    const uint16_t count = line.point_count > line2d_max_points ? line2d_max_points : line.point_count;
+    const uint16_t segments = uint16_t(line.closed ? count : count - 1);
+    if (count < 2) return;
+    // Screen-space half width: the owner's scale (largest axis) and the camera's zoom.
+    const Fixed sx = length_2d(matrix.m[0][0], matrix.m[1][0]), sy = length_2d(matrix.m[0][1], matrix.m[1][1]);
+    const Fixed half = detail::mul_2d(detail::mul_2d(line.width, sx > sy ? sx : sy), projector.scale) / 2;
+    if (half.raw() <= 0) return;
+    for (uint16_t i = 0; i < segments; ++i) {
+        const uint16_t j = uint16_t((i + 1) % count);
+        Fixed a[2], b[2];
+        matrix.point(line.points[i], a);
+        matrix.point(line.points[j], b);
+        projector.point(a, a);
+        projector.point(b, b);
+        const Fixed dx = b[0] - a[0], dy = b[1] - a[1];
+        const Fixed length = length_2d(dx, dy);
+        if (!length.raw()) continue;
+        const Fixed ux = dx / length, uy = dy / length;
+        const Fixed nx = detail::mul_2d(-uy, half), ny = detail::mul_2d(ux, half);
+        // Square caps at inner joints overlap the next segment, so corners have no gaps.
+        const bool open_start = !line.closed && i == 0, open_end = !line.closed && j == count - 1;
+        if (!open_start) { a[0] -= detail::mul_2d(ux, half); a[1] -= detail::mul_2d(uy, half); }
+        if (!open_end) { b[0] += detail::mul_2d(ux, half); b[1] += detail::mul_2d(uy, half); }
+        ShapeQuad quad;
+        const Fixed corners[4][2] = {{a[0] + nx, a[1] + ny}, {b[0] + nx, b[1] + ny}, {a[0] - nx, a[1] - ny}, {b[0] - nx, b[1] - ny}};
+        for (int k = 0; k < 4; ++k) {
+            quad.x[k] = int16_t(screen_pixel(corners[k][0]) + entry.shift[0]);
+            quad.y[k] = int16_t(screen_pixel(corners[k][1]) + entry.shift[1]);
+        }
+        const Fixed t0 = Fixed(int32_t(i) * 4096 / segments, Fixed::RAW), t1 = Fixed(int32_t(i + 1) * 4096 / segments, Fixed::RAW);
+        for (int c = 0; c < 3; ++c) {
+            quad.color[0][c] = quad.color[2][c] = mix(line.begin_color[c], line.end_color[c], t0, entry.color[c]);
+            quad.color[1][c] = quad.color[3][c] = mix(line.begin_color[c], line.end_color[c], t1, entry.color[c]);
+        }
+        int16_t min_x = 32767, max_x = -32768, min_y = 32767, max_y = -32768;
+        for (int k = 0; k < 4; ++k) {
+            if (quad.x[k] < min_x) min_x = quad.x[k];
+            if (quad.x[k] > max_x) max_x = quad.x[k];
+            if (quad.y[k] < min_y) min_y = quad.y[k];
+            if (quad.y[k] > max_y) max_y = quad.y[k];
+        }
+        if (max_x <= 0 || max_y <= 0 || min_x >= display_width || min_y >= display_height) continue;
+        if (max_x - min_x > 1023 || max_y - min_y > 511) continue;
+        visit(quad);
+    }
+}
+// The triangles of a Polygon2D entry.
+template<class Visit> inline void each_polygon_triangle(const SpriteDraw& entry, Visit&& visit) {
+    if (entry.kind != DrawKind::Polygon) return;
+    const auto& polygon = *static_cast<const Polygon2DComponent*>(entry.component);
+    if (!polygon.vertices || !polygon.triangles) return;
+    Camera2D camera;
+    Affine2D matrix;
+    if (!entry_space(entry, camera, matrix)) return;
+    const Projector projector(camera);
+    for (uint16_t t = 0; t < polygon.triangle_count; ++t) {
+        ShapeTriangle triangle;
+        int16_t min_x = 32767, max_x = -32768, min_y = 32767, max_y = -32768;
+        bool valid = true;
+        for (int k = 0; k < 3; ++k) {
+            const uint16_t index = polygon.triangles[3 * t + k];
+            if (index >= polygon.vertex_count) { valid = false; break; }
+            Fixed world[2], screen[2];
+            matrix.point(polygon.vertices + 2 * index, world);
+            projector.point(world, screen);
+            triangle.x[k] = int16_t(screen_pixel(screen[0]) + entry.shift[0]);
+            triangle.y[k] = int16_t(screen_pixel(screen[1]) + entry.shift[1]);
+            triangle.u[k] = polygon.texels ? polygon.texels[2 * index] : 0;
+            triangle.v[k] = polygon.texels ? polygon.texels[2 * index + 1] : 0;
+            if (triangle.x[k] < min_x) min_x = triangle.x[k];
+            if (triangle.x[k] > max_x) max_x = triangle.x[k];
+            if (triangle.y[k] < min_y) min_y = triangle.y[k];
+            if (triangle.y[k] > max_y) max_y = triangle.y[k];
+        }
+        if (!valid || max_x <= 0 || max_y <= 0 || min_x >= display_width || min_y >= display_height) continue;
+        if (max_x - min_x > 1023 || max_y - min_y > 511) continue;
+        visit(triangle);
+    }
+}
+// The particles of an emitter entry as sprites (texel rectangle, colour, corners).
+template<class Visit>
+inline void each_particle(const SpriteDraw& entry, uint16_t texture_width, uint16_t texture_height, Visit&& visit) {
+    if (entry.kind != DrawKind::Particles) return;
+    const auto& emitter = *static_cast<const Particles2DComponent*>(entry.component);
+    Camera2D camera;
+    Affine2D matrix;
+    if (!entry_space(entry, camera, matrix)) return;
+    const Projector projector(camera);
+    uint16_t region[4] = {emitter.region[0], emitter.region[1], emitter.region[2], emitter.region[3]};
+    if (!region[2]) region[2] = uint16_t(texture_width > region[0] ? texture_width - region[0] : 0);
+    if (!region[3]) region[3] = uint16_t(texture_height > region[1] ? texture_height - region[1] : 0);
+    const uint16_t frames = emitter.hframes ? emitter.hframes : 1;
+    const uint16_t cell = uint16_t(region[2] / frames);
+    if (!cell || !region[3] || uint32_t(region[0]) + region[2] > texture_width || uint32_t(region[1]) + region[3] > texture_height) return;
+    service.each_particle_of(emitter, [&](const Fixed* position, Fixed t) {
+        Fixed world[2] = {position[0], position[1]};
+        if (emitter.local_coords) matrix.point(position, world);
+        Fixed screen[2];
+        projector.point(world, screen);
+        const Fixed size = detail::mul_2d(emitter.scale[0] + detail::mul_2d(emitter.scale[1] - emitter.scale[0], t), projector.scale);
+        SpriteDraw draw;
+        uint16_t frame = uint16_t((t.raw() * frames) >> 12);
+        if (frame >= frames) frame = uint16_t(frames - 1);
+        draw.source[0] = uint16_t(region[0] + frame * cell);
+        draw.source[1] = region[1];
+        draw.source[2] = cell;
+        draw.source[3] = region[3];
+        const Fixed half_w = detail::mul_2d(Fixed(int32_t(cell) * 2048, Fixed::RAW), size);
+        const Fixed half_h = detail::mul_2d(Fixed(int32_t(region[3]) * 2048, Fixed::RAW), size);
+        const int16_t left = int16_t(screen_pixel(screen[0] - half_w) + entry.shift[0]), right = int16_t(screen_pixel(screen[0] + half_w) + entry.shift[0]);
+        const int16_t top = int16_t(screen_pixel(screen[1] - half_h) + entry.shift[1]), bottom = int16_t(screen_pixel(screen[1] + half_h) + entry.shift[1]);
+        if (right <= 0 || bottom <= 0 || left >= display_width || top >= display_height || right <= left || bottom <= top) return;
+        draw.x[0] = draw.x[2] = left;
+        draw.x[1] = draw.x[3] = right;
+        draw.y[0] = draw.y[1] = top;
+        draw.y[2] = draw.y[3] = bottom;
+        for (int k = 0; k < 3; ++k) draw.color[k] = mix(emitter.start_color[k], emitter.end_color[k], t, entry.color[k]);
+        draw.texture = emitter.texture;
+        draw.blend = emitter.blend;
+        draw.rectangle = right - left == int16_t(cell) && bottom - top == int16_t(region[3]);
+        visit(draw);
+    });
 }
 
 // Every visible tile of a tile-layer entry, in row order. `texture_width/height` bound the
 // atlas; tiles whose frame falls outside it are skipped.
 template<class Visit>
 inline void each_tile(const SpriteDraw& entry, uint16_t texture_width, uint16_t texture_height, Visit&& visit) {
-    const TileMapLayerComponent* layer = entry.tiles;
-    if (!layer || !layer->tileset) return;
+    if (entry.kind != DrawKind::Tiles || !entry.component) return;
+    const auto* layer = static_cast<const TileMapLayerComponent*>(entry.component);
+    if (!layer->tileset) return;
     Camera2D camera;
     if (!entry.screen)
         if (auto* active = service.active_camera()) camera = active->view();

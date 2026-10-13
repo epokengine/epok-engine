@@ -22,6 +22,7 @@
 #include "psyqo/primitives/control.hh"
 #include "psyqo/primitives/quads.hh"
 #include "psyqo/primitives/sprites.hh"
+#include "psyqo/primitives/triangles.hh"
 #include <new>
 
 #ifndef EPOK_WORLD2D_ARENA_BYTES
@@ -51,6 +52,8 @@ class Renderer {
         return uint16_t(((t.x / 64) & 15) | (((t.y / 256) & 1) << 4) | ((blend == BlendMode::Cutout ? 0 : int(blend) - 1) << 5) |
                         ((t.bits == 4 ? 0 : 1) << 7));
     }
+    // Untextured primitives draw their colour as is (textured ones treat 128 as 1.0).
+    static psyqo::Color flat_color(const uint8_t* color) { return {{.r = color[0], .g = color[1], .b = color[2]}}; }
     static psyqo::Color color_of(const uint8_t* color) {
         return {{.r = uint8_t((unsigned(color[0]) + 1) / 2), .g = uint8_t((unsigned(color[1]) + 1) / 2),
                  .b = uint8_t((unsigned(color[2]) + 1) / 2)}};
@@ -125,6 +128,81 @@ class Renderer {
         ++stats.quads;
         return true;
     }
+    // Untextured primitives take their semi-transparency mode from the drawing page.
+    static uint16_t blend_page(BlendMode blend) { return uint16_t((blend == BlendMode::Cutout ? 0 : int(blend) - 1) << 5); }
+    void lines(psyqo::GPU& gpu, const SpriteDraw& d) {
+        if (d.blend != BlendMode::Cutout && !use_page(gpu, blend_page(d.blend))) return;
+        each_line_quad(d, [&](const ShapeQuad& shape) {
+            auto* fragment = allocate<psyqo::Fragments::SimpleFragment<psyqo::Prim::GouraudQuad>>();
+            if (!fragment) return;
+            auto& q = fragment->primitive;
+            q.pointA = {{.x = shape.x[0], .y = shape.y[0]}};
+            q.pointB = {{.x = shape.x[1], .y = shape.y[1]}};
+            q.pointC = {{.x = shape.x[2], .y = shape.y[2]}};
+            q.pointD = {{.x = shape.x[3], .y = shape.y[3]}};
+            q.setColorA(flat_color(shape.color[0]));
+            q.setColorB(flat_color(shape.color[1]));
+            q.setColorC(flat_color(shape.color[2]));
+            q.setColorD(flat_color(shape.color[3]));
+            if (d.blend == BlendMode::Cutout) q.setOpaque();
+            else q.setSemiTrans();
+            gpu.chain(*fragment);
+            ++stats.quads;
+            ++stats.drawn;
+        });
+    }
+    void polygon(psyqo::GPU& gpu, const SpriteDraw& d) {
+        const auto& shape = *static_cast<const Polygon2DComponent*>(d.component);
+        uint8_t color[3];
+        for (int k = 0; k < 3; ++k) color[k] = uint8_t((unsigned(shape.color[k]) * d.color[k] + 127) / 255);
+        const Texture* t = shape.texels ? texture(int(d.texture)) : nullptr;
+        if (!t && d.blend != BlendMode::Cutout && !use_page(gpu, blend_page(d.blend))) return;
+        each_polygon_triangle(d, [&](const ShapeTriangle& tri) {
+            if (t) {
+                auto* fragment = allocate<psyqo::Fragments::SimpleFragment<psyqo::Prim::TexturedTriangle>>();
+                if (!fragment) return;
+                auto& p = fragment->primitive;
+                p.pointA = {{.x = tri.x[0], .y = tri.y[0]}};
+                p.pointB = {{.x = tri.x[1], .y = tri.y[1]}};
+                p.pointC = {{.x = tri.x[2], .y = tri.y[2]}};
+                const int base_u = texture_base_u(*t), base_v = t->y & 255;
+                auto uv = [](int value) { return uint8_t(value < 0 ? 0 : value > 255 ? 255 : value); };
+                p.uvA.u = uv(base_u + tri.u[0]); p.uvA.v = uv(base_v + tri.v[0]);
+                p.uvB.u = uv(base_u + tri.u[1]); p.uvB.v = uv(base_v + tri.v[1]);
+                p.uvC.u = uv(base_u + tri.u[2]); p.uvC.v = uv(base_v + tri.v[2]);
+                p.clutIndex = texture_clut(*t);
+                p.tpage = texture_page(*t, d.blend);
+                p.setColor(color_of(color));
+                if (d.blend == BlendMode::Cutout) p.setOpaque();
+                else p.setSemiTrans();
+                gpu.chain(*fragment);
+                current_page = page_word(*t, d.blend);
+            } else {
+                auto* fragment = allocate<psyqo::Fragments::SimpleFragment<psyqo::Prim::Triangle>>();
+                if (!fragment) return;
+                auto& p = fragment->primitive;
+                p.pointA = {{.x = tri.x[0], .y = tri.y[0]}};
+                p.pointB = {{.x = tri.x[1], .y = tri.y[1]}};
+                p.pointC = {{.x = tri.x[2], .y = tri.y[2]}};
+                p.setColor(flat_color(color));
+                if (d.blend == BlendMode::Cutout) p.setOpaque();
+                else p.setSemiTrans();
+                gpu.chain(*fragment);
+            }
+            ++stats.drawn;
+        });
+    }
+    // A resolved sprite (or particle): an exact rectangle when possible, else a quad.
+    void sprite(psyqo::GPU& gpu, const SpriteDraw& d, const Texture& t) {
+        bool ok;
+        if (d.rectangle) {
+            if (!use_page(gpu, page_word(t, d.blend))) return;
+            ok = rectangle<psyqo::Prim::Sprite>(gpu, t, d.blend, d.color, d.x[0], d.y[0], d.source[0], d.source[1], d.source[2], d.source[3]);
+        } else {
+            ok = quad(gpu, t, d.blend, d.color, d.x, d.y, d.source[0], d.source[1], d.source[2], d.source[3], d.flip_h, d.flip_v, false);
+        }
+        if (ok) ++stats.drawn;
+    }
     void tiles(psyqo::GPU& gpu, const SpriteDraw& d, const Texture& t) {
         const uint16_t page = page_word(t, d.blend);
         each_tile(d, t.width, t.height, [&](const TileDraw& tile) {
@@ -162,22 +240,19 @@ public:
         });
         for (size_t i = 0; i < count; ++i) {
             const SpriteDraw& d = draws[items[i].index];
-            const Texture* t = texture(int(d.texture));
-            if (!t) continue;
-            if (d.tiles) {
-                tiles(gpu, d, *t);
+            if (d.kind == DrawKind::Line) {
+                lines(gpu, d);
                 continue;
             }
-            bool ok;
-            if (d.rectangle) {
-                if (!use_page(gpu, page_word(*t, d.blend))) continue;
-                ok = rectangle<psyqo::Prim::Sprite>(gpu, *t, d.blend, d.color, d.x[0], d.y[0], d.source[0], d.source[1], d.source[2],
-                                                    d.source[3]);
-            } else {
-                ok = quad(gpu, *t, d.blend, d.color, d.x, d.y, d.source[0], d.source[1], d.source[2], d.source[3], d.flip_h, d.flip_v,
-                          false);
+            if (d.kind == DrawKind::Polygon) {
+                polygon(gpu, d);
+                continue;
             }
-            if (ok) ++stats.drawn;
+            const Texture* t = texture(int(d.texture));
+            if (!t) continue;
+            if (d.kind == DrawKind::Tiles) tiles(gpu, d, *t);
+            else if (d.kind == DrawKind::Particles) each_particle(d, t->width, t->height, [&](const SpriteDraw& p) { sprite(gpu, p, *t); });
+            else sprite(gpu, d, *t);
         }
         stats.arena_bytes = uint32_t(used);
     }

@@ -152,7 +152,7 @@ epok::audio_parameters(i);
 inline void audio_tick()
 ```
 
-- **Declared at:** [line 124](../../../runtime/audio.hpp#L124)
+- **Declared at:** [line 126](../../../runtime/audio.hpp#L126)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.

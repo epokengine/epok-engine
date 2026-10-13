@@ -177,6 +177,7 @@ mod settings;
 mod settings_ui;
 mod sf2;
 mod shadows;
+mod shape2d;
 mod skeletal;
 mod skeletal_compile;
 #[cfg(test)]
@@ -223,6 +224,7 @@ mod visibility_track;
 mod workspace;
 mod world2d;
 mod world2d_editor;
+mod world2d_shapes_editor;
 use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},

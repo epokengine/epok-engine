@@ -1457,7 +1457,15 @@ fn creation_menu(
     if domain_visible(Domain::World2D, mode)
         && let Some(_menu) = ui.begin_menu("2D Node")
     {
+        let mut category = "";
         for preset in crate::world2d::Preset::ALL {
+            if preset.category() != category {
+                if !category.is_empty() {
+                    ui.separator();
+                }
+                category = preset.category();
+                ui.text_disabled(category);
+            }
             if ui.menu_item(format!(
                 "{}  {}",
                 crate::world2d_editor::preset_icon(preset),

@@ -2,7 +2,8 @@
 // phases 1 and 2): sprite frame clips, Camera2D following, CharacterBody2D move_and_slide
 // with floor/wall/one-way contacts, trigger delivery to overlap_2d, registration lifetime,
 // the stable draw-item sort, tile map cells and runtime edits, tile collision, rays and
-// overlaps against tiles, tile drawing, parallax and canvas layers. Compiles the real runtime headers; only the audio service and
+// overlaps against tiles, tile drawing, parallax and canvas layers, paths and followers,
+// lines, polygons, particles, on-screen notifiers, remote transforms and 2D audio. Compiles the real runtime headers; only the audio service and
 // the cooked class table are provided here, as a generated build would.
 #include <cassert>
 #include <cstdio>
@@ -67,6 +68,14 @@ const ClassDescriptor object_classes[] = {
     {Parallax2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<Parallax2DComponent>, &object_destruct, sizeof(Parallax2DComponent), alignof(Parallax2DComponent), &ObjectPool<Parallax2DComponent, 4>::acquire, &ObjectPool<Parallax2DComponent, 4>::release},
     {CanvasLayer2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<CanvasLayer2DComponent>, &object_destruct, sizeof(CanvasLayer2DComponent), alignof(CanvasLayer2DComponent), &ObjectPool<CanvasLayer2DComponent, 4>::acquire, &ObjectPool<CanvasLayer2DComponent, 4>::release},
     {CanvasModulate2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<CanvasModulate2DComponent>, &object_destruct, sizeof(CanvasModulate2DComponent), alignof(CanvasModulate2DComponent), &ObjectPool<CanvasModulate2DComponent, 4>::acquire, &ObjectPool<CanvasModulate2DComponent, 4>::release},
+    {Path2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<Path2DComponent>, &object_destruct, sizeof(Path2DComponent), alignof(Path2DComponent), &ObjectPool<Path2DComponent, 4>::acquire, &ObjectPool<Path2DComponent, 4>::release},
+    {PathFollow2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<PathFollow2DComponent>, &object_destruct, sizeof(PathFollow2DComponent), alignof(PathFollow2DComponent), &ObjectPool<PathFollow2DComponent, 4>::acquire, &ObjectPool<PathFollow2DComponent, 4>::release},
+    {Line2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<Line2DComponent>, &object_destruct, sizeof(Line2DComponent), alignof(Line2DComponent), &ObjectPool<Line2DComponent, 4>::acquire, &ObjectPool<Line2DComponent, 4>::release},
+    {Polygon2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<Polygon2DComponent>, &object_destruct, sizeof(Polygon2DComponent), alignof(Polygon2DComponent), &ObjectPool<Polygon2DComponent, 4>::acquire, &ObjectPool<Polygon2DComponent, 4>::release},
+    {Particles2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<Particles2DComponent>, &object_destruct, sizeof(Particles2DComponent), alignof(Particles2DComponent), &ObjectPool<Particles2DComponent, 4>::acquire, &ObjectPool<Particles2DComponent, 4>::release},
+    {AudioPlayer2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<AudioPlayer2DComponent>, &object_destruct, sizeof(AudioPlayer2DComponent), alignof(AudioPlayer2DComponent), &ObjectPool<AudioPlayer2DComponent, 4>::acquire, &ObjectPool<AudioPlayer2DComponent, 4>::release},
+    {VisibleOnScreenNotifier2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, 0, &object_construct<VisibleOnScreenNotifier2DComponent>, &object_destruct, sizeof(VisibleOnScreenNotifier2DComponent), alignof(VisibleOnScreenNotifier2DComponent), &ObjectPool<VisibleOnScreenNotifier2DComponent, 4>::acquire, &ObjectPool<VisibleOnScreenNotifier2DComponent, 4>::release},
+    {RemoteTransform2DComponent::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::World2D, world2d_bit, ObjectClassMultiple, &object_construct<RemoteTransform2DComponent>, &object_destruct, sizeof(RemoteTransform2DComponent), alignof(RemoteTransform2DComponent), &ObjectPool<RemoteTransform2DComponent, 4>::acquire, &ObjectPool<RemoteTransform2DComponent, 4>::release},
     {Listener2D::static_class_id, ActorComponent::static_class_id, ObjectFamily::Component, ObjectDomain::None, world2d_bit, ObjectClassMultiple, &object_construct<Listener2D>, &object_destruct, sizeof(Listener2D), alignof(Listener2D), &ObjectPool<Listener2D, 4>::acquire, &ObjectPool<Listener2D, 4>::release},
     {Level::static_class_id, Object::static_class_id, ObjectFamily::Level, ObjectDomain::None, 0, ObjectClassAbstract, nullptr, nullptr, sizeof(Level), alignof(Level), nullptr, nullptr},
 };
@@ -74,7 +83,7 @@ const size_t object_class_count = sizeof(object_classes) / sizeof(object_classes
 }  // namespace epok
 
 namespace {
-ObjectRegistryStorage<96> registry_storage;
+ObjectRegistryStorage<128> registry_storage;
 Level game_level;
 void reset() {
     if (game_level.registry()) {
@@ -457,7 +466,7 @@ void tile_drawing() {
     world2d::SpriteDraw draws[16];
     world2d::DrawItem items[16], scratch[16];
     size_t count = world2d::collect_sprites(draws, items, scratch, 16, size);
-    assert(count == 1 && draws[items[0].index].tiles == layer);
+    assert(count == 1 && draws[items[0].index].kind == world2d::DrawKind::Tiles && draws[items[0].index].component == layer);
     // The map's origin is the screen's top-left corner: the floor tiles that fit on screen,
     // 3 wall, 4 ledge and 1 flower tiles, all exact rectangles.
     const unsigned visible = (display_width / 16 < 32 ? display_width / 16 : 32) + 8;
@@ -559,6 +568,205 @@ void canvas_layers() {
     assert(world2d::collect_sprites(draws, items, scratch, 4, size) == 1);
 }
 
+// 13. Followers walk a path at their speed, wrap, bounce, turn with it and carry riders.
+void path_follow() {
+    reset();
+    static constexpr Fixed points[] = {Fixed(0.0), Fixed(0.0), Fixed(100.0), Fixed(0.0), Fixed(100.0), Fixed(50.0)};
+    static constexpr Fixed lengths[] = {Fixed(0.0), Fixed(100.0), Fixed(150.0)};
+    auto* track = spawn<Actor2D>("Track", 20, 10);
+    auto* path = game_level.add_component<Path2DComponent>(*track, "Path");
+    path->points = points;
+    path->lengths = lengths;
+    path->point_count = 3;
+    assert(real(path->get_length()) == 150 && real(path->sample_x(125)) == 120 && real(path->sample_y(125)) == 35);
+    auto* cart = spawn<Actor2D>("Cart", 0, 0);
+    root(cart).attach_parent = root(track).id();
+    auto* follow = game_level.add_component<PathFollow2DComponent>(*cart, "Follow");
+    follow->speed = q(50);
+    follow->rotates = true;
+    const double dt = real(Fixed(epok::time.delta_raw, Fixed::RAW));
+    const int second = int(1.0 / dt + 0.5);
+    for (int i = 0; i < second; ++i) step();
+    // Local to the track: 50 pixels along the first segment, facing right.
+    assert(close(real(root(cart).transform.position[0]), 50, 0.5) && close(real(root(cart).transform.position[1]), 0, 0.01));
+    assert(close(real(root(cart).transform.rotation), 0, 0.5));
+    for (int i = 0; i < second * 3 / 2; ++i) step();
+    // 125 pixels: on the vertical segment, facing down; then it wraps to the start.
+    assert(close(real(root(cart).transform.position[0]), 100, 0.5) && close(real(root(cart).transform.position[1]), 25, 1.0));
+    assert(close(real(root(cart).transform.rotation), 90, 0.5));
+    follow->set_progress_ratio(q(0.5));
+    assert(close(real(follow->get_progress()), 75, 0.01));
+    follow->ping_pong = true;
+    follow->set_progress(q(149));
+    for (int i = 0; i < 4; ++i) step();
+    assert(follow->get_speed() < 0.0 && real(follow->get_progress()) < 150);
+    // A platform moving along a path carries the body standing on it.
+    reset();
+    static constexpr Fixed flat[] = {Fixed(0.0), Fixed(0.0), Fixed(1000.0), Fixed(0.0)};
+    static constexpr Fixed flat_lengths[] = {Fixed(0.0), Fixed(1000.0)};
+    auto* rail = spawn<Actor2D>("Rail", 0, 100);
+    auto* line = game_level.add_component<Path2DComponent>(*rail, "Path");
+    line->points = flat;
+    line->lengths = flat_lengths;
+    line->point_count = 2;
+    auto* platform = spawn<Actor2D>("Platform", 0, 0);
+    root(platform).attach_parent = root(rail).id();
+    box(platform, 64, 16);
+    auto* mover = game_level.add_component<PathFollow2DComponent>(*platform, "Follow");
+    mover->speed = q(60);
+    auto* hero = spawn<Actor2D>("Hero", 0, 70);
+    box(hero, 12, 24);
+    auto* body = game_level.add_component<CharacterBody2DComponent>(*hero, "Body");
+    auto frame = [&] {
+        body->set_velocity(q(0), q(300));
+        epok::time.begin_tick();
+        body->move_and_slide();
+        world2d::service.step(Fixed(epok::time.delta_raw, Fixed::RAW), &game_level);
+    };
+    for (int i = 0; i < 60 && !body->is_on_floor(); ++i) frame();
+    assert(body->is_on_floor() && body->last_collision_actor() == platform->id());
+    const double offset = real(root(hero).transform.position[0]) - real(root(platform).transform.position[0]);
+    const double start = real(root(platform).transform.position[0]);
+    for (int i = 0; i < 60; ++i) frame();
+    // The rider kept its place on the platform while the platform travelled.
+    assert(real(root(platform).transform.position[0]) - start > 30 && body->is_on_floor());
+    assert(close(real(root(hero).transform.position[0]) - real(root(platform).transform.position[0]), offset, 0.01));
+}
+
+// 14. Lines and polygons expand into on-screen quads and triangles.
+void shapes() {
+    reset();
+    auto* wire = spawn<Actor2D>("Wire", 0, 0);
+    auto* line = game_level.add_component<Line2DComponent>(*wire, "Line");
+    assert(line->add_point(q(-50), q(0)) && line->add_point(q(0), q(0)) && line->add_point(q(0), q(40)));
+    line->set_width(q(4));
+    line->set_colors(255, 0, 0, 0, 0, 255);
+    auto* shape = spawn<Actor2D>("Shape", 2000, 0);
+    auto* polygon = game_level.add_component<Polygon2DComponent>(*shape, "Polygon");
+    static constexpr Fixed vertices[] = {Fixed(0.0), Fixed(0.0), Fixed(16.0), Fixed(0.0), Fixed(16.0), Fixed(16.0), Fixed(0.0), Fixed(16.0)};
+    static constexpr uint16_t triangles[] = {0, 1, 2, 0, 2, 3};
+    polygon->vertices = vertices;
+    polygon->vertex_count = 4;
+    polygon->triangles = triangles;
+    polygon->triangle_count = 2;
+    world2d::SpriteDraw draws[8];
+    world2d::DrawItem items[8], scratch[8];
+    size_t count = world2d::collect_sprites(draws, items, scratch, 8, [](int, uint16_t&, uint16_t&) { return false; });
+    assert(count == 2);
+    unsigned quads = 0, triangles_drawn = 0;
+    const world2d::ShapeQuad* first = nullptr;
+    world2d::ShapeQuad copy{};
+    for (size_t i = 0; i < count; ++i) {
+        world2d::each_line_quad(draws[items[i].index], [&](const world2d::ShapeQuad& quad) {
+            if (!quads++) { copy = quad; first = &copy; }
+        });
+        world2d::each_polygon_triangle(draws[items[i].index], [&](const world2d::ShapeTriangle&) { ++triangles_drawn; });
+    }
+    // Two segments; the polygon is far off screen.
+    assert(quads == 2 && triangles_drawn == 0 && first);
+    // The first segment runs left to right, 4 pixels tall, red at its start.
+    assert((first->y[2] - first->y[0] == 4 || first->y[0] - first->y[2] == 4) && first->color[0][0] == 255 && first->color[0][2] == 0 && first->color[1][2] > 0);
+    root(shape).transform.position[0] = q(0);
+    world2d::collect_sprites(draws, items, scratch, 8, [](int, uint16_t&, uint16_t&) { return false; });
+    triangles_drawn = 0;
+    for (size_t i = 0; i < 2; ++i)
+        world2d::each_polygon_triangle(draws[items[i].index], [&](const world2d::ShapeTriangle& t) {
+            ++triangles_drawn;
+            assert(t.x[0] == display_width / 2 && t.y[0] == display_height / 2);
+        });
+    assert(triangles_drawn == 2);
+}
+
+// 15. Emitters stream or burst, age, report a finished one-shot and share a bounded pool.
+void particles() {
+    reset();
+    auto* fire = spawn<Actor2D>("Fire", 0, 0);
+    auto* emitter = game_level.add_component<Particles2DComponent>(*fire, "Particles");
+    emitter->amount = 8;
+    emitter->lifetime = q(0.5);
+    emitter->explosiveness = q(1);
+    emitter->one_shot = true;
+    emitter->texture = 3;
+    emitter->region[2] = 8;
+    emitter->region[3] = 8;
+    step();
+    assert(emitter->get_alive_count() == 8 && !emitter->is_emitting());
+    world2d::SpriteDraw draws[4];
+    world2d::DrawItem items[4], scratch[4];
+    const size_t count = world2d::collect_sprites(draws, items, scratch, 4, [](int, uint16_t&, uint16_t&) { return false; });
+    assert(count == 1 && draws[items[0].index].kind == world2d::DrawKind::Particles);
+    unsigned drawn = 0;
+    world2d::each_particle(draws[items[0].index], 16, 16, [&](const world2d::SpriteDraw& p) {
+        ++drawn;
+        assert(p.source[2] == 8 && p.texture == 3);
+    });
+    assert(drawn == 8);
+    for (int i = 0; i < 40 && emitter->get_alive_count(); ++i) step();
+    step();
+    assert(emitter->get_alive_count() == 0 && emitter->take_finished() && !emitter->take_finished());
+    // A stream spawns amount / lifetime particles per second and never exceeds amount.
+    emitter->one_shot = false;
+    emitter->explosiveness = q(0);
+    emitter->amount = 200;
+    emitter->lifetime = q(4);
+    emitter->restart();
+    for (int i = 0; i < 300; ++i) step();
+    assert(emitter->get_alive_count() <= EPOK_WORLD2D_PARTICLES && world2d::stats.dropped_particles > 0);
+    // Destroying the emitter frees its particles.
+    game_level.destroy_actor(fire->id());
+    registry_storage.collect_quarantined();
+    step();
+    assert(world2d::stats.particles == 0);
+}
+
+// 16. Notifiers report entering and leaving the view and can switch their owner off.
+void notifiers() {
+    reset();
+    auto* hero = spawn<Actor2D>("Hero", 0, 0);
+    game_level.add_component<Camera2DComponent>(*hero, "Camera");
+    auto* enemy = spawn<Actor2D>("Enemy", 1000, 0);
+    auto* notifier = game_level.add_component<VisibleOnScreenNotifier2DComponent>(*enemy, "Notifier");
+    notifier->disable_when_hidden = true;
+    step();
+    assert(!notifier->is_on_screen() && !enemy->active());
+    root(hero).transform.position[0] = q(950);
+    step();
+    assert(notifier->is_on_screen() && notifier->take_screen_entered() && !notifier->take_screen_entered() && enemy->active());
+    root(hero).transform.position[0] = q(0);
+    step();
+    assert(notifier->take_screen_exited() && !enemy->active());
+}
+
+// 17. A remote transform pushes its world transform onto another actor.
+void remote_transforms() {
+    reset();
+    auto* hand = spawn<Actor2D>("Hand", 30, 40);
+    root(hand).transform.rotation = q(45);
+    auto* sword = spawn<Actor2D>("Sword", 0, 0);
+    auto* remote = game_level.add_component<RemoteTransform2DComponent>(*hand, "Remote");
+    remote->set_target(sword->id());
+    remote->update_scale = false;
+    step();
+    assert(real(root(sword).transform.position[0]) == 30 && real(root(sword).transform.position[1]) == 40);
+    assert(real(root(sword).transform.rotation) == 45);
+}
+
+// 18. 2D audio fades with distance from the view's centre and pans to its side.
+void audio_2d() {
+    reset();
+    auto* hero = spawn<Actor2D>("Hero", 0, 0);
+    game_level.add_component<Camera2DComponent>(*hero, "Camera");
+    auto* bell = spawn<Actor2D>("Bell", 80, 0);
+    auto* player = game_level.add_component<AudioPlayer2DComponent>(*bell, "Audio");
+    player->max_distance = q(320);
+    step();
+    // A quarter of the way to silence, halfway to the right edge.
+    assert(close(real(player->source.volume), 0.75, 0.01) && player->source.pan > 60 && player->source.pan < 66);
+    root(bell).transform.position[0] = q(-400);
+    step();
+    assert(player->source.volume.raw() == 0 && player->source.pan == -127);
+}
+
 void size_report() {
     std::printf("World2D components (host, %zu-bit pointers): Sprite2D %zu  Camera2D %zu  Collider2D %zu  CharacterBody2D %zu  TileMapLayer %zu  Parallax2D %zu\n",
                 sizeof(void*) * 8, sizeof(Sprite2DComponent), sizeof(Camera2DComponent), sizeof(Collider2DComponent),
@@ -583,7 +791,13 @@ int main() {
     tile_drawing();
     parallax();
     canvas_layers();
+    path_follow();
+    shapes();
+    particles();
+    notifiers();
+    remote_transforms();
+    audio_2d();
     size_report();
-    std::puts("World2D sprite clips, camera, character body, triggers, draw sort, tile map, parallax and canvas layer tests passed.");
+    std::puts("World2D sprite clips, camera, character body, triggers, draw sort, tile map, parallax, canvas layer, path, shape, particle, notifier, remote transform and 2D audio tests passed.");
     return 0;
 }

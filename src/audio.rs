@@ -41,12 +41,18 @@ pub fn sources(actor: &crate::scene::Actor) -> Vec<AudioSource> {
     actor
         .components
         .iter()
-        .filter(|c| c.class.class_id.as_deref() == Some(crate::object_model::AUDIO_COMPONENT_ID))
-        .map(|c| {
-            c.properties
-                .get("audio")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default()
+        .filter_map(|c| match c.class.class_id.as_deref() {
+            Some(crate::object_model::AUDIO_COMPONENT_ID) => Some(
+                c.properties
+                    .get("audio")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok())
+                    .unwrap_or_default(),
+            ),
+            // A 2D player's clip joins the bank like any other source's.
+            Some(crate::world2d::AUDIO_PLAYER2D) => {
+                Some(crate::world2d::read::<crate::world2d::AudioPlayer2D>(c).audio)
+            }
+            _ => None,
         })
         .collect()
 }

@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 108,
-    "types": 471,
-    "callables": 1733,
-    "properties": 2531
+    "headers": 109,
+    "types": 483,
+    "callables": 1818,
+    "properties": 2651
   },
   "psyqo": {
     "headers": 53,
@@ -50,7 +50,7 @@
       "callables": 7,
       "types": 3,
       "properties": 16,
-      "source_sha256": "957a19feff5d2d4d6d4192816432e5b413dede2b9dff5b347f010f693b7927a4",
+      "source_sha256": "2880e6c631547412a1679a7bfd69bfcbc26c88566c26eb22adc95258a168bc13",
       "diagnostics": []
     },
     {
@@ -219,8 +219,8 @@
       "slug": "epok",
       "callables": 54,
       "types": 61,
-      "properties": 358,
-      "source_sha256": "d86d5c050c95ad7f80e7e28edaec09229424152a0c819812157fe18c60ff7a17",
+      "properties": 359,
+      "source_sha256": "a4476dec5a4b543311b47a96ae8ce24242f025faf9c90ac7e1dad72b03eaa3a7",
       "diagnostics": []
     },
     {
@@ -1070,7 +1070,17 @@
       "callables": 81,
       "types": 7,
       "properties": 74,
-      "source_sha256": "c046aaa0a5765131c98cc44f78badc601b3057d445fe5cdaeb23827c319e4eab",
+      "source_sha256": "04dc9553a2e883cbd2d5a535c2b6d46906f8920c226ff0282560276ec24291a1",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "world2d_content.hpp",
+      "slug": "world2d-content",
+      "callables": 77,
+      "types": 9,
+      "properties": 103,
+      "source_sha256": "43d1fa2c958f2a73c59cf0167af032356e81668094dd247d5b412bcd946301ca",
       "diagnostics": []
     },
     {
@@ -1080,17 +1090,17 @@
       "callables": 1,
       "types": 1,
       "properties": 1,
-      "source_sha256": "a2a09cd051300673b464982b3bd3c60bf08670dc6584215883eea156c96b27d5",
+      "source_sha256": "ec268bbaaf3a9898aea033e24819410fbcc0ba56578c8c4845daf097f2afc45f",
       "diagnostics": []
     },
     {
       "family": "epok",
       "header": "world2d_service.hpp",
       "slug": "world2d-service",
-      "callables": 29,
-      "types": 7,
-      "properties": 56,
-      "source_sha256": "5e80134deb5da99a31b4eed867f5d42f27fc37e0acf51a914b9b51570178962b",
+      "callables": 37,
+      "types": 10,
+      "properties": 72,
+      "source_sha256": "bdb48036986719f970ae0fe29e38e7ffb36ca648970957fa5187249e7de9236d",
       "diagnostics": []
     },
     {

@@ -303,9 +303,11 @@ See the complete [Timeline reference](timelines.md) and the
 ## 2D worlds
 
 - **2D nodes.** `Actor2D` actors with a pixel-based, Y-down 2D transform carry engine
-  Sprite2D, TileMapLayer, Collider2D, CharacterBody2D, Camera2D, Parallax2D,
-  CanvasLayer2D and CanvasModulate2D components, plus any C++, Blueprint or Lua
-  component. Ready-made presets create each kind of node in one click.
+  Sprite2D, TileMapLayer, Collider2D, CharacterBody2D, Camera2D, Parallax2D, Path2D,
+  PathFollow2D, Line2D, Polygon2D, Particles2D, AudioPlayer2D,
+  VisibleOnScreenNotifier2D, RemoteTransform2D, CanvasLayer2D and CanvasModulate2D
+  components, plus any C++, Blueprint or Lua component. Ready-made presets, grouped by
+  purpose, create each kind of node in one click.
 - **Sprites and animation.** Texture regions, sprite-sheet cells, offset, centring,
   flips, modulate, the console blend modes, z-index and y-sort; named frame
   animations with speed, looping, autoplay, per-frame durations and events.
@@ -320,6 +322,13 @@ See the complete [Timeline reference](timelines.md) and the
   (corners and sides, sides or corners) autotile as you paint. TileMapLayers cook only
   their used 16 x 16-cell chunks, collide with bodies, rays and overlap queries, and
   can be read and changed at runtime (`set_cell`, `get_cell_custom_data`, ...).
+- **Paths, shapes and effects.** Curved Path2D paths with PathFollow2D followers that
+  loop, ping-pong or stop and carry the bodies standing on them (moving platforms);
+  Line2D polylines with width and colour gradients editable at runtime; textured or
+  flat Polygon2D shapes; CPU Particles2D emitters with shapes, bursts, gravity, damping,
+  scale and colour over life; additive PointLight2D glows; AudioPlayer2D sounds that
+  fade and pan with the camera; on-screen notifiers that can pause nodes; remote
+  transforms; colliders fitted to a sprite's visible pixels.
 - **Parallax and canvas layers.** Parallax2D scrolls attached nodes against the camera
   with autoscroll and screen-filling repeats; CanvasLayer2D draws nodes on their own
   layer in screen pixels or world space; CanvasModulate2D tints a whole canvas.
@@ -332,6 +341,8 @@ See the complete [Timeline reference](timelines.md) and the
   rotation snapping, pixel rulers, real texture and animation previews, collider and
   camera gizmos, drag-and-drop sprite creation, a sprite region editor and a
   sprite-sheet frame slicer, and a visual 2D Inspector.
+- **Shape editing.** Paths, lines and polygons are edited on the canvas: drag, insert,
+  add and delete points, curve handles, smoothing; particle emitters preview live.
 - **Tile editing.** Paint, line, rectangle, bucket fill, picker, eraser and selection
   tools with random scatter, flips and quarter turns; a palette with tiles, patterns
   and terrains under the view; a TileSet editor for collision, terrains, animation and

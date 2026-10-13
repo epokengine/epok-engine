@@ -1,7 +1,8 @@
 //! The Platformer 2D starter: a side-scrolling level built entirely from World2D
 //! nodes - an animated CharacterBody2D player with a following Camera2D, a tile map
 //! painted from a TileSet (autotiled ground, crates, one-way platforms, animated
-//! flowers), parallax hills and clouds, spinning coins and a screen-space coin icon -
+//! flowers), a lift riding a path, fireflies, a hanging vine, parallax mountains, hills
+//! and clouds, spinning coins and a screen-space coin icon -
 //! with its gameplay written in the selected flavor. The artwork is original pixel
 //! art generated here at creation time, so the template ships no binary files.
 use crate::{
@@ -13,8 +14,9 @@ use crate::{
     tileset::{self, PatternCell, TileSet},
     workspace::GameplayFlavor,
     world2d::{
-        self, Animation2D, Camera2D, CanvasLayer2D, Collider2D, Frame2D, Parallax2D, Preset,
-        Sprite2D, TileMapLayer,
+        self, Animation2D, Camera2D, CanvasLayer2D, Collider2D, EmissionShape, Frame2D, Line2D,
+        Parallax2D, Particles2D, Path2D, PathFollow2D, PathPoint, Polygon2D, Preset, Sprite2D,
+        TileMapLayer,
     },
 };
 use serde_json::json;
@@ -197,7 +199,34 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
             ..sprite(art.hills)
         },
     );
+    let hills_id = hills.id;
     scene.actors.push(hills);
+    // Distant mountains: a polygon on the hills' parallax, so it scrolls and repeats with them.
+    let mut mountains = world2d::create(Preset::Polygon2D, "Mountains", [0., 0.]);
+    set(
+        &mut mountains,
+        world2d::POLYGON2D,
+        &Polygon2D {
+            points: vec![
+                [-128., 0.],
+                [-92., -44.],
+                [-60., -26.],
+                [-16., -70.],
+                [36., -18.],
+                [78., -50.],
+                [128., 0.],
+            ],
+            color: [150, 176, 214],
+            z_index: -11,
+            ..Default::default()
+        },
+    );
+    mountains.logical_parent = Some(hills_id);
+    mountains.attach = Some(crate::actor_document::Attachment {
+        actor: hills_id,
+        component: None,
+    });
+    scene.actors.push(mountains);
     let sky = world2d::create(Preset::Parallax2D, "Clouds", [0., 0.]);
     let sky_id = sky.id;
     scene.actors.push(sky);
@@ -253,6 +282,96 @@ pub fn create(root: &Path, flavor: GameplayFlavor) -> Result<Scene, String> {
         scene.actors.push(layer);
     }
     scene.tilesets.insert(set_id, Arc::new(tiles));
+    // A lift between the middle platforms: a Path2D and a one-way platform that follows it,
+    // carrying the player.
+    let mut rail = world2d::create(Preset::Path2D, "LiftPath", [24., -8.]);
+    set(
+        &mut rail,
+        world2d::PATH2D,
+        &Path2D {
+            points: vec![PathPoint::at([0., 0.]), PathPoint::at([88., -24.])],
+            closed: false,
+        },
+    );
+    rail.logical_parent = Some(level);
+    let rail_id = rail.id;
+    scene.actors.push(rail);
+    let mut lift = world2d::create(Preset::PathFollow2D, "Lift", [24., -8.]);
+    set(
+        &mut lift,
+        world2d::PATH_FOLLOW2D,
+        &PathFollow2D {
+            speed: 28.,
+            ping_pong: true,
+            looping: false,
+            ..Default::default()
+        },
+    );
+    add(
+        &mut lift,
+        world2d::SPRITE2D,
+        &Sprite2D {
+            region: [32, 32, 48, 12],
+            centered: false,
+            offset: [-24., -3.],
+            ..sprite(art.tiles)
+        },
+    );
+    add(
+        &mut lift,
+        world2d::COLLIDER2D,
+        &Collider2D {
+            size: [48., 6.],
+            one_way: true,
+            one_way_margin: 3.,
+            ..Default::default()
+        },
+    );
+    lift.logical_parent = Some(rail_id);
+    lift.attach = Some(crate::actor_document::Attachment {
+        actor: rail_id,
+        component: None,
+    });
+    scene.actors.push(lift);
+    // A vine hanging under the left platform, and fireflies drifting over the meadow.
+    let mut vine = world2d::create(Preset::Line2D, "Vine", [-196., 38.]);
+    set(
+        &mut vine,
+        world2d::LINE2D,
+        &Line2D {
+            points: vec![[0., 0.], [2., 9.], [-1., 18.], [1., 27.]],
+            width: 2.,
+            begin_color: [62, 140, 56],
+            end_color: [124, 214, 88],
+            z_index: -1,
+            ..Default::default()
+        },
+    );
+    vine.logical_parent = Some(level);
+    scene.actors.push(vine);
+    let mut fireflies = world2d::create(Preset::Particles2D, "Fireflies", [-120., 70.]);
+    set(
+        &mut fireflies,
+        world2d::PARTICLES2D,
+        &Particles2D {
+            amount: 10,
+            lifetime: 3.,
+            direction: -90.,
+            spread: 70.,
+            speed: [4., 12.],
+            gravity: [0., -2.],
+            shape: EmissionShape::Rectangle,
+            extents: [96., 10.],
+            start_color: [255, 240, 120],
+            end_color: [120, 200, 80],
+            texture: Some(art.spark),
+            blend: crate::texture::BlendMode::Add,
+            z_index: 3,
+            ..Default::default()
+        },
+    );
+    fireflies.logical_parent = Some(level);
+    scene.actors.push(fireflies);
     // A screen-space coin icon in the top-left corner, drawn over the world.
     let mut hud = world2d::create(Preset::CanvasLayer2D, "HUD", [0., 0.]);
     set(&mut hud, world2d::CANVAS_LAYER2D, &CanvasLayer2D::default());
@@ -516,6 +635,7 @@ mod art {
         pub coin: Uuid,
         pub hills: Uuid,
         pub cloud: Uuid,
+        pub spark: Uuid,
     }
     type Rgba = [u8; 4];
     const CLEAR: Rgba = [0, 0, 0, 0];
@@ -757,6 +877,27 @@ mod art {
         }
         c
     }
+    /// A soft 4 x 4 dot for particles (additive: dark texels add little).
+    fn spark() -> Canvas {
+        let mut c = Canvas::new(4, 4);
+        for (x, y, v) in [
+            (1, 1, 255),
+            (2, 1, 255),
+            (1, 2, 255),
+            (2, 2, 255),
+            (1, 0, 120),
+            (2, 0, 120),
+            (1, 3, 120),
+            (2, 3, 120),
+            (0, 1, 120),
+            (0, 2, 120),
+            (3, 1, 120),
+            (3, 2, 120),
+        ] {
+            c.set(x, y, [v, v, v, 255]);
+        }
+        c
+    }
     fn crate_box() -> Canvas {
         let mut c = Canvas::new(32, 32);
         c.rect(0, 0, 32, 32, [168, 112, 60, 255]);
@@ -863,6 +1004,7 @@ mod art {
             coin: import("Coin", coin())?,
             hills: import("Hills", hills())?,
             cloud: import("Cloud", cloud())?,
+            spark: import("Spark", spark())?,
         })
     }
 }

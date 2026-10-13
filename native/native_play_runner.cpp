@@ -205,10 +205,28 @@ static void frame(){
         };
         for(size_t i=0;i<count;++i){
             const auto& d=draws[items[i].index];
-            if(d.tiles){
-                if(d.texture<0||size_t(d.texture)>=epok::texture_count)continue;
-                const auto& t=epok::texture_assets[d.texture];
+            using epok::world2d::DrawKind;
+            if(d.kind==DrawKind::Line){
+                // Flat quads: each segment takes the colour at its middle.
+                epok::world2d::each_line_quad(d,[&](const epok::world2d::ShapeQuad& q){int x[4],y[4];uint8_t c[3];for(int k=0;k<4;++k){x[k]=q.x[k];y[k]=q.y[k];}for(int k=0;k<3;++k)c[k]=uint8_t((q.color[0][k]+q.color[1][k]+1)/2);sink.quad(-1,x,y,c);});
+                continue;
+            }
+            if(d.kind==DrawKind::Polygon){
+                const auto& shape=*static_cast<const epok::Polygon2DComponent*>(d.component);uint8_t c[3];for(int k=0;k<3;++k)c[k]=uint8_t((unsigned(shape.color[k])*d.color[k]+127)/255);
+                const bool textured=shape.texels&&d.texture>=0&&size_t(d.texture)<epok::texture_count;
+                // A triangle is a quad whose last corner repeats the third.
+                epok::world2d::each_polygon_triangle(d,[&](const epok::world2d::ShapeTriangle& t){int x[4]={t.x[0],t.x[1],t.x[2],t.x[2]},y[4]={t.y[0],t.y[1],t.y[2],t.y[2]};
+                    if(textured){int u[4]={t.u[0],t.u[1],t.u[2],t.u[2]},v[4]={t.v[0],t.v[1],t.v[2],t.v[2]};sink.textured_quad(-1,int(d.texture),x,y,u,v,c);}else sink.quad(-1,x,y,c);});
+                continue;
+            }
+            if(d.texture<0||size_t(d.texture)>=epok::texture_count)continue;
+            const auto& t=epok::texture_assets[d.texture];
+            if(d.kind==DrawKind::Tiles){
                 epok::world2d::each_tile(d,t.width,t.height,[&](const epok::world2d::TileDraw& tile){quad(int(d.texture),tile.x,tile.y,tile.u,tile.v,tile.w,tile.h,tile.flip_h,tile.flip_v,tile.transpose,d.color);});
+                continue;
+            }
+            if(d.kind==DrawKind::Particles){
+                epok::world2d::each_particle(d,t.width,t.height,[&](const epok::world2d::SpriteDraw& p){quad(int(d.texture),p.x,p.y,p.source[0],p.source[1],p.source[2],p.source[3],false,false,false,p.color);});
                 continue;
             }
             quad(int(d.texture),d.x,d.y,d.source[0],d.source[1],d.source[2],d.source[3],d.flip_h,d.flip_v,false,d.color);

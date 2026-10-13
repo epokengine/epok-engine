@@ -56,7 +56,8 @@ struct CameraSettings {bool enabled=false;Fixed field_of_view=90.0;uint8_t sky_c
 inline Fixed projection_focal=1.0;
 inline Fixed projection_focal_x=1.0;
 struct AudioSource {
-    bool enabled=false; int clip=-1; Fixed volume=1.0,pitch=1.0; bool play_on_start=true;uint8_t priority=128;
+    // `pan` places the sound from -127 (left) to 127 (right); 0 is centred.
+    bool enabled=false; int clip=-1; Fixed volume=1.0,pitch=1.0; bool play_on_start=true;uint8_t priority=128;int8_t pan=0;
     void play(); void stop(); bool is_playing() const;
 };
 // state: 0 unused, 1 initializing, 2 idle, 3 seeking, 4 playing, 5 stopping, 6 error.
