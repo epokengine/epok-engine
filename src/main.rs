@@ -234,6 +234,8 @@ mod world2d_navigation_editor;
 mod world2d_physics_editor;
 mod world2d_shapes_editor;
 mod world2d_skeleton_editor;
+#[cfg(test)]
+mod world2d_usability_tests;
 mod world2d_viewport_editor;
 mod world2d_warnings;
 use std::{
@@ -1890,6 +1892,14 @@ fn prepare_editor(editor: &mut editor::Editor) {
         .map(|a| a[1].clone())
     {
         editor.world2d.open_add_node = Some((query, 0));
+    }
+    // Screenshot automation: open the selected 2D node's Add Component list with a search.
+    if let Some(query) = args
+        .windows(2)
+        .find(|a| a[0] == "--open-add-component")
+        .map(|a| a[1].clone())
+    {
+        editor.world2d.open_add_component = Some((query, 0));
     }
     // Screenshot automation: open the Strings (localization) window.
     if args.iter().any(|a| a == "--open-strings") {

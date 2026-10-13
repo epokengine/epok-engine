@@ -82,6 +82,19 @@ pub(crate) fn record_script_control(ui: &imgui::Ui, label: &str) {
             .insert(label.into(), [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5]);
     });
 }
+/// Where the control recorded as `label` was drawn last frame (scripted UI tests).
+#[cfg(test)]
+pub(crate) fn script_control(label: &str) -> Option<[f32; 2]> {
+    SCRIPT_BUTTONS.with(|buttons| buttons.borrow().get(label).copied())
+}
+#[cfg(test)]
+pub(crate) fn script_control_labels() -> Vec<String> {
+    SCRIPT_BUTTONS.with(|buttons| buttons.borrow().keys().cloned().collect())
+}
+#[cfg(test)]
+pub(crate) fn clear_script_controls() {
+    SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+}
 #[cfg(test)]
 thread_local! {static SCRIPT_BUTTONS:std::cell::RefCell<std::collections::BTreeMap<String,[f32;2]>>=const{std::cell::RefCell::new(std::collections::BTreeMap::new())};}
 fn build_menu(ui: &imgui::Ui, e: &mut Editor) {
@@ -1812,16 +1825,24 @@ fn actor_node(
     if !warnings.is_empty() {
         ui.get_window_draw_list().add_text(
             [sign[0], sign[1] + 1.],
-            [1., 0.72, 0.3, 1.],
+            crate::world2d_warnings::COLOR,
             crate::world2d_warnings::ICON_WARNING,
         );
+        #[cfg(test)]
+        SCRIPT_BUTTONS.with(|buttons| {
+            buttons.borrow_mut().insert(
+                format!("Hierarchy warning {}", e.scene.actors[index].id),
+                [sign[0] + 6., sign[1] + 8.],
+            )
+        });
     }
     if ui.is_item_hovered() && !warnings.is_empty() && ui.is_mouse_hovering_rect(sign, row[1]) {
         ui.tooltip(|| {
             for warning in &warnings {
                 ui.text(format!(
-                    "{} {warning}",
-                    crate::world2d_warnings::ICON_WARNING
+                    "{} {}",
+                    crate::world2d_warnings::ICON_WARNING,
+                    warning.text
                 ));
             }
         });
@@ -1937,7 +1958,7 @@ fn hierarchy_rename_finished(ui: &imgui::Ui, submit: bool, focus_requested: bool
         !focus_requested && (ui.is_item_deactivated() || !ui.is_window_focused() || outside_click);
     (submit || cancel || blur).then_some(!cancel)
 }
-fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
+pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
     let actors = placeable_actor_classes(e);
     let mode = e.scene_view_mode.domain();
     ui.window("\u{eb86} Hierarchy###Hierarchy").build(|| {

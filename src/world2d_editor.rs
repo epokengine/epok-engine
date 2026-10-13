@@ -236,6 +236,11 @@ pub struct State {
     pub node_search: String,
     /// A scripted request to show the menu with a search typed, and frames shown so far.
     pub open_add_node: Option<(String, u8)>,
+    /// The nodes this project created last, newest first (loaded on first use).
+    pub recent_nodes: Option<Vec<Preset>>,
+    /// The Add Component search text, and a scripted request to open it (screenshots).
+    pub component_search: String,
+    pub open_add_component: Option<(String, u8)>,
 }
 impl Default for State {
     fn default() -> Self {
@@ -269,6 +274,9 @@ impl Default for State {
             skeleton: Default::default(),
             node_search: String::new(),
             open_add_node: None,
+            recent_nodes: None,
+            component_search: String::new(),
+            open_add_component: None,
         }
     }
 }
@@ -568,7 +576,14 @@ pub(crate) fn sprite_bounds(e: &mut Editor, actor: Uuid) -> Option<([f32; 2], [f
         &e.scene.actors[index],
         world2d::SPRITE2D,
     )?);
-    let size = e.world2d.textures.get(sprite.texture?)?.1;
+    let texture = sprite.texture?;
+    // The uploaded preview's size, or the imported data's before the first upload.
+    let size = e.world2d.textures.get(texture).map(|t| t.1).or_else(|| {
+        e.scene
+            .textures
+            .get(&texture)
+            .map(|data| [data.width, data.height])
+    })?;
     let (size, _) = sprite_size(&sprite, Some(size))?;
     Some(sprite_local_rect(&sprite, size))
 }
@@ -896,7 +911,41 @@ pub fn create_node(e: &mut Editor, preset: Preset, position: [f32; 2]) -> Option
     e.select_actor(Some(id));
     e.changed();
     e.log(format!("Created {name} ({}).", preset.label()));
+    remember_node(e, preset);
     Some(id)
+}
+const RECENT_NODES: &str = "UserSettings/Recent2DNodes.epokprefs";
+const RECENT_LIMIT: usize = 5;
+/// The nodes this project created last, newest first: the Add 2D Node menu offers them
+/// before the full list.
+pub(crate) fn recent_nodes(e: &mut Editor) -> Vec<Preset> {
+    if e.world2d.recent_nodes.is_none() {
+        let labels: Vec<String> = std::fs::read(e.root.join(RECENT_NODES))
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default();
+        e.world2d.recent_nodes = Some(
+            labels
+                .iter()
+                .filter_map(|label| Preset::ALL.into_iter().find(|p| p.label() == label))
+                .take(RECENT_LIMIT)
+                .collect(),
+        );
+    }
+    e.world2d.recent_nodes.clone().unwrap_or_default()
+}
+fn remember_node(e: &mut Editor, preset: Preset) {
+    let mut recent = recent_nodes(e);
+    recent.retain(|p| *p != preset);
+    recent.insert(0, preset);
+    recent.truncate(RECENT_LIMIT);
+    // A per-user convenience: failing to save it only loses the list.
+    let path = e.root.join(RECENT_NODES);
+    let labels: Vec<&str> = recent.iter().map(|p| p.label()).collect();
+    if let (Some(parent), Ok(bytes)) = (path.parent(), serde_json::to_vec(&labels)) {
+        let _ = std::fs::create_dir_all(parent).and_then(|()| std::fs::write(&path, bytes));
+    }
+    e.world2d.recent_nodes = Some(recent);
 }
 /// Creates a Sprite2D for a texture asset dropped on the view.
 fn create_sprite_from_texture(e: &mut Editor, texture: Uuid, name: &str, position: [f32; 2]) {
@@ -1073,7 +1122,10 @@ fn toolbar(ui: &Ui, e: &mut Editor) {
     // the docked layout settles close popups.
     let open = unsafe { imgui::sys::igIsPopupOpen_Str(c"add-2d-node".as_ptr(), 0) };
     let requested = e.world2d.open_add_node.is_some() && !open;
-    if ui.button(format!("{ICON_PLUS} Add 2D Node")) || requested {
+    let add = ui.button(format!("{ICON_PLUS} Add 2D Node"));
+    #[cfg(test)]
+    crate::gui::record_script_control(ui, "Add 2D Node");
+    if add || requested {
         ui.open_popup("add-2d-node");
     }
     // The menu drops down from its button rather than from wherever the mouse is.
@@ -1090,6 +1142,61 @@ fn toolbar(ui: &Ui, e: &mut Editor) {
     }
     let centre = e.view_2d.centre;
     add_node_popup(ui, e, "add-2d-node", centre);
+}
+/// How well an entry matches a search, best first: its name's start, its name, its
+/// group, then what it is for. None when it does not match.
+pub(crate) fn search_rank(query: &str, label: &str, group: &str, detail: &str) -> Option<u8> {
+    let label = label.to_lowercase();
+    if query.is_empty() || label.starts_with(query) {
+        Some(0)
+    } else if label.contains(query) {
+        Some(1)
+    } else if group.to_lowercase().contains(query) {
+        Some(2)
+    } else if detail.to_lowercase().contains(query) {
+        Some(3)
+    } else {
+        None
+    }
+}
+/// A dim note at the right end of the last row (a search result's group), when it fits
+/// beside the row's `label`.
+fn row_hint(ui: &Ui, label: &str, text: &str) {
+    let (min, max) = (ui.item_rect_min(), ui.item_rect_max());
+    let width = ui.calc_text_size(text)[0];
+    if min[0] + ui.calc_text_size(label)[0] + 16. > max[0] - width - 6. {
+        return;
+    }
+    ui.get_window_draw_list().add_text(
+        [
+            max[0] - width - 6.,
+            min[1] + (max[1] - min[1] - ui.text_line_height()) * 0.5,
+        ],
+        ui.style_color(imgui::StyleColor::TextDisabled),
+        text,
+    );
+}
+thread_local! {
+    static COMBO_FILTER: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+/// A search field at the top of an open combo with many entries, focused when it opens:
+/// the list narrows as the user types and Enter picks the first entry left. Returns the
+/// lowercase query and whether Enter was pressed.
+pub(crate) fn combo_filter(ui: &Ui, hint: &str) -> (String, bool) {
+    COMBO_FILTER.with(|filter| {
+        let mut filter = filter.borrow_mut();
+        if ui.is_window_appearing() {
+            filter.clear();
+            ui.set_keyboard_focus_here();
+        }
+        ui.set_next_item_width(-1.);
+        let enter = ui
+            .input_text("##combo-search", &mut filter)
+            .hint(hint)
+            .enter_returns_true(true)
+            .build();
+        (filter.trim().to_lowercase(), enter)
+    })
 }
 /// The 2D node palette: presets with a one-line description of each.
 pub fn add_node_popup(ui: &Ui, e: &mut Editor, id: &str, position: [f32; 2]) {
@@ -1110,53 +1217,87 @@ pub fn add_node_popup(ui: &Ui, e: &mut Editor, id: &str, position: [f32; 2]) {
                 e.world2d.open_add_node = None;
             }
         }
-        ui.set_next_item_width(270.);
+        ui.set_next_item_width(340.);
         let enter = ui
             .input_text("##node-search", &mut e.world2d.node_search)
             .hint("Search 2D nodes")
             .enter_returns_true(true)
             .build();
+        #[cfg(test)]
+        crate::gui::record_script_control(ui, "Add 2D Node search");
         let query = e.world2d.node_search.trim().to_lowercase();
-        let matches: Vec<Preset> = Preset::ALL
+        // Before any search, the nodes created last come first, so Enter repeats the last.
+        let recent = if query.is_empty() {
+            recent_nodes(e)
+        } else {
+            Vec::new()
+        };
+        // A search lists its results best first, each with its group on the right.
+        let mut found: Vec<(u8, Preset)> = Preset::ALL
             .into_iter()
-            .filter(|p| {
-                query.is_empty()
-                    || [p.label(), p.description(), p.category()]
-                        .iter()
-                        .any(|t| t.to_lowercase().contains(&query))
+            .filter_map(|p| {
+                search_rank(&query, p.label(), p.category(), p.description()).map(|r| (r, p))
             })
             .collect();
-        if enter && let Some(first) = matches.first() {
+        found.sort_by_key(|(rank, _)| *rank);
+        let entries: Vec<(&str, Preset)> = recent
+            .into_iter()
+            .map(|p| ("Recent", p))
+            .chain(
+                found
+                    .into_iter()
+                    .map(|(_, p)| (if query.is_empty() { p.category() } else { "" }, p)),
+            )
+            .collect();
+        if enter && let Some((_, first)) = entries.first() {
             create_node(e, *first, snapped(e, position));
             ui.close_current_popup();
             return;
         }
         let mut chosen = None;
         let groups = {
-            let mut seen: Vec<&str> = matches.iter().map(|p| p.category()).collect();
+            let mut seen: Vec<&str> = entries
+                .iter()
+                .map(|(group, _)| *group)
+                .filter(|group| !group.is_empty())
+                .collect();
             seen.dedup();
             seen.len()
         };
         // As tall as its rows, up to a screenful: a short result list makes a short popup.
-        let rows = (matches.len() + groups).max(1) as f32;
+        let rows = (entries.len() + groups).max(1) as f32;
         ui.child_window("##node-list")
-            .size([270., 420_f32.min(ui.text_line_height_with_spacing() * rows)])
+            .size([340., 420_f32.min(ui.text_line_height_with_spacing() * rows)])
             .build(|| {
                 let mut category = "";
-                for preset in &matches {
-                    if preset.category() != category {
-                        category = preset.category();
-                        ui.text_disabled(category);
+                for (group, preset) in &entries {
+                    if *group != category {
+                        category = group;
+                        if !category.is_empty() {
+                            ui.text_disabled(category);
+                        }
                     }
                     let clicked = ui
                         .selectable_config(format!(
-                            "{}  {}##{}",
+                            "{}  {}##{group}{}",
                             preset_icon(*preset),
                             preset.label(),
                             preset.label()
                         ))
-                        .size([250., 0.])
+                        .size([320., 0.])
                         .build();
+                    if group.is_empty() {
+                        row_hint(
+                            ui,
+                            &format!("{}  {}", preset_icon(*preset), preset.label()),
+                            preset.category(),
+                        );
+                    }
+                    #[cfg(test)]
+                    crate::gui::record_script_control(
+                        ui,
+                        &format!("Add 2D Node: {}", preset.label()),
+                    );
                     if ui.is_item_hovered() {
                         ui.tooltip_text(preset.description());
                     }
@@ -1164,7 +1305,7 @@ pub fn add_node_popup(ui: &Ui, e: &mut Editor, id: &str, position: [f32; 2]) {
                         chosen = Some(*preset);
                     }
                 }
-                if matches.is_empty() {
+                if entries.is_empty() {
                     ui.text_disabled("No 2D node matches.");
                 }
             });
@@ -2717,7 +2858,10 @@ pub(crate) fn segmented(ui: &Ui, label: &str, options: &[&str], selected: &mut u
                 [0.19, 0.19, 0.21, 1.]
             },
         );
-        if ui.button_with_size(format!("{option}##{i}"), [width, 0.]) && !active {
+        let clicked = ui.button_with_size(format!("{option}##{i}"), [width, 0.]);
+        #[cfg(test)]
+        crate::gui::record_script_control(ui, &format!("{label}: {option}"));
+        if clicked && !active {
             *selected = i;
             changed = true;
         }
@@ -2925,6 +3069,227 @@ pub fn inspector(ui: &Ui, e: &mut Editor) {
         e.end_coalesced();
     }
 }
+/// What keeps the node from working, in an amber box at the top of its Inspector, with a
+/// one-click fix where one is obvious.
+fn warnings_band(ui: &Ui, e: &mut Editor, id: Uuid) {
+    use crate::world2d_warnings::{COLOR, ICON_WARNING};
+    let Some(index) = e.scene.actor_index(id) else {
+        return;
+    };
+    let warnings = crate::world2d_warnings::of(&e.scene, index);
+    if warnings.is_empty() {
+        return;
+    }
+    let mut apply = None;
+    let draw = ui.get_window_draw_list();
+    let start = ui.cursor_screen_pos();
+    let width = ui.content_region_avail()[0];
+    draw.channels_split(2, |channels| {
+        channels.set_current(1);
+        ui.dummy([0., 2.]);
+        for (i, warning) in warnings.iter().enumerate() {
+            let _id = ui.push_id_usize(i);
+            ui.indent_by(6.);
+            ui.text_colored(COLOR, ICON_WARNING);
+            ui.same_line();
+            // Wrapped lines and the fix line up under the text, not under the sign.
+            ui.group(|| {
+                let wrap = ui.push_text_wrap_pos_with_pos(ui.cursor_pos()[0] + width - 34.);
+                ui.text(&warning.text);
+                wrap.end();
+                if let Some(fix) = warning.fix {
+                    let pressed = ui.small_button(fix.label());
+                    #[cfg(test)]
+                    crate::gui::record_script_control(ui, fix.label());
+                    if pressed {
+                        apply = Some(fix);
+                    }
+                }
+            });
+            ui.unindent_by(6.);
+        }
+        ui.dummy([0., 2.]);
+        channels.set_current(0);
+        let end = [start[0] + width, ui.cursor_screen_pos()[1] - 2.];
+        draw.add_rect(start, end, [COLOR[0], COLOR[1], COLOR[2], 0.1])
+            .filled(true)
+            .rounding(4.)
+            .build();
+        draw.add_rect(start, end, [COLOR[0], COLOR[1], COLOR[2], 0.55])
+            .rounding(4.)
+            .build();
+    });
+    ui.dummy([0., 4.]);
+    if let Some(fix) = apply {
+        apply_fix(e, id, fix);
+    }
+}
+/// Applies an Inspector warning's fix to `id` as one undo step.
+fn apply_fix(e: &mut Editor, id: Uuid, fix: crate::world2d_warnings::Fix) {
+    use crate::world2d_warnings::Fix;
+    if e.playing {
+        e.log("Stop the emulator before editing.");
+        return;
+    }
+    let bounds = sprite_bounds(e, id);
+    let Some(index) = e.scene.actor_index(id) else {
+        return;
+    };
+    let name = e.scene.actors[index].name.clone();
+    match fix {
+        Fix::AddCollider => {
+            // Fitted to what the sprite draws, or a 16-pixel box without one.
+            let (size, offset) = bounds.map_or(([16., 16.], [0., 0.]), |(min, max)| {
+                (
+                    [max[0] - min[0], max[1] - min[1]],
+                    [(min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5],
+                )
+            });
+            let actor = &mut e.scene.actors[index];
+            let Some(mut component) = world2d::new_component(actor, world2d::COLLIDER2D) else {
+                return;
+            };
+            world2d::write(
+                &mut component,
+                &Collider2D {
+                    size,
+                    offset,
+                    ..Default::default()
+                },
+            );
+            actor.components.push(component);
+            actor.refresh_components();
+            e.changed();
+            e.log(format!(
+                "Added a {} x {} Collider2D to {name}.",
+                size[0], size[1]
+            ));
+        }
+        Fix::ShowPicture => {
+            let picture = world2d::component(&e.scene.actors[index], world2d::SUBVIEWPORT2D)
+                .map_or([128, 96], |c| {
+                    world2d::read::<crate::viewport2d::SubViewport2D>(c).picture()
+                });
+            // On the topmost screen canvas (the HUD) in its top-right corner, or else
+            // in the world where the SubViewport2D node is.
+            let canvas = e
+                .scene
+                .actors
+                .iter()
+                .filter_map(|a| {
+                    let c: CanvasLayer2D =
+                        world2d::read(world2d::component(a, world2d::CANVAS_LAYER2D)?);
+                    (!c.follow_viewport && c.visible).then_some((a.id, c.layer))
+                })
+                .max_by_key(|(_, layer)| *layer)
+                .map(|(canvas, _)| canvas);
+            let position = if canvas.is_some() {
+                let display = e.scene.display_size.map(f32::from);
+                [
+                    display[0] - f32::from(picture[0]) * 0.5 - 8.,
+                    f32::from(picture[1]) * 0.5 + 8.,
+                ]
+            } else {
+                world2d::world_position(&e.scene, index)
+            };
+            add_helper_node(
+                e,
+                Preset::Sprite2D,
+                &format!("{name}Screen"),
+                position,
+                canvas,
+                |actor| {
+                    if let Some(c) = actor
+                        .components
+                        .iter_mut()
+                        .find(|c| c.class.class_id.as_deref() == Some(world2d::SPRITE2D))
+                    {
+                        world2d::write(
+                            c,
+                            &Sprite2D {
+                                viewport: Some(id),
+                                ..Default::default()
+                            },
+                        );
+                    }
+                },
+            );
+        }
+        Fix::AddNavigationRegion => {
+            // A grid over the solid tile layer with the most painted cells: the ground.
+            let ground = e
+                .scene
+                .actors
+                .iter()
+                .filter_map(|a| {
+                    let layer: world2d::TileMapLayer =
+                        world2d::read(world2d::component(a, world2d::TILEMAP_LAYER)?);
+                    layer.collision_enabled.then_some((a.id, layer.cells.len()))
+                })
+                .max_by_key(|(_, cells)| *cells)
+                .map(|(layer, _)| layer);
+            let position = if ground.is_some() {
+                [0., 0.]
+            } else {
+                world2d::world_position(&e.scene, index)
+            };
+            add_helper_node(
+                e,
+                Preset::NavigationRegion2D,
+                "Navigation",
+                position,
+                None,
+                |actor| {
+                    if let Some(c) = actor
+                        .components
+                        .iter_mut()
+                        .find(|c| c.class.class_id.as_deref() == Some(world2d::NAVIGATION_REGION2D))
+                    {
+                        world2d::write(
+                            c,
+                            &crate::navigation2d::NavigationRegion2D {
+                                tile_layer: ground,
+                                ..Default::default()
+                            },
+                        );
+                    }
+                },
+            );
+        }
+    }
+}
+/// Creates a node for a fix as one undo step, keeping the fixed node selected.
+fn add_helper_node(
+    e: &mut Editor,
+    preset: Preset,
+    name: &str,
+    position: [f32; 2],
+    parent: Option<Uuid>,
+    set: impl FnOnce(&mut crate::scene::Actor),
+) {
+    let name = unique_name(e, name);
+    let mut actor = world2d::create(preset, &name, position.map(|v| v.round()));
+    if let Some(parent) = parent {
+        actor.attach = Some(crate::actor_document::Attachment {
+            actor: parent,
+            component: None,
+        });
+        actor.logical_parent = Some(parent);
+    }
+    set(&mut actor);
+    actor.refresh_components();
+    let id = actor.id;
+    e.scene.actors.push(actor);
+    let model = e.object_model();
+    if let Err(error) = e.scene.validate_with_model(model.as_deref()) {
+        e.scene.actors.retain(|a| a.id != id);
+        e.last_error = Some(error.clone());
+        e.log(error);
+        return;
+    }
+    e.changed();
+    e.log(format!("Created {name} ({}).", preset.label()));
+}
 fn inspector_body(ui: &Ui, e: &mut Editor, id: Uuid) {
     let Some(index) = e.scene.actor_index(id) else {
         return;
@@ -2936,6 +3301,10 @@ fn inspector_body(ui: &Ui, e: &mut Editor, id: Uuid) {
         e.changed();
     }
     ui.separator();
+    warnings_band(ui, e, id);
+    let Some(index) = e.scene.actor_index(id) else {
+        return;
+    };
     let class = e.scene.actors[index].class.clone();
     let cpp = class.name.clone();
     if crate::gui::heading(
@@ -2985,11 +3354,31 @@ fn inspector_body(ui: &Ui, e: &mut Editor, id: Uuid) {
         ui.cursor_pos()[0] + (width - 210.).max(0.) * 0.5,
         ui.cursor_pos()[1],
     ]);
-    if ui.button_with_size(
+    let clicked = ui.button_with_size(
         format!("{ICON_PLUS}  Add Component"),
         [210_f32.min(width), 23.],
-    ) {
+    );
+    #[cfg(test)]
+    crate::gui::record_script_control(ui, "Add Component");
+    // A scripted request (screenshots) opens the list below the button; a click opens it
+    // at the mouse, where ImGui keeps it on screen.
+    let open = unsafe { imgui::sys::igIsPopupOpen_Str(c"add-2d-component".as_ptr(), 0) };
+    let requested = e.world2d.open_add_component.is_some() && !open;
+    if clicked || requested {
         ui.open_popup("add-2d-component");
+    }
+    if requested {
+        let below = [ui.item_rect_min()[0], ui.item_rect_max()[1] + 2.];
+        unsafe {
+            imgui::sys::igSetNextWindowPos(
+                imgui::sys::ImVec2 {
+                    x: below[0],
+                    y: below[1],
+                },
+                imgui::sys::ImGuiCond_Appearing as i32,
+                imgui::sys::ImVec2 { x: 0., y: 0. },
+            );
+        }
     }
     add_component_popup(ui, e, id);
 }
@@ -3162,10 +3551,10 @@ fn sprite_band(
                 .and_then(|id| e.assets.index.resolve(id).ok())
                 .map(|r| r.meta.source.clone())
                 .unwrap_or_else(|| "Choose a texture".into());
-            if let Some(_combo) = ui.begin_combo("##sprite-texture", name) {
-                if ui.selectable("None") {
-                    s.texture = None;
-                }
+            let combo = ui.begin_combo("##sprite-texture", name);
+            #[cfg(test)]
+            crate::gui::record_script_control(ui, "Sprite texture");
+            if let Some(_combo) = combo {
                 let mut textures: Vec<_> = e
                     .assets
                     .index
@@ -3173,12 +3562,30 @@ fn sprite_band(
                     .filter(|r| r.meta.kind == crate::assets::Kind::Texture)
                     .collect();
                 textures.sort_by(|a, b| a.meta.source.cmp(&b.meta.source));
+                let (query, enter) = if textures.len() > 8 {
+                    combo_filter(ui, "Search textures")
+                } else {
+                    (String::new(), false)
+                };
+                if query.is_empty() && ui.selectable("None") {
+                    s.texture = None;
+                }
+                textures.retain(|r| r.meta.source.to_lowercase().contains(&query));
+                if enter && let Some(first) = textures.first() {
+                    s.texture = Some(first.meta.id);
+                    ui.close_current_popup();
+                }
                 for record in textures {
-                    if ui
+                    let picked = ui
                         .selectable_config(&record.meta.source)
                         .selected(s.texture == Some(record.meta.id))
-                        .build()
-                    {
+                        .build();
+                    #[cfg(test)]
+                    crate::gui::record_script_control(
+                        ui,
+                        &format!("Sprite texture: {}", record.meta.source),
+                    );
+                    if picked {
                         s.texture = Some(record.meta.id);
                     }
                 }
@@ -4025,10 +4432,71 @@ fn generic_band(
         e.remove_actor_component(actor, component.id);
     }
 }
+/// One addable 2D component: (class id, icon, label, what it is for, group, several
+/// allowed on a node). Every 2D component is offered, in the Add 2D Node groups.
+pub(crate) fn component_entries() -> Vec<(
+    &'static str,
+    &'static str,
+    String,
+    &'static str,
+    &'static str,
+    bool,
+)> {
+    let mut entries: Vec<(&str, &str, String, &str, &str, bool)> = Vec::new();
+    for preset in Preset::ALL {
+        let Some(&id) = preset.components().last() else {
+            continue;
+        };
+        if entries.iter().any(|entry| entry.0 == id) {
+            continue;
+        }
+        let Some(class) = world2d::class_name(id) else {
+            continue;
+        };
+        let label = crate::actor_document::short_class_name(class)
+            .trim_end_matches("Component")
+            .to_string();
+        let (icon, detail) = match id {
+            world2d::SPRITE2D => (ICON_IMAGE, "Texture, sprite sheet and frame animations."),
+            world2d::COLLIDER2D => (ICON_BODY, "A solid, trigger or one-way box or circle."),
+            world2d::CHARACTER_BODY2D => (ICON_RUN, "move_and_slide() with floor detection."),
+            world2d::CAMERA2D => (ICON_CAMERA, "Follow, smoothing, limits, drag margins."),
+            _ => (preset_icon(preset), preset.description()),
+        };
+        let multiple = matches!(
+            id,
+            world2d::COLLIDER2D | world2d::TILEMAP_LAYER | world2d::JOINT2D
+        );
+        entries.push((id, icon, label, detail, preset.category(), multiple));
+    }
+    entries
+}
 fn add_component_popup(ui: &Ui, e: &mut Editor, actor: Uuid) {
     ui.popup("add-2d-component", || {
-        ui.text_disabled("2D components");
-        ui.separator();
+        if ui.is_window_appearing() {
+            e.world2d.component_search = e
+                .world2d
+                .open_add_component
+                .as_ref()
+                .map(|r| r.0.clone())
+                .unwrap_or_default();
+            ui.set_keyboard_focus_here();
+        }
+        if let Some((_, shown)) = &mut e.world2d.open_add_component {
+            *shown += 1;
+            if *shown > 30 {
+                e.world2d.open_add_component = None;
+            }
+        }
+        ui.set_next_item_width(340.);
+        let enter = ui
+            .input_text("##component-search", &mut e.world2d.component_search)
+            .hint("Search components")
+            .enter_returns_true(true)
+            .build();
+        #[cfg(test)]
+        crate::gui::record_script_control(ui, "Add Component search");
+        let query = e.world2d.component_search.trim().to_lowercase();
         let present: Vec<String> = e
             .scene
             .actor_index(actor)
@@ -4040,111 +4508,98 @@ fn add_component_popup(ui: &Ui, e: &mut Editor, actor: Uuid) {
                     .collect()
             })
             .unwrap_or_default();
-        for (id, icon, label, detail, multiple) in [
-            (
-                world2d::SPRITE2D,
-                ICON_IMAGE,
-                "Sprite2D",
-                "Texture, sprite sheet and frame animations",
-                false,
-            ),
-            (
-                world2d::COLLIDER2D,
-                ICON_BODY,
-                "Collider2D",
-                "Solid, trigger or one-way shape",
-                true,
-            ),
-            (
-                world2d::CHARACTER_BODY2D,
-                ICON_RUN,
-                "CharacterBody2D",
-                "move_and_slide() with floor detection",
-                false,
-            ),
-            (
-                world2d::CAMERA2D,
-                ICON_CAMERA,
-                "Camera2D",
-                "Follow, smoothing, limits, drag margins",
-                false,
-            ),
-            (
-                world2d::TILEMAP_LAYER,
-                crate::tilemap_editor::ICON_TILEMAP,
-                "TileMapLayer",
-                "A grid of tiles painted from a TileSet",
-                true,
-            ),
-            (
-                world2d::PARALLAX2D,
-                ICON_PARALLAX,
-                "Parallax2D",
-                "Scroll attached nodes against the camera; repeat",
-                false,
-            ),
-            (
-                world2d::CANVAS_LAYER2D,
-                ICON_CANVAS,
-                "CanvasLayer2D",
-                "A drawing layer, in screen pixels or following the camera",
-                false,
-            ),
-            (
-                world2d::CANVAS_MODULATE2D,
-                ICON_MODULATE,
-                "CanvasModulate2D",
-                "Tint everything on this canvas",
-                false,
-            ),
-        ] {
-            let taken = !multiple && present.iter().any(|p| p == id);
-            let clicked = ui
-                .selectable_config(format!("{icon}  {label}"))
-                .disabled(taken)
-                .size([280., 0.])
-                .build();
-            if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
-                ui.tooltip_text(if taken {
-                    "Already on this node"
-                } else {
-                    detail
-                });
-            }
-            if clicked
-                && let Some(index) = e.scene.actor_index(actor)
-                && let Some(component) = world2d::new_component(&e.scene.actors[index], id)
-            {
-                e.scene.actors[index].components.push(component);
-                e.scene.actors[index].refresh_components();
-                e.changed();
-            }
-        }
+        let entries = component_entries();
+        let builtin: Vec<&str> = entries
+            .iter()
+            .filter_map(|entry| world2d::class_name(entry.0))
+            .collect();
+        let mut ranked: Vec<_> = entries
+            .iter()
+            .filter_map(|entry| search_rank(&query, &entry.2, entry.4, entry.3).map(|r| (r, entry)))
+            .collect();
+        ranked.sort_by_key(|(rank, _)| *rank);
+        let matches: Vec<_> = ranked.into_iter().map(|(_, entry)| entry).collect();
         let others: Vec<_> = e
             .addable_component_classes(actor)
             .into_iter()
-            .filter(|(_, cpp, _)| {
-                !matches!(
-                    cpp.as_str(),
-                    "epok::Sprite2DComponent"
-                        | "epok::Collider2DComponent"
-                        | "epok::CharacterBody2DComponent"
-                        | "epok::Camera2DComponent"
-                        | "epok::TileMapLayerComponent"
-                        | "epok::Parallax2DComponent"
-                        | "epok::CanvasLayer2DComponent"
-                        | "epok::CanvasModulate2DComponent"
-                )
+            .filter(|(_, cpp, label)| {
+                !builtin.contains(&cpp.as_str())
+                    && (query.is_empty() || label.to_lowercase().contains(&query))
             })
             .collect();
-        if !others.is_empty() {
-            ui.separator();
-            ui.text_disabled("Scripts and shared components");
-            for (_, cpp, label) in others {
-                if ui.selectable(&label) {
-                    e.add_actor_component(actor, &cpp);
-                }
+        let available = |id: &str, multiple: bool| multiple || !present.iter().any(|p| p == id);
+        let mut add = None;
+        let mut add_other = None;
+        if enter {
+            if let Some(entry) = matches.iter().find(|entry| available(entry.0, entry.5)) {
+                add = Some(entry.0);
+            } else if let Some((_, cpp, _)) = others.first() {
+                add_other = Some(cpp.clone());
             }
+        }
+        let groups = if query.is_empty() {
+            let mut seen: Vec<&str> = matches.iter().map(|entry| entry.4).collect();
+            seen.dedup();
+            seen.len() + usize::from(!others.is_empty())
+        } else {
+            usize::from(!others.is_empty())
+        };
+        // As tall as its rows, like the Add 2D Node menu.
+        let rows = (matches.len() + others.len() + groups).max(1) as f32;
+        ui.child_window("##component-list")
+            .size([340., 440_f32.min(ui.text_line_height_with_spacing() * rows)])
+            .build(|| {
+                let mut group = "";
+                for (id, icon, label, detail, category, multiple) in &matches {
+                    if query.is_empty() && *category != group {
+                        group = category;
+                        ui.text_disabled(group);
+                    }
+                    let taken = !available(id, *multiple);
+                    let clicked = ui
+                        .selectable_config(format!("{icon}  {label}"))
+                        .disabled(taken)
+                        .size([320., 0.])
+                        .build();
+                    if !query.is_empty() {
+                        row_hint(ui, &format!("{icon}  {label}"), category);
+                    }
+                    #[cfg(test)]
+                    crate::gui::record_script_control(ui, &format!("Add Component: {label}"));
+                    if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+                        ui.tooltip_text(if taken {
+                            "Already on this node"
+                        } else {
+                            detail
+                        });
+                    }
+                    if clicked {
+                        add = Some(id);
+                    }
+                }
+                if !others.is_empty() {
+                    ui.text_disabled("Scripts and shared components");
+                    for (_, cpp, label) in &others {
+                        if ui.selectable(label) {
+                            add_other = Some(cpp.clone());
+                        }
+                    }
+                }
+                if matches.is_empty() && others.is_empty() {
+                    ui.text_disabled("No component matches.");
+                }
+            });
+        if let Some(id) = add
+            && let Some(index) = e.scene.actor_index(actor)
+            && let Some(component) = world2d::new_component(&e.scene.actors[index], id)
+        {
+            e.scene.actors[index].components.push(component);
+            e.scene.actors[index].refresh_components();
+            e.changed();
+            ui.close_current_popup();
+        } else if let Some(cpp) = add_other {
+            e.add_actor_component(actor, &cpp);
+            ui.close_current_popup();
         }
     });
 }

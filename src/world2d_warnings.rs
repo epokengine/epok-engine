@@ -1,11 +1,39 @@
 //! Configuration warnings for 2D nodes (World2D initiative): what keeps a node from doing
 //! its job, shown as a warning sign on its Hierarchy row with the reasons in a tooltip,
-//! so a broken node is visible without opening it. Only cheap checks run here: the
+//! and at the top of its Inspector with a one-click fix where one is obvious, so a
+//! broken node is visible without opening it. Only cheap checks run here: the
 //! Hierarchy asks every visible row, every frame.
 use crate::{scene::Scene, world2d};
 use uuid::Uuid;
 
 pub const ICON_WARNING: &str = "\u{f071}";
+pub const COLOR: [f32; 4] = [1., 0.72, 0.3, 1.];
+
+/// A repair the Inspector offers next to a warning (applied by `world2d_editor`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fix {
+    /// Add a solid Collider2D fitted to the node's sprite.
+    AddCollider,
+    /// Create a Sprite2D showing the picture in a corner of the screen.
+    ShowPicture,
+    /// Create a NavigationRegion2D grid over the map's first tile layer.
+    AddNavigationRegion,
+}
+impl Fix {
+    pub fn label(self) -> &'static str {
+        match self {
+            Fix::AddCollider => "Add a Collider2D",
+            Fix::ShowPicture => "Show it on screen",
+            Fix::AddNavigationRegion => "Add a NavigationRegion2D",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Warning {
+    pub text: String,
+    pub fix: Option<Fix>,
+}
 
 fn has(actor: &crate::scene::Actor, class: &str) -> bool {
     world2d::component(actor, class).is_some()
@@ -18,22 +46,39 @@ fn solid_collider(actor: &crate::scene::Actor) -> bool {
         .map(world2d::read::<world2d::Collider2D>)
         .any(|c| c.enabled && !c.trigger)
 }
+/// Whether a Joint2D holds the actor or sits on it: a hanging body needs no collider.
+fn jointed(scene: &Scene, actor: Uuid) -> bool {
+    scene.actors.iter().any(|a| {
+        a.components
+            .iter()
+            .filter(|c| c.class.class_id.as_deref() == Some(world2d::JOINT2D))
+            .map(world2d::read::<crate::physics2d::Joint2D>)
+            .any(|j| a.id == actor || j.body_a == Some(actor) || j.body_b == Some(actor))
+    })
+}
 fn find(scene: &Scene, id: Option<Uuid>) -> Option<&crate::scene::Actor> {
     let id = id?;
     scene.actors.iter().find(|a| a.id == id)
 }
 
 /// The reasons the actor at `index` will not work as authored; empty when it is fine.
-pub fn of(scene: &Scene, index: usize) -> Vec<String> {
-    let mut out = Vec::new();
+pub fn of(scene: &Scene, index: usize) -> Vec<Warning> {
     let Some(actor) = scene.actors.get(index) else {
-        return out;
+        return Vec::new();
     };
-    if has(actor, world2d::RIGID_BODY2D) && !solid_collider(actor) {
-        out.push("RigidBody2D has no solid Collider2D: it falls through everything.".into());
+    let mut out = Vec::new();
+    let mut warn = |text: String, fix: Option<Fix>| out.push(Warning { text, fix });
+    if has(actor, world2d::RIGID_BODY2D) && !solid_collider(actor) && !jointed(scene, actor.id) {
+        warn(
+            "RigidBody2D has no solid Collider2D: it falls through everything.".into(),
+            Some(Fix::AddCollider),
+        );
     }
     if has(actor, world2d::CHARACTER_BODY2D) && !solid_collider(actor) {
-        out.push("CharacterBody2D has no solid Collider2D: it collides with nothing.".into());
+        warn(
+            "CharacterBody2D has no solid Collider2D: it collides with nothing.".into(),
+            Some(Fix::AddCollider),
+        );
     }
     for c in actor
         .components
@@ -42,10 +87,14 @@ pub fn of(scene: &Scene, index: usize) -> Vec<String> {
     {
         let joint: crate::physics2d::Joint2D = world2d::read(c);
         match find(scene, joint.body_b) {
-            None => out.push("Joint2D has no Body B: pick the rigid body it holds.".into()),
-            Some(b) if !has(b, world2d::RIGID_BODY2D) => {
-                out.push(format!("Joint2D: Body B ({}) has no RigidBody2D.", b.name))
-            }
+            None => warn(
+                "Joint2D has no Body B: pick the rigid body it holds.".into(),
+                None,
+            ),
+            Some(b) if !has(b, world2d::RIGID_BODY2D) => warn(
+                format!("Joint2D: Body B ({}) has no RigidBody2D.", b.name),
+                None,
+            ),
             _ => {}
         }
     }
@@ -55,14 +104,18 @@ pub fn of(scene: &Scene, index: usize) -> Vec<String> {
                 .is_some_and(|s| world2d::read::<world2d::Sprite2D>(s).viewport == Some(actor.id))
         });
         if !shown {
-            out.push(
+            warn(
                 "No Sprite2D shows this SubViewport2D's picture: pick it as a sprite's Viewport."
                     .into(),
+                Some(Fix::ShowPicture),
             );
         }
         let v: crate::viewport2d::SubViewport2D = world2d::read(c);
         if v.camera.is_some() && find(scene, v.camera).is_none_or(|a| !has(a, world2d::CAMERA2D)) {
-            out.push("SubViewport2D: its Camera node has no Camera2D.".into());
+            warn(
+                "SubViewport2D: its Camera node has no Camera2D.".into(),
+                None,
+            );
         }
     }
     if let Some(c) = world2d::component(actor, world2d::SPLIT_SCREEN2D) {
@@ -72,7 +125,10 @@ pub fn of(scene: &Scene, index: usize) -> Vec<String> {
             .iter()
             .any(|id| find(scene, *id).is_none_or(|a| !has(a, world2d::CAMERA2D)))
         {
-            out.push("SplitScreen2D needs two nodes with a Camera2D.".into());
+            warn(
+                "SplitScreen2D needs two nodes with a Camera2D.".into(),
+                None,
+            );
         }
     }
     if has(actor, world2d::NAVIGATION_AGENT2D)
@@ -81,20 +137,27 @@ pub fn of(scene: &Scene, index: usize) -> Vec<String> {
             .iter()
             .any(|a| has(a, world2d::NAVIGATION_REGION2D))
     {
-        out.push("NavigationAgent2D: the map has no NavigationRegion2D to plan in.".into());
+        warn(
+            "NavigationAgent2D: the map has no NavigationRegion2D to plan in.".into(),
+            Some(Fix::AddNavigationRegion),
+        );
     }
     if let Some(c) = world2d::component(actor, world2d::NAVIGATION_REGION2D) {
         let region: crate::navigation2d::NavigationRegion2D = world2d::read(c);
         match region.mode {
-            crate::navigation2d::NavMode::Polygon if region.outline.len() < 3 => out.push(
+            crate::navigation2d::NavMode::Polygon if region.outline.len() < 3 => warn(
                 "NavigationRegion2D: the navmesh outline needs at least three points.".into(),
+                None,
             ),
             crate::navigation2d::NavMode::Grid
                 if region.tile_layer.is_some()
                     && find(scene, region.tile_layer)
                         .is_none_or(|a| !has(a, world2d::TILEMAP_LAYER)) =>
             {
-                out.push("NavigationRegion2D: its Tile layer node has no TileMapLayer.".into())
+                warn(
+                    "NavigationRegion2D: its Tile layer node has no TileMapLayer.".into(),
+                    None,
+                )
             }
             _ => {}
         }
@@ -102,16 +165,25 @@ pub fn of(scene: &Scene, index: usize) -> Vec<String> {
     if let Some(c) = world2d::component(actor, world2d::SKELETON2D) {
         let s: crate::skeleton2d::Skeleton2D = world2d::read(c);
         if s.bones.is_empty() {
-            out.push("Skeleton2D has no bones: use its attached parts as bones.".into());
+            warn(
+                "Skeleton2D has no bones: use its attached parts as bones.".into(),
+                None,
+            );
         }
         if s.ik
             .iter()
             .any(|chain| chain.tip.is_none() || chain.target.is_none())
         {
-            out.push("Skeleton2D: an IK chain has no tip or no target.".into());
+            warn(
+                "Skeleton2D: an IK chain has no tip or no target.".into(),
+                None,
+            );
         }
         if s.bones.iter().any(|b| find(scene, b.actor).is_none()) {
-            out.push("Skeleton2D: a bone's node is gone from the map.".into());
+            warn(
+                "Skeleton2D: a bone's node is gone from the map.".into(),
+                None,
+            );
         }
     }
     if let Some(c) = world2d::component(actor, world2d::PATH_FOLLOW2D) {
@@ -122,7 +194,10 @@ pub fn of(scene: &Scene, index: usize) -> Vec<String> {
             .or_else(|| find(scene, actor.attach.as_ref().map(|a| a.actor)))
             .is_some_and(|a| has(a, world2d::PATH2D));
         if !on_path {
-            out.push("PathFollow2D has no Path2D: pick one, or attach this node to one.".into());
+            warn(
+                "PathFollow2D has no Path2D: pick one, or attach this node to one.".into(),
+                None,
+            );
         }
     }
     out
@@ -145,17 +220,37 @@ mod tests {
         ball.components
             .retain(|c| c.class.class_id.as_deref() != Some(world2d::COLLIDER2D));
         scene.actors[0] = ball;
-        assert!(of(&scene, 0)[0].contains("no solid Collider2D"));
+        assert!(of(&scene, 0)[0].text.contains("no solid Collider2D"));
+        assert_eq!(of(&scene, 0)[0].fix, Some(Fix::AddCollider));
         scene.actors.push(create(Preset::Joint2D, "Hook", [0., 0.]));
-        assert!(of(&scene, 1)[0].contains("no Body B"));
+        assert!(of(&scene, 1)[0].text.contains("no Body B"));
+        let ball = scene.actors[0].id;
+        let hook = scene.actors[1]
+            .components
+            .iter_mut()
+            .find(|c| c.class.class_id.as_deref() == Some(world2d::JOINT2D))
+            .unwrap();
+        world2d::write(
+            hook,
+            &crate::physics2d::Joint2D {
+                body_b: Some(ball),
+                ..world2d::read(hook)
+            },
+        );
+        assert!(
+            of(&scene, 0).is_empty() && of(&scene, 1).is_empty(),
+            "a body on a joint (a lamp, a bulb) may hang without a collider"
+        );
         scene
             .actors
             .push(create(Preset::SubViewport2D, "Minimap", [0., 0.]));
-        assert!(of(&scene, 2)[0].contains("No Sprite2D shows"));
+        assert!(of(&scene, 2)[0].text.contains("No Sprite2D shows"));
+        assert_eq!(of(&scene, 2)[0].fix, Some(Fix::ShowPicture));
         scene
             .actors
             .push(create(Preset::NavigationAgent2D, "Bat", [0., 0.]));
-        assert!(of(&scene, 3)[0].contains("no NavigationRegion2D"));
+        assert!(of(&scene, 3)[0].text.contains("no NavigationRegion2D"));
+        assert_eq!(of(&scene, 3)[0].fix, Some(Fix::AddNavigationRegion));
         scene
             .actors
             .push(create(Preset::NavigationRegion2D, "Floor", [0., 0.]));
@@ -163,11 +258,11 @@ mod tests {
         scene
             .actors
             .push(create(Preset::Skeleton2D, "Rig", [0., 0.]));
-        assert!(of(&scene, 5)[0].contains("no bones"));
+        assert!(of(&scene, 5)[0].text.contains("no bones"));
         scene
             .actors
             .push(create(Preset::PathFollow2D, "Cart", [0., 0.]));
-        assert!(of(&scene, 6)[0].contains("no Path2D"));
+        assert!(of(&scene, 6)[0].text.contains("no Path2D"));
         scene
             .actors
             .push(create(Preset::Sprite2D, "Tree", [0., 0.]));

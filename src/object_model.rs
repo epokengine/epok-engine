@@ -103,8 +103,26 @@ const PSX_CAPABILITIES: &[&str] = &[
     "shadow",
 ];
 /// Provided only when `runtime/world2d.hpp` is part of the cooked runtime source
-/// set; the 2D collision world lives entirely in that header.
-const PHYSICS2D_CAPABILITY: &str = "physics2d";
+/// set: the 2D world and every 2D component live in it and the headers it includes.
+const WORLD2D_CAPABILITIES: &[&str] = &[
+    "sprite2d",
+    "camera2d",
+    "collider2d",
+    "body2d",
+    "tilemap2d",
+    "parallax2d",
+    "canvas2d",
+    "path2d",
+    "line2d",
+    "polygon2d",
+    "particles2d",
+    "notifier2d",
+    "remote2d",
+    "skeleton2d",
+    "navigation2d",
+    "physics2d",
+    "viewport2d",
+];
 
 /// What the build target can actually provide. Components declare `Capability=`
 /// tokens; `Model::validate_capabilities` compares the two and reports the gap.
@@ -130,7 +148,7 @@ impl TargetCapabilities {
         let mut names: BTreeSet<String> =
             PSX_CAPABILITIES.iter().map(|s| (*s).to_string()).collect();
         if world2d {
-            names.insert(PHYSICS2D_CAPABILITY.to_string());
+            names.extend(WORLD2D_CAPABILITIES.iter().map(|s| (*s).to_string()));
         }
         Self { names }
     }
@@ -1712,6 +1730,23 @@ mod tests {
         assert!(psx.provides("physics2d"));
         assert!(TargetCapabilities::psx_with_world2d(true).provides("physics2d"));
         assert!(!TargetCapabilities::psx_with_world2d(false).provides("physics2d"));
+        assert!(!TargetCapabilities::psx_with_world2d(false).provides("sprite2d"));
+        // Every component token a cooked runtime header declares is one the target
+        // provides: otherwise placing that component fails validation in the editor.
+        for (name, source) in crate::project::runtime_sources() {
+            let source = String::from_utf8_lossy(source);
+            let classes = source.lines().filter(|line| line.contains("EPOK_CLASS("));
+            for token in classes.flat_map(|line| line.split("Capability=").skip(1)) {
+                let token: String = token
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+                    .collect();
+                assert!(
+                    psx.provides(&token),
+                    "{name} declares `{token}`, which PSX lacks"
+                );
+            }
+        }
         assert!(!psx.provides("shader-graph"));
         assert!(!TargetCapabilities::none().provides("audio"));
         assert!(TargetCapabilities::none().with("audio").provides("audio"));

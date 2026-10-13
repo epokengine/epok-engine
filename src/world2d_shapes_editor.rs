@@ -1102,22 +1102,42 @@ pub(crate) fn actor_combo(
         .and_then(|id| e.scene.actors.iter().find(|a| a.id == id))
         .map_or_else(|| none.to_string(), |a| a.name.clone());
     let mut changed = false;
-    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, label), current) {
-        if ui.selectable_config(none).selected(value.is_none()).build() {
-            *value = None;
-            changed = true;
-        }
-        for actor in e
+    let combo = ui.begin_combo(crate::gui::field(ui, label), current);
+    #[cfg(test)]
+    crate::gui::record_script_control(ui, label);
+    if let Some(_combo) = combo {
+        let mut choices: Vec<_> = e
             .scene
             .actors
             .iter()
             .filter(|a| a.id != exclude && filter(a))
-        {
-            if ui
+            .collect();
+        // A map's worth of nodes gets a search; names starting with it come first.
+        let (query, enter) = if choices.len() > 8 {
+            crate::world2d_editor::combo_filter(ui, "Search nodes")
+        } else {
+            (String::new(), false)
+        };
+        if !query.is_empty() {
+            choices.retain(|a| a.name.to_lowercase().contains(&query));
+            choices.sort_by_key(|a| !a.name.to_lowercase().starts_with(&query));
+        } else if ui.selectable_config(none).selected(value.is_none()).build() {
+            *value = None;
+            changed = true;
+        }
+        if enter && let Some(first) = choices.first() {
+            *value = Some(first.id);
+            changed = true;
+            ui.close_current_popup();
+        }
+        for actor in choices {
+            let picked = ui
                 .selectable_config(format!("{}##{}", actor.name, actor.id))
                 .selected(*value == Some(actor.id))
-                .build()
-            {
+                .build();
+            #[cfg(test)]
+            crate::gui::record_script_control(ui, &format!("{label}: {}", actor.name));
+            if picked {
                 *value = Some(actor.id);
                 changed = true;
             }
@@ -1138,12 +1158,24 @@ fn texture_combo(ui: &Ui, e: &Editor, label: &str, value: &mut Option<Uuid>) {
         .and_then(|id| textures.iter().find(|t| t.0 == id))
         .map_or_else(|| "None".to_string(), |t| t.1.clone());
     if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, label), current) {
-        if ui
-            .selectable_config("None")
-            .selected(value.is_none())
-            .build()
+        let (query, enter) = if textures.len() > 8 {
+            crate::world2d_editor::combo_filter(ui, "Search textures")
+        } else {
+            (String::new(), false)
+        };
+        if query.is_empty()
+            && ui
+                .selectable_config("None")
+                .selected(value.is_none())
+                .build()
         {
             *value = None;
+        }
+        let mut textures = textures;
+        textures.retain(|(_, name)| name.to_lowercase().contains(&query));
+        if enter && let Some((first, _)) = textures.first() {
+            *value = Some(*first);
+            ui.close_current_popup();
         }
         for (id, name) in textures {
             if ui

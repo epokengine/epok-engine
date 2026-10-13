@@ -2143,6 +2143,15 @@ mod tests {
                     );
                 }
             }
+            // A new project opens without a warning sign anywhere in its Hierarchy.
+            for i in 0..scene.actors.len() {
+                let warnings = crate::world2d_warnings::of(&scene, i);
+                assert!(
+                    warnings.is_empty(),
+                    "{flavor:?}: {} warns {warnings:?}",
+                    scene.actors[i].name
+                );
+            }
             let expected = match flavor {
                 GameplayFlavor::Cpp => "assets/scripts/PlatformerController.hpp",
                 GameplayFlavor::Lua => LUA_CONTROLLER_PATH,
