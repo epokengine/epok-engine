@@ -440,13 +440,15 @@ pub enum Template {
     Sample,
     ThirdPerson,
     Platformer2D,
+    Dungeon,
 }
 impl Template {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::Basic,
         Self::Sample,
         Self::ThirdPerson,
         Self::Platformer2D,
+        Self::Dungeon,
     ];
     /// The spelling `--template` accepts and the preview file stem.
     pub fn key(self) -> &'static str {
@@ -455,6 +457,7 @@ impl Template {
             Self::Sample => "sample",
             Self::ThirdPerson => "third-person",
             Self::Platformer2D => "platformer-2d",
+            Self::Dungeon => "dungeon",
         }
     }
     pub fn parse(value: &str) -> Option<Self> {
@@ -543,7 +546,9 @@ impl CreateOptions {
 /// there is one, and inventing a flag for it would imply otherwise.
 pub fn creation_options(template: &str, gameplay: &str) -> Result<CreateOptions, String> {
     let template = Template::parse(template).ok_or_else(|| {
-        format!("Unknown template: {template}. Use basic, sample or third-person.")
+        format!(
+            "Unknown template: {template}. Use basic, sample, third-person, platformer-2d or dungeon."
+        )
     })?;
     let gameplay = GameplayFlavor::parse(gameplay).ok_or_else(|| {
         format!("Unknown gameplay flavor: {gameplay}. Use cpp, blueprint or lua.")
@@ -595,6 +600,7 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
     let scene = match template {
         Template::ThirdPerson => crate::third_person::create(destination, gameplay)?,
         Template::Platformer2D => crate::platformer_template::create(destination, gameplay)?,
+        Template::Dungeon => crate::dungeon_template::create(destination, gameplay)?,
         Template::Basic => {
             // Basic stays basic: no starter behaviour in any flavor, so nothing
             // here depends on the selection beyond the descriptor it records.
@@ -616,7 +622,10 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         build: Default::default(),
         play: Default::default(),
         transition: Default::default(),
-        rendering: if matches!(template, Template::ThirdPerson | Template::Platformer2D) {
+        rendering: if matches!(
+            template,
+            Template::ThirdPerson | Template::Platformer2D | Template::Dungeon
+        ) {
             crate::settings::Rendering {
                 width: 320,
                 height: 240,

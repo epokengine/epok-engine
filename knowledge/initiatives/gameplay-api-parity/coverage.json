@@ -2,10 +2,10 @@
   "schema_version": 2,
   "initiative": "gameplay-api-parity",
   "baseline": {
-    "commit": "00334cac47d5e5afd49671c8cde2792995067db5",
-    "branch": "features/2d-improvements",
+    "commit": "044e2162bd8c83a755a820f42eeca7f42f5f5923",
+    "branch": "feature/dungeon-generator",
     "catalog": "docs/api/catalog.json",
-    "catalog_sha256": "eac52aaf29f35e68cf685f739a37c1f5882c143f08c1039b0818e8d5aa50fe1a",
+    "catalog_sha256": "f90df2387c8dcdef498bd2007d1837ab62961d5ba18a83277498d9a770814ecf",
     "catalog_schema": 1,
     "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
     "source_hashes": {
@@ -24,9 +24,10 @@
       "runtime/blueprint_template.hpp": "b614e62fe0aadc4c70f2ed90aa6baeeb6115ee49f62589c9cedabb39ccd19c97",
       "runtime/camera_aim.hpp": "7352af512ec4cc2688b05d01aba60b92144bb4a64b40334b94978924b1519fe0",
       "runtime/camera_direction.hpp": "65eaae5fcf7524dc48954cec8320ae348f3788b157c05870733be5363d8ede04",
-      "runtime/collision.hpp": "e586f7c6935b5971ac08500bfe026ea46f6e333905bf9acdeaa36991474bcc03",
+      "runtime/collision.hpp": "e92e066346fc417d27ac79953cf078192a285e6c023b37139d6dcd1b686c2f0d",
       "runtime/debug_hud.hpp": "bd6c768da1e7b4728fbf53968671dc836feba360d7e356fa79d599faeea2c667",
       "runtime/draw_order.hpp": "2fd81c3c92f1b220dcd4558a2f7d9854802c302aac8ba5a01343453401aa8e54",
+      "runtime/dungeon_random.hpp": "64397b1994b33cc3bc0d18d3aa181a32fd5903f6d3b89cb07cd365ad78071420",
       "runtime/effect_types.hpp": "a8e1340e59ba121b46c7ef5f9d7b72bf294bcc9ceddaf4ab2ccb9e26710ed382",
       "runtime/effects.hpp": "fa2a2b49c0c3682b2f7903a27eeeb649e3b7b574cf57f48e35a10c81017e0531",
       "runtime/epok.hpp": "7e4cb376c2cafbaf0151ef5c1c9f8477cd30c15118a3eb0d0e18482a14da70a2",
@@ -129,8 +130,8 @@
     }
   },
   "frozen_denominator": {
-    "candidate_keys_sha256": "ba1759d43b9acfbaa64d98d93136b77c569653dc1a2338b04be669cf6f0af64e",
-    "count": 4733,
+    "candidate_keys_sha256": "df24ad553c19a2a8a9761db9b236d1f4a1db90a020bd050abfe5c51dbb39c416",
+    "count": 4741,
     "policy": "append-only; replacement/removal requires an explicit migration record",
     "migrations": []
   },
@@ -19227,7 +19228,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::begin_sync",
           "source": "runtime/collision.hpp",
-          "line": 168,
+          "line": 201,
           "signature": "void begin_sync()",
           "result": "void",
           "parameters": [],
@@ -19237,7 +19238,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "b86a3ec2744bb21de901c647b67515a6cdc4f06446e20b6665f85600ded3d064",
+      "declaration_hash": "d662125b755af520d363f70293e78b12ad575dd805eaca142272a6c05c1f5048",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "void begin_sync()",
@@ -19300,7 +19301,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::bounds",
           "source": "runtime/collision.hpp",
-          "line": 200,
+          "line": 237,
           "signature": "const AabbT<Number>* bounds(size_t index) const",
           "result": "const AabbT<Number> *",
           "parameters": [
@@ -19316,7 +19317,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "12ba739f84be4da49f849a444c801d4762de44d3bcd695292e08a7c4facbe4a6",
+      "declaration_hash": "341a082aa859ad4e262629b3b31d0a4261c775976d8757bb5c7fd09ac901bf00",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "const AabbT<Number>* bounds(size_t index) const",
@@ -19385,7 +19386,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::clear",
           "source": "runtime/collision.hpp",
-          "line": 167,
+          "line": 200,
           "signature": "void clear()",
           "result": "void",
           "parameters": [],
@@ -19395,7 +19396,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "98b032423a1e4a5e5f1375b4db1a2dfc938a5793b5e81c9dcc2d8e125aa216c1",
+      "declaration_hash": "d097645fbdb3db675317385a2c6ba87a35761fc0ef455e3b43789f3fec42d5f9",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "void clear()",
@@ -19458,7 +19459,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::ground",
           "source": "runtime/collision.hpp",
-          "line": 230,
+          "line": 271,
           "signature": "SpatialHitT<Number> ground(const AabbT<Number>& box,Number distance,uint32_t mask=0xffffffffu,int ignore=-1) const",
           "result": "SpatialHitT<Number>",
           "parameters": [
@@ -19489,7 +19490,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "48ba6f8825b335b67f4e4e90b8076bd6a98a1e644a9085eca62165dce83df0c7",
+      "declaration_hash": "9b3ac5804897f19668e59c60ce399edec1e38a46adee44a810bf72d10a94f97c",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "SpatialHitT<Number> ground(const AabbT<Number>& box,Number distance,uint32_t mask=0xffffffffu,int ignore=-1) const",
@@ -19573,7 +19574,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::has_trigger_pairs",
           "source": "runtime/collision.hpp",
-          "line": 166,
+          "line": 199,
           "signature": "bool has_trigger_pairs() const",
           "result": "bool",
           "parameters": [],
@@ -19583,7 +19584,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "0ccc5a42e653c7d60c85678264988a8c79077eb27c81a3341378d52cfed5ff1a",
+      "declaration_hash": "657418763375605cc66e6ac2b0f54edc3698049a623ec46cf6e90cac4f1dc22b",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "bool has_trigger_pairs() const",
@@ -19646,7 +19647,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::move_and_slide",
           "source": "runtime/collision.hpp",
-          "line": 247,
+          "line": 291,
           "signature": "MoveResultT<Number> move_and_slide(AabbT<Number> box,const Number* displacement,uint32_t mask=0xffffffffu,int ignore=-1) const",
           "result": "MoveResultT<Number>",
           "parameters": [
@@ -19677,7 +19678,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "f7738ba00929bc3f766b2cc3ada4ea802436c3117116b70b55d276ce31b299db",
+      "declaration_hash": "7bbb426bbdc233bceb66e9113e6b8507ac7624b385c170af153db9c886f17454",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "MoveResultT<Number> move_and_slide(AabbT<Number> box,const Number* displacement,uint32_t mask=0xffffffffu,int ignore=-1) const",
@@ -19761,7 +19762,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::note_enabled",
           "source": "runtime/collision.hpp",
-          "line": 169,
+          "line": 202,
           "signature": "void note_enabled(size_t index)",
           "result": "void",
           "parameters": [
@@ -19777,7 +19778,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "8df19da6534e4f42fc536322e5f5650bfd95d5bf8493699a8b3891400a7020b7",
+      "declaration_hash": "73ebbf134843c76ff2a5c308e7ccc93fb30bcb970a1e2288b3d53664e0279622",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "void note_enabled(size_t index)",
@@ -19846,7 +19847,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::overlap",
           "source": "runtime/collision.hpp",
-          "line": 202,
+          "line": 239,
           "signature": "size_t overlap(const AabbT<Number>& box,uint16_t* output,size_t output_capacity,uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=true) const",
           "result": "size_t",
           "parameters": [
@@ -19887,7 +19888,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "f7b2bb8e1eb122475d51cc30d4ac3db5e3bb3116f36922271a7ce0cd0ca43fad",
+      "declaration_hash": "7187cc112aeea83777dce30f135530aba6d6af2c8b0104db7ce5bd6838efbcae",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "size_t overlap(const AabbT<Number>& box,uint16_t* output,size_t output_capacity,uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=true) const",
@@ -19981,7 +19982,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::raycast",
           "source": "runtime/collision.hpp",
-          "line": 210,
+          "line": 248,
           "signature": "SpatialHitT<Number> raycast(const Number* origin,const Number* delta,uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=false) const",
           "result": "SpatialHitT<Number>",
           "parameters": [
@@ -20017,7 +20018,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "66b65013f84f8af95f81a9a37f43790611124dc7ce12cf095553f47f7a014b3b",
+      "declaration_hash": "e225c56519d448451925362981bc0cfe6fff7cb6ed0d7dfefbf38c6f7f19c738",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "SpatialHitT<Number> raycast(const Number* origin,const Number* delta,uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=false) const",
@@ -20106,7 +20107,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::raycast_batch",
           "source": "runtime/collision.hpp",
-          "line": 223,
+          "line": 264,
           "signature": "void raycast_batch(const RaycastQueryT<Number>* queries,SpatialHitT<Number>* results,size_t count, uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=false) const",
           "result": "void",
           "parameters": [
@@ -20147,7 +20148,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "419afdc1f80da6173bf43675ddaec91f932dc778425b1ef7439c362a9d0c621f",
+      "declaration_hash": "98d7901ec4d676809b3e94a18a4e664c9e4524995c304fe4b61e58a050965d77",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "void raycast_batch(const RaycastQueryT<Number>* queries,SpatialHitT<Number>* results,size_t count, uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=false) const",
@@ -20241,7 +20242,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::set",
           "source": "runtime/collision.hpp",
-          "line": 170,
+          "line": 203,
           "signature": "void set(size_t index,const ColliderT<Number>& collider,const Affine<Number>& matrix,bool active=true,uint32_t generation=0)",
           "result": "void",
           "parameters": [
@@ -20277,7 +20278,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "2a75ca26670c9c11b06304f89b1967a05b9991ca428497a21c09bdf889782adb",
+      "declaration_hash": "ef09425dea7ea0a616a050225e5e303d33b04683de9753a2d39412130c419b0c",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "void set(size_t index,const ColliderT<Number>& collider,const Affine<Number>& matrix,bool active=true,uint32_t generation=0)",
@@ -20366,7 +20367,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::set_cached",
           "source": "runtime/collision.hpp",
-          "line": 183,
+          "line": 218,
           "signature": "bool set_cached(size_t index,const ColliderT<Number>& collider,const Affine<Number>& matrix,uint32_t revision,bool active=true,uint32_t generation=0)",
           "result": "bool",
           "parameters": [
@@ -20407,7 +20408,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "cff76c5fd1bb7599580297eccf448c461c7e615918c243492befd65b543d6787",
+      "declaration_hash": "3a9e6bb22cd716affb195b3d78e5faddad653bc96c777918df091497ec17782c",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "bool set_cached(size_t index,const ColliderT<Number>& collider,const Affine<Number>& matrix,uint32_t revision,bool active=true,uint32_t generation=0)",
@@ -20501,7 +20502,7 @@
           "kind": "callable",
           "qualified": "epok::CollisionWorld::update_triggers",
           "source": "runtime/collision.hpp",
-          "line": 309,
+          "line": 358,
           "signature": "template<class Callback> void update_triggers(Callback&& callback)",
           "result": "void",
           "parameters": [
@@ -20517,7 +20518,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "bb9fba7625dd544c96897b46d916c67ce0808aacf906b99b367326cc60883898",
+      "declaration_hash": "5bac81003fd9527266f27f486086a273c3e2823898a294f77db0f5a9f9d976ad",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "template<class Callback> void update_triggers(Callback&& callback)",
@@ -71822,7 +71823,7 @@
           "kind": "callable",
           "qualified": "epok::SpatialHitT::operator bool",
           "source": "runtime/collision.hpp",
-          "line": 38,
+          "line": 45,
           "signature": "explicit operator bool() const",
           "result": "bool",
           "parameters": [],
@@ -71832,7 +71833,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "0e62109d404616466719da5c7481d413803a8edcd4673cd6484f35b51c96ad60",
+      "declaration_hash": "120a1a161145f2c409717afe0bab4ff70fa1655996c562074faca79cdbad23aa",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "explicit operator bool() const",
@@ -91987,7 +91988,7 @@
           "kind": "callable",
           "qualified": "epok::aabb_may_touch",
           "source": "runtime/collision.hpp",
-          "line": 51,
+          "line": 58,
           "signature": "template<class Number> inline bool aabb_may_touch(const AabbT<Number>& a,const AabbT<Number>& b)",
           "result": "bool",
           "parameters": [
@@ -92008,7 +92009,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "99b323a1bd6e75cbc19160d53d2b6538253f3d1566a47f6dd64c6a39af71cf4e",
+      "declaration_hash": "e13487ca2f4a47766f4fa01f60ba7312761b565959c367040572d0863699a25e",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "template<class Number> inline bool aabb_may_touch(const AabbT<Number>& a,const AabbT<Number>& b)",
@@ -92082,7 +92083,7 @@
           "kind": "callable",
           "qualified": "epok::aabb_overlap",
           "source": "runtime/collision.hpp",
-          "line": 47,
+          "line": 54,
           "signature": "template<class Number> inline bool aabb_overlap(const AabbT<Number>& a,const AabbT<Number>& b)",
           "result": "bool",
           "parameters": [
@@ -92103,7 +92104,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "7be100d62915675980aa32b44f5f93d90aaa9ee5e67054d1b87260d7ca7dd91d",
+      "declaration_hash": "8000bd448d4e7ff83b64565bd345e6a56e54115c6031c5ef143513fd9dc95daf",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "template<class Number> inline bool aabb_overlap(const AabbT<Number>& a,const AabbT<Number>& b)",
@@ -108915,7 +108916,7 @@
           "kind": "callable",
           "qualified": "epok::collider_bounds",
           "source": "runtime/collision.hpp",
-          "line": 63,
+          "line": 70,
           "signature": "template<class Number> inline AabbT<Number> collider_bounds(const ColliderT<Number>& c,const Affine<Number>& world)",
           "result": "AabbT<Number>",
           "parameters": [
@@ -108936,7 +108937,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "9703456e49a96a991053d45106907567356aeac232eedb5cfcfe58bf4d71d03b",
+      "declaration_hash": "1c1f6efaec4a6cc796e68ecc4556af61f246480d5553248fc7868df4f5239b3a",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "template<class Number> inline AabbT<Number> collider_bounds(const ColliderT<Number>& c,const Affine<Number>& world)",
@@ -111311,6 +111312,524 @@
       ],
       "test_ids": [
         "gameplay-parity-conformance:gameplay-api:372083a7-8113-5546-aa7e-090092c0384b"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:15b5aede-8d79-5a96-90f8-da02fa835a3c",
+      "candidate_key": "callable:epok::dungeon::Random::Random",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::Random::Random",
+      "module": "dungeon-random",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::Random::Random",
+          "source": "runtime/dungeon_random.hpp",
+          "line": 10,
+          "signature": "explicit Random(uint32_t seed)",
+          "result": "",
+          "parameters": [
+            {
+              "name": "seed",
+              "type": "uint32_t",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "e961df28b2cf355dfa9784e08136d74afd85dfea804a6ebc326c3c06f578c383",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "explicit Random(uint32_t seed)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "seed",
+            "type": "uint32_t",
+            "direction": "input"
+          }
+        ],
+        "returns": ""
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Random",
+        "domain": "dungeon-random"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:15b5aede-8d79-5a96-90f8-da02fa835a3c"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:15b5aede-8d79-5a96-90f8-da02fa835a3c"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:c624f929-d9fd-51af-beba-d56b736a32d0",
+      "candidate_key": "callable:epok::dungeon::Random::below",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::Random::below",
+      "module": "dungeon-random",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::Random::below",
+          "source": "runtime/dungeon_random.hpp",
+          "line": 27,
+          "signature": "uint32_t below(uint32_t n)",
+          "result": "uint32_t",
+          "parameters": [
+            {
+              "name": "n",
+              "type": "uint32_t",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "144d6d940f2b9c8ea2b93f1e7fba4352e8eb603999b11fd9218341677a675374",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint32_t below(uint32_t n)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "n",
+            "type": "uint32_t",
+            "direction": "input"
+          }
+        ],
+        "returns": "uint32_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Random",
+        "domain": "dungeon-random"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:c624f929-d9fd-51af-beba-d56b736a32d0"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:c624f929-d9fd-51af-beba-d56b736a32d0"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:18e3b75f-83fa-5e63-a1ae-51f5300a6722",
+      "candidate_key": "callable:epok::dungeon::Random::chance",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::Random::chance",
+      "module": "dungeon-random",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::Random::chance",
+          "source": "runtime/dungeon_random.hpp",
+          "line": 41,
+          "signature": "bool chance(uint32_t percent)",
+          "result": "bool",
+          "parameters": [
+            {
+              "name": "percent",
+              "type": "uint32_t",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "40ba5599abb1117b11ce47b7244dac90eeeaf3ef634fc00738337be559e5b590",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "bool chance(uint32_t percent)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "percent",
+            "type": "uint32_t",
+            "direction": "input"
+          }
+        ],
+        "returns": "bool"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Random",
+        "domain": "dungeon-random"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:18e3b75f-83fa-5e63-a1ae-51f5300a6722"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:18e3b75f-83fa-5e63-a1ae-51f5300a6722"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:96adc17a-d625-5422-b987-ef767dc8eefa",
+      "candidate_key": "callable:epok::dungeon::Random::next",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::Random::next",
+      "module": "dungeon-random",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::Random::next",
+          "source": "runtime/dungeon_random.hpp",
+          "line": 20,
+          "signature": "uint32_t next()",
+          "result": "uint32_t",
+          "parameters": [],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "01295b1e156498630faaf5f3ca0f1056da5e922414a102374defeb8c74874f15",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint32_t next()",
+      "types_and_directions": {
+        "parameters": [],
+        "returns": "uint32_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Random",
+        "domain": "dungeon-random"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:96adc17a-d625-5422-b987-ef767dc8eefa"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:96adc17a-d625-5422-b987-ef767dc8eefa"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:cf19a50a-da24-55d2-89f5-46b7a8176f9d",
+      "candidate_key": "callable:epok::dungeon::Random::range",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::Random::range",
+      "module": "dungeon-random",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::Random::range",
+          "source": "runtime/dungeon_random.hpp",
+          "line": 37,
+          "signature": "int32_t range(int32_t low,int32_t high)",
+          "result": "int32_t",
+          "parameters": [
+            {
+              "name": "low",
+              "type": "int32_t",
+              "description": ""
+            },
+            {
+              "name": "high",
+              "type": "int32_t",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "716a1aabbd19281136fb455bbe4f517ecca7367abe57a7a16eddad1524a47969",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "int32_t range(int32_t low,int32_t high)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "low",
+            "type": "int32_t",
+            "direction": "input"
+          },
+          {
+            "name": "high",
+            "type": "int32_t",
+            "direction": "input"
+          }
+        ],
+        "returns": "int32_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Random",
+        "domain": "dungeon-random"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:cf19a50a-da24-55d2-89f5-46b7a8176f9d"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:cf19a50a-da24-55d2-89f5-46b7a8176f9d"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:1cc6e887-0623-5a43-96b4-eb8db3d9177f",
+      "candidate_key": "callable:epok::dungeon::Random::stream",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::Random::stream",
+      "module": "dungeon-random",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::Random::stream",
+          "source": "runtime/dungeon_random.hpp",
+          "line": 19,
+          "signature": "static Random stream(uint32_t seed,uint32_t stage)",
+          "result": "Random",
+          "parameters": [
+            {
+              "name": "seed",
+              "type": "uint32_t",
+              "description": ""
+            },
+            {
+              "name": "stage",
+              "type": "uint32_t",
+              "description": ""
+            }
+          ],
+          "static": true,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "2fad1680e8a8fc2e267b3639a3532354bb54cf3dc13495eb02bc30d70c0935d8",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "static Random stream(uint32_t seed,uint32_t stage)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "seed",
+            "type": "uint32_t",
+            "direction": "input"
+          },
+          {
+            "name": "stage",
+            "type": "uint32_t",
+            "direction": "input"
+          }
+        ],
+        "returns": "Random"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Random",
+        "domain": "dungeon-random"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:1cc6e887-0623-5a43-96b4-eb8db3d9177f"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:1cc6e887-0623-5a43-96b4-eb8db3d9177f"
       ],
       "cost_evidence": [
         "shared-inline-native-lowering",
@@ -153649,7 +154168,7 @@
           "kind": "callable",
           "qualified": "epok::swept_bounds",
           "source": "runtime/collision.hpp",
-          "line": 55,
+          "line": 62,
           "signature": "template<class Number> inline AabbT<Number> swept_bounds(AabbT<Number> box,const Number* delta)",
           "result": "AabbT<Number>",
           "parameters": [
@@ -153670,7 +154189,7 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "e34f4549f66c83c843fbe45ac4c76a0c3a4d50c4cf9c532c046f7177b74dd55b",
+      "declaration_hash": "178e29f926cca5e2e93326b9deadbc6237ec2e0ab59d60686ca89ea5131da80f",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "template<class Number> inline AabbT<Number> swept_bounds(AabbT<Number> box,const Number* delta)",
@@ -169324,14 +169843,14 @@
           "kind": "field",
           "qualified": "epok::AabbT::max",
           "source": "runtime/collision.hpp",
-          "line": 34,
+          "line": 41,
           "signature": "Number min[3],max[3]; }",
           "value_type": "Number[3]",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "5b082b78ddb4e33e4578aee6467e987b7659b51c205db7a0b230de9ed5e9d8b6",
+      "declaration_hash": "8926253b0b52ef4dc787b1caadd119facabfe4a4cb539fd8043437d2cfa0acf6",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Number min[3],max[3]; }",
@@ -169400,14 +169919,14 @@
           "kind": "field",
           "qualified": "epok::AabbT::min",
           "source": "runtime/collision.hpp",
-          "line": 34,
+          "line": 41,
           "signature": "Number min[3],max[3]; }",
           "value_type": "Number[3]",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "208fd44aa6d4868f5907252185ab22b6939fdb0a386095aad1ebd8570be82e2b",
+      "declaration_hash": "f8eefbd5d94d8a70707a10810ab056492dbce21bbbdc106382257ef3e6cc581d",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Number min[3],max[3]; }",
@@ -197909,6 +198428,158 @@
       "status": "implemented"
     },
     {
+      "id": "gameplay-api:af672f77-4690-5e32-98dc-42885155a606",
+      "candidate_key": "field:epok::ColliderT::box_count",
+      "category": "collision_3d",
+      "declaration_kind": "field",
+      "qualified": "epok::ColliderT::box_count",
+      "module": "collision",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::ColliderT::box_count",
+          "source": "runtime/collision.hpp",
+          "line": 39,
+          "signature": "uint16_t box_count=0",
+          "value_type": "uint16_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "ce198f435ff038976c139d0baf98866fb334eb61dda38117bc4b05e1d5d6639d",
+      "disposition": "internal_implementation",
+      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "canonical_public_declaration": "uint16_t box_count=0",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint16_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint16_t"
+      },
+      "owner_domain": {
+        "owner": "epok::ColliderT",
+        "domain": "collision"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:af672f77-4690-5e32-98dc-42885155a606"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:af672f77-4690-5e32-98dc-42885155a606"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:038cc10a-7d21-579e-9e3e-f22915f57746",
+      "candidate_key": "field:epok::ColliderT::boxes",
+      "category": "collision_3d",
+      "declaration_kind": "field",
+      "qualified": "epok::ColliderT::boxes",
+      "module": "collision",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::ColliderT::boxes",
+          "source": "runtime/collision.hpp",
+          "line": 38,
+          "signature": "const int16_t* boxes=nullptr",
+          "value_type": "const int16_t *",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "6a254cb5e608f97ee6b44cf00d33c0afa356166d4bc0f63e9ec62593df0dce6b",
+      "disposition": "internal_implementation",
+      "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
+      "canonical_public_declaration": "const int16_t* boxes=nullptr",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "const int16_t *",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "const int16_t *"
+      },
+      "owner_domain": {
+        "owner": "epok::ColliderT",
+        "domain": "collision"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:038cc10a-7d21-579e-9e3e-f22915f57746"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:038cc10a-7d21-579e-9e3e-f22915f57746"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
       "id": "gameplay-api:e6e34659-a2b4-5228-a15f-b58d5cec23ad",
       "candidate_key": "field:epok::ColliderT::center",
       "category": "collision_3d",
@@ -199744,14 +200415,14 @@
           "kind": "field",
           "qualified": "epok::CollisionWorld::dropped_trigger_pairs",
           "source": "runtime/collision.hpp",
-          "line": 165,
+          "line": 198,
           "signature": "uint32_t dropped_trigger_pairs=0",
           "value_type": "uint32_t",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "b1bfe71805ae68dac4c227815889780851dda20fd0d17ccc6928cc723d5f3ba2",
+      "declaration_hash": "0c59012a103b60d389e055680ae41c1a1e256c22686516f0bb93894a2f62a948",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "uint32_t dropped_trigger_pairs=0",
@@ -226440,14 +227111,14 @@
           "kind": "field",
           "qualified": "epok::MoveResultT::blocked",
           "source": "runtime/collision.hpp",
-          "line": 42,
+          "line": 49,
           "signature": "bool grounded=false,blocked=false,unr",
           "value_type": "bool",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "3ce9a91d25ff05a05868c00f62b6cf720b21c5b3803bd5b3376a2010e3af8c66",
+      "declaration_hash": "4c711971356fe1039604e42e280525df68debb3023bb5d6933a2ee16f9045745",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "bool grounded=false,blocked=false,unr",
@@ -226516,14 +227187,14 @@
           "kind": "field",
           "qualified": "epok::MoveResultT::displacement",
           "source": "runtime/collision.hpp",
-          "line": 41,
+          "line": 48,
           "signature": "Number displacement[3]={},nor",
           "value_type": "Number[3]",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "bcd1dc6fa34e8e15f5204fc89288d4c97834c07e15ce8af93479049f1e3e1896",
+      "declaration_hash": "e58ec67b6bdfafdb9098e40d11c50d248bc3d48605723f69b2296139ca1f7de4",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Number displacement[3]={},nor",
@@ -226592,14 +227263,14 @@
           "kind": "field",
           "qualified": "epok::MoveResultT::entity",
           "source": "runtime/collision.hpp",
-          "line": 41,
+          "line": 48,
           "signature": "int entity=-1;uint32_t generation=0",
           "value_type": "int",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "60f9e5ad2228d3e73a53a1994fbf522bba29e1279a2fa7973aa35b5ec15f579c",
+      "declaration_hash": "bf6ca2a9d034662b9c736a83e97b6ed7a692bba0269495ed2f420eaa351bfd74",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "int entity=-1;uint32_t generation=0",
@@ -226668,14 +227339,14 @@
           "kind": "field",
           "qualified": "epok::MoveResultT::generation",
           "source": "runtime/collision.hpp",
-          "line": 41,
+          "line": 48,
           "signature": "uint32_t generation=0",
           "value_type": "uint32_t",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "d8b8f43ea1a33ebe5437f3d603d25f550061994306ba20e7aebeaa5b0084fb91",
+      "declaration_hash": "58c49b7f5edbfa185394e4cb3d31b760cf192d6488c39e78f05f3e0b02c7b255",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "uint32_t generation=0",
@@ -226744,14 +227415,14 @@
           "kind": "field",
           "qualified": "epok::MoveResultT::grounded",
           "source": "runtime/collision.hpp",
-          "line": 42,
+          "line": 49,
           "signature": "bool grounded=false,blo",
           "value_type": "bool",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "1bc39e702b31e944130e7acf5aadd0c5e0069afcf0c98d60ee4632664f67abe3",
+      "declaration_hash": "2100c831bd1bae2a9a4de1ec56507732cbfedbdf2217d1b348abc63af26ec915",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "bool grounded=false,blo",
@@ -226820,14 +227491,14 @@
           "kind": "field",
           "qualified": "epok::MoveResultT::normal",
           "source": "runtime/collision.hpp",
-          "line": 41,
+          "line": 48,
           "signature": "Number displacement[3]={},normal[3]={};int",
           "value_type": "Number[3]",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "e6cc0cabeca1810d18fa88bbf1d783c6bf6e861720221f7652502dce8616affc",
+      "declaration_hash": "22ee1e8e2d94442efb5301ae50e68c0e8f1e93c642118ae4a20ef8b45b8538a4",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Number displacement[3]={},normal[3]={};int",
@@ -226896,14 +227567,14 @@
           "kind": "field",
           "qualified": "epok::MoveResultT::unresolved_overlap",
           "source": "runtime/collision.hpp",
-          "line": 42,
+          "line": 49,
           "signature": "bool grounded=false,blocked=false,unresolved_overlap=false",
           "value_type": "bool",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "b319c7ffdf17a62ab2b90d550a61ba355890f2c76b9b19ce92db0f46e676fac2",
+      "declaration_hash": "3035362c7390010d0e36bd2042d10c205ff8b49cb715eb4caf0d89a2a76507f9",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "bool grounded=false,blocked=false,unresolved_overlap=false",
@@ -261324,14 +261995,14 @@
           "kind": "field",
           "qualified": "epok::RaycastQueryT::displacement",
           "source": "runtime/collision.hpp",
-          "line": 35,
+          "line": 42,
           "signature": "Number origin[3],displacement[3];}",
           "value_type": "Number[3]",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "26975d3b8b7a9a6d6b48b83a6de03a269bce2b3eaab46ca0a02ea1267554019f",
+      "declaration_hash": "aaa38526532478237ee1fc0cc85b9dacbb48ba3a6ad651fca3870d904cb4c8d4",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Number origin[3],displacement[3];}",
@@ -261400,14 +262071,14 @@
           "kind": "field",
           "qualified": "epok::RaycastQueryT::origin",
           "source": "runtime/collision.hpp",
-          "line": 35,
+          "line": 42,
           "signature": "Number origin[3],displacement[3];}",
           "value_type": "Number[3]",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "ba793f4a7a6724331cdaeeced0751287b7c79e7a5a143bc2198fa5cf2ea9e886",
+      "declaration_hash": "ebe0a57f63e3c771aeacb0f685059b01475bb2df822ac310ee90292e62206821",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Number origin[3],displacement[3];}",
@@ -280704,14 +281375,14 @@
           "kind": "field",
           "qualified": "epok::SpatialHitT::entity",
           "source": "runtime/collision.hpp",
-          "line": 37,
+          "line": 44,
           "signature": "int entity=-1;uin",
           "value_type": "int",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "b0fc8c7246c1179c8f85b0402b3419b11c629371a76bcb57af0e32ba7e0b9efd",
+      "declaration_hash": "ee7d3f485027a819a2cceb62e5a4f07f41a3919e2c3eedd684b69c741f02c950",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "int entity=-1;uin",
@@ -280780,14 +281451,14 @@
           "kind": "field",
           "qualified": "epok::SpatialHitT::fraction",
           "source": "runtime/collision.hpp",
-          "line": 37,
+          "line": 44,
           "signature": "Number fraction=1.0,point[3]={},normal[3]={};bool started_i",
           "value_type": "Number",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "0edace403d86940e1437a98e02c2cf82615cdbdf38049062476052da505969f3",
+      "declaration_hash": "c4f15647e562e67d73c2ef60e9c8b8f8e7ae6ce591ab33282f34890e7cccc452",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Number fraction=1.0,point[3]={},normal[3]={};bool started_i",
@@ -280856,14 +281527,14 @@
           "kind": "field",
           "qualified": "epok::SpatialHitT::generation",
           "source": "runtime/collision.hpp",
-          "line": 37,
+          "line": 44,
           "signature": "uint32_t generation=0;Number fraction=1",
           "value_type": "uint32_t",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "72c42cc0415467f9418eefee324f4350f9cc3fad93978471a9f39a4ae56fdaa7",
+      "declaration_hash": "d1d9ec74dabaa48a378994f95b10536259bc4a7e8b7c7136d1820aab426b1613",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "uint32_t generation=0;Number fraction=1",
@@ -280932,14 +281603,14 @@
           "kind": "field",
           "qualified": "epok::SpatialHitT::normal",
           "source": "runtime/collision.hpp",
-          "line": 37,
+          "line": 44,
           "signature": "Number fraction=1.0,point[3]={},normal[3]={};bool started_inside=false",
           "value_type": "Number[3]",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "3c00b183a05d7af4a3d8323fdc15314a5668d7c6cfefc2865602d214d5bc32b4",
+      "declaration_hash": "ec643e10a3ed5aeabfca8dacb2778585daebd7fc7a530f6de176d01a04e2325c",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Number fraction=1.0,point[3]={},normal[3]={};bool started_inside=false",
@@ -281008,14 +281679,14 @@
           "kind": "field",
           "qualified": "epok::SpatialHitT::point",
           "source": "runtime/collision.hpp",
-          "line": 37,
+          "line": 44,
           "signature": "Number fraction=1.0,point[3]={},normal[3]={};bool started_inside=false",
           "value_type": "Number[3]",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "663bc77bf38b11cb2ddea79e69c2f4d7d4def6f3bd64bac973d87a8b3c08dd0e",
+      "declaration_hash": "91eaecb4ebb9699932405dfe96a5ef6c3fe47d66c4124e47bc2d8e5948fd69a5",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Number fraction=1.0,point[3]={},normal[3]={};bool started_inside=false",
@@ -281084,14 +281755,14 @@
           "kind": "field",
           "qualified": "epok::SpatialHitT::started_inside",
           "source": "runtime/collision.hpp",
-          "line": 37,
+          "line": 44,
           "signature": "bool started_inside=false",
           "value_type": "bool",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "34aeb7845448043ac080e192db44cf2a92613dd22edfdf323ae69bfeaab757f4",
+      "declaration_hash": "2f7968ccfb179c50b569b7c367bdf9d908124bd4f8685559f069713050543995",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "bool started_inside=false",
@@ -300008,14 +300679,14 @@
           "kind": "field",
           "qualified": "epok::TriggerEvent::first",
           "source": "runtime/collision.hpp",
-          "line": 45,
+          "line": 52,
           "signature": "uint16_t first,second;uint32_t first",
           "value_type": "uint16_t",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "fb1da70405adfa93b38cd79f2f90a1473bbb2bac245c3c98c3886ace54d2b3e7",
+      "declaration_hash": "0d9ff1e0929751030258b0758dfcac082482a8c343c392006a3964f7e7a28010",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "uint16_t first,second;uint32_t first",
@@ -300084,14 +300755,14 @@
           "kind": "field",
           "qualified": "epok::TriggerEvent::first_generation",
           "source": "runtime/collision.hpp",
-          "line": 45,
+          "line": 52,
           "signature": "uint32_t first_generation,second_generation;TriggerPhase phase; }",
           "value_type": "uint32_t",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "2ccdaffbfda8fa6b4990baa69559b2776bd045eeb09e4e75f2546f52e29e9ed0",
+      "declaration_hash": "4c8a1db178244773a71aeffde9934bb8f107db2a026ee97b62fdb650b9f1a388",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "uint32_t first_generation,second_generation;TriggerPhase phase; }",
@@ -300160,14 +300831,14 @@
           "kind": "field",
           "qualified": "epok::TriggerEvent::phase",
           "source": "runtime/collision.hpp",
-          "line": 45,
+          "line": 52,
           "signature": "TriggerPhase phase; }",
           "value_type": "TriggerPhase",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "3877e2ac578422ad1c5feb2ef5dc839e1d6e8816a9dcc2662d46f37ce1c59a98",
+      "declaration_hash": "9eb8ded4cfc572f67e44f36816bd949ff792d32123d44c3deda514e33e452973",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "TriggerPhase phase; }",
@@ -300236,14 +300907,14 @@
           "kind": "field",
           "qualified": "epok::TriggerEvent::second",
           "source": "runtime/collision.hpp",
-          "line": 45,
+          "line": 52,
           "signature": "uint16_t first,second;uint32_t first_genera",
           "value_type": "uint16_t",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "23cc1d4b32249090de2ad7dd1f85bb6b0e18e20c963912ab16883d7bfed63020",
+      "declaration_hash": "302fbdb9cf4ad0845f8b259f0822e8e0d20e4f98f8268dafa2b5ce3d805de946",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "uint16_t first,second;uint32_t first_genera",
@@ -300312,14 +300983,14 @@
           "kind": "field",
           "qualified": "epok::TriggerEvent::second_generation",
           "source": "runtime/collision.hpp",
-          "line": 45,
+          "line": 52,
           "signature": "uint32_t first_generation,second_generation;TriggerPhase phase; }",
           "value_type": "uint32_t",
           "static": false,
           "value": null
         }
       ],
-      "declaration_hash": "a2ecb6b48d2c22dab1db8292066b93287aab122a56f28662f023d528f8527dca",
+      "declaration_hash": "6ea9201290b657ad7ab2b6d843d542ff78d4640453e93420df28750006b81d2b",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "uint32_t first_generation,second_generation;TriggerPhase phase; }",
@@ -300388,14 +301059,14 @@
           "kind": "field",
           "qualified": "epok::TriggerPhase::Enter",
           "source": "runtime/collision.hpp",
-          "line": 44,
+          "line": 51,
           "signature": "Enter = 0",
           "value_type": "epok::TriggerPhase",
           "static": false,
           "value": 0
         }
       ],
-      "declaration_hash": "6a41b81bb966b41f2db5d00ccd1a01a31a21650050b4e1e3e6db045a1960ebf8",
+      "declaration_hash": "ae85a25703700534adc15a7de2c71b28dee9fad99193b430a45e2b36c3623925",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Enter = 0",
@@ -300464,14 +301135,14 @@
           "kind": "field",
           "qualified": "epok::TriggerPhase::Exit",
           "source": "runtime/collision.hpp",
-          "line": 44,
+          "line": 51,
           "signature": "Exit = 2",
           "value_type": "epok::TriggerPhase",
           "static": false,
           "value": 2
         }
       ],
-      "declaration_hash": "d1c13993ea78a3a007a631df56dc0e1d0bebded149b4fc0f69a07f87a7d59d5f",
+      "declaration_hash": "f3224bffad29cb0b87da6ef15ee7c8d534d08f1447cc42b7558e3e772a85dea4",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Exit = 2",
@@ -300540,14 +301211,14 @@
           "kind": "field",
           "qualified": "epok::TriggerPhase::Stay",
           "source": "runtime/collision.hpp",
-          "line": 44,
+          "line": 51,
           "signature": "Stay = 1",
           "value_type": "epok::TriggerPhase",
           "static": false,
           "value": 1
         }
       ],
-      "declaration_hash": "b924519f5bfd7cd50531e9a8345df9f14749e138a801d1ec8f1b03d20dd93dfe",
+      "declaration_hash": "171f4cf1f7f1c441172acdefb193026d78d5c22bb68d143e408177c4a6b34c9e",
       "disposition": "internal_implementation",
       "rationale": "Raw implementation declaration without an explicit reflected gameplay contract; bounded annotated facades are inventoried separately.",
       "canonical_public_declaration": "Stay = 1",

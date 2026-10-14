@@ -1030,3 +1030,231 @@ fn soundfont_mcp_import_detects_library_and_accepts_partial_bank_settings() {
         }
     }
 }
+#[test]
+fn dungeon_generate_creates_regenerates_and_undoes() {
+    let mut e = editor();
+    let mut state = mcp::State::default();
+    let original = e.scene.clone();
+    let revision = mcp_tools::revision(&e.scene);
+    let created = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "dungeon_generate",
+        json!({"revision":revision,"create":"3d","seed":5}),
+    )
+    .unwrap();
+    assert!(
+        created["report"]["actors"].as_u64().unwrap() >= 5,
+        "{created}"
+    );
+    assert_eq!(e.scene.dungeons.len(), 1);
+    let root = e.scene.dungeons[0].root;
+    let name = e.scene.actors[e.scene.actor_index(root).unwrap()]
+        .name
+        .clone();
+    // Regenerate by name with merged settings: same actors, new seed and room count.
+    let revision = mcp_tools::revision(&e.scene);
+    let reply = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "dungeon_generate",
+        json!({"revision":revision,"actor":name,"seed":6,"settings":{"rooms":{"rooms":6}}}),
+    )
+    .unwrap();
+    assert_eq!(reply["generator"]["seed"], 6);
+    assert_eq!(reply["generator"]["rooms"]["rooms"], 6);
+    assert_eq!(reply["generator"]["rooms"]["size"], json!([40, 40]));
+    // The previous output was replaced, not added to: the original actors, the
+    // generator and exactly what this generation reports.
+    assert_eq!(
+        e.scene.actors.len(),
+        original.actors.len() + 1 + reply["report"]["actors"].as_u64().unwrap() as usize
+    );
+    // Bad settings and unknown actors change nothing.
+    let revision = mcp_tools::revision(&e.scene);
+    for bad in [
+        json!({"revision":revision,"actor":name,"settings":{"cell_size":99}}),
+        json!({"revision":revision,"actor":name,"settings":{"typo":1}}),
+        json!({"revision":revision,"actor":"Nobody"}),
+    ] {
+        assert!(mcp_tools::execute(&mut e, &mut state, "dungeon_generate", bad).is_err());
+    }
+    assert_eq!(mcp_tools::revision(&e.scene), revision);
+    // Each call is one history step.
+    for _ in 0..2 {
+        let revision = mcp_tools::revision(&e.scene);
+        mcp_tools::execute(
+            &mut e,
+            &mut state,
+            "scene_history",
+            json!({"revision":revision,"action":"undo"}),
+        )
+        .unwrap();
+    }
+    assert_eq!(e.scene.dungeons, original.dungeons);
+    assert_eq!(e.scene.actors.len(), original.actors.len());
+    assert!(
+        mcp_tools::catalog()
+            .iter()
+            .any(|tool| tool.name == "dungeon_generate")
+    );
+}
+#[test]
+fn dungeon_styles_are_created_read_and_edited_through_mcp() {
+    let mut e = editor();
+    let mut state = mcp::State::default();
+    let revision = mcp_tools::revision(&e.scene);
+    let reply = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "dungeon_generate",
+        json!({"revision":revision,"create":"3d","seed":3,"new_style":"Crypt Look"}),
+    )
+    .unwrap();
+    let style = reply["generator"]["style"].as_str().unwrap().to_owned();
+    let record = e
+        .assets
+        .index
+        .resolve(uuid::Uuid::parse_str(&style).unwrap())
+        .unwrap()
+        .clone();
+    let path = record
+        .path
+        .strip_prefix(&e.root)
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    assert!(path.starts_with("assets/Dungeons/Styles/CryptLook"));
+    let read =
+        mcp_tools::execute(&mut e, &mut state, "asset_document", json!({"path":path})).unwrap();
+    let mut document = read["document"].clone();
+    assert_eq!(document["two_d"], false);
+    // Recolour every blockout piece and write it back.
+    for node in document["nodes"].as_array_mut().unwrap() {
+        if node["kind"]["visual"]["piece"]["piece"] == "Blockout" {
+            node["kind"]["visual"]["piece"]["color"] = json!([0.2, 0.4, 0.6]);
+        }
+    }
+    mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "asset_document",
+        json!({"path":path,"document":document,"revision":read["revision"]}),
+    )
+    .unwrap();
+    // An invalid style is refused.
+    let read =
+        mcp_tools::execute(&mut e, &mut state, "asset_document", json!({"path":path})).unwrap();
+    let mut broken = read["document"].clone();
+    broken["version"] = json!(99);
+    assert!(
+        mcp_tools::execute(
+            &mut e,
+            &mut state,
+            "asset_document",
+            json!({"path":path,"document":broken,"revision":read["revision"]}),
+        )
+        .is_err()
+    );
+    // Regenerating picks up the edited style.
+    let name = e.scene.actors[e.scene.actor_index(e.scene.dungeons[0].root).unwrap()]
+        .name
+        .clone();
+    let revision = mcp_tools::revision(&e.scene);
+    mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "dungeon_generate",
+        json!({"revision":revision,"actor":name}),
+    )
+    .unwrap();
+    let section = e
+        .assets
+        .index
+        .resolve(e.scene.dungeons[0].output.assets[0])
+        .unwrap()
+        .clone();
+    let mesh = crate::mesh::document(&section).unwrap();
+    assert!(
+        mesh.materials
+            .iter()
+            .all(|slot| slot.material.color == [0.2, 0.4, 0.6])
+    );
+}
+
+#[test]
+fn dungeon_recipes_are_created_edited_and_followed_through_mcp() {
+    let mut e = editor();
+    let mut state = mcp::State::default();
+    let revision = mcp_tools::revision(&e.scene);
+    let reply = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "dungeon_generate",
+        json!({"revision":revision,"create":"3d","seed":4,"new_recipe":"Crypt Route"}),
+    )
+    .unwrap();
+    assert_eq!(reply["generator"]["source"], "Recipe");
+    let recipe = reply["generator"]["recipe"].as_str().unwrap().to_owned();
+    let record = e
+        .assets
+        .index
+        .resolve(uuid::Uuid::parse_str(&recipe).unwrap())
+        .unwrap()
+        .clone();
+    let path = record
+        .path
+        .strip_prefix(&e.root)
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    assert!(path.starts_with("assets/Dungeons/Recipes/CryptRoute"));
+    // Lengthen the main path and drop the one-way doors.
+    let read =
+        mcp_tools::execute(&mut e, &mut state, "asset_document", json!({"path":path})).unwrap();
+    let mut document = read["document"].clone();
+    let steps = document["steps"].as_array_mut().unwrap();
+    steps.retain(|s| s["step"] != "OneWay");
+    for step in steps.iter_mut() {
+        if step["step"] == "MainPath" {
+            step["length"] = json!([10, 10]);
+        }
+    }
+    mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "asset_document",
+        json!({"path":path,"document":document,"revision":read["revision"]}),
+    )
+    .unwrap();
+    // A recipe naming a path no step grows is refused.
+    let read =
+        mcp_tools::execute(&mut e, &mut state, "asset_document", json!({"path":path})).unwrap();
+    let mut broken = read["document"].clone();
+    broken["steps"][4]["paths"] = json!(["nowhere"]);
+    let error = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "asset_document",
+        json!({"path":path,"document":broken,"revision":read["revision"]}),
+    )
+    .unwrap_err();
+    assert!(error.contains("nowhere"), "{error}");
+    // Regenerating follows the edited recipe.
+    let name = e.scene.actors[e.scene.actor_index(e.scene.dungeons[0].root).unwrap()]
+        .name
+        .clone();
+    let revision = mcp_tools::revision(&e.scene);
+    let reply = mcp_tools::execute(
+        &mut e,
+        &mut state,
+        "dungeon_generate",
+        json!({"revision":revision,"actor":name}),
+    )
+    .unwrap();
+    let summary = reply.to_string();
+    assert!(!summary.contains("one-way"), "{summary}");
+    let layout = crate::dungeon::layout(&e.scene.dungeons[0], &e.assets.index).unwrap();
+    assert!(layout.one_ways.is_empty());
+    assert!(layout.rooms.len() >= 10);
+}

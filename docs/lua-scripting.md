@@ -643,6 +643,9 @@ Blueprints and with the generated C++ in every mode.
 - Both operands of a binary operator must have exactly the same type;
   `Binary inputs must have exactly the same type` otherwise. There is no
   implicit numeric coercion — use `epok.to_fixed` / `epok.to_int`.
+- `==` and `~=` also compare any two object, actor or component references,
+  whatever class each names: they are true when both name the same object, as in
+  `other == self.player` inside `trigger_event`. References have no order.
 - Literals are typed **by context**. A decimal literal with no context is
   `Fixed`; a bare integer literal with no context is a diagnostic. In
   `self.health - amount` the literal context comes from the property; in

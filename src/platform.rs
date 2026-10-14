@@ -53,6 +53,14 @@ pub fn run(
     // Visual QA of the two Hub panes a click away from the project list.
     if args.iter().any(|arg| arg == "--screenshot-new-project") {
         hub.open_new_project();
+        // `--new-project-template <key>` selects a template card for the capture.
+        if let Some(template) = args
+            .windows(2)
+            .find(|pair| pair[0] == "--new-project-template")
+            .and_then(|pair| crate::workspace::Template::parse(&pair[1]))
+        {
+            hub.select_template(template);
+        }
     }
     if args.iter().any(|arg| arg == "--screenshot-dependencies") {
         hub.dependencies.open = true;
@@ -941,6 +949,9 @@ pub fn run(
                     && ((capture_loading && loading.is_some()) ||
                         (!capture_loading && loading.is_none() && (session.is_none() || project_frames > 10)
                             && if session.is_some() { project_started.elapsed() > Duration::from_secs(2) } else { started.elapsed() > Duration::from_secs(2) }))
+                    && (session.as_ref().and_then(|e| e.screenshot_input.as_ref()).is_none_or(|(replay, started)| {
+                        started.is_some_and(|s| s.elapsed().as_millis() as u64 > replay.end() + 400)
+                    }) || project_started.elapsed() > Duration::from_secs(60))
                     && (!capture_game
                         || session.as_ref().and_then(|e| e.game_frame.as_ref()).is_some_and(|f| f.sequence > 90)
                         || session.as_ref().and_then(|e| e.native_frame.as_ref()).is_some_and(|f| f.number > 90)
@@ -1569,8 +1580,10 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf5d7, 0xf5d7, // bone: Skeleton2D
     0xf5ee, 0xf5ee, // draw-polygon: Polygon2D
     0xf5fd, 0xf5fd, // layer-group: z index
+    0xf6d9, 0xf6d9, // dungeon: Dungeon Generator
     0xf6fc, 0xf6fc, // mountain: sharp falloff
     0xf70c, 0xf70c, // person-running: CharacterBody2D
+    0xf70e, 0xf70e, // scroll: Dungeon Recipe
     0xf715, 0xf715, // slash: tile line tool
     0xf773, 0xf773, // water: smooth
     0xf84c, 0xf84c, // border-all: TileMapLayer

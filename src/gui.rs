@@ -835,6 +835,14 @@ fn draw_workspace(
             if ui.menu_item("Terrain") {
                 e.action("terrain-create");
             }
+            if ui.menu_item(format!("{} Dungeon Generator", crate::dungeon_editor::ICON)) {
+                e.action("dungeon-create");
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text(
+                    "Rooms, corridors and walls generated from a seed and baked into the map.",
+                );
+            }
         });
         build_menu(ui, e);
         ui.menu("Window", || {
@@ -1790,7 +1798,11 @@ fn actor_node(
     }
     let actor = &e.scene.actors[index];
     let id = actor.id;
-    let glyph = crate::world2d_editor::hierarchy_icon(actor).unwrap_or(ACTOR);
+    let glyph = if e.scene.dungeons.iter().any(|g| g.root == id) {
+        crate::dungeon_editor::ICON
+    } else {
+        crate::world2d_editor::hierarchy_icon(actor).unwrap_or(ACTOR)
+    };
     let label = format!("{glyph} {}###actor{}", actor.name, id);
     let mut flags = imgui::TreeNodeFlags::SPAN_AVAIL_WIDTH
         | imgui::TreeNodeFlags::OPEN_ON_ARROW
@@ -2863,6 +2875,9 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
     }
 }
 pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
+    crate::dungeon_editor::apply_pending(e);
+    crate::dungeon_style_editor::window(ui, e);
+    crate::dungeon_recipe_editor::window(ui, e);
     crate::world2d_editor::dialogs(ui, e);
     crate::localization_editor::window(ui, e);
     crate::lighting_editor::window(ui, e);
@@ -2922,6 +2937,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             actor_header(ui, &mut entity, glyph);
             ui.separator();
             entity_actor_inspector(ui, e, index);
+            crate::dungeon_editor::inspector(ui, e, entity.id);
             let strings = crate::localization::project_table(&e.assets.index).map(|(_, t)| t);
             if crate::hud_editor::inspector(
                 ui,

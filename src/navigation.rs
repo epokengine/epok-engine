@@ -240,7 +240,22 @@ fn inputs(scene: &Scene) -> Result<Inputs, String> {
                 ));
             }
         } else if let Some(c) = &a.collider {
-            if c.enabled && !c.trigger && c.layer & out.profile.mask != 0 {
+            if c.enabled && !c.trigger && c.layer & out.profile.mask != 0 && !c.boxes.is_empty() {
+                // A compound collider contributes each part as its own solid box.
+                crate::collision::validate_component(c)?;
+                for b in crate::collision::world_parts(c, scene.world_matrix(i)) {
+                    if b.min.iter().chain(&b.max).any(|v| !v.is_finite()) {
+                        return Err(format!("{}: nonfinite collider", a.name));
+                    }
+                    if out
+                        .volumes
+                        .iter()
+                        .any(|(lo, hi)| (0..3).all(|k| b.max[k] >= lo[k] && b.min[k] <= hi[k]))
+                    {
+                        out.solids.push((Collider::default(), b.min, b.max));
+                    }
+                }
+            } else if c.enabled && !c.trigger && c.layer & out.profile.mask != 0 {
                 crate::collision::validate_component(c)?;
                 let b = world_bounds(c, scene.world_matrix(i));
                 if b.min.iter().chain(&b.max).any(|v| !v.is_finite()) {

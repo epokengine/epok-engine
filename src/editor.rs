@@ -234,6 +234,13 @@ pub struct Editor {
     pub rename_focus: bool,
     pub scene_navigation: bool,
     pub navigation_preview_status: Option<Result<usize, String>>,
+    /// Dungeon Generator previews, last reports and the pending Inspector command.
+    pub dungeon: crate::dungeon_editor::State,
+    /// The open Dungeon Style editor.
+    pub dungeon_style: Option<crate::dungeon_style_editor::Window>,
+    pub dungeon_recipe: Option<crate::dungeon_recipe_editor::Window>,
+    /// Screenshot automation: a pad schedule played from the first Play frame.
+    pub screenshot_input: Option<(crate::input_replay::Replay, Option<Instant>)>,
     pub baked_preview: crate::baked_preview::State,
     pub scene_look: bool,
     pub raw_look: Option<[f32; 2]>,
@@ -800,6 +807,10 @@ impl Editor {
             rename_focus: false,
             scene_navigation: false,
             navigation_preview_status: None,
+            dungeon: Default::default(),
+            dungeon_style: None,
+            dungeon_recipe: None,
+            screenshot_input: None,
             baked_preview: Default::default(),
             scene_look: false,
             raw_look: None,
@@ -1229,7 +1240,6 @@ impl Editor {
     /// exists. The scene is validated against the model and rolled back on
     /// failure, exactly like entity creation.
     pub fn create_actor(&mut self, class: &str) {
-        use crate::{actor_document as doc, object_model as om, reflection_schema::Domain};
         if self.playing {
             self.log("Stop the emulator before editing.");
             return;
@@ -1238,141 +1248,29 @@ impl Editor {
             self.last_error = Some("The class model is unavailable; reload the project.".into());
             return;
         };
-        let Some(resolved) = model.class(class) else {
-            self.last_error = Some(format!("`{class}` is not a reflected class."));
-            return;
-        };
-        if self
-            .class_registry
-            .classes
-            .get(&resolved.id)
-            .is_some_and(|c| c.provider.id == "blueprint")
-        {
-            let result = (|| -> Result<Option<usize>, String> {
-                let files = crate::blueprint_asset::load_all(&self.root)?;
-                let template = crate::blueprint_templates::resolve_assets(
-                    &files,
-                    &self.class_registry,
-                    &resolved.id,
-                )?;
-                if template.actors.is_empty() {
-                    return Ok(None);
-                }
-                let class = &self.class_registry.classes[&resolved.id];
-                let binding = crate::scene::ClassDefaults {
-                    name: class.cpp_name.clone(),
-                    class_id: Some(class.id.clone()),
-                    provider: class.provider.clone(),
-                    backend: class.backend.clone(),
-                    ..Default::default()
-                };
-                let placed = crate::blueprint_templates::place(
-                    &mut self.scene,
-                    &template,
-                    binding,
-                    &self.class_registry,
-                    None,
-                )?;
-                Ok(Some(placed.root))
-            })();
-            match result {
-                Ok(Some(index)) => {
-                    let id = self.scene.actors[index].id;
-                    self.last_error = None;
-                    self.select_actor(Some(id));
-                    self.changed();
-                    return;
-                }
-                Err(error) => {
-                    self.last_error = Some(error.clone());
-                    self.log(error);
-                    return;
-                }
-                Ok(None) => {}
-            }
-        }
-        let base = resolved
-            .cpp_name
-            .rsplit("::")
-            .next()
-            .unwrap_or(&resolved.cpp_name)
-            .to_owned();
-        let mut name = base.clone();
-        let mut suffix = 1;
-        while self.scene.actors.iter().any(|a| a.name == name)
-            || self.scene.actors.iter().any(|e| e.name == name)
-        {
-            name = format!("{base}.{suffix:03}");
-            suffix += 1;
-        }
-        let mut actor = doc::ActorInstance::new(
-            uuid::Uuid::new_v4(),
-            doc::ClassReference::new(&resolved.cpp_name, &resolved.id),
-            &name,
+        let before = self.scene.actors.len();
+        let placed = place_class(
+            &mut self.scene,
+            &self.root,
+            &self.class_registry,
+            &model,
+            class,
         );
-        for default in &resolved.default_components {
-            let Some(component) = model.class(&default.class) else {
-                continue;
-            };
-            let label = default.name.clone().unwrap_or_else(|| {
-                component
-                    .cpp_name
-                    .rsplit("::")
-                    .next()
-                    .unwrap_or(&component.cpp_name)
-                    .to_owned()
-            });
-            let mut instance = doc::ComponentInstance::new(
-                uuid::Uuid::new_v4(),
-                doc::ClassReference::new(&component.cpp_name, &component.id),
-                &label,
-            );
-            instance.root = default.root;
-            instance.inherited = true;
-            instance.default_id = Some(default.id.clone());
-            actor.components.push(instance);
-        }
-        for (index, default) in resolved.default_components.iter().enumerate() {
-            if let Some(parent) = &default.attach_to {
-                let parent = resolved
-                    .default_components
-                    .iter()
-                    .position(|c| &c.field == parent)
-                    .and_then(|i| actor.components.get(i))
-                    .map(|c| c.id);
-                if let Some(component) = actor.components.get_mut(index) {
-                    component.attach_parent = parent;
-                }
+        let index = match placed {
+            Ok(index) => index,
+            Err(error) => {
+                self.last_error = Some(error.clone());
+                self.log(error);
+                return;
             }
-        }
-        if actor.root().is_none()
-            && let Some(root) = match resolved.domain {
-                Domain::World3D => Some(om::SCENE_COMPONENT3D_ID),
-                Domain::World2D => Some(om::SCENE_COMPONENT2D_ID),
-                Domain::UI => Some(om::RECT_TRANSFORM_COMPONENT_ID),
-                Domain::None => None,
-            }
-            .and_then(|id| model.class(id))
+        };
+        let id = self.scene.actors[index].id;
+        let name = self.scene.actors[index].name.clone();
+        // A Blueprint template placement validated itself; a plain actor is checked here.
+        if index + 1 == self.scene.actors.len()
+            && self.scene.actors.len() == before + 1
+            && let Err(error) = self.scene.validate_with_model(Some(&model))
         {
-            let label = root
-                .cpp_name
-                .rsplit("::")
-                .next()
-                .unwrap_or(&root.cpp_name)
-                .trim_end_matches("Component")
-                .to_owned();
-            let mut instance = doc::ComponentInstance::new(
-                uuid::Uuid::new_v4(),
-                doc::ClassReference::new(&root.cpp_name, &root.id),
-                &label,
-            );
-            instance.root = true;
-            actor.components.insert(0, instance);
-        }
-        actor.refresh_components();
-        let id = actor.id;
-        self.scene.actors.push(actor);
-        if let Err(error) = self.scene.validate_with_model(Some(&model)) {
             self.scene.actors.retain(|a| a.id != id);
             self.last_error = Some(error.clone());
             self.log(error);
@@ -1382,7 +1280,7 @@ impl Editor {
         self.select_actor(Some(id));
         self.search.clear();
         self.changed();
-        self.log(format!("Created {name} ({}).", resolved.cpp_name));
+        self.log(format!("Created {name} ({class})."));
     }
     // -----------------------------------------------------------------------
     // Actor operations (P11). Every one of them ends in `changed()`, so the map
@@ -2705,6 +2603,7 @@ impl Editor {
                 "add-child",
                 "blockout-mesh",
                 "terrain-create",
+                "dungeon-create",
                 "empty",
                 "child",
                 "duplicate",
@@ -2771,6 +2670,7 @@ impl Editor {
                 self.changed();
             }
             "blockout-mesh" => crate::mesh_editor::allocate_actor_data(self),
+            "dungeon-create" => crate::dungeon_editor::create_3d(self),
             "terrain-create" => {
                 if let Err(error) = crate::terrain_editor::create(self) {
                     self.log(error);
@@ -2957,6 +2857,13 @@ impl Editor {
         }
     }
     pub fn tick(&mut self) {
+        if self.playing
+            && self.game_frame.is_some()
+            && let Some((replay, started)) = &mut self.screenshot_input
+        {
+            let start = *started.get_or_insert_with(Instant::now);
+            self.mcp.buttons = replay.buttons(start.elapsed().as_millis() as u64);
+        }
         // Continue collecting child results/timeouts even when Scene is hidden.
         // Rendering cadence and input still belong to the visible HUD viewport.
         if self.hud_simulation.update(0., false) {
@@ -5741,4 +5648,128 @@ mod tests {
         drop(editor);
         std::fs::remove_dir_all(root).unwrap();
     }
+}
+
+/// Places an instance of actor class `class` at the end of `scene`, as the Actor
+/// picker does: a Blueprint class that carries actors places its whole template,
+/// any other class one actor with its default components. Returns the index of the
+/// placed root actor.
+pub fn place_class(
+    scene: &mut crate::scene::Scene,
+    root: &std::path::Path,
+    registry: &crate::blueprint::Registry,
+    model: &crate::object_model::Model,
+    class: &str,
+) -> Result<usize, String> {
+    use crate::{actor_document as doc, object_model as om, reflection_schema::Domain};
+    let Some(resolved) = model.class(class) else {
+        return Err(format!("`{class}` is not a reflected class."));
+    };
+    if registry
+        .classes
+        .get(&resolved.id)
+        .is_some_and(|c| c.provider.id == "blueprint")
+    {
+        let result = (|| -> Result<Option<usize>, String> {
+            let files = crate::blueprint_asset::load_all(root)?;
+            let template =
+                crate::blueprint_templates::resolve_assets(&files, registry, &resolved.id)?;
+            if template.actors.is_empty() {
+                return Ok(None);
+            }
+            let class = &registry.classes[&resolved.id];
+            let binding = crate::scene::ClassDefaults {
+                name: class.cpp_name.clone(),
+                class_id: Some(class.id.clone()),
+                provider: class.provider.clone(),
+                backend: class.backend.clone(),
+                ..Default::default()
+            };
+            let placed =
+                crate::blueprint_templates::place(scene, &template, binding, registry, None)?;
+            Ok(Some(placed.root))
+        })();
+        if let Some(index) = result? {
+            return Ok(index);
+        }
+    }
+    let base = resolved
+        .cpp_name
+        .rsplit("::")
+        .next()
+        .unwrap_or(&resolved.cpp_name)
+        .to_owned();
+    let mut name = base.clone();
+    let mut suffix = 1;
+    while scene.actors.iter().any(|a| a.name == name) {
+        name = format!("{base}.{suffix:03}");
+        suffix += 1;
+    }
+    let mut actor = doc::ActorInstance::new(
+        uuid::Uuid::new_v4(),
+        doc::ClassReference::new(&resolved.cpp_name, &resolved.id),
+        &name,
+    );
+    for default in &resolved.default_components {
+        let Some(component) = model.class(&default.class) else {
+            continue;
+        };
+        let label = default.name.clone().unwrap_or_else(|| {
+            component
+                .cpp_name
+                .rsplit("::")
+                .next()
+                .unwrap_or(&component.cpp_name)
+                .to_owned()
+        });
+        let mut instance = doc::ComponentInstance::new(
+            uuid::Uuid::new_v4(),
+            doc::ClassReference::new(&component.cpp_name, &component.id),
+            &label,
+        );
+        instance.root = default.root;
+        instance.inherited = true;
+        instance.default_id = Some(default.id.clone());
+        actor.components.push(instance);
+    }
+    for (index, default) in resolved.default_components.iter().enumerate() {
+        if let Some(parent) = &default.attach_to {
+            let parent = resolved
+                .default_components
+                .iter()
+                .position(|c| &c.field == parent)
+                .and_then(|i| actor.components.get(i))
+                .map(|c| c.id);
+            if let Some(component) = actor.components.get_mut(index) {
+                component.attach_parent = parent;
+            }
+        }
+    }
+    if actor.root().is_none()
+        && let Some(root) = match resolved.domain {
+            Domain::World3D => Some(om::SCENE_COMPONENT3D_ID),
+            Domain::World2D => Some(om::SCENE_COMPONENT2D_ID),
+            Domain::UI => Some(om::RECT_TRANSFORM_COMPONENT_ID),
+            Domain::None => None,
+        }
+        .and_then(|id| model.class(id))
+    {
+        let label = root
+            .cpp_name
+            .rsplit("::")
+            .next()
+            .unwrap_or(&root.cpp_name)
+            .trim_end_matches("Component")
+            .to_owned();
+        let mut instance = doc::ComponentInstance::new(
+            uuid::Uuid::new_v4(),
+            doc::ClassReference::new(&root.cpp_name, &root.id),
+            &label,
+        );
+        instance.root = true;
+        actor.components.insert(0, instance);
+    }
+    actor.refresh_components();
+    scene.actors.push(actor);
+    Ok(scene.actors.len() - 1)
 }

@@ -19,7 +19,15 @@ pub struct Collider {
     pub slope_rise: f32,
     #[serde(default, skip_serializing_if = "crate::collision::is_default_axis")]
     pub slope_axis: u8,
+    /// A compound static collider: solid boxes in the owner's local space, each
+    /// `[min x, min y, min z, max x, max y, max z]`. The collider's own box must
+    /// enclose them; queries test the parts, so one actor can carry a whole floor
+    /// plan. The owner must be translated only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub boxes: Vec<[f32; 6]>,
 }
+/// Most parts one compound collider may carry.
+pub const MAX_COMPOUND_BOXES: usize = 2048;
 pub fn is_zero(value: &f32) -> bool {
     *value == 0.
 }
@@ -37,6 +45,30 @@ impl Default for Collider {
             slope_axis: 0,
             layer: 1,
             mask: u32::MAX,
+            boxes: Vec::new(),
+        }
+    }
+}
+impl Collider {
+    /// A compound collider enclosing `boxes`, given in the owner's local space.
+    pub fn compound(boxes: Vec<[f32; 6]>) -> Self {
+        let mut min = [f32::MAX; 3];
+        let mut max = [f32::MIN; 3];
+        for b in &boxes {
+            for k in 0..3 {
+                min[k] = min[k].min(b[k]);
+                max[k] = max[k].max(b[k + 3]);
+            }
+        }
+        if boxes.is_empty() {
+            min = [-0.5; 3];
+            max = [0.5; 3];
+        }
+        Self {
+            center: std::array::from_fn(|k| (min[k] + max[k]) * 0.5),
+            half_extents: std::array::from_fn(|k| ((max[k] - min[k]) * 0.5).max(1. / 256.)),
+            boxes,
+            ..Self::default()
         }
     }
 }
@@ -102,7 +134,51 @@ pub fn validate_component(collider: &Collider) -> Result<(), String> {
     if collider.layer == 0 {
         return Err("Collider layer needs at least one bit".into());
     }
+    if !collider.boxes.is_empty() {
+        if collider.boxes.len() > MAX_COMPOUND_BOXES {
+            return Err(format!(
+                "A compound collider holds at most {MAX_COMPOUND_BOXES} boxes"
+            ));
+        }
+        if collider.trigger || collider.slope_rise != 0. {
+            return Err("A compound collider cannot be a trigger or a ramp".into());
+        }
+        for b in &collider.boxes {
+            if b.iter().any(|v| !v.is_finite() || v.abs() > 127.99) {
+                return Err("Compound collider boxes must stay within local ±128 units".into());
+            }
+            if (0..3).any(|k| b[k + 3] - b[k] < 1. / 128.) {
+                return Err("Compound collider boxes need a positive size on every axis".into());
+            }
+            if (0..3).any(|k| {
+                b[k] < collider.center[k] - collider.half_extents[k] - 1. / 256.
+                    || b[k + 3] > collider.center[k] + collider.half_extents[k] + 1. / 256.
+            }) {
+                return Err("The collider box must enclose every compound part".into());
+            }
+        }
+    }
     Ok(())
+}
+/// The solid world boxes a collider presents to queries: its parts when compound,
+/// otherwise its own box.
+pub fn world_parts(collider: &Collider, matrix: Matrix) -> Vec<Aabb> {
+    if collider.boxes.is_empty() {
+        return vec![world_bounds(collider, matrix)];
+    }
+    let origin = matrix.point([0.; 3]);
+    collider
+        .boxes
+        .iter()
+        .map(|b| Aabb {
+            min: std::array::from_fn(|k| origin[k] + b[k]),
+            max: std::array::from_fn(|k| origin[k] + b[k + 3]),
+        })
+        .collect()
+}
+/// Whether a world matrix only translates, as compound colliders and height grids need.
+pub fn translation_only(matrix: Matrix) -> bool {
+    (0..3).all(|r| (0..3).all(|c| (matrix.0[r][c] - if r == c { 1. } else { 0. }).abs() < 1e-5))
 }
 
 pub fn validate(scene: &Scene) -> Result<(), String> {
@@ -111,6 +187,12 @@ pub fn validate(scene: &Scene) -> Result<(), String> {
             continue;
         };
         validate_component(collider).map_err(|error| format!("{}: {error}", entity.name))?;
+        if !collider.boxes.is_empty() && !translation_only(scene.world_matrix(index)) {
+            return Err(format!(
+                "{}: a compound collider's actor and its parents must not rotate or scale",
+                entity.name
+            ));
+        }
         let bounds = world_bounds(collider, scene.world_matrix(index));
         if bounds
             .min
@@ -145,6 +227,18 @@ pub fn cpp_setup(scene: &Scene) -> String {
             }
             if collider.slope_rise != 0. {
                 writeln!(output, "objects[{index}].collider.slope_rise=Fixed({},Fixed::RAW);objects[{index}].collider.slope_axis={}u;", (collider.slope_rise * 4096.).round() as i32, collider.slope_axis).unwrap();
+            }
+            if !collider.boxes.is_empty() {
+                // Function-scope storage, as for terrain heights: the parts are Q8
+                // offsets from the owner's origin.
+                let values = collider
+                    .boxes
+                    .iter()
+                    .flatten()
+                    .map(|v| ((v * 256.).round() as i32).clamp(-32767, 32767).to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                writeln!(output, "static constexpr int16_t collider_boxes_{index}[]={{{values}}};objects[{index}].collider.boxes=collider_boxes_{index};objects[{index}].collider.box_count={}u;", collider.boxes.len()).unwrap();
             }
         }
     }

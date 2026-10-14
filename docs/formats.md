@@ -146,6 +146,25 @@ The shape, shown as JSON (the file on disk is the same structure encoded as YAML
   file is therefore the Blueprint's own source: diagnostics point at the map, and
   saving the Blueprint saves the map.
 
+### Dungeon generators
+
+A map may carry a `dungeons` list, omitted when empty. Each entry holds the editor-only
+settings of one Dungeon Generator: its `id`, the `root` actor that places it, the
+`seed`, the layout `source` (`Rooms` or `Recipe`), the `rooms` layout settings, the 3D
+sizes and whether it has a `ceiling`, the optional `spawn_actor`, `tile_set`, `style`
+and `recipe`, and `output` — the
+actors and assets the last generation wrote, with a `fingerprint` of the settings and
+digests of the style and recipe that produced them. The cook reads only the generated
+actors and assets. A `Collider3DComponent` may hold a `boxes` list (minimum and maximum
+corners in the actor's local space) for a compound collider. A Dungeon Style is an
+authored `.epokasset` of kind `DungeonStyle` whose payload is a JSON document: a
+`version`, whether it is `two_d`, and its `nodes` (spots, and pieces naming their spot
+as `parent`). A Dungeon Recipe is an authored `.epokasset` of kind `DungeonRecipe`
+whose JSON payload is a `version` and an ordered `steps` list, each tagged by `step`
+(`Lattice`, `MainPath`, `Branch`, `Items`, `KeyLock`, `OneWay`, `Caves`, `Rooms`) with
+its settings; ranges are `[smallest, largest]` pairs and paths are named (`main` is the
+main path). See [Dungeon Generator](dungeons.md).
+
 ### Blueprint asset version 4
 
 Version 4 adds one optional `family` hint to a `.epokbp` document. The hint is

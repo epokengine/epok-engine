@@ -23,6 +23,10 @@ impl Replay {
         }
         Ok(Self(steps))
     }
+    /// When the last step happens, in milliseconds.
+    pub fn end(&self) -> u64 {
+        self.0.last().map_or(0, |&(at, _)| at)
+    }
     pub fn buttons(&self, milliseconds: u64) -> u16 {
         self.0
             .iter()

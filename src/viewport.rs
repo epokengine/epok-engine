@@ -405,7 +405,10 @@ pub fn render(
         } else {
             [60, 230, 130]
         };
-        for (a, b) in crate::collision::world_bounds(collider, scene.world_matrix(index)).edges() {
+        for (a, b) in crate::collision::world_parts(collider, scene.world_matrix(index))
+            .into_iter()
+            .flat_map(|part| part.edges())
+        {
             let a = project(a);
             let b = project(b);
             if a[2] > 1. && b[2] > 1. {
