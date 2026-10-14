@@ -50,14 +50,14 @@ using World = CollisionWorld2D<16, 8>;
 void units_and_validation() {
     Transform2D transform;
     assert(transform2d_valid(transform));  // defaults: origin, scale 1
-    transform.position[0] = q(8192.);
+    transform.position[0] = q(65536.);
     assert(transform2d_valid(transform));
-    transform.position[0] = q(8193.);
+    transform.position[0] = q(65537.);
     assert(!transform2d_valid(transform));
-    transform.position[0] = q(-9000.);
+    transform.position[0] = q(-70000.);
     assert(!transform2d_valid(transform));
     transform2d_clamp(transform);
-    assert(real(transform.position[0]) == -8192.);
+    assert(real(transform.position[0]) == -65536.);
     transform.scale[1] = q(0.);
     assert(!transform2d_valid(transform));
     transform.scale[0] = q(65.);
@@ -86,8 +86,9 @@ void camera_projection() {
     assert(real(screen[0]) == display_width / 2. + pixels_per_unit_2d && real(screen[1]) == display_height / 2.);
     world[0] = q(0.);
     world[1] = q(1.);
-    world_to_screen(camera, world, screen);  // world +Y is screen up
-    assert(real(screen[0]) == display_width / 2. && real(screen[1]) == display_height / 2. - pixels_per_unit_2d);
+    world_to_screen(camera, world, screen);  // world +Y is screen down
+    assert(pixels_per_unit_2d == 1);
+    assert(real(screen[0]) == display_width / 2. && real(screen[1]) == display_height / 2. + pixels_per_unit_2d);
     // Round trip at zoom 1, 2 and 0.5, with an offset camera.
     camera.position[0] = q(3.);
     camera.position[1] = q(-2.);
@@ -108,9 +109,9 @@ void camera_projection() {
     world[0] = q(4.);
     world[1] = q(-2.);
     world_to_screen(camera, world, screen);
-    // camera at (3,-2): offset (1,0) seen through a camera turned 90 deg CCW is (0,-1)
-    // in view space, i.e. one unit down the screen.
-    assert(real(screen[0]) == display_width / 2. && real(screen[1]) == display_height / 2. + pixels_per_unit_2d);
+    // camera at (3,-2): offset (1,0) seen through a camera turned 90 degrees (clockwise on
+    // screen) is (0,-1) in view space, i.e. one pixel up the screen.
+    assert(real(screen[0]) == display_width / 2. && real(screen[1]) == display_height / 2. - pixels_per_unit_2d);
     screen_to_world(camera, screen, back);
     assert(real(back[0]) == 4. && real(back[1]) == -2.);
     // A viewport that is not the whole display moves the projection centre with it.
@@ -427,6 +428,50 @@ void triggers() {
     assert(enters == 2 && small.dropped_trigger_pairs == 4);  // 6 pairs, capacity 2
 }
 
+// ---- 8b. one-way platforms ------------------------------------------------------------
+void one_way_platforms() {
+    World world;
+    Collider2D platform = box_collider(32., 4.);
+    platform.one_way = true;
+    platform.one_way_margin = q(2.);
+    ColliderEntry2D list[2] = {entry(platform, 0., 0.), entry(box_collider(4., 4.), 0., -20.)};
+    world.sync(list, 2);
+    // Falling (+Y is down) onto the top edge lands exactly on it.
+    Fixed down[2] = {q(0.), q(30.)};
+    MoveResult2D result = world.move_and_slide_2d(1, down);
+    assert(result.blocked && result.blocker[1] == 0 && result.blocker[0] == -1);
+    assert(real(result.displacement[1]) == 12. && real(result.normal[1]) == -1.);
+    assert(!result.unresolved_overlap);
+    // Jumping up from below passes through, and so does falling while already inside.
+    list[1] = entry(box_collider(4., 4.), 0., 12.);
+    world.sync(list, 2);
+    Fixed up[2] = {q(0.), q(-30.)};
+    result = world.move_and_slide_2d(1, up);
+    assert(!result.blocked && real(result.displacement[1]) == -30. && !result.unresolved_overlap);
+    list[1] = entry(box_collider(4., 4.), 0., 2.);  // bottom 10 px below the top: deeper than the margin
+    world.sync(list, 2);
+    result = world.move_and_slide_2d(1, down);
+    assert(!result.blocked && real(result.displacement[1]) == 30.);
+    // A shallow sink within the margin is lifted back onto the top edge.
+    list[1] = entry(box_collider(4., 4.), 0., -7.);  // bottom 1 px into the platform's top (-4)
+    world.sync(list, 2);
+    result = world.move_and_slide_2d(1, down);
+    assert(result.blocked && real(result.displacement[1]) == -1.);
+    // Sideways motion is never blocked by a one-way platform.
+    list[1] = entry(box_collider(4., 4.), -40., 0.);
+    world.sync(list, 2);
+    Fixed right[2] = {q(80.), q(0.)};
+    result = world.move_and_slide_2d(1, right);
+    assert(!result.blocked && real(result.displacement[0]) == 80.);
+    // Rays only hit the top when travelling down from above it.
+    Fixed above[2] = {q(0.), q(-50.)}, below[2] = {q(0.), q(50.)};
+    Fixed ray_down[2] = {q(0.), q(100.)}, ray_up[2] = {q(0.), q(-100.)};
+    list[1].active = false;
+    world.sync(list, 2);
+    assert(world.raycast2d(above, ray_down).index == 0);
+    assert(!world.raycast2d(below, ray_up));
+}
+
 // ---- 9. picking ----------------------------------------------------------------------
 void picking() {
     Camera2D camera;
@@ -487,6 +532,7 @@ int main() {
     rays();
     movement();
     triggers();
+    one_way_platforms();
     picking();
     size_report();
     std::puts("World2D units, camera, hierarchy, draw order, colliders, rays, movement, triggers and picking tests passed.");

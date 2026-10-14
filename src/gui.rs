@@ -82,6 +82,19 @@ pub(crate) fn record_script_control(ui: &imgui::Ui, label: &str) {
             .insert(label.into(), [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5]);
     });
 }
+/// Where the control recorded as `label` was drawn last frame (scripted UI tests).
+#[cfg(test)]
+pub(crate) fn script_control(label: &str) -> Option<[f32; 2]> {
+    SCRIPT_BUTTONS.with(|buttons| buttons.borrow().get(label).copied())
+}
+#[cfg(test)]
+pub(crate) fn script_control_labels() -> Vec<String> {
+    SCRIPT_BUTTONS.with(|buttons| buttons.borrow().keys().cloned().collect())
+}
+#[cfg(test)]
+pub(crate) fn clear_script_controls() {
+    SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+}
 #[cfg(test)]
 thread_local! {static SCRIPT_BUTTONS:std::cell::RefCell<std::collections::BTreeMap<String,[f32;2]>>=const{std::cell::RefCell::new(std::collections::BTreeMap::new())};}
 fn build_menu(ui: &imgui::Ui, e: &mut Editor) {
@@ -831,6 +844,9 @@ fn draw_workspace(
             if ui.menu_item("Lighting") {
                 e.lighting_window = true;
             }
+            if ui.menu_item("Strings (Localization)") {
+                crate::localization_editor::open(e);
+            }
             for name in [
                 c"\u{eb86} Hierarchy###Hierarchy",
                 c"\u{eb29} Scene###Scene",
@@ -1403,7 +1419,7 @@ fn actor_domain(
 /// The UI widget recipes offered by the creation menu. Each command reaches
 /// `Editor::create_hud` through the `ui-` prefix that `Editor::action` strips,
 /// so the menu and the recipe table have a single spelling between them.
-const UI_WIDGETS: [(&str, &str); 12] = [
+const UI_WIDGETS: [(&str, &str); 14] = [
     ("Canvas", "ui-canvas"),
     ("Panel", "ui-panel"),
     ("Image", "ui-image"),
@@ -1411,6 +1427,8 @@ const UI_WIDGETS: [(&str, &str); 12] = [
     ("Text Area", "ui-textarea"),
     ("Progress Bar", "ui-progress"),
     ("Button", "ui-button"),
+    ("Check Box", "ui-checkbox"),
+    ("Slider", "ui-slider"),
     ("Horizontal Box", "ui-hbox"),
     ("Vertical Box", "ui-vbox"),
     ("Grid", "ui-grid"),
@@ -1418,7 +1436,7 @@ const UI_WIDGETS: [(&str, &str); 12] = [
     ("Center", "ui-center"),
 ];
 /// The containers start here; the menu rules a line above them.
-const UI_CONTAINERS: usize = 7;
+const UI_CONTAINERS: usize = 9;
 fn creation_menu(
     ui: &imgui::Ui,
     child: bool,
@@ -1451,6 +1469,30 @@ fn creation_menu(
             }
             if ui.menu_item(label) {
                 action = Some(command);
+            }
+        }
+    }
+    if domain_visible(Domain::World2D, mode)
+        && let Some(_menu) = ui.begin_menu("2D Node")
+    {
+        let mut category = "";
+        for preset in crate::world2d::Preset::ALL {
+            if preset.category() != category {
+                if !category.is_empty() {
+                    ui.separator();
+                }
+                category = preset.category();
+                ui.text_disabled(category);
+            }
+            if ui.menu_item(format!(
+                "{}  {}",
+                crate::world2d_editor::preset_icon(preset),
+                preset.label()
+            )) {
+                action = Some(crate::world2d_editor::create_command(preset));
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text(preset.description());
             }
         }
     }
@@ -1748,7 +1790,8 @@ fn actor_node(
     }
     let actor = &e.scene.actors[index];
     let id = actor.id;
-    let label = format!("{ACTOR} {}###actor{}", actor.name, id);
+    let glyph = crate::world2d_editor::hierarchy_icon(actor).unwrap_or(ACTOR);
+    let label = format!("{glyph} {}###actor{}", actor.name, id);
     let mut flags = imgui::TreeNodeFlags::SPAN_AVAIL_WIDTH
         | imgui::TreeNodeFlags::OPEN_ON_ARROW
         | imgui::TreeNodeFlags::DEFAULT_OPEN;
@@ -1775,7 +1818,35 @@ fn actor_node(
     let node = ui.tree_node_config(label).flags(flags).push();
     #[cfg(test)]
     record_script_control(ui, &format!("Hierarchy actor {id}"));
-    if ui.is_item_hovered() {
+    // A 2D node that will not work as authored carries a warning sign at the row's end.
+    let warnings = crate::world2d_warnings::of(&e.scene, index);
+    let row = [ui.item_rect_min(), ui.item_rect_max()];
+    let sign = [row[1][0] - 20., row[0][1]];
+    if !warnings.is_empty() {
+        ui.get_window_draw_list().add_text(
+            [sign[0], sign[1] + 1.],
+            crate::world2d_warnings::COLOR,
+            crate::world2d_warnings::ICON_WARNING,
+        );
+        #[cfg(test)]
+        SCRIPT_BUTTONS.with(|buttons| {
+            buttons.borrow_mut().insert(
+                format!("Hierarchy warning {}", e.scene.actors[index].id),
+                [sign[0] + 6., sign[1] + 8.],
+            )
+        });
+    }
+    if ui.is_item_hovered() && !warnings.is_empty() && ui.is_mouse_hovering_rect(sign, row[1]) {
+        ui.tooltip(|| {
+            for warning in &warnings {
+                ui.text(format!(
+                    "{} {}",
+                    crate::world2d_warnings::ICON_WARNING,
+                    warning.text
+                ));
+            }
+        });
+    } else if ui.is_item_hovered() {
         if cx.resolved[index] {
             ui.tooltip_text(&e.scene.actors[index].class.name);
         } else {
@@ -1887,7 +1958,7 @@ fn hierarchy_rename_finished(ui: &imgui::Ui, submit: bool, focus_requested: bool
         !focus_requested && (ui.is_item_deactivated() || !ui.is_window_focused() || outside_click);
     (submit || cancel || blur).then_some(!cancel)
 }
-fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
+pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
     let actors = placeable_actor_classes(e);
     let mode = e.scene_view_mode.domain();
     ui.window("\u{eb86} Hierarchy###Hierarchy").build(|| {
@@ -2080,7 +2151,7 @@ const OVERRIDE_COLOUR: [f32; 4] = [0.55, 0.78, 0.35, 1.];
 
 /// One edit requested by a property table. At most one happens per frame, which
 /// keeps the table a pure renderer over a borrowed document.
-enum PropertyAction {
+pub(crate) enum PropertyAction {
     /// An edited value. It becomes an override even when it equals the default:
     /// "I chose this" and "I did not choose" are different authored states.
     Set(String, serde_json::Value),
@@ -2096,7 +2167,7 @@ enum PropertyAction {
 /// `class_name` is a class id or `cpp_name`; the properties come from
 /// `Registry::properties`, which already flattens the chain. Values the class
 /// does not declare are shown as preserved orphans rather than dropped.
-fn reflected_property_table(
+pub(crate) fn reflected_property_table(
     ui: &imgui::Ui,
     e: &Editor,
     id_prefix: &str,
@@ -2165,7 +2236,7 @@ fn reflected_property_table(
 }
 
 /// Applies a [`PropertyAction`] to one property/override pair.
-fn apply_property_action(
+pub(crate) fn apply_property_action(
     action: PropertyAction,
     properties: &mut std::collections::BTreeMap<String, serde_json::Value>,
     overrides: &mut std::collections::BTreeSet<String>,
@@ -2182,7 +2253,7 @@ fn apply_property_action(
     }
 }
 
-fn edit_class_button(
+pub(crate) fn edit_class_button(
     ui: &imgui::Ui,
     e: &mut Editor,
     reference: &crate::actor_document::ClassReference,
@@ -2221,7 +2292,7 @@ fn edit_class_button(
     }
 }
 
-fn actor_header(ui: &imgui::Ui, actor: &mut crate::scene::Actor, glyph: &str) -> bool {
+pub(crate) fn actor_header(ui: &imgui::Ui, actor: &mut crate::scene::Actor, glyph: &str) -> bool {
     if crate::inspector_theme::active() {
         return crate::inspector_theme::strip(ui, || actor_identity(ui, actor, glyph));
     }
@@ -2792,6 +2863,8 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
     }
 }
 pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
+    crate::world2d_editor::dialogs(ui, e);
+    crate::localization_editor::window(ui, e);
     crate::lighting_editor::window(ui, e);
     crate::visibility_bake_ui::window(ui, e);
     crate::camera_path_ui::window(ui, e);
@@ -2804,6 +2877,18 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             return;
         }
         crate::project_browser::inspector_drop(ui, e);
+        // A 2D actor selected from any view (Hierarchy, Scene, MCP) gets the 2D Inspector.
+        let selected_2d = e
+            .selected_actor
+            .or_else(|| e.selected.and_then(|i| e.scene.actors.get(i)).map(|a| a.id))
+            .filter(|id| crate::world2d_editor::is_world2d_actor(e, *id));
+        if let Some(selected) = selected_2d {
+            if e.selected_actor != Some(selected) {
+                e.select_actor(Some(selected));
+            }
+            crate::world2d_editor::inspector(ui, e);
+            return;
+        }
         if e.selected_actor.is_some()
             && e.scene_view_mode == crate::scene_view_mode::SceneViewMode::TwoD
         {
@@ -2837,12 +2922,17 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             actor_header(ui, &mut entity, glyph);
             ui.separator();
             entity_actor_inspector(ui, e, index);
-            crate::hud_editor::inspector(
+            let strings = crate::localization::project_table(&e.assets.index).map(|(_, t)| t);
+            if crate::hud_editor::inspector(
                 ui,
                 &mut entity,
                 &focus_targets,
                 &crate::hud_editor::font_choices(&e.assets.index),
-            );
+                strings.as_ref(),
+                e.scene.preview_language,
+            ) {
+                crate::localization_editor::open(e);
+            }
             let mut reset_transform = false;
             if entity.rect.is_none()
                 && entity.canvas.is_none()
@@ -3005,292 +3095,9 @@ fn project(ui: &imgui::Ui, e: &mut Editor, asset_font: imgui::FontId) {
     crate::project_browser::window(ui, e, asset_font);
 }
 
-/// One World2D actor as the 2D view draws it.
-struct Actor2DView {
-    id: uuid::Uuid,
-    name: String,
-    transform: crate::scene_view_mode::Transform2D,
-    /// Identity of the root `SceneComponent2D` whose properties carry the
-    /// transform, so a drag writes back to the component it read.
-    root: Option<uuid::Uuid>,
-}
-/// The map's World2D actors, sorted back to front by `draw_order` with document
-/// order breaking ties, exactly like `draw_key_2d` in `runtime/world2d.hpp`.
-fn world2d_actors(e: &Editor) -> Vec<Actor2DView> {
-    let Some(model) = e.object_model() else {
-        return Vec::new();
-    };
-    let mut actors: Vec<_> = e
-        .scene
-        .actors
-        .iter()
-        .filter(|actor| {
-            actor
-                .class
-                .resolve(&model)
-                .is_some_and(|c| c.domain == crate::reflection_schema::Domain::World2D)
-        })
-        .map(|actor| {
-            let root = actor.root();
-            Actor2DView {
-                id: actor.id,
-                name: actor.name.clone(),
-                transform: root
-                    .map(|c| crate::scene_view_mode::read_transform_2d(&c.properties))
-                    .unwrap_or_default(),
-                root: root.map(|c| c.id),
-            }
-        })
-        .collect();
-    actors.sort_by_key(|a| a.transform.draw_order);
-    actors
-}
-/// Whether a world point is inside one actor's unit quad, after its own rotation
-/// and scale. The quad is the one unit square centred on the actor's origin: no
-/// authored geometry exists yet, so a placement is drawn at its footprint.
-fn inside_actor_2d(point: [f32; 2], transform: &crate::scene_view_mode::Transform2D) -> bool {
-    let angle = -transform.rotation.to_radians();
-    let (sin, cos) = angle.sin_cos();
-    let offset = [
-        point[0] - transform.position[0],
-        point[1] - transform.position[1],
-    ];
-    let local = [
-        (offset[0] * cos - offset[1] * sin) / transform.scale[0].abs().max(1e-4),
-        (offset[0] * sin + offset[1] * cos) / transform.scale[1].abs().max(1e-4),
-    ];
-    local[0].abs() <= 0.5 && local[1].abs() <= 0.5
-}
-/// The Scene window in `SceneViewMode::TwoD`: an orthographic World2D view drawn
-/// entirely with ImGui draw-list primitives, so it costs no render target.
+/// The Scene window in `SceneViewMode::TwoD`: the 2D world editor.
 fn world2d_view(ui: &imgui::Ui, e: &mut Editor) {
-    ui.text("2D World");
-    inline(ui, "Reset View");
-    if ui.button("Reset View") {
-        e.view_2d.reset();
-    }
-    ui.same_line();
-    ui.text_disabled(format!(
-        "{:.0}% | {} px per unit",
-        e.view_2d.zoom * 100.,
-        e.view_2d.scale().round()
-    ));
-    muted(
-        ui,
-        "World Y is up, 32 px per unit at 100%. MMB/RMB drag: pan | wheel: zoom | LMB: select and move",
-    );
-    ui.separator();
-    let origin = ui.cursor_screen_pos();
-    let size = ui.content_region_avail().map(|v| v.max(1.));
-    ui.invisible_button("scene-2d-canvas", size);
-    let hovered = ui.is_item_hovered();
-    let mouse = ui.io().mouse_pos;
-    let actors = world2d_actors(e);
-
-    // --- navigation -------------------------------------------------------
-    if hovered && ui.io().mouse_wheel != 0. {
-        e.view_2d.zoom_at(ui.io().mouse_wheel, mouse, origin, size);
-    }
-    if (ui.is_mouse_dragging(imgui::MouseButton::Middle)
-        || ui.is_mouse_dragging(imgui::MouseButton::Right))
-        && (hovered || ui.is_item_active())
-    {
-        e.view_2d.pan_pixels(ui.io().mouse_delta);
-    }
-
-    // --- selection and drag ----------------------------------------------
-    let world = e.view_2d.screen_to_world(mouse, origin, size);
-    if hovered && ui.is_mouse_clicked(imgui::MouseButton::Left) && !e.playing {
-        // Topmost first: the list is back to front, so the hit test walks it back.
-        let hit = actors
-            .iter()
-            .rev()
-            .find(|actor| inside_actor_2d(world, &actor.transform));
-        match hit {
-            Some(actor) => {
-                e.select_actor(Some(actor.id));
-                e.drag_2d = Some((
-                    actor.id,
-                    [
-                        actor.transform.position[0] - world[0],
-                        actor.transform.position[1] - world[1],
-                    ],
-                ));
-            }
-            None => {
-                e.select_actor(None);
-                e.drag_2d = None;
-            }
-        }
-    }
-    if !ui.is_mouse_down(imgui::MouseButton::Left) {
-        if e.drag_2d.is_some() {
-            e.drag_2d = None;
-        }
-        // One drag of one actor is one undo step, however many frames it took.
-        e.end_coalesced();
-    } else if let Some((id, grab)) = e.drag_2d
-        && ui.is_mouse_dragging(imgui::MouseButton::Left)
-        && !e.playing
-        && let Some(index) = e.scene.actor_index(id)
-        && let Some(root) = actors
-            .iter()
-            .find(|actor| actor.id == id)
-            .and_then(|actor| actor.root)
-        && let Some(component) = e.scene.actors[index]
-            .components
-            .iter_mut()
-            .find(|c| c.id == root)
-    {
-        let (mut properties, mut overrides) =
-            (component.properties.clone(), component.overrides.clone());
-        crate::scene_view_mode::write_position_2d(
-            &mut properties,
-            &mut overrides,
-            [
-                (world[0] + grab[0]).clamp(-8192., 8192.),
-                (world[1] + grab[1]).clamp(-8192., 8192.),
-            ],
-        );
-        component.properties = properties;
-        component.overrides = overrides;
-        e.scene.actors[index].refresh_components();
-        e.changed_coalesced("actor-2d-drag");
-    }
-
-    // --- rendering --------------------------------------------------------
-    let draw = ui.get_window_draw_list();
-    let corner = [origin[0] + size[0], origin[1] + size[1]];
-    draw.with_clip_rect_intersect(origin, corner, || {
-        draw.add_rect(origin, corner, [0.16, 0.17, 0.19, 1.])
-            .filled(true)
-            .build();
-        // Grid spacing grows with the zoom so lines never crowd into a wash.
-        let step = [1., 5., 25., 125., 625.]
-            .into_iter()
-            .find(|unit| unit * e.view_2d.scale() >= 12.)
-            .unwrap_or(625.);
-        for (spacing, colour) in [
-            (step, [0.22, 0.23, 0.26, 1.]),
-            (step * 5., [0.30, 0.31, 0.35, 1.]),
-        ] {
-            let first = ((e.view_2d.screen_to_world(origin, origin, size)[0]) / spacing).floor();
-            let mut unit = first;
-            loop {
-                let x = e
-                    .view_2d
-                    .world_to_screen([unit * spacing, 0.], origin, size)[0];
-                if x > corner[0] {
-                    break;
-                }
-                draw.add_line([x, origin[1]], [x, corner[1]], colour)
-                    .build();
-                unit += 1.;
-            }
-            let first = ((e.view_2d.screen_to_world(corner, origin, size)[1]) / spacing).floor();
-            let mut unit = first;
-            loop {
-                let y = e
-                    .view_2d
-                    .world_to_screen([0., unit * spacing], origin, size)[1];
-                if y < origin[1] {
-                    break;
-                }
-                draw.add_line([origin[0], y], [corner[0], y], colour)
-                    .build();
-                unit += 1.;
-            }
-        }
-        // The world axes: +X red, +Y green, matching the 3D viewport's gizmo.
-        let centre = e.view_2d.world_to_screen([0., 0.], origin, size);
-        draw.add_line(
-            [origin[0], centre[1]],
-            [corner[0], centre[1]],
-            [0.75, 0.32, 0.32, 1.],
-        )
-        .build();
-        draw.add_line(
-            [centre[0], origin[1]],
-            [centre[0], corner[1]],
-            [0.40, 0.70, 0.36, 1.],
-        )
-        .build();
-        for actor in &actors {
-            let selected = e.selected_actor == Some(actor.id);
-            let transform = &actor.transform;
-            let angle = transform.rotation.to_radians();
-            let (sin, cos) = angle.sin_cos();
-            let corners: Vec<[f32; 2]> = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]
-                .into_iter()
-                .map(|local| {
-                    let scaled = [local[0] * transform.scale[0], local[1] * transform.scale[1]];
-                    e.view_2d.world_to_screen(
-                        [
-                            transform.position[0] + scaled[0] * cos - scaled[1] * sin,
-                            transform.position[1] + scaled[0] * sin + scaled[1] * cos,
-                        ],
-                        origin,
-                        size,
-                    )
-                })
-                .collect();
-            draw.add_polyline(
-                corners.clone(),
-                if selected {
-                    [0.98, 0.65, 0.24, 0.30]
-                } else {
-                    [0.38, 0.60, 0.85, 0.25]
-                },
-            )
-            .filled(true)
-            .build();
-            draw.add_polyline(
-                corners.clone(),
-                if selected {
-                    [1., 0.65, 0.25, 1.]
-                } else {
-                    [0.55, 0.72, 0.92, 1.]
-                },
-            )
-            .thickness(if selected { 2. } else { 1. })
-            .build();
-            let label = e.view_2d.world_to_screen(transform.position, origin, size);
-            draw.add_text(
-                [label[0] + 6., label[1] + 4.],
-                [0.92, 0.93, 0.95, 1.],
-                &actor.name,
-            );
-            if actor.root.is_none() {
-                draw.add_text(
-                    [label[0] + 6., label[1] + 20.],
-                    [1., 0.72, 0.3, 1.],
-                    "no root component",
-                );
-            }
-        }
-    });
-    if actors.is_empty() {
-        ui.set_cursor_screen_pos([origin[0] + 12., origin[1] + 12.]);
-        // A project whose reflection data never resolved, and one whose model
-        // simply declares no 2D actor class, are different problems.
-        let placeable = e.object_model().is_some_and(|model| {
-            model
-                .placeable()
-                .any(|c| c.domain == crate::reflection_schema::Domain::World2D)
-        });
-        if placeable {
-            muted(
-                ui,
-                "No World2D actors in this map. Create one from the Hierarchy's Actor > 2D menu.",
-            );
-        } else {
-            muted(
-                ui,
-                "This project declares no placeable World2D actor class. Compile the project so its reflection data resolves, or derive an Actor2D subclass.",
-            );
-        }
-    }
-    scene_shortcuts(ui, e);
+    crate::world2d_editor::viewport(ui, e);
 }
 fn scene_view(
     ui: &imgui::Ui,

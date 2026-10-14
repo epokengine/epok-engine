@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `a0b96994d124599318d7bd9e5f2808bb5767d59a`. Frozen semantic candidate rows: **3826**.
+Baseline commit: `00334cac47d5e5afd49671c8cde2792995067db5`. Frozen semantic candidate rows: **4733**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -12,8 +12,8 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | --- | ---: |
 | `compatibility_alias` | 44 |
 | `hardware_backend` | 6 |
-| `internal_implementation` | 3247 |
-| `public_gameplay` | 529 |
+| `internal_implementation` | 4130 |
+| `public_gameplay` | 553 |
 
 ## Public gameplay gaps
 
@@ -33,22 +33,22 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `cameras_scenes` | 48 |
 | `collision_3d` | 55 |
 | `components_hierarchy` | 7 |
-| `gameplay_2d` | 91 |
-| `implementation_support` | 1270 |
+| `gameplay_2d` | 103 |
+| `implementation_support` | 2120 |
 | `input_time` | 51 |
 | `language_adapter` | 130 |
-| `materials_visuals` | 60 |
+| `materials_visuals` | 61 |
 | `math_values` | 10 |
 | `memory_card` | 70 |
-| `objects_actors` | 577 |
+| `objects_actors` | 591 |
 | `particles_effects` | 169 |
 | `resources_diagnostics` | 58 |
-| `runtime_facade` | 606 |
+| `runtime_facade` | 628 |
 | `skeletal_animation` | 24 |
 | `sprites_palettes` | 72 |
 | `static_editable_meshes` | 96 |
 | `timelines_sequences` | 72 |
-| `ui_text` | 59 |
+| `ui_text` | 67 |
 | `utilities_events` | 119 |
 
 ## Public gameplay rows
@@ -66,6 +66,7 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::Actor::on_disable` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Actor::on_enable` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Actor::on_frame` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::Actor::overlap_2d` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Actor::root_id` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Actor::set_active` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Actor::set_wants_tick` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -130,13 +131,20 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::FocusLibrary::navigate` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusLibrary::snapshot` | `utility` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::is_checked` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::is_focused` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::is_toggle` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::neighbor` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::order` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::set_checked` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_highlight` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_neighbor` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::FocusableComponent::set_order` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::set_toggle` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::take_cancelled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::take_changed` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::FocusableComponent::take_pressed` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::set_borders` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ImageComponent::set_color` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -186,6 +194,10 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::Light3DComponent::set_mode` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Light3DComponent::set_range` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::Light3DComponent::set_type` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalizationLibrary::key_count` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalizationLibrary::language` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalizationLibrary::language_count` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::LocalizationLibrary::set_language` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::add` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::clamp` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::MathLibrary::cosine_degrees` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -272,7 +284,9 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::ProgressBarComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::set_colors` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProgressBarComponent::set_step` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::set_value` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::ProgressBarComponent::step` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::value` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::RectTransformComponent::rotation` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
@@ -332,9 +346,11 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::TextComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_font_index` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_number` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::TextComponent::set_text_key` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_text_word` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_unsigned` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::set_wrap` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::TextComponent::text_key` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TextComponent::text_word` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TimeLibrary::paused` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::TimeLibrary::set_paused` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
@@ -353,6 +369,8 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::UtilityVectorLibrary::vector_tween_schedule` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::UtilityVectorLibrary::vector_tween_start` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::UtilityVectorLibrary::vector_tween_value` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::World2DLibrary::overlap_box_2d` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::World2DLibrary::raycast_2d` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::World2DLibrary::screen_to_world` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::World2DLibrary::world_to_screen` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::BoneSample::basis_x` | `epok` | yes | yes | yes | yes | yes | `implemented` |
@@ -366,6 +384,12 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::CardFileSample::blocks` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CardFileSample::name_hash` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CardFileSample::valid` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHit2DSample::actor` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHit2DSample::fraction` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHit2DSample::hit` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHit2DSample::normal` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHit2DSample::point` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::CollisionHit2DSample::started_inside` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::actor` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::fraction` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::hit` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |

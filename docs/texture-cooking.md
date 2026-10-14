@@ -17,8 +17,13 @@ builds derive indexed GPU data in `texture_cook.rs`:
 - Place authored HUD fonts first, as 4bpp atlases with a sixteen-entry CLUT,
   from the build's font set alone. Fonts are global, so every scene bank packs
   its textures around the same font placement.
-- Reserve all VRAM columns before 640, and the loading-image/font corner at
-  `(960,384,64,128)`. The remaining layout has 376,832 bytes before fragmentation.
+- Reserve every VRAM column the configured display's framebuffers use
+  (x below the display width, at every row), and the loading-image/font
+  corner at `(960,384,64,128)`. A 640-wide display leaves 376,832 bytes before
+  fragmentation; a 320-wide display leaves 704,512 bytes and a 256-wide display
+  770,048 bytes. Authored fonts are always placed beyond column 640, so their
+  placement does not depend on the resolution. Every generated bank
+  `static_assert`s that no texture or CLUT lies inside the display columns.
   This is the engine's conservative layout, not a count-based texture limit.
 
 The generated `Texture` descriptor appends `bits`, `stream_page` and
@@ -27,7 +32,7 @@ Source `texture::Data` is still the host's 8-bit representation. Memory reports
 use cooked word widths and palette sizes.
 
 The report places progressive framebuffers at Y=0 and Y=256 (240 rows each),
-matching PsyQo's flip/scissor/clear operations. All 512 rows before column 640
+matching PsyQo's flip/scissor/clear operations. All 512 rows before the display width
 are excluded by the allocator: gaps at 240..255 and 496..511 are reserved, not
 available texture space. Interlaced mode has one 480-row surface and a 32-row
 reserved tail. These non-overlapping rectangles account for the entire reserve.

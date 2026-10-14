@@ -378,7 +378,7 @@ pub fn header_with_templates_for(
             }
         );
         textures += &format!(
-            "inline constexpr auto bank_texture_packets_{bank}=bake_texture_packets(bank_textures_{bank});\n"
+            "inline constexpr auto bank_texture_packets_{bank}=bake_texture_packets(bank_textures_{bank});\nstatic_assert(textures_clear_of_display(bank_textures_{bank},display_width),\"Scene bank {bank} places a texture inside the framebuffer columns\");\n"
         );
     }
     // Resolve once per ordered world pass, not once per face. Unknown/custom
@@ -506,6 +506,11 @@ pub fn header_with_templates_for(
     let mut out = format!(
         "// Generated prelinked scene banks.\n#pragma once\n#include \"epok.hpp\"\n#define EPOK_OBJECT_REGISTRY_CAPACITY {object_registry_capacity}\n#include \"actor_tables.hpp\"\n#include <array>\n"
     );
+    let world2d = crate::world2d::project_uses_world2d(
+        scenes.iter().chain(templates.iter().map(|t| &t.scene)),
+        class_registry,
+    );
+    out += &crate::world2d::capacity_defines(world2d, scenes, templates.iter().map(|t| &t.scene));
     for s in catalog {
         out += &format!("#include \"scripts/{}\"\n", s.header_path());
     }

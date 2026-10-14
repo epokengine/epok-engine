@@ -52,7 +52,7 @@ class HudRenderer {
             for(int k=0;k<2;++k)h=mix(h,uint32_t(e.layout_container.spacing[k].raw()));
             for(int k=0;k<4;++k)h=mix(h,uint32_t(e.layout_container.padding[k].raw()));
             h=mix(h,uint32_t(e.focusable.enabled)|uint32_t(e.focusable.order)<<8|uint32_t(e.focusable.highlight[0])<<16|uint32_t(e.focusable.highlight[1])<<24);
-            h=mix(h,uint32_t(e.focusable.highlight[2]));
+            h=mix(h,uint32_t(e.focusable.highlight[2])|uint32_t(e.focusable.kind)<<8|uint32_t(e.focusable.checked)<<16);
             for(int k=0;k<4;++k)h=mix(h,uint32_t(uint16_t(e.focusable.neighbors[k])));
         }
         return h;

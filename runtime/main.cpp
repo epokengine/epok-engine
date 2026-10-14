@@ -41,6 +41,9 @@
 #include "polygon.hpp"
 #include "retained.hpp"
 #include "hud.hpp"
+#ifdef EPOK_WORLD2D
+#include "world2d_render.hpp"
+#endif
 #include "hud_focus.hpp"
 #include "loading_renderer.hpp"
 #include "sky_gradient.hpp"
@@ -820,6 +823,9 @@ class GameScene final : public psyqo::Scene {
     epok::install_actor_service_hooks();
     epok::nav::move_actor=&epok::move_and_slide;
     epok::nav::bounds_actor=&epok::collider_aabb;
+#ifdef EPOK_WORLD2D
+    epok::world2d::install();
+#endif
 #if defined(EPOK_LUA_MODE) && EPOK_LUA_MODE != 0
     // The VM opens its arena, loads every class chunk and caches the method
     // functions before any script can be constructed.
@@ -960,6 +966,10 @@ void GameScene::frame() {
       epok::bp::observe_playback();
   #endif
     epok::level.tick(dt);
+#ifdef EPOK_WORLD2D
+    // World2D after the actors moved: animation, colliders, triggers, cameras.
+    epok::world2d::service.step(dt,&epok::level);
+#endif
     bool needs_triggers=collision_world.has_trigger_pairs();
     for(size_t i=0;i<epok::object_count&&!needs_triggers;++i)
       needs_triggers=epok::objects[i].collider.enabled&&epok::objects[i].collider.trigger&&epok::is_active_slot(i);
@@ -1127,7 +1137,12 @@ void GameScene::frame() {
   int parity = gpu().getParity();
   auto &table = ordering[parity];
   const auto* clear_camera=camera_entity();
+#ifdef EPOK_WORLD2D
+  // With no 3D camera the active Camera2D paints the background.
+  const auto* sky_color=clear_camera?clear_camera->camera_settings.sky_color:epok::world2d::service.background();
+#else
   const auto* sky_color=clear_camera?clear_camera->camera_settings.sky_color:nullptr;
+#endif
   const uint8_t sky_r=sky_color?sky_color[0]:33;
   const uint8_t sky_g=sky_color?sky_color[1]:40;
   const uint8_t sky_b=sky_color?sky_color[2]:52;
@@ -2128,6 +2143,10 @@ void GameScene::frame() {
     epok::configure_display_field<epok::display_interlaced>(page.primitive.attr);
     gpu().chain(page);
   }
+#ifdef EPOK_WORLD2D
+  // The 2D world draws over the 3D world and under the HUD.
+  epok::world2d::renderer.draw(gpu());
+#endif
   EPOK_DETAIL_END(sprite, sprite_scanlines);
   EPOK_DETAIL_BEGIN(hud);
   // D-pad focus moves before the HUD is compiled, so the highlighted element is
@@ -2222,6 +2241,9 @@ void reset_runtime_services() {
   lighting.clear();
   camera_override={};projection_focal=1.0;projection_focal_x=1.0;
   collision_world.clear();particles.clear();input.discard_edges();time=Time{};
+#ifdef EPOK_WORLD2D
+  world2d::service.reset();
+#endif
 }
 void activate_texture_bank(const Texture* textures) {
   if(!textures){game.gpu().waitChainIdle();texture_assets=nullptr;pending_texture_bank=nullptr;return;}

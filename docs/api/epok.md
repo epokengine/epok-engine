@@ -2,7 +2,7 @@
 
 Epok's gameplay-facing and engine-runtime callables. Start here for entities, input, collision, audio, scenes, timelines, effects and resource budgets.
 
-**Coverage:** 104 headers · 1565 public callables.
+**Coverage:** 113 headers · 1967 public callables.
 
 ## Modules
 
@@ -32,7 +32,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Font Types](epok/font-types.md) | `font_types.hpp` | 3 | Epok runtime API |
 | [Frame Clear](epok/frame-clear.md) | `frame_clear.hpp` | 2 | Epok runtime API |
 | [Frustum](epok/frustum.md) | `frustum.hpp` | 10 | Epok runtime API |
-| [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 90 | Epok runtime API |
+| [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 96 | Epok runtime API |
 | [Gte Geometry](epok/gte-geometry.md) | `gte_geometry.hpp` | 26 | Epok runtime API |
 | [Hud](epok/hud.md) | `hud.hpp` | 12 | Epok runtime API |
 | [Hud Core](epok/hud-core.md) | `hud_core.hpp` | 14 | Epok runtime API |
@@ -56,7 +56,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Native Music Service](epok/native-music-service.md) | `native_music_service.hpp` | 1 | Epok runtime API |
 | [Navigation](epok/navigation.md) | `navigation.hpp` | 17 | Epok runtime API |
 | [Navigation Components](epok/navigation-components.md) | `navigation_components.hpp` | 21 | Epok runtime API |
-| [Object Model](epok/object-model.md) | `object_model.hpp` | 350 | Epok runtime API |
+| [Object Model](epok/object-model.md) | `object_model.hpp` | 364 | Epok runtime API |
 | [Ordered Draw](epok/ordered-draw.md) | `ordered_draw.hpp` | 7 | Epok runtime API |
 | [Ordered Draw Types](epok/ordered-draw-types.md) | `ordered_draw_types.hpp` | 3 | Epok runtime API |
 | [Ordered Projection](epok/ordered-projection.md) | `ordered_projection.hpp` | 11 | Epok runtime API |
@@ -90,9 +90,9 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Spu Transfer](epok/spu-transfer.md) | `spu_transfer.hpp` | 6 | Epok runtime API |
 | [Streaming](epok/streaming.md) | `streaming.hpp` | 45 | Epok runtime API |
 | [Streaming Read](epok/streaming-read.md) | `streaming_read.hpp` | 8 | Epok runtime API |
-| [Text](epok/text.md) | `text.hpp` | 1 | Epok runtime API |
+| [Text](epok/text.md) | `text.hpp` | 2 | Epok runtime API |
 | [Texture](epok/texture.md) | `texture.hpp` | 5 | Epok runtime API |
-| [Texture Types](epok/texture-types.md) | `texture_types.hpp` | 6 | Epok runtime API |
+| [Texture Types](epok/texture-types.md) | `texture_types.hpp` | 7 | Epok runtime API |
 | [Texture Upload](epok/texture-upload.md) | `texture_upload.hpp` | 1 | Epok runtime API |
 | [Time](epok/time.md) | `time.hpp` | 8 | Epok runtime API |
 | [Timeline](epok/timeline.md) | `timeline.hpp` | 3 | Epok runtime API |
@@ -102,7 +102,16 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Utility](epok/utility.md) | `utility.hpp` | 64 | Epok runtime API |
 | [Visibility](epok/visibility.md) | `visibility.hpp` | 13 | Epok runtime API |
 | [Visibility Track](epok/visibility-track.md) | `visibility_track.hpp` | 15 | Epok runtime API |
-| [World2D](epok/world2d.md) | `world2d.hpp` | 45 | Epok runtime API |
+| [World2D](epok/world2d.md) | `world2d.hpp` | 49 | Epok runtime API |
+| [World2D Components](epok/world2d-components.md) | `world2d_components.hpp` | 82 | Epok runtime API |
+| [World2D Content](epok/world2d-content.md) | `world2d_content.hpp` | 79 | Epok runtime API |
+| [World2D Navigation](epok/world2d-navigation.md) | `world2d_navigation.hpp` | 44 | Epok runtime API |
+| [World2D Physics](epok/world2d-physics.md) | `world2d_physics.hpp` | 25 | Epok runtime API |
+| [World2D Render](epok/world2d-render.md) | `world2d_render.hpp` | 1 | Epok runtime API |
+| [World2D Service](epok/world2d-service.md) | `world2d_service.hpp` | 50 | Epok runtime API |
+| [World2D Skeleton](epok/world2d-skeleton.md) | `world2d_skeleton.hpp` | 24 | Epok runtime API |
+| [World2D Tiles](epok/world2d-tiles.md) | `world2d_tiles.hpp` | 48 | Epok runtime API |
+| [World2D Viewports](epok/world2d-viewports.md) | `world2d_viewports.hpp` | 23 | Epok runtime API |
 | [Blueprint Playback Service](epok/blueprint-playback-service.md) | `blueprint_playback_service.hpp` | 0 | Engine internal |
 | [Blueprint Runtime](epok/blueprint-runtime.md) | `blueprint_runtime.hpp` | 65 | Engine internal |
 | [Loading Renderer](epok/loading-renderer.md) | `loading_renderer.hpp` | 1 | Engine internal |

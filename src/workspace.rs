@@ -439,15 +439,22 @@ pub enum Template {
     Basic,
     Sample,
     ThirdPerson,
+    Platformer2D,
 }
 impl Template {
-    pub const ALL: [Self; 3] = [Self::Basic, Self::Sample, Self::ThirdPerson];
+    pub const ALL: [Self; 4] = [
+        Self::Basic,
+        Self::Sample,
+        Self::ThirdPerson,
+        Self::Platformer2D,
+    ];
     /// The spelling `--template` accepts and the preview file stem.
     pub fn key(self) -> &'static str {
         match self {
             Self::Basic => "basic",
             Self::Sample => "sample",
             Self::ThirdPerson => "third-person",
+            Self::Platformer2D => "platformer-2d",
         }
     }
     pub fn parse(value: &str) -> Option<Self> {
@@ -587,6 +594,7 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
     }
     let scene = match template {
         Template::ThirdPerson => crate::third_person::create(destination, gameplay)?,
+        Template::Platformer2D => crate::platformer_template::create(destination, gameplay)?,
         Template::Basic => {
             // Basic stays basic: no starter behaviour in any flavor, so nothing
             // here depends on the selection beyond the descriptor it records.
@@ -608,7 +616,7 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         build: Default::default(),
         play: Default::default(),
         transition: Default::default(),
-        rendering: if template == Template::ThirdPerson {
+        rendering: if matches!(template, Template::ThirdPerson | Template::Platformer2D) {
             crate::settings::Rendering {
                 width: 320,
                 height: 240,

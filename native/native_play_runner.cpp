@@ -51,6 +51,9 @@ uint32_t scene_rejected_count(){return 0;}
 bool scene_waiting(){return false;}
 }
 #include "lifecycle.hpp"
+#ifdef EPOK_WORLD2D
+#include "world2d_service.hpp"
+#endif
 
 namespace {
 using epok::Fixed;
@@ -182,6 +185,93 @@ static void frame(){
     // Cooked fonts are global and already carry their VRAM placement; the
     // layout core only reads their metrics, exactly as the console does.
     sink.fonts.assign(epok::font_assets,epok::font_assets+epok::font_count);
+#ifdef EPOK_WORLD2D
+    // The 2D world draws under the HUD, through the same command rasterizer: the
+    // background of the active Camera2D when no 3D camera paints one, then every
+    // resolved sprite as a textured quad (texel corners are inclusive).
+    {
+        static epok::world2d::SpriteDraw draws[EPOK_WORLD2D_DRAW_ITEMS];
+        static epok::world2d::DrawItem items[EPOK_WORLD2D_DRAW_ITEMS],scratch[EPOK_WORLD2D_DRAW_ITEMS];
+        if(!camera_entity())if(const uint8_t* background=epok::world2d::service.background())sink.rectangle(-1,0,0,epok::display_width,epok::display_height,background);
+        // Corners A, B, C, D; a transpose swaps the texture axes (B and C exchange texels).
+        auto quad=[&](int texture,const int16_t* sx,const int16_t* sy,int su,int sv,int sw,int sh,bool flip_h,bool flip_v,bool transpose,const uint8_t* color){
+            int x[4],y[4];for(int k=0;k<4;++k){x[k]=sx[k];y[k]=sy[k];}
+            const int u0=su,u1=su+sw-1,v0=sv,v1=sv+sh-1;
+            const int ul=flip_h?u1:u0,ur=flip_h?u0:u1,vt=flip_v?v1:v0,vb=flip_v?v0:v1;
+            const int u[4]={ul,transpose?ul:ur,transpose?ur:ul,ur},v[4]={vt,transpose?vb:vt,transpose?vt:vb,vb};
+            sink.textured_quad(-1,texture,x,y,u,v,color);
+        };
+        // One view: collect through the current render pass and emit its commands.
+        auto view=[&]{
+            const size_t count=epok::world2d::collect_sprites(draws,items,scratch,EPOK_WORLD2D_DRAW_ITEMS,[](int index,uint16_t& w,uint16_t& h){
+                if(index<0||size_t(index)>=epok::texture_count)return false;w=epok::texture_assets[index].width;h=epok::texture_assets[index].height;return w>0&&h>0;});
+            for(size_t i=0;i<count;++i){
+                const auto& d=draws[items[i].index];
+                using epok::world2d::DrawKind;
+                if(d.kind==DrawKind::Line){
+                    // Flat quads: each segment takes the colour at its middle.
+                    epok::world2d::each_line_quad(d,[&](const epok::world2d::ShapeQuad& q){int x[4],y[4];uint8_t c[3];for(int k=0;k<4;++k){x[k]=q.x[k];y[k]=q.y[k];}for(int k=0;k<3;++k)c[k]=uint8_t((q.color[0][k]+q.color[1][k]+1)/2);sink.quad(-1,x,y,c);});
+                    continue;
+                }
+                if(d.kind==DrawKind::Polygon){
+                    const auto& shape=*static_cast<const epok::Polygon2DComponent*>(d.component);uint8_t c[3];for(int k=0;k<3;++k)c[k]=uint8_t((unsigned(shape.color[k])*d.color[k]+127)/255);
+                    const bool textured=shape.texels&&d.texture>=0&&size_t(d.texture)<epok::texture_count;
+                    // A triangle is a quad whose last corner repeats the third.
+                    epok::world2d::each_polygon_triangle(d,[&](const epok::world2d::ShapeTriangle& t){int x[4]={t.x[0],t.x[1],t.x[2],t.x[2]},y[4]={t.y[0],t.y[1],t.y[2],t.y[2]};
+                        if(textured){int u[4]={t.u[0],t.u[1],t.u[2],t.u[2]},v[4]={t.v[0],t.v[1],t.v[2],t.v[2]};sink.textured_quad(-1,int(d.texture),x,y,u,v,c);}else sink.quad(-1,x,y,c);});
+                    continue;
+                }
+                if(d.texture==-2){
+                    // A SubViewport2D's picture, drawn earlier this frame.
+                    const auto* picture=static_cast<const epok::SubViewport2DComponent*>(d.component);
+                    if(picture)quad(0x10000+int(picture->native_index),d.x,d.y,d.source[0],d.source[1],d.source[2],d.source[3],d.flip_h,d.flip_v,false,d.color);
+                    continue;
+                }
+                if(d.texture<0||size_t(d.texture)>=epok::texture_count)continue;
+                const auto& t=epok::texture_assets[d.texture];
+                if(d.kind==DrawKind::Tiles){
+                    epok::world2d::each_tile(d,t.width,t.height,[&](const epok::world2d::TileDraw& tile){quad(int(d.texture),tile.x,tile.y,tile.u,tile.v,tile.w,tile.h,tile.flip_h,tile.flip_v,tile.transpose,d.color);});
+                    continue;
+                }
+                if(d.kind==DrawKind::Particles){
+                    epok::world2d::each_particle(d,t.width,t.height,[&](const epok::world2d::SpriteDraw& p){quad(int(d.texture),p.x,p.y,p.source[0],p.source[1],p.source[2],p.source[3],false,false,false,p.color);});
+                    continue;
+                }
+                quad(int(d.texture),d.x,d.y,d.source[0],d.source[1],d.source[2],d.source[3],d.flip_h,d.flip_v,false,d.color);
+            }
+        };
+        // Pictures first, as on the console; then the views.
+        using epok::world2d::RenderPass;
+        RenderPass main;uint16_t pictures=0;
+        epok::world2d::subviewports.each([&](epok::SubViewport2DComponent& picture){
+            if(picture.hide_layer&&picture.layer!=epok::world2d::every_layer)main.hide(int8_t(picture.layer));
+            picture.native_index=pictures++;
+            if(!picture.enabled||!epok::is_active(&picture)||!picture.width||!picture.height)return;
+            epok::Camera2D through;if(!picture.view(through))return;
+            sink.begin_picture(picture.native_index,picture.width,picture.height,picture.background);
+            RenderPass pass;pass.camera=&through;pass.screen=false;pass.only_layer=picture.layer;pass.clip[2]=int16_t(picture.width);pass.clip[3]=int16_t(picture.height);
+            epok::world2d::render_pass=pass;view();
+            sink.end_picture();
+        });
+        if(auto* split=epok::world2d::active_split()){
+            for(int i=0;i<2;++i){
+                epok::Camera2D through;if(!split->view(i,through))continue;
+                const int16_t* r=through.viewport;
+                sink.clip(r[0],r[1],r[0]+r[2],r[1]+r[3]);
+                if(auto* camera=epok::world2d::camera_on(split->cameras[i]))sink.rectangle(-1,r[0],r[1],r[0]+r[2],r[1]+r[3],camera->background);
+                RenderPass pass=main;pass.camera=&through;pass.screen=false;for(int k=0;k<4;++k)pass.clip[k]=r[k];
+                epok::world2d::render_pass=pass;view();
+            }
+            sink.clip(0,0,epok::display_width,epok::display_height);
+            if(split->divider){int16_t first[4];split->half(0,first);
+                if(split->side_by_side)sink.rectangle(-1,first[2],0,first[2]+split->divider,epok::display_height,split->divider_color);
+                else sink.rectangle(-1,0,first[3],epok::display_width,first[3]+split->divider,split->divider_color);}
+            main.world=false;
+        }
+        epok::world2d::render_pass=main;view();
+        epok::world2d::render_pass=RenderPass{};
+    }
+#endif
     epok::hud_focus_update(epok::objects.data(),epok::object_count,epok::hud_focus_edges());
     epok::hud_core::Compiler compiler(sink,epok::display_width,epok::display_height,{epok::hud_layout_budget,epok::hud_rectangle_budget,epok::hud_text_budget,epok::hud_glyph_budget,epok::hud_rotated_budget});
     int first[epok::objects.size()],next[epok::objects.size()];epok::Fixed measured[epok::objects.size()][2];epok::hud_core::Rect rects[epok::objects.size()];epok::hud_core::Affine2 transforms[epok::objects.size()];compiler.draw(epok::objects.data(),epok::object_count,first,next,measured,rects,transforms);auto s=compiler.stats;
@@ -205,6 +295,9 @@ int main(){
     if(!frames)return 2;NativeCards cards;epok::memory_card.attach(cards);epok::time.reset(0);epok::input.reset();
     epok::audio_source_retained=[](const epok::AudioSource* source){return epok::music_active==source||epok::music_requested==source;};
     epok::nav::move_actor=&epok::move_and_slide;epok::nav::bounds_actor=&epok::collider_aabb;
+#ifdef EPOK_WORLD2D
+    epok::world2d::install();
+#endif
     epok::initialize_components();if(epok::load_actor_bank(epok::actor_table,epok::objects.data(),epok::object_count)!=epok::actor_table.count)return 4;
     for(auto& object:epok::objects)if(epok::is_active(&object)&&object.audio.enabled&&object.audio.play_on_start&&!object.audio.is_playing())object.audio.play();advance_camera_track(0);frame();
     uint32_t now=0,elapsed=0;uint32_t buttons[4]={},analog[4]={},axes[4]={};
@@ -213,6 +306,10 @@ int main(){
         if(epok::requested_scene.empty()){now+=elapsed;for(unsigned p=0;p<4;++p)epok::input.sample(p,true,uint16_t(buttons[p]),analog[p],uint8_t(axes[p]),uint8_t(axes[p]>>8),uint8_t(axes[p]>>16),uint8_t(axes[p]>>24));const auto steps=epok::time.advance(now);epok::level.frame_update(epok::time.frame_microseconds);
             if(epok::time.paused())epok::input.discard_edges();if(!epok::time.paused())epok::nav::world.tick();
             for(unsigned step=0;step<steps&&!epok::time.paused();++step){epok::time.begin_tick();epok::input.begin_tick();const Fixed dt(epok::time.delta_raw,Fixed::RAW);epok::level.tick(dt);
+#ifdef EPOK_WORLD2D
+                epok::world2d::service.step(dt,&epok::level);
+#endif
+
                 bool triggers=collision_world.has_trigger_pairs();for(size_t i=0;i<epok::object_count&&!triggers;++i)triggers=epok::objects[i].collider.enabled&&epok::objects[i].collider.trigger&&epok::is_active_slot(i);
                 if(triggers){refresh_collisions();collision_world.update_triggers(dispatch_trigger);}for(size_t i=0;i<epok::object_count;++i)if(epok::is_active_slot(i)){epok::objects[i].animator.advance();epok::objects[i].sprite_animator.advance(dt,epok::objects[i].sprite);epok::objects[i].palette_animator.advance(dt);}epok::input.end_tick();}
             advance_camera_track(epok::time.frame_microseconds);cards.pump();epok::level.refresh_stats();++epok::performance_stats.frame;

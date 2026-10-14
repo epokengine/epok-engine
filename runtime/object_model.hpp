@@ -56,8 +56,9 @@ enum class ObjectState : uint8_t { Unused, Reserved, Initialized, Playing, Endin
 enum class EndPlayReason : uint8_t { Destroyed, LevelUnloaded, Quit };
 enum class ObjectDomain : uint8_t { None, World3D, World2D, UI };
 enum class ObjectFamily : uint8_t { Object, Actor, Component, World, Level };
-// 2D world transform: XY position, rotation about the view axis, per-axis scale and a
-// stable draw order. Q12 units match the 3D world; screen conversion belongs to Camera2D.
+// 2D world transform: XY position in Q12 pixels (Y points down, as on screen),
+// rotation in degrees about the view axis, per-axis scale and a z-index draw order.
+// Screen conversion belongs to Camera2D; see world2d.hpp for the full contract.
 struct Transform2D {
     Fixed position[2] = {0.0, 0.0};
     Fixed rotation = 0.0;
@@ -430,6 +431,9 @@ public:
     EPOK_FUNCTION(BlueprintEvent) virtual void on_enable() {}
     EPOK_FUNCTION(BlueprintEvent) virtual void on_disable() {}
     EPOK_FUNCTION(BlueprintEvent, Id="5c57d8df-b3f0-42f9-a46e-77ce16248221") virtual void on_frame(uint32_t frame_microseconds) {(void)frame_microseconds;}
+    // World2D: a trigger Collider2D of this actor overlaps another actor's collider (or
+    // the reverse). `other` is that actor. Enter and Exit arrive once, Stay every step.
+    EPOK_FUNCTION(BlueprintEvent, Id="5fa12600-cb9a-4cc2-9719-da58c938d55d") virtual void overlap_2d(ObjectId other, TriggerPhase phase) {(void)other;(void)phase;}
     virtual void frame_update(uint32_t frame_microseconds) {on_frame(frame_microseconds);}
     // Runtime hook, not reflected: the declarative root component embedded in the actor.
     virtual ActorComponent* default_root() { return nullptr; }
@@ -490,6 +494,10 @@ public:
     virtual void blueprint_observe() {}
     virtual void frame_update(uint32_t frame_microseconds) {on_frame(frame_microseconds);}
     virtual ObjectId* attach_slot() { return nullptr; }
+    // Runtime hook, not reflected: the Level just bound this component to its owner.
+    // Services that keep their own lists (World2D) register here; a Blueprint or Lua
+    // subclass cannot override it, so it cannot forget to call it.
+    virtual void level_attached() {}
     // Forward-only collision hook. The Level does not own collision; the collision
     // service calls dispatch_trigger(Level&, ...) which fans the event out to the
     // owner's components. Nothing in the object model generates trigger events.
@@ -820,7 +828,11 @@ public:
     EPOK_FUNCTION(BlueprintCallable, Id="e687c218-94b4-4db8-ad06-7a14cfec7ad9") void set_enabled(bool value) {auto* data=entity_slot();if(data)data->text.enabled=value;}
     EPOK_FUNCTION(BlueprintCallable, Id="60b81db3-178c-4639-95ce-bfc9b9c47847") void set_number(int32_t value) {auto* data=entity_slot();if(!data)return;char text[16]={};char reversed[16]={};uint32_t magnitude=value<0?uint32_t(-int64_t(value)):uint32_t(value);uint32_t count=0;do{reversed[count++]=char('0'+magnitude%10);magnitude/=10;}while(magnitude&&count<15);uint32_t out=0;if(value<0)text[out++]='-';while(count)text[out++]=reversed[--count];text[out]=0;data->text.set_text(text);}
     EPOK_FUNCTION(BlueprintCallable, Id="9d40fb20-8d06-4ea1-afba-5c743418b301") void set_unsigned(uint32_t value) {auto* data=entity_slot();if(!data)return;char text[16]={};char reversed[16]={};uint32_t count=0;do{reversed[count++]=char('0'+value%10);value/=10;}while(value&&count<15);uint32_t out=0;while(count)text[out++]=reversed[--count];text[out]=0;data->text.set_text(text);}
-    EPOK_FUNCTION(BlueprintCallable, Id="f8757d62-0492-45fe-a27f-0a018532f842") void clear_text() {auto* data=entity_slot();if(data)data->text.value[0]=0;}
+    EPOK_FUNCTION(BlueprintCallable, Id="f8757d62-0492-45fe-a27f-0a018532f842") void clear_text() {auto* data=entity_slot();if(data){data->text.value[0]=0;data->text.key=-1;}}
+    // Shows string table entry `key` (its number in the Localization editor) in the
+    // current language, and keeps following it when the language changes.
+    EPOK_FUNCTION(BlueprintCallable, Id="79d0e4ff-e2c7-46f6-81b5-36bf933179fd") void set_text_key(int32_t key) {auto* data=entity_slot();if(!data)return;data->text.key=int16_t(key<-1?-1:key>32767?32767:key);data->text.set_text(localization.get(key));}
+    EPOK_FUNCTION(BlueprintPure, Id="14d80281-8009-4593-83af-3e8c467f369e") int32_t text_key() const {const auto* data=entity_slot();return data?int32_t(data->text.key):-1;}
     EPOK_FUNCTION(BlueprintCallable, Id="cbcc41a3-936a-49c0-b55e-12dbbe869c7e") bool set_text_word(uint32_t index,uint32_t packed) {auto* data=entity_slot();if(!data||index>=128)return false;char* output=data->text.value+index*4;for(uint32_t i=0;i<4;++i){const uint8_t value=uint8_t(packed>>(i*8));output[i]=value&&value<128?char(value):value?'?':0;}data->text.value[511]=0;return true;}
     EPOK_FUNCTION(BlueprintPure, Id="694cc674-49fb-4c9f-8851-b655b1b8fd45") uint32_t text_word(uint32_t index) const {const auto* data=entity_slot();if(!data||index>=128)return 0;uint32_t result=0;for(uint32_t i=0;i<4;++i)result|=uint32_t(uint8_t(data->text.value[index*4+i]))<<(i*8);return result;}
     EPOK_FUNCTION(BlueprintCallable, Id="0e61f050-7634-473f-a3bf-85d4067af329") void set_color(uint32_t red,uint32_t green,uint32_t blue) {auto* data=entity_slot();if(data){data->text.color[0]=uint8_t(red>255?255:red);data->text.color[1]=uint8_t(green>255?255:green);data->text.color[2]=uint8_t(blue>255?255:blue);}}
@@ -843,6 +855,9 @@ public:
     EPOK_FUNCTION(BlueprintPure, Id="77e4c531-5d42-470c-954e-937d5204f664") Fixed value() const {const auto* data=entity_slot();return data?data->progress.value:Fixed(0.0);}
     EPOK_FUNCTION(BlueprintCallable, Id="d9ce66cc-cf09-4e8d-b76c-a1793dd980e0") void set_value(Fixed value) {auto* data=entity_slot();if(data)data->progress.value=value<0.0?Fixed(0.0):value>1.0?Fixed(1.0):value;}
     EPOK_FUNCTION(BlueprintCallable, Id="0afbb6fa-16ca-455b-aa47-5cc6cb719527") void set_colors(uint32_t red,uint32_t green,uint32_t blue,uint32_t background_red,uint32_t background_green,uint32_t background_blue) {auto* data=entity_slot();if(data){data->progress.color[0]=uint8_t(red>255?255:red);data->progress.color[1]=uint8_t(green>255?255:green);data->progress.color[2]=uint8_t(blue>255?255:blue);data->progress.background[0]=uint8_t(background_red>255?255:background_red);data->progress.background[1]=uint8_t(background_green>255?255:background_green);data->progress.background[2]=uint8_t(background_blue>255?255:background_blue);}}
+    // A step above zero makes the bar a slider: Left/Right on the focused bar move it.
+    EPOK_FUNCTION(BlueprintPure, Id="b6b528a9-7b43-4365-9384-6938f53307a5") Fixed step() const {const auto* data=entity_slot();return data?data->progress.step:Fixed(0.0);}
+    EPOK_FUNCTION(BlueprintCallable, Id="ec01f238-380c-4d7b-8742-4d6a3c4aa268") void set_step(Fixed value) {auto* data=entity_slot();if(data)data->progress.step=value<0.0?Fixed(0.0):value>1.0?Fixed(1.0):value;}
 };
 class EPOK_CLASS(Blueprintable, Domain=UI, Owners=UI, Capability=layout, Id="c1eae9de-bc3d-4fea-9b85-ddbc8aeb8bb1") LayoutElementComponent : public UIComponent {
 public:
@@ -895,6 +910,18 @@ public:
     EPOK_FUNCTION(BlueprintPure, Id="3cab80d1-3b2b-4007-a1b4-ce73582dfd00") int32_t order() const {const auto* data=entity_slot();return data?int32_t(data->focusable.order):0;}
     EPOK_FUNCTION(BlueprintCallable, Id="e487a3bb-b41f-4f3e-9654-fd8690b91000") void set_order(int value) {auto* data=entity_slot();if(data)data->focusable.order=uint8_t(value<0?0:value>255?255:value);}
     EPOK_FUNCTION(BlueprintCallable, Id="b1a87ee4-d338-4d13-b97b-5912a5c8d526") void set_highlight(int red,int green,int blue) {auto* data=entity_slot();if(!data)return;const int values[3]={red,green,blue};for(int i=0;i<3;++i)data->focusable.highlight[i]=uint8_t(values[i]<0?0:values[i]>255?255:values[i]);}
+    // True once after Cross was pressed while this element had the focus: a button.
+    EPOK_FUNCTION(BlueprintCallable, Id="fc4e655b-c717-444f-992f-00d833480add") bool take_pressed() {return take(focus_pressed);}
+    // True once after a Toggle flipped or a slider moved through the D-pad.
+    EPOK_FUNCTION(BlueprintCallable, Id="452620eb-b829-45ab-9301-72cf590b3e82") bool take_changed() {return take(focus_changed);}
+    // True once after Circle was pressed while this element had the focus: back.
+    EPOK_FUNCTION(BlueprintCallable, Id="cc970132-445a-4f51-ba4f-dc6d199cf05c") bool take_cancelled() {return take(focus_cancelled);}
+    // A Toggle's state; pressing Cross on a focused Toggle flips it.
+    EPOK_FUNCTION(BlueprintPure, Id="5b57878e-fdc9-4680-8f6d-4927fdb62981") bool is_checked() const {const auto* data=entity_slot();return data&&data->focusable.checked;}
+    EPOK_FUNCTION(BlueprintCallable, Id="9a80e0b3-40d0-4369-a5a8-59ee0b001567") void set_checked(bool value) {auto* data=entity_slot();if(data)data->focusable.checked=value;}
+    EPOK_FUNCTION(BlueprintPure, Id="9b28f1b4-57c7-497e-a617-79e7ab41abda") bool is_toggle() const {const auto* data=entity_slot();return data&&data->focusable.kind==FocusKind::Toggle;}
+    EPOK_FUNCTION(BlueprintCallable, Id="be467e4c-d47d-43a4-b327-b7758bdb0438") void set_toggle(bool value) {auto* data=entity_slot();if(data)data->focusable.kind=value?FocusKind::Toggle:FocusKind::Button;}
+    bool take(uint8_t event) {auto* data=entity_slot();if(!data||!(data->focusable.events&event))return false;data->focusable.events=uint8_t(data->focusable.events&~event);return true;}
     // True while the canvas above this element points at it. Focus lives on the
     // canvas, so the answer is a walk up the slot parents, not a flag here.
     EPOK_FUNCTION(BlueprintPure, Id="6beb822a-bfd3-4152-bd2d-2825eb42c9fd") bool is_focused() const {
@@ -1337,6 +1364,7 @@ protected:
         if (auto* rect = m_registry->resolve<RectTransformComponent>(id)) rect->bind_local();
         root->m_owner = actor.id();
         root->set_name("Root");
+        root->level_attached();
         actor.m_root = id;
         actor.m_components[actor.m_component_count++] = id;
         refresh_component_callbacks(actor);
@@ -1363,6 +1391,7 @@ protected:
         component.set_name(name);
         owner.m_components[owner.m_component_count++] = component.id();
         refresh_component_callbacks(owner);
+        component.level_attached();
     }
     void refresh_component_callbacks(Actor& owner) {
         static_assert(actor_component_capacity<=8,"Widen the callback masks with the component capacity");

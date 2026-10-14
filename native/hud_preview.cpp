@@ -16,6 +16,8 @@ static std::vector<epok::ActorData> epok_hud_entities(const EpokHudNode* nodes,u
         e.layout_element.stretch=epok::Fixed(n.layout_element[4],epok::Fixed::RAW);
         e.layout_container.enabled=n.flags&512;e.layout_container.kind=epok::LayoutKind(uint8_t(n.layout_container[0]));e.layout_container.columns=uint8_t(n.layout_container[7]);
         e.focusable.enabled=n.flags&1024;e.focusable.order=uint8_t(n.focusable[5]);
+        e.focusable.kind=n.flags&2048?epok::FocusKind::Toggle:epok::FocusKind::Button;e.focusable.checked=n.flags&4096;
+        e.progress.step=epok::Fixed(n.progress[7],epok::Fixed::RAW);
         for(int k=0;k<2;++k){e.layout_element.minimum[k]=epok::Fixed(n.layout_element[2+k],epok::Fixed::RAW);e.layout_container.spacing[k]=epok::Fixed(n.layout_container[1+k],epok::Fixed::RAW);}
         for(int k=0;k<3;++k){e.image.color[k]=uint8_t(n.image_color[k]);e.text.color[k]=uint8_t(n.text_color[k]);e.progress.color[k]=uint8_t(n.progress[1+k]);e.progress.background[k]=uint8_t(n.progress[4+k]);e.focusable.highlight[k]=uint8_t(n.focusable[6+k]);}
         for(int k=0;k<4;++k){e.image.region[k]=uint16_t(n.region[k]);e.image.borders[k]=uint16_t(n.borders[k]);e.layout_container.padding[k]=epok::Fixed(n.layout_container[3+k],epok::Fixed::RAW);e.focusable.neighbors[k]=int16_t(n.focusable[1+k]);}

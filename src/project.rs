@@ -201,6 +201,11 @@ pub fn scene_header_with_registry_for(
     let mut text = String::from(
         "// Generated. Edit the scene and scripts, not this file.\n#pragma once\n#include \"epok.hpp\"\n#include \"actor_tables.hpp\"\n#include <array>\n",
     );
+    text.push_str(&crate::world2d::capacity_defines(
+        crate::world2d::project_uses_world2d(std::iter::once(scene), class_registry),
+        std::slice::from_ref(scene),
+        std::iter::empty(),
+    ));
     for script in catalog {
         text.push_str(&format!("#include \"scripts/{}\"\n", script.header_path()));
     }
@@ -272,7 +277,9 @@ pub fn scene_header_with_registry_for(
     }
     // Page geometry follows this bank's VRAM layout, the same one its texture
     // descriptors are generated from.
-    let layout = crate::texture::layout(layout_scene)?.textures;
+    let full_layout = crate::texture::layout(layout_scene)?;
+    let pictures = full_layout.pictures.clone();
+    let layout = full_layout.textures;
     // Fonts are cooked once for the whole project, so a label's index addresses
     // the shared resource set rather than this bank's own.
     let fonts = crate::hud::font_ids(resources);
@@ -410,12 +417,16 @@ pub fn scene_header_with_registry_for(
             ));
         }
     }
+    if let Some(strings) = &scene.strings {
+        text.push_str(&crate::localization::header(strings));
+    }
     text.push_str(
         r#"
 inline void initialize_components(){
 epok::set_visibility_track(nullptr);
 "#,
     );
+    text.push_str(crate::localization::install(scene.strings.as_deref()));
     let color = |c: &[f32; 3]| {
         c.iter()
             .map(|v| ((v * 255.).round() as u8).to_string())
@@ -553,24 +564,31 @@ epok::set_visibility_track(nullptr);
         }
         if let Some(c) = &e.text {
             text.push_str(&format!(
-                "objects[{i}].text=Text{{{},{{{}}}}};objects[{i}].text.set_text({});objects[{i}].text.wrap={};objects[{i}].text.font={};objects[{i}].text.align=TextAlign({});\n",
+                "objects[{i}].text=Text{{{},{{{}}}}};objects[{i}].text.set_text({});objects[{i}].text.wrap={};objects[{i}].text.font={};objects[{i}].text.align=TextAlign({});objects[{i}].text.key={};\n",
                 c.enabled,
                 color(&c.color),
-                string(&c.text),
+                string(c.shown(scene.strings.as_deref(), 0)),
                 c.wrap,
                 c.font
                     .and_then(|id| fonts.iter().position(|v| *v == id))
                     .map_or("-1".into(), |i| i.to_string()),
-                c.align as u8
+                c.align as u8,
+                scene
+                    .strings
+                    .as_deref()
+                    .filter(|_| !c.key.is_empty())
+                    .and_then(|t| t.key_index(&c.key))
+                    .map_or(-1, |k| k as i32)
             ));
         }
         if let Some(c) = &e.progress {
             text.push_str(&format!(
-                "objects[{i}].progress=ProgressBar{{{},{},{{{}}},{{{}}}}};\n",
+                "objects[{i}].progress=ProgressBar{{{},{},{{{}}},{{{}}},{}}};\n",
                 c.enabled,
                 fixed(c.value),
                 color(&c.color),
-                color(&c.background)
+                color(&c.background),
+                fixed(c.step.clamp(0., 1.))
             ));
         }
         if let Some(c) = &e.layout_element {
@@ -595,7 +613,7 @@ epok::set_visibility_track(nullptr);
         }
         if let Some(c) = &e.focusable {
             text.push_str(&format!(
-                "objects[{i}].focusable=Focusable{{{},{{{}}},{},{{{}}}}};\n",
+                "objects[{i}].focusable=Focusable{{{},{{{}}},{},{{{}}},FocusKind({}),{}}};\n",
                 c.enabled,
                 c.neighbors.map(|v| v.to_string()).join(","),
                 c.order,
@@ -603,7 +621,9 @@ epok::set_visibility_track(nullptr);
                     .iter()
                     .map(|v| ((v.clamp(0., 1.) * 255.).round() as u8).to_string())
                     .collect::<Vec<_>>()
-                    .join(",")
+                    .join(","),
+                c.kind as u8,
+                c.checked
             ));
         }
     }
@@ -615,6 +635,7 @@ epok::set_visibility_track(nullptr);
     text.push_str(&navigation_init);
     text.push_str(&crate::palette::cpp_setup(scene));
     text.push_str(&crate::effects::cpp_setup(scene));
+    text.push_str(crate::localization::apply(scene.strings.as_deref()));
     text.push_str("}\n");
 
     let mut order: Vec<_> = (0..scene.actors.len()).collect();
@@ -641,7 +662,12 @@ epok::set_visibility_track(nullptr);
         scene.actors.iter().filter(|e| tiled(e)).count()
     ));
     text.push_str("inline void initialize_scripts() {initialize_components();}\n");
-    text.push_str(&actor_table_with_registry(scene, class_registry, &clips)?);
+    text.push_str(&actor_table_with_registry(
+        scene,
+        class_registry,
+        &clips,
+        &pictures,
+    )?);
     text.push_str("#ifdef EPOK_EDITOR_PREVIEW\ninline void initialize_editor_preview() {initialize_components();}\n#endif\n}\n");
     crate::visibility_track::rewrite(scene, text)
 }
@@ -1270,6 +1296,42 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/world2d.hpp").as_slice(),
         ),
         (
+            "world2d_components.hpp",
+            include_bytes!("../runtime/world2d_components.hpp").as_slice(),
+        ),
+        (
+            "world2d_tiles.hpp",
+            include_bytes!("../runtime/world2d_tiles.hpp").as_slice(),
+        ),
+        (
+            "world2d_content.hpp",
+            include_bytes!("../runtime/world2d_content.hpp").as_slice(),
+        ),
+        (
+            "world2d_skeleton.hpp",
+            include_bytes!("../runtime/world2d_skeleton.hpp").as_slice(),
+        ),
+        (
+            "world2d_navigation.hpp",
+            include_bytes!("../runtime/world2d_navigation.hpp").as_slice(),
+        ),
+        (
+            "world2d_physics.hpp",
+            include_bytes!("../runtime/world2d_physics.hpp").as_slice(),
+        ),
+        (
+            "world2d_viewports.hpp",
+            include_bytes!("../runtime/world2d_viewports.hpp").as_slice(),
+        ),
+        (
+            "world2d_service.hpp",
+            include_bytes!("../runtime/world2d_service.hpp").as_slice(),
+        ),
+        (
+            "world2d_render.hpp",
+            include_bytes!("../runtime/world2d_render.hpp").as_slice(),
+        ),
+        (
             "actor_blueprint.hpp",
             include_bytes!("../runtime/actor_blueprint.hpp").as_slice(),
         ),
@@ -1719,6 +1781,7 @@ fn actor_table_with_registry(
     scene: &Scene,
     registry: &crate::blueprint::Registry,
     clips: &[uuid::Uuid],
+    pictures: &[(uuid::Uuid, [u16; 2])],
 ) -> Result<String, String> {
     if scene.actors.is_empty() && scene.scene_script.is_none() {
         return Ok(
@@ -1757,7 +1820,22 @@ fn actor_table_with_registry(
         depth
     });
     let slot = |id: uuid::Uuid| order.iter().position(|i| scene.actors[*i].id == id);
+    let bank_textures = crate::texture::ids(scene);
+    let bank_texture = |id| bank_textures.contains(&id);
+    let actor_slot = |id: uuid::Uuid| slot(id);
+    let clip_index = |id: uuid::Uuid| clips.iter().position(|v| *v == id);
+    let mut world2d = crate::world2d::CookContext::new(
+        &bank_texture,
+        &scene.tilesets,
+        crate::world2d::start_view(scene),
+    )
+    .with_actors(&actor_slot)
+    .with_clips(&clip_index)
+    .with_scene(scene)
+    .with_pictures(pictures);
     let mut components_text = String::new();
+    // Namespace-scope constants (World2D frame clips) the generated setters reference.
+    let mut statics = String::new();
     let mut applies = String::new();
     let mut rows = Vec::new();
     let mut registry_slots = 0usize;
@@ -1826,6 +1904,11 @@ fn actor_table_with_registry(
                     .unwrap_or(serde_json::json!([0, 0]));
                 let scale = p.get("scale").cloned().unwrap_or(serde_json::json!([1, 1]));
                 let rotation = p.get("rotation").cloned().unwrap_or(serde_json::json!(0));
+                let draw_order = p
+                    .get("draw_order")
+                    .and_then(serde_json::Value::as_i64)
+                    .unwrap_or(0)
+                    .clamp(-4096, 4096);
                 let ty = crate::reflection_schema::Type::Vector { length: 2 };
                 let body = crate::script_values::assignment(
                     "component->transform.position",
@@ -1841,7 +1924,7 @@ fn actor_table_with_registry(
                     &crate::reflection_schema::Type::Fixed,
                 )?;
                 setters += &format!(
-                    "if(auto* component=registry.resolve<epok::SceneComponent2D>(components[{position_index}])){{{body}}}\n",
+                    "if(auto* component=registry.resolve<epok::SceneComponent2D>(components[{position_index}])){{{body}component->transform.draw_order={draw_order};}}\n",
                     position_index = position
                 );
             }
@@ -1878,7 +1961,20 @@ fn actor_table_with_registry(
                     audio.priority
                 );
             }
-            if !crate::actor_components::native(&component_class.id) {
+            if crate::world2d::is_builtin(&component_class.id) {
+                let cooked = crate::world2d::cook(
+                    component,
+                    position,
+                    &format!("w2d_{index}_{position}"),
+                    &mut world2d,
+                    &format!(
+                        "{}: actor {} component {}",
+                        scene.name, actor.name, component.name
+                    ),
+                )?;
+                statics.push_str(&cooked.statics);
+                setters.push_str(&cooked.setters);
+            } else if !crate::actor_components::native(&component_class.id) {
                 setters.push_str(&property_setters(
                     &format!(
                         "registry.resolve<{}>(components[{position}])",
@@ -1961,7 +2057,8 @@ fn actor_table_with_registry(
         }
     };
     let (reference_text, reference_fields) = scene_reference_table(scene, &model, &order)?;
-    let mut text = applies;
+    let mut text = statics;
+    text.push_str(&applies);
     text.push_str(&components_text);
     text.push_str(&reference_text);
     if rows.is_empty() {
@@ -2525,6 +2622,8 @@ mod tests {
             neighbors: [3, -1, 0, 2],
             order: 7,
             highlight: [1., 0.5, 0.],
+            kind: crate::hud::FocusKind::Toggle,
+            checked: true,
         });
         s.actors[canvas].canvas.as_mut().unwrap().focused = 1;
         s.sync_actor_components();
@@ -2539,7 +2638,7 @@ mod tests {
             q(184320)
         )));
         assert!(header.contains(&format!(
-            "objects[{index}].focusable=Focusable{{true,{{3,-1,0,2}},7,{{255,128,0}}}};"
+            "objects[{index}].focusable=Focusable{{true,{{3,-1,0,2}},7,{{255,128,0}},FocusKind(1),true}};"
         )));
         assert!(header.contains(&format!("objects[{canvas}].canvas.focused=1;")));
         // A label's font index and alignment are appended after its wrap flag;
@@ -2551,12 +2650,34 @@ mod tests {
             wrap: false,
             font: None,
             align: crate::hud::TextAlign::Right,
+            key: String::new(),
         });
         s.sync_actor_components();
         let header = scene_header(&s, &[]).unwrap();
         assert!(header.contains(&format!(
-            "objects[{index}].text.wrap=false;objects[{index}].text.font=-1;objects[{index}].text.align=TextAlign(2);"
+            "objects[{index}].text.wrap=false;objects[{index}].text.font=-1;objects[{index}].text.align=TextAlign(2);objects[{index}].text.key=-1;"
         )));
+        // A bank without keyed texts clears the previous bank's table.
+        assert!(header.contains("localization.apply=nullptr;"));
+        // A keyed text cooks the first language's string and its key, and the table
+        // is installed for the runtime language switch.
+        s.strings = Some(std::sync::Arc::new(crate::localization::StringTable {
+            languages: vec!["English".into(), "Español".into()],
+            entries: vec![crate::localization::Entry {
+                key: "greet".into(),
+                values: vec!["Hello".into(), "Hola".into()],
+            }],
+            ..Default::default()
+        }));
+        s.actors[index].text.as_mut().unwrap().key = "greet".into();
+        s.sync_actor_components();
+        let header = scene_header(&s, &[]).unwrap();
+        assert!(header.contains("text.key=0;"));
+        assert!(header.contains("localization_keys=1,localization_languages=2;"));
+        assert!(header.contains("localization.apply=[]"));
+        assert!(header.contains("localization.apply();"));
+        // The table lives in the bank's own namespace, not a nested `epok`.
+        assert!(!header.contains("namespace epok{inline constexpr const char*"));
     }
     #[test]
     fn missing_script_fails_before_build() {

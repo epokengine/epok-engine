@@ -456,6 +456,8 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             Kind::AnimationClip => "Animation",
             Kind::Material => "Material",
             Kind::Font => "Font",
+            Kind::TileSet => "TileSet",
+            Kind::StringTable => "String Table",
         }
         .into();
         details.fields.extend([
