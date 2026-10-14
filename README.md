@@ -43,7 +43,7 @@ the **[complete feature catalog](docs/features.md)**.
 
 | | What you can do |
 | --- | --- |
-| **Build your world** | Arrange entities in a dockable editor with transform gizmos, parenting and a component Inspector. Create and edit geometry with [Blockout](docs/blockout.md), including extrusion, bevels and geometry Undo/Redo. Sculpt and paint ground with [Terrain](docs/terrain.md). Generate seeded levels in 3D or 2D with the [Dungeon Generator](docs/dungeons.md): rooms and corridors, or recipes with branches, loops, keys and locks. |
+| **Build your world** | Arrange entities in a dockable editor with transform gizmos, parenting and a component Inspector. Create and edit geometry with [Blockout](docs/blockout.md), including extrusion, bevels and geometry Undo/Redo. Sculpt and paint ground with [Terrain](docs/terrain.md). Generate seeded levels in 3D or 2D with the [Dungeon Generator](docs/dungeons.md): rooms and corridors, or recipes with branches, loops, keys and locks, floors joined by stairs and rooms built by hand, with a console minimap, gameplay queries, a seed bench and generation volumes. |
 | **Bring in your assets** | Import [PNG textures](docs/textures.md), [OBJ/MTL models](docs/static-mesh-import.md) and [FBX characters](docs/skeletal.md). Asset identities survive moves and reimports. |
 | **Animate and add effects** | Build layered effects in the [VFX editor](docs/vfx-editor.md) with presets, Q12 curves, bursts and preview controls. Reuse [timelines](docs/timelines.md) for scene sequences and connect their markers to Blueprint gameplay. Use sprites, flipbooks, [particle emitters](docs/sprites-particles.md), fog and palette cycling. |
 | **Make 2D games** | Build [2D worlds](docs/2d.md) from Sprite2D, AnimatedSprite2D, TileMapLayer, Camera2D, CharacterBody2D, StaticBody2D, Area2D, Parallax2D, Path2D, Line2D, Polygon2D, Particles2D, Skeleton2D, navigation, RigidBody2D, Joint2D, SubViewport2D, SplitScreen2D, light, audio and canvas-layer nodes in a pixel-accurate 2D editor with move/rotate/scale tools, snapping, rulers, a sprite region editor, a sprite-sheet slicer and tile painting with terrains, patterns and a TileSet editor. Sprites, tile maps with tile collision, one-way and moving platforms, `move_and_slide`, triggers, particles, parallax, cut-out skeletons with two-bone IK, grid and navmesh pathfinding, pushable rigid bodies with rods, ropes and springs, render-to-VRAM pictures, split screen and a smoothed, limited camera run natively on the console. |
@@ -182,7 +182,7 @@ Choose the **Third Person** template for an animated player with camera-relative
 
 ### A generated dungeon to explore
 
-Choose the **Dungeon** template for the same character in a generated sci-fi dungeon with a working key and locked door, ready to regenerate with a new seed or to restyle. See [Dungeon template](docs/dungeon-template.md).
+Choose the **Dungeon** template for the same character in a generated sci-fi dungeon with rooms on three floors joined by stairs, a handmade reactor room and a working key and locked door, ready to regenerate with a new seed or to restyle. See [Dungeon template](docs/dungeon-template.md).
 
 Engine APIs are documented under [Input and collision](docs/input-collision.md), [Sprites and particles](docs/sprites-particles.md), [HUD](docs/hud.md) and [Runtime services](docs/runtime-services.md).
 
