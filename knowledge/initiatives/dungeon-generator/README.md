@@ -17,6 +17,7 @@ Work happens on `feature/dungeon-generator`, one pushed checkpoint per phase.
 | 6 | Console look: proportions from the character, a ceiling, sci-fi textures that survive the PSX's clamped UVs, lighting that reaches inside | delivered ([phase6.md](phase6.md)) |
 | 7 | Per-room texture variants, wall columns, keys and doors in C++, Blueprint and Lua, and the Dungeon project template | delivered ([phase7.md](phase7.md)) |
 | 8 | Keys only the player picks up (reference equality in Lua and Blueprint), the Player field in 2D, unedited earlier key and door scripts brought up to date | delivered ([phase8.md](phase8.md)) |
+| 9 | Gameplay queries: rooms, links, keys, locks, free spots and a seed-bound random stream for game code in C++, Blueprint and Lua | delivered ([phase9.md](phase9.md)) |
 
 ## Design constraints
 

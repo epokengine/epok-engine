@@ -1745,9 +1745,12 @@ pub fn generate(
         .ok_or("The Dungeon Generator's actor was deleted")?;
     let two_d = is_2d(scene, g.root);
     let asset_index = assets::scan(root, &mut Default::default());
-    let recipe_digest = match g.source {
-        dungeon::Source::Rooms => String::new(),
-        dungeon::Source::Recipe => crate::dungeon_recipe::of(&asset_index, &g)?.1,
+    let (recipe_digest, paths) = match g.source {
+        dungeon::Source::Rooms => (String::new(), Vec::new()),
+        dungeon::Source::Recipe => {
+            let (recipe, digest) = crate::dungeon_recipe::of(&asset_index, &g)?;
+            (digest, recipe.path_names())
+        }
     };
     let layout = dungeon::layout(&g, &asset_index)?;
     let (style, style_digest) = style_of(&asset_index, &g, two_d)?;
@@ -1770,6 +1773,7 @@ pub fn generate(
         summary: dungeon::summary(&layout),
         ..Default::default()
     };
+    let queries;
     if two_d {
         let default_set = match g.tile_set {
             Some(set) => set,
@@ -1785,6 +1789,26 @@ pub fn generate(
             }
         }
         let plan = plan_2d(&layout, &placements, default_set, &sets)?;
+        let (offset, tile) = ([layout.size[0] / 2, layout.size[1] / 2], plan.tile);
+        let corner = |x: i32, y: i32| {
+            [
+                (x - offset[0]) as f32 * tile[0],
+                (y - offset[1]) as f32 * tile[1],
+            ]
+        };
+        let (map, notes) = crate::dungeon_query::build(
+            &layout,
+            g.seed,
+            &paths,
+            &crate::dungeon_query::Grid {
+                two_d: true,
+                corner: &corner,
+                floor: &|_| 0.,
+                height: 0.,
+            },
+        );
+        report.notes.extend(notes);
+        queries = Some(map);
         let mut layers: Vec<(Uuid, crate::tilemap::Cells, &str, i16, bool)> = Vec::new();
         if let Some(set) = plan.tile_set {
             layers.push((set, plan.cells.clone(), "Tiles", 0, true));
@@ -1907,6 +1931,25 @@ pub fn generate(
         builtin_textures(root, &style)?;
         let meshes = piece_meshes(&asset_index, &placements)?;
         let plan = plan_3d(&g, &layout, &placements, &meshes)?;
+        let frame = Frame {
+            size: layout.size,
+            cell: g.cell_size,
+            height: g.wall_height,
+        };
+        let corner = |x: i32, y: i32| [frame.x(x), frame.z(y)];
+        let (map, notes) = crate::dungeon_query::build(
+            &layout,
+            g.seed,
+            &paths,
+            &crate::dungeon_query::Grid {
+                two_d: false,
+                corner: &corner,
+                floor: &|_| 0.,
+                height: g.wall_height,
+            },
+        );
+        report.notes.extend(notes);
+        queries = Some(map);
         let folder = format!("{DUNGEON_FOLDER}/{}", folder_name(&root_name));
         let count = plan.sections.len();
         for (i, section) in plan.sections.iter().enumerate() {
@@ -2145,6 +2188,7 @@ pub fn generate(
         fingerprint: g.fingerprint(),
         style: style_digest,
         recipe: recipe_digest,
+        queries,
     };
     scene.actors.extend(actors);
     scene.refresh_actor_hierarchy();

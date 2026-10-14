@@ -174,7 +174,9 @@ The complete interaction and preview contract is in the
   keys that only the generator's Player picks up and doors that open when their key is
   taken, in 3D and 2D. The built-in 3D look is sized for the Third Person character (or
   fitted to any Player), closed by a ceiling, and dressed in sci-fi panel textures drawn for
-  the console. See [Dungeon Generator](dungeons.md).
+  the console. Game code asks about the generated rooms (the room an actor is in, the
+  way to the goal, keys, locks, free spots, a seed-bound random stream) through the
+  Dungeon gameplay library in C++, Blueprint and Lua. See [Dungeon Generator](dungeons.md).
 - **Static OBJ/MTL import.** Import triangular or quad OBJ geometry and material
   colors into editable assets with configurable scale. See
   [Static OBJ import](static-mesh-import.md).

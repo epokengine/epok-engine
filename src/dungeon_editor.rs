@@ -62,6 +62,8 @@ pub struct State {
     style_domains: BTreeMap<Uuid, (String, bool)>,
     pub reports: BTreeMap<Uuid, Report>,
     pending: Option<Request>,
+    /// Screenshot automation: the Gameplay queries list opens with this room picked out.
+    pub shown_room: Option<usize>,
 }
 
 /// The generator placed by actor `actor`, if any.
@@ -666,6 +668,32 @@ pub fn preview_lines(
         [90, 96, 110],
         &mut lines,
     );
+    // The room pointed at in the Gameplay queries list: its outline twice and a cross.
+    let hovered = HOVERED_ROOM
+        .lock()
+        .ok()
+        .and_then(|h| *h)
+        .filter(|(generator, _)| *generator == g.id)
+        .and_then(|(_, index)| layout.rooms.get(index).copied());
+    if let Some(room) = hovered {
+        let [x0, z0] = room.min;
+        let [x1, z1] = [room.min[0] + room.size[0], room.min[1] + room.size[1]];
+        let white = [255, 255, 255];
+        rect(x0, z0, x1, z1, white, &mut lines);
+        let inset = |x: i32, z: i32, dx: f32, dz: f32| point(frame.x(x) + dx, frame.z(z) + dz);
+        let d = g.cell_size * 0.2;
+        let corners = [
+            inset(x0, z0, d, d),
+            inset(x1, z0, -d, d),
+            inset(x1, z1, -d, -d),
+            inset(x0, z1, d, -d),
+        ];
+        for i in 0..4 {
+            lines.push((corners[i], corners[(i + 1) % 4], white));
+        }
+        lines.push((corners[0], corners[2], white));
+        lines.push((corners[1], corners[3], white));
+    }
     for (index, room) in layout.rooms.iter().enumerate() {
         let color = if index == layout.spawn {
             [90, 230, 120]
@@ -799,6 +827,7 @@ pub fn inspector(ui: &Ui, e: &mut Editor, actor: Uuid) {
         if let Some(preview) = &preview {
             budget_rows(ui, two_d, preview);
         }
+        queries(ui, e, id);
     }
     if request.is_some() {
         e.dungeon.pending = request;
@@ -852,6 +881,13 @@ fn warnings(
     }
     if let Some(Err(error)) = preview.map(|p| &p.style) {
         list.push((error.clone(), None));
+    }
+    if !g.output.is_empty() && g.output.queries.is_none() {
+        list.push((
+            "Generated before gameplay queries: regenerate so game code can ask about its rooms."
+                .into(),
+            Some(("Regenerate", Request::Generate(id))),
+        ));
     }
     // Keys without a live Player are picked up by anything.
     let has_keys = g.output.actors.iter().any(|actor| {
@@ -1483,6 +1519,90 @@ fn meter(ui: &Ui, label: &str, used: usize, limit: usize, unit: &str) {
         .size([-1., 0.])
         .build(ui);
     let _ = id;
+}
+
+/// The room pointed at in the Gameplay queries list; the Scene view picks it out.
+static HOVERED_ROOM: Mutex<Option<(Uuid, usize)>> = Mutex::new(None);
+
+/// What game code can ask about the generated dungeon: one row per room, numbered as the
+/// queries number them. Pointing at a row picks its room out in the Scene view.
+fn queries(ui: &Ui, e: &Editor, id: Uuid) {
+    let mut hovered = None;
+    if let Some(map) = e
+        .scene
+        .dungeons
+        .iter()
+        .find(|g| g.id == id)
+        .and_then(|g| g.output.queries.as_ref())
+    {
+        ui.spacing();
+        let open = ui.collapsing_header(
+            format!(
+                "Gameplay queries: {} rooms##dungeon-queries",
+                map.rooms.len()
+            ),
+            if e.dungeon.shown_room.is_some() {
+                imgui::TreeNodeFlags::DEFAULT_OPEN
+            } else {
+                imgui::TreeNodeFlags::empty()
+            },
+        );
+        if ui.is_item_hovered() {
+            ui.tooltip_text(
+                "Game code asks about these rooms by number: Gameplay API > Dungeon in Blueprint, epok.dungeon in Lua, epok::DungeonLibrary in C++.",
+            );
+        }
+        if open {
+            crate::gui::muted(
+                ui,
+                "Blueprint: Gameplay API > Dungeon. Lua: epok.dungeon. C++: epok::DungeonLibrary.",
+            );
+            for (index, room) in map.rooms.iter().enumerate() {
+                let mut roles = Vec::new();
+                for (flag, role) in [
+                    (crate::dungeon_query::SPAWN, "spawn"),
+                    (crate::dungeon_query::GOAL, "goal"),
+                    (crate::dungeon_query::KEY, "key"),
+                    (crate::dungeon_query::LOCKED, "locked"),
+                    (crate::dungeon_query::ITEM, "item"),
+                ] {
+                    if room.flags & flag != 0 {
+                        roles.push(role);
+                    }
+                }
+                let path = map
+                    .paths
+                    .get(usize::from(room.path))
+                    .map_or("rooms", String::as_str);
+                let label = if roles.is_empty() {
+                    format!("Room {index}   {path}##query-room-{index}")
+                } else {
+                    format!(
+                        "Room {index}   {path}, {}##query-room-{index}",
+                        roles.join(", ")
+                    )
+                };
+                ui.selectable(label);
+                if ui.is_item_hovered() {
+                    hovered = Some(index);
+                    let linked: Vec<String> =
+                        room.neighbours.iter().map(|n| n.to_string()).collect();
+                    ui.tooltip_text(format!(
+                        "Room {index}: level {}, {} from the spawn, {} to the goal.\nLinked to {}. {} free spots for enemies or props.",
+                        room.level,
+                        room.depth,
+                        room.to_goal,
+                        if linked.is_empty() { "nothing".into() } else { linked.join(", ") },
+                        room.spots.len()
+                    ));
+                }
+            }
+        }
+    }
+    let hovered = hovered.or(e.dungeon.shown_room);
+    if let Ok(mut current) = HOVERED_ROOM.lock() {
+        *current = hovered.map(|index| (id, index));
+    }
 }
 
 fn budget_rows(ui: &Ui, two_d: bool, preview: &Preview) {

@@ -385,6 +385,60 @@ numbers from the seed, so editing one piece never reshuffles another.
 
 ![A styled dungeon on the console: a room lit by a baked point light, with a crate merged into the geometry](images/dungeon-style-ingame.png)
 
+## Gameplay queries
+
+Game code can ask about the generated dungeon on the console: which room the player is
+in, which room comes next on the way to the goal, where the keys and locked doors are,
+and where there is free floor for an enemy or a chest. Every generation bakes this with
+the dungeon, and the map cooks it, so it costs a few constant tables and no actors.
+
+Open **Gameplay queries** at the bottom of the generator band to see the rooms as game
+code numbers them, with their path and their roles (spawn, goal, key, locked, item).
+Pointing at a row picks that room out in the Scene view; its tooltip gives the level,
+the rooms to the spawn and to the goal, its links and its free spots.
+
+![The Gameplay queries list in the generator band; pointing at room 3 picks it out in the Scene view](images/dungeon-gameplay-queries.png)
+
+The queries are one library in every flavor: **Gameplay API > Dungeon** in the Blueprint
+node menu, `epok.dungeon` in Lua and `epok::DungeonLibrary` in C++.
+
+| Query | Returns |
+| --- | --- |
+| `room_count()` | How many rooms the dungeon has |
+| `room_at(point)` | The room holding a world point (pixels in 2D), or -1 in a corridor |
+| `room_of(actor)` | The room a 3D actor stands in, or -1; in 2D pass its position to `room_at` |
+| `spawn_room()`, `goal_room()` | The spawn and goal rooms |
+| `room(index)` | A record: `valid`, `index`, `center`, `minimum`, `maximum`, `level`, `path` (0 is the main path, then branches in recipe order), `depth` (rooms from the spawn), `steps_to_goal`, `neighbours`, `spots`, and `spawn`, `goal`, `key`, `item`, `locked` |
+| `neighbour(room, index)` | The `index`-th room linked to `room`, or -1 |
+| `next_room(from, to)` | The room after `from` on a shortest way to `to` |
+| `distance(from, to)` | Rooms between two rooms, or -1 |
+| `item_count()`, `item(index)` | Keys (`lock` above 0) and other items: `position`, `room`, `lock` |
+| `lock_count()`, `lock(index)` | Locked doors: the doorway, the room it guards and the lock its key opens |
+| `spot(room, index)` | Free floor away from the room's doors, keys and items, up to eight per room |
+| `seed()`, `random(stream, index, below)` | The dungeon's seed, and a number below `below` that is the same for the same stream, index and seed on every run |
+
+A beacon that floats in the next room on the way to the goal, in C++:
+
+```cpp
+const int32_t here = epok::DungeonLibrary::room_of(player);
+const int32_t next = epok::DungeonLibrary::next_room(here, epok::DungeonLibrary::goal_room());
+const auto target = epok::DungeonLibrary::room(next).center;
+```
+
+The same in Lua, then one enemy kind per room that never changes between runs:
+
+```lua
+local here = epok.dungeon.room_of(self.player)
+local target = epok.dungeon.room(epok.dungeon.next_room(here, epok.dungeon.goal_room())).center
+local kind = epok.dungeon.random(1, here, 3)
+local where = epok.dungeon.spot(here, 0).position
+```
+
+Rooms are numbered as the generator built them and keep their numbers until the next
+generation. The queries describe the first generated dungeon of the map, up to 64
+rooms; without a dungeon every query answers -1, 0 or an invalid record. A dungeon
+generated before the queries existed shows a warning with **Regenerate**.
+
 ## PSX budget
 
 The band shows what the map will hold after generating, so a dungeon that would not

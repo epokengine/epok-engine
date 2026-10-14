@@ -89,7 +89,7 @@ impl RoomSettings {
 }
 
 /// What a generation wrote into the map, so regenerating replaces exactly that.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Output {
     pub actors: Vec<Uuid>,
@@ -102,6 +102,9 @@ pub struct Output {
     /// Digest of the Dungeon Recipe it was generated with; empty for rooms layouts.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub recipe: String,
+    /// What gameplay can ask about the generated dungeon.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub queries: Option<crate::dungeon_query::Map>,
 }
 impl Output {
     pub fn is_empty(&self) -> bool {

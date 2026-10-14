@@ -428,6 +428,18 @@ impl Recipe {
             })
             .unwrap_or(([55, 90], 1, false))
     }
+    /// Path names in recipe order: the main path, then each branch step's paths.
+    pub fn path_names(&self) -> Vec<String> {
+        let mut names = vec![MAIN.to_owned()];
+        for step in &self.steps {
+            if let Step::Branch { name, .. } = step
+                && !names.contains(name)
+            {
+                names.push(name.clone());
+            }
+        }
+        names
+    }
     /// The cave settings for each path name a Caves step names; later steps win.
     pub fn caves(&self) -> BTreeMap<String, (u8, u8)> {
         let mut caves = BTreeMap::new();

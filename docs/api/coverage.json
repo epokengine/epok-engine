@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 114,
-    "types": 501,
-    "callables": 1973,
-    "properties": 2819
+    "headers": 115,
+    "types": 508,
+    "callables": 1997,
+    "properties": 2872
   },
   "psyqo": {
     "headers": 53,
@@ -195,6 +195,16 @@
     },
     {
       "family": "epok",
+      "header": "dungeon_map.hpp",
+      "slug": "dungeon-map",
+      "callables": 6,
+      "types": 4,
+      "properties": 33,
+      "source_sha256": "b6e0ea89d2df9618ecde430f136fed71546d31a4a31e054df122a5f18c774007",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
       "header": "dungeon_random.hpp",
       "slug": "dungeon-random",
       "callables": 6,
@@ -287,10 +297,10 @@
       "family": "epok",
       "header": "gameplay_api.hpp",
       "slug": "gameplay-api",
-      "callables": 96,
-      "types": 34,
-      "properties": 114,
-      "source_sha256": "b9d465648d57e32c77928705e7d200ebdb9a554b5ebfa92e0bfbf9d0fd68f4b0",
+      "callables": 114,
+      "types": 37,
+      "properties": 134,
+      "source_sha256": "49569e93ad9fef605421be84409a7197cae091cb9cd456076c9f728728ba2d4c",
       "diagnostics": []
     },
     {

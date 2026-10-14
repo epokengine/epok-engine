@@ -56,6 +56,7 @@ mod dungeon;
 mod dungeon_bake;
 mod dungeon_editor;
 mod dungeon_gameplay;
+mod dungeon_query;
 mod dungeon_random;
 mod dungeon_recipe;
 mod dungeon_recipe_editor;
@@ -2019,6 +2020,16 @@ fn prepare_editor(editor: &mut editor::Editor) {
             dungeon_style_editor::open(editor, style);
             dungeon_style_editor::select_first_piece(editor);
         }
+    }
+    // Screenshot automation: `--dungeon-query-room N` opens the Gameplay queries list
+    // with room N picked out in the Scene view.
+    if let Some(room) = args
+        .iter()
+        .position(|a| a == "--dungeon-query-room")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|v| v.parse::<usize>().ok())
+    {
+        editor.dungeon.shown_room = Some(room);
     }
     // Screenshot automation: open the first generator's Dungeon Recipe (or the first
     // recipe asset), selecting step N with `--open-dungeon-recipe N`.
