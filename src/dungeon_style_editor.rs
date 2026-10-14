@@ -459,6 +459,9 @@ fn badges(visual: &Visual) -> String {
     if !visual.path.is_empty() {
         parts.push(format!("on {}", visual.path));
     }
+    if visual.per_room {
+        parts.push("per room".into());
+    }
     parts.join(" · ")
 }
 
@@ -1214,6 +1217,13 @@ fn details(ui: &Ui, e: &mut Editor, w: &mut Window) {
                         visual.filter = filter;
                     }
                 }
+            }
+            let mut per_room = visual.per_room;
+            if crate::gui::toggle(ui, "Same for the whole room", &mut per_room) {
+                visual.per_room = per_room;
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Roll the chance once per room: the room takes this piece on every spot or on none. Use it for texture variants and themed rooms; corridor spots still roll one by one.");
             }
             let mut path = visual.path.clone();
             if ui

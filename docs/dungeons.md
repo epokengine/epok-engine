@@ -106,15 +106,24 @@ style are local accents on top of it.
 
 ### Built-in textures
 
-The built-in 3D look uses five textures drawn for the console by
-`tools/build_dungeon_textures.py`: steel floor plates with a lit hatch, a grated
-corridor floor with hazard rails, wall panels with skirting vents and a cyan light
-strip, dark ceiling panels and a hazard-striped doorway beam. The first generation
-imports them into `assets/Dungeons/Textures/`, always under the same asset identities,
-and refreshes them in place when a newer Epok draws them differently. Corridor floors
-turn with the corridor.
+The built-in 3D look uses ten textures drawn for the console by
+`tools/build_dungeon_textures.py`. The first generation imports those it uses into
+`assets/Dungeons/Textures/`, always under the same asset identities, and refreshes them
+in place when a newer Epok draws them differently.
 
-![The built-in textures: floor, corridor, wall, ceiling and doorway beam](images/dungeon-textures.png)
+- **Room floors, one per room:** steel plates with a lit hatch, a grid of teal panels,
+  or a dark plate framed in amber around a grate.
+- **Room walls, one per room:** panels with a cyan light strip, wide ribs under an amber
+  band, or plain panels over pipes and a red warning band. Corridor walls use the first.
+- **Corridors:** a grated floor with hazard rails, turned with the corridor.
+- **Columns** along the walls of rooms, about one every two cells, with a lit capital.
+- **Ceiling** panels and a hazard-striped **doorway beam**.
+
+A room keeps its floor and walls throughout, so each room reads as a place of its own.
+
+![The built-in textures: three room floors, the corridor, ceiling and doorway beam; three room walls and the column](images/dungeon-textures.png)
+
+![A room on the console with the teal floor, wall columns and the dark ceiling above](images/dungeon-variants-ingame.png)
 
 The console clamps texture coordinates instead of repeating them, so every Blockout
 face maps its texture exactly once: a floor or ceiling cell, a wall side from just below
@@ -299,6 +308,7 @@ generator uses the built-in look: blockout geometry in 3D, the built-in tiles in
 | Doorway | The corridor cell just outside each door | towards the room |
 | Solid | Each solid cell of the ring that encloses the floor | — |
 | Ceiling | Each floor cell again, at the wall height (3D, with Ceiling on) | — |
+| Column | Evenly spaced points along straight room walls, about one every two cells, at the start of their cell side | into the room |
 | Corner | Each inner corner where two walls of a floor cell meet | away from the first wall |
 | Room | The centre of every room, once per room | — |
 | Key | Each key a recipe placed, at a room cell | — |
@@ -316,7 +326,7 @@ spot per cell.
 
 | Piece | 3D / 2D | What it places | Cost |
 | --- | --- | --- | --- |
-| Blockout | 3D | The generator's own geometry for the spot: a floor tile, wall panel, wall top, ceiling tile, doorway beam or corner pillar, in a colour or texture (white keeps the texture's colours; a colour tints it) | Merged geometry |
+| Blockout | 3D | The generator's own geometry for the spot: a floor tile, wall panel, wall top, ceiling tile, doorway beam, corner pillar or a column standing out of the wall (with collision), in a colour or texture (white keeps the texture's colours; a colour tints it) | Merged geometry |
 | Mesh | 3D | An EditableMesh, merged into the dungeon's sections with its own materials | Merged geometry, no actor |
 | Actor | both | An actor of any placeable class (C++, Blueprint or Lua), including Blueprint templates with child actors | One actor per placement |
 | Light | 3D | A baked point light | One actor per placement |
@@ -339,9 +349,12 @@ layout; give props that must block the player an Actor piece with a collider ins
 | Limit | Most placements in one dungeon, spread at random; 0 has no limit | 0 |
 | Item name | Item spots only: just the items with this name (any case); empty takes every item | empty |
 | Path | Recipe layouts: just the spots in rooms of this path (any case), such as `main` or a branch's name; corridors belong to no path | empty |
+| Same for the whole room | Roll the chance once per room, so a room takes the piece on every spot or on none: texture variants and themed rooms. Corridor spots roll one by one | off |
 | Offset, Rotation, Scale | Relative to the spot (2D: offset in pixels for actors) | 0, 0, 1 |
 
-The built-in pieces do not stop: a piece added to their right decorates on top of them,
+Texture variants are pieces that stop, roll once per room and sit left of the plain
+piece: with a first variant at 33% and a second at 50%, a third of the rooms take
+each. The built-in pieces do not stop: a piece added to their right decorates on top of them,
 and one added to their left that stops replaces them. For example, a wall mesh with a
 15% chance placed left of the blockout wall replaces 15% of the walls; a torch mesh
 placed to its right adds torches to 15% of them. Each piece draws its own random

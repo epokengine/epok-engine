@@ -148,10 +148,106 @@ def doorway():
     return img
 
 
+RED = (200, 56, 48)
+TEAL = (64, 120, 128)
+TEAL_LIGHT = (104, 168, 172)
+TEAL_DARK = (36, 70, 78)
+
+
+def floor_grid():
+    """Room variant: a grid of small teal-tinted panels."""
+    img = Image.new("RGB", (64, 64), SHADOW)
+    for py in range(0, 64, 16):
+        for px in range(0, 64, 16):
+            bevel(img, px + 1, py + 1, px + 15, py + 15, TEAL, TEAL_LIGHT, TEAL_DARK)
+            rect(img, px + 6, py + 6, px + 10, py + 10, TEAL_DARK)
+    rect(img, 30, 30, 34, 34, CYAN)
+    grain(img, 6, 4)
+    return img
+
+
+def floor_hazard():
+    """Room variant: a dark plate framed in amber with a central grate."""
+    img = Image.new("RGB", (64, 64), STEEL_DARK)
+    bevel(img, 1, 1, 63, 63, STEEL_DARK, STEEL, SHADOW)
+    for k in range(4):
+        rect(img, 4 + k, 4 + k, 60 - k, 5 + k, AMBER if k % 2 == 0 else BLACK)
+        rect(img, 4 + k, 59 - k, 60 - k, 60 - k, AMBER if k % 2 == 0 else BLACK)
+        rect(img, 4 + k, 4 + k, 5 + k, 60 - k, AMBER if k % 2 == 0 else BLACK)
+        rect(img, 59 - k, 4 + k, 60 - k, 60 - k, AMBER if k % 2 == 0 else BLACK)
+    rect(img, 16, 16, 48, 48, BLACK)
+    for y in range(18, 46, 4):
+        bevel(img, 18, y, 46, y + 2, STEEL, STEEL_LIGHT, STEEL_DARK)
+    for bx, by in ((10, 10), (52, 10), (10, 52), (52, 52)):
+        bolt(img, bx, by)
+    grain(img, 7, 4)
+    return img
+
+
+def wall_ribbed():
+    """Room variant: narrow vertical ribs and an amber light band."""
+    img = Image.new("RGB", (64, 128), SHADOW)
+    bevel(img, 0, 112, 64, 128, STEEL_DARK, STEEL, SHADOW)
+    for x in range(4, 60, 8):
+        rect(img, x, 117, x + 4, 123, BLACK)
+    bevel(img, 0, 0, 64, 12, STEEL, STEEL_LIGHT, STEEL_DARK)
+    rect(img, 0, 12, 64, 18, BLACK)
+    rect(img, 0, 13, 64, 17, (150, 104, 30))
+    rect(img, 0, 14, 64, 16, AMBER)
+    for x in range(0, 64, 16):
+        bevel(img, x + 1, 18, x + 15, 112, STEEL, STEEL_LIGHT, STEEL_DARK)
+        rect(img, x + 6, 30, x + 10, 100, STEEL_DARK)
+        rect(img, x + 7, 31, x + 9, 99, SHADOW)
+    grain(img, 8, 3)
+    return img
+
+
+def wall_pipes():
+    """Room variant: plain panels above a run of pipes and a red warning band."""
+    img = Image.new("RGB", (64, 128), SHADOW)
+    bevel(img, 0, 112, 64, 128, STEEL_DARK, STEEL, SHADOW)
+    bevel(img, 0, 0, 64, 10, STEEL_DARK, STEEL, SHADOW)
+    for x0 in (0, 32):
+        bevel(img, x0 + 1, 10, x0 + 31, 62, STEEL, STEEL_LIGHT, STEEL_DARK)
+        rect(img, x0 + 8, 22, x0 + 24, 24, STEEL_DARK)
+    for i, y in enumerate((64, 72, 80)):
+        rect(img, 0, y, 64, y + 6, STEEL_DARK)
+        rect(img, 0, y + 1, 64, y + 2, STEEL_LIGHT)
+        rect(img, 0, y + 5, 64, y + 6, BLACK)
+        for x in range(6 + i * 7, 64, 21):
+            rect(img, x, y, x + 2, y + 6, STEEL)
+    rect(img, 0, 88, 64, 92, BLACK)
+    for x in range(64):
+        for y in range(92, 110):
+            img.putpixel((x, y), RED if (x + y) % 12 < 6 else SHADOW)
+    rect(img, 0, 110, 64, 112, BLACK)
+    grain(img, 9, 5)
+    return img
+
+
+def column():
+    """A pilaster: a footing, a grooved shaft and a lit capital."""
+    img = Image.new("RGB", (32, 128), SHADOW)
+    bevel(img, 0, 110, 32, 128, STEEL, STEEL_LIGHT, STEEL_DARK)
+    bevel(img, 2, 18, 30, 110, STEEL, STEEL_LIGHT, STEEL_DARK)
+    for x in (8, 15, 22):
+        rect(img, x, 24, x + 2, 104, STEEL_DARK)
+    bevel(img, 0, 0, 32, 18, STEEL_DARK, STEEL, SHADOW)
+    rect(img, 6, 6, 26, 12, CYAN_DARK)
+    rect(img, 8, 8, 24, 10, CYAN)
+    grain(img, 10, 4)
+    return img
+
+
 TEXTURES = {
     "floor": floor,
+    "floor_grid": floor_grid,
+    "floor_hazard": floor_hazard,
     "corridor": corridor,
     "wall": wall,
+    "wall_ribbed": wall_ribbed,
+    "wall_pipes": wall_pipes,
+    "column": column,
     "ceiling": ceiling,
     "doorway": doorway,
 }

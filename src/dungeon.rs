@@ -423,6 +423,10 @@ pub enum SpotKind {
     Ceiling,
     /// An inner corner where two closed sides of a walkable cell meet.
     Corner,
+    /// A point along a straight run of room wall where a column stands, at the start
+    /// of its cell side: about one every two cells, evenly spaced, facing into the
+    /// room.
+    Column,
     /// The centre of every room.
     Room,
     /// A key a recipe placed; the lock it opens is the spot's tag.
@@ -439,7 +443,7 @@ pub enum SpotKind {
     Goal,
 }
 impl SpotKind {
-    pub const ALL: [SpotKind; 14] = [
+    pub const ALL: [SpotKind; 15] = [
         SpotKind::Floor,
         SpotKind::Wall,
         SpotKind::Door,
@@ -447,6 +451,7 @@ impl SpotKind {
         SpotKind::Solid,
         SpotKind::Ceiling,
         SpotKind::Corner,
+        SpotKind::Column,
         SpotKind::Room,
         SpotKind::Key,
         SpotKind::Lock,
@@ -464,6 +469,7 @@ impl SpotKind {
             SpotKind::Solid => "Solid",
             SpotKind::Ceiling => "Ceiling",
             SpotKind::Corner => "Corner",
+            SpotKind::Column => "Column",
             SpotKind::Room => "Room",
             SpotKind::Key => "Key",
             SpotKind::Lock => "Locked door",
@@ -484,6 +490,9 @@ impl SpotKind {
                 "Each floor cell again, at the wall height and facing down (3D, when the generator has a ceiling)."
             }
             SpotKind::Corner => "Each inner corner where two walls of a floor cell meet.",
+            SpotKind::Column => {
+                "Evenly spaced points along the straight walls of rooms, about one every two cells."
+            }
             SpotKind::Room => "The centre of every room, once per room.",
             SpotKind::Key => "Each key a recipe placed; actors here get the lock number it opens.",
             SpotKind::Lock => {
@@ -511,11 +520,53 @@ pub struct Spot {
     pub tag: u16,
 }
 
+/// Column spots for each straight run of room wall: `(L - 1) / 2` columns spread
+/// evenly over a run of `L` cells, none on runs shorter than three.
+fn columns(walls: &[(u8, i32, i32, usize)]) -> Vec<Spot> {
+    let mut sorted = walls.to_vec();
+    sorted.sort_unstable();
+    let mut out = Vec::new();
+    let mut start = 0;
+    while start < sorted.len() {
+        let (side, line, first, room) = sorted[start];
+        let mut end = start + 1;
+        while end < sorted.len()
+            && sorted[end].0 == side
+            && sorted[end].1 == line
+            && sorted[end].2 == sorted[end - 1].2 + 1
+        {
+            end += 1;
+        }
+        let length = (end - start) as i32;
+        let count = (length - 1) / 2;
+        for j in 1..=count {
+            let along = first + (length * j + (count + 1) / 2) / (count + 1);
+            let side = Side::ALL[usize::from(side)];
+            let cell = match side {
+                Side::North | Side::South => [along, line],
+                Side::East | Side::West => [line, along],
+            };
+            out.push(Spot {
+                kind: SpotKind::Column,
+                cell,
+                side: Some(side),
+                room: Some(room),
+                corridor: false,
+                tag: 0,
+            });
+        }
+        start = end;
+    }
+    out
+}
+
 /// Every spot of a layout: per cell in grid order its floor, walls, doors and corners,
 /// or its solid block; then doorways, the spawn and the goal.
 pub fn spots(layout: &Layout) -> Vec<Spot> {
     let mut out = Vec::new();
     let mut doorways = Vec::new();
+    // Room wall sides as (side, line, position along the line, room).
+    let mut walls: Vec<(u8, i32, i32, usize)> = Vec::new();
     for y in 0..layout.size[1] {
         for x in 0..layout.size[0] {
             let cell = layout.at([x, y]);
@@ -567,9 +618,19 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                 if closed(side) && closed(side.next()) {
                     out.push(spot(SpotKind::Corner, Some(side)));
                 }
+                if let Some(room) = room
+                    && closed(side)
+                {
+                    let (line, along) = match side {
+                        Side::North | Side::South => (y, x),
+                        Side::East | Side::West => (x, y),
+                    };
+                    walls.push((side as u8, line, along, room));
+                }
             }
         }
     }
+    out.extend(columns(&walls));
     out.extend(doorways);
     let room_of = |p: [i32; 2]| match layout.at(p) {
         Cell::Room(r) => Some(usize::from(r)),

@@ -163,6 +163,10 @@ pub struct Visual {
     /// everywhere.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub path: String,
+    /// The chance is rolled once per room, so a room takes the piece everywhere or
+    /// nowhere: texture variants and themed rooms. Corridor spots still roll alone.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub per_room: bool,
     /// Local offset, rotation (degrees) and scale relative to the spot.
     pub offset: [f32; 3],
     pub rotation: [f32; 3],
@@ -178,6 +182,7 @@ impl Default for Visual {
             limit: 0,
             item: String::new(),
             path: String::new(),
+            per_room: false,
             offset: [0.; 3],
             rotation: [0.; 3],
             scale: [1.; 3],
@@ -530,17 +535,35 @@ pub fn builtin(two_d: bool, tile_set: Option<Uuid>) -> Style {
             ..Visual::default()
         };
         use crate::dungeon_bake::BuiltinTexture as T;
+        // Each room picks one of three floors and one of three walls: a third take
+        // the first variant, half the rest the second, the others the plain one.
+        let variant = |texture: T, chance: u8| Visual {
+            chance,
+            consume: true,
+            per_room: true,
+            ..textured(texture.id(), Filter::Rooms)
+        };
         vec![
             (
                 SpotKind::Floor,
                 vec![
+                    variant(T::FloorGrid, 33),
+                    variant(T::FloorHazard, 50),
                     textured(T::Floor.id(), Filter::Rooms),
                     textured(T::Corridor.id(), Filter::Corridors),
                 ],
             ),
             (
                 SpotKind::Wall,
-                vec![textured(T::Wall.id(), Filter::Anywhere)],
+                vec![
+                    variant(T::WallRibbed, 33),
+                    variant(T::WallPipes, 50),
+                    textured(T::Wall.id(), Filter::Anywhere),
+                ],
+            ),
+            (
+                SpotKind::Column,
+                vec![textured(T::Column.id(), Filter::Anywhere)],
             ),
             (SpotKind::Solid, vec![blockout(WALL_TOP, Filter::Anywhere)]),
             (
@@ -639,10 +662,19 @@ pub fn evaluate(style: &Style, layout: &Layout, seed: u32) -> Vec<Placement> {
             let salt = node.id.as_u128();
             let mut random = Random::stream(seed, (salt ^ (salt >> 64) ^ (salt >> 32)) as u32);
             let mut chosen: Vec<usize> = Vec::new();
+            // Per-room rolls come from a stream of their own, keyed by room.
+            let mut rooms: BTreeMap<usize, bool> = BTreeMap::new();
             for (index, spot) in candidates.iter().enumerate() {
                 // Every candidate draws, so the outcome at one spot does not depend on
                 // which other spots were consumed.
-                let roll = random.chance(u32::from(visual.chance));
+                let own = random.chance(u32::from(visual.chance));
+                let roll = match spot.room.filter(|_| visual.per_room) {
+                    Some(room) => *rooms.entry(room).or_insert_with(|| {
+                        Random::stream(seed ^ 0x5eed_0000, (salt as u32) ^ (room as u32 + 1))
+                            .chance(u32::from(visual.chance))
+                    }),
+                    None => own,
+                };
                 if !consumed[index]
                     && visual.filter.accepts(spot)
                     && named(visual, spot, layout)
@@ -736,6 +768,10 @@ pub fn frame(spot: &Spot, grid: &crate::dungeon_bake::Frame) -> crate::transform
             )
         }
         (SpotKind::Ceiling, _) => ([center[0], grid.height, center[2]], [0., 1.]),
+        (SpotKind::Column, Some(side)) => {
+            let (point, into) = crate::dungeon_bake::column_base(grid, spot.cell, side);
+            ([point[0], 0., point[1]], into)
+        }
         _ => (center, [0., 1.]),
     };
     // Right-handed: X = Y × Z.
@@ -787,6 +823,37 @@ mod tests {
             &Default::default(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn per_room_pieces_dress_whole_rooms() {
+        let layout = crate::dungeon_recipe::layout(&crate::dungeon_recipe::builtin(), 9).unwrap();
+        let placements = evaluate(&builtin(false, None), &layout, 9);
+        for kind in [SpotKind::Floor, SpotKind::Wall] {
+            let mut by_room: BTreeMap<usize, std::collections::BTreeSet<Option<Uuid>>> =
+                BTreeMap::new();
+            for p in placements.iter().filter(|p| p.spot.kind == kind) {
+                if let (Some(room), Piece::Blockout { texture, .. }) =
+                    (p.spot.room, &p.visual.piece)
+                {
+                    by_room.entry(room).or_default().insert(*texture);
+                }
+            }
+            // One texture per room, and more than one across the dungeon.
+            assert!(
+                by_room.values().all(|t| t.len() == 1),
+                "{kind:?}: {by_room:?}"
+            );
+            let used: std::collections::BTreeSet<_> = by_room.values().flatten().collect();
+            assert!(used.len() > 1, "{kind:?}: every room looks alike");
+        }
+        // Columns stand on straight room walls only, never in corridors.
+        let columns: Vec<_> = placements
+            .iter()
+            .filter(|p| p.spot.kind == SpotKind::Column)
+            .collect();
+        assert!(!columns.is_empty());
+        assert!(columns.iter().all(|p| p.spot.room.is_some()));
     }
 
     #[test]

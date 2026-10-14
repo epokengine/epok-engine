@@ -305,6 +305,23 @@ impl Builder {
         let uv = p.map(|v| [along(v) / length, (y[1] - v[1]) / height]);
         self.face(p, uv, None, paint);
     }
+    /// A vertical rectangle between `a` and `b` that looks towards `normal` (x, z).
+    fn vertical_toward(
+        &mut self,
+        a: [f32; 2],
+        b: [f32; 2],
+        y: [f32; 2],
+        normal: [f32; 2],
+        paint: (usize, usize),
+    ) {
+        // `vertical` looks to the left of a->b: (-dz, dx) for a direction (dx, dz).
+        let d = [b[0] - a[0], b[1] - a[1]];
+        if -d[1] * normal[0] + d[0] * normal[1] >= 0. {
+            self.vertical(a, b, y, paint);
+        } else {
+            self.vertical(b, a, y, paint);
+        }
+    }
     /// Every face of `source`, moved by `transform`, with its own materials.
     fn mesh(&mut self, source: &Document, asset: Uuid, transform: Matrix) {
         let m = transform.0;
@@ -368,6 +385,45 @@ struct Context<'a> {
     frame: &'a Frame,
     placements: &'a [Placement],
     meshes: &'a HashMap<Uuid, Arc<Document>>,
+}
+
+/// Where a Column spot stands: the start of its cell side (the end with the smaller
+/// coordinate), and the direction into the room.
+pub fn column_base(frame: &Frame, cell: [i32; 2], side: Side) -> ([f32; 2], [f32; 2]) {
+    let [x, y] = cell;
+    let d = side.delta();
+    let point = match side {
+        Side::North => [frame.x(x), frame.z(y)],
+        Side::South => [frame.x(x), frame.z(y + 1)],
+        Side::West => [frame.x(x), frame.z(y)],
+        Side::East => [frame.x(x + 1), frame.z(y)],
+    };
+    (point, [-d[0] as f32, -d[1] as f32])
+}
+
+/// A built-in column's footprint around its base: corner minimum and maximum (x, z).
+fn column_box(frame: &Frame, cell: [i32; 2], side: Side) -> ([f32; 2], [f32; 2]) {
+    let (point, into) = column_base(frame, cell, side);
+    let half = (frame.cell * 0.12).min(0.35);
+    let depth = (frame.cell * 0.12).min(0.4);
+    let along = [into[1].abs(), into[0].abs()];
+    let corners = [
+        [point[0] - along[0] * half, point[1] - along[1] * half],
+        [
+            point[0] + along[0] * half + into[0] * depth,
+            point[1] + along[1] * half + into[1] * depth,
+        ],
+    ];
+    (
+        [
+            corners[0][0].min(corners[1][0]),
+            corners[0][1].min(corners[1][1]),
+        ],
+        [
+            corners[0][0].max(corners[1][0]),
+            corners[0][1].max(corners[1][1]),
+        ],
+    )
 }
 
 /// The edge on `side` of `cell`, its endpoints ordered so a face along it looks into
@@ -438,6 +494,28 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                         false,
                         (GROUP_CEILINGS, slot),
                     ),
+                    (SpotKind::Column, Some(side)) => {
+                        // A pilaster standing out of the wall: its front, two sides and,
+                        // without a ceiling, its top. The face against the wall is never
+                        // seen.
+                        let (lo, hi) = column_box(frame, spot.cell, side);
+                        let into = side.opposite().delta().map(|v| v as f32);
+                        let paint = (GROUP_WALLS, slot);
+                        let heights = [-WALL_SKIRT, h];
+                        for (a, bb, normal) in [
+                            ([lo[0], hi[1]], [hi[0], hi[1]], [0., 1.]),
+                            ([lo[0], lo[1]], [hi[0], lo[1]], [0., -1.]),
+                            ([hi[0], lo[1]], [hi[0], hi[1]], [1., 0.]),
+                            ([lo[0], lo[1]], [lo[0], hi[1]], [-1., 0.]),
+                        ] {
+                            if normal[0] * into[0] + normal[1] * into[1] >= -0.5 {
+                                b.vertical_toward(a, bb, heights, normal, paint);
+                            }
+                        }
+                        if !g.ceiling {
+                            b.horizontal([lo[0], hi[0]], [lo[1], hi[1]], h, true, paint);
+                        }
+                    }
                     (SpotKind::Wall, Some(side)) => {
                         let (a, bb) = edge(frame, spot.cell, side);
                         // Walls reach a little below the floor, covering the seam.
@@ -717,6 +795,15 @@ pub fn plan_3d(
                 h + 0.5,
                 frame.z(y1),
             ]);
+        }
+    }
+    // Built-in columns stand out of the wall, so the player walks around them.
+    for p in placements {
+        if let (SpotKind::Column, Some(side), Piece::Blockout { .. }) =
+            (p.spot.kind, p.spot.side, &p.visual.piece)
+        {
+            let (lo, hi) = column_box(&frame, p.spot.cell, side);
+            boxes.push([lo[0], 0., lo[1], hi[0], h, hi[1]]);
         }
     }
     if g.door_height < h - 0.01 {
@@ -1083,22 +1170,37 @@ pub fn builtin_tiles(root: &Path) -> Result<(Uuid, crate::tileset::TileSet), Str
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BuiltinTexture {
     Floor,
+    FloorGrid,
+    FloorHazard,
     Corridor,
     Wall,
+    WallRibbed,
+    WallPipes,
+    Column,
     Ceiling,
     Doorway,
 }
 impl BuiltinTexture {
-    pub const ALL: [BuiltinTexture; 5] = [
+    pub const ALL: [BuiltinTexture; 10] = [
         BuiltinTexture::Floor,
+        BuiltinTexture::FloorGrid,
+        BuiltinTexture::FloorHazard,
         BuiltinTexture::Corridor,
         BuiltinTexture::Wall,
+        BuiltinTexture::WallRibbed,
+        BuiltinTexture::WallPipes,
+        BuiltinTexture::Column,
         BuiltinTexture::Ceiling,
         BuiltinTexture::Doorway,
     ];
     pub fn id(self) -> Uuid {
         Uuid::from_u128(match self {
             BuiltinTexture::Floor => 0x757152f8_9008_4e17_a9d7_01ee0ed85df7,
+            BuiltinTexture::FloorGrid => 0x80863613_66d3_4ec2_ae6e_348097a6dda6,
+            BuiltinTexture::FloorHazard => 0xababbe3a_73c5_453d_9054_d9a3da2a8237,
+            BuiltinTexture::WallRibbed => 0x2d62e77e_5933_41d3_af51_cc41c1712698,
+            BuiltinTexture::WallPipes => 0x7e173f83_6004_4b47_be89_823c107b67c0,
+            BuiltinTexture::Column => 0xe3537af1_ed51_4840_965a_7bed9233b6fe,
             BuiltinTexture::Corridor => 0x39bfb74b_b144_43bc_83cb_f5a55beae6d2,
             BuiltinTexture::Wall => 0x370146fd_21ac_4c75_b903_abc81f236612,
             BuiltinTexture::Ceiling => 0x77fed04a_eadb_4a26_b11f_f3d36e5244bf,
@@ -1108,6 +1210,11 @@ impl BuiltinTexture {
     fn name(self) -> &'static str {
         match self {
             BuiltinTexture::Floor => "DungeonFloor",
+            BuiltinTexture::FloorGrid => "DungeonFloorGrid",
+            BuiltinTexture::FloorHazard => "DungeonFloorHazard",
+            BuiltinTexture::WallRibbed => "DungeonWallRibbed",
+            BuiltinTexture::WallPipes => "DungeonWallPipes",
+            BuiltinTexture::Column => "DungeonColumn",
             BuiltinTexture::Corridor => "DungeonCorridor",
             BuiltinTexture::Wall => "DungeonWall",
             BuiltinTexture::Ceiling => "DungeonCeiling",
@@ -1117,6 +1224,11 @@ impl BuiltinTexture {
     fn png(self) -> &'static [u8] {
         match self {
             BuiltinTexture::Floor => include_bytes!("../resources/dungeon/floor.png"),
+            BuiltinTexture::FloorGrid => include_bytes!("../resources/dungeon/floor_grid.png"),
+            BuiltinTexture::FloorHazard => include_bytes!("../resources/dungeon/floor_hazard.png"),
+            BuiltinTexture::WallRibbed => include_bytes!("../resources/dungeon/wall_ribbed.png"),
+            BuiltinTexture::WallPipes => include_bytes!("../resources/dungeon/wall_pipes.png"),
+            BuiltinTexture::Column => include_bytes!("../resources/dungeon/column.png"),
             BuiltinTexture::Corridor => include_bytes!("../resources/dungeon/corridor.png"),
             BuiltinTexture::Wall => include_bytes!("../resources/dungeon/wall.png"),
             BuiltinTexture::Ceiling => include_bytes!("../resources/dungeon/ceiling.png"),
