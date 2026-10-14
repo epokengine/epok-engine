@@ -647,7 +647,9 @@ pub fn preview_lines(
     } else {
         g.wall_height + 0.06
     };
-    let point = |x: f32, z: f32| matrix.point([x, y, z]);
+    // Rooms, corridors and their marks are outlined at their own floor level.
+    let lift = std::cell::Cell::new(0f32);
+    let point = |x: f32, z: f32| matrix.point([x, y + lift.get(), z]);
     let rect = |x0: i32, z0: i32, x1: i32, z1: i32, color: [u8; 3], lines: &mut Vec<_>| {
         let corners = [
             point(frame.x(x0), frame.z(z0)),
@@ -679,6 +681,7 @@ pub fn preview_lines(
         let [x0, z0] = room.min;
         let [x1, z1] = [room.min[0] + room.size[0], room.min[1] + room.size[1]];
         let white = [255, 255, 255];
+        lift.set(layout.floor(room.center()));
         rect(x0, z0, x1, z1, white, &mut lines);
         let inset = |x: i32, z: i32, dx: f32, dz: f32| point(frame.x(x) + dx, frame.z(z) + dz);
         let d = g.cell_size * 0.2;
@@ -702,6 +705,7 @@ pub fn preview_lines(
         } else {
             [110, 190, 255]
         };
+        lift.set(layout.floor(room.center()));
         rect(
             room.min[0],
             room.min[1],
@@ -729,6 +733,7 @@ pub fn preview_lines(
         } else {
             [200, 160, 110]
         };
+        lift.set(layout.top(spot.cell));
         lines.push((
             point(frame.x(a.0), frame.z(a.1)),
             point(frame.x(b.0), frame.z(b.1)),
@@ -741,6 +746,7 @@ pub fn preview_lines(
         (&layout.one_ways, [80, 150, 255]),
     ] {
         for door in doors.iter() {
+            lift.set(layout.floor(door.cell));
             let c = frame.center(door.cell);
             let d = door.side.delta().map(|v| v as f32 * g.cell_size * 0.5);
             let across = [-d[1], d[0]];
@@ -754,6 +760,7 @@ pub fn preview_lines(
         }
     }
     for item in &layout.items {
+        lift.set(layout.floor(item.cell));
         let c = frame.center(item.cell);
         let r = g.cell_size * 0.25;
         let color = if item.lock > 0 {

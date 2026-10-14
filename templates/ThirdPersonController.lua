@@ -148,6 +148,7 @@ function ThirdPersonController:move(delta_seconds)
     local before_z = self.position.z
     local movement = epok.math.vector3(self.velocity.x * delta_seconds, fall,
         self.velocity.z * delta_seconds)
+    local was_grounded = self.grounded
     local result = epok.collision.move(body, movement, 4294967295)
     self.grounded = result.grounded
     if self.velocity.y > 0.0 and result.displacement.y + 0.001 < fall then
@@ -155,6 +156,8 @@ function ThirdPersonController:move(delta_seconds)
     end
     if result.blocked and self.grounded and not jumped then
         self:step_over(movement.x - result.displacement.x, movement.z - result.displacement.z)
+    elseif was_grounded and not self.grounded and not jumped then
+        self:stick_down()
     end
 
     self.rotation.y = self.facing
@@ -178,6 +181,18 @@ function ThirdPersonController:step_over(remaining_x, remaining_z)
     local settle = epok.collision.move(body,
         epok.math.vector3(0.0, -0.05 - lift.displacement.y, 0.0), 4294967295)
     self.grounded = settle.grounded
+end
+
+--- Down a step or a flight of stairs: put the feet back on the floor below
+--- instead of falling for a frame and landing again on every step.
+function ThirdPersonController:stick_down()
+    local body = epok.owner()
+    local below = epok.collision.ground(body, 0.6, 4294967295)
+    if below.hit then
+        local drop = epok.collision.move(body,
+            epok.math.vector3(0.0, -0.6 * below.fraction - 0.05, 0.0), 4294967295)
+        self.grounded = drop.grounded
+    end
 end
 
 --- Idle, Walk, Run, JumpUp, JumpDown and Land, chosen from ground contact,

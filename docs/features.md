@@ -165,7 +165,7 @@ The complete interaction and preview contract is in the
   tiles in 2D, with chance, priority, area and limit per piece. A Dungeon Recipe asset
   grows the layout instead from steps (lattice, main path, branches and loops, items by
   depth and place in the room, keys and locks, one-way doors, cellular caves, rooms
-  with cut corners), edited as a step list with a live
+  with cut corners, floor levels joined by flights of stairs), edited as a step list with a live
   room-graph preview; every key-and-lock placement is checked to be solvable and the
   grid layout keeps locked doors from being walked around. Keys, locks, one-way doors
   and items become style spots, style pieces can keep to one path's rooms, and actors

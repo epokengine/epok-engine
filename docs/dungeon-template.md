@@ -22,6 +22,8 @@ character). Lighting is baked when the project is created, so Play works straigh
 
 - Left stick or WASD moves relative to the camera, the right stick or mouse orbits it,
   Cross or K jumps.
+- The dungeon climbs: corridors between rooms on different levels hold flights of
+  stairs, walked up and down like any floor.
 - The character starts in the spawn room. Walk into the gold key to pick it up: the
   red door it opens disappears, wherever it is. Only the character picks keys up: the
   generator's **Player** is set to it, and each key names it.

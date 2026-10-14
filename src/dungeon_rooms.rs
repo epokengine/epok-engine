@@ -97,6 +97,7 @@ pub fn generate(settings: &RoomSettings, seed: u32) -> Result<Layout, String> {
         one_ways: Vec::new(),
         items: Vec::new(),
         room_paths: Vec::new(),
+        ..Default::default()
     };
     let (links, loops) = connections(&layout);
     layout.links = links;

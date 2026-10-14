@@ -137,6 +137,8 @@ pub struct Spawn {
     pub piece: Piece,
     /// The lock number at key and locked-door spots; 0 elsewhere.
     pub lock: u16,
+    /// The floor level of the spot.
+    pub level: u8,
 }
 
 pub struct Plan3d {
@@ -305,6 +307,70 @@ impl Builder {
         let uv = p.map(|v| [along(v) / length, (y[1] - v[1]) / height]);
         self.face(p, uv, None, paint);
     }
+    /// A vertical rectangle like `vertical`, whose edge at `a` has a vertex at every
+    /// height in `at_a` and whose edge at `b` at every height in `at_b`: the faces of the
+    /// walls beside it end there, and an edge stopping in the middle of a neighbour's
+    /// edge shows as a crack on the console. The rectangle is filled with a ladder of
+    /// quads and triangles between its two edges, carrying the texture as one face.
+    fn vertical_matched(
+        &mut self,
+        a: [f32; 2],
+        b: [f32; 2],
+        y: [f32; 2],
+        at_a: &[f32],
+        at_b: &[f32],
+        paint: (usize, usize),
+    ) {
+        let rail = |extra: &[f32]| {
+            let mut heights: Vec<f32> = extra
+                .iter()
+                .copied()
+                .filter(|v| *v > y[0] + 1e-4 && *v < y[1] - 1e-4)
+                .collect();
+            heights.push(y[0]);
+            heights.push(y[1]);
+            heights.sort_by(f32::total_cmp);
+            heights.dedup_by(|p, q| (*p - *q).abs() < 1e-4);
+            heights
+        };
+        let (left, right) = (rail(at_a), rail(at_b));
+        let length = ((b[0] - a[0]).abs() + (b[1] - a[1]).abs()).max(1e-6);
+        let along = |v: [f32; 3]| (v[0] - a[0]).abs() + (v[2] - a[1]).abs();
+        let height = (y[1] - y[0]).abs().max(1e-6);
+        let emit = |p: [[f32; 3]; 4], face: &mut Self| {
+            let uv = p.map(|v| [along(v) / length, (y[1] - v[1]) / height]);
+            face.face(p, uv, None, paint);
+        };
+        let at = |end: [f32; 2], h: f32| [end[0], h, end[1]];
+        let (mut i, mut j) = (0, 0);
+        while i + 1 < left.len() || j + 1 < right.len() {
+            let next_left = left.get(i + 1).copied();
+            let next_right = right.get(j + 1).copied();
+            match (next_left, next_right) {
+                (Some(l), Some(r)) if (l - r).abs() < 1e-4 => {
+                    emit([at(a, left[i]), at(b, right[j]), at(b, r), at(a, l)], self);
+                    i += 1;
+                    j += 1;
+                }
+                (Some(l), Some(r)) if l < r => {
+                    let p = [at(a, left[i]), at(b, right[j]), at(a, l), at(a, l)];
+                    emit(p, self);
+                    i += 1;
+                }
+                (_, Some(r)) => {
+                    let p = [at(a, left[i]), at(b, right[j]), at(b, r), at(b, r)];
+                    emit(p, self);
+                    j += 1;
+                }
+                (Some(l), None) => {
+                    let p = [at(a, left[i]), at(b, right[j]), at(a, l), at(a, l)];
+                    emit(p, self);
+                    i += 1;
+                }
+                (None, None) => break,
+            }
+        }
+    }
     /// A vertical rectangle between `a` and `b` that looks towards `normal` (x, z).
     fn vertical_toward(
         &mut self,
@@ -320,6 +386,53 @@ impl Builder {
             self.vertical(a, b, y, paint);
         } else {
             self.vertical(b, a, y, paint);
+        }
+    }
+    /// A flight of steps filling a cell and climbing one level towards `up` from `floor`:
+    /// treads and the risers in front of them. The texture is laid from above, so it runs
+    /// across the whole flight as it does across a floor.
+    fn stairs(
+        &mut self,
+        frame: &Frame,
+        cell: [i32; 2],
+        up: Side,
+        floor: f32,
+        paint: (usize, usize),
+    ) {
+        let [x, y] = cell;
+        let (x0, x1, z0, z1) = (frame.x(x), frame.x(x + 1), frame.z(y), frame.z(y + 1));
+        let steps = crate::dungeon::STEPS_PER_LEVEL;
+        let fraction = |v: f32, a: f32, b: f32| (v - a) / (b - a).max(1e-6);
+        let toward = up.delta().map(|v| v as f32);
+        for i in 0..steps {
+            let (t0, t1) = (i as f32 / steps as f32, (i + 1) as f32 / steps as f32);
+            let (low, high) = (
+                floor + crate::dungeon::STEP_RISE * i as f32,
+                floor + crate::dungeon::STEP_RISE * (i + 1) as f32,
+            );
+            // The step's footprint: from t0 to t1 of the way up the cell.
+            let (xs, zs) = match up {
+                Side::East => ([x0 + (x1 - x0) * t0, x0 + (x1 - x0) * t1], [z0, z1]),
+                Side::West => ([x1 - (x1 - x0) * t1, x1 - (x1 - x0) * t0], [z0, z1]),
+                Side::South => ([x0, x1], [z0 + (z1 - z0) * t0, z0 + (z1 - z0) * t1]),
+                Side::North => ([x0, x1], [z1 - (z1 - z0) * t1, z1 - (z1 - z0) * t0]),
+            };
+            let tread = [
+                [xs[0], high, zs[0]],
+                [xs[0], high, zs[1]],
+                [xs[1], high, zs[1]],
+                [xs[1], high, zs[0]],
+            ];
+            let uv = tread.map(|v| [fraction(v[0], x0, x1), fraction(v[2], z0, z1)]);
+            self.face(tread, uv, None, paint);
+            // The riser stands on the step's low edge and faces down the flight.
+            let (a, b) = match up {
+                Side::East => ([xs[0], zs[0]], [xs[0], zs[1]]),
+                Side::West => ([xs[1], zs[0]], [xs[1], zs[1]]),
+                Side::South => ([xs[0], zs[0]], [xs[1], zs[0]]),
+                Side::North => ([xs[0], zs[1]], [xs[1], zs[1]]),
+            };
+            self.vertical_toward(a, b, [low, high], [-toward[0], -toward[1]], paint);
         }
     }
     /// Every face of `source`, moved by `transform`, with its own materials.
@@ -457,11 +570,13 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
         p[0] >= region[0] && p[0] < region[2] && p[1] >= region[1] && p[1] < region[3]
     };
     let mut b = Builder::new(owner, origin);
-    // Wall tops are merged per material once every solid cell is known.
-    let mut tops: Vec<(usize, BTreeSet<[i32; 2]>)> = Vec::new();
+    // Wall tops are merged per material and level once every solid cell is known.
+    let mut tops: Vec<(usize, u8, BTreeSet<[i32; 2]>)> = Vec::new();
     for placement in cx.placements.iter().filter(|p| inside(p.spot.cell)) {
         let spot = &placement.spot;
         let [x, y] = spot.cell;
+        // The floor under the spot; flights of stairs climb from it.
+        let f = layout.floor(spot.cell);
         match &placement.visual.piece {
             Piece::Blockout { color, texture } => {
                 let slot = b.blockout(spot.kind, *color, *texture);
@@ -472,6 +587,10 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                     // cracks. One face per cell also gives baked lighting a vertex per
                     // cell corner.
                     (SpotKind::Floor, _) => {
+                        if let Some(up) = layout.stair(spot.cell) {
+                            b.stairs(frame, spot.cell, up, f, (GROUP_FLOORS, slot));
+                            continue;
+                        }
                         // Corridor textures run along the corridor.
                         let east_west = spot.corridor
                             && (layout.open(spot.cell, Side::East)
@@ -481,19 +600,35 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                         b.horizontal_turned(
                             [frame.x(x), frame.x(x + 1)],
                             [frame.z(y), frame.z(y + 1)],
-                            0.,
+                            f,
                             true,
                             east_west,
                             (GROUP_FLOORS, slot),
                         )
                     }
-                    (SpotKind::Ceiling, _) => b.horizontal(
-                        [frame.x(x), frame.x(x + 1)],
-                        [frame.z(y), frame.z(y + 1)],
-                        h,
-                        false,
-                        (GROUP_CEILINGS, slot),
-                    ),
+                    (SpotKind::Ceiling, _) => {
+                        let top = layout.top(spot.cell) + h;
+                        b.horizontal(
+                            [frame.x(x), frame.x(x + 1)],
+                            [frame.z(y), frame.z(y + 1)],
+                            top,
+                            false,
+                            (GROUP_CEILINGS, slot),
+                        );
+                        // Where a neighbour's ceiling is lower, the step between them
+                        // faces this cell.
+                        for side in Side::ALL {
+                            if !layout.open(spot.cell, side) {
+                                continue;
+                            }
+                            let d = side.delta();
+                            let lower = layout.top([x + d[0], y + d[1]]) + h;
+                            if lower < top - 1e-4 {
+                                let (a, bb) = edge(frame, spot.cell, side);
+                                b.vertical(a, bb, [lower, top], (GROUP_CEILINGS, slot));
+                            }
+                        }
+                    }
                     (SpotKind::Column, Some(side)) => {
                         // A pilaster standing out of the wall: its front, two sides and,
                         // without a ceiling, its top. The face against the wall is never
@@ -501,7 +636,7 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                         let (lo, hi) = column_box(frame, spot.cell, side);
                         let into = side.opposite().delta().map(|v| v as f32);
                         let paint = (GROUP_WALLS, slot);
-                        let heights = [-WALL_SKIRT, h];
+                        let heights = [f - WALL_SKIRT, f + h];
                         for (a, bb, normal) in [
                             ([lo[0], hi[1]], [hi[0], hi[1]], [0., 1.]),
                             ([lo[0], lo[1]], [hi[0], lo[1]], [0., -1.]),
@@ -513,13 +648,42 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                             }
                         }
                         if !g.ceiling {
-                            b.horizontal([lo[0], hi[0]], [lo[1], hi[1]], h, true, paint);
+                            b.horizontal([lo[0], hi[0]], [lo[1], hi[1]], f + h, true, paint);
                         }
                     }
                     (SpotKind::Wall, Some(side)) => {
                         let (a, bb) = edge(frame, spot.cell, side);
-                        // Walls reach a little below the floor, covering the seam.
-                        b.vertical(a, bb, [-WALL_SKIRT, h], (GROUP_WALLS, slot));
+                        // Walls reach a little below the floor, covering the seam, and up
+                        // to the ceiling over the cell's highest point. Walls along the
+                        // same line meet edge to edge: this one is cut where its
+                        // neighbours start and end, so no edge stops in the middle of
+                        // another, which the console draws as a crack.
+                        let top = layout.top(spot.cell) + h;
+                        // The wall beside each end, on the same line, and where it ends.
+                        let beside = |end: [f32; 2], other: [f32; 2]| {
+                            let step = [
+                                (end[0] - other[0]).signum() as i32,
+                                (end[1] - other[1]).signum() as i32,
+                            ];
+                            let q = [x + step[0], y + step[1]];
+                            if layout.at(q).walkable()
+                                && !layout.open(q, side)
+                                && !layout.door(q, side)
+                            {
+                                vec![layout.floor(q) - WALL_SKIRT, layout.top(q) + h]
+                            } else {
+                                Vec::new()
+                            }
+                        };
+                        let (at_a, at_b) = (beside(a, bb), beside(bb, a));
+                        b.vertical_matched(
+                            a,
+                            bb,
+                            [f - WALL_SKIRT, top],
+                            &at_a,
+                            &at_b,
+                            (GROUP_WALLS, slot),
+                        );
                     }
                     (SpotKind::Key | SpotKind::Item, _) => {
                         // A pedestal: tall and thin for keys, low and wide for items.
@@ -532,18 +696,19 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                         let (x0, x1) = (centre[0] - half, centre[0] + half);
                         let (z0, z1) = (centre[2] - half, centre[2] + half);
                         let paint = (GROUP_PIECES, slot);
-                        b.horizontal([x0, x1], [z0, z1], top, true, paint);
-                        b.vertical([x0, z1], [x1, z1], [0., top], paint);
-                        b.vertical([x1, z0], [x0, z0], [0., top], paint);
-                        b.vertical([x1, z1], [x1, z0], [0., top], paint);
-                        b.vertical([x0, z0], [x0, z1], [0., top], paint);
+                        let span = [f, f + top];
+                        b.horizontal([x0, x1], [z0, z1], f + top, true, paint);
+                        b.vertical([x0, z1], [x1, z1], span, paint);
+                        b.vertical([x1, z0], [x0, z0], span, paint);
+                        b.vertical([x1, z1], [x1, z0], span, paint);
+                        b.vertical([x0, z0], [x0, z1], span, paint);
                     }
                     (SpotKind::Lock, Some(side)) => {
                         // A gate filling the door opening, seen from both sides.
                         let (a, bb) = edge(frame, spot.cell, side);
-                        let top = g.door_height.min(h);
-                        b.vertical(a, bb, [0., top], (GROUP_PIECES, slot));
-                        b.vertical(bb, a, [0., top], (GROUP_PIECES, slot));
+                        let top = f + g.door_height.min(h);
+                        b.vertical(a, bb, [f, top], (GROUP_PIECES, slot));
+                        b.vertical(bb, a, [f, top], (GROUP_PIECES, slot));
                     }
                     (SpotKind::OneWay, Some(side)) => {
                         // An arrow on the floor pointing from the door into the room.
@@ -553,7 +718,7 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                         let at = |forward: f32, side: f32| {
                             [
                                 centre[0] + (d[0] * forward + across[0] * side) * c,
-                                0.03,
+                                f + 0.03,
                                 centre[2] + (d[1] * forward + across[1] * side) * c,
                             ]
                         };
@@ -577,19 +742,24 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                         });
                         b.face([p[0], p[1], p[2], p[2]], uv, None, (GROUP_PIECES, slot));
                     }
-                    (SpotKind::Solid, _) => match tops.iter_mut().find(|(s, _)| *s == slot) {
-                        Some((_, cells)) => {
-                            cells.insert(spot.cell);
+                    (SpotKind::Solid, _) => {
+                        match tops
+                            .iter_mut()
+                            .find(|(s, level, _)| *s == slot && *level == spot.level)
+                        {
+                            Some((_, _, cells)) => {
+                                cells.insert(spot.cell);
+                            }
+                            None => tops.push((slot, spot.level, BTreeSet::from([spot.cell]))),
                         }
-                        None => tops.push((slot, BTreeSet::from([spot.cell]))),
-                    },
+                    }
                     (SpotKind::Doorway, _) if g.door_height < h - 0.01 => {
                         let (x0, x1, z0, z1) =
                             (frame.x(x), frame.x(x + 1), frame.z(y), frame.z(y + 1));
                         b.horizontal(
                             [x0, x1],
                             [z0, z1],
-                            g.door_height,
+                            f + g.door_height,
                             false,
                             (GROUP_DOORWAYS, slot),
                         );
@@ -605,7 +775,7 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                                 Side::East => ([x1, z0], [x1, z1]),
                             };
                             // Seen from the neighbour, so the winding is reversed.
-                            b.vertical(bb, a, [g.door_height, h], (GROUP_DOORWAYS, slot));
+                            b.vertical(bb, a, [f + g.door_height, f + h], (GROUP_DOORWAYS, slot));
                         }
                     }
                     (SpotKind::Corner, Some(side)) => {
@@ -627,7 +797,7 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                             corner[1].min(corner[1] + sz * size),
                             corner[1].max(corner[1] + sz * size),
                         );
-                        b.horizontal([x0, x1], [z0, z1], h, true, (GROUP_WALLS, slot));
+                        b.horizontal([x0, x1], [z0, z1], f + h, true, (GROUP_WALLS, slot));
                         let inner_x = if sx > 0. { x1 } else { x0 };
                         let inner_z = if sz > 0. { z1 } else { z0 };
                         // The face parallel to X, at inner_z, facing away from the
@@ -636,14 +806,14 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                             b.vertical(
                                 [x0, inner_z],
                                 [x1, inner_z],
-                                [-WALL_SKIRT, h],
+                                [f - WALL_SKIRT, f + h],
                                 (GROUP_WALLS, slot),
                             );
                         } else {
                             b.vertical(
                                 [x1, inner_z],
                                 [x0, inner_z],
-                                [-WALL_SKIRT, h],
+                                [f - WALL_SKIRT, f + h],
                                 (GROUP_WALLS, slot),
                             );
                         }
@@ -652,14 +822,14 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                             b.vertical(
                                 [inner_x, z1],
                                 [inner_x, z0],
-                                [-WALL_SKIRT, h],
+                                [f - WALL_SKIRT, f + h],
                                 (GROUP_WALLS, slot),
                             );
                         } else {
                             b.vertical(
                                 [inner_x, z0],
                                 [inner_x, z1],
-                                [-WALL_SKIRT, h],
+                                [f - WALL_SKIRT, f + h],
                                 (GROUP_WALLS, slot),
                             );
                         }
@@ -677,12 +847,12 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
     }
     // Wall tops merged into rectangles that overlap their neighbours slightly so the top
     // edges cannot crack either.
-    for (slot, cells) in tops {
+    for (slot, level, cells) in tops {
         for [x0, y0, x1, y1] in rectangles(region, &|p| cells.contains(&p)) {
             b.horizontal(
                 [frame.x(x0) - CAP_OVERLAP, frame.x(x1) + CAP_OVERLAP],
                 [frame.z(y0) - CAP_OVERLAP, frame.z(y1) + CAP_OVERLAP],
-                h,
+                f32::from(level) * crate::dungeon::LEVEL_HEIGHT + h,
                 true,
                 (GROUP_WALLS, slot),
             );
@@ -778,23 +948,69 @@ pub fn plan_3d(
     let sections = sections(&cx, g.id);
     let h = g.wall_height;
     let all = [0, 0, layout.size[0], layout.size[1]];
+    let height = |level: u8| f32::from(level) * crate::dungeon::LEVEL_HEIGHT;
+    let highest = layout.highest_level();
+    // Solid everywhere but the air over each walkable cell: floors fill down to the
+    // bottom, ceilings and the ring of walls up to the top, so no wall or ceiling top is
+    // ever a floor for the character or for navigation, whatever the levels.
+    let (bottom, top) = (-0.5, height(highest) + h + 0.5);
+    let walkable = |p: [i32; 2]| layout.at(p).walkable();
     let mut boxes = Vec::new();
-    for [x0, y0, x1, y1] in rectangles(all, &|p| layout.at(p).walkable()) {
-        boxes.push([frame.x(x0), -0.5, frame.z(y0), frame.x(x1), 0., frame.z(y1)]);
-    }
-    for [x0, y0, x1, y1] in rectangles(all, &|p| layout.solid(p)) {
-        boxes.push([frame.x(x0), 0., frame.z(y0), frame.x(x1), h, frame.z(y1)]);
-    }
-    if g.ceiling {
-        for [x0, y0, x1, y1] in rectangles(all, &|p| layout.at(p).walkable()) {
+    for level in 0..=highest {
+        for [x0, y0, x1, y1] in rectangles(all, &|p| {
+            walkable(p) && layout.stair(p).is_none() && layout.level(p) == level
+        }) {
             boxes.push([
                 frame.x(x0),
-                h,
+                bottom,
                 frame.z(y0),
                 frame.x(x1),
-                h + 0.5,
+                height(level),
                 frame.z(y1),
             ]);
+        }
+    }
+    // Every flight is a staircase of boxes, one per step, each up to its tread.
+    for (&cell, &up) in &layout.stairs {
+        let [x, y] = cell;
+        let (x0, x1, z0, z1) = (frame.x(x), frame.x(x + 1), frame.z(y), frame.z(y + 1));
+        let steps = crate::dungeon::STEPS_PER_LEVEL;
+        for i in 0..steps {
+            let (t0, t1) = (i as f32 / steps as f32, (i + 1) as f32 / steps as f32);
+            let ([a, b], [c, d]) = match up {
+                Side::East => ([x0 + (x1 - x0) * t0, x0 + (x1 - x0) * t1], [z0, z1]),
+                Side::West => ([x1 - (x1 - x0) * t1, x1 - (x1 - x0) * t0], [z0, z1]),
+                Side::South => ([x0, x1], [z0 + (z1 - z0) * t0, z0 + (z1 - z0) * t1]),
+                Side::North => ([x0, x1], [z1 - (z1 - z0) * t1, z1 - (z1 - z0) * t0]),
+            };
+            let tread = layout.floor(cell) + crate::dungeon::STEP_RISE * (i + 1) as f32;
+            boxes.push([a, bottom, c, b, tread, d]);
+        }
+    }
+    for [x0, y0, x1, y1] in rectangles(all, &|p| layout.solid(p)) {
+        boxes.push([
+            frame.x(x0),
+            bottom,
+            frame.z(y0),
+            frame.x(x1),
+            top,
+            frame.z(y1),
+        ]);
+    }
+    if g.ceiling {
+        for level in 0..=highest {
+            for [x0, y0, x1, y1] in
+                rectangles(all, &|p| walkable(p) && layout.top_level(p) == level)
+            {
+                boxes.push([
+                    frame.x(x0),
+                    height(level) + h,
+                    frame.z(y0),
+                    frame.x(x1),
+                    top,
+                    frame.z(y1),
+                ]);
+            }
         }
     }
     // Built-in columns stand out of the wall, so the player walks around them.
@@ -803,20 +1019,25 @@ pub fn plan_3d(
             (p.spot.kind, p.spot.side, &p.visual.piece)
         {
             let (lo, hi) = column_box(&frame, p.spot.cell, side);
-            boxes.push([lo[0], 0., lo[1], hi[0], h, hi[1]]);
+            let f = layout.floor(p.spot.cell);
+            boxes.push([lo[0], f, lo[1], hi[0], f + h, hi[1]]);
         }
     }
     if g.door_height < h - 0.01 {
         let doorways = doorway_cells(layout);
-        for [x0, y0, x1, y1] in rectangles(all, &|p| doorways.contains(&p)) {
-            boxes.push([
-                frame.x(x0),
-                g.door_height,
-                frame.z(y0),
-                frame.x(x1),
-                h,
-                frame.z(y1),
-            ]);
+        for level in 0..=highest {
+            for [x0, y0, x1, y1] in
+                rectangles(all, &|p| doorways.contains(&p) && layout.level(p) == level)
+            {
+                boxes.push([
+                    frame.x(x0),
+                    height(level) + g.door_height,
+                    frame.z(y0),
+                    frame.x(x1),
+                    height(level) + h,
+                    frame.z(y1),
+                ]);
+            }
         }
     }
     if boxes.len() > crate::collision::MAX_COMPOUND_BOXES {
@@ -848,13 +1069,19 @@ pub fn plan_3d(
             transform: dungeon_style::transform(p, &frame),
             piece: p.visual.piece.clone(),
             lock: lock_of(&p.spot),
+            level: p.spot.level,
         })
         .collect();
+    let on_floor = |p: [i32; 2]| {
+        let mut centre = frame.center(p);
+        centre[1] = layout.floor(p);
+        centre
+    };
     Ok(Plan3d {
         sections,
         boxes,
-        spawn: frame.center(layout.rooms[layout.spawn].center()),
-        goal: frame.center(layout.rooms[layout.goal].center()),
+        spawn: on_floor(layout.rooms[layout.spawn].center()),
+        goal: on_floor(layout.rooms[layout.goal].center()),
         navigation,
         quads,
         spawns,
@@ -878,7 +1105,8 @@ fn navigation(g: &Generator, layout: &Layout, frame: &Frame) -> Option<Navigatio
     // overlap by more than a spacing.
     let overlap = spacing + 0.25;
     let per_tile = (((60. - 2. * overlap) / c).floor() as i32).max(1);
-    let (bottom, top) = (-1., g.wall_height - 0.5);
+    let highest = f32::from(layout.highest_level()) * crate::dungeon::LEVEL_HEIGHT;
+    let (bottom, top) = (-1., highest + g.wall_height - 0.5);
     let mut volumes = Vec::new();
     let mut y = lo[1];
     while y < hi[1] {
@@ -1944,7 +2172,7 @@ pub fn generate(
             &crate::dungeon_query::Grid {
                 two_d: false,
                 corner: &corner,
-                floor: &|_| 0.,
+                floor: &|p| layout.floor(p),
                 height: g.wall_height,
             },
         );
@@ -2082,7 +2310,9 @@ pub fn generate(
                     light.position = position;
                     // Under a ceiling a light above it would light nothing inside.
                     if g.ceiling {
-                        light.position[1] = light.position[1].min(g.wall_height - 0.4);
+                        let ceiling =
+                            f32::from(spawn.level) * crate::dungeon::LEVEL_HEIGHT + g.wall_height;
+                        light.position[1] = light.position[1].min(ceiling - 0.4);
                     }
                     light.light = Some(crate::lighting::Light {
                         kind: crate::lighting::LightType::Point,

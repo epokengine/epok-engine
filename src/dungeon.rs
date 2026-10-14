@@ -7,7 +7,7 @@
 //! cells in 2D. Decisions use integers and `dungeon_random`, so a seed always produces
 //! the same dungeon.
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
 /// Settings of the rooms-and-corridors layout, in grid cells.
@@ -330,7 +330,7 @@ impl Room {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Layout {
     pub size: [i32; 2],
     pub cells: Vec<Cell>,
@@ -351,6 +351,10 @@ pub struct Layout {
     pub items: Vec<Item>,
     /// The recipe path each room belongs to; empty for rooms-and-corridors layouts.
     pub room_paths: Vec<String>,
+    /// Floor levels above the lowest, by walkable cell; cells not listed are level 0.
+    pub levels: BTreeMap<[i32; 2], u8>,
+    /// Stair cells: each climbs one level towards its side, from the cell's level.
+    pub stairs: BTreeMap<[i32; 2], Side>,
 }
 
 /// A door on a room's side: `cell` is the room cell, `side` faces the corridor.
@@ -370,7 +374,43 @@ pub struct Item {
     /// The lock this key opens, 1 and up; 0 for other items.
     pub lock: u16,
 }
+/// How far one stair step rises: below the character's step-up and navigation's climb.
+pub const STEP_RISE: f32 = 0.4;
+/// Steps in one stair cell.
+pub const STEPS_PER_LEVEL: usize = 4;
+/// The height between floor levels: one stair cell.
+pub const LEVEL_HEIGHT: f32 = STEP_RISE * STEPS_PER_LEVEL as f32;
+
 impl Layout {
+    /// A walkable cell's floor level; 0 elsewhere.
+    pub fn level(&self, p: [i32; 2]) -> u8 {
+        self.levels.get(&p).copied().unwrap_or(0)
+    }
+    /// The side a stair cell climbs towards.
+    pub fn stair(&self, p: [i32; 2]) -> Option<Side> {
+        self.stairs.get(&p).copied()
+    }
+    /// The level at a cell's highest floor point: one above its level on stairs.
+    pub fn top_level(&self, p: [i32; 2]) -> u8 {
+        self.level(p) + u8::from(self.stair(p).is_some())
+    }
+    /// A cell's floor height, at its low end on stairs.
+    pub fn floor(&self, p: [i32; 2]) -> f32 {
+        f32::from(self.level(p)) * LEVEL_HEIGHT
+    }
+    /// A cell's highest floor point.
+    pub fn top(&self, p: [i32; 2]) -> f32 {
+        f32::from(self.top_level(p)) * LEVEL_HEIGHT
+    }
+    /// The highest floor level any cell reaches.
+    pub fn highest_level(&self) -> u8 {
+        self.levels
+            .keys()
+            .map(|p| self.top_level(*p))
+            .chain(self.stairs.keys().map(|p| self.top_level(*p)))
+            .max()
+            .unwrap_or(0)
+    }
     pub fn inside(&self, p: [i32; 2]) -> bool {
         p[0] >= 0 && p[1] >= 0 && p[0] < self.size[0] && p[1] < self.size[1]
     }
@@ -521,6 +561,9 @@ pub struct Spot {
     pub corridor: bool,
     /// Keys and locked doors: the lock number. Items: the index in `Layout::items`.
     pub tag: u16,
+    /// The floor level the spot stands on; for ceilings, the level under the ceiling's
+    /// highest point. Solid cells take their highest walkable neighbour.
+    pub level: u8,
 }
 
 /// Column spots for each straight run of room wall: `(L - 1) / 2` columns spread
@@ -555,6 +598,7 @@ fn columns(walls: &[(u8, i32, i32, usize)]) -> Vec<Spot> {
                 side: Some(side),
                 room: Some(room),
                 corridor: false,
+                level: 0,
                 tag: 0,
             });
         }
@@ -581,6 +625,7 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                         side: None,
                         room: None,
                         corridor: false,
+                        level: 0,
                         tag: 0,
                     });
                 }
@@ -596,6 +641,7 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                 side,
                 room,
                 corridor: cell == Cell::Corridor,
+                level: 0,
                 tag: 0,
             };
             out.push(spot(SpotKind::Floor, None));
@@ -611,6 +657,7 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                         side: Some(side.opposite()),
                         room: None,
                         corridor: true,
+                        level: 0,
                         tag: 0,
                     });
                 } else if closed(side) {
@@ -646,6 +693,7 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
             side: None,
             room: Some(index),
             corridor: false,
+            level: 0,
             tag: 0,
         });
     }
@@ -660,6 +708,7 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                 side: Some(door.side),
                 room: room_of(door.cell),
                 corridor: false,
+                level: 0,
                 tag: door.lock,
             });
         }
@@ -675,6 +724,7 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
             side: None,
             room: room_of(item.cell),
             corridor: layout.at(item.cell) == Cell::Corridor,
+            level: 0,
             tag: if item.lock > 0 {
                 item.lock
             } else {
@@ -693,9 +743,27 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                 side: None,
                 room: Some(room),
                 corridor: false,
+                level: 0,
                 tag: 0,
             });
         }
+    }
+    if layout.levels.is_empty() && layout.stairs.is_empty() {
+        return out;
+    }
+    for spot in &mut out {
+        let [x, y] = spot.cell;
+        spot.level = match spot.kind {
+            SpotKind::Ceiling => layout.top_level(spot.cell),
+            // A solid block reaches as high as the floors around it.
+            SpotKind::Solid => (-1..=1)
+                .flat_map(|dy| (-1..=1).map(move |dx| [x + dx, y + dy]))
+                .filter(|p| layout.at(*p).walkable())
+                .map(|p| layout.top_level(p))
+                .max()
+                .unwrap_or(0),
+            _ => layout.level(spot.cell),
+        };
     }
     out
 }
@@ -754,6 +822,24 @@ pub fn summary(layout: &Layout) -> String {
     let items = layout.items.iter().filter(|i| i.lock == 0).count();
     if items > 0 {
         text.push_str(&count(items, "item", "items"));
+    }
+    // A flight across a wide corridor holds one stair cell per lane; count it once.
+    let flights = layout
+        .stairs
+        .iter()
+        .filter(|(cell, up)| {
+            let across = up.next().delta();
+            let before = [cell[0] - across[0], cell[1] - across[1]];
+            layout.stair(before) != Some(**up)
+        })
+        .count();
+    if flights > 0 {
+        text.push_str(&count(
+            usize::from(layout.highest_level()) + 1,
+            "level",
+            "levels",
+        ));
+        text.push_str(&count(flights, "flight of stairs", "flights of stairs"));
     }
     text
 }

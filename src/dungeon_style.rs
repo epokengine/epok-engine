@@ -774,6 +774,10 @@ pub fn frame(spot: &Spot, grid: &crate::dungeon_bake::Frame) -> crate::transform
         }
         _ => (center, [0., 1.]),
     };
+    // Every spot stands on its floor level; a ceiling hangs over its cell's highest
+    // floor point, which `spot.level` already names.
+    let mut origin = origin;
+    origin[1] += f32::from(spot.level) * crate::dungeon::LEVEL_HEIGHT;
     // Right-handed: X = Y × Z.
     let z = [forward[0], 0., forward[1]];
     let xaxis = [z[2], 0., -z[0]];

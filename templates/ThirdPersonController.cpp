@@ -124,6 +124,7 @@ void ThirdPersonController::update(Transform& transform,Fixed dt){
     const Fixed fall=grounded&&!jumped?stick_to_ground:velocity[1]*dt;
     const Fixed movement[3]={velocity[0]*dt,fall,velocity[2]*dt};
     const Fixed before[3]={transform.position[0],transform.position[1],transform.position[2]};
+    const bool was_grounded=grounded;
     const auto result=move_and_slide(*body,movement);
     grounded=result.grounded;
     if(velocity[1]>Fixed(0.0)&&result.displacement[1]+Fixed(0.001)<fall)velocity[1]=0.0;
@@ -137,6 +138,14 @@ void ThirdPersonController::update(Transform& transform,Fixed dt){
             move_and_slide(*body,remaining);
             const Fixed settle[3]={0.0,-lifted.displacement[1]+stick_to_ground,0.0};
             grounded=move_and_slide(*body,settle).grounded;
+        }
+    }else if(was_grounded&&!grounded&&!jumped){
+        // Down a step or a flight of stairs: put the feet back on the floor below
+        // instead of falling for a frame and landing again on every step.
+        const auto below=query_ground(*body,step_height);
+        if(below){
+            const Fixed drop[3]={0.0,-(step_height*below.fraction)+stick_to_ground,0.0};
+            grounded=move_and_slide(*body,drop).grounded;
         }
     }
 

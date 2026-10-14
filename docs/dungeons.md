@@ -194,13 +194,41 @@ offer shortcuts back.
 | Key and lock | A key in a room of some paths and the locked door it opens, on a link into a room of other paths | Key in, lock on |
 | One-way doors | Links that lead back at least two rooms along the route open from the far side only | Chance |
 | Caves | Rooms of some paths become organic caves that fill their slot | Paths, rock, smoothing |
+| Levels | Rooms on different floor levels: each link climbs or drops one level with the climb chance, between the spawn's level and the highest level, and its corridor gets a flight of stairs | Climb chance, highest level |
 | Rooms | How much of its slot each room fills, whether corners are cut, and the corridor width | Fill, cut corners, corridor width |
 
 A recipe has one Lattice, one Main path and one Rooms step; Branch, Items, Key and
 lock and Caves steps can repeat, and each step can only name paths that earlier steps
 grow. The built-in recipe is a 6 × 5 lattice with a main path of 6–9 rooms, two dead-end
 cave branches with treasure, a loop, a key on a branch for a lock on the main path,
-one-way shortcuts and rooms with cut corners.
+one-way shortcuts, rooms on up to three floor levels and rooms with cut corners.
+
+### Levels and stairs
+
+With a **Levels** step, rooms stand on different floors. The spawn room is level 0;
+growing outwards from it, each link climbs or drops one level with the step's chance,
+never below 0 or above the highest level. A level is 1.6 units, and a flight of stairs
+climbs it in four steps of 0.4 inside one corridor cell: below the 0.6 the Third Person
+character steps up and the 0.4 navigation climbs. Flights stand only on straight
+stretches of corridor, never at a door or next to a bend, so every room is flat and
+every door opens onto level floor; a link whose corridor has no room for its flights
+stays level, and a dungeon whose levels cannot all be joined stays flat.
+
+![A flight of stairs on the console: the corridor from the spawn room climbs to the next room](images/dungeon-stairs-ingame.png)
+
+Everything follows the floor: walls reach from each cell's floor to the ceiling over
+its highest point, ceilings step up with the floor, and every piece of the style stands
+on its own level. Collision is solid but for the air over each walkable cell: floors
+fill down to the bottom, each flight is a box per step, and walls and ceilings reach up
+to the top, so no wall or ceiling top is a floor for the character or for navigation.
+The recipe editor shows each room's level in the corner of its slot (an arrow and the
+level) and in its tooltip; the band's summary counts levels and flights.
+
+Levels belong to recipe layouts in 3D. A 2D dungeon keeps its rooms on one plane, and
+rooms-and-corridors layouts have no Levels step. The Third Person controllers keep their
+feet on each step going down; a character of your own needs the same: when it was on
+the ground last tick and is not any more, probe the ground below (the Collision
+library's `ground`) and move down onto it.
 
 ### Always solvable
 

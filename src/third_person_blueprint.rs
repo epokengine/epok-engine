@@ -47,6 +47,7 @@ mod op {
     pub const STICK_INTENT: &str = "5b0a28df-53d9-40e4-b7ca-c5381f473771";
     pub const INPUT_AXIS: &str = "c1100ee5-d446-4f34-a65f-4f05dfce1f5c";
     pub const COLLISION_MOVE: &str = "da298163-8f45-4b47-81c9-e2e70c89a566";
+    pub const COLLISION_GROUND: &str = "0d1768e0-c044-4fb4-953e-d2a3a9a44a85";
     pub const RAYCAST_SEGMENT: &str = "acebf3f3-9592-481f-820e-99e44b834f5d";
     pub const SET_CAMERA: &str = "e36ec48c-b2fe-49a2-8935-894d346882f7";
     pub const PLAY_CLIP: &str = "047cbafb-5024-44d8-92a3-4939b31de81d";
@@ -521,6 +522,7 @@ pub fn asset() -> BlueprintAsset {
         orbit_camera(),
         move_body(),
         step_over(),
+        stick_down(),
         animate(),
         choose_state(),
         clip_for(),
@@ -694,6 +696,7 @@ fn move_body() -> Built {
     let jumping = b.binary("jumping", BinaryOp::And, out(&grounded), out(&pressed));
     let jumped = b.call("jumped", "hold_flag", &[("value", out(&jumping))]);
     let airborne = b.invert("airborne", out(&jumped));
+    let was_grounded = b.call("was_grounded", "hold_flag", &[("value", out(&grounded))]);
 
     let before_x = b.component("before_x_read", out(&position), 0);
     let before_x = b.call("before_x", "hold", &[("value", out(&before_x))]);
@@ -983,6 +986,7 @@ fn move_body() -> Built {
     b.chain(&[
         entry.clone(),
         jumped.clone(),
+        was_grounded.clone(),
         before_x.clone(),
         before_z.clone(),
         digital_x,
@@ -1040,8 +1044,29 @@ fn move_body() -> Built {
     b.exec(&step_branch, "true", &land);
     b.exec(&land, "next", &step);
     b.lane(3, 4);
+    // Down a step or a flight of stairs the feet are put back on the floor below.
+    let lifted_off = b.invert("lifted_off", member(&moved, "grounded"));
+    let left_ground = b.binary(
+        "left_ground",
+        BinaryOp::And,
+        out(&was_grounded),
+        out(&lifted_off),
+    );
+    let stepping_down = b.binary(
+        "stepping_down",
+        BinaryOp::And,
+        out(&left_ground),
+        out(&airborne),
+    );
+    let down_branch = b.branch("down_branch", out(&stepping_down));
+    b.exec(&step_branch, "false", &down_branch);
     let stay = b.assign("stay", "grounded", member(&moved, "grounded"));
-    b.exec(&step_branch, "false", &stay);
+    b.exec(&down_branch, "false", &stay);
+    b.lane(3, 5);
+    let lifted = b.assign("lifted", "grounded", member(&moved, "grounded"));
+    let stick = b.call("stick", "stick_down", &[]);
+    b.exec(&down_branch, "true", &lifted);
+    b.exec(&lifted, "next", &stick);
 
     b.lane(4, 1);
     let rotation = rotation(&mut b, &owner);
@@ -1150,6 +1175,44 @@ fn step_over() -> Built {
         ],
         Type::Void,
     )
+}
+
+fn stick_down() -> Built {
+    let mut b = Build::new("stick_down");
+    let entry = b.place("entry", NodeKind::Entry, 0, 0);
+    b.note(
+        &entry,
+        "Down a step or a flight of stairs: put the feet back on the floor below \
+         instead of falling for a frame and landing again on every step.",
+    );
+    b.lane(1, 0);
+    let owner = owner(&mut b);
+    let below = b.perform(
+        "below",
+        op::COLLISION_GROUND,
+        &[out(&owner), fixed(STEP_HEIGHT), count(MASK)],
+    );
+    let found = b.branch("found", member(&below, "hit"));
+    b.chain(&[entry, below.clone(), found.clone()]);
+    b.lane(2, 1);
+    let depth = b.binary(
+        "depth",
+        BinaryOp::Multiply,
+        fixed(-STEP_HEIGHT),
+        member(&below, "fraction"),
+    );
+    // The ground bias reaches the floor, so the move reports the contact.
+    let reach = b.binary("reach", BinaryOp::Add, out(&depth), fixed(GROUND_BIAS));
+    let down = b.library("down", op::VECTOR3, &[fixed(0.0), out(&reach), fixed(0.0)]);
+    let drop = b.perform(
+        "drop",
+        op::COLLISION_MOVE,
+        &[out(&owner), out(&down), count(MASK)],
+    );
+    let land = b.assign("land", "grounded", member(&drop, "grounded"));
+    b.exec(&found, "true", &drop);
+    b.chain(&[drop, land]);
+    b.finish("stick_down", vec![], Type::Void)
 }
 
 fn animate() -> Built {

@@ -59,8 +59,12 @@ All three implement the same contract, with the same tuning:
 | 5.4 / 1.1 | Camera boom length and height |
 | 24.0 / 9.0 | Gravity and jump speed |
 | -0.05 | Downward bias while grounded |
-| 0.6 | Step height |
+| 0.6 | Step height: climbed when blocked, and the drop it follows down without falling |
 | 12.0 / 3.0 | Ground and air acceleration response |
+
+Walking off a step or down a flight of stairs, the character probes the ground below
+(at most the step height) and puts its feet on it, so it walks down without falling and
+landing again on every step.
 
 Every one of those numbers is exactly representable in the engine's Q12 fixed point, so
 the three flavors reach identical raw values rather than merely similar ones. The shared

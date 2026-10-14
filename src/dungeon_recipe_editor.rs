@@ -45,8 +45,12 @@ pub struct Window {
     /// Regenerate the map's dungeons that follow this recipe after each edit.
     pub live: bool,
     /// The preview for (recipe, seed), kept until either changes.
-    preview: Option<(Recipe, u32, Result<Graph, String>)>,
+    preview: Option<Preview>,
 }
+
+/// A recipe and seed, the graph they grow, and each node's floor level when the recipe
+/// has levels.
+type Preview = (Recipe, u32, Result<Graph, String>, Vec<u8>);
 impl Window {
     fn new(asset: Uuid, recipe: Recipe, seed: u32) -> Self {
         Self {
@@ -74,12 +78,30 @@ impl Window {
         let fresh = self
             .preview
             .as_ref()
-            .is_some_and(|(r, s, _)| *r == self.recipe && *s == self.seed);
+            .is_some_and(|(r, s, _, _)| *r == self.recipe && *s == self.seed);
         if !fresh {
             let graph = dungeon_recipe::graph(&self.recipe, self.seed);
-            self.preview = Some((self.recipe.clone(), self.seed, graph));
+            // Levels belong to the laid-out rooms: room i is the i-th node with a room.
+            let mut levels = Vec::new();
+            if let (Ok(graph), Some(_)) = (&graph, self.recipe.levels())
+                && let Ok(layout) = dungeon_recipe::layout(&self.recipe, self.seed)
+            {
+                levels = vec![0; graph.path.len()];
+                let nodes = (0..graph.path.len()).filter(|n| graph.active(*n));
+                for (node, room) in nodes.zip(&layout.rooms) {
+                    levels[node] = layout.level(room.center());
+                }
+            }
+            self.preview = Some((self.recipe.clone(), self.seed, graph, levels));
         }
         &self.preview.as_ref().expect("just computed").2
+    }
+    /// Each node's floor level in the current preview; empty without levels.
+    fn levels(&self) -> Vec<u8> {
+        self.preview
+            .as_ref()
+            .map(|p| p.3.clone())
+            .unwrap_or_default()
     }
 }
 
@@ -347,6 +369,7 @@ fn step_icon(step: &Step) -> &'static str {
         Step::KeyLock { .. } => "\u{f084}",
         Step::OneWay { .. } => "\u{f338}",
         Step::Caves { .. } => "\u{f6fc}",
+        Step::Levels { .. } => "\u{f5c3}",
         Step::Rooms { .. } => "\u{f5cb}",
     }
 }
@@ -407,6 +430,9 @@ pub fn step_summary(step: &Step) -> String {
             lock_paths,
         } => format!("key in {}, lock on {}", list(key_paths), list(lock_paths)),
         Step::OneWay { chance } => format!("{chance}% of links back towards the spawn"),
+        Step::Levels { chance, highest } => {
+            format!("{chance}% of links climb or drop a level, up to level {highest}")
+        }
         Step::Caves {
             paths,
             density,
@@ -809,6 +835,33 @@ fn details(ui: &Ui, w: &mut Window) {
                 ui.tooltip_text("Chance for each link that leads back towards the spawn to open from the far side only, as a shortcut home.");
             }
         }
+        Step::Levels { chance, highest } => {
+            let mut v = i32::from(*chance);
+            if ui
+                .slider_config(crate::gui::field(ui, "Climb chance"), 0, 100)
+                .display_format("%d %%")
+                .build(&mut v)
+            {
+                *chance = v.clamp(0, 100) as u8;
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Chance for each link to climb or drop one floor level. Its corridor gets a flight of stairs; links whose corridor has no straight stretch for one stay level.");
+            }
+            let mut v = i32::from(*highest);
+            if ui
+                .slider_config(crate::gui::field(ui, "Highest level"), 1, 4)
+                .build(&mut v)
+            {
+                *highest = v.clamp(1, 4) as u8;
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text(format!(
+                    "Rooms stay between the spawn's level and this one. Each level is {:.1} units: four steps of {:.1}.",
+                    crate::dungeon::LEVEL_HEIGHT,
+                    crate::dungeon::STEP_RISE
+                ));
+            }
+        }
         Step::Caves {
             paths,
             density,
@@ -964,6 +1017,7 @@ fn graph_view(ui: &Ui, w: &mut Window) {
             .build();
     }
     let room = slot * 0.27;
+    let levels = w.levels();
     // Cave rooms are drawn round.
     let caves = w.recipe.caves();
     for link in &graph.links {
@@ -1045,6 +1099,22 @@ fn graph_view(ui: &Ui, w: &mut Window) {
                 text,
             );
         }
+        // Rooms above the spawn's floor carry their level in the corner.
+        let level = levels.get(node).copied().unwrap_or(0);
+        if level > 0 {
+            let text = format!("\u{f062}{level}");
+            let size = ui.calc_text_size(&text);
+            let at = [c[0] + room - size[0] - 3., c[1] - room + 1.];
+            draw.add_rect(
+                [at[0] - 2., at[1]],
+                [at[0] + size[0] + 2., at[1] + size[1]],
+                [0.08, 0.08, 0.1, 0.85],
+            )
+            .filled(true)
+            .rounding(3.)
+            .build();
+            draw.add_text(at, [0.95, 0.96, 0.98, 1.], &text);
+        }
         // Items and keys as dots along the room's bottom edge.
         let items: Vec<_> = graph.items.iter().filter(|i| i.node == node).collect();
         for (k, item) in items.iter().enumerate() {
@@ -1070,6 +1140,12 @@ fn graph_view(ui: &Ui, w: &mut Window) {
             }
             if node == graph.goal {
                 text.push_str("\nGoal");
+            }
+            if let Some(level) = levels.get(node).filter(|l| **l > 0) {
+                text.push_str(&format!(
+                    "\nLevel {level}: {:.1} units above the spawn",
+                    f32::from(*level) * crate::dungeon::LEVEL_HEIGHT
+                ));
             }
             for item in &items {
                 if item.lock > 0 {

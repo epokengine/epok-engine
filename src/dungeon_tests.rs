@@ -768,7 +768,8 @@ fn recipe_markers_turn_with_their_doors_in_2d() {
 }
 
 /// The console clamps UVs, so every face of the built-in look maps its texture once;
-/// the ceiling closes exactly the floor, with collision above it.
+/// the ceiling closes exactly the floor, over each cell's highest floor point, with
+/// collision above it.
 #[test]
 fn textures_cover_each_face_once_and_the_ceiling_closes_the_floor() {
     let style = crate::dungeon_style::builtin(false, None);
@@ -793,9 +794,20 @@ fn textures_cover_each_face_once_and_the_ceiling_closes_the_floor() {
                         "uv {uv:?} outside 0..1"
                     );
                 }
-                if face.group == group("Ceilings") {
-                    let y = d.vertices[face.vertices[0] as usize][1];
-                    assert!((y - g.wall_height).abs() < 1e-4);
+                let ys: Vec<f32> = face
+                    .vertices
+                    .iter()
+                    .map(|v| d.vertices[*v as usize][1] + section.origin[1])
+                    .collect();
+                let flat = ys.iter().all(|y| (y - ys[0]).abs() < 1e-4);
+                if face.group == group("Ceilings") && flat {
+                    // A whole number of levels above the wall height.
+                    let levels = (ys[0] - g.wall_height) / crate::dungeon::LEVEL_HEIGHT;
+                    assert!(
+                        (levels - levels.round()).abs() < 1e-3,
+                        "ceiling at {}",
+                        ys[0]
+                    );
                     ceilings += 1;
                 }
             }
@@ -804,7 +816,10 @@ fn textures_cover_each_face_once_and_the_ceiling_closes_the_floor() {
         let above = plan
             .boxes
             .iter()
-            .filter(|b| (b[1] - g.wall_height).abs() < 1e-4)
+            .filter(|b| {
+                let levels = (b[1] - g.wall_height) / crate::dungeon::LEVEL_HEIGHT;
+                levels > -1e-3 && (levels - levels.round()).abs() < 1e-3
+            })
             .count();
         assert_eq!(above > 0, ceiling);
     }
@@ -1116,4 +1131,88 @@ fn dungeon_visual_fixture() {
     scene.dungeons.push(generator);
     scene.refresh_actor_hierarchy();
     scene.save(&path).unwrap();
+}
+
+/// Levels bake into steps the character climbs: each flight is four boxes rising a
+/// step each, floors fill down to the bottom and ceilings up to the top, the spawn
+/// stands on its floor, and navigation joins floors on different levels.
+#[test]
+fn levels_bake_climbable_stairs_and_navigation() {
+    let (parent, root) = project("levels");
+    let (mut scene, id) = scene_3d(1207);
+    scene.dungeons[0].source = crate::dungeon::Source::Recipe;
+    dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
+    let g = scene.dungeons[0].clone();
+    let layout = crate::dungeon::layout(&g, &Default::default()).unwrap();
+    assert!(!layout.stairs.is_empty(), "the built-in recipe climbs");
+    let collider = scene
+        .actors
+        .iter()
+        .find_map(|a| a.collider.as_ref().filter(|c| !c.boxes.is_empty()))
+        .expect("compound collider");
+    let frame = dungeon_bake::Frame {
+        size: layout.size,
+        cell: g.cell_size,
+        height: g.wall_height,
+    };
+    let rise = crate::dungeon::STEP_RISE;
+    for &cell in layout.stairs.keys() {
+        let c = frame.center(cell);
+        let floor = layout.floor(cell);
+        // The boxes standing in this stair cell: one per step, a step apart.
+        let mut tops: Vec<f32> = collider
+            .boxes
+            .iter()
+            .map(|b| {
+                let centre: [f32; 3] = std::array::from_fn(|k| (b[k] + b[k + 3]) * 0.5);
+                let half: [f32; 3] = std::array::from_fn(|k| (b[k + 3] - b[k]).abs() * 0.5);
+                (centre, half)
+            })
+            .filter(|(centre, half)| {
+                (centre[0] - c[0]).abs() < g.cell_size * 0.5
+                    && (centre[2] - c[2]).abs() < g.cell_size * 0.5
+                    && half[0] < g.cell_size * 0.51
+                    && half[2] < g.cell_size * 0.51
+                    && centre[1] + half[1] < floor + rise * 4.5
+            })
+            .map(|(centre, half)| centre[1] + half[1])
+            .collect();
+        tops.sort_by(f32::total_cmp);
+        let expected: Vec<f32> = (1..=4).map(|i| floor + rise * i as f32).collect();
+        assert_eq!(tops.len(), 4, "{cell:?}: {tops:?}");
+        for (top, want) in tops.iter().zip(&expected) {
+            assert!((top - want).abs() < 0.01, "{cell:?}: {tops:?}");
+        }
+    }
+    // The spawn room's floor is where the spawn marker stands.
+    let spawn = scene.actors.iter().find(|a| a.name == "Spawn").unwrap();
+    let spawn_cell = layout.rooms[layout.spawn].center();
+    assert!((spawn.position[1] - layout.floor(spawn_cell)).abs() < 1e-4);
+    // Navigation reaches from the lowest floor to a higher one through the stairs.
+    let bake = crate::navigation::bake(&scene).unwrap();
+    let height = |n: usize| f32::from(bake.nodes[n].position[1]) / 256.;
+    let start = (0..bake.nodes.len())
+        .min_by(|a, b| height(*a).total_cmp(&height(*b)))
+        .unwrap();
+    let mut seen = vec![false; bake.nodes.len()];
+    let mut queue = std::collections::VecDeque::from([start]);
+    seen[start] = true;
+    while let Some(n) = queue.pop_front() {
+        for &link in &bake.nodes[n].links {
+            let link = usize::from(link);
+            if link < seen.len() && !seen[link] {
+                seen[link] = true;
+                queue.push_back(link);
+            }
+        }
+    }
+    let reached = (0..seen.len())
+        .filter(|n| seen[*n])
+        .map(height)
+        .fold(f32::MIN, f32::max);
+    assert!(
+        reached >= crate::dungeon::LEVEL_HEIGHT - 0.1,
+        "navigation from the lowest floor only reaches {reached}"
+    );
+    std::fs::remove_dir_all(parent).unwrap();
 }

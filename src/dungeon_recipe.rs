@@ -70,6 +70,10 @@ pub enum Step {
         density: u8,
         smoothing: u8,
     },
+    /// Rooms climb and drop between floor levels: each link changes level by one with
+    /// `chance` percent, between level 0 (the spawn's) and `highest`, and its corridor
+    /// gets one stair row per level it climbs.
+    Levels { chance: u8, highest: u8 },
     /// How rooms fill their lattice cells, whether their corners are cut, and the
     /// corridor width.
     Rooms {
@@ -111,6 +115,7 @@ impl Step {
             Step::KeyLock { .. } => "Key and lock",
             Step::OneWay { .. } => "One-way doors",
             Step::Caves { .. } => "Caves",
+            Step::Levels { .. } => "Levels",
             Step::Rooms { .. } => "Rooms",
         }
     }
@@ -127,6 +132,9 @@ impl Step {
             Step::KeyLock { .. } => "A key and the door it opens, always solvable.",
             Step::OneWay { .. } => "Shortcuts back towards the spawn that open from one side only.",
             Step::Caves { .. } => "Rooms of some paths become organic caves instead of rectangles.",
+            Step::Levels { .. } => {
+                "Rooms on different floor levels, joined by stairs in their corridors."
+            }
             Step::Rooms { .. } => {
                 "How much of its lattice cell each room fills, and corridor width."
             }
@@ -163,6 +171,10 @@ impl Step {
                 paths: vec![MAIN.into()],
                 density: 45,
                 smoothing: 3,
+            },
+            Step::Levels {
+                chance: 40,
+                highest: 2,
             },
             Step::Rooms {
                 fill: [60, 100],
@@ -230,6 +242,10 @@ pub fn builtin() -> Recipe {
                 paths: vec!["branch".into()],
                 density: 42,
                 smoothing: 3,
+            },
+            Step::Levels {
+                chance: 45,
+                highest: 2,
             },
             Step::Rooms {
                 fill: [60, 100],
@@ -380,6 +396,14 @@ impl Recipe {
                         return Err(at("Smoothing is 1-8 passes".into()));
                     }
                 }
+                Step::Levels { chance, highest } => {
+                    if *chance > 100 {
+                        return Err(at("Chance is a percentage, 0-100".into()));
+                    }
+                    if !(1..=4).contains(highest) {
+                        return Err(at("Highest level is 1-4".into()));
+                    }
+                }
                 Step::Rooms {
                     fill,
                     corridor_width,
@@ -427,6 +451,13 @@ impl Recipe {
                 _ => None,
             })
             .unwrap_or(([55, 90], 1, false))
+    }
+    /// The Levels step's chance and highest level, if the recipe has one.
+    pub fn levels(&self) -> Option<(u8, u8)> {
+        self.steps.iter().rev().find_map(|s| match s {
+            Step::Levels { chance, highest } => Some((*chance, *highest)),
+            _ => None,
+        })
     }
     /// Path names in recipe order: the main path, then each branch step's paths.
     pub fn path_names(&self) -> Vec<String> {
@@ -745,7 +776,10 @@ fn grow(recipe: &Recipe, random: &mut Random) -> Result<Graph, String> {
     for (index, step) in recipe.steps.iter().enumerate() {
         let fail = |message: &str| format!("Step {} ({}): {message}", index + 1, step.label());
         match step {
-            Step::Lattice { .. } | Step::Rooms { .. } | Step::Caves { .. } => {}
+            Step::Lattice { .. }
+            | Step::Rooms { .. }
+            | Step::Caves { .. }
+            | Step::Levels { .. } => {}
             Step::MainPath { length } => {
                 let length = random.range(i32::from(length[0]), i32::from(length[1])) as usize;
                 if length > count {
@@ -960,9 +994,18 @@ pub fn min_cell(width: u16) -> u16 {
     2 * margin(i32::from(width)) as u16 + 3
 }
 
+/// One cross-section of a corridor, in order from its first room to its second: the
+/// cells across it, and whether a flight of stairs may climb through it along the
+/// corridor's axis (straight stretches only, never at a door or next to a bend).
+#[derive(Clone, Debug)]
+struct Slice {
+    cells: Vec<[i32; 2]>,
+    stairs: bool,
+}
+
 /// Carves the corridor between `a` and the room after it along `axis` (0: east, 1:
 /// south), jogging inside the gap that starts at `gap`. Returns the door cells on each
-/// room's side.
+/// room's side and the corridor's cross-sections from `a` to `b`.
 #[allow(clippy::too_many_arguments)]
 fn corridor(
     cells: &mut [Cell],
@@ -973,7 +1016,7 @@ fn corridor(
     gap: i32,
     width: i32,
     random: &mut Random,
-) -> [Vec<GuardedDoor>; 2] {
+) -> ([Vec<GuardedDoor>; 2], Vec<Slice>) {
     let across = 1 - axis;
     let at = |along: i32, side: i32| -> [i32; 2] {
         let mut p = [0; 2];
@@ -999,6 +1042,34 @@ fn corridor(
     let a_end = a.min[axis] + a.size[axis];
     let b_start = b.min[axis];
     let jog = gap + random.range(1, 2 * margin(width) - width - 1);
+    let row = |along: i32, side: i32, stairs: bool| Slice {
+        cells: (0..width).map(|k| at(along, side + k)).collect(),
+        stairs,
+    };
+    let mut slices = Vec::new();
+    if ya == yb {
+        for along in a_end..b_start {
+            slices.push(row(along, ya, along > a_end && along < b_start - 1));
+        }
+    } else {
+        for along in a_end..jog + width {
+            slices.push(row(along, ya, along > a_end && along < jog - 1));
+        }
+        let sides: Vec<i32> = if ya < yb {
+            (ya + width..yb).collect()
+        } else {
+            (yb + width..ya).rev().collect()
+        };
+        for side in sides {
+            slices.push(Slice {
+                cells: (0..width).map(|k| at(jog + k, side)).collect(),
+                stairs: false,
+            });
+        }
+        for along in jog..b_start {
+            slices.push(row(along, yb, along > jog + width && along < b_start - 1));
+        }
+    }
     for k in 0..width {
         if ya == yb {
             for along in a_end..b_start {
@@ -1030,7 +1101,140 @@ fn corridor(
             })
             .collect()
     };
-    [doors(a_end - 1, ya, out), doors(b_start, yb, back)]
+    (
+        [doors(a_end - 1, ya, out), doors(b_start, yb, back)],
+        slices,
+    )
+}
+
+/// A link's corridor as the level step sees it: its rooms in corridor order and the
+/// direction its slices run in.
+struct Passage {
+    first: usize,
+    second: usize,
+    axis: usize,
+    slices: Vec<Slice>,
+}
+impl Passage {
+    fn capacity(&self) -> i32 {
+        self.slices.iter().filter(|s| s.stairs).count() as i32
+    }
+}
+
+/// Floor levels for every node and the cells of their rooms and corridors. Levels grow
+/// from the spawn (level 0) over the graph's links: each link climbs or drops one level
+/// with `chance` percent, staying within `0..=highest` and within the stairs its
+/// corridor has room for. A link that cannot keep within its corridor flattens the
+/// whole dungeon rather than leaving a step nobody can climb.
+#[allow(clippy::type_complexity)]
+fn levels(
+    graph: &Graph,
+    passages: &[Passage],
+    room_of: &[usize],
+    cells: &[Cell],
+    size: [i32; 2],
+    (chance, highest): (u8, u8),
+    random: &mut Random,
+) -> (BTreeMap<[i32; 2], u8>, BTreeMap<[i32; 2], Side>) {
+    let count = graph.path.len();
+    let mut level: Vec<Option<i32>> = vec![None; count];
+    let mut adjacency: Vec<Vec<(usize, i32)>> = vec![Vec::new(); count];
+    for p in passages {
+        adjacency[p.first].push((p.second, p.capacity()));
+        adjacency[p.second].push((p.first, p.capacity()));
+    }
+    level[graph.spawn] = Some(0);
+    let mut queue = std::collections::VecDeque::from([graph.spawn]);
+    while let Some(node) = queue.pop_front() {
+        let here = level[node].unwrap_or(0);
+        for &(next, _) in &adjacency[node] {
+            if level[next].is_some() {
+                continue;
+            }
+            // Every assigned neighbour bounds the level by its corridor's stairs.
+            let (mut lo, mut hi) = (0, i32::from(highest));
+            for &(other, capacity) in &adjacency[next] {
+                if let Some(l) = level[other] {
+                    lo = lo.max(l - capacity);
+                    hi = hi.min(l + capacity);
+                }
+            }
+            let mut wanted = here;
+            if random.chance(u32::from(chance)) {
+                let step = if random.chance(50) { 1 } else { -1 };
+                wanted = if (lo..=hi).contains(&(here + step)) {
+                    here + step
+                } else {
+                    here - step
+                };
+            }
+            level[next] = Some(if lo > hi { here } else { wanted.clamp(lo, hi) });
+            queue.push_back(next);
+        }
+    }
+    let at = |p: [i32; 2]| cells[(p[1] * size[0] + p[0]) as usize];
+    let fits = passages.iter().all(|p| {
+        let difference = level[p.second].unwrap_or(0) - level[p.first].unwrap_or(0);
+        difference.abs() <= p.capacity()
+    });
+    let mut levels = BTreeMap::new();
+    let mut stairs = BTreeMap::new();
+    if !fits || level.iter().all(|l| l.unwrap_or(0) == 0) {
+        return (levels, stairs);
+    }
+    for (index, cell) in cells.iter().enumerate() {
+        if let Cell::Room(r) = cell {
+            let node = room_of.iter().position(|&room| room == usize::from(*r));
+            let l = node.and_then(|n| level[n]).unwrap_or(0);
+            if l > 0 {
+                let p = [index as i32 % size[0], index as i32 / size[0]];
+                levels.insert(p, l as u8);
+            }
+        }
+    }
+    for p in passages {
+        let (from, to) = (level[p.first].unwrap_or(0), level[p.second].unwrap_or(0));
+        let climb = to - from;
+        let eligible: Vec<usize> = (0..p.slices.len())
+            .filter(|i| p.slices[*i].stairs)
+            .collect();
+        // Flights spread evenly along the corridor's straight stretches.
+        let n = climb.unsigned_abs() as usize;
+        let flights: BTreeSet<usize> = (0..n)
+            .map(|i| eligible[(2 * i + 1) * eligible.len() / (2 * n)])
+            .collect();
+        let toward = match (p.axis, climb > 0) {
+            (0, true) => Side::East,
+            (0, false) => Side::West,
+            (_, true) => Side::South,
+            (_, false) => Side::North,
+        };
+        let mut current = from;
+        let mut seen = BTreeSet::new();
+        for (index, slice) in p.slices.iter().enumerate() {
+            let flight = flights.contains(&index);
+            let low = if flight {
+                current.min(current + climb.signum())
+            } else {
+                current
+            };
+            for &cell in &slice.cells {
+                if at(cell) != Cell::Corridor || !seen.insert(cell) {
+                    continue;
+                }
+                if low > 0 {
+                    levels.insert(cell, low as u8);
+                }
+                if flight {
+                    stairs.insert(cell, toward);
+                }
+            }
+            if flight {
+                current += climb.signum();
+            }
+        }
+    }
+    (levels, stairs)
 }
 
 /// Lays the graph out on the grid: one room per node inside its lattice cell, a
@@ -1082,8 +1286,9 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
             }
         }
     }
-    // Each link's door cells, keyed by its two nodes.
+    // Each link's door cells, keyed by its two nodes, and its corridor.
     let mut doors: Vec<[Vec<GuardedDoor>; 2]> = Vec::new();
+    let mut passages: Vec<Passage> = Vec::new();
     for link in &graph.links {
         let (pa, pb) = (graph.point(link.a), graph.point(link.b));
         let axis = usize::from(pa[0] == pb[0]);
@@ -1093,7 +1298,7 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
             (link.b, link.a)
         };
         let gap = 1 + (graph.point(second)[axis]) * span - margin;
-        let [d1, d2] = corridor(
+        let ([d1, d2], slices) = corridor(
             &mut cells,
             size,
             &rooms[room_of[first]],
@@ -1104,6 +1309,12 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
             &mut random,
         );
         doors.push(if first == link.a { [d1, d2] } else { [d2, d1] });
+        passages.push(Passage {
+            first,
+            second,
+            axis,
+            slices,
+        });
     }
     let mut locks = Vec::new();
     let mut one_ways = Vec::new();
@@ -1219,6 +1430,18 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
         })
         .collect();
     let loops = (links.len() + 1).saturating_sub(rooms.len());
+    let (levels, stairs) = match recipe.levels() {
+        Some(settings) => levels(
+            &graph,
+            &passages,
+            &room_of,
+            &cells,
+            size,
+            settings,
+            &mut Random::stream(seed, STAGE_RECIPE + ATTEMPTS + 2),
+        ),
+        None => (BTreeMap::new(), BTreeMap::new()),
+    };
     let room_paths = nodes
         .iter()
         .map(|n| {
@@ -1240,6 +1463,8 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
         one_ways,
         items,
         room_paths,
+        levels,
+        stairs,
     }))
 }
 
@@ -1394,6 +1619,20 @@ fn crop(mut layout: Layout) -> Layout {
     layout.locks.iter_mut().for_each(|d| shift(&mut d.cell));
     layout.one_ways.iter_mut().for_each(|d| shift(&mut d.cell));
     layout.items.iter_mut().for_each(|i| shift(&mut i.cell));
+    layout.levels = std::mem::take(&mut layout.levels)
+        .into_iter()
+        .map(|(mut p, level)| {
+            shift(&mut p);
+            (p, level)
+        })
+        .collect();
+    layout.stairs = std::mem::take(&mut layout.stairs)
+        .into_iter()
+        .map(|(mut p, side)| {
+            shift(&mut p);
+            (p, side)
+        })
+        .collect();
     layout.size = size;
     layout.cells = cells;
     layout
@@ -1460,6 +1699,73 @@ pub fn save(record: &assets::Record, recipe: &Recipe) -> Result<String, String> 
 
 #[cfg(test)]
 mod tests {
+    /// Floors meet across every open edge: a flat cell at its floor, a stair cell at its
+    /// low end on the side it climbs from and its top towards the side it climbs to.
+    /// Rooms stay flat, stairs stand in corridors, and the built-in recipe climbs.
+    #[test]
+    fn levels_meet_across_every_open_edge() {
+        let recipe = builtin();
+        let mut climbed = 0;
+        for seed in 1..=24 {
+            let layout = layout(&recipe, seed).unwrap();
+            let edge = |p: [i32; 2], side: Side| match layout.stair(p) {
+                Some(up) if up == side => layout.top(p),
+                Some(up) if up == side.opposite() => layout.floor(p),
+                _ => layout.floor(p),
+            };
+            for y in 0..layout.size[1] {
+                for x in 0..layout.size[0] {
+                    let p = [x, y];
+                    if !layout.at(p).walkable() {
+                        assert_eq!(layout.level(p), 0);
+                        assert!(layout.stair(p).is_none());
+                        continue;
+                    }
+                    if let Some(up) = layout.stair(p) {
+                        assert_eq!(
+                            layout.at(p),
+                            Cell::Corridor,
+                            "seed {seed}: stairs in a room"
+                        );
+                        // A flight runs between open cells along its axis.
+                        assert!(layout.open(p, up) && layout.open(p, up.opposite()));
+                    }
+                    for side in [Side::East, Side::South] {
+                        if !layout.open(p, side) {
+                            continue;
+                        }
+                        let d = side.delta();
+                        let q = [x + d[0], y + d[1]];
+                        // Across a flight's width its lanes climb together.
+                        let across = layout
+                            .stair(p)
+                            .is_some_and(|up| up != side && up != side.opposite());
+                        if across && layout.stair(p) == layout.stair(q) {
+                            assert_eq!(layout.level(p), layout.level(q));
+                            continue;
+                        }
+                        assert!(
+                            (edge(p, side) - edge(q, side.opposite())).abs() < 1e-4,
+                            "seed {seed}: {p:?} and {q:?} do not meet"
+                        );
+                    }
+                }
+            }
+            for (index, room) in layout.rooms.iter().enumerate() {
+                let levels: BTreeSet<u8> = (room.min[1]..room.min[1] + room.size[1])
+                    .flat_map(|y| (room.min[0]..room.min[0] + room.size[0]).map(move |x| [x, y]))
+                    .filter(|p| layout.at(*p) == Cell::Room(index as u16))
+                    .map(|p| layout.level(p))
+                    .collect();
+                assert!(levels.len() <= 1, "seed {seed}: room {index} is not flat");
+            }
+            assert_eq!(layout.level(layout.rooms[layout.spawn].center()), 0);
+            climbed += usize::from(!layout.stairs.is_empty());
+            assert!(layout.highest_level() <= 2);
+        }
+        assert!(climbed >= 12, "only {climbed} of 24 dungeons climb");
+    }
+
     use super::*;
 
     #[test]
