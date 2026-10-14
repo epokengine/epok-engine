@@ -766,7 +766,7 @@
       "stability": "Epok runtime API",
       "title": "Ordered Renderer",
       "callables": 0,
-      "types": 2,
+      "types": 0,
       "properties": 0
     },
     {
@@ -11524,42 +11524,6 @@
       "brief": "",
       "details": "",
       "namespace": "epok",
-      "owner": "",
-      "bases": []
-    },
-    {
-      "family": "epok",
-      "module": "ordered-renderer",
-      "header": "ordered_renderer.hpp",
-      "include": "#include \"ordered_renderer.hpp\"",
-      "source": "runtime/ordered_renderer.hpp",
-      "context": "the ordered renderer module",
-      "stability": "Epok runtime API",
-      "name": "OrderedPacketTarget",
-      "qualified": "OrderedPacketTarget",
-      "kind": "STRUCT_DECL",
-      "line": 73,
-      "brief": "Packet storage and the OT are read once per pass: every packet word is written through a uint32_t pointer, which would otherwise force the compiler to reload emitter fields and global counters after each store.",
-      "details": "",
-      "namespace": "",
-      "owner": "",
-      "bases": []
-    },
-    {
-      "family": "epok",
-      "module": "ordered-renderer",
-      "header": "ordered_renderer.hpp",
-      "include": "#include \"ordered_renderer.hpp\"",
-      "source": "runtime/ordered_renderer.hpp",
-      "context": "the ordered renderer module",
-      "stability": "Epok runtime API",
-      "name": "OrderedSlotRun",
-      "qualified": "OrderedSlotRun",
-      "kind": "STRUCT_DECL",
-      "line": 81,
-      "brief": "The free slot run [floor,next) held in locals during the pass: a packet bumps next down exactly as the shared allocator's fast path would.",
-      "details": "Only when the run is too short does it publish next and ask the allocator, whose slow path may move to another run. publish() precedes any other allocation (the clipped path) and the end of the pass; reload() follows.",
-      "namespace": "",
       "owner": "",
       "bases": []
     },
@@ -31769,10 +31733,10 @@
       "name": "draw",
       "qualified": "epok::dungeon::MinimapRenderer::draw",
       "kind": "FUNCTION_TEMPLATE",
-      "line": 55,
-      "signature": "template<class Active> void draw(psyqo::GPU& output,int screen_width,int screen_height,const int32_t* player,Active&& active)",
+      "line": 56,
+      "signature": "template<class Active> void draw(psyqo::GPU& output,int screen_width,int screen_height,const int32_t* player,uint32_t frame,Active&& active)",
       "result": "void",
-      "brief": "`player` is the player's world point (raw Q12), or null when there is none.",
+      "brief": "`player` is the player's world point (raw Q12), or null when there is none; `frame` counts frames for the player's blink.",
       "details": "Exploring happens whether or not the map shows.",
       "returns": "",
       "warnings": [],
@@ -31798,6 +31762,11 @@
           "description": ""
         },
         {
+          "name": "frame",
+          "type": "uint32_t",
+          "description": ""
+        },
+        {
           "name": "active",
           "type": "Active &&",
           "description": ""
@@ -31809,7 +31778,7 @@
       "const": false,
       "template": true,
       "virtual": false,
-      "example": "#include \"dungeon_minimap.hpp\"\n\n// Replace these template arguments with types or values accepted by the declaration:\n// Active\n\n// Assume these named values have been initialized with valid data:\n// psyqo::GPU & output\n// int screen_width\n// int screen_height\n// const int32_t * player\n// Active && active\n\nepok::dungeon::MinimapRenderer& object = /* obtain a valid instance */;\n\nobject.draw<Active>(output, screen_width, screen_height, player, active);",
+      "example": "#include \"dungeon_minimap.hpp\"\n\n// Replace these template arguments with types or values accepted by the declaration:\n// Active\n\n// Assume these named values have been initialized with valid data:\n// psyqo::GPU & output\n// int screen_width\n// int screen_height\n// const int32_t * player\n// uint32_t frame\n// Active && active\n\nepok::dungeon::MinimapRenderer& object = /* obtain a valid instance */;\n\nobject.draw<Active>(output, screen_width, screen_height, player, frame, active);",
       "benefits": "Template dispatch is resolved at compile time and normally adds no runtime indirection. The API maps closely to PSX GPU work, giving predictable ordering and low overhead.",
       "cautions": "Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Respect packet lifetime, ordering-table direction and per-frame GPU/VRAM budgets; submission is not a desktop immediate-mode draw call. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted."
     },
@@ -196340,7 +196309,7 @@
     }
   ],
   "totals": {
-    "types": 673,
+    "types": 671,
     "callables": 2960,
     "properties": 3452
   }

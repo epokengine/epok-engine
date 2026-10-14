@@ -2,7 +2,7 @@
 
 This reference is generated from the exact C++ headers shipped with Epok. It is the symbol-by-symbol companion to the workflow guides: use those guides to learn a system, then use this section while writing code.
 
-The [web API explorer](https://epokengine.github.io/docs/api/) presents the same snapshot like a scripting reference: browse 673 classes, structs, enums and aliases, 2960 callable overloads and 3452 public fields, constants and enum values. Every item has its own permanent page and usage snippet. The Markdown modules below remain the compact, header-oriented version for offline reading and repository reviews.
+The [web API explorer](https://epokengine.github.io/docs/api/) presents the same snapshot like a scripting reference: browse 671 classes, structs, enums and aliases, 2960 callable overloads and 3452 public fields, constants and enum values. Every item has its own permanent page and usage snippet. The Markdown modules below remain the compact, header-oriented version for offline reading and repository reviews.
 
 ## Choose the right layer
 

@@ -2,10 +2,10 @@
   "schema_version": 2,
   "initiative": "gameplay-api-parity",
   "baseline": {
-    "commit": "865af64cefdd44cfd09504927898adccbc3cd485",
-    "branch": "features/dungeon-minimap-seeds-volumes",
+    "commit": "dc4a9b21abb6aea5b6186bfd1114a38bed567c6a",
+    "branch": "features/prepare-v0.7.0",
     "catalog": "docs/api/catalog.json",
-    "catalog_sha256": "0583f121af3b09682c77d37247d7aab0c454b5254f46c5ff258dc2554bfcb9a6",
+    "catalog_sha256": "c7039117cffd3dfe2b269a87fc937d5716c7ea7e7259c97c5b48823f0dc519c0",
     "catalog_schema": 1,
     "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
     "source_hashes": {
@@ -28,7 +28,7 @@
       "runtime/debug_hud.hpp": "bd6c768da1e7b4728fbf53968671dc836feba360d7e356fa79d599faeea2c667",
       "runtime/draw_order.hpp": "2fd81c3c92f1b220dcd4558a2f7d9854802c302aac8ba5a01343453401aa8e54",
       "runtime/dungeon_map.hpp": "9c591ef71bf35a6a611e636e2ca2b1070bd6720dada4a3cbcafdc2078d134676",
-      "runtime/dungeon_minimap.hpp": "4846fb0de45b5771bd7ceb33483ae841e64833b5931a8b05e33ca7ed80ba8ba8",
+      "runtime/dungeon_minimap.hpp": "6180b74a7b22dfb07b233c02feb02b2b03d0c83193c92878fc9ce5d8178d1446",
       "runtime/dungeon_random.hpp": "64397b1994b33cc3bc0d18d3aa181a32fd5903f6d3b89cb07cd365ad78071420",
       "runtime/effect_types.hpp": "a8e1340e59ba121b46c7ef5f9d7b72bf294bcc9ceddaf4ab2ccb9e26710ed382",
       "runtime/effects.hpp": "fa2a2b49c0c3682b2f7903a27eeeb649e3b7b574cf57f48e35a10c81017e0531",
@@ -113314,8 +113314,8 @@
           "kind": "callable",
           "qualified": "epok::dungeon::MinimapRenderer::draw",
           "source": "runtime/dungeon_minimap.hpp",
-          "line": 55,
-          "signature": "template<class Active> void draw(psyqo::GPU& output,int screen_width,int screen_height,const int32_t* player,Active&& active)",
+          "line": 56,
+          "signature": "template<class Active> void draw(psyqo::GPU& output,int screen_width,int screen_height,const int32_t* player,uint32_t frame,Active&& active)",
           "result": "void",
           "parameters": [
             {
@@ -113339,6 +113339,11 @@
               "description": ""
             },
             {
+              "name": "frame",
+              "type": "uint32_t",
+              "description": ""
+            },
+            {
               "name": "active",
               "type": "Active &&",
               "description": ""
@@ -113350,10 +113355,10 @@
           "virtual": false
         }
       ],
-      "declaration_hash": "ffb461861c208a60f5b54a9cad369723afaac0cddd073db6e3eabed4c83639da",
+      "declaration_hash": "dd151cd56ad3c80ce4a5cc36a99467d4d97a931f39f26354f52b9daddde71cca",
       "disposition": "internal_implementation",
       "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
-      "canonical_public_declaration": "template<class Active> void draw(psyqo::GPU& output,int screen_width,int screen_height,const int32_t* player,Active&& active)",
+      "canonical_public_declaration": "template<class Active> void draw(psyqo::GPU& output,int screen_width,int screen_height,const int32_t* player,uint32_t frame,Active&& active)",
       "types_and_directions": {
         "parameters": [
           {
@@ -113374,6 +113379,11 @@
           {
             "name": "player",
             "type": "const int32_t *",
+            "direction": "input"
+          },
+          {
+            "name": "frame",
+            "type": "uint32_t",
             "direction": "input"
           },
           {

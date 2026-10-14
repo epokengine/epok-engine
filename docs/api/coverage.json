@@ -2,7 +2,7 @@
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
     "headers": 116,
-    "types": 513,
+    "types": 511,
     "callables": 2016,
     "properties": 2913
   },
@@ -210,7 +210,7 @@
       "callables": 1,
       "types": 1,
       "properties": 0,
-      "source_sha256": "4846fb0de45b5771bd7ceb33483ae841e64833b5931a8b05e33ca7ed80ba8ba8",
+      "source_sha256": "6180b74a7b22dfb07b233c02feb02b2b03d0c83193c92878fc9ce5d8178d1446",
       "diagnostics": []
     },
     {
@@ -598,17 +598,10 @@
       "header": "ordered_renderer.hpp",
       "slug": "ordered-renderer",
       "callables": 0,
-      "types": 2,
+      "types": 0,
       "properties": 0,
       "source_sha256": "eecdd8a7c49d4d48b810c2d2196be07b523e33ab27cd2a3b965f171ff6a310d4",
-      "diagnostics": [
-        "runtime/ordered_renderer.hpp:3:31: error: no member named 'ordered_draw_capacity' in namespace 'epok'",
-        "runtime/ordered_renderer.hpp:74:63: error: unknown type name 'PolygonEmitter'",
-        "runtime/ordered_renderer.hpp:74:90: error: member reference type 'std::nullptr_t' is not a pointer",
-        "runtime/ordered_renderer.hpp:128:5: error: unknown type name 'PolygonEmitter'",
-        "runtime/ordered_renderer.hpp:128:53: error: use of undeclared identifier 'Fixed'",
-        "runtime/ordered_renderer.hpp:128:72: error: unknown type name 'Fixed'"
-      ]
+      "diagnostics": []
     },
     {
       "family": "epok",
@@ -618,10 +611,7 @@
       "types": 1,
       "properties": 0,
       "source_sha256": "55896399091dacc0158033f7a427830abcff9498b4cd381e8f8a716aa2285a4f",
-      "diagnostics": [
-        "runtime/palette.hpp:10:20: error: use of undeclared identifier 'texture_count'",
-        "runtime/palette.hpp:10:34: error: use of undeclared identifier 'texture_count'"
-      ]
+      "diagnostics": []
     },
     {
       "family": "epok",

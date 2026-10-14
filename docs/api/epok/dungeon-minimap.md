@@ -10,23 +10,23 @@ This module covers the dungeon minimap module. It documents 1 public callable de
 
 ## Callable index
 
-- [`epok::dungeon::MinimapRenderer::draw`](#epok-dungeon-minimaprenderer-draw-1) — `player` is the player's world point (raw Q12), or null when there is none.
+- [`epok::dungeon::MinimapRenderer::draw`](#epok-dungeon-minimaprenderer-draw-1) — `player` is the player's world point (raw Q12), or null when there is none; `frame` counts frames for the player's blink.
 
 <a id="epok-dungeon-minimaprenderer-draw-1"></a>
 
 ## `epok::dungeon::MinimapRenderer::draw`
 
-**Purpose.** `player` is the player's world point (raw Q12), or null when there is none.
+**Purpose.** `player` is the player's world point (raw Q12), or null when there is none; `frame` counts frames for the player's blink.
 
 **Details.** Exploring happens whether or not the map shows.
 
 **Exact declaration**
 
 ```cpp
-template<class Active> void draw(psyqo::GPU& output,int screen_width,int screen_height,const int32_t* player,Active&& active)
+template<class Active> void draw(psyqo::GPU& output,int screen_width,int screen_height,const int32_t* player,uint32_t frame,Active&& active)
 ```
 
-- **Declared at:** [line 55](../../../runtime/dungeon_minimap.hpp#L55)
+- **Declared at:** [line 56](../../../runtime/dungeon_minimap.hpp#L56)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -37,6 +37,7 @@ template<class Active> void draw(psyqo::GPU& output,int screen_width,int screen_
 | `screen_width` | `int` | Input | Value supplied for `screen_width`. See the exact type and module contract. |
 | `screen_height` | `int` | Input | Value supplied for `screen_height`. See the exact type and module contract. |
 | `player` | `const int32_t *` | Input | Value supplied for `player`. See the exact type and module contract. |
+| `frame` | `uint32_t` | Input | Value supplied for `frame`. See the exact type and module contract. |
 | `active` | `Active &&` | Consumed or moved input | Value supplied for `active`. See the exact type and module contract. |
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -56,11 +57,12 @@ template<class Active> void draw(psyqo::GPU& output,int screen_width,int screen_
 // int screen_width
 // int screen_height
 // const int32_t * player
+// uint32_t frame
 // Active && active
 
 epok::dungeon::MinimapRenderer& object = /* obtain a valid instance */;
 
-object.draw<Active>(output, screen_width, screen_height, player, active);
+object.draw<Active>(output, screen_width, screen_height, player, frame, active);
 ```
 
 **Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection. The API maps closely to PSX GPU work, giving predictable ordering and low overhead.
