@@ -152,6 +152,90 @@ pub struct Plan3d {
     pub spawns: Vec<Spawn>,
 }
 
+/// Handmade rooms placed for one 3D generation, in the generator's space.
+#[derive(Default)]
+pub struct Rooms {
+    /// Static geometry, with the grid cell whose section draws it.
+    pub geometry: Vec<([i32; 2], crate::dungeon_room::Geometry)>,
+    /// Solid boxes for the dungeon's compound collider.
+    pub boxes: Vec<[f32; 6]>,
+    /// Lights and actors with behaviour, under the generator.
+    pub actors: Vec<Actor>,
+    /// The EditableMesh documents the geometry draws.
+    pub meshes: HashMap<Uuid, Arc<Document>>,
+    pub notes: Vec<String>,
+}
+
+/// Places every handmade room of `layout`: turned, scaled to the generator's cell size
+/// and standing on its room's level.
+pub fn rooms_3d(g: &Generator, layout: &Layout, index: &assets::Index) -> Rooms {
+    let mut out = Rooms::default();
+    let frame = Frame {
+        size: layout.size,
+        cell: g.cell_size,
+        height: g.wall_height,
+    };
+    let mut loaded: BTreeMap<Uuid, Option<crate::dungeon_room::Room>> = BTreeMap::new();
+    for (i, room) in layout.rooms.iter().enumerate() {
+        let Some(made) = layout.handmade_room(i) else {
+            continue;
+        };
+        let asset = loaded.entry(made.room).or_insert_with(|| {
+            index
+                .resolve(made.room)
+                .ok()
+                .and_then(|r| crate::dungeon_room::document(r).ok())
+        });
+        let Some(asset) = asset.as_ref() else {
+            out.notes
+                .push(format!("Dungeon Room {} is missing", made.room));
+            continue;
+        };
+        let corner = [
+            frame.x(room.min[0]),
+            layout.floor(layout.room_floor_center(i)),
+            frame.z(room.min[1]),
+        ];
+        let placement = crate::dungeon_room::placement(asset, made.turns, corner, g.cell_size);
+        let role = |id: Uuid| g.derived_id(&format!("room-{i}-{id}"));
+        let baked = crate::dungeon_room::bake(asset, placement, &role, g.root);
+        let cell_of = |p: [f32; 3]| {
+            let x = (p[0] / g.cell_size + layout.size[0] as f32 * 0.5).floor() as i32;
+            let y = (p[2] / g.cell_size + layout.size[1] as f32 * 0.5).floor() as i32;
+            [
+                x.clamp(room.min[0], room.min[0] + room.size[0] - 1),
+                y.clamp(room.min[1], room.min[1] + room.size[1] - 1),
+            ]
+        };
+        for geometry in baked.geometry {
+            let at = match &geometry {
+                crate::dungeon_room::Geometry::Mesh { asset, transform } => {
+                    if !out.meshes.contains_key(asset) {
+                        match index
+                            .resolve(*asset)
+                            .map_err(|e| e.to_string())
+                            .and_then(crate::mesh::document)
+                        {
+                            Ok(document) => {
+                                out.meshes.insert(*asset, Arc::new(document));
+                            }
+                            Err(error) => out
+                                .notes
+                                .push(format!("A Dungeon Room mesh is missing: {error}")),
+                        }
+                    }
+                    transform.point([0.; 3])
+                }
+                crate::dungeon_room::Geometry::Cube { transform, .. } => transform.point([0.; 3]),
+            };
+            out.geometry.push((cell_of(at), geometry));
+        }
+        out.boxes.extend(baked.boxes);
+        out.actors.extend(baked.actors);
+    }
+    out
+}
+
 /// How far wall faces continue below the floor.
 const WALL_SKIRT: f32 = 0.08;
 /// How far merged wall tops reach past their cells.
@@ -435,6 +519,56 @@ impl Builder {
             self.vertical_toward(a, b, [low, high], [-toward[0], -toward[1]], paint);
         }
     }
+    /// A unit cube moved by `transform` with one material: a primitive cube actor of a
+    /// handmade room. Each face is wound to look away from the cube's centre.
+    /// A cube's faces; one looking down from the floor at `floor` or below is never seen
+    /// and is left out.
+    fn cube(&mut self, transform: Matrix, material: &Material, floor: f32) {
+        let key = format!(
+            "cube-{:?}-{:?}-{}-{}",
+            material.color, material.texture, material.unlit, material.double_sided
+        );
+        let slot = self.slot(&key, "Room", material);
+        let centre = transform.point([0.; 3]);
+        for axis in 0..3 {
+            for sign in [-0.5f32, 0.5] {
+                let (u, v) = ((axis + 1) % 3, (axis + 2) % 3);
+                let corner = |a: f32, b: f32| {
+                    let mut p = [0.; 3];
+                    p[axis] = sign;
+                    p[u] = a;
+                    p[v] = b;
+                    transform.point(p)
+                };
+                let mut p = [
+                    corner(-0.5, -0.5),
+                    corner(0.5, -0.5),
+                    corner(0.5, 0.5),
+                    corner(-0.5, 0.5),
+                ];
+                let mut uv = [[0., 1.], [1., 1.], [1., 0.], [0., 0.]];
+                let d1: [f32; 3] = std::array::from_fn(|k| p[1][k] - p[0][k]);
+                let d2: [f32; 3] = std::array::from_fn(|k| p[2][k] - p[0][k]);
+                let normal = [
+                    d1[1] * d2[2] - d1[2] * d2[1],
+                    d1[2] * d2[0] - d1[0] * d2[2],
+                    d1[0] * d2[1] - d1[1] * d2[0],
+                ];
+                let mid: [f32; 3] = std::array::from_fn(|k| (p[0][k] + p[2][k]) * 0.5 - centre[k]);
+                let outward = (0..3).map(|k| normal[k] * mid[k]).sum::<f32>() >= 0.;
+                if !outward {
+                    p.reverse();
+                    uv.reverse();
+                }
+                let length = (0..3).map(|k| normal[k] * normal[k]).sum::<f32>().sqrt();
+                let down = if outward { -normal[1] } else { normal[1] };
+                if down > length * 0.999 && p.iter().all(|c| c[1] <= floor + 0.01) {
+                    continue;
+                }
+                self.face(p, uv, None, (GROUP_PIECES, slot));
+            }
+        }
+    }
     /// Every face of `source`, moved by `transform`, with its own materials.
     fn mesh(&mut self, source: &Document, asset: Uuid, transform: Matrix) {
         let m = transform.0;
@@ -498,6 +632,8 @@ struct Context<'a> {
     frame: &'a Frame,
     placements: &'a [Placement],
     meshes: &'a HashMap<Uuid, Arc<Document>>,
+    /// Handmade rooms' static geometry, by the cell whose section draws it.
+    rooms: &'a [([i32; 2], crate::dungeon_room::Geometry)],
 }
 
 /// Where a Column spot stands: the start of its cell side (the end with the smaller
@@ -845,6 +981,19 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
             _ => {}
         }
     }
+    for (cell, geometry) in cx.rooms.iter().filter(|(cell, _)| inside(*cell)) {
+        match geometry {
+            crate::dungeon_room::Geometry::Mesh { asset, transform } => {
+                if let Some(source) = cx.meshes.get(asset) {
+                    b.mesh(source, *asset, *transform);
+                }
+            }
+            crate::dungeon_room::Geometry::Cube {
+                transform,
+                material,
+            } => b.cube(*transform, material, layout.floor(*cell)),
+        }
+    }
     // Wall tops merged into rectangles that overlap their neighbours slightly so the top
     // edges cannot crack either.
     for (slot, level, cells) in tops {
@@ -913,6 +1062,7 @@ pub fn plan_3d(
     layout: &Layout,
     placements: &[Placement],
     meshes: &HashMap<Uuid, Arc<Document>>,
+    rooms: &Rooms,
 ) -> Result<Plan3d, String> {
     g.validate()?;
     if g.half_extent(layout.size) > 127. {
@@ -938,12 +1088,21 @@ pub fn plan_3d(
             .collect();
         &kept
     };
+    let mut all_meshes;
+    let meshes = if rooms.meshes.is_empty() {
+        meshes
+    } else {
+        all_meshes = meshes.clone();
+        all_meshes.extend(rooms.meshes.iter().map(|(k, v)| (*k, v.clone())));
+        &all_meshes
+    };
     let cx = Context {
         g,
         layout,
         frame: &frame,
         placements,
         meshes,
+        rooms: &rooms.geometry,
     };
     let sections = sections(&cx, g.id);
     let h = g.wall_height;
@@ -999,9 +1158,10 @@ pub fn plan_3d(
     }
     if g.ceiling {
         for level in 0..=highest {
-            for [x0, y0, x1, y1] in
-                rectangles(all, &|p| walkable(p) && layout.top_level(p) == level)
-            {
+            // A handmade room brings its own ceiling, if it wants one.
+            for [x0, y0, x1, y1] in rectangles(all, &|p| {
+                walkable(p) && !layout.handmade_cell(p) && layout.top_level(p) == level
+            }) {
                 boxes.push([
                     frame.x(x0),
                     height(level) + h,
@@ -1040,6 +1200,7 @@ pub fn plan_3d(
             }
         }
     }
+    boxes.extend(rooms.boxes.iter().copied());
     if boxes.len() > crate::collision::MAX_COMPOUND_BOXES {
         return Err(format!(
             "The dungeon needs {} collision boxes, above the {} one collider holds; use fewer or larger rooms",
@@ -1080,8 +1241,8 @@ pub fn plan_3d(
     Ok(Plan3d {
         sections,
         boxes,
-        spawn: on_floor(layout.rooms[layout.spawn].center()),
-        goal: on_floor(layout.rooms[layout.goal].center()),
+        spawn: on_floor(layout.room_floor_center(layout.spawn)),
+        goal: on_floor(layout.room_floor_center(layout.goal)),
         navigation,
         quads,
         spawns,
@@ -1980,7 +2141,11 @@ pub fn generate(
             (digest, recipe.path_names())
         }
     };
-    let layout = dungeon::layout(&g, &asset_index)?;
+    let mut layout = dungeon::layout(&g, &asset_index)?;
+    if two_d {
+        layout.without_handmade_content();
+    }
+    let layout_notes = layout.notes.clone();
     let (style, style_digest) = style_of(&asset_index, &g, two_d)?;
     let placements = dungeon_style::evaluate(&style, &layout, g.seed);
     let needs_classes = placements
@@ -1999,6 +2164,7 @@ pub fn generate(
     let mut assets_written = Vec::new();
     let mut report = Report {
         summary: dungeon::summary(&layout),
+        notes: layout_notes,
         ..Default::default()
     };
     let queries;
@@ -2158,7 +2324,15 @@ pub fn generate(
     } else {
         builtin_textures(root, &style)?;
         let meshes = piece_meshes(&asset_index, &placements)?;
-        let plan = plan_3d(&g, &layout, &placements, &meshes)?;
+        let rooms = rooms_3d(&g, &layout, &asset_index);
+        report.notes.extend(rooms.notes.iter().cloned());
+        let plan = plan_3d(&g, &layout, &placements, &meshes, &rooms)?;
+        // Lights and actors with behaviour from the handmade rooms.
+        for mut actor in rooms.actors {
+            actor.name = scene.unique_actor_name(&actor.name);
+            actor.data.name = actor.name.clone();
+            actors.push(actor);
+        }
         let frame = Frame {
             size: layout.size,
             cell: g.cell_size,

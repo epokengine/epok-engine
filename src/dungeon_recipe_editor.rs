@@ -7,6 +7,7 @@
 use crate::dungeon_recipe::{self, Graph, MAIN, Place, Recipe, Step};
 use crate::editor::Editor;
 use imgui::{MouseButton, Ui};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 const ICON: &str = "\u{f70e}";
@@ -46,11 +47,21 @@ pub struct Window {
     pub live: bool,
     /// The preview for (recipe, seed), kept until either changes.
     preview: Option<Preview>,
+    /// The project's Dungeon Rooms, by id and name, for the Handmade rooms step.
+    rooms: Vec<(Uuid, String)>,
+    /// The footprints of the rooms the recipe uses, for the preview.
+    shapes: BTreeMap<Uuid, crate::dungeon_room::Shape>,
 }
 
-/// A recipe and seed, the graph they grow, and each node's floor level when the recipe
-/// has levels.
-type Preview = (Recipe, u32, Result<Graph, String>, Vec<u8>);
+/// A recipe and seed, the graph they grow, and each node's floor level (when the recipe
+/// has levels) and handmade room (when it has handmade rooms).
+type Preview = (
+    Recipe,
+    u32,
+    Result<Graph, String>,
+    Vec<u8>,
+    Vec<Option<Uuid>>,
+);
 impl Window {
     fn new(asset: Uuid, recipe: Recipe, seed: u32) -> Self {
         Self {
@@ -64,6 +75,8 @@ impl Window {
             seed,
             live: true,
             preview: None,
+            rooms: Vec::new(),
+            shapes: BTreeMap::new(),
         }
     }
     fn checkpoint(&mut self) {
@@ -78,23 +91,35 @@ impl Window {
         let fresh = self
             .preview
             .as_ref()
-            .is_some_and(|(r, s, _, _)| *r == self.recipe && *s == self.seed);
+            .is_some_and(|(r, s, _, _, _)| *r == self.recipe && *s == self.seed);
         if !fresh {
             let graph = dungeon_recipe::graph(&self.recipe, self.seed);
             // Levels belong to the laid-out rooms: room i is the i-th node with a room.
             let mut levels = Vec::new();
-            if let (Ok(graph), Some(_)) = (&graph, self.recipe.levels())
-                && let Ok(layout) = dungeon_recipe::layout(&self.recipe, self.seed)
+            let mut made = Vec::new();
+            let laid_out = self.recipe.levels().is_some() || !self.recipe.rooms_used().is_empty();
+            if let (Ok(graph), true) = (&graph, laid_out)
+                && let Ok(layout) =
+                    dungeon_recipe::layout_with(&self.recipe, self.seed, &self.shapes)
             {
                 levels = vec![0; graph.path.len()];
+                made = vec![None; graph.path.len()];
                 let nodes = (0..graph.path.len()).filter(|n| graph.active(*n));
-                for (node, room) in nodes.zip(&layout.rooms) {
-                    levels[node] = layout.level(room.center());
+                for (i, node) in nodes.take(layout.rooms.len()).enumerate() {
+                    levels[node] = layout.level(layout.room_floor_center(i));
+                    made[node] = layout.handmade_room(i).map(|h| h.room);
                 }
             }
-            self.preview = Some((self.recipe.clone(), self.seed, graph, levels));
+            self.preview = Some((self.recipe.clone(), self.seed, graph, levels, made));
         }
         &self.preview.as_ref().expect("just computed").2
+    }
+    /// Each node's handmade room in the current preview; empty without handmade rooms.
+    fn made(&self) -> Vec<Option<Uuid>> {
+        self.preview
+            .as_ref()
+            .map(|p| p.4.clone())
+            .unwrap_or_default()
     }
     /// Each node's floor level in the current preview; empty without levels.
     fn levels(&self) -> Vec<u8> {
@@ -225,8 +250,33 @@ pub fn window(ui: &Ui, e: &mut Editor) {
     }
 }
 
+/// The project's Dungeon Rooms, and the footprints of those the recipe uses.
+fn refresh_rooms(e: &Editor, w: &mut Window) {
+    w.rooms = e
+        .assets
+        .index
+        .usable()
+        .filter(|r| r.meta.kind == crate::assets::Kind::DungeonRoom)
+        .map(|r| {
+            let name = r.path.file_stem().map_or_else(
+                || r.meta.id.to_string(),
+                |s| s.to_string_lossy().into_owned(),
+            );
+            (r.meta.id, name)
+        })
+        .collect();
+    w.rooms.sort_by(|a, b| a.1.cmp(&b.1));
+    let used = w.recipe.rooms_used();
+    if used.iter().ne(w.shapes.keys()) {
+        let (rooms, _) = crate::dungeon_room::load(&e.assets.index, &used);
+        w.shapes = rooms.iter().map(|(id, r)| (*id, r.shape())).collect();
+        w.preview = None;
+    }
+}
+
 fn body(ui: &Ui, e: &mut Editor, w: &mut Window) {
     let _font = crate::inspector_theme::scope(ui, e.inspector_font);
+    refresh_rooms(e, w);
     toolbar(ui, e, w);
     let available = ui.content_region_avail();
     let side = 360_f32.min(available[0] * 0.42);
@@ -370,6 +420,7 @@ fn step_icon(step: &Step) -> &'static str {
         Step::OneWay { .. } => "\u{f338}",
         Step::Caves { .. } => "\u{f6fc}",
         Step::Levels { .. } => "\u{f5c3}",
+        Step::HandmadeRooms { .. } => "\u{f6d9}",
         Step::Rooms { .. } => "\u{f5cb}",
     }
 }
@@ -433,6 +484,18 @@ pub fn step_summary(step: &Step) -> String {
         Step::Levels { chance, highest } => {
             format!("{chance}% of links climb or drop a level, up to level {highest}")
         }
+        Step::HandmadeRooms { paths, rooms, most } => match rooms.len() {
+            0 => format!("{} rooms: add Dungeon Rooms to use", list(paths)),
+            n => format!(
+                "{} made from {n} Dungeon Room{}",
+                match most {
+                    0 => format!("{} rooms", list(paths)),
+                    1 => format!("1 {} room", list(paths)),
+                    m => format!("up to {m} {} rooms", list(paths)),
+                },
+                if n == 1 { "" } else { "s" }
+            ),
+        },
         Step::Caves {
             paths,
             density,
@@ -835,6 +898,81 @@ fn details(ui: &Ui, w: &mut Window) {
                 ui.tooltip_text("Chance for each link that leads back towards the spawn to open from the far side only, as a shortcut home.");
             }
         }
+        Step::HandmadeRooms { paths, rooms, most } => {
+            path_picker(
+                ui,
+                "Paths",
+                paths,
+                &known,
+                "Rooms of these paths are made from the Dungeon Rooms below.",
+            );
+            let mut v = i32::from(*most);
+            if ui
+                .slider_config(crate::gui::field(ui, "At most"), 0, 16)
+                .display_format(match v {
+                    0 => "every room",
+                    1 => "%d room",
+                    _ => "%d rooms",
+                })
+                .build(&mut v)
+            {
+                *most = v.clamp(0, 16) as u8;
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("How many rooms of these paths are made by hand, in the order the recipe grew them; the rest are generated. A handmade room's quads and copied actors count towards the console's budget, so a few special rooms go a long way. 0 makes every room of the paths by hand.");
+            }
+            crate::gui::muted(ui, "Dungeon Rooms");
+            let mut remove = None;
+            for (i, id) in rooms.iter().enumerate() {
+                let name = w
+                    .rooms
+                    .iter()
+                    .find(|(r, _)| r == id)
+                    .map_or("Missing Dungeon Room", |(_, n)| n.as_str());
+                ui.bullet_text(name);
+                if let Some(shape) = w.shapes.get(id) {
+                    ui.same_line();
+                    crate::gui::muted(
+                        ui,
+                        format!(
+                            "{}x{} cells, {} door{}",
+                            shape.size[0],
+                            shape.size[1],
+                            shape.doors.len(),
+                            if shape.doors.len() == 1 { "" } else { "s" }
+                        ),
+                    );
+                }
+                ui.same_line();
+                if ui.small_button(format!("Remove##room-{i}")) {
+                    remove = Some(i);
+                }
+            }
+            if let Some(i) = remove {
+                rooms.remove(i);
+            }
+            let addable: Vec<&(Uuid, String)> = w
+                .rooms
+                .iter()
+                .filter(|(id, _)| !rooms.contains(id))
+                .collect();
+            if addable.is_empty() && w.rooms.is_empty() {
+                ui.text_wrapped(
+                    "No Dungeon Rooms yet. Build a room under one actor, select that actor, then choose GameObject > Save Selection as Dungeon Room.",
+                );
+            } else if let Some(_combo) =
+                ui.begin_combo(crate::gui::field(ui, "Add room"), "Choose a Dungeon Room")
+            {
+                for (id, name) in addable {
+                    if ui.selectable(name) {
+                        rooms.push(*id);
+                    }
+                }
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Each room of the paths above takes one of these that fits its slot and has doors towards its links, turned as needed; the least used comes first.");
+            }
+        }
         Step::Levels { chance, highest } => {
             let mut v = i32::from(*chance);
             if ui
@@ -1018,6 +1156,7 @@ fn graph_view(ui: &Ui, w: &mut Window) {
     }
     let room = slot * 0.27;
     let levels = w.levels();
+    let made = w.made();
     // Cave rooms are drawn round.
     let caves = w.recipe.caves();
     for link in &graph.links {
@@ -1099,6 +1238,21 @@ fn graph_view(ui: &Ui, w: &mut Window) {
                 text,
             );
         }
+        // Handmade rooms carry the room icon in their lower corner.
+        if made.get(node).copied().flatten().is_some() {
+            let icon = crate::dungeon_room_editor::ICON;
+            let size = ui.calc_text_size(icon);
+            let at = [c[0] - room + 3., c[1] + room - size[1] - 2.];
+            draw.add_rect(
+                [at[0] - 2., at[1]],
+                [at[0] + size[0] + 2., at[1] + size[1]],
+                [0.08, 0.08, 0.1, 0.85],
+            )
+            .filled(true)
+            .rounding(3.)
+            .build();
+            draw.add_text(at, [0.95, 0.96, 0.98, 1.], icon);
+        }
         // Rooms above the spawn's floor carry their level in the corner.
         let level = levels.get(node).copied().unwrap_or(0);
         if level > 0 {
@@ -1140,6 +1294,14 @@ fn graph_view(ui: &Ui, w: &mut Window) {
             }
             if node == graph.goal {
                 text.push_str("\nGoal");
+            }
+            if let Some(room) = made.get(node).copied().flatten() {
+                let name = w
+                    .rooms
+                    .iter()
+                    .find(|(id, _)| *id == room)
+                    .map_or("a Dungeon Room", |(_, n)| n.as_str());
+                text.push_str(&format!("\nHandmade: {name}"));
             }
             if let Some(level) = levels.get(node).filter(|l| **l > 0) {
                 text.push_str(&format!(

@@ -19,6 +19,7 @@ Work happens on `feature/dungeon-generator`, one pushed checkpoint per phase.
 | 8 | Keys only the player picks up (reference equality in Lua and Blueprint), the Player field in 2D, unedited earlier key and door scripts brought up to date | delivered ([phase8.md](phase8.md)) |
 | 9 | Gameplay queries: rooms, links, keys, locks, free spots and a seed-bound random stream for game code in C++, Blueprint and Lua | delivered ([phase9.md](phase9.md)) |
 | 10 | Levels and stairs: rooms on several floors joined by flights in their corridors, solid collision around the air of each cell, and controllers that walk down steps | delivered ([phase10.md](phase10.md)) |
+| 11 | Handmade rooms: Dungeon Room assets built in any map and edited on a floor plan, placed by a recipe step in quarter turns at their doors, static pieces merged and the rest copied | delivered ([phase11.md](phase11.md)) |
 
 ## Design constraints
 

@@ -429,7 +429,10 @@ epok-editor --project /tmp/Crypt --screenshot walk.png --screenshot-game --scree
 `--screenshot-2d` for a 2D one); `--open-dungeon-style` opens the first generator's
 style with a piece selected, and `--open-dungeon-recipe N` its recipe with step N
 selected; `--dungeon-query-room N` opens the band's Gameplay queries list with room N
-picked out in the Scene view. `--dungeon-settings '{"source":"Recipe"}'` switches a generator to the
+picked out in the Scene view. `--open-map <path>` opens another map of the project and
+`--open-dungeon-room` the first Dungeon Room in the room editor (the Dungeon template's
+workbench: `--open-map assets/Dungeons/Rooms/Workbench.epokmap --select-actor Reactor
+--open-dungeon-room`). `--dungeon-settings '{"source":"Recipe"}'` switches a generator to the
 built-in recipe; `--dungeon-new-recipe <name>` creates a recipe asset for it. A styled Third Person fixture (a recipe layout with a working key and locked
 door, one-way shortcuts and cave branches; pillars, room lights, crates, banners and a
 glowing key) is written by

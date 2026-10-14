@@ -10,9 +10,10 @@ cargo run --locked -- --create-project "D:/Games/Dungeon" --template dungeon --g
 ![The Dungeon card in the Hub, with its gameplay choice](images/dungeon-template-hub.png)
 
 The project starts with the [Third Person](third-person.md) character and orbit camera
-in a dungeon made by the [Dungeon Generator](dungeons.md): the built-in recipe (a main
-path to the goal, cave branches with treasure, a loop, one-way shortcuts, and a locked
-door whose key waits on a branch) dressed in the built-in sci-fi style (rooms in three
+in a dungeon made by the [Dungeon Generator](dungeons.md): the project's recipe (the
+built-in route: a main path to the goal, cave branches with treasure, a loop, one-way
+shortcuts, rooms on three floor levels and a locked door whose key waits on a branch;
+plus one handmade room on the loop) dressed in the built-in sci-fi style (rooms in three
 floor and wall finishes, columns along the walls, a ceiling, everything sized to the
 character). Lighting is baked when the project is created, so Play works straight away.
 
@@ -24,6 +25,9 @@ character). Lighting is baked when the project is created, so Play works straigh
   Cross or K jumps.
 - The dungeon climbs: corridors between rooms on different levels hold flights of
   stairs, walked up and down like any floor.
+- One room of the loop is the Reactor, a [handmade room](dungeons.md#handmade-rooms):
+  a core under a cyan light, four consoles and doorways on every side, turned to meet
+  its corridors.
 - The character starts in the spawn room. Walk into the gold key to pick it up: the
   red door it opens disappears, wherever it is. Only the character picks keys up: the
   generator's **Player** is set to it, and each key names it.
@@ -38,9 +42,16 @@ Select **Dungeon** in the Hierarchy; its Dungeon Generator band is in the Inspec
   branches, more keys and locks, caves on other paths.
 - Press **New** beside **Style** for an editable copy of the look: add meshes, lights or
   your own actors on any spot, change the texture variants and columns.
+- Build rooms of your own: the Reactor is built in
+  `assets/Dungeons/Rooms/Workbench.epokmap`. Open it, change the room under the
+  **Reactor** actor and press **Update from selection** in its Dungeon Room editor, or
+  build another room beside it and save it with **GameObject > Save Selection as
+  Dungeon Room...**. The recipe (`assets/Dungeons/Recipes/Dungeon.epokasset`) makes one
+  loop room from the Reactor; its **Handmade rooms** step takes more rooms, more paths
+  or a higher **At most**.
 - The band's meter shows the console budget the map will use (actors, quads,
-  collision, navigation). The template leaves room to grow: about 1.8 MiB of the
-  console's 2 MiB of RAM are used.
+  collision, navigation). The template leaves room to grow: about 1.9 MiB of the
+  console's 2 MiB of RAM are used (C++ 1.89 MiB, Lua 1.91 MiB, Blueprint 1.92 MiB).
 
 ## Gameplay flavors
 

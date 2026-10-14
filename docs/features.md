@@ -166,8 +166,12 @@ The complete interaction and preview contract is in the
   grows the layout instead from steps (lattice, main path, branches and loops, items by
   depth and place in the room, keys and locks, one-way doors, cellular caves, rooms
   with cut corners, floor levels joined by flights of stairs), edited as a step list with a live
-  room-graph preview; every key-and-lock placement is checked to be solvable and the
-  grid layout keeps locked doors from being walked around. Keys, locks, one-way doors
+  room-graph preview; rooms of chosen paths can be Dungeon Rooms built by hand in any map
+  (a room asset with its footprint, doors and key spots, edited on a floor plan), turned
+  to fit their links, their static pieces merged into the dungeon's geometry and
+  collision and their lights and scripted actors copied; every key-and-lock placement
+  is checked to be solvable and the grid layout keeps locked doors from being walked
+  around. Keys, locks, one-way doors
   and items become style spots, style pieces can keep to one path's rooms, and actors
   placed on keys and locks receive their lock number. Ready-made Key and Door pieces
   (backed by `DungeonKey` and `DungeonDoor` scripts installed into the project) make
@@ -396,8 +400,8 @@ See the complete [Timeline reference](timelines.md) and the
   and terrains under the view; a TileSet editor for collision, terrains, animation and
   custom data with its own undo.
 - **Dungeon template.** The Third Person character and camera in a generated sci-fi
-  dungeon with a working key and locked door, in C++, Blueprint or Lua, lit and ready
-  to play. See [Dungeon template](dungeon-template.md).
+  dungeon with stairs between floors, a handmade Reactor room and a working key and
+  locked door, in C++, Blueprint or Lua, lit and ready to play. See [Dungeon template](dungeon-template.md).
 - **Platformer 2D template.** A playable side-scroller in C++, Blueprint or Lua, built
   from tile layers, layered parallax scenery and a screen-space HUD canvas, with a
   cut-out guide using IK, a navigating companion, a pushable crate, a garland on rope
@@ -729,7 +733,7 @@ The editor exposes the following implemented headless families. Run them with
 | Assets | `--scan-assets`, `--import-texture`, `--import-obj`, `--import-fbx`, `--import-audio`, `--reimport-asset`, `--inspect-asset` |
 | Native gameplay | `--reflect`, `--new-script`, `--parent`, `--new-blueprint`, `--compile-blueprints`, `--add-actor`, `--scene` |
 | Timeline and VFX | `--new-timeline`, `--compile-timelines`, `--install-timeline-adapters`, `--new-particle-effect`, `--preset`, `--validate-particle-effects`, `--preview-particle-effect` |
-| Level generation | `--generate-dungeon`, `--dungeon-seed`, `--dungeon-settings`, `--dungeon-new-style`, `--dungeon-new-recipe` |
+| Level generation | `--generate-dungeon`, `--dungeon-seed`, `--dungeon-settings`, `--dungeon-new-style`, `--dungeon-new-recipe`, `--open-dungeon-room` |
 | Editor/runtime QA | `--bake-lighting`, `--profile-scene`, `--profile-scene-cpu`, `--profile-editor`, screenshot commands and bounded `--steps` / `--stop-after` execution |
 | Integration | `--mcp-stdio`, `--prepare-serial-tools`, `--list-serial-ports` |
 
@@ -811,7 +815,7 @@ live beside the corresponding implementation and are summarized under
 | Scene and preview | `scene`, `transform`, `viewport`, `scene_gpu`, `picking`, `gizmo`, `scene_bank`, `scene_dependencies`, `scene_view_mode` |
 | Object/Actor model | `object_model`, `actor_document` |
 | 2D worlds | `world2d`, `world2d_editor`, `platformer_template` |
-| Dungeon generation | `dungeon`, `dungeon_rooms`, `dungeon_recipe`, `dungeon_random`, `dungeon_style`, `dungeon_bake`, `dungeon_editor`, `dungeon_style_editor`, `dungeon_recipe_editor`, `dungeon_gameplay`, `dungeon_template` |
+| Dungeon generation | `dungeon`, `dungeon_rooms`, `dungeon_recipe`, `dungeon_random`, `dungeon_style`, `dungeon_bake`, `dungeon_editor`, `dungeon_style_editor`, `dungeon_recipe_editor`, `dungeon_room`, `dungeon_room_editor`, `dungeon_query`, `dungeon_gameplay`, `dungeon_template` |
 | Geometry and rendering | `mesh`, `mesh_ops`, `mesh_editor`, `mesh_compile`, `lighting`, `lighting_editor`, `shadows`, `effects`, `palette` |
 | Components and UI | `bitmap_font`, `collision`, `collision_editor`, `hud`, `hud_editor`, `sprites`, `sprites_editor`, `particles`, `skeletal`, `skeletal_compile`, `skeletal_ui`, `third_person` |
 | Native scripting/reflection | `scripts`, `script_values`, `script_backend`, `reflection`, `reflection_schema`, `header_extract`, `header_tool`, `native`, `native_metadata` |
@@ -830,7 +834,7 @@ live beside the corresponding implementation and are summarized under
 | 2D worlds | `world2d.hpp`, `world2d_components.hpp`, `world2d_service.hpp`, `world2d_render.hpp` |
 | Rendering/resources | `frame_clear.hpp`, `gte_geometry.hpp`, `frustum.hpp`, `polygon.hpp`, `visibility.hpp`, `retained.hpp`, `texture_types.hpp`, `texture.hpp`, `resources.hpp`, `lighting.hpp`, `shadows.hpp` |
 | Visual content | `sprite_types.hpp`, `sprites.hpp`, `particle_types.hpp`, `particles.hpp`, `effect_types.hpp`, `effects.hpp`, `particle_effect_runtime.hpp`, `particle_effect_service.hpp`, `palette_types.hpp`, `palette.hpp`, `skeletal.hpp`, `hud.hpp`, `text.hpp` |
-| Dungeon generation | `dungeon_random.hpp` |
+| Dungeon generation | `dungeon_random.hpp`, `dungeon_map.hpp` |
 | Gameplay services | `input.hpp`, `collision.hpp`, `audio.hpp`, `music.hpp`, `memory_card.hpp`, `memory_card_backend.hpp`, `streaming_pool.hpp`, `streaming.hpp` |
 | Blueprint/Lua/Timeline | `blueprint_api.hpp`, `blueprint_runtime.hpp`, `blueprint_debug.hpp`, `blueprint_spawn.hpp`, `blueprint_template.hpp`, `blueprint_playback_service.hpp`, `lua_runtime.hpp`, `playback_types.hpp`, `timeline.hpp`, `timeline_runtime.hpp`, `timeline_service.hpp` |
 

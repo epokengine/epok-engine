@@ -221,6 +221,7 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
             assets::Kind::StringTable => "String Table",
             assets::Kind::DungeonStyle => "Dungeon Style",
             assets::Kind::DungeonRecipe => "Dungeon Recipe",
+            assets::Kind::DungeonRoom => "Dungeon Room",
         };
     }
     if entry.path.ends_with(".epokbp") {
@@ -1521,6 +1522,7 @@ fn open(e: &mut Editor, s: &mut State, entry: &Entry) {
             assets::Kind::StringTable => crate::localization_editor::open(e),
             assets::Kind::DungeonStyle => crate::dungeon_style_editor::open(e, record.meta.id),
             assets::Kind::DungeonRecipe => crate::dungeon_recipe_editor::open(e, record.meta.id),
+            assets::Kind::DungeonRoom => crate::dungeon_room_editor::open(e, record.meta.id),
             assets::Kind::Texture
             | assets::Kind::Font
             | assets::Kind::AudioClip

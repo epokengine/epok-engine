@@ -177,6 +177,16 @@ pub fn regenerate_with_recipe(e: &mut Editor, recipe: Uuid) -> usize {
     })
 }
 
+/// Regenerates every recipe dungeon of the map whose recipe makes rooms from `room`.
+pub fn regenerate_with_room(e: &mut Editor, room: Uuid) -> usize {
+    let index = e.assets.index.clone();
+    regenerate_where(e, |g| {
+        g.source == dungeon::Source::Recipe
+            && crate::dungeon_recipe::of(&index, g)
+                .is_ok_and(|(recipe, _)| recipe.rooms_used().contains(&room))
+    })
+}
+
 fn regenerate_where(e: &mut Editor, wanted: impl Fn(&Generator) -> bool) -> usize {
     let ids: Vec<Uuid> = e
         .scene
@@ -515,7 +525,13 @@ pub fn preview(e: &mut Editor, id: Uuid) -> Option<Preview> {
     };
     let layout = generator
         .validate()
-        .and_then(|_| dungeon::layout(&generator, &e.assets.index));
+        .and_then(|_| dungeon::layout(&generator, &e.assets.index))
+        .map(|mut layout| {
+            if two_d {
+                layout.without_handmade_content();
+            }
+            layout
+        });
     if let (Ok(layout), Ok(mut layouts)) = (&layout, LAYOUTS.lock()) {
         layouts.insert(id, (generator.fingerprint(), layout.clone()));
     }
@@ -587,7 +603,8 @@ fn budget(
     }
     let other_quads: usize = others.clone().map(crate::lighting::quad_count).sum();
     let meshes = dungeon_bake::piece_meshes(index, &placements)?;
-    let plan = dungeon_bake::plan_3d(g, layout, &placements, &meshes)?;
+    let rooms = dungeon_bake::rooms_3d(g, layout, index);
+    let plan = dungeon_bake::plan_3d(g, layout, &placements, &meshes, &rooms)?;
     let light = !scene.actors.iter().any(|a| {
         !output.contains(&a.id)
             && a.light
@@ -598,7 +615,8 @@ fn budget(
         + 3
         + plan.navigation.as_ref().map_or(0, |n| n.volumes.len())
         + usize::from(light)
-        + pieces;
+        + pieces
+        + rooms.actors.len();
     Ok(Budget {
         actors: others.count() + generated,
         quads: other_quads + plan.quads,

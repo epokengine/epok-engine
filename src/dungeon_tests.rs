@@ -782,7 +782,14 @@ fn textures_cover_each_face_once_and_the_ceiling_closes_the_floor() {
         };
         let layout = crate::dungeon::layout(&g, &Default::default()).unwrap();
         let placements = crate::dungeon_style::evaluate(&style, &layout, g.seed);
-        let plan = dungeon_bake::plan_3d(&g, &layout, &placements, &Default::default()).unwrap();
+        let plan = dungeon_bake::plan_3d(
+            &g,
+            &layout,
+            &placements,
+            &Default::default(),
+            &Default::default(),
+        )
+        .unwrap();
         let mut ceilings = 0;
         for section in &plan.sections {
             let d = &section.document;
@@ -871,7 +878,14 @@ fn wall_corner_and_doorway_faces_look_into_the_floor() {
         g.door_height = 2.;
         let layout = crate::dungeon::layout(&g, &Default::default()).unwrap();
         let placements = crate::dungeon_style::evaluate(&style, &layout, g.seed);
-        let plan = dungeon_bake::plan_3d(&g, &layout, &placements, &Default::default()).unwrap();
+        let plan = dungeon_bake::plan_3d(
+            &g,
+            &layout,
+            &placements,
+            &Default::default(),
+            &Default::default(),
+        )
+        .unwrap();
         let frame = dungeon_bake::Frame {
             size: layout.size,
             cell: g.cell_size,
@@ -1214,5 +1228,216 @@ fn levels_bake_climbable_stairs_and_navigation() {
         reached >= crate::dungeon::LEVEL_HEIGHT - 0.1,
         "navigation from the lowest floor only reaches {reached}"
     );
+    std::fs::remove_dir_all(parent).unwrap();
+}
+
+/// A room built in a map, saved as a Dungeon Room and used by a recipe's main path:
+/// its cubes merge into the dungeon's geometry, its colliders into the compound
+/// collider, its light is copied under the generator with identities that survive
+/// regeneration, and the dungeon follows the room.
+#[test]
+fn handmade_rooms_bake_their_geometry_collision_and_actors() {
+    use crate::actor_document::Attachment;
+    let (parent, root) = project("handmade");
+    // The room: a floor slab and a pillar with colliders, a light, and two doors.
+    let mut map = Scene::default();
+    map.actors.clear();
+    let mut vault = Actor::cube("Vault".into());
+    vault.kind = "Empty".into();
+    vault.position = [40., 0., -20.];
+    let vault_id = vault.id;
+    map.actors.push(vault);
+    let child = |mut actor: Actor, position: [f32; 3], scale: [f32; 3]| {
+        actor.position = position;
+        actor.scale = scale;
+        actor.logical_parent = Some(vault_id);
+        actor.attach = Some(Attachment {
+            actor: vault_id,
+            component: None,
+        });
+        actor
+    };
+    let mut slab = child(
+        Actor::cube("Slab".into()),
+        [7.5, -0.1, 7.5],
+        [15., 0.2, 15.],
+    );
+    slab.collider = Some(crate::collision::Collider::default());
+    let mut pillar = child(Actor::cube("Pillar".into()), [7.5, 1.5, 7.5], [1., 3., 1.]);
+    pillar.collider = Some(crate::collision::Collider::default());
+    let mut lamp = child(Actor::cube("Lamp".into()), [7.5, 4., 7.5], [1.; 3]);
+    lamp.kind = "Empty".into();
+    lamp.light = Some(crate::lighting::Light {
+        kind: crate::lighting::LightType::Point,
+        mode: crate::lighting::LightMode::Baked,
+        color: [1., 0.8, 0.5],
+        intensity: 1.,
+        range: 8.,
+        ..Default::default()
+    });
+    let mut west = child(Actor::cube("Door".into()), [0., 0., 7.5], [1.; 3]);
+    west.kind = "Empty".into();
+    let mut east = child(Actor::cube("Door 2".into()), [15., 0., 7.5], [1.; 3]);
+    east.kind = "Empty".into();
+    map.actors.extend([slab, pillar, lamp, west, east]);
+    map.refresh_actor_hierarchy();
+    let index = crate::assets::scan(&root, &mut Default::default());
+    let room = crate::dungeon_room::capture(&map, vault_id, 3., &index).unwrap();
+    assert_eq!(room.size, [5, 5]);
+    assert_eq!(room.actors.len(), 3, "the door markers become doors");
+    let doors: Vec<_> = room.doors.iter().map(|d| (d.cell, d.side)).collect();
+    assert!(
+        doors.contains(&([0, 2], crate::dungeon::Side::West)),
+        "{doors:?}"
+    );
+    assert!(
+        doors.contains(&([4, 2], crate::dungeon::Side::East)),
+        "{doors:?}"
+    );
+    let room_id = crate::dungeon_room::create(
+        &root,
+        &crate::dungeon_room::fresh_path(&root, "Vault"),
+        &room,
+    )
+    .unwrap();
+    // A recipe whose main path is made of the room.
+    let mut recipe = crate::dungeon_recipe::builtin();
+    recipe
+        .steps
+        .retain(|s| !matches!(s, crate::dungeon_recipe::Step::Levels { .. }));
+    recipe.steps.insert(
+        recipe.steps.len() - 1,
+        crate::dungeon_recipe::Step::HandmadeRooms {
+            paths: vec![crate::dungeon_recipe::MAIN.into()],
+            rooms: vec![room_id],
+            most: 0,
+        },
+    );
+    let recipe_id = crate::dungeon_recipe::create(
+        &root,
+        &crate::dungeon_recipe::fresh_path(&root, "Vaults"),
+        &recipe,
+    )
+    .unwrap();
+    let (mut scene, id) = scene_3d(1207);
+    scene.dungeons[0].source = crate::dungeon::Source::Recipe;
+    scene.dungeons[0].recipe = Some(recipe_id);
+    let report = dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
+    let index = crate::assets::scan(&root, &mut Default::default());
+    let g = scene.dungeons[0].clone();
+    let layout = crate::dungeon::layout(&g, &index).unwrap();
+    let made = (0..layout.rooms.len())
+        .filter(|i| layout.handmade_room(*i).is_some())
+        .count();
+    assert!(made >= 3, "{made} handmade rooms; {:?}", report.notes);
+    // The cubes merged into the sections, under the Room material.
+    let room_faces: usize = scene
+        .actors
+        .iter()
+        .filter(|a| g.output.actors.contains(&a.id))
+        .filter_map(|a| a.editable_mesh.as_ref())
+        .filter_map(|m| index.resolve(m.asset).ok())
+        .filter_map(|r| crate::mesh::document(r).ok())
+        .map(|d| {
+            let slot = d.materials.iter().find(|m| m.name == "Room").map(|m| m.id);
+            d.faces.iter().filter(|f| Some(f.material) == slot).count()
+        })
+        .sum();
+    // Two cubes of six faces per room, less their bottoms: they rest on the floor.
+    assert_eq!(
+        room_faces,
+        made * 10,
+        "two cubes of five seen faces per room"
+    );
+    // Each room's pillar is a box of the compound collider, a cell wide and 3 tall.
+    let collider = scene
+        .actors
+        .iter()
+        .find_map(|a| a.collider.as_ref().filter(|c| !c.boxes.is_empty()))
+        .unwrap();
+    let pillars = collider
+        .boxes
+        .iter()
+        .filter(|b| ((b[3] - b[0]) - 1.).abs() < 1e-3 && ((b[4] - b[1]) - 3.).abs() < 1e-3)
+        .count();
+    assert_eq!(pillars, made);
+    // Each room's lamp is an actor under the generator.
+    let lamps: Vec<Uuid> = scene
+        .actors
+        .iter()
+        .filter(|a| a.light.is_some() && a.name.starts_with("Lamp"))
+        .map(|a| a.id)
+        .collect();
+    assert_eq!(lamps.len(), made);
+    for lamp in &lamps {
+        let actor = scene.actors.iter().find(|a| a.id == *lamp).unwrap();
+        assert_eq!(actor.logical_parent, Some(g.root));
+        assert!(g.output.actors.contains(lamp));
+    }
+    // Generating again keeps every identity; editing the room makes the dungeon stale.
+    dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
+    let again: Vec<Uuid> = scene
+        .actors
+        .iter()
+        .filter(|a| a.light.is_some() && a.name.starts_with("Lamp"))
+        .map(|a| a.id)
+        .collect();
+    assert_eq!(lamps, again);
+    let digest = crate::dungeon_recipe::of(&index, &scene.dungeons[0])
+        .unwrap()
+        .1;
+    assert!(!scene.dungeons[0].recipe_stale(&digest));
+    let mut edited = room.clone();
+    edited.spots.push([1, 1]);
+    crate::dungeon_room::save(index.resolve(room_id).unwrap(), &edited).unwrap();
+    let index = crate::assets::scan(&root, &mut Default::default());
+    let digest = crate::dungeon_recipe::of(&index, &scene.dungeons[0])
+        .unwrap()
+        .1;
+    assert!(scene.dungeons[0].recipe_stale(&digest));
+    // A 2D dungeon of the same recipe draws the rooms as generated rooms of their shape:
+    // every walkable cell is painted, and the report says why.
+    let mut flat = Scene::default();
+    flat.actors.clear();
+    let actor = crate::world2d::create(crate::world2d::Preset::Node2D, "Dungeon", [0., 0.]);
+    let mut generator = Generator::new(actor.id);
+    generator.source = crate::dungeon::Source::Recipe;
+    generator.recipe = Some(recipe_id);
+    generator.seed = 1207;
+    let gid = generator.id;
+    flat.actors.push(actor);
+    flat.dungeons.push(generator);
+    flat.refresh_actor_hierarchy();
+    let report = dungeon_bake::generate(&root, &mut flat, gid, None).unwrap();
+    assert!(
+        report
+            .notes
+            .iter()
+            .any(|n| n.contains("drawn as generated rooms")),
+        "{:?}",
+        report.notes
+    );
+    assert!(!flat.actors.iter().any(|a| a.name.starts_with("Lamp")));
+    let layer = flat
+        .actors
+        .iter()
+        .find_map(|a| crate::world2d::component(a, crate::object_model::TILEMAP_LAYER_COMPONENT_ID))
+        .map(crate::world2d::read::<crate::world2d::TileMapLayer>)
+        .unwrap();
+    let cells = crate::tilemap::decode(&layer.cells).unwrap();
+    let index = crate::assets::scan(&root, &mut Default::default());
+    let layout = crate::dungeon::layout(&flat.dungeons[0], &index).unwrap();
+    assert!((0..layout.rooms.len()).any(|i| layout.handmade_room(i).is_some()));
+    let offset = [layout.size[0] / 2, layout.size[1] / 2];
+    for y in 0..layout.size[1] {
+        for x in 0..layout.size[0] {
+            if layout.at([x, y]).walkable() {
+                assert!(
+                    cells.contains_key(&[x - offset[0], y - offset[1]]),
+                    "{x},{y}"
+                );
+            }
+        }
+    }
     std::fs::remove_dir_all(parent).unwrap();
 }

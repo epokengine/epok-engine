@@ -195,11 +195,12 @@ offer shortcuts back.
 | One-way doors | Links that lead back at least two rooms along the route open from the far side only | Chance |
 | Caves | Rooms of some paths become organic caves that fill their slot | Paths, rock, smoothing |
 | Levels | Rooms on different floor levels: each link climbs or drops one level with the climb chance, between the spawn's level and the highest level, and its corridor gets a flight of stairs | Climb chance, highest level |
+| Handmade rooms | Rooms of some paths are [Dungeon Rooms](#handmade-rooms) built by hand, turned to fit their links | Paths, at most, Dungeon Rooms |
 | Rooms | How much of its slot each room fills, whether corners are cut, and the corridor width | Fill, cut corners, corridor width |
 
 A recipe has one Lattice, one Main path and one Rooms step; Branch, Items, Key and
-lock and Caves steps can repeat, and each step can only name paths that earlier steps
-grow. The built-in recipe is a 6 × 5 lattice with a main path of 6–9 rooms, two dead-end
+lock, Caves and Handmade rooms steps can repeat, and each step can only name paths that
+earlier steps grow. The built-in recipe is a 6 × 5 lattice with a main path of 6–9 rooms, two dead-end
 cave branches with treasure, a loop, a key on a branch for a lock on the main path,
 one-way shortcuts, rooms on up to three floor levels and rooms with cut corners.
 
@@ -321,6 +322,89 @@ path.
 ![A recipe dungeon on the console: the goal room's locked gate fills the doorway](images/dungeon-recipe-ingame.png)
 
 ![A cave branch on the console: mossy floor, rock walls, a treasure pedestal and the key](images/dungeon-recipe-cave-ingame.png)
+
+## Handmade rooms
+
+Some rooms are better made by hand: an arena, a shop, a reactor with its machines. A
+**Dungeon Room** is a room built once in any map and saved as an asset; a recipe's
+**Handmade rooms** step then places it wherever a room of its paths stands, turned in
+quarter turns to face its links, and the generator's corridors meet it at its doors.
+
+![The Dungeon Template's Reactor room on the console: its core, consoles and walls are the room's own](images/dungeon-handmade-ingame.png)
+
+### Build a room
+
+1. Create an empty actor for the room's root. Its origin is the corner of the room's
+   footprint: build towards +X and +Z, with the floor at Y 0, in cells of the
+   generator's cell size (3 units unless you changed it).
+2. Put the whole room under it: floor, walls and ceiling (an Editable Mesh, cubes or
+   your meshes; the generator draws nothing inside a handmade room), props, colliders,
+   lights and actors with behaviour.
+3. Leave an opening in the wall wherever a corridor may arrive, and mark it with an empty
+   actor named `Door` (`Door 2`, `Door 3`, …) on the footprint's edge, at the floor,
+   centred on the edge cell. A room needs a door towards every link of the slot it
+   fills, so more doors means more places it fits.
+4. Select the root and choose **GameObject > Save Selection as Dungeon Room...** (or
+   **Save as Dungeon Room...** in the Hierarchy's right-click menu). The room is saved
+   in `assets/Dungeons/Rooms/` and opens in the Dungeon Room editor.
+
+The Dungeon template keeps its sample room in `assets/Dungeons/Rooms/Workbench.epokmap`:
+open that map to see how the Reactor is built, change it, and save it again with
+**Update from selection**.
+
+### The Dungeon Room editor
+
+Double-click a Dungeon Room in the Project browser to open it.
+
+![The Dungeon Room editor: the Reactor's floor plan with its doors, spots, consoles and light](images/dungeon-room-editor.png)
+
+- **Cell size** is the grid cell the room was built for; dungeons with another cell
+  size scale the room to fit. **Size** is the footprint in cells, across and deep.
+- The floor plan shows the content: static geometry, colliders, lights, copied actors,
+  doors and spots, each in the legend's colour. Click just outside an edge cell to add
+  or remove a door there; click a cell to make it a spot where keys and items go first;
+  Shift-click a cell to leave it out of the floor, for rooms that are not rectangles.
+- The summary counts doors, spots and closed cells, and says how many pieces merge into
+  the dungeon and how many actors are copied.
+- **Update from selection** replaces the content with the children of the selected
+  actor, keeping doors and spots. Every edit is saved and is one **Undo** step; the
+  map's dungeons that use the room regenerate.
+
+### Use rooms in a recipe
+
+Add a **Handmade rooms** step, tick its **Paths**, and add the rooms with **Add room**.
+**At most** caps how many rooms the step makes, in the order the recipe grew them; 0
+makes every room of the paths by hand.
+
+![The Handmade rooms step: the loop path, at most one room, made from the Reactor](images/dungeon-recipe-handmade.png)
+
+- Each room of the paths takes a Dungeon Room that fits its slot, turned, and has a
+  door towards each of its links. The least used room comes first, so a list of rooms
+  varies the dungeon. A room that none fits is generated as usual, and the generation
+  report says why.
+- Corridors meet the room at its doors; doors that no corridor uses are closed with the
+  style's walls. Keys and items of the room go to its spots first.
+- The recipe editor marks handmade rooms with the room icon; hover a room for the
+  Dungeon Room it uses.
+- With a Levels step, the room stands on its level like any other.
+
+Pieces become one of two things:
+
+| In the room | In the dungeon |
+| --- | --- |
+| An actor with nothing but its transform, a mesh or cube, and a solid collider | Merged: its faces into the dungeon's geometry sections, its collider into the compound collider (exact for quarter turns). Faces of cubes resting on the floor and looking down are left out. |
+| Anything else: lights, scripts, Blueprints, sound, particles, triggers | Copied as an actor under the generator, with an identity that stays the same each time the dungeon is generated |
+
+A room of many props therefore costs quads, not actors. Both still count: every quad of
+a map also reserves render memory on the console, so a detailed room costs RAM even
+where it replaces a generated room (the template's Reactor adds about 35 KB), and every
+copied actor counts towards the 64 actors. **At most** keeps handmade rooms special and
+the budget in check; the band's meter counts them before you generate.
+
+Editing a room makes the dungeons that use it out of date, like editing their recipe.
+Dungeon Rooms hold 3D content: a 2D dungeon draws handmade rooms as generated rooms of
+their shape, and the report says so. Footprints are 2 to 16 cells a side, and a step
+lists up to 32 rooms.
 
 ## Dungeon Styles
 
@@ -508,6 +592,8 @@ rotated or scaled.
   apply before generating; `--dungeon-new-style <name>` creates a style from the current
   look and assigns it, `--dungeon-new-recipe <name>` a recipe (and switches the layout
   to it).
+- `--open-map <path>` opens a map of the project, `--open-dungeon-room` the first
+  Dungeon Room in the room editor.
 
 ## Determinism
 
@@ -528,5 +614,6 @@ rewrites the same files and keeps references to the generated actors valid.
   compound collider and random stream host tests.
 - Screenshot a generated dungeon with
   `--screenshot <png> --frame-dungeon` (add `--screenshot-2d` for a 2D generator), the
-  recipe editor with `--open-dungeon-recipe <step>`, and gameplay with
+  recipe editor with `--open-dungeon-recipe <step>`, the room editor with
+  `--open-map <map> --select-actor <root> --open-dungeon-room`, and gameplay with
   `--screenshot-game --screenshot-input "500:16,2600:0"`.

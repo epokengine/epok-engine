@@ -70,6 +70,15 @@ pub enum Step {
         density: u8,
         smoothing: u8,
     },
+    /// Rooms of `paths` are made by hand: each takes one of these Dungeon Rooms that fits
+    /// its slot and has doors towards its links, turned as needed. `most` caps how many
+    /// rooms the step makes (0: every room of the paths).
+    HandmadeRooms {
+        paths: Vec<String>,
+        rooms: Vec<Uuid>,
+        #[serde(default)]
+        most: u8,
+    },
     /// Rooms climb and drop between floor levels: each link changes level by one with
     /// `chance` percent, between level 0 (the spawn's) and `highest`, and its corridor
     /// gets one stair row per level it climbs.
@@ -116,6 +125,7 @@ impl Step {
             Step::OneWay { .. } => "One-way doors",
             Step::Caves { .. } => "Caves",
             Step::Levels { .. } => "Levels",
+            Step::HandmadeRooms { .. } => "Handmade rooms",
             Step::Rooms { .. } => "Rooms",
         }
     }
@@ -134,6 +144,9 @@ impl Step {
             Step::Caves { .. } => "Rooms of some paths become organic caves instead of rectangles.",
             Step::Levels { .. } => {
                 "Rooms on different floor levels, joined by stairs in their corridors."
+            }
+            Step::HandmadeRooms { .. } => {
+                "Rooms of some paths are Dungeon Rooms made by hand, turned to fit their doors."
             }
             Step::Rooms { .. } => {
                 "How much of its lattice cell each room fills, and corridor width."
@@ -175,6 +188,11 @@ impl Step {
             Step::Levels {
                 chance: 40,
                 highest: 2,
+            },
+            Step::HandmadeRooms {
+                paths: vec![MAIN.into()],
+                rooms: Vec::new(),
+                most: 0,
             },
             Step::Rooms {
                 fill: [60, 100],
@@ -396,6 +414,21 @@ impl Recipe {
                         return Err(at("Smoothing is 1-8 passes".into()));
                     }
                 }
+                Step::HandmadeRooms {
+                    paths: names,
+                    rooms,
+                    most,
+                } => {
+                    paths(names, &known)?;
+                    if rooms.len() > 32 {
+                        return Err(at("Up to 32 rooms per step".into()));
+                    }
+                    if *most > 16 {
+                        return Err(at(
+                            "At most 16 handmade rooms per step, or 0 for every room".into(),
+                        ));
+                    }
+                }
                 Step::Levels { chance, highest } => {
                     if *chance > 100 {
                         return Err(at("Chance is a percentage, 0-100".into()));
@@ -452,6 +485,36 @@ impl Recipe {
             })
             .unwrap_or(([55, 90], 1, false))
     }
+    /// The Dungeon Rooms each path's rooms are made from, with the step that says so and
+    /// how many rooms that step makes at most (0: every one); later steps win.
+    pub fn handmade(&self) -> BTreeMap<String, (usize, u8, Vec<Uuid>)> {
+        let mut rooms = BTreeMap::new();
+        for (index, step) in self.steps.iter().enumerate() {
+            if let Step::HandmadeRooms {
+                paths,
+                rooms: ids,
+                most,
+            } = step
+                && !ids.is_empty()
+            {
+                for path in paths {
+                    rooms.insert(path.clone(), (index, *most, ids.clone()));
+                }
+            }
+        }
+        rooms
+    }
+    /// Every Dungeon Room the recipe uses, once.
+    pub fn rooms_used(&self) -> Vec<Uuid> {
+        let mut ids: Vec<Uuid> = self
+            .handmade()
+            .into_values()
+            .flat_map(|(_, _, ids)| ids)
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    }
     /// The Levels step's chance and highest level, if the recipe has one.
     pub fn levels(&self) -> Option<(u8, u8)> {
         self.steps.iter().rev().find_map(|s| match s {
@@ -503,7 +566,12 @@ pub fn of(
         )?,
         None => builtin(),
     };
-    let digest = digest(&recipe);
+    // A dungeon follows its rooms as well as its recipe.
+    let mut digest = digest(&recipe);
+    let (rooms, _) = crate::dungeon_room::load(index, &recipe.rooms_used());
+    for room in rooms.values() {
+        digest.push_str(&crate::dungeon_room::digest(room));
+    }
     Ok((recipe, digest))
 }
 
@@ -779,6 +847,7 @@ fn grow(recipe: &Recipe, random: &mut Random) -> Result<Graph, String> {
             Step::Lattice { .. }
             | Step::Rooms { .. }
             | Step::Caves { .. }
+            | Step::HandmadeRooms { .. }
             | Step::Levels { .. } => {}
             Step::MainPath { length } => {
                 let length = random.range(i32::from(length[0]), i32::from(length[1])) as usize;
@@ -1015,6 +1084,7 @@ fn corridor(
     axis: usize,
     gap: i32,
     width: i32,
+    fixed: [Option<i32>; 2],
     random: &mut Random,
 ) -> ([Vec<GuardedDoor>; 2], Vec<Slice>) {
     let across = 1 - axis;
@@ -1033,11 +1103,19 @@ fn corridor(
     let range = |r: &Room| (r.min[across], r.min[across] + r.size[across] - width);
     let ((a0, a1), (b0, b1)) = (range(a), range(b));
     let (lo, hi) = (a0.max(b0), a1.min(b1));
-    let (ya, yb) = if lo <= hi {
-        let y = random.range(lo, hi);
-        (y, y)
-    } else {
-        (random.range(a0, a1), random.range(b0, b1))
+    // A handmade room's door fixes where the corridor meets it; the other end lines up
+    // with it when it can, for a straight corridor.
+    let (ya, yb) = match fixed {
+        [Some(ya), Some(yb)] => (ya, yb),
+        [Some(ya), None] if (b0..=b1).contains(&ya) => (ya, ya),
+        [Some(ya), None] => (ya, random.range(b0, b1)),
+        [None, Some(yb)] if (a0..=a1).contains(&yb) => (yb, yb),
+        [None, Some(yb)] => (random.range(a0, a1), yb),
+        [None, None] if lo <= hi => {
+            let y = random.range(lo, hi);
+            (y, y)
+        }
+        [None, None] => (random.range(a0, a1), random.range(b0, b1)),
     };
     let a_end = a.min[axis] + a.size[axis];
     let b_start = b.min[axis];
@@ -1237,9 +1315,41 @@ fn levels(
     (levels, stairs)
 }
 
-/// Lays the graph out on the grid: one room per node inside its lattice cell, a
-/// corridor per link, and the recipe's doors and items.
+/// Lays the graph out on the grid without handmade rooms' shapes: rooms that should be
+/// handmade are generated instead.
+#[cfg(test)]
 pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
+    layout_with(recipe, seed, &BTreeMap::new())
+}
+
+/// Across coordinates (along the side, from the footprint's corner) where `width`
+/// neighbouring doors open on `side`: where a corridor that wide can meet the room.
+fn door_starts(shape: &crate::dungeon_room::Shape, side: Side, width: i32) -> Vec<i32> {
+    let across = |c: [i32; 2]| match side {
+        Side::East | Side::West => c[1],
+        Side::North | Side::South => c[0],
+    };
+    let doors: BTreeSet<i32> = shape
+        .doors
+        .iter()
+        .filter(|(_, s)| *s == side)
+        .map(|(c, _)| across(*c))
+        .collect();
+    doors
+        .iter()
+        .copied()
+        .filter(|start| (0..width).all(|k| doors.contains(&(start + k))))
+        .collect()
+}
+
+/// Lays the graph out on the grid: one room per node inside its lattice cell, a
+/// corridor per link, and the recipe's doors and items. Rooms of handmade paths take
+/// the footprint and doors of one of `shapes` that fits.
+pub fn layout_with(
+    recipe: &Recipe,
+    seed: u32,
+    shapes: &BTreeMap<Uuid, crate::dungeon_room::Shape>,
+) -> Result<Layout, String> {
     let graph = graph(recipe, seed)?;
     let (lattice, span) = recipe.lattice();
     let (fill, width, rounded) = recipe.rooms();
@@ -1261,12 +1371,101 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
     let caves = recipe.caves();
     let is_cave =
         |node: usize| graph.path[node].is_some_and(|p| caves.contains_key(&graph.paths[p].0));
+    // The side of a node towards each node it links to.
+    let sides_of = |node: usize| -> BTreeSet<Side> {
+        graph
+            .links
+            .iter()
+            .filter_map(|l| match (l.a == node, l.b == node) {
+                (true, _) => Some(l.b),
+                (_, true) => Some(l.a),
+                _ => None,
+            })
+            .map(|other| {
+                let (p, q) = (graph.point(node), graph.point(other));
+                match (q[0] - p[0], q[1] - p[1]) {
+                    (d, _) if d > 0 => Side::East,
+                    (d, _) if d < 0 => Side::West,
+                    (_, d) if d > 0 => Side::South,
+                    _ => Side::North,
+                }
+            })
+            .collect()
+    };
+    let handmade_paths = recipe.handmade();
+    let mut made: Vec<Option<(crate::dungeon::Handmade, crate::dungeon_room::Shape)>> = Vec::new();
+    let mut used: BTreeMap<Uuid, usize> = BTreeMap::new();
+    // Rooms each Handmade rooms step made so far, for its cap.
+    let mut made_by: BTreeMap<usize, u8> = BTreeMap::new();
+    let mut notes = Vec::new();
     for &node in &nodes {
         let p = graph.point(node);
-        let (mut w, mut h) = (random.range(lo, hi), random.range(lo, hi));
-        // Caves take their whole slot; their shape comes later.
-        if is_cave(node) {
-            (w, h) = (inner, inner);
+        let path = graph.path[node].map(|i| graph.paths[i].0.clone());
+        let wanted = path
+            .as_ref()
+            .and_then(|name| handmade_paths.get(name))
+            .filter(|(step, most, _)| {
+                *most == 0 || made_by.get(step).copied().unwrap_or(0) < *most
+            });
+        // A Dungeon Room for this room: one that fits the slot with doors towards every
+        // link, the least used so far, turned any way that fits.
+        let chosen = wanted.and_then(|(_, _, ids)| {
+            let sides = sides_of(node);
+            let mut options = Vec::new();
+            for id in ids {
+                let Some(shape) = shapes.get(id) else {
+                    continue;
+                };
+                for turns in 0..4u8 {
+                    let turned = shape.turned(turns);
+                    if turned.size[0] <= inner
+                        && turned.size[1] <= inner
+                        && sides
+                            .iter()
+                            .all(|s| !door_starts(&turned, *s, width).is_empty())
+                    {
+                        options.push((*id, turns, turned));
+                    }
+                }
+            }
+            let least = options
+                .iter()
+                .map(|o| used.get(&o.0).copied().unwrap_or(0))
+                .min()?;
+            let pool: Vec<_> = options
+                .into_iter()
+                .filter(|o| used.get(&o.0).copied().unwrap_or(0) == least)
+                .collect();
+            Some(pool[random.below(pool.len() as u32) as usize].clone())
+        });
+        if wanted.is_some() && chosen.is_none() {
+            notes.push(format!(
+                "No Dungeon Room of the {} path fits a slot of {inner} cells with doors {}; a generated room stands there",
+                path.as_deref().unwrap_or(MAIN),
+                sides_of(node)
+                    .iter()
+                    .map(|s| format!("{s:?}").to_lowercase())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        let (w, h) = match &chosen {
+            Some((_, _, shape)) => (shape.size[0], shape.size[1]),
+            // Caves take their whole slot; their shape comes later.
+            None if is_cave(node) => {
+                let _ = (random.range(lo, hi), random.range(lo, hi));
+                (inner, inner)
+            }
+            None => (random.range(lo, hi), random.range(lo, hi)),
+        };
+        if let Some((id, turns, shape)) = chosen {
+            *used.entry(id).or_default() += 1;
+            if let Some((step, _, _)) = wanted {
+                *made_by.entry(*step).or_default() += 1;
+            }
+            made.push(Some((crate::dungeon::Handmade { room: id, turns }, shape)));
+        } else {
+            made.push(None);
         }
         let base = [1 + p[0] * span + margin, 1 + p[1] * span + margin];
         room_of[node] = rooms.len();
@@ -1298,6 +1497,23 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
             (link.b, link.a)
         };
         let gap = 1 + (graph.point(second)[axis]) * span - margin;
+        // Handmade rooms are met at one of their doors on the facing side.
+        let mut fixed = [None, None];
+        for (k, (node, side)) in [
+            (first, [Side::East, Side::South][axis]),
+            (second, [Side::West, Side::North][axis]),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            if let Some((_, shape)) = &made[room_of[node]] {
+                let starts = door_starts(shape, side, width);
+                if !starts.is_empty() {
+                    let start = starts[random.below(starts.len() as u32) as usize];
+                    fixed[k] = Some(rooms[room_of[node]].min[1 - axis] + start);
+                }
+            }
+        }
         let ([d1, d2], slices) = corridor(
             &mut cells,
             size,
@@ -1306,6 +1522,7 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
             axis,
             gap,
             width,
+            fixed,
             &mut random,
         );
         doors.push(if first == link.a { [d1, d2] } else { [d2, d1] });
@@ -1336,6 +1553,19 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
     }
     for &node in &nodes {
         let index = room_of[node];
+        if let Some((_, shape)) = &made[index] {
+            // A handmade room's footprint: cells it leaves out are rock.
+            let room = rooms[index];
+            for y in 0..room.size[1] {
+                for x in 0..room.size[0] {
+                    if !shape.is_floor([x, y]) {
+                        cells[((room.min[1] + y) * size[0] + room.min[0] + x) as usize] =
+                            Cell::Empty;
+                    }
+                }
+            }
+            continue;
+        }
         let path = graph.path[node].map(|p| graph.paths[p].0.as_str());
         let shape = match path.and_then(|p| caves.get(p)) {
             Some(&(density, smoothing)) => Shape::Cave { density, smoothing },
@@ -1411,7 +1641,16 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
                 )
             }
         };
-        let cell = chosen
+        // A handmade room puts keys and items on its own spots first.
+        let authored = made[index].as_ref().and_then(|(_, shape)| {
+            shape
+                .spots
+                .iter()
+                .map(|s| [room.min[0] + s[0], room.min[1] + s[1]])
+                .find(|p| !taken.contains(p))
+        });
+        let cell = authored
+            .or(chosen)
             .or_else(|| pick(floor.clone(), &mut random))
             .unwrap_or(centre);
         taken.insert(cell);
@@ -1430,6 +1669,24 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
         })
         .collect();
     let loops = (links.len() + 1).saturating_sub(rooms.len());
+    // Doors of handmade rooms no corridor came to are closed.
+    let mut caps = Vec::new();
+    for (index, entry) in made.iter().enumerate() {
+        let Some((_, shape)) = entry else { continue };
+        for (cell, side) in &shape.doors {
+            let cell = [rooms[index].min[0] + cell[0], rooms[index].min[1] + cell[1]];
+            let used = room_doors[index]
+                .iter()
+                .any(|d| d.cell == cell && d.side == *side);
+            if !used {
+                caps.push(GuardedDoor {
+                    cell,
+                    side: *side,
+                    lock: 0,
+                });
+            }
+        }
+    }
     let (levels, stairs) = match recipe.levels() {
         Some(settings) => levels(
             &graph,
@@ -1465,6 +1722,9 @@ pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
         room_paths,
         levels,
         stairs,
+        handmade: made.into_iter().map(|m| m.map(|(h, _)| h)).collect(),
+        caps,
+        notes,
     }))
 }
 
@@ -1619,6 +1879,7 @@ fn crop(mut layout: Layout) -> Layout {
     layout.locks.iter_mut().for_each(|d| shift(&mut d.cell));
     layout.one_ways.iter_mut().for_each(|d| shift(&mut d.cell));
     layout.items.iter_mut().for_each(|i| shift(&mut i.cell));
+    layout.caps.iter_mut().for_each(|d| shift(&mut d.cell));
     layout.levels = std::mem::take(&mut layout.levels)
         .into_iter()
         .map(|(mut p, level)| {
@@ -1699,6 +1960,210 @@ pub fn save(record: &assets::Record, recipe: &Recipe) -> Result<String, String> 
 
 #[cfg(test)]
 mod tests {
+    /// Handmade rooms take a Dungeon Room's turned footprint, are met by corridors at
+    /// their doors, wall up the doors nobody uses, get no generated floor or walls, and
+    /// leave every room reachable.
+    #[test]
+    fn handmade_rooms_take_their_footprint_and_doors() {
+        use crate::dungeon_room::{Door, Room};
+        let cross = Room {
+            size: [5, 5],
+            doors: vec![
+                Door {
+                    cell: [4, 2],
+                    side: Side::East,
+                },
+                Door {
+                    cell: [0, 2],
+                    side: Side::West,
+                },
+                Door {
+                    cell: [2, 0],
+                    side: Side::North,
+                },
+                Door {
+                    cell: [2, 4],
+                    side: Side::South,
+                },
+            ],
+            spots: vec![[1, 1]],
+            ..Default::default()
+        };
+        let corner = Room {
+            size: [6, 4],
+            closed: vec![[4, 2], [5, 2], [4, 3], [5, 3]],
+            doors: vec![
+                Door {
+                    cell: [5, 1],
+                    side: Side::East,
+                },
+                Door {
+                    cell: [1, 3],
+                    side: Side::South,
+                },
+            ],
+            ..Default::default()
+        };
+        let ids = [Uuid::from_u128(1), Uuid::from_u128(2)];
+        let shapes: BTreeMap<Uuid, crate::dungeon_room::Shape> = ids
+            .iter()
+            .zip([&cross, &corner])
+            .map(|(id, r)| (*id, r.shape()))
+            .collect();
+        let mut recipe = builtin();
+        recipe.steps.insert(
+            recipe.steps.len() - 1,
+            Step::HandmadeRooms {
+                paths: vec![MAIN.into()],
+                rooms: ids.to_vec(),
+                most: 0,
+            },
+        );
+        recipe.validate().unwrap();
+        let mut handmade_total = 0;
+        for seed in 1..=12 {
+            let layout = layout_with(&recipe, seed, &shapes).unwrap();
+            let spots = crate::dungeon::spots(&layout);
+            for (index, room) in layout.rooms.iter().enumerate() {
+                let Some(made) = layout.handmade_room(index) else {
+                    continue;
+                };
+                handmade_total += 1;
+                assert_eq!(layout.room_paths[index], MAIN, "seed {seed}");
+                let shape = shapes[&made.room].turned(made.turns);
+                assert_eq!(room.size, shape.size, "seed {seed}: room {index}");
+                for y in 0..room.size[1] {
+                    for x in 0..room.size[0] {
+                        let p = [room.min[0] + x, room.min[1] + y];
+                        assert_eq!(
+                            layout.at(p) == Cell::Room(index as u16),
+                            shape.is_floor([x, y]),
+                            "seed {seed}: room {index} cell {p:?}"
+                        );
+                    }
+                }
+                // Every opening of the room is one of its doors, used or walled up.
+                let doors: BTreeSet<([i32; 2], Side)> = shape
+                    .doors
+                    .iter()
+                    .map(|(c, s)| ([room.min[0] + c[0], room.min[1] + c[1]], *s))
+                    .collect();
+                for y in 0..room.size[1] {
+                    for x in 0..room.size[0] {
+                        let p = [room.min[0] + x, room.min[1] + y];
+                        for side in Side::ALL {
+                            if layout.door(p, side) {
+                                assert!(doors.contains(&(p, side)), "seed {seed}: {p:?} {side:?}");
+                            }
+                        }
+                    }
+                }
+                for cap in &layout.caps {
+                    assert!(!layout.door(cap.cell, cap.side));
+                }
+                let capped = layout
+                    .caps
+                    .iter()
+                    .filter(|c| doors.contains(&(c.cell, c.side)))
+                    .count();
+                let open = doors.iter().filter(|(c, s)| layout.door(*c, *s)).count();
+                assert_eq!(capped + open, doors.len(), "seed {seed}");
+                // The generator draws nothing inside: no floor, ceiling, wall, corner or
+                // column, except the walls that close unused doors.
+                for spot in spots.iter().filter(|s| layout.handmade_cell(s.cell)) {
+                    match spot.kind {
+                        crate::dungeon::SpotKind::Wall => assert!(
+                            layout
+                                .caps
+                                .iter()
+                                .any(|c| c.cell == spot.cell && Some(c.side) == spot.side)
+                        ),
+                        kind => assert!(
+                            !matches!(
+                                kind,
+                                crate::dungeon::SpotKind::Floor
+                                    | crate::dungeon::SpotKind::Ceiling
+                                    | crate::dungeon::SpotKind::Corner
+                                    | crate::dungeon::SpotKind::Column
+                            ),
+                            "seed {seed}: {kind:?} in a handmade room"
+                        ),
+                    }
+                }
+            }
+            // Every walkable cell is reached from the spawn.
+            let start = layout.room_floor_center(layout.spawn);
+            let mut seen = BTreeSet::from([start]);
+            let mut queue = VecDeque::from([start]);
+            while let Some(p) = queue.pop_front() {
+                for side in Side::ALL {
+                    let d = side.delta();
+                    let q = [p[0] + d[0], p[1] + d[1]];
+                    if layout.open(p, side) && seen.insert(q) {
+                        queue.push_back(q);
+                    }
+                }
+            }
+            assert_eq!(seen.len(), layout.walkable_cells(), "seed {seed}");
+        }
+        assert!(
+            handmade_total >= 24,
+            "only {handmade_total} handmade rooms in 12 dungeons"
+        );
+    }
+
+    /// A Handmade rooms step with a cap makes no more rooms than it, and still makes them.
+    #[test]
+    fn handmade_rooms_respect_their_cap() {
+        use crate::dungeon_room::{Door, Room};
+        let cross = Room {
+            size: [5, 5],
+            doors: Side::ALL
+                .into_iter()
+                .map(|side| Door {
+                    cell: match side {
+                        Side::East => [4, 2],
+                        Side::West => [0, 2],
+                        Side::North => [2, 0],
+                        Side::South => [2, 4],
+                    },
+                    side,
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let id = Uuid::from_u128(1);
+        let shapes = BTreeMap::from([(id, cross.shape())]);
+        let mut recipe = builtin();
+        recipe.steps.insert(
+            recipe.steps.len() - 1,
+            Step::HandmadeRooms {
+                paths: vec![MAIN.into()],
+                rooms: vec![id],
+                most: 1,
+            },
+        );
+        recipe.validate().unwrap();
+        let mut total = 0;
+        for seed in 1..=12 {
+            let layout = layout_with(&recipe, seed, &shapes).unwrap();
+            let made = (0..layout.rooms.len())
+                .filter(|&i| layout.handmade_room(i).is_some())
+                .count();
+            assert!(made <= 1, "seed {seed}: {made} handmade rooms");
+            total += made;
+        }
+        assert!(total >= 10, "only {total} handmade rooms in 12 dungeons");
+        if let Some(Step::HandmadeRooms { most, .. }) = recipe
+            .steps
+            .iter_mut()
+            .find(|s| matches!(s, Step::HandmadeRooms { .. }))
+        {
+            *most = 17;
+        }
+        assert!(recipe.validate().is_err());
+    }
+
     /// Floors meet across every open edge: a flat cell at its floor, a stair cell at its
     /// low end on the side it climbs from and its top towards the side it climbs to.
     /// Rooms stay flat, stairs stand in corridors, and the built-in recipe climbs.

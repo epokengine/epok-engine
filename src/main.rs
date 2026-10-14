@@ -60,6 +60,8 @@ mod dungeon_query;
 mod dungeon_random;
 mod dungeon_recipe;
 mod dungeon_recipe_editor;
+mod dungeon_room;
+mod dungeon_room_editor;
 mod dungeon_rooms;
 mod dungeon_style;
 mod dungeon_style_editor;
@@ -1974,6 +1976,16 @@ fn prepare_editor(editor: &mut editor::Editor) {
     if args.iter().any(|a| a == "--screenshot-2d") {
         editor.set_scene_view_mode(scene_view_mode::SceneViewMode::TwoD);
     }
+    // Screenshot automation: `--open-map <path>` opens another map of the project, such
+    // as a Dungeon Room workbench, before the capture.
+    if let Some(path) = args
+        .windows(2)
+        .find(|a| a[0] == "--open-map")
+        .map(|a| a[1].clone())
+        && let Err(error) = editor.open_scene(editor.root.join(path))
+    {
+        editor.log(format!("--open-map: {error}"));
+    }
     // Screenshot automation: select an actor by name before the capture.
     if let Some(name) = args
         .windows(2)
@@ -2020,6 +2032,22 @@ fn prepare_editor(editor: &mut editor::Editor) {
             dungeon_style_editor::open(editor, style);
             dungeon_style_editor::select_first_piece(editor);
         }
+    }
+    // Screenshot automation: `--open-dungeon-room` opens the project's first Dungeon Room.
+    let room = args
+        .iter()
+        .any(|a| a == "--open-dungeon-room")
+        .then(|| {
+            editor
+                .assets
+                .index
+                .usable()
+                .find(|r| r.meta.kind == assets::Kind::DungeonRoom)
+                .map(|r| r.meta.id)
+        })
+        .flatten();
+    if let Some(room) = room {
+        dungeon_room_editor::open(editor, room);
     }
     // Screenshot automation: `--dungeon-query-room N` opens the Gameplay queries list
     // with room N picked out in the Scene view.

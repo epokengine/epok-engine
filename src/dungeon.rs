@@ -282,7 +282,7 @@ impl Cell {
 
 /// The four sides of a cell. Grid X grows east; grid Y grows south in 2D and towards
 /// +Z in 3D.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Side {
     East,
     South,
@@ -355,6 +355,21 @@ pub struct Layout {
     pub levels: BTreeMap<[i32; 2], u8>,
     /// Stair cells: each climbs one level towards its side, from the cell's level.
     pub stairs: BTreeMap<[i32; 2], Side>,
+    /// The Dungeon Room each room is made from, by room; empty when none is handmade.
+    pub handmade: Vec<Option<Handmade>>,
+    /// Doors of handmade rooms no corridor uses: the room cell and the side a wall
+    /// closes.
+    pub caps: Vec<GuardedDoor>,
+    /// What the layout could not do as asked, for the generation report.
+    pub notes: Vec<String>,
+}
+
+/// A room made from a Dungeon Room asset: which one, and how many clockwise quarter
+/// turns it was placed with. The room's rectangle is its turned footprint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Handmade {
+    pub room: Uuid,
+    pub turns: u8,
 }
 
 /// A door on a room's side: `cell` is the room cell, `side` faces the corridor.
@@ -382,6 +397,51 @@ pub const STEPS_PER_LEVEL: usize = 4;
 pub const LEVEL_HEIGHT: f32 = STEP_RISE * STEPS_PER_LEVEL as f32;
 
 impl Layout {
+    /// The floor cell of a room nearest its centre: the centre itself unless a
+    /// handmade footprint leaves it out.
+    pub fn room_floor_center(&self, room: usize) -> [i32; 2] {
+        let Some(r) = self.rooms.get(room) else {
+            return [0, 0];
+        };
+        let centre = r.center();
+        if self.at(centre) == Cell::Room(room as u16) {
+            return centre;
+        }
+        (r.min[1]..r.min[1] + r.size[1])
+            .flat_map(|y| (r.min[0]..r.min[0] + r.size[0]).map(move |x| [x, y]))
+            .filter(|p| self.at(*p) == Cell::Room(room as u16))
+            .min_by_key(|p| {
+                (
+                    (p[0] - centre[0]).abs() + (p[1] - centre[1]).abs(),
+                    p[1],
+                    p[0],
+                )
+            })
+            .unwrap_or(centre)
+    }
+    /// The Dungeon Room a room is made from.
+    pub fn handmade_room(&self, room: usize) -> Option<Handmade> {
+        self.handmade.get(room).copied().flatten()
+    }
+    /// Draws handmade rooms as generated rooms of their shape, for a 2D dungeon: Dungeon
+    /// Rooms hold 3D content. Adds a note when there were any.
+    pub fn without_handmade_content(&mut self) {
+        let count = self.handmade.iter().flatten().count();
+        if count == 0 {
+            return;
+        }
+        self.handmade.clear();
+        self.caps.clear();
+        self.notes.push(format!(
+            "{count} handmade room{} drawn as generated rooms of {} shape: Dungeon Rooms hold 3D content",
+            if count == 1 { "" } else { "s" },
+            if count == 1 { "its" } else { "their" }
+        ));
+    }
+    /// Whether a cell belongs to a handmade room, whose own content stands there.
+    pub fn handmade_cell(&self, p: [i32; 2]) -> bool {
+        matches!(self.at(p), Cell::Room(r) if self.handmade_room(usize::from(r)).is_some())
+    }
     /// A walkable cell's floor level; 0 elsewhere.
     pub fn level(&self, p: [i32; 2]) -> u8 {
         self.levels.get(&p).copied().unwrap_or(0)
@@ -644,8 +704,13 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                 level: 0,
                 tag: 0,
             };
-            out.push(spot(SpotKind::Floor, None));
-            out.push(spot(SpotKind::Ceiling, None));
+            // A handmade room's content is its floor, walls and ceiling; only its
+            // doors open onto the generated corridors.
+            let handmade = layout.handmade_cell([x, y]);
+            if !handmade {
+                out.push(spot(SpotKind::Floor, None));
+                out.push(spot(SpotKind::Ceiling, None));
+            }
             let closed = |side| !layout.open([x, y], side) && !layout.door([x, y], side);
             for side in Side::ALL {
                 if layout.door([x, y], side) {
@@ -660,9 +725,12 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                         level: 0,
                         tag: 0,
                     });
-                } else if closed(side) {
+                } else if closed(side) && !handmade {
                     out.push(spot(SpotKind::Wall, Some(side)));
                 }
+            }
+            if handmade {
+                continue;
             }
             for side in Side::ALL {
                 if closed(side) && closed(side.next()) {
@@ -682,6 +750,21 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
     }
     out.extend(columns(&walls));
     out.extend(doorways);
+    // Doors of handmade rooms nothing came to are walled up.
+    for cap in &layout.caps {
+        out.push(Spot {
+            kind: SpotKind::Wall,
+            cell: cap.cell,
+            side: Some(cap.side),
+            room: match layout.at(cap.cell) {
+                Cell::Room(r) => Some(usize::from(r)),
+                _ => None,
+            },
+            corridor: false,
+            level: 0,
+            tag: 0,
+        });
+    }
     let room_of = |p: [i32; 2]| match layout.at(p) {
         Cell::Room(r) => Some(usize::from(r)),
         _ => None,
@@ -778,7 +861,11 @@ pub fn layout(generator: &Generator, index: &crate::assets::Index) -> Result<Lay
         }
         Source::Recipe => {
             let (recipe, _) = crate::dungeon_recipe::of(index, generator)?;
-            crate::dungeon_recipe::layout(&recipe, generator.seed)
+            let (rooms, errors) = crate::dungeon_room::load(index, &recipe.rooms_used());
+            let shapes = rooms.iter().map(|(id, room)| (*id, room.shape())).collect();
+            let mut layout = crate::dungeon_recipe::layout_with(&recipe, generator.seed, &shapes)?;
+            layout.notes.extend(errors);
+            Ok(layout)
         }
     }
 }

@@ -214,6 +214,7 @@ fn manager_body(ui: &Ui, m: &mut Manager, scene: &crate::scene::Scene) {
                                     | assets::Kind::StringTable
                                     | assets::Kind::DungeonStyle
                                     | assets::Kind::DungeonRecipe
+                                    | assets::Kind::DungeonRoom
                             ) {
                                 "Double-click this asset in Project to open its editor."
                             } else {
