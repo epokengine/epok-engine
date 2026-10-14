@@ -460,7 +460,7 @@ impl Recipe {
         }
         Ok(())
     }
-    fn lattice(&self) -> ([i32; 2], i32) {
+    pub fn lattice(&self) -> ([i32; 2], i32) {
         self.steps
             .iter()
             .find_map(|s| match s {
@@ -487,6 +487,12 @@ impl Recipe {
     }
     /// The Dungeon Rooms each path's rooms are made from, with the step that says so and
     /// how many rooms that step makes at most (0: every one); later steps win.
+    /// The grid a layout of this recipe lies on before it is cropped: the lattice's
+    /// slots and a border cell around them.
+    pub fn grid_size(&self) -> [i32; 2] {
+        let (lattice, span) = self.lattice();
+        [lattice[0] * span + 2, lattice[1] * span + 2]
+    }
     pub fn handmade(&self) -> BTreeMap<String, (usize, u8, Vec<Uuid>)> {
         let mut rooms = BTreeMap::new();
         for (index, step) in self.steps.iter().enumerate() {
@@ -623,6 +629,8 @@ pub struct Graph {
     pub spawn: usize,
     pub goal: usize,
     pub keys: u16,
+    /// Lattice slots generation volumes close; empty when none are.
+    pub blocked: Vec<bool>,
 }
 
 impl Graph {
@@ -639,7 +647,11 @@ impl Graph {
             spawn: 0,
             goal: 0,
             keys: 0,
+            blocked: Vec::new(),
         }
+    }
+    pub fn is_blocked(&self, node: usize) -> bool {
+        self.blocked.get(node).copied().unwrap_or(false)
     }
     pub fn point(&self, node: usize) -> [i32; 2] {
         [node as i32 % self.size[0], node as i32 / self.size[0]]
@@ -653,6 +665,7 @@ impl Graph {
                 (q[0] >= 0 && q[1] >= 0 && q[0] < self.size[0] && q[1] < self.size[1])
                     .then(|| (q[1] * self.size[0] + q[0]) as usize)
             })
+            .filter(|n| !self.is_blocked(*n))
             .collect()
     }
     pub fn active(&self, node: usize) -> bool {
@@ -837,10 +850,13 @@ fn shuffled<T: Copy>(items: &[T], random: &mut Random) -> Vec<T> {
 }
 
 /// Runs every step once with `random`; Err names the step that could not be satisfied.
-fn grow(recipe: &Recipe, random: &mut Random) -> Result<Graph, String> {
+fn grow(recipe: &Recipe, random: &mut Random, blocked: &[bool]) -> Result<Graph, String> {
     let (size, _) = recipe.lattice();
     let mut graph = Graph::new(size);
+    graph.blocked = blocked.to_vec();
     let count = graph.path.len();
+    // Slots a path may start from; every slot when no volume closes any.
+    let open: Vec<usize> = (0..count).filter(|n| !graph.is_blocked(*n)).collect();
     for (index, step) in recipe.steps.iter().enumerate() {
         let fail = |message: &str| format!("Step {} ({}): {message}", index + 1, step.label());
         match step {
@@ -851,10 +867,10 @@ fn grow(recipe: &Recipe, random: &mut Random) -> Result<Graph, String> {
             | Step::Levels { .. } => {}
             Step::MainPath { length } => {
                 let length = random.range(i32::from(length[0]), i32::from(length[1])) as usize;
-                if length > count {
+                if length > open.len() {
                     return Err(fail("the path is longer than the lattice has rooms"));
                 }
-                let start = random.below(count as u32) as usize;
+                let start = open[random.below(open.len() as u32) as usize];
                 let path = walk(&graph, start, length, random, None)
                     .ok_or_else(|| fail("no path of that length fits"))?;
                 graph.spawn = path[0];
@@ -1035,16 +1051,17 @@ fn grow(recipe: &Recipe, random: &mut Random) -> Result<Graph, String> {
 
 /// Grows the room graph, retrying with fresh randomness until every step succeeds.
 pub fn graph(recipe: &Recipe, seed: u32) -> Result<Graph, String> {
-    graph_counted(recipe, seed).map(|(graph, _)| graph)
+    graph_counted(recipe, seed, &[]).map(|(graph, _)| graph)
 }
 
-/// The room graph and how many attempts it took, from 1 to `ATTEMPTS`.
-pub fn graph_counted(recipe: &Recipe, seed: u32) -> Result<(Graph, u32), String> {
+/// The room graph avoiding `blocked` lattice slots (none when empty), and how many
+/// attempts it took, from 1 to `ATTEMPTS`.
+pub fn graph_counted(recipe: &Recipe, seed: u32, blocked: &[bool]) -> Result<(Graph, u32), String> {
     recipe.validate()?;
     let mut last = String::new();
     for attempt in 0..ATTEMPTS {
         let mut random = Random::stream(seed, STAGE_RECIPE + attempt);
-        match grow(recipe, &mut random) {
+        match grow(recipe, &mut random, blocked) {
             Ok(graph) => return Ok((graph, attempt + 1)),
             Err(error) => last = error,
         }
@@ -1324,7 +1341,7 @@ fn levels(
 /// handmade are generated instead.
 #[cfg(test)]
 pub fn layout(recipe: &Recipe, seed: u32) -> Result<Layout, String> {
-    layout_with(recipe, seed, &BTreeMap::new())
+    layout_with(recipe, seed, &BTreeMap::new(), &[])
 }
 
 /// Across coordinates (along the side, from the footprint's corner) where `width`
@@ -1354,9 +1371,42 @@ pub fn layout_with(
     recipe: &Recipe,
     seed: u32,
     shapes: &BTreeMap<Uuid, crate::dungeon_room::Shape>,
+    volumes: &[crate::dungeon_volumes::Volume],
 ) -> Result<Layout, String> {
-    let (graph, attempts) = graph_counted(recipe, seed)?;
+    let layout = layout_on_grid(recipe, seed, shapes, volumes)?;
+    // Volumes are drawn on the whole grid: keep it, so they stay where they were drawn.
+    Ok(if volumes.is_empty() {
+        crop(layout)
+    } else {
+        layout
+    })
+}
+
+/// The layout on the recipe's whole grid (`Recipe::grid_size`), before cropping.
+pub fn layout_on_grid(
+    recipe: &Recipe,
+    seed: u32,
+    shapes: &BTreeMap<Uuid, crate::dungeon_room::Shape>,
+    volumes: &[crate::dungeon_volumes::Volume],
+) -> Result<Layout, String> {
     let (lattice, span) = recipe.lattice();
+    // A lattice slot that touches a cell volumes close holds nothing: no room, and no
+    // corridor, as corridors stay inside the two slots they join.
+    let slots_blocked: Vec<bool> = if volumes.iter().any(|v| v.kind.shapes_recipes()) {
+        let size = recipe.grid_size();
+        let cells = crate::dungeon_volumes::blocked(volumes, size);
+        (0..lattice[1])
+            .flat_map(|y| (0..lattice[0]).map(move |x| [x, y]))
+            .map(|[x, y]| {
+                (1 + y * span..1 + (y + 1) * span).any(|cy| {
+                    (1 + x * span..1 + (x + 1) * span).any(|cx| cells[(cy * size[0] + cx) as usize])
+                })
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let (graph, attempts) = graph_counted(recipe, seed, &slots_blocked)?;
     let (fill, width, rounded) = recipe.rooms();
     let margin = margin(width);
     let inner = span - 2 * margin;
@@ -1712,7 +1762,7 @@ pub fn layout_with(
                 .unwrap_or_default()
         })
         .collect();
-    Ok(crop(Layout {
+    let layout = Layout {
         size,
         cells,
         requested: rooms.len(),
@@ -1731,7 +1781,8 @@ pub fn layout_with(
         handmade: made.into_iter().map(|m| m.map(|(h, _)| h)).collect(),
         caps,
         notes,
-    }))
+    };
+    Ok(layout)
 }
 
 /// The outline of a room inside its rectangle.
@@ -2028,7 +2079,7 @@ mod tests {
         recipe.validate().unwrap();
         let mut handmade_total = 0;
         for seed in 1..=12 {
-            let layout = layout_with(&recipe, seed, &shapes).unwrap();
+            let layout = layout_with(&recipe, seed, &shapes, &[]).unwrap();
             let spots = crate::dungeon::spots(&layout);
             for (index, room) in layout.rooms.iter().enumerate() {
                 let Some(made) = layout.handmade_room(index) else {
@@ -2152,7 +2203,7 @@ mod tests {
         recipe.validate().unwrap();
         let mut total = 0;
         for seed in 1..=12 {
-            let layout = layout_with(&recipe, seed, &shapes).unwrap();
+            let layout = layout_with(&recipe, seed, &shapes, &[]).unwrap();
             let made = (0..layout.rooms.len())
                 .filter(|&i| layout.handmade_room(i).is_some())
                 .count();

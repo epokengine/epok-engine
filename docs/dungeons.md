@@ -497,6 +497,40 @@ numbers from the seed, so editing one piece never reshuffles another.
 
 ![A styled dungeon on the console: a room lit by a baked point light, with a crate merged into the geometry](images/dungeon-style-ingame.png)
 
+## Volumes
+
+Volumes are rectangles of the generator's grid that shape its layout: to fit the dungeon
+around art made by hand, keep it inside an area, force a room in a place, or make it
+symmetric. They are part of the generator's settings, so they cost nothing on the
+console.
+
+| Volume | What it does | Layouts |
+| --- | --- | --- |
+| Keep out | No room or corridor uses its cells | Both |
+| Only here | With any Only here volume, rooms and corridors stay inside them | Both |
+| Room here | A room fills it, besides the rooms the settings scatter | Rooms and corridors |
+| Mirror left-right, Mirror front-back | Rooms scattered in its first half are repeated in its second half; a Room here volume across the middle stays as it is | Rooms and corridors |
+
+Open **Volumes** in the generator band and press **Draw volumes...**: the window shows
+the whole grid from above, as the Scene view does (+Z up in 3D), with the layout the
+settings give. Pick a kind and drag on the grid to draw one; drag a volume to move it,
+its corner to resize it, and right-click it to remove it. The layout follows every
+change; **Generate** builds it into the map. The band lists the volumes with their kind,
+which can be changed there, and the Scene view outlines them on the grid in their
+colours.
+
+![A Keep out volume in the middle of the template's recipe: the four lattice slots it touches stay empty, in the Volumes window and in the generated dungeon](images/dungeon-volumes-recipe.png)
+
+A recipe works on its lattice: a slot that touches a closed cell holds no room and no
+corridor, so its paths grow around it, and the window shades the slots a volume closes.
+A recipe dungeon with volumes keeps its whole lattice under the generator instead of
+being cropped to its rooms, so volumes stay where they were drawn whatever the seed.
+
+![A rooms-and-corridors grid mirrored left to right around a forced middle room, with two corners kept out](images/dungeon-volumes-mirror.png)
+
+A generator holds up to 32 volumes, each inside its grid; volumes that close every cell,
+or a Room here volume smaller than two cells a side, are reported in the band.
+
 ## Gameplay queries
 
 Game code can ask about the generated dungeon on the console: which room the player is
@@ -573,7 +607,9 @@ dim stubs of the corridors that leave it; a corridor shows once walked. Keys sho
 their room is explored and disappear when picked up; a locked door shows once its room
 or its doorway is seen and disappears when it opens. The goal shows once its room is
 explored. The picture under the settings shows the console's screen with the map fully
-explored and the player at the spawn.
+explored and the player at the spawn. In 3D the map has +Z at the top, the way the
+Scene view looks from above and the camera faces at the start; in 2D it is the screen's
+own up.
 
 ![On the console: the spawn room at the start, the next room after the stairs, and the full map opened from game code](images/dungeon-minimap-ingame.png)
 
@@ -673,6 +709,9 @@ rotated or scaled.
   to it).
 - `--open-map <path>` opens a map of the project, `--open-dungeon-room` the first
   Dungeon Room in the room editor.
+- `--dungeon-settings '{"volumes":[{"kind":"KeepOut","min":[24,14],"size":[14,14]}]}'`
+  sets volumes (kinds `KeepOut`, `OnlyHere`, `Room`, `MirrorX`, `MirrorY`; cells of the
+  generator's grid); `--open-dungeon-volumes` shows the first generator's volumes.
 - `--dungeon-seed-bench N` measures N seeds of the startup map's first generator, from
   its seed or `--dungeon-seed`, prints the summary and the seeds that do not fit, and
   exports those that fit; `--open-dungeon-seeds N` shows the bench run over N seeds.

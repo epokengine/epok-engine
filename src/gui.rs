@@ -2905,6 +2905,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
     crate::dungeon_recipe_editor::window(ui, e);
     crate::dungeon_room_editor::window(ui, e);
     crate::dungeon_seeds::window(ui, e);
+    crate::dungeon_volumes_editor::window(ui, e);
     crate::world2d_editor::dialogs(ui, e);
     crate::localization_editor::window(ui, e);
     crate::lighting_editor::window(ui, e);

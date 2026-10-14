@@ -162,10 +162,13 @@ impl Settings {
 /// Bakes the minimap of a layout: the bounding box of its walkable cells, each room's
 /// cells (rooms from `rooms` on count as corridors) and the corridors' cells as
 /// rectangles. `corner` is a grid lattice point on the dungeon's plane.
+/// `up` puts the grid's last row at the top of the map: in 3D, where the grid's rows
+/// run towards +Z, the direction the camera and the Scene view look up the screen.
 pub fn build(
     layout: &Layout,
     rooms: usize,
     corner: &dyn Fn(i32, i32) -> [f32; 2],
+    up: bool,
 ) -> (Baked, Vec<String>) {
     let mut notes = Vec::new();
     let walkable: Vec<[i32; 2]> = (0..layout.size[1])
@@ -200,7 +203,7 @@ pub fn build(
     let mut push = |r: [i32; 4], room: i8, near: [i8; 2]| {
         rects.push(Rect {
             x: (r[0] - lo[0]) as u8,
-            y: (r[1] - lo[1]) as u8,
+            y: if up { hi[1] - r[3] } else { r[1] - lo[1] } as u8,
             w: (r[2] - r[0]) as u8,
             h: (r[3] - r[1]) as u8,
             room,
@@ -242,8 +245,12 @@ pub fn build(
         ));
         rects.truncate(MAX_RECTS);
     }
-    let origin = corner(lo[0], lo[1]);
-    let next = corner(lo[0] + 1, lo[1] + 1);
+    // The map's first row: the grid's first, or its last when the map looks up the grid.
+    let (origin, next) = if up {
+        (corner(lo[0], hi[1]), corner(lo[0] + 1, hi[1] - 1))
+    } else {
+        (corner(lo[0], lo[1]), corner(lo[0] + 1, lo[1] + 1))
+    };
     (
         Baked {
             size: [size[0] as u16, size[1] as u16],
@@ -275,9 +282,12 @@ mod tests {
         let recipe = crate::dungeon_recipe::builtin();
         for seed in 1..=8 {
             let layout = crate::dungeon_recipe::layout(&recipe, seed).unwrap();
-            let (baked, notes) = build(&layout, layout.rooms.len(), &|x, y| {
-                [x as f32 * 3., y as f32 * 3.]
-            });
+            let (baked, notes) = build(
+                &layout,
+                layout.rooms.len(),
+                &|x, y| [x as f32 * 3., y as f32 * 3.],
+                false,
+            );
             assert!(notes.is_empty(), "seed {seed}: {notes:?}");
             let lo = [baked.corner[0] as i32 / 3, baked.corner[1] as i32 / 3];
             assert_eq!(baked.step, [3., 3.]);
@@ -302,6 +312,22 @@ mod tests {
                 "seed {seed}"
             );
             assert!(baked.rects.len() <= MAX_RECTS);
+            // Looking up the grid, the rows turn over and the step points back.
+            let (up, _) = build(
+                &layout,
+                layout.rooms.len(),
+                &|x, y| [x as f32 * 3., y as f32 * 3.],
+                true,
+            );
+            assert_eq!(up.step, [3., -3.]);
+            assert_eq!(up.corner[1], (lo[1] + i32::from(baked.size[1])) as f32 * 3.);
+            for (a, b) in baked.rects.iter().zip(&up.rects) {
+                assert_eq!(
+                    i32::from(b.y),
+                    i32::from(baked.size[1]) - i32::from(a.y) - i32::from(a.h)
+                );
+                assert_eq!((a.x, a.w, a.h, a.room), (b.x, b.w, b.h, b.room));
+            }
         }
     }
 

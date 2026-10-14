@@ -252,7 +252,8 @@ pub fn build(layout: &Layout, seed: u32, paths: &[String], grid: &Grid) -> (Map,
     } else {
         -1
     };
-    let (minimap, minimap_notes) = crate::dungeon_minimap::build(layout, count, grid.corner);
+    let (minimap, minimap_notes) =
+        crate::dungeon_minimap::build(layout, count, grid.corner, !grid.two_d);
     notes.extend(minimap_notes);
     (
         Map {
@@ -720,7 +721,7 @@ mod tests {
             "one row per rectangle"
         );
         assert!(init.starts_with(&format!(
-            "::epok::dungeon::reset_minimap({{dungeon_map_rects,{},{},{},{{{},{}}},{{12288,12288}},1,",
+            "::epok::dungeon::reset_minimap({{dungeon_map_rects,{},{},{},{{{},{}}},{{12288,-12288}},1,",
             baked.rects.len(),
             baked.size[0],
             baked.size[1],

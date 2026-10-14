@@ -326,15 +326,23 @@ fn plan(ui: &Ui, e: &mut Editor, w: &mut Window) {
         .min((area[1] - 2. * margin - 24.) / ch)
         .max(4.);
     let offset = [origin[0] + (area[0] - unit * cw) * 0.5, origin[1] + margin];
-    let at = |x: f32, z: f32| [offset[0] + x * unit, offset[1] + z * unit];
+    // +Z runs up the screen, as in the Scene view from above.
+    let at = |x: f32, z: f32| [offset[0] + x * unit, offset[1] + (ch - z) * unit];
+    // Two points as a rectangle's top-left and bottom-right corners.
+    let norm = |(a, b): ([f32; 2], [f32; 2])| {
+        (
+            [a[0].min(b[0]), a[1].min(b[1])],
+            [a[0].max(b[0]), a[1].max(b[1])],
+        )
+    };
     // Floor and closed cells.
     for y in 0..w.room.size[1] {
         for x in 0..w.room.size[0] {
             let color = if w.room.floor([x, y]) { FLOOR } else { CLOSED };
-            let (a, b) = (
+            let (a, b) = norm((
                 at(f32::from(x), f32::from(y)),
                 at(f32::from(x) + 1., f32::from(y) + 1.),
-            );
+            ));
             draw.add_rect(a, b, color).filled(true).build();
             draw.add_rect(a, b, GRID).build();
         }
@@ -377,10 +385,10 @@ fn plan(ui: &Ui, e: &mut Editor, w: &mut Window) {
                 min = [min[0].min(p[0]), min[1].min(p[2])];
                 max = [max[0].max(p[0]), max[1].max(p[2])];
             }
-            (
+            norm((
                 at(min[0] / cell, min[1] / cell),
                 at(max[0] / cell, max[1] / cell),
-            )
+            ))
         };
         let centre = m.point([0.; 3]);
         let dot = at(centre[0] / cell, centre[2] / cell);
@@ -434,12 +442,12 @@ fn plan(ui: &Ui, e: &mut Editor, w: &mut Window) {
     let door_rect = |door: &Door| {
         let [x, y] = door.cell.map(f32::from);
         let t = 0.18;
-        match door.side {
+        norm(match door.side {
             Side::North => (at(x + 0.15, y - t), at(x + 0.85, y)),
             Side::South => (at(x + 0.15, y + 1.), at(x + 0.85, y + 1. + t)),
             Side::West => (at(x - t, y + 0.15), at(x, y + 0.85)),
             Side::East => (at(x + 1., y + 0.15), at(x + 1. + t, y + 0.85)),
-        }
+        })
     };
     for door in &w.room.doors {
         let (a, b) = door_rect(door);
@@ -451,7 +459,10 @@ fn plan(ui: &Ui, e: &mut Editor, w: &mut Window) {
     }
     // What the pointer is on: an edge just outside the footprint, or a cell.
     let mouse = ui.io().mouse_pos;
-    let local = [(mouse[0] - offset[0]) / unit, (mouse[1] - offset[1]) / unit];
+    let local = [
+        (mouse[0] - offset[0]) / unit,
+        ch - (mouse[1] - offset[1]) / unit,
+    ];
     let mut target = None;
     if ui.is_window_hovered() {
         let [w_cells, h_cells] = [cw, ch];
@@ -492,10 +503,10 @@ fn plan(ui: &Ui, e: &mut Editor, w: &mut Window) {
     }
     match target {
         Some(Target::Cell(c)) => {
-            let (a, b) = (
+            let (a, b) = norm((
                 at(f32::from(c[0]), f32::from(c[1])),
                 at(f32::from(c[0]) + 1., f32::from(c[1]) + 1.),
-            );
+            ));
             draw.add_rect(a, b, HOVER).thickness(2.).build();
             ui.tooltip_text(if ui.io().key_shift {
                 "Shift-click: leave this cell out of the floor, or put it back"

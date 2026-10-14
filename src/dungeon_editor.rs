@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use uuid::Uuid;
 
 pub const ICON: &str = "\u{f6d9}";
-const ICON_GENERATE: &str = "\u{f2f1}";
+pub const ICON_GENERATE: &str = "\u{f2f1}";
 const ICON_SEED: &str = "\u{f522}";
 const AMBER: [f32; 4] = [1., 0.72, 0.3, 1.];
 
@@ -56,11 +56,17 @@ enum Request {
     /// Set a seed (from the seed bench) and generate.
     UseSeed(Uuid, u32),
     OpenSeedBench(Uuid),
+    OpenVolumes(Uuid),
 }
 
 /// Sets `seed` on generator `id` and generates, after this frame.
 pub fn use_seed(e: &mut Editor, id: Uuid, seed: u32) {
     e.dungeon.pending = Some(Request::UseSeed(id, seed));
+}
+
+/// Generates generator `id` after this frame.
+pub fn request_generate(e: &mut Editor, id: Uuid) {
+    e.dungeon.pending = Some(Request::Generate(id));
 }
 
 #[derive(Default)]
@@ -277,6 +283,7 @@ pub fn apply_pending(e: &mut Editor) {
             }
         }
         Request::OpenSeedBench(id) => crate::dungeon_seeds::open(e, id),
+        Request::OpenVolumes(id) => crate::dungeon_volumes_editor::open(e, id),
         Request::Clear(id) => {
             dungeon_bake::clear(&mut e.scene, id);
             e.changed();
@@ -447,7 +454,12 @@ pub fn mcp_target(scene: &mut crate::scene::Scene, a: &serde_json::Value) -> Res
                 }
                 (Some(slot), _) => *slot = field.clone(),
                 // Unset optional references are omitted from the document.
-                (None, _) if matches!(key.as_str(), "spawn_actor" | "tile_set" | "recipe") => {
+                (None, _)
+                    if matches!(
+                        key.as_str(),
+                        "spawn_actor" | "tile_set" | "recipe" | "volumes"
+                    ) =>
+                {
                     value[key] = field.clone();
                 }
                 (None, _) => return Err(format!("Unknown generator setting {key}")),
@@ -703,6 +715,25 @@ pub fn preview_lines(
         [90, 96, 110],
         &mut lines,
     );
+    // Generation volumes, in their colours; Keep out ones crossed.
+    for v in &g.volumes {
+        let c = v.kind.color().map(|c| (c * 255.) as u8);
+        let color = [c[0], c[1], c[2]];
+        let [x1, z1] = v.max();
+        rect(v.min[0], v.min[1], x1, z1, color, &mut lines);
+        if v.kind == crate::dungeon_volumes::Kind::KeepOut {
+            let (a, b) = (
+                point(frame.x(v.min[0]), frame.z(v.min[1])),
+                point(frame.x(x1), frame.z(z1)),
+            );
+            let (c0, d0) = (
+                point(frame.x(x1), frame.z(v.min[1])),
+                point(frame.x(v.min[0]), frame.z(z1)),
+            );
+            lines.push((a, b, color));
+            lines.push((c0, d0, color));
+        }
+    }
     // The room pointed at in the Gameplay queries list: its outline twice and a cross.
     let hovered = HOVERED_ROOM
         .lock()
@@ -1128,6 +1159,9 @@ fn settings(ui: &Ui, e: &mut Editor, id: Uuid, two_d: bool) {
     let height = character_height(&e.scene, g.spawn_actor);
     appearance(ui, &mut g, two_d, &tile_sets, &actors, height);
     minimap(ui, &mut g, e.scene.display_size);
+    if volumes(ui, &mut g) {
+        e.dungeon.pending = Some(Request::OpenVolumes(g.id));
+    }
     if g != e.scene.dungeons[index] {
         e.scene.dungeons[index] = g;
         e.changed_coalesced("dungeon-settings");
@@ -1196,6 +1230,87 @@ fn rooms(ui: &Ui, s: &mut dungeon::RoomSettings) {
         (0, 100),
         "Chance, in percent, that each extra connection becomes a loop. 0 gives a tree: one way between any two rooms.",
     );
+}
+
+/// The generation volumes: how many, each with its kind and cells, and the button to
+/// draw them on the grid. Returns whether that button was pressed.
+fn volumes(ui: &Ui, g: &mut Generator) -> bool {
+    use crate::dungeon_volumes::Kind;
+    ui.spacing();
+    let open = ui.collapsing_header(
+        format!(
+            "Volumes{}##dungeon-volumes",
+            match g.volumes.len() {
+                0 => String::new(),
+                n => format!(": {n}"),
+            }
+        ),
+        if g.volumes.is_empty() {
+            imgui::TreeNodeFlags::empty()
+        } else {
+            imgui::TreeNodeFlags::DEFAULT_OPEN
+        },
+    );
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Rectangles of the grid that keep the dungeon out of or inside an area, force a room or mirror rooms.");
+    }
+    if !open {
+        return false;
+    }
+    let pressed = ui.button(format!(
+        "{} Draw volumes...",
+        crate::dungeon_volumes_editor::ICON
+    ));
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Open the grid from above and draw volumes by dragging; the layout follows each change.");
+    }
+    if g.volumes.is_empty() {
+        crate::gui::muted(ui, "None: the dungeon may use the whole grid.");
+    }
+    let mut remove = None;
+    for (i, v) in g.volumes.iter_mut().enumerate() {
+        let _id = ui.push_id_usize(i);
+        let c = v.kind.color();
+        ui.text_colored(c, format!("{}", i + 1));
+        ui.same_line();
+        ui.set_next_item_width(140.);
+        if let Some(_combo) = ui.begin_combo("##kind", v.kind.label()) {
+            for kind in Kind::ALL {
+                if ui
+                    .selectable_config(kind.label())
+                    .selected(v.kind == kind)
+                    .build()
+                {
+                    v.kind = kind;
+                }
+                if ui.is_item_hovered() {
+                    ui.tooltip_text(kind.tip());
+                }
+            }
+        }
+        ui.same_line();
+        crate::gui::muted(
+            ui,
+            format!(
+                "{}x{} cells at {},{}",
+                v.size[0], v.size[1], v.min[0], v.min[1]
+            ),
+        );
+        ui.same_line();
+        if ui.small_button("Remove") {
+            remove = Some(i);
+        }
+    }
+    if let Some(i) = remove {
+        g.volumes.remove(i);
+    }
+    if g.source == dungeon::Source::Recipe && g.volumes.iter().any(|v| !v.kind.shapes_recipes()) {
+        ui.text_colored(
+            AMBER,
+            "Recipes follow Keep out and Only here; Room here and Mirror shape rooms-and-corridors layouts.",
+        );
+    }
+    pressed
 }
 
 /// The console minimap: whether the map has one, where it sits and how it fills in,

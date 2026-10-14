@@ -70,6 +70,8 @@ mod dungeon_style_editor;
 mod dungeon_template;
 #[cfg(test)]
 mod dungeon_tests;
+mod dungeon_volumes;
+mod dungeon_volumes_editor;
 mod editor;
 mod effects;
 mod export;
@@ -2106,6 +2108,12 @@ fn prepare_editor(editor: &mut editor::Editor) {
         .flatten();
     if let Some(room) = room {
         dungeon_room_editor::open(editor, room);
+    }
+    // Screenshot automation: `--open-dungeon-volumes` shows the first generator's volumes.
+    if args.iter().any(|a| a == "--open-dungeon-volumes")
+        && let Some(id) = editor.scene.dungeons.first().map(|g| g.id)
+    {
+        dungeon_volumes_editor::open(editor, id);
     }
     // Screenshot automation: `--open-dungeon-seeds N` runs the seed bench of the first
     // generator over N seeds and shows it.

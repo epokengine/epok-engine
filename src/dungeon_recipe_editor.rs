@@ -100,7 +100,7 @@ impl Window {
             let laid_out = self.recipe.levels().is_some() || !self.recipe.rooms_used().is_empty();
             if let (Ok(graph), true) = (&graph, laid_out)
                 && let Ok(layout) =
-                    dungeon_recipe::layout_with(&self.recipe, self.seed, &self.shapes)
+                    dungeon_recipe::layout_with(&self.recipe, self.seed, &self.shapes, &[])
             {
                 levels = vec![0; graph.path.len()];
                 made = vec![None; graph.path.len()];

@@ -185,8 +185,9 @@ The complete interaction and preview contract is in the
   walked), marks the player, keys, locked doors and the goal, follows the player or fits
   the dungeon, and opens as a full map from game code. A seed bench measures hundreds of
   seeds against the console's budget (actors, quads, collision, navigation, tiles, recipe
-  attempts) with histograms, picks one or exports the seeds that fit. See
-  [Dungeon Generator](dungeons.md).
+  attempts) with histograms, picks one or exports the seeds that fit. Generation volumes,
+  drawn on the grid in their own window, keep the dungeon out of an area or inside one,
+  force a room or mirror the rooms. See [Dungeon Generator](dungeons.md).
 - **Static OBJ/MTL import.** Import triangular or quad OBJ geometry and material
   colors into editable assets with configurable scale. See
   [Static OBJ import](static-mesh-import.md).
@@ -739,7 +740,7 @@ The editor exposes the following implemented headless families. Run them with
 | Assets | `--scan-assets`, `--import-texture`, `--import-obj`, `--import-fbx`, `--import-audio`, `--reimport-asset`, `--inspect-asset` |
 | Native gameplay | `--reflect`, `--new-script`, `--parent`, `--new-blueprint`, `--compile-blueprints`, `--add-actor`, `--scene` |
 | Timeline and VFX | `--new-timeline`, `--compile-timelines`, `--install-timeline-adapters`, `--new-particle-effect`, `--preset`, `--validate-particle-effects`, `--preview-particle-effect` |
-| Level generation | `--generate-dungeon`, `--dungeon-seed`, `--dungeon-settings`, `--dungeon-new-style`, `--dungeon-new-recipe`, `--dungeon-seed-bench`, `--open-dungeon-room`, `--open-dungeon-seeds` |
+| Level generation | `--generate-dungeon`, `--dungeon-seed`, `--dungeon-settings`, `--dungeon-new-style`, `--dungeon-new-recipe`, `--dungeon-seed-bench`, `--open-dungeon-room`, `--open-dungeon-seeds`, `--open-dungeon-volumes` |
 | Editor/runtime QA | `--bake-lighting`, `--profile-scene`, `--profile-scene-cpu`, `--profile-editor`, screenshot commands and bounded `--steps` / `--stop-after` execution |
 | Integration | `--mcp-stdio`, `--prepare-serial-tools`, `--list-serial-ports` |
 
@@ -821,7 +822,7 @@ live beside the corresponding implementation and are summarized under
 | Scene and preview | `scene`, `transform`, `viewport`, `scene_gpu`, `picking`, `gizmo`, `scene_bank`, `scene_dependencies`, `scene_view_mode` |
 | Object/Actor model | `object_model`, `actor_document` |
 | 2D worlds | `world2d`, `world2d_editor`, `platformer_template` |
-| Dungeon generation | `dungeon`, `dungeon_rooms`, `dungeon_recipe`, `dungeon_random`, `dungeon_style`, `dungeon_bake`, `dungeon_editor`, `dungeon_style_editor`, `dungeon_recipe_editor`, `dungeon_room`, `dungeon_room_editor`, `dungeon_query`, `dungeon_minimap`, `dungeon_seeds`, `dungeon_gameplay`, `dungeon_template` |
+| Dungeon generation | `dungeon`, `dungeon_rooms`, `dungeon_recipe`, `dungeon_random`, `dungeon_style`, `dungeon_bake`, `dungeon_editor`, `dungeon_style_editor`, `dungeon_recipe_editor`, `dungeon_room`, `dungeon_room_editor`, `dungeon_query`, `dungeon_minimap`, `dungeon_seeds`, `dungeon_volumes`, `dungeon_volumes_editor`, `dungeon_gameplay`, `dungeon_template` |
 | Geometry and rendering | `mesh`, `mesh_ops`, `mesh_editor`, `mesh_compile`, `lighting`, `lighting_editor`, `shadows`, `effects`, `palette` |
 | Components and UI | `bitmap_font`, `collision`, `collision_editor`, `hud`, `hud_editor`, `sprites`, `sprites_editor`, `particles`, `skeletal`, `skeletal_compile`, `skeletal_ui`, `third_person` |
 | Native scripting/reflection | `scripts`, `script_values`, `script_backend`, `reflection`, `reflection_schema`, `header_extract`, `header_tool`, `native`, `native_metadata` |

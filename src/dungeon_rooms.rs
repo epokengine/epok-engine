@@ -9,6 +9,7 @@
 //! existing corridors.
 use crate::dungeon::{Cell, Layout, Room, RoomSettings};
 use crate::dungeon_random::Random;
+use crate::dungeon_volumes::{Kind, Volume};
 use std::cmp::Reverse;
 use std::collections::{BTreeSet, BinaryHeap};
 
@@ -17,16 +18,23 @@ const STAGE_CONNECT: u32 = 2;
 const STAGE_ROUTE: u32 = 3;
 const STAGE_ENDS: u32 = 4;
 
-pub fn generate(settings: &RoomSettings, seed: u32) -> Result<Layout, String> {
+pub fn generate(settings: &RoomSettings, seed: u32, volumes: &[Volume]) -> Result<Layout, String> {
     let size = [i32::from(settings.size[0]), i32::from(settings.size[1])];
-    let mut rooms = place(settings, size, &mut Random::stream(seed, STAGE_PLACE));
+    let blocked = crate::dungeon_volumes::blocked(volumes, size);
+    let mut rooms = place(
+        settings,
+        size,
+        &mut Random::stream(seed, STAGE_PLACE),
+        volumes,
+        &blocked,
+    );
     if rooms.len() < 2 {
         return Err(
             "Fewer than two rooms fit: enlarge the grid, shrink the rooms or reduce the spacing"
                 .into(),
         );
     }
-    let mut grid = Grid::new(size, &rooms);
+    let mut grid = Grid::new(size, &rooms, blocked);
     let candidates = gabriel(&rooms);
     let (tree, extra) = spanning_tree(rooms.len(), &candidates);
     let mut connect = Random::stream(seed, STAGE_CONNECT);
@@ -108,12 +116,44 @@ pub fn generate(settings: &RoomSettings, seed: u32) -> Result<Layout, String> {
     Ok(layout)
 }
 
-fn place(settings: &RoomSettings, size: [i32; 2], random: &mut Random) -> Vec<Room> {
-    let wanted = usize::from(settings.rooms);
+/// Rooms: one per Room here volume, then rooms scattered on free cells with the
+/// spacing, then each Mirror volume's first half repeated in its second half.
+fn place(
+    settings: &RoomSettings,
+    size: [i32; 2],
+    random: &mut Random,
+    volumes: &[Volume],
+    blocked: &[bool],
+) -> Vec<Room> {
     let (min, max) = (i32::from(settings.room_min), i32::from(settings.room_max));
     let spacing = i32::from(settings.spacing);
     let mut rooms: Vec<Room> = Vec::new();
-    for _ in 0..wanted * 60 {
+    for v in volumes.iter().filter(|v| v.kind == Kind::Room) {
+        // Rooms keep one cell off the grid's edge.
+        let lo = [v.min[0].max(1), v.min[1].max(1)];
+        let hi = [v.max()[0].min(size[0] - 1), v.max()[1].min(size[1] - 1)];
+        let room = Room {
+            min: lo,
+            size: [hi[0] - lo[0], hi[1] - lo[1]],
+        };
+        if room.size[0] >= 2 && room.size[1] >= 2 && rooms.iter().all(|r| apart(r, &room, 1)) {
+            rooms.push(room);
+        }
+    }
+    let fixed = rooms.len();
+    let wanted = usize::from(settings.rooms) + fixed;
+    // A room and the ring around it stay off blocked cells.
+    let free = |room: &Room| {
+        (room.min[1] - 1..=room.min[1] + room.size[1]).all(|y| {
+            (room.min[0] - 1..=room.min[0] + room.size[0]).all(|x| {
+                !blocked
+                    .get((y * size[0] + x) as usize)
+                    .copied()
+                    .unwrap_or(false)
+            })
+        })
+    };
+    for _ in 0..usize::from(settings.rooms) * 60 {
         if rooms.len() == wanted {
             break;
         }
@@ -129,17 +169,61 @@ fn place(settings: &RoomSettings, size: [i32; 2], random: &mut Random) -> Vec<Ro
             min: [x, y],
             size: [w, h],
         };
-        let apart = |r: &Room| {
-            (0..2).any(|k| {
-                r.min[k] + r.size[k] + spacing <= room.min[k]
-                    || room.min[k] + room.size[k] + spacing <= r.min[k]
-            })
-        };
-        if rooms.iter().all(apart) {
+        if rooms.iter().all(|r| apart(r, &room, spacing)) && free(&room) {
             rooms.push(room);
         }
     }
+    for v in volumes {
+        let axis = match v.kind {
+            Kind::MirrorX => 0,
+            Kind::MirrorY => 1,
+            _ => continue,
+        };
+        let other = 1 - axis;
+        let (lo, hi) = (v.min[axis], v.max()[axis]);
+        let across =
+            |r: &Room| r.min[other] < v.max()[other] && r.min[other] + r.size[other] > v.min[other];
+        // In the first half: the room's far side at or before the middle.
+        let first = |r: &Room| {
+            across(r)
+                && r.min[axis] >= lo
+                && 2 * (r.min[axis] + r.size[axis]) <= lo + hi
+                && r.min[other] >= v.min[other]
+                && r.min[other] + r.size[other] <= v.max()[other]
+        };
+        let second =
+            |r: &Room| across(r) && 2 * (r.min[axis] + r.size[axis]) > lo + hi && r.min[axis] < hi;
+        let mut index = fixed;
+        while index < rooms.len() {
+            if second(&rooms[index]) {
+                rooms.remove(index);
+            } else {
+                index += 1;
+            }
+        }
+        let mirrored: Vec<Room> = rooms[fixed..]
+            .iter()
+            .filter(|r| first(r))
+            .map(|r| {
+                let mut m = *r;
+                m.min[axis] = lo + hi - (r.min[axis] + r.size[axis]);
+                m
+            })
+            .collect();
+        for room in mirrored {
+            if rooms.iter().all(|r| apart(r, &room, spacing)) && free(&room) {
+                rooms.push(room);
+            }
+        }
+    }
     rooms
+}
+
+/// Whether two rooms keep at least `spacing` empty cells between them on some axis.
+fn apart(a: &Room, b: &Room, spacing: i32) -> bool {
+    (0..2).any(|k| {
+        a.min[k] + a.size[k] + spacing <= b.min[k] || b.min[k] + b.size[k] + spacing <= a.min[k]
+    })
 }
 
 fn distance2(a: &Room, b: &Room) -> i64 {
@@ -201,15 +285,18 @@ pub(crate) struct Grid {
     /// For each cell, the rooms whose one-cell ring covers it (rooms have at most two
     /// rings overlapping thanks to the spacing, but corners can see more).
     rings: Vec<Vec<u16>>,
+    /// Cells volumes close to corridors.
+    blocked: Vec<bool>,
 }
 
 impl Grid {
-    pub(crate) fn new(size: [i32; 2], rooms: &[Room]) -> Self {
+    pub(crate) fn new(size: [i32; 2], rooms: &[Room], blocked: Vec<bool>) -> Self {
         let count = (size[0] * size[1]) as usize;
         let mut grid = Self {
             size,
             cells: vec![Cell::Empty; count],
             rings: vec![Vec::new(); count],
+            blocked,
         };
         for (index, room) in rooms.iter().enumerate() {
             for y in room.min[1] - 1..=room.min[1] + room.size[1] {
@@ -244,6 +331,9 @@ impl Grid {
             Cell::Empty => {}
         }
         if p[0] == 0 || p[1] == 0 || p[0] == self.size[0] - 1 || p[1] == self.size[1] - 1 {
+            return None;
+        }
+        if self.blocked.get(index).copied().unwrap_or(false) {
             return None;
         }
         let ring = &self.rings[index];

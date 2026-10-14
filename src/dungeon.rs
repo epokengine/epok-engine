@@ -165,6 +165,10 @@ pub struct Generator {
     /// The console minimap: drawn from the generated dungeon when the map is cooked, so
     /// changing it needs no new generation.
     pub minimap: crate::dungeon_minimap::Settings,
+    /// Rectangles of the grid that shape the layout: kept out, only here, a room here,
+    /// mirrored.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub volumes: Vec<crate::dungeon_volumes::Volume>,
     pub output: Output,
 }
 impl Default for Generator {
@@ -185,6 +189,7 @@ impl Default for Generator {
             tile_set: None,
             style: None,
             minimap: Default::default(),
+            volumes: Vec::new(),
             output: Output::default(),
         }
     }
@@ -865,15 +870,58 @@ pub fn layout(generator: &Generator, index: &crate::assets::Index) -> Result<Lay
     match generator.source {
         Source::Rooms => {
             generator.rooms.validate()?;
-            crate::dungeon_rooms::generate(&generator.rooms, generator.seed)
+            let size = [
+                i32::from(generator.rooms.size[0]),
+                i32::from(generator.rooms.size[1]),
+            ];
+            crate::dungeon_volumes::validate(&generator.volumes, size)?;
+            crate::dungeon_rooms::generate(&generator.rooms, generator.seed, &generator.volumes)
         }
         Source::Recipe => {
             let (recipe, _) = crate::dungeon_recipe::of(index, generator)?;
+            crate::dungeon_volumes::validate(&generator.volumes, recipe.grid_size())?;
             let (rooms, errors) = crate::dungeon_room::load(index, &recipe.rooms_used());
             let shapes = rooms.iter().map(|(id, room)| (*id, room.shape())).collect();
-            let mut layout = crate::dungeon_recipe::layout_with(&recipe, generator.seed, &shapes)?;
+            let mut layout = crate::dungeon_recipe::layout_with(
+                &recipe,
+                generator.seed,
+                &shapes,
+                &generator.volumes,
+            )?;
             layout.notes.extend(errors);
             Ok(layout)
+        }
+    }
+}
+
+/// The grid a generator's volumes are drawn on, and its layout on that whole grid:
+/// a recipe's before cropping.
+pub fn layout_on_grid(
+    generator: &Generator,
+    index: &crate::assets::Index,
+) -> Result<([i32; 2], Result<Layout, String>), String> {
+    match generator.source {
+        Source::Rooms => {
+            let size = [
+                i32::from(generator.rooms.size[0]),
+                i32::from(generator.rooms.size[1]),
+            ];
+            Ok((size, layout(generator, index)))
+        }
+        Source::Recipe => {
+            let (recipe, _) = crate::dungeon_recipe::of(index, generator)?;
+            let size = recipe.grid_size();
+            let laid = crate::dungeon_volumes::validate(&generator.volumes, size).and_then(|_| {
+                let (rooms, _) = crate::dungeon_room::load(index, &recipe.rooms_used());
+                let shapes = rooms.iter().map(|(id, room)| (*id, room.shape())).collect();
+                crate::dungeon_recipe::layout_on_grid(
+                    &recipe,
+                    generator.seed,
+                    &shapes,
+                    &generator.volumes,
+                )
+            });
+            Ok((size, laid))
         }
     }
 }
