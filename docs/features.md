@@ -180,7 +180,10 @@ The complete interaction and preview contract is in the
   fitted to any Player), closed by a ceiling, and dressed in sci-fi panel textures drawn for
   the console. Game code asks about the generated rooms (the room an actor is in, the
   way to the goal, keys, locks, free spots, a seed-bound random stream) through the
-  Dungeon gameplay library in C++, Blueprint and Lua. See [Dungeon Generator](dungeons.md).
+  Dungeon gameplay library in C++, Blueprint and Lua. A console minimap, set up in the
+  generator band, fills in as the player explores (rooms on entering, corridors when
+  walked), marks the player, keys, locked doors and the goal, follows the player or fits
+  the dungeon, and opens as a full map from game code. See [Dungeon Generator](dungeons.md).
 - **Static OBJ/MTL import.** Import triangular or quad OBJ geometry and material
   colors into editable assets with configurable scale. See
   [Static OBJ import](static-mesh-import.md).
@@ -815,7 +818,7 @@ live beside the corresponding implementation and are summarized under
 | Scene and preview | `scene`, `transform`, `viewport`, `scene_gpu`, `picking`, `gizmo`, `scene_bank`, `scene_dependencies`, `scene_view_mode` |
 | Object/Actor model | `object_model`, `actor_document` |
 | 2D worlds | `world2d`, `world2d_editor`, `platformer_template` |
-| Dungeon generation | `dungeon`, `dungeon_rooms`, `dungeon_recipe`, `dungeon_random`, `dungeon_style`, `dungeon_bake`, `dungeon_editor`, `dungeon_style_editor`, `dungeon_recipe_editor`, `dungeon_room`, `dungeon_room_editor`, `dungeon_query`, `dungeon_gameplay`, `dungeon_template` |
+| Dungeon generation | `dungeon`, `dungeon_rooms`, `dungeon_recipe`, `dungeon_random`, `dungeon_style`, `dungeon_bake`, `dungeon_editor`, `dungeon_style_editor`, `dungeon_recipe_editor`, `dungeon_room`, `dungeon_room_editor`, `dungeon_query`, `dungeon_minimap`, `dungeon_gameplay`, `dungeon_template` |
 | Geometry and rendering | `mesh`, `mesh_ops`, `mesh_editor`, `mesh_compile`, `lighting`, `lighting_editor`, `shadows`, `effects`, `palette` |
 | Components and UI | `bitmap_font`, `collision`, `collision_editor`, `hud`, `hud_editor`, `sprites`, `sprites_editor`, `particles`, `skeletal`, `skeletal_compile`, `skeletal_ui`, `third_person` |
 | Native scripting/reflection | `scripts`, `script_values`, `script_backend`, `reflection`, `reflection_schema`, `header_extract`, `header_tool`, `native`, `native_metadata` |
@@ -834,7 +837,7 @@ live beside the corresponding implementation and are summarized under
 | 2D worlds | `world2d.hpp`, `world2d_components.hpp`, `world2d_service.hpp`, `world2d_render.hpp` |
 | Rendering/resources | `frame_clear.hpp`, `gte_geometry.hpp`, `frustum.hpp`, `polygon.hpp`, `visibility.hpp`, `retained.hpp`, `texture_types.hpp`, `texture.hpp`, `resources.hpp`, `lighting.hpp`, `shadows.hpp` |
 | Visual content | `sprite_types.hpp`, `sprites.hpp`, `particle_types.hpp`, `particles.hpp`, `effect_types.hpp`, `effects.hpp`, `particle_effect_runtime.hpp`, `particle_effect_service.hpp`, `palette_types.hpp`, `palette.hpp`, `skeletal.hpp`, `hud.hpp`, `text.hpp` |
-| Dungeon generation | `dungeon_random.hpp`, `dungeon_map.hpp` |
+| Dungeon generation | `dungeon_random.hpp`, `dungeon_map.hpp`, `dungeon_minimap.hpp` |
 | Gameplay services | `input.hpp`, `collision.hpp`, `audio.hpp`, `music.hpp`, `memory_card.hpp`, `memory_card_backend.hpp`, `streaming_pool.hpp`, `streaming.hpp` |
 | Blueprint/Lua/Timeline | `blueprint_api.hpp`, `blueprint_runtime.hpp`, `blueprint_debug.hpp`, `blueprint_spawn.hpp`, `blueprint_template.hpp`, `blueprint_playback_service.hpp`, `lua_runtime.hpp`, `playback_types.hpp`, `timeline.hpp`, `timeline_runtime.hpp`, `timeline_service.hpp` |
 

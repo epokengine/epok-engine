@@ -2,7 +2,7 @@
 
 Epok's gameplay-facing and engine-runtime callables. Start here for entities, input, collision, audio, scenes, timelines, effects and resource budgets.
 
-**Coverage:** 115 headers · 1997 public callables.
+**Coverage:** 116 headers · 2016 public callables.
 
 ## Modules
 
@@ -24,7 +24,8 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Collision](epok/collision.md) | `collision.hpp` | 18 | Epok runtime API |
 | [Debug Hud](epok/debug-hud.md) | `debug_hud.hpp` | 4 | Epok runtime API |
 | [Draw Order](epok/draw-order.md) | `draw_order.hpp` | 2 | Epok runtime API |
-| [Dungeon Map](epok/dungeon-map.md) | `dungeon_map.hpp` | 6 | Epok runtime API |
+| [Dungeon Map](epok/dungeon-map.md) | `dungeon_map.hpp` | 16 | Epok runtime API |
+| [Dungeon Minimap](epok/dungeon-minimap.md) | `dungeon_minimap.hpp` | 1 | Epok runtime API |
 | [Dungeon Random](epok/dungeon-random.md) | `dungeon_random.hpp` | 6 | Epok runtime API |
 | [Effect Types](epok/effect-types.md) | `effect_types.hpp` | 3 | Epok runtime API |
 | [Effects](epok/effects.md) | `effects.hpp` | 2 | Epok runtime API |
@@ -34,7 +35,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Font Types](epok/font-types.md) | `font_types.hpp` | 3 | Epok runtime API |
 | [Frame Clear](epok/frame-clear.md) | `frame_clear.hpp` | 2 | Epok runtime API |
 | [Frustum](epok/frustum.md) | `frustum.hpp` | 10 | Epok runtime API |
-| [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 114 | Epok runtime API |
+| [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 122 | Epok runtime API |
 | [Gte Geometry](epok/gte-geometry.md) | `gte_geometry.hpp` | 26 | Epok runtime API |
 | [Hud](epok/hud.md) | `hud.hpp` | 12 | Epok runtime API |
 | [Hud Core](epok/hud-core.md) | `hud_core.hpp` | 14 | Epok runtime API |

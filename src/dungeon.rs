@@ -162,6 +162,9 @@ pub struct Generator {
     /// The Dungeon Style deciding what each spot becomes; None uses the built-in one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub style: Option<Uuid>,
+    /// The console minimap: drawn from the generated dungeon when the map is cooked, so
+    /// changing it needs no new generation.
+    pub minimap: crate::dungeon_minimap::Settings,
     pub output: Output,
 }
 impl Default for Generator {
@@ -181,6 +184,7 @@ impl Default for Generator {
             spawn_actor: None,
             tile_set: None,
             style: None,
+            minimap: Default::default(),
             output: Output::default(),
         }
     }
@@ -221,7 +225,7 @@ impl Generator {
         if !(0.5..=self.wall_height).contains(&self.door_height) {
             return Err("Door height must be at least 0.5 and at most the wall height".into());
         }
-        Ok(())
+        self.minimap.validate()
     }
     /// Half the 3D footprint of a layout of `size` cells along the longer axis.
     /// Compound collider parts and mesh vertices are local to the root and must stay
@@ -234,6 +238,7 @@ impl Generator {
         use sha2::{Digest, Sha256};
         let mut settings = self.clone();
         settings.output = Output::default();
+        settings.minimap = Default::default();
         let bytes = serde_json::to_vec(&settings).expect("generator settings serialize");
         Sha256::digest(bytes)[..8]
             .iter()

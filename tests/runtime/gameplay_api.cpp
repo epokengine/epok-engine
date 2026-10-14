@@ -485,6 +485,45 @@ static void dungeon_queries() {
     assert(roll==dungeon::Random::stream(1207u^(1u*0x85ebca6bu),2).below(10));
     assert(DungeonLibrary::random(1,2,0)==0);
 
+    // The minimap: three rooms of a 1-unit grid from x 0 and z 0, and two corridors
+    // between them; walking explores rectangles, entering a room the whole room.
+    static constexpr dungeon::MapRect rects[]={
+        {0,0,4,2,0,{-1,-1},0},{0,2,4,2,0,{-1,-1},0},
+        {8,0,4,4,1,{-1,-1},0},{16,0,4,4,2,{-1,-1},0},
+        {4,1,4,1,-1,{0,1},0},{12,1,4,1,-1,{1,2},0},
+    };
+    static uint32_t explored[1];
+    dungeon::Minimap minimap{};
+    minimap.rects=rects;minimap.count=6;minimap.columns=20;minimap.rows=4;
+    minimap.corner[0]=0;minimap.corner[1]=0;minimap.step[0]=u;minimap.step[1]=u;
+    minimap.explored=explored;minimap.flags=dungeon::minimap_visible;
+    explored[0]=~0u;
+    dungeon::reset_minimap(minimap);
+    assert(explored[0]==0&&!DungeonLibrary::room_explored(0)&&DungeonLibrary::minimap_shown());
+    int32_t cx=0,cy=0;
+    const int32_t corridor[3]={5*u+u/2,0,u+u/2};
+    assert(dungeon::map_cell(corridor,cx,cy)&&cx==5&&cy==1&&dungeon::rect_at(cx,cy)==4);
+    const int32_t outside[3]={-u/2,0,0};
+    assert(!dungeon::map_cell(outside,cx,cy)&&cx==-1);
+    dungeon::explore_at(corridor);
+    assert(explored[0]==1u<<4&&!DungeonLibrary::room_explored(0)&&!DungeonLibrary::room_explored(1));
+    const int32_t first_room[3]={u,0,3*u};
+    dungeon::explore_at(first_room);
+    assert(DungeonLibrary::room_explored(0)&&explored[0]==(1u<<4|1u<<1|1u<<0));
+    DungeonLibrary::explore_room(2);
+    assert(DungeonLibrary::room_explored(2)&&(explored[0]>>3&1)&&!(explored[0]>>2&1));
+    DungeonLibrary::forget_explored();
+    assert(explored[0]==0&&!DungeonLibrary::room_explored(2));
+    DungeonLibrary::explore_everything();
+    assert(explored[0]==0x3fu&&DungeonLibrary::room_explored(1));
+    DungeonLibrary::show_full_map(true);
+    assert(DungeonLibrary::full_map_shown()&&DungeonLibrary::minimap_shown());
+    DungeonLibrary::show_full_map(false);DungeonLibrary::show_minimap(false);
+    assert(!DungeonLibrary::full_map_shown()&&!DungeonLibrary::minimap_shown());
+    DungeonLibrary::explore_room(64);DungeonLibrary::explore_room(-1);
+    dungeon::reset_minimap({});
+    assert(!DungeonLibrary::minimap_shown()&&!DungeonLibrary::room_explored(0));
+
     // In 2D rooms lie on x and y (pixels) and z is ignored.
     dungeon::reset({rooms,3,neighbours,spots,items,1,locks,1,0,2,1207u,true});
     assert(DungeonLibrary::room_at({10.0,2.0,99.0})==1&&DungeonLibrary::room_at({10.0,9.0,2.0})==-1);

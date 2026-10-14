@@ -56,6 +56,7 @@ mod dungeon;
 mod dungeon_bake;
 mod dungeon_editor;
 mod dungeon_gameplay;
+mod dungeon_minimap;
 mod dungeon_query;
 mod dungeon_random;
 mod dungeon_recipe;

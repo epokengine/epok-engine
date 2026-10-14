@@ -2,7 +2,7 @@
 
 > **Header:** `"gameplay_api.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/gameplay_api.hpp)
 
-This module covers the gameplay api module. It documents 114 public callables declared directly in this header.
+This module covers the gameplay api module. It documents 122 public callables declared directly in this header.
 
 ## Declared types
 
@@ -15,19 +15,27 @@ This module covers the gameplay api module. It documents 114 public callables de
 - [`epok::CollisionLibrary::overlap_box`](#epok-collisionlibrary-overlap-box-1) — Performs `overlap box` as part of the gameplay api module.
 - [`epok::CollisionLibrary::raycast_segment`](#epok-collisionlibrary-raycast-segment-1) — Performs `raycast segment` as part of the gameplay api module.
 - [`epok::DungeonLibrary::distance`](#epok-dungeonlibrary-distance-1) — Rooms between two rooms on a shortest way, or -1 when there is no way.
+- [`epok::DungeonLibrary::explore_everything`](#epok-dungeonlibrary-explore-everything-1) — Performs `explore everything` as part of the gameplay api module.
+- [`epok::DungeonLibrary::explore_room`](#epok-dungeonlibrary-explore-room-1) — Rooms the player has entered show on the minimap, with the corridors they open into.
+- [`epok::DungeonLibrary::forget_explored`](#epok-dungeonlibrary-forget-explored-1) — Performs `forget explored` as part of the gameplay api module.
+- [`epok::DungeonLibrary::full_map_shown`](#epok-dungeonlibrary-full-map-shown-1) — Performs `full map shown` as part of the gameplay api module.
 - [`epok::DungeonLibrary::goal_room`](#epok-dungeonlibrary-goal-room-1) — Performs `goal room` as part of the gameplay api module.
 - [`epok::DungeonLibrary::item`](#epok-dungeonlibrary-item-1) — A key (lock above 0) or other item the recipe placed.
 - [`epok::DungeonLibrary::item_count`](#epok-dungeonlibrary-item-count-1) — Performs `item count` as part of the gameplay api module.
 - [`epok::DungeonLibrary::lock`](#epok-dungeonlibrary-lock-1) — A locked door: its doorway, the room it guards and the lock its key opens.
 - [`epok::DungeonLibrary::lock_count`](#epok-dungeonlibrary-lock-count-1) — Performs `lock count` as part of the gameplay api module.
+- [`epok::DungeonLibrary::minimap_shown`](#epok-dungeonlibrary-minimap-shown-1) — Performs `minimap shown` as part of the gameplay api module.
 - [`epok::DungeonLibrary::neighbour`](#epok-dungeonlibrary-neighbour-1) — The `index`-th room linked to `room`, or -1.
 - [`epok::DungeonLibrary::next_room`](#epok-dungeonlibrary-next-room-1) — The room after `from` on a shortest way to `to`; `from` when they are the same room, -1 when there is no way.
 - [`epok::DungeonLibrary::random`](#epok-dungeonlibrary-random-1) — A number below `below` from the dungeon's own random stream: the same for the same stream, index and seed on every run, so a room can always roll the same enemy.
 - [`epok::DungeonLibrary::room`](#epok-dungeonlibrary-room-1) — Performs `room` as part of the gameplay api module.
 - [`epok::DungeonLibrary::room_at`](#epok-dungeonlibrary-room-at-1) — The room holding a world point (pixels in 2D), or -1 in a corridor or outside.
 - [`epok::DungeonLibrary::room_count`](#epok-dungeonlibrary-room-count-1) — Performs `room count` as part of the gameplay api module.
+- [`epok::DungeonLibrary::room_explored`](#epok-dungeonlibrary-room-explored-1) — Performs `room explored` as part of the gameplay api module.
 - [`epok::DungeonLibrary::room_of`](#epok-dungeonlibrary-room-of-1) — The room a 3D actor stands in, or -1.
 - [`epok::DungeonLibrary::seed`](#epok-dungeonlibrary-seed-1) — Performs `seed` as part of the gameplay api module.
+- [`epok::DungeonLibrary::show_full_map`](#epok-dungeonlibrary-show-full-map-1) — Performs `show full map` as part of the gameplay api module.
+- [`epok::DungeonLibrary::show_minimap`](#epok-dungeonlibrary-show-minimap-1) — fills the screen (for a pause or map screen) over the box.
 - [`epok::DungeonLibrary::spawn_room`](#epok-dungeonlibrary-spawn-room-1) — Performs `spawn room` as part of the gameplay api module.
 - [`epok::DungeonLibrary::spot`](#epok-dungeonlibrary-spot-1) — A free floor point of a room, away from its doors, keys and items: somewhere to put an enemy or a prop.
 - [`epok::gameplay_actor_data`](#epok-gameplay-actor-data-1) — Performs `gameplay actor data` as part of the gameplay api module.
@@ -349,6 +357,141 @@ auto result = epok::DungeonLibrary::distance(from, to);
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-dungeonlibrary-explore-everything-1"></a>
+
+## `epok::DungeonLibrary::explore_everything`
+
+**Purpose.** Performs `explore everything` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static void explore_everything()
+```
+
+- **Declared at:** [line 459](../../../runtime/gameplay_api.hpp#L459)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+epok::DungeonLibrary::explore_everything();
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-dungeonlibrary-explore-room-1"></a>
+
+## `epok::DungeonLibrary::explore_room`
+
+**Purpose.** Rooms the player has entered show on the minimap, with the corridors they open into.
+
+**Details.** Exploring needs the generator's minimap; a room can also be revealed from game code, for a map item or a save.
+
+**Exact declaration**
+
+```cpp
+static void explore_room(int32_t room)
+```
+
+- **Declared at:** [line 457](../../../runtime/gameplay_api.hpp#L457)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `room` | `int32_t` | Input | Value supplied for `room`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** Exploring needs the generator's minimap; a room can also be revealed from game code, for a map item or a save.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int32_t room
+
+epok::DungeonLibrary::explore_room(room);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-dungeonlibrary-forget-explored-1"></a>
+
+## `epok::DungeonLibrary::forget_explored`
+
+**Purpose.** Performs `forget explored` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static void forget_explored()
+```
+
+- **Declared at:** [line 460](../../../runtime/gameplay_api.hpp#L460)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+epok::DungeonLibrary::forget_explored();
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-dungeonlibrary-full-map-shown-1"></a>
+
+## `epok::DungeonLibrary::full_map_shown`
+
+**Purpose.** Performs `full map shown` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static bool full_map_shown()
+```
+
+- **Declared at:** [line 453](../../../runtime/gameplay_api.hpp#L453)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+auto result = epok::DungeonLibrary::full_map_shown();
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
 <a id="epok-dungeonlibrary-goal-room-1"></a>
 
 ## `epok::DungeonLibrary::goal_room`
@@ -521,6 +664,37 @@ auto result = epok::DungeonLibrary::lock_count();
 **Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-dungeonlibrary-minimap-shown-1"></a>
+
+## `epok::DungeonLibrary::minimap_shown`
+
+**Purpose.** Performs `minimap shown` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static bool minimap_shown()
+```
+
+- **Declared at:** [line 451](../../../runtime/gameplay_api.hpp#L451)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+auto result = epok::DungeonLibrary::minimap_shown();
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
 
 <a id="epok-dungeonlibrary-neighbour-1"></a>
 
@@ -761,6 +935,46 @@ auto result = epok::DungeonLibrary::room_count();
 
 **Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
 
+<a id="epok-dungeonlibrary-room-explored-1"></a>
+
+## `epok::DungeonLibrary::room_explored`
+
+**Purpose.** Performs `room explored` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static bool room_explored(int32_t room)
+```
+
+- **Declared at:** [line 458](../../../runtime/gameplay_api.hpp#L458)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `room` | `int32_t` | Input | Value supplied for `room`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// int32_t room
+
+auto result = epok::DungeonLibrary::room_explored(room);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
 <a id="epok-dungeonlibrary-room-of-1"></a>
 
 ## `epok::DungeonLibrary::room_of`
@@ -828,6 +1042,86 @@ static uint32_t seed()
 #include "gameplay_api.hpp"
 
 auto result = epok::DungeonLibrary::seed();
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-dungeonlibrary-show-full-map-1"></a>
+
+## `epok::DungeonLibrary::show_full_map`
+
+**Purpose.** Performs `show full map` as part of the gameplay api module.
+
+**Exact declaration**
+
+```cpp
+static void show_full_map(bool full)
+```
+
+- **Declared at:** [line 452](../../../runtime/gameplay_api.hpp#L452)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `full` | `bool` | Input | Value supplied for `full`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// bool full
+
+epok::DungeonLibrary::show_full_map(full);
+```
+
+**Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.
+
+**Trade-offs and warnings.** Call it only in the lifecycle phase described by the module. Validate indices, capacities and object state before use.
+
+<a id="epok-dungeonlibrary-show-minimap-1"></a>
+
+## `epok::DungeonLibrary::show_minimap`
+
+**Purpose.** fills the screen (for a pause or map screen) over the box.
+
+**Exact declaration**
+
+```cpp
+static void show_minimap(bool visible)
+```
+
+- **Declared at:** [line 450](../../../runtime/gameplay_api.hpp#L450)
+- **Kind:** `cxx method`; qualifiers: `static`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `visible` | `bool` | Input | Value supplied for `visible`. See the exact type and module contract. |
+
+**Returns.** No value is returned; observe the documented state change or callback.
+
+**Use it when.** You need the gameplay api module and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "gameplay_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// bool visible
+
+epok::DungeonLibrary::show_minimap(visible);
 ```
 
 **Why choose it.** It provides direct, allocation-conscious access to the gameplay api module. No exception-based error path is implied by the signature.

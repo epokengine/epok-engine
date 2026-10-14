@@ -1106,6 +1106,7 @@ fn settings(ui: &Ui, e: &mut Editor, id: Uuid, two_d: bool) {
     ui.spacing();
     let height = character_height(&e.scene, g.spawn_actor);
     appearance(ui, &mut g, two_d, &tile_sets, &actors, height);
+    minimap(ui, &mut g, e.scene.display_size);
     if g != e.scene.dungeons[index] {
         e.scene.dungeons[index] = g;
         e.changed_coalesced("dungeon-settings");
@@ -1174,6 +1175,285 @@ fn rooms(ui: &Ui, s: &mut dungeon::RoomSettings) {
         (0, 100),
         "Chance, in percent, that each extra connection becomes a loop. 0 gives a tree: one way between any two rooms.",
     );
+}
+
+/// The console minimap: whether the map has one, where it sits and how it fills in,
+/// with a picture of the screen as the game will show it.
+fn minimap(ui: &Ui, g: &mut Generator, screen: [u16; 2]) {
+    use crate::dungeon_minimap::{COLOR_NAMES, Corner};
+    ui.spacing();
+    let open = ui.collapsing_header(
+        format!(
+            "Minimap{}##dungeon-minimap",
+            if g.minimap.enabled { ": on" } else { "" }
+        ),
+        if g.minimap.enabled {
+            imgui::TreeNodeFlags::DEFAULT_OPEN
+        } else {
+            imgui::TreeNodeFlags::empty()
+        },
+    );
+    if ui.is_item_hovered() {
+        ui.tooltip_text(
+            "A map of the dungeon on the console's screen that fills in as the player explores.",
+        );
+    }
+    if !open {
+        return;
+    }
+    let m = &mut g.minimap;
+    let _ = crate::gui::toggle(ui, "Minimap", &mut m.enabled);
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Draw the minimap on the console, under the HUD.");
+    }
+    if !m.enabled {
+        crate::gui::muted(ui, "Off: the map has no minimap.");
+        return;
+    }
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Corner"), m.corner.label()) {
+        for corner in Corner::ALL {
+            if ui
+                .selectable_config(corner.label())
+                .selected(m.corner == corner)
+                .build()
+            {
+                m.corner = corner;
+            }
+        }
+    }
+    let mut size = [i32::from(m.size[0]), i32::from(m.size[1])];
+    if crate::gui::Drag::new(crate::gui::field(ui, "Size"))
+        .range(16, 240)
+        .build_array(ui, &mut size)
+    {
+        m.size = [size[0].clamp(16, 240) as u16, size[1].clamp(16, 200) as u16];
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("The box's width and height in screen pixels.");
+    }
+    let mut margin = [i32::from(m.margin[0]), i32::from(m.margin[1])];
+    if crate::gui::Drag::new(crate::gui::field(ui, "Margin"))
+        .range(0, 200)
+        .build_array(ui, &mut margin)
+    {
+        m.margin = margin.map(|v| v.clamp(0, 200) as u16);
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Pixels between the box and the screen's edges at its corner.");
+    }
+    let _ = crate::gui::toggle(ui, "Follow the player", &mut m.follow);
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Keep the player in the middle of the box at a fixed scale; keys and the goal out of view sit on its edge. Off fits the whole dungeon in the box.");
+    }
+    let baked = g.output.queries.as_ref().map(|q| &q.minimap);
+    if m.follow {
+        let mut cell = i32::from(m.cell);
+        if ui
+            .slider_config(crate::gui::field(ui, "Pixels a cell"), 1, 8)
+            .build(&mut cell)
+        {
+            m.cell = cell.clamp(1, 8) as u8;
+        }
+    } else if let Some(baked) = baked.filter(|b| !b.rects.is_empty()) {
+        let _ = crate::gui::field(ui, "Pixels a cell");
+        ui.text(format!("{} (fits the box)", m.fit(baked)));
+    }
+    const REVEAL: [&str; 2] = ["As the player explores", "Everything from the start"];
+    if let Some(_combo) = ui.begin_combo(
+        crate::gui::field(ui, "Shows"),
+        REVEAL[usize::from(m.everything)],
+    ) {
+        for (i, label) in REVEAL.iter().enumerate() {
+            if ui
+                .selectable_config(label)
+                .selected(usize::from(m.everything) == i)
+                .build()
+            {
+                m.everything = i == 1;
+            }
+        }
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("As the player explores: a room shows once entered, with dim stubs of the corridors leading out, and a corridor once walked. Game code can reveal rooms too.");
+    }
+    let _ = crate::gui::toggle(ui, "Shown at start", &mut m.visible);
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Off hides the box until game code shows it (Dungeon > Show Minimap), for example on a button press.");
+    }
+    if let Some(_node) = ui.tree_node("Colours##dungeon-minimap-colours") {
+        for (name, color) in COLOR_NAMES.iter().zip(m.colors.iter_mut()) {
+            let mut c = color.map(|v| f32::from(v) / 255.);
+            if ui
+                .color_edit3_config(crate::gui::field(ui, name), &mut c)
+                .build()
+            {
+                *color = c.map(|v| (v.clamp(0., 1.) * 255.).round() as u8);
+            }
+        }
+    }
+    let m = &g.minimap;
+    let Some((queries, baked)) = g
+        .output
+        .queries
+        .as_ref()
+        .map(|q| (q, &q.minimap))
+        .filter(|(_, b)| !b.rects.is_empty())
+    else {
+        ui.text_colored(
+            AMBER,
+            "Generate to see the minimap: it is drawn from the generated dungeon.",
+        );
+        return;
+    };
+    if g.spawn_actor.is_none() {
+        ui.text_colored(
+            AMBER,
+            "Set the Player: the minimap explores from it and marks it.",
+        );
+    }
+    crate::gui::muted(
+        ui,
+        format!(
+            "{} rectangles · about {:.1} KB of console RAM",
+            baked.rects.len(),
+            crate::dungeon_minimap::ram_bytes(baked.rects.len()) as f32 / 1024.
+        ),
+    );
+    minimap_picture(ui, m, queries, baked, screen);
+}
+
+/// The console's screen at the band's width with the minimap as it shows once
+/// everything is explored, the player at the spawn.
+fn minimap_picture(
+    ui: &Ui,
+    m: &crate::dungeon_minimap::Settings,
+    queries: &crate::dungeon_query::Map,
+    baked: &crate::dungeon_minimap::Baked,
+    screen: [u16; 2],
+) {
+    let screen = [f32::from(screen[0].max(1)), f32::from(screen[1].max(1))];
+    let width = ui.content_region_avail()[0].min(320.);
+    let scale = width / screen[0];
+    let origin = ui.cursor_screen_pos();
+    let height = screen[1] * scale;
+    let draw = ui.get_window_draw_list();
+    draw.add_rect(
+        origin,
+        [origin[0] + width, origin[1] + height],
+        [0.18, 0.2, 0.24, 1.],
+    )
+    .filled(true)
+    .build();
+    let px = |v: f32| v * scale;
+    let (bw, bh) = (f32::from(m.size[0]), f32::from(m.size[1]));
+    let right = matches!(
+        m.corner,
+        crate::dungeon_minimap::Corner::TopRight | crate::dungeon_minimap::Corner::BottomRight
+    );
+    let bottom = matches!(
+        m.corner,
+        crate::dungeon_minimap::Corner::BottomLeft | crate::dungeon_minimap::Corner::BottomRight
+    );
+    let bx = if right {
+        screen[0] - f32::from(m.margin[0]) - bw
+    } else {
+        f32::from(m.margin[0])
+    };
+    let by = if bottom {
+        screen[1] - f32::from(m.margin[1]) - bh
+    } else {
+        f32::from(m.margin[1])
+    };
+    let color = |c: [u8; 3], a: f32| {
+        [
+            f32::from(c[0]) / 255.,
+            f32::from(c[1]) / 255.,
+            f32::from(c[2]) / 255.,
+            a,
+        ]
+    };
+    let box_min = [origin[0] + px(bx), origin[1] + px(by)];
+    let box_max = [box_min[0] + px(bw), box_min[1] + px(bh)];
+    draw.with_clip_rect_intersect(box_min, box_max, || {
+        draw.add_rect(box_min, box_max, color(m.colors[3], 0.6))
+            .filled(true)
+            .build();
+        let cell = if m.follow {
+            f32::from(m.cell)
+        } else {
+            m.fit(baked) as f32
+        };
+        let to_cell = |p: [f32; 3]| {
+            let plane = if queries.two_d {
+                [p[0], p[1]]
+            } else {
+                [p[0], p[2]]
+            };
+            [
+                ((plane[0] - baked.corner[0]) / baked.step[0]).floor(),
+                ((plane[1] - baked.corner[1]) / baked.step[1]).floor(),
+            ]
+        };
+        let player = queries
+            .rooms
+            .get(queries.spawn.max(0) as usize)
+            .map(|r| to_cell(r.center));
+        let (ox, oy) = match player.filter(|_| m.follow) {
+            Some(p) => (
+                bx + bw / 2. - p[0] * cell - cell / 2.,
+                by + bh / 2. - p[1] * cell - cell / 2.,
+            ),
+            None => (
+                bx + (bw - f32::from(baked.size[0]) * cell) / 2.,
+                by + (bh - f32::from(baked.size[1]) * cell) / 2.,
+            ),
+        };
+        let at = |x: f32, y: f32| [origin[0] + px(ox + x * cell), origin[1] + px(oy + y * cell)];
+        for r in &baked.rects {
+            let c = if r.room >= 0 {
+                m.colors[0]
+            } else {
+                m.colors[1]
+            };
+            let (x, y) = (f32::from(r.x), f32::from(r.y));
+            draw.add_rect(
+                at(x, y),
+                at(x + f32::from(r.w), y + f32::from(r.h)),
+                color(c, 1.),
+            )
+            .filled(true)
+            .build();
+        }
+        let size = cell.max(2.);
+        let icon = |p: [f32; 3], c: [u8; 3], grow: f32| {
+            let q = to_cell(p);
+            let lo = at(q[0] + 0.5, q[1] + 0.5);
+            let half = px(size / 2. + grow);
+            draw.add_rect(
+                [lo[0] - half, lo[1] - half],
+                [lo[0] + half, lo[1] + half],
+                color(c, 1.),
+            )
+            .filled(true)
+            .build();
+        };
+        if let Some(goal) = queries.rooms.get(queries.goal.max(0) as usize) {
+            icon(goal.center, m.colors[7], 0.);
+        }
+        for item in queries.items.iter().filter(|i| i.lock > 0) {
+            icon(item.position, m.colors[5], 0.);
+        }
+        for lock in &queries.locks {
+            icon(lock.position, m.colors[6], 0.);
+        }
+        if let Some(spawn) = queries.rooms.get(queries.spawn.max(0) as usize) {
+            icon(spawn.center, m.colors[4], 1.);
+        }
+    });
+    ui.dummy([width, height]);
+    if ui.is_item_hovered() {
+        ui.tooltip_text("The console's screen with the minimap fully explored and the player at the spawn. In game it starts with the spawn room only.");
+    }
 }
 
 /// The actor generation treats as the player: moved to the spawn room's centre, and

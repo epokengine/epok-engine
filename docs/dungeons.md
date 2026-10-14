@@ -551,6 +551,59 @@ generation. The queries describe the first generated dungeon of the map, up to 6
 rooms; without a dungeon every query answers -1, 0 or an invalid record. A dungeon
 generated before the queries existed shows a warning with **Regenerate**.
 
+## Minimap
+
+A dungeon can carry a minimap on the console: a map of its rooms and corridors in a
+corner of the screen that fills in as the player explores, with the player, the keys,
+the locked doors and the goal marked. Open **Minimap** in the generator band and tick
+**Minimap**; the map needs a **Player**, which it follows and marks.
+
+![The Minimap settings in the generator band, with the screen as the console shows it](images/dungeon-minimap-band.png)
+
+| Setting | What it does |
+| --- | --- |
+| Corner, Size, Margin | Where the box sits on the screen and how big it is, in pixels |
+| Follow the player | Keeps the player in the middle of the box at **Pixels a cell**; keys and the goal out of view sit on the box's edge. Off fits the whole dungeon in the box (the band shows the scale) |
+| Shows | **As the player explores**, or **Everything from the start** |
+| Shown at start | Off hides the box until game code shows it |
+| Colours | Rooms, corridors, corridors seen but not walked, the backdrop, the player, keys, locked doors and the goal |
+
+As the player explores, a room shows in full once the player enters it, together with
+dim stubs of the corridors that leave it; a corridor shows once walked. Keys show once
+their room is explored and disappear when picked up; a locked door shows once its room
+or its doorway is seen and disappears when it opens. The goal shows once its room is
+explored. The picture under the settings shows the console's screen with the map fully
+explored and the player at the spawn.
+
+![On the console: the spawn room at the start, the next room after the stairs, and the full map opened from game code](images/dungeon-minimap-ingame.png)
+
+![Everything from the start in a large box, and following the player at three pixels a cell](images/dungeon-minimap-modes.png)
+
+Game code shows and hides the map and the explored rooms through the same Dungeon
+library as the queries:
+
+| Function | What it does |
+| --- | --- |
+| `show_minimap(visible)`, `minimap_shown()` | Shows or hides the box |
+| `show_full_map(full)`, `full_map_shown()` | Fills the screen with the map, over the box: a map screen or a pause menu |
+| `explore_room(room)`, `room_explored(room)` | Reveals a room, for a map item or a saved game, and asks whether one is explored |
+| `explore_everything()`, `forget_explored()` | Reveals the whole dungeon, or hides it again |
+
+Opening the full map while Select (button 0) is held, in Lua:
+
+```lua
+epok.dungeon.show_full_map(epok.input.held(0, 0))
+```
+
+The map is cooked with the map, from the generated dungeon: changing its settings needs
+no new generation, but a dungeon generated before the minimap existed must be generated
+again. It draws over the world and under the HUD, as flat rectangles: the band counts
+them and gives the console RAM the map takes (about 9 KB for the Dungeon template's
+dungeon, most of it the drawing code). A minimap keeps up to 255 rectangles of a dungeon
+up to 255 cells across; rooms past the 64th count as corridors. Levels share one plane
+on the map, as rooms on different floors never overlap. Exploring needs the minimap on;
+`room_explored` answers false without it.
+
 ## PSX budget
 
 The band shows what the map will hold after generating, so a dungeon that would not

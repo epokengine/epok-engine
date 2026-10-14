@@ -20,6 +20,7 @@ Work happens on `feature/dungeon-generator`, one pushed checkpoint per phase.
 | 9 | Gameplay queries: rooms, links, keys, locks, free spots and a seed-bound random stream for game code in C++, Blueprint and Lua | delivered ([phase9.md](phase9.md)) |
 | 10 | Levels and stairs: rooms on several floors joined by flights in their corridors, solid collision around the air of each cell, and controllers that walk down steps | delivered ([phase10.md](phase10.md)) |
 | 11 | Handmade rooms: Dungeon Room assets built in any map and edited on a floor plan, placed by a recipe step in quarter turns at their doors, static pieces merged and the rest copied | delivered ([phase11.md](phase11.md)) |
+| 12 | Minimap and fog of war: the dungeon's rooms and corridors as rectangles drawn under the HUD, explored as the player walks, with keys, locked doors and the goal, and a full map for game code | delivered ([phase12.md](phase12.md)) |
 
 ## Design constraints
 

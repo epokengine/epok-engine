@@ -1295,6 +1295,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/dungeon_map.hpp").as_slice(),
         ),
         (
+            "dungeon_minimap.hpp",
+            include_bytes!("../runtime/dungeon_minimap.hpp").as_slice(),
+        ),
+        (
             "dungeon_random.hpp",
             include_bytes!("../runtime/dungeon_random.hpp").as_slice(),
         ),

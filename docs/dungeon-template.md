@@ -49,6 +49,9 @@ Select **Dungeon** in the Hierarchy; its Dungeon Generator band is in the Inspec
   Dungeon Room...**. The recipe (`assets/Dungeons/Recipes/Dungeon.epokasset`) makes one
   loop room from the Reactor; its **Handmade rooms** step takes more rooms, more paths
   or a higher **At most**.
+- Open **Minimap** in the band and tick it for a map in the corner of the screen that
+  fills in as the character explores (about 9 KB of the console's RAM). See
+  [Minimap](dungeons.md#minimap).
 - The band's meter shows the console budget the map will use (actors, quads,
   collision, navigation). The template leaves room to grow: about 1.9 MiB of the
   console's 2 MiB of RAM are used (C++ 1.89 MiB, Lua 1.91 MiB, Blueprint 1.92 MiB).

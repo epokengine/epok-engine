@@ -34,6 +34,8 @@ pub struct Map {
     pub locks: Vec<Point>,
     /// The recipe's path names, for the editor; game code sees the indices.
     pub paths: Vec<String>,
+    /// What the minimap draws, cooked when the generator's minimap is on.
+    pub minimap: crate::dungeon_minimap::Baked,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -59,6 +61,9 @@ pub struct Point {
     pub position: [f32; 3],
     pub room: i16,
     pub lock: u16,
+    /// The generated actor standing for it: a key's, a locked door's.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actor: Option<uuid::Uuid>,
 }
 
 /// Where the grid lands in the generator root's space.
@@ -166,6 +171,7 @@ pub fn build(layout: &Layout, seed: u32, paths: &[String], grid: &Grid) -> (Map,
                 position: grid.center(item.cell),
                 room: room.map_or(-1, |r| r as i16),
                 lock: item.lock,
+                actor: None,
             }
         })
         .collect();
@@ -185,6 +191,7 @@ pub fn build(layout: &Layout, seed: u32, paths: &[String], grid: &Grid) -> (Map,
                 position: grid.edge(door.cell, door.side),
                 room: room.map_or(-1, |r| r as i16),
                 lock,
+                actor: None,
             }
         })
         .collect();
@@ -245,6 +252,8 @@ pub fn build(layout: &Layout, seed: u32, paths: &[String], grid: &Grid) -> (Map,
     } else {
         -1
     };
+    let (minimap, minimap_notes) = crate::dungeon_minimap::build(layout, count, grid.corner);
+    notes.extend(minimap_notes);
     (
         Map {
             two_d: grid.two_d,
@@ -255,9 +264,25 @@ pub fn build(layout: &Layout, seed: u32, paths: &[String], grid: &Grid) -> (Map,
             items,
             locks,
             paths: paths.to_vec(),
+            minimap,
         },
         notes,
     )
+}
+
+/// Names the generated actors standing for keys and locked doors: `keys` and `doors`
+/// by lock number.
+pub fn link_actors(
+    map: &mut Map,
+    keys: &BTreeMap<u16, uuid::Uuid>,
+    doors: &BTreeMap<u16, uuid::Uuid>,
+) {
+    for item in map.items.iter_mut().filter(|i| i.lock > 0) {
+        item.actor = keys.get(&item.lock).copied();
+    }
+    for lock in &mut map.locks {
+        lock.actor = doors.get(&lock.lock).copied();
+    }
 }
 
 /// One floor level's height in world units, for room levels.
@@ -329,12 +354,16 @@ fn spots(
 /// The first generated dungeon's queries in world space, as constant tables and the
 /// statement that makes them the map's; an empty reset when the map has none.
 pub fn cpp(scene: &Scene) -> (String, String) {
+    const NONE: &str = "inline constexpr size_t dungeon_minimap_capacity=0;\n";
     let found = scene.dungeons.iter().find_map(|g| {
         let map = g.output.queries.as_ref()?;
-        Some((map, scene.actor_index(g.root)?))
+        Some((g, map, scene.actor_index(g.root)?))
     });
-    let Some((map, root)) = found.filter(|(map, _)| !map.rooms.is_empty()) else {
-        return (String::new(), "::epok::dungeon::reset({});\n".into());
+    let Some((generator, map, root)) = found.filter(|(_, map, _)| !map.rooms.is_empty()) else {
+        return (
+            NONE.into(),
+            "::epok::dungeon::reset({});\n::epok::dungeon::reset_minimap({});\n".into(),
+        );
     };
     let world = |p: [f32; 3]| -> [f32; 3] {
         if map.two_d {
@@ -392,6 +421,7 @@ pub fn cpp(scene: &Scene) -> (String, String) {
             position: *p,
             room: index as i16,
             lock: 0,
+            actor: None,
         }));
     }
     out.push_str("};\n");
@@ -424,8 +454,10 @@ pub fn cpp(scene: &Scene) -> (String, String) {
         points,
         map.locks.iter().map(point).collect(),
     );
+    let (minimap_table, minimap_init) = minimap_cpp(scene, generator, map, &world);
+    out.push_str(&minimap_table);
     let init = format!(
-        "::epok::dungeon::reset({{dungeon_rooms,{},{neighbours_name},{spots_name},{items_name},{},{locks_name},{},{},{},{}u,{}}});\n",
+        "{minimap_init}::epok::dungeon::reset({{dungeon_rooms,{},{neighbours_name},{spots_name},{items_name},{},{locks_name},{},{},{},{}u,{}}});\n",
         map.rooms.len(),
         map.items.len(),
         map.locks.len(),
@@ -435,6 +467,112 @@ pub fn cpp(scene: &Scene) -> (String, String) {
         map.two_d
     );
     (out, init)
+}
+
+/// The minimap's tables and the statement that makes them the map's: its rectangles,
+/// where its grid lies in the world, the actors it watches and how it draws; an empty
+/// reset when the generator has no minimap.
+fn minimap_cpp(
+    scene: &Scene,
+    generator: &crate::dungeon::Generator,
+    map: &Map,
+    world: &dyn Fn([f32; 3]) -> [f32; 3],
+) -> (String, String) {
+    let settings = &generator.minimap;
+    let baked = &map.minimap;
+    if !settings.enabled || baked.rects.is_empty() {
+        return (
+            "inline constexpr size_t dungeon_minimap_capacity=0;\n".into(),
+            "::epok::dungeon::reset_minimap({});\n".into(),
+        );
+    }
+    let plane = |p: [f32; 2]| {
+        let q = if map.two_d {
+            world([p[0], p[1], 0.])
+        } else {
+            world([p[0], 0., p[1]])
+        };
+        if map.two_d {
+            [q[0], q[1]]
+        } else {
+            [q[0], q[2]]
+        }
+    };
+    let corner = plane(baked.corner);
+    let next = plane([
+        baked.corner[0] + baked.step[0],
+        baked.corner[1] + baked.step[1],
+    ]);
+    let raw = |v: f32| (v * 4096.).round() as i32;
+    let slot = |id: Option<uuid::Uuid>| {
+        id.and_then(|id| scene.actor_index(id))
+            .map_or(-1, |i| i as i32)
+    };
+    let count = baked.rects.len();
+    let mut out = format!(
+        "inline constexpr size_t dungeon_minimap_capacity={count};\ninline constexpr ::epok::dungeon::MapRect dungeon_map_rects[]={{\n"
+    );
+    for r in &baked.rects {
+        out.push_str(&format!(
+            "{{{},{},{},{},{},{{{},{}}},0}},\n",
+            r.x, r.y, r.w, r.h, r.room, r.near[0], r.near[1]
+        ));
+    }
+    out.push_str("};\n");
+    let actors = |name: &str, points: &[Point]| -> (String, String) {
+        if points.is_empty() {
+            return ("nullptr".into(), String::new());
+        }
+        out_table(name, points.iter().map(|p| slot(p.actor)).collect())
+    };
+    let items = actors("dungeon_item_actors", &map.items);
+    let locks = actors("dungeon_lock_actors", &map.locks);
+    out.push_str(&items.1);
+    out.push_str(&locks.1);
+    out.push_str(&format!(
+        "inline uint32_t dungeon_map_explored[{}];\n",
+        count.div_ceil(32)
+    ));
+    let colors = settings
+        .colors
+        .iter()
+        .map(|c| format!("{{{},{},{}}}", c[0], c[1], c[2]))
+        .collect::<Vec<_>>()
+        .join(",");
+    let init = format!(
+        "::epok::dungeon::reset_minimap({{dungeon_map_rects,{count},{},{},{{{},{}}},{{{},{}}},{},{},{},dungeon_map_explored,{},{},{},{},{},{},{{{colors}}}}});\n",
+        baked.size[0],
+        baked.size[1],
+        raw(corner[0]),
+        raw(corner[1]),
+        raw(next[0] - corner[0]),
+        raw(next[1] - corner[1]),
+        slot(generator.spawn_actor),
+        items.0,
+        locks.0,
+        settings.margin[0],
+        settings.margin[1],
+        settings.size[0],
+        settings.size[1],
+        settings.cell,
+        settings.flags(),
+    );
+    (out, init)
+}
+
+/// A constant table of runtime object slots: its name and its definition.
+fn out_table(name: &str, slots: Vec<i32>) -> (String, String) {
+    (
+        name.into(),
+        format!(
+            "inline constexpr int16_t {name}[]={{{}}};\n",
+            slots
+                .iter()
+                .map(i32::to_string)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    )
 }
 
 #[cfg(test)]
@@ -530,7 +668,10 @@ mod tests {
         scene.actors.clear();
         assert_eq!(
             cpp(&scene),
-            (String::new(), "::epok::dungeon::reset({});\n".into())
+            (
+                "inline constexpr size_t dungeon_minimap_capacity=0;\n".into(),
+                "::epok::dungeon::reset({});\n::epok::dungeon::reset_minimap({});\n".into()
+            )
         );
         let mut root = crate::scene::Actor::cube("Dungeon".into());
         root.kind = "Empty".into();
@@ -554,11 +695,42 @@ mod tests {
             tables.matches('\n').count() > map.rooms.len(),
             "one row per room"
         );
-        assert!(init.starts_with(&format!(
+        assert!(init.contains(&format!(
             "::epok::dungeon::reset({{dungeon_rooms,{},dungeon_neighbours,dungeon_spots,",
             map.rooms.len()
         )));
         assert!(init.contains(&format!(",{},{},1207u,false}});", map.spawn, map.goal)));
+        // Without its minimap on, the map cooks none and clears the last one.
+        assert!(tables.contains("dungeon_minimap_capacity=0;"));
+        assert!(init.starts_with("::epok::dungeon::reset_minimap({});"));
+        // With it on, the rectangles, the grid moved with the generator, the player's
+        // slot and the box settings.
+        let mut player = crate::scene::Actor::cube("Player".into());
+        player.kind = "Empty".into();
+        let player_id = player.id;
+        scene.actors.push(player);
+        scene.dungeons[0].spawn_actor = Some(player_id);
+        scene.dungeons[0].minimap.enabled = true;
+        let (tables, init) = cpp(&scene);
+        let baked = &map.minimap;
+        assert!(tables.contains(&format!("dungeon_minimap_capacity={};", baked.rects.len())));
+        assert_eq!(
+            tables.matches("},0},\n").count(),
+            baked.rects.len(),
+            "one row per rectangle"
+        );
+        assert!(init.starts_with(&format!(
+            "::epok::dungeon::reset_minimap({{dungeon_map_rects,{},{},{},{{{},{}}},{{12288,12288}},1,",
+            baked.rects.len(),
+            baked.size[0],
+            baked.size[1],
+            raw(baked.corner[0] + 10.),
+            raw(baked.corner[1] - 4.),
+        )), "{init}");
+        assert!(
+            init.contains("dungeon_map_explored,12,12,96,72,3,17,"),
+            "{init}"
+        );
     }
 
     /// Blueprint and Lua reach every query through the real native catalog: a Lua class
@@ -599,6 +771,18 @@ function DungeonProbe:tick(delta_seconds)
     end
     if epok.dungeon.seed() == 0 then
         self.here = -1
+    end
+    if not epok.dungeon.room_explored(here) then
+        epok.dungeon.explore_room(here)
+    end
+    if epok.dungeon.minimap_shown() and not epok.dungeon.full_map_shown() then
+        epok.dungeon.show_full_map(true)
+        epok.dungeon.show_minimap(true)
+    end
+    epok.dungeon.show_full_map(epok.input.held(0, 0))
+    if self.here < -1 then
+        epok.dungeon.explore_everything()
+        epok.dungeon.forget_explored()
     end
 end
 
@@ -669,6 +853,44 @@ return DungeonProbe
                 ret,
             ],
         });
+        // reveal() opens the full map: a callable library node on the exec chain.
+        let full_map = "52559c3a-438b-4823-b6c8-2ee940a062b4";
+        let mut entry = node("5fb28163-ac90-4e7f-9de2-60718293a4b5", bp::NodeKind::Entry);
+        entry.outputs.insert(
+            "next".into(),
+            vec!["60c39274-bda1-4f80-8ef3-718293a4b5c6".into()],
+        );
+        let mut show = node(
+            "60c39274-bda1-4f80-8ef3-718293a4b5c6",
+            bp::NodeKind::Operation {
+                operation: full_map.into(),
+            },
+        );
+        show.inputs.insert(
+            format!("{full_map}:parameter:0"),
+            bp::Input::Literal {
+                value_type: crate::reflection_schema::Type::Bool,
+                value: serde_json::json!(true),
+            },
+        );
+        show.outputs.insert(
+            "next".into(),
+            vec!["71d4a385-ceb2-4091-9f04-8293a4b5c6d7".into()],
+        );
+        asset.functions.push(bp::Graph {
+            id: "9e7f3f2b-5d4c-4b6a-8f8e-2a3b4c5d6e7f".into(),
+            name: "reveal".into(),
+            override_id: None,
+            timeline: None,
+            parameters: Vec::new(),
+            returns: crate::reflection_schema::Type::Void,
+            entry: "5fb28163-ac90-4e7f-9de2-60718293a4b5".into(),
+            nodes: vec![
+                entry,
+                show,
+                node("71d4a385-ceb2-4091-9f04-8293a4b5c6d7", bp::NodeKind::Return),
+            ],
+        });
         let path = root.join("assets/Blueprints/DungeonProbeGraph.epokbp");
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         bp::create(&path, &asset).unwrap();
@@ -689,6 +911,10 @@ return DungeonProbe
         assert!(
             text.contains("epok::DungeonLibrary::next_room"),
             "the graph lowers to the library"
+        );
+        assert!(
+            text.contains("epok::DungeonLibrary::show_full_map"),
+            "the exec chain lowers to the library"
         );
         std::fs::remove_dir_all(parent).unwrap();
     }

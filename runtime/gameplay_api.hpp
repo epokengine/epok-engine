@@ -445,7 +445,19 @@ struct EPOK_FUNCTION_LIBRARY(Category="Dungeon", Id="0165c4fc-3b3c-4916-a158-f07
     EPOK_FUNCTION(BlueprintPure, Id="0f7f72f9-13cf-4cc7-a43d-5f405d0a5cc0") static uint32_t seed(){return dungeon::map.seed;}
     // A number below `below` from the dungeon's own random stream: the same for the same
     // stream, index and seed on every run, so a room can always roll the same enemy.
-    EPOK_FUNCTION(BlueprintPure, Id="cbed855e-d677-4379-9392-9d2bcf7510e5") static uint32_t random(uint32_t stream,uint32_t index,uint32_t below){return dungeon::random(stream,index,below);}
+    EPOK_FUNCTION(BlueprintPure, Id="cbed855e-d677-4379-9392-9d2bcf7510e5") static uint32_t random(uint32_t stream,uint32_t index,uint32_t below){return dungeon::random(stream,index,below);}    // The minimap, when the generator has one: its box shows or hides; the full map
+    // fills the screen (for a pause or map screen) over the box.
+    EPOK_FUNCTION(BlueprintCallable, Id="62c7ac2e-415b-4eb5-9b52-ee6e50894230") static void show_minimap(bool visible){if(visible)dungeon::minimap.flags|=dungeon::minimap_visible;else dungeon::minimap.flags&=uint8_t(~dungeon::minimap_visible);}
+    EPOK_FUNCTION(BlueprintPure, Id="3087e2d1-9bba-4470-a654-b79f3fb46280") static bool minimap_shown(){return dungeon::minimap.count&&(dungeon::minimap.flags&dungeon::minimap_visible);}
+    EPOK_FUNCTION(BlueprintCallable, Id="52559c3a-438b-4823-b6c8-2ee940a062b4") static void show_full_map(bool full){if(full)dungeon::minimap.flags|=dungeon::minimap_full|dungeon::minimap_visible;else dungeon::minimap.flags&=uint8_t(~dungeon::minimap_full);}
+    EPOK_FUNCTION(BlueprintPure, Id="1534b2cc-9065-4dcf-a6b1-394f674b0b93") static bool full_map_shown(){return dungeon::minimap.count&&(dungeon::minimap.flags&dungeon::minimap_full);}
+    // Rooms the player has entered show on the minimap, with the corridors they open
+    // into. Exploring needs the generator's minimap; a room can also be revealed from
+    // game code, for a map item or a save.
+    EPOK_FUNCTION(BlueprintCallable, Id="a560a9a7-22e8-4975-9fbc-75c7196b4cbd") static void explore_room(int32_t room){dungeon::explore_room(room);}
+    EPOK_FUNCTION(BlueprintPure, Id="fe9d38c0-04b4-4e4c-a0a2-47c9fa9bc4f1") static bool room_explored(int32_t room){return dungeon::room_explored(room);}
+    EPOK_FUNCTION(BlueprintCallable, Id="4298a984-7ce5-4d17-97b2-3305942dd5e3") static void explore_everything(){dungeon::explore_everything();}
+    EPOK_FUNCTION(BlueprintCallable, Id="16bb9ac9-cd19-41b1-9d2c-01959c940896") static void forget_explored(){dungeon::forget_everything();}
 };
 
 } // namespace epok

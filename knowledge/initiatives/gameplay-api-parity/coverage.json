@@ -2,10 +2,10 @@
   "schema_version": 2,
   "initiative": "gameplay-api-parity",
   "baseline": {
-    "commit": "0fbe947d9d87444c2fd6b7e9a9783ca99014059d",
-    "branch": "features/dungeon-rooms-levels-queries",
+    "commit": "865af64cefdd44cfd09504927898adccbc3cd485",
+    "branch": "features/dungeon-minimap-seeds-volumes",
     "catalog": "docs/api/catalog.json",
-    "catalog_sha256": "4be03939b9e0bf09b9e7fb3fdcfcd65702e3ff6f1aa953cefce7c9db34ad318d",
+    "catalog_sha256": "0583f121af3b09682c77d37247d7aab0c454b5254f46c5ff258dc2554bfcb9a6",
     "catalog_schema": 1,
     "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
     "source_hashes": {
@@ -27,7 +27,8 @@
       "runtime/collision.hpp": "e92e066346fc417d27ac79953cf078192a285e6c023b37139d6dcd1b686c2f0d",
       "runtime/debug_hud.hpp": "bd6c768da1e7b4728fbf53968671dc836feba360d7e356fa79d599faeea2c667",
       "runtime/draw_order.hpp": "2fd81c3c92f1b220dcd4558a2f7d9854802c302aac8ba5a01343453401aa8e54",
-      "runtime/dungeon_map.hpp": "b6e0ea89d2df9618ecde430f136fed71546d31a4a31e054df122a5f18c774007",
+      "runtime/dungeon_map.hpp": "9c591ef71bf35a6a611e636e2ca2b1070bd6720dada4a3cbcafdc2078d134676",
+      "runtime/dungeon_minimap.hpp": "4846fb0de45b5771bd7ceb33483ae841e64833b5931a8b05e33ca7ed80ba8ba8",
       "runtime/dungeon_random.hpp": "64397b1994b33cc3bc0d18d3aa181a32fd5903f6d3b89cb07cd365ad78071420",
       "runtime/effect_types.hpp": "a8e1340e59ba121b46c7ef5f9d7b72bf294bcc9ceddaf4ab2ccb9e26710ed382",
       "runtime/effects.hpp": "fa2a2b49c0c3682b2f7903a27eeeb649e3b7b574cf57f48e35a10c81017e0531",
@@ -37,7 +38,7 @@
       "runtime/font_types.hpp": "33d0682a7c7b749b8bac41f5ebb087221b6f58b4b13110b69073ae09a6b0995b",
       "runtime/frame_clear.hpp": "0a5363b24087ee68021d555b95ab2d9c8d17aeb944d85296aa17620ebb1367f7",
       "runtime/frustum.hpp": "bbe6a39a555d6d31f98d29e953e6b0c24a8f47894dc933931564f2b815e30f81",
-      "runtime/gameplay_api.hpp": "49569e93ad9fef605421be84409a7197cae091cb9cd456076c9f728728ba2d4c",
+      "runtime/gameplay_api.hpp": "6ba07c779213f61fa1c638947d61aac3537c13b1d0e8838a54460ba3c4ad2787",
       "runtime/gte_geometry.hpp": "190984eec4efa6fded9ff7a2d8b9c3d9fd72486ca891e5317015f3a3c3e97aa2",
       "runtime/hud.hpp": "705775ce460551405c5accd40cb96c5f29e5a4839324af3d734c8362b587bd59",
       "runtime/hud_core.hpp": "18d101ab79b0b34099d4c5a7b463d4c28dd555f6e0860c4865dd9c3315e5a0e4",
@@ -131,8 +132,8 @@
     }
   },
   "frozen_denominator": {
-    "candidate_keys_sha256": "1025a4dc83da1a2b20363b03e749f2b25709808536ae7941def4b765cb014960",
-    "count": 4818,
+    "candidate_keys_sha256": "49251e0bc2c8219be9398c309daaa3e2e28164e12eee3a405cce280dd8717b17",
+    "count": 4878,
     "policy": "append-only; replacement/removal requires an explicit migration record",
     "migrations": []
   },
@@ -20903,6 +20904,310 @@
       "status": "implemented"
     },
     {
+      "id": "gameplay-api:a29ddcec-0837-58ec-bd26-36308142a80c",
+      "candidate_key": "callable:epok::DungeonLibrary::explore_everything",
+      "category": "runtime_facade",
+      "declaration_kind": "callable",
+      "qualified": "epok::DungeonLibrary::explore_everything",
+      "module": "gameplay-api",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::DungeonLibrary::explore_everything",
+          "source": "runtime/gameplay_api.hpp",
+          "line": 459,
+          "signature": "static void explore_everything()",
+          "result": "void",
+          "parameters": [],
+          "static": true,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "bafb05293aab978ce95fd3080a37f08c714ac68996801e7e7c84607444d22be7",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
+      "canonical_public_declaration": "static void explore_everything()",
+      "types_and_directions": {
+        "parameters": [],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::DungeonLibrary",
+        "domain": "gameplay-api"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
+        },
+        "blueprint": {
+          "state": "implemented",
+          "evidence": "Blueprint catalog: shared resolved-operation lowering"
+        },
+        "lua_native_cpp": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: shared resolved-operation lowering"
+        },
+        "lua_vm_bytecode": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: shared resolved-operation lowering"
+        },
+        "lua_vm_source": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: shared resolved-operation lowering"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:a29ddcec-0837-58ec-bd26-36308142a80c"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:a29ddcec-0837-58ec-bd26-36308142a80c"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:96efc1e7-928f-56c3-86d9-4a4a8674c6a6",
+      "candidate_key": "callable:epok::DungeonLibrary::explore_room",
+      "category": "runtime_facade",
+      "declaration_kind": "callable",
+      "qualified": "epok::DungeonLibrary::explore_room",
+      "module": "gameplay-api",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::DungeonLibrary::explore_room",
+          "source": "runtime/gameplay_api.hpp",
+          "line": 457,
+          "signature": "static void explore_room(int32_t room)",
+          "result": "void",
+          "parameters": [
+            {
+              "name": "room",
+              "type": "int32_t",
+              "description": ""
+            }
+          ],
+          "static": true,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "3fae4bd1a8a50d50b89b4e306a8ec356c93e0fb50946179e280899a95bfe769a",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
+      "canonical_public_declaration": "static void explore_room(int32_t room)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "room",
+            "type": "int32_t",
+            "direction": "input"
+          }
+        ],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::DungeonLibrary",
+        "domain": "gameplay-api"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
+        },
+        "blueprint": {
+          "state": "implemented",
+          "evidence": "Blueprint catalog: shared resolved-operation lowering"
+        },
+        "lua_native_cpp": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: shared resolved-operation lowering"
+        },
+        "lua_vm_bytecode": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: shared resolved-operation lowering"
+        },
+        "lua_vm_source": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: shared resolved-operation lowering"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:96efc1e7-928f-56c3-86d9-4a4a8674c6a6"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:96efc1e7-928f-56c3-86d9-4a4a8674c6a6"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:4376026b-1e38-5c6e-b566-dfcd0b1bccde",
+      "candidate_key": "callable:epok::DungeonLibrary::forget_explored",
+      "category": "runtime_facade",
+      "declaration_kind": "callable",
+      "qualified": "epok::DungeonLibrary::forget_explored",
+      "module": "gameplay-api",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::DungeonLibrary::forget_explored",
+          "source": "runtime/gameplay_api.hpp",
+          "line": 460,
+          "signature": "static void forget_explored()",
+          "result": "void",
+          "parameters": [],
+          "static": true,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "504984416873c78fdeb4cac35701102a4c7c9c03ca6c71e2a35070e8598dc5cc",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
+      "canonical_public_declaration": "static void forget_explored()",
+      "types_and_directions": {
+        "parameters": [],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::DungeonLibrary",
+        "domain": "gameplay-api"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
+        },
+        "blueprint": {
+          "state": "implemented",
+          "evidence": "Blueprint catalog: shared resolved-operation lowering"
+        },
+        "lua_native_cpp": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: shared resolved-operation lowering"
+        },
+        "lua_vm_bytecode": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: shared resolved-operation lowering"
+        },
+        "lua_vm_source": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: shared resolved-operation lowering"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:4376026b-1e38-5c6e-b566-dfcd0b1bccde"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:4376026b-1e38-5c6e-b566-dfcd0b1bccde"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:a9e94e70-4f7e-5580-8208-ea1b1775965a",
+      "candidate_key": "callable:epok::DungeonLibrary::full_map_shown",
+      "category": "runtime_facade",
+      "declaration_kind": "callable",
+      "qualified": "epok::DungeonLibrary::full_map_shown",
+      "module": "gameplay-api",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::DungeonLibrary::full_map_shown",
+          "source": "runtime/gameplay_api.hpp",
+          "line": 453,
+          "signature": "static bool full_map_shown()",
+          "result": "bool",
+          "parameters": [],
+          "static": true,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "33d395e34b9ddecba8f1c7218ddd865df4140556c243d06a24816b1f64af3b70",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
+      "canonical_public_declaration": "static bool full_map_shown()",
+      "types_and_directions": {
+        "parameters": [],
+        "returns": "bool"
+      },
+      "owner_domain": {
+        "owner": "epok::DungeonLibrary",
+        "domain": "gameplay-api"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
+        },
+        "blueprint": {
+          "state": "implemented",
+          "evidence": "Blueprint catalog: shared resolved-operation lowering"
+        },
+        "lua_native_cpp": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: shared resolved-operation lowering"
+        },
+        "lua_vm_bytecode": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: shared resolved-operation lowering"
+        },
+        "lua_vm_source": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: shared resolved-operation lowering"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:a9e94e70-4f7e-5580-8208-ea1b1775965a"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:a9e94e70-4f7e-5580-8208-ea1b1775965a"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
       "id": "gameplay-api:642eefc9-9b25-5b6e-a064-dfa1829f9df4",
       "candidate_key": "callable:epok::DungeonLibrary::goal_room",
       "category": "runtime_facade",
@@ -21283,6 +21588,79 @@
       ],
       "test_ids": [
         "gameplay-parity-conformance:gameplay-api:9c4e544f-9677-5376-8556-80bb1b907275"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:539be732-fd1a-55cc-b955-c92cc6109054",
+      "candidate_key": "callable:epok::DungeonLibrary::minimap_shown",
+      "category": "runtime_facade",
+      "declaration_kind": "callable",
+      "qualified": "epok::DungeonLibrary::minimap_shown",
+      "module": "gameplay-api",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::DungeonLibrary::minimap_shown",
+          "source": "runtime/gameplay_api.hpp",
+          "line": 451,
+          "signature": "static bool minimap_shown()",
+          "result": "bool",
+          "parameters": [],
+          "static": true,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "c5d2b200e71cb8001f7426b7530cd65c06072904d6e9a507b8e0e001e7136265",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
+      "canonical_public_declaration": "static bool minimap_shown()",
+      "types_and_directions": {
+        "parameters": [],
+        "returns": "bool"
+      },
+      "owner_domain": {
+        "owner": "epok::DungeonLibrary",
+        "domain": "gameplay-api"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
+        },
+        "blueprint": {
+          "state": "implemented",
+          "evidence": "Blueprint catalog: shared resolved-operation lowering"
+        },
+        "lua_native_cpp": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: shared resolved-operation lowering"
+        },
+        "lua_vm_bytecode": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: shared resolved-operation lowering"
+        },
+        "lua_vm_source": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: shared resolved-operation lowering"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:539be732-fd1a-55cc-b955-c92cc6109054"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:539be732-fd1a-55cc-b955-c92cc6109054"
       ],
       "cost_evidence": [
         "shared-inline-native-lowering",
@@ -21830,6 +22208,91 @@
       "status": "implemented"
     },
     {
+      "id": "gameplay-api:c077047e-07ee-5b63-b8da-1d7cad0f4a35",
+      "candidate_key": "callable:epok::DungeonLibrary::room_explored",
+      "category": "runtime_facade",
+      "declaration_kind": "callable",
+      "qualified": "epok::DungeonLibrary::room_explored",
+      "module": "gameplay-api",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::DungeonLibrary::room_explored",
+          "source": "runtime/gameplay_api.hpp",
+          "line": 458,
+          "signature": "static bool room_explored(int32_t room)",
+          "result": "bool",
+          "parameters": [
+            {
+              "name": "room",
+              "type": "int32_t",
+              "description": ""
+            }
+          ],
+          "static": true,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "880db8d8837d36028e47cfe88663960cf6b653f0acfc91db0a495f3dac6f9bf7",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
+      "canonical_public_declaration": "static bool room_explored(int32_t room)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "room",
+            "type": "int32_t",
+            "direction": "input"
+          }
+        ],
+        "returns": "bool"
+      },
+      "owner_domain": {
+        "owner": "epok::DungeonLibrary",
+        "domain": "gameplay-api"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
+        },
+        "blueprint": {
+          "state": "implemented",
+          "evidence": "Blueprint catalog: shared resolved-operation lowering"
+        },
+        "lua_native_cpp": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: shared resolved-operation lowering"
+        },
+        "lua_vm_bytecode": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: shared resolved-operation lowering"
+        },
+        "lua_vm_source": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: shared resolved-operation lowering"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:c077047e-07ee-5b63-b8da-1d7cad0f4a35"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:c077047e-07ee-5b63-b8da-1d7cad0f4a35"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
       "id": "gameplay-api:9364efc9-b312-5544-9a72-7592c597e810",
       "candidate_key": "callable:epok::DungeonLibrary::room_of",
       "category": "runtime_facade",
@@ -21979,6 +22442,176 @@
       ],
       "test_ids": [
         "gameplay-parity-conformance:gameplay-api:391d4a5d-0aec-5815-ac36-216215ec8835"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:929a990c-1b43-57f5-ab1b-5e576583de97",
+      "candidate_key": "callable:epok::DungeonLibrary::show_full_map",
+      "category": "runtime_facade",
+      "declaration_kind": "callable",
+      "qualified": "epok::DungeonLibrary::show_full_map",
+      "module": "gameplay-api",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::DungeonLibrary::show_full_map",
+          "source": "runtime/gameplay_api.hpp",
+          "line": 452,
+          "signature": "static void show_full_map(bool full)",
+          "result": "void",
+          "parameters": [
+            {
+              "name": "full",
+              "type": "bool",
+              "description": ""
+            }
+          ],
+          "static": true,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "57a08fcf1b8e90594101a51940019c71b169514599f906504e42f0d792523209",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
+      "canonical_public_declaration": "static void show_full_map(bool full)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "full",
+            "type": "bool",
+            "direction": "input"
+          }
+        ],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::DungeonLibrary",
+        "domain": "gameplay-api"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
+        },
+        "blueprint": {
+          "state": "implemented",
+          "evidence": "Blueprint catalog: shared resolved-operation lowering"
+        },
+        "lua_native_cpp": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: shared resolved-operation lowering"
+        },
+        "lua_vm_bytecode": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: shared resolved-operation lowering"
+        },
+        "lua_vm_source": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: shared resolved-operation lowering"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:929a990c-1b43-57f5-ab1b-5e576583de97"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:929a990c-1b43-57f5-ab1b-5e576583de97"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:64f614a0-591e-513b-b62b-b9cfbdab226e",
+      "candidate_key": "callable:epok::DungeonLibrary::show_minimap",
+      "category": "runtime_facade",
+      "declaration_kind": "callable",
+      "qualified": "epok::DungeonLibrary::show_minimap",
+      "module": "gameplay-api",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::DungeonLibrary::show_minimap",
+          "source": "runtime/gameplay_api.hpp",
+          "line": 450,
+          "signature": "static void show_minimap(bool visible)",
+          "result": "void",
+          "parameters": [
+            {
+              "name": "visible",
+              "type": "bool",
+              "description": ""
+            }
+          ],
+          "static": true,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "87210e2954e82e8759223a9c0e2b8bfecdd3d0adf86edc64229d510662e0e6b0",
+      "disposition": "public_gameplay",
+      "rationale": "Explicit bounded EPOK_FUNCTION declaration consumed by the shared operation/value catalog.",
+      "canonical_public_declaration": "static void show_minimap(bool visible)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "visible",
+            "type": "bool",
+            "direction": "input"
+          }
+        ],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::DungeonLibrary",
+        "domain": "gameplay-api"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "implemented",
+          "evidence": "canonical annotated C++ declaration"
+        },
+        "blueprint": {
+          "state": "implemented",
+          "evidence": "Blueprint catalog: shared resolved-operation lowering"
+        },
+        "lua_native_cpp": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 NativeCpp: shared resolved-operation lowering"
+        },
+        "lua_vm_bytecode": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM bytecode: shared resolved-operation lowering"
+        },
+        "lua_vm_source": {
+          "state": "implemented",
+          "evidence": "Lua profile v2 wide VM source: shared resolved-operation lowering"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:64f614a0-591e-513b-b62b-b9cfbdab226e"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:64f614a0-591e-513b-b62b-b9cfbdab226e"
       ],
       "cost_evidence": [
         "shared-inline-native-lowering",
@@ -112670,6 +113303,131 @@
       "status": "implemented"
     },
     {
+      "id": "gameplay-api:b5c273ab-c317-50cb-9293-1cc605420eaa",
+      "candidate_key": "callable:epok::dungeon::MinimapRenderer::draw",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::MinimapRenderer::draw",
+      "module": "dungeon-minimap",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::MinimapRenderer::draw",
+          "source": "runtime/dungeon_minimap.hpp",
+          "line": 55,
+          "signature": "template<class Active> void draw(psyqo::GPU& output,int screen_width,int screen_height,const int32_t* player,Active&& active)",
+          "result": "void",
+          "parameters": [
+            {
+              "name": "output",
+              "type": "psyqo::GPU &",
+              "description": ""
+            },
+            {
+              "name": "screen_width",
+              "type": "int",
+              "description": ""
+            },
+            {
+              "name": "screen_height",
+              "type": "int",
+              "description": ""
+            },
+            {
+              "name": "player",
+              "type": "const int32_t *",
+              "description": ""
+            },
+            {
+              "name": "active",
+              "type": "Active &&",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": true,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "ffb461861c208a60f5b54a9cad369723afaac0cddd073db6e3eabed4c83639da",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "template<class Active> void draw(psyqo::GPU& output,int screen_width,int screen_height,const int32_t* player,Active&& active)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "output",
+            "type": "psyqo::GPU &",
+            "direction": "input_output"
+          },
+          {
+            "name": "screen_width",
+            "type": "int",
+            "direction": "input"
+          },
+          {
+            "name": "screen_height",
+            "type": "int",
+            "direction": "input"
+          },
+          {
+            "name": "player",
+            "type": "const int32_t *",
+            "direction": "input"
+          },
+          {
+            "name": "active",
+            "type": "Active &&",
+            "direction": "input_output"
+          }
+        ],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapRenderer",
+        "domain": "dungeon-minimap"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:b5c273ab-c317-50cb-9293-1cc605420eaa"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:b5c273ab-c317-50cb-9293-1cc605420eaa"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
       "id": "gameplay-api:15b5aede-8d79-5a96-90f8-da02fa835a3c",
       "candidate_key": "callable:epok::dungeon::Random::Random",
       "category": "implementation_support",
@@ -113188,6 +113946,522 @@
       "status": "implemented"
     },
     {
+      "id": "gameplay-api:a5b61186-c857-5166-b7fb-a1616504a5ba",
+      "candidate_key": "callable:epok::dungeon::explore_at",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::explore_at",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::explore_at",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 163,
+          "signature": "inline void explore_at(const int32_t* point)",
+          "result": "void",
+          "parameters": [
+            {
+              "name": "point",
+              "type": "const int32_t *",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "d56d6019344f0547ec12325f2b183f30511a3c0966e81487b1b9b199e3c071ff",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "inline void explore_at(const int32_t* point)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "point",
+            "type": "const int32_t *",
+            "direction": "input"
+          }
+        ],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:a5b61186-c857-5166-b7fb-a1616504a5ba"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:a5b61186-c857-5166-b7fb-a1616504a5ba"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:21525875-9cb0-5144-b08e-22c0176dff8d",
+      "candidate_key": "callable:epok::dungeon::explore_everything",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::explore_everything",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::explore_everything",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 137,
+          "signature": "inline void explore_everything()",
+          "result": "void",
+          "parameters": [],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "6a86cd6b09c2eb9dd283c1fd869e9953a77857e22fa46a20fe94f08370f5169b",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "inline void explore_everything()",
+      "types_and_directions": {
+        "parameters": [],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:21525875-9cb0-5144-b08e-22c0176dff8d"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:21525875-9cb0-5144-b08e-22c0176dff8d"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:8f31ca7f-adf4-58dc-a702-f605494b1dde",
+      "candidate_key": "callable:epok::dungeon::explore_room",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::explore_room",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::explore_room",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 132,
+          "signature": "inline void explore_room(int32_t room)",
+          "result": "void",
+          "parameters": [
+            {
+              "name": "room",
+              "type": "int32_t",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "ad74ff15afb4a7168f79177192c9fd7a86628f35319a7eb7ec7cf3e77dffd559",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "inline void explore_room(int32_t room)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "room",
+            "type": "int32_t",
+            "direction": "input"
+          }
+        ],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:8f31ca7f-adf4-58dc-a702-f605494b1dde"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:8f31ca7f-adf4-58dc-a702-f605494b1dde"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:58196d49-a965-573f-a839-3f74d13ce11d",
+      "candidate_key": "callable:epok::dungeon::floor_divide",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::floor_divide",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::floor_divide",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 145,
+          "signature": "inline int32_t floor_divide(int32_t a,int32_t b)",
+          "result": "int32_t",
+          "parameters": [
+            {
+              "name": "a",
+              "type": "int32_t",
+              "description": ""
+            },
+            {
+              "name": "b",
+              "type": "int32_t",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "5f018272e6b07a4de954c9fa1f460d187eac99a03a1ef8f60e101df0dc65b5cd",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "inline int32_t floor_divide(int32_t a,int32_t b)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "a",
+            "type": "int32_t",
+            "direction": "input"
+          },
+          {
+            "name": "b",
+            "type": "int32_t",
+            "direction": "input"
+          }
+        ],
+        "returns": "int32_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:58196d49-a965-573f-a839-3f74d13ce11d"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:58196d49-a965-573f-a839-3f74d13ce11d"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:891bc884-6159-52fe-965d-0a15635047d0",
+      "candidate_key": "callable:epok::dungeon::forget_everything",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::forget_everything",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::forget_everything",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 141,
+          "signature": "inline void forget_everything()",
+          "result": "void",
+          "parameters": [],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "7d93a4c0b047de8626ba413b3647af8d4b8845ca1db09ee3da1871e6f3dbffd2",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "inline void forget_everything()",
+      "types_and_directions": {
+        "parameters": [],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:891bc884-6159-52fe-965d-0a15635047d0"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:891bc884-6159-52fe-965d-0a15635047d0"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:37694d77-a0b6-5ac1-8bb8-b5473d48daf5",
+      "candidate_key": "callable:epok::dungeon::map_cell",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::map_cell",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::map_cell",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 147,
+          "signature": "inline bool map_cell(const int32_t* point,int32_t& cx,int32_t& cy)",
+          "result": "bool",
+          "parameters": [
+            {
+              "name": "point",
+              "type": "const int32_t *",
+              "description": ""
+            },
+            {
+              "name": "cx",
+              "type": "int32_t &",
+              "description": ""
+            },
+            {
+              "name": "cy",
+              "type": "int32_t &",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "a2b97224a7cabee8d20077f2d300a8a34ccab0d903b7393821c4b071f71e9b55",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "inline bool map_cell(const int32_t* point,int32_t& cx,int32_t& cy)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "point",
+            "type": "const int32_t *",
+            "direction": "input"
+          },
+          {
+            "name": "cx",
+            "type": "int32_t &",
+            "direction": "input_output"
+          },
+          {
+            "name": "cy",
+            "type": "int32_t &",
+            "direction": "input_output"
+          }
+        ],
+        "returns": "bool"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:37694d77-a0b6-5ac1-8bb8-b5473d48daf5"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:37694d77-a0b6-5ac1-8bb8-b5473d48daf5"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
       "id": "gameplay-api:3a2d9ca1-8754-5e22-bdfb-dc4a79ee513b",
       "candidate_key": "callable:epok::dungeon::next_room",
       "category": "implementation_support",
@@ -113388,6 +114662,186 @@
       "status": "implemented"
     },
     {
+      "id": "gameplay-api:0e1e76e6-7a4a-5593-b2c3-a606dea98098",
+      "candidate_key": "callable:epok::dungeon::rect_at",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::rect_at",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::rect_at",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 155,
+          "signature": "inline int32_t rect_at(int32_t cx,int32_t cy)",
+          "result": "int32_t",
+          "parameters": [
+            {
+              "name": "cx",
+              "type": "int32_t",
+              "description": ""
+            },
+            {
+              "name": "cy",
+              "type": "int32_t",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "c72d318772340ec1f46cc45ce2e8c75ea051b8402660c0f549a1be8e32e085f4",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "inline int32_t rect_at(int32_t cx,int32_t cy)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "cx",
+            "type": "int32_t",
+            "direction": "input"
+          },
+          {
+            "name": "cy",
+            "type": "int32_t",
+            "direction": "input"
+          }
+        ],
+        "returns": "int32_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:0e1e76e6-7a4a-5593-b2c3-a606dea98098"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:0e1e76e6-7a4a-5593-b2c3-a606dea98098"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:e6f78c30-379c-5fae-af1e-456ba00681db",
+      "candidate_key": "callable:epok::dungeon::rect_explored",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::rect_explored",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::rect_explored",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 129,
+          "signature": "inline bool rect_explored(uint16_t i)",
+          "result": "bool",
+          "parameters": [
+            {
+              "name": "i",
+              "type": "uint16_t",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "86dbf433d93d266ef6f84efb7a1b489800f8b1e9cb3e1a768fe4f2376f55e9cd",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "inline bool rect_explored(uint16_t i)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "i",
+            "type": "uint16_t",
+            "direction": "input"
+          }
+        ],
+        "returns": "bool"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:e6f78c30-379c-5fae-af1e-456ba00681db"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:e6f78c30-379c-5fae-af1e-456ba00681db"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
       "id": "gameplay-api:1d8f7054-59ec-522a-ba36-60e0078076bc",
       "candidate_key": "callable:epok::dungeon::reset",
       "category": "implementation_support",
@@ -113464,6 +114918,91 @@
       ],
       "test_ids": [
         "gameplay-parity-conformance:gameplay-api:1d8f7054-59ec-522a-ba36-60e0078076bc"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:8a3cc1ac-a7c4-5675-ba6e-cd56da4ca03f",
+      "candidate_key": "callable:epok::dungeon::reset_minimap",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::reset_minimap",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::reset_minimap",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 125,
+          "signature": "inline void reset_minimap(const Minimap& value)",
+          "result": "void",
+          "parameters": [
+            {
+              "name": "value",
+              "type": "const Minimap &",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "4ca0e717123f99e67e3bb5db0c425729d2acd9c00b690ddf72987679a97dd19a",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "inline void reset_minimap(const Minimap& value)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "const Minimap &",
+            "direction": "input"
+          }
+        ],
+        "returns": "void"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:8a3cc1ac-a7c4-5675-ba6e-cd56da4ca03f"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:8a3cc1ac-a7c4-5675-ba6e-cd56da4ca03f"
       ],
       "cost_evidence": [
         "shared-inline-native-lowering",
@@ -113634,6 +115173,91 @@
       ],
       "test_ids": [
         "gameplay-parity-conformance:gameplay-api:988d5404-dda8-5f90-a32e-25ef331b9b46"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:62073dad-47d3-5bca-bc7a-b9c6ae7fc90b",
+      "candidate_key": "callable:epok::dungeon::room_explored",
+      "category": "implementation_support",
+      "declaration_kind": "callable",
+      "qualified": "epok::dungeon::room_explored",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "callable",
+          "qualified": "epok::dungeon::room_explored",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 130,
+          "signature": "inline bool room_explored(int32_t room)",
+          "result": "bool",
+          "parameters": [
+            {
+              "name": "room",
+              "type": "int32_t",
+              "description": ""
+            }
+          ],
+          "static": false,
+          "const": false,
+          "template": false,
+          "virtual": false
+        }
+      ],
+      "declaration_hash": "4f2f40476a5f65ff3f16e2374e36044984336aadaea98ff2b764024f2d20daa2",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "inline bool room_explored(int32_t room)",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "room",
+            "type": "int32_t",
+            "direction": "input"
+          }
+        ],
+        "returns": "bool"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) or bounded by the owning service capacity",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:62073dad-47d3-5bca-bc7a-b9c6ae7fc90b"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:62073dad-47d3-5bca-bc7a-b9c6ae7fc90b"
       ],
       "cost_evidence": [
         "shared-inline-native-lowering",
@@ -319315,6 +320939,2970 @@
       "status": "implemented"
     },
     {
+      "id": "gameplay-api:3c3e42e9-771a-54aa-8b76-e288af1dd00c",
+      "candidate_key": "field:epok::dungeon::MapRect::h",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MapRect::h",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MapRect::h",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 93,
+          "signature": "uint8_t x,y,w,h",
+          "value_type": "uint8_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "cfc1da54307cf98036d2445af4bd1e3dd652f27ed81c8761b632dda3efa5b500",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint8_t x,y,w,h",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint8_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint8_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MapRect",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:3c3e42e9-771a-54aa-8b76-e288af1dd00c"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:3c3e42e9-771a-54aa-8b76-e288af1dd00c"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:e88a1b1b-80f2-56b2-81d3-d3cf9f88293c",
+      "candidate_key": "field:epok::dungeon::MapRect::near",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MapRect::near",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MapRect::near",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 95,
+          "signature": "int8_t near[2]",
+          "value_type": "int8_t[2]",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "b9dd2b272e5325c2c4b1646fa93c5b124e57f0207efdd62f2fd1627d7c036280",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "int8_t near[2]",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "int8_t[2]",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "int8_t[2]"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MapRect",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:e88a1b1b-80f2-56b2-81d3-d3cf9f88293c"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:e88a1b1b-80f2-56b2-81d3-d3cf9f88293c"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:7fcaeccc-fa07-5189-ab47-73e7a22362dd",
+      "candidate_key": "field:epok::dungeon::MapRect::room",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MapRect::room",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MapRect::room",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 94,
+          "signature": "int8_t room",
+          "value_type": "int8_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "9dfa67dc78d362b1cd009f522fbea4a5b998896767ee9fdf575b0fc53d2cd007",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "int8_t room",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "int8_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "int8_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MapRect",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:7fcaeccc-fa07-5189-ab47-73e7a22362dd"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:7fcaeccc-fa07-5189-ab47-73e7a22362dd"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:b3030695-ca8f-53ae-b7ca-db8156a755e2",
+      "candidate_key": "field:epok::dungeon::MapRect::unused",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MapRect::unused",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MapRect::unused",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 96,
+          "signature": "uint8_t unused",
+          "value_type": "uint8_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "3813678aea5e530455bb94527bc04d8a40ca4ce877c5b4de1537f622f6400faa",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint8_t unused",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint8_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint8_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MapRect",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:b3030695-ca8f-53ae-b7ca-db8156a755e2"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:b3030695-ca8f-53ae-b7ca-db8156a755e2"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:3d7cc396-e5c3-5e41-8a7b-e142c6dd4bc4",
+      "candidate_key": "field:epok::dungeon::MapRect::w",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MapRect::w",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MapRect::w",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 93,
+          "signature": "uint8_t x,y,w,h",
+          "value_type": "uint8_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "b9aa332bacc32ac6822e37b839fbe23d4255de8a465932b1004ae8b0bde40a32",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint8_t x,y,w,h",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint8_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint8_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MapRect",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:3d7cc396-e5c3-5e41-8a7b-e142c6dd4bc4"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:3d7cc396-e5c3-5e41-8a7b-e142c6dd4bc4"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:08f7d104-4a33-5b9a-9c77-1a82cdc1afd3",
+      "candidate_key": "field:epok::dungeon::MapRect::x",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MapRect::x",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MapRect::x",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 93,
+          "signature": "uint8_t x,y,w",
+          "value_type": "uint8_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "2f4c338d372388cb87db8c3f95d1323c1823064a70b57440b01089cd57a73fc5",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint8_t x,y,w",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint8_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint8_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MapRect",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:08f7d104-4a33-5b9a-9c77-1a82cdc1afd3"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:08f7d104-4a33-5b9a-9c77-1a82cdc1afd3"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:335e19f4-5995-5ab8-9b30-3ef5686e2ccb",
+      "candidate_key": "field:epok::dungeon::MapRect::y",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MapRect::y",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MapRect::y",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 93,
+          "signature": "uint8_t x,y,w,h",
+          "value_type": "uint8_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "fcce25615eb487618e2055442e21b5fc3256894776086cb4544ea2826396f8ab",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint8_t x,y,w,h",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint8_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint8_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MapRect",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:335e19f4-5995-5ab8-9b30-3ef5686e2ccb"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:335e19f4-5995-5ab8-9b30-3ef5686e2ccb"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:1454b822-ad94-5fbf-b461-7e3616cdd852",
+      "candidate_key": "field:epok::dungeon::Minimap::cell",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::cell",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::cell",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 120,
+          "signature": "uint8_t cell=2,fla",
+          "value_type": "uint8_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "4bfd8c32f611d368232db5105cc9a6a93e62576945596af979acf1afebedd0db",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint8_t cell=2,fla",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint8_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint8_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:1454b822-ad94-5fbf-b461-7e3616cdd852"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:1454b822-ad94-5fbf-b461-7e3616cdd852"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:aa2d1dae-7bfd-54c1-b2ca-1f159273d2ae",
+      "candidate_key": "field:epok::dungeon::Minimap::colors",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::colors",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::colors",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 121,
+          "signature": "uint8_t colors[minimap_colors][3]={}",
+          "value_type": "uint8_t[8][3]",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "080c99b129f167833483dbdb1e30d485604598e408b7648706b4b0657d0fadce",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint8_t colors[minimap_colors][3]={}",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint8_t[8][3]",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint8_t[8][3]"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:aa2d1dae-7bfd-54c1-b2ca-1f159273d2ae"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:aa2d1dae-7bfd-54c1-b2ca-1f159273d2ae"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:6fea9997-ff25-555f-8dfd-816babdaf7aa",
+      "candidate_key": "field:epok::dungeon::Minimap::columns",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::columns",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::columns",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 106,
+          "signature": "uint8_t columns=0,row",
+          "value_type": "uint8_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "c27c146083e01cf7d01640c37b1b21a85771a6d1092cb9bf805af5d1e39c53f5",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint8_t columns=0,row",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint8_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint8_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:6fea9997-ff25-555f-8dfd-816babdaf7aa"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:6fea9997-ff25-555f-8dfd-816babdaf7aa"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:1fdfb892-6f05-5014-b9a1-ed86519ac134",
+      "candidate_key": "field:epok::dungeon::Minimap::corner",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::corner",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::corner",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 109,
+          "signature": "int32_t corner[2]={0,0},ste",
+          "value_type": "int32_t[2]",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "5aa23f9de0682db0b297bf39ceadd406c67e808fcc54a51fc01235e3c7d2d930",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "int32_t corner[2]={0,0},ste",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "int32_t[2]",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "int32_t[2]"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:1fdfb892-6f05-5014-b9a1-ed86519ac134"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:1fdfb892-6f05-5014-b9a1-ed86519ac134"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:00263f1f-f759-587c-bcc9-591d515a3296",
+      "candidate_key": "field:epok::dungeon::Minimap::count",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::count",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::count",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 105,
+          "signature": "uint16_t count=0",
+          "value_type": "uint16_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "843459cf65fb852a81f11c2fbe7c6072b514d653781ef23a5ba7101baf403b2e",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint16_t count=0",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint16_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint16_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:00263f1f-f759-587c-bcc9-591d515a3296"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:00263f1f-f759-587c-bcc9-591d515a3296"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:39ea1788-5f7b-59d4-a14a-cf84997e7087",
+      "candidate_key": "field:epok::dungeon::Minimap::explored",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::explored",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::explored",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 116,
+          "signature": "uint32_t* explored=nullptr",
+          "value_type": "uint32_t *",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "21733dd0fa1c1e3ac1e25b0ef5e235e54428b61d327243caebbc9e21a0b0db66",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint32_t* explored=nullptr",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint32_t *",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint32_t *"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:39ea1788-5f7b-59d4-a14a-cf84997e7087"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:39ea1788-5f7b-59d4-a14a-cf84997e7087"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:70fdec2f-d2e4-5be2-a132-f7c04a929ab1",
+      "candidate_key": "field:epok::dungeon::Minimap::flags",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::flags",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::flags",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 120,
+          "signature": "uint8_t cell=2,flags=0",
+          "value_type": "uint8_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "4090bde4bf3b17ee4521eea533122eac87b33d0db4a01cf4a5d47a7a7e26c491",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint8_t cell=2,flags=0",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint8_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint8_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:70fdec2f-d2e4-5be2-a132-f7c04a929ab1"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:70fdec2f-d2e4-5be2-a132-f7c04a929ab1"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:010ae4c5-fbd7-55f1-ad01-891f12ca2ca3",
+      "candidate_key": "field:epok::dungeon::Minimap::height",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::height",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::height",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 119,
+          "signature": "int16_t x=0,y=0,width=0,height=0",
+          "value_type": "int16_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "c66b880961806ed824a408ff38339ff1e79604006cba0736cfd80be153f98e3e",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "int16_t x=0,y=0,width=0,height=0",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "int16_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "int16_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:010ae4c5-fbd7-55f1-ad01-891f12ca2ca3"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:010ae4c5-fbd7-55f1-ad01-891f12ca2ca3"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:ec757469-2d5f-591c-b71c-effe51a3bd6e",
+      "candidate_key": "field:epok::dungeon::Minimap::item_actors",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::item_actors",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::item_actors",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 113,
+          "signature": "const int16_t* item_actors=nullptr",
+          "value_type": "const int16_t *",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "7cc60d6d2f414b9581440b3ff7eaf59f06ef3bf6eaf28e016bdca1177f36ddf4",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "const int16_t* item_actors=nullptr",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "const int16_t *",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "const int16_t *"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:ec757469-2d5f-591c-b71c-effe51a3bd6e"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:ec757469-2d5f-591c-b71c-effe51a3bd6e"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:badf1b18-c608-5127-be0f-8dd240a3e54e",
+      "candidate_key": "field:epok::dungeon::Minimap::lock_actors",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::lock_actors",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::lock_actors",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 114,
+          "signature": "const int16_t* lock_actors=nullptr",
+          "value_type": "const int16_t *",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "69d69c8f481cbc25b62a6050369873e838ffc08744abf5f5c9a9a4f61d791b46",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "const int16_t* lock_actors=nullptr",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "const int16_t *",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "const int16_t *"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:badf1b18-c608-5127-be0f-8dd240a3e54e"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:badf1b18-c608-5127-be0f-8dd240a3e54e"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:b1732e36-f4f9-5b2d-8d44-63a03861bf39",
+      "candidate_key": "field:epok::dungeon::Minimap::player",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::player",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::player",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 112,
+          "signature": "int16_t player=-1",
+          "value_type": "int16_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "b8afc092881448d8b092a8ca71d1ba512b515c340c32d79b85237ead942cc407",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "int16_t player=-1",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "int16_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "int16_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:b1732e36-f4f9-5b2d-8d44-63a03861bf39"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:b1732e36-f4f9-5b2d-8d44-63a03861bf39"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:5e4733ed-9474-523a-9682-14b96336c088",
+      "candidate_key": "field:epok::dungeon::Minimap::rects",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::rects",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::rects",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 104,
+          "signature": "const MapRect* rects=nullptr",
+          "value_type": "const MapRect *",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "744dd855cb10cf13d645dc0f9dd521e82a2451a72ffa51c955d67c36e80fddab",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "const MapRect* rects=nullptr",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "const MapRect *",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "const MapRect *"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:5e4733ed-9474-523a-9682-14b96336c088"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:5e4733ed-9474-523a-9682-14b96336c088"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:78f97703-d142-51d9-b182-f5ad4d9fc71e",
+      "candidate_key": "field:epok::dungeon::Minimap::rows",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::rows",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::rows",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 106,
+          "signature": "uint8_t columns=0,rows=0",
+          "value_type": "uint8_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "c317b7fe24c54e958978bcf168a646379ed7f03d52a33ba39edd0c06d9738fc7",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "uint8_t columns=0,rows=0",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint8_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint8_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:78f97703-d142-51d9-b182-f5ad4d9fc71e"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:78f97703-d142-51d9-b182-f5ad4d9fc71e"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:634f56db-829a-572f-a546-928138923c12",
+      "candidate_key": "field:epok::dungeon::Minimap::step",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::step",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::step",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 109,
+          "signature": "int32_t corner[2]={0,0},step[2]={1,1}",
+          "value_type": "int32_t[2]",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "29e3357b3a6fec4890838ee2bbe72cdd7bf9d30833d4ce5918f474bda4f4d776",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "int32_t corner[2]={0,0},step[2]={1,1}",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "int32_t[2]",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "int32_t[2]"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:634f56db-829a-572f-a546-928138923c12"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:634f56db-829a-572f-a546-928138923c12"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:0b8d551d-d5d1-55b3-a179-61709f2e9979",
+      "candidate_key": "field:epok::dungeon::Minimap::width",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::width",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::width",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 119,
+          "signature": "int16_t x=0,y=0,width=0,hei",
+          "value_type": "int16_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "ea82c15a076481e25c77ba23fbf891bfa22a107f3f195626a94ecc9912bf8933",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "int16_t x=0,y=0,width=0,hei",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "int16_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "int16_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:0b8d551d-d5d1-55b3-a179-61709f2e9979"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:0b8d551d-d5d1-55b3-a179-61709f2e9979"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:5e650fba-8aa9-5051-9880-c8bf4fd263d0",
+      "candidate_key": "field:epok::dungeon::Minimap::x",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::x",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::x",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 119,
+          "signature": "int16_t x=0,y=0",
+          "value_type": "int16_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "d668deaa2a8b9eb609171fc1523a16b4e5d370350414848ddc8fa317891678ed",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "int16_t x=0,y=0",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "int16_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "int16_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:5e650fba-8aa9-5051-9880-c8bf4fd263d0"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:5e650fba-8aa9-5051-9880-c8bf4fd263d0"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:3ee417bb-f1ee-5f9c-b285-c3820692c514",
+      "candidate_key": "field:epok::dungeon::Minimap::y",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::Minimap::y",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::Minimap::y",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 119,
+          "signature": "int16_t x=0,y=0,wid",
+          "value_type": "int16_t",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "6fe216c33fbfa87f38f85ce674eaa1af9ce3d0f83ab37533426a8cd473dac15a",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "int16_t x=0,y=0,wid",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "int16_t",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "int16_t"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::Minimap",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:3ee417bb-f1ee-5f9c-b285-c3820692c514"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:3ee417bb-f1ee-5f9c-b285-c3820692c514"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:18924782-069c-5e26-a942-92813b3cc406",
+      "candidate_key": "field:epok::dungeon::MinimapColor::color_background",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapColor::color_background",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapColor::color_background",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 102,
+          "signature": "color_background = 3",
+          "value_type": "epok::dungeon::MinimapColor",
+          "static": false,
+          "value": 3
+        }
+      ],
+      "declaration_hash": "90cce716dc5424e61ae41c389dd3725305c1be503e4558878b9f4a5730beb110",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "color_background = 3",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapColor",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapColor"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapColor",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:18924782-069c-5e26-a942-92813b3cc406"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:18924782-069c-5e26-a942-92813b3cc406"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:06d3bc45-6070-5911-af41-72bae3addde4",
+      "candidate_key": "field:epok::dungeon::MinimapColor::color_corridor",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapColor::color_corridor",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapColor::color_corridor",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 102,
+          "signature": "color_corridor = 1",
+          "value_type": "epok::dungeon::MinimapColor",
+          "static": false,
+          "value": 1
+        }
+      ],
+      "declaration_hash": "778568dd41eeed01d8cab28dc94ef0a12ec60e537035ca23896b52406ee98d81",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "color_corridor = 1",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapColor",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapColor"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapColor",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:06d3bc45-6070-5911-af41-72bae3addde4"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:06d3bc45-6070-5911-af41-72bae3addde4"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:e95a0234-e79c-558e-820a-a79df8f98cdb",
+      "candidate_key": "field:epok::dungeon::MinimapColor::color_goal",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapColor::color_goal",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapColor::color_goal",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 102,
+          "signature": "color_goal = 7",
+          "value_type": "epok::dungeon::MinimapColor",
+          "static": false,
+          "value": 7
+        }
+      ],
+      "declaration_hash": "e3cb5f18ed4b628dd3bd7f24e6b0a018a35c1969474f6912c61aa306370b303e",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "color_goal = 7",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapColor",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapColor"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapColor",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:e95a0234-e79c-558e-820a-a79df8f98cdb"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:e95a0234-e79c-558e-820a-a79df8f98cdb"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:1aa8d347-64e7-5eb0-8501-428dcb56f12e",
+      "candidate_key": "field:epok::dungeon::MinimapColor::color_key",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapColor::color_key",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapColor::color_key",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 102,
+          "signature": "color_key = 5",
+          "value_type": "epok::dungeon::MinimapColor",
+          "static": false,
+          "value": 5
+        }
+      ],
+      "declaration_hash": "f7fe4ebb5c18d669693d47fa06ba048b5189f2ce0f4a6aad3c0ec8933a2f88cb",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "color_key = 5",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapColor",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapColor"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapColor",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:1aa8d347-64e7-5eb0-8501-428dcb56f12e"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:1aa8d347-64e7-5eb0-8501-428dcb56f12e"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:b2853f6d-52ac-5f49-83ea-85c496ce932b",
+      "candidate_key": "field:epok::dungeon::MinimapColor::color_lock",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapColor::color_lock",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapColor::color_lock",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 102,
+          "signature": "color_lock = 6",
+          "value_type": "epok::dungeon::MinimapColor",
+          "static": false,
+          "value": 6
+        }
+      ],
+      "declaration_hash": "7ea2654ba5715fa9dcb4d65c2948e7372e7ad583766b06e2ed0f60d4ce578e59",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "color_lock = 6",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapColor",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapColor"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapColor",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:b2853f6d-52ac-5f49-83ea-85c496ce932b"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:b2853f6d-52ac-5f49-83ea-85c496ce932b"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:4bfc9efb-8a6c-5488-aa36-eac283005e0d",
+      "candidate_key": "field:epok::dungeon::MinimapColor::color_player",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapColor::color_player",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapColor::color_player",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 102,
+          "signature": "color_player = 4",
+          "value_type": "epok::dungeon::MinimapColor",
+          "static": false,
+          "value": 4
+        }
+      ],
+      "declaration_hash": "5dbf94ec10f1e7322146a01926779d9f7024abb6fbd43dca5975260ce445e01b",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "color_player = 4",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapColor",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapColor"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapColor",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:4bfc9efb-8a6c-5488-aa36-eac283005e0d"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:4bfc9efb-8a6c-5488-aa36-eac283005e0d"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:fa72ad93-89b1-5acb-822b-eff561679306",
+      "candidate_key": "field:epok::dungeon::MinimapColor::color_room",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapColor::color_room",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapColor::color_room",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 102,
+          "signature": "color_room = 0",
+          "value_type": "epok::dungeon::MinimapColor",
+          "static": false,
+          "value": 0
+        }
+      ],
+      "declaration_hash": "2fa922a9e09d07766d4457150a4d70d699ea782d01466ef8ab8b3ddad8abf593",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "color_room = 0",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapColor",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapColor"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapColor",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:fa72ad93-89b1-5acb-822b-eff561679306"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:fa72ad93-89b1-5acb-822b-eff561679306"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:c52bcbbc-0feb-5385-8012-7005cac0070e",
+      "candidate_key": "field:epok::dungeon::MinimapColor::color_seen",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapColor::color_seen",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapColor::color_seen",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 102,
+          "signature": "color_seen = 2",
+          "value_type": "epok::dungeon::MinimapColor",
+          "static": false,
+          "value": 2
+        }
+      ],
+      "declaration_hash": "88b5b2c4bcb6ebc30f275dce18ae9e55357d0bd831f13159d68f68eb8c4fccc4",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "color_seen = 2",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapColor",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapColor"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapColor",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:c52bcbbc-0feb-5385-8012-7005cac0070e"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:c52bcbbc-0feb-5385-8012-7005cac0070e"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:0635ab69-4489-52cc-9b10-3ad08958af50",
+      "candidate_key": "field:epok::dungeon::MinimapColor::minimap_colors",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapColor::minimap_colors",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapColor::minimap_colors",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 102,
+          "signature": "minimap_colors = 8",
+          "value_type": "epok::dungeon::MinimapColor",
+          "static": false,
+          "value": 8
+        }
+      ],
+      "declaration_hash": "964a8d49a93173be5b0738c93dba07a784151c97209a1f4e30c9505cb53a6c83",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "minimap_colors = 8",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapColor",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapColor"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapColor",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:0635ab69-4489-52cc-9b10-3ad08958af50"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:0635ab69-4489-52cc-9b10-3ad08958af50"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:b3789f1d-e9fd-59c4-b536-dfc8dafe02a2",
+      "candidate_key": "field:epok::dungeon::MinimapFlag::minimap_bottom",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapFlag::minimap_bottom",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapFlag::minimap_bottom",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 101,
+          "signature": "minimap_bottom = 32",
+          "value_type": "epok::dungeon::MinimapFlag",
+          "static": false,
+          "value": 32
+        }
+      ],
+      "declaration_hash": "36233e227100c4c52d7274e4ba8d8753ec850f0da71dd8b62d3c64611b0c6f0f",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "minimap_bottom = 32",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapFlag",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapFlag"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapFlag",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:b3789f1d-e9fd-59c4-b536-dfc8dafe02a2"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:b3789f1d-e9fd-59c4-b536-dfc8dafe02a2"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:49212c7a-c74c-50a4-98a6-49c3faf47ca3",
+      "candidate_key": "field:epok::dungeon::MinimapFlag::minimap_everything",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapFlag::minimap_everything",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapFlag::minimap_everything",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 101,
+          "signature": "minimap_everything = 4",
+          "value_type": "epok::dungeon::MinimapFlag",
+          "static": false,
+          "value": 4
+        }
+      ],
+      "declaration_hash": "a258dab1c880069d33ad84a3a05e4c7d85fc268c84784cc2bae775e13708a209",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "minimap_everything = 4",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapFlag",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapFlag"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapFlag",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:49212c7a-c74c-50a4-98a6-49c3faf47ca3"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:49212c7a-c74c-50a4-98a6-49c3faf47ca3"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:d1e12434-3327-5dd0-ae7f-0b3033d14082",
+      "candidate_key": "field:epok::dungeon::MinimapFlag::minimap_follow",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapFlag::minimap_follow",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapFlag::minimap_follow",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 101,
+          "signature": "minimap_follow = 2",
+          "value_type": "epok::dungeon::MinimapFlag",
+          "static": false,
+          "value": 2
+        }
+      ],
+      "declaration_hash": "15eb89f3da7b40a3f3b69f2b95608b3d8b1d1113580526b81c584747ee0ebf07",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "minimap_follow = 2",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapFlag",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapFlag"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapFlag",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:d1e12434-3327-5dd0-ae7f-0b3033d14082"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:d1e12434-3327-5dd0-ae7f-0b3033d14082"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:3c9e2444-7fe9-5ea6-a02f-769566bf3393",
+      "candidate_key": "field:epok::dungeon::MinimapFlag::minimap_full",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapFlag::minimap_full",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapFlag::minimap_full",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 101,
+          "signature": "minimap_full = 8",
+          "value_type": "epok::dungeon::MinimapFlag",
+          "static": false,
+          "value": 8
+        }
+      ],
+      "declaration_hash": "e2158d038ad479ea7858945da2d8dda963afc704d60976f68c957dcd03f01c58",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "minimap_full = 8",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapFlag",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapFlag"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapFlag",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:3c9e2444-7fe9-5ea6-a02f-769566bf3393"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:3c9e2444-7fe9-5ea6-a02f-769566bf3393"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:e7e240b5-e3ff-5eba-88be-539c30c9338c",
+      "candidate_key": "field:epok::dungeon::MinimapFlag::minimap_right",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapFlag::minimap_right",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapFlag::minimap_right",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 101,
+          "signature": "minimap_right = 16",
+          "value_type": "epok::dungeon::MinimapFlag",
+          "static": false,
+          "value": 16
+        }
+      ],
+      "declaration_hash": "2d50921e2e0825691bdd7dfb39f29f0eb3d2e7fbbe2de294afa07778385c4e83",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "minimap_right = 16",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapFlag",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapFlag"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapFlag",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:e7e240b5-e3ff-5eba-88be-539c30c9338c"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:e7e240b5-e3ff-5eba-88be-539c30c9338c"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:074e6898-2ecd-574f-8692-bf40df7bb06d",
+      "candidate_key": "field:epok::dungeon::MinimapFlag::minimap_visible",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::MinimapFlag::minimap_visible",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::MinimapFlag::minimap_visible",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 101,
+          "signature": "minimap_visible = 1",
+          "value_type": "epok::dungeon::MinimapFlag",
+          "static": false,
+          "value": 1
+        }
+      ],
+      "declaration_hash": "1a6a075045a550807a573376ece01e7c1e6224a435764b61198318ea83a88ecb",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "minimap_visible = 1",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "epok::dungeon::MinimapFlag",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "epok::dungeon::MinimapFlag"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon::MinimapFlag",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:074e6898-2ecd-574f-8692-bf40df7bb06d"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:074e6898-2ecd-574f-8692-bf40df7bb06d"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
       "id": "gameplay-api:064ff467-e97b-5cdc-b1bd-e1b12e85ebbe",
       "candidate_key": "field:epok::dungeon::PointData::lock",
       "category": "implementation_support",
@@ -320902,6 +325490,158 @@
       ],
       "test_ids": [
         "gameplay-parity-conformance:gameplay-api:26303420-c98a-5d44-97dd-04356606bfd3"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:57585022-fc83-5fb2-9b11-ccfeebb8e1ab",
+      "candidate_key": "field:epok::dungeon::minimap",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::minimap",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::minimap",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 123,
+          "signature": "inline Minimap minimap{}",
+          "value_type": "Minimap",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "7ebdfd3ca54d046ed58debd1d3846e45134e3114cd164bda201c1f071084e11e",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "inline Minimap minimap{}",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "Minimap",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "Minimap"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:57585022-fc83-5fb2-9b11-ccfeebb8e1ab"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:57585022-fc83-5fb2-9b11-ccfeebb8e1ab"
+      ],
+      "cost_evidence": [
+        "shared-inline-native-lowering",
+        "demand-manifest-and-no-use-gate"
+      ],
+      "compatibility_aliases": [],
+      "status": "implemented"
+    },
+    {
+      "id": "gameplay-api:0f646441-2cc2-5316-b82a-a2a1d39331dd",
+      "candidate_key": "field:epok::dungeon::rooms_explored",
+      "category": "implementation_support",
+      "declaration_kind": "field",
+      "qualified": "epok::dungeon::rooms_explored",
+      "module": "dungeon-map",
+      "declarations": [
+        {
+          "kind": "field",
+          "qualified": "epok::dungeon::rooms_explored",
+          "source": "runtime/dungeon_map.hpp",
+          "line": 124,
+          "signature": "inline uint32_t rooms_explored[2]={0,0}",
+          "value_type": "uint32_t[2]",
+          "static": false,
+          "value": null
+        }
+      ],
+      "declaration_hash": "87a6faff53cd642918eca4f13e137068db2fc9d710b3f511deacecc7515f87ad",
+      "disposition": "internal_implementation",
+      "rationale": "No direct gameplay ownership contract; retained explicitly for subsystem review.",
+      "canonical_public_declaration": "inline uint32_t rooms_explored[2]={0,0}",
+      "types_and_directions": {
+        "parameters": [
+          {
+            "name": "value",
+            "type": "uint32_t[2]",
+            "direction": "read_write"
+          }
+        ],
+        "returns": "uint32_t[2]"
+      },
+      "owner_domain": {
+        "owner": "epok::dungeon",
+        "domain": "dungeon-map"
+      },
+      "lifecycle_phase": "valid receiver/service lifetime",
+      "error_contract": "Deterministic failure/no mutation; operation-specific result or documentation required before parity completion.",
+      "expected_complexity": "O(1) read/write",
+      "required_cooked_features_assets": [],
+      "support": {
+        "cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "blueprint": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_native_cpp": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_bytecode": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        },
+        "lua_vm_source": {
+          "state": "not_applicable",
+          "evidence": "excluded from gameplay denominator"
+        }
+      },
+      "example_ids": [
+        "gameplay-parity-catalog:gameplay-api:0f646441-2cc2-5316-b82a-a2a1d39331dd"
+      ],
+      "test_ids": [
+        "gameplay-parity-conformance:gameplay-api:0f646441-2cc2-5316-b82a-a2a1d39331dd"
       ],
       "cost_evidence": [
         "shared-inline-native-lowering",

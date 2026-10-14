@@ -41,6 +41,7 @@
 #include "polygon.hpp"
 #include "retained.hpp"
 #include "hud.hpp"
+#include "dungeon_minimap.hpp"
 #ifdef EPOK_WORLD2D
 #include "world2d_render.hpp"
 #endif
@@ -132,6 +133,26 @@ epok::SpriteRenderer<epok::sprite_triangle_budget> sprites;
 epok::ParticlePool particles;
 epok::PaletteRenderer palettes;
 epok::HudRenderer hud;
+epok::dungeon::MinimapRenderer<epok::dungeon_minimap_capacity,epok::display_interlaced> minimap;
+// The player's world point for the minimap: Q12 x, y, z in 3D; pixels x, y in 2D.
+[[maybe_unused]] bool minimap_player(int32_t* raw) {
+  const auto& m=epok::dungeon::minimap;
+  if(m.player<0||size_t(m.player)>=epok::object_count||!epok::is_active_slot(size_t(m.player)))return false;
+  const auto& data=epok::objects[size_t(m.player)];
+#ifdef EPOK_WORLD2D
+  if(epok::dungeon::map.two_d) {
+    const auto* root=data.owner&&epok::active_object_registry?epok::active_object_registry->resolve<epok::SceneComponent2D>(data.owner->root_id()):nullptr;
+    epok::Affine2D matrix;
+    if(!root||!epok::world_matrix_2d(*root,[](epok::ObjectId id){return epok::world2d::resolve_scene2d(id);},matrix))return false;
+    raw[0]=matrix.t[0].raw();raw[1]=matrix.t[1].raw();raw[2]=0;
+    return true;
+  }
+#endif
+  const auto affine=epok::gameplay_world_affine(&data);
+  if(!affine.success)return false;
+  for(int k=0;k<3;++k)raw[k]=affine.position[k].raw();
+  return true;
+}
 epok::LoadingRenderer loading_renderer;
 psyqo::Fragments::SimpleFragment<psyqo::Prim::TPage> fade_pages[2];
 psyqo::Fragments::SimpleFragment<psyqo::Prim::TPage> fade_restore_pages[2];
@@ -2152,6 +2173,12 @@ void GameScene::frame() {
   // D-pad focus moves before the HUD is compiled, so the highlighted element is
   // the one this frame's press edge selected.
   epok::hud_focus_update(epok::objects.data(), epok::object_count, epok::hud_focus_edges());
+  // The dungeon minimap explores from the player and draws under the HUD.
+  if constexpr(epok::dungeon_minimap_capacity>0) {
+    int32_t point[3];
+    minimap.draw(gpu(), epok::display_width, epok::display_height, minimap_player(point)?point:nullptr,
+                 gpu().getFrameCount(),[](size_t index){return index<epok::object_count&&epok::is_active_slot(index);});
+  }
   hud.draw(gpu(), epok::objects, epok::object_count);
   if (const auto amount=epok::transition.opacity>epok::screen_fade?epok::transition.opacity:epok::screen_fade) {
     auto& page=fade_pages[parity];

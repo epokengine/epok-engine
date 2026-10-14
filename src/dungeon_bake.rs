@@ -70,7 +70,7 @@ fn doorway_cells(layout: &Layout) -> BTreeSet<[i32; 2]> {
 
 /// Greedy rectangles covering exactly the cells `inside` selects within `region`
 /// (`[x0, y0, x1, y1)`), scanning rows then growing downwards.
-fn rectangles(region: [i32; 4], inside: &dyn Fn([i32; 2]) -> bool) -> Vec<[i32; 4]> {
+pub(crate) fn rectangles(region: [i32; 4], inside: &dyn Fn([i32; 2]) -> bool) -> Vec<[i32; 4]> {
     let [x0, y0, x1, y1] = region;
     let width = (x1 - x0).max(0) as usize;
     let mut used = vec![false; width * (y1 - y0).max(0) as usize];
@@ -137,6 +137,8 @@ pub struct Spawn {
     pub piece: Piece,
     /// The lock number at key and locked-door spots; 0 elsewhere.
     pub lock: u16,
+    /// A key's spot rather than a locked door's.
+    pub key: bool,
     /// The floor level of the spot.
     pub level: u8,
 }
@@ -1230,6 +1232,7 @@ pub fn plan_3d(
             transform: dungeon_style::transform(p, &frame),
             piece: p.visual.piece.clone(),
             lock: lock_of(&p.spot),
+            key: p.spot.kind == SpotKind::Key,
             level: p.spot.level,
         })
         .collect();
@@ -1330,6 +1333,8 @@ pub struct Spawn2d {
     pub piece: Piece,
     /// The lock number at key and locked-door spots; 0 elsewhere.
     pub lock: u16,
+    /// A key's spot rather than a locked door's.
+    pub key: bool,
     /// The door side of locked-door spots.
     pub side: Option<Side>,
 }
@@ -1490,6 +1495,7 @@ pub fn plan_2d(
             position: pixel(p.spot.cell, p.visual.offset),
             piece: p.visual.piece.clone(),
             lock: lock_of(&p.spot),
+            key: p.spot.kind == SpotKind::Key,
             side: p.spot.side,
         })
         .collect();
@@ -2167,7 +2173,9 @@ pub fn generate(
         notes: layout_notes,
         ..Default::default()
     };
-    let queries;
+    let mut queries;
+    // The actors standing for keys and locked doors, by lock number, for the minimap.
+    let mut linked: [BTreeMap<u16, Uuid>; 2] = Default::default();
     if two_d {
         let default_set = match g.tile_set {
             Some(set) => set,
@@ -2271,6 +2279,9 @@ pub fn generate(
                         gameplay_component(classes.door, "Door", spawn.lock, opens)
                     };
                     let actor = gameplay_2d(root, spawn, key, *color, plan.tile, component)?;
+                    if spawn.lock > 0 {
+                        linked[usize::from(!key)].insert(spawn.lock, g.derived_id(&role));
+                    }
                     actors.push(child(
                         scene,
                         actor,
@@ -2292,6 +2303,9 @@ pub fn generate(
             }
             if spawn.lock > 0 {
                 set_lock(scene, classes, &ids, spawn.lock);
+                linked[usize::from(!spawn.key)]
+                    .entry(spawn.lock)
+                    .or_insert(scene.actors[placed].id);
             }
             placed_ids.extend(ids);
         }
@@ -2515,6 +2529,7 @@ pub fn generate(
                     let player = player.map(|p| (crate::dungeon_gameplay::PLAYER, p));
                     key.components
                         .push(gameplay_component(classes.key, "Key", spawn.lock, player));
+                    linked[0].insert(spawn.lock, g.derived_id(&role));
                     actors.push(child(scene, key, g.derived_id(&role), "Key", g.root));
                 }
                 Piece::Door { color } => {
@@ -2535,6 +2550,7 @@ pub fn generate(
                         spawn.lock,
                         opens,
                     ));
+                    linked[1].insert(spawn.lock, g.derived_id(&role));
                     actors.push(child(
                         scene,
                         door,
@@ -2550,8 +2566,12 @@ pub fn generate(
                     let actor = &mut scene.actors[placed];
                     actor.position = position;
                     actor.rotation[1] += yaw;
+                    let id = actor.id;
                     if spawn.lock > 0 {
                         set_lock(scene, classes, &ids, spawn.lock);
+                        linked[usize::from(!spawn.key)]
+                            .entry(spawn.lock)
+                            .or_insert(id);
                     }
                     placed_ids.extend(ids);
                 }
@@ -2583,6 +2603,9 @@ pub fn generate(
         stable_components(actor);
     }
     report.actors = actors.len() + placed_ids.len();
+    if let Some(map) = queries.as_mut() {
+        crate::dungeon_query::link_actors(map, &linked[0], &linked[1]);
+    }
     let mut output_actors: Vec<Uuid> = actors.iter().map(|a| a.id).collect();
     // Placed branches are removed through their roots; listing every actor is harmless.
     output_actors.extend(placed_ids);
