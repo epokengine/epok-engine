@@ -44,7 +44,7 @@ fn a_3d_dungeon_bakes_into_a_few_actors_that_cook() {
     let report = dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
     let generator = scene.dungeons[0].clone();
     // Geometry, collision, navigation volumes, spawn, goal and a light: far below the
-    // 64 actors a map may hold.
+    // 64 actors a map may hold (each costs runtime memory).
     assert!(report.actors <= 12, "{report:?}");
     let branch = scene.actor_branch(generator.root);
     assert_eq!(branch.len() - 1, report.actors);
@@ -86,6 +86,10 @@ fn a_3d_dungeon_bakes_into_a_few_actors_that_cook() {
             .components
             .retain(|c| c.class.class_id.as_deref() != Some(crate::navigation::VOLUME));
     }
+    // The built-in textures resolve like any imported texture.
+    let textures = crate::assets::scan(&root, &mut Default::default());
+    crate::mesh::resolve(&mut cooked, &textures).unwrap();
+    crate::texture::resolve(&mut cooked, &textures).unwrap();
     let catalog = crate::scripts::catalog(&root).unwrap();
     let header = crate::project::scene_header(&cooked, &catalog).unwrap();
     assert!(header.contains("collider_boxes_"));
@@ -134,6 +138,7 @@ fn spawn_actor_moves_to_the_spawn_room() {
     let frame = dungeon_bake::Frame {
         size: layout.size,
         cell: scene.dungeons[0].cell_size,
+        height: scene.dungeons[0].wall_height,
     };
     let expected = frame.center(spawn.cell);
     let player = scene.actors.iter().find(|a| a.id == player_id).unwrap();
@@ -222,6 +227,10 @@ fn pillar_style(root: &std::path::Path) -> (Uuid, Uuid) {
     pillar.primitive("Box", [0., 1., 0.], [0.4, 2., 0.4], 1, group, slot);
     let mesh = crate::mesh::create(root, "assets/Meshes/Pillar.epokasset", &pillar).unwrap();
     let mut style = dungeon_style::builtin(false, None);
+    // Only this style's own lights, not the built-in room lights.
+    style.nodes.retain(|n| {
+        !matches!(&n.kind, NodeKind::Piece { visual, .. } if matches!(visual.piece, Piece::Light { .. }))
+    });
     let corner = Uuid::from_u128(0xc0);
     style.nodes.push(Node {
         id: corner,
@@ -278,11 +287,12 @@ fn styles_merge_meshes_place_lights_and_mark_the_output_stale() {
     let styled = dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
     // Corner pillars are merged geometry: more quads, the same section count.
     assert!(styled.quads > plain.quads, "{plain:?} {styled:?}");
-    // Three baked point lights replace the default sun.
+    // Three baked point lights, on top of the dungeon's own sky light.
     let lights: Vec<_> = scene
         .actors
         .iter()
         .filter_map(|a| a.light.as_ref())
+        .filter(|l| l.kind != crate::lighting::LightType::Directional)
         .collect();
     assert_eq!(lights.len(), 3);
     assert!(
@@ -313,7 +323,7 @@ fn styles_merge_meshes_place_lights_and_mark_the_output_stale() {
     let (_, digest) = dungeon_bake::style_of(&index, &scene.dungeons[0], false).unwrap();
     assert!(scene.dungeons[0].style_stale(&digest));
     dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
-    assert_eq!(scene.actors.iter().filter(|a| a.light.is_some()).count(), 1);
+    assert_eq!(scene.actors.iter().filter(|a| a.light.is_some()).count(), 2);
     // A 3D style cannot dress a 2D generator.
     let actor = crate::world2d::create(crate::world2d::Preset::Node2D, "Flat", [0., 0.]);
     let mut flat = Generator::new(actor.id);
@@ -453,8 +463,15 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
         for (path, bytes) in dungeon_bake::GAMEPLAY_SCRIPTS {
             assert_eq!(std::fs::read(root.join(path)).unwrap(), bytes);
         }
+        // The built-in textures are imported under their fixed identities.
+        let index = crate::assets::scan(&root, &mut Default::default());
+        for texture in dungeon_bake::BuiltinTexture::ALL {
+            let record = index.resolve(texture.id()).unwrap();
+            assert_eq!(record.meta.kind, crate::assets::Kind::Texture);
+        }
         assert!(report.summary.contains("key and lock"), "{report:?}");
-        assert!(report.actors <= 18, "{report:?}");
+        // A key and a door on top of the geometry: well inside 64.
+        assert!(report.actors <= 20, "{report:?}");
         assert!(report.quads < SCENE_QUADS, "{report:?}");
         assert!(report.navigation_nodes > 0, "{report:?}");
         let g = &scene.dungeons[0];
@@ -540,6 +557,10 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
     for (path, _) in dungeon_bake::GAMEPLAY_SCRIPTS {
         std::fs::remove_file(root.join(path)).unwrap();
     }
+    // The built-in textures resolve like any imported texture.
+    let textures = crate::assets::scan(&root, &mut Default::default());
+    crate::mesh::resolve(&mut cooked, &textures).unwrap();
+    crate::texture::resolve(&mut cooked, &textures).unwrap();
     let catalog = crate::scripts::catalog(&root).unwrap();
     crate::project::scene_header(&cooked, &catalog).unwrap();
     // A missing recipe is reported, not replaced by the built-in one.
@@ -635,6 +656,55 @@ fn recipe_markers_turn_with_their_doors_in_2d() {
     std::fs::remove_dir_all(parent).unwrap();
 }
 
+/// The console clamps UVs, so every face of the built-in look maps its texture once;
+/// the ceiling closes exactly the floor, with collision above it.
+#[test]
+fn textures_cover_each_face_once_and_the_ceiling_closes_the_floor() {
+    let style = crate::dungeon_style::builtin(false, None);
+    for ceiling in [true, false] {
+        let g = Generator {
+            seed: 4,
+            source: crate::dungeon::Source::Recipe,
+            ceiling,
+            ..Generator::default()
+        };
+        let layout = crate::dungeon::layout(&g, &Default::default()).unwrap();
+        let placements = crate::dungeon_style::evaluate(&style, &layout, g.seed);
+        let plan = dungeon_bake::plan_3d(&g, &layout, &placements, &Default::default()).unwrap();
+        let mut ceilings = 0;
+        for section in &plan.sections {
+            let d = &section.document;
+            let group = |name: &str| d.groups.iter().find(|g| g.name == name).unwrap().id;
+            for face in &d.faces {
+                for uv in face.uv {
+                    assert!(
+                        uv.iter().all(|v| (-1e-4..=1.0001).contains(v)),
+                        "uv {uv:?} outside 0..1"
+                    );
+                }
+                if face.group == group("Ceilings") {
+                    let y = d.vertices[face.vertices[0] as usize][1];
+                    assert!((y - g.wall_height).abs() < 1e-4);
+                    ceilings += 1;
+                }
+            }
+        }
+        assert_eq!(ceilings, if ceiling { layout.walkable_cells() } else { 0 });
+        let above = plan
+            .boxes
+            .iter()
+            .filter(|b| (b[1] - g.wall_height).abs() < 1e-4)
+            .count();
+        assert_eq!(above > 0, ceiling);
+    }
+    // The defaults fit the template character: 1.84 units tall.
+    let g = Generator::default();
+    assert_eq!(
+        crate::dungeon::sizes_for(1.84),
+        (g.cell_size, g.wall_height, g.door_height)
+    );
+}
+
 /// Faces are drawn only from the front on the PSX: every vertical face of walls,
 /// corner pillars and doorway beams must look into a walkable cell.
 #[test]
@@ -679,6 +749,7 @@ fn wall_corner_and_doorway_faces_look_into_the_floor() {
         let frame = dungeon_bake::Frame {
             size: layout.size,
             cell: g.cell_size,
+            height: g.wall_height,
         };
         let mut checked = 0;
         for section in &plan.sections {
@@ -787,8 +858,8 @@ fn dungeon_visual_fixture() {
     let crate_mesh = box_mesh("Crate", [0.8, 0.8, 0.8], [0., 0.4, 0.], [0.55, 0.38, 0.22]);
     let banner = box_mesh(
         "Banner",
-        [0.9, 1.4, 0.06],
-        [0., 1.6, 0.04],
+        [1.4, 2.6, 0.06],
+        [0., 3., 0.04],
         [0.55, 0.12, 0.14],
     );
     let mut style = dungeon_style::builtin(false, None);
@@ -814,32 +885,9 @@ fn dungeon_visual_fixture() {
         560.,
         Visual {
             piece: Piece::Blockout {
-                color: [0.42, 0.38, 0.36],
+                color: [0.34, 0.38, 0.44],
                 texture: None,
             },
-            ..Visual::default()
-        },
-    ));
-    let room = Uuid::from_u128(0x110);
-    style.nodes.push(Node {
-        id: room,
-        position: [0., 700.],
-        kind: NodeKind::Spot {
-            spot: SpotKind::Room,
-        },
-    });
-    style.nodes.push(piece(
-        0x102,
-        room,
-        260.,
-        700.,
-        Visual {
-            piece: Piece::Light {
-                color: [1., 0.66, 0.36],
-                intensity: 1.6,
-                range: 9.,
-            },
-            offset: [0., 2.2, 0.],
             ..Visual::default()
         },
     ));
@@ -911,10 +959,11 @@ fn dungeon_visual_fixture() {
             ..Visual::default()
         },
     ));
-    // Caves: the built-in recipe's branches get mossy floors and rough rock walls.
-    for (id, spot, color) in [
-        (0x140, floor, [0.30, 0.40, 0.26]),
-        (0x141, wall, [0.44, 0.38, 0.32]),
+    // Caves: the built-in recipe's branches tint the same panels mossy and rusty.
+    use dungeon_bake::BuiltinTexture;
+    for (id, spot, color, texture) in [
+        (0x140, floor, [0.55, 0.85, 0.55], BuiltinTexture::Floor),
+        (0x141, wall, [0.9, 0.7, 0.55], BuiltinTexture::Wall),
     ] {
         let row = style.nodes.iter().find(|n| n.id == spot).unwrap().position[1];
         style.nodes.push(piece(
@@ -925,7 +974,7 @@ fn dungeon_visual_fixture() {
             Visual {
                 piece: Piece::Blockout {
                     color,
-                    texture: None,
+                    texture: Some(texture.id()),
                 },
                 path: "branch".into(),
                 ..Visual::default()

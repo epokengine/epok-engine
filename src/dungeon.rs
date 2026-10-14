@@ -145,6 +145,8 @@ pub struct Generator {
     pub cell_size: f32,
     pub wall_height: f32,
     pub door_height: f32,
+    /// 3D: close the dungeon from above at the wall height (off for top-down cameras).
+    pub ceiling: bool,
     /// Add a navigation bake volume sized to stay inside the node budget.
     pub navigation: bool,
     /// An actor moved to the spawn point after generating (usually the player).
@@ -168,9 +170,10 @@ impl Default for Generator {
             source: Source::Rooms,
             rooms: RoomSettings::default(),
             recipe: None,
-            cell_size: 2.,
-            wall_height: 3.,
-            door_height: 2.25,
+            cell_size: 3.,
+            wall_height: 6.,
+            door_height: 3.6,
+            ceiling: true,
             navigation: true,
             spawn_actor: None,
             tile_set: None,
@@ -180,6 +183,16 @@ impl Default for Generator {
     }
 }
 pub const CELL_SIZE_LIMITS: (f32, f32) = (0.5, 8.);
+/// Proportions of a character `height` units tall that keep a dungeon roomy around
+/// it, as in third-person console games: corridors a little wider than the character
+/// is tall, doors twice its height, walls more than three times.
+pub fn sizes_for(height: f32) -> (f32, f32, f32) {
+    let round = |v: f32| (v * 10.).round() / 10.;
+    let cell = round((height * 1.63).clamp(CELL_SIZE_LIMITS.0, CELL_SIZE_LIMITS.1));
+    let wall = round((height * 3.26).clamp(WALL_HEIGHT_LIMITS.0, WALL_HEIGHT_LIMITS.1));
+    let door = round((height * 1.96).clamp(0.5, wall));
+    (cell, wall, door)
+}
 pub const WALL_HEIGHT_LIMITS: (f32, f32) = (0.5, 12.);
 
 impl Generator {
@@ -406,6 +419,8 @@ pub enum SpotKind {
     Doorway,
     /// A solid cell of the ring around rooms and corridors.
     Solid,
+    /// Every walkable cell again, at the wall height (3D), facing down.
+    Ceiling,
     /// An inner corner where two closed sides of a walkable cell meet.
     Corner,
     /// The centre of every room.
@@ -424,12 +439,13 @@ pub enum SpotKind {
     Goal,
 }
 impl SpotKind {
-    pub const ALL: [SpotKind; 13] = [
+    pub const ALL: [SpotKind; 14] = [
         SpotKind::Floor,
         SpotKind::Wall,
         SpotKind::Door,
         SpotKind::Doorway,
         SpotKind::Solid,
+        SpotKind::Ceiling,
         SpotKind::Corner,
         SpotKind::Room,
         SpotKind::Key,
@@ -446,6 +462,7 @@ impl SpotKind {
             SpotKind::Door => "Door",
             SpotKind::Doorway => "Doorway",
             SpotKind::Solid => "Solid",
+            SpotKind::Ceiling => "Ceiling",
             SpotKind::Corner => "Corner",
             SpotKind::Room => "Room",
             SpotKind::Key => "Key",
@@ -463,6 +480,9 @@ impl SpotKind {
             SpotKind::Door => "Each room side that opens onto a corridor, facing into the room.",
             SpotKind::Doorway => "The corridor cell just outside each door, facing the room.",
             SpotKind::Solid => "Each solid cell of the ring that encloses the floor.",
+            SpotKind::Ceiling => {
+                "Each floor cell again, at the wall height and facing down (3D, when the generator has a ceiling)."
+            }
             SpotKind::Corner => "Each inner corner where two walls of a floor cell meet.",
             SpotKind::Room => "The centre of every room, once per room.",
             SpotKind::Key => "Each key a recipe placed; actors here get the lock number it opens.",
@@ -525,6 +545,7 @@ pub fn spots(layout: &Layout) -> Vec<Spot> {
                 tag: 0,
             };
             out.push(spot(SpotKind::Floor, None));
+            out.push(spot(SpotKind::Ceiling, None));
             let closed = |side| !layout.open([x, y], side) && !layout.door([x, y], side);
             for side in Side::ALL {
                 if layout.door([x, y], side) {

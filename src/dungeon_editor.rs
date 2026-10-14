@@ -142,6 +142,7 @@ pub fn frame(e: &mut Editor, id: Uuid) {
         let frame = dungeon_bake::Frame {
             size,
             cell: g.cell_size,
+            height: g.wall_height,
         };
         let matrix = e.scene.world_matrix(index);
         let low = matrix.point([frame.x(lo[0]), 0., frame.z(lo[1])]);
@@ -577,14 +578,12 @@ fn budget(
     let other_quads: usize = others.clone().map(crate::lighting::quad_count).sum();
     let meshes = dungeon_bake::piece_meshes(index, &placements)?;
     let plan = dungeon_bake::plan_3d(g, layout, &placements, &meshes)?;
-    let style_lights = placements
-        .iter()
-        .any(|p| matches!(p.visual.piece, Piece::Light { .. }));
-    let light = !style_lights
-        && !scene
-            .actors
-            .iter()
-            .any(|a| a.light.is_some() && !output.contains(&a.id));
+    let light = !scene.actors.iter().any(|a| {
+        !output.contains(&a.id)
+            && a.light
+                .as_ref()
+                .is_some_and(|l| l.kind == crate::lighting::LightType::Directional)
+    });
     let generated = plan.sections.len()
         + 3
         + plan.navigation.as_ref().map_or(0, |n| n.volumes.len())
@@ -631,6 +630,7 @@ pub fn preview_lines(
     let frame = dungeon_bake::Frame {
         size: layout.size,
         cell: g.cell_size,
+        height: g.wall_height,
     };
     let y = if g.output.is_empty() || g.stale() {
         0.06
@@ -1012,7 +1012,8 @@ fn settings(ui: &Ui, e: &mut Editor, id: Uuid, two_d: bool) {
         rooms(ui, &mut g.rooms);
     }
     ui.spacing();
-    appearance(ui, &mut g, two_d, &tile_sets, &actors);
+    let height = character_height(&e.scene, g.spawn_actor);
+    appearance(ui, &mut g, two_d, &tile_sets, &actors, height);
     if g != e.scene.dungeons[index] {
         e.scene.dungeons[index] = g;
         e.changed_coalesced("dungeon-settings");
@@ -1090,6 +1091,7 @@ fn appearance(
     two_d: bool,
     tile_sets: &[(Uuid, String)],
     actors: &[(Uuid, String)],
+    height: Option<f32>,
 ) {
     if two_d {
         crate::gui::muted(ui, "Tiles");
@@ -1168,7 +1170,41 @@ fn appearance(
         if ui.is_item_hovered() {
             ui.tooltip_text("An actor placed at the spawn room's centre after each generation, usually the player.");
         }
+        let _ = crate::gui::field(ui, "Character");
+        ui.disabled(height.is_none(), || {
+            if ui.small_button("Fit sizes to it")
+                && let Some(height) = height
+            {
+                (g.cell_size, g.wall_height, g.door_height) = dungeon::sizes_for(height);
+            }
+        });
+        if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+            ui.tooltip_text(match height {
+                Some(height) => format!(
+                    "The spawn actor is {height:.2} units tall. Sets cell size, wall and door heights so it fits like a console third-person hero: corridors 1.6x its height, doors 2x, walls 3.3x."
+                ),
+                None => "Choose a Move to spawn actor with a collider; its height sets the cell size and the wall and door heights.".into(),
+            });
+        }
+        if let Some(height) = height {
+            ui.same_line();
+            crate::gui::muted(ui, format!("{height:.2} units tall"));
+        }
+        let _ = crate::gui::toggle(ui, "Ceiling", &mut g.ceiling);
+        if ui.is_item_hovered() {
+            ui.tooltip_text("Close the dungeon from above at the wall height, so third-person cameras never see the sky. Turn off for top-down cameras.");
+        }
     }
+}
+
+/// The height of a character's collider, in world units.
+fn character_height(scene: &crate::scene::Scene, actor: Option<Uuid>) -> Option<f32> {
+    let index = scene.actor_index(actor?)?;
+    let collider = scene.actors[index].collider.as_ref()?;
+    let matrix = scene.world_matrix(index);
+    let up = matrix.vector([0., collider.half_extents[1] * 2., 0.]);
+    let height = (up[0] * up[0] + up[1] * up[1] + up[2] * up[2]).sqrt();
+    (height > 0.1).then_some(height)
 }
 
 /// The Recipe choice: built-in or any project recipe, with New and Edit buttons.

@@ -151,7 +151,8 @@ The shape, shown as JSON (the file on disk is the same structure encoded as YAML
 A map may carry a `dungeons` list, omitted when empty. Each entry holds the editor-only
 settings of one Dungeon Generator: its `id`, the `root` actor that places it, the
 `seed`, the layout `source` (`Rooms` or `Recipe`), the `rooms` layout settings, the 3D
-sizes, the optional `spawn_actor`, `tile_set`, `style` and `recipe`, and `output` — the
+sizes and whether it has a `ceiling`, the optional `spawn_actor`, `tile_set`, `style`
+and `recipe`, and `output` — the
 actors and assets the last generation wrote, with a `fingerprint` of the settings and
 digests of the style and recipe that produced them. The cook reads only the generated
 actors and assets. A `Collider3DComponent` may hold a `boxes` list (minimum and maximum

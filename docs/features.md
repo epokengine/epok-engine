@@ -172,7 +172,9 @@ The complete interaction and preview contract is in the
   placed on keys and locks receive their lock number. Ready-made Key and Door pieces
   (backed by `DungeonKey` and `DungeonDoor` scripts installed into the project) make
   keys that are picked up on touch and doors that open when their key is taken, in 3D
-  and 2D. See [Dungeon Generator](dungeons.md).
+  and 2D. The built-in 3D look is sized for the Third Person character (or fitted to
+  any spawn actor), closed by a ceiling, and dressed in sci-fi panel textures drawn for
+  the console. See [Dungeon Generator](dungeons.md).
 - **Static OBJ/MTL import.** Import triangular or quad OBJ geometry and material
   colors into editable assets with configurable scale. See
   [Static OBJ import](static-mesh-import.md).

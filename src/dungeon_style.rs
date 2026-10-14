@@ -421,14 +421,14 @@ fn node_id(seed: &str) -> Uuid {
 fn spot_node(spot: SpotKind, row: usize) -> Node {
     Node {
         id: node_id(&format!("spot-{}", spot.label())),
-        position: [0., row as f32 * 140.],
+        position: [0., row as f32 * 120.],
         kind: NodeKind::Spot { spot },
     }
 }
 fn piece_node(spot: SpotKind, row: usize, column: usize, visual: Visual) -> Node {
     Node {
         id: node_id(&format!("piece-{}-{column}", spot.label())),
-        position: [260. + column as f32 * 230., row as f32 * 140.],
+        position: [260. + column as f32 * 230., row as f32 * 120.],
         kind: NodeKind::Piece {
             parent: node_id(&format!("spot-{}", spot.label())),
             visual,
@@ -436,11 +436,7 @@ fn piece_node(spot: SpotKind, row: usize, column: usize, visual: Visual) -> Node
     }
 }
 
-pub const ROOM_FLOOR: [f32; 3] = [0.46, 0.43, 0.40];
-pub const CORRIDOR_FLOOR: [f32; 3] = [0.36, 0.34, 0.33];
-pub const WALL: [f32; 3] = [0.66, 0.61, 0.54];
 pub const WALL_TOP: [f32; 3] = [0.30, 0.28, 0.30];
-pub const DOORWAY: [f32; 3] = [0.48, 0.33, 0.21];
 pub const KEY: [f32; 3] = [0.92, 0.74, 0.24];
 pub const LOCK: [f32; 3] = [0.72, 0.18, 0.16];
 pub const ONE_WAY: [f32; 3] = [0.22, 0.46, 0.78];
@@ -522,17 +518,39 @@ pub fn builtin(two_d: bool, tile_set: Option<Uuid>) -> Style {
         }
         rows
     } else {
+        // Sci-fi panels drawn for the console (`tools/build_dungeon_textures.py`):
+        // white leaves each texture's own colours.
+        let textured = |texture: Uuid, filter: Filter| Visual {
+            piece: Piece::Blockout {
+                color: [1.; 3],
+                texture: Some(texture),
+            },
+            filter,
+            consume: false,
+            ..Visual::default()
+        };
+        use crate::dungeon_bake::BuiltinTexture as T;
         vec![
             (
                 SpotKind::Floor,
                 vec![
-                    blockout(ROOM_FLOOR, Filter::Rooms),
-                    blockout(CORRIDOR_FLOOR, Filter::Corridors),
+                    textured(T::Floor.id(), Filter::Rooms),
+                    textured(T::Corridor.id(), Filter::Corridors),
                 ],
             ),
-            (SpotKind::Wall, vec![blockout(WALL, Filter::Anywhere)]),
+            (
+                SpotKind::Wall,
+                vec![textured(T::Wall.id(), Filter::Anywhere)],
+            ),
             (SpotKind::Solid, vec![blockout(WALL_TOP, Filter::Anywhere)]),
-            (SpotKind::Doorway, vec![blockout(DOORWAY, Filter::Anywhere)]),
+            (
+                SpotKind::Doorway,
+                vec![textured(T::Doorway.id(), Filter::Anywhere)],
+            ),
+            (
+                SpotKind::Ceiling,
+                vec![textured(T::Ceiling.id(), Filter::Anywhere)],
+            ),
             (
                 SpotKind::Key,
                 vec![
@@ -717,6 +735,7 @@ pub fn frame(spot: &Spot, grid: &crate::dungeon_bake::Frame) -> crate::transform
                 [-a[0] as f32, -a[1] as f32],
             )
         }
+        (SpotKind::Ceiling, _) => ([center[0], grid.height, center[2]], [0., 1.]),
         _ => (center, [0., 1.]),
     };
     // Right-handed: X = Y × Z.
@@ -834,7 +853,7 @@ mod tests {
         let layout = layout();
         let style = builtin(false, None);
         let placements = evaluate(&style, &layout, 1);
-        // Every floor cell gets exactly one floor piece: rooms one colour, corridors
+        // Every floor cell gets exactly one floor piece: rooms one texture, corridors
         // the other.
         let floors = placements
             .iter()
@@ -842,10 +861,11 @@ mod tests {
             .count();
         assert_eq!(floors, layout.walkable_cells());
         for p in placements.iter().filter(|p| p.spot.kind == SpotKind::Floor) {
-            let Piece::Blockout { color, .. } = p.visual.piece else {
+            let Piece::Blockout { texture, .. } = p.visual.piece else {
                 panic!()
             };
-            assert_eq!(color == CORRIDOR_FLOOR, p.spot.corridor);
+            let corridor = crate::dungeon_bake::BuiltinTexture::Corridor.id();
+            assert_eq!(texture == Some(corridor), p.spot.corridor);
         }
         // A first piece with chance 100 that consumes hides everything after it.
         let mut style = builtin(false, None);
@@ -923,6 +943,7 @@ mod tests {
         let grid = crate::dungeon_bake::Frame {
             size: layout.size,
             cell: 2.,
+            height: 3.,
         };
         for spot in crate::dungeon::spots(&layout) {
             let m = frame(&spot, &grid);

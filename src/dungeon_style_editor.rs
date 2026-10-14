@@ -882,7 +882,7 @@ fn frame_all(w: &mut Window, area: [f32; 2]) {
             .fold(f32::MIN, f32::max)
     });
     let span = [hi[0] - lo[0] + 60., hi[1] - lo[1] + 60.];
-    w.zoom = (area[0] / span[0]).min(area[1] / span[1]).clamp(0.35, 1.);
+    w.zoom = (area[0] / span[0]).min(area[1] / span[1]).clamp(0.25, 1.);
     w.pan = [0, 1].map(|k| (lo[k] + hi[k]) * 0.5 - area[k] * 0.5 / w.zoom);
 }
 

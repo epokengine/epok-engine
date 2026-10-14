@@ -14,7 +14,7 @@ console runs the baked map and does no generation work of its own.
 | Navigation | Navigation bake volumes over the floor, spaced for the node budget | — |
 | Gameplay points | `Spawn` and `Goal` actors at the centres of the spawn and goal rooms | `Spawn` and `Goal` Node2D actors |
 | Keys, locks, items | Spots for the style: blockout markers by default, or your own actors | Spots for the style: marker tiles by default, or your own actors |
-| Look | A [Dungeon Style](#dungeon-styles): built-in blockout, or meshes, lights and actors | A Dungeon Style: the built-in tiles, or any TileSet's terrains and tiles |
+| Look | A [Dungeon Style](#dungeon-styles): the built-in sci-fi panels with a ceiling, or meshes, lights and actors | A Dungeon Style: the built-in tiles, or any TileSet's terrains and tiles |
 
 ## Create a dungeon
 
@@ -75,17 +75,51 @@ connections apart.
 
 | Setting | Meaning | Default |
 | --- | --- | ---: |
-| Cell size | World units per grid cell | 2 |
-| Wall height | Height of walls and wall tops | 3 |
-| Door height | Doorways are open below this height; a beam fills the rest | 2.25 |
+| Cell size | World units per grid cell | 3 |
+| Wall height | Height of walls, wall tops and the ceiling | 6 |
+| Door height | Doorways are open below this height; a beam fills the rest | 3.6 |
 | Navigation | Add navigation bake volumes over the floor | on |
 | Move to spawn | An actor placed at the spawn room's centre after each generation, usually the player | none |
+| Character | **Fit sizes to it** sets cell size, wall and door heights from the Move to spawn actor's collider | — |
+| Ceiling | Close the dungeon from above at the wall height | on |
+
+The defaults fit the Third Person template's character (1.84 units tall) the way
+third-person console games frame their heroes: corridors about 1.6 times its height,
+doors twice, walls more than three times, so the camera behind the character sees
+walls and never the sky. For another character choose it in **Move to spawn** and
+press **Fit sizes to it**. Turn **Ceiling** off for top-down cameras: the ceiling
+faces down, so it hides nothing from above, but it also stops anything flying out.
+With a ceiling the dungeon's geometry casts no shadows: the map's light reaches floors
+and walls, and the ceiling stays dark.
 
 Walls are the solid cells around every floor, so the dungeon reads from above as well
 as from inside. Floors and walls are one face per cell: every vertex then lies on the
 grid, which avoids the one-pixel cracks the PSX shows where an edge ends in the middle
 of another face, and gives baked lighting a vertex at every cell corner. Run
-**Build > Build Lighting** after generating, or let Build and Play bake it.
+**Build > Build Lighting** after generating, or let Build and Play bake it. A map
+without a directional light of its own gets one with the dungeon; point lights from a
+style are local accents on top of it.
+
+![On the console: a corridor of the built-in sci-fi look around the Third Person character](images/dungeon-scifi-ingame.png)
+
+![The grated corridor with lit hazard rails, and a crate merged into the geometry](images/dungeon-scifi-corridor.png)
+
+### Built-in textures
+
+The built-in 3D look uses five textures drawn for the console by
+`tools/build_dungeon_textures.py`: steel floor plates with a lit hatch, a grated
+corridor floor with hazard rails, wall panels with skirting vents and a cyan light
+strip, dark ceiling panels and a hazard-striped doorway beam. The first generation
+imports them into `assets/Dungeons/Textures/`, always under the same asset identities,
+and refreshes them in place when a newer Epok draws them differently. Corridor floors
+turn with the corridor.
+
+![The built-in textures: floor, corridor, wall, ceiling and doorway beam](images/dungeon-textures.png)
+
+The console clamps texture coordinates instead of repeating them, so every Blockout
+face maps its texture exactly once: a floor or ceiling cell, a wall side from just below
+the floor to the ceiling, a doorway beam. Draw your own Blockout textures the same way;
+a wall texture twice as tall as wide suits the default proportions.
 
 ### 2D settings
 
@@ -264,6 +298,7 @@ generator uses the built-in look: blockout geometry in 3D, the built-in tiles in
 | Door | Each room side that opens onto a corridor | into the room |
 | Doorway | The corridor cell just outside each door | towards the room |
 | Solid | Each solid cell of the ring that encloses the floor | — |
+| Ceiling | Each floor cell again, at the wall height (3D, with Ceiling on) | — |
 | Corner | Each inner corner where two walls of a floor cell meet | away from the first wall |
 | Room | The centre of every room, once per room | — |
 | Key | Each key a recipe placed, at a room cell | — |
@@ -272,7 +307,7 @@ generator uses the built-in look: blockout geometry in 3D, the built-in tiles in
 | Item | Each item a recipe placed, at a room cell | — |
 | Spawn, Goal | The centres of the spawn and goal rooms | — |
 
-Spots sit at floor level. Wall, door, locked-door and one-way spots are on the cell
+Spots sit at floor level, except Ceiling spots at the wall height. Wall, door, locked-door and one-way spots are on the cell
 edge, corner spots on the corner point, the others at the cell centre. Key, locked-door,
 one-way and item spots exist only in recipe layouts; a wide corridor's door has one
 spot per cell.
@@ -281,7 +316,7 @@ spot per cell.
 
 | Piece | 3D / 2D | What it places | Cost |
 | --- | --- | --- | --- |
-| Blockout | 3D | The generator's own geometry for the spot: a floor tile, wall panel, wall top, doorway beam or corner pillar, in a colour or texture | Merged geometry |
+| Blockout | 3D | The generator's own geometry for the spot: a floor tile, wall panel, wall top, ceiling tile, doorway beam or corner pillar, in a colour or texture (white keeps the texture's colours; a colour tints it) | Merged geometry |
 | Mesh | 3D | An EditableMesh, merged into the dungeon's sections with its own materials | Merged geometry, no actor |
 | Actor | both | An actor of any placeable class (C++, Blueprint or Lua), including Blueprint templates with child actors | One actor per placement |
 | Light | 3D | A baked point light | One actor per placement |
@@ -321,7 +356,7 @@ build is visible before it is generated.
 
 | Meter | Limit | Notes |
 | --- | ---: | --- |
-| Actors | 64 per map | A 3D dungeon uses about eight: geometry sections, collision, navigation volumes, spawn, goal and a light when the map has none. Actor and Light pieces add one each. |
+| Actors | 64 per map | A 3D dungeon uses about eight to fifteen: geometry sections, collision, up to twelve navigation volumes, spawn, goal and a light when the map has none. Actor, Light, Key and Door pieces add one each. Every actor also costs runtime memory (several KB on the console), so prefer Mesh pieces for decoration. |
 | Geometry | 3,500 quads per map | Counts the whole map. Surfaces are split every 4 units when compiled. |
 | Collision | 2,048 boxes | One compound collider per dungeon. |
 | Navigation | 512 nodes | Spacing grows with the floor area; very large floors skip navigation. |

@@ -127,7 +127,7 @@ pub struct Navigation {
     pub volumes: Vec<([f32; 3], [f32; 3])>,
 }
 /// Volumes beyond this many cost more actors than navigation is worth here.
-const NAVIGATION_VOLUMES: usize = 6;
+const NAVIGATION_VOLUMES: usize = 12;
 
 /// An actor a style piece places, relative to the generator root.
 #[derive(Clone, Debug)]
@@ -154,11 +154,12 @@ pub struct Plan3d {
 const WALL_SKIRT: f32 = 0.08;
 /// How far merged wall tops reach past their cells.
 const CAP_OVERLAP: f32 = 0.03;
-const GROUPS: [&str; 4] = ["Floors", "Walls", "Doorways", "Pieces"];
+const GROUPS: [&str; 5] = ["Floors", "Walls", "Doorways", "Pieces", "Ceilings"];
 const GROUP_FLOORS: usize = 0;
 const GROUP_WALLS: usize = 1;
 const GROUP_DOORWAYS: usize = 2;
 const GROUP_PIECES: usize = 3;
+const GROUP_CEILINGS: usize = 4;
 
 struct Builder {
     document: Document,
@@ -167,12 +168,10 @@ struct Builder {
     owner: Uuid,
     seed: u128,
     origin: [f32; 3],
-    /// World units per texture repeat.
-    cell: f32,
     quads: usize,
 }
 impl Builder {
-    fn new(owner: Uuid, origin: [f32; 3], cell: f32) -> Self {
+    fn new(owner: Uuid, origin: [f32; 3]) -> Self {
         Self {
             document: Document {
                 version: 1,
@@ -193,7 +192,6 @@ impl Builder {
             owner,
             seed: owner.as_u128(),
             origin,
-            cell,
             quads: 0,
         }
     }
@@ -262,6 +260,19 @@ impl Builder {
     }
     /// A horizontal rectangle facing up (or down) at height `y`.
     fn horizontal(&mut self, x: [f32; 2], z: [f32; 2], y: f32, up: bool, paint: (usize, usize)) {
+        self.horizontal_turned(x, z, y, up, false, paint);
+    }
+    /// A horizontal rectangle whose texture covers it once (the console clamps UVs),
+    /// with U along X, or along Z when `turned`.
+    fn horizontal_turned(
+        &mut self,
+        x: [f32; 2],
+        z: [f32; 2],
+        y: f32,
+        up: bool,
+        turned: bool,
+        paint: (usize, usize),
+    ) {
         let mut p = [
             [x[0], y, z[0]],
             [x[0], y, z[1]],
@@ -271,8 +282,11 @@ impl Builder {
         if !up {
             p.reverse();
         }
-        let cell = self.cell;
-        let uv = p.map(|v| [v[0] / cell, v[2] / cell]);
+        let fraction = |v: f32, r: [f32; 2]| (v - r[0]) / (r[1] - r[0]).max(1e-6);
+        let uv = p.map(|v| {
+            let (u, w) = (fraction(v[0], x), fraction(v[2], z));
+            if turned { [w, u] } else { [u, w] }
+        });
         self.face(p, uv, None, paint);
     }
     /// A vertical rectangle along an edge from `a` to `b` (x, z), between heights `y`,
@@ -284,9 +298,11 @@ impl Builder {
             [b[0], y[1], b[1]],
             [a[0], y[1], a[1]],
         ];
+        // The texture covers the face once: U across, V from the top down.
+        let length = ((b[0] - a[0]).abs() + (b[1] - a[1]).abs()).max(1e-6);
         let along = |v: [f32; 3]| (v[0] - a[0]).abs() + (v[2] - a[1]).abs();
-        let cell = self.cell;
-        let uv = p.map(|v| [along(v) / cell, -v[1] / cell]);
+        let height = (y[1] - y[0]).abs().max(1e-6);
+        let uv = p.map(|v| [along(v) / length, (y[1] - v[1]) / height]);
         self.face(p, uv, None, paint);
     }
     /// Every face of `source`, moved by `transform`, with its own materials.
@@ -326,6 +342,8 @@ impl Builder {
 pub struct Frame {
     pub size: [i32; 2],
     pub cell: f32,
+    /// The ceiling height: where Ceiling spots sit.
+    pub height: f32,
 }
 impl Frame {
     pub fn x(&self, x: i32) -> f32 {
@@ -382,7 +400,7 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
     let inside = |p: [i32; 2]| {
         p[0] >= region[0] && p[0] < region[2] && p[1] >= region[1] && p[1] < region[3]
     };
-    let mut b = Builder::new(owner, origin, c);
+    let mut b = Builder::new(owner, origin);
     // Wall tops are merged per material once every solid cell is known.
     let mut tops: Vec<(usize, BTreeSet<[i32; 2]>)> = Vec::new();
     for placement in cx.placements.iter().filter(|p| inside(p.spot.cell)) {
@@ -397,12 +415,28 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                     // neighbour's edge: on the PSX such T-junctions show one-pixel
                     // cracks. One face per cell also gives baked lighting a vertex per
                     // cell corner.
-                    (SpotKind::Floor, _) => b.horizontal(
+                    (SpotKind::Floor, _) => {
+                        // Corridor textures run along the corridor.
+                        let east_west = spot.corridor
+                            && (layout.open(spot.cell, Side::East)
+                                || layout.open(spot.cell, Side::West))
+                            && !(layout.open(spot.cell, Side::North)
+                                || layout.open(spot.cell, Side::South));
+                        b.horizontal_turned(
+                            [frame.x(x), frame.x(x + 1)],
+                            [frame.z(y), frame.z(y + 1)],
+                            0.,
+                            true,
+                            east_west,
+                            (GROUP_FLOORS, slot),
+                        )
+                    }
+                    (SpotKind::Ceiling, _) => b.horizontal(
                         [frame.x(x), frame.x(x + 1)],
                         [frame.z(y), frame.z(y + 1)],
-                        0.,
-                        true,
-                        (GROUP_FLOORS, slot),
+                        h,
+                        false,
+                        (GROUP_CEILINGS, slot),
                     ),
                     (SpotKind::Wall, Some(side)) => {
                         let (a, bb) = edge(frame, spot.cell, side);
@@ -454,7 +488,15 @@ fn build_section(cx: &Context, region: [i32; 4], owner: Uuid) -> Section {
                         if u[1] * v[0] - u[0] * v[1] < 0. {
                             p.swap(1, 2);
                         }
-                        let uv = [p[0], p[1], p[2], p[2]].map(|q| [q[0] / c, q[2] / c]);
+                        // UVs within the arrow's own bounds; the console clamps them.
+                        let lo = [0, 2].map(|k| p.iter().map(|q| q[k]).fold(f32::MAX, f32::min));
+                        let hi = [0, 2].map(|k| p.iter().map(|q| q[k]).fold(f32::MIN, f32::max));
+                        let uv = [p[0], p[1], p[2], p[2]].map(|q| {
+                            [
+                                (q[0] - lo[0]) / (hi[0] - lo[0]).max(1e-6),
+                                (q[2] - lo[1]) / (hi[1] - lo[1]).max(1e-6),
+                            ]
+                        });
                         b.face([p[0], p[1], p[2], p[2]], uv, None, (GROUP_PIECES, slot));
                     }
                     (SpotKind::Solid, _) => match tops.iter_mut().find(|(s, _)| *s == slot) {
@@ -634,6 +676,19 @@ pub fn plan_3d(
     let frame = Frame {
         size: layout.size,
         cell: g.cell_size,
+        height: g.wall_height,
+    };
+    // Without a ceiling its spots place nothing.
+    let kept: Vec<Placement>;
+    let placements = if g.ceiling {
+        placements
+    } else {
+        kept = placements
+            .iter()
+            .filter(|p| p.spot.kind != SpotKind::Ceiling)
+            .cloned()
+            .collect();
+        &kept
     };
     let cx = Context {
         g,
@@ -651,6 +706,18 @@ pub fn plan_3d(
     }
     for [x0, y0, x1, y1] in rectangles(all, &|p| layout.solid(p)) {
         boxes.push([frame.x(x0), 0., frame.z(y0), frame.x(x1), h, frame.z(y1)]);
+    }
+    if g.ceiling {
+        for [x0, y0, x1, y1] in rectangles(all, &|p| layout.at(p).walkable()) {
+            boxes.push([
+                frame.x(x0),
+                h,
+                frame.z(y0),
+                frame.x(x1),
+                h + 0.5,
+                frame.z(y1),
+            ]);
+        }
     }
     if g.door_height < h - 0.01 {
         let doorways = doorway_cells(layout);
@@ -1009,6 +1076,95 @@ pub fn builtin_tiles(root: &Path) -> Result<(Uuid, crate::tileset::TileSet), Str
         None => crate::tileset::create(root, TILES_PATH, &set)?,
     };
     Ok((id, set))
+}
+
+/// The built-in 3D surface textures, drawn by `tools/build_dungeon_textures.py`. Each
+/// keeps one asset identity in every project, so the built-in style can name it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BuiltinTexture {
+    Floor,
+    Corridor,
+    Wall,
+    Ceiling,
+    Doorway,
+}
+impl BuiltinTexture {
+    pub const ALL: [BuiltinTexture; 5] = [
+        BuiltinTexture::Floor,
+        BuiltinTexture::Corridor,
+        BuiltinTexture::Wall,
+        BuiltinTexture::Ceiling,
+        BuiltinTexture::Doorway,
+    ];
+    pub fn id(self) -> Uuid {
+        Uuid::from_u128(match self {
+            BuiltinTexture::Floor => 0x757152f8_9008_4e17_a9d7_01ee0ed85df7,
+            BuiltinTexture::Corridor => 0x39bfb74b_b144_43bc_83cb_f5a55beae6d2,
+            BuiltinTexture::Wall => 0x370146fd_21ac_4c75_b903_abc81f236612,
+            BuiltinTexture::Ceiling => 0x77fed04a_eadb_4a26_b11f_f3d36e5244bf,
+            BuiltinTexture::Doorway => 0x0ceb1bf7_23fe_44e4_8029_0d6ce6b75313,
+        })
+    }
+    fn name(self) -> &'static str {
+        match self {
+            BuiltinTexture::Floor => "DungeonFloor",
+            BuiltinTexture::Corridor => "DungeonCorridor",
+            BuiltinTexture::Wall => "DungeonWall",
+            BuiltinTexture::Ceiling => "DungeonCeiling",
+            BuiltinTexture::Doorway => "DungeonDoorway",
+        }
+    }
+    fn png(self) -> &'static [u8] {
+        match self {
+            BuiltinTexture::Floor => include_bytes!("../resources/dungeon/floor.png"),
+            BuiltinTexture::Corridor => include_bytes!("../resources/dungeon/corridor.png"),
+            BuiltinTexture::Wall => include_bytes!("../resources/dungeon/wall.png"),
+            BuiltinTexture::Ceiling => include_bytes!("../resources/dungeon/ceiling.png"),
+            BuiltinTexture::Doorway => include_bytes!("../resources/dungeon/doorway.png"),
+        }
+    }
+}
+const TEXTURES_FOLDER: &str = "assets/Dungeons/Textures";
+
+/// Imports the built-in textures `placements` use and the project lacks, under their
+/// fixed identities. Returns whether it imported any.
+pub fn builtin_textures(root: &Path, placements: &[Placement]) -> Result<bool, String> {
+    let wanted: Vec<BuiltinTexture> = BuiltinTexture::ALL
+        .into_iter()
+        .filter(|t| {
+            placements.iter().any(|p| {
+                matches!(p.visual.piece, Piece::Blockout { texture: Some(id), .. } if id == t.id())
+            })
+        })
+        .collect();
+    if wanted.is_empty() {
+        return Ok(false);
+    }
+    let index = assets::scan(root, &mut Default::default());
+    let mut imported = false;
+    for texture in wanted {
+        // Present and current: nothing to do. Older built-in pictures are replaced in
+        // place, keeping the identity every style and mesh refers to.
+        let existing = index.resolve(texture.id()).ok().cloned();
+        if existing
+            .as_ref()
+            .is_some_and(|r| r.meta.source_hash == assets::hash(texture.png()))
+        {
+            continue;
+        }
+        let image = format!("{TEXTURES_FOLDER}/{}.png", texture.name());
+        let destination = match &existing {
+            Some(record) => assets::path_string(root, &record.path),
+            None => format!("{TEXTURES_FOLDER}/{}.epokasset", texture.name()),
+        };
+        crate::project::write_changed(&assets::inside(root, &image)?, texture.png())?;
+        let mut candidate =
+            crate::texture::prepare(root, &image, &destination, existing.as_ref(), false)?;
+        candidate.package.meta.id = texture.id();
+        assets::commit(candidate)?;
+        imported = true;
+    }
+    Ok(imported)
 }
 
 /// Points a new 2D style's marker tiles at the project's built-in dungeon tiles,
@@ -1570,6 +1726,7 @@ pub fn generate(
             g.tile_set = Some(default_set);
         }
     } else {
+        builtin_textures(root, &placements)?;
         let meshes = piece_meshes(&asset_index, &placements)?;
         let plan = plan_3d(&g, &layout, &placements, &meshes)?;
         let folder = format!("{DUNGEON_FOLDER}/{}", folder_name(&root_name));
@@ -1587,6 +1744,9 @@ pub fn generate(
             });
             actor.lighting.receive = crate::lighting::Receive::Baked;
             actor.lighting.static_geometry = true;
+            // Under its own ceiling a dungeon would sit in shadow; letting the map's
+            // light through keeps floors and walls lit and leaves the ceiling dark.
+            actor.lighting.cast_shadows = !g.ceiling;
             let name = if count == 1 {
                 "Geometry".to_owned()
             } else {
@@ -1658,24 +1818,21 @@ pub fn generate(
             marker.position = position;
             actors.push(child(scene, marker, g.derived_id(role), label, g.root));
         }
-        let style_lights = plan
-            .spawns
-            .iter()
-            .any(|s| matches!(s.piece, Piece::Light { .. }));
-        // A baked map without any light renders at ambient level only.
+        // Style lights are local accents; without a directional light of the map's own
+        // the dungeon brings one, or a baked map renders at ambient level only.
         let generated: BTreeSet<Uuid> = actors.iter().map(|a| a.id).collect();
-        if !style_lights
-            && !scene
-                .actors
-                .iter()
-                .any(|a| a.light.is_some() && !generated.contains(&a.id))
-        {
+        if !scene.actors.iter().any(|a| {
+            !generated.contains(&a.id)
+                && a.light
+                    .as_ref()
+                    .is_some_and(|l| l.kind == crate::lighting::LightType::Directional)
+        }) {
             let mut sun = Actor::cube("Light".into());
             sun.kind = "Empty".into();
-            sun.rotation = [58., -32., 0.];
+            sun.rotation = [62., -32., 0.];
             sun.light = Some(crate::lighting::Light {
                 mode: crate::lighting::LightMode::Mixed,
-                intensity: 0.65,
+                intensity: 0.9,
                 ..Default::default()
             });
             actors.push(child(scene, sun, g.derived_id("light"), "Light", g.root));
@@ -1697,6 +1854,10 @@ pub fn generate(
                     let mut light = Actor::cube("Light".into());
                     light.kind = "Empty".into();
                     light.position = position;
+                    // Under a ceiling a light above it would light nothing inside.
+                    if g.ceiling {
+                        light.position[1] = light.position[1].min(g.wall_height - 0.4);
+                    }
                     light.light = Some(crate::lighting::Light {
                         kind: crate::lighting::LightType::Point,
                         mode: crate::lighting::LightMode::Baked,
