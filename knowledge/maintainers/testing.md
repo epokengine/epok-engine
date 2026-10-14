@@ -432,7 +432,9 @@ selected; `--dungeon-query-room N` opens the band's Gameplay queries list with r
 picked out in the Scene view. `--open-map <path>` opens another map of the project and
 `--open-dungeon-room` the first Dungeon Room in the room editor (the Dungeon template's
 workbench: `--open-map assets/Dungeons/Rooms/Workbench.epokmap --select-actor Reactor
---open-dungeon-room`). `--dungeon-settings '{"source":"Recipe"}'` switches a generator to the
+--open-dungeon-room`). `--dungeon-seed-bench N` measures N seeds of the
+first generator headlessly (about 20 ms a seed in a debug build) and exports the seeds
+that fit; `--open-dungeon-seeds N` shows the bench window after running it. `--dungeon-settings '{"source":"Recipe"}'` switches a generator to the
 built-in recipe; `--dungeon-new-recipe <name>` creates a recipe asset for it. A styled Third Person fixture (a recipe layout with a working key and locked
 door, one-way shortcuts and cave branches; pillars, room lights, crates, banners and a
 glowing key) is written by

@@ -1035,12 +1035,17 @@ fn grow(recipe: &Recipe, random: &mut Random) -> Result<Graph, String> {
 
 /// Grows the room graph, retrying with fresh randomness until every step succeeds.
 pub fn graph(recipe: &Recipe, seed: u32) -> Result<Graph, String> {
+    graph_counted(recipe, seed).map(|(graph, _)| graph)
+}
+
+/// The room graph and how many attempts it took, from 1 to `ATTEMPTS`.
+pub fn graph_counted(recipe: &Recipe, seed: u32) -> Result<(Graph, u32), String> {
     recipe.validate()?;
     let mut last = String::new();
     for attempt in 0..ATTEMPTS {
         let mut random = Random::stream(seed, STAGE_RECIPE + attempt);
         match grow(recipe, &mut random) {
-            Ok(graph) => return Ok(graph),
+            Ok(graph) => return Ok((graph, attempt + 1)),
             Err(error) => last = error,
         }
     }
@@ -1350,7 +1355,7 @@ pub fn layout_with(
     seed: u32,
     shapes: &BTreeMap<Uuid, crate::dungeon_room::Shape>,
 ) -> Result<Layout, String> {
-    let graph = graph(recipe, seed)?;
+    let (graph, attempts) = graph_counted(recipe, seed)?;
     let (lattice, span) = recipe.lattice();
     let (fill, width, rounded) = recipe.rooms();
     let margin = margin(width);
@@ -1716,6 +1721,7 @@ pub fn layout_with(
         spawn: room_of[graph.spawn],
         goal: room_of[graph.goal],
         loops,
+        attempts,
         locks,
         one_ways,
         items,

@@ -53,6 +53,14 @@ enum Request {
     EditRecipe(Uuid),
     /// Make an actor the generator's Player and generate again.
     UsePlayer(Uuid, Uuid),
+    /// Set a seed (from the seed bench) and generate.
+    UseSeed(Uuid, u32),
+    OpenSeedBench(Uuid),
+}
+
+/// Sets `seed` on generator `id` and generates, after this frame.
+pub fn use_seed(e: &mut Editor, id: Uuid, seed: u32) {
+    e.dungeon.pending = Some(Request::UseSeed(id, seed));
 }
 
 #[derive(Default)]
@@ -262,6 +270,13 @@ pub fn apply_pending(e: &mut Editor) {
                 generate(e, id);
             }
         }
+        Request::UseSeed(id, seed) => {
+            if let Some(g) = e.scene.dungeons.iter_mut().find(|g| g.id == id) {
+                g.seed = seed;
+                generate(e, id);
+            }
+        }
+        Request::OpenSeedBench(id) => crate::dungeon_seeds::open(e, id),
         Request::Clear(id) => {
             dungeon_bake::clear(&mut e.scene, id);
             e.changed();
@@ -553,7 +568,7 @@ pub fn preview(e: &mut Editor, id: Uuid) -> Option<Preview> {
     Some(preview)
 }
 
-fn budget(
+pub(crate) fn budget(
     scene: &crate::scene::Scene,
     index: &crate::assets::Index,
     g: &Generator,
@@ -851,6 +866,12 @@ pub fn inspector(ui: &Ui, e: &mut Editor, actor: Uuid) {
         settings(ui, e, id, two_d);
         if let Some(preview) = &preview {
             budget_rows(ui, two_d, preview);
+        }
+        if ui.button(format!("{} Test seeds...", crate::dungeon_seeds::ICON)) {
+            request = Some(Request::OpenSeedBench(id));
+        }
+        if ui.is_item_hovered() {
+            ui.tooltip_text("Measure many seeds of these settings against the console's budget, and pick or export the ones that fit.");
         }
         queries(ui, e, id);
     }

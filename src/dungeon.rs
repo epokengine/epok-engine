@@ -348,6 +348,9 @@ pub struct Layout {
     pub requested: usize,
     /// Connections beyond a spanning tree.
     pub loops: usize,
+    /// Recipe layouts: how many attempts growing the room graph took, 1 when the
+    /// first one worked. 0 for rooms-and-corridors layouts.
+    pub attempts: u32,
     /// Doors that need a key, on the side of the room they guard.
     pub locks: Vec<GuardedDoor>,
     /// Doors passable only into their room.

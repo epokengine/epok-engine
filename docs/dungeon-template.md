@@ -38,6 +38,9 @@ Select **Dungeon** in the Hierarchy; its Dungeon Generator band is in the Inspec
 
 - **New seed** builds another dungeon from the same recipe and style. **Generate**
   rebuilds after any change. Both are one undo step.
+- **Test seeds...** measures hundreds of seeds against the console's budget before you
+  pick one; the template's recipe stays within it on every seed tried, at up to about
+  3,400 of the 3,500 quads.
 - Press **New** beside **Recipe** for an editable copy of the route: longer paths, more
   branches, more keys and locks, caves on other paths.
 - Press **New** beside **Style** for an editable copy of the look: add meshes, lights or

@@ -621,6 +621,32 @@ A 3D dungeon must stay within 254 units across (grid size × cell size), because
 vertices and collider boxes are stored within ±128 units of the generator. The
 generator must be moved only, not rotated or scaled; the amber box offers a fix.
 
+## Seed bench
+
+**Test seeds...** under the band's budget meter opens the seed bench: it generates the
+layout of many seeds with the generator's settings, recipe and style, without touching
+the map, and measures each against the console's budget: actors, quads, collision boxes
+and navigation in 3D, tiles in 2D, and the attempts its recipe took.
+
+![The seed bench: a crowded grid of rooms where 65 of 200 seeds fit, and the Dungeon template's recipe where all 300 do](images/dungeon-seed-bench.png)
+
+- Set **From seed** and how many **Seeds**, then **Run**; the bench measures a few seeds
+  each frame, about 20 ms a seed, and the editor stays responsive.
+- The summary counts the seeds that fit, those over budget (and which limit) and those
+  that could not be laid out. Histograms show the recipe attempts (1 is the first try;
+  at 64 the recipe gives up and asks to loosen a step), the quads with the limit as a red
+  line when seeds pass it, and the actors.
+- The table lists the seeds that do not fit, or those that fit, with their rooms, quads
+  and actors; **Use** sets that seed on the generator and generates (one undo step).
+- **Export seeds that fit** writes them as CSV, with what each measured, to
+  `exports/dungeon-seeds/` in the project; **Copy seeds that fit** puts them on the
+  clipboard.
+
+Settings that put a dungeon near a limit show up as a histogram leaning on the red line:
+loosen them before choosing a seed, so the next generation is not the one that breaks the
+build. The bench measures what the band's meter measures; console RAM also depends on the
+rest of the project, so build to check it.
+
 ## Compound colliders
 
 The generated collision is one `Collider3DComponent` carrying a list of boxes in the
@@ -647,6 +673,9 @@ rotated or scaled.
   to it).
 - `--open-map <path>` opens a map of the project, `--open-dungeon-room` the first
   Dungeon Room in the room editor.
+- `--dungeon-seed-bench N` measures N seeds of the startup map's first generator, from
+  its seed or `--dungeon-seed`, prints the summary and the seeds that do not fit, and
+  exports those that fit; `--open-dungeon-seeds N` shows the bench run over N seeds.
 
 ## Determinism
 

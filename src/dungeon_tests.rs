@@ -1441,3 +1441,64 @@ fn handmade_rooms_bake_their_geometry_collision_and_actors() {
     }
     std::fs::remove_dir_all(parent).unwrap();
 }
+
+/// The seed bench measures seeds without touching the map: the built-in recipe fits on
+/// every seed and counts its attempts, a crowded rooms-and-corridors grid goes over the
+/// quad budget, and the export lists exactly the seeds that fit.
+#[test]
+fn the_seed_bench_measures_seeds_against_the_budget() {
+    let (parent, root) = project("seed-bench");
+    let index = crate::assets::scan(&root, &mut Default::default());
+    let (mut scene, _) = scene_3d(5);
+    scene.dungeons[0].source = crate::dungeon::Source::Recipe;
+    let before = scene.clone();
+    let samples = crate::dungeon_seeds::run(&scene, &index, &scene.dungeons[0], 1, 12);
+    assert_eq!(scene, before, "the map is untouched");
+    assert_eq!(samples.len(), 12);
+    assert_eq!(
+        samples.iter().map(|s| s.seed).collect::<Vec<_>>(),
+        (1..=12).collect::<Vec<_>>()
+    );
+    for s in &samples {
+        assert!(s.fits(), "seed {}: {:?} {:?}", s.seed, s.error, s.over);
+        assert!(
+            s.attempts >= 1 && s.rooms > 0 && s.budget.quads > 0,
+            "{s:?}"
+        );
+    }
+    // The same seed measures the same every time.
+    assert_eq!(
+        samples[3],
+        crate::dungeon_seeds::sample(&scene, &index, &scene.dungeons[0], 4)
+    );
+    // A crowded grid of rooms and corridors goes over the console's quads.
+    let g = &mut scene.dungeons[0];
+    g.source = crate::dungeon::Source::Rooms;
+    g.rooms.size = [56, 48];
+    g.rooms.rooms = 22;
+    g.rooms.room_min = 4;
+    g.rooms.room_max = 8;
+    let heavy = crate::dungeon_seeds::run(&scene, &index, &scene.dungeons[0], 1, 6);
+    assert!(
+        heavy
+            .iter()
+            .all(|s| s.attempts == 0 && s.over.contains(&"quads"))
+    );
+    // An impossible recipe fails every seed with its reason.
+    let mut broken = scene.dungeons[0].clone();
+    broken.source = crate::dungeon::Source::Recipe;
+    broken.recipe = Some(Uuid::from_u128(7));
+    let failed = crate::dungeon_seeds::run(&scene, &index, &broken, 1, 2);
+    assert!(failed.iter().all(|s| s.error.is_some() && !s.fits()));
+    let mut mixed = samples.clone();
+    mixed.extend(heavy);
+    let written = crate::dungeon_seeds::export(&root, "Main Dungeon", &mixed).unwrap();
+    assert_eq!(written, "exports/dungeon-seeds/main-dungeon-1-18.csv");
+    let text = std::fs::read_to_string(root.join(&written)).unwrap();
+    assert_eq!(
+        text.lines().count(),
+        13,
+        "a header and the twelve seeds that fit"
+    );
+    std::fs::remove_dir_all(parent).unwrap();
+}
