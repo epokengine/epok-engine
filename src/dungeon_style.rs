@@ -81,6 +81,12 @@ pub enum Piece {
         tile_set: Option<Uuid>,
         atlas: [u8; 2],
     },
+    /// A ready-made key for Key spots: picked up on touch, it opens the doors with its
+    /// lock number. A turning cube in 3D, the built-in key sprite (tinted) in 2D.
+    Key { color: [f32; 3] },
+    /// A ready-made locked door for Locked door spots: it blocks the doorway until its
+    /// key is picked up. A slab filling the doorway in 3D, the built-in gate in 2D.
+    Door { color: [f32; 3] },
 }
 impl Piece {
     pub fn label(&self) -> &'static str {
@@ -91,6 +97,8 @@ impl Piece {
             Piece::Light { .. } => "Light",
             Piece::Terrain { .. } => "Terrain",
             Piece::Tile { .. } => "Tile",
+            Piece::Key { .. } => "Key",
+            Piece::Door { .. } => "Door",
         }
     }
     /// Whether a piece belongs to 3D or 2D dungeons (actors fit both).
@@ -98,7 +106,7 @@ impl Piece {
         match self {
             Piece::Blockout { .. } | Piece::Mesh { .. } | Piece::Light { .. } => !two_d,
             Piece::Terrain { .. } | Piece::Tile { .. } => two_d,
-            Piece::Actor { .. } => true,
+            Piece::Actor { .. } | Piece::Key { .. } | Piece::Door { .. } => true,
         }
     }
     /// The pieces a new node can start as, for a 3D or 2D style.
@@ -114,6 +122,8 @@ impl Piece {
                     atlas: [0, 0],
                 },
                 Piece::Actor { class: None },
+                Piece::Key { color: [1.; 3] },
+                Piece::Door { color: [1.; 3] },
             ]
         } else {
             vec![
@@ -128,6 +138,8 @@ impl Piece {
                     intensity: 1.,
                     range: 6.,
                 },
+                Piece::Key { color: KEY },
+                Piece::Door { color: LOCK },
             ]
         }
     }
@@ -256,7 +268,10 @@ impl Style {
                 if visual.scale.iter().any(|v| *v <= 0. || *v > 16.) {
                     return Err("Piece scale must be above 0 and at most 16".into());
                 }
-                if let Piece::Blockout { color, .. } | Piece::Light { color, .. } = &visual.piece
+                if let Piece::Blockout { color, .. }
+                | Piece::Light { color, .. }
+                | Piece::Key { color }
+                | Piece::Door { color } = &visual.piece
                     && color.iter().any(|c| !(0. ..=1.).contains(c))
                 {
                     return Err("Colours are 0-1 per channel".into());
@@ -440,8 +455,9 @@ pub const MARKER_TILES: [(SpotKind, [u8; 2]); 4] = [
 
 /// The style a generator without one uses: blockout geometry in 3D, the built-in
 /// dungeon tiles (or `tile_set`) in 2D. It is also what a new style starts from.
-/// Recipe spots get markers: blockout pedestals, gates and plates in 3D, marker tiles
-/// of the built-in dungeon tiles in 2D (left out when `tile_set` replaces them).
+/// Recipe spots get working keys and doors (Key and Door pieces), and markers for the
+/// rest: blockout pedestals and floor arrows in 3D, marker tiles of the built-in dungeon
+/// tiles in 2D (left out when `tile_set` replaces them).
 ///
 /// Its pieces do not consume their spots: a piece added to their right decorates on
 /// top of them, and one added to their left that consumes replaces them.
@@ -452,6 +468,12 @@ pub fn builtin(two_d: bool, tile_set: Option<Uuid>) -> Style {
             texture: None,
         },
         filter,
+        consume: false,
+        ..Visual::default()
+    };
+    // Keys and doors that work in game, on every recipe dungeon.
+    let gameplay = |piece: Piece| Visual {
+        piece,
         consume: false,
         ..Visual::default()
     };
@@ -474,9 +496,17 @@ pub fn builtin(two_d: bool, tile_set: Option<Uuid>) -> Style {
                 SpotKind::Solid,
                 vec![terrain(crate::dungeon_bake::WALL_TERRAIN)],
             ),
+            (SpotKind::Key, vec![gameplay(Piece::Key { color: [1.; 3] })]),
+            (
+                SpotKind::Lock,
+                vec![gameplay(Piece::Door { color: [1.; 3] })],
+            ),
         ];
         if tile_set.is_none() {
-            for (spot, atlas) in MARKER_TILES {
+            for (spot, atlas) in MARKER_TILES
+                .into_iter()
+                .filter(|(spot, _)| matches!(spot, SpotKind::OneWay | SpotKind::Item))
+            {
                 rows.push((
                     spot,
                     vec![Visual {
@@ -503,8 +533,14 @@ pub fn builtin(two_d: bool, tile_set: Option<Uuid>) -> Style {
             (SpotKind::Wall, vec![blockout(WALL, Filter::Anywhere)]),
             (SpotKind::Solid, vec![blockout(WALL_TOP, Filter::Anywhere)]),
             (SpotKind::Doorway, vec![blockout(DOORWAY, Filter::Anywhere)]),
-            (SpotKind::Key, vec![blockout(KEY, Filter::Anywhere)]),
-            (SpotKind::Lock, vec![blockout(LOCK, Filter::Anywhere)]),
+            (
+                SpotKind::Key,
+                vec![
+                    blockout(KEY, Filter::Anywhere),
+                    gameplay(Piece::Key { color: KEY }),
+                ],
+            ),
+            (SpotKind::Lock, vec![gameplay(Piece::Door { color: LOCK })]),
             (SpotKind::OneWay, vec![blockout(ONE_WAY, Filter::Anywhere)]),
             (SpotKind::Item, vec![blockout(ITEM, Filter::Anywhere)]),
         ]

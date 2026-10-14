@@ -417,6 +417,25 @@ fn actor_pieces_need_classes_and_2d_tiles_fill_a_decoration_layer() {
     std::fs::remove_dir_all(parent).unwrap();
 }
 
+/// The actors carrying component `class` and the lock number each was given.
+fn gameplay_actors(scene: &Scene, class: (&str, &str)) -> Vec<(usize, u64)> {
+    scene
+        .actors
+        .iter()
+        .enumerate()
+        .filter_map(|(i, a)| {
+            let component = a
+                .components
+                .iter()
+                .find(|c| c.class.class_id.as_deref() == Some(class.1))?;
+            Some((
+                i,
+                component.properties[dungeon_bake::LOCK_PROPERTY].as_u64()?,
+            ))
+        })
+        .collect()
+}
+
 #[test]
 fn recipe_dungeons_bake_markers_within_budget_and_cook() {
     use crate::dungeon::Source;
@@ -425,8 +444,17 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
         let (mut scene, id) = scene_3d(seed);
         scene.dungeons[0].source = Source::Recipe;
         let report = dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
+        // The first generation installs the key and door scripts, once.
+        assert_eq!(
+            report.notes.iter().any(|n| n.contains("DungeonKey")),
+            seed == 1,
+            "{report:?}"
+        );
+        for (path, bytes) in dungeon_bake::GAMEPLAY_SCRIPTS {
+            assert_eq!(std::fs::read(root.join(path)).unwrap(), bytes);
+        }
         assert!(report.summary.contains("key and lock"), "{report:?}");
-        assert!(report.actors <= 16, "{report:?}");
+        assert!(report.actors <= 18, "{report:?}");
         assert!(report.quads < SCENE_QUADS, "{report:?}");
         assert!(report.navigation_nodes > 0, "{report:?}");
         let g = &scene.dungeons[0];
@@ -434,7 +462,7 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
         assert!(!g.recipe_stale(&crate::dungeon_recipe::digest(
             &crate::dungeon_recipe::builtin()
         )));
-        // The built-in style marks keys, locks and items with their own materials.
+        // The built-in style marks key and item pedestals with their own materials.
         let index = crate::assets::scan(&root, &mut Default::default());
         let names: std::collections::BTreeSet<String> = g
             .output
@@ -443,8 +471,41 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
             .filter_map(|a| crate::mesh::document(index.resolve(*a).ok()?).ok())
             .flat_map(|d| d.materials.into_iter().map(|m| m.name))
             .collect();
-        for marker in ["Key", "Locked door", "Item"] {
+        for marker in ["Key", "Item"] {
             assert!(names.contains(marker), "seed {seed}: {names:?}");
+        }
+        // Working keys and doors: a floating trigger and a solid slab per lock, each
+        // carrying its lock number.
+        let layout = crate::dungeon::layout(g, &Default::default()).unwrap();
+        let keys = gameplay_actors(&scene, dungeon_bake::KEY_CLASS);
+        let doors = gameplay_actors(&scene, dungeon_bake::DOOR_CLASS);
+        let locks: Vec<u64> = layout.locks.iter().map(|l| u64::from(l.lock)).collect();
+        assert_eq!(doors.iter().map(|d| d.1).collect::<Vec<_>>(), locks);
+        assert_eq!(
+            keys.iter().map(|k| k.1).collect::<Vec<_>>(),
+            layout
+                .items
+                .iter()
+                .filter(|i| i.lock > 0)
+                .map(|i| u64::from(i.lock))
+                .collect::<Vec<_>>()
+        );
+        for (index, _) in &keys {
+            let key = &scene.actors[*index];
+            let collider = key.collider.as_ref().unwrap();
+            assert!(collider.trigger);
+            let bottom = key.position[1] - collider.half_extents[1] * key.scale[1];
+            assert!(
+                bottom > 0.2,
+                "the key's trigger touches the floor: {bottom}"
+            );
+            assert!(g.output.actors.contains(&key.id));
+        }
+        for (index, _) in &doors {
+            let door = &scene.actors[*index];
+            assert!(!door.collider.as_ref().unwrap().trigger);
+            assert!((door.scale[0] - g.cell_size).abs() < 1e-4);
+            assert!((door.scale[1] - g.door_height).abs() < 1e-4);
         }
     }
     // A recipe asset drives the layout, and editing it marks the output stale.
@@ -463,12 +524,21 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
     let index = crate::assets::scan(&root, &mut Default::default());
     let (_, digest) = crate::dungeon_recipe::of(&index, &scene.dungeons[0]).unwrap();
     assert!(scene.dungeons[0].recipe_stale(&digest));
-    // The map cooks.
+    // The map cooks. Unit tests run without the header extractor, so the reflected
+    // components (navigation volumes, keys and doors) are left to the editor build.
     let mut cooked = scene.clone();
     for actor in &mut cooked.actors {
-        actor
-            .components
-            .retain(|c| c.class.class_id.as_deref() != Some(crate::navigation::VOLUME));
+        actor.components.retain(|c| {
+            ![
+                crate::navigation::VOLUME,
+                dungeon_bake::KEY_CLASS.1,
+                dungeon_bake::DOOR_CLASS.1,
+            ]
+            .contains(&c.class.class_id.as_deref().unwrap_or_default())
+        });
+    }
+    for (path, _) in dungeon_bake::GAMEPLAY_SCRIPTS {
+        std::fs::remove_file(root.join(path)).unwrap();
     }
     let catalog = crate::scripts::catalog(&root).unwrap();
     crate::project::scene_header(&cooked, &catalog).unwrap();
@@ -511,15 +581,50 @@ fn recipe_markers_turn_with_their_doors_in_2d() {
     let cells = crate::tilemap::decode(&details.cells).unwrap();
     let offset = [layout.size[0] / 2, layout.size[1] / 2];
     let at = |p: [i32; 2]| cells.get(&[p[0] - offset[0], p[1] - offset[1]]);
-    for lock in &layout.locks {
-        let cell = at(lock.cell).expect("a gate tile on the locked door");
-        assert_eq!(cell.atlas, [5, 0]);
-        assert_eq!(cell.flags, dungeon_bake::marker_flags(lock.side));
+    for item in layout.items.iter().filter(|i| i.lock == 0) {
+        let cell = at(item.cell).expect("a marker on every item");
+        assert_eq!(cell.atlas, [7, 0]);
     }
-    for item in &layout.items {
-        let cell = at(item.cell).expect("a marker on every key and item");
-        assert_eq!(cell.atlas, if item.lock > 0 { [4, 0] } else { [7, 0] });
+    // Keys and locked doors are working actors: a trigger with the key sprite and a
+    // static body with the gate turned towards its corridor, both on their cells.
+    let position = |index: usize| {
+        let root = scene.actors[index]
+            .components
+            .iter()
+            .find(|c| c.root)
+            .unwrap();
+        crate::scene_view_mode::read_transform_2d(&root.properties)
+    };
+    let pixel = |p: [i32; 2]| {
+        [
+            (p[0] - offset[0]) as f32 * 16. + 8.,
+            (p[1] - offset[1]) as f32 * 16. + 8.,
+        ]
+    };
+    let doors = gameplay_actors(&scene, dungeon_bake::DOOR_CLASS);
+    assert_eq!(doors.len(), layout.locks.len());
+    for ((index, lock), door) in doors.iter().zip(&layout.locks) {
+        assert_eq!(*lock, u64::from(door.lock));
+        let transform = position(*index);
+        assert_eq!(transform.position, pixel(door.cell));
+        let turn = match door.side {
+            crate::dungeon::Side::North => 0.,
+            crate::dungeon::Side::East => 90.,
+            crate::dungeon::Side::South => 180.,
+            crate::dungeon::Side::West => 270.,
+        };
+        assert_eq!(transform.rotation, turn);
     }
+    let keys = gameplay_actors(&scene, dungeon_bake::KEY_CLASS);
+    for ((index, lock), key) in keys.iter().zip(layout.items.iter().filter(|i| i.lock > 0)) {
+        assert_eq!(*lock, u64::from(key.lock));
+        assert_eq!(position(*index).position, pixel(key.cell));
+        let collider: crate::world2d::Collider2D = crate::world2d::read(
+            crate::world2d::component(&scene.actors[*index], crate::world2d::COLLIDER2D).unwrap(),
+        );
+        assert!(collider.trigger);
+    }
+    assert!(!keys.is_empty());
     // The project's built-in tiles hold the markers, and a new style keeps pointing at
     // them when its generator paints with another TileSet.
     let (tiles, set) = dungeon_bake::builtin_tiles(&root).unwrap();
@@ -788,37 +893,13 @@ fn dungeon_visual_fixture() {
             ..Visual::default()
         },
     ));
-    // Recipes: a gate actor receives its lock number, and keys glow.
-    std::fs::write(
-        root.join("assets/scripts/DungeonGate.hpp"),
-        "#pragma once\n#include \"epok.hpp\"\n\n// A locked dungeon door; the Dungeon Generator sets `lock` to its key's number.\nclass EPOK_CLASS(Blueprintable, Domain=World3D, Id=\"3b0f6c55-8e3e-4d0a-9a51-0e6f1d2c7a41\") DungeonGate : public epok::Actor3D {\npublic:\n    EPOK_PROPERTY(EditAnywhere) uint32_t lock = 0;\n};\n",
-    )
-    .unwrap();
-    std::fs::write(
-        root.join("assets/scripts/DungeonGate.cpp"),
-        "#include \"DungeonGate.hpp\"\n",
-    )
-    .unwrap();
-    let lock = style.spot_node(SpotKind::Lock).unwrap().id;
-    style.nodes.push(piece(
-        0x130,
-        lock,
-        490.,
-        style.spot_node(SpotKind::Lock).unwrap().position[1],
-        Visual {
-            piece: Piece::Actor {
-                class: Some("DungeonGate".into()),
-            },
-            consume: false,
-            ..Visual::default()
-        },
-    ));
+    // Recipes: the built-in Key and Door pieces make working keys and doors; keys glow.
     let key = style.spot_node(SpotKind::Key).unwrap().id;
     style.nodes.push(piece(
         0x131,
         key,
         490.,
-        style.spot_node(SpotKind::Key).unwrap().position[1],
+        style.spot_node(SpotKind::Key).unwrap().position[1] + 60.,
         Visual {
             piece: Piece::Light {
                 color: [1., 0.82, 0.3],

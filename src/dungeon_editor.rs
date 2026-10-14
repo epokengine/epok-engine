@@ -547,7 +547,10 @@ fn budget(
         .filter(|p| {
             matches!(
                 p.visual.piece,
-                Piece::Actor { class: Some(_) } | Piece::Light { .. }
+                Piece::Actor { class: Some(_) }
+                    | Piece::Light { .. }
+                    | Piece::Key { .. }
+                    | Piece::Door { .. }
             )
         })
         .count();

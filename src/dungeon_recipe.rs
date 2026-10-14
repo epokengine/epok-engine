@@ -1735,6 +1735,12 @@ mod tests {
         }
         println!("{}", crate::dungeon::picture(&layout));
         println!("{}", crate::dungeon::summary(&layout));
+        for lock in &layout.locks {
+            println!(
+                "lock {} at {:?} facing {:?}",
+                lock.lock, lock.cell, lock.side
+            );
+        }
     }
 
     #[test]

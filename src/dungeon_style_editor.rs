@@ -26,6 +26,8 @@ const ICON_PIECE: &str = "\u{f1b2}";
 const ICON_LIGHT: &str = "\u{f0eb}";
 const ICON_ACTOR: &str = "\u{f554}";
 const ICON_TILE: &str = "\u{f84c}";
+const ICON_KEY: &str = "\u{f084}";
+const ICON_DOOR: &str = "\u{f023}";
 const ICON_ADD: &str = "\u{f067}";
 
 #[derive(Clone, Copy)]
@@ -337,6 +339,8 @@ fn piece_color(piece: &Piece) -> [f32; 4] {
         Piece::Light { .. } => [0.62, 0.48, 0.20, 1.],
         Piece::Terrain { .. } => [0.30, 0.48, 0.28, 1.],
         Piece::Tile { .. } => [0.46, 0.36, 0.26, 1.],
+        Piece::Key { .. } => [0.62, 0.50, 0.16, 1.],
+        Piece::Door { .. } => [0.58, 0.20, 0.18, 1.],
     }
 }
 fn piece_icon(piece: &Piece) -> &'static str {
@@ -345,6 +349,8 @@ fn piece_icon(piece: &Piece) -> &'static str {
         Piece::Actor { .. } => ICON_ACTOR,
         Piece::Light { .. } => ICON_LIGHT,
         Piece::Terrain { .. } | Piece::Tile { .. } => ICON_TILE,
+        Piece::Key { .. } => ICON_KEY,
+        Piece::Door { .. } => ICON_DOOR,
     }
 }
 
@@ -376,6 +382,12 @@ fn problem(e: &Editor, style: &Style, spot: SpotKind, visual: &Visual) -> Option
         Piece::Actor { class: None } => Some("Choose an actor class".into()),
         Piece::Terrain { .. } if !matches!(spot, SpotKind::Floor | SpotKind::Solid) => {
             Some("Terrains paint Floor and Solid spots only".into())
+        }
+        Piece::Key { .. } if spot != SpotKind::Key => {
+            Some("Key pieces work on Key spots, which recipe layouts place".into())
+        }
+        Piece::Door { .. } if spot != SpotKind::Lock => {
+            Some("Door pieces work on Locked door spots, which recipe layouts place".into())
         }
         _ => None,
     }
@@ -424,6 +436,8 @@ fn summary(e: &Editor, spot: Option<SpotKind>, piece: &Piece) -> String {
             atlas[1],
             asset_name(tile_set).unwrap_or_else(|| "generator tiles".into())
         ),
+        Piece::Key { .. } => "picked up on touch, opens its door".into(),
+        Piece::Door { .. } => "blocks until its key is picked up".into(),
     }
 }
 fn badges(visual: &Visual) -> String {
@@ -941,6 +955,12 @@ fn add_popup(ui: &Ui, e: &mut Editor, w: &mut Window) {
                 }
                 Piece::Terrain { .. } => "The terrain this cell is painted with.",
                 Piece::Tile { .. } => "One tile on a decoration layer above the floor.",
+                Piece::Key { .. } => {
+                    "A key the player picks up by touching it; it opens the doors with its lock number. One actor each."
+                }
+                Piece::Door { .. } => {
+                    "A locked door that blocks the doorway until its key is picked up. One actor each."
+                }
             };
             entries.push((
                 label,
@@ -1241,7 +1261,12 @@ fn details(ui: &Ui, e: &mut Editor, w: &mut Window) {
                     "Most placements in one dungeon, spread at random; 0 has no limit.",
                 );
             }
-            if !w.style.two_d || matches!(visual.piece, Piece::Actor { .. }) {
+            if !w.style.two_d
+                || matches!(
+                    visual.piece,
+                    Piece::Actor { .. } | Piece::Key { .. } | Piece::Door { .. }
+                )
+            {
                 ui.spacing();
                 crate::gui::muted(
                     ui,
@@ -1490,6 +1515,14 @@ fn piece_fields(ui: &Ui, e: &mut Editor, two_d: bool, piece: &mut Piece) {
                     "Choose a TileSet, or generate once to create the built-in tiles.",
                 );
             }
+        }
+        Piece::Key { color } | Piece::Door { color } => {
+            let id = crate::gui::field(ui, if two_d { "Tint" } else { "Colour" });
+            ui.color_edit3(id, color);
+            crate::gui::muted(
+                ui,
+                "Works in game: the project gets the DungeonKey and DungeonDoor scripts on the first generation, and you can edit them. Actors get their lock number.",
+            );
         }
     }
 }

@@ -169,7 +169,10 @@ The complete interaction and preview contract is in the
   room-graph preview; every key-and-lock placement is checked to be solvable and the
   grid layout keeps locked doors from being walked around. Keys, locks, one-way doors
   and items become style spots, style pieces can keep to one path's rooms, and actors
-  placed on keys and locks receive their lock number. See [Dungeon Generator](dungeons.md).
+  placed on keys and locks receive their lock number. Ready-made Key and Door pieces
+  (backed by `DungeonKey` and `DungeonDoor` scripts installed into the project) make
+  keys that are picked up on touch and doors that open when their key is taken, in 3D
+  and 2D. See [Dungeon Generator](dungeons.md).
 - **Static OBJ/MTL import.** Import triangular or quad OBJ geometry and material
   colors into editable assets with configurable scale. See
   [Static OBJ import](static-mesh-import.md).

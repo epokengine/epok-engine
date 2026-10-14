@@ -13,6 +13,7 @@ Work happens on `feature/dungeon-generator`, one pushed checkpoint per phase.
 | 2 | Dungeon Styles: a reusable asset that maps spots (Floor, Wall, Door, Corner, Spawn, ...) to meshes, mesh variations, Blueprint templates, lights, particle effects and 2D terrains, with probabilities, offsets and first-match rules; a node-graph style editor with live preview | delivered ([phase2.md](phase2.md)) |
 | 3 | Dungeon Recipes: designer-authored step lists that grow a room graph (main path, branches, loops), place items by path depth, add keys and locks that are always solvable, and promote one-way shortcuts; recipe editor with a room-graph preview | delivered ([phase3.md](phase3.md)) |
 | 4 | Recipe tilemaps: rasterize the room graph into rooms, corridors and cellular caves with doors, locked doors, walls and item placement, baked through the same 3D and 2D paths and styles | delivered ([phase4.md](phase4.md)) |
+| 5 | Ready-made keys and doors: Key and Door style pieces backed by project scripts, working in 3D and 2D | delivered ([phase5.md](phase5.md)) |
 
 ## Design constraints
 

@@ -177,33 +177,52 @@ shape like any other floor.
 ![Recipe rooms in 3D: cave branches with mossy floors from a path-filtered style, and rooms with cut corners](images/dungeon-recipe-caves.png)
 
 Recipe layouts add spots for the style (see [Spots](#spots)): **Key**, **Locked door**,
-**One-way door** and **Item**. The built-in 3D look marks them with blockout: a gold
-pedestal for keys, a green one for items, a red gate filling each locked door and a blue
-arrow on the floor pointing through each one-way door. The built-in 2D tiles have marker
-tiles for them (a key, a gate turned towards its corridor, chevrons and a chest), drawn
-on a decoration layer.
+**One-way door** and **Item**. The built-in look places [working keys and
+doors](#keys-and-doors-that-work-in-game) on the first two. It marks the others: in 3D
+a green pedestal for items and a blue arrow on the floor pointing through each one-way
+door (keys also float above a gold pedestal); in 2D marker tiles from the built-in
+dungeon tiles (chevrons and a chest) on a decoration layer.
 
 ![A recipe dungeon in 2D: the gate of a locked door, a key, one-way chevrons and chests](images/dungeon-recipe-2d.png)
 
 ### Keys and doors that work in game
 
-The built-in markers show where things are; to make them play, place your own actors
-on the Key and Locked door spots with Actor pieces. An actor placed on a Key or Locked
-door spot gets the lock number in any editable number property named `lock`, on its
-class or on one of its components, so a key actor knows which door it opens:
+The style pieces **Key** and **Door** place ready-made keys and locked doors on Key and
+Locked door spots, and the built-in style uses them:
+
+| Piece | 3D | 2D | Behaviour |
+| --- | --- | --- | --- |
+| Key | A turning cube floating above the floor, with a trigger around it | An Area2D with the key sprite of the built-in tiles | Picked up the first time something enters its trigger; it deactivates (hides and stops colliding) |
+| Door | A slab filling the doorway, as wide as a cell and as high as the door height, with a solid collider | A StaticBody2D with the gate sprite, turned towards its corridor | Blocks the doorway until the key with its lock number is picked up, then deactivates |
+
+Both cost one actor each, take a colour (a tint in 2D) and the piece's offset, and carry
+their lock number. The first generation that places one adds three small C++ scripts to
+`assets/scripts`: `DungeonKey`, `DungeonDoor` and the `DungeonKeyRing.hpp` they share.
+They are ordinary project scripts: edit them to add a sound, an animation or a door that
+needs the player to come back with the key; the generator never overwrites them. Lock
+numbers go up to 31; each key clears its own number when the map starts.
+
+Keys pick up on contact with any moving collider, the player included. Their trigger
+floats above the floor so the dungeon's own collision never touches it. Navigation is
+baked with the doors closed.
+
+Custom actors work too: an actor placed on a Key or Locked door spot with an **Actor**
+piece gets the lock number in any editable number property named `lock`, on its class
+or on one of its components:
 
 ```cpp
-class EPOK_CLASS(Blueprintable, Domain=World3D, Id="your-class-uuid") DungeonGate : public epok::Actor3D {
+class EPOK_CLASS(Blueprintable, Domain=World3D, Id="your-class-uuid") MyGate : public epok::Actor3D {
 public:
     EPOK_PROPERTY(EditAnywhere) uint32_t lock = 0;  // set by the Dungeon Generator
 };
 ```
 
-Give the door actor a collider so it blocks the doorway, and remove or deactivate it
-when the player holds the key with the same `lock` number. Item pieces can pick items
-by name with **Item name**, so a "Treasure" item can become a chest and a "Potion" a
-bottle, and any piece can keep to the rooms of one path with **Path**: mossy floors and
-rough walls in the cave branches, banners only along the main path.
+Item pieces can pick items by name with **Item name**, so a "Treasure" item can become a
+chest and a "Potion" a bottle, and any piece can keep to the rooms of one path with
+**Path**: mossy floors and rough walls in the cave branches, banners only along the main
+path.
+
+![On the console, before and after: the player next to a key, the goal room's door closed; one step later the key is picked up and the doorway is open](images/dungeon-keys-ingame.png)
 
 ![A recipe dungeon on the console: the goal room's locked gate fills the doorway](images/dungeon-recipe-ingame.png)
 
@@ -268,6 +287,8 @@ spot per cell.
 | Light | 3D | A baked point light | One actor per placement |
 | Terrain | 2D | The terrain a Floor or Solid cell is painted with | Tiles |
 | Tile | 2D | One tile on a decoration layer above the floor, without collision | Tiles; one layer per TileSet |
+| Key | both | A [working key](#keys-and-doors-that-work-in-game) on Key spots | One actor per placement |
+| Door | both | A [working locked door](#keys-and-doors-that-work-in-game) on Locked door spots | One actor per placement |
 
 Model meshes around the spot: floor level at 0, centred on the cell or the edge, and
 facing +Z into the room for walls and doors. Generated collision always comes from the
