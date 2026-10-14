@@ -1123,7 +1123,7 @@ fn dungeon_styles_are_created_read_and_edited_through_mcp() {
         .strip_prefix(&e.root)
         .unwrap()
         .to_string_lossy()
-        .into_owned();
+        .replace('\\', "/");
     assert!(path.starts_with("assets/Dungeons/Styles/CryptLook"));
     let read =
         mcp_tools::execute(&mut e, &mut state, "asset_document", json!({"path":path})).unwrap();
@@ -1207,7 +1207,7 @@ fn dungeon_recipes_are_created_edited_and_followed_through_mcp() {
         .strip_prefix(&e.root)
         .unwrap()
         .to_string_lossy()
-        .into_owned();
+        .replace('\\', "/");
     assert!(path.starts_with("assets/Dungeons/Recipes/CryptRoute"));
     // Lengthen the main path and drop the one-way doors.
     let read =
