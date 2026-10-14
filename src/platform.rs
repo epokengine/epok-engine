@@ -53,6 +53,14 @@ pub fn run(
     // Visual QA of the two Hub panes a click away from the project list.
     if args.iter().any(|arg| arg == "--screenshot-new-project") {
         hub.open_new_project();
+        // `--new-project-template <key>` selects a template card for the capture.
+        if let Some(template) = args
+            .windows(2)
+            .find(|pair| pair[0] == "--new-project-template")
+            .and_then(|pair| crate::workspace::Template::parse(&pair[1]))
+        {
+            hub.select_template(template);
+        }
     }
     if args.iter().any(|arg| arg == "--screenshot-dependencies") {
         hub.dependencies.open = true;

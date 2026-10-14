@@ -388,6 +388,9 @@ See the complete [Timeline reference](timelines.md) and the
   tools with random scatter, flips and quarter turns; a palette with tiles, patterns
   and terrains under the view; a TileSet editor for collision, terrains, animation and
   custom data with its own undo.
+- **Dungeon template.** The Third Person character and camera in a generated sci-fi
+  dungeon with a working key and locked door, in C++, Blueprint or Lua, lit and ready
+  to play. See [Dungeon template](dungeon-template.md).
 - **Platformer 2D template.** A playable side-scroller in C++, Blueprint or Lua, built
   from tile layers, parallax backgrounds and a screen-space HUD canvas.
 
@@ -798,7 +801,7 @@ live beside the corresponding implementation and are summarized under
 | Scene and preview | `scene`, `transform`, `viewport`, `scene_gpu`, `picking`, `gizmo`, `scene_bank`, `scene_dependencies`, `scene_view_mode` |
 | Object/Actor model | `object_model`, `actor_document` |
 | 2D worlds | `world2d`, `world2d_editor`, `platformer_template` |
-| Dungeon generation | `dungeon`, `dungeon_rooms`, `dungeon_recipe`, `dungeon_random`, `dungeon_style`, `dungeon_bake`, `dungeon_editor`, `dungeon_style_editor`, `dungeon_recipe_editor` |
+| Dungeon generation | `dungeon`, `dungeon_rooms`, `dungeon_recipe`, `dungeon_random`, `dungeon_style`, `dungeon_bake`, `dungeon_editor`, `dungeon_style_editor`, `dungeon_recipe_editor`, `dungeon_gameplay`, `dungeon_template` |
 | Geometry and rendering | `mesh`, `mesh_ops`, `mesh_editor`, `mesh_compile`, `lighting`, `lighting_editor`, `shadows`, `effects`, `palette` |
 | Components and UI | `bitmap_font`, `collision`, `collision_editor`, `hud`, `hud_editor`, `sprites`, `sprites_editor`, `particles`, `skeletal`, `skeletal_compile`, `skeletal_ui`, `third_person` |
 | Native scripting/reflection | `scripts`, `script_values`, `script_backend`, `reflection`, `reflection_schema`, `header_extract`, `header_tool`, `native`, `native_metadata` |

@@ -14,7 +14,7 @@ pub struct Info {
     preview: &'static [u8],
 }
 
-pub const CATALOG: [Info; 4] = [
+pub const CATALOG: [Info; 5] = [
     Info {
         template: Template::Basic,
         title: "Basic",
@@ -70,6 +70,22 @@ to collect. Every piece is an ordinary 2D node you can select, move and edit in 
             "Spinning coins collected through trigger shapes",
         ],
         preview: include_bytes!("../resources/templates/previews/platformer-2d.png"),
+    },
+    Info {
+        template: Template::Dungeon,
+        title: "Dungeon",
+        summary: "Third-person hero in a generated dungeon.",
+        description: "The Third Person character and camera in a generated sci-fi dungeon: rooms \
+in different finishes with columns along the walls, a main path to the goal, side branches with \
+treasure, one-way shortcuts and a locked door whose key waits elsewhere. Press New seed in the \
+Inspector for another dungeon, or copy the recipe and style to make it yours.",
+        features: &[
+            "Dungeon Generator with the built-in recipe and sci-fi style",
+            "A working key and locked door in the chosen flavor",
+            "Walls, ceiling and doors sized to the character",
+            "Animated player, orbit camera and console-ready lighting",
+        ],
+        preview: include_bytes!("../resources/templates/previews/dungeon.png"),
     },
 ];
 

@@ -134,7 +134,7 @@ system `PATH`; the local compiler build can take several minutes.
 3. Press **Play** to compile and run the game.
 4. Use **Pause**, **Step** and **Stop** to inspect it. Save scene changes with **Ctrl+S**.
 
-Choose the **Third Person** template for an optimized editable arena and an animated player with camera-relative movement, jumping, collision and an orbit camera, or **Platformer 2D** for a side-scroller with an animated player, a tile-map level with one-way platforms, layered parallax scenery, a cut-out character, a navigating companion, physics props, coins and a following camera. New Project also asks how its starter gameplay should be written — C++, Blueprint or Lua — and generates the same scene either way; the choice never locks the project to one system.
+Choose the **Dungeon** template for a generated dungeon with a working key and door around the same character, the **Third Person** template for an optimized editable arena and an animated player with camera-relative movement, jumping, collision and an orbit camera, or **Platformer 2D** for a side-scroller with an animated player, a tile-map level with one-way platforms, layered parallax scenery, a cut-out character, a navigating companion, physics props, coins and a following camera. New Project also asks how its starter gameplay should be written — C++, Blueprint or Lua — and generates the same scene either way; the choice never locks the project to one system.
 
 See [Getting started](docs/getting-started.md) for configuration and troubleshooting.
 
@@ -180,6 +180,10 @@ Choose the **Platformer 2D** template, or switch the Scene window to **2D** and 
 
 Choose the **Third Person** template for an animated player with camera-relative movement, jumping, collision and an obstacle-aware orbit camera in an optimized arena. See [Third Person template](docs/third-person.md).
 
+### A generated dungeon to explore
+
+Choose the **Dungeon** template for the same character in a generated sci-fi dungeon with a working key and locked door, ready to regenerate with a new seed or to restyle. See [Dungeon template](docs/dungeon-template.md).
+
 Engine APIs are documented under [Input and collision](docs/input-collision.md), [Sprites and particles](docs/sprites-particles.md), [HUD](docs/hud.md) and [Runtime services](docs/runtime-services.md).
 
 ### From FBX to an animated character
@@ -223,7 +227,7 @@ Browse the **[Epok documentation](docs/getting-started.md)** for guides, workflo
 | Area | Guides |
 | --- | --- |
 | **Start and configure** | [Complete feature catalog](docs/features.md) · [Getting started](docs/getting-started.md) · [Projects](docs/projects.md) · [Settings](docs/settings.md) · [Editor](docs/editor.md) · [Migrating to actors](docs/migration-actors.md) |
-| **Create content** | [2D worlds](docs/2d.md) · [Blockout](docs/blockout.md) · [Terrain](docs/terrain.md) · [Dungeon Generator](docs/dungeons.md) · [Third Person arena](docs/third-person.md) · [Static model import](docs/static-mesh-import.md) · [Skeletal characters](docs/skeletal.md) |
+| **Create content** | [2D worlds](docs/2d.md) · [Blockout](docs/blockout.md) · [Terrain](docs/terrain.md) · [Dungeon Generator](docs/dungeons.md) · [Dungeon template](docs/dungeon-template.md) · [Third Person arena](docs/third-person.md) · [Static model import](docs/static-mesh-import.md) · [Skeletal characters](docs/skeletal.md) |
 | **Render and animate** | [Textures](docs/textures.md) · [Lighting](docs/lighting.md) · [Sprites and particles](docs/sprites-particles.md) · [Environment effects](docs/environment-effects.md) · [Palette animation](docs/palette-animation.md) |
 | **Build gameplay** | [Gameplay API](docs/gameplay-api.md) · [Actors and components](docs/actors.md) · [Blueprints](docs/blueprints.md) · [C++ scripting](docs/scripting.md) · [Lua scripting](docs/lua-scripting.md) · [Input and collision](docs/input-collision.md) · [Runtime services](docs/runtime-services.md) · [Cameras and resources](docs/camera-resources.md) · [Memory Card](docs/memory-card.md) |
 | **Look up C++ APIs** | [Complete API reference](docs/api/index.md) · [Epok runtime API](docs/api/epok.md) · [PsyQo API](docs/api/psyqo.md) |

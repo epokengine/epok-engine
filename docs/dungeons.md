@@ -235,15 +235,18 @@ Locked door spots, and the built-in style uses them:
 
 | Piece | 3D | 2D | Behaviour |
 | --- | --- | --- | --- |
-| Key | A turning cube floating above the floor, with a trigger around it | An Area2D with the key sprite of the built-in tiles | Picked up the first time something enters its trigger; it deactivates (hides and stops colliding) |
+| Key | A gold cube floating above the floor, with a trigger around it | An Area2D with the key sprite of the built-in tiles | Picked up the first time something enters its trigger; it deactivates (hides and stops colliding) |
 | Door | A slab filling the doorway, as wide as a cell and as high as the door height, with a solid collider | A StaticBody2D with the gate sprite, turned towards its corridor | Blocks the doorway until the key with its lock number is picked up, then deactivates |
 
 Both cost one actor each, take a colour (a tint in 2D) and the piece's offset, and carry
-their lock number. The first generation that places one adds three small C++ scripts to
-`assets/scripts`: `DungeonKey`, `DungeonDoor` and the `DungeonKeyRing.hpp` they share.
-They are ordinary project scripts: edit them to add a sound, an animation or a door that
-needs the player to come back with the key; the generator never overwrites them. Lock
-numbers go up to 31; each key clears its own number when the map starts.
+their lock number; each door also names its key's actor in its `key` property. A key
+deactivates the first time something enters its trigger; a door deactivates once the
+actor its `key` names is no longer active. The first generation that places one adds
+`DungeonKey` and `DungeonDoor` to the project in C++ (`assets/scripts`) unless the
+project already holds them in Blueprint or Lua, as the [Dungeon template](dungeon-template.md)
+does for its flavor; the generator then uses those. They are ordinary project classes:
+edit them to add a sound, an animation or a door that needs the player to come back
+with the key; the generator never overwrites them.
 
 Keys pick up on contact with any moving collider, the player included. Their trigger
 floats above the floor so the dungeon's own collision never touches it. Navigation is

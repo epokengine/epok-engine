@@ -460,9 +460,10 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
             seed == 1,
             "{report:?}"
         );
-        for (path, bytes) in dungeon_bake::GAMEPLAY_SCRIPTS {
-            assert_eq!(std::fs::read(root.join(path)).unwrap(), bytes);
-        }
+        assert_eq!(
+            crate::dungeon_gameplay::installed(&root),
+            Some(crate::workspace::GameplayFlavor::Cpp)
+        );
         // The built-in textures are imported under their fixed identities.
         let index = crate::assets::scan(&root, &mut Default::default());
         for texture in dungeon_bake::BuiltinTexture::ALL {
@@ -494,8 +495,14 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
         // Working keys and doors: a floating trigger and a solid slab per lock, each
         // carrying its lock number.
         let layout = crate::dungeon::layout(g, &Default::default()).unwrap();
-        let keys = gameplay_actors(&scene, dungeon_bake::KEY_CLASS);
-        let doors = gameplay_actors(&scene, dungeon_bake::DOOR_CLASS);
+        let keys = gameplay_actors(
+            &scene,
+            crate::dungeon_gameplay::classes(crate::workspace::GameplayFlavor::Cpp).key,
+        );
+        let doors = gameplay_actors(
+            &scene,
+            crate::dungeon_gameplay::classes(crate::workspace::GameplayFlavor::Cpp).door,
+        );
         let locks: Vec<u64> = layout.locks.iter().map(|l| u64::from(l.lock)).collect();
         assert_eq!(doors.iter().map(|d| d.1).collect::<Vec<_>>(), locks);
         assert_eq!(
@@ -518,8 +525,17 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
             );
             assert!(g.output.actors.contains(&key.id));
         }
-        for (index, _) in &doors {
+        for (index, lock) in &doors {
             let door = &scene.actors[*index];
+            // Each door names the actor of its own key.
+            let key = door
+                .components
+                .iter()
+                .find_map(|c| c.properties.get(crate::dungeon_gameplay::KEY_REFERENCE))
+                .and_then(|v| v.as_str())
+                .unwrap();
+            let (key_index, _) = keys.iter().find(|(_, l)| l == lock).unwrap();
+            assert_eq!(key, scene.actors[*key_index].id.to_string());
             assert!(!door.collider.as_ref().unwrap().trigger);
             assert!((door.scale[0] - g.cell_size).abs() < 1e-4);
             assert!((door.scale[1] - g.door_height).abs() < 1e-4);
@@ -543,19 +559,13 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
     assert!(scene.dungeons[0].recipe_stale(&digest));
     // The map cooks. Unit tests run without the header extractor, so the reflected
     // components (navigation volumes, keys and doors) are left to the editor build.
+    let cpp = crate::dungeon_gameplay::classes(crate::workspace::GameplayFlavor::Cpp);
     let mut cooked = scene.clone();
     for actor in &mut cooked.actors {
         actor.components.retain(|c| {
-            ![
-                crate::navigation::VOLUME,
-                dungeon_bake::KEY_CLASS.1,
-                dungeon_bake::DOOR_CLASS.1,
-            ]
-            .contains(&c.class.class_id.as_deref().unwrap_or_default())
+            ![crate::navigation::VOLUME, cpp.key.1, cpp.door.1]
+                .contains(&c.class.class_id.as_deref().unwrap_or_default())
         });
-    }
-    for (path, _) in dungeon_bake::GAMEPLAY_SCRIPTS {
-        std::fs::remove_file(root.join(path)).unwrap();
     }
     // The built-in textures resolve like any imported texture.
     let textures = crate::assets::scan(&root, &mut Default::default());
@@ -622,7 +632,10 @@ fn recipe_markers_turn_with_their_doors_in_2d() {
             (p[1] - offset[1]) as f32 * 16. + 8.,
         ]
     };
-    let doors = gameplay_actors(&scene, dungeon_bake::DOOR_CLASS);
+    let doors = gameplay_actors(
+        &scene,
+        crate::dungeon_gameplay::classes(crate::workspace::GameplayFlavor::Cpp).door,
+    );
     assert_eq!(doors.len(), layout.locks.len());
     for ((index, lock), door) in doors.iter().zip(&layout.locks) {
         assert_eq!(*lock, u64::from(door.lock));
@@ -636,7 +649,10 @@ fn recipe_markers_turn_with_their_doors_in_2d() {
         };
         assert_eq!(transform.rotation, turn);
     }
-    let keys = gameplay_actors(&scene, dungeon_bake::KEY_CLASS);
+    let keys = gameplay_actors(
+        &scene,
+        crate::dungeon_gameplay::classes(crate::workspace::GameplayFlavor::Cpp).key,
+    );
     for ((index, lock), key) in keys.iter().zip(layout.items.iter().filter(|i| i.lock > 0)) {
         assert_eq!(*lock, u64::from(key.lock));
         assert_eq!(position(*index).position, pixel(key.cell));

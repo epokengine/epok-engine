@@ -55,12 +55,14 @@ mod draw_order_codec;
 mod dungeon;
 mod dungeon_bake;
 mod dungeon_editor;
+mod dungeon_gameplay;
 mod dungeon_random;
 mod dungeon_recipe;
 mod dungeon_recipe_editor;
 mod dungeon_rooms;
 mod dungeon_style;
 mod dungeon_style_editor;
+mod dungeon_template;
 #[cfg(test)]
 mod dungeon_tests;
 mod editor;
