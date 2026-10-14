@@ -580,6 +580,101 @@ fn recipe_dungeons_bake_markers_within_budget_and_cook() {
     std::fs::remove_dir_all(parent).unwrap();
 }
 
+/// The player a generator's keys name, if any.
+fn key_players(scene: &Scene) -> Vec<Option<String>> {
+    let key = crate::dungeon_gameplay::classes(crate::workspace::GameplayFlavor::Cpp).key;
+    gameplay_actors(scene, key)
+        .into_iter()
+        .map(|(index, _)| {
+            scene.actors[index]
+                .components
+                .iter()
+                .find_map(|c| c.properties.get(crate::dungeon_gameplay::PLAYER))
+                .and_then(|v| v.as_str())
+                .map(str::to_owned)
+        })
+        .collect()
+}
+
+#[test]
+fn keys_open_only_for_the_player_in_3d_and_2d() {
+    use crate::actor_document::Attachment;
+    let (parent, root) = project("player");
+    // 3D without a Player: keys open for anything, and the report says so.
+    let (mut scene, id) = scene_3d(1);
+    scene.dungeons[0].source = crate::dungeon::Source::Recipe;
+    let report = dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
+    let players = key_players(&scene);
+    assert!(!players.is_empty() && players.iter().all(Option::is_none));
+    assert!(
+        report.notes.iter().any(|n| n.contains("choose the Player")),
+        "{report:?}"
+    );
+    // With a Player, every key names it.
+    let player = Actor::cube("Player".into());
+    let player_id = player.id;
+    scene.actors.push(player);
+    scene.dungeons[0].spawn_actor = Some(player_id);
+    let report = dungeon_bake::generate(&root, &mut scene, id, None).unwrap();
+    assert!(
+        key_players(&scene)
+            .iter()
+            .all(|p| p.as_deref() == Some(player_id.to_string().as_str()))
+    );
+    assert!(!report.notes.iter().any(|n| n.contains("choose the Player")));
+
+    // 2D: a Player under a moved, turned and scaled parent lands on the Spawn marker,
+    // and the keys name it.
+    let mut scene = Scene::default();
+    scene.actors.clear();
+    let actor = crate::world2d::create(crate::world2d::Preset::Node2D, "Dungeon", [40., -24.]);
+    let mut generator = Generator::new(actor.id);
+    generator.source = crate::dungeon::Source::Recipe;
+    generator.seed = 7;
+    let gid = generator.id;
+    scene.actors.push(actor);
+    let mut holder = crate::world2d::create(crate::world2d::Preset::Node2D, "Holder", [-30., 12.]);
+    if let Some(component) = holder.components.iter_mut().find(|c| c.root) {
+        component
+            .properties
+            .insert("rotation".into(), serde_json::json!(90.));
+        component
+            .properties
+            .insert("scale".into(), serde_json::json!([2., 2.]));
+    }
+    let holder_id = holder.id;
+    scene.actors.push(holder);
+    let mut player = crate::world2d::create(crate::world2d::Preset::Node2D, "Player", [5., 5.]);
+    player.logical_parent = Some(holder_id);
+    player.attach = Some(Attachment {
+        actor: holder_id,
+        component: None,
+    });
+    let player_id = player.id;
+    scene.actors.push(player);
+    generator.spawn_actor = Some(player_id);
+    scene.dungeons.push(generator);
+    scene.refresh_actor_hierarchy();
+    dungeon_bake::generate(&root, &mut scene, gid, None).unwrap();
+    let world = |name: &str| {
+        let index = scene.actors.iter().position(|a| a.name == name).unwrap();
+        crate::world2d::world_position(&scene, index)
+    };
+    let (at, spawn) = (world("Player"), world("Spawn"));
+    assert!(
+        (at[0] - spawn[0]).abs() < 1e-3 && (at[1] - spawn[1]).abs() < 1e-3,
+        "player at {at:?}, spawn at {spawn:?}"
+    );
+    let players = key_players(&scene);
+    assert!(!players.is_empty());
+    assert!(
+        players
+            .iter()
+            .all(|p| p.as_deref() == Some(player_id.to_string().as_str()))
+    );
+    std::fs::remove_dir_all(parent).unwrap();
+}
+
 #[test]
 fn recipe_markers_turn_with_their_doors_in_2d() {
     let (parent, root) = project("recipe-2d");

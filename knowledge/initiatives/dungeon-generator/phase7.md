@@ -22,7 +22,8 @@ Delivered on `feature/dungeon-generator`.
 
 ## Limits and follow-ups
 
-- Keys react to any moving collider entering their trigger.
+- Keys react to any moving collider entering their trigger (phase 8: only the Player).
 - Columns stand on rooms' straight walls only; small rooms get few.
 - Projects that installed the phase 5 C++ key ring keep it; the generator writes the
-  `key` property its doors no longer declare until those scripts are replaced.
+  `key` property its doors no longer declare until those scripts are replaced (phase 8:
+  unedited copies are replaced when the dungeon is generated).

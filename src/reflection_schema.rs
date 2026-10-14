@@ -200,6 +200,15 @@ pub enum Direction {
     MutableReference,
 }
 impl Type {
+    /// Object, actor and component references: one `epok::ObjectId` each, compared by
+    /// identity whatever class they name.
+    #[allow(dead_code)]
+    pub fn is_reference(&self) -> bool {
+        matches!(
+            self,
+            Self::ObjectRef { .. } | Self::ActorRef { .. } | Self::ComponentRef { .. }
+        )
+    }
     /// Number of 32-bit words in Lua ABI v2. Records are flattened in source
     /// field order; references/handles retain their full 64-bit bit pattern.
     #[allow(dead_code)]

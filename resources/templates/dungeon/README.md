@@ -11,7 +11,8 @@ whose key waits somewhere else.
 - Right stick or mouse: orbit and pitch the camera.
 - Cross or K: jump.
 
-Walk into the gold key to pick it up; the red door it opens disappears.
+Walk into the gold key to pick it up; the red door it opens disappears. Only the
+character picks keys up.
 
 ## The dungeon
 

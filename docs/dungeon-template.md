@@ -23,7 +23,8 @@ character). Lighting is baked when the project is created, so Play works straigh
 - Left stick or WASD moves relative to the camera, the right stick or mouse orbits it,
   Cross or K jumps.
 - The character starts in the spawn room. Walk into the gold key to pick it up: the
-  red door it opens disappears, wherever it is.
+  red door it opens disappears, wherever it is. Only the character picks keys up: the
+  generator's **Player** is set to it, and each key names it.
 
 ## Making it yours
 
@@ -50,10 +51,11 @@ project can use all three afterwards.
 | Blueprint | `assets/Blueprints/ThirdPersonController.epokbp` | `assets/Blueprints/DungeonKey.epokbp`, `DungeonDoor.epokbp` |
 | Lua | `assets/scripts/ThirdPersonController.lua` | `assets/scripts/DungeonKey.lua`, `DungeonDoor.lua` |
 
-All three behave the same: a key deactivates its actor the first time something enters
-its trigger; a door deactivates once the key actor its `key` property names is no longer
-active. C++ is the default because it is the most direct to read and change, and the
-lightest on the console; Blueprint suits visual editing, Lua short scripts. The
-generator keeps using the flavor the project holds when it places keys and doors.
+All three behave the same: a key deactivates its actor the first time the actor its
+`player` property names enters its trigger; a door deactivates once the key actor its
+`key` property names is no longer active. C++ is the default because it is the most
+direct to read and change, and the lightest on the console; Blueprint suits visual
+editing, Lua short scripts. The generator keeps using the flavor the project holds
+when it places keys and doors.
 
 ![C++, Lua and Blueprint on the console: before and after picking up the key](images/dungeon-template-flavors.png)

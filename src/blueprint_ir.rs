@@ -1908,6 +1908,23 @@ impl Lower<'_, '_> {
     }
 }
 pub fn binary(op: BinaryOp, a: Expression, b: Expression) -> Result<Expression, String> {
+    // Two references are the same object or not, whatever class each pin names:
+    // every reference is one `epok::ObjectId`.
+    if matches!(op, BinaryOp::Equal | BinaryOp::NotEqual)
+        && a.value_type.is_reference()
+        && b.value_type.is_reference()
+    {
+        let token = if matches!(op, BinaryOp::Equal) {
+            "=="
+        } else {
+            "!="
+        };
+        return Ok(Expression {
+            value_type: Type::Bool,
+            cpp: format!("(({}){token}({}))", a.cpp, b.cpp),
+            lvalue: false,
+        });
+    }
     if a.value_type != b.value_type {
         return Err("Binary inputs must have exactly the same type".into());
     }
@@ -2184,4 +2201,41 @@ pub fn lower(
 }
 fn temporary(node: &str) -> String {
     format!("epok_result_{}", node.replace('-', ""))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn value(ty: Type, cpp: &str) -> Expression {
+        Expression {
+            value_type: ty,
+            cpp: cpp.into(),
+            lvalue: false,
+        }
+    }
+
+    /// Equal and Not equal take any two references and compare their identities;
+    /// references have no order and never equal a number.
+    #[test]
+    fn references_compare_by_identity() {
+        let other = || value(Type::ObjectRef { class: None }, "other");
+        let player = || {
+            value(
+                Type::ActorRef {
+                    class: Some(crate::object_model::ACTOR3D_ID.into()),
+                },
+                "player",
+            )
+        };
+        let same = binary(BinaryOp::Equal, other(), player()).unwrap();
+        assert_eq!(
+            (same.value_type, same.cpp.as_str()),
+            (Type::Bool, "((other)==(player))")
+        );
+        let different = binary(BinaryOp::NotEqual, player(), other()).unwrap();
+        assert_eq!(different.cpp, "((player)!=(other))");
+        assert!(binary(BinaryOp::Less, other(), player()).is_err());
+        assert!(binary(BinaryOp::Equal, other(), value(Type::Int32, "1")).is_err());
+    }
 }

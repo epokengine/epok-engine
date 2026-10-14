@@ -51,6 +51,8 @@ enum Request {
     EditStyle(Uuid),
     NewRecipe(Uuid),
     EditRecipe(Uuid),
+    /// Make an actor the generator's Player and generate again.
+    UsePlayer(Uuid, Uuid),
 }
 
 #[derive(Default)]
@@ -320,6 +322,12 @@ pub fn apply_pending(e: &mut Editor) {
             }
         }
         Request::EditRecipe(recipe) => crate::dungeon_recipe_editor::open(e, recipe),
+        Request::UsePlayer(id, player) => {
+            if let Some(g) = e.scene.dungeons.iter_mut().find(|g| g.id == id) {
+                g.spawn_actor = Some(player);
+                generate(e, id);
+            }
+        }
         Request::ResetTransform(id) => {
             if let Some(root) = e.scene.dungeons.iter().find(|g| g.id == id).map(|g| g.root)
                 && let Some(index) = e.scene.actor_index(root)
@@ -845,6 +853,29 @@ fn warnings(
     if let Some(Err(error)) = preview.map(|p| &p.style) {
         list.push((error.clone(), None));
     }
+    // Keys without a live Player are picked up by anything.
+    let has_keys = g.output.actors.iter().any(|actor| {
+        e.scene.actor_index(*actor).is_some_and(|i| {
+            e.scene.actors[i].components.iter().any(|c| {
+                c.class
+                    .class_id
+                    .as_deref()
+                    .is_some_and(crate::dungeon_gameplay::is_key)
+            })
+        })
+    });
+    if has_keys && g.spawn_actor.and_then(|p| e.scene.actor_index(p)).is_none() {
+        let candidate = e.scene.actors.iter().find(|a| {
+            a.name.eq_ignore_ascii_case("Player")
+                && !g.output.actors.contains(&a.id)
+                && dungeon_bake::is_2d(&e.scene, a.id) == two_d
+        });
+        list.push((
+            "Keys are picked up by anything that touches them; choose the Player so only it can."
+                .into(),
+            candidate.map(|a| ("Use Player", Request::UsePlayer(id, a.id))),
+        ));
+    }
     if !two_d {
         if let Some(index) = e.scene.actor_index(g.root)
             && !crate::collision::translation_only(e.scene.world_matrix(index))
@@ -954,7 +985,7 @@ fn settings(ui: &Ui, e: &mut Editor, id: Uuid, two_d: bool) {
         .actors
         .iter()
         .filter(|a| a.id != g.root && !g.output.actors.contains(&a.id))
-        .filter(|a| !dungeon_bake::is_2d(&e.scene, a.id))
+        .filter(|a| dungeon_bake::is_2d(&e.scene, a.id) == two_d)
         .map(|a| (a.id, a.name.clone()))
         .collect();
     let tile_sets: Vec<(Uuid, String)> = if two_d {
@@ -1084,7 +1115,36 @@ fn rooms(ui: &Ui, s: &mut dungeon::RoomSettings) {
     );
 }
 
-/// Tiles in 2D; cell size, heights, navigation and the spawn actor in 3D.
+/// The actor generation treats as the player: moved to the spawn room's centre, and
+/// the only one that picks up keys.
+fn player_field(ui: &Ui, g: &mut Generator, actors: &[(Uuid, String)]) {
+    let current = g
+        .spawn_actor
+        .and_then(|id| {
+            actors
+                .iter()
+                .find(|(a, _)| *a == id)
+                .map(|(_, n)| n.clone())
+        })
+        .unwrap_or_else(|| "None".into());
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Player"), &current) {
+        if ui.selectable("None") {
+            g.spawn_actor = None;
+        }
+        for (actor, name) in actors {
+            if ui.selectable(format!("{name}##{actor}")) {
+                g.spawn_actor = Some(*actor);
+            }
+        }
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text(
+            "Placed at the spawn room's centre after each generation, and the only actor that picks up keys.",
+        );
+    }
+}
+
+/// Tiles and the player in 2D; cell size, heights, navigation and the player in 3D.
 fn appearance(
     ui: &Ui,
     g: &mut Generator,
@@ -1119,6 +1179,7 @@ fn appearance(
                 "Any TileSet with a terrain set holding terrains named Floor and Wall.",
             );
         }
+        player_field(ui, g, actors);
     } else {
         crate::gui::muted(ui, "3D (in world units)");
         drag_f32(
@@ -1148,28 +1209,7 @@ fn appearance(
                 "Add navigation bake volumes over the floor, spaced to stay within 512 nodes.",
             );
         }
-        let current = g
-            .spawn_actor
-            .and_then(|id| {
-                actors
-                    .iter()
-                    .find(|(a, _)| *a == id)
-                    .map(|(_, n)| n.clone())
-            })
-            .unwrap_or_else(|| "None".into());
-        if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Move to spawn"), &current) {
-            if ui.selectable("None") {
-                g.spawn_actor = None;
-            }
-            for (actor, name) in actors {
-                if ui.selectable(format!("{name}##{actor}")) {
-                    g.spawn_actor = Some(*actor);
-                }
-            }
-        }
-        if ui.is_item_hovered() {
-            ui.tooltip_text("An actor placed at the spawn room's centre after each generation, usually the player.");
-        }
+        player_field(ui, g, actors);
         let _ = crate::gui::field(ui, "Character");
         ui.disabled(height.is_none(), || {
             if ui.small_button("Fit sizes to it")
@@ -1183,7 +1223,7 @@ fn appearance(
                 Some(height) => format!(
                     "The spawn actor is {height:.2} units tall. Sets cell size, wall and door heights so it fits like a console third-person hero: corridors 1.6x its height, doors 2x, walls 3.3x."
                 ),
-                None => "Choose a Move to spawn actor with a collider; its height sets the cell size and the wall and door heights.".into(),
+                None => "Choose a Player with a collider; its height sets the cell size and the wall and door heights.".into(),
             });
         }
         if let Some(height) = height {
@@ -1484,6 +1524,96 @@ fn budget_rows(ui: &Ui, two_d: bool, preview: &Preview) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Without a Player the band warns that keys open for anything; **Use Player**
+    /// picks the actor called Player and generates again, so every key names it.
+    #[test]
+    fn use_player_makes_keys_open_only_for_the_player() {
+        let root = crate::workspace::tests::temp("dungeon-use-player");
+        crate::workspace::create_with_options(
+            &root,
+            "Use Player",
+            crate::workspace::CreateOptions::new(crate::workspace::Template::Basic),
+        )
+        .unwrap();
+        let mut e = Editor::new(root.clone());
+        e.auto_build = false;
+        let mut scene = crate::scene::Scene::default();
+        scene.actors.clear();
+        let mut dungeon = crate::scene::Actor::cube("Dungeon".into());
+        dungeon.kind = "Empty".into();
+        let actor = dungeon.id;
+        let player = crate::scene::Actor::cube("Player".into());
+        let player_id = player.id;
+        scene.actors.extend([dungeon, player]);
+        let mut generator = Generator::new(actor);
+        generator.source = dungeon::Source::Recipe;
+        let id = generator.id;
+        scene.dungeons.push(generator);
+        scene.refresh_actor_hierarchy();
+        e.scene = scene;
+        e.changed();
+        generate(&mut e, id);
+        let key = crate::dungeon_gameplay::classes(crate::workspace::GameplayFlavor::Cpp).key;
+        let players = |e: &Editor| -> Vec<Option<String>> {
+            e.scene
+                .actors
+                .iter()
+                .flat_map(|a| &a.components)
+                .filter(|c| c.class.class_id.as_deref() == Some(key.1))
+                .map(|c| {
+                    c.properties
+                        .get(crate::dungeon_gameplay::PLAYER)
+                        .and_then(|v| v.as_str())
+                        .map(str::to_owned)
+                })
+                .collect()
+        };
+        assert!(!players(&e).is_empty() && players(&e).iter().all(Option::is_none));
+
+        let mut context = crate::gui::tests::imgui_context();
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1000., 900.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        fn frame(context: &mut imgui::Context, e: &mut Editor, actor: Uuid) {
+            crate::gui::clear_script_controls();
+            let ui = context.frame();
+            ui.window("Inspector")
+                .position([0., 0.], imgui::Condition::Always)
+                .size([520., 880.], imgui::Condition::Always)
+                .build(|| inspector(ui, e, actor));
+            context.render();
+        }
+        frame(&mut context, &mut e, actor);
+        frame(&mut context, &mut e, actor);
+        let button =
+            crate::gui::script_control("Use Player").expect("the warning offers Use Player");
+        context.io_mut().add_mouse_pos_event(button);
+        frame(&mut context, &mut e, actor);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, true);
+        frame(&mut context, &mut e, actor);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, false);
+        frame(&mut context, &mut e, actor);
+        apply_pending(&mut e);
+        assert_eq!(e.scene.dungeons[0].spawn_actor, Some(player_id));
+        let named = player_id.to_string();
+        assert!(
+            players(&e)
+                .iter()
+                .all(|p| p.as_deref() == Some(named.as_str()))
+        );
+        frame(&mut context, &mut e, actor);
+        assert!(crate::gui::script_control("Use Player").is_none());
+        let _ = std::fs::remove_dir_all(root);
+    }
 
     #[test]
     fn new_seeds_differ_and_stay_short() {

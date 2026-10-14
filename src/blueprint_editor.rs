@@ -4063,13 +4063,15 @@ fn flexible_input(node: &Node, pin: &str, ty: &SocketType) -> bool {
         NodeKind::Reroute => pin == "value",
         NodeKind::Binary { op } if pin == "a" || pin == "b" => match op {
             asset::BinaryOp::And | asset::BinaryOp::Or => *ty == schema::Type::Bool,
-            asset::BinaryOp::Equal | asset::BinaryOp::NotEqual => matches!(
-                ty,
-                schema::Type::Bool
-                    | schema::Type::Fixed
-                    | schema::Type::Int32
-                    | schema::Type::UInt32
-            ),
+            asset::BinaryOp::Equal | asset::BinaryOp::NotEqual => {
+                matches!(
+                    ty,
+                    schema::Type::Bool
+                        | schema::Type::Fixed
+                        | schema::Type::Int32
+                        | schema::Type::UInt32
+                ) || ty.is_reference()
+            }
             _ => matches!(
                 ty,
                 schema::Type::Fixed | schema::Type::Int32 | schema::Type::UInt32
@@ -4473,6 +4475,14 @@ fn node_sockets_with_assets(
                     .or_else(|| node.inputs.get("b"))
                     .and_then(|i| input_type(doc, graph, i, registry, 0))
                     .unwrap_or(schema::Type::Fixed)
+            };
+            // Equal and Not equal take any two references, so both pins widen to Object.
+            let ty = if matches!(op, asset::BinaryOp::Equal | asset::BinaryOp::NotEqual)
+                && ty.is_reference()
+            {
+                schema::Type::ObjectRef { class: None }
+            } else {
+                ty
             };
             push("a", false, SocketType::Value(ty.clone()));
             push("b", false, SocketType::Value(ty));

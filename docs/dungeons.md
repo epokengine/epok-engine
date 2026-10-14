@@ -79,14 +79,14 @@ connections apart.
 | Wall height | Height of walls, wall tops and the ceiling | 6 |
 | Door height | Doorways are open below this height; a beam fills the rest | 3.6 |
 | Navigation | Add navigation bake volumes over the floor | on |
-| Move to spawn | An actor placed at the spawn room's centre after each generation, usually the player | none |
-| Character | **Fit sizes to it** sets cell size, wall and door heights from the Move to spawn actor's collider | — |
+| Player | The [player](#the-player): placed at the spawn room's centre after each generation, and the only actor that picks up keys | none |
+| Character | **Fit sizes to it** sets cell size, wall and door heights from the Player's collider | — |
 | Ceiling | Close the dungeon from above at the wall height | on |
 
 The defaults fit the Third Person template's character (1.84 units tall) the way
 third-person console games frame their heroes: corridors about 1.6 times its height,
 doors twice, walls more than three times, so the camera behind the character sees
-walls and never the sky. For another character choose it in **Move to spawn** and
+walls and never the sky. For another character choose it as **Player** and
 press **Fit sizes to it**. Turn **Ceiling** off for top-down cameras: the ceiling
 faces down, so it hides nothing from above, but it also stops anything flying out.
 With a ceiling the dungeon's geometry casts no shadows: the map's light reaches floors
@@ -140,6 +140,21 @@ stone floor variants and solid walls with a brick face towards the room. Any Til
 works when it has a terrain set holding the terrains the style paints (the built-in
 look uses **Floor** and **Wall**); the TileSet's own terrain rules choose the tiles,
 and its tile collision makes walls solid. One grid cell is one tile.
+
+**Player** works as in 3D: the chosen 2D actor is placed on the spawn room's centre
+(through any parent's position, rotation and scale) and is the only actor that picks
+up keys.
+
+### The player
+
+The band's **Player** names the actor generation treats as the player: it is moved to
+the spawn room's centre after each generation, and every generated key names it in its
+`player` property, so only the player picks keys up; enemies, projectiles and other
+moving colliders pass through them. Without a Player keys are picked up by anything
+that enters them; the band then warns, and offers **Use Player** when the map has an
+actor called Player.
+
+![The generator band without a Player: the warning with Use Player above the settings, and the Player field](images/dungeon-player-warning.png)
 
 ## Dungeon Recipes
 
@@ -235,21 +250,26 @@ Locked door spots, and the built-in style uses them:
 
 | Piece | 3D | 2D | Behaviour |
 | --- | --- | --- | --- |
-| Key | A gold cube floating above the floor, with a trigger around it | An Area2D with the key sprite of the built-in tiles | Picked up the first time something enters its trigger; it deactivates (hides and stops colliding) |
+| Key | A gold cube floating above the floor, with a trigger around it | An Area2D with the key sprite of the built-in tiles | Picked up the first time the [player](#the-player) enters its trigger; it deactivates (hides and stops colliding) |
 | Door | A slab filling the doorway, as wide as a cell and as high as the door height, with a solid collider | A StaticBody2D with the gate sprite, turned towards its corridor | Blocks the doorway until the key with its lock number is picked up, then deactivates |
 
 Both cost one actor each, take a colour (a tint in 2D) and the piece's offset, and carry
-their lock number; each door also names its key's actor in its `key` property. A key
-deactivates the first time something enters its trigger; a door deactivates once the
-actor its `key` names is no longer active. The first generation that places one adds
+their lock number; each key names the generator's Player in its `player` property, and
+each door names its key's actor in its `key` property. A key deactivates the first time
+its player enters its trigger (anything, while `player` names no live actor); a door
+deactivates once the actor its `key` names is no longer active. The first generation
+that places one adds
 `DungeonKey` and `DungeonDoor` to the project in C++ (`assets/scripts`) unless the
 project already holds them in Blueprint or Lua, as the [Dungeon template](dungeon-template.md)
 does for its flavor; the generator then uses those. They are ordinary project classes:
 edit them to add a sound, an animation or a door that needs the player to come back
-with the key; the generator never overwrites them.
+with the key. The generator never overwrites an edited copy; an unedited copy of an
+earlier version (a key any collider picked up, or the C++ pair that shared a key ring)
+is brought up to date the next time the dungeon is generated, and the report says so.
 
-Keys pick up on contact with any moving collider, the player included. Their trigger
-floats above the floor so the dungeon's own collision never touches it. Navigation is
+![On the console in C++, Lua and Blueprint: the player before the key; one step later with the key naming the player, the key is gone and the door open; the same step with the key naming another actor, the key stays and the door stays closed](images/dungeon-keys-player-only.png)
+
+A key's trigger floats above the floor so the dungeon's own collision never touches it. Navigation is
 baked with the doors closed.
 
 Custom actors work too: an actor placed on a Key or Locked door spot with an **Actor**

@@ -1431,6 +1431,30 @@ fn child(scene: &Scene, mut actor: Actor, id: Uuid, name: &str, root: Uuid) -> A
     actor
 }
 
+/// The position in its parent's pixels that puts a 2D actor at `world`, or `None` when
+/// the parent is scaled to nothing.
+fn local_2d(scene: &Scene, index: usize, world: [f32; 2]) -> Option<[f32; 2]> {
+    let Some(parent) = scene.actors[index]
+        .attach
+        .as_ref()
+        .and_then(|a| scene.actor_index(a.actor))
+    else {
+        return Some(world);
+    };
+    let at = |p| crate::world2d::world_point(scene, parent, p);
+    let (o, x, y) = (at([0., 0.]), at([1., 0.]), at([0., 1.]));
+    let (ax, ay) = ([x[0] - o[0], x[1] - o[1]], [y[0] - o[0], y[1] - o[1]]);
+    let det = ax[0] * ay[1] - ay[0] * ax[1];
+    if det.abs() < 1e-6 {
+        return None;
+    }
+    let d = [world[0] - o[0], world[1] - o[1]];
+    Some([
+        (d[0] * ay[1] - ay[0] * d[1]) / det,
+        (ax[0] * d[1] - d[0] * ax[1]) / det,
+    ])
+}
+
 /// Gives every component a stable identity derived from its actor.
 fn stable_components(actor: &mut Actor) {
     for (i, component) in actor.components.iter_mut().enumerate() {
@@ -1495,6 +1519,8 @@ fn place_piece(
 /// The property a key or locked-door class declares to receive its lock number.
 pub const LOCK_PROPERTY: &str = "lock";
 
+const NO_PLAYER_NOTE: &str =
+    "Keys are picked up by anything that touches them; choose the Player so only it can";
 const GAMEPLAY_NOTE: &str = "Added the DungeonKey and DungeonDoor scripts to assets/scripts; edit them to change how keys and doors behave";
 /// 3D key: cube side, height of its centre and half the size of its pickup trigger.
 const KEY_SIZE: f32 = 0.4;
@@ -1508,20 +1534,37 @@ fn needs_gameplay(placements: &[Placement]) -> bool {
         .any(|p| matches!(p.visual.piece, Piece::Key { .. } | Piece::Door { .. }))
 }
 
-/// The key and door classes the project uses, installing C++ ones when it has none.
+/// The key and door classes the project uses, installing C++ ones when it has none,
+/// and the player its keys open for: the generator's Player, when it exists.
 fn gameplay(
     root: &Path,
+    scene: &Scene,
+    g: &Generator,
     placements: &[Placement],
     report: &mut Report,
-) -> Result<Option<crate::dungeon_gameplay::Classes>, String> {
+) -> Result<Option<(crate::dungeon_gameplay::Classes, Option<Uuid>)>, String> {
     if !needs_gameplay(placements) {
         return Ok(None);
     }
-    let (classes, wrote) = crate::dungeon_gameplay::ensure(root)?;
-    if wrote {
+    let (classes, written) = crate::dungeon_gameplay::ensure(root)?;
+    if !written.added.is_empty() {
         report.notes.push(GAMEPLAY_NOTE.into());
     }
-    Ok(Some(classes))
+    if !written.updated.is_empty() {
+        report.notes.push(format!(
+            "Updated {}, unedited copies of an earlier version: keys now open only for the Player",
+            written.updated.join(", ")
+        ));
+    }
+    let player = g.spawn_actor.filter(|id| scene.actor_index(*id).is_some());
+    if player.is_none()
+        && placements
+            .iter()
+            .any(|p| matches!(p.visual.piece, Piece::Key { .. }))
+    {
+        report.notes.push(NO_PLAYER_NOTE.into());
+    }
+    Ok(Some((classes, player)))
 }
 
 /// The actor each lock's key becomes, so doors can name it.
@@ -1535,12 +1578,13 @@ fn key_actors<'a>(
         .collect()
 }
 
-/// A key or door component carrying its lock number and, for doors, its key.
+/// A key or door component carrying its lock number and the actor it refers to: a
+/// key's player or a door's key.
 fn gameplay_component(
     class: (&str, &str),
     label: &str,
     lock: u16,
-    key: Option<Uuid>,
+    refers: Option<(&str, Uuid)>,
 ) -> crate::actor_document::ComponentInstance {
     let mut component = crate::actor_document::ComponentInstance::new(
         Uuid::nil(),
@@ -1551,11 +1595,10 @@ fn gameplay_component(
         .properties
         .insert(LOCK_PROPERTY.into(), serde_json::json!(lock));
     component.overrides.insert(LOCK_PROPERTY.into());
-    if let Some(key) = key {
-        let name = crate::dungeon_gameplay::KEY_REFERENCE;
+    if let Some((name, actor)) = refers {
         component
             .properties
-            .insert(name.into(), serde_json::Value::String(key.to_string()));
+            .insert(name.into(), serde_json::Value::String(actor.to_string()));
         component.overrides.insert(name.into());
     }
     component
@@ -1786,7 +1829,7 @@ pub fn generate(
             let marker = crate::world2d::create(crate::world2d::Preset::Node2D, label, position);
             actors.push(child(scene, marker, g.derived_id(role), label, g.root));
         }
-        let gameplay = gameplay(root, &placements, &mut report)?;
+        let gameplay = gameplay(root, scene, &g, &placements, &mut report)?;
         let keys = key_actors(
             &g,
             plan.spawns
@@ -1800,11 +1843,13 @@ pub fn generate(
                 Piece::Actor { class: Some(class) } => class,
                 Piece::Key { color } | Piece::Door { color } => {
                     let key = matches!(spawn.piece, Piece::Key { .. });
-                    let classes = gameplay.expect("checked above");
+                    let (classes, player) = gameplay.expect("checked above");
                     let component = if key {
-                        gameplay_component(classes.key, "Key", spawn.lock, None)
+                        let player = player.map(|p| (crate::dungeon_gameplay::PLAYER, p));
+                        gameplay_component(classes.key, "Key", spawn.lock, player)
                     } else {
                         let opens = keys.get(&spawn.lock).copied();
+                        let opens = opens.map(|k| (crate::dungeon_gameplay::KEY_REFERENCE, k));
                         gameplay_component(classes.door, "Door", spawn.lock, opens)
                     };
                     let actor = gameplay_2d(root, spawn, key, *color, plan.tile, component)?;
@@ -1837,6 +1882,26 @@ pub fn generate(
         }
         if g.tile_set.is_none() && style.references().is_empty() {
             g.tile_set = Some(default_set);
+        }
+        if let Some(target) = g.spawn_actor
+            && let Some(t) = scene.actor_index(target)
+        {
+            let world = crate::world2d::world_point(scene, root_index, plan.spawn);
+            match local_2d(scene, t, world) {
+                Some(local) => {
+                    if let Some(component) = scene.actors[t].components.iter_mut().find(|c| c.root)
+                    {
+                        component
+                            .properties
+                            .insert("position".into(), serde_json::json!(local));
+                        component.overrides.insert("position".into());
+                    }
+                }
+                None => report.notes.push(format!(
+                    "{} was not moved to the spawn: its parent cannot be inverted",
+                    scene.actors[t].name
+                )),
+            }
         }
     } else {
         builtin_textures(root, &style)?;
@@ -1950,7 +2015,7 @@ pub fn generate(
             });
             actors.push(child(scene, sun, g.derived_id("light"), "Light", g.root));
         }
-        let gameplay = gameplay(root, &placements, &mut report)?;
+        let gameplay = gameplay(root, scene, &g, &placements, &mut report)?;
         let keys = key_actors(
             &g,
             plan.spawns
@@ -1999,9 +2064,10 @@ pub fn generate(
                         ..Default::default()
                     });
                     crate::actor_components::sync(&mut key);
-                    let classes = gameplay.expect("checked above");
+                    let (classes, player) = gameplay.expect("checked above");
+                    let player = player.map(|p| (crate::dungeon_gameplay::PLAYER, p));
                     key.components
-                        .push(gameplay_component(classes.key, "Key", spawn.lock, None));
+                        .push(gameplay_component(classes.key, "Key", spawn.lock, player));
                     actors.push(child(scene, key, g.derived_id(&role), "Key", g.root));
                 }
                 Piece::Door { color } => {
@@ -2013,8 +2079,9 @@ pub fn generate(
                     door.material.color = *color;
                     door.collider = Some(crate::collision::Collider::default());
                     crate::actor_components::sync(&mut door);
-                    let classes = gameplay.expect("checked above");
+                    let (classes, _) = gameplay.expect("checked above");
                     let opens = keys.get(&spawn.lock).copied();
+                    let opens = opens.map(|k| (crate::dungeon_gameplay::KEY_REFERENCE, k));
                     door.components.push(gameplay_component(
                         classes.door,
                         "Door",

@@ -152,6 +152,13 @@ mod tests {
             };
             let (keys, doors) = (with(classes.key.1), with(classes.door.1));
             assert_eq!(keys.len(), 1, "{flavor:?}");
+            // Only the character picks the key up.
+            let named = keys[0]
+                .components
+                .iter()
+                .find_map(|c| c.properties.get(crate::dungeon_gameplay::PLAYER))
+                .and_then(|v| v.as_str());
+            assert_eq!(named, Some(player.id.to_string().as_str()), "{flavor:?}");
             assert!(!doors.is_empty(), "{flavor:?}");
             for door in doors {
                 let named = door

@@ -1763,7 +1763,11 @@ impl<'a> Lower<'a> {
         let mut branch = ir::Block::new();
         let target: &mut ir::Block = if logical { &mut branch } else { pending };
         let b = self.expr(right, Some(a.value_type()), target, false)?;
-        if a.value_type() != b.value_type() {
+        // `==` and `~=` compare any two references by identity.
+        let references = matches!(op, BinOp::Eq | BinOp::Ne)
+            && a.value_type().is_reference()
+            && b.value_type().is_reference();
+        if a.value_type() != b.value_type() && !references {
             self.report(span, "Binary inputs must have exactly the same type");
             return None;
         }
@@ -1830,7 +1834,7 @@ impl<'a> Lower<'a> {
                 let comparable = matches!(
                     operand,
                     Type::Int32 | Type::UInt32 | Type::Fixed | Type::Enum { .. }
-                ) || (!ordered && operand == Type::Bool);
+                ) || (!ordered && (operand == Type::Bool || references));
                 if !comparable {
                     self.report(span, "Unsupported operator for the declared type");
                     return None;
@@ -3775,6 +3779,26 @@ pub(crate) mod tests {
         let components = spatial(schema::ClassFamily::Component, Domain::World3D);
         lower_in(&components, "    local a = epok.is_valid(epok.owner())")
             .expect("owner inside a component");
+    }
+
+    #[test]
+    fn lua_frontend_compares_references_by_identity() {
+        let registry = builtin_registry();
+        // References of different classes compare: they are one identity each.
+        lower_in(
+            &registry,
+            r#"
+    local spawned = epok.spawn("Spinner")
+    local narrowed = epok.cast(spawned, "Spinner")
+    local same = spawned == self.ref
+    local different = narrowed ~= spawned
+"#,
+        )
+        .expect("reference equality");
+        // References have no order, and never equal a number.
+        let message = diagnostics(&registry, "    local a = self.ref < self.ref");
+        assert!(message.contains("Unsupported operator"), "{message}");
+        diagnostics(&registry, "    local a = self.ref == 1");
     }
 
     #[test]

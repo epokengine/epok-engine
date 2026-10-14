@@ -197,7 +197,10 @@ have no graph execution policy and are rejected.
 Execution nodes include event/function entry, calls, Call Parent, setters,
 Branch, Sequence, bounded For, Return, Delay, Timeline and Stop Timeline.
 Pure expressions include literals, parameters, getters, arithmetic, comparison,
-Boolean operations, vector operations and reroutes. Engine adapters cover self,
+Boolean operations, vector operations and reroutes. **Equal** and **Not equal**
+also take two object, actor or component references of any classes and tell whether
+they name the same object (is the actor that entered a trigger the player?); wiring a
+reference widens both pins to Object. Engine adapters cover self,
 handle validity, local transforms, input, activity/destruction, scene requests,
 class tests/spawning and entity audio/texture assignment. Native annotated
 methods extend the callable surface without adding an interpreted language.
