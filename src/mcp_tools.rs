@@ -1079,6 +1079,17 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                             .unwrap_or_default()
                     })
                 },
+                video: if let Some(value) = a.get("video_settings") {
+                    Some(decode(value.clone())?)
+                } else {
+                    crate::video_import::is_source(&source).then(|| {
+                        existing
+                            .as_ref()
+                            .and_then(|r| r.meta.settings.video().ok())
+                            .cloned()
+                            .unwrap_or_default()
+                    })
+                },
                 texture: crate::texture::source_candidate(&source),
                 model,
                 model_storage,
@@ -1601,8 +1612,8 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
         ),
         (
             "asset_import",
-            "Import an FBX or audio source already in assets/. FBX animation_storage selects RigidGte or BakedVertices. Destination must be .epokasset. Reimport requires current asset revision. Poll editor_state for completion.",
-            json!({"source":s,"destination":s,"revision":s,"animation_storage":{"enum":["RigidGte","BakedVertices"]},"audio_settings":o,"sequence_settings":o,"bank_settings":o,"font_settings":o,"vb_source":s}),
+            "Import an FBX, audio or video source already in assets/. FBX animation_storage selects RigidGte or BakedVertices; video_settings sets the PSX video size, frame rate, audio and levels. Destination must be .epokasset. Reimport requires current asset revision. Poll editor_state for completion.",
+            json!({"source":s,"destination":s,"revision":s,"animation_storage":{"enum":["RigidGte","BakedVertices"]},"audio_settings":o,"sequence_settings":o,"bank_settings":o,"font_settings":o,"video_settings":o,"vb_source":s}),
             vec!["source", "destination"],
             false,
         ),

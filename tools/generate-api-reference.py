@@ -35,6 +35,8 @@ MODULE_CONTEXT = {
     "collision": "bounded AABB collision queries and movement",
     "effect": "runtime effects and their deterministic playback state",
     "fixed-math": "shared Q12 integer math primitives",
+    "fmv": "full-motion video clips and playback statistics",
+    "fmv-bitstream": "BS video frame decoding into MDEC run-length codes",
     "font": "GPU text rendering with the built-in or uploaded font atlas",
     "gpu": "GPU setup, command submission and frame synchronization",
     "gte": "Geometry Transformation Engine math and register operations",
@@ -66,11 +68,13 @@ MODULE_CONTEXT = {
     "trigonometry": "fixed-point trigonometric helpers",
     "vector": "fixed-point vector arithmetic",
     "visibility": "frustum tests and chunk visibility",
+    "video-service": "full-screen video playback streamed from CD",
 }
 
 INTERNAL_EPOK_HEADERS = {
     "blueprint_playback_service.hpp",
     "blueprint_runtime.hpp",
+    "fmv_bitstream.hpp",
     "loading_renderer.hpp",
     "particle_effect_runtime.hpp",
     "retained.hpp",
@@ -78,6 +82,7 @@ INTERNAL_EPOK_HEADERS = {
     "streaming_pool.hpp",
     "timeline_runtime.hpp",
     "transform_cache.hpp",
+    "video_service.hpp",
 }
 
 # Runtime headers that the engine never includes on their own. The umbrella

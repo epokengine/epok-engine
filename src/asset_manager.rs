@@ -49,6 +49,7 @@ pub struct ImportForm {
     pub sequence: Option<crate::sequence::Settings>,
     pub bank: Option<crate::sound_bank::Settings>,
     pub font: Option<crate::import_settings::FontSettings>,
+    pub video: Option<crate::video_import::Settings>,
     pub bank_companion: String,
     pub sequence_catalog: Option<Result<crate::sequence::SourceCatalog, String>>,
     pub existing: Option<Record>,
@@ -438,6 +439,13 @@ impl Manager {
         let lower = item.source.to_ascii_lowercase();
         let model = lower.ends_with(".fbx");
         let font = lower.ends_with(".ttf") || lower.ends_with(".otf");
+        let video = crate::video_import::is_source(&lower).then(|| {
+            existing
+                .as_ref()
+                .and_then(|r| r.meta.settings.video().ok())
+                .cloned()
+                .unwrap_or_default()
+        });
         let detected = assets::audio_source_kind(&self.root, &item.source);
         let soundfont = crate::soundfont_asset::has_source_header(&self.root.join(&item.source));
         let destination = existing
@@ -522,6 +530,7 @@ impl Manager {
                     }
                 }),
             font,
+            video,
             bank_companion: existing
                 .as_ref()
                 .and_then(crate::bank_compat::parts)
@@ -561,6 +570,7 @@ impl Manager {
             sequence,
             bank: record.meta.settings.sound_bank().ok().cloned(),
             font: record.meta.settings.font().ok().cloned(),
+            video: record.meta.settings.video().ok().cloned(),
             bank_companion: crate::bank_compat::parts(record)
                 .and_then(|p| p.get(1))
                 .map(|p| p.path.clone())
@@ -588,6 +598,7 @@ impl Manager {
             sequence: None,
             bank: Some(Default::default()),
             font: None,
+            video: None,
             bank_companion: String::new(),
             sequence_catalog: None,
             existing: None,
@@ -671,12 +682,23 @@ impl Manager {
         let sequence = form.sequence.clone();
         let bank = form.bank.clone();
         let font = form.font.clone();
+        let video = form.video.clone();
         let bank_companion = form.bank_companion.clone();
         self.worker_key = form.queue_key.clone();
         let (tx, rx) = mpsc::channel();
         // Worker only prepares a candidate/cache. The owning session alone can publish it.
         std::thread::spawn(move || {
-            let _ = tx.send(if texture {
+            let _ = tx.send(if let Some(settings) = video {
+                crate::video_import::prepare(
+                    &root,
+                    &source,
+                    &destination,
+                    settings,
+                    existing.as_ref(),
+                    snapshot,
+                )
+                .map(Prepared::Audio)
+            } else if texture {
                 crate::texture::prepare(&root, &source, &destination, existing.as_ref(), snapshot)
                     .map(Prepared::Audio)
             } else if model {

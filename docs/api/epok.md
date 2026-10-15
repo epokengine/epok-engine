@@ -2,7 +2,7 @@
 
 Epok's gameplay-facing and engine-runtime callables. Start here for entities, input, collision, audio, scenes, timelines, effects and resource budgets.
 
-**Coverage:** 116 headers · 2016 public callables.
+**Coverage:** 119 headers · 2036 public callables.
 
 ## Modules
 
@@ -15,7 +15,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Baked Draw Types](epok/baked-draw-types.md) | `baked_draw_types.hpp` | 7 | Epok runtime API |
 | [Baked Packet](epok/baked-packet.md) | `baked_packet.hpp` | 4 | Epok runtime API |
 | [Baked Selection](epok/baked-selection.md) | `baked_selection.hpp` | 1 | Epok runtime API |
-| [Blueprint Api](epok/blueprint-api.md) | `blueprint_api.hpp` | 46 | Epok runtime API |
+| [Blueprint Api](epok/blueprint-api.md) | `blueprint_api.hpp` | 49 | Epok runtime API |
 | [Blueprint Debug](epok/blueprint-debug.md) | `blueprint_debug.hpp` | 0 | Epok runtime API |
 | [Blueprint Spawn](epok/blueprint-spawn.md) | `blueprint_spawn.hpp` | 6 | Epok runtime API |
 | [Blueprint Template](epok/blueprint-template.md) | `blueprint_template.hpp` | 0 | Epok runtime API |
@@ -32,6 +32,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Epok](epok/epok.md) | `epok.hpp` | 54 | Epok runtime API |
 | [Fixed Math](epok/fixed-math.md) | `fixed_math.hpp` | 3 | Epok runtime API |
 | [Fixed Trigonometry](epok/fixed-trigonometry.md) | `fixed_trigonometry.hpp` | 4 | Epok runtime API |
+| [Fmv](epok/fmv.md) | `fmv.hpp` | 0 | Epok runtime API |
 | [Font Types](epok/font-types.md) | `font_types.hpp` | 3 | Epok runtime API |
 | [Frame Clear](epok/frame-clear.md) | `frame_clear.hpp` | 2 | Epok runtime API |
 | [Frustum](epok/frustum.md) | `frustum.hpp` | 10 | Epok runtime API |
@@ -117,6 +118,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [World2D Viewports](epok/world2d-viewports.md) | `world2d_viewports.hpp` | 23 | Epok runtime API |
 | [Blueprint Playback Service](epok/blueprint-playback-service.md) | `blueprint_playback_service.hpp` | 0 | Engine internal |
 | [Blueprint Runtime](epok/blueprint-runtime.md) | `blueprint_runtime.hpp` | 65 | Engine internal |
+| [Fmv Bitstream](epok/fmv-bitstream.md) | `fmv_bitstream.hpp` | 17 | Engine internal |
 | [Loading Renderer](epok/loading-renderer.md) | `loading_renderer.hpp` | 1 | Engine internal |
 | [Particle Effect Runtime](epok/particle-effect-runtime.md) | `particle_effect_runtime.hpp` | 22 | Engine internal |
 | [Retained](epok/retained.md) | `retained.hpp` | 19 | Engine internal |
@@ -124,6 +126,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Streaming Pool](epok/streaming-pool.md) | `streaming_pool.hpp` | 21 | Engine internal |
 | [Timeline Runtime](epok/timeline-runtime.md) | `timeline_runtime.hpp` | 32 | Engine internal |
 | [Transform Cache](epok/transform-cache.md) | `transform_cache.hpp` | 4 | Engine internal |
+| [Video Service](epok/video-service.md) | `video_service.hpp` | 0 | Engine internal |
 
 ## How to read an entry
 

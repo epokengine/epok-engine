@@ -77,6 +77,7 @@ mod effects;
 mod export;
 mod export_ui;
 mod file_watch;
+mod fmv;
 mod font_asset;
 mod gizmo;
 mod gui;
@@ -240,6 +241,10 @@ mod timeline_section;
 mod transform;
 mod vab_import;
 mod vertex_colors;
+mod video;
+mod video_import;
+mod video_preview;
+mod video_probe;
 mod viewport;
 mod viewport2d;
 mod visibility_bake;
@@ -381,6 +386,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--import-obj",
             "--import-texture",
             "--import-font",
+            "--import-video",
             "--reimport-asset",
             "--duplicate-music-sequence",
             "--render-music-sequence",
@@ -770,6 +776,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Ok(());
     }
+    if let Some(source) = value("--import-video") {
+        let destination = value("--asset").map(str::to_owned).unwrap_or_else(|| {
+            std::path::Path::new(source)
+                .with_extension("epokasset")
+                .to_string_lossy()
+                .into_owned()
+        });
+        let settings = value("--video-settings")
+            .map(|s| serde_json::from_str(s).map_err(|e| format!("--video-settings: {e}")))
+            .transpose()?
+            .unwrap_or_default();
+        let candidate = video_import::prepare(&root, source, &destination, settings, None, false)?;
+        let report = video_import::last_report(&root, &candidate.package.meta);
+        println!("Imported Video: {}", assets::commit(candidate)?);
+        if let Some(report) = report {
+            println!("{}", serde_json::to_string(&report)?);
+        }
+        return Ok(());
+    }
     if let Some(path) = value("--reimport-asset") {
         let path = assets::inside(&root, path)?;
         let p = assets::Package::load(&path)?;
@@ -812,6 +837,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     args.iter().any(|a| a == "--snapshot")
                 )?)?
             );
+            return Ok(());
+        }
+        if p.meta.kind == assets::Kind::Video {
+            let index = assets::scan(&root, &mut Default::default());
+            let r = index.resolve(p.meta.id)?;
+            let source = index
+                .linked_source(r)?
+                .map_or(p.meta.source.as_str(), |s| s.path.as_str());
+            let settings = match value("--video-settings") {
+                Some(s) => serde_json::from_str(s).map_err(|e| format!("--video-settings: {e}"))?,
+                None => p.meta.settings.video()?.clone(),
+            };
+            let candidate = video_import::prepare(
+                &root,
+                source,
+                &assets::path_string(&root, &path),
+                settings,
+                Some(r),
+                args.iter().any(|a| a == "--snapshot"),
+            )?;
+            println!("Reimported Video: {}", assets::commit(candidate)?);
             return Ok(());
         }
         if p.meta.kind == assets::Kind::ModelSource {
@@ -1924,6 +1970,9 @@ fn prepare_editor(editor: &mut editor::Editor) {
     let args = std::env::args().collect::<Vec<_>>();
     if args.iter().any(|a| a == "--screenshot-controls") {
         settings_ui::open_controls(editor);
+    }
+    if args.iter().any(|a| a == "--screenshot-video-preview") {
+        editor.asset_inspector.video.autoplay = true;
     }
     if let Some(relative) = args
         .windows(2)

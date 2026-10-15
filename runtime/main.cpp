@@ -21,6 +21,7 @@
 #endif
 #include "music.hpp"
 #include "streaming.hpp"
+#include "video_service.hpp"
 #include "lifecycle.hpp"
 #include "scene_service.hpp"
 #include "sprites.hpp"
@@ -909,6 +910,8 @@ class Game final : public psyqo::Application {
 #endif
     epok::music_prepare();
     epok::streaming_prepare();
+    // Videos share the BGM drive and its ISO9660 directory.
+    if constexpr (epok::video_clip_count > 0) epok::music_prepare(true);
     // PsyQo callback trampolines live in writable RAM. GPU, pad, memory-card
     // and sequence setup assign their lambdas after PsyQo's early cache flush;
     // flush again before interrupts can dispatch one of those RAM stubs.
@@ -920,6 +923,10 @@ class Game final : public psyqo::Application {
 Game game;
 
 void GameScene::frame() {
+#ifdef EPOK_HAS_VIDEO
+  // A playing video owns the screen, the CD and the pad; the game stands still.
+  if(epok::fmv::frame(gpu(),pad)){epok::time.synchronize(gpu().now());return;}
+#endif
   const uint16_t frame_begin = COUNTERS[1].value;
   epok::debug_hud::begin(gpu());
   performance_work={};

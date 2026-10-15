@@ -72,7 +72,7 @@ Tools publish their argument schemas and descriptions through `tools/list`.
 | `scene_actors`, `scene_add_actor`, `scene_remove_actor`, `scene_set_actor` | Author the actor half of a scene: list actors and placeable classes, add, remove and edit them. See [Actors](#actors) below. |
 | `project_settings` | Read or edit project name, startup scene, output resolution and build preferences. |
 | `project_files` | List directories and read/write text or base64 files under `assets/`, including gameplay scripts and source media. Delete individual source files. |
-| `asset_list`, `asset_import` | Inspect asset UUIDs, metadata and pending imports; import/reimport FBX or audio sources through the normal pipeline. |
+| `asset_list`, `asset_import` | Inspect asset UUIDs, metadata and pending imports; import/reimport FBX, audio or video sources through the normal pipeline (`video_settings` sets a video's picture size, frame rate, audio and brightness range). |
 | `mesh_create`, `asset_document` | Create Blockout primitives or custom geometry; read/edit mesh, skeleton, animation and material documents while preserving asset UUIDs. |
 | `dungeon_generate` | Create or regenerate a [Dungeon Generator](dungeons.md) with an optional seed, settings, style and recipe (or a new style or recipe from its current one), or remove its generated content. One `scene_history` step. `asset_document` reads and edits Dungeon Styles and Dungeon Recipes. |
 | `asset_manage` | Move, duplicate or move imported assets to the existing recoverable trash. Referenced assets cannot be trashed. |

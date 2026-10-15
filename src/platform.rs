@@ -782,6 +782,7 @@ pub fn run(
                 if let Some(editor) = session.as_mut() {
                     editor.project_browser.previews.upload(&device, &queue, &mut renderer);
                     editor.asset_inspector.media.upload(&device, &queue, &mut renderer);
+                    editor.asset_inspector.video.upload(&device, &queue, &mut renderer);
                     editor.world2d.textures.upload(&device, &queue, &mut renderer, &editor.scene.textures);
                     editor.asset_inspector.visible = false;
                     editor.asset_inspector.texture = asset_renderer.as_ref().map(|(_,id,_)|*id);

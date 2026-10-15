@@ -467,6 +467,14 @@ See [HUD and 2D entities](hud.md).
   fits the sample bank to the PSX budget.
 - **XA background music.** Encode/interleave disc XA, generate the disc manifest
   and drive asynchronous ISO/CD playback with loop/end/error state.
+- **Full-motion video.** Import MP4, MOV, AVI, MKV, WebM, MPEG and GIF clips as
+  Video assets encoded to MDEC/XA `.STR` streams; every frame is checked with the
+  console's decoder at import. The File Inspector previews the clip as the
+  console decodes it and reports picture, duration, disc space and player RAM.
+  Blueprint *Play/Stop/Is video playing* nodes and `epok.play_video` stream it
+  from CD at double speed, decode it with the MDEC into the frame buffer,
+  letterbox it in 320 x 240, pause gameplay, skip on START/✕ and expand TV-range
+  levels for free. See [Full-motion video](video.md).
 - **Transition audio.** Scene transitions multiply authored audio gain during
   fade-out/fade-in and stop outgoing sources safely after pending callbacks.
 - **Capacity.** Resident audio is validated against the 512 KiB SPU budget with a
@@ -819,6 +827,7 @@ live beside the corresponding implementation and are summarized under
 | Settings/project UI | `settings`, `settings_ui`, `project`, `project_browser`, `console` |
 | Asset system | `assets`, `asset_manager`, `asset_ui`, `asset_inspector`, `content_preview`, `import_settings`, `artifact_dependencies`, `artifact_dependency_ui` |
 | Texture/model/audio import | `texture`, `model_import`, `obj_import`, `audio_decode`, `audio_import`, `preview_audio` |
+| Video | `fmv`, `video_import`, `video_probe`, `video`, `video_preview` |
 | Scene and preview | `scene`, `transform`, `viewport`, `scene_gpu`, `picking`, `gizmo`, `scene_bank`, `scene_dependencies`, `scene_view_mode` |
 | Object/Actor model | `object_model`, `actor_document` |
 | 2D worlds | `world2d`, `world2d_editor`, `platformer_template` |
@@ -843,6 +852,7 @@ live beside the corresponding implementation and are summarized under
 | Visual content | `sprite_types.hpp`, `sprites.hpp`, `particle_types.hpp`, `particles.hpp`, `effect_types.hpp`, `effects.hpp`, `particle_effect_runtime.hpp`, `particle_effect_service.hpp`, `palette_types.hpp`, `palette.hpp`, `skeletal.hpp`, `hud.hpp`, `text.hpp` |
 | Dungeon generation | `dungeon_random.hpp`, `dungeon_map.hpp`, `dungeon_minimap.hpp` |
 | Gameplay services | `input.hpp`, `collision.hpp`, `audio.hpp`, `music.hpp`, `memory_card.hpp`, `memory_card_backend.hpp`, `streaming_pool.hpp`, `streaming.hpp` |
+| Video | `fmv.hpp`, `fmv_bitstream.hpp`, `video_service.hpp` |
 | Blueprint/Lua/Timeline | `blueprint_api.hpp`, `blueprint_runtime.hpp`, `blueprint_debug.hpp`, `blueprint_spawn.hpp`, `blueprint_template.hpp`, `blueprint_playback_service.hpp`, `lua_runtime.hpp`, `playback_types.hpp`, `timeline.hpp`, `timeline_runtime.hpp`, `timeline_service.hpp` |
 
 `runtime/main.cpp`, `runtime/Makefile`, `runtime/build.ps1`, `runtime/build.sh`

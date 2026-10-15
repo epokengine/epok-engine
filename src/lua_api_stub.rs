@@ -656,6 +656,18 @@ function epok.set_texture(reference, texture) end
 ---@param clip AssetRef
 function epok.set_audio_clip(reference, clip) end
 
+--- Queues a full-screen video. Gameplay pauses while it plays and resumes
+--- afterwards; returns false when the clip is not on the disc.
+---@param video AssetRef
+---@param skippable boolean
+---@return boolean
+function epok.play_video(video, skippable) end
+
+function epok.stop_video() end
+
+---@return boolean
+function epok.video_playing() end
+
 --- Statement only: the playback handle stays native.
 ---@param reference ComponentRef
 function epok.play_sequence(reference) end
