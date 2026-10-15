@@ -406,9 +406,18 @@ mod tests {
         crate::pipeline::quiet(&mut command);
         command
     }
+    /// The PowerShell fakes run one at a time. Each owns a pseudo console, and on a
+    /// loaded Windows runner several at once missed their deadlines or were ended by a
+    /// console control event before their script finished.
+    #[cfg(windows)]
+    fn conpty() -> std::sync::MutexGuard<'static, ()> {
+        static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        ONE.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
     #[test]
     #[cfg(windows)]
     fn zero_exit_after_transport_error_is_not_success() {
+        let _conpty = conpty();
         let (tx, _) = mpsc::channel();
         let (_stop, rx) = mpsc::channel();
         let result = execute(
@@ -422,6 +431,7 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn monitor_requires_runtime_ready_and_stop_reaps_its_process() {
+        let _conpty = conpty();
         let (tx, events) = mpsc::channel();
         let (stop, rx) = mpsc::channel();
         let worker = thread::spawn(move || {
@@ -434,7 +444,7 @@ mod tests {
                 &rx,
             )
         });
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + Duration::from_secs(60);
         let mut ready = false;
         while Instant::now() < deadline {
             if matches!(
@@ -509,6 +519,7 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn setup_requires_acknowledgement_and_successful_exit() {
+        let _conpty = conpty();
         for (script, success) in [
             (
                 "[Console]::Write('Response: Tr'); Start-Sleep -Milliseconds 50; [Console]::WriteLine('ue'); exit 0",
@@ -534,7 +545,12 @@ mod tests {
         ] {
             let (tx, events) = mpsc::channel();
             let (_stop, rx) = mpsc::channel();
-            let result = execute(fake(script), Mode::Setup, &tx, &rx);
+            let mut result = execute(fake(script), Mode::Setup, &tx, &rx);
+            // STATUS_CONTROL_C_EXIT: the host ended PowerShell with a console control
+            // event. No script exits that way, so it is run again rather than judged.
+            if result.as_ref().is_err_and(|e| e.contains("3221225786")) {
+                result = execute(fake(script), Mode::Setup, &tx, &rx);
+            }
             assert_eq!(result.is_ok(), success, "{script}: {result:?}");
             assert!(
                 !events
@@ -572,6 +588,7 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn timed_out_reset_resynchronizes_before_accepting_another_control() {
+        let _conpty = conpty();
         let (tx, events) = mpsc::channel();
         let (controls, rx) = mpsc::channel();
         let worker = thread::spawn(move || {
@@ -599,7 +616,7 @@ mod tests {
         let mut connected = 0;
         let mut resynchronized = false;
         let mut resumed = false;
-        let deadline = Instant::now() + Duration::from_secs(16);
+        let deadline = Instant::now() + Duration::from_secs(60);
         while Instant::now() < deadline {
             match events.recv_timeout(Duration::from_millis(100)) {
                 Ok(Event::SerialConnected) => {
@@ -630,6 +647,7 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn monitor_controls_share_one_process_and_reset_requires_reply() {
+        let _conpty = conpty();
         let (tx, events) = mpsc::channel();
         let (controls, rx) = mpsc::channel();
         let worker = thread::spawn(move || {
@@ -657,7 +675,7 @@ mod tests {
                 &rx,
             )
         });
-        let deadline = Instant::now() + Duration::from_secs(15);
+        let deadline = Instant::now() + Duration::from_secs(60);
         let mut states = Vec::new();
         let mut connected = false;
         let mut in_flight = false;
@@ -693,6 +711,7 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn upload_and_runtime_markers_without_a_resident_reply_are_not_connected() {
+        let _conpty = conpty();
         let (tx, events) = mpsc::channel();
         let (_controls, rx) = mpsc::channel();
         let result = execute(

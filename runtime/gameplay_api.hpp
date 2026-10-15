@@ -9,6 +9,7 @@
 #include "skeletal.hpp"
 #include "world2d.hpp"
 #include "utility.hpp"
+#include "dungeon_map.hpp"
 
 namespace epok {
 
@@ -50,6 +51,26 @@ struct EPOK_VALUE(Id="7d7ee869-9f9b-4c44-b32b-5d2653266f86") CollisionHit2DSampl
     ObjectId actor{};
     Fixed fraction=1.0;
     GameplayVector2 point{},normal{};
+};
+// One room of the map's generated dungeon. Positions are world units in 3D and pixels
+// in 2D (x, y, with z 0). `path` is the recipe path the room is on, in recipe order
+// (0 is the main path); `depth` counts rooms from the spawn room and `steps_to_goal`
+// rooms to the goal room.
+struct EPOK_VALUE(Id="35aae859-578d-40e0-ad9e-8595b255aa53") DungeonRoom {
+    bool valid=false;
+    int32_t index=-1;
+    GameplayVector3 center{},minimum{},maximum{};
+    int32_t level=0;
+    uint32_t path=0,depth=0,steps_to_goal=0,neighbours=0,spots=0;
+    bool spawn=false,goal=false,key=false,item=false,locked=false;
+};
+// A key, item, locked door or free spot of the generated dungeon and its room. `lock`
+// is the lock a key opens or a door needs, 0 otherwise.
+struct EPOK_VALUE(Id="ec9ebbde-853e-45e3-9cc0-7cfebacc6fd5") DungeonPoint {
+    bool valid=false;
+    GameplayVector3 position{};
+    int32_t room=-1;
+    uint32_t lock=0;
 };
 struct EPOK_VALUE(Id="cb5a92d0-066e-48dc-a3b4-b96cce6e019b") GameplayAabb {
     GameplayVector3 minimum{},maximum{};
@@ -378,6 +399,65 @@ struct EPOK_FUNCTION_LIBRARY(Category="Memory Card", Id="6073b812-ff1e-4764-9ba2
     EPOK_FUNCTION(BlueprintPure, Id="e2e0df92-13dd-4a46-99e5-54e255c8446b") static uint32_t staged_word(uint32_t index){return index<MemoryCardService::max_payload/4?gameplay_save_words()[index]:0;}
     EPOK_FUNCTION(BlueprintCallable, AsyncRequest, Id="c2809980-126a-4ed0-bf4f-1a073766d813") static bool write_staged(uint32_t slot,uint32_t bytes,uint32_t port){const char* name=gameplay_card_slot_name(slot);return name&&bytes<=MemoryCardService::max_payload&&memory_card.write(name,"EPOK Save",gameplay_save_words(),bytes,port);}
     EPOK_FUNCTION(BlueprintPure, Id="3164add9-daa1-4853-a44d-03b649f93f11") static uint32_t loaded_word(uint32_t index){const uint32_t offset=index*4;if(index>=MemoryCardService::max_payload/4||offset>=memory_card.size())return 0;uint32_t value=0;const auto* data=memory_card.data();for(uint32_t byte=0;byte<4&&offset+byte<memory_card.size();++byte)value|=uint32_t(data[offset+byte])<<(byte*8);return value;}
+};
+
+inline GameplayVector3 gameplay_dungeon_vector(const int32_t* raw){return {Fixed(raw[0],Fixed::RAW),Fixed(raw[1],Fixed::RAW),Fixed(raw[2],Fixed::RAW)};}
+inline DungeonPoint gameplay_dungeon_point(const dungeon::PointData* point){
+    DungeonPoint result;if(!point)return result;
+    result.valid=true;result.position=gameplay_dungeon_vector(point->position);result.room=point->room;result.lock=point->lock;return result;
+}
+
+// What the editor's Dungeon Generator baked about this map: rooms, how they link,
+// keys, locks, items, free spots, and a random stream tied to the dungeon's seed.
+// Rooms are numbered from 0; functions return -1, 0 or an invalid value when the map
+// has no generated dungeon or an index is out of range.
+struct EPOK_FUNCTION_LIBRARY(Category="Dungeon", Id="0165c4fc-3b3c-4916-a158-f07e3f702c20") DungeonLibrary {
+    EPOK_FUNCTION(BlueprintPure, Id="5e7e3aef-55b3-42bf-bf9c-b9459dd1ccae") static uint32_t room_count(){return dungeon::map.room_count;}
+    // The room holding a world point (pixels in 2D), or -1 in a corridor or outside.
+    EPOK_FUNCTION(BlueprintPure, Id="57e10834-1eff-474a-8bc7-d03032527af6") static int32_t room_at(GameplayVector3 point){const int32_t raw[3]={point.x.raw(),point.y.raw(),point.z.raw()};return dungeon::room_at(raw);}
+    // The room a 3D actor stands in, or -1. In 2D pass the actor's position to room_at.
+    EPOK_FUNCTION(BlueprintPure, Id="7727ee8e-5ebe-411c-80a3-07af40ad57b6") static int32_t room_of(ObjectId actor){const auto affine=gameplay_world_affine(gameplay_actor_data(actor));if(!affine.success)return -1;const int32_t raw[3]={affine.position[0].raw(),affine.position[1].raw(),affine.position[2].raw()};return dungeon::room_at(raw);}
+    EPOK_FUNCTION(BlueprintPure, Id="b98ef46d-b84c-4629-83c9-46f76e4f17e6") static int32_t spawn_room(){return dungeon::map.spawn;}
+    EPOK_FUNCTION(BlueprintPure, Id="b22991ec-2a6a-449c-9c09-5177f0bc0c7d") static int32_t goal_room(){return dungeon::map.goal;}
+    EPOK_FUNCTION(BlueprintPure, Id="7d9ba1d7-0916-4afd-ae47-0ea36e11d400") static DungeonRoom room(int32_t index){
+        DungeonRoom result;const auto* r=dungeon::room(index);if(!r)return result;
+        result.valid=true;result.index=index;result.center=gameplay_dungeon_vector(r->center);result.minimum=gameplay_dungeon_vector(r->minimum);result.maximum=gameplay_dungeon_vector(r->maximum);
+        result.level=r->level;result.path=r->path;result.depth=r->depth;result.steps_to_goal=r->to_goal;result.neighbours=r->neighbours;result.spots=r->spots;
+        result.spawn=r->flags&dungeon::spawn_room;result.goal=r->flags&dungeon::goal_room;result.key=r->flags&dungeon::key_room;result.item=r->flags&dungeon::item_room;result.locked=r->flags&dungeon::locked_room;
+        return result;
+    }
+    // The `index`-th room linked to `room`, or -1.
+    EPOK_FUNCTION(BlueprintPure, Id="7f712581-ae66-41e0-8acf-1f259d4a39cf") static int32_t neighbour(int32_t room,uint32_t index){const auto* r=dungeon::room(room);return r&&index<r->neighbours?dungeon::map.neighbours[r->first_neighbour+index]:-1;}
+    // The room after `from` on a shortest way to `to`; `from` when they are the same
+    // room, -1 when there is no way.
+    EPOK_FUNCTION(BlueprintPure, Id="5d8c296c-def1-4e2c-97d6-8b08da38a060") static int32_t next_room(int32_t from,int32_t to){return dungeon::next_room(from,to);}
+    // Rooms between two rooms on a shortest way, or -1 when there is no way.
+    EPOK_FUNCTION(BlueprintPure, Id="77b41d35-a897-4411-826b-c9684497a38e") static int32_t distance(int32_t from,int32_t to){int8_t previous[64];return dungeon::walk(from,to,previous);}
+    EPOK_FUNCTION(BlueprintPure, Id="47da597c-1a5e-4e37-accd-d56e2eb6bafc") static uint32_t item_count(){return dungeon::map.item_count;}
+    // A key (lock above 0) or other item the recipe placed.
+    EPOK_FUNCTION(BlueprintPure, Id="5137970e-6f0e-44f5-93fe-16018ef5d86e") static DungeonPoint item(uint32_t index){return gameplay_dungeon_point(index<dungeon::map.item_count?&dungeon::map.items[index]:nullptr);}
+    EPOK_FUNCTION(BlueprintPure, Id="14426bac-df94-4655-b988-7acb87f9bdcb") static uint32_t lock_count(){return dungeon::map.lock_count;}
+    // A locked door: its doorway, the room it guards and the lock its key opens.
+    EPOK_FUNCTION(BlueprintPure, Id="ecdc4a87-124a-49c5-a10f-066704960cb1") static DungeonPoint lock(uint32_t index){return gameplay_dungeon_point(index<dungeon::map.lock_count?&dungeon::map.locks[index]:nullptr);}
+    // A free floor point of a room, away from its doors, keys and items: somewhere to
+    // put an enemy or a prop. A room has `spots` of them.
+    EPOK_FUNCTION(BlueprintPure, Id="21e0b338-2409-4313-aafa-5fadf3eff5d3") static DungeonPoint spot(int32_t room,uint32_t index){const auto* r=dungeon::room(room);return gameplay_dungeon_point(r&&index<r->spots?&dungeon::map.spots[r->first_spot+index]:nullptr);}
+    EPOK_FUNCTION(BlueprintPure, Id="0f7f72f9-13cf-4cc7-a43d-5f405d0a5cc0") static uint32_t seed(){return dungeon::map.seed;}
+    // A number below `below` from the dungeon's own random stream: the same for the same
+    // stream, index and seed on every run, so a room can always roll the same enemy.
+    EPOK_FUNCTION(BlueprintPure, Id="cbed855e-d677-4379-9392-9d2bcf7510e5") static uint32_t random(uint32_t stream,uint32_t index,uint32_t below){return dungeon::random(stream,index,below);}    // The minimap, when the generator has one: its box shows or hides; the full map
+    // fills the screen (for a pause or map screen) over the box.
+    EPOK_FUNCTION(BlueprintCallable, Id="62c7ac2e-415b-4eb5-9b52-ee6e50894230") static void show_minimap(bool visible){if(visible)dungeon::minimap.flags|=dungeon::minimap_visible;else dungeon::minimap.flags&=uint8_t(~dungeon::minimap_visible);}
+    EPOK_FUNCTION(BlueprintPure, Id="3087e2d1-9bba-4470-a654-b79f3fb46280") static bool minimap_shown(){return dungeon::minimap.count&&(dungeon::minimap.flags&dungeon::minimap_visible);}
+    EPOK_FUNCTION(BlueprintCallable, Id="52559c3a-438b-4823-b6c8-2ee940a062b4") static void show_full_map(bool full){if(full)dungeon::minimap.flags|=dungeon::minimap_full|dungeon::minimap_visible;else dungeon::minimap.flags&=uint8_t(~dungeon::minimap_full);}
+    EPOK_FUNCTION(BlueprintPure, Id="1534b2cc-9065-4dcf-a6b1-394f674b0b93") static bool full_map_shown(){return dungeon::minimap.count&&(dungeon::minimap.flags&dungeon::minimap_full);}
+    // Rooms the player has entered show on the minimap, with the corridors they open
+    // into. Exploring needs the generator's minimap; a room can also be revealed from
+    // game code, for a map item or a save.
+    EPOK_FUNCTION(BlueprintCallable, Id="a560a9a7-22e8-4975-9fbc-75c7196b4cbd") static void explore_room(int32_t room){dungeon::explore_room(room);}
+    EPOK_FUNCTION(BlueprintPure, Id="fe9d38c0-04b4-4e4c-a0a2-47c9fa9bc4f1") static bool room_explored(int32_t room){return dungeon::room_explored(room);}
+    EPOK_FUNCTION(BlueprintCallable, Id="4298a984-7ce5-4d17-97b2-3305942dd5e3") static void explore_everything(){dungeon::explore_everything();}
+    EPOK_FUNCTION(BlueprintCallable, Id="16bb9ac9-cd19-41b1-9d2c-01959c940896") static void forget_explored(){dungeon::forget_everything();}
 };
 
 } // namespace epok

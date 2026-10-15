@@ -1088,9 +1088,10 @@ pub enum Preset {
     Joint2D,
     SubViewport2D,
     SplitScreen2D,
+    DungeonGenerator,
 }
 impl Preset {
-    pub const ALL: [Preset; 27] = [
+    pub const ALL: [Preset; 28] = [
         Preset::Node2D,
         Preset::Sprite2D,
         Preset::AnimatedSprite2D,
@@ -1101,6 +1102,7 @@ impl Preset {
         Preset::RigidBody2D,
         Preset::Joint2D,
         Preset::TileMapLayer,
+        Preset::DungeonGenerator,
         Preset::Parallax2D,
         Preset::Path2D,
         Preset::PathFollow2D,
@@ -1130,9 +1132,11 @@ impl Preset {
             | Preset::Area2D
             | Preset::RigidBody2D
             | Preset::Joint2D => "Physics",
-            Preset::TileMapLayer | Preset::Parallax2D | Preset::Path2D | Preset::PathFollow2D => {
-                "Level"
-            }
+            Preset::TileMapLayer
+            | Preset::DungeonGenerator
+            | Preset::Parallax2D
+            | Preset::Path2D
+            | Preset::PathFollow2D => "Level",
             Preset::Line2D | Preset::Polygon2D | Preset::Particles2D | Preset::PointLight2D => {
                 "Drawing and effects"
             }
@@ -1176,6 +1180,7 @@ impl Preset {
             Preset::Joint2D => "Joint2D",
             Preset::SubViewport2D => "SubViewport2D",
             Preset::SplitScreen2D => "SplitScreen2D",
+            Preset::DungeonGenerator => "DungeonGenerator",
         }
     }
     pub fn description(self) -> &'static str {
@@ -1223,6 +1228,9 @@ impl Preset {
             Preset::SplitScreen2D => {
                 "Shows two cameras side by side or stacked: local multiplayer."
             }
+            Preset::DungeonGenerator => {
+                "Generates rooms, corridors and walls from a seed into a tile layer."
+            }
         }
     }
     pub fn components(self) -> &'static [&'static str] {
@@ -1252,6 +1260,7 @@ impl Preset {
             Preset::Joint2D => &[JOINT2D],
             Preset::SubViewport2D => &[SUBVIEWPORT2D],
             Preset::SplitScreen2D => &[SPLIT_SCREEN2D],
+            Preset::DungeonGenerator => &[],
         }
     }
 }

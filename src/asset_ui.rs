@@ -207,9 +207,19 @@ fn manager_body(ui: &Ui, m: &mut Manager, scene: &crate::scene::Scene) {
                                 | assets::Kind::Texture
                         ) {
                             ui.text_wrapped(assets::path_string(&m.root, &record.path));
-                            ui.text(
-                                "Select this asset in Project to open the skeletal model preview.",
-                            );
+                            ui.text(if matches!(
+                                record.meta.kind,
+                                assets::Kind::TileSet
+                                    | assets::Kind::Terrain
+                                    | assets::Kind::StringTable
+                                    | assets::Kind::DungeonStyle
+                                    | assets::Kind::DungeonRecipe
+                                    | assets::Kind::DungeonRoom
+                            ) {
+                                "Double-click this asset in Project to open its editor."
+                            } else {
+                                "Select this asset in Project to open the skeletal model preview."
+                            });
                             return;
                         }
                         if record.meta.kind == assets::Kind::EditableMesh {

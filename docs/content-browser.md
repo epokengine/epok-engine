@@ -19,7 +19,7 @@ Favorites, Collections and view settings are stored per project in `UserSettings
 
 ## Files and assets
 
-Native assets use distinct, colored type icons in both tiles and list rows: Blueprint, Scene, Texture, Mesh, Skeleton, Audio, Animation, Material, Timeline and Particle Effect. Display names omit `.epokasset`, `.epokbp`, `.epokmap`, `.timeline.json` and `.particle-effect.json`. Full names remain available in tooltips and the list's Path column. Source files keep their extensions; presentation never changes the files on disk.
+Native assets use distinct, colored type icons in both tiles and list rows: Blueprint, Scene, Texture, Mesh, Skeleton, Audio, Animation, Material, Timeline, Particle Effect, Dungeon Style and Dungeon Recipe. Display names omit `.epokasset`, `.epokbp`, `.epokmap`, `.timeline.json` and `.particle-effect.json`. Full names remain available in tooltips and the list's Path column. Source files keep their extensions; presentation never changes the files on disk.
 
 ![Native asset type icons](images/content-browser-icons.png)
 
@@ -65,7 +65,7 @@ Startup establishes the source-observation baseline after loading and migration.
 
 Content Drawer switches to the bottom drawer; Dock in Layout returns to the previous docking node. Output Log focuses Console. Cmd exposes `save`, `build`, `play`, `stop` and `refresh`. Derived Data opens the asset dependency view. Source Control Off reflects the absence of an integrated source-control provider.
 
-Add retains Epok's C++ Class, Blueprint Class, Timeline, Particle Effect and Timeline Adapter workflows. Those specialized workflows retain their established destination rules. This panel does not introduce external asset types, source-control integration or an advanced search language.
+Add retains Epok's C++ Class, Blueprint Class, Timeline, Particle Effect and Timeline Adapter workflows, creates [Dungeon Styles](dungeons.md#dungeon-styles) for 3D or 2D dungeons and [Dungeon Recipes](dungeons.md#dungeon-recipes). Those specialized workflows retain their established destination rules. This panel does not introduce external asset types, source-control integration or an advanced search language.
 
 ## Visual verification
 

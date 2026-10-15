@@ -14,6 +14,8 @@ SOURCES = [ROOT / "tests/runtime/spatial.cpp", ROOT / "tests/runtime/transform_c
 SOURCES.append(ROOT / "tests/runtime/gameplay_api.cpp")
 SOURCES.append(ROOT / "tests/runtime/navigation.cpp")
 SOURCES.append(ROOT / "tests/runtime/terrain_collision.cpp")
+SOURCES.append(ROOT / "tests/runtime/compound_collision.cpp")
+SOURCES.append(ROOT / "tests/runtime/dungeon_random.cpp")
 SOURCES.append(ROOT / "tests/runtime/navigation_motion.cpp")
 SOURCES.append(ROOT / "tests/runtime/frustum.cpp")
 SOURCES.append(ROOT / "tests/runtime/visibility.cpp")

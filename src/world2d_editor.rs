@@ -85,6 +85,7 @@ pub fn preset_icon(preset: Preset) -> &'static str {
         Preset::Joint2D => crate::world2d_physics_editor::ICON_JOINT,
         Preset::SubViewport2D => crate::world2d_viewport_editor::ICON_PICTURE,
         Preset::SplitScreen2D => crate::world2d_viewport_editor::ICON_SPLIT,
+        Preset::DungeonGenerator => crate::dungeon_editor::ICON,
     }
 }
 
@@ -540,6 +541,7 @@ pub fn create_command(preset: Preset) -> &'static str {
         Preset::Joint2D => "create-node2d-Joint2D",
         Preset::SubViewport2D => "create-node2d-SubViewport2D",
         Preset::SplitScreen2D => "create-node2d-SplitScreen2D",
+        Preset::DungeonGenerator => "create-node2d-DungeonGenerator",
     }
 }
 /// Whether the Inspector should show the 2D layout for this actor.
@@ -912,6 +914,9 @@ pub fn create_node(e: &mut Editor, preset: Preset, position: [f32; 2]) -> Option
     e.changed();
     e.log(format!("Created {name} ({}).", preset.label()));
     remember_node(e, preset);
+    if preset == Preset::DungeonGenerator {
+        crate::dungeon_editor::attach(e, id);
+    }
     Some(id)
 }
 const RECENT_NODES: &str = "UserSettings/Recent2DNodes.epokprefs";
@@ -3302,6 +3307,7 @@ fn inspector_body(ui: &Ui, e: &mut Editor, id: Uuid) {
     }
     ui.separator();
     warnings_band(ui, e, id);
+    crate::dungeon_editor::inspector(ui, e, id);
     let Some(index) = e.scene.actor_index(id) else {
         return;
     };

@@ -9,6 +9,12 @@ const size_t object_class_count = 0;
 ActorData* DataHandle::get() const { return nullptr; }
 DataHandle handle(const ActorData*) { return {}; }
 bool is_active(const ActorData*) { return false; }
+// No actor resolves on the host, so actors have no world placement.
+WorldAffineSample gameplay_world_affine(const ActorData* entity) {
+    WorldAffineSample result;
+    if(entity)result.success=true;
+    return result;
+}
 bool skeletal_world_point(const ActorData&,const Fixed* model,Fixed* world) {
     if(!model||!world)return false;
     world[0]=model[0]+Fixed(10.0);
@@ -422,6 +428,109 @@ static void vector_tweens_track_scalar_tweens() {
     assert(epok::UtilityVectorLibrary::vector_tween_advance(cancelled,9.0).value.x.raw()==held.x.raw());
 }
 
+// Three rooms in a row along X with corridors between them: the spawn, a locked room
+// on a branch path one level up, and the goal holding the key.
+static void dungeon_queries() {
+    using epok::DungeonLibrary;
+    namespace dungeon=epok::dungeon;
+    dungeon::reset({});
+    assert(DungeonLibrary::room_count()==0&&DungeonLibrary::spawn_room()==-1&&DungeonLibrary::goal_room()==-1);
+    assert(!DungeonLibrary::room(0).valid&&DungeonLibrary::room_at({1.0,0.0,1.0})==-1);
+    assert(DungeonLibrary::next_room(0,1)==-1&&DungeonLibrary::distance(0,0)==-1&&!DungeonLibrary::item(0).valid);
+
+    constexpr int32_t u=4096;
+    static constexpr dungeon::RoomData rooms[]={
+        {{0,0,0},{4*u,6*u,4*u},{2*u,0,2*u},0,0,0,0,dungeon::spawn_room,0,2,1,1},
+        {{8*u,0,0},{12*u,6*u,4*u},{10*u,0,2*u},1,1,1,1,dungeon::locked_room,1,1,2,0},
+        {{16*u,0,0},{20*u,6*u,4*u},{18*u,0,2*u},0,0,3,1,dungeon::goal_room|dungeon::key_room,2,0,1,0},
+    };
+    static constexpr uint8_t neighbours[]={1,0,2,1};
+    static constexpr dungeon::PointData spots[]={{{u,0,u},0,0}};
+    static constexpr dungeon::PointData items[]={{{18*u,0,2*u},2,1}};
+    static constexpr dungeon::PointData locks[]={{{8*u,0,2*u},1,1}};
+    dungeon::reset({rooms,3,neighbours,spots,items,1,locks,1,0,2,1207u,false});
+
+    assert(DungeonLibrary::room_count()==3&&DungeonLibrary::spawn_room()==0&&DungeonLibrary::goal_room()==2);
+    // Rooms are found on the ground plane whatever the height; corridors are no room.
+    assert(DungeonLibrary::room_at({2.0,0.0,2.0})==0&&DungeonLibrary::room_at({10.0,3.0,2.0})==1);
+    assert(DungeonLibrary::room_at({6.0,0.0,2.0})==-1&&DungeonLibrary::room_at({2.0,0.0,9.0})==-1);
+    assert(DungeonLibrary::room_of(epok::ObjectId{})==-1);
+
+    const auto locked=DungeonLibrary::room(1);
+    assert(locked.valid&&locked.index==1&&locked.level==1&&locked.path==1&&locked.locked&&!locked.spawn);
+    assert(locked.depth==1&&locked.steps_to_goal==1&&locked.neighbours==2&&locked.spots==0);
+    assert(locked.center.x.raw()==10*u&&locked.minimum.x.raw()==8*u&&locked.maximum.y.raw()==6*u);
+    const auto goal=DungeonLibrary::room(2);
+    assert(goal.goal&&goal.key&&!goal.item&&!DungeonLibrary::room(3).valid&&!DungeonLibrary::room(-1).valid);
+
+    assert(DungeonLibrary::neighbour(1,0)==0&&DungeonLibrary::neighbour(1,1)==2);
+    assert(DungeonLibrary::neighbour(1,2)==-1&&DungeonLibrary::neighbour(7,0)==-1);
+    // Ways through the links, both directions, and to the same room.
+    assert(DungeonLibrary::next_room(0,2)==1&&DungeonLibrary::next_room(2,0)==1&&DungeonLibrary::next_room(1,2)==2);
+    assert(DungeonLibrary::next_room(1,1)==1&&DungeonLibrary::next_room(0,9)==-1);
+    assert(DungeonLibrary::distance(0,2)==2&&DungeonLibrary::distance(2,1)==1&&DungeonLibrary::distance(0,0)==0);
+
+    assert(DungeonLibrary::item_count()==1&&DungeonLibrary::lock_count()==1);
+    const auto key=DungeonLibrary::item(0);
+    assert(key.valid&&key.room==2&&key.lock==1&&key.position.x.raw()==18*u&&!DungeonLibrary::item(1).valid);
+    const auto door=DungeonLibrary::lock(0);
+    assert(door.valid&&door.room==1&&door.lock==1&&!DungeonLibrary::lock(1).valid);
+    const auto spot=DungeonLibrary::spot(0,0);
+    assert(spot.valid&&spot.room==0&&spot.position.x.raw()==u&&!DungeonLibrary::spot(0,1).valid&&!DungeonLibrary::spot(1,0).valid);
+
+    // The gameplay stream is the dungeon's: same inputs, same number, every run.
+    assert(DungeonLibrary::seed()==1207u);
+    const uint32_t roll=DungeonLibrary::random(1,2,10);
+    assert(roll<10&&roll==DungeonLibrary::random(1,2,10));
+    assert(roll==dungeon::Random::stream(1207u^(1u*0x85ebca6bu),2).below(10));
+    assert(DungeonLibrary::random(1,2,0)==0);
+
+    // The minimap: three rooms of a 1-unit grid from x 0 and z 0, and two corridors
+    // between them; walking explores rectangles, entering a room the whole room.
+    static constexpr dungeon::MapRect rects[]={
+        {0,0,4,2,0,{-1,-1},0},{0,2,4,2,0,{-1,-1},0},
+        {8,0,4,4,1,{-1,-1},0},{16,0,4,4,2,{-1,-1},0},
+        {4,1,4,1,-1,{0,1},0},{12,1,4,1,-1,{1,2},0},
+    };
+    static uint32_t explored[1];
+    dungeon::Minimap minimap{};
+    minimap.rects=rects;minimap.count=6;minimap.columns=20;minimap.rows=4;
+    minimap.corner[0]=0;minimap.corner[1]=0;minimap.step[0]=u;minimap.step[1]=u;
+    minimap.explored=explored;minimap.flags=dungeon::minimap_visible;
+    explored[0]=~0u;
+    dungeon::reset_minimap(minimap);
+    assert(explored[0]==0&&!DungeonLibrary::room_explored(0)&&DungeonLibrary::minimap_shown());
+    int32_t cx=0,cy=0;
+    const int32_t corridor[3]={5*u+u/2,0,u+u/2};
+    assert(dungeon::map_cell(corridor,cx,cy)&&cx==5&&cy==1&&dungeon::rect_at(cx,cy)==4);
+    const int32_t outside[3]={-u/2,0,0};
+    assert(!dungeon::map_cell(outside,cx,cy)&&cx==-1);
+    dungeon::explore_at(corridor);
+    assert(explored[0]==1u<<4&&!DungeonLibrary::room_explored(0)&&!DungeonLibrary::room_explored(1));
+    const int32_t first_room[3]={u,0,3*u};
+    dungeon::explore_at(first_room);
+    assert(DungeonLibrary::room_explored(0)&&explored[0]==(1u<<4|1u<<1|1u<<0));
+    DungeonLibrary::explore_room(2);
+    assert(DungeonLibrary::room_explored(2)&&(explored[0]>>3&1)&&!(explored[0]>>2&1));
+    DungeonLibrary::forget_explored();
+    assert(explored[0]==0&&!DungeonLibrary::room_explored(2));
+    DungeonLibrary::explore_everything();
+    assert(explored[0]==0x3fu&&DungeonLibrary::room_explored(1));
+    DungeonLibrary::show_full_map(true);
+    assert(DungeonLibrary::full_map_shown()&&DungeonLibrary::minimap_shown());
+    DungeonLibrary::show_full_map(false);DungeonLibrary::show_minimap(false);
+    assert(!DungeonLibrary::full_map_shown()&&!DungeonLibrary::minimap_shown());
+    DungeonLibrary::explore_room(64);DungeonLibrary::explore_room(-1);
+    dungeon::reset_minimap({});
+    assert(!DungeonLibrary::minimap_shown()&&!DungeonLibrary::room_explored(0));
+
+    // In 2D rooms lie on x and y (pixels) and z is ignored.
+    dungeon::reset({rooms,3,neighbours,spots,items,1,locks,1,0,2,1207u,true});
+    assert(DungeonLibrary::room_at({10.0,2.0,99.0})==1&&DungeonLibrary::room_at({10.0,9.0,2.0})==-1);
+    dungeon::reset({});
+    assert(DungeonLibrary::room_count()==0);
+}
+
 int main() {
     epok::input.reset();
     auto disconnected=epok::InputLibrary::axis(epok::Axis::LeftX,0);
@@ -470,5 +579,6 @@ int main() {
     scene_screen_fade_clamps_and_round_trips();
     persistent_utilities();
     vector_tweens_track_scalar_tweens();
-    std::puts("Gameplay libraries: typed records, input/time, math, bounded payload, fog, screen fade, tweens and focus pass.");
+    dungeon_queries();
+    std::puts("Gameplay libraries: typed records, input/time, math, bounded payload, fog, screen fade, tweens, focus and dungeon queries pass.");
 }

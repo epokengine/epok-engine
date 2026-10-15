@@ -212,6 +212,8 @@ pub fn scene_header_with_registry_for(
     text.push_str("namespace epok {\n");
     let (navigation_table, navigation_init) = crate::navigation::cpp(scene)?;
     text.push_str(&navigation_table);
+    let (dungeon_table, dungeon_init) = crate::dungeon_query::cpp(scene);
+    text.push_str(&dungeon_table);
     if emit_resources {
         text.push_str(&crate::texture::header(resources)?);
         text.push_str(&crate::vertex_colors::Palette::scene(resources)?.header());
@@ -633,6 +635,7 @@ epok::set_visibility_track(nullptr);
     text.push_str(&crate::collision::cpp_setup(scene));
     text.push_str(&crate::terrain_compile::collider_cpp(scene));
     text.push_str(&navigation_init);
+    text.push_str(&dungeon_init);
     text.push_str(&crate::palette::cpp_setup(scene));
     text.push_str(&crate::effects::cpp_setup(scene));
     text.push_str(crate::localization::apply(scene.strings.as_deref()));
@@ -1286,6 +1289,18 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "gameplay_api.hpp",
             include_bytes!("../runtime/gameplay_api.hpp").as_slice(),
+        ),
+        (
+            "dungeon_map.hpp",
+            include_bytes!("../runtime/dungeon_map.hpp").as_slice(),
+        ),
+        (
+            "dungeon_minimap.hpp",
+            include_bytes!("../runtime/dungeon_minimap.hpp").as_slice(),
+        ),
+        (
+            "dungeon_random.hpp",
+            include_bytes!("../runtime/dungeon_random.hpp").as_slice(),
         ),
         (
             "object_model.hpp",

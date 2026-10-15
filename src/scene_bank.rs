@@ -392,6 +392,7 @@ pub fn header_with_templates_for(
     let capacity = scenes.iter().map(|s| s.actors.len() + 32).max().unwrap();
     let mut headers = Vec::new();
     let mut render_capacity = 0;
+    let mut minimap_capacity = 0;
     for (bank, s) in scenes.iter().enumerate() {
         let bank_scene;
         let mut h = crate::project::scene_header_with_registry_for(
@@ -416,6 +417,10 @@ pub fn header_with_templates_for(
         }
         render_capacity =
             render_capacity.max(number(&h, "inline constexpr size_t render_capacity=")?);
+        minimap_capacity = minimap_capacity.max(number(
+            &h,
+            "inline constexpr size_t dungeon_minimap_capacity=",
+        )?);
         headers.push(h);
     }
     let dynamic_quads = templates
@@ -546,7 +551,7 @@ pub fn header_with_templates_for(
     );
     out += "}\n";
     out += &format!(
-        "namespace epok {{\ntemplate<class T> struct TableView {{T* data=nullptr;size_t count=0;T* begin() const{{return data;}}T* end() const{{return data+count;}}size_t size() const{{return count;}}}};\ninline std::array<ActorData,{capacity}> objects;\ninline size_t object_count=0,authored_count=0;\ninline constexpr size_t render_capacity={render_capacity};\ninline TableView<const size_t> transform_order;\n{textures}\n}}\n"
+        "namespace epok {{\ntemplate<class T> struct TableView {{T* data=nullptr;size_t count=0;T* begin() const{{return data;}}T* end() const{{return data+count;}}size_t size() const{{return count;}}}};\ninline std::array<ActorData,{capacity}> objects;\ninline size_t object_count=0,authored_count=0;\ninline constexpr size_t render_capacity={render_capacity};\ninline constexpr size_t dungeon_minimap_capacity={minimap_capacity};\ninline TableView<const size_t> transform_order;\n{textures}\n}}\n"
     );
     out += &crate::blueprint_spawn::prototypes(
         catalog,

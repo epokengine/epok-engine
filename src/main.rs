@@ -52,6 +52,26 @@ mod dependencies;
 mod disc;
 mod document;
 mod draw_order_codec;
+mod dungeon;
+mod dungeon_bake;
+mod dungeon_editor;
+mod dungeon_gameplay;
+mod dungeon_minimap;
+mod dungeon_query;
+mod dungeon_random;
+mod dungeon_recipe;
+mod dungeon_recipe_editor;
+mod dungeon_room;
+mod dungeon_room_editor;
+mod dungeon_rooms;
+mod dungeon_seeds;
+mod dungeon_style;
+mod dungeon_style_editor;
+mod dungeon_template;
+#[cfg(test)]
+mod dungeon_tests;
+mod dungeon_volumes;
+mod dungeon_volumes_editor;
 mod editor;
 mod effects;
 mod export;
@@ -344,6 +364,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--generate-asset-report",
             "--bake-lighting",
             "--bake-navigation",
+            "--generate-dungeon",
+            "--dungeon-seed-bench",
             "--bake-visibility-report",
             "--bake-visibility",
             "--add-actor",
@@ -1370,6 +1392,149 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Ok(());
     }
+    // Headless seed bench: `--dungeon-seed-bench N` measures N seeds of the startup
+    // map's first generator (from its seed, or `--dungeon-seed`) against the console's
+    // budget and exports the ones that fit.
+    if let Some(count) = args
+        .windows(2)
+        .find(|v| v[0] == "--dungeon-seed-bench")
+        .map(|v| {
+            v[1].parse::<u32>()
+                .map_err(|e| format!("--dungeon-seed-bench: {e}"))
+        })
+        .transpose()?
+    {
+        let path = args
+            .windows(2)
+            .find(|v| v[0] == "--scene")
+            .map(|v| root.join(&v[1]))
+            .map_or_else(|| workspace::startup_scene(&root), Ok)?;
+        let scene = scene::Scene::load(&path)?;
+        let g = scene
+            .dungeons
+            .first()
+            .ok_or("The map has no Dungeon Generator")?;
+        let from = args
+            .windows(2)
+            .find(|v| v[0] == "--dungeon-seed")
+            .map(|v| {
+                v[1].parse::<u32>()
+                    .map_err(|e| format!("--dungeon-seed: {e}"))
+            })
+            .transpose()?
+            .unwrap_or(g.seed);
+        let index = assets::scan(&root, &mut Default::default());
+        let started = std::time::Instant::now();
+        let samples = dungeon_seeds::run(&scene, &index, g, from, count.clamp(1, 100_000));
+        println!(
+            "{} ({:.1} s)",
+            dungeon_seeds::summary(&samples),
+            started.elapsed().as_secs_f32()
+        );
+        let name = scene
+            .actor_index(g.root)
+            .map_or_else(|| "dungeon".into(), |i| scene.actors[i].name.clone());
+        let written = dungeon_seeds::export(&root, &format!("{}-{name}", scene.name), &samples)?;
+        println!("Seeds that fit: {written}");
+        for s in samples.iter().filter(|s| !s.fits()).take(20) {
+            println!(
+                "seed {}: {}",
+                s.seed,
+                s.error
+                    .clone()
+                    .unwrap_or_else(|| format!("over {}", s.over.join(", ")))
+            );
+        }
+        return Ok(());
+    }
+    // Headless generation: `--generate-dungeon <actor>` regenerates that generator;
+    // `--generate-dungeon 3d|2d` adds a new one. `--dungeon-seed N` sets the seed first.
+    if let Some(target) = args
+        .windows(2)
+        .find(|v| v[0] == "--generate-dungeon")
+        .map(|v| v[1].clone())
+    {
+        let path = args
+            .windows(2)
+            .find(|v| v[0] == "--scene")
+            .map(|v| root.join(&v[1]))
+            .map_or_else(|| workspace::startup_scene(&root), Ok)?;
+        let mut scene = scene::Scene::load(&path)?;
+        let mut request = if (target == "3d" || target == "2d")
+            && !scene.actors.iter().any(|a| a.name == target)
+        {
+            serde_json::json!({"create": target})
+        } else {
+            serde_json::json!({"actor": target})
+        };
+        if let Some(seed) = args
+            .windows(2)
+            .find(|v| v[0] == "--dungeon-seed")
+            .map(|v| {
+                v[1].parse::<u32>()
+                    .map_err(|e| format!("--dungeon-seed: {e}"))
+            })
+            .transpose()?
+        {
+            request["seed"] = serde_json::json!(seed);
+        }
+        if let Some(settings) = args
+            .windows(2)
+            .find(|v| v[0] == "--dungeon-settings")
+            .map(|v| serde_json::from_str::<serde_json::Value>(&v[1]))
+            .transpose()
+            .map_err(|e| format!("--dungeon-settings: {e}"))?
+        {
+            request["settings"] = settings;
+        }
+        let id = dungeon_editor::mcp_target(&mut scene, &request)?;
+        if let Some(name) = args
+            .windows(2)
+            .find(|v| v[0] == "--dungeon-new-recipe")
+            .map(|v| v[1].clone())
+        {
+            let recipe = dungeon_editor::new_recipe(&root, &scene, id, &name)?;
+            if let Some(g) = scene.dungeons.iter_mut().find(|g| g.id == id) {
+                g.source = dungeon::Source::Recipe;
+                g.recipe = Some(recipe);
+            }
+            println!("Dungeon Recipe created: {recipe}");
+        }
+        if let Some(name) = args
+            .windows(2)
+            .find(|v| v[0] == "--dungeon-new-style")
+            .map(|v| v[1].clone())
+        {
+            let style = dungeon_editor::new_style(&root, &scene, id, &name)?;
+            if let Some(g) = scene.dungeons.iter_mut().find(|g| g.id == id) {
+                g.style = Some(style);
+            }
+            println!("Dungeon Style created: {style}");
+        }
+        // Actor pieces need the class model; a project whose classes do not resolve can
+        // still generate styles without them.
+        let registry = scripts::declaration_registry(&root).ok();
+        let model = registry.as_ref().and_then(|r| r.model().ok());
+        let classes = registry
+            .as_ref()
+            .zip(model.as_ref())
+            .map(|(registry, model)| dungeon_bake::Classes { registry, model });
+        let report = dungeon_bake::generate(&root, &mut scene, id, classes.as_ref())?;
+        scene.save(&path)?;
+        println!(
+            "Dungeon generated: {} · {} actors, {} quads, {} collision boxes, {} navigation nodes · {}",
+            report.summary,
+            report.actors,
+            report.quads,
+            report.boxes,
+            report.navigation_nodes,
+            path.display()
+        );
+        for note in report.notes {
+            println!("{note}");
+        }
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--bake-visibility") {
         // Replaces the visibility track's lists with a GPU bake and, when the
         // scene has a prepared packet order, regenerates it from those lists.
@@ -1871,6 +2036,16 @@ fn prepare_editor(editor: &mut editor::Editor) {
     if args.iter().any(|a| a == "--screenshot-2d") {
         editor.set_scene_view_mode(scene_view_mode::SceneViewMode::TwoD);
     }
+    // Screenshot automation: `--open-map <path>` opens another map of the project, such
+    // as a Dungeon Room workbench, before the capture.
+    if let Some(path) = args
+        .windows(2)
+        .find(|a| a[0] == "--open-map")
+        .map(|a| a[1].clone())
+        && let Err(error) = editor.open_scene(editor.root.join(path))
+    {
+        editor.log(format!("--open-map: {error}"));
+    }
     // Screenshot automation: select an actor by name before the capture.
     if let Some(name) = args
         .windows(2)
@@ -1884,6 +2059,117 @@ fn prepare_editor(editor: &mut editor::Editor) {
             .map(|a| a.id)
     {
         editor.select_actor(Some(id));
+    }
+    // Screenshot automation: press pad buttons on a schedule once the game runs, so a
+    // --screenshot-game capture can show gameplay (milliseconds:mask,..., ending in 0).
+    if let Some(schedule) = args
+        .windows(2)
+        .find(|a| a[0] == "--screenshot-input")
+        .map(|a| a[1].clone())
+    {
+        match input_replay::Replay::parse(&schedule) {
+            Ok(replay) => editor.screenshot_input = Some((replay, None)),
+            Err(error) => editor.log(format!("--screenshot-input: {error}")),
+        }
+    }
+    // Screenshot automation: open the first generator's Dungeon Style (or the first
+    // style asset) with its first piece selected.
+    if args.iter().any(|a| a == "--open-dungeon-style") {
+        let style = editor
+            .scene
+            .dungeons
+            .iter()
+            .find_map(|g| g.style)
+            .or_else(|| {
+                editor
+                    .assets
+                    .index
+                    .usable()
+                    .find(|r| r.meta.kind == assets::Kind::DungeonStyle)
+                    .map(|r| r.meta.id)
+            });
+        if let Some(style) = style {
+            dungeon_style_editor::open(editor, style);
+            dungeon_style_editor::select_first_piece(editor);
+        }
+    }
+    // Screenshot automation: `--open-dungeon-room` opens the project's first Dungeon Room.
+    let room = args
+        .iter()
+        .any(|a| a == "--open-dungeon-room")
+        .then(|| {
+            editor
+                .assets
+                .index
+                .usable()
+                .find(|r| r.meta.kind == assets::Kind::DungeonRoom)
+                .map(|r| r.meta.id)
+        })
+        .flatten();
+    if let Some(room) = room {
+        dungeon_room_editor::open(editor, room);
+    }
+    // Screenshot automation: `--open-dungeon-volumes` shows the first generator's volumes.
+    if args.iter().any(|a| a == "--open-dungeon-volumes")
+        && let Some(id) = editor.scene.dungeons.first().map(|g| g.id)
+    {
+        dungeon_volumes_editor::open(editor, id);
+    }
+    // Screenshot automation: `--open-dungeon-seeds N` runs the seed bench of the first
+    // generator over N seeds and shows it.
+    if let Some(count) = args
+        .windows(2)
+        .find(|v| v[0] == "--open-dungeon-seeds")
+        .and_then(|v| v[1].parse::<u32>().ok())
+        && let Some(id) = editor.scene.dungeons.first().map(|g| g.id)
+    {
+        dungeon_seeds::open_and_run(editor, id, count);
+    }
+    // Screenshot automation: `--dungeon-query-room N` opens the Gameplay queries list
+    // with room N picked out in the Scene view.
+    if let Some(room) = args
+        .iter()
+        .position(|a| a == "--dungeon-query-room")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|v| v.parse::<usize>().ok())
+    {
+        editor.dungeon.shown_room = Some(room);
+    }
+    // Screenshot automation: open the first generator's Dungeon Recipe (or the first
+    // recipe asset), selecting step N with `--open-dungeon-recipe N`.
+    if let Some(step) = args
+        .iter()
+        .position(|a| a == "--open-dungeon-recipe")
+        .map(|i| {
+            args.get(i + 1)
+                .and_then(|v| v.parse::<usize>().ok())
+                .unwrap_or(1)
+        })
+    {
+        let recipe = editor
+            .scene
+            .dungeons
+            .iter()
+            .find_map(|g| g.recipe)
+            .or_else(|| {
+                editor
+                    .assets
+                    .index
+                    .usable()
+                    .find(|r| r.meta.kind == assets::Kind::DungeonRecipe)
+                    .map(|r| r.meta.id)
+            });
+        if let Some(recipe) = recipe {
+            dungeon_recipe_editor::open(editor, recipe);
+            dungeon_recipe_editor::select_step(editor, step.saturating_sub(1));
+        }
+    }
+    // Screenshot automation: select the first Dungeon Generator and frame its grid.
+    if args.iter().any(|a| a == "--frame-dungeon")
+        && let Some((root, id)) = editor.scene.dungeons.first().map(|g| (g.root, g.id))
+    {
+        editor.select_actor(Some(root));
+        dungeon_editor::frame(editor, id);
     }
     // Screenshot automation: open the 2D view's Add 2D Node menu, with a search typed.
     if let Some(query) = args

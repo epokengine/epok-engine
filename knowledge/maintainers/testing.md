@@ -404,6 +404,46 @@ physical PlayStation hardware; emulator results are for reproducible development
 comparison only. The recorded results of the acceptance run are in
 [`knowledge/initiatives/lua-scripting/validation-2026-09-14.md`](../initiatives/lua-scripting/validation-2026-09-14.md).
 
+## Dungeon Generator
+
+```sh
+cargo test --locked dungeon
+python tests/runtime/verify_spatial.py compound_collision dungeon_random terrain_collision spatial navigation_motion
+```
+
+The Rust tests generate into disposable projects, then cook the map, bake navigation,
+regenerate, clear and check determinism; the host tests cover the compound collider
+and the random stream's golden values shared with `src/dungeon_random.rs`.
+
+Editor and emulator evidence on a disposable project:
+
+```sh
+epok-editor --create-project /tmp/Crypt --template third-person
+epok-editor --project /tmp/Crypt --generate-dungeon 3d --dungeon-seed 42 --dungeon-settings '{"spawn_actor":"Player"}'
+epok-editor --project /tmp/Crypt --screenshot dungeon.png --frame-dungeon --window-size 1600x1000
+epok-editor --project /tmp/Crypt --build-psx
+epok-editor --project /tmp/Crypt --screenshot walk.png --screenshot-game --screenshot-input "500:16,2600:0"
+```
+
+`--frame-dungeon` selects the first generator and frames its grid (add
+`--screenshot-2d` for a 2D one); `--open-dungeon-style` opens the first generator's
+style with a piece selected, and `--open-dungeon-recipe N` its recipe with step N
+selected; `--dungeon-query-room N` opens the band's Gameplay queries list with room N
+picked out in the Scene view. `--open-map <path>` opens another map of the project and
+`--open-dungeon-room` the first Dungeon Room in the room editor (the Dungeon template's
+workbench: `--open-map assets/Dungeons/Rooms/Workbench.epokmap --select-actor Reactor
+--open-dungeon-room`). `--dungeon-seed-bench N` measures N seeds of the
+first generator headlessly (about 20 ms a seed in a debug build) and exports the seeds
+that fit; `--open-dungeon-seeds N` shows the bench window after running it;
+`--open-dungeon-volumes` the first generator's Volumes window. `--dungeon-settings '{"source":"Recipe"}'` switches a generator to the
+built-in recipe; `--dungeon-new-recipe <name>` creates a recipe asset for it. A styled Third Person fixture (a recipe layout with a working key and locked
+door, one-way shortcuts and cave branches; pillars, room lights, crates, banners and a
+glowing key) is written by
+`EPOK_DUNGEON_FIXTURE=/tmp/Crypt cargo test dungeon_visual_fixture -- --ignored`
+and generated with `--generate-dungeon Dungeon`, which also places its Actor piece. `--screenshot-input` presses pad buttons on a
+`milliseconds:mask` schedule from the first Play frame and delays the capture until it
+ends; 16 is Up.
+
 ## Screenshots and profiling
 
 TimelineAsset checks (after building both editor/extractor binaries):

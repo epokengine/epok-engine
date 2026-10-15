@@ -587,11 +587,18 @@ fn validate_expr(expr: &Expr, locals: &[Local]) -> Result<(), String> {
         } => {
             validate_expr(left, locals)?;
             validate_expr(right, locals)?;
-            if left.value_type() != right.value_type() {
+            // `==` and `~=` compare any two references by identity.
+            let references = op.comparison()
+                && !op.ordering()
+                && left.value_type().is_reference()
+                && right.value_type().is_reference();
+            if left.value_type() != right.value_type() && !references {
                 return Err("Binary inputs must have exactly the same type".into());
             }
             let operand = left.value_type();
-            let ok = if op.logical() {
+            let ok = if references {
+                value_type == &BOOL
+            } else if op.logical() {
                 operand == &BOOL && value_type == &BOOL
             } else if op.comparison() {
                 value_type == &BOOL

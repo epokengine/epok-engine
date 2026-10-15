@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `00334cac47d5e5afd49671c8cde2792995067db5`. Frozen semantic candidate rows: **4733**.
+Baseline commit: `dc4a9b21abb6aea5b6186bfd1114a38bed567c6a`. Frozen semantic candidate rows: **4878**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -12,8 +12,8 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | --- | ---: |
 | `compatibility_alias` | 44 |
 | `hardware_backend` | 6 |
-| `internal_implementation` | 4130 |
-| `public_gameplay` | 553 |
+| `internal_implementation` | 4231 |
+| `public_gameplay` | 597 |
 
 ## Public gameplay gaps
 
@@ -31,10 +31,10 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | --- | ---: |
 | `audio_music` | 182 |
 | `cameras_scenes` | 48 |
-| `collision_3d` | 55 |
+| `collision_3d` | 57 |
 | `components_hierarchy` | 7 |
 | `gameplay_2d` | 103 |
-| `implementation_support` | 2120 |
+| `implementation_support` | 2217 |
 | `input_time` | 51 |
 | `language_adapter` | 130 |
 | `materials_visuals` | 61 |
@@ -43,7 +43,7 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `objects_actors` | 591 |
 | `particles_effects` | 169 |
 | `resources_diagnostics` | 58 |
-| `runtime_facade` | 628 |
+| `runtime_facade` | 674 |
 | `skeletal_animation` | 24 |
 | `sprites_palettes` | 72 |
 | `static_editable_meshes` | 96 |
@@ -121,6 +121,30 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::CollisionLibrary::move` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionLibrary::overlap_box` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionLibrary::raycast_segment` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::distance` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::explore_everything` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::explore_room` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::forget_explored` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::full_map_shown` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::goal_room` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::item` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::item_count` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::lock` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::lock_count` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::minimap_shown` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::neighbour` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::next_room` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::random` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::room` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::room_at` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::room_count` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::room_explored` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::room_of` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::seed` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::show_full_map` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::show_minimap` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::spawn_room` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonLibrary::spot` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::EffectLayer::burst` | `effect-types` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::EffectLayer::play` | `effect-types` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::EffectLayer::stop` | `effect-types` | yes | yes | yes | yes | yes | `implemented` |
@@ -396,6 +420,26 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::CollisionHitSample::normal` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::point` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::CollisionHitSample::started_inside` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonPoint::lock` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonPoint::position` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonPoint::room` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonPoint::valid` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::center` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::depth` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::goal` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::index` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::item` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::key` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::level` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::locked` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::maximum` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::minimum` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::neighbours` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::path` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::spawn` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::spots` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::steps_to_goal` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::DungeonRoom::valid` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::EffectLayer::color` | `effect-types` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::EffectLayer::enabled` | `effect-types` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::EffectLayer::opacity` | `effect-types` | yes | yes | yes | yes | yes | `implemented` |

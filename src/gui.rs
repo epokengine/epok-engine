@@ -835,6 +835,28 @@ fn draw_workspace(
             if ui.menu_item("Terrain") {
                 e.action("terrain-create");
             }
+            if ui.menu_item(format!("{} Dungeon Generator", crate::dungeon_editor::ICON)) {
+                e.action("dungeon-create");
+            }
+            let room_root = e
+                .selected_actor
+                .filter(|id| e.scene.actors.iter().any(|a| a.logical_parent == Some(*id)));
+            if ui
+                .menu_item_config(format!(
+                    "{} Save Selection as Dungeon Room...",
+                    crate::dungeon_room_editor::ICON
+                ))
+                .enabled(room_root.is_some())
+                .build()
+                && let Some(id) = room_root
+            {
+                crate::dungeon_room_editor::save_selection(e, id);
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text(
+                    "Rooms, corridors and walls generated from a seed and baked into the map.",
+                );
+            }
         });
         build_menu(ui, e);
         ui.menu("Window", || {
@@ -1790,7 +1812,11 @@ fn actor_node(
     }
     let actor = &e.scene.actors[index];
     let id = actor.id;
-    let glyph = crate::world2d_editor::hierarchy_icon(actor).unwrap_or(ACTOR);
+    let glyph = if e.scene.dungeons.iter().any(|g| g.root == id) {
+        crate::dungeon_editor::ICON
+    } else {
+        crate::world2d_editor::hierarchy_icon(actor).unwrap_or(ACTOR)
+    };
     let label = format!("{glyph} {}###actor{}", actor.name, id);
     let mut flags = imgui::TreeNodeFlags::SPAN_AVAIL_WIDTH
         | imgui::TreeNodeFlags::OPEN_ON_ARROW
@@ -1908,6 +1934,17 @@ fn actor_node(
             }
             if ui.menu_item("Convert to Actor Blueprint...") {
                 crate::actor_workflow::begin_convert(e, id);
+            }
+            if !cx.children[index].is_empty() {
+                if ui.menu_item(format!(
+                    "{} Save as Dungeon Room...",
+                    crate::dungeon_room_editor::ICON
+                )) {
+                    crate::dungeon_room_editor::save_selection(e, id);
+                }
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("Make this actor's children a room the Dungeon Generator can place, from this actor's origin towards +X and +Z.");
+                }
             }
         });
     }
@@ -2863,6 +2900,12 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
     }
 }
 pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
+    crate::dungeon_editor::apply_pending(e);
+    crate::dungeon_style_editor::window(ui, e);
+    crate::dungeon_recipe_editor::window(ui, e);
+    crate::dungeon_room_editor::window(ui, e);
+    crate::dungeon_seeds::window(ui, e);
+    crate::dungeon_volumes_editor::window(ui, e);
     crate::world2d_editor::dialogs(ui, e);
     crate::localization_editor::window(ui, e);
     crate::lighting_editor::window(ui, e);
@@ -2922,6 +2965,7 @@ pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
             actor_header(ui, &mut entity, glyph);
             ui.separator();
             entity_actor_inspector(ui, e, index);
+            crate::dungeon_editor::inspector(ui, e, entity.id);
             let strings = crate::localization::project_table(&e.assets.index).map(|(_, t)| t);
             if crate::hud_editor::inspector(
                 ui,

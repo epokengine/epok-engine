@@ -4,10 +4,6 @@
 
 This module covers the ordered renderer module. It documents 0 public callables declared directly in this header.
 
-## Declared types
-
-`OrderedPacketTarget`, `OrderedSlotRun`
-
 ## Callable index
 
-This header declares no public callable symbols. It is retained in the reference because it defines types, constants or concepts used by neighboring modules.
+The engine never includes this header on its own, and the configuration this reference documents does not select it. Its declarations appear under the header that includes it.

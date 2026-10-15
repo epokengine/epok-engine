@@ -35,6 +35,8 @@ pub struct Hub {
     location: String,
     open_path: String,
     template: Template,
+    /// Scroll the selected template card into view on the next frame.
+    reveal_template: bool,
     gameplay: GameplayFlavor,
     target: TargetPlatform,
     creating: bool,
@@ -77,6 +79,7 @@ impl Hub {
                 .into(),
             open_path: String::new(),
             template: Template::Basic,
+            reveal_template: false,
             gameplay: GameplayFlavor::default(),
             target: TargetPlatform::default(),
             creating: false,
@@ -152,6 +155,12 @@ impl Hub {
     /// Opens on the template browser instead of the project list. Visual QA of
     /// the New Project view needs it, because nothing else reaches that view
     /// without a click.
+    /// Selects a template card and brings it into view, for screenshots of the New
+    /// Project view.
+    pub fn select_template(&mut self, template: Template) {
+        self.template = template;
+        self.reveal_template = true;
+    }
     pub fn open_new_project(&mut self) {
         self.creating = true;
     }
@@ -752,6 +761,10 @@ impl Hub {
             if pressed {
                 self.template = info.template;
             }
+            if selected && self.reveal_template {
+                ui.set_scroll_here_y_with_ratio(1.);
+                self.reveal_template = false;
+            }
         }
     }
 
@@ -1207,6 +1220,15 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     // The whole card selects, not only its title: the click lands on the body,
     // to the right of the thumbnail and below the text.
     for (slot, template) in Template::ALL.into_iter().enumerate() {
+        // Three cards fit before the column scrolls: wheel down over it first, as
+        // a user would, so the later cards are on screen.
+        if slot >= 3 {
+            context
+                .io_mut()
+                .add_mouse_pos_event(hub.buttons[TEMPLATE_CARDS]);
+            context.io_mut().add_mouse_wheel_event([0., -10.]);
+            frame(context, &mut hub);
+        }
         click(context, &mut hub, TEMPLATE_CARDS + slot);
         assert_eq!(hub.template, template, "card {slot} did not select");
     }

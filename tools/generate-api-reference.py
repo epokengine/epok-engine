@@ -93,6 +93,9 @@ DEPENDENT_EPOK_HEADERS = {
     "native_music_runtime.hpp",
     # Included inside namespace epok, so its members only resolve there.
     "native_music_service.hpp",
+    # Included inside main.cpp's renderer namespace, after PolygonEmitter, whose
+    # buffers and clipping it uses.
+    "ordered_renderer.hpp",
 }
 
 
@@ -523,7 +526,16 @@ def parse_family(cindex, family: str, headers: list[Path], base: Path, engine: P
             continue
         relative = header.relative_to(base).as_posix()
         include_lines.append(f'#include "{"psyqo/" if family == "psyqo" else ""}{relative}"')
-    unsaved = [(str(umbrella), "#include <array>\n" + "\n".join(include_lines) + "\n")]
+    # A build's scene bank header defines the texture table before any runtime
+    # header; the documented configuration has no textures.
+    prelude = (
+        "#include <array>\n#include <stddef.h>\n"
+        "namespace epok { struct Texture; inline constexpr size_t texture_count=0;"
+        " inline const Texture* texture_assets=nullptr; }\n"
+        if family == "epok"
+        else "#include <array>\n"
+    )
+    unsaved = [(str(umbrella), prelude + "\n".join(include_lines) + "\n")]
     generated_headers = {
         "display.hh": """#pragma once
 namespace epok {

@@ -1,0 +1,2189 @@
+//! The Dungeon Generator in the editor: creating one, its Inspector band (settings,
+//! warnings with fixes and the PSX budget), the layout preview in the Scene view, and
+//! generation with undo.
+use crate::dungeon::{self, Generator, Layout};
+use crate::dungeon_bake::{self, Report, SCENE_QUADS};
+use crate::editor::Editor;
+use imgui::Ui;
+use std::collections::BTreeMap;
+use std::sync::Mutex;
+use uuid::Uuid;
+
+pub const ICON: &str = "\u{f6d9}";
+pub const ICON_GENERATE: &str = "\u{f2f1}";
+const ICON_SEED: &str = "\u{f522}";
+const AMBER: [f32; 4] = [1., 0.72, 0.3, 1.];
+
+/// What the preview knows about a generator's current settings.
+#[derive(Clone)]
+pub struct Preview {
+    pub fingerprint: String,
+    pub layout: Result<Layout, String>,
+    pub budget: Option<Budget>,
+    /// The style's digest, or why the style cannot be used.
+    pub style: Result<String, String>,
+    /// The recipe's digest for recipe layouts.
+    pub recipe: Option<String>,
+}
+
+/// The layouts `preview` last computed, by generator, with the settings fingerprint
+/// they belong to. The Scene view draws them without access to the project's assets.
+static LAYOUTS: Mutex<BTreeMap<Uuid, (String, Layout)>> = Mutex::new(BTreeMap::new());
+
+/// The PSX budget after generating with the current settings.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Budget {
+    pub actors: usize,
+    pub quads: usize,
+    pub boxes: usize,
+    pub navigation: Option<usize>,
+    pub tiles: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Request {
+    Generate(Uuid),
+    NewSeed(Uuid),
+    Clear(Uuid),
+    Reset(Uuid),
+    ResetTransform(Uuid),
+    NewStyle(Uuid),
+    EditStyle(Uuid),
+    NewRecipe(Uuid),
+    EditRecipe(Uuid),
+    /// Make an actor the generator's Player and generate again.
+    UsePlayer(Uuid, Uuid),
+    /// Set a seed (from the seed bench) and generate.
+    UseSeed(Uuid, u32),
+    OpenSeedBench(Uuid),
+    OpenVolumes(Uuid),
+}
+
+/// Sets `seed` on generator `id` and generates, after this frame.
+pub fn use_seed(e: &mut Editor, id: Uuid, seed: u32) {
+    e.dungeon.pending = Some(Request::UseSeed(id, seed));
+}
+
+/// Generates generator `id` after this frame.
+pub fn request_generate(e: &mut Editor, id: Uuid) {
+    e.dungeon.pending = Some(Request::Generate(id));
+}
+
+#[derive(Default)]
+pub struct State {
+    previews: BTreeMap<Uuid, Preview>,
+    /// Whether each style asset is a 2D style, by asset revision.
+    style_domains: BTreeMap<Uuid, (String, bool)>,
+    pub reports: BTreeMap<Uuid, Report>,
+    pending: Option<Request>,
+    /// Screenshot automation: the Gameplay queries list opens with this room picked out.
+    pub shown_room: Option<usize>,
+}
+
+/// The generator placed by actor `actor`, if any.
+pub fn generator_of(e: &Editor, actor: Uuid) -> Option<&Generator> {
+    e.scene.dungeons.iter().find(|g| g.root == actor)
+}
+
+// ---- creation ------------------------------------------------------------------------------
+
+/// Creates a 3D Dungeon Generator at the map origin and generates its first dungeon.
+pub fn create_3d(e: &mut Editor) {
+    if e.playing {
+        e.log("Stop the emulator before editing.");
+        return;
+    }
+    let mut root = crate::scene::Actor::cube(e.scene.unique_actor_name("Dungeon"));
+    root.kind = "Empty".into();
+    root.position = [0.; 3];
+    let id = root.id;
+    e.scene.actors.push(root);
+    e.scene.refresh_actor_hierarchy();
+    attach(e, id);
+}
+
+/// Makes actor `id` a Dungeon Generator, selects it and generates a first dungeon so
+/// the author sees a result straight away.
+pub fn attach(e: &mut Editor, id: Uuid) {
+    let mut generator = Generator::new(id);
+    // A fresh generator starts from a different dungeon each time.
+    generator.seed = (generator.id.as_u128() as u32) % 100_000;
+    let gid = generator.id;
+    e.scene.dungeons.push(generator);
+    e.select_actor(Some(id));
+    e.changed();
+    generate(e, gid);
+    frame(e, gid);
+}
+
+/// Points the Scene view at a generator's rooms and corridors.
+pub fn frame(e: &mut Editor, id: Uuid) {
+    let Some(g) = e.scene.dungeons.iter().find(|g| g.id == id).cloned() else {
+        return;
+    };
+    let Some(index) = e.scene.actor_index(g.root) else {
+        return;
+    };
+    // The occupied cells, with a one-cell margin for the walls; the whole grid when
+    // the settings do not produce a layout.
+    let layout = dungeon::layout(&g, &e.assets.index);
+    let size = match &layout {
+        Ok(layout) => layout.size,
+        Err(_) => [i32::from(g.rooms.size[0]), i32::from(g.rooms.size[1])],
+    };
+    let (lo, hi) = match layout {
+        Ok(layout) => {
+            let cells: Vec<[i32; 2]> = (0..size[1])
+                .flat_map(|y| (0..size[0]).map(move |x| [x, y]))
+                .filter(|p| layout.at(*p).walkable())
+                .collect();
+            let lo = [0, 1].map(|k| cells.iter().map(|p| p[k]).min().unwrap_or(0) - 1);
+            let hi = [0, 1].map(|k| cells.iter().map(|p| p[k]).max().unwrap_or(size[k]) + 2);
+            (lo, hi)
+        }
+        Err(_) => ([0, 0], size),
+    };
+    if dungeon_bake::is_2d(&e.scene, g.root) {
+        let tile = g
+            .tile_set
+            .and_then(|t| e.scene.tilesets.get(&t))
+            .map_or([16., 16.], |s| s.tile_size.map(f32::from));
+        let origin = e.scene.actors[index]
+            .root()
+            .map(|c| crate::scene_view_mode::read_transform_2d(&c.properties).position)
+            .unwrap_or_default();
+        let at = |cell: [i32; 2]| -> [f32; 2] {
+            std::array::from_fn(|k| origin[k] + (cell[k] - size[k] / 2) as f32 * tile[k])
+        };
+        e.view_2d.frame(at(lo), at(hi), [960., 600.]);
+    } else {
+        let frame = dungeon_bake::Frame {
+            size,
+            cell: g.cell_size,
+            height: g.wall_height,
+        };
+        let matrix = e.scene.world_matrix(index);
+        let low = matrix.point([frame.x(lo[0]), 0., frame.z(lo[1])]);
+        let high = matrix.point([frame.x(hi[0]), g.wall_height, frame.z(hi[1])]);
+        e.view.frame_bounds(low, high);
+    }
+    e.view_dirty = true;
+}
+
+// ---- generation ----------------------------------------------------------------------------
+
+/// Generates and records one undo step. On failure the map is left untouched.
+pub fn generate(e: &mut Editor, id: Uuid) {
+    run(e, id, false);
+}
+
+/// Regenerates every dungeon of the map that uses style `style`, folding the
+/// regenerations of one editing session into a single undo step. Returns how many.
+pub fn regenerate_with_style(e: &mut Editor, style: Uuid) -> usize {
+    regenerate_where(e, |g| g.style == Some(style))
+}
+
+/// Regenerates every dungeon of the map that follows recipe `recipe`, like
+/// `regenerate_with_style`.
+pub fn regenerate_with_recipe(e: &mut Editor, recipe: Uuid) -> usize {
+    regenerate_where(e, |g| {
+        g.source == dungeon::Source::Recipe && g.recipe == Some(recipe)
+    })
+}
+
+/// Regenerates every recipe dungeon of the map whose recipe makes rooms from `room`.
+pub fn regenerate_with_room(e: &mut Editor, room: Uuid) -> usize {
+    let index = e.assets.index.clone();
+    regenerate_where(e, |g| {
+        g.source == dungeon::Source::Recipe
+            && crate::dungeon_recipe::of(&index, g)
+                .is_ok_and(|(recipe, _)| recipe.rooms_used().contains(&room))
+    })
+}
+
+fn regenerate_where(e: &mut Editor, wanted: impl Fn(&Generator) -> bool) -> usize {
+    let ids: Vec<Uuid> = e
+        .scene
+        .dungeons
+        .iter()
+        .filter(|g| wanted(g))
+        .map(|g| g.id)
+        .collect();
+    let mut done = 0;
+    for id in ids {
+        if run(e, id, true) {
+            done += 1;
+        }
+    }
+    done
+}
+
+fn run(e: &mut Editor, id: Uuid, coalesced: bool) -> bool {
+    if e.playing {
+        e.log("Stop the emulator before generating.");
+        return false;
+    }
+    let before = e.scene.clone();
+    let selected = e.selected_actor;
+    let model = e.object_model();
+    let classes = model.as_deref().map(|model| dungeon_bake::Classes {
+        registry: &e.class_registry,
+        model,
+    });
+    match dungeon_bake::generate(&e.root, &mut e.scene, id, classes.as_ref()) {
+        Ok(report) => {
+            e.assets.refresh();
+            let index = crate::assets::scan(&e.root, &mut Default::default());
+            let _ = crate::mesh::resolve(&mut e.scene, &index);
+            let _ = crate::tileset::resolve(&mut e.scene, &index);
+            let _ = crate::texture::resolve(&mut e.scene, &index);
+            e.log(format!("Dungeon generated: {}", report.summary));
+            for note in &report.notes {
+                e.log(note.clone());
+            }
+            e.dungeon.reports.insert(id, report);
+            e.last_error = None;
+            if selected.is_some() {
+                e.select_actor(selected);
+            }
+            if coalesced {
+                e.changed_coalesced("dungeon-style-preview");
+            } else {
+                e.changed();
+            }
+            true
+        }
+        Err(error) => {
+            e.scene = before;
+            e.select_actor(selected);
+            e.last_error = Some(format!("Dungeon not generated: {error}"));
+            e.log(format!("Dungeon not generated: {error}"));
+            false
+        }
+    }
+}
+
+/// Runs the command the Inspector requested last frame, outside any borrowed panel.
+pub fn apply_pending(e: &mut Editor) {
+    let Some(request) = e.dungeon.pending.take() else {
+        return;
+    };
+    match request {
+        Request::Generate(id) => generate(e, id),
+        Request::NewSeed(id) => {
+            if let Some(g) = e.scene.dungeons.iter_mut().find(|g| g.id == id) {
+                g.seed = next_seed(g.seed);
+                generate(e, id);
+            }
+        }
+        Request::UseSeed(id, seed) => {
+            if let Some(g) = e.scene.dungeons.iter_mut().find(|g| g.id == id) {
+                g.seed = seed;
+                generate(e, id);
+            }
+        }
+        Request::OpenSeedBench(id) => crate::dungeon_seeds::open(e, id),
+        Request::OpenVolumes(id) => crate::dungeon_volumes_editor::open(e, id),
+        Request::Clear(id) => {
+            dungeon_bake::clear(&mut e.scene, id);
+            e.changed();
+            e.log("Generated dungeon content removed; the generator keeps its settings.");
+        }
+        Request::Reset(id) => {
+            if let Some(g) = e.scene.dungeons.iter_mut().find(|g| g.id == id) {
+                let keep = (g.id, g.root, g.seed, g.output.clone());
+                *g = Generator {
+                    id: keep.0,
+                    root: keep.1,
+                    seed: keep.2,
+                    output: keep.3,
+                    ..Generator::default()
+                };
+                e.changed();
+            }
+        }
+        Request::NewStyle(id) => {
+            let Some(g) = e.scene.dungeons.iter().find(|g| g.id == id).cloned() else {
+                return;
+            };
+            let two_d = dungeon_bake::is_2d(&e.scene, g.root);
+            let start = dungeon_bake::style_of(&e.assets.index, &g, two_d)
+                .map(|(style, _)| style)
+                .unwrap_or_else(|_| crate::dungeon_style::builtin(two_d, None));
+            let name = e
+                .scene
+                .actor_index(g.root)
+                .map(|i| format!("{} Style", e.scene.actors[i].name))
+                .unwrap_or_else(|| "Dungeon Style".into());
+            match crate::dungeon_style_editor::create(e, &name, start) {
+                Ok(style) => {
+                    if let Some(g) = e.scene.dungeons.iter_mut().find(|g| g.id == id) {
+                        g.style = Some(style);
+                    }
+                    generate(e, id);
+                }
+                Err(error) => {
+                    e.last_error = Some(error.clone());
+                    e.log(error);
+                }
+            }
+        }
+        Request::EditStyle(style) => crate::dungeon_style_editor::open(e, style),
+        Request::NewRecipe(id) => {
+            let Some(g) = e.scene.dungeons.iter().find(|g| g.id == id).cloned() else {
+                return;
+            };
+            let start = crate::dungeon_recipe::of(&e.assets.index, &g)
+                .map(|(recipe, _)| recipe)
+                .unwrap_or_else(|_| crate::dungeon_recipe::builtin());
+            let name = e
+                .scene
+                .actor_index(g.root)
+                .map(|i| format!("{} Recipe", e.scene.actors[i].name))
+                .unwrap_or_else(|| "Dungeon Recipe".into());
+            match crate::dungeon_recipe_editor::create(e, &name, start) {
+                Ok(recipe) => {
+                    if let Some(g) = e.scene.dungeons.iter_mut().find(|g| g.id == id) {
+                        g.source = dungeon::Source::Recipe;
+                        g.recipe = Some(recipe);
+                    }
+                    generate(e, id);
+                }
+                Err(error) => {
+                    e.last_error = Some(error.clone());
+                    e.log(error);
+                }
+            }
+        }
+        Request::EditRecipe(recipe) => crate::dungeon_recipe_editor::open(e, recipe),
+        Request::UsePlayer(id, player) => {
+            if let Some(g) = e.scene.dungeons.iter_mut().find(|g| g.id == id) {
+                g.spawn_actor = Some(player);
+                generate(e, id);
+            }
+        }
+        Request::ResetTransform(id) => {
+            if let Some(root) = e.scene.dungeons.iter().find(|g| g.id == id).map(|g| g.root)
+                && let Some(index) = e.scene.actor_index(root)
+            {
+                e.scene.actors[index].rotation = [0.; 3];
+                e.scene.actors[index].scale = [1.; 3];
+                e.changed();
+            }
+        }
+    }
+}
+
+/// A different seed that is still easy to read and type.
+pub fn next_seed(seed: u32) -> u32 {
+    let mut random = crate::dungeon_random::Random::new(seed ^ 0x5eed);
+    loop {
+        let candidate = random.below(100_000);
+        if candidate != seed {
+            return candidate;
+        }
+    }
+}
+
+/// Resolves the generator an MCP request names, creating one or applying overrides
+/// first. Works on a copy of the scene the caller commits.
+pub fn mcp_target(scene: &mut crate::scene::Scene, a: &serde_json::Value) -> Result<Uuid, String> {
+    let id = if let Some(domain) = a["create"].as_str() {
+        let root = if domain == "2d" {
+            crate::world2d::create(
+                crate::world2d::Preset::DungeonGenerator,
+                &scene.unique_actor_name("Dungeon"),
+                [0., 0.],
+            )
+        } else {
+            let mut root = crate::scene::Actor::cube(scene.unique_actor_name("Dungeon"));
+            root.kind = "Empty".into();
+            root.position = [0.; 3];
+            root
+        };
+        let generator = Generator::new(root.id);
+        let id = generator.id;
+        scene.actors.push(root);
+        scene.refresh_actor_hierarchy();
+        scene.dungeons.push(generator);
+        id
+    } else {
+        let wanted = a["actor"]
+            .as_str()
+            .ok_or("Name the generator's actor, or pass create \"3d\" or \"2d\"")?;
+        let actor = scene
+            .actors
+            .iter()
+            .find(|x| x.name == wanted || x.id.to_string() == wanted)
+            .ok_or_else(|| format!("No actor named {wanted}"))?;
+        scene
+            .dungeons
+            .iter()
+            .find(|g| g.root == actor.id)
+            .map(|g| g.id)
+            .ok_or_else(|| format!("{wanted} is not a Dungeon Generator"))?
+    };
+    let index = scene
+        .dungeons
+        .iter()
+        .position(|g| g.id == id)
+        .expect("generator just resolved");
+    let mut value = serde_json::to_value(&scene.dungeons[index]).map_err(|e| e.to_string())?;
+    if let Some(settings) = a.get("settings").and_then(|v| v.as_object()) {
+        for (key, field) in settings {
+            // The spawn actor may be named instead of identified.
+            let field = &match (key.as_str(), field.as_str()) {
+                ("spawn_actor", Some(name)) if Uuid::parse_str(name).is_err() => {
+                    let actor = scene
+                        .actors
+                        .iter()
+                        .find(|x| x.name == name)
+                        .ok_or_else(|| format!("No actor named {name} to move to the spawn"))?;
+                    serde_json::json!(actor.id)
+                }
+                _ => field.clone(),
+            };
+            if matches!(key.as_str(), "id" | "root" | "output") {
+                return Err(format!("{key} is managed by the generator"));
+            }
+            match (value.get_mut(key), field) {
+                (Some(serde_json::Value::Object(current)), serde_json::Value::Object(patch)) => {
+                    for (k, v) in patch {
+                        current.insert(k.clone(), v.clone());
+                    }
+                }
+                (Some(slot), _) => *slot = field.clone(),
+                // Unset optional references are omitted from the document.
+                (None, _)
+                    if matches!(
+                        key.as_str(),
+                        "spawn_actor" | "tile_set" | "recipe" | "volumes"
+                    ) =>
+                {
+                    value[key] = field.clone();
+                }
+                (None, _) => return Err(format!("Unknown generator setting {key}")),
+            }
+        }
+    }
+    if let Some(seed) = a["seed"].as_u64() {
+        value["seed"] = serde_json::json!(seed.min(u64::from(u32::MAX)));
+    }
+    let generator: Generator = serde_json::from_value(value).map_err(|e| e.to_string())?;
+    generator.validate()?;
+    scene.dungeons[index] = generator;
+    Ok(id)
+}
+
+/// Creates a Dungeon Recipe asset holding generator `id`'s current recipe (or the
+/// built-in one) and returns its id.
+pub fn new_recipe(
+    root: &std::path::Path,
+    scene: &crate::scene::Scene,
+    id: Uuid,
+    name: &str,
+) -> Result<Uuid, String> {
+    let g = scene
+        .dungeons
+        .iter()
+        .find(|g| g.id == id)
+        .ok_or("The Dungeon Generator was removed")?;
+    let index = crate::assets::scan(root, &mut Default::default());
+    let (recipe, _) = crate::dungeon_recipe::of(&index, g)?;
+    let path = crate::dungeon_recipe::fresh_path(root, name);
+    crate::dungeon_recipe::create(root, &path, &recipe)
+}
+
+/// Creates a Dungeon Style asset holding generator `id`'s current look (its style, or
+/// the built-in one) and returns its id.
+pub fn new_style(
+    root: &std::path::Path,
+    scene: &crate::scene::Scene,
+    id: Uuid,
+    name: &str,
+) -> Result<Uuid, String> {
+    let g = scene
+        .dungeons
+        .iter()
+        .find(|g| g.id == id)
+        .ok_or("The Dungeon Generator was removed")?;
+    let two_d = dungeon_bake::is_2d(scene, g.root);
+    let index = crate::assets::scan(root, &mut Default::default());
+    let (mut style, _) = dungeon_bake::style_of(&index, g, two_d)?;
+    dungeon_bake::pin_markers(root, &mut style)?;
+    let path = crate::dungeon_style::fresh_path(root, name);
+    crate::dungeon_style::create(root, &path, &style)
+}
+
+// ---- preview -------------------------------------------------------------------------------
+
+/// The layout and budget of a generator's current settings and style, cached until
+/// either changes.
+pub fn preview(e: &mut Editor, id: Uuid) -> Option<Preview> {
+    let generator = e.scene.dungeons.iter().find(|g| g.id == id)?.clone();
+    let two_d = dungeon_bake::is_2d(&e.scene, generator.root);
+    let style_revision = generator
+        .style
+        .and_then(|s| e.assets.index.resolve(s).ok())
+        .map(|r| r.revision.clone())
+        .unwrap_or_default();
+    let recipe_revision = match generator.source {
+        dungeon::Source::Recipe => generator
+            .recipe
+            .and_then(|r| e.assets.index.resolve(r).ok())
+            .map(|r| r.revision.clone())
+            .unwrap_or_default(),
+        dungeon::Source::Rooms => String::new(),
+    };
+    let fingerprint = format!(
+        "{}-{two_d}-{style_revision}-{recipe_revision}",
+        generator.fingerprint()
+    );
+    if let Some(cached) = e.dungeon.previews.get(&id)
+        && cached.fingerprint == fingerprint
+    {
+        return Some(cached.clone());
+    }
+    let recipe = match generator.source {
+        dungeon::Source::Recipe => crate::dungeon_recipe::of(&e.assets.index, &generator)
+            .ok()
+            .map(|(_, digest)| digest),
+        dungeon::Source::Rooms => None,
+    };
+    let layout = generator
+        .validate()
+        .and_then(|_| dungeon::layout(&generator, &e.assets.index))
+        .map(|mut layout| {
+            if two_d {
+                layout.without_handmade_content();
+            }
+            layout
+        });
+    if let (Ok(layout), Ok(mut layouts)) = (&layout, LAYOUTS.lock()) {
+        layouts.insert(id, (generator.fingerprint(), layout.clone()));
+    }
+    let style = dungeon_bake::style_of(&e.assets.index, &generator, two_d);
+    let budget = match (&layout, &style) {
+        (Ok(layout), Ok((style, _))) => {
+            budget(&e.scene, &e.assets.index, &generator, layout, style).ok()
+        }
+        _ => None,
+    };
+    let preview = Preview {
+        fingerprint,
+        layout,
+        budget,
+        style: style.map(|(_, digest)| digest),
+        recipe,
+    };
+    e.dungeon.previews.insert(id, preview.clone());
+    Some(preview)
+}
+
+pub(crate) fn budget(
+    scene: &crate::scene::Scene,
+    index: &crate::assets::Index,
+    g: &Generator,
+    layout: &Layout,
+    style: &crate::dungeon_style::Style,
+) -> Result<Budget, String> {
+    use crate::dungeon_style::Piece;
+    let output: std::collections::BTreeSet<Uuid> = g
+        .output
+        .actors
+        .iter()
+        .flat_map(|a| scene.actor_branch(*a))
+        .collect();
+    let others = scene.actors.iter().filter(|a| !output.contains(&a.id));
+    let placements = crate::dungeon_style::evaluate(style, layout, g.seed);
+    let pieces = placements
+        .iter()
+        .filter(|p| {
+            matches!(
+                p.visual.piece,
+                Piece::Actor { class: Some(_) }
+                    | Piece::Light { .. }
+                    | Piece::Key { .. }
+                    | Piece::Door { .. }
+            )
+        })
+        .count();
+    if dungeon_bake::is_2d(scene, g.root) {
+        let tiles = (0..layout.size[1])
+            .flat_map(|y| (0..layout.size[0]).map(move |x| [x, y]))
+            .filter(|p| layout.at(*p).walkable() || layout.solid(*p))
+            .count();
+        let mut layers: Vec<Option<Uuid>> = placements
+            .iter()
+            .filter_map(|p| match &p.visual.piece {
+                Piece::Tile { tile_set, .. } => Some(*tile_set),
+                _ => None,
+            })
+            .collect();
+        layers.sort();
+        layers.dedup();
+        return Ok(Budget {
+            actors: others.count() + 3 + layers.len() + pieces,
+            tiles,
+            ..Default::default()
+        });
+    }
+    let other_quads: usize = others.clone().map(crate::lighting::quad_count).sum();
+    let meshes = dungeon_bake::piece_meshes(index, &placements)?;
+    let rooms = dungeon_bake::rooms_3d(g, layout, index);
+    let plan = dungeon_bake::plan_3d(g, layout, &placements, &meshes, &rooms)?;
+    let light = !scene.actors.iter().any(|a| {
+        !output.contains(&a.id)
+            && a.light
+                .as_ref()
+                .is_some_and(|l| l.kind == crate::lighting::LightType::Directional)
+    });
+    let generated = plan.sections.len()
+        + 3
+        + plan.navigation.as_ref().map_or(0, |n| n.volumes.len())
+        + usize::from(light)
+        + pieces
+        + rooms.actors.len();
+    Ok(Budget {
+        actors: others.count() + generated,
+        quads: other_quads + plan.quads,
+        boxes: plan.boxes.len(),
+        navigation: plan.navigation.as_ref().map(|n| n.nodes),
+        tiles: 0,
+    })
+}
+
+/// Lines drawing the selected generator's layout in the 3D view: rooms, corridors,
+/// doors, spawn and goal, at floor level until generated and above the walls after.
+pub fn preview_lines(
+    scene: &crate::scene::Scene,
+    selected: Option<usize>,
+) -> Vec<([f32; 3], [f32; 3], [u8; 3])> {
+    let mut lines = Vec::new();
+    let Some(actor) = selected.and_then(|i| scene.actors.get(i)) else {
+        return lines;
+    };
+    let Some(g) = scene.dungeons.iter().find(|g| g.root == actor.id) else {
+        return lines;
+    };
+    if dungeon_bake::is_2d(scene, g.root) || g.validate().is_err() {
+        return lines;
+    }
+    let cached = LAYOUTS
+        .lock()
+        .ok()
+        .and_then(|l| l.get(&g.id).cloned())
+        .filter(|(fingerprint, _)| *fingerprint == g.fingerprint())
+        .map(|(_, layout)| layout);
+    let Some(layout) = cached.or_else(|| dungeon::layout(g, &Default::default()).ok()) else {
+        return lines;
+    };
+    let Some(root) = scene.actor_index(g.root) else {
+        return lines;
+    };
+    let matrix = scene.world_matrix(root);
+    let frame = dungeon_bake::Frame {
+        size: layout.size,
+        cell: g.cell_size,
+        height: g.wall_height,
+    };
+    let y = if g.output.is_empty() || g.stale() {
+        0.06
+    } else {
+        g.wall_height + 0.06
+    };
+    // Rooms, corridors and their marks are outlined at their own floor level.
+    let lift = std::cell::Cell::new(0f32);
+    let point = |x: f32, z: f32| matrix.point([x, y + lift.get(), z]);
+    let rect = |x0: i32, z0: i32, x1: i32, z1: i32, color: [u8; 3], lines: &mut Vec<_>| {
+        let corners = [
+            point(frame.x(x0), frame.z(z0)),
+            point(frame.x(x1), frame.z(z0)),
+            point(frame.x(x1), frame.z(z1)),
+            point(frame.x(x0), frame.z(z1)),
+        ];
+        for i in 0..4 {
+            lines.push((corners[i], corners[(i + 1) % 4], color));
+        }
+    };
+    // The grid's outline shows how much room the layout may use.
+    rect(
+        0,
+        0,
+        layout.size[0],
+        layout.size[1],
+        [90, 96, 110],
+        &mut lines,
+    );
+    // Generation volumes, in their colours; Keep out ones crossed.
+    for v in &g.volumes {
+        let c = v.kind.color().map(|c| (c * 255.) as u8);
+        let color = [c[0], c[1], c[2]];
+        let [x1, z1] = v.max();
+        rect(v.min[0], v.min[1], x1, z1, color, &mut lines);
+        if v.kind == crate::dungeon_volumes::Kind::KeepOut {
+            let (a, b) = (
+                point(frame.x(v.min[0]), frame.z(v.min[1])),
+                point(frame.x(x1), frame.z(z1)),
+            );
+            let (c0, d0) = (
+                point(frame.x(x1), frame.z(v.min[1])),
+                point(frame.x(v.min[0]), frame.z(z1)),
+            );
+            lines.push((a, b, color));
+            lines.push((c0, d0, color));
+        }
+    }
+    // The room pointed at in the Gameplay queries list: its outline twice and a cross.
+    let hovered = HOVERED_ROOM
+        .lock()
+        .ok()
+        .and_then(|h| *h)
+        .filter(|(generator, _)| *generator == g.id)
+        .and_then(|(_, index)| layout.rooms.get(index).copied());
+    if let Some(room) = hovered {
+        let [x0, z0] = room.min;
+        let [x1, z1] = [room.min[0] + room.size[0], room.min[1] + room.size[1]];
+        let white = [255, 255, 255];
+        lift.set(layout.floor(room.center()));
+        rect(x0, z0, x1, z1, white, &mut lines);
+        let inset = |x: i32, z: i32, dx: f32, dz: f32| point(frame.x(x) + dx, frame.z(z) + dz);
+        let d = g.cell_size * 0.2;
+        let corners = [
+            inset(x0, z0, d, d),
+            inset(x1, z0, -d, d),
+            inset(x1, z1, -d, -d),
+            inset(x0, z1, d, -d),
+        ];
+        for i in 0..4 {
+            lines.push((corners[i], corners[(i + 1) % 4], white));
+        }
+        lines.push((corners[0], corners[2], white));
+        lines.push((corners[1], corners[3], white));
+    }
+    for (index, room) in layout.rooms.iter().enumerate() {
+        let color = if index == layout.spawn {
+            [90, 230, 120]
+        } else if index == layout.goal {
+            [240, 110, 90]
+        } else {
+            [110, 190, 255]
+        };
+        lift.set(layout.floor(room.center()));
+        rect(
+            room.min[0],
+            room.min[1],
+            room.min[0] + room.size[0],
+            room.min[1] + room.size[1],
+            color,
+            &mut lines,
+        );
+    }
+    // Corridor edges facing a wall.
+    for spot in dungeon::spots(&layout) {
+        let Some(side) = spot.side else { continue };
+        if !spot.corridor && spot.kind != dungeon::SpotKind::Door {
+            continue;
+        }
+        let [x, z] = spot.cell;
+        let (a, b) = match side {
+            dungeon::Side::North => ((x, z), (x + 1, z)),
+            dungeon::Side::South => ((x, z + 1), (x + 1, z + 1)),
+            dungeon::Side::West => ((x, z), (x, z + 1)),
+            dungeon::Side::East => ((x + 1, z), (x + 1, z + 1)),
+        };
+        let color = if spot.kind == dungeon::SpotKind::Door {
+            [255, 214, 90]
+        } else {
+            [200, 160, 110]
+        };
+        lift.set(layout.top(spot.cell));
+        lines.push((
+            point(frame.x(a.0), frame.z(a.1)),
+            point(frame.x(b.0), frame.z(b.1)),
+            color,
+        ));
+    }
+    // Recipe doors cross their opening; keys and items are small squares.
+    for (doors, color) in [
+        (&layout.locks, [255, 70, 60]),
+        (&layout.one_ways, [80, 150, 255]),
+    ] {
+        for door in doors.iter() {
+            lift.set(layout.floor(door.cell));
+            let c = frame.center(door.cell);
+            let d = door.side.delta().map(|v| v as f32 * g.cell_size * 0.5);
+            let across = [-d[1], d[0]];
+            let edge = [c[0] + d[0], c[2] + d[1]];
+            lines.push((
+                point(edge[0] - across[0], edge[1] - across[1]),
+                point(edge[0] + across[0], edge[1] + across[1]),
+                color,
+            ));
+            lines.push((point(edge[0], edge[1]), point(c[0], c[2]), color));
+        }
+    }
+    for item in &layout.items {
+        lift.set(layout.floor(item.cell));
+        let c = frame.center(item.cell);
+        let r = g.cell_size * 0.25;
+        let color = if item.lock > 0 {
+            [255, 210, 60]
+        } else {
+            [90, 220, 140]
+        };
+        let corners = [
+            point(c[0] - r, c[2] - r),
+            point(c[0] + r, c[2] - r),
+            point(c[0] + r, c[2] + r),
+            point(c[0] - r, c[2] + r),
+        ];
+        for i in 0..4 {
+            lines.push((corners[i], corners[(i + 1) % 4], color));
+        }
+    }
+    lines
+}
+
+// ---- Inspector -----------------------------------------------------------------------------
+
+/// The Dungeon Generator band of a generator's root actor, 2D or 3D. Edits change the
+/// map document directly; commands that add or remove actors run next frame.
+pub fn inspector(ui: &Ui, e: &mut Editor, actor: Uuid) {
+    let Some(id) = generator_of(e, actor).map(|g| g.id) else {
+        return;
+    };
+    let two_d = dungeon_bake::is_2d(&e.scene, actor);
+    let mut request = None;
+    let open = crate::gui::section(ui, &format!("{ICON} Dungeon Generator##dungeon"), || {
+        if crate::gui::script_menu_item(ui, "Generate") {
+            request = Some(Request::Generate(id));
+        }
+        if crate::gui::script_menu_item(ui, "New seed and generate") {
+            request = Some(Request::NewSeed(id));
+        }
+        ui.separator();
+        if crate::gui::script_menu_item(ui, "Remove generated content") {
+            request = Some(Request::Clear(id));
+        }
+        if crate::gui::script_menu_item(ui, "Reset settings") {
+            request = Some(Request::Reset(id));
+        }
+    });
+    if open {
+        let preview = preview(e, id);
+        let width = ui.content_region_avail()[0];
+        let half = ((width - 6.) * 0.5).max(60.);
+        if ui.button_with_size(format!("{ICON_GENERATE} Generate"), [half, 0.]) {
+            request = Some(Request::Generate(id));
+        }
+        #[cfg(test)]
+        crate::gui::record_script_control(ui, "Generate dungeon");
+        if ui.is_item_hovered() {
+            ui.tooltip_text(
+                "Build the dungeon from these settings into the map (Ctrl+Z undoes it).",
+            );
+        }
+        ui.same_line();
+        if ui.button_with_size(format!("{ICON_SEED} New seed"), [half, 0.]) {
+            request = Some(Request::NewSeed(id));
+        }
+        #[cfg(test)]
+        crate::gui::record_script_control(ui, "New dungeon seed");
+        if ui.is_item_hovered() {
+            ui.tooltip_text("Pick another seed and generate a different dungeon.");
+        }
+        warnings(ui, e, id, two_d, preview.as_ref(), &mut request);
+        settings(ui, e, id, two_d);
+        if let Some(preview) = &preview {
+            budget_rows(ui, two_d, preview);
+        }
+        if ui.button(format!("{} Test seeds...", crate::dungeon_seeds::ICON)) {
+            request = Some(Request::OpenSeedBench(id));
+        }
+        if ui.is_item_hovered() {
+            ui.tooltip_text("Measure many seeds of these settings against the console's budget, and pick or export the ones that fit.");
+        }
+        queries(ui, e, id);
+    }
+    if request.is_some() {
+        e.dungeon.pending = request;
+    }
+    if !ui.is_any_item_active() {
+        e.end_coalesced();
+    }
+}
+
+fn warnings(
+    ui: &Ui,
+    e: &Editor,
+    id: Uuid,
+    two_d: bool,
+    preview: Option<&Preview>,
+    request: &mut Option<Request>,
+) {
+    let Some(g) = e.scene.dungeons.iter().find(|g| g.id == id) else {
+        return;
+    };
+    let mut list: Vec<(String, Option<(&str, Request)>)> = Vec::new();
+    if let Err(error) = g.validate() {
+        list.push((error, None));
+    } else if let Some(Err(error)) = preview.map(|p| &p.layout) {
+        list.push((error.clone(), None));
+    }
+    if g.output.is_empty() {
+        list.push((
+            "Nothing generated yet.".into(),
+            Some(("Generate", Request::Generate(id))),
+        ));
+    } else if g.stale() {
+        list.push((
+            "The settings changed since the dungeon was generated.".into(),
+            Some(("Regenerate", Request::Generate(id))),
+        ));
+    } else if let Some(Ok(digest)) = preview.map(|p| &p.style)
+        && g.style_stale(digest)
+    {
+        list.push((
+            "The style changed since the dungeon was generated.".into(),
+            Some(("Regenerate", Request::Generate(id))),
+        ));
+    } else if let Some(Some(digest)) = preview.map(|p| &p.recipe)
+        && g.recipe_stale(digest)
+    {
+        list.push((
+            "The recipe changed since the dungeon was generated.".into(),
+            Some(("Regenerate", Request::Generate(id))),
+        ));
+    }
+    if let Some(Err(error)) = preview.map(|p| &p.style) {
+        list.push((error.clone(), None));
+    }
+    if !g.output.is_empty() && g.output.queries.is_none() {
+        list.push((
+            "Generated before gameplay queries: regenerate so game code can ask about its rooms."
+                .into(),
+            Some(("Regenerate", Request::Generate(id))),
+        ));
+    }
+    // Keys without a live Player are picked up by anything.
+    let has_keys = g.output.actors.iter().any(|actor| {
+        e.scene.actor_index(*actor).is_some_and(|i| {
+            e.scene.actors[i].components.iter().any(|c| {
+                c.class
+                    .class_id
+                    .as_deref()
+                    .is_some_and(crate::dungeon_gameplay::is_key)
+            })
+        })
+    });
+    if has_keys && g.spawn_actor.and_then(|p| e.scene.actor_index(p)).is_none() {
+        let candidate = e.scene.actors.iter().find(|a| {
+            a.name.eq_ignore_ascii_case("Player")
+                && !g.output.actors.contains(&a.id)
+                && dungeon_bake::is_2d(&e.scene, a.id) == two_d
+        });
+        list.push((
+            "Keys are picked up by anything that touches them; choose the Player so only it can."
+                .into(),
+            candidate.map(|a| ("Use Player", Request::UsePlayer(id, a.id))),
+        ));
+    }
+    if !two_d {
+        if let Some(index) = e.scene.actor_index(g.root)
+            && !crate::collision::translation_only(e.scene.world_matrix(index))
+        {
+            list.push((
+                "Generated collision needs a generator that is only moved, not rotated or scaled."
+                    .into(),
+                Some(("Reset rotation and scale", Request::ResetTransform(id))),
+            ));
+        }
+        if let Some(Ok(layout)) = preview.map(|p| &p.layout)
+            && g.half_extent(layout.size) > 127.
+        {
+            list.push((
+                format!(
+                    "The grid spans {:.0} units; keep it within 254 (smaller cells or grid).",
+                    g.half_extent(layout.size) * 2.
+                ),
+                None,
+            ));
+        }
+    }
+    if let Some(Ok(layout)) = preview.map(|p| &p.layout)
+        && layout.rooms.len() < layout.requested
+    {
+        list.push((
+            format!(
+                "Only {} of {} rooms fit: enlarge the grid or shrink the rooms.",
+                layout.rooms.len(),
+                layout.requested
+            ),
+            None,
+        ));
+    }
+    if let Some(budget) = preview.and_then(|p| p.budget.as_ref()) {
+        if budget.actors > 64 {
+            list.push((
+                format!(
+                    "The map would hold {} actors; a map holds 64.",
+                    budget.actors
+                ),
+                None,
+            ));
+        }
+        if budget.quads > SCENE_QUADS {
+            list.push((
+                format!(
+                    "The map would hold {} quads; without streaming a map holds {SCENE_QUADS}.",
+                    budget.quads
+                ),
+                None,
+            ));
+        }
+        if g.navigation && budget.navigation.is_none() && !two_d {
+            list.push((
+                "The floor is too large for navigation; it will be skipped.".into(),
+                None,
+            ));
+        }
+    }
+    if list.is_empty() {
+        return;
+    }
+    let draw = ui.get_window_draw_list();
+    let start = ui.cursor_screen_pos();
+    let width = ui.content_region_avail()[0];
+    draw.channels_split(2, |channels| {
+        channels.set_current(1);
+        ui.dummy([0., 2.]);
+        for (i, (text, fix)) in list.iter().enumerate() {
+            let _id = ui.push_id_usize(i);
+            ui.indent_by(6.);
+            ui.text_colored(AMBER, crate::world2d_warnings::ICON_WARNING);
+            ui.same_line();
+            ui.group(|| {
+                let wrap = ui.push_text_wrap_pos_with_pos(ui.cursor_pos()[0] + width - 34.);
+                ui.text(text);
+                wrap.end();
+                if let Some((label, fix)) = fix {
+                    let pressed = ui.small_button(label);
+                    #[cfg(test)]
+                    crate::gui::record_script_control(ui, label);
+                    if pressed {
+                        *request = Some(*fix);
+                    }
+                }
+            });
+            ui.unindent_by(6.);
+        }
+        ui.dummy([0., 2.]);
+        channels.set_current(0);
+        let end = [start[0] + width, ui.cursor_screen_pos()[1] - 2.];
+        draw.add_rect(start, end, [AMBER[0], AMBER[1], AMBER[2], 0.1])
+            .filled(true)
+            .rounding(3.)
+            .build();
+    });
+}
+
+fn settings(ui: &Ui, e: &mut Editor, id: Uuid, two_d: bool) {
+    let Some(index) = e.scene.dungeons.iter().position(|g| g.id == id) else {
+        return;
+    };
+    let mut g = e.scene.dungeons[index].clone();
+    let actors: Vec<(Uuid, String)> = e
+        .scene
+        .actors
+        .iter()
+        .filter(|a| a.id != g.root && !g.output.actors.contains(&a.id))
+        .filter(|a| dungeon_bake::is_2d(&e.scene, a.id) == two_d)
+        .map(|a| (a.id, a.name.clone()))
+        .collect();
+    let tile_sets: Vec<(Uuid, String)> = if two_d {
+        e.assets
+            .index
+            .assets
+            .values()
+            .flatten()
+            .filter(|r| r.meta.kind == crate::assets::Kind::TileSet)
+            .map(|r| {
+                (
+                    r.meta.id,
+                    r.path
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                )
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let mut seed = g.seed as i32;
+    if crate::gui::Drag::new(crate::gui::field(ui, "Seed"))
+        .range(0, i32::MAX)
+        .build(ui, &mut seed)
+    {
+        g.seed = seed.max(0) as u32;
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("The same seed and settings always give the same dungeon.");
+    }
+    style_row(ui, e, &mut g, two_d);
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Layout"), g.source.label()) {
+        for source in dungeon::Source::ALL {
+            if ui
+                .selectable_config(source.label())
+                .selected(g.source == source)
+                .build()
+            {
+                g.source = source;
+            }
+        }
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text(
+            "Rooms and corridors: rooms scattered over a grid. Recipe: a designed route from \
+             spawn to goal with branches, loops, keys and locks.",
+        );
+    }
+    if g.source == dungeon::Source::Recipe {
+        recipe_row(ui, e, &mut g);
+    }
+    if g.source == dungeon::Source::Rooms {
+        rooms(ui, &mut g.rooms);
+    }
+    ui.spacing();
+    let height = character_height(&e.scene, g.spawn_actor);
+    appearance(ui, &mut g, two_d, &tile_sets, &actors, height);
+    minimap(ui, &mut g, e.scene.display_size);
+    if volumes(ui, &mut g) {
+        e.dungeon.pending = Some(Request::OpenVolumes(g.id));
+    }
+    if g != e.scene.dungeons[index] {
+        e.scene.dungeons[index] = g;
+        e.changed_coalesced("dungeon-settings");
+    }
+}
+
+/// The settings of the rooms-and-corridors layout.
+fn rooms(ui: &Ui, s: &mut dungeon::RoomSettings) {
+    ui.spacing();
+    crate::gui::muted(ui, "Layout (in grid cells)");
+    let mut size = [i32::from(s.size[0]), i32::from(s.size[1])];
+    if crate::gui::Drag::new(crate::gui::field(ui, "Grid size"))
+        .range(
+            i32::from(dungeon::GRID_LIMITS.0),
+            i32::from(dungeon::GRID_LIMITS.1),
+        )
+        .build_array(ui, &mut size)
+    {
+        s.size = size.map(|v| {
+            v.clamp(
+                i32::from(dungeon::GRID_LIMITS.0),
+                i32::from(dungeon::GRID_LIMITS.1),
+            ) as u16
+        });
+    }
+    drag_u16(
+        ui,
+        "Rooms",
+        &mut s.rooms,
+        dungeon::ROOM_LIMITS,
+        "How many rooms to place; fewer fit in a crowded grid.",
+    );
+    let mut room = [i32::from(s.room_min), i32::from(s.room_max)];
+    if crate::gui::Drag::new(crate::gui::field(ui, "Room size"))
+        .range(
+            i32::from(dungeon::ROOM_SIZE_LIMITS.0),
+            i32::from(dungeon::ROOM_SIZE_LIMITS.1),
+        )
+        .build_array(ui, &mut room)
+    {
+        let (lo, hi) = dungeon::ROOM_SIZE_LIMITS;
+        s.room_min = room[0].clamp(i32::from(lo), i32::from(hi)) as u16;
+        s.room_max = (room[1].clamp(i32::from(lo), i32::from(hi)) as u16).max(s.room_min);
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Smallest and largest room side, in cells.");
+    }
+    drag_u16(
+        ui,
+        "Spacing",
+        &mut s.spacing,
+        dungeon::SPACING_LIMITS,
+        "Empty cells kept between rooms; corridors need at least three to pass between.",
+    );
+    drag_u16(
+        ui,
+        "Corridor width",
+        &mut s.corridor_width,
+        dungeon::CORRIDOR_LIMITS,
+        "Corridor width in cells.",
+    );
+    drag_u16(
+        ui,
+        "Loops",
+        &mut s.loops,
+        (0, 100),
+        "Chance, in percent, that each extra connection becomes a loop. 0 gives a tree: one way between any two rooms.",
+    );
+}
+
+/// The generation volumes: how many, each with its kind and cells, and the button to
+/// draw them on the grid. Returns whether that button was pressed.
+fn volumes(ui: &Ui, g: &mut Generator) -> bool {
+    use crate::dungeon_volumes::Kind;
+    ui.spacing();
+    let open = ui.collapsing_header(
+        format!(
+            "Volumes{}##dungeon-volumes",
+            match g.volumes.len() {
+                0 => String::new(),
+                n => format!(": {n}"),
+            }
+        ),
+        if g.volumes.is_empty() {
+            imgui::TreeNodeFlags::empty()
+        } else {
+            imgui::TreeNodeFlags::DEFAULT_OPEN
+        },
+    );
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Rectangles of the grid that keep the dungeon out of or inside an area, force a room or mirror rooms.");
+    }
+    if !open {
+        return false;
+    }
+    let pressed = ui.button(format!(
+        "{} Draw volumes...",
+        crate::dungeon_volumes_editor::ICON
+    ));
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Open the grid from above and draw volumes by dragging; the layout follows each change.");
+    }
+    if g.volumes.is_empty() {
+        crate::gui::muted(ui, "None: the dungeon may use the whole grid.");
+    }
+    let mut remove = None;
+    for (i, v) in g.volumes.iter_mut().enumerate() {
+        let _id = ui.push_id_usize(i);
+        let c = v.kind.color();
+        ui.text_colored(c, format!("{}", i + 1));
+        ui.same_line();
+        ui.set_next_item_width(140.);
+        if let Some(_combo) = ui.begin_combo("##kind", v.kind.label()) {
+            for kind in Kind::ALL {
+                if ui
+                    .selectable_config(kind.label())
+                    .selected(v.kind == kind)
+                    .build()
+                {
+                    v.kind = kind;
+                }
+                if ui.is_item_hovered() {
+                    ui.tooltip_text(kind.tip());
+                }
+            }
+        }
+        ui.same_line();
+        crate::gui::muted(
+            ui,
+            format!(
+                "{}x{} cells at {},{}",
+                v.size[0], v.size[1], v.min[0], v.min[1]
+            ),
+        );
+        ui.same_line();
+        if ui.small_button("Remove") {
+            remove = Some(i);
+        }
+    }
+    if let Some(i) = remove {
+        g.volumes.remove(i);
+    }
+    if g.source == dungeon::Source::Recipe && g.volumes.iter().any(|v| !v.kind.shapes_recipes()) {
+        ui.text_colored(
+            AMBER,
+            "Recipes follow Keep out and Only here; Room here and Mirror shape rooms-and-corridors layouts.",
+        );
+    }
+    pressed
+}
+
+/// The console minimap: whether the map has one, where it sits and how it fills in,
+/// with a picture of the screen as the game will show it.
+fn minimap(ui: &Ui, g: &mut Generator, screen: [u16; 2]) {
+    use crate::dungeon_minimap::{COLOR_NAMES, Corner};
+    ui.spacing();
+    let open = ui.collapsing_header(
+        format!(
+            "Minimap{}##dungeon-minimap",
+            if g.minimap.enabled { ": on" } else { "" }
+        ),
+        if g.minimap.enabled {
+            imgui::TreeNodeFlags::DEFAULT_OPEN
+        } else {
+            imgui::TreeNodeFlags::empty()
+        },
+    );
+    if ui.is_item_hovered() {
+        ui.tooltip_text(
+            "A map of the dungeon on the console's screen that fills in as the player explores.",
+        );
+    }
+    if !open {
+        return;
+    }
+    let m = &mut g.minimap;
+    let _ = crate::gui::toggle(ui, "Minimap", &mut m.enabled);
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Draw the minimap on the console, under the HUD.");
+    }
+    if !m.enabled {
+        crate::gui::muted(ui, "Off: the map has no minimap.");
+        return;
+    }
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Corner"), m.corner.label()) {
+        for corner in Corner::ALL {
+            if ui
+                .selectable_config(corner.label())
+                .selected(m.corner == corner)
+                .build()
+            {
+                m.corner = corner;
+            }
+        }
+    }
+    let mut size = [i32::from(m.size[0]), i32::from(m.size[1])];
+    if crate::gui::Drag::new(crate::gui::field(ui, "Size"))
+        .range(16, 240)
+        .build_array(ui, &mut size)
+    {
+        m.size = [size[0].clamp(16, 240) as u16, size[1].clamp(16, 200) as u16];
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("The box's width and height in screen pixels.");
+    }
+    let mut margin = [i32::from(m.margin[0]), i32::from(m.margin[1])];
+    if crate::gui::Drag::new(crate::gui::field(ui, "Margin"))
+        .range(0, 200)
+        .build_array(ui, &mut margin)
+    {
+        m.margin = margin.map(|v| v.clamp(0, 200) as u16);
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Pixels between the box and the screen's edges at its corner.");
+    }
+    let _ = crate::gui::toggle(ui, "Follow the player", &mut m.follow);
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Keep the player in the middle of the box at a fixed scale; keys and the goal out of view sit on its edge. Off fits the whole dungeon in the box.");
+    }
+    let baked = g.output.queries.as_ref().map(|q| &q.minimap);
+    if m.follow {
+        let mut cell = i32::from(m.cell);
+        if ui
+            .slider_config(crate::gui::field(ui, "Pixels a cell"), 1, 8)
+            .build(&mut cell)
+        {
+            m.cell = cell.clamp(1, 8) as u8;
+        }
+    } else if let Some(baked) = baked.filter(|b| !b.rects.is_empty()) {
+        let _ = crate::gui::field(ui, "Pixels a cell");
+        ui.text(format!("{} (fits the box)", m.fit(baked)));
+    }
+    const REVEAL: [&str; 2] = ["As the player explores", "Everything from the start"];
+    if let Some(_combo) = ui.begin_combo(
+        crate::gui::field(ui, "Shows"),
+        REVEAL[usize::from(m.everything)],
+    ) {
+        for (i, label) in REVEAL.iter().enumerate() {
+            if ui
+                .selectable_config(label)
+                .selected(usize::from(m.everything) == i)
+                .build()
+            {
+                m.everything = i == 1;
+            }
+        }
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("As the player explores: a room shows once entered, with dim stubs of the corridors leading out, and a corridor once walked. Game code can reveal rooms too.");
+    }
+    let _ = crate::gui::toggle(ui, "Shown at start", &mut m.visible);
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Off hides the box until game code shows it (Dungeon > Show Minimap), for example on a button press.");
+    }
+    if let Some(_node) = ui.tree_node("Colours##dungeon-minimap-colours") {
+        for (name, color) in COLOR_NAMES.iter().zip(m.colors.iter_mut()) {
+            let mut c = color.map(|v| f32::from(v) / 255.);
+            if ui
+                .color_edit3_config(crate::gui::field(ui, name), &mut c)
+                .build()
+            {
+                *color = c.map(|v| (v.clamp(0., 1.) * 255.).round() as u8);
+            }
+        }
+    }
+    let m = &g.minimap;
+    let Some((queries, baked)) = g
+        .output
+        .queries
+        .as_ref()
+        .map(|q| (q, &q.minimap))
+        .filter(|(_, b)| !b.rects.is_empty())
+    else {
+        ui.text_colored(
+            AMBER,
+            "Generate to see the minimap: it is drawn from the generated dungeon.",
+        );
+        return;
+    };
+    if g.spawn_actor.is_none() {
+        ui.text_colored(
+            AMBER,
+            "Set the Player: the minimap explores from it and marks it.",
+        );
+    }
+    crate::gui::muted(
+        ui,
+        format!(
+            "{} rectangles · about {:.1} KB of console RAM",
+            baked.rects.len(),
+            crate::dungeon_minimap::ram_bytes(baked.rects.len()) as f32 / 1024.
+        ),
+    );
+    minimap_picture(ui, m, queries, baked, screen);
+}
+
+/// The console's screen at the band's width with the minimap as it shows once
+/// everything is explored, the player at the spawn.
+fn minimap_picture(
+    ui: &Ui,
+    m: &crate::dungeon_minimap::Settings,
+    queries: &crate::dungeon_query::Map,
+    baked: &crate::dungeon_minimap::Baked,
+    screen: [u16; 2],
+) {
+    let screen = [f32::from(screen[0].max(1)), f32::from(screen[1].max(1))];
+    let width = ui.content_region_avail()[0].min(320.);
+    let scale = width / screen[0];
+    let origin = ui.cursor_screen_pos();
+    let height = screen[1] * scale;
+    let draw = ui.get_window_draw_list();
+    draw.add_rect(
+        origin,
+        [origin[0] + width, origin[1] + height],
+        [0.18, 0.2, 0.24, 1.],
+    )
+    .filled(true)
+    .build();
+    let px = |v: f32| v * scale;
+    let (bw, bh) = (f32::from(m.size[0]), f32::from(m.size[1]));
+    let right = matches!(
+        m.corner,
+        crate::dungeon_minimap::Corner::TopRight | crate::dungeon_minimap::Corner::BottomRight
+    );
+    let bottom = matches!(
+        m.corner,
+        crate::dungeon_minimap::Corner::BottomLeft | crate::dungeon_minimap::Corner::BottomRight
+    );
+    let bx = if right {
+        screen[0] - f32::from(m.margin[0]) - bw
+    } else {
+        f32::from(m.margin[0])
+    };
+    let by = if bottom {
+        screen[1] - f32::from(m.margin[1]) - bh
+    } else {
+        f32::from(m.margin[1])
+    };
+    let color = |c: [u8; 3], a: f32| {
+        [
+            f32::from(c[0]) / 255.,
+            f32::from(c[1]) / 255.,
+            f32::from(c[2]) / 255.,
+            a,
+        ]
+    };
+    let box_min = [origin[0] + px(bx), origin[1] + px(by)];
+    let box_max = [box_min[0] + px(bw), box_min[1] + px(bh)];
+    draw.with_clip_rect_intersect(box_min, box_max, || {
+        draw.add_rect(box_min, box_max, color(m.colors[3], 0.6))
+            .filled(true)
+            .build();
+        let cell = if m.follow {
+            f32::from(m.cell)
+        } else {
+            m.fit(baked) as f32
+        };
+        let to_cell = |p: [f32; 3]| {
+            let plane = if queries.two_d {
+                [p[0], p[1]]
+            } else {
+                [p[0], p[2]]
+            };
+            [
+                ((plane[0] - baked.corner[0]) / baked.step[0]).floor(),
+                ((plane[1] - baked.corner[1]) / baked.step[1]).floor(),
+            ]
+        };
+        let player = queries
+            .rooms
+            .get(queries.spawn.max(0) as usize)
+            .map(|r| to_cell(r.center));
+        let (ox, oy) = match player.filter(|_| m.follow) {
+            Some(p) => (
+                bx + bw / 2. - p[0] * cell - cell / 2.,
+                by + bh / 2. - p[1] * cell - cell / 2.,
+            ),
+            None => (
+                bx + (bw - f32::from(baked.size[0]) * cell) / 2.,
+                by + (bh - f32::from(baked.size[1]) * cell) / 2.,
+            ),
+        };
+        let at = |x: f32, y: f32| [origin[0] + px(ox + x * cell), origin[1] + px(oy + y * cell)];
+        for r in &baked.rects {
+            let c = if r.room >= 0 {
+                m.colors[0]
+            } else {
+                m.colors[1]
+            };
+            let (x, y) = (f32::from(r.x), f32::from(r.y));
+            draw.add_rect(
+                at(x, y),
+                at(x + f32::from(r.w), y + f32::from(r.h)),
+                color(c, 1.),
+            )
+            .filled(true)
+            .build();
+        }
+        let size = cell.max(2.);
+        let icon = |p: [f32; 3], c: [u8; 3], grow: f32| {
+            let q = to_cell(p);
+            let lo = at(q[0] + 0.5, q[1] + 0.5);
+            let half = px(size / 2. + grow);
+            draw.add_rect(
+                [lo[0] - half, lo[1] - half],
+                [lo[0] + half, lo[1] + half],
+                color(c, 1.),
+            )
+            .filled(true)
+            .build();
+        };
+        if let Some(goal) = queries.rooms.get(queries.goal.max(0) as usize) {
+            icon(goal.center, m.colors[7], 0.);
+        }
+        for item in queries.items.iter().filter(|i| i.lock > 0) {
+            icon(item.position, m.colors[5], 0.);
+        }
+        for lock in &queries.locks {
+            icon(lock.position, m.colors[6], 0.);
+        }
+        if let Some(spawn) = queries.rooms.get(queries.spawn.max(0) as usize) {
+            icon(spawn.center, m.colors[4], 1.);
+        }
+    });
+    ui.dummy([width, height]);
+    if ui.is_item_hovered() {
+        ui.tooltip_text("The console's screen with the minimap fully explored and the player at the spawn. In game it starts with the spawn room only.");
+    }
+}
+
+/// The actor generation treats as the player: moved to the spawn room's centre, and
+/// the only one that picks up keys.
+fn player_field(ui: &Ui, g: &mut Generator, actors: &[(Uuid, String)]) {
+    let current = g
+        .spawn_actor
+        .and_then(|id| {
+            actors
+                .iter()
+                .find(|(a, _)| *a == id)
+                .map(|(_, n)| n.clone())
+        })
+        .unwrap_or_else(|| "None".into());
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Player"), &current) {
+        if ui.selectable("None") {
+            g.spawn_actor = None;
+        }
+        for (actor, name) in actors {
+            if ui.selectable(format!("{name}##{actor}")) {
+                g.spawn_actor = Some(*actor);
+            }
+        }
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text(
+            "Placed at the spawn room's centre after each generation, and the only actor that picks up keys.",
+        );
+    }
+}
+
+/// Tiles and the player in 2D; cell size, heights, navigation and the player in 3D.
+fn appearance(
+    ui: &Ui,
+    g: &mut Generator,
+    two_d: bool,
+    tile_sets: &[(Uuid, String)],
+    actors: &[(Uuid, String)],
+    height: Option<f32>,
+) {
+    if two_d {
+        crate::gui::muted(ui, "Tiles");
+        let current = g
+            .tile_set
+            .and_then(|id| {
+                tile_sets
+                    .iter()
+                    .find(|(t, _)| *t == id)
+                    .map(|(_, n)| n.clone())
+            })
+            .unwrap_or_else(|| "Built-in dungeon tiles".into());
+        if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Tile set"), &current) {
+            if ui.selectable("Built-in dungeon tiles") {
+                g.tile_set = None;
+            }
+            for (tile_set, name) in tile_sets {
+                if ui.selectable(name) {
+                    g.tile_set = Some(*tile_set);
+                }
+            }
+        }
+        if ui.is_item_hovered() {
+            ui.tooltip_text(
+                "Any TileSet with a terrain set holding terrains named Floor and Wall.",
+            );
+        }
+        player_field(ui, g, actors);
+    } else {
+        crate::gui::muted(ui, "3D (in world units)");
+        drag_f32(
+            ui,
+            "Cell size",
+            &mut g.cell_size,
+            dungeon::CELL_SIZE_LIMITS,
+            "World units per grid cell.",
+        );
+        drag_f32(
+            ui,
+            "Wall height",
+            &mut g.wall_height,
+            dungeon::WALL_HEIGHT_LIMITS,
+            "Height of walls and their tops.",
+        );
+        drag_f32(
+            ui,
+            "Door height",
+            &mut g.door_height,
+            (0.5, g.wall_height),
+            "Doorways are open below this height; a beam fills the rest.",
+        );
+        let _ = crate::gui::toggle(ui, "Navigation", &mut g.navigation);
+        if ui.is_item_hovered() {
+            ui.tooltip_text(
+                "Add navigation bake volumes over the floor, spaced to stay within 512 nodes.",
+            );
+        }
+        player_field(ui, g, actors);
+        let _ = crate::gui::field(ui, "Character");
+        ui.disabled(height.is_none(), || {
+            if ui.small_button("Fit sizes to it")
+                && let Some(height) = height
+            {
+                (g.cell_size, g.wall_height, g.door_height) = dungeon::sizes_for(height);
+            }
+        });
+        if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+            ui.tooltip_text(match height {
+                Some(height) => format!(
+                    "The spawn actor is {height:.2} units tall. Sets cell size, wall and door heights so it fits like a console third-person hero: corridors 1.6x its height, doors 2x, walls 3.3x."
+                ),
+                None => "Choose a Player with a collider; its height sets the cell size and the wall and door heights.".into(),
+            });
+        }
+        if let Some(height) = height {
+            ui.same_line();
+            crate::gui::muted(ui, format!("{height:.2} units tall"));
+        }
+        let _ = crate::gui::toggle(ui, "Ceiling", &mut g.ceiling);
+        if ui.is_item_hovered() {
+            ui.tooltip_text("Close the dungeon from above at the wall height, so third-person cameras never see the sky. Turn off for top-down cameras.");
+        }
+    }
+}
+
+/// The height of a character's collider, in world units.
+fn character_height(scene: &crate::scene::Scene, actor: Option<Uuid>) -> Option<f32> {
+    let index = scene.actor_index(actor?)?;
+    let collider = scene.actors[index].collider.as_ref()?;
+    let matrix = scene.world_matrix(index);
+    let up = matrix.vector([0., collider.half_extents[1] * 2., 0.]);
+    let height = (up[0] * up[0] + up[1] * up[1] + up[2] * up[2]).sqrt();
+    (height > 0.1).then_some(height)
+}
+
+/// The Recipe choice: built-in or any project recipe, with New and Edit buttons.
+fn recipe_row(ui: &Ui, e: &mut Editor, g: &mut Generator) {
+    let mut recipes: Vec<(Uuid, String)> = e
+        .assets
+        .index
+        .usable()
+        .filter(|r| r.meta.kind == crate::assets::Kind::DungeonRecipe)
+        .map(|r| {
+            (
+                r.meta.id,
+                r.path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            )
+        })
+        .collect();
+    recipes.sort_by(|a, b| a.1.cmp(&b.1));
+    const BUILTIN: &str = "Built-in recipe";
+    let current = match g.recipe {
+        Some(id) => recipes
+            .iter()
+            .find(|(r, _)| *r == id)
+            .map_or_else(|| "Missing recipe".into(), |(_, n)| n.clone()),
+        None => BUILTIN.into(),
+    };
+    let id = crate::gui::field(ui, "Recipe");
+    let width = ui.content_region_avail()[0];
+    ui.set_next_item_width((width - 110.).max(80.));
+    if let Some(_combo) = ui.begin_combo(id, &current) {
+        if ui
+            .selectable_config(BUILTIN)
+            .selected(g.recipe.is_none())
+            .build()
+        {
+            g.recipe = None;
+        }
+        for (recipe, name) in &recipes {
+            if ui
+                .selectable_config(name)
+                .selected(g.recipe == Some(*recipe))
+                .build()
+            {
+                g.recipe = Some(*recipe);
+            }
+        }
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text(
+            "The steps that grow the dungeon: a Dungeon Recipe asset, or the built-in one.",
+        );
+    }
+    ui.same_line();
+    if ui.small_button("New##recipe") {
+        e.dungeon.pending = Some(Request::NewRecipe(g.id));
+    }
+    #[cfg(test)]
+    crate::gui::record_script_control(ui, "New dungeon recipe");
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Create a recipe asset from the current recipe and open it.");
+    }
+    ui.same_line();
+    ui.disabled(g.recipe.is_none(), || {
+        if ui.small_button("Edit##recipe")
+            && let Some(recipe) = g.recipe
+        {
+            e.dungeon.pending = Some(Request::EditRecipe(recipe));
+        }
+    });
+    if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+        ui.tooltip_text(if g.recipe.is_some() {
+            "Open the recipe in the Dungeon Recipe editor."
+        } else {
+            "The built-in recipe cannot be edited; press New to make an editable copy."
+        });
+    }
+}
+
+/// The Style choice: built-in or any project style of the same domain, with New and
+/// Edit buttons.
+fn style_row(ui: &Ui, e: &mut Editor, g: &mut Generator, two_d: bool) {
+    let records: Vec<(Uuid, String, String)> = e
+        .assets
+        .index
+        .usable()
+        .filter(|r| r.meta.kind == crate::assets::Kind::DungeonStyle)
+        .map(|r| {
+            (
+                r.meta.id,
+                r.path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+                r.revision.clone(),
+            )
+        })
+        .collect();
+    let mut styles = Vec::new();
+    for (id, name, revision) in records {
+        let cached = e
+            .dungeon
+            .style_domains
+            .get(&id)
+            .filter(|(r, _)| *r == revision)
+            .map(|(_, d)| *d);
+        let domain = match cached {
+            Some(domain) => domain,
+            None => {
+                let domain = e
+                    .assets
+                    .index
+                    .resolve(id)
+                    .ok()
+                    .and_then(|r| crate::dungeon_style::document(r).ok())
+                    .is_some_and(|s| s.two_d);
+                e.dungeon.style_domains.insert(id, (revision, domain));
+                domain
+            }
+        };
+        if domain == two_d {
+            styles.push((id, name));
+        }
+    }
+    styles.sort_by(|a, b| a.1.cmp(&b.1));
+    let builtin = if two_d {
+        "Built-in dungeon tiles"
+    } else {
+        "Built-in blockout"
+    };
+    let current = g
+        .style
+        .and_then(|id| {
+            styles
+                .iter()
+                .find(|(s, _)| *s == id)
+                .map(|(_, n)| n.clone())
+        })
+        .unwrap_or_else(|| {
+            if g.style.is_some() {
+                "Missing style".into()
+            } else {
+                builtin.into()
+            }
+        });
+    let id = crate::gui::field(ui, "Style");
+    let width = ui.content_region_avail()[0];
+    ui.set_next_item_width((width - 110.).max(80.));
+    if let Some(_combo) = ui.begin_combo(id, &current) {
+        if ui
+            .selectable_config(builtin)
+            .selected(g.style.is_none())
+            .build()
+        {
+            g.style = None;
+        }
+        for (style, name) in &styles {
+            if ui
+                .selectable_config(name)
+                .selected(g.style == Some(*style))
+                .build()
+            {
+                g.style = Some(*style);
+            }
+        }
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("What each spot becomes: a Dungeon Style asset, or the built-in look.");
+    }
+    ui.same_line();
+    if ui.small_button("New") {
+        e.dungeon.pending = Some(Request::NewStyle(g.id));
+    }
+    #[cfg(test)]
+    crate::gui::record_script_control(ui, "New dungeon style");
+    if ui.is_item_hovered() {
+        ui.tooltip_text("Create a style asset from the current look and open it.");
+    }
+    ui.same_line();
+    ui.disabled(g.style.is_none(), || {
+        if ui.small_button("Edit")
+            && let Some(style) = g.style
+        {
+            e.dungeon.pending = Some(Request::EditStyle(style));
+        }
+    });
+    if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+        ui.tooltip_text(if g.style.is_some() {
+            "Open the style in the Dungeon Style editor."
+        } else {
+            "The built-in look cannot be edited; press New to make an editable copy."
+        });
+    }
+}
+
+fn drag_u16(ui: &Ui, label: &str, value: &mut u16, limits: (u16, u16), tip: &str) {
+    let mut v = i32::from(*value);
+    if crate::gui::Drag::new(crate::gui::field(ui, label))
+        .range(i32::from(limits.0), i32::from(limits.1))
+        .build(ui, &mut v)
+    {
+        *value = v.clamp(i32::from(limits.0), i32::from(limits.1)) as u16;
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text(tip);
+    }
+}
+fn drag_f32(ui: &Ui, label: &str, value: &mut f32, limits: (f32, f32), tip: &str) {
+    if crate::gui::Drag::new(crate::gui::field(ui, label))
+        .range(limits.0, limits.1)
+        .speed(0.05)
+        .display_format("%.2f")
+        .build(ui, value)
+    {
+        *value = value.clamp(limits.0, limits.1);
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text(tip);
+    }
+}
+
+fn meter(ui: &Ui, label: &str, used: usize, limit: usize, unit: &str) {
+    let id = crate::gui::field(ui, label);
+    let fraction = used as f32 / limit.max(1) as f32;
+    let color = if fraction > 1. {
+        [0.86, 0.33, 0.30, 1.]
+    } else if fraction > 0.8 {
+        AMBER
+    } else {
+        [0.32, 0.66, 0.44, 1.]
+    };
+    let _bar = ui.push_style_color(imgui::StyleColor::PlotHistogram, color);
+    imgui::ProgressBar::new(fraction.min(1.))
+        .overlay_text(format!("{used} / {limit} {unit}"))
+        .size([-1., 0.])
+        .build(ui);
+    let _ = id;
+}
+
+/// The room pointed at in the Gameplay queries list; the Scene view picks it out.
+static HOVERED_ROOM: Mutex<Option<(Uuid, usize)>> = Mutex::new(None);
+
+/// What game code can ask about the generated dungeon: one row per room, numbered as the
+/// queries number them. Pointing at a row picks its room out in the Scene view.
+fn queries(ui: &Ui, e: &Editor, id: Uuid) {
+    let mut hovered = None;
+    if let Some(map) = e
+        .scene
+        .dungeons
+        .iter()
+        .find(|g| g.id == id)
+        .and_then(|g| g.output.queries.as_ref())
+    {
+        ui.spacing();
+        let open = ui.collapsing_header(
+            format!(
+                "Gameplay queries: {} rooms##dungeon-queries",
+                map.rooms.len()
+            ),
+            if e.dungeon.shown_room.is_some() {
+                imgui::TreeNodeFlags::DEFAULT_OPEN
+            } else {
+                imgui::TreeNodeFlags::empty()
+            },
+        );
+        if ui.is_item_hovered() {
+            ui.tooltip_text(
+                "Game code asks about these rooms by number: Gameplay API > Dungeon in Blueprint, epok.dungeon in Lua, epok::DungeonLibrary in C++.",
+            );
+        }
+        if open {
+            crate::gui::muted(
+                ui,
+                "Blueprint: Gameplay API > Dungeon. Lua: epok.dungeon. C++: epok::DungeonLibrary.",
+            );
+            for (index, room) in map.rooms.iter().enumerate() {
+                let mut roles = Vec::new();
+                for (flag, role) in [
+                    (crate::dungeon_query::SPAWN, "spawn"),
+                    (crate::dungeon_query::GOAL, "goal"),
+                    (crate::dungeon_query::KEY, "key"),
+                    (crate::dungeon_query::LOCKED, "locked"),
+                    (crate::dungeon_query::ITEM, "item"),
+                ] {
+                    if room.flags & flag != 0 {
+                        roles.push(role);
+                    }
+                }
+                let path = map
+                    .paths
+                    .get(usize::from(room.path))
+                    .map_or("rooms", String::as_str);
+                let label = if roles.is_empty() {
+                    format!("Room {index}   {path}##query-room-{index}")
+                } else {
+                    format!(
+                        "Room {index}   {path}, {}##query-room-{index}",
+                        roles.join(", ")
+                    )
+                };
+                ui.selectable(label);
+                if ui.is_item_hovered() {
+                    hovered = Some(index);
+                    let linked: Vec<String> =
+                        room.neighbours.iter().map(|n| n.to_string()).collect();
+                    ui.tooltip_text(format!(
+                        "Room {index}: level {}, {} from the spawn, {} to the goal.\nLinked to {}. {} free spots for enemies or props.",
+                        room.level,
+                        room.depth,
+                        room.to_goal,
+                        if linked.is_empty() { "nothing".into() } else { linked.join(", ") },
+                        room.spots.len()
+                    ));
+                }
+            }
+        }
+    }
+    let hovered = hovered.or(e.dungeon.shown_room);
+    if let Ok(mut current) = HOVERED_ROOM.lock() {
+        *current = hovered.map(|index| (id, index));
+    }
+}
+
+fn budget_rows(ui: &Ui, two_d: bool, preview: &Preview) {
+    ui.spacing();
+    crate::gui::muted(ui, "PSX budget after generating");
+    if let Some(budget) = &preview.budget {
+        meter(ui, "Actors", budget.actors, 64, "actors");
+        if two_d {
+            meter(
+                ui,
+                "Tiles",
+                budget.tiles,
+                crate::tilemap::MAX_CELLS,
+                "cells",
+            );
+        } else {
+            meter(ui, "Geometry", budget.quads, SCENE_QUADS, "quads");
+            meter(
+                ui,
+                "Collision",
+                budget.boxes,
+                crate::collision::MAX_COMPOUND_BOXES,
+                "boxes",
+            );
+            match budget.navigation {
+                Some(nodes) => meter(ui, "Navigation", nodes, 512, "nodes"),
+                None => {
+                    let _ = crate::gui::field(ui, "Navigation");
+                    ui.text_disabled("off");
+                }
+            }
+        }
+    }
+    if let Ok(layout) = &preview.layout {
+        crate::gui::muted(ui, dungeon::summary(layout));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Without a Player the band warns that keys open for anything; **Use Player**
+    /// picks the actor called Player and generates again, so every key names it.
+    #[test]
+    fn use_player_makes_keys_open_only_for_the_player() {
+        let root = crate::workspace::tests::temp("dungeon-use-player");
+        crate::workspace::create_with_options(
+            &root,
+            "Use Player",
+            crate::workspace::CreateOptions::new(crate::workspace::Template::Basic),
+        )
+        .unwrap();
+        let mut e = Editor::new(root.clone());
+        e.auto_build = false;
+        let mut scene = crate::scene::Scene::default();
+        scene.actors.clear();
+        let mut dungeon = crate::scene::Actor::cube("Dungeon".into());
+        dungeon.kind = "Empty".into();
+        let actor = dungeon.id;
+        let player = crate::scene::Actor::cube("Player".into());
+        let player_id = player.id;
+        scene.actors.extend([dungeon, player]);
+        let mut generator = Generator::new(actor);
+        generator.source = dungeon::Source::Recipe;
+        let id = generator.id;
+        scene.dungeons.push(generator);
+        scene.refresh_actor_hierarchy();
+        e.scene = scene;
+        e.changed();
+        generate(&mut e, id);
+        let key = crate::dungeon_gameplay::classes(crate::workspace::GameplayFlavor::Cpp).key;
+        let players = |e: &Editor| -> Vec<Option<String>> {
+            e.scene
+                .actors
+                .iter()
+                .flat_map(|a| &a.components)
+                .filter(|c| c.class.class_id.as_deref() == Some(key.1))
+                .map(|c| {
+                    c.properties
+                        .get(crate::dungeon_gameplay::PLAYER)
+                        .and_then(|v| v.as_str())
+                        .map(str::to_owned)
+                })
+                .collect()
+        };
+        assert!(!players(&e).is_empty() && players(&e).iter().all(Option::is_none));
+
+        let mut context = crate::gui::tests::imgui_context();
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1000., 900.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        fn frame(context: &mut imgui::Context, e: &mut Editor, actor: Uuid) {
+            crate::gui::clear_script_controls();
+            let ui = context.frame();
+            ui.window("Inspector")
+                .position([0., 0.], imgui::Condition::Always)
+                .size([520., 880.], imgui::Condition::Always)
+                .build(|| inspector(ui, e, actor));
+            context.render();
+        }
+        frame(&mut context, &mut e, actor);
+        frame(&mut context, &mut e, actor);
+        let button =
+            crate::gui::script_control("Use Player").expect("the warning offers Use Player");
+        context.io_mut().add_mouse_pos_event(button);
+        frame(&mut context, &mut e, actor);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, true);
+        frame(&mut context, &mut e, actor);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, false);
+        frame(&mut context, &mut e, actor);
+        apply_pending(&mut e);
+        assert_eq!(e.scene.dungeons[0].spawn_actor, Some(player_id));
+        let named = player_id.to_string();
+        assert!(
+            players(&e)
+                .iter()
+                .all(|p| p.as_deref() == Some(named.as_str()))
+        );
+        frame(&mut context, &mut e, actor);
+        assert!(crate::gui::script_control("Use Player").is_none());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn new_seeds_differ_and_stay_short() {
+        let mut seed = 7;
+        for _ in 0..50 {
+            let next = next_seed(seed);
+            assert_ne!(next, seed);
+            assert!(next < 100_000);
+            seed = next;
+        }
+    }
+}

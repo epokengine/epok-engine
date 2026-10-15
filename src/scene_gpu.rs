@@ -817,6 +817,9 @@ impl SceneGpu {
             for &(a, b, color) in &self.navigation_preview.lines {
                 line(&mut nav_lines, a, b, color);
             }
+            for (a, b, color) in crate::dungeon_editor::preview_lines(scene, selected) {
+                line(&mut nav_lines, a, b, color);
+            }
             self.navigation_fill.upload(device, queue, &nav_fill);
             self.navigation_edges.upload(device, queue, &nav_lines);
             let pass = if let Some(selection) = input.baked_selection {
@@ -1456,7 +1459,10 @@ fn geometry_with_effects(
         && let Some(e) = scene.actors.get(i)
         && let Some(c) = e.collider.as_ref().filter(|c| c.enabled)
     {
-        for (a, b) in crate::collision::world_bounds(c, scene.world_matrix(i)).edges() {
+        for (a, b) in crate::collision::world_parts(c, scene.world_matrix(i))
+            .into_iter()
+            .flat_map(|part| part.edges())
+        {
             line(
                 &mut edges,
                 a,

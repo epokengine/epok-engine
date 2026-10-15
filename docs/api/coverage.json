@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 113,
-    "types": 500,
-    "callables": 1967,
-    "properties": 2817
+    "headers": 116,
+    "types": 511,
+    "callables": 2016,
+    "properties": 2913
   },
   "psyqo": {
     "headers": 53,
@@ -169,8 +169,8 @@
       "slug": "collision",
       "callables": 18,
       "types": 8,
-      "properties": 37,
-      "source_sha256": "e586f7c6935b5971ac08500bfe026ea46f6e333905bf9acdeaa36991474bcc03",
+      "properties": 39,
+      "source_sha256": "e92e066346fc417d27ac79953cf078192a285e6c023b37139d6dcd1b686c2f0d",
       "diagnostics": []
     },
     {
@@ -191,6 +191,36 @@
       "types": 1,
       "properties": 4,
       "source_sha256": "2fd81c3c92f1b220dcd4558a2f7d9854802c302aac8ba5a01343453401aa8e54",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "dungeon_map.hpp",
+      "slug": "dungeon-map",
+      "callables": 16,
+      "types": 8,
+      "properties": 74,
+      "source_sha256": "9c591ef71bf35a6a611e636e2ca2b1070bd6720dada4a3cbcafdc2078d134676",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "dungeon_minimap.hpp",
+      "slug": "dungeon-minimap",
+      "callables": 1,
+      "types": 1,
+      "properties": 0,
+      "source_sha256": "6180b74a7b22dfb07b233c02feb02b2b03d0c83193c92878fc9ce5d8178d1446",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "dungeon_random.hpp",
+      "slug": "dungeon-random",
+      "callables": 6,
+      "types": 1,
+      "properties": 0,
+      "source_sha256": "64397b1994b33cc3bc0d18d3aa181a32fd5903f6d3b89cb07cd365ad78071420",
       "diagnostics": []
     },
     {
@@ -277,10 +307,10 @@
       "family": "epok",
       "header": "gameplay_api.hpp",
       "slug": "gameplay-api",
-      "callables": 96,
-      "types": 34,
-      "properties": 114,
-      "source_sha256": "b9d465648d57e32c77928705e7d200ebdb9a554b5ebfa92e0bfbf9d0fd68f4b0",
+      "callables": 122,
+      "types": 37,
+      "properties": 134,
+      "source_sha256": "6ba07c779213f61fa1c638947d61aac3537c13b1d0e8838a54460ba3c4ad2787",
       "diagnostics": []
     },
     {
@@ -568,17 +598,10 @@
       "header": "ordered_renderer.hpp",
       "slug": "ordered-renderer",
       "callables": 0,
-      "types": 2,
+      "types": 0,
       "properties": 0,
       "source_sha256": "eecdd8a7c49d4d48b810c2d2196be07b523e33ab27cd2a3b965f171ff6a310d4",
-      "diagnostics": [
-        "runtime/ordered_renderer.hpp:3:31: error: no member named 'ordered_draw_capacity' in namespace 'epok'",
-        "runtime/ordered_renderer.hpp:74:63: error: unknown type name 'PolygonEmitter'",
-        "runtime/ordered_renderer.hpp:74:90: error: member reference type 'std::nullptr_t' is not a pointer",
-        "runtime/ordered_renderer.hpp:128:5: error: unknown type name 'PolygonEmitter'",
-        "runtime/ordered_renderer.hpp:128:53: error: use of undeclared identifier 'Fixed'",
-        "runtime/ordered_renderer.hpp:128:72: error: unknown type name 'Fixed'"
-      ]
+      "diagnostics": []
     },
     {
       "family": "epok",
@@ -588,10 +611,7 @@
       "types": 1,
       "properties": 0,
       "source_sha256": "55896399091dacc0158033f7a427830abcff9498b4cd381e8f8a716aa2285a4f",
-      "diagnostics": [
-        "runtime/palette.hpp:10:20: error: use of undeclared identifier 'texture_count'",
-        "runtime/palette.hpp:10:34: error: use of undeclared identifier 'texture_count'"
-      ]
+      "diagnostics": []
     },
     {
       "family": "epok",

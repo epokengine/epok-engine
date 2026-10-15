@@ -800,6 +800,65 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
         }
         "camera_path" => crate::camera_path_ui::mcp(e, &a),
         "visibility_bake" => crate::visibility_bake_ui::mcp(e, &a),
+        "dungeon_generate" => {
+            editable(e)?;
+            expect_revision(&e.scene, &a)?;
+            let before = e.scene.clone();
+            let mut scene = before.clone();
+            let id = crate::dungeon_editor::mcp_target(&mut scene, &a)?;
+            if let Some(name) = a["new_recipe"].as_str() {
+                let recipe = crate::dungeon_editor::new_recipe(&e.root, &scene, id, name)?;
+                if let Some(g) = scene.dungeons.iter_mut().find(|g| g.id == id) {
+                    g.source = crate::dungeon::Source::Recipe;
+                    g.recipe = Some(recipe);
+                }
+            }
+            if let Some(name) = a["new_style"].as_str() {
+                let style = crate::dungeon_editor::new_style(&e.root, &scene, id, name)?;
+                if let Some(g) = scene.dungeons.iter_mut().find(|g| g.id == id) {
+                    g.style = Some(style);
+                }
+            }
+            let report = if a["clear"].as_bool() == Some(true) {
+                crate::dungeon_bake::clear(&mut scene, id);
+                None
+            } else {
+                let model = e.object_model();
+                let classes = model.as_deref().map(|model| crate::dungeon_bake::Classes {
+                    registry: &e.class_registry,
+                    model,
+                });
+                Some(crate::dungeon_bake::generate(
+                    &e.root,
+                    &mut scene,
+                    id,
+                    classes.as_ref(),
+                )?)
+            };
+            commit(e, state, before, scene)?;
+            refresh(e);
+            let generator = e.scene.dungeons.iter().find(|g| g.id == id).cloned();
+            e.log(format!(
+                "MCP: dungeon {}",
+                report
+                    .as_ref()
+                    .map_or("cleared".to_owned(), |r| r.summary.clone())
+            ));
+            Ok(json!({
+                "revision": revision(&e.scene),
+                "generator": generator,
+                "report": report.map(|r| json!({
+                    "summary": r.summary,
+                    "actors": r.actors,
+                    "sections": r.sections,
+                    "quads": r.quads,
+                    "collision_boxes": r.boxes,
+                    "navigation_nodes": r.navigation_nodes,
+                    "notes": r.notes,
+                })),
+                "saved": false,
+            }))
+        }
         "editor_control" => {
             match string(&a, "action")?.as_str() {
                 "build" | "play" => {
@@ -1141,6 +1200,10 @@ pub fn execute(e: &mut Editor, state: &mut State, name: &str, a: Value) -> Resul
                 let source = serde_json::to_vec(doc).map_err(|e| e.to_string())?;
                 if package.meta.kind == assets::Kind::EditableMesh {
                     decode::<crate::mesh::Document>(doc.clone())?.validate()?;
+                } else if package.meta.kind == assets::Kind::DungeonStyle {
+                    crate::dungeon_style::Style::parse(&source)?;
+                } else if package.meta.kind == assets::Kind::DungeonRecipe {
+                    crate::dungeon_recipe::Recipe::parse(&source)?;
                 } else if crate::skeletal::Data::parse(&source)?.kind() != package.meta.kind {
                     return Err("Asset document kind cannot change".into());
                 } else {
@@ -1548,6 +1611,13 @@ pub fn catalog() -> Vec<rmcp::model::Tool> {
             "Create an EditableMesh asset from a Box/Plane/Ramp/Stairs primitive or a complete mesh document. Returns UUID and component to attach via scene_apply.",
             json!({"path":s,"shape":{"enum":["Box","Plane","Ramp","Stairs"]},"size":{"type":"array","items":{"type":"number"},"minItems":3,"maxItems":3},"steps":{"type":"integer","minimum":1,"maximum":64},"document":o}),
             vec!["path"],
+            false,
+        ),
+        (
+            "dungeon_generate",
+            "Generate a seeded dungeon into the open scene. Name the generator's actor (name or id), or pass create \"3d\"/\"2d\" to add a new Dungeon Generator. Optional seed and settings (any Generator field, rooms merged key by key; style is a Dungeon Style asset id; source \"Recipe\" with recipe, a Dungeon Recipe asset id or none for the built-in one, lays out a main path with branches, keys, locks and one-way doors) change it first; new_style creates a Dungeon Style asset from the current look and assigns it, new_recipe a Dungeon Recipe asset from the current recipe (edit either with asset_document). clear removes the generated content instead. Undoable through scene_history.",
+            json!({"revision":s,"actor":s,"create":{"enum":["3d","2d"]},"seed":n,"settings":o,"new_style":s,"new_recipe":s,"clear":b}),
+            vec!["revision"],
             false,
         ),
         (
