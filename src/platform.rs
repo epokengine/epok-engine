@@ -237,6 +237,31 @@ pub fn run(
             }),
         },
     ]);
+    // Monospaced text for the PocketStation code editor.
+    let code_font_data = [
+        "C:/Windows/Fonts/consola.ttf",
+        "/System/Library/Fonts/Menlo.ttc",
+        "/System/Library/Fonts/Monaco.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+    ]
+    .iter()
+    .find_map(|path| std::fs::read(path).ok());
+    let code_font = match &code_font_data {
+        Some(data) => imgui.fonts().add_font(&[imgui::FontSource::TtfData {
+            data,
+            size_pixels: 15.,
+            config: None,
+        }]),
+        None => imgui
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData {
+                config: Some(imgui::FontConfig {
+                    size_pixels: 13.,
+                    ..Default::default()
+                }),
+            }]),
+    };
+    crate::pocketstation_ui::set_code_font(code_font);
     // The property editor draws at a smaller, proportional size than the rest of
     // the editor so a narrow panel still fits a label and its value on one row.
     let inspector_font = imgui.fonts().add_font(&[
@@ -783,6 +808,7 @@ pub fn run(
                     editor.project_browser.previews.upload(&device, &queue, &mut renderer);
                     editor.asset_inspector.media.upload(&device, &queue, &mut renderer);
                     editor.asset_inspector.video.upload(&device, &queue, &mut renderer);
+                    editor.pocketstation.upload(&device, &queue, &mut renderer);
                     editor.world2d.textures.upload(&device, &queue, &mut renderer, &editor.scene.textures);
                     editor.asset_inspector.visible = false;
                     editor.asset_inspector.texture = asset_renderer.as_ref().map(|(_,id,_)|*id);
@@ -957,6 +983,12 @@ pub fn run(
                         || session.as_ref().and_then(|e| e.game_frame.as_ref()).is_some_and(|f| f.sequence > 90)
                         || session.as_ref().and_then(|e| e.native_frame.as_ref()).is_some_and(|f| f.number > 90)
                         || project_started.elapsed() > Duration::from_secs(25))
+                    && std::env::args()
+                        .collect::<Vec<_>>()
+                        .windows(2)
+                        .find(|w| w[0] == "--screenshot-delay")
+                        .and_then(|w| w[1].parse::<u64>().ok())
+                        .is_none_or(|seconds| project_started.elapsed() > Duration::from_secs(seconds))
                     && (!std::env::args().any(|a|a=="--screenshot-native-hud")
                         || session.as_ref().and_then(|e|e.hud_simulation.session.as_ref()).and_then(|s|s.frame.as_ref()).is_some()
                         || session.as_ref().is_some_and(|e|e.hud_simulation.error.is_some())
@@ -1530,6 +1562,7 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf051, 0xf051, // forward-step: move frame later
     0xf05a, 0xf05a, // circle-info: 2D hints
     0xf05b, 0xf05b, // crosshairs: move a key to the view, Node2D
+    0xf060, 0xf063, // arrows: PocketStation buttons
     0xf065, 0xf065, // expand: frame selection
     0xf067, 0xf067, // plus: add 2D node
     0xf06d, 0xf06d, // fire: Particles2D
@@ -1545,6 +1578,7 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf0eb, 0xf0eb, // lightbulb: PointLight2D
     0xf0ec, 0xf0ec, // arrow-right-arrow-left: flip horizontally
     0xf104, 0xf105, // angle-left / right: previous, next key
+    0xf10b, 0xf10b, // mobile: PocketStation
     0xf111, 0xf111, // circle: camera path step to do
     0xf125, 0xf125, // crop: tile selection tool
     0xf12d, 0xf12d, // eraser: tile eraser

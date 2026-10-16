@@ -141,6 +141,8 @@ pub fn resources(
             }
             // Videos stream from CD; `videos` selects them for the disc.
             crate::assets::Kind::Video => continue,
+            // Every PocketStation app is embedded by pocket-apps.hh.
+            crate::assets::Kind::PocketStationApp => continue,
             _ => {
                 return Err(format!(
                     "Blueprint runtime AssetRef<{kind:?}> is not supported; use Texture, AudioClip or Video"

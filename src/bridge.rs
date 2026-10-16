@@ -21,11 +21,27 @@ pub struct Frame {
     pub vsyncs: u64,
     pub rgba: Vec<u8>,
 }
+/// A game's request to the PocketStation in a memory card slot: memory card
+/// transactions to run on the editor's emulated PocketStation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PocketRequest {
+    pub id: u32,
+    pub port: u32,
+    pub frames: Vec<Vec<u8>>,
+}
+/// The PocketStation's answers: one reply per frame, as long as it answered.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PocketReply {
+    pub id: u32,
+    pub frames: Vec<Vec<u8>>,
+}
 #[derive(Default)]
 pub struct State {
     pub frame: Option<Arc<Frame>>,
     pub connected: bool,
     pub error: Option<String>,
+    pub pocket_requests: std::collections::VecDeque<PocketRequest>,
+    pub pocket_replies: std::collections::VecDeque<PocketReply>,
 }
 pub struct Bridge {
     pub script: PathBuf,
@@ -53,9 +69,11 @@ impl Bridge {
         std::fs::write(
             &script,
             format!(
-                "EPOK_PORT={}\nEPOK_TOKEN={token:?}\nEPOK_DEBUG_CONFIG={:?}\nEPOK_ANALOG_CONTROLLER={}\n{}",
+                "EPOK_PORT={}\nEPOK_TOKEN={token:?}\nEPOK_DEBUG_CONFIG={:?}\nEPOK_POCKET_CONFIG={:?}\nEPOK_ANALOG_CONTROLLER={}\n{}",
                 listener.local_addr().unwrap().port(),
                 root.join(".epok/emulator/blueprint-debug.lua")
+                    .to_string_lossy(),
+                root.join(".epok/emulator/pocketstation.lua")
                     .to_string_lossy(),
                 crate::play::Profile::load(root)?.analog_controller,
                 include_str!("../integrations/pcsx-redux/bridge.lua")
@@ -149,6 +167,11 @@ fn receive(
     state.lock().unwrap().connected = true;
     while !stop.load(Ordering::Relaxed) {
         let started = Instant::now();
+        let replies: Vec<PocketReply> = state.lock().unwrap().pocket_replies.drain(..).collect();
+        for reply in replies {
+            writeln!(reader.get_mut(), "{}", pocket_reply_line(&reply))
+                .map_err(|e| e.to_string())?;
+        }
         let command = debug.lock().unwrap().next_command();
         if let Some(command) = command {
             writeln!(reader.get_mut(), "{}", command.wire()).map_err(|error| error.to_string())?;
@@ -173,6 +196,11 @@ fn receive(
         let mut header = line(&mut reader)?;
         if header.starts_with("EPKD1 ") {
             receive_debug(&mut reader, &header, debug)?;
+            header = line(&mut reader)?;
+        }
+        while header.starts_with("EPKP1 ") {
+            let request = receive_pocket(&mut reader, &header)?;
+            state.lock().unwrap().pocket_requests.push_back(request);
             header = line(&mut reader)?;
         }
         if header.trim() == "EPKF0" {
@@ -218,6 +246,51 @@ fn receive(
     }
     let _ = writeln!(reader.get_mut(), "F 0");
     Ok(())
+}
+/// Mailbox limits of runtime/pocketstation.hpp.
+const POCKET_FRAMES: usize = 16;
+const POCKET_CAPACITY: usize = 2304;
+fn receive_pocket(reader: &mut impl Read, header: &str) -> Result<PocketRequest, String> {
+    let parts = header.split_whitespace().collect::<Vec<_>>();
+    if parts.len() != 5 {
+        return Err("Invalid PocketStation packet header.".into());
+    }
+    let values = parts[1..]
+        .iter()
+        .map(|value| value.parse::<u32>().map_err(|error| error.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let (id, port, count, total) = (values[0], values[1], values[2] as usize, values[3] as usize);
+    if port > 1 || count == 0 || count > POCKET_FRAMES || total > POCKET_CAPACITY {
+        return Err("PocketStation packet exceeds its bounded format.".into());
+    }
+    let mut lengths = vec![0u8; count * 2];
+    reader.read_exact(&mut lengths).map_err(|e| e.to_string())?;
+    let lengths: Vec<usize> = lengths
+        .chunks_exact(2)
+        .map(|l| u16::from_le_bytes([l[0], l[1]]) as usize)
+        .collect();
+    if lengths.iter().sum::<usize>() != total {
+        return Err("PocketStation packet lengths do not add up.".into());
+    }
+    let mut data = vec![0u8; total];
+    reader.read_exact(&mut data).map_err(|e| e.to_string())?;
+    let mut frames = Vec::with_capacity(count);
+    let mut at = 0;
+    for length in lengths {
+        frames.push(data[at..at + length].to_vec());
+        at += length;
+    }
+    Ok(PocketRequest { id, port, frames })
+}
+fn pocket_reply_line(reply: &PocketReply) -> String {
+    let received: Vec<String> = reply.frames.iter().map(|f| f.len().to_string()).collect();
+    let hex: String = reply
+        .frames
+        .iter()
+        .flatten()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    format!("P {} {} {}", reply.id, received.join(","), hex)
 }
 fn receive_debug(
     reader: &mut impl Read,
@@ -301,6 +374,21 @@ fn decode(data: &[u8], depth: usize) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn pocketstation_packets_round_trip() {
+        let mut bytes = vec![3u8, 0, 2, 0];
+        bytes.extend([0x81, 0x58, 0, 0x81, 0x5A]);
+        let request = receive_pocket(&mut std::io::Cursor::new(bytes), "EPKP1 7 0 2 5\n").unwrap();
+        assert_eq!(request.id, 7);
+        assert_eq!(request.frames, vec![vec![0x81, 0x58, 0], vec![0x81, 0x5A]]);
+        assert!(receive_pocket(&mut std::io::empty(), "EPKP1 7 2 1 1\n").is_err());
+        assert!(receive_pocket(&mut std::io::empty(), "EPKP1 7 0 17 1\n").is_err());
+        let reply = PocketReply {
+            id: 7,
+            frames: vec![vec![0xFF, 0x08, 0x02], vec![]],
+        };
+        assert_eq!(pocket_reply_line(&reply), "P 7 3,0 ff0802");
+    }
     #[test]
     fn blueprint_packets_are_bounded_and_do_not_overwrite_video_state() {
         let state = Mutex::new(crate::blueprint_debug::State::default());

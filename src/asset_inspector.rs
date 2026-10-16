@@ -595,6 +595,7 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             Kind::DungeonRecipe => "Dungeon Recipe",
             Kind::DungeonRoom => "Dungeon Room",
             Kind::Video => "Video",
+            Kind::PocketStationApp => "PocketStation App",
         }
         .into();
         details.fields.extend([

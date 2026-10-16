@@ -319,6 +319,8 @@ pub enum Builtin {
     PlayVideo,
     StopVideo,
     IsVideoPlaying,
+    StartPocketStationApp,
+    InstallPocketStationApp,
     PlaySequenceComponent,
     StopSequence,
     PauseSequence,

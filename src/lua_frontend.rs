@@ -3250,6 +3250,10 @@ fn adapter(name: &str) -> Option<(bp::Builtin, Vec<Operand>, ClassArgument)> {
         "play_video" => simple(bp::Builtin::PlayVideo, &[Handle, Value]),
         "stop_video" => simple(bp::Builtin::StopVideo, &[]),
         "video_playing" => simple(bp::Builtin::IsVideoPlaying, &[]),
+        "start_pocketstation_app" => simple(bp::Builtin::StartPocketStationApp, &[Handle, Value]),
+        "install_pocketstation_app" => {
+            simple(bp::Builtin::InstallPocketStationApp, &[Handle, Value])
+        }
         // The class is named by a string argument and resolved statically; the
         // node carries its uuid, exactly as a Blueprint node does.
         "is_a" => Some((
@@ -3642,6 +3646,12 @@ pub(crate) mod tests {
             },
         ));
         parent.properties.push(reflected(
+            "pocket",
+            Type::AssetRef {
+                kind: "PocketStationApp".into(),
+            },
+        ));
+        parent.properties.push(reflected(
             "kind",
             Type::ClassRef {
                 base: crate::object_model::ACTOR3D_ID.into(),
@@ -3680,6 +3690,8 @@ pub(crate) mod tests {
     local started = epok.play_video(self.movie, true)
     local busy = epok.video_playing()
     epok.stop_video()
+    local launched = epok.start_pocketstation_app(self.pocket, 0)
+    local copied = epok.install_pocketstation_app(self.pocket, 1)
 "#,
         )
         .expect("lowered body");
@@ -3707,6 +3719,8 @@ pub(crate) mod tests {
             "PlayVideo -> bool",
             "IsVideoPlaying -> bool",
             "StopVideo -> void",
+            "StartPocketStationApp -> bool",
+            "InstallPocketStationApp -> bool",
         ] {
             assert!(text.contains(expected), "missing {expected:?} in\n{text}");
         }

@@ -866,6 +866,9 @@ fn draw_workspace(
             if ui.menu_item("Lighting") {
                 e.lighting_window = true;
             }
+            if ui.menu_item("PocketStation") {
+                crate::pocketstation_ui::open(e);
+            }
             if ui.menu_item("Strings (Localization)") {
                 crate::localization_editor::open(e);
             }
@@ -1188,6 +1191,8 @@ fn draw_workspace(
     if !background && e.critical_busy() {
         return;
     }
+    crate::pocketstation_ui::service_link(e);
+    crate::pocketstation_ui::window(ui, e);
     crate::export_ui::window(ui, e);
     script_creation_dialog(ui, e);
     lua_creation_dialog(ui, e);

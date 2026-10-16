@@ -415,4 +415,6 @@ AudioClip, MusicSequence and SoundBank use the same UUID package contract. Nativ
 
 Video clips (MP4, MOV, AVI, MKV, WebM, MPEG, GIF) import as Video assets with `--import-video`; see [Full-motion video](video.md).
 
+PocketStation apps are authored assets created with Add > PocketStation App... or `--new-pocketstation-app <title>`; see [PocketStation](pocketstation.md).
+
 FBX characters use separate Skeleton, SkeletalMesh, AnimationClip and Material assets. See [skeletal characters](skeletal.md) for import, preview, model reimport rules and PSX playback. The audio workflow below remains supported.

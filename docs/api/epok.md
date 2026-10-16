@@ -2,7 +2,7 @@
 
 Epok's gameplay-facing and engine-runtime callables. Start here for entities, input, collision, audio, scenes, timelines, effects and resource budgets.
 
-**Coverage:** 119 headers · 2036 public callables.
+**Coverage:** 122 headers · 2079 public callables.
 
 ## Modules
 
@@ -15,7 +15,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Baked Draw Types](epok/baked-draw-types.md) | `baked_draw_types.hpp` | 7 | Epok runtime API |
 | [Baked Packet](epok/baked-packet.md) | `baked_packet.hpp` | 4 | Epok runtime API |
 | [Baked Selection](epok/baked-selection.md) | `baked_selection.hpp` | 1 | Epok runtime API |
-| [Blueprint Api](epok/blueprint-api.md) | `blueprint_api.hpp` | 49 | Epok runtime API |
+| [Blueprint Api](epok/blueprint-api.md) | `blueprint_api.hpp` | 51 | Epok runtime API |
 | [Blueprint Debug](epok/blueprint-debug.md) | `blueprint_debug.hpp` | 0 | Epok runtime API |
 | [Blueprint Spawn](epok/blueprint-spawn.md) | `blueprint_spawn.hpp` | 6 | Epok runtime API |
 | [Blueprint Template](epok/blueprint-template.md) | `blueprint_template.hpp` | 0 | Epok runtime API |
@@ -36,7 +36,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Font Types](epok/font-types.md) | `font_types.hpp` | 3 | Epok runtime API |
 | [Frame Clear](epok/frame-clear.md) | `frame_clear.hpp` | 2 | Epok runtime API |
 | [Frustum](epok/frustum.md) | `frustum.hpp` | 10 | Epok runtime API |
-| [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 122 | Epok runtime API |
+| [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 135 | Epok runtime API |
 | [Gte Geometry](epok/gte-geometry.md) | `gte_geometry.hpp` | 26 | Epok runtime API |
 | [Hud](epok/hud.md) | `hud.hpp` | 12 | Epok runtime API |
 | [Hud Core](epok/hud-core.md) | `hud_core.hpp` | 14 | Epok runtime API |
@@ -71,6 +71,9 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Particle Types](epok/particle-types.md) | `particle_types.hpp` | 3 | Epok runtime API |
 | [Particles](epok/particles.md) | `particles.hpp` | 10 | Epok runtime API |
 | [Playback Types](epok/playback-types.md) | `playback_types.hpp` | 9 | Epok runtime API |
+| [Pocketstation](epok/pocketstation.md) | `pocketstation.hpp` | 25 | Epok runtime API |
+| [Pocketstation Apps](epok/pocketstation-apps.md) | `pocketstation_apps.hpp` | 3 | Epok runtime API |
+| [Pocketstation Service](epok/pocketstation-service.md) | `pocketstation_service.hpp` | 0 | Epok runtime API |
 | [Polygon](epok/polygon.md) | `polygon.hpp` | 18 | Epok runtime API |
 | [Rail Camera Aim](epok/rail-camera-aim.md) | `rail_camera_aim.hpp` | 2 | Epok runtime API |
 | [Rail Navigation](epok/rail-navigation.md) | `rail_navigation.hpp` | 6 | Epok runtime API |

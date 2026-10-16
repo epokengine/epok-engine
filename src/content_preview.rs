@@ -552,6 +552,17 @@ fn decode_size_mode(
                     edge,
                 ))
             }
+            assets::Kind::PocketStationApp => {
+                // The program's menu icon, as the PocketStation's screen shows it.
+                let app = crate::pocketstation::PocketApp::parse(&package.source)?;
+                let rows = crate::pocketstation::mono_image(&app.menu_icon.frames[0]);
+                Ok(thumbnail(
+                    crate::pocketstation::screen_rgba(&rows),
+                    32,
+                    32,
+                    edge,
+                ))
+            }
             _ => Err("No preview available for this asset type".into()),
         }
     } else {

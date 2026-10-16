@@ -92,4 +92,8 @@ inline void set_audio_clip(ObjectId target,uint64_t clip) {
 bool play_video(uint64_t video,bool skippable);
 void stop_video();
 bool video_playing();
+// PocketStation programs (runtime/pocketstation_service.hpp). The asset id is
+// the compact id of an AssetRef<PocketStationApp>; port 0 is the first slot.
+bool pocketstation_install(uint64_t app,uint32_t port);
+bool pocketstation_start(uint64_t app,uint32_t port);
 }

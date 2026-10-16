@@ -3231,6 +3231,14 @@ impl BlueprintEditor {
             ("Video / Play video", asset::Builtin::PlayVideo),
             ("Video / Stop video", asset::Builtin::StopVideo),
             ("Video / Is video playing", asset::Builtin::IsVideoPlaying),
+            (
+                "PocketStation / Start app",
+                asset::Builtin::StartPocketStationApp,
+            ),
+            (
+                "PocketStation / Install app",
+                asset::Builtin::InstallPocketStationApp,
+            ),
             ("Material / Set texture", asset::Builtin::SetTexture),
             (
                 "Sequence / Play component",
@@ -3970,6 +3978,8 @@ fn event_pin_label(graph: &Graph, node: &Node, pin: &str) -> String {
                 SetActive | DestroyActor | PlayAudio | StopAudio | SetTexture | SetAudioClip
                 | StopVideo => "Result",
                 PlayVideo => "Started",
+                StartPocketStationApp => "Started",
+                InstallPocketStationApp => "Installed",
                 IsVideoPlaying => "Is Playing",
             }
             .into();
@@ -5466,6 +5476,54 @@ mod tests {
         assert!(e.compile(&root, &registry), "{:?}", e.diagnostics);
         assert!(
             e.generated.contains("epok::bp::api::play_video("),
+            "{}",
+            e.generated
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+    #[test]
+    fn pocketstation_start_node_compiles_to_the_runtime_call() {
+        let (root, registry, mut e) = rotation_fixture();
+        e.add_node(NodeKind::Builtin {
+            operation: asset::Builtin::StartPocketStationApp,
+        });
+        e.add_node(NodeKind::Builtin {
+            operation: asset::Builtin::InstallPocketStationApp,
+        });
+        let graph = &mut e.asset.as_mut().unwrap().functions[0];
+        let play = graph.nodes[4].id.clone();
+        let exit = graph.nodes[2].id.clone();
+        graph.nodes[0]
+            .outputs
+            .insert("next".into(), vec![play.clone()]);
+        graph.nodes[4].outputs.insert("next".into(), vec![exit]);
+        graph.nodes[4].inputs.insert(
+            "app".into(),
+            Input::Literal {
+                value_type: schema::Type::AssetRef {
+                    kind: "PocketStationApp".into(),
+                },
+                value: json!(null),
+            },
+        );
+        graph.nodes[4].inputs.insert(
+            "port".into(),
+            Input::Literal {
+                value_type: schema::Type::UInt32,
+                value: json!(0),
+            },
+        );
+        let receiver = graph.nodes[3].id.clone();
+        graph.nodes[1].inputs.insert(
+            "target".into(),
+            Input::Link {
+                node: receiver,
+                pin: "value".into(),
+            },
+        );
+        assert!(e.compile(&root, &registry), "{:?}", e.diagnostics);
+        assert!(
+            e.generated.contains("epok::bp::api::pocketstation_start("),
             "{}",
             e.generated
         );

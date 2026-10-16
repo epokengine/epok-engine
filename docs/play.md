@@ -78,6 +78,15 @@ assets. The separate-window destination still opens the emulator GUI. Runtime
 messages are read from `.epok/emulator/runtime.log` into the timestamped Console.
 The Windows private terminal requires Windows 10 1809 or newer.
 
+## PocketStation in Play
+
+When the game uses the PocketStation (`epok::pocketstation`, the PocketStation
+Blueprint nodes or Lua functions), emulator Play puts the editor's emulated
+PocketStation in memory card slot 1. Requests travel through the emulator bridge,
+the PocketStation window opens docked into the PlayStation, and programs the game
+installs land on the card in `UserSettings/PocketStation.mcd`. Serial Play talks to
+a real PocketStation in the console instead. See [PocketStation](pocketstation.md).
+
 ## Physical PSX
 
 Choose **PSX via serial**, then **PSX connection...** in the Play options menu

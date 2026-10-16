@@ -669,6 +669,7 @@ dependencies = [
  "cc",
  "chrono",
  "clang",
+ "epok-pocketstation",
  "gilrs",
  "imgui",
  "imgui-wgpu",
@@ -696,6 +697,10 @@ dependencies = [
  "winit",
  "winresource",
 ]
+
+[[package]]
+name = "epok-pocketstation"
+version = "0.7.0"
 
 [[package]]
 name = "equivalent"

@@ -42,6 +42,10 @@ serialport = { version = "=4.10.1", default-features = false }
 portable-pty = "=0.9.0"
 reqwest = { version = "=0.13.4", default-features = false, features = ["blocking", "rustls"] }
 gilrs = "0.11"
+epok-pocketstation = { path = "crates/pocketstation" }
+
+[workspace]
+members = [".", "crates/pocketstation"]
 
 [[bin]]
 name = "epok-header-tool"
@@ -62,4 +66,7 @@ opt-level = 3
 [profile.dev.package.serde_yaml_ng]
 opt-level = 3
 [profile.dev.package.unsafe-libyaml]
+opt-level = 3
+# The PocketStation emulator runs live in the editor's Debug builds.
+[profile.dev.package.epok-pocketstation]
 opt-level = 3

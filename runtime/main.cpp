@@ -22,6 +22,7 @@
 #include "music.hpp"
 #include "streaming.hpp"
 #include "video_service.hpp"
+#include "pocketstation_service.hpp"
 #include "lifecycle.hpp"
 #include "scene_service.hpp"
 #include "sprites.hpp"
