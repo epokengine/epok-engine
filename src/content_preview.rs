@@ -58,6 +58,7 @@ pub fn source_kind(path: &Path) -> Option<&'static str> {
         "wav" | "mp3" | "flac" | "ogg" | "mid" | "midi" | "seq" | "sep" => Some("Audio"),
         "vab" | "vh" | "vb" | "sf2" | "sf3" => Some("SoundBank"),
         "fbx" | "obj" => Some("Mesh"),
+        extension if crate::video_import::EXTENSIONS.contains(&extension) => Some("Video"),
         _ => None,
     }
 }
@@ -240,8 +241,9 @@ impl Cache {
         let (send, receive) = mpsc::sync_channel(1);
         let edge = self.edge.unwrap_or(EDGE);
         let mode = self.mode;
+        let root = self.root.clone();
         std::thread::spawn(move || {
-            let _ = send.send(decode_size_mode(&worker_path, edge, mode));
+            let _ = send.send(decode_size_mode(&worker_path, edge, mode, root.as_deref()));
         });
         self.pending = Some(Pending {
             path,
@@ -492,9 +494,19 @@ fn decode(path: &Path) -> Result<Preview, String> {
 }
 #[cfg(test)]
 fn decode_size(path: &Path, edge: u32) -> Result<Preview, String> {
-    decode_size_mode(path, edge, PreviewMode::Source)
+    decode_size_mode(path, edge, PreviewMode::Source, None)
 }
-fn decode_size_mode(path: &Path, edge: u32, mode: PreviewMode) -> Result<Preview, String> {
+fn decode_size_mode(
+    path: &Path,
+    edge: u32,
+    mode: PreviewMode,
+    root: Option<&Path>,
+) -> Result<Preview, String> {
+    if source_kind(path) == Some("Video") {
+        return Err(
+            "Import this video to encode it and preview it as the console plays it.".into(),
+        );
+    }
     if matches!(source_kind(path), Some("Audio" | "SoundBank")) {
         let bytes = assets::read_bounded(path)?;
         let kind = audio_content_kind(&bytes);
@@ -507,6 +519,14 @@ fn decode_size_mode(path: &Path, edge: u32, mode: PreviewMode) -> Result<Preview
         return waveform(decode_audio_mode(path, mode)?);
     }
     if path.extension().is_some_and(|e| e == "epokasset") {
+        // A video package holds its whole source; its picture is the cooked thumbnail.
+        let meta = assets::read_metadata(path)?;
+        if meta.kind == assets::Kind::Video {
+            let root = root.ok_or("No project open")?;
+            let bytes = std::fs::read(crate::video_import::thumbnail_path(root, &meta))
+                .map_err(|_| "Encode this video (Import or Play) to show its first picture.")?;
+            return decode_png_size(&bytes, edge);
+        }
         let package = assets::Package::load(path)?;
         match package.meta.kind {
             assets::Kind::AudioClip => waveform(decode_audio_mode(path, mode)?),
@@ -1096,7 +1116,7 @@ mod tests {
         std::fs::write(&wrong_bank, &seq).unwrap();
         assert_eq!(audio_content_kind(&seq), Some("Sequence"));
         assert!(
-            matches!(decode_size_mode(&wrong_bank, EDGE, PreviewMode::Source), Err(e) if e.contains("Select the source profile"))
+            matches!(decode_size_mode(&wrong_bank, EDGE, PreviewMode::Source, None), Err(e) if e.contains("Select the source profile"))
         );
         let mut vab = vec![0_u8; 0xc30];
         vab[..4].copy_from_slice(b"pBAV");
@@ -1136,7 +1156,7 @@ mod tests {
         let path = root.join("converted.seq");
         std::fs::write(&path, converted_seq).unwrap();
         assert!(
-            matches!(decode_size_mode(&path, EDGE, PreviewMode::Source), Err(e) if e.contains("converted-seq-le32"))
+            matches!(decode_size_mode(&path, EDGE, PreviewMode::Source, None), Err(e) if e.contains("converted-seq-le32"))
         );
         assert_eq!(
             audio_content_kind(&crate::audio_import::test_wav()),

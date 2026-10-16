@@ -159,6 +159,9 @@ pub fn builtin_api(operation: &Builtin) -> Option<&'static str> {
         Builtin::StopAudio => "stop_audio",
         Builtin::SetTexture => "set_texture",
         Builtin::SetAudioClip => "set_audio_clip",
+        Builtin::PlayVideo => "play_video",
+        Builtin::StopVideo => "stop_video",
+        Builtin::IsVideoPlaying => "video_playing",
         Builtin::PlaySequenceComponent => "play_sequence_component",
         Builtin::StopSequence => "stop_sequence",
         Builtin::PauseSequence => "pause_sequence",
@@ -463,6 +466,23 @@ pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, boo
             Type::Void,
             false,
         ),
+        // Gameplay pauses while a video plays; the call queues it and returns
+        // whether the clip exists and the CD can stream it.
+        Builtin::PlayVideo => (
+            vec![
+                (
+                    "video",
+                    Type::AssetRef {
+                        kind: "Video".into(),
+                    },
+                ),
+                ("skippable", Type::Bool),
+            ],
+            Type::Bool,
+            false,
+        ),
+        Builtin::StopVideo => (vec![], Type::Void, false),
+        Builtin::IsVideoPlaying => (vec![], Type::Bool, true),
         Builtin::Spawn { class } => (
             vec![("parent", entity)],
             Type::ObjectRef {

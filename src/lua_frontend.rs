@@ -3247,6 +3247,9 @@ fn adapter(name: &str) -> Option<(bp::Builtin, Vec<Operand>, ClassArgument)> {
         "play_effect" => simple(bp::Builtin::PlayEffectComponent, &[Value]),
         "set_texture" => simple(bp::Builtin::SetTexture, &[Value, Handle]),
         "set_audio_clip" => simple(bp::Builtin::SetAudioClip, &[Value, Handle]),
+        "play_video" => simple(bp::Builtin::PlayVideo, &[Handle, Value]),
+        "stop_video" => simple(bp::Builtin::StopVideo, &[]),
+        "video_playing" => simple(bp::Builtin::IsVideoPlaying, &[]),
         // The class is named by a string argument and resolved statically; the
         // node carries its uuid, exactly as a Blueprint node does.
         "is_a" => Some((
@@ -3633,6 +3636,12 @@ pub(crate) mod tests {
             },
         ));
         parent.properties.push(reflected(
+            "movie",
+            Type::AssetRef {
+                kind: "Video".into(),
+            },
+        ));
+        parent.properties.push(reflected(
             "kind",
             Type::ClassRef {
                 base: crate::object_model::ACTOR3D_ID.into(),
@@ -3668,6 +3677,9 @@ pub(crate) mod tests {
     epok.play_audio(self.ref)
     epok.set_texture(self.ref, self.skin)
     epok.set_audio_clip(self.ref, self.clip)
+    local started = epok.play_video(self.movie, true)
+    local busy = epok.video_playing()
+    epok.stop_video()
 "#,
         )
         .expect("lowered body");
@@ -3692,6 +3704,9 @@ pub(crate) mod tests {
             "PlayAudio -> void",
             "SetTexture -> void",
             "SetAudioClip -> void",
+            "PlayVideo -> bool",
+            "IsVideoPlaying -> bool",
+            "StopVideo -> void",
         ] {
             assert!(text.contains(expected), "missing {expected:?} in\n{text}");
         }
@@ -3732,6 +3747,10 @@ pub(crate) mod tests {
                 "Property clip is not AssetRef<Texture>",
             ),
             ("    epok.set_texture(self.ref, 1)", profile::ASSET_ARGUMENT),
+            (
+                "    local a = epok.play_video(self.clip, true)",
+                "Property clip is not AssetRef<Video>",
+            ),
             ("    local a = epok.stop_sequence(1)", profile::HANDLE_VALUE),
             (
                 "    local a = epok.make_transform(1, 2, 3)",

@@ -202,7 +202,9 @@ also take two object, actor or component references of any classes and tell whet
 they name the same object (is the actor that entered a trigger the player?); wiring a
 reference widens both pins to Object. Engine adapters cover self,
 handle validity, local transforms, input, activity/destruction, scene requests,
-class tests/spawning and entity audio/texture assignment. Native annotated
+class tests/spawning, entity audio/texture assignment and full-screen video
+(**Video › Play video / Stop video / Is video playing**, see
+[Full-motion video](video.md)). Native annotated
 methods extend the callable surface without adding an interpreted language.
 
 Make Vector combines two or three Fixed inputs. Vector Component extracts one

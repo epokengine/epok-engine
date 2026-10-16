@@ -11,6 +11,7 @@ pub enum Settings {
     Fbx(crate::model_import::Settings),
     Font(FontSettings),
     Derived,
+    Video(crate::video_import::Settings),
 }
 /// Named blocks an authored font can cover, beyond its explicit character list.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,6 +103,7 @@ impl Serialize for Settings {
             Fbx(&'a crate::model_import::Settings),
             Font(&'a FontSettings),
             Derived,
+            Video(&'a crate::video_import::Settings),
         }
         match self {
             Self::Audio(s) => {
@@ -122,6 +124,7 @@ impl Serialize for Settings {
             Self::Fbx(s) => Tagged::Fbx(s).serialize(serializer),
             Self::Font(s) => Tagged::Font(s).serialize(serializer),
             Self::Derived => Tagged::Derived.serialize(serializer),
+            Self::Video(s) => Tagged::Video(s).serialize(serializer),
         }
     }
 }
@@ -143,6 +146,7 @@ impl<'de> Deserialize<'de> for Settings {
             Fbx(crate::model_import::Settings),
             Font(FontSettings),
             Derived,
+            Video(crate::video_import::Settings),
         }
         use serde::de::Error;
         let value = serde_json::Value::deserialize(d)?;
@@ -181,6 +185,10 @@ impl<'de> Deserialize<'de> for Settings {
                     Self::Font(s)
                 }
                 Tagged::Derived => Self::Derived,
+                Tagged::Video(s) => {
+                    s.validate().map_err(D::Error::custom)?;
+                    Self::Video(s)
+                }
             },
         )
     }
@@ -208,6 +216,12 @@ impl Settings {
         match self {
             Self::Font(s) => Ok(s),
             _ => Err("Expected Font settings".into()),
+        }
+    }
+    pub fn video(&self) -> Result<&crate::video_import::Settings, String> {
+        match self {
+            Self::Video(s) => Ok(s),
+            _ => Err("Expected Video settings".into()),
         }
     }
 }

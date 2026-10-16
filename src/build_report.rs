@@ -110,6 +110,7 @@ impl Summary {
                     path.as_str(),
                     "GEOMETRY.BIN" | "epok.cue" | "epok.bin" | "epok.iso"
                 )
+                || crate::video::is_staged_path(path)
                 || path
                     .strip_prefix("music/M")
                     .and_then(|p| p.strip_suffix(".XA"))

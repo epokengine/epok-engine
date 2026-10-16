@@ -80,6 +80,8 @@ Supported (initial profile):
   | `epok.play_audio(ref)`, `epok.stop_audio(ref)` | PlayAudio, StopAudio |
   | `epok.set_texture(ref, self.<AssetRef property>)` | SetTexture |
   | `epok.set_audio_clip(ref, self.<AssetRef property>)` | SetAudioClip |
+  | `epok.play_video(self.<AssetRef property>, skippable)` | PlayVideo |
+  | `epok.stop_video()`, `epok.video_playing()` | StopVideo, IsVideoPlaying |
   | `epok.play_sequence(ref)`, `epok.play_effect(ref)` (statement only) | PlaySequenceComponent, PlayEffectComponent |
   | `self.ref` | SelfObject |
   | `self.rect_position.x/.y`, `self.rect_size.x/.y` | Get/SetRectPosition, Get/SetRectSize |

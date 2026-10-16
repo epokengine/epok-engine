@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `dc4a9b21abb6aea5b6186bfd1114a38bed567c6a`. Frozen semantic candidate rows: **4878**.
+Baseline commit: `54a6c6d11d9eaf8083879b1838dc8ef0957d9b45`. Frozen semantic candidate rows: **4971**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -10,9 +10,9 @@ A classified row is not necessarily implemented. The strict checker fails until 
 
 | Disposition | Rows |
 | --- | ---: |
-| `compatibility_alias` | 44 |
+| `compatibility_alias` | 47 |
 | `hardware_backend` | 6 |
-| `internal_implementation` | 4231 |
+| `internal_implementation` | 4321 |
 | `public_gameplay` | 597 |
 
 ## Public gameplay gaps
@@ -29,14 +29,14 @@ A classified row is not necessarily implemented. The strict checker fails until 
 
 | Category | Rows |
 | --- | ---: |
-| `audio_music` | 182 |
+| `audio_music` | 272 |
 | `cameras_scenes` | 48 |
 | `collision_3d` | 57 |
 | `components_hierarchy` | 7 |
 | `gameplay_2d` | 103 |
 | `implementation_support` | 2217 |
 | `input_time` | 51 |
-| `language_adapter` | 130 |
+| `language_adapter` | 133 |
 | `materials_visuals` | 61 |
 | `math_values` | 10 |
 | `memory_card` | 70 |

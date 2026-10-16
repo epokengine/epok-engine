@@ -3228,6 +3228,9 @@ impl BlueprintEditor {
             ("Audio / Play", asset::Builtin::PlayAudio),
             ("Audio / Stop", asset::Builtin::StopAudio),
             ("Audio / Set clip", asset::Builtin::SetAudioClip),
+            ("Video / Play video", asset::Builtin::PlayVideo),
+            ("Video / Stop video", asset::Builtin::StopVideo),
+            ("Video / Is video playing", asset::Builtin::IsVideoPlaying),
             ("Material / Set texture", asset::Builtin::SetTexture),
             (
                 "Sequence / Play component",
@@ -3964,9 +3967,10 @@ fn event_pin_label(graph: &Graph, node: &Node, pin: &str) -> String {
                 PlayEffectComponent | SpawnParticleEffect { .. } => "Effect Playback",
                 StopSequence | PauseSequence | ResumeSequence | StopEffect | PauseEffect
                 | ResumeEffect | BurstEffect => "Succeeded",
-                SetActive | DestroyActor | PlayAudio | StopAudio | SetTexture | SetAudioClip => {
-                    "Result"
-                }
+                SetActive | DestroyActor | PlayAudio | StopAudio | SetTexture | SetAudioClip
+                | StopVideo => "Result",
+                PlayVideo => "Started",
+                IsVideoPlaying => "Is Playing",
             }
             .into();
         }
@@ -5418,6 +5422,54 @@ mod tests {
             },
         );
         (root, registry, e)
+    }
+    #[test]
+    fn play_video_node_compiles_to_the_runtime_player_call() {
+        let (root, registry, mut e) = rotation_fixture();
+        e.add_node(NodeKind::Builtin {
+            operation: asset::Builtin::PlayVideo,
+        });
+        e.add_node(NodeKind::Builtin {
+            operation: asset::Builtin::IsVideoPlaying,
+        });
+        let graph = &mut e.asset.as_mut().unwrap().functions[0];
+        let play = graph.nodes[4].id.clone();
+        let exit = graph.nodes[2].id.clone();
+        graph.nodes[0]
+            .outputs
+            .insert("next".into(), vec![play.clone()]);
+        graph.nodes[4].outputs.insert("next".into(), vec![exit]);
+        graph.nodes[4].inputs.insert(
+            "video".into(),
+            Input::Literal {
+                value_type: schema::Type::AssetRef {
+                    kind: "Video".into(),
+                },
+                value: json!(null),
+            },
+        );
+        graph.nodes[4].inputs.insert(
+            "skippable".into(),
+            Input::Literal {
+                value_type: schema::Type::Bool,
+                value: json!(true),
+            },
+        );
+        let receiver = graph.nodes[3].id.clone();
+        graph.nodes[1].inputs.insert(
+            "target".into(),
+            Input::Link {
+                node: receiver,
+                pin: "value".into(),
+            },
+        );
+        assert!(e.compile(&root, &registry), "{:?}", e.diagnostics);
+        assert!(
+            e.generated.contains("epok::bp::api::play_video("),
+            "{}",
+            e.generated
+        );
+        let _ = std::fs::remove_dir_all(root);
     }
     #[test]
     fn compile_diagnostics_locate_missing_target_and_clear_after_repair() {

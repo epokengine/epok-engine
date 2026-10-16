@@ -53,7 +53,9 @@ In executable rejects external geometry. Serial builds omit XA music with a
 warning, both In executable and PC on demand: its playback calls do nothing,
 `is_playing()` remains false, and resident SPU sound effects still work. Omitted
 clips are listed in the asset report warnings and excluded from payload sizes.
-Other destinations require the CD profile for XA's physical CD decoder. Choosing
+Other destinations require the CD profile for XA's physical CD decoder; the same
+holds for [videos](video.md), which In executable and PC on demand reject and
+Serial builds skip. Choosing
 CD without external data still runs the EXE without creating an empty data disc.
 
 ## Repeated Play and embedded startup

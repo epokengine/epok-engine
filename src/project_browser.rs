@@ -222,6 +222,7 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
             assets::Kind::DungeonStyle => "Dungeon Style",
             assets::Kind::DungeonRecipe => "Dungeon Recipe",
             assets::Kind::DungeonRoom => "Dungeon Room",
+            assets::Kind::Video => "Video",
         };
     }
     if entry.path.ends_with(".epokbp") {
@@ -257,7 +258,7 @@ fn entry_icon(e: &Editor, entry: &Entry) -> (&'static str, [f32; 4]) {
 fn request_preview(e: &Editor, s: &mut State, entry: &Entry) -> PathBuf {
     s.previews.ensure_project(&e.root, &e.assets.index);
     let path = e.root.join(&entry.path);
-    if matches!(kind(e, entry), "Texture" | "Font" | "Audio") {
+    if matches!(kind(e, entry), "Texture" | "Font" | "Audio" | "Video") {
         let revision = crate::content_preview::revision(&e.root, &e.assets.index, &path);
         s.previews.request(&path, revision);
     }
@@ -283,7 +284,7 @@ fn display_name(entry: &Entry) -> &str {
 
 // Embedded Font Awesome glyphs, shared by tile and list views.
 pub const ASSET_ICON_RANGES: &[u32] = &[
-    0xf001, 0xf001, 0xf008, 0xf008, 0xf031, 0xf031, 0xf03e, 0xf03e, 0xf042, 0xf042, 0xf06d, 0xf06d,
+    0xf001, 0xf001, 0xf008, 0xf008, 0xf031, 0xf031, 0xf03d, 0xf03e, 0xf042, 0xf042, 0xf06d, 0xf06d,
     0xf07b, 0xf07b, 0xf0e8, 0xf0e8, 0xf121, 0xf121, 0xf15b, 0xf15b, 0xf1b2, 0xf1b2, 0xf279, 0xf279,
     0xf550, 0xf550, 0xf5d7, 0xf5d7, 0xf6d9, 0xf6d9, 0xf70e, 0xf70e, 0,
 ];
@@ -301,6 +302,7 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         "Audio" => ("\u{f001}", [0.73, 0.48, 0.87, 1.]),
         "SoundBank" => ("\u{f001}", [0.54, 0.65, 0.88, 1.]),
         "Animation" => ("\u{f008}", [0.90, 0.62, 0.34, 1.]),
+        "Video" => ("\u{f03d}", [0.91, 0.45, 0.52, 1.]),
         "Material" => ("\u{f042}", [0.40, 0.78, 0.65, 1.]),
         "Timeline" => ("\u{f550}", [0.65, 0.57, 0.89, 1.]),
         "Particle Effect" => ("\u{f06d}", [0.92, 0.48, 0.27, 1.]),
@@ -310,7 +312,7 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         _ => ("\u{f15b}", [0.66, 0.68, 0.71, 1.]),
     }
 }
-const FILTERS: [&str; 20] = [
+const FILTERS: [&str; 21] = [
     "All assets",
     "Folder",
     "Blueprint",
@@ -322,6 +324,7 @@ const FILTERS: [&str; 20] = [
     "Terrain",
     "Skeleton",
     "Audio",
+    "Video",
     "Animation",
     "Timeline",
     "Particle Effect",
@@ -2495,8 +2498,9 @@ fn import(e: &mut Editor, s: &mut State, source: &Path) -> bool {
             "vb", "sf2", "sf3", "fbx", "obj", "ttf", "otf",
         ]
         .contains(&ext.as_str())
+            && !crate::video_import::EXTENSIONS.contains(&ext.as_str())
         {
-            return Err("Supported import sources: PNG, TIM, WAV, MP3, FLAC, OGG, MIDI, Sony audio, SoundFont, FBX, OBJ, TTF and OTF.".into());
+            return Err("Supported import sources: PNG, TIM, WAV, MP3, FLAC, OGG, MIDI, Sony audio, SoundFont, FBX, OBJ, TTF, OTF and video (MP4, MOV, AVI, MKV, WebM, MPEG, GIF).".into());
         }
         let name = source
             .file_name()
@@ -2735,7 +2739,7 @@ fn pick_files() -> Result<Vec<PathBuf>, String> {
     {
         use std::os::windows::process::CommandExt;
         let output = std::process::Command::new("powershell.exe").creation_flags(0x08000000)
-            .args(["-NoProfile", "-STA", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Import Content'; $d.Multiselect=$true; $d.Filter='Supported content|*.png;*.tim;*.wav;*.mp3;*.flac;*.ogg;*.mid;*.midi;*.seq;*.sep;*.vab;*.vh;*.vb;*.sf2;*.sf3;*.fbx;*.obj;*.ttf;*.otf'; if($d.ShowDialog() -eq 'OK'){$d.FileNames | ForEach-Object {[Console]::WriteLine($_)}}; $d.Dispose()"])
+            .args(["-NoProfile", "-STA", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Import Content'; $d.Multiselect=$true; $d.Filter='Supported content|*.png;*.tim;*.wav;*.mp3;*.flac;*.ogg;*.mid;*.midi;*.seq;*.sep;*.vab;*.vh;*.vb;*.sf2;*.sf3;*.fbx;*.obj;*.ttf;*.otf;*.mp4;*.m4v;*.mov;*.avi;*.mkv;*.webm;*.mpg;*.mpeg;*.wmv;*.ogv;*.gif'; if($d.ShowDialog() -eq 'OK'){$d.FileNames | ForEach-Object {[Console]::WriteLine($_)}}; $d.Dispose()"])
             .output().map_err(|e| e.to_string())?;
         if !output.status.success() {
             return Err("Could not open the file picker. Enter a source path instead.".into());

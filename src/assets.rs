@@ -46,6 +46,7 @@ pub enum Kind {
     DungeonStyle,
     DungeonRecipe,
     DungeonRoom,
+    Video,
 }
 impl Kind {
     pub fn playable(&self) -> bool {
@@ -137,6 +138,7 @@ impl Index {
                 | Kind::ModelSource
                 | Kind::Texture
                 | Kind::Font
+                | Kind::Video
         ) {
             return Ok(None);
         }
@@ -196,6 +198,9 @@ pub fn read_bounded(path: &Path) -> Result<Vec<u8>, String> {
     // Preserve its 64 KiB package-header allowance without raising audio source limits.
     read_bounded_limit(path, audio_import::MAX_SOURCE + MAX_METADATA_BYTES)
 }
+pub fn read_video_bounded(path: &Path) -> Result<Vec<u8>, String> {
+    read_bounded_limit(path, crate::video_import::MAX_SOURCE)
+}
 pub fn read_soundfont_bounded(path: &Path) -> Result<Vec<u8>, String> {
     let bytes = read_bounded_limit(path, MAX_SOUNDFONT_SOURCE)?;
     if !crate::sf2::has_header(&bytes) {
@@ -225,9 +230,26 @@ fn is_soundfont_library(meta: &Metadata) -> bool {
 fn source_limit(meta: &Metadata) -> usize {
     if is_soundfont_library(meta) {
         MAX_SOUNDFONT_SOURCE
+    } else if meta.kind == Kind::Video {
+        crate::video_import::MAX_SOURCE
     } else {
         audio_import::MAX_SOURCE
     }
+}
+/// The metadata of a package, without reading or checking its source.
+pub fn read_metadata(path: &Path) -> Result<Metadata, String> {
+    let mut file = fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut header = [0u8; 16];
+    file.read_exact(&mut header)
+        .map_err(|_| "Invalid Epok asset header")?;
+    let meta_size = u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize;
+    if &header[..8] != MAGIC || meta_size > MAX_METADATA_BYTES {
+        return Err("Invalid Epok asset header".into());
+    }
+    let mut bytes = vec![0; meta_size];
+    file.read_exact(&mut bytes)
+        .map_err(|_| "Incomplete or oversized asset package")?;
+    serde_json::from_slice(&bytes).map_err(|e| format!("Asset metadata: {e}"))
 }
 fn read_package(path: &Path) -> Result<Vec<u8>, String> {
     let mut file = fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -353,6 +375,7 @@ impl Package {
             (Kind::DungeonRoom, crate::import_settings::Settings::Authored) => {}
             (Kind::ModelSource, crate::import_settings::Settings::Fbx(s)) => s.validate()?,
             (Kind::Font, crate::import_settings::Settings::Font(s)) => s.validate()?,
+            (Kind::Video, crate::import_settings::Settings::Video(s)) => s.validate()?,
             (
                 Kind::Skeleton | Kind::SkeletalMesh | Kind::AnimationClip | Kind::Material,
                 crate::import_settings::Settings::Derived,
@@ -422,6 +445,7 @@ impl Package {
             Kind::Font => {
                 crate::font_asset::decode(&self.source, self.meta.settings.font()?)?;
             }
+            Kind::Video => crate::video_import::probe(&self.source)?,
         }
         Ok(())
     }
@@ -575,6 +599,7 @@ pub fn scan(root: &Path, cache: &mut ScanCache) -> Index {
             "hpp",
         ]
         .contains(&ext.as_str())
+            && !crate::video_import::EXTENSIONS.contains(&ext.as_str())
             && !name.ends_with(".epokmap")
             && !name.ends_with(".epokbp")
             && !name.ends_with(".timeline.json")
@@ -616,9 +641,12 @@ pub fn scan(root: &Path, cache: &mut ScanCache) -> Index {
                     "sf2", "sf3", "fbx", "png", "tim", "ttf", "otf",
                 ]
                 .contains(&ext.as_str())
+                    || crate::video_import::EXTENSIONS.contains(&ext.as_str())
                 {
                     let bytes = if ext == "sf2" || ext == "sf3" {
                         read_soundfont_bounded(&path)?
+                    } else if crate::video_import::EXTENSIONS.contains(&ext.as_str()) {
+                        read_video_bounded(&path)?
                     } else {
                         read_bounded(&path)?
                     };
@@ -754,6 +782,17 @@ fn publish_new(temp: &Path, path: &Path) -> std::io::Result<()> {
     fs::hard_link(temp, path)
 }
 pub fn cache_key(meta: &Metadata) -> String {
+    if meta.kind == Kind::Video {
+        return hash(
+            format!(
+                "psx-video-v1:{}:{}:{}",
+                meta.importer_version,
+                meta.source_hash,
+                serde_json::to_string(&meta.settings).unwrap()
+            )
+            .as_bytes(),
+        );
+    }
     if matches!(meta.kind, Kind::MusicSequence | Kind::SoundBank) {
         return hash(
             format!(
@@ -842,6 +881,9 @@ pub fn cook_key(root: &Path, meta: &Metadata) -> Result<String, String> {
     }
     if matches!(meta.kind, Kind::MusicSequence | Kind::SoundBank) {
         return crate::psx_sequence::cook_key(root, meta);
+    }
+    if meta.kind == Kind::Video {
+        return crate::video_import::cook_key(root, meta);
     }
     static IMPLEMENTATION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     let implementation = IMPLEMENTATION.get_or_init(|| {

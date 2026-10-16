@@ -52,6 +52,7 @@ INTERNAL_MODULES = {
     "blueprint-spawn",
     "debug-hud",
     "draw-order",
+    "fmv-bitstream",
     "frame-clear",
     "gte-geometry",
     "instrument-allocator",
@@ -85,6 +86,7 @@ INTERNAL_MODULES = {
     "timeline-runtime",
     "track-camera-pose",
     "transform-cache",
+    "video-service",
     "visibility-track",
 }
 
@@ -160,6 +162,9 @@ CATEGORY_BY_MODULE = {
     "memory-card-backend": "memory_card",
     "motion-interpolation": "components_hierarchy",
     "music": "audio_music",
+    "fmv": "audio_music",
+    "fmv-bitstream": "audio_music",
+    "video-service": "audio_music",
     "object-model": "objects_actors",
     "palette": "sprites_palettes",
     "palette-types": "sprites_palettes",

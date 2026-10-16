@@ -31,15 +31,15 @@ pub fn graph_resources(
         .filter(|(ty, _)| matches!(ty, Type::AssetRef { .. }))
 }
 
-/// Add non-component asset references to normal resource cooking. They are
-/// reachable even when no authored renderer/audio source currently uses them.
-pub fn resources(
+/// Every asset an AssetRef default, literal or override selects, with the
+/// kind its reference declares.
+fn asset_refs(
     files: &[crate::blueprint_asset::AssetFile],
     scenes: &[Scene],
     registry: &Registry,
     index: &crate::assets::Index,
     extra: &[(Type, Value)],
-) -> Result<Scene, String> {
+) -> Result<std::collections::BTreeMap<uuid::Uuid, crate::assets::Kind>, String> {
     let mut ids = std::collections::BTreeMap::new();
     let mut add = |ty: &Type, value: &Value| -> Result<(), String> {
         if let Type::AssetRef { kind } = ty {
@@ -96,6 +96,34 @@ pub fn resources(
             }
         }
     }
+    Ok(ids)
+}
+
+/// Videos the game can play: staged as CD streams, not as scene resources.
+pub fn videos(
+    files: &[crate::blueprint_asset::AssetFile],
+    scenes: &[Scene],
+    registry: &Registry,
+    index: &crate::assets::Index,
+    extra: &[(Type, Value)],
+) -> Result<std::collections::BTreeSet<uuid::Uuid>, String> {
+    Ok(asset_refs(files, scenes, registry, index, extra)?
+        .into_iter()
+        .filter(|(_, kind)| *kind == crate::assets::Kind::Video)
+        .map(|(id, _)| id)
+        .collect())
+}
+
+/// Add non-component asset references to normal resource cooking. They are
+/// reachable even when no authored renderer/audio source currently uses them.
+pub fn resources(
+    files: &[crate::blueprint_asset::AssetFile],
+    scenes: &[Scene],
+    registry: &Registry,
+    index: &crate::assets::Index,
+    extra: &[(Type, Value)],
+) -> Result<Scene, String> {
+    let ids = asset_refs(files, scenes, registry, index, extra)?;
     let mut result = Scene::default();
     result.actors.clear();
     result.textures.clear();
@@ -111,9 +139,11 @@ pub fn resources(
                     ..Default::default()
                 })
             }
+            // Videos stream from CD; `videos` selects them for the disc.
+            crate::assets::Kind::Video => continue,
             _ => {
                 return Err(format!(
-                    "Blueprint runtime AssetRef<{kind:?}> is not supported; use Texture or AudioClip"
+                    "Blueprint runtime AssetRef<{kind:?}> is not supported; use Texture, AudioClip or Video"
                 ));
             }
         }

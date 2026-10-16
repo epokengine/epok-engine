@@ -87,4 +87,9 @@ inline void set_audio_clip(ObjectId target,uint64_t clip) {
     const int index=clip?bp::asset_index(clip,2):-1;if(clip&&index<0)return;
     if(auto* audio=entity->get<AudioSource>()){audio->stop();audio->clip=index;}
 }
+// Full-screen video (runtime/video_service.hpp). The asset id is the compact
+// id of an AssetRef<Video>.
+bool play_video(uint64_t video,bool skippable);
+void stop_video();
+bool video_playing();
 }

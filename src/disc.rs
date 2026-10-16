@@ -110,7 +110,16 @@ pub fn tool(root: &Path, name: &str) -> Result<PathBuf, String> {
 pub fn run(
     command: &mut Command,
     log: &Path,
+    cancelled: impl FnMut() -> bool,
+) -> Result<(), String> {
+    run_for(command, log, cancelled, Duration::from_secs(180))
+}
+/// `run` with a caller-chosen deadline; long video encodes need more than audio.
+pub fn run_for(
+    command: &mut Command,
+    log: &Path,
     mut cancelled: impl FnMut() -> bool,
+    timeout: Duration,
 ) -> Result<(), String> {
     let file = fs::File::create(log).map_err(|e| e.to_string())?;
     command
@@ -121,7 +130,7 @@ pub fn run(
     let mut child = command.spawn().map_err(|e| e.to_string())?;
     let start = Instant::now();
     loop {
-        if cancelled() || start.elapsed() > Duration::from_secs(180) {
+        if cancelled() || start.elapsed() > timeout {
             let _ = child.kill();
             let _ = child.wait();
             return Err("Audio/disc operation cancelled or timed out".into());
@@ -151,7 +160,8 @@ pub fn manifest(build: &Path, music: &[String]) -> Result<(), String> {
 }
 fn manifest_inner(build: &Path, music: &[String], force: bool) -> Result<(), String> {
     let geometry = build.join(crate::streaming::ARCHIVE).is_file();
-    if music.is_empty() && !geometry && !force {
+    let videos = crate::video::staged(build);
+    if music.is_empty() && videos.is_empty() && !geometry && !force {
         match fs::remove_file(build.join("disc.xml")) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -172,6 +182,7 @@ fn manifest_inner(build: &Path, music: &[String], force: bool) -> Result<(), Str
         String::new()
     };
     entries += &music.iter().map(|name|format!("<file name=\"{name}\" type=\"mixed\" source=\"music/{name}\" date=\"20200101000000\"/>\n")).collect::<String>();
+    entries += &videos.iter().map(|name|format!("<file name=\"{name}\" type=\"mixed\" source=\"video/{name}\" date=\"20200101000000\"/>\n")).collect::<String>();
     let xml = format!(
         "<?xml version=\"1.0\"?>\n<iso_project image_name=\"epok.bin\" cue_sheet=\"epok.cue\"><track type=\"data\"><identifiers system=\"PLAYSTATION\" application=\"PLAYSTATION\" volume=\"EPOK\"/><directory_tree><file name=\"SYSTEM.CNF\" source=\"SYSTEM.CNF\" date=\"20200101000000\"/><file name=\"EPOK.EXE\" source=\"epok.ps-exe\" date=\"20200101000000\"/>{entries}</directory_tree></track></iso_project>\n"
     );
@@ -256,9 +267,17 @@ pub fn build(
                 .div_ceil(crate::music::SECTOR as u64);
         }
     }
+    for name in crate::video::staged(folder) {
+        if manifest.contains(&format!("source=\"video/{name}\"")) {
+            sectors += fs::metadata(folder.join("video").join(&name))
+                .map_err(|e| e.to_string())?
+                .len()
+                .div_ceil(crate::fmv::SECTOR as u64);
+        }
+    }
     if sectors > 74 * 60 * 75 {
         return Err(
-            "Game, geometry and audio exceed the 74-minute CD capacity. Reduce referenced resources."
+            "Game, geometry, audio and video exceed the 74-minute CD capacity. Reduce referenced resources."
                 .into(),
         );
     }

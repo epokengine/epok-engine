@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 116,
-    "types": 511,
-    "callables": 2016,
-    "properties": 2913
+    "headers": 119,
+    "types": 522,
+    "callables": 2036,
+    "properties": 2986
   },
   "psyqo": {
     "headers": 53,
@@ -87,10 +87,10 @@
       "family": "epok",
       "header": "blueprint_api.hpp",
       "slug": "blueprint-api",
-      "callables": 46,
+      "callables": 49,
       "types": 0,
       "properties": 0,
-      "source_sha256": "412c2ccb9f6872da03b2591fe26e4ffcea21f2b5ae681a9489a70a24d24da3d8",
+      "source_sha256": "5e9d8e1234b1aedb311c10b7660debba52f4523cd3cb41a6eef6c649e371771a",
       "diagnostics": []
     },
     {
@@ -271,6 +271,26 @@
       "types": 1,
       "properties": 2,
       "source_sha256": "f5688f7cb9626fb0d27cb419132b29ab222d64d3ed1205d1ac65ff4feceb1627",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "fmv.hpp",
+      "slug": "fmv",
+      "callables": 0,
+      "types": 3,
+      "properties": 31,
+      "source_sha256": "63d1e3a5cf5b657fc6d840133d8a875919a806416ce0f6d065fb5fe95de1f2f4",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "fmv_bitstream.hpp",
+      "slug": "fmv-bitstream",
+      "callables": 17,
+      "types": 8,
+      "properties": 42,
+      "source_sha256": "9f69f9dbf4a2dd06bf026be6f642c9c6134723ea5a0bac003e91d562864fe52a",
       "diagnostics": []
     },
     {
@@ -1052,6 +1072,18 @@
       "properties": 57,
       "source_sha256": "c31cec9ce5bc2f85e472abc9aef55f3067ae3a71d614cbd440ed173b817e1a42",
       "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "video_service.hpp",
+      "slug": "video-service",
+      "callables": 0,
+      "types": 0,
+      "properties": 0,
+      "source_sha256": "44108142774b18a32816c79e2acb091596e90e15c4aaf29f13ae61727c3bc936",
+      "diagnostics": [
+        "runtime/video_service.hpp:13:10: fatal error: 'video-bank.hh' file not found"
+      ]
     },
     {
       "family": "epok",
