@@ -733,6 +733,7 @@ fn execute(
             rx,
         );
     }
+    crate::pocketstation::write_link_config(root, &build)?;
     if debug {
         let map = fs::read_to_string(build.join("epok.map"))
             .map_err(|e| format!("Blueprint debug link map: {e}"))?;

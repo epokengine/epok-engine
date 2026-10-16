@@ -10,6 +10,7 @@
 #include "world2d.hpp"
 #include "utility.hpp"
 #include "dungeon_map.hpp"
+#include "pocketstation.hpp"
 
 namespace epok {
 
@@ -399,6 +400,26 @@ struct EPOK_FUNCTION_LIBRARY(Category="Memory Card", Id="6073b812-ff1e-4764-9ba2
     EPOK_FUNCTION(BlueprintPure, Id="e2e0df92-13dd-4a46-99e5-54e255c8446b") static uint32_t staged_word(uint32_t index){return index<MemoryCardService::max_payload/4?gameplay_save_words()[index]:0;}
     EPOK_FUNCTION(BlueprintCallable, AsyncRequest, Id="c2809980-126a-4ed0-bf4f-1a073766d813") static bool write_staged(uint32_t slot,uint32_t bytes,uint32_t port){const char* name=gameplay_card_slot_name(slot);return name&&bytes<=MemoryCardService::max_payload&&memory_card.write(name,"EPOK Save",gameplay_save_words(),bytes,port);}
     EPOK_FUNCTION(BlueprintPure, Id="3164add9-daa1-4853-a44d-03b649f93f11") static uint32_t loaded_word(uint32_t index){const uint32_t offset=index*4;if(index>=MemoryCardService::max_payload/4||offset>=memory_card.size())return 0;uint32_t value=0;const auto* data=memory_card.data();for(uint32_t byte=0;byte<4&&offset+byte<memory_card.size();++byte)value|=uint32_t(data[offset+byte])<<(byte*8);return value;}
+};
+
+// A PocketStation in a memory card slot (runtime/pocketstation.hpp). Each call
+// is one short transaction on the card bus. Values and messages reach the
+// Pocket Lua program through link.value / link.received / link.byte, and come
+// back from link.set_value / link.send.
+inline uint8_t* gameplay_pocket_message(){alignas(4) static uint8_t bytes[PocketStationService::message_capacity]{};return bytes;}
+inline uint8_t& gameplay_pocket_message_size(){static uint8_t size=0;return size;}
+struct EPOK_FUNCTION_LIBRARY(Category="PocketStation", Id="1e4f14e7-5842-473a-b726-7a73aa515bdb") PocketStationLibrary {
+    EPOK_FUNCTION(BlueprintCallable, Id="24dbbfe9-1502-47dc-bf35-567e4cb968c4") static bool connected(uint32_t port){return pocketstation.probe(port)==PocketError::OK;}
+    EPOK_FUNCTION(BlueprintCallable, Id="bcc01714-bc0b-4715-a6cc-0095882da7f3") static uint32_t running_program(uint32_t port){PocketStatus status;return pocketstation.status(status,port)==PocketError::OK?status.running_block:0xFFFFFFFFu;}
+    EPOK_FUNCTION(BlueprintCallable, Id="40898cdc-b1a0-4dce-93e9-5ae342344f08") static int32_t value(uint32_t index,uint32_t port){int32_t values[PocketStationService::value_count]{};if(index<1||index>PocketStationService::value_count||pocketstation.values(values,port)!=PocketError::OK)return 0;return values[index-1];}
+    EPOK_FUNCTION(BlueprintCallable, Id="f8b705da-dfb4-4c55-bb1b-cac878903cd6") static bool set_value(uint32_t index,int32_t value,uint32_t port){return index>=1&&index<=PocketStationService::value_count&&pocketstation.set_value(uint8_t(index),value,port)==PocketError::OK;}
+    EPOK_FUNCTION(BlueprintCallable, Id="bed05acf-d76a-437f-b5da-5ec88bafb531") static bool send_byte(uint32_t value,uint32_t port){uint8_t byte=uint8_t(value);return pocketstation.send(&byte,1,port)==PocketError::OK;}
+    EPOK_FUNCTION(BlueprintCallable, Id="392519da-d323-4700-ae55-5ec2325e6d8c") static bool send_bytes(uint32_t first,uint32_t second,uint32_t third,uint32_t fourth,uint32_t count,uint32_t port){uint8_t bytes[4]={uint8_t(first),uint8_t(second),uint8_t(third),uint8_t(fourth)};return count>=1&&count<=4&&pocketstation.send(bytes,uint8_t(count),port)==PocketError::OK;}
+    EPOK_FUNCTION(BlueprintCallable, Id="15a72c6f-c4ad-411a-afa4-cd4504edf360") static uint32_t receive_message(uint32_t port){uint8_t size=0;if(pocketstation.receive(gameplay_pocket_message(),PocketStationService::message_capacity,&size,port)!=PocketError::OK)size=0;gameplay_pocket_message_size()=size;return size;}
+    EPOK_FUNCTION(BlueprintPure, Id="141f78d8-ce63-43a0-9d78-f22884642dd7") static uint32_t message_byte(uint32_t index){return index>=1&&index<=gameplay_pocket_message_size()?gameplay_pocket_message()[index-1]:0;}
+    EPOK_FUNCTION(BlueprintCallable, Id="c898d99e-8cce-4362-9c10-29946a21a6f1") static bool start_program(uint32_t block,uint32_t parameter,uint32_t port){return block<=15&&pocketstation.launch(uint8_t(block),parameter,port)==PocketError::OK;}
+    EPOK_FUNCTION(BlueprintCallable, Id="f67225b1-fbbf-448c-8a65-1e8aa04cef35") static bool exit_to_menu(uint32_t port){return pocketstation.launch(0,0x10,port)==PocketError::OK;}
+    EPOK_FUNCTION(BlueprintCallable, Id="55abde76-b5eb-4359-bfd3-e041309bdf53") static bool set_led(bool on,uint32_t port){return pocketstation.set_led(on,port)==PocketError::OK;}
 };
 
 inline GameplayVector3 gameplay_dungeon_vector(const int32_t* raw){return {Fixed(raw[0],Fixed::RAW),Fixed(raw[1],Fixed::RAW),Fixed(raw[2],Fixed::RAW)};}

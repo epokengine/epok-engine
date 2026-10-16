@@ -211,7 +211,14 @@ rt_poll:
     beq 1f
     bic r0, r1
     str r0, [r2]
-    mov r0, #0
+    ; Give the kernel its undefined-instruction vector back before switching.
+    ldr r0, =rt_undefined_vector
+    ldr r1, [r0]
+    cmp r1, #0
+    beq 2f
+    mov r0, #4
+    str r1, [r0]
+2:  mov r0, #0
     swi 0x11
     swi 0x09
     mov r0, #1

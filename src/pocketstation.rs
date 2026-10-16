@@ -599,7 +599,7 @@ pub struct Built {
     pub warnings: Vec<plua::Diagnostic>,
 }
 
-pub fn build(app: &PocketApp) -> Result<Built, Vec<plua::Diagnostic>> {
+pub fn build_app(app: &PocketApp) -> Result<Built, Vec<plua::Diagnostic>> {
     let mut header = app.header();
     let program = match app.language {
         Language::PocketLua => {
@@ -651,7 +651,237 @@ pub fn single_save(file_name: &str, bytes: &[u8]) -> Result<Vec<u8>, String> {
     Ok(card::export_single(&image, &entry))
 }
 
+// ---- PlayStation game builds ----------------------------------------------------
+
+/// Builds every PocketStation app in the project into `pocket-apps.hh`, so
+/// the game can install and start them (`epok::pocketstation.install`,
+/// Blueprint "Start PocketStation app").
+pub fn stage(
+    build: &Path,
+    index: &assets::Index,
+) -> Result<crate::playback_staging::ResourceOutput, String> {
+    let mut inputs = BTreeMap::new();
+    let mut images = String::new();
+    let mut table = Vec::new();
+    let mut ids = Vec::new();
+    let mut names = std::collections::BTreeSet::new();
+    let mut apps: Vec<&assets::Record> = index
+        .assets
+        .values()
+        .filter_map(|records| records.first())
+        .filter(|r| r.meta.kind == assets::Kind::PocketStationApp)
+        .collect();
+    apps.sort_by_key(|r| r.meta.id);
+    for (i, record) in apps.iter().enumerate() {
+        let app = document(record)?;
+        let built = build_app(&app).map_err(|problems| {
+            let first = problems
+                .first()
+                .map(ToString::to_string)
+                .unwrap_or_default();
+            format!("PocketStation app {}: {first}", record.meta.source)
+        })?;
+        if !names.insert(app.file_name.clone()) {
+            return Err(format!(
+                "Two PocketStation apps use the card name {}; give each app its own name in App Settings",
+                app.file_name
+            ));
+        }
+        inputs.insert(
+            format!("asset:{}", record.meta.id),
+            assets::cache_key(&record.meta),
+        );
+        images.push_str(&format!(
+            "alignas(4) inline constexpr uint8_t pocket_app_image_{i}[] = {{"
+        ));
+        for (n, b) in built.bytes.iter().enumerate() {
+            if n % 32 == 0 {
+                images.push('\n');
+            }
+            images.push_str(&format!("{b},"));
+        }
+        images.push_str("};\n");
+        table.push(format!(
+            "{{\"{}\",pocket_app_image_{i},{}}}",
+            app.file_name.replace('\\', "\\\\").replace('"', "\\\""),
+            built.bytes.len()
+        ));
+        ids.push(format!(
+            "UINT64_C({})",
+            crate::blueprint_refs::compact_id(&record.meta.id.to_string())
+        ));
+    }
+    let mut header = String::from(
+        "// Generated: the project's PocketStation apps, built for installation.\n#pragma once\n#include <stddef.h>\n#include <stdint.h>\n#include \"pocketstation.hpp\"\nnamespace epok {\n",
+    );
+    header.push_str(&images);
+    if table.is_empty() {
+        header.push_str(
+            "inline constexpr size_t pocket_app_count = 0;\ninline const PocketApp* pocket_app_at(size_t) { return nullptr; }\n",
+        );
+    } else {
+        header.push_str(&format!(
+            "inline constexpr PocketApp pocket_apps[] = {{{}}};\ninline constexpr size_t pocket_app_count = {};\ninline const PocketApp* pocket_app_at(size_t i) {{ return i < pocket_app_count ? &pocket_apps[i] : nullptr; }}\n",
+            table.join(","),
+            table.len()
+        ));
+    }
+    header.push_str(&format!(
+        "namespace bp {{inline int pocket_app_index(uint64_t id) {{constexpr uint64_t ids[] = {{{}}};for (size_t i = 0; i < {}; ++i) if (ids[i] == id) return int(i);return -1;}}}}\n}}\n",
+        if ids.is_empty() { "0".to_string() } else { ids.join(",") },
+        ids.len()
+    ));
+    crate::project::write_changed(&build.join("pocket-apps.hh"), header.as_bytes())?;
+    Ok(crate::playback_staging::ResourceOutput {
+        path: "pocket-apps.hh".into(),
+        signature: assets::hash(header.as_bytes()),
+        inputs,
+    })
+}
+
 // ---- the emulated PocketStation ------------------------------------------------------
+
+/// Address of the PocketStation mailbox in a linked game (from its map file).
+pub fn mailbox_address(map: &str) -> Option<u32> {
+    map.lines().find_map(|line| {
+        let words: Vec<&str> = line.split_whitespace().collect();
+        if words.last() != Some(&"epok_pocket_mailbox") {
+            return None;
+        }
+        words.iter().find_map(|w| {
+            w.strip_prefix("0x")
+                .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+        })
+    })
+}
+
+/// Tells the emulator bridge where the game's PocketStation mailbox is, so
+/// Play connects the editor's PocketStation to memory card slot 1. Games that
+/// do not use the PocketStation remove the setting.
+pub fn write_link_config(root: &Path, build: &Path) -> Result<(), String> {
+    let path = root.join(".epok/emulator/pocketstation.lua");
+    let address = std::fs::read_to_string(build.join("epok.map"))
+        .ok()
+        .and_then(|map| mailbox_address(&map));
+    match address {
+        Some(address) => {
+            std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+            std::fs::write(
+                &path,
+                format!("return {{version=1,mailbox={address},port=0}}\n"),
+            )
+            .map_err(|e| e.to_string())
+        }
+        None => match std::fs::remove_file(&path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
+            _ => Ok(()),
+        },
+    }
+}
+
+/// Port (memory card slot) where the emulated PocketStation sits during Play.
+pub const PLAY_PORT: u32 = 0;
+
+/// Runs a game's PocketStation requests on `machine`. Requests for the other
+/// slot find no card.
+pub fn answer(
+    machine: &mut ps::Machine,
+    requests: Vec<crate::bridge::PocketRequest>,
+) -> Vec<crate::bridge::PocketReply> {
+    if !machine.hw.docked {
+        machine.set_docked(true);
+    }
+    requests
+        .into_iter()
+        .map(|request| crate::bridge::PocketReply {
+            id: request.id,
+            frames: request
+                .frames
+                .iter()
+                .map(|frame| {
+                    if request.port == PLAY_PORT {
+                        machine.link_transfer(frame)
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+/// The emulated PocketStation of a Play run without the editor window
+/// (`--play-psx`): it answers the game and keeps its own time.
+pub struct HeadlessLink {
+    pub machine: ps::Machine,
+    root: PathBuf,
+    last: std::time::Instant,
+    pub requests: u64,
+}
+
+impl HeadlessLink {
+    pub fn new(root: &Path) -> Self {
+        let mut machine = ps::Machine::new(load_card(root));
+        machine.set_date_time(now());
+        Self {
+            machine,
+            root: root.to_path_buf(),
+            last: std::time::Instant::now(),
+            requests: 0,
+        }
+    }
+    pub fn service(&mut self, state: &std::sync::Mutex<crate::bridge::State>) {
+        let elapsed = self.last.elapsed().as_secs_f64().min(0.25);
+        self.last = std::time::Instant::now();
+        self.machine.run(elapsed);
+        let requests: Vec<_> = state.lock().unwrap().pocket_requests.drain(..).collect();
+        if requests.is_empty() {
+            return;
+        }
+        self.requests += requests.len() as u64;
+        let replies = answer(&mut self.machine, requests);
+        state.lock().unwrap().pocket_replies.extend(replies);
+    }
+    /// What the PocketStation is doing, for the command line.
+    pub fn summary(&self) -> String {
+        let m = &self.machine;
+        let running = match &m.state {
+            ps::State::Launcher => "the start-up screen".to_string(),
+            ps::State::Program(block) => m
+                .executable(*block)
+                .map(|info| info.title)
+                .unwrap_or_else(|| format!("block {block}")),
+            ps::State::Crashed(message) => format!("nothing (stopped: {message})"),
+        };
+        let files: Vec<String> = card::files(&m.hw.flash)
+            .into_iter()
+            .map(|f| f.name)
+            .collect();
+        let recent: Vec<String> = m
+            .link
+            .log
+            .iter()
+            .rev()
+            .take(4)
+            .map(|t| t.summary.clone())
+            .collect();
+        format!(
+            "PocketStation: {} requests, {} transactions; running {running}; LED {}; card: {}; last: {}",
+            self.requests,
+            m.link.transactions,
+            if m.led() { "on" } else { "off" },
+            if files.is_empty() {
+                "empty".into()
+            } else {
+                files.join(", ")
+            },
+            recent.join(" | ")
+        )
+    }
+    pub fn save(&self) -> Result<(), String> {
+        save_card(&self.root, &self.machine.hw.flash)
+    }
+}
 
 /// Where the editor keeps the emulated PocketStation's flash (its memory card).
 pub fn card_path(root: &Path) -> PathBuf {
@@ -719,7 +949,7 @@ mod tests {
             let app = PocketApp::template(template, "Test App");
             let encoded = app.encode().unwrap();
             assert_eq!(PocketApp::parse(&encoded).unwrap(), app);
-            let built = build(&app).unwrap_or_else(|e| panic!("{template:?}: {e:?}"));
+            let built = build_app(&app).unwrap_or_else(|e| panic!("{template:?}: {e:?}"));
             assert!(built.blocks >= 1);
             assert!(file::parse(&built.bytes).is_some());
         }
@@ -731,6 +961,34 @@ mod tests {
         let text = String::from_utf8(app.encode().unwrap()).unwrap();
         assert!(text.contains("function update()"), "{text}");
         assert!(text.contains("..####.."));
+    }
+
+    #[test]
+    fn the_mailbox_is_found_in_the_link_map() {
+        let map = " .bss.epok_pocket_mailbox\n                0x00000000800a1230      0x1254 main.o\n                0x00000000800a1230                epok_pocket_mailbox\n";
+        assert_eq!(mailbox_address(map), Some(0x800a_1230));
+        assert_eq!(mailbox_address("0x1 other"), None);
+    }
+
+    #[test]
+    fn game_builds_embed_every_app() {
+        let root = std::env::temp_dir().join(format!("epok-pocket-stage-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let build = root.join("build");
+        let empty = stage(&build, &assets::scan(&root, &mut Default::default())).unwrap();
+        let text = std::fs::read_to_string(build.join(&empty.path)).unwrap();
+        assert!(text.contains("pocket_app_count = 0"), "{text}");
+        let id = create(
+            &root,
+            &fresh_path("Star"),
+            &PocketApp::template(Template::StarCatcher, "Star"),
+        )
+        .unwrap();
+        stage(&build, &assets::scan(&root, &mut Default::default())).unwrap();
+        let text = std::fs::read_to_string(build.join("pocket-apps.hh")).unwrap();
+        assert!(text.contains("pocket_app_count = 1"));
+        assert!(text.contains(&crate::blueprint_refs::compact_id(&id.to_string()).to_string()));
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -769,7 +1027,7 @@ mod tests {
     #[test]
     fn built_apps_run_on_the_emulated_pocketstation() {
         let app = PocketApp::template(Template::BlankLua, "Hello");
-        let built = build(&app).unwrap();
+        let built = build_app(&app).unwrap();
         let mut flash = card::formatted();
         let block = card::write(&mut flash, &app.file_name, &built.bytes).unwrap();
         let mut machine = ps::Machine::new(flash);

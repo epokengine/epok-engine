@@ -668,6 +668,20 @@ function epok.stop_video() end
 ---@return boolean
 function epok.video_playing() end
 
+--- Installs the PocketStation app on the PocketStation in `port` (0 = first
+--- slot) when it is missing, then starts it. Returns false when no
+--- PocketStation answers or the card is full.
+---@param app AssetRef
+---@param port integer
+---@return boolean
+function epok.start_pocketstation_app(app, port) end
+
+--- Copies the PocketStation app to the card in `port`, replacing an older copy.
+---@param app AssetRef
+---@param port integer
+---@return boolean
+function epok.install_pocketstation_app(app, port) end
+
 --- Statement only: the playback handle stays native.
 ---@param reference ComponentRef
 function epok.play_sequence(reference) end

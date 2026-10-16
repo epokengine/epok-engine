@@ -1191,6 +1191,7 @@ fn draw_workspace(
     if !background && e.critical_busy() {
         return;
     }
+    crate::pocketstation_ui::service_link(e);
     crate::pocketstation_ui::window(ui, e);
     crate::export_ui::window(ui, e);
     script_creation_dialog(ui, e);

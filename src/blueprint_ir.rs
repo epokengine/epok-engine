@@ -162,6 +162,8 @@ pub fn builtin_api(operation: &Builtin) -> Option<&'static str> {
         Builtin::PlayVideo => "play_video",
         Builtin::StopVideo => "stop_video",
         Builtin::IsVideoPlaying => "video_playing",
+        Builtin::StartPocketStationApp => "pocketstation_start",
+        Builtin::InstallPocketStationApp => "pocketstation_install",
         Builtin::PlaySequenceComponent => "play_sequence_component",
         Builtin::StopSequence => "stop_sequence",
         Builtin::PauseSequence => "pause_sequence",
@@ -483,6 +485,21 @@ pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, boo
         ),
         Builtin::StopVideo => (vec![], Type::Void, false),
         Builtin::IsVideoPlaying => (vec![], Type::Bool, true),
+        // Installs the app on the PocketStation in `port` when it is missing
+        // (or replaces it), then starts it; returns whether it succeeded.
+        Builtin::StartPocketStationApp | Builtin::InstallPocketStationApp => (
+            vec![
+                (
+                    "app",
+                    Type::AssetRef {
+                        kind: "PocketStationApp".into(),
+                    },
+                ),
+                ("port", Type::UInt32),
+            ],
+            Type::Bool,
+            false,
+        ),
         Builtin::Spawn { class } => (
             vec![("parent", entity)],
             Type::ObjectRef {

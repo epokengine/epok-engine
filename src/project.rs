@@ -1158,6 +1158,7 @@ fn stage_with_playback(
         crate::audio::stage(root, &shared_resources, build, &asset_index)?
     };
     audio_outputs.extend(video_outputs);
+    audio_outputs.push(crate::pocketstation::stage(build, &asset_index)?);
     if let Some(profile) = profile {
         if profile.data == crate::play::DataSource::Executable && build.join("disc.xml").is_file() {
             return Err("In executable staging unexpectedly produced external disc data; retry after cleaning the build output or report this as a build-system error.".into());
@@ -1624,6 +1625,18 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "video_service.hpp",
             include_bytes!("../runtime/video_service.hpp").as_slice(),
+        ),
+        (
+            "pocketstation.hpp",
+            include_bytes!("../runtime/pocketstation.hpp").as_slice(),
+        ),
+        (
+            "pocketstation_apps.hpp",
+            include_bytes!("../runtime/pocketstation_apps.hpp").as_slice(),
+        ),
+        (
+            "pocketstation_service.hpp",
+            include_bytes!("../runtime/pocketstation_service.hpp").as_slice(),
         ),
         (
             "music.hpp",

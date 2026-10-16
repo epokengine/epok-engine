@@ -88,6 +88,8 @@ pub struct State {
     link_value: i32,
     confirm_format: bool,
     new_sprite_name: String,
+    /// Docked automatically because a game in Play talks to the PocketStation.
+    docked_by_play: bool,
 }
 
 impl Default for State {
@@ -136,8 +138,48 @@ impl Default for State {
             link_value: 0,
             confirm_format: false,
             new_sprite_name: "sprite".into(),
+            docked_by_play: false,
         }
     }
+}
+
+/// Answers a game's PocketStation requests during Play (every editor frame,
+/// whether or not the window is open). The first request docks the emulated
+/// PocketStation into slot 1 and opens its window.
+pub fn service_link(e: &mut Editor) {
+    let bridge = e
+        .job
+        .as_ref()
+        .and_then(|job| job.bridge.as_ref())
+        .map(|b| b.state.clone());
+    let Some(state) = bridge else {
+        if e.pocketstation.docked_by_play {
+            e.pocketstation.docked_by_play = false;
+            if let Some(machine) = &mut e.pocketstation.machine {
+                machine.set_docked(false);
+            }
+            save_card(e);
+        }
+        return;
+    };
+    let requests: Vec<crate::bridge::PocketRequest> =
+        state.lock().unwrap().pocket_requests.drain(..).collect();
+    if requests.is_empty() {
+        if e.pocketstation.docked_by_play && !e.pocketstation.open {
+            e.pocketstation.tick();
+        }
+        return;
+    }
+    ensure_machine(e);
+    if !e.pocketstation.docked_by_play {
+        e.pocketstation.docked_by_play = true;
+        e.pocketstation.open = true;
+        e.pocketstation.select_panel = Some(Panel::Link);
+        e.log("The game is talking to the PocketStation: the editor's PocketStation is in memory card slot 1.");
+    }
+    let machine = e.pocketstation.machine.as_mut().unwrap();
+    let replies = pocketstation::answer(machine, requests);
+    state.lock().unwrap().pocket_replies.extend(replies);
 }
 
 /// PocketStation app assets: (id, display name).
@@ -289,7 +331,7 @@ pub fn build_and_run(e: &mut Editor) {
     let (Some(doc), Some(id)) = (s.doc.clone(), s.app) else {
         return;
     };
-    match pocketstation::build(&doc) {
+    match pocketstation::build_app(&doc) {
         Ok(built) => {
             s.problems = built.warnings.clone();
             let machine = s.machine.as_mut().unwrap();
@@ -1527,7 +1569,11 @@ fn card_tab(ui: &Ui, s: &mut State) {
 
 fn device(ui: &Ui, s: &mut State, focused: bool) {
     let avail = ui.content_region_avail();
-    let scale = ((avail[0] - 70.) / 32.).floor().clamp(4., 9.);
+    // Leave room for the panels below the device.
+    let scale = ((avail[0] - 70.) / 32.)
+        .min((avail[1] * 0.55 - 190.) / 32.)
+        .floor()
+        .clamp(4., 9.);
     let lcd = 32. * scale;
     let width = lcd + 56.;
     let height = lcd + 56. + 120.;

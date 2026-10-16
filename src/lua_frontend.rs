@@ -3250,6 +3250,10 @@ fn adapter(name: &str) -> Option<(bp::Builtin, Vec<Operand>, ClassArgument)> {
         "play_video" => simple(bp::Builtin::PlayVideo, &[Handle, Value]),
         "stop_video" => simple(bp::Builtin::StopVideo, &[]),
         "video_playing" => simple(bp::Builtin::IsVideoPlaying, &[]),
+        "start_pocketstation_app" => simple(bp::Builtin::StartPocketStationApp, &[Handle, Value]),
+        "install_pocketstation_app" => {
+            simple(bp::Builtin::InstallPocketStationApp, &[Handle, Value])
+        }
         // The class is named by a string argument and resolved statically; the
         // node carries its uuid, exactly as a Blueprint node does.
         "is_a" => Some((

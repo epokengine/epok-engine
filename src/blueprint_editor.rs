@@ -3231,6 +3231,14 @@ impl BlueprintEditor {
             ("Video / Play video", asset::Builtin::PlayVideo),
             ("Video / Stop video", asset::Builtin::StopVideo),
             ("Video / Is video playing", asset::Builtin::IsVideoPlaying),
+            (
+                "PocketStation / Start app",
+                asset::Builtin::StartPocketStationApp,
+            ),
+            (
+                "PocketStation / Install app",
+                asset::Builtin::InstallPocketStationApp,
+            ),
             ("Material / Set texture", asset::Builtin::SetTexture),
             (
                 "Sequence / Play component",
@@ -3970,6 +3978,8 @@ fn event_pin_label(graph: &Graph, node: &Node, pin: &str) -> String {
                 SetActive | DestroyActor | PlayAudio | StopAudio | SetTexture | SetAudioClip
                 | StopVideo => "Result",
                 PlayVideo => "Started",
+                StartPocketStationApp => "Started",
+                InstallPocketStationApp => "Installed",
                 IsVideoPlaying => "Is Playing",
             }
             .into();

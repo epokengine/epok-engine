@@ -400,6 +400,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--new-lua-class",
             "--compile-blueprints",
             "--new-timeline",
+            "--new-pocketstation-app",
             "--install-timeline-adapters",
             "--compile-timelines",
             "--new-particle-effect",
@@ -490,6 +491,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "{}",
             serde_json::to_string_pretty(&particle_effect::validate_project(&root)?)?
         );
+        return Ok(());
+    }
+    // --new-pocketstation-app <title> [--pocketstation-template blank|assembly]:
+    // prints the asset path and the memory card file name.
+    if let Some(pair) = args.windows(2).find(|v| v[0] == "--new-pocketstation-app") {
+        let template = match args
+            .windows(2)
+            .find(|w| w[0] == "--pocketstation-template")
+            .map(|w| w[1].as_str())
+        {
+            Some("blank") => pocketstation::Template::BlankLua,
+            Some("assembly") => pocketstation::Template::Assembly,
+            _ => pocketstation::Template::StarCatcher,
+        };
+        let app = pocketstation::PocketApp::template(template, &pair[1]);
+        let path = pocketstation::fresh_path(&pair[1]);
+        pocketstation::create(&root, &path, &app)?;
+        println!("{path}\n{}", app.file_name);
         return Ok(());
     }
     if let Some(pair) = args.windows(2).find(|v| v[0] == "--new-timeline") {
@@ -1844,6 +1863,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if replay.is_some() && !args.iter().any(|a| a == "--play-psx") {
             return Err("--input-replay requires --play-psx".into());
         }
+        let pocket_root = root.clone();
         let job = if args.iter().any(|a| a == "--generate-asset-report") {
             let summary =
                 build_report::Summary::load(&root, args.iter().any(|a| a == "--blueprint-debug"))
@@ -1896,7 +1916,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .find(|v| v[0] == "--stop-after")
             .and_then(|v| v[1].parse::<u64>().ok());
         let mut started = None;
+        let mut pocket: Option<pocketstation::HeadlessLink> = None;
         loop {
+            if let Some(bridge) = &job.bridge {
+                let has_requests = !bridge.state.lock().unwrap().pocket_requests.is_empty();
+                if has_requests && pocket.is_none() {
+                    println!("The game is talking to the PocketStation in memory card slot 1");
+                    pocket = Some(pocketstation::HeadlessLink::new(&pocket_root));
+                }
+                if let Some(link) = &mut pocket {
+                    link.service(&bridge.state);
+                }
+            }
             if let (Some(replay), Some(started), Some(bridge)) = (&replay, started, &job.bridge) {
                 let started: Instant = started;
                 bridge.buttons.store(
@@ -1910,7 +1941,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 job.control(pipeline::Control::Stop);
                 started = None;
             }
-            match job.events.recv_timeout(Duration::from_millis(100)) {
+            let wait = if job.bridge.is_some() { 15 } else { 100 };
+            match job.events.recv_timeout(Duration::from_millis(wait)) {
                 Ok(pipeline::Event::Log(s)) => println!("{s}"),
                 Ok(pipeline::Event::Stage(s) | pipeline::Event::SerialStatus(s)) => println!("{s}"),
                 Ok(pipeline::Event::Progress(_) | pipeline::Event::BuildSummary(_)) => {}
@@ -1945,6 +1977,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Ok(pipeline::Event::SerialCommandPending(_)) => {}
                 Ok(pipeline::Event::Finished(result)) => {
+                    if let Some(link) = &pocket {
+                        println!("{}", link.summary());
+                        link.save()?;
+                    }
                     if native_play::recorded_camera_frames() > 0 {
                         println!(
                             "Recorded {} camera frames",
