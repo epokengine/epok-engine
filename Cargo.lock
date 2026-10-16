@@ -669,6 +669,7 @@ dependencies = [
  "cc",
  "chrono",
  "clang",
+ "epok-pocketstation",
  "gilrs",
  "imgui",
  "imgui-wgpu",

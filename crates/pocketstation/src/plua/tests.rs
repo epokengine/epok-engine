@@ -495,7 +495,11 @@ pub const STAR_CATCHER: &str = include_str!("samples/star_catcher.plua");
 #[test]
 fn the_sample_game_plays() {
     let (program, bytes) = build(STAR_CATCHER);
-    assert!(program.stack_bytes() >= 320, "stack {}", program.stack_bytes());
+    assert!(
+        program.stack_bytes() >= 320,
+        "stack {}",
+        program.stack_bytes()
+    );
     assert!(bytes.len() <= 2 * card::BLOCK_SIZE, "{} bytes", bytes.len());
     let mut flash = card::formatted();
     let block = card::write(&mut flash, "BESLESP00000STAR", &bytes).unwrap();
@@ -508,11 +512,23 @@ fn the_sample_game_plays() {
     machine.run(0.1);
     machine.set_buttons(0);
     for second in 0..20 {
-        let buttons = if second % 2 == 0 { button::LEFT } else { button::RIGHT };
+        let buttons = if second % 2 == 0 {
+            button::LEFT
+        } else {
+            button::RIGHT
+        };
         machine.set_buttons(buttons);
         machine.run(1.0);
-        assert!(!matches!(machine.state, State::Crashed(_)), "{:?}", machine.state);
-        assert_ne!(machine.cpu.pc(), program.assembly.labels["rt_halt"], "runtime error");
+        assert!(
+            !matches!(machine.state, State::Crashed(_)),
+            "{:?}",
+            machine.state
+        );
+        assert_ne!(
+            machine.cpu.pc(),
+            program.assembly.labels["rt_halt"],
+            "runtime error"
+        );
     }
     // The PlayStation reads the shared score and best values (FUNC 82h).
     let mut frame = vec![0x81, 0x5B, 0x82, 0, 0];
@@ -534,7 +550,9 @@ fn show_sample_screens() {
     machine.launch(block, 0).unwrap();
     let show = |m: &Machine| {
         for row in m.screen() {
-            let line: String = (0..32).map(|x| if row & (1 << x) != 0 { '#' } else { '.' }).collect();
+            let line: String = (0..32)
+                .map(|x| if row & (1 << x) != 0 { '#' } else { '.' })
+                .collect();
             println!("{line}");
         }
         println!();
@@ -546,5 +564,9 @@ fn show_sample_screens() {
     machine.set_buttons(0);
     machine.run(4.0);
     show(&machine);
-    println!("score {} lives {}", variable(&program, &machine, "score"), variable(&program, &machine, "lives"));
+    println!(
+        "score {} lives {}",
+        variable(&program, &machine, "score"),
+        variable(&program, &machine, "lives")
+    );
 }

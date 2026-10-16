@@ -223,6 +223,7 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
             assets::Kind::DungeonRecipe => "Dungeon Recipe",
             assets::Kind::DungeonRoom => "Dungeon Room",
             assets::Kind::Video => "Video",
+            assets::Kind::PocketStationApp => "PocketStation App",
         };
     }
     if entry.path.ends_with(".epokbp") {
@@ -285,8 +286,8 @@ fn display_name(entry: &Entry) -> &str {
 // Embedded Font Awesome glyphs, shared by tile and list views.
 pub const ASSET_ICON_RANGES: &[u32] = &[
     0xf001, 0xf001, 0xf008, 0xf008, 0xf031, 0xf031, 0xf03d, 0xf03e, 0xf042, 0xf042, 0xf06d, 0xf06d,
-    0xf07b, 0xf07b, 0xf0e8, 0xf0e8, 0xf121, 0xf121, 0xf15b, 0xf15b, 0xf1b2, 0xf1b2, 0xf279, 0xf279,
-    0xf550, 0xf550, 0xf5d7, 0xf5d7, 0xf6d9, 0xf6d9, 0xf70e, 0xf70e, 0,
+    0xf07b, 0xf07b, 0xf0e8, 0xf0e8, 0xf10b, 0xf10b, 0xf121, 0xf121, 0xf15b, 0xf15b, 0xf1b2, 0xf1b2,
+    0xf279, 0xf279, 0xf550, 0xf550, 0xf5d7, 0xf5d7, 0xf6d9, 0xf6d9, 0xf70e, 0xf70e, 0,
 ];
 fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
     match kind {
@@ -303,6 +304,7 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         "SoundBank" => ("\u{f001}", [0.54, 0.65, 0.88, 1.]),
         "Animation" => ("\u{f008}", [0.90, 0.62, 0.34, 1.]),
         "Video" => ("\u{f03d}", [0.91, 0.45, 0.52, 1.]),
+        "PocketStation App" => ("\u{f10b}", [0.62, 0.78, 0.56, 1.]),
         "Material" => ("\u{f042}", [0.40, 0.78, 0.65, 1.]),
         "Timeline" => ("\u{f550}", [0.65, 0.57, 0.89, 1.]),
         "Particle Effect" => ("\u{f06d}", [0.92, 0.48, 0.27, 1.]),
@@ -312,7 +314,7 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         _ => ("\u{f15b}", [0.66, 0.68, 0.71, 1.]),
     }
 }
-const FILTERS: [&str; 21] = [
+const FILTERS: [&str; 22] = [
     "All assets",
     "Folder",
     "Blueprint",
@@ -330,6 +332,7 @@ const FILTERS: [&str; 21] = [
     "Particle Effect",
     "Dungeon Style",
     "Dungeon Recipe",
+    "PocketStation App",
     "Material",
     "Asset",
     "Source",
@@ -767,6 +770,13 @@ fn creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
     }
     if ui.is_item_hovered() {
         ui.tooltip_text("Steps that grow a dungeon's rooms: the main path, branches, loops, items, keys and locks, one-way doors.");
+    }
+    if ui.menu_item("PocketStation App...") {
+        crate::pocketstation_ui::open(e);
+        e.pocketstation.new_app();
+    }
+    if ui.is_item_hovered() {
+        ui.tooltip_text("A program for the PocketStation, the memory card with a screen: Pocket Lua or assembly, sprites and icons, with an emulator to play it.");
     }
     ui.separator();
     if ui.menu_item("Install Timeline Adapters") {
@@ -1526,6 +1536,7 @@ fn open(e: &mut Editor, s: &mut State, entry: &Entry) {
             assets::Kind::DungeonStyle => crate::dungeon_style_editor::open(e, record.meta.id),
             assets::Kind::DungeonRecipe => crate::dungeon_recipe_editor::open(e, record.meta.id),
             assets::Kind::DungeonRoom => crate::dungeon_room_editor::open(e, record.meta.id),
+            assets::Kind::PocketStationApp => crate::pocketstation_ui::open_app(e, record.meta.id),
             assets::Kind::Texture
             | assets::Kind::Font
             | assets::Kind::AudioClip
@@ -2219,7 +2230,7 @@ fn copy_paths(root: &Path, copies: &[(String, String)]) -> Result<(), String> {
             let bytes = match ext {
                 "epokasset" => {
                     let mut package = assets::Package::load(source)?;
-                    if !matches!(package.meta.kind, assets::Kind::AudioClip | assets::Kind::MusicSequence | assets::Kind::SoundBank | assets::Kind::Texture | assets::Kind::EditableMesh | assets::Kind::DungeonStyle | assets::Kind::DungeonRecipe) { return Err("Reimport the FBX to create an independent copy of a composite model.".into()); }
+                    if !matches!(package.meta.kind, assets::Kind::AudioClip | assets::Kind::MusicSequence | assets::Kind::SoundBank | assets::Kind::Texture | assets::Kind::EditableMesh | assets::Kind::DungeonStyle | assets::Kind::DungeonRecipe | assets::Kind::PocketStationApp) { return Err("Reimport the FBX to create an independent copy of a composite model.".into()); }
                     package.meta.id = uuid::Uuid::new_v4(); package.bytes()?
                 }
                 "epokbp" | "lua" | "cpp" | "hpp" | "h" | "hh" | "cc" => return Err("Use Add > C++ Class / Blueprint Class / Lua Class to create an independent class; class identities cannot be copied as files.".into()),

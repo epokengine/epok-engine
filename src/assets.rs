@@ -47,6 +47,7 @@ pub enum Kind {
     DungeonRecipe,
     DungeonRoom,
     Video,
+    PocketStationApp,
 }
 impl Kind {
     pub fn playable(&self) -> bool {
@@ -373,6 +374,7 @@ impl Package {
             (Kind::DungeonStyle, crate::import_settings::Settings::Authored) => {}
             (Kind::DungeonRecipe, crate::import_settings::Settings::Authored) => {}
             (Kind::DungeonRoom, crate::import_settings::Settings::Authored) => {}
+            (Kind::PocketStationApp, crate::import_settings::Settings::Authored) => {}
             (Kind::ModelSource, crate::import_settings::Settings::Fbx(s)) => s.validate()?,
             (Kind::Font, crate::import_settings::Settings::Font(s)) => s.validate()?,
             (Kind::Video, crate::import_settings::Settings::Video(s)) => s.validate()?,
@@ -446,6 +448,9 @@ impl Package {
                 crate::font_asset::decode(&self.source, self.meta.settings.font()?)?;
             }
             Kind::Video => crate::video_import::probe(&self.source)?,
+            Kind::PocketStationApp => {
+                crate::pocketstation::PocketApp::parse(&self.source)?;
+            }
         }
         Ok(())
     }

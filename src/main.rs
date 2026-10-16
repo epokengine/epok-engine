@@ -154,6 +154,8 @@ mod play;
 mod play_cache;
 mod play_ui;
 mod playback_staging;
+mod pocketstation;
+mod pocketstation_ui;
 mod preview_audio;
 mod project;
 mod project_browser;
@@ -2235,6 +2237,50 @@ fn prepare_editor(editor: &mut editor::Editor) {
         .map(|a| a[1].clone())
     {
         editor.world2d.open_add_component = Some((query, 0));
+    }
+    // Screenshot automation: the PocketStation window, optionally on an app
+    // (by name), a tab and a running build.
+    if let Some(i) = args.iter().position(|a| a == "--open-pocketstation") {
+        pocketstation_ui::open(editor);
+        if let Some(name) = args.get(i + 1).filter(|a| !a.starts_with("--")) {
+            let found = pocketstation_ui::apps(editor)
+                .into_iter()
+                .find(|(_, n)| n == name);
+            match found {
+                Some((id, _)) => pocketstation_ui::open_app(editor, id),
+                None => {
+                    let template = match args
+                        .windows(2)
+                        .find(|w| w[0] == "--pocketstation-template")
+                        .map(|w| w[1].as_str())
+                    {
+                        Some("blank") => pocketstation::Template::BlankLua,
+                        Some("assembly") => pocketstation::Template::Assembly,
+                        _ => pocketstation::Template::StarCatcher,
+                    };
+                    if let Err(error) = pocketstation_ui::create(editor, template, name) {
+                        editor.log(error);
+                    }
+                }
+            }
+        }
+        if let Some(tab) = args
+            .windows(2)
+            .find(|w| w[0] == "--pocketstation-tab")
+            .map(|w| w[1].clone())
+        {
+            editor.pocketstation.show_tab(&tab);
+        }
+        if args.iter().any(|a| a == "--pocketstation-run") {
+            pocketstation_ui::build_and_run(editor);
+            if let Some(seconds) = args
+                .windows(2)
+                .find(|w| w[0] == "--pocketstation-play")
+                .and_then(|w| w[1].parse::<f64>().ok())
+            {
+                editor.pocketstation.autoplay(seconds);
+            }
+        }
     }
     // Screenshot automation: open the Strings (localization) window.
     if args.iter().any(|a| a == "--open-strings") {
