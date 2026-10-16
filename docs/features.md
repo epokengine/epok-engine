@@ -711,6 +711,35 @@ See [Geometry streaming](streaming.md) and [Native PSX performance](performance.
 
 See [Memory Card service](memory-card.md).
 
+## PocketStation
+
+- **PocketStation apps.** An authored asset (Add > PocketStation App...) holding
+  Pocket Lua or ARM/Thumb assembly sources, editor-drawn sprites, the animated menu
+  icon, the PlayStation memory card icon, the title and the card file name; three
+  starting templates including the Star Catcher mini-game.
+- **Pocket Lua.** A statically typed Lua subset compiled to Thumb code by Epok:
+  integers and booleans, flash tables, RAM arrays with bounds checks, multi-frame
+  sprites, tunes, typed functions, and the `screen`, `button`, `sound`, `clock`,
+  `save`, `link`, `system`, `math` and `print` libraries, with line-accurate errors
+  and suggestions. Assembly files add functions Pocket Lua calls directly.
+- **Assembler.** ARM and Thumb with literal pools, local labels, includes and
+  automatic relaxation of far Thumb branches; whole programs can be assembly.
+- **Embedded emulator.** ARM7TDMI CPU, flash banking, interrupts, timers, clock
+  speeds, real-time clock, LCD, buttons, speaker, LED and the memory card
+  connector, with Epok's own kernel and start-up menu (no console firmware).
+- **PocketStation window.** Code, Sprites, Icons, App Settings and Card tabs; the
+  device with clickable buttons and keyboard control; Console, Problems, live
+  Variables, Debug (registers, source line, hardware differences) and a PlayStation
+  link tester; `.mcs`/`.bin` export for real hardware.
+- **Game integration.** Every app is embedded in the game build; `epok::pocketstation`
+  (C++), the Start/Install app Blueprint nodes and Lua builtins, and the
+  `epok.pocketstation` library probe, install, start, message and share 16 values
+  with Pocket Lua programs.
+- **Play link.** Play places the editor's emulated PocketStation in memory card
+  slot 1 through the emulator bridge.
+
+See [PocketStation](pocketstation.md).
+
 ## External tools / MCP integration
 
 - **Optional local server.** Authenticated Streamable HTTP binds only to IPv4
@@ -750,6 +779,7 @@ The editor exposes the following implemented headless families. Run them with
 | Timeline and VFX | `--new-timeline`, `--compile-timelines`, `--install-timeline-adapters`, `--new-particle-effect`, `--preset`, `--validate-particle-effects`, `--preview-particle-effect` |
 | Level generation | `--generate-dungeon`, `--dungeon-seed`, `--dungeon-settings`, `--dungeon-new-style`, `--dungeon-new-recipe`, `--dungeon-seed-bench`, `--open-dungeon-room`, `--open-dungeon-seeds`, `--open-dungeon-volumes` |
 | Editor/runtime QA | `--bake-lighting`, `--profile-scene`, `--profile-scene-cpu`, `--profile-editor`, screenshot commands and bounded `--steps` / `--stop-after` execution |
+| PocketStation | `--new-pocketstation-app`, `--pocketstation-template`, and for screenshots `--open-pocketstation`, `--pocketstation-run`, `--pocketstation-play`, `--pocketstation-tab`, `--screenshot-delay` |
 | Integration | `--mcp-stdio`, `--prepare-serial-tools`, `--list-serial-ports` |
 
 Most families have detailed examples in [Getting started](getting-started.md),
@@ -828,6 +858,7 @@ live beside the corresponding implementation and are summarized under
 | Asset system | `assets`, `asset_manager`, `asset_ui`, `asset_inspector`, `content_preview`, `import_settings`, `artifact_dependencies`, `artifact_dependency_ui` |
 | Texture/model/audio import | `texture`, `model_import`, `obj_import`, `audio_decode`, `audio_import`, `preview_audio` |
 | Video | `fmv`, `video_import`, `video_probe`, `video`, `video_preview` |
+| PocketStation | `pocketstation`, `pocketstation_ui`, and the `epok-pocketstation` crate (`cpu`, `hw`, `rom`, `kernel`, `launcher`, `link`, `machine`, `card`, `file`, `asm`, `plua`) |
 | Scene and preview | `scene`, `transform`, `viewport`, `scene_gpu`, `picking`, `gizmo`, `scene_bank`, `scene_dependencies`, `scene_view_mode` |
 | Object/Actor model | `object_model`, `actor_document` |
 | 2D worlds | `world2d`, `world2d_editor`, `platformer_template` |
@@ -853,6 +884,7 @@ live beside the corresponding implementation and are summarized under
 | Dungeon generation | `dungeon_random.hpp`, `dungeon_map.hpp`, `dungeon_minimap.hpp` |
 | Gameplay services | `input.hpp`, `collision.hpp`, `audio.hpp`, `music.hpp`, `memory_card.hpp`, `memory_card_backend.hpp`, `streaming_pool.hpp`, `streaming.hpp` |
 | Video | `fmv.hpp`, `fmv_bitstream.hpp`, `video_service.hpp` |
+| PocketStation | `pocketstation.hpp`, `pocketstation_apps.hpp`, `pocketstation_service.hpp` |
 | Blueprint/Lua/Timeline | `blueprint_api.hpp`, `blueprint_runtime.hpp`, `blueprint_debug.hpp`, `blueprint_spawn.hpp`, `blueprint_template.hpp`, `blueprint_playback_service.hpp`, `lua_runtime.hpp`, `playback_types.hpp`, `timeline.hpp`, `timeline_runtime.hpp`, `timeline_service.hpp` |
 
 `runtime/main.cpp`, `runtime/Makefile`, `runtime/build.ps1`, `runtime/build.sh`

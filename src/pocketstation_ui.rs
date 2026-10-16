@@ -90,6 +90,8 @@ pub struct State {
     new_sprite_name: String,
     /// Docked automatically because a game in Play talks to the PocketStation.
     docked_by_play: bool,
+    /// Place the window beside the game view (opened by Play).
+    place_beside_game: bool,
 }
 
 impl Default for State {
@@ -139,6 +141,7 @@ impl Default for State {
             confirm_format: false,
             new_sprite_name: "sprite".into(),
             docked_by_play: false,
+            place_beside_game: false,
         }
     }
 }
@@ -173,7 +176,10 @@ pub fn service_link(e: &mut Editor) {
     ensure_machine(e);
     if !e.pocketstation.docked_by_play {
         e.pocketstation.docked_by_play = true;
-        e.pocketstation.open = true;
+        if !e.pocketstation.open {
+            open(e);
+            e.pocketstation.place_beside_game = true;
+        }
         e.pocketstation.select_panel = Some(Panel::Link);
         e.log("The game is talking to the PocketStation: the editor's PocketStation is in memory card slot 1.");
     }
@@ -212,10 +218,10 @@ pub fn apps(e: &Editor) -> Vec<(Uuid, String)> {
 pub fn open(e: &mut Editor) {
     e.pocketstation.open = true;
     ensure_machine(e);
-    if e.pocketstation.app.is_none() {
-        if let Some((id, _)) = apps(e).first().cloned() {
-            open_app(e, id);
-        }
+    if e.pocketstation.app.is_none()
+        && let Some((id, _)) = apps(e).first().cloned()
+    {
+        open_app(e, id);
     }
 }
 
@@ -381,10 +387,10 @@ pub fn build_and_run(e: &mut Editor) {
 }
 
 fn jump_to(s: &mut State, file_name: &str, line: u32) {
-    if let Some(doc) = &s.doc {
-        if let Some(index) = doc.files.iter().position(|f| f.name == file_name) {
-            s.file = index;
-        }
+    if let Some(doc) = &s.doc
+        && let Some(index) = doc.files.iter().position(|f| f.name == file_name)
+    {
+        s.file = index;
     }
     s.select_tab = Some(Tab::Code);
     s.goto_line = Some(line.max(1));
@@ -406,10 +412,10 @@ impl State {
         machine.set_buttons(self.mouse_buttons);
         if !self.paused {
             let dt = elapsed.min(0.1);
-            if dt > 0.0 {
-                if let ps::Stop::Breakpoint(_) = machine.run(dt) {
-                    self.paused = true;
-                }
+            if dt > 0.0
+                && let ps::Stop::Breakpoint(_) = machine.run(dt)
+            {
+                self.paused = true;
             }
         }
         let events = machine.hw.audio_events.len() as u32;
@@ -436,7 +442,7 @@ impl State {
         machine.run(0.2);
         let mut t = 0.0;
         while t < seconds {
-            machine.set_buttons(if (t as u32) % 2 == 0 {
+            machine.set_buttons(if (t as u32).is_multiple_of(2) {
                 button::LEFT
             } else {
                 button::RIGHT
@@ -596,15 +602,30 @@ pub fn window(ui: &Ui, e: &mut Editor) {
         save_card(e);
     }
     let s = &mut e.pocketstation;
+    let display = ui.io().display_size;
+    let (position, size, condition) = if std::mem::take(&mut s.place_beside_game) {
+        // Opened by Play: just the device, at the right edge of the editor.
+        let size = [430., (display[1] - 140.).max(480.)];
+        ([display[0] - size[0] - 12., 70.], size, Condition::Always)
+    } else {
+        ([60., 70.], [1180., 760.], Condition::FirstUseEver)
+    };
     ui.window("\u{f10b} PocketStation###PocketStation")
         .opened(&mut open)
-        .size([1180., 760.], Condition::FirstUseEver)
-        .size_constraints([760., 480.], [4000., 4000.])
+        .position(position, condition)
+        .size(size, condition)
+        .size_constraints([360., 480.], [4000., 4000.])
         .build(|| {
             let focused =
                 ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS);
             if focused && ui.is_key_pressed(Key::F5) {
                 build = true;
+            }
+            // A narrow window shows only the device, as a companion to the game view.
+            if ui.content_region_avail()[0] < 640. {
+                device(ui, s, focused);
+                bottom_panels(ui, s, &mut switch_to);
+                return;
             }
             toolbar(ui, s, &app_list, &mut build, &mut switch_to);
             if let Some(error) = s.error.clone() {
@@ -635,10 +656,10 @@ pub fn window(ui: &Ui, e: &mut Editor) {
     if let Some(id) = switch_to {
         open_app(e, id);
     }
-    if let Some((template, title)) = create_request {
-        if let Err(error) = create(e, template, &title) {
-            e.pocketstation.error = Some(error);
-        }
+    if let Some((template, title)) = create_request
+        && let Err(error) = create(e, template, &title)
+    {
+        e.pocketstation.error = Some(error);
     }
     if build {
         build_and_run(e);
@@ -841,12 +862,11 @@ fn code_tab(ui: &Ui, s: &mut State) {
         {
             s.file = i;
         }
-        if i > 0 {
-            if let Some(_menu) = ui.begin_popup_context_item() {
-                if ui.menu_item("Delete file") {
-                    remove = Some(i);
-                }
-            }
+        if i > 0
+            && let Some(_menu) = ui.begin_popup_context_item()
+            && ui.menu_item("Delete file")
+        {
+            remove = Some(i);
         }
     }
     ui.same_line();
@@ -983,13 +1003,13 @@ fn mono_editor(
     }
     if let Some((x, y, left)) = hit {
         let target = *paint.get_or_insert(if left { !get(rows, x, y) } else { false });
-        if get(rows, x, y) != target {
-            if let Some(row) = rows.get_mut(y as usize) {
-                let mut bytes = row.clone().into_bytes();
-                bytes[x as usize] = if target { b'#' } else { b'.' };
-                *row = String::from_utf8(bytes).unwrap_or_default();
-                return true;
-            }
+        if get(rows, x, y) != target
+            && let Some(row) = rows.get_mut(y as usize)
+        {
+            let mut bytes = row.clone().into_bytes();
+            bytes[x as usize] = if target { b'#' } else { b'.' };
+            *row = String::from_utf8(bytes).unwrap_or_default();
+            return true;
         }
     }
     false
@@ -1006,17 +1026,17 @@ fn frame_controls(
     *current = (*current).min(frames.len() - 1);
     ui.text(format!("Frame {} of {}", *current + 1, frames.len()));
     ui.same_line();
-    if ui.small_button(&format!("<##{id}-prev")) && *current > 0 {
+    if ui.small_button(format!("<##{id}-prev")) && *current > 0 {
         *current -= 1;
     }
     ui.same_line();
-    if ui.small_button(&format!(">##{id}-next")) && *current + 1 < frames.len() {
+    if ui.small_button(format!(">##{id}-next")) && *current + 1 < frames.len() {
         *current += 1;
     }
     ui.same_line();
     {
         let _disabled = ui.begin_disabled(frames.len() >= max);
-        if ui.small_button(&format!("Duplicate##{id}-dup")) {
+        if ui.small_button(format!("Duplicate##{id}-dup")) {
             let copy = frames[*current].clone();
             frames.insert(*current + 1, copy);
             *current += 1;
@@ -1026,14 +1046,14 @@ fn frame_controls(
     ui.same_line();
     {
         let _disabled = ui.begin_disabled(frames.len() <= 1);
-        if ui.small_button(&format!("Delete##{id}-del")) {
+        if ui.small_button(format!("Delete##{id}-del")) {
             frames.remove(*current);
             *current = (*current).min(frames.len() - 1);
             changed = true;
         }
     }
     ui.same_line();
-    if ui.small_button(&format!("Clear##{id}-clear")) {
+    if ui.small_button(format!("Clear##{id}-clear")) {
         for row in frames[*current].iter_mut() {
             *row = ".".repeat(row.len());
         }
@@ -1949,10 +1969,10 @@ fn debug(ui: &Ui, s: &mut State) {
         machine.mode_name()
     ));
     drop(_font);
-    if let Some((file, l)) = line {
-        if ui.small_button("Show line##debug") {
-            jump_to(s, &file, l);
-        }
+    if let Some((file, l)) = line
+        && ui.small_button("Show line##debug")
+    {
+        jump_to(s, &file, l);
     }
     let warnings = &s.machine.as_ref().unwrap().hw.warnings;
     if !warnings.is_empty() {

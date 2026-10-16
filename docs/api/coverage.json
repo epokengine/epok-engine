@@ -1,10 +1,10 @@
 {
   "nugget_revision": "6186b131aacc5853a9161fb076ed34ffe504552d",
   "epok": {
-    "headers": 119,
-    "types": 522,
-    "callables": 2036,
-    "properties": 2986
+    "headers": 122,
+    "types": 529,
+    "callables": 2079,
+    "properties": 3032
   },
   "psyqo": {
     "headers": 53,
@@ -21,7 +21,16 @@
       "types": 0,
       "properties": 0,
       "source_sha256": "c367cdbc7268eaf8acd0864143515f59e777c7fcbfbbc9bd7a5f01f7b4e0abb0",
-      "diagnostics": []
+      "diagnostics": [
+        "third_party/nugget/psyqo/hardware/cpu.hh:57:25: error: expected unqualified-id",
+        "third_party/nugget/psyqo/hardware/cpu.hh:57:25: error: expected ')'",
+        "third_party/nugget/psyqo/hardware/cpu.hh:57:25: error: expected parameter declarator",
+        "third_party/nugget/psyqo/hardware/cpu.hh:57:25: error: expected ')'",
+        "third_party/nugget/psyqo/hardware/cpu.hh:58:25: error: expected unqualified-id",
+        "third_party/nugget/psyqo/hardware/cpu.hh:58:25: error: expected ')'",
+        "third_party/nugget/psyqo/hardware/cpu.hh:58:25: error: expected parameter declarator",
+        "third_party/nugget/psyqo/hardware/cpu.hh:58:25: error: expected ')'"
+      ]
     },
     {
       "family": "epok",
@@ -87,10 +96,10 @@
       "family": "epok",
       "header": "blueprint_api.hpp",
       "slug": "blueprint-api",
-      "callables": 49,
+      "callables": 51,
       "types": 0,
       "properties": 0,
-      "source_sha256": "5e9d8e1234b1aedb311c10b7660debba52f4523cd3cb41a6eef6c649e371771a",
+      "source_sha256": "095f91a41bc0ab4d42038f7ebfcda9b0a236c4122e9904ac9312bde74183444f",
       "diagnostics": []
     },
     {
@@ -327,10 +336,10 @@
       "family": "epok",
       "header": "gameplay_api.hpp",
       "slug": "gameplay-api",
-      "callables": 122,
-      "types": 37,
+      "callables": 135,
+      "types": 38,
       "properties": 134,
-      "source_sha256": "6ba07c779213f61fa1c638947d61aac3537c13b1d0e8838a54460ba3c4ad2787",
+      "source_sha256": "7e2bb2f72e6eb9b4768403b3442eb1a32d99450d5e6a0c964720cf36fb4e5f23",
       "diagnostics": []
     },
     {
@@ -691,6 +700,36 @@
       "types": 8,
       "properties": 21,
       "source_sha256": "705f82300824c2b860b293d15018c0600aaf9691aa3f89d019755474e33d498a",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "pocketstation.hpp",
+      "slug": "pocketstation",
+      "callables": 25,
+      "types": 6,
+      "properties": 45,
+      "source_sha256": "c9b36f3888399a8dbcea97ad4a37bebeedfbd37f34a4343281af81ead5cd68d5",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "pocketstation_apps.hpp",
+      "slug": "pocketstation-apps",
+      "callables": 3,
+      "types": 0,
+      "properties": 1,
+      "source_sha256": "a90d84e7858aca588f7eb8da19137ac791dcd5619c2e74defcfabfb5a785b255",
+      "diagnostics": []
+    },
+    {
+      "family": "epok",
+      "header": "pocketstation_service.hpp",
+      "slug": "pocketstation-service",
+      "callables": 0,
+      "types": 0,
+      "properties": 0,
+      "source_sha256": "59c9bccf995d8bd2ba5cac99ec815ef000cfea0fbd12a48424992ddbc794a7dd",
       "diagnostics": []
     },
     {

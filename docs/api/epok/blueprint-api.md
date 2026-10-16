@@ -2,7 +2,7 @@
 
 > **Header:** `"blueprint_api.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/blueprint_api.hpp)
 
-This module covers compiled Blueprint execution and object interaction. It documents 49 public callables declared directly in this header.
+This module covers compiled Blueprint execution and object interaction. It documents 51 public callables declared directly in this header.
 
 ## Callable index
 
@@ -21,6 +21,8 @@ This module covers compiled Blueprint execution and object interaction. It docum
 - [`epok::bp::api::play_sequence_component`](#epok-bp-api-play-sequence-component-2) — Starts sequence component as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::play_video`](#epok-bp-api-play-video-1) — Full-screen video (runtime/video_service.hpp).
 - [`epok::bp::api::playback_snapshot`](#epok-bp-api-playback-snapshot-1) — Starts back snapshot as part of compiled Blueprint execution and object interaction.
+- [`epok::bp::api::pocketstation_install`](#epok-bp-api-pocketstation-install-1) — PocketStation programs (runtime/pocketstation_service.hpp).
+- [`epok::bp::api::pocketstation_start`](#epok-bp-api-pocketstation-start-1) — Performs `pocketstation start` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::position`](#epok-bp-api-position-1) — Performs `position` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::position_2d`](#epok-bp-api-position-2d-1) — Performs `position 2d` as part of compiled Blueprint execution and object interaction.
 - [`epok::bp::api::pressed`](#epok-bp-api-pressed-1) — Performs `pressed` as part of compiled Blueprint execution and object interaction.
@@ -669,6 +671,92 @@ auto result = epok::bp::api::playback_snapshot(arg1);
 **Why choose it.** It provides direct, allocation-conscious access to compiled Blueprint execution and object interaction. No exception-based error path is implied by the signature.
 
 **Trade-offs and warnings.** Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-bp-api-pocketstation-install-1"></a>
+
+## `epok::bp::api::pocketstation_install`
+
+**Purpose.** PocketStation programs (runtime/pocketstation_service.hpp).
+
+**Details.** The asset id is the compact id of an AssetRef<PocketStationApp>; port 0 is the first slot.
+
+**Exact declaration**
+
+```cpp
+bool pocketstation_install(uint64_t app,uint32_t port)
+```
+
+- **Declared at:** [line 97](../../../runtime/blueprint_api.hpp#L97)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `app` | `uint64_t` | Input | Value supplied for `app`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** The asset id is the compact id of an AssetRef<PocketStationApp>; port 0 is the first slot.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// uint64_t app
+// uint32_t port
+
+auto result = epok::bp::api::pocketstation_install(app, port);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
+
+<a id="epok-bp-api-pocketstation-start-1"></a>
+
+## `epok::bp::api::pocketstation_start`
+
+**Purpose.** Performs `pocketstation start` as part of compiled Blueprint execution and object interaction.
+
+**Exact declaration**
+
+```cpp
+bool pocketstation_start(uint64_t app,uint32_t port)
+```
+
+- **Declared at:** [line 98](../../../runtime/blueprint_api.hpp#L98)
+- **Kind:** `function decl`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `app` | `uint64_t` | Input | Value supplied for `app`. See the exact type and module contract. |
+| `port` | `uint32_t` | Input | Value supplied for `port`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** You need compiled Blueprint execution and object interaction and the preconditions in the declaration are already satisfied.
+
+**Usage pattern**
+
+```cpp
+#include "blueprint_api.hpp"
+
+// Assume these named values have been initialized with valid data:
+// uint64_t app
+// uint32_t port
+
+auto result = epok::bp::api::pocketstation_start(app, port);
+```
+
+**Why choose it.** The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Check the return value; `false` is part of normal control flow for many PSX resource operations.
 
 <a id="epok-bp-api-position-1"></a>
 
