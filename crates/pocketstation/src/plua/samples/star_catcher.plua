@@ -1,0 +1,165 @@
+-- Star Catcher: a PocketStation mini-game written in Pocket Lua.
+-- Move the basket with Left/Right, catch falling stars, avoid rocks.
+-- Fire starts a new round. The best score is saved on the card, and a
+-- PlayStation game can read the score and send bonus stars through the link.
+
+local basket <const> = sprite [[
+    #......#
+    ########
+    .######.
+]]
+
+local star <const> = sprite [[
+    .#.
+    ###
+    .#.
+
+    #.#
+    .#.
+    #.#
+]]
+
+local rock <const> = sprite [[
+    .##.
+    ####
+    .##.
+]]
+
+local catch_sound <const> = tune "C6:2 G6:3"
+local hit_sound <const> = tune "C3:4 R:1 C3:6"
+local start_sound <const> = tune "C5:3 E5:3 G5:3 C6:6"
+
+local MAX <const> = 6
+local kind = array(MAX)   -- 0 = empty, 1 = star, 2 = rock
+local fall_x = array(MAX)
+local fall_y = array(MAX)
+
+local player = 12
+local score = 0
+local best = 0
+local lives = 3
+local playing = false
+local timer = 0
+local speed = 6
+
+function init()
+    best = save.get(1)
+end
+
+function spawn()
+    for i = 1, MAX do
+        if kind[i] == 0 then
+            kind[i] = 1
+            if math.random(4) == 1 then
+                kind[i] = 2
+            end
+            fall_x[i] = math.random(29) - 1
+            fall_y[i] = -3
+            return
+        end
+    end
+end
+
+function start_round()
+    score = 0
+    lives = 3
+    speed = 6
+    timer = 0
+    for i = 1, MAX do
+        kind[i] = 0
+    end
+    playing = true
+    sound.play(start_sound)
+end
+
+function game_over()
+    playing = false
+    if score > best then
+        best = score
+        save.set(1, best)
+        save.write()
+    end
+    sound.play(hit_sound)
+end
+
+function update()
+    -- Messages from a PlayStation game: byte 1 = bonus stars to add.
+    if link.received() > 0 then
+        score = score + link.byte(1)
+        link.clear()
+    end
+    link.set_value(1, score)
+    link.set_value(2, best)
+
+    if not playing then
+        if button.pressed(button.FIRE) then
+            start_round()
+        end
+        return
+    end
+
+    if button.down(button.LEFT) and player > 0 then
+        player = player - 1
+    end
+    if button.down(button.RIGHT) and player < 24 then
+        player = player + 1
+    end
+
+    timer = timer + 1
+    if timer % 12 == 0 then
+        spawn()
+    end
+    if timer % 300 == 0 and speed > 2 then
+        speed = speed - 1
+    end
+
+    if timer % speed == 0 then
+        for i = 1, MAX do
+            if kind[i] ~= 0 then
+                fall_y[i] = fall_y[i] + 1
+                local x = fall_x[i]
+                if fall_y[i] >= 26 and fall_y[i] <= 28 and x + 2 >= player and x <= player + 7 then
+                    if kind[i] == 1 then
+                        score = score + 1
+                        sound.play(catch_sound)
+                    else
+                        lives = lives - 1
+                        sound.play(hit_sound)
+                        if lives == 0 then
+                            game_over()
+                        end
+                    end
+                    kind[i] = 0
+                elseif fall_y[i] > 32 then
+                    kind[i] = 0
+                end
+            end
+        end
+    end
+end
+
+function draw()
+    screen.clear()
+    if not playing then
+        screen.text("STAR", 8, 2)
+        screen.sprite(star, 14, 10, system.frame() // 8)
+        screen.text("BEST", 0, 18)
+        screen.number(best, 18, 18)
+        if system.frame() % 30 < 20 then
+            screen.text("FIRE", 8, 26)
+        end
+        return
+    end
+    for i = 1, MAX do
+        if kind[i] == 1 then
+            screen.sprite(star, fall_x[i], fall_y[i], system.frame() // 6)
+        elseif kind[i] == 2 then
+            screen.sprite(rock, fall_x[i], fall_y[i])
+        end
+    end
+    screen.sprite(basket, player, 29)
+    screen.number(score, 0, 0)
+    for i = 1, lives do
+        screen.pixel(32 - i * 2, 1)
+    end
+end

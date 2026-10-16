@@ -142,6 +142,7 @@ pub fn assemble(source: &str, options: &Options) -> Result<Assembly, Vec<Diagnos
     let mut statements = Vec::new();
     let mut errors = Vec::new();
     let mut pending = Vec::new();
+    let mut loc = None;
     expand(
         source,
         &options.file,
@@ -150,6 +151,7 @@ pub fn assemble(source: &str, options: &Options) -> Result<Assembly, Vec<Diagnos
         &mut statements,
         &mut errors,
         &mut pending,
+        &mut loc,
     );
     if !pending.is_empty() {
         statements.push(Statement {
@@ -211,6 +213,7 @@ fn strip_comment(line: &str) -> &str {
     &line[..cut]
 }
 
+#[allow(clippy::too_many_arguments)]
 fn expand(
     source: &str,
     file: &str,
@@ -219,6 +222,7 @@ fn expand(
     out: &mut Vec<Statement>,
     errors: &mut Vec<Diagnostic>,
     pending: &mut Vec<String>,
+    loc: &mut Option<(String, u32)>,
 ) {
     for (index, raw) in source.lines().enumerate() {
         let line = index as u32 + 1;
@@ -265,6 +269,29 @@ fn expand(
         } else {
             (mnemonic, operands)
         };
+        if mnemonic.eq_ignore_ascii_case(".loc") {
+            // `.loc line` or `.loc "file", line`: source position of what follows.
+            let parts = split_operands(&operands);
+            let (name, number) = match parts.as_slice() {
+                [n] => (
+                    loc.as_ref()
+                        .map(|l| l.0.clone())
+                        .unwrap_or_else(|| file.to_string()),
+                    n.clone(),
+                ),
+                [f, n] => (f.trim_matches('"').to_string(), n.clone()),
+                _ => (file.to_string(), "0".to_string()),
+            };
+            match number.trim().parse::<u32>() {
+                Ok(n) => *loc = Some((name, n)),
+                Err(_) => errors.push(Diagnostic {
+                    file: file.into(),
+                    line,
+                    message: "`.loc` needs a line number".into(),
+                }),
+            }
+            continue;
+        }
         if mnemonic.eq_ignore_ascii_case(".include") {
             let name = operands.trim().trim_matches('"');
             if depth > 8 {
@@ -278,7 +305,7 @@ fn expand(
             match options.include.and_then(|f| f(name)) {
                 Some(text) => {
                     pending.extend(labels);
-                    expand(&text, name, options, depth + 1, out, errors, pending);
+                    expand(&text, name, options, depth + 1, out, errors, pending, loc);
                 }
                 None => errors.push(Diagnostic {
                     file: file.into(),
@@ -296,8 +323,12 @@ fn expand(
         }
         let mut all = std::mem::take(pending);
         all.extend(labels);
+        let (file_name, line) = match loc {
+            Some((f, l)) => (f.clone(), *l),
+            None => (file.to_string(), line),
+        };
         out.push(Statement {
-            file: file.into(),
+            file: file_name,
             line,
             labels: all,
             mnemonic,

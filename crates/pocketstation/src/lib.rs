@@ -8,6 +8,7 @@
 //! * [`machine`]: everything above as one emulated PocketStation.
 //! * [`card`], [`file`]: memory card images and PocketStation executables.
 //! * [`asm`]: an ARM/Thumb assembler.
+//! * [`plua`]: the Pocket Lua compiler and its runtime library.
 //!
 //! Everything here is plain Rust without dependencies so the editor, the
 //! command line tools and the tests share one implementation.
@@ -22,6 +23,7 @@ pub mod kernel;
 pub mod launcher;
 pub mod link;
 pub mod machine;
+pub mod plua;
 pub mod rom;
 
 pub use machine::{DateTime, Machine, State, Stop};
