@@ -21,16 +21,7 @@
       "types": 0,
       "properties": 0,
       "source_sha256": "c367cdbc7268eaf8acd0864143515f59e777c7fcbfbbc9bd7a5f01f7b4e0abb0",
-      "diagnostics": [
-        "third_party/nugget/psyqo/hardware/cpu.hh:57:25: error: expected unqualified-id",
-        "third_party/nugget/psyqo/hardware/cpu.hh:57:25: error: expected ')'",
-        "third_party/nugget/psyqo/hardware/cpu.hh:57:25: error: expected parameter declarator",
-        "third_party/nugget/psyqo/hardware/cpu.hh:57:25: error: expected ')'",
-        "third_party/nugget/psyqo/hardware/cpu.hh:58:25: error: expected unqualified-id",
-        "third_party/nugget/psyqo/hardware/cpu.hh:58:25: error: expected ')'",
-        "third_party/nugget/psyqo/hardware/cpu.hh:58:25: error: expected parameter declarator",
-        "third_party/nugget/psyqo/hardware/cpu.hh:58:25: error: expected ')'"
-      ]
+      "diagnostics": []
     },
     {
       "family": "epok",
@@ -709,7 +700,7 @@
       "callables": 25,
       "types": 6,
       "properties": 45,
-      "source_sha256": "c9b36f3888399a8dbcea97ad4a37bebeedfbd37f34a4343281af81ead5cd68d5",
+      "source_sha256": "4209a5ed4567c8a0ecac368e5c20de95902818c514dea2ab9f6a0e9a34fa1ddb",
       "diagnostics": []
     },
     {
@@ -1119,10 +1110,8 @@
       "callables": 0,
       "types": 0,
       "properties": 0,
-      "source_sha256": "44108142774b18a32816c79e2acb091596e90e15c4aaf29f13ae61727c3bc936",
-      "diagnostics": [
-        "runtime/video_service.hpp:13:10: fatal error: 'video-bank.hh' file not found"
-      ]
+      "source_sha256": "05a4b240792d03f31c28b60a4b14c34beffd62b61cbb87ce6d3abe6c30f3e249",
+      "diagnostics": []
     },
     {
       "family": "epok",

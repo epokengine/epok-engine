@@ -10,7 +10,10 @@
 #include "input.hpp"
 #include "music.hpp"
 #include "streaming.hpp"
+// Outside a game build (reflection, API reference) there are no clips.
+#if __has_include("video-bank.hh")
 #include "video-bank.hh"
+#endif
 
 #ifdef EPOK_HAS_VIDEO
 #include "common/hardware/dma.h"
