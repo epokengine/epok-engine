@@ -1,0 +1,9 @@
+[package]
+name = "epok-pocketstation"
+version = "0.7.0"
+edition = "2024"
+description = "PocketStation emulator, assembler and Pocket Lua compiler for the Epok Engine"
+license = "MIT"
+publish = false
+
+[dependencies]
