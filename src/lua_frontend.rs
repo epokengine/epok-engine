@@ -3646,6 +3646,12 @@ pub(crate) mod tests {
             },
         ));
         parent.properties.push(reflected(
+            "pocket",
+            Type::AssetRef {
+                kind: "PocketStationApp".into(),
+            },
+        ));
+        parent.properties.push(reflected(
             "kind",
             Type::ClassRef {
                 base: crate::object_model::ACTOR3D_ID.into(),
@@ -3684,6 +3690,8 @@ pub(crate) mod tests {
     local started = epok.play_video(self.movie, true)
     local busy = epok.video_playing()
     epok.stop_video()
+    local launched = epok.start_pocketstation_app(self.pocket, 0)
+    local copied = epok.install_pocketstation_app(self.pocket, 1)
 "#,
         )
         .expect("lowered body");
@@ -3711,6 +3719,8 @@ pub(crate) mod tests {
             "PlayVideo -> bool",
             "IsVideoPlaying -> bool",
             "StopVideo -> void",
+            "StartPocketStationApp -> bool",
+            "InstallPocketStationApp -> bool",
         ] {
             assert!(text.contains(expected), "missing {expected:?} in\n{text}");
         }
