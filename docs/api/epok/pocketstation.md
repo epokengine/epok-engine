@@ -48,7 +48,7 @@ This module covers the pocketstation module. It documents 25 public callables de
 inline void delay(unsigned n)
 ```
 
-- **Declared at:** [line 115](../../../runtime/pocketstation.hpp#L115)
+- **Declared at:** [line 123](../../../runtime/pocketstation.hpp#L123)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -88,7 +88,7 @@ epok::pocket_detail::delay(n);
 inline bool mailbox_attached()
 ```
 
-- **Declared at:** [line 166](../../../runtime/pocketstation.hpp#L166)
+- **Declared at:** [line 174](../../../runtime/pocketstation.hpp#L174)
 - **Kind:** `function decl`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -119,7 +119,7 @@ auto result = epok::pocket_detail::mailbox_attached();
 inline bool mailbox_exchange(unsigned port, PocketFrame* frames, unsigned count)
 ```
 
-- **Declared at:** [line 169](../../../runtime/pocketstation.hpp#L169)
+- **Declared at:** [line 177](../../../runtime/pocketstation.hpp#L177)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -165,7 +165,7 @@ auto result = epok::pocket_detail::mailbox_exchange(port, frames, count);
 inline uint16_t sio_exchange(unsigned port, const uint8_t* send, uint8_t* reply, uint16_t length, int16_t length_at)
 ```
 
-- **Declared at:** [line 121](../../../runtime/pocketstation.hpp#L121)
+- **Declared at:** [line 129](../../../runtime/pocketstation.hpp#L129)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -213,7 +213,7 @@ auto result = epok::pocket_detail::sio_exchange(port, send, reply, length, lengt
 inline const char* pocket_error_message(PocketError error)
 ```
 
-- **Declared at:** [line 42](../../../runtime/pocketstation.hpp#L42)
+- **Declared at:** [line 50](../../../runtime/pocketstation.hpp#L50)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -255,7 +255,7 @@ auto result = epok::pocket_error_message(error);
 PocketError call(uint8_t function, bool to_playstation, const uint8_t* parameters, uint8_t parameter_count, uint8_t* data, uint8_t capacity, uint8_t* size, unsigned port = 0)
 ```
 
-- **Declared at:** [line 262](../../../runtime/pocketstation.hpp#L262)
+- **Declared at:** [line 270](../../../runtime/pocketstation.hpp#L270)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -311,7 +311,7 @@ auto result = object.call(function, to_playstation, parameters, parameter_count,
 bool connected(unsigned port = 0)
 ```
 
-- **Declared at:** [line 226](../../../runtime/pocketstation.hpp#L226)
+- **Declared at:** [line 234](../../../runtime/pocketstation.hpp#L234)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -353,7 +353,7 @@ auto result = object.connected(port);
 PocketError find(const char* filename, uint8_t* block, unsigned port = 0)
 ```
 
-- **Declared at:** [line 371](../../../runtime/pocketstation.hpp#L371)
+- **Declared at:** [line 379](../../../runtime/pocketstation.hpp#L379)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -401,7 +401,7 @@ auto result = object.find(filename, block, port);
 PocketError install(const PocketApp& app, uint8_t* first_block = nullptr, unsigned port = 0)
 ```
 
-- **Declared at:** [line 386](../../../runtime/pocketstation.hpp#L386)
+- **Declared at:** [line 394](../../../runtime/pocketstation.hpp#L394)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -447,7 +447,7 @@ auto result = object.install(app, first_block, port);
 PocketError install_and_launch(const PocketApp& app, uint32_t parameter = 0, unsigned port = 0)
 ```
 
-- **Declared at:** [line 468](../../../runtime/pocketstation.hpp#L468)
+- **Declared at:** [line 476](../../../runtime/pocketstation.hpp#L476)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -495,7 +495,7 @@ auto result = object.install_and_launch(app, parameter, port);
 PocketError launch(uint8_t block, uint32_t parameter = 0, unsigned port = 0)
 ```
 
-- **Declared at:** [line 249](../../../runtime/pocketstation.hpp#L249)
+- **Declared at:** [line 257](../../../runtime/pocketstation.hpp#L257)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -541,7 +541,7 @@ auto result = object.launch(block, parameter, port);
 PocketError probe(unsigned port = 0)
 ```
 
-- **Declared at:** [line 218](../../../runtime/pocketstation.hpp#L218)
+- **Declared at:** [line 226](../../../runtime/pocketstation.hpp#L226)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -583,7 +583,7 @@ auto result = object.probe(port);
 PocketError read_directory(uint8_t (*out)[128], unsigned port = 0)
 ```
 
-- **Declared at:** [line 349](../../../runtime/pocketstation.hpp#L349)
+- **Declared at:** [line 357](../../../runtime/pocketstation.hpp#L357)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -627,7 +627,7 @@ auto result = object.read_directory(out, port);
 PocketError read_memory(uint32_t address, void* out, uint8_t size, unsigned port = 0)
 ```
 
-- **Declared at:** [line 322](../../../runtime/pocketstation.hpp#L322)
+- **Declared at:** [line 330](../../../runtime/pocketstation.hpp#L330)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -675,7 +675,7 @@ auto result = object.read_memory(address, out, size, port);
 PocketError read_sector(uint16_t sector, uint8_t* out, unsigned port = 0)
 ```
 
-- **Declared at:** [line 476](../../../runtime/pocketstation.hpp#L476)
+- **Declared at:** [line 484](../../../runtime/pocketstation.hpp#L484)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -721,7 +721,7 @@ auto result = object.read_sector(sector, out, port);
 PocketError receive(void* message, uint8_t capacity, uint8_t* size, unsigned port = 0)
 ```
 
-- **Declared at:** [line 300](../../../runtime/pocketstation.hpp#L300)
+- **Declared at:** [line 308](../../../runtime/pocketstation.hpp#L308)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -769,7 +769,7 @@ auto result = object.receive(message, capacity, size, port);
 PocketError send(const void* message, uint8_t size, unsigned port = 0)
 ```
 
-- **Declared at:** [line 294](../../../runtime/pocketstation.hpp#L294)
+- **Declared at:** [line 302](../../../runtime/pocketstation.hpp#L302)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -815,7 +815,7 @@ auto result = object.send(message, size, port);
 PocketError set_led(bool on, unsigned port = 0)
 ```
 
-- **Declared at:** [line 337](../../../runtime/pocketstation.hpp#L337)
+- **Declared at:** [line 345](../../../runtime/pocketstation.hpp#L345)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -859,7 +859,7 @@ auto result = object.set_led(on, port);
 PocketError set_time(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second, uint8_t weekday, unsigned port = 0)
 ```
 
-- **Declared at:** [line 342](../../../runtime/pocketstation.hpp#L342)
+- **Declared at:** [line 350](../../../runtime/pocketstation.hpp#L350)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -915,7 +915,7 @@ auto result = object.set_time(year, month, day, hour, minute, second, weekday, p
 PocketError set_value(uint8_t index, int32_t value, unsigned port = 0)
 ```
 
-- **Declared at:** [line 313](../../../runtime/pocketstation.hpp#L313)
+- **Declared at:** [line 321](../../../runtime/pocketstation.hpp#L321)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -961,7 +961,7 @@ auto result = object.set_value(index, value, port);
 PocketError status(PocketStatus& out, unsigned port = 0)
 ```
 
-- **Declared at:** [line 228](../../../runtime/pocketstation.hpp#L228)
+- **Declared at:** [line 236](../../../runtime/pocketstation.hpp#L236)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1005,7 +1005,7 @@ auto result = object.status(out, port);
 void transfer(unsigned port, PocketFrame* frames, unsigned count)
 ```
 
-- **Declared at:** [line 206](../../../runtime/pocketstation.hpp#L206)
+- **Declared at:** [line 214](../../../runtime/pocketstation.hpp#L214)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1051,7 +1051,7 @@ object.transfer(port, frames, count);
 PocketError values(int32_t out[value_count], unsigned port = 0)
 ```
 
-- **Declared at:** [line 304](../../../runtime/pocketstation.hpp#L304)
+- **Declared at:** [line 312](../../../runtime/pocketstation.hpp#L312)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1095,7 +1095,7 @@ auto result = object.values(out, port);
 PocketError write_memory(uint32_t address, const void* data, uint8_t size, unsigned port = 0)
 ```
 
-- **Declared at:** [line 330](../../../runtime/pocketstation.hpp#L330)
+- **Declared at:** [line 338](../../../runtime/pocketstation.hpp#L338)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -1143,7 +1143,7 @@ auto result = object.write_memory(address, data, size, port);
 PocketError write_sector(uint16_t sector, const uint8_t* data, unsigned port = 0)
 ```
 
-- **Declared at:** [line 484](../../../runtime/pocketstation.hpp#L484)
+- **Declared at:** [line 492](../../../runtime/pocketstation.hpp#L492)
 - **Kind:** `cxx method`
 
 **Parameters**

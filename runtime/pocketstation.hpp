@@ -18,8 +18,16 @@
 #include <stddef.h>
 #include <stdint.h>
 #if defined(__mips__)
+// The legacy common/hardware/hwregs.h macros DPCR and DICR would rename the
+// PsyQo registers of the same name when that header was included first.
+#pragma push_macro("DPCR")
+#pragma push_macro("DICR")
+#undef DPCR
+#undef DICR
 #include "psyqo/hardware/cpu.hh"
 #include "psyqo/hardware/sio.hh"
+#pragma pop_macro("DICR")
+#pragma pop_macro("DPCR")
 #endif
 
 namespace epok {
