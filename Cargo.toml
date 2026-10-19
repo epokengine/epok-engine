@@ -55,6 +55,11 @@ path = "src/header_tool.rs"
 cc = "=1.4.5"
 winresource = "0.1.31"
 
+# Omit dependency debug symbols to keep development and test artifacts small.
+# Workspace members retain full debug information and incremental compilation.
+[profile.dev.package."*"]
+debug = 0
+
 # Keep the editor itself fully debuggable. Bulk checksums and document parsers
 # are production workloads even in Debug (including the live source watcher).
 [profile.dev.package.sha2]
