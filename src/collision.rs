@@ -28,6 +28,79 @@ pub struct Collider {
 }
 /// Most parts one compound collider may carry.
 pub const MAX_COMPOUND_BOXES: usize = 2048;
+/// Bound immutable cell lists per collider; larger cells reduce duplication.
+const COMPOUND_GRID_BYTES: usize = 8 * 1024;
+
+struct CompoundGrid {
+    origin: [i16; 2],
+    shift: u32,
+    columns: usize,
+    rows: usize,
+    offsets: Vec<u16>,
+    indices: Vec<u16>,
+}
+
+/// Index the exact quantized parts the target tests. XZ cells are conservative
+/// over every height and include touching boundaries; the solver still tests Y.
+/// Source-ordered lists let queries preserve contact and depenetration ties.
+fn compound_grid(boxes: &[[i16; 6]]) -> Option<CompoundGrid> {
+    if boxes.len() < 16 || boxes.len() > MAX_COMPOUND_BOXES {
+        return None;
+    }
+    let origin = [
+        boxes.iter().map(|b| b[0]).min()?,
+        boxes.iter().map(|b| b[2]).min()?,
+    ];
+    let maximum = [
+        boxes.iter().map(|b| b[3]).max()?,
+        boxes.iter().map(|b| b[5]).max()?,
+    ];
+    // Start at eight world units. Coarsen pathological long/overlapping parts
+    // until the lists fit, or keep the linear path if only one cell remains.
+    for shift in 11..=16 {
+        let cell = |value: i16, axis: usize| {
+            ((i32::from(value) - i32::from(origin[axis])) >> shift) as usize
+        };
+        let columns = cell(maximum[0], 0) + 1;
+        let rows = cell(maximum[1], 1) + 1;
+        let count = columns * rows;
+        if count == 1 {
+            return None;
+        }
+        let references: usize = boxes
+            .iter()
+            .map(|b| (cell(b[3], 0) - cell(b[0], 0) + 1) * (cell(b[5], 1) - cell(b[2], 1) + 1))
+            .sum();
+        if (count + 1 + references) * 2 > COMPOUND_GRID_BYTES {
+            continue;
+        }
+        let mut lists = vec![Vec::new(); count];
+        for (index, b) in boxes.iter().enumerate() {
+            for z in cell(b[2], 1)..=cell(b[5], 1) {
+                for x in cell(b[0], 0)..=cell(b[3], 0) {
+                    lists[z * columns + x].push(index as u16);
+                }
+            }
+        }
+        let mut offsets = Vec::with_capacity(count + 1);
+        let mut indices = Vec::with_capacity(references);
+        offsets.push(0);
+        for list in lists {
+            indices.extend(list);
+            offsets.push(indices.len() as u16);
+        }
+        return Some(CompoundGrid {
+            origin,
+            shift,
+            columns,
+            rows,
+            offsets,
+            indices,
+        });
+    }
+    None
+}
+
 pub fn is_zero(value: &f32) -> bool {
     *value == 0.
 }
@@ -231,14 +304,43 @@ pub fn cpp_setup(scene: &Scene) -> String {
             if !collider.boxes.is_empty() {
                 // Function-scope storage, as for terrain heights: the parts are Q8
                 // offsets from the owner's origin.
-                let values = collider
+                let boxes: Vec<[i16; 6]> = collider
                     .boxes
                     .iter()
+                    .map(|b| b.map(|v| ((v * 256.).round() as i32).clamp(-32767, 32767) as i16))
+                    .collect();
+                let values = boxes
+                    .iter()
                     .flatten()
-                    .map(|v| ((v * 256.).round() as i32).clamp(-32767, 32767).to_string())
+                    .map(i16::to_string)
                     .collect::<Vec<_>>()
                     .join(",");
                 writeln!(output, "static constexpr int16_t collider_boxes_{index}[]={{{values}}};objects[{index}].collider.boxes=collider_boxes_{index};objects[{index}].collider.box_count={}u;", collider.boxes.len()).unwrap();
+                if let Some(grid) = compound_grid(&boxes) {
+                    let offsets = grid
+                        .offsets
+                        .iter()
+                        .map(u16::to_string)
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    let indices = grid
+                        .indices
+                        .iter()
+                        .map(u16::to_string)
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    writeln!(
+                        output,
+                        "static constexpr uint16_t collider_grid_offsets_{index}[]={{{offsets}}};"
+                    )
+                    .unwrap();
+                    writeln!(
+                        output,
+                        "static constexpr uint16_t collider_grid_indices_{index}[]={{{indices}}};"
+                    )
+                    .unwrap();
+                    writeln!(output, "static constexpr CompoundGrid collider_grid_{index}={{collider_boxes_{index},collider_grid_offsets_{index},collider_grid_indices_{index},{},{},{},{},{},{}}};objects[{index}].collider.box_grid=&collider_grid_{index};", boxes.len(), grid.columns, grid.rows, grid.origin[0], grid.origin[1], grid.shift + 4).unwrap();
+                }
             }
         }
     }
@@ -248,6 +350,75 @@ pub fn cpp_setup(scene: &Scene) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn compound_grid_covers_quantized_boundaries_in_source_order() {
+        let boxes: Vec<_> = (0..64)
+            .map(|i| {
+                let x = (i % 8) as i16 * 2048 - 8192;
+                let z = (i / 8) as i16 * 2048 - 8192;
+                [x, -128, z, x + 2048, 0, z + 2048]
+            })
+            .collect();
+        let grid = compound_grid(&boxes).unwrap();
+        assert_eq!(grid.origin, [-8192, -8192]);
+        assert_eq!(grid.shift, 11);
+        assert_eq!((grid.columns, grid.rows), (9, 9));
+        assert!((grid.offsets.len() + grid.indices.len()) * 2 <= COMPOUND_GRID_BYTES);
+        for z in 0..grid.rows {
+            for x in 0..grid.columns {
+                let cell = z * grid.columns + x;
+                let indices =
+                    &grid.indices[grid.offsets[cell] as usize..grid.offsets[cell + 1] as usize];
+                assert!(indices.windows(2).all(|pair| pair[0] < pair[1]));
+                let lo = [x as i32 * 2048 - 8192, z as i32 * 2048 - 8192];
+                for (index, b) in boxes.iter().enumerate() {
+                    // A part ending on a cell boundary must be present in the
+                    // following cell too: ray endpoints count as contacts.
+                    if i32::from(b[0]) < lo[0] + 2048
+                        && i32::from(b[3]) >= lo[0]
+                        && i32::from(b[2]) < lo[1] + 2048
+                        && i32::from(b[5]) >= lo[1]
+                    {
+                        assert!(indices.contains(&(index as u16)));
+                    }
+                }
+            }
+        }
+        let mut scene = Scene::default();
+        scene.actors[1].collider = Some(Collider::compound(
+            boxes
+                .iter()
+                .map(|b| b.map(|v| f32::from(v) / 256.))
+                .collect(),
+        ));
+        let header = cpp_setup(&scene);
+        assert!(header.contains("static constexpr CompoundGrid collider_grid_1="));
+        assert!(header.contains("collider.box_grid=&collider_grid_1"));
+    }
+
+    #[test]
+    fn compound_grid_is_bounded_for_large_overlapping_parts() {
+        assert!(compound_grid(&[[0, 0, 0, 1, 1, 1]; 15]).is_none());
+        let boxes = vec![[-32767, -128, -32767, 32767, 0, 32767]; MAX_COMPOUND_BOXES];
+        // Every box covers the whole footprint: finer cells duplicate all
+        // references. A one-cell index has no benefit, so use the exact scan.
+        assert!(compound_grid(&boxes).is_none());
+        let mut staggered = boxes;
+        for (i, b) in staggered.iter_mut().enumerate() {
+            b[0] = ((i % 16) as i16 - 8) * 2048;
+            b[2] = ((i / 16 % 16) as i16 - 8) * 2048;
+            b[3] = b[0] + 2048;
+            b[5] = b[2] + 2048;
+        }
+        let grid = compound_grid(&staggered).unwrap();
+        assert!(grid.shift > 11);
+        assert!((grid.offsets.len() + grid.indices.len()) * 2 <= COMPOUND_GRID_BYTES);
+        assert_eq!(
+            grid.offsets.last().copied(),
+            Some(grid.indices.len() as u16)
+        );
+    }
+
     #[test]
     fn legacy_defaults_and_round_trip() {
         let collider: Collider = serde_json::from_str("{}").unwrap();

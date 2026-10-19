@@ -45,7 +45,7 @@ fn linear(c:vec3<f32>) -> vec3<f32> {
         var color=camera.horizon.rgb;
         if elevation>=0.0 {color=mix(camera.horizon.rgb,camera.sky.rgb,min(elevation/0.7,1.0));}
         else {color=mix(camera.horizon.rgb,camera.ground.rgb,min(-elevation/0.25,1.0));}
-        return vec4<f32>(color,1.0);
+        return vec4<f32>(linear(color),1.0);
     }
     let shade=(68.0-p.y/600.0*6.0)/255.0;
     return vec4<f32>(linear(vec3<f32>(shade)),1.0);

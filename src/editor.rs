@@ -158,6 +158,7 @@ pub struct Editor {
     pub pocketstation: crate::pocketstation_ui::State,
     pub bake_current: bool,
     pub bake_job: Option<std::sync::mpsc::Receiver<Result<crate::lighting::Bake, String>>>,
+    pub auto_bake: crate::lighting_editor::AutoBake,
     pub selected: Option<usize>,
     pub dirty: bool,
     pub view: viewport::View,
@@ -742,6 +743,7 @@ impl Editor {
             lighting_window: false,
             pocketstation: Default::default(),
             bake_job: None,
+            auto_bake: Default::default(),
             selected,
             dirty,
             view: viewport::View {
@@ -1005,6 +1007,7 @@ impl Editor {
         self.reset_instance_baseline();
         self.dirty = prepared.dirty;
         self.bake_current = prepared.bake_current;
+        self.auto_bake = Default::default();
         mark("tool reset and lighting");
         self.view_dirty = true;
         self.focus_scene = true;
@@ -1082,6 +1085,32 @@ impl Editor {
     /// gesture calls when the mouse is released. Discrete edits keep using
     /// `changed()` and are never folded into a neighbour.
     pub fn changed_coalesced(&mut self, key: &'static str) {
+        if key == "gizmo-drag"
+            && let Some(index) = self.selected
+            && self.scene.actors.get(index).is_some_and(|actor| {
+                actor.kind == "Empty" && actor.light.is_some() && actor.blueprint_instance.is_none()
+            })
+        {
+            // A light gizmo edits this transform only. Avoid re-projecting the
+            // dungeon's compound collider and all mesh components every frame.
+            crate::actor_components::sync(&mut self.scene.actors[index]);
+            self.source_dirty = true;
+            self.invalidate_running_build();
+            let current = &self.scene;
+            self.scene_history
+                .record_coalesced_with(current, key, |baseline| {
+                    if baseline.actors.len() != current.actors.len()
+                        || baseline.actors[index].id != current.actors[index].id
+                    {
+                        *baseline = current.clone();
+                    } else {
+                        baseline.actors[index] = current.actors[index].clone();
+                        baseline.bake = current.bake.clone();
+                    }
+                });
+            self.finish_change();
+            return;
+        }
         self.apply_change();
         self.scene_history.record_coalesced(&self.scene, key);
         self.finish_change();
@@ -3174,11 +3203,11 @@ impl Editor {
                 self.game_capture = false;
             }
         }
-        // Camera navigation is read-only. Keep processing build/emulator events,
+        // Camera navigation and gizmo drags must stay responsive. Process events,
         // but defer idle dependency publication until the drag ends so graph
         // maintenance cannot consume a camera frame. Build/Play still validates
         // its own inputs and active jobs continue observing live edits normally.
-        if self.scene_navigation && self.job.is_none() {
+        if (self.scene_navigation || self.drag_axis.is_some()) && self.job.is_none() {
             return;
         }
         self.observe_external_sources();
@@ -3397,6 +3426,7 @@ impl Editor {
     // Running games keep their launched snapshot. Cancel only an in-flight
     // build whose inputs changed; never schedule an automatic replacement.
     fn invalidate_running_build(&mut self) {
+        self.auto_bake.invalidate();
         self.baked_preview.invalidate();
         // Any accepted source/asset/settings invalidation also invalidates the
         // zero-scan Native PC fast path. The immutable on-disk cache remains
@@ -4372,6 +4402,46 @@ mod tests {
         drop(editor);
         std::fs::remove_dir_all(root).unwrap();
     }
+    #[test]
+    fn light_gizmo_updates_its_component_and_keeps_undo_and_redo_exact() {
+        let root = crate::workspace::tests::temp("light-gizmo-history");
+        let mut editor = Editor::new(root.clone());
+        editor.scene = crate::lighting::tests::shadow_scene();
+        editor.changed();
+        editor.selected = Some(4);
+        let before = editor.scene.clone();
+        for step in 0..60 {
+            editor.scene.actors[4].position = [step as f32 * 0.25, 4., 2.];
+            editor.changed_coalesced("gizmo-drag");
+        }
+        editor.end_coalesced();
+        let final_scene = editor.scene.clone();
+        let reloaded: Scene =
+            serde_json::from_value(serde_json::to_value(&final_scene).unwrap()).unwrap();
+        assert_eq!(reloaded.actors[4].position, final_scene.actors[4].position);
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before);
+        editor.redo_scene().unwrap();
+        assert_eq!(editor.scene, final_scene);
+        editor.scene.name = "After drag".into();
+        editor.changed();
+        editor.undo_scene().unwrap();
+        assert_eq!(
+            editor.scene, final_scene,
+            "later edits must undo to the last drag frame"
+        );
+        editor.drag_axis = Some(0);
+        editor.source_scan = None;
+        editor.source_dirty = true;
+        editor.last_poll = Instant::now() - Duration::from_secs(1);
+        editor.tick();
+        assert!(editor.source_scan.is_none() && editor.source_dirty);
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
     #[test]
     fn camera_drag_defers_idle_observation_without_losing_pending_work() {
         let root = crate::workspace::tests::temp("camera-observation");

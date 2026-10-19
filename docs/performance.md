@@ -99,6 +99,20 @@ adds timing and counter overhead and is not a release FPS measurement.
 
 GTE validation counters are populated only with `EPOK_VALIDATE_GTE=1`. Validation compares GTE and software results within the runtime's coordinate and screen tolerances; its extra work also affects timing.
 
+## Compound collision queries
+
+Compound static colliders, including generated dungeons, automatically use a
+spatial grid cooked from their collision boxes. Movement queries cover the whole
+swept box, camera rays cover their full segment, and triggers query their own
+footprint. Only candidate parts reach the existing collision solver; boxes
+outside the rendered view still collide normally. Candidate order is preserved,
+including contact ties and trigger event order.
+
+The grid starts with eight-unit XZ cells and coarsens to keep its cell lists
+within 8 KiB per collider. It needs no per-frame rebuild or heap allocation and
+follows translated owners. Small colliders and layouts without a useful bounded
+grid retain the linear query path.
+
 ## Precomputed chunk visibility
 
 Enable **Precomputed Visibility** under **Project Settings > Engine > Rendering**
@@ -193,6 +207,14 @@ that says nothing about runtime performance. Re-measure after runtime or cooker
 changes instead of relying on the recorded numbers.
 
 ## Compilation and measurement
+
+Chunk bounds use native 32-bit products when each input fits the limit derived
+from the actual view coefficients, rather than a fixed 32-world-unit cutoff.
+A conservative rounding guard contains the previous wide bounds. Plane tests
+also use 32-bit arithmetic only when their coefficient and translation bounds
+prove it safe; larger transforms and unusual display ratios retain the wide
+path. This changes render traversal cost without changing geometry, lighting,
+draw distance or collision queries.
 
 Release builds optimize the runtime's `main.o` with `-O2`; PsyQo and game scripts retain their configured options. `EPOK_RUNTIME_OPT=-Os` permits comparison. Rebuild `main.o` after changing optimization, detail or validation flags.
 

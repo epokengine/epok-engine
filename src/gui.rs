@@ -3220,6 +3220,8 @@ fn scene_view(
             if ui.checkbox("Grid", &mut e.grid) {
                 e.view_dirty = true;
             }
+            inline(ui, "Lighting");
+            crate::lighting_editor::preview_toggle(ui, e);
             inline(ui, "Reset View");
             if ui.button("Reset View") {
                 e.action("reset-view");

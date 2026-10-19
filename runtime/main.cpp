@@ -1538,9 +1538,12 @@ void GameScene::frame() {
         if (view_abs[r][c] > view_peak) view_peak = view_abs[r][c];
       }
     }
-    // Products stay below 2^31 when coefficients are under 2^14 and chunk
-    // vectors under 2^17 (32 units), which covers ordinary scenes.
+    // Bound each product using this object's actual coefficients. The old
+    // fixed 32-unit limit unnecessarily sent most large levels to mul64 even
+    // with a unit-scale view. Shifts still precede sums, with the same guard.
     const bool narrow_view = view_peak < 16384;
+    const int32_t narrow_limit = epok::chunk_bounds_input_limit(view_peak);
+    const bool narrow_planes = epok::chunk_bounds_planes_fit<RenderFrustum>(view_t);
     const bool isolated_x = epok::chunk_bounds_isolated_x(view_rows);
     epok::ChunkVisibilityQuery visibility(epok::precomputed_visibility && !skeletal ? geometry_root->visibility : nullptr);
     if constexpr (epok::precomputed_visibility) if (!visibility.reuse_matrix(view_rows, view_t, true)) {
@@ -1588,6 +1591,7 @@ void GameScene::frame() {
       if (cached_bounds < 0) {
         // Conservative camera-space box of the chunk from the object matrix.
         int32_t center[3], extent[3];
+        bool narrow_bounds=false;
         const auto* basis_bounds = basis_cache_active ? visibility.cached_basis_bounds(chunk_ordinal) : nullptr;
         if (basis_bounds) {
           for (int r = 0; r < 3; ++r) {
@@ -1597,8 +1601,9 @@ void GameScene::frame() {
         } else {
         const int32_t chunk_vector[3] = {bounds_mesh.origin[0] + bounds_mesh.center[0], bounds_mesh.origin[1] + bounds_mesh.center[1], bounds_mesh.origin[2] + bounds_mesh.center[2]};
         const bool narrow_chunk = narrow_view &&
-            chunk_vector[0] < 131072 && chunk_vector[0] > -131072 && chunk_vector[1] < 131072 && chunk_vector[1] > -131072 &&
-            chunk_vector[2] < 131072 && chunk_vector[2] > -131072 && bounds_mesh.extent[0] < 131072 && bounds_mesh.extent[1] < 131072 && bounds_mesh.extent[2] < 131072;
+            chunk_vector[0] < narrow_limit && chunk_vector[0] > -narrow_limit && chunk_vector[1] < narrow_limit && chunk_vector[1] > -narrow_limit &&
+            chunk_vector[2] < narrow_limit && chunk_vector[2] > -narrow_limit && bounds_mesh.extent[0] < narrow_limit && bounds_mesh.extent[1] < narrow_limit && bounds_mesh.extent[2] < narrow_limit;
+        narrow_bounds=narrow_chunk;
         if (narrow_chunk) {
           if constexpr (!epok::precomputed_visibility) {
             epok::narrow_chunk_bounds(view_rows, view_abs, view_t, chunk_vector,
@@ -1625,12 +1630,10 @@ void GameScene::frame() {
           }
         }
         }
-        const int far_z = center[2] + extent[2];
-        if (far_z < 1024 || center[2] - extent[2] >= epok::geometry_draw_distance * 4096 ||
-            (int64_t(center[0])-extent[0])*RenderFrustum::xx>int64_t(far_z)*RenderFrustum::xz ||
-            (int64_t(center[0])+extent[0])*RenderFrustum::xx<-int64_t(far_z)*RenderFrustum::xz ||
-            (int64_t(center[1])-extent[1])*RenderFrustum::yy>int64_t(far_z)*RenderFrustum::yz ||
-            (int64_t(center[1])+extent[1])*RenderFrustum::yy<-int64_t(far_z)*RenderFrustum::yz) {
+        const bool outside = narrow_bounds && narrow_planes
+            ? epok::chunk_outside<RenderFrustum,int32_t>(center,extent,epok::geometry_draw_distance*4096)
+            : epok::chunk_outside<RenderFrustum>(center,extent,epok::geometry_draw_distance*4096);
+        if (outside) {
           if (bounds_cache_active) visibility.remember_bounds(chunk_ordinal, false);
           EPOK_DETAIL_END(setup, setup_scanlines);
           continue;

@@ -1,4 +1,5 @@
 #pragma once
+#include <bit>
 #include <stdint.h>
 
 // The runtime builds for size; this decoder is the player's hottest loop.
@@ -186,7 +187,7 @@ constexpr AcBuild ac_build() {
 inline constexpr AcBuild ac_built = ac_build();
 static_assert(ac_built.valid, "MPEG-1 AC code list must be prefix-free");
 
-static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "BS words are read as native halfwords");
+static_assert(std::endian::native == std::endian::little, "BS words are read as native halfwords");
 // Reads 16-bit little-endian words most significant bit first. At least 17
 // bits stay buffered, so one read of up to 16 bits never needs a refill. Words
 // past the end read as zero; only consuming them counts as an overrun. The

@@ -103,7 +103,7 @@ struct PocketMailbox {
 extern "C" {
 // The editor finds this symbol in the link map and tells the emulator bridge.
 // Games that never talk to a PocketStation link without it.
-inline __attribute__((aligned(4))) epok::PocketMailbox epok_pocket_mailbox{};
+alignas(4) inline epok::PocketMailbox epok_pocket_mailbox{};
 }
 
 namespace epok {
@@ -120,9 +120,11 @@ struct PocketFrame {
 };
 
 namespace pocket_detail {
+#if defined(__mips__)
 inline void delay(unsigned n) {
     for (unsigned i = 0; i < n; ++i) __asm__ volatile("");
 }
+#endif
 
 // SIO0 transaction, polled like PsyQo's blocking memory card path. Builds
 // for the PC (native Play, editor previews) have no memory card bus.

@@ -6,7 +6,7 @@ This module covers bounded AABB collision queries and movement. It documents 18 
 
 ## Declared types
 
-`epok::AabbT`, `epok::ColliderT`, `epok::CollisionWorld`, `epok::MoveResultT`, `epok::RaycastQueryT`, `epok::SpatialHitT`, `epok::TriggerEvent`, `epok::TriggerPhase`
+`epok::AabbT`, `epok::ColliderT`, `epok::CollisionWorld`, `epok::CompoundGrid`, `epok::MoveResultT`, `epok::RaycastQueryT`, `epok::SpatialHitT`, `epok::TriggerEvent`, `epok::TriggerPhase`
 
 ## Callable index
 
@@ -41,7 +41,7 @@ This module covers bounded AABB collision queries and movement. It documents 18 
 template<class Number> inline bool aabb_may_touch(const AabbT<Number>& a,const AabbT<Number>& b)
 ```
 
-- **Declared at:** [line 58](../../../runtime/collision.hpp#L58)
+- **Declared at:** [line 72](../../../runtime/collision.hpp#L72)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -86,7 +86,7 @@ auto result = epok::aabb_may_touch<Number>(a, b);
 template<class Number> inline bool aabb_overlap(const AabbT<Number>& a,const AabbT<Number>& b)
 ```
 
-- **Declared at:** [line 54](../../../runtime/collision.hpp#L54)
+- **Declared at:** [line 68](../../../runtime/collision.hpp#L68)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -131,7 +131,7 @@ auto result = epok::aabb_overlap<Number>(a, b);
 template<class Number> inline AabbT<Number> collider_bounds(const ColliderT<Number>& c,const Affine<Number>& world)
 ```
 
-- **Declared at:** [line 70](../../../runtime/collision.hpp#L70)
+- **Declared at:** [line 84](../../../runtime/collision.hpp#L84)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -176,7 +176,7 @@ auto result = epok::collider_bounds<Number>(c, world);
 void begin_sync()
 ```
 
-- **Declared at:** [line 201](../../../runtime/collision.hpp#L201)
+- **Declared at:** [line 259](../../../runtime/collision.hpp#L259)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -209,7 +209,7 @@ object.begin_sync();
 const AabbT<Number>* bounds(size_t index) const
 ```
 
-- **Declared at:** [line 237](../../../runtime/collision.hpp#L237)
+- **Declared at:** [line 297](../../../runtime/collision.hpp#L297)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -251,7 +251,7 @@ auto result = object.bounds(index);
 void clear()
 ```
 
-- **Declared at:** [line 200](../../../runtime/collision.hpp#L200)
+- **Declared at:** [line 258](../../../runtime/collision.hpp#L258)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -286,7 +286,7 @@ object.clear();
 SpatialHitT<Number> ground(const AabbT<Number>& box,Number distance,uint32_t mask=0xffffffffu,int ignore=-1) const
 ```
 
-- **Declared at:** [line 271](../../../runtime/collision.hpp#L271)
+- **Declared at:** [line 331](../../../runtime/collision.hpp#L331)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -334,7 +334,7 @@ auto result = object.ground(box, distance, mask, ignore);
 bool has_trigger_pairs() const
 ```
 
-- **Declared at:** [line 199](../../../runtime/collision.hpp#L199)
+- **Declared at:** [line 257](../../../runtime/collision.hpp#L257)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -367,7 +367,7 @@ auto result = object.has_trigger_pairs();
 MoveResultT<Number> move_and_slide(AabbT<Number> box,const Number* displacement,uint32_t mask=0xffffffffu,int ignore=-1) const
 ```
 
-- **Declared at:** [line 291](../../../runtime/collision.hpp#L291)
+- **Declared at:** [line 351](../../../runtime/collision.hpp#L351)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -415,7 +415,7 @@ auto result = object.move_and_slide(box, displacement, mask, ignore);
 void note_enabled(size_t index)
 ```
 
-- **Declared at:** [line 202](../../../runtime/collision.hpp#L202)
+- **Declared at:** [line 260](../../../runtime/collision.hpp#L260)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -457,7 +457,7 @@ object.note_enabled(index);
 size_t overlap(const AabbT<Number>& box,uint16_t* output,size_t output_capacity,uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=true) const
 ```
 
-- **Declared at:** [line 239](../../../runtime/collision.hpp#L239)
+- **Declared at:** [line 299](../../../runtime/collision.hpp#L299)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -509,7 +509,7 @@ auto result = object.overlap(box, output, output_capacity, mask, ignore, trigger
 SpatialHitT<Number> raycast(const Number* origin,const Number* delta,uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=false) const
 ```
 
-- **Declared at:** [line 248](../../../runtime/collision.hpp#L248)
+- **Declared at:** [line 308](../../../runtime/collision.hpp#L308)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -559,7 +559,7 @@ auto result = object.raycast(origin, delta, mask, ignore, triggers);
 void raycast_batch(const RaycastQueryT<Number>* queries,SpatialHitT<Number>* results,size_t count, uint32_t mask=0xffffffffu,int ignore=-1,bool triggers=false) const
 ```
 
-- **Declared at:** [line 264](../../../runtime/collision.hpp#L264)
+- **Declared at:** [line 324](../../../runtime/collision.hpp#L324)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Parameters**
@@ -611,7 +611,7 @@ object.raycast_batch(queries, results, count, mask, ignore, triggers);
 void set(size_t index,const ColliderT<Number>& collider,const Affine<Number>& matrix,bool active=true,uint32_t generation=0)
 ```
 
-- **Declared at:** [line 203](../../../runtime/collision.hpp#L203)
+- **Declared at:** [line 261](../../../runtime/collision.hpp#L261)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -663,7 +663,7 @@ object.set(index, collider, matrix, active, generation);
 bool set_cached(size_t index,const ColliderT<Number>& collider,const Affine<Number>& matrix,uint32_t revision,bool active=true,uint32_t generation=0)
 ```
 
-- **Declared at:** [line 218](../../../runtime/collision.hpp#L218)
+- **Declared at:** [line 277](../../../runtime/collision.hpp#L277)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -715,7 +715,7 @@ auto result = object.set_cached(index, collider, matrix, revision, active, gener
 template<class Callback> void update_triggers(Callback&& callback)
 ```
 
-- **Declared at:** [line 358](../../../runtime/collision.hpp#L358)
+- **Declared at:** [line 418](../../../runtime/collision.hpp#L418)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -760,7 +760,7 @@ object.update_triggers<Callback>(callback);
 explicit operator bool() const
 ```
 
-- **Declared at:** [line 45](../../../runtime/collision.hpp#L45)
+- **Declared at:** [line 59](../../../runtime/collision.hpp#L59)
 - **Kind:** `conversion function`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -793,7 +793,7 @@ auto result = object.operator bool();
 template<class Number> inline AabbT<Number> swept_bounds(AabbT<Number> box,const Number* delta)
 ```
 
-- **Declared at:** [line 62](../../../runtime/collision.hpp#L62)
+- **Declared at:** [line 76](../../../runtime/collision.hpp#L76)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**

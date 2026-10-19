@@ -180,9 +180,11 @@ pub struct SceneGpu {
     cached_textures: Option<Vec<(uuid::Uuid, usize, usize)>>,
     static_draw_ranges: Vec<DrawRange>,
     static_mask: Option<Vec<bool>>,
+    static_colors: StaticColors,
     cached_skeletal_poses: SkeletalPoseKey,
     cached_selected: Option<usize>,
     cached_wire: bool,
+    cached_lighting: bool,
     cached_phase: f32,
     cached_fog_center: [f32; 3],
     cached_fog_distance: f32,
@@ -596,9 +598,11 @@ impl SceneGpu {
             cached_textures: None,
             static_draw_ranges: vec![],
             static_mask: None,
+            static_colors: Default::default(),
             cached_skeletal_poses: vec![],
             cached_selected: None,
             cached_wire: false,
+            cached_lighting: true,
             cached_phase: 0.,
             cached_fog_center: [0.; 3],
             cached_fog_distance: 12.,
@@ -644,7 +648,7 @@ impl SceneGpu {
                 background: active_camera_sky(scene),
                 sky_gradient: active_camera(scene).and_then(|actor| actor.camera_sky_gradient),
                 revision: None,
-                split_static: false,
+                split_static: true,
                 baked_selection: editor.baked_preview.filter(),
                 baked_revision: editor.baked_preview.revision,
             },
@@ -773,6 +777,13 @@ impl SceneGpu {
         let scene = input.scene;
         let view = input.view;
         let selected = input.selected;
+        let split_static = input.split_static
+            && input.baked_selection.is_none()
+            && !input.wire
+            && !input.mesh.open;
+        if !split_static {
+            self.static_mask = None;
+        }
         let preview_time = self.preview_time(scene, view.phase);
         let skeletal_poses = skeletal_pose_key(scene);
         let scene_changed = if let Some(revision) = input.revision {
@@ -791,6 +802,7 @@ impl SceneGpu {
             || (self.cached_view_dependent_geometry && self.cached_angles != [view.yaw, view.pitch])
             || self.cached_selected != selected
             || self.cached_wire != input.wire
+            || self.cached_lighting != view.lighting
             || self.cached_phase != preview_time
             || (scene.fog.enabled
                 && (self.cached_fog_center != view.center
@@ -822,12 +834,47 @@ impl SceneGpu {
             }
             self.navigation_fill.upload(device, queue, &nav_fill);
             self.navigation_edges.upload(device, queue, &nav_lines);
+            if input.revision.is_none()
+                && split_static
+                && (self
+                    .cached_scene
+                    .as_ref()
+                    .is_none_or(|old| !same_static_scene(old, scene))
+                    || self.cached_selected != selected
+                    || self.cached_lighting != view.lighting
+                    || self.cached_wire != input.wire
+                    || self.cached_mesh_revision != input.mesh.revision)
+            {
+                self.static_mask = None;
+            }
+            if split_static
+                && self.static_mask.is_some()
+                && self
+                    .cached_scene
+                    .as_ref()
+                    .is_some_and(|old| old.bake != scene.bake)
+            {
+                if self.static_colors.update(scene) {
+                    self.static_mesh
+                        .upload(device, queue, &self.static_colors.bytes);
+                } else {
+                    self.static_mask = None;
+                }
+            }
             let pass = if let Some(selection) = input.baked_selection {
                 GeometryPass::Baked(selection)
-            } else if input.split_static {
+            } else if split_static {
                 if self.static_mask.is_none() {
-                    let mask = static_mesh_mask(scene);
-                    let (mesh, _, ranges) = geometry_with_effects(
+                    let mut mask = static_mesh_mask(scene);
+                    if input.revision.is_none()
+                        && let Some(index) = selected
+                    {
+                        if let Some(value) = mask.get_mut(index) {
+                            *value = false;
+                        }
+                    }
+                    self.static_colors = Default::default();
+                    let (mesh, _, ranges) = geometry_cached(
                         scene,
                         selected,
                         preview_time,
@@ -836,6 +883,7 @@ impl SceneGpu {
                         &[],
                         false,
                         GeometryPass::Static(&mask),
+                        Some(&mut self.static_colors),
                     );
                     self.static_mesh.upload(device, queue, &mesh);
                     self.static_draw_ranges = ranges;
@@ -931,6 +979,7 @@ impl SceneGpu {
             self.cached_skeletal_poses = skeletal_poses;
             self.cached_selected = selected;
             self.cached_wire = input.wire;
+            self.cached_lighting = view.lighting;
             self.cached_phase = preview_time;
             self.cached_mesh_revision = input.mesh.revision;
             self.cached_terrain_revision = input.terrain.revision;
@@ -971,9 +1020,9 @@ impl SceneGpu {
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(input.background.map_or(wgpu::Color::BLACK, |c| {
                         wgpu::Color {
-                            r: c[0] as f64,
-                            g: c[1] as f64,
-                            b: c[2] as f64,
+                            r: display_to_linear(c[0]),
+                            g: display_to_linear(c[1]),
+                            b: display_to_linear(c[2]),
                             a: 1.,
                         }
                     })),
@@ -997,7 +1046,7 @@ impl SceneGpu {
             pass.draw(0..3, 0..1);
         }
         if !input.wire {
-            if input.split_static && self.static_mesh.count > 0 {
+            if split_static && self.static_mesh.count > 0 {
                 pass.set_vertex_buffer(0, self.static_mesh.buffer.slice(..));
                 for &(start, count, mode, bank) in &self.static_draw_ranges {
                     pass.set_bind_group(0, &self.texture_banks[bank].bind_group, &[]);
@@ -1014,7 +1063,7 @@ impl SceneGpu {
                 }
             }
         }
-        if !input.wire && self.shadows.count > 0 {
+        if view.lighting && !input.wire && self.shadows.count > 0 {
             pass.set_pipeline(&self.shadow_pipeline);
             pass.set_vertex_buffer(0, self.shadows.buffer.slice(..));
             pass.draw(0..self.shadows.count, 0..1);
@@ -1051,6 +1100,14 @@ impl SceneGpu {
 
 /// Sky, horizon and ground colours (w = 1 when the gradient is on) and the
 /// target size, for the background shader.
+fn display_to_linear(c: f32) -> f64 {
+    let c = c.clamp(0., 1.) as f64;
+    if c <= 0.04045 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
+}
 fn sky_uniform(
     background: Option<[f32; 3]>,
     gradient: Option<crate::scene::SkyGradient>,
@@ -1164,12 +1221,68 @@ fn brush_overlay(scene: &Scene, state: &crate::terrain_editor::State) -> (Vec<u8
 }
 type GeometryBuffers = (Vec<u8>, Vec<u8>, Vec<DrawRange>);
 struct Draw {
+    color_binding: Option<[usize; 4]>,
     points: [[f32; 3]; 4],
     colors: [[u8; 3]; 4],
     uv: [[f32; 2]; 4],
     material: crate::scene::Material,
     cull: bool,
     gpu_colors: bool,
+}
+struct StaticCorner {
+    actor: uuid::Uuid,
+    corner: usize,
+    lit: bool,
+    tint: [f32; 3],
+    paint: Option<[u8; 3]>,
+    neutral: f32,
+}
+#[derive(Default)]
+struct StaticColors {
+    corners: Vec<StaticCorner>,
+    vertices: Vec<usize>,
+    bytes: Vec<u8>,
+}
+impl StaticColors {
+    fn update(&mut self, scene: &Scene) -> bool {
+        let baked: std::collections::HashMap<_, _> = scene
+            .bake
+            .as_ref()
+            .map(|bake| {
+                bake.actor_ids
+                    .iter()
+                    .copied()
+                    .zip(bake.colors.iter())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut colors = Vec::with_capacity(self.corners.len());
+        for corner in &self.corners {
+            let light = if corner.lit {
+                let Some(rgb) = baked
+                    .get(&corner.actor)
+                    .and_then(|colors| colors.get(corner.corner))
+                else {
+                    return false;
+                };
+                *rgb
+            } else {
+                [255; 3]
+            };
+            let tint = crate::lighting::modulate(light, corner.tint);
+            let rgb = corner
+                .paint
+                .map_or(tint, |paint| crate::vertex_colors::tint(paint, tint));
+            colors.push(rgb.map(|c| c as f32 / corner.neutral));
+        }
+        for (vertex, &corner) in self.vertices.iter().enumerate() {
+            for (channel, value) in colors[corner].iter().enumerate() {
+                let offset = vertex * 40 + 12 + channel * 4;
+                self.bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+            }
+        }
+        true
+    }
 }
 #[derive(Clone, Copy)]
 enum GeometryPass<'a> {
@@ -1186,16 +1299,65 @@ fn static_mesh_mask(scene: &Scene) -> Vec<bool> {
         .actors
         .iter()
         .map(|actor| {
+            let quads = crate::lighting::quads(actor);
+            let cached = scene
+                .bake
+                .as_ref()
+                .and_then(|b| b.preview_colors(actor.id, quads.len() * 4))
+                .is_some();
             actor.kind == "Mesh"
                 && actor.lighting.static_geometry
                 && actor.skeletal_mesh.is_none()
-                && crate::lighting::quads(actor).iter().all(|quad| {
+                && quads.iter().all(|quad| {
                     quad.material.blend == crate::texture::BlendMode::Cutout
                         && quad.material.uv_scroll == [0.; 2]
-                        && (crate::lighting::baked(actor) || quad.material.unlit)
+                        && ((cached && crate::lighting::baked(actor)) || quad.material.unlit)
                 })
         })
         .collect()
+}
+fn same_static_scene(a: &Scene, b: &Scene) -> bool {
+    a.fog == b.fog
+        && a.actors.len() == b.actors.len()
+        && crate::texture::ids(a) == crate::texture::ids(b)
+        && a.textures.len() == b.textures.len()
+        && a.textures.iter().all(|(id, texture)| {
+            b.textures
+                .get(id)
+                .is_some_and(|other| (texture.width, texture.height) == (other.width, other.height))
+        })
+        && a.actors
+            .iter()
+            .zip(&b.actors)
+            .enumerate()
+            .all(|(i, (left, right))| {
+                if !(left.kind == "Mesh" && left.lighting.static_geometry)
+                    && !(right.kind == "Mesh" && right.lighting.static_geometry)
+                {
+                    return true;
+                }
+                left.id == right.id
+                    && left.kind == right.kind
+                    && left.lighting == right.lighting
+                    && left.material == right.material
+                    && left.terrain == right.terrain
+                    && left.skeletal_mesh.is_some() == right.skeletal_mesh.is_some()
+                    && match (&left.editable_mesh, &right.editable_mesh) {
+                        (None, None) => true,
+                        (Some(a), Some(b)) => {
+                            a.asset == b.asset
+                                && a.materials == b.materials
+                                && match (&a.document, &b.document) {
+                                    (None, None) => true,
+                                    (Some(a), Some(b)) => std::sync::Arc::ptr_eq(a, b),
+                                    _ => false,
+                                }
+                        }
+                        _ => false,
+                    }
+                    && a.is_active(i) == b.is_active(i)
+                    && a.world_matrix(i) == b.world_matrix(i)
+            })
 }
 #[cfg(test)]
 fn geometry(
@@ -1225,6 +1387,21 @@ fn geometry_with_effects(
     effects: &[crate::particle_effect_preview::Quad],
     wire: bool,
     pass: GeometryPass<'_>,
+) -> GeometryBuffers {
+    geometry_cached(
+        scene, selected, phase, state, view, effects, wire, pass, None,
+    )
+}
+fn geometry_cached(
+    scene: &Scene,
+    selected: Option<usize>,
+    phase: f32,
+    state: &crate::mesh_editor::State,
+    view: &crate::viewport::View,
+    effects: &[crate::particle_effect_preview::Quad],
+    wire: bool,
+    pass: GeometryPass<'_>,
+    mut cache: Option<&mut StaticColors>,
 ) -> GeometryBuffers {
     let (yaw, pitch, view_center) = (view.yaw, view.pitch, view.center);
     let mut draws = Vec::<Draw>::new();
@@ -1297,7 +1474,7 @@ fn geometry_with_effects(
             let p = q.points.map(|v| world.point(v));
             let n = crate::lighting::transform_normal(world, q.normal);
             let colors: [[u8; 3]; 4] = std::array::from_fn(|v| {
-                let rgb = if q.material.unlit {
+                let rgb = if !view.lighting || q.material.unlit {
                     [255; 3]
                 } else if offline && let Some(colors) = cached {
                     colors[qi * 4 + v]
@@ -1333,6 +1510,24 @@ fn geometry_with_effects(
                 }
             });
             draws.push(Draw {
+                color_binding: cache.as_mut().map(|cache| {
+                    std::array::from_fn(|v| {
+                        let index = cache.corners.len();
+                        cache.corners.push(StaticCorner {
+                            actor: e.id,
+                            corner: qi * 4 + v,
+                            lit: view.lighting && !q.material.unlit && offline,
+                            tint: q.material.color,
+                            paint: q.vertex_colors.map(|colors| colors[v]),
+                            neutral: if q.vertex_colors.is_some() && q.material.texture.is_some() {
+                                128.
+                            } else {
+                                255.
+                            },
+                        });
+                        index
+                    })
+                }),
                 gpu_colors: q.vertex_colors.is_some(),
                 points: p,
                 colors,
@@ -1518,12 +1713,13 @@ fn geometry_with_effects(
                 .map_or((256, 256), |t| (t.width, t.height));
             let n = crate::mesh::face_normal(q.points);
             let center = std::array::from_fn(|c| q.points.iter().map(|p| p[c]).sum::<f32>() / 4.);
-            let light = if sprite.unlit || q.owner == usize::MAX {
+            let light = if !view.lighting || sprite.unlit || q.owner == usize::MAX {
                 [255; 3]
             } else {
                 lighting.sample(center, n, q.owner, false, false)
             };
             draws.push(Draw {
+                color_binding: None,
                 points: q.points,
                 gpu_colors: false,
                 cull: false,
@@ -1552,6 +1748,16 @@ fn geometry_with_effects(
             .cmp(&b_trans)
             .then_with(|| depth(b).total_cmp(&depth(a)))
     });
+    if let Some(cache) = cache.as_mut() {
+        for draw in &draws {
+            // Static surfaces have no UV scrolling, fog, or transparency: the
+            // encoder preserves exactly these six source corners per quad.
+            let binding = draw.color_binding.expect("static color source");
+            cache
+                .vertices
+                .extend([0, 1, 2, 0, 2, 3].map(|i| binding[i]));
+        }
+    }
     let (triangles, ranges) = encode_draws(
         &draws,
         scene,
@@ -1560,6 +1766,10 @@ fn geometry_with_effects(
         view.distance,
         [sy, cy, sp, cp],
     );
+    if let Some(cache) = cache {
+        assert_eq!(cache.vertices.len() * 40, triangles.len());
+        cache.bytes = triangles.clone();
+    }
     (triangles, edges, ranges)
 }
 
@@ -1722,6 +1932,96 @@ pub fn profile(project: crate::workspace::Project) -> Result<(), Box<dyn std::er
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[ignore = "requires a disposable EPOK_LIGHT_PROJECT and graphics adapter"]
+    fn profile_light_drag() {
+        use super::*;
+        use std::time::Instant;
+        let root = std::path::PathBuf::from(std::env::var_os("EPOK_LIGHT_PROJECT").unwrap());
+        let project = crate::workspace::Project::open(&root).unwrap();
+        let mut editor = crate::editor::Editor::open(project).unwrap();
+        let light = editor
+            .scene
+            .actors
+            .iter()
+            .position(|a| {
+                a.light
+                    .as_ref()
+                    .is_some_and(|l| l.kind == crate::lighting::LightType::Point)
+            })
+            .unwrap();
+        editor.selected = Some(light);
+        let origin = editor.scene.actors[light].position;
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: if cfg!(windows) {
+                wgpu::Backends::DX12
+            } else {
+                wgpu::Backends::PRIMARY
+            },
+            ..Default::default()
+        });
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Light drag profile"),
+            size: SIZE,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let mut renderer = SceneGpu::new(&device, &queue);
+        let mut rows = vec![];
+        for step in 0..90 {
+            editor.drag_axis = Some(0);
+            let begin = Instant::now();
+            editor.scene.actors[light].position[0] = origin[0] + (step as f32 * 0.1).sin() * 3.;
+            editor.changed_coalesced("gizmo-drag");
+            let changed = begin.elapsed().as_secs_f64() * 1000.;
+            let start = Instant::now();
+            editor.tick();
+            let tick = start.elapsed().as_secs_f64() * 1000.;
+            let start = Instant::now();
+            let mut encoder = device.create_command_encoder(&Default::default());
+            renderer.render(
+                &device,
+                &queue,
+                &mut encoder,
+                &texture.create_view(&Default::default()),
+                &editor,
+            );
+            let render = start.elapsed().as_secs_f64() * 1000.;
+            queue.submit(Some(encoder.finish()));
+            device.poll(wgpu::PollType::Wait).unwrap();
+            if step >= 10 {
+                rows.push([changed, tick, render, begin.elapsed().as_secs_f64() * 1000.]);
+            }
+        }
+        editor.end_coalesced();
+        editor.drag_axis = None;
+        let start = Instant::now();
+        std::hint::black_box(crate::lighting::bake(&editor.scene).unwrap());
+        let bake_ms = start.elapsed().as_secs_f64() * 1000.;
+        let stages = ["edit_ms", "tick_ms", "render_encode_ms", "frame_ms"];
+        let mut report = serde_json::Map::new();
+        for (i, stage) in stages.iter().enumerate() {
+            let mut samples: Vec<_> = rows.iter().map(|r| r[i]).collect();
+            samples.sort_by(f64::total_cmp);
+            report.insert((*stage).into(), serde_json::json!({"median": samples[samples.len()/2], "p95": samples[samples.len()*95/100], "max": samples.last()}));
+        }
+        report.insert("bake_ms".into(), serde_json::json!(bake_ms));
+        report.insert("samples".into(), serde_json::json!(rows.len()));
+        report.insert("rows".into(), serde_json::json!(rows));
+        let text = serde_json::to_string_pretty(&report).unwrap();
+        println!("{text}");
+        if let Some(path) = std::env::var_os("EPOK_LIGHT_REPORT") {
+            std::fs::write(path, text).unwrap();
+        }
+    }
+
     fn projection_frame(size: [u16; 2]) -> crate::native_play::Frame {
         let mut camera = crate::scene::Actor::cube("Camera".into());
         camera.kind = "Camera".into();
@@ -1903,6 +2203,7 @@ mod tests {
         use super::*;
         let mut scene = texture_scene(1);
         let mut draw = Draw {
+            color_binding: None,
             gpu_colors: true,
             points: [[-1., -1., 0.], [1., -1., 0.], [1., 1., 0.], [-1., 1., 0.]],
             colors: [[185, 128, 64]; 4],
@@ -1958,6 +2259,7 @@ mod tests {
         let draws: Vec<_> = indices
             .iter()
             .map(|&i| Draw {
+                color_binding: None,
                 gpu_colors: false,
                 points: [[-1., -1., 0.], [1., -1., 0.], [1., 1., 0.], [-1., 1., 0.]],
                 colors: [[255; 3]; 4],
@@ -2022,6 +2324,7 @@ mod tests {
         );
         scene.textures.insert(id, std::sync::Arc::new(data));
         let mut draw = Draw {
+            color_binding: None,
             points: [[-1., -1., 0.], [1., -1., 0.], [1., 1., 0.], [-1., 1., 0.]],
             gpu_colors: false,
             cull: false,
@@ -2601,8 +2904,8 @@ mod tests {
                 wire: false,
                 grid: false,
                 effect: None,
-                background: None,
-                sky_gradient: None,
+                background: active_camera_sky(&scene),
+                sky_gradient: active_camera(&scene).and_then(|actor| actor.camera_sky_gradient),
                 revision: None,
                 split_static: false,
                 baked_selection: bake.filter(),
@@ -3093,6 +3396,248 @@ mod tests {
         scene.bake = None;
         super::geometry(&scene, Some(1), 0., &state, &view);
         assert!(scene.bake.is_none());
+    }
+
+    fn lighting_preview_scene() -> crate::scene::Scene {
+        use crate::lighting::*;
+        let mut scene = crate::scene::Scene::default();
+        scene.actors.clear();
+        scene.environment.ambient = [0.1; 3];
+        for (x, receive) in [(-1.5, Receive::Realtime), (1.5, Receive::Baked)] {
+            let mut actor = crate::scene::Actor::cube(format!("{receive:?}"));
+            actor.position = [x, 0., 0.];
+            actor.material.color = [1.; 3];
+            actor.lighting.receive = receive;
+            actor.lighting.static_geometry = receive == Receive::Baked;
+            scene.actors.push(actor);
+        }
+        let mut sun = crate::scene::Actor::cube("Sun".into());
+        sun.kind = "Empty".into();
+        sun.light = Some(Light {
+            mode: LightMode::Mixed,
+            intensity: 0.6,
+            color: [1., 0.3, 0.05],
+            ..Default::default()
+        });
+        scene.actors.push(sun);
+        scene.bake = Some(bake(&scene).unwrap());
+        scene
+    }
+
+    #[test]
+    fn static_cache_reuses_baked_geometry_for_light_edits_but_not_mesh_or_bake_changes() {
+        let original = lighting_preview_scene();
+        let mut changed = original.clone();
+        changed.actors[2].position[0] += 3.;
+        changed.actors[2].light.as_mut().unwrap().color = [0., 1., 0.];
+        assert!(super::same_static_scene(&original, &changed));
+        changed.bake = Some(crate::lighting::bake(&changed).unwrap());
+        assert!(
+            super::same_static_scene(&original, &changed),
+            "bake edits only refresh color bytes"
+        );
+        changed = original.clone();
+        changed.actors[1].position[0] += 1.;
+        assert!(!super::same_static_scene(&original, &changed));
+        changed = original.clone();
+        changed.actors[1].material.unlit = true;
+        assert!(!super::same_static_scene(&original, &changed));
+    }
+
+    #[test]
+    fn lighting_preview_toggle_bypasses_baked_and_realtime_without_editing_the_scene() {
+        let scene = lighting_preview_scene();
+        let before = scene.clone();
+        let mut view = crate::viewport::View::default();
+        let state = crate::mesh_editor::State::default();
+        let lit = super::geometry(&scene, None, 0., &state, &view);
+        let cpu_lit = crate::viewport::render(&scene, None, &view, false, false, false);
+        view.lighting = false;
+        let unlit = super::geometry(&scene, None, 0., &state, &view);
+        assert_ne!(lit.0, unlit.0);
+        for vertex in unlit.0.chunks_exact(40) {
+            for channel in 0..3 {
+                assert_eq!(
+                    f32::from_le_bytes(
+                        vertex[12 + channel * 4..16 + channel * 4]
+                            .try_into()
+                            .unwrap()
+                    ),
+                    1.
+                );
+            }
+        }
+        assert_ne!(
+            cpu_lit.pixels,
+            crate::viewport::render(&scene, None, &view, false, false, false).pixels
+        );
+        let game_unlit_view = crate::viewport::render(&scene, None, &view, false, false, true);
+        view.lighting = true;
+        assert_eq!(lit, super::geometry(&scene, None, 0., &state, &view));
+        assert_eq!(
+            game_unlit_view.pixels,
+            crate::viewport::render(&scene, None, &view, false, false, true).pixels
+        );
+        assert_eq!(scene, before);
+    }
+
+    #[test]
+    fn cached_static_color_updates_match_fresh_geometry_exactly() {
+        use super::*;
+        let mut scene = lighting_preview_scene();
+        let view = crate::viewport::View::default();
+        let mask = static_mesh_mask(&scene);
+        let mut cache = StaticColors::default();
+        let (before, _, _) = geometry_cached(
+            &scene,
+            None,
+            0.,
+            &Default::default(),
+            &view,
+            &[],
+            false,
+            GeometryPass::Static(&mask),
+            Some(&mut cache),
+        );
+        scene.actors[2].light.as_mut().unwrap().color = [0., 1., 0.];
+        scene.bake = Some(crate::lighting::bake(&scene).unwrap());
+        assert!(cache.update(&scene));
+        let (expected, _, _) = geometry_with_effects(
+            &scene,
+            None,
+            0.,
+            &Default::default(),
+            &view,
+            &[],
+            false,
+            GeometryPass::Static(&mask),
+        );
+        assert_ne!(cache.bytes, before);
+        assert_eq!(
+            cache.bytes, expected,
+            "recoloring must preserve packet gain and integer tint order"
+        );
+        for (a, b) in cache.bytes.chunks_exact(40).zip(before.chunks_exact(40)) {
+            assert_eq!(&a[..12], &b[..12]);
+            assert_eq!(&a[24..], &b[24..]);
+        }
+    }
+
+    #[test]
+    #[ignore = "requires a graphics adapter; verifies cached lighting toggles with GPU readbacks"]
+    fn gpu_lighting_preview_matches_baked_and_realtime_and_refreshes_when_toggled() {
+        use super::*;
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: if cfg!(windows) {
+                wgpu::Backends::DX12
+            } else {
+                wgpu::Backends::PRIMARY
+            },
+            ..Default::default()
+        });
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Lighting preview regression"),
+            size: SIZE,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let mut renderer = SceneGpu::new(&device, &queue);
+        let mut scene = lighting_preview_scene();
+        let mut view = crate::viewport::View {
+            yaw: 0.,
+            pitch: 0.,
+            distance: 8.,
+            ..Default::default()
+        };
+        let mut capture = |scene: &Scene, view: &crate::viewport::View| {
+            let mut encoder = device.create_command_encoder(&Default::default());
+            renderer.render_input(
+                &device,
+                &queue,
+                &mut encoder,
+                &texture.create_view(&Default::default()),
+                RenderInput {
+                    scene,
+                    view,
+                    projection_aspect: None,
+                    selected: None,
+                    mesh: &Default::default(),
+                    terrain: &Default::default(),
+                    wire: false,
+                    grid: false,
+                    effect: None,
+                    background: None,
+                    sky_gradient: None,
+                    revision: None,
+                    split_static: true,
+                    baked_selection: None,
+                    baked_revision: 0,
+                },
+            );
+            queue.submit(Some(encoder.finish()));
+            let png = crate::platform::capture_png(&device, &queue, &texture).unwrap();
+            let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+                .read_info()
+                .unwrap();
+            let mut pixels = vec![0; reader.output_buffer_size()];
+            reader.next_frame(&mut pixels).unwrap();
+            [-1.5, 1.5].map(|x| {
+                let p = crate::viewport::project(view, [x, 0., -0.5]);
+                let offset = (p[1] as usize * SIZE.width as usize + p[0] as usize) * 4;
+                <[u8; 3]>::try_from(&pixels[offset..offset + 3]).unwrap()
+            })
+        };
+        let lit = capture(&scene, &view);
+        assert_eq!(
+            lit[0], lit[1],
+            "baked and dynamic share the same lighting model"
+        );
+        assert!(lit[0][0] > lit[0][1] && lit[0][1] > lit[0][2]);
+        view.lighting = false;
+        assert_eq!(capture(&scene, &view), [[255; 3]; 2]);
+        view.lighting = true;
+        assert_eq!(
+            capture(&scene, &view),
+            lit,
+            "toggle must invalidate cached vertices both ways"
+        );
+        scene.actors[2].active = false;
+        let stale = capture(&scene, &view);
+        assert_eq!(stale[0], [26; 3]);
+        assert_eq!(
+            stale[1], lit[1],
+            "baked colors persist until Build Lighting"
+        );
+        scene.bake = Some(crate::lighting::bake(&scene).unwrap());
+        assert_eq!(capture(&scene, &view), [[26; 3]; 2]);
+        scene.actors[0].material.unlit = true;
+        assert_eq!(capture(&scene, &view)[0], [255; 3]);
+        scene.actors[0].material.unlit = false;
+        scene.actors[2].active = true;
+        scene.actors[2].position = [-1.5, 0., -2.];
+        let light = scene.actors[2].light.as_mut().unwrap();
+        light.kind = crate::lighting::LightType::Point;
+        light.color = [0., 0., 1.];
+        light.intensity = 1.;
+        light.range = 6.;
+        let point = capture(&scene, &view)[0];
+        assert!(point[2] > point[0] + 50 && point[0] == 26, "{point:?}");
+        scene.environment.point_lights = false;
+        assert_eq!(capture(&scene, &view)[0], [26; 3]);
+        scene.environment.point_lights = true;
+        scene.actors[2].position = [-1.5, 0., -20.];
+        assert_eq!(
+            capture(&scene, &view)[0],
+            [26; 3],
+            "point outside its PSX range"
+        );
     }
 
     #[test]

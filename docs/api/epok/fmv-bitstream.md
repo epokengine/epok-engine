@@ -42,7 +42,7 @@ This module covers full-motion video clips and playback statistics. It documents
 inline BsResult decode_frame(const uint8_t *frame, uint32_t bytes, uint32_t width, uint32_t height, uint32_t *out, uint32_t capacity, bool tv_levels = false)
 ```
 
-- **Declared at:** [line 290](../../../runtime/fmv_bitstream.hpp#L290)
+- **Declared at:** [line 291](../../../runtime/fmv_bitstream.hpp#L291)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -94,7 +94,7 @@ auto result = epok::fmv::decode_frame(frame, bytes, width, height, out, capacity
 constexpr AcBuild ac_build()
 ```
 
-- **Declared at:** [line 163](../../../runtime/fmv_bitstream.hpp#L163)
+- **Declared at:** [line 164](../../../runtime/fmv_bitstream.hpp#L164)
 - **Kind:** `function decl`
 
 **Returns.** Returns `AcBuild`. Check the purpose and failure notes before using the value.
@@ -125,7 +125,7 @@ auto result = epok::fmv::detail::ac_build();
 constexpr uint16_t ac_entry(uint32_t length, uint32_t run, uint32_t level)
 ```
 
-- **Declared at:** [line 135](../../../runtime/fmv_bitstream.hpp#L135)
+- **Declared at:** [line 136](../../../runtime/fmv_bitstream.hpp#L136)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -171,7 +171,7 @@ auto result = epok::fmv::detail::ac_entry(length, run, level);
 constexpr bool ac_fill(uint16_t *table, uint32_t index_bits, uint32_t code, uint32_t length, uint16_t entry)
 ```
 
-- **Declared at:** [line 140](../../../runtime/fmv_bitstream.hpp#L140)
+- **Declared at:** [line 141](../../../runtime/fmv_bitstream.hpp#L141)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -219,7 +219,7 @@ auto result = epok::fmv::detail::ac_fill(table, index_bits, code, length, entry)
 BitReader(const uint8_t *data, uint32_t bytes)
 ```
 
-- **Declared at:** [line 198](../../../runtime/fmv_bitstream.hpp#L198)
+- **Declared at:** [line 199](../../../runtime/fmv_bitstream.hpp#L199)
 - **Kind:** `constructor`
 
 **Parameters**
@@ -259,7 +259,7 @@ epok::fmv::detail::BitReader value(data, bytes);
 bool overrun() const
 ```
 
-- **Declared at:** [line 204](../../../runtime/fmv_bitstream.hpp#L204)
+- **Declared at:** [line 205](../../../runtime/fmv_bitstream.hpp#L205)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
@@ -292,7 +292,7 @@ auto result = object.overrun();
 uint32_t peek16() const
 ```
 
-- **Declared at:** [line 217](../../../runtime/fmv_bitstream.hpp#L217)
+- **Declared at:** [line 218](../../../runtime/fmv_bitstream.hpp#L218)
 - **Kind:** `cxx method`; qualifiers: `const`
 
 **Returns.** Returns `uint32_t`. Check the purpose and failure notes before using the value.
@@ -325,7 +325,7 @@ auto result = object.peek16();
 void refill()
 ```
 
-- **Declared at:** [line 205](../../../runtime/fmv_bitstream.hpp#L205)
+- **Declared at:** [line 206](../../../runtime/fmv_bitstream.hpp#L206)
 - **Kind:** `cxx method`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -358,7 +358,7 @@ object.refill();
 void skip(uint32_t bits)
 ```
 
-- **Declared at:** [line 218](../../../runtime/fmv_bitstream.hpp#L218)
+- **Declared at:** [line 219](../../../runtime/fmv_bitstream.hpp#L219)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -400,7 +400,7 @@ object.skip(bits);
 uint32_t take(uint32_t bits)
 ```
 
-- **Declared at:** [line 223](../../../runtime/fmv_bitstream.hpp#L223)
+- **Declared at:** [line 224](../../../runtime/fmv_bitstream.hpp#L224)
 - **Kind:** `cxx method`
 
 **Parameters**
@@ -442,7 +442,7 @@ auto result = object.take(bits);
 inline int32_t dc_size(BitReader &bits, bool luma)
 ```
 
-- **Declared at:** [line 233](../../../runtime/fmv_bitstream.hpp#L233)
+- **Declared at:** [line 234](../../../runtime/fmv_bitstream.hpp#L234)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -484,7 +484,7 @@ auto result = epok::fmv::detail::dc_size(bits, luma);
 constexpr int32_t extend(uint32_t value, uint32_t bits)
 ```
 
-- **Declared at:** [line 229](../../../runtime/fmv_bitstream.hpp#L229)
+- **Declared at:** [line 230](../../../runtime/fmv_bitstream.hpp#L230)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -526,7 +526,7 @@ auto result = epok::fmv::detail::extend(value, bits);
 constexpr bool fast_fill(uint32_t *table, uint32_t code, uint32_t length, uint32_t entry)
 ```
 
-- **Declared at:** [line 150](../../../runtime/fmv_bitstream.hpp#L150)
+- **Declared at:** [line 151](../../../runtime/fmv_bitstream.hpp#L151)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -572,7 +572,7 @@ auto result = epok::fmv::detail::fast_fill(table, code, length, entry);
 constexpr int32_t divide_rounded(int32_t value, int32_t divisor)
 ```
 
-- **Declared at:** [line 75](../../../runtime/fmv_bitstream.hpp#L75)
+- **Declared at:** [line 76](../../../runtime/fmv_bitstream.hpp#L76)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -614,7 +614,7 @@ auto result = epok::fmv::divide_rounded(value, divisor);
 constexpr QuantTables quant_tables(bool tv_levels)
 ```
 
-- **Declared at:** [line 64](../../../runtime/fmv_bitstream.hpp#L64)
+- **Declared at:** [line 65](../../../runtime/fmv_bitstream.hpp#L65)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -654,7 +654,7 @@ auto result = epok::fmv::quant_tables(tv_levels);
 inline BsHeader read_header(const uint8_t *frame)
 ```
 
-- **Declared at:** [line 275](../../../runtime/fmv_bitstream.hpp#L275)
+- **Declared at:** [line 276](../../../runtime/fmv_bitstream.hpp#L276)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -694,7 +694,7 @@ auto result = epok::fmv::read_header(frame);
 constexpr int32_t tv_dc(int32_t dc, bool luma)
 ```
 
-- **Declared at:** [line 79](../../../runtime/fmv_bitstream.hpp#L79)
+- **Declared at:** [line 80](../../../runtime/fmv_bitstream.hpp#L80)
 - **Kind:** `function decl`
 
 **Parameters**

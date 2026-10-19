@@ -31,10 +31,19 @@ static void verify_narrow_chunk_bounds() {
         if(trial%11==0)rows[0][0]=trial&2?-16383:16383;
         if(trial%13==0)rows[2][2]=0;
         if(trial%17==0)rows[1][1]=-1;
+        if(trial%3==0)for(auto& row:rows)for(auto& value:row)value/=4;
+        int32_t peak=0;
+        for(int r=0;r<3;++r)for(int c=0;c<3;++c) {
+            const auto a=rows[r][c]<0?-rows[r][c]:rows[r][c];
+            if(a>peak)peak=a;
+        }
+        const auto limit=epok::chunk_bounds_input_limit(peak);
+        assert(!peak || int64_t(limit)*peak<=INT32_MAX);
+        assert(!peak || int64_t(limit+1)*peak>INT32_MAX);
         for(int r=0;r<3;++r) {
             translation[r]=int32_t(random()%1048577)-524288;
-            vector[r]=int32_t(random()%262143)-131071;
-            extent[r]=int32_t(random()%131072);
+            vector[r]=int32_t(random()%uint32_t(limit*2-1))-(limit-1);
+            extent[r]=int32_t(random()%uint32_t(limit));
             for(int c=0;c<3;++c)absolute[r][c]=rows[r][c]<0?-rows[r][c]:rows[r][c];
         }
         if(trial%7==0){vector[0]=-131071;vector[1]=131071;extent[2]=131071;}
@@ -42,15 +51,27 @@ static void verify_narrow_chunk_bounds() {
         for(int r=0;r<3;++r) {
             int32_t sum=0,radius=0;
             for(int c=0;c<3;++c) {
-                sum+=(rows[r][c]*vector[c])>>12;
-                radius+=(absolute[r][c]*extent[c])>>12;
+                sum+=int32_t((int64_t(rows[r][c])*vector[c])>>12);
+                radius+=int32_t((int64_t(absolute[r][c])*extent[c])>>12);
             }
-            expected_center[r]=translation[r]+sum;expected_span[r]=radius+3;
+            expected_center[r]=translation[r]+sum;expected_span[r]=radius+5;
         }
         const bool detected=epok::chunk_bounds_isolated_x(rows);
         assert(detected==isolated);
         epok::narrow_chunk_bounds(rows,absolute,translation,vector,extent,center,span,detected);
         for(int r=0;r<3;++r){assert(center[r]==expected_center[r]);assert(span[r]==expected_span[r]);}
+        // Even when replacing the former wide path, the new bounds contain
+        // its complete box despite shifting each product before summation.
+        for(int r=0;r<3;++r){
+            int64_t sum=0,radius=0;
+            for(int c=0;c<3;++c){sum+=int64_t(rows[r][c])*vector[c];radius+=int64_t(absolute[r][c])*extent[c];}
+            const int64_t old_center=translation[r]+(sum>>12),old_span=(radius>>12)+1;
+            assert(int64_t(center[r])-span[r]<=old_center-old_span);
+            assert(int64_t(center[r])+span[r]>=old_center+old_span);
+        }
+        assert(epok::chunk_bounds_planes_fit(translation));
+        assert((epok::chunk_outside<epok::ScreenFrustum<320,240>,int32_t>(center,span,128*4096)) == epok::chunk_outside(center,span,128*4096));
+        assert((epok::chunk_outside<epok::ScreenFrustum<512,240>,int32_t>(center,span,128*4096)) == (epok::chunk_outside<epok::ScreenFrustum<512,240>>(center,span,128*4096)));
         // The test changes chunk geometry on each trial, unlike immutable
         // exported metadata, so start a fresh cache before translating it.
         cache.matrix_observed=false;
@@ -82,6 +103,8 @@ static void verify_narrow_chunk_bounds() {
 }
 int main(){
     verify_narrow_chunk_bounds();
+    const int32_t huge_translation[3]={1<<26,0,0};
+    assert(!epok::chunk_bounds_planes_fit(huge_translation));
     const int32_t inside[3]={0,0,8*4096},size[3]={4096,4096,4096};
     assert(epok::chunk_fully_inside(inside,size,160));
     const int32_t near[3]={0,0,1200},empty[3]={};

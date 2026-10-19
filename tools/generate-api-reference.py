@@ -1152,7 +1152,15 @@ def path_scrubber(engine: Path, nugget: Path, toolchain: list[Path]) -> Callable
 
     def scrub(text: str) -> str:
         for absolute, relative in prefixes:
-            text = text.replace(absolute, relative)
+            # Windows Clang uses backslashes, including JSON-escaped spellings
+            # in the catalog. Normalize only the matched path, not C++ escapes.
+            windows = absolute.replace("/", "\\")
+            for prefix in (absolute, windows, json.dumps(windows)[1:-1]):
+                text = re.sub(
+                    re.escape(prefix) + r"([A-Za-z0-9_./\\+~-]*)",
+                    lambda match: relative + match[1].replace("\\\\", "/").replace("\\", "/"),
+                    text,
+                )
         return text
 
     return scrub
