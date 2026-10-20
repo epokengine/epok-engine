@@ -256,6 +256,8 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
                 e.project_browser.previews.mode_controls(ui);
                 state.media.set_mode(e.project_browser.previews.mode());
                 ui.same_line();
+                let disabled =
+                    ui.begin_disabled(e.project_browser.previews.playback_blocker(&path).is_some());
                 if ui.small_button(if e.project_browser.previews.active(&path) {
                     "Stop"
                 } else {
@@ -265,6 +267,12 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
                 }
                 #[cfg(test)]
                 track(ui, "play");
+                drop(disabled);
+                e.project_browser.previews.playback_tooltip(ui, &path);
+                if let Some(reason) = e.project_browser.previews.playback_blocker(&path) {
+                    ui.text_colored([1., 0.75, 0.3, 1.], "Preview unavailable");
+                    ui.text_wrapped(reason);
+                }
                 if let Some(report) = &e.project_browser.previews.report {
                     ui.text_wrapped(report);
                 }

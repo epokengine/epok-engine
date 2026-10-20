@@ -1273,14 +1273,16 @@ fn grid(ui: &Ui, e: &mut Editor, s: &mut State, items: &[Entry], asset_font: img
         let over_play = audio && hover && ui.is_mouse_hovering_rect(play_min, play_max);
         if over_play {
             let path = e.root.join(&entry.path);
-            if clicked {
+            if clicked && s.previews.playback_blocker(&path).is_none() {
                 s.previews.toggle(&path);
             }
-            ui.tooltip_text(if s.previews.active(&path) {
-                "Stop preview"
-            } else {
-                "Play preview"
-            });
+            ui.tooltip_text(s.previews.playback_blocker(&path).unwrap_or(
+                if s.previews.active(&path) {
+                    "Stop preview"
+                } else {
+                    "Play preview"
+                },
+            ));
         } else {
             item_events(ui, e, s, items, entry, clicked);
             if hover && let Some(error) = s.previews.failure(&e.root.join(&entry.path)) {
@@ -1432,7 +1434,8 @@ fn asset_card(
     if kind(e, entry) == "Audio" {
         let (a, b) = play_rect(p, tile);
         let size = b[0] - a[0];
-        let hover = ui.is_item_hovered() && ui.is_mouse_hovering_rect(a, b);
+        let blocked = s.previews.playback_blocker(&path).is_some();
+        let hover = !blocked && ui.is_item_hovered() && ui.is_mouse_hovering_rect(a, b);
         d.add_rect(a, b, crate::gui::gray(if hover { 86 } else { 49 }))
             .rounding(4.)
             .filled(true)
@@ -1452,7 +1455,11 @@ fn asset_card(
                 [a[0] + size * 0.36, a[1] + size * 0.25],
                 [a[0] + size * 0.36, a[1] + size * 0.75],
                 [a[0] + size * 0.75, a[1] + size * 0.5],
-                [1.; 4],
+                if blocked {
+                    [0.4, 0.4, 0.4, 1.]
+                } else {
+                    [1.; 4]
+                },
             )
             .filled(true)
             .build();
@@ -1585,11 +1592,14 @@ fn list(ui: &Ui, e: &mut Editor, s: &mut State, items: &[Entry]) {
                 } else {
                     "Play"
                 };
+                let disabled = ui.begin_disabled(s.previews.playback_blocker(&path).is_some());
                 if ui.small_button(format!("{label}##preview{}", entry.path)) {
                     s.previews.toggle(&path);
                 }
                 #[cfg(test)]
                 track(ui, &format!("Play##{}", entry.path));
+                drop(disabled);
+                s.previews.playback_tooltip(ui, &path);
             }
             ui.table_next_column();
             ui.text_disabled(&entry.path);
@@ -3356,7 +3366,7 @@ mod tests {
     use super::*;
     #[test]
     #[ignore = "Owns an ImGui context; run explicitly and serially for audio preview error routing"]
-    fn midi_preview_failure_logs_once_per_play_attempt_in_tiles_and_list() {
+    fn midi_preview_failure_disables_repeated_attempts_in_tiles_and_list() {
         let mut context = imgui::Context::create();
         context.set_ini_filename(None);
         context.io_mut().display_size = [1100., 700.];
@@ -3376,6 +3386,7 @@ mod tests {
         midi.extend((events.len() as u32).to_be_bytes());
         midi.extend(events);
         fs::write(root.join("assets/unsupported.mid"), midi).unwrap();
+        let (_, bank) = crate::sequence_preview::tests::fixture(&root);
         assets::commit(
             crate::sequence::prepare(
                 &root,
@@ -3389,7 +3400,6 @@ mod tests {
         )
         .unwrap();
         let path = root.join("assets/unsupported.epokasset");
-        let original = fs::read(&path).unwrap();
         let mut editor = Editor::new(root.clone());
         editor.auto_build = false;
         editor.assets.index = assets::scan(&root, &mut Default::default());
@@ -3407,7 +3417,70 @@ mod tests {
             window(ui, editor, font);
             context.render();
         };
-        for (attempt, list) in [false, false, true].into_iter().enumerate() {
+        for list in [false, true] {
+            editor.project_browser.prefs.list = list;
+            frame(&mut context, &mut editor);
+            frame(&mut context, &mut editor);
+            let reason = editor
+                .project_browser
+                .previews
+                .playback_blocker(&path)
+                .unwrap();
+            assert!(reason.contains("Assign a SoundBank"), "{reason}");
+            let position =
+                CONTROLS.with(|buttons| buttons.borrow()["Play##assets/unsupported.epokasset"]);
+            context.io_mut().add_mouse_pos_event(position);
+            frame(&mut context, &mut editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(MouseButton::Left, true);
+            frame(&mut context, &mut editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(MouseButton::Left, false);
+            frame(&mut context, &mut editor);
+            assert!(!editor.project_browser.previews.active(&path));
+            assert!(
+                editor.logs.is_empty(),
+                "A disabled control cannot start a failing worker"
+            );
+        }
+        let record = editor
+            .assets
+            .index
+            .assets
+            .values()
+            .flatten()
+            .find(|r| r.path == path)
+            .unwrap();
+        let mut settings = record.meta.settings.sequence().unwrap().clone();
+        settings.sound_bank = Some(bank);
+        assets::commit(
+            crate::sequence::prepare(
+                &root,
+                "",
+                "assets/unsupported.epokasset",
+                settings,
+                Some(record),
+                true,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let original = fs::read(&path).unwrap();
+        editor.assets.index = assets::scan(&root, &mut Default::default());
+        editor
+            .project_browser
+            .previews
+            .configure(&root, &editor.assets.index);
+        assert!(
+            editor
+                .project_browser
+                .previews
+                .playback_blocker(&path)
+                .is_none()
+        );
+        for list in [false, false, true] {
             editor.project_browser.prefs.list = list;
             frame(&mut context, &mut editor);
             frame(&mut context, &mut editor);
@@ -3434,8 +3507,8 @@ mod tests {
             }
             assert_eq!(
                 editor.logs.len(),
-                attempt + 1,
-                "Exactly one Console entry per Play attempt"
+                1,
+                "A known playback failure disables further attempts in both views"
             );
             let message = editor.logs.last().unwrap();
             assert!(
@@ -3450,6 +3523,14 @@ mod tests {
                 "Playback errors must not persist in the browser footer"
             );
             assert!(editor.project_browser.previews.error.is_none());
+            assert!(
+                editor
+                    .project_browser
+                    .previews
+                    .playback_blocker(&path)
+                    .unwrap()
+                    .contains("re-export the MIDI")
+            );
         }
         editor.clear_logs();
         for _ in 0..30 {
