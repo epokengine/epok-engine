@@ -969,27 +969,29 @@ fn draw_workspace(
                     e.show_memory_report();
                 }
             });
-            ui.same_line_with_spacing(0., 3.);
-            ui.disabled(!e.playing || e.serial_ui.command_pending, || {
-                if icon(ui, PAUSE, "pause", "Pause / Resume", e.paused) {
-                    e.action("pause");
+            if e.playing {
+                ui.same_line_with_spacing(0., 3.);
+                ui.disabled(e.serial_ui.command_pending, || {
+                    if icon(ui, PAUSE, "pause", "Pause / Resume", e.paused) {
+                        e.action("pause");
+                    }
+                });
+                ui.same_line_with_spacing(0., 1.);
+                if e.active_play_target == crate::play::Target::Serial && e.job.is_some() {
+                    ui.disabled(e.serial_ui.command_pending, || {
+                        if icon(ui, "R", "reset-psx", "Reset PSX (reboot console)", false) {
+                            e.action("serial-reset");
+                        }
+                    });
+                } else {
+                    ui.disabled(!e.paused, || {
+                        if icon(ui, "\u{ead6}", "step", "Advance one PSX frame", false)
+                            && let Some(b) = e.job.as_ref().and_then(|j| j.bridge.as_ref())
+                        {
+                            b.step.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                    });
                 }
-            });
-            ui.same_line_with_spacing(0., 1.);
-            if e.active_play_target == crate::play::Target::Serial && e.job.is_some() {
-                ui.disabled(!e.playing || e.serial_ui.command_pending, || {
-                    if icon(ui, "R", "reset-psx", "Reset PSX (reboot console)", false) {
-                        e.action("serial-reset");
-                    }
-                });
-            } else {
-                ui.disabled(!e.paused, || {
-                    if icon(ui, "\u{ead6}", "step", "Advance one PSX frame", false)
-                        && let Some(b) = e.job.as_ref().and_then(|j| j.bridge.as_ref())
-                    {
-                        b.step.store(true, std::sync::atomic::Ordering::Relaxed);
-                    }
-                });
             }
             ui.same_line_with_pos(size[0] - 270.);
             if ui.button("Build") {
