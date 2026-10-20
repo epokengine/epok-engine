@@ -1117,13 +1117,14 @@ pub fn close_project_dialog(ui: &imgui::Ui, editor: &mut Editor) {
     ui.modal_popup_config("Close project?")
         .always_auto_resize(true)
         .build(|| {
-            ui.text("Save scene and Blueprint changes before returning to Projects?");
+            ui.text("Save scene, source and Blueprint changes before returning to Projects?");
             if ui.button("Save and close") && editor.save_all() {
                 editor.return_to_hub = true;
                 ui.close_current_popup();
             }
             ui.same_line();
             if ui.button("Discard changes") {
+                editor.script_editor.discard();
                 editor.blueprint_editor.discard();
                 editor.return_to_hub = true;
                 ui.close_current_popup();

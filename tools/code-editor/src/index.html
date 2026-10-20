@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Epok Code</title>
+        <link rel="stylesheet" href="app.css" />
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <header>
+            <strong>CODE</strong
+            ><select id="new-source" aria-label="Create source">
+                <option value="">New…</option>
+                <option value="lua">Lua Class…</option>
+                <option value="cpp">C++ Class…</option>
+                <option value="pocket">Pocket Assembly</option></select
+            ><button id="save" title="Save active file (Ctrl+S)">Save</button
+            ><button id="save-all" title="Save all files (Ctrl+Shift+S)">
+                Save All</button
+            ><button
+                id="external"
+                title="Open active source in external VS Code"
+            >
+                External</button
+            ><button id="refresh" title="Refresh script tree">↻</button
+            ><span id="project"></span
+            ><button
+                id="chat-toggle"
+                aria-expanded="false"
+                aria-controls="chat"
+            >
+                Copilot Chat</button
+            ><button id="settings-open">⚙ Setup</button>
+        </header>
+        <main>
+            <aside>
+                <input
+                    id="filter"
+                    aria-label="Filter scripts"
+                    placeholder="Find script…"
+                />
+                <div id="tree" role="tree" aria-label="Project scripts"></div>
+            </aside>
+            <section id="workspace">
+                <nav id="tabs" aria-label="Open files"></nav>
+                <div id="editor"></div>
+                <div id="welcome">
+                    <h2>Your project’s code</h2>
+                    <p>Open Lua, C++ or PocketStation source from the tree.</p>
+                    <p>
+                        Ctrl+Space · Complete　F12 · Definition　Ctrl+S · Save
+                    </p>
+                    <button id="welcome-setup">Set up language services</button>
+                </div>
+                <div id="problems" hidden></div>
+            </section>
+            <section
+                id="chat"
+                hidden
+                aria-label="GitHub Copilot chat"
+                data-state="idle"
+            >
+                <div class="chat-heading">
+                    <strong>GitHub Copilot</strong
+                    ><button id="chat-new">New chat</button
+                    ><button id="chat-close" aria-label="Close chat">×</button>
+                </div>
+                <div class="chat-toolbar">
+                    <button id="chat-connect">Connect</button
+                    ><button id="chat-signin">Sign in</button
+                    ><button id="chat-setup">Setup</button>
+                </div>
+                <p id="chat-status" role="status">
+                    Connect to start a conversation
+                </p>
+                <div
+                    id="chat-messages"
+                    role="log"
+                    aria-label="Conversation"
+                ></div>
+                <div id="chat-permissions"></div>
+                <label class="chat-context"
+                    ><input id="chat-context" type="checkbox" checked />Include
+                    current file or selection</label
+                >
+                <textarea
+                    id="chat-input"
+                    aria-label="Message to Copilot"
+                    placeholder="Ask Copilot… (Shift+Enter for a new line)"
+                    maxlength="32000"
+                    rows="4"
+                ></textarea>
+                <div class="chat-compose-actions">
+                    <button id="chat-stop" disabled>Stop</button
+                    ><button id="chat-send">Send</button>
+                </div>
+            </section>
+        </main>
+        <footer>
+            <span id="message" role="status">Starting Monaco…</span
+            ><button id="problems-toggle">Problems</button
+            ><span id="position"></span><span id="language"></span
+            ><button id="copilot-status">Copilot off</button>
+        </footer>
+        <dialog id="setup">
+            <form method="dialog">
+                <h2>Code Editor Setup</h2>
+                <p>
+                    Language services run locally. Monaco and file editing work
+                    offline.
+                </p>
+                <div id="tool-settings"></div>
+                <label
+                    ><input type="checkbox" id="copilot-enabled" />Enable GitHub
+                    Copilot suggestions for code</label
+                >
+                <p id="auth-status"></p>
+                <div class="actions">
+                    <button type="button" id="copilot-signin">
+                        Sign in to GitHub</button
+                    ><button type="button" id="copilot-signout">
+                        Sign out
+                    </button>
+                </div>
+                <p id="setup-status" role="status"></p>
+                <div class="actions">
+                    <button type="button" id="detect">Auto-detect tools</button
+                    ><button type="button" id="apply-settings">Apply</button
+                    ><button>Close</button>
+                </div>
+            </form>
+        </dialog>
+        <dialog id="confirm-close">
+            <h2>Unsaved changes</h2>
+            <p id="close-message"></p>
+            <div class="actions">
+                <button id="close-save">Save & Close</button
+                ><button id="close-discard">Discard</button
+                ><button id="close-cancel">Cancel</button>
+            </div>
+        </dialog>
+        <dialog id="server-message">
+            <h2 id="server-message-title"></h2>
+            <p id="server-message-text"></p>
+            <div id="server-message-actions" class="actions"></div>
+        </dialog>
+        <script type="module" src="app.js"></script>
+    </body>
+</html>

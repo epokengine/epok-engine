@@ -12,6 +12,7 @@ Epok's original source code is MIT licensed. This does not replace the licenses 
 | Font Awesome Free desktop font | Fonticons, Inc.; SIL Open Font License 1.1 for the font | [Font Awesome license](resources/editor/LICENSE-fontawesome.txt) |
 | Hand-Painted Watercolor Terrain Textures | Jonas Voland, distributed by Voxel Core Lab GmbH; Creative Commons Zero 1.0 Universal (CC0), attribution not required | [Terrain texture licence](resources/terrain/LICENSE-watercolor-terrain.txt) |
 | mig68000 HUD bitmap font | Zingot Games; attribution retained from the pinned PsyQo source, author lists FontPack as CC BY 4.0 | [HUD font notice](resources/editor/LICENSE-psx-font.txt) |
+| Monaco Editor, version 0.55.1 | Microsoft and contributors; MIT | [Monaco license](resources/code-editor/LICENSE-monaco.txt), [third-party notices](resources/code-editor/ThirdPartyNotices-monaco.txt) |
 
 Codicons legal notices distinguish content from code: https://github.com/microsoft/vscode-codicons#legal-notices
 

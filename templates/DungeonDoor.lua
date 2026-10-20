@@ -9,7 +9,9 @@ local DungeonDoor = epok.ActorComponent:extend()
 DungeonDoor.lock = epok.UInt32(0)
 DungeonDoor.key = epok.ActorRef()
 
+-- The reflected tick signature requires this unused delta_seconds parameter.
 ---@override
+---@diagnostic disable-next-line: unused-local
 function DungeonDoor:tick(delta_seconds)
     -- Keys and doors are 3D or 2D actors; calls need their concrete class.
     local key3d = epok.cast(self.key, "epok::Actor3D")

@@ -87,6 +87,14 @@ pub fn run(
         })
         .transpose()?
         .unwrap_or([1440, 900]);
+    #[cfg(target_os = "linux")]
+    let event_loop = {
+        // Wry's native child WebView uses GTK/X11 with winit. This also works
+        // through XWayland on Wayland desktops.
+        use winit::platform::x11::EventLoopBuilderExtX11;
+        EventLoop::builder().with_x11().build()?
+    };
+    #[cfg(not(target_os = "linux"))]
     let event_loop = EventLoop::new()?;
     let (brand_pixels, brand_width, brand_height) = crate::branding::pixels()?;
     let app_icon = winit::window::Icon::from_rgba(brand_pixels.clone(), brand_width, brand_height)?;
@@ -587,6 +595,7 @@ pub fn run(
     // A hidden Win32 window may not receive paint events. Show the compact
     // window after GPU setup so the event loop can present its first splash.
     window.set_visible(true);
+    let mut code_view = crate::script_editor::Native::default();
     #[allow(deprecated)]
     event_loop.run(move |event, target| {
         target.set_control_flow(ControlFlow::WaitUntil(next_frame));
@@ -618,6 +627,7 @@ pub fn run(
                 if let Some(editor)=session.as_mut(){editor.input_mouse_motion([delta.0 as f32,delta.1 as f32]);}
             }
             Event::AboutToWait => {
+                code_view.pump();
                 if let (Some(gamepads),Some(editor))=(gamepads.as_mut(),session.as_mut()) {
                     while let Some(event)=gamepads.next_event() { match event.event {
                         gilrs::EventType::ButtonPressed(button,_)=>editor.input_gamepad_button(format!("{button:?}"),true),
@@ -676,6 +686,7 @@ pub fn run(
                 editor.blueprint_editor.set_action_menu_fonts(action_menu_fonts);
                 if profile {editor.view.yaw+=0.008;editor.view_dirty=true;}
                 editor.tick();
+                crate::script_editor::tick(editor);
                 crate::mcp::tick(editor);
                 frame_mark("editor and MCP tick");
                 if let Some(game) = &editor.game_frame {
@@ -846,6 +857,10 @@ pub fn run(
                     loading.draw(ui, lockup_texture_id, splash_texture_id);
                 } else { opened = hub.draw(ui); }
                 platform.prepare_render(ui, &window);
+                let code_scale = ui.io().display_framebuffer_scale;
+                let code_popup = unsafe { imgui::sys::igIsPopupOpen_ID(0,
+                    (imgui::sys::ImGuiPopupFlags_AnyPopupId | imgui::sys::ImGuiPopupFlags_AnyPopupLevel) as i32) };
+                code_view.sync(&window, session.as_mut(), code_scale, code_popup);
                 frame_mark("UI draw");
                 let capture_look=session.as_ref().is_some_and(|e|e.scene_look && !e.scene_2d() && !e.hub_requested && !e.close_requested && !e.should_close && !e.return_to_hub);
                 update_look_cursor(look_captured, capture_look, |visible| window.set_cursor_visible(visible));
@@ -1038,6 +1053,10 @@ pub fn run(
                             let mut editor = Editor::open_prepared(ready.project)?;
                             if let Some(warning) = ready.warning { editor.log(warning); }
                             crate::prepare_editor(&mut editor);
+                            if let Some(pair)=args.windows(2).find(|pair|pair[0]=="--open-code") {
+                                let path=editor.root.join(&pair[1]);
+                                editor.open_code(&path,Some(1));
+                            }
                             Ok(editor)
                         });
                         loading = None;

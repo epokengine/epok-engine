@@ -18,7 +18,7 @@ and line; **Clear** empties the log. New output preserves the selection when app
 
 ## Scene navigation
 
-The Hierarchy, Scene, Game, Inspector, Project and Console panels can be docked inside the editor window. Layout is stored in the selected project's `UserSettings/editor-layout-v2.ini`. Use Layout > Default or Window > Reset Layout to restore the initial arrangement. Use File > Projects to save/close the current project and create or open another.
+The Hierarchy, Scene, Game, Code, Inspector, Project and Console panels can be docked inside the editor window. **Window > Code Editor** opens the integrated [Lua/C++ workspace](code-editor.md) with a script tree, tabs and language service setup. Layout is stored in the selected project's `UserSettings/editor-layout-v2.ini`. Use Layout > Default or Window > Reset Layout to restore the initial arrangement. Use File > Projects to save/close the current project and create or open another.
 
 Editor panels and tool windows share a charcoal theme with blue selection and focus accents. Toolbars wrap when space is limited; Inspector labels move above their fields in narrow panels. Project uses a Content Browser with a folder tree, gold folder tiles, breadcrumbs, Favorites and Collections. Settings switches between tiles and a table with asset types and paths. Hover truncated names or status messages to read them in full. The skeletal preview expands with its window. See [Content Browser](content-browser.md) for navigation and file operations.
 

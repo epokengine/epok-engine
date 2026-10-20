@@ -101,7 +101,7 @@ struct Named {
 /// The LuaLS spelling of a reflected type.
 fn lua_type(registry: &Registry, ty: &Type, named: &mut Named) -> String {
     let reference = |kind: &str, class: Option<&String>| match referenced(registry, class) {
-        Some(name) => format!("{kind}<{name}>"),
+        Some(name) => format!("{name}.Ref"),
         None => kind.to_string(),
     };
     match ty {
@@ -133,13 +133,41 @@ fn lua_type(registry: &Registry, ty: &Type, named: &mut Named) -> String {
 }
 
 /// The type of the object's own reference, by the family it resolves to.
-fn self_reference(registry: &Registry, cpp_name: &str) -> String {
+fn reference_family(registry: &Registry, cpp_name: &str) -> String {
     let name = lua_name(cpp_name);
     match crate::object_model::resolved_shape(registry, cpp_name).0 {
         schema::ClassFamily::Actor => format!("ActorRef<{name}>"),
         schema::ClassFamily::Component => format!("ComponentRef<{name}>"),
         _ => format!("ObjectRef<{name}>"),
     }
+}
+
+/// LuaLS cannot inherit the members of a generic type parameter (`Ref<T>: T`).
+/// Publish a concrete reference surface per class, containing the same public
+/// callable methods that the Lua frontend accepts on a foreign receiver.
+fn method_type(
+    registry: &Registry,
+    function: &schema::Function,
+    receiver: &str,
+    named: &mut Named,
+) -> String {
+    let mut parameters = vec![format!("self: {receiver}")];
+    for (index, parameter) in function.parameters.iter().enumerate() {
+        parameters.push(format!(
+            "{}: {}",
+            parameter_name(&parameter.name, index),
+            lua_type(registry, &parameter.value_type, named)
+        ));
+    }
+    let mut signature = format!("fun({})", parameters.join(", "));
+    if function.returns != Type::Void {
+        let _ = write!(
+            signature,
+            ": {}",
+            lua_type(registry, &function.returns, named)
+        );
+    }
+    signature
 }
 
 /// A Lua parameter name for a reflected parameter, including the unnamed ones
@@ -162,6 +190,7 @@ fn parameter_name(name: &str, index: usize) -> String {
 pub fn render(registry: &Registry) -> String {
     let mut named = Named::default();
     let mut classes = String::new();
+    let mut references = String::new();
     let mut taken = BTreeSet::new();
     // Lua type name -> the file-local table that carries it, so every class can
     // also be named as a *value*: `epok.Actor3D:extend()` and `EnemyBase:extend()`
@@ -209,8 +238,7 @@ pub fn render(registry: &Registry) -> String {
         }
         let _ = writeln!(
             classes,
-            "---@field ref {} This object's own typed reference.",
-            self_reference(registry, &class.cpp_name)
+            "---@field ref {name}.Ref This object's own typed reference."
         );
         // Only a Lua class has a qualified parent receiver: `Cube.super.tick`
         // is the declaration form's replacement for a dynamic `super` value.
@@ -241,6 +269,25 @@ pub fn render(registry: &Registry) -> String {
                 }
             );
         }
+        let mut functions = class
+            .functions
+            .iter()
+            .filter(|f| f.callable || f.event)
+            .collect::<Vec<_>>();
+        functions.sort_by(|a, b| a.name.cmp(&b.name).then(a.id.cmp(&b.id)));
+        let lua_class = class.provider == crate::lua_asset::provider();
+        if lua_class {
+            // The actual Lua source already supplies the function bodies.
+            // Assigning another body here produces duplicate-set-field in it.
+            for function in &functions {
+                let _ = writeln!(
+                    classes,
+                    "---@field {} {}",
+                    function.name,
+                    method_type(registry, function, &name, &mut named)
+                );
+            }
+        }
         let _ = writeln!(classes, "local {local} = {{}}\n");
         // The declaration form: `local Cube = epok.Actor3D:extend()`. It is
         // declared once on the hierarchy root and inherited by every class, and
@@ -257,13 +304,12 @@ pub fn render(registry: &Registry) -> String {
             );
         }
         bindings.push((lua_name(&class.cpp_name), local.clone()));
-        let mut functions = class
-            .functions
-            .iter()
-            .filter(|f| f.callable || f.event)
-            .collect::<Vec<_>>();
-        functions.sort_by(|a, b| a.name.cmp(&b.name).then(a.id.cmp(&b.id)));
         for function in functions {
+            if lua_class || fields.contains(&function.name) {
+                // Intrinsic places reserve their name on self (notably 2D
+                // rotation). The native getter remains available on `.Ref`.
+                continue;
+            }
             if function.event {
                 let _ = writeln!(
                     classes,
@@ -295,6 +341,42 @@ pub fn render(registry: &Registry) -> String {
                 parameters.join(", ")
             );
         }
+
+        let reference = format!("{name}.Ref");
+        let mut bases = vec![];
+        if let Some(parent) = &parent {
+            bases.push(format!("{parent}.Ref"));
+        }
+        bases.push(reference_family(registry, &class.cpp_name));
+        let _ = writeln!(references, "---@class {reference} : {}", bases.join(", "));
+        for property in &class.properties {
+            if registry
+                .operation(&format!("{}:get", property.id))
+                .is_some()
+            {
+                let _ = writeln!(
+                    references,
+                    "---@field {} {}",
+                    property.name,
+                    lua_type(registry, &property.value_type, &mut named)
+                );
+            }
+        }
+        let mut callable = class
+            .functions
+            .iter()
+            .filter(|function| function.callable && function.access == "public")
+            .collect::<Vec<_>>();
+        callable.sort_by(|a, b| a.name.cmp(&b.name).then(a.id.cmp(&b.id)));
+        for function in callable {
+            let _ = writeln!(
+                references,
+                "---@field {} {}",
+                function.name,
+                method_type(registry, function, &reference, &mut named)
+            );
+        }
+        references.push('\n');
     }
 
     // Gameplay service completion is generated from the same operation
@@ -402,10 +484,38 @@ pub fn render(registry: &Registry) -> String {
         out.push('\n');
     }
     out.push_str(&classes);
+    out.push_str(&references);
     out.push_str(NAMESPACE);
+    out.push_str(&cast_builtin(registry));
     out.push_str("\n-- Catalog-generated Gameplay v2 services.\n");
     out.push_str(&services);
     out.push_str(&namespace_bindings(&bindings));
+    out
+}
+
+/// The compiler resolves a cast's class-name literal to a concrete reference.
+/// LuaLS cannot infer that mapping from a string parameter, so publish disjoint
+/// literal overloads from the registry, including project Lua/Blueprint classes.
+fn cast_builtin(registry: &Registry) -> String {
+    let mut out = String::from(
+        "\n--- The reference narrowed to `class`, or null when it is not that class.\n",
+    );
+    let mut classes = registry.classes.values().collect::<Vec<_>>();
+    classes.sort_by(|a, b| a.cpp_name.cmp(&b.cpp_name).then(a.id.cmp(&b.id)));
+    for class in classes {
+        let _ = writeln!(
+            out,
+            "---@overload fun(reference: ObjectRef, class: \"{}\"): {}.Ref",
+            class.cpp_name,
+            lua_name(&class.cpp_name)
+        );
+    }
+    out.push_str(
+        "---@param reference ObjectRef|ActorRef|ComponentRef\n\
+         ---@param class string\n\
+         ---@return ObjectRef|ActorRef|ComponentRef\n\
+         function epok.cast(reference, class) end\n",
+    );
     out
 }
 
@@ -439,6 +549,10 @@ fn namespace_bindings(bindings: &[(String, String)]) -> String {
         let _ = writeln!(out, "{namespace} = {{}}");
     }
     for (name, local) in bindings {
+        // Class values carry both the instance and reference types. A generic
+        // constructor can then infer the exact reference without merging all
+        // matching base-class overloads into a union.
+        let _ = writeln!(out, "---@type epok.ClassValue<{name}, {name}.Ref>");
         let _ = writeln!(out, "{name} = {local}");
     }
     out
@@ -471,6 +585,11 @@ const HEADER: &str = "\
 ";
 
 const PRIMITIVES: &str = "\
+-- Metadata for class operands such as `epok.ComponentRef(epok.Mesh3DComponent)`.
+---@class epok.ClassValue<T, R>
+---@field ref R
+---@field extend fun(self: epok.ClassValue<T, R>): T
+
 -- The epok value vocabulary. `Fixed` is the Q12 fixed-point scalar; it is a
 -- Lua number here because LuaLS has no fixed-point kind of its own.
 ---@alias Fixed number
@@ -487,11 +606,12 @@ const PRIMITIVES: &str = "\
 ---@field y Fixed
 ---@field z Fixed
 
--- Persistent authoring identities. A reference is opaque: it is passed to a
--- builtin or a reflected call, never decomposed.
+-- Persistent authoring identities. Concrete `.Ref` types below expose the
+-- reflected methods and properties accepted by the compiler on references.
+-- Actor and component identities are also valid object identities.
 ---@class ObjectRef<T>
----@class ActorRef<T>
----@class ComponentRef<T>
+---@class ActorRef<T> : ObjectRef<T>
+---@class ComponentRef<T> : ObjectRef<T>
 
 -- 64-bit native handles. They are declarable and Inspector-editable, and in a
 -- body they may only be named as the direct operand of a builtin.
@@ -553,16 +673,20 @@ function epok.Vector3(x, y, z) end
 function epok.Enum(enumeration, variant) end
 
 --- An actor reference, optionally narrowed to a class written unquoted.
----@param class? any
----@return ActorRef
+--- Class values preserve the concrete reference type for LuaLS inference.
+---@generic R: ActorRef
+---@param class? epok.ClassValue<any, R>
+---@return R
 function epok.ActorRef(class) end
 
----@param class? any
----@return ComponentRef
+---@generic R: ComponentRef
+---@param class? epok.ClassValue<any, R>
+---@return R
 function epok.ComponentRef(class) end
 
----@param class? any
----@return ObjectRef
+---@generic R: ObjectRef
+---@param class? epok.ClassValue<any, R>
+---@return R
 function epok.ObjectRef(class) end
 
 --- An asset reference of one imported asset kind, such as \"Mesh\".
@@ -618,12 +742,6 @@ function epok.is_valid(reference) end
 ---@param class string
 ---@return Bool
 function epok.is_a(reference, class) end
-
---- The reference narrowed to `class`, or null when it is not that class.
----@param reference ObjectRef|ActorRef|ComponentRef
----@param class string
----@return ObjectRef|ActorRef|ComponentRef
-function epok.cast(reference, class) end
 
 --- Creates an instance of a concrete, spawnable actor class. The spawn is
 --- queued, so the returned reference is not live until the current batch ends.
@@ -869,6 +987,22 @@ mod tests {
         );
         assert!(stub.contains("---@class Turret : Spinner\n"), "{stub}");
         assert!(stub.contains("---@class epok.Object\n"), "{stub}");
+        // Class-name literals preserve the concrete foreign reference for
+        // native, Lua and Blueprint classes, including inherited methods.
+        for name in ["epok::Actor3D", "Spinner", "Turret"] {
+            assert!(
+                stub.contains(&format!(
+                    "---@overload fun(reference: ObjectRef, class: \"{name}\"): {}.Ref",
+                    lua_name(name)
+                )),
+                "{stub}"
+            );
+        }
+        assert_eq!(
+            stub.matches("function epok.cast(reference, class) end")
+                .count(),
+            1
+        );
 
         // Own properties only, typed in the epok vocabulary.
         let spinner = block(&stub, "Spinner");
@@ -898,26 +1032,23 @@ mod tests {
         assert!(!object.contains("---@field rect_position"), "{object}");
 
         // The object's own reference is typed by its family.
+        assert!(spinner.contains("---@field ref Spinner.Ref"), "{spinner}");
         assert!(
-            spinner.contains("---@field ref ActorRef<Spinner>"),
-            "{spinner}"
-        );
-        assert!(
-            block(&stub, "epok.ActorComponent").contains("---@field ref ComponentRef<"),
+            block(&stub, "epok.ActorComponent").contains("---@field ref epok.ActorComponent.Ref"),
             "{stub}"
         );
-        assert!(
-            object.contains("---@field ref ObjectRef<epok.Object>"),
-            "{object}"
-        );
+        assert!(object.contains("---@field ref epok.Object.Ref"), "{object}");
 
         // Signatures: parameters, returns, a resolved reference class, and the
         // overridable event marked as one.
         assert!(
-            stub.contains("---@param target ActorRef<epok.Actor3D>\n---@return Bool\n"),
+            stub.contains("---@field aim fun(self: Spinner, target: epok.Actor3D.Ref): Bool"),
             "{stub}"
         );
-        assert!(stub.contains(":aim(target) end"), "{stub}");
+        assert!(
+            !stub.contains(":aim(target) end"),
+            "Lua source supplies the method body"
+        );
         assert!(stub.contains("---@param active Bool\nfunction "), "{stub}");
         assert!(
             stub.contains("--- Event: declare `function") && stub.contains(":tick(...)"),

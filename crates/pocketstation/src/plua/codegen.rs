@@ -282,6 +282,65 @@ const NAMESPACES: &[&str] = &[
 ];
 const LIFECYCLE: &[&str] = &["init", "update", "draw"];
 
+/// LuaLS definitions derived from the same library table used by the compiler.
+/// Pocket Lua has its own workspace so its screen/button APIs never pollute
+/// gameplay Lua's `epok` vocabulary.
+pub fn language_definitions() -> String {
+    use std::fmt::Write;
+    fn annotation(ty: Ty) -> &'static str {
+        match ty {
+            Int => "integer",
+            Bool => "boolean",
+            Sprite => "PocketSprite",
+            Tune => "PocketTune",
+            Table => "table",
+            Array => "integer[]",
+            Str => "string",
+            Void => "nil",
+        }
+    }
+    let mut out = String::from(
+        "---@meta\n-- Generated from the Pocket Lua compiler's builtin registry.\n---@class PocketSprite\n---@class PocketTune\n",
+    );
+    for name in NAMESPACES {
+        let _ = writeln!(out, "{name} = {{}}\n");
+    }
+    for (name, value) in CONSTANTS {
+        let _ = writeln!(out, "---@type integer\n{name} = {value}\n");
+    }
+    for builtin in BUILTINS {
+        let mut parameters = Vec::new();
+        for (index, ty) in builtin.params.iter().enumerate() {
+            let name = format!("arg{}", index + 1);
+            let _ = writeln!(out, "---@param {name} {}", annotation(*ty));
+            parameters.push(name);
+        }
+        for (index, (ty, _)) in builtin.optional.iter().enumerate() {
+            let name = format!("arg{}", builtin.params.len() + index + 1);
+            let _ = writeln!(out, "---@param {name}? {}", annotation(*ty));
+            parameters.push(name);
+        }
+        if builtin.ret != Void {
+            let _ = writeln!(out, "---@return {}", annotation(builtin.ret));
+        }
+        let _ = writeln!(
+            out,
+            "function {}({}) end\n",
+            builtin.name,
+            parameters.join(", ")
+        );
+    }
+    out.push_str("---@param ... any\nfunction print(...) end\n---@param size integer\n---@return integer[]\nfunction array(size) end\n");
+    out.push_str("---@param name_or_pixels string\n---@return PocketSprite\nfunction sprite(name_or_pixels) end\n---@param notes string\n---@return PocketTune\nfunction tune(notes) end\n");
+    for name in LIFECYCLE {
+        let _ = writeln!(
+            out,
+            "-- Called by the PocketStation runtime.\nfunction {name}() end\n"
+        );
+    }
+    out
+}
+
 fn distance(a: &str, b: &str) -> usize {
     let a: Vec<char> = a.chars().collect();
     let b: Vec<char> = b.chars().collect();

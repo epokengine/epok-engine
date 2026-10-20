@@ -818,7 +818,7 @@ fn draw_workspace(
             if ui.menu_item("Create > Lua Class") {
                 e.action("new-lua");
             }
-            if ui.menu_item("Open C++ Project") {
+            if ui.menu_item("Open Code Workspace") {
                 e.open_code(&e.root.join("assets"), None);
             }
         });
@@ -860,6 +860,13 @@ fn draw_workspace(
         });
         build_menu(ui, e);
         ui.menu("Window", || {
+            if ui.menu_item("Code Editor") {
+                e.open_code(&e.root.join("assets/scripts"), None);
+            }
+            if ui.menu_item("Code Editor Setup") {
+                e.open_code(&e.root.join("assets/scripts"), None);
+                e.script_editor.setup_requested = true;
+            }
             if ui.menu_item("Artifact Dependencies") {
                 e.artifact_dependencies.open = true;
             }
@@ -1077,6 +1084,7 @@ fn draw_workspace(
                     (c"\u{ea74} Inspector###Inspector", inspector),
                     (c"\u{eb29} Scene###Scene", main),
                     (c"\u{ec17} Game###Game", main),
+                    (c"Code###CodeEditor", main),
                     (c"\u{eb30} Project###Project", bottom),
                     (c"\u{eb9b} Console###Console", console),
                 ] {
@@ -1128,6 +1136,9 @@ fn draw_workspace(
             imgui::sys::igSetWindowFocus_Str(c"\u{eb30} Project###Project".as_ptr());
         }
     }
+    // Explicit source requests take precedence over the initial Scene/Project
+    // selection, including when a project starts with --open-code.
+    crate::script_editor::draw(ui, e);
     ui.window("Status")
         .position([0., size[1] - status_height], Condition::Always)
         .size([size[0], status_height], Condition::Always)
@@ -1218,6 +1229,7 @@ fn draw_workspace(
             }
             ui.same_line();
             if ui.button("Discard") {
+                e.script_editor.discard();
                 e.blueprint_editor.discard();
                 e.timeline_editor.discard();
                 e.should_close = true;

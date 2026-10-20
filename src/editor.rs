@@ -6,7 +6,6 @@ use crate::{
 };
 use std::{
     path::{Path, PathBuf},
-    process::Command,
     time::{Duration, Instant},
 };
 
@@ -223,6 +222,7 @@ pub struct Editor {
     pub tool: usize,
     pub project_search: String,
     pub project_browser: crate::project_browser::State,
+    pub script_editor: crate::script_editor::State,
     pub selected_asset: Option<PathBuf>,
     pub asset_inspector: crate::asset_inspector::State,
     /// The proportional face the property editor draws with, supplied once the
@@ -706,6 +706,7 @@ impl Editor {
             memory: Default::default(),
             export_ui: Default::default(),
             preferences: preferences.clone(),
+            script_editor: Default::default(),
             play_profile: crate::play::Profile::load(&root).unwrap_or_default(),
             play_warning: None,
             active_play_runtime: Default::default(),
@@ -1897,12 +1898,17 @@ impl Editor {
         // An embedded scene Blueprint is never separately unsaved: its edits are
         // the map's, and `dirty` already reports them.
         self.dirty
+            || self.script_editor.dirty()
             || (!self.blueprint_editor.is_embedded() && self.blueprint_editor.dirty())
             || self.timeline_editor.dirty()
     }
     pub fn save_all(&mut self) -> bool {
         if self.critical_busy() {
             self.log("Wait for the current operation before saving.");
+            return false;
+        }
+        if let Err(error) = crate::script_editor::save_all(self) {
+            self.log(format!("Source save failed: {error}"));
             return false;
         }
         if self.timeline_editor.dirty()
@@ -2063,6 +2069,12 @@ impl Editor {
         Ok(())
     }
     pub fn open_code(&mut self, path: &Path, line: Option<usize>) {
+        if let Err(error) = crate::script_editor::open(self, path, line) {
+            self.last_error = Some(error.clone());
+            self.log(error);
+        }
+    }
+    pub fn open_external_code(&mut self, path: &Path, line: Option<usize>) {
         let result = (|| -> Result<(), String> {
             let config = project::Config::load(&self.root)?;
             let exe = if !config.code.is_empty() {
@@ -2075,15 +2087,7 @@ impl Editor {
             } else {
                 PathBuf::from("code")
             };
-            let mut command = Command::new(exe);
-            command.arg("--reuse-window").arg(&self.root);
-            if let Some(line) = line {
-                command
-                    .arg("--goto")
-                    .arg(format!("{}:{line}", path.display()));
-            } else {
-                command.arg(path);
-            }
+            let mut command = crate::code_editor::command(&exe, &self.root, path, line);
             pipeline::quiet(&mut command);
             command
                 .spawn()
@@ -2091,6 +2095,8 @@ impl Editor {
             Ok(())
         })();
         if let Err(e) = result {
+            self.last_error = Some(e.clone());
+            self.focus_console = true;
             self.log(e);
         }
     }

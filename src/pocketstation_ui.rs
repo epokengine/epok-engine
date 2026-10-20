@@ -331,6 +331,10 @@ fn mark_dirty(s: &mut State) {
 
 /// Builds the open app, installs it on the emulated card and starts it.
 pub fn build_and_run(e: &mut Editor) {
+    if let Err(error) = crate::script_editor::save_all(e) {
+        e.pocketstation.error = Some(error);
+        return;
+    }
     store(e);
     ensure_machine(e);
     let s = &mut e.pocketstation;
@@ -645,7 +649,7 @@ pub fn window(ui: &Ui, e: &mut Editor) {
             ui.child_window("ps-left")
                 .size([avail[0] - right - 8., 0.])
                 .build(|| {
-                    editor_tabs(ui, s);
+                    editor_tabs(ui, s, &mut e.script_editor);
                 });
             ui.same_line();
             ui.child_window("ps-right").size([0., 0.]).build(|| {
@@ -814,7 +818,7 @@ fn new_app_popup(ui: &Ui, s: &mut State, create: &mut Option<(Template, String)>
         });
 }
 
-fn editor_tabs(ui: &Ui, s: &mut State) {
+fn editor_tabs(ui: &Ui, s: &mut State, code: &mut crate::script_editor::State) {
     let select = s.select_tab.take();
     if let Some(_bar) = ui.tab_bar("ps-tabs") {
         for (tab, label) in [
@@ -832,7 +836,7 @@ fn editor_tabs(ui: &Ui, s: &mut State) {
             if let Some(_item) = ui.tab_item_with_flags(label, None, flags) {
                 s.tab = tab;
                 match tab {
-                    Tab::Code => code_tab(ui, s),
+                    Tab::Code => code_tab(ui, s, code),
                     Tab::Sprites => sprites_tab(ui, s),
                     Tab::Icons => icons_tab(ui, s),
                     Tab::Settings => settings_tab(ui, s),
@@ -845,7 +849,30 @@ fn editor_tabs(ui: &Ui, s: &mut State) {
 
 // ---------------------------------------------------------------------- code
 
-fn code_tab(ui: &Ui, s: &mut State) {
+fn code_tab(ui: &Ui, s: &mut State, code: &mut crate::script_editor::State) {
+    if let Some(id) = s.app {
+        if code.pocket_app != Some(id) {
+            code.pocket_requested = Some((id, None, s.goto_line.take().map(|l| l as usize)));
+            code.pocket_app = Some(id);
+        } else if let Some(line) = s.goto_line.take() {
+            let name = s
+                .doc
+                .as_ref()
+                .and_then(|d| d.files.get(s.file))
+                .map(|f| f.name.clone());
+            code.pocket_requested = Some((id, name, Some(line as usize)));
+        }
+        let position = ui.cursor_screen_pos();
+        let size = ui.content_region_avail();
+        code.region = Some([position[0], position[1], size[0], size[1]]);
+        code.region_owner = unsafe { (*(*imgui::sys::igGetCurrentWindow()).RootWindow).ID };
+        ui.dummy(size);
+        return;
+    }
+    basic_code_tab(ui, s);
+}
+
+fn basic_code_tab(ui: &Ui, s: &mut State) {
     let Some(doc) = &mut s.doc else { return };
     let mut changed = false;
     let mut remove: Option<usize> = None;

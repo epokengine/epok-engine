@@ -42,6 +42,7 @@ mod build_report;
 mod busy_ui;
 mod camera_path;
 mod camera_path_ui;
+mod code_editor;
 mod collision;
 mod collision_editor;
 mod console;
@@ -186,8 +187,12 @@ mod scene_loading;
 mod scene_view_mode;
 mod scene_view_state;
 mod script_backend;
+mod script_editor;
 mod script_ir;
+mod script_lsp;
+mod script_tools;
 mod script_values;
+mod script_workspace;
 mod scripts;
 mod sequence;
 mod sequence_compat;
@@ -280,6 +285,20 @@ fn parse_animation_storage(value: &str) -> Result<skeletal::AnimationStorage, St
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = std::env::args().collect::<Vec<_>>();
+    if let Some(pair) = args
+        .windows(2)
+        .find(|pair| pair[0] == "--install-code-tool")
+    {
+        let path = script_tools::install(&pair[1], |message| println!("{message}"))?;
+        let mut config = script_tools::Config::load();
+        config.set(&pair[1], path.to_string_lossy().into_owned());
+        config.save()?;
+        println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({"tool":pair[1],"path":path}))?
+        );
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--mcp-stdio") {
         return mcp_stdio::run();
     }

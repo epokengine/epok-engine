@@ -392,8 +392,11 @@ override, and **Reset to Inherited** removes the override and restores the
 current class default. Inherited exposed properties occupy their native base
 fields — there is exactly one authoritative representation, not a copy.
 
-The **Edit Lua Class** source action opens the authored `.lua`, never the
-generated C++.
+The **Edit Lua Class** source action opens the authored `.lua` at its declaration
+in Epok's [integrated Monaco editor](code-editor.md), never the generated C++.
+The workspace includes a script tree, tabs, Save All, LuaLS completion and optional
+Copilot. **External** opens a source in VS Code; its executable can still be
+configured with `code` in `Local.epokconfig` or `Editor.epokconfig`.
 
 ### Transform access
 

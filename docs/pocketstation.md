@@ -186,7 +186,7 @@ device.
 
 | Tab or panel | What it does |
 | --- | --- |
-| Code | Sources with a monospaced font; **+ Assembly file** adds routines callable from Pocket Lua |
+| Code | Integrated [Monaco editor](code-editor.md) with tabs, source tree and PocketLua completion; **New > Pocket Assembly** adds routines callable from Pocket Lua |
 | Sprites | Pixel editor with frames and an animated preview; left button draws, right button erases |
 | Icons | The animated 32 × 32 menu icon and the 16 × 16, 16-colour icon of the PlayStation memory card screen |
 | App Settings | Title, memory card file name, flash/RAM use, export to `.mcs` or raw `.bin` for real hardware |

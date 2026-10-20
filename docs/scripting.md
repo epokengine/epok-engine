@@ -8,6 +8,11 @@ Use **New C++ Script** in the Project panel or **Add Component**. Choose an asse
 
 One Behaviour is supported per entity. **Edit > Undo Component Attachment / Redo Component Attachment** restores bindings and values, rejecting intervening scene edits. Undoing attachment does not delete the source asset.
 
+**Edit C++ Class** opens the original declaration in the integrated
+[code editor](code-editor.md). Install clangd from its Setup panel for engine API
+completion, diagnostics and navigation. The same workspace supports Lua,
+PocketLua and optional GitHub Copilot suggestions.
+
 ## Semantic reflection
 
 Build both host binaries with `cargo build --locked --bins` and run dependency setup for pinned libclang 18.1.1. Keep `epok-header-tool` beside the editor. It parses real PsyQo headers using MIPS1/o32/little-endian C++20 settings and the configured MIPS compiler's include directories; it is never linked into the game. Metadata under `.epok/reflection` is invalidated by the extractor, configuration, compiler, and transitively included files. Extraction errors preserve the last cache but prevent stale metadata from building.
