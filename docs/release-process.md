@@ -19,8 +19,16 @@ Before opening a release pull request:
 
 1. Update `VERSION` and `Cargo.toml` to the same new SemVer value.
 2. Update `Cargo.lock` by running `cargo check` or `cargo update -p epok-editor`.
-3. Run `make check` and the relevant integration tests.
-4. Open a pull request from `develop` into `release`.
+3. Update `editor_version` in every shipped example's `.epokproject` descriptor.
+4. Run `make check` and the relevant integration tests.
+5. Open a pull request from `develop` into `release`.
+
+The publication workflow builds both binaries and packages tracked resources,
+runtime sources, templates and examples. The portable installation also includes
+`Editor.epokconfig`, `VERSION` and the Windows dependency Setup scripts and
+manifests. `tools/verify_portable.py` checks the actual ZIP for these required
+files, portable tool paths, matching example versions and unwanted local build
+state before the workflow creates a tag or publishes a release.
 
 ## Local build state
 
