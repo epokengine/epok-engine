@@ -287,7 +287,8 @@ fn display_name(entry: &Entry) -> &str {
 pub const ASSET_ICON_RANGES: &[u32] = &[
     0xf001, 0xf001, 0xf008, 0xf008, 0xf031, 0xf031, 0xf03d, 0xf03e, 0xf042, 0xf042, 0xf06d, 0xf06d,
     0xf07b, 0xf07b, 0xf0e8, 0xf0e8, 0xf10b, 0xf10b, 0xf121, 0xf121, 0xf15b, 0xf15b, 0xf1b2, 0xf1b2,
-    0xf279, 0xf279, 0xf550, 0xf550, 0xf5d7, 0xf5d7, 0xf6d9, 0xf6d9, 0xf70e, 0xf70e, 0,
+    0xf279, 0xf279, 0xf550, 0xf550, 0xf5d7, 0xf5d7, 0xf6d9, 0xf6d9, 0xf6fc, 0xf6fc, 0xf70e, 0xf70e,
+    0,
 ];
 fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
     match kind {
@@ -311,6 +312,8 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         "Dungeon Style" => ("\u{f6d9}", [0.72, 0.62, 0.48, 1.]),
         "Dungeon Recipe" => ("\u{f70e}", [0.80, 0.56, 0.40, 1.]),
         "Source" => ("\u{f121}", [0.66, 0.68, 0.71, 1.]),
+        "Tools" => ("\u{f013}", TEXT),
+        "Manage" => ("\u{f303}", TEXT),
         _ => ("\u{f15b}", [0.66, 0.68, 0.71, 1.]),
     }
 }
@@ -518,9 +521,11 @@ pub fn window(ui: &Ui, e: &mut Editor, asset_font: imgui::FontId) {
                             s.selected.clear();
                             e.selected_asset = None;
                         }
-                        if let Some(_popup) = ui.begin_popup_context_window() {
-                            context_menu(ui, e, &mut s, None);
-                        }
+                        menu_style(ui, || {
+                            if let Some(_popup) = ui.begin_popup_context_window() {
+                                context_menu(ui, e, &mut s, None);
+                            }
+                        });
                         if s.focused && !ui.io().want_text_input {
                             shortcuts(ui, e, &mut s, &items);
                         }
@@ -659,7 +664,9 @@ fn toolbar(ui: &Ui, e: &mut Editor, s: &mut State) {
     if tool(ui, "\u{f013} Settings", "View options") {
         ui.open_popup("content-settings");
     }
-    ui.popup("content-add", || creation_menu(ui, e, s));
+    menu_style(ui, || {
+        ui.popup("content-add", || creation_menu(ui, e, s));
+    });
     ui.popup("content-settings", || {
         ui.text_disabled("VIEW");
         if ui.radio_button_bool("Tiles", !s.prefs.list) {
@@ -697,89 +704,173 @@ fn toolbar(ui: &Ui, e: &mut Editor, s: &mut State) {
     });
 }
 
-fn creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
-    if ui.menu_item("SoundBank...") {
-        e.assets.begin_new_bank();
+// Scope the popup chrome before BeginPopup so tree-row spacing never leaks into menus.
+fn menu_style(ui: &Ui, draw: impl FnOnce()) {
+    let _vars = [
+        ui.push_style_var(V::WindowPadding([10., 8.])),
+        ui.push_style_var(V::ItemSpacing([10., 7.])),
+        ui.push_style_var(V::PopupRounding(4.)),
+        ui.push_style_var(V::PopupBorderSize(1.)),
+    ];
+    let _colors = [
+        ui.push_style_color(C::PopupBg, crate::gui::gray(30)),
+        ui.push_style_color(C::Border, crate::gui::gray(63)),
+        ui.push_style_color(C::Separator, crate::gui::gray(53)),
+        ui.push_style_color(C::Text, crate::gui::gray(222)),
+        ui.push_style_color(C::TextDisabled, crate::gui::gray(133)),
+        ui.push_style_color(C::HeaderHovered, [0.12, 0.29, 0.46, 1.]),
+        ui.push_style_color(C::HeaderActive, [0.10, 0.34, 0.57, 1.]),
+    ];
+    draw();
+}
+
+fn menu_item(ui: &Ui, icon: &str, label: &str, shortcut: &str, enabled: bool) -> bool {
+    let position = ui.cursor_screen_pos();
+    let clicked = ui
+        .menu_item_config(format!("      {label}"))
+        .shortcut(shortcut)
+        .enabled(enabled)
+        .build();
+    ui.get_window_draw_list().add_text(
+        position,
+        if enabled { TEXT } else { crate::gui::gray(96) },
+        icon,
+    );
+    clicked
+}
+
+fn asset_menu_item(ui: &Ui, kind: &str, label: &str) -> bool {
+    let (icon, color) = type_icon(kind);
+    let position = ui.cursor_screen_pos();
+    let clicked = menu_item(ui, "", label, "", true);
+    ui.get_window_draw_list().add_text(position, color, icon);
+    clicked
+}
+
+fn submenu(ui: &Ui, kind: &str, label: &str, draw: impl FnOnce()) {
+    let (icon, color) = type_icon(kind);
+    let position = ui.cursor_screen_pos();
+    let draw_list = ui.get_window_draw_list();
+    let menu = ui.begin_menu(format!("      {label}"));
+    draw_list.add_text(position, color, icon);
+    drop(draw_list);
+    if let Some(_menu) = menu {
+        draw();
     }
-    if ui.menu_item("Retro Starter SoundBank (generated triangle)") {
-        e.assets.start_starter_bank();
-    }
-    if ui.menu_item("New Folder") {
+}
+
+fn new_folder_menu_item(ui: &Ui, s: &mut State) {
+    if menu_item(ui, "\u{f07b}", "New Folder", "Ctrl+Shift+N", true) {
         s.new_folder = true;
         s.name = "NewFolder".into();
     }
+}
+
+fn creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
+    ui.text_disabled("CREATE CONTENT");
+    new_folder_menu_item(ui, s);
     ui.separator();
-    if ui.menu_item("C++ Class...") {
-        e.action("new-script");
-    }
-    if ui.menu_item("Blueprint Class...") {
-        e.action("new-blueprint");
-    }
-    if ui.menu_item("Lua Class...") {
-        e.action("new-lua");
-    }
-    if ui.menu_item("Timeline") {
-        if let Err(error) = e.timeline_editor.create(&e.root) {
-            s.error = Some(error);
+    asset_creation_menu(ui, e, s);
+    ui.separator();
+    submenu(ui, "Tools", "Tools", || {
+        timeline_adapters_menu_item(ui, e, s)
+    });
+}
+
+fn asset_creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
+    submenu(ui, "Blueprint", "Blueprints & Scripts", || {
+        if asset_menu_item(ui, "Blueprint", "Blueprint Class...") {
+            e.action("new-blueprint");
         }
-        s.refresh(e);
-    }
-    if ui.menu_item("Particle Effect") {
-        if let Err(error) = e.timeline_editor.create_effect(&e.root) {
-            s.error = Some(error);
+        if asset_menu_item(ui, "Source", "C++ Class...") {
+            e.action("new-script");
         }
-        s.refresh(e);
-    }
-    if ui.menu_item("Terrain") {
-        if let Err(error) = crate::terrain_editor::create(e) {
-            s.error = Some(error);
+        if asset_menu_item(ui, "Lua Class", "Lua Class...") {
+            e.action("new-lua");
         }
-        s.refresh(e);
-    }
-    if ui.menu_item("TileSet") {
-        match crate::tileset_editor::create_empty(e) {
-            Ok(_) => s.refresh(e),
-            Err(error) => s.error = Some(error),
+    });
+    submenu(ui, "Audio", "Audio", || {
+        if asset_menu_item(ui, "SoundBank", "SoundBank...") {
+            e.assets.begin_new_bank();
         }
-    }
-    if ui.menu_item("String Table") {
-        crate::localization_editor::open(e);
-        s.refresh(e);
-    }
-    for (label, two_d) in [("Dungeon Style (3D)", false), ("Dungeon Style (2D)", true)] {
-        if ui.menu_item(label) {
-            let style = crate::dungeon_style::builtin(two_d, None);
-            match crate::dungeon_style_editor::create(e, "DungeonStyle", style) {
+        if asset_menu_item(ui, "SoundBank", "Retro Starter SoundBank") {
+            e.assets.start_starter_bank();
+        }
+        if ui.is_item_hovered() {
+            ui.tooltip_text("A starter bank with an original generated triangle instrument.");
+        }
+    });
+    submenu(ui, "Timeline", "Animation & Effects", || {
+        if asset_menu_item(ui, "Timeline", "Timeline") {
+            if let Err(error) = e.timeline_editor.create(&e.root) {
+                s.error = Some(error);
+            }
+            s.refresh(e);
+        }
+        if asset_menu_item(ui, "Particle Effect", "Particle Effect") {
+            if let Err(error) = e.timeline_editor.create_effect(&e.root) {
+                s.error = Some(error);
+            }
+            s.refresh(e);
+        }
+    });
+    submenu(ui, "Scene", "World Building", || {
+        if asset_menu_item(ui, "Terrain", "Terrain") {
+            if let Err(error) = crate::terrain_editor::create(e) {
+                s.error = Some(error);
+            }
+            s.refresh(e);
+        }
+        if asset_menu_item(ui, "Texture", "TileSet") {
+            match crate::tileset_editor::create_empty(e) {
+                Ok(_) => s.refresh(e),
+                Err(error) => s.error = Some(error),
+            }
+        }
+        ui.separator();
+        for (label, two_d) in [("Dungeon Style (3D)", false), ("Dungeon Style (2D)", true)] {
+            if asset_menu_item(ui, "Dungeon Style", label) {
+                let style = crate::dungeon_style::builtin(two_d, None);
+                match crate::dungeon_style_editor::create(e, "DungeonStyle", style) {
+                    Ok(_) => s.refresh(e),
+                    Err(error) => s.error = Some(error),
+                }
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("What each spot of a generated dungeon becomes: geometry, meshes, actors and lights, or tiles in 2D.");
+            }
+        }
+        if asset_menu_item(ui, "Dungeon Recipe", "Dungeon Recipe") {
+            match crate::dungeon_recipe_editor::create(
+                e,
+                "DungeonRecipe",
+                crate::dungeon_recipe::builtin(),
+            ) {
                 Ok(_) => s.refresh(e),
                 Err(error) => s.error = Some(error),
             }
         }
         if ui.is_item_hovered() {
-            ui.tooltip_text("What each spot of a generated dungeon becomes: geometry, meshes, actors and lights, or tiles in 2D.");
+            ui.tooltip_text("Steps that grow a dungeon's rooms: the main path, branches, loops, items, keys and locks, one-way doors.");
         }
-    }
-    if ui.menu_item("Dungeon Recipe") {
-        match crate::dungeon_recipe_editor::create(
-            e,
-            "DungeonRecipe",
-            crate::dungeon_recipe::builtin(),
-        ) {
-            Ok(_) => s.refresh(e),
-            Err(error) => s.error = Some(error),
+    });
+    submenu(ui, "Font", "Data & Localization", || {
+        if asset_menu_item(ui, "Font", "String Table") {
+            crate::localization_editor::open(e);
+            s.refresh(e);
         }
-    }
-    if ui.is_item_hovered() {
-        ui.tooltip_text("Steps that grow a dungeon's rooms: the main path, branches, loops, items, keys and locks, one-way doors.");
-    }
-    if ui.menu_item("PocketStation App...") {
+    });
+    if asset_menu_item(ui, "PocketStation App", "PocketStation App...") {
         crate::pocketstation_ui::open(e);
         e.pocketstation.new_app();
     }
     if ui.is_item_hovered() {
         ui.tooltip_text("A program for the PocketStation, the memory card with a screen: Pocket Lua or assembly, sprites and icons, with an emulator to play it.");
     }
-    ui.separator();
-    if ui.menu_item("Install Timeline Adapters") {
+}
+
+fn timeline_adapters_menu_item(ui: &Ui, e: &mut Editor, s: &mut State) {
+    if menu_item(ui, "\u{f013}", "Install Timeline Adapters", "", true) {
         match crate::timeline_adapters::install(&e.root) {
             Ok(p) => e.log(p.display().to_string()),
             Err(error) => s.error = Some(error),
@@ -977,9 +1068,11 @@ fn tree(ui: &Ui, e: &mut Editor, s: &mut State, path: &str) {
     if path != "assets" {
         drag_source(ui, s, path);
     }
-    if let Some(_popup) = ui.begin_popup_context_item() {
-        context_menu(ui, e, s, Some(path));
-    }
+    menu_style(ui, || {
+        if let Some(_popup) = ui.begin_popup_context_item() {
+            context_menu(ui, e, s, Some(path));
+        }
+    });
     if let Some(_token) = token {
         for child in children {
             if s.tree_search.is_empty()
@@ -1114,12 +1207,14 @@ fn item_events(
     if entry.folder {
         drop_target(ui, e, s, &entry.path);
     }
-    if let Some(_popup) = ui.begin_popup_context_item() {
-        if !s.selected.contains(&entry.path) {
-            s.selected = BTreeSet::from([entry.path.clone()]);
+    menu_style(ui, || {
+        if let Some(_popup) = ui.begin_popup_context_item() {
+            if !s.selected.contains(&entry.path) {
+                s.selected = BTreeSet::from([entry.path.clone()]);
+            }
+            context_menu(ui, e, s, Some(&entry.path));
         }
-        context_menu(ui, e, s, Some(&entry.path));
-    }
+    });
 }
 fn grid(ui: &Ui, e: &mut Editor, s: &mut State, items: &[Entry], asset_font: imgui::FontId) {
     let tile = s
@@ -1638,55 +1733,94 @@ fn drop_target(ui: &Ui, e: &mut Editor, s: &mut State, folder: &str) {
     }
 }
 fn context_menu(ui: &Ui, e: &mut Editor, s: &mut State, path: Option<&str>) {
+    ui.text_disabled("CREATE CONTENT");
+    new_folder_menu_item(ui, s);
+    if menu_item(ui, "\u{f56f}", "Import...", "", true) {
+        s.request_import = true;
+    }
+    submenu(ui, "Blueprint", "Create Asset", || {
+        asset_creation_menu(ui, e, s)
+    });
+    ui.separator();
     if let Some(path) = path {
         let entry = s.entries.iter().find(|a| a.path == path).cloned();
-        if ui.menu_item("Open")
-            && let Some(entry) = &entry
+        let folder = entry.as_ref().is_none_or(|a| a.folder);
+        ui.text_disabled(if folder {
+            "FOLDER ACTIONS"
+        } else {
+            "ASSET ACTIONS"
+        });
+        if menu_item(ui, "\u{f07c}", "Open", "Enter", true) {
+            if let Some(entry) = &entry {
+                open(e, s, entry);
+            } else if path == "assets" {
+                s.navigate(e, path.into());
+            }
+        }
+        let favorite = s.prefs.favorites.contains(path);
+        if folder
+            && menu_item(
+                ui,
+                "\u{f005}",
+                if favorite {
+                    "Remove from Favorites"
+                } else {
+                    "Add to Favorites"
+                },
+                "",
+                true,
+            )
         {
-            open(e, s, entry);
-        }
-        if path != "assets" && ui.menu_item("Rename...    F2") {
-            s.rename = Some(path.into());
-            s.name = display_folder(path).into();
-            s.request_rename = true;
-        }
-        if entry.as_ref().is_none_or(|a| a.folder) && ui.menu_item("Add to Favorites") {
-            s.prefs.favorites.insert(path.into());
+            if favorite {
+                s.prefs.favorites.remove(path);
+            } else {
+                s.prefs.favorites.insert(path.into());
+            }
             s.save(&e.root);
         }
-        if ui.menu_item("Copy path") {
-            ui.set_clipboard_text(path);
-        }
-        if path != "assets" && ui.menu_item("Duplicate") {
-            let selected = if s.selected.contains(path) {
-                s.selected.clone()
-            } else {
-                BTreeSet::from([path.into()])
-            };
-            let copies = selected
-                .iter()
-                .map(|from| (from.clone(), duplicate_name(&e.root, from)))
-                .collect::<Vec<_>>();
-            match copy_paths(&e.root, &copies) {
-                Ok(()) => {
-                    s.refresh(e);
-                    s.error = None;
-                    s.selected = copies.into_iter().map(|(_, to)| to).collect();
-                }
-                Err(error) => s.error = Some(error),
-            }
-        }
-        if path != "assets" && ui.menu_item("Delete...    Del") {
-            if !s.selected.contains(path) {
-                s.selected = BTreeSet::from([path.into()]);
-            }
-            s.request_delete = true;
-        }
-        if ui.menu_item("Show in Explorer") {
+        if menu_item(ui, "\u{f07b}", "Show in Explorer", "", true) {
             reveal(&e.root.join(path));
         }
+        if menu_item(ui, "\u{f0c5}", "Copy Path", "", true) {
+            ui.set_clipboard_text(path);
+        }
+        if path != "assets" {
+            submenu(ui, "Manage", "Manage", || {
+                if menu_item(ui, "\u{f303}", "Rename...", "F2", true) {
+                    s.rename = Some(path.into());
+                    s.name = display_folder(path).into();
+                    s.request_rename = true;
+                }
+                if menu_item(ui, "\u{f0c5}", "Duplicate", "", true) {
+                    let selected = if s.selected.contains(path) {
+                        s.selected.clone()
+                    } else {
+                        BTreeSet::from([path.into()])
+                    };
+                    let copies = selected
+                        .iter()
+                        .map(|from| (from.clone(), duplicate_name(&e.root, from)))
+                        .collect::<Vec<_>>();
+                    match copy_paths(&e.root, &copies) {
+                        Ok(()) => {
+                            s.refresh(e);
+                            s.error = None;
+                            s.selected = copies.into_iter().map(|(_, to)| to).collect();
+                        }
+                        Err(error) => s.error = Some(error),
+                    }
+                }
+                ui.separator();
+                if menu_item(ui, "\u{f2ed}", "Delete...", "Del", true) {
+                    if !s.selected.contains(path) {
+                        s.selected = BTreeSet::from([path.into()]);
+                    }
+                    s.request_delete = true;
+                }
+            });
+        }
         if !s.prefs.collections.is_empty() {
-            ui.menu("Add to Collection", || {
+            submenu(ui, "Folder", "Add to Collection", || {
                 for name in s.prefs.collections.keys().cloned().collect::<Vec<_>>() {
                     if ui.menu_item(&name) {
                         s.prefs
@@ -1700,7 +1834,7 @@ fn context_menu(ui: &Ui, e: &mut Editor, s: &mut State, path: Option<&str>) {
             });
         }
         if let Some(name) = s.collection.clone()
-            && ui.menu_item("Remove from Collection")
+            && menu_item(ui, "\u{f00d}", "Remove from Collection", "", true)
         {
             if let Some(paths) = s.prefs.collections.get_mut(&name) {
                 paths.retain(|p| !s.selected.contains(p));
@@ -1709,35 +1843,38 @@ fn context_menu(ui: &Ui, e: &mut Editor, s: &mut State, path: Option<&str>) {
         }
         ui.separator();
     }
-    creation_menu(ui, e, s);
-    ui.separator();
-    if ui.menu_item("Import...") {
-        s.request_import = true;
-    }
-    if ui.menu_item("Refresh    F5") {
-        s.refresh(e);
-    }
-    if ui
-        .menu_item_config("Undo last move    Ctrl+Z")
-        .enabled(!s.undo_moves.is_empty())
-        .build()
-    {
-        undo(e, s);
-    }
-    if ui
-        .menu_item_config("Restore last deleted content")
-        .enabled(!s.trash.is_empty())
-        .build()
-    {
-        match restore_trash(&e.root, &s.trash) {
-            Ok(()) => {
-                s.trash.clear();
-                s.refresh(e);
-                s.error = None;
-            }
-            Err(error) => s.error = Some(error),
+    submenu(ui, "Tools", "Tools", || {
+        if menu_item(ui, "\u{f2f1}", "Refresh", "F5", true) {
+            s.refresh(e);
         }
-    }
+        timeline_adapters_menu_item(ui, e, s);
+        ui.separator();
+        if menu_item(
+            ui,
+            "\u{f2ea}",
+            "Undo Last Move",
+            "Ctrl+Z",
+            !s.undo_moves.is_empty(),
+        ) {
+            undo(e, s);
+        }
+        if menu_item(
+            ui,
+            "\u{f2ea}",
+            "Restore Last Deleted Content",
+            "",
+            !s.trash.is_empty(),
+        ) {
+            match restore_trash(&e.root, &s.trash) {
+                Ok(()) => {
+                    s.trash.clear();
+                    s.refresh(e);
+                    s.error = None;
+                }
+                Err(error) => s.error = Some(error),
+            }
+        }
+    });
 }
 fn duplicate_name(root: &Path, source: &str) -> String {
     let path = Path::new(source);

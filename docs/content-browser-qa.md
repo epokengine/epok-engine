@@ -1,5 +1,13 @@
 # Content Browser verification — 2026-09-10
 
+## Grouped context menus — 2026-10-20
+
+- Folder, asset and empty-space context menus now share the Add menu's creation categories. Folder management and maintenance commands have separate submenus; popup padding is scoped before opening so the compact folder tree does not compress menu rows.
+- Native Windows/WGPU verification used an isolated project at 1258x620. The context menu, Audio, World Building and toolbar Add were inspected with real icons, submenu arrows, shortcuts and hover states. Manage > Rename opened the existing dialog for the clicked folder; Cancel left its name unchanged.
+- The unchanged native capture is `images/content-browser-context-menu.png`. Additional captures remain in `artifacts/content-menu/`.
+- `cargo build --locked --bin epok-editor` passed. Browser tests: 11 passed, two existing ignored. The shared real-ImGui event regression passed explicitly and serially. Formatting checks for the changed Rust files and `git diff --check` passed.
+- Builds reused `target/` and the pinned toolchain/profile. The temporary preview executable was removed after its process exited, recovering 122 MiB; the fixture and capture evidence remain available.
+
 ## Editor responsiveness — 2026-09-12
 
 - Source fingerprinting and timeline/effect discovery run in one read-only worker per project. The editor polls completion without waiting, then uses that catalog for both dependency observation and Blueprint pickers. Scene dependency publication still uses the current editor scene and registry.

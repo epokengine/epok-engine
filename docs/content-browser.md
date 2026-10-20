@@ -43,7 +43,11 @@ Decoding runs off the UI thread and only visible media requests previews. A boun
 
 Drag selected files or folders onto another folder in the tree, grid or breadcrumbs. The drop menu offers **Move Here** and **Copy Here**. Moves preserve file contents and asset UUIDs, preflight the entire selection, and reject overwrites, self-nesting and paths outside the project. Ctrl+Z reverses the last move in the current session. Favorites and Collections follow moved paths.
 
-The context menu supports New Folder, Rename (F2), Duplicate, Delete, Copy Path and Show in Explorer. Ctrl+Shift+N creates a folder. Delete moves content into `UserSettings/ContentTrash`; each batch includes `restore.json` with its original paths. **Restore last deleted content** restores the current session's last batch without overwriting existing files. Saved references to deleted assets become missing until restored or replaced.
+The context menu groups creation under **Create Asset**: **Blueprints & Scripts**, **Audio**, **Animation & Effects**, **World Building**, and **Data & Localization**, plus **PocketStation App**. The toolbar's **Add** menu uses the same categories. **New Folder** (Ctrl+Shift+N) and **Import** stay directly accessible, alongside Open, Favorites, Copy Path and Show in Explorer. Colored type icons, section labels and aligned shortcuts keep the menus compact and readable.
+
+**Manage** contains Rename (F2), Duplicate and Delete (Del) for non-root items. **Tools** contains Refresh (F5), Install Timeline Adapters, Undo Last Move (Ctrl+Z) and Restore Last Deleted Content; unavailable recovery commands are disabled. Delete moves content into `UserSettings/ContentTrash`; each batch includes `restore.json` with its original paths. **Tools > Restore Last Deleted Content** restores the current session's last batch without overwriting existing files. Saved references to deleted assets become missing until restored or replaced.
+
+![Grouped folder context menu](images/content-browser-context-menu.png)
 
 Copying supported imported packages generates fresh UUIDs. Timelines and particle effects receive independent asset identities. C++/Blueprint classes and composite FBX model packages use their existing class-creation or reimport workflows; direct file copying is rejected to avoid duplicate class identities or broken model ownership. The active scene and documents open in their editors cannot be moved or deleted. File extensions are preserved on rename.
 
