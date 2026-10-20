@@ -240,6 +240,7 @@ pub struct Editor {
     pub dungeon: crate::dungeon_editor::State,
     /// The open Dungeon Style editor.
     pub dungeon_style: Option<crate::dungeon_style_editor::Window>,
+    pub data_table: Option<crate::data_table_editor::Window>,
     pub dungeon_recipe: Option<crate::dungeon_recipe_editor::Window>,
     pub dungeon_room: Option<crate::dungeon_room_editor::Window>,
     pub dungeon_seeds: Option<crate::dungeon_seeds::Window>,
@@ -437,6 +438,16 @@ impl Editor {
             crate::skeletal_ui::open(&mut editor, record);
         }
         editor.project = Some(project);
+        if let Some(pair) = std::env::args()
+            .collect::<Vec<_>>()
+            .windows(2)
+            .find(|v| v[0] == "--open-data-table")
+        {
+            let path = crate::assets::inside(&editor.root, &pair[1])?;
+            let id = crate::assets::read_metadata(&path)?.id;
+            editor.assets.index = crate::assets::scan(&editor.root, &mut Default::default());
+            crate::data_table_editor::open(&mut editor, id);
+        }
         if let Some(pair) = std::env::args()
             .collect::<Vec<_>>()
             .windows(2)
@@ -817,6 +828,7 @@ impl Editor {
             navigation_preview_status: None,
             dungeon: Default::default(),
             dungeon_style: None,
+            data_table: None,
             dungeon_recipe: None,
             dungeon_room: None,
             dungeon_seeds: None,
@@ -1901,10 +1913,18 @@ impl Editor {
             || self.script_editor.dirty()
             || (!self.blueprint_editor.is_embedded() && self.blueprint_editor.dirty())
             || self.timeline_editor.dirty()
+            || self
+                .data_table
+                .as_ref()
+                .is_some_and(crate::data_table_editor::Window::dirty)
     }
     pub fn save_all(&mut self) -> bool {
         if self.critical_busy() {
             self.log("Wait for the current operation before saving.");
+            return false;
+        }
+        if let Err(error) = crate::data_table_editor::save_all(self) {
+            self.log(format!("DataTable save failed: {error}"));
             return false;
         }
         if let Err(error) = crate::script_editor::save_all(self) {

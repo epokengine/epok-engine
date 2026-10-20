@@ -54,6 +54,7 @@ pub struct State {
     history_index: usize,
     selected: BTreeSet<String>,
     anchor: Option<String>,
+    scroll_to: Option<String>,
     pub(crate) drag: Vec<String>,
     collection: Option<String>,
     tree_search: String,
@@ -99,9 +100,13 @@ impl State {
             .to_string();
         let mut state = std::mem::take(&mut e.project_browser);
         state.navigate(e, folder);
+        state.selected.clear();
         state.selected.insert(relative.clone());
+        state.scroll_to = Some(relative.clone());
         state.anchor = Some(relative);
         state.filter = 0;
+        state.scanned = None;
+        e.project_search.clear();
         e.selected_asset = Some(path.to_path_buf());
         e.focus_project = true;
         e.project_browser = state;
@@ -219,6 +224,7 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
             assets::Kind::Font => "Font",
             assets::Kind::TileSet => "TileSet",
             assets::Kind::StringTable => "String Table",
+            assets::Kind::DataTable => "Data Table",
             assets::Kind::DungeonStyle => "Dungeon Style",
             assets::Kind::DungeonRecipe => "Dungeon Recipe",
             assets::Kind::DungeonRoom => "Dungeon Room",
@@ -303,6 +309,7 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         "Skeleton" => ("\u{f5d7}", [0.81, 0.78, 0.63, 1.]),
         "Audio" => ("\u{f001}", [0.73, 0.48, 0.87, 1.]),
         "SoundBank" => ("\u{f001}", [0.54, 0.65, 0.88, 1.]),
+        "Data Table" => ("\u{f0ce}", [0.45, 0.76, 0.66, 1.]),
         "Animation" => ("\u{f008}", [0.90, 0.62, 0.34, 1.]),
         "Video" => ("\u{f03d}", [0.91, 0.45, 0.52, 1.]),
         "PocketStation App" => ("\u{f10b}", [0.62, 0.78, 0.56, 1.]),
@@ -317,7 +324,7 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         _ => ("\u{f15b}", [0.66, 0.68, 0.71, 1.]),
     }
 }
-const FILTERS: [&str; 22] = [
+const FILTERS: [&str; 23] = [
     "All assets",
     "Folder",
     "Blueprint",
@@ -340,6 +347,7 @@ const FILTERS: [&str; 22] = [
     "Asset",
     "Source",
     "SoundBank",
+    "Data Table",
 ];
 
 fn visible(s: &State, e: &Editor) -> Vec<Entry> {
@@ -855,6 +863,12 @@ fn asset_creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
         }
     });
     submenu(ui, "Font", "Data & Localization", || {
+        if asset_menu_item(ui, "Data Table", "Data Table") {
+            if let Err(error) = crate::data_table_editor::create(e) {
+                s.error = Some(error);
+            }
+            s.refresh(e);
+        }
         if asset_menu_item(ui, "Font", "String Table") {
             crate::localization_editor::open(e);
             s.refresh(e);
@@ -1235,6 +1249,10 @@ fn grid(ui: &Ui, e: &mut Editor, s: &mut State, items: &[Entry], asset_font: img
         let p = ui.cursor_screen_pos();
         let _id = ui.push_id(&entry.path);
         let clicked = ui.invisible_button("tile", [tile - 4., tile + 12.]);
+        if s.scroll_to.as_deref() == Some(entry.path.as_str()) {
+            ui.set_scroll_here_y_with_ratio(0.5);
+            s.scroll_to = None;
+        }
         #[cfg(test)]
         track(ui, &entry.path);
         if !ui.is_item_visible() && !ui.is_item_active() {
@@ -1577,6 +1595,10 @@ fn list(ui: &Ui, e: &mut Editor, s: &mut State, items: &[Entry]) {
                 .selected(s.selected.contains(&entry.path))
                 .allow_double_click(true)
                 .build();
+            if s.scroll_to.as_deref() == Some(entry.path.as_str()) {
+                ui.set_scroll_here_y_with_ratio(0.5);
+                s.scroll_to = None;
+            }
             #[cfg(test)]
             track(ui, &entry.path);
             item_events(ui, e, s, items, entry, clicked);
@@ -1638,6 +1660,7 @@ fn open(e: &mut Editor, s: &mut State, entry: &Entry) {
             assets::Kind::Terrain => crate::terrain_editor::open(e, record, None),
             assets::Kind::TileSet => crate::tileset_editor::open(e, record.meta.id),
             assets::Kind::StringTable => crate::localization_editor::open(e),
+            assets::Kind::DataTable => crate::data_table_editor::open(e, record.meta.id),
             assets::Kind::DungeonStyle => crate::dungeon_style_editor::open(e, record.meta.id),
             assets::Kind::DungeonRecipe => crate::dungeon_recipe_editor::open(e, record.meta.id),
             assets::Kind::DungeonRoom => crate::dungeon_room_editor::open(e, record.meta.id),

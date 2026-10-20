@@ -43,6 +43,7 @@ pub enum Kind {
     Font,
     TileSet,
     StringTable,
+    DataTable,
     DungeonStyle,
     DungeonRecipe,
     DungeonRoom,
@@ -371,6 +372,7 @@ impl Package {
             (Kind::Terrain, crate::import_settings::Settings::Authored) => {}
             (Kind::TileSet, crate::import_settings::Settings::Authored) => {}
             (Kind::StringTable, crate::import_settings::Settings::Authored) => {}
+            (Kind::DataTable, crate::import_settings::Settings::Authored) => {}
             (Kind::DungeonStyle, crate::import_settings::Settings::Authored) => {}
             (Kind::DungeonRecipe, crate::import_settings::Settings::Authored) => {}
             (Kind::DungeonRoom, crate::import_settings::Settings::Authored) => {}
@@ -434,6 +436,9 @@ impl Package {
             }
             Kind::StringTable => {
                 crate::localization::StringTable::parse(&self.source)?;
+            }
+            Kind::DataTable => {
+                crate::data_table::DataTable::parse(&self.source)?;
             }
             Kind::DungeonStyle => {
                 crate::dungeon_style::Style::parse(&self.source)?;

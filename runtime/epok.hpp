@@ -18,6 +18,7 @@
 #include "collision.hpp"
 #include "texture_types.hpp"
 #include "resources.hpp"
+#include "data_table.hpp"
 #include "visibility.hpp"
 #include "visibility_track.hpp"
 #include "psyqo/fixed-point.hh"

@@ -51,7 +51,11 @@ fn asset_refs(
                 .and_then(|id| uuid::Uuid::parse_str(id).ok())
                 .ok_or("AssetRef must be a UUID")?;
             let record = index.resolve(id)?;
-            let expected = crate::assets::Kind::runtime_reference(kind)?;
+            let expected = if kind == "Asset" {
+                record.meta.kind.clone()
+            } else {
+                crate::assets::Kind::runtime_reference(kind)?
+            };
             if !expected.accepts_runtime(&record.meta.kind) {
                 return Err(format!(
                     "Asset {id} is {:?}, expected {kind}",
@@ -93,6 +97,29 @@ fn asset_refs(
                         )?;
                     }
                 }
+            }
+        }
+    }
+    // Follow every row of a reachable table, including nested tables, exactly
+    // once. A row may be selected dynamically at runtime.
+    let mut visited = std::collections::BTreeSet::new();
+    loop {
+        let pending: Vec<_> = ids
+            .iter()
+            .filter(|(id, kind)| **kind == crate::assets::Kind::DataTable && !visited.contains(*id))
+            .map(|(id, _)| *id)
+            .collect();
+        if pending.is_empty() {
+            break;
+        }
+        for id in pending {
+            visited.insert(id);
+            let table = crate::data_table::document(index.resolve(id)?)?;
+            table
+                .validate_assets(index)
+                .map_err(|e| format!("DataTable {id}: {e}"))?;
+            for row in table.rows {
+                ids.insert(row.asset, row.kind);
             }
         }
     }
@@ -143,6 +170,12 @@ pub fn resources(
             crate::assets::Kind::Video => continue,
             // Every PocketStation app is embedded by pocket-apps.hh.
             crate::assets::Kind::PocketStationApp => continue,
+            crate::assets::Kind::DataTable => {
+                result
+                    .reference_tables
+                    .insert(id, crate::data_table::document(index.resolve(id)?)?);
+                continue;
+            }
             _ => {
                 return Err(format!(
                     "Blueprint runtime AssetRef<{kind:?}> is not supported; use Texture, AudioClip or Video"
@@ -235,9 +268,10 @@ pub fn inspector(
                 let [record] = records.as_slice() else {
                     return None;
                 };
-                let expected: crate::assets::Kind =
-                    serde_json::from_value(Value::String(kind.clone())).ok()?;
-                (record.meta.kind == expected).then(|| {
+                let compatible = kind == "Asset"
+                    || crate::assets::Kind::runtime_reference(kind)
+                        .is_ok_and(|expected| expected.accepts_runtime(&record.meta.kind));
+                compatible.then(|| {
                     (
                         id.to_string(),
                         record

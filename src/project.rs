@@ -1617,6 +1617,14 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             "resources.hpp",
             include_bytes!("../runtime/resources.hpp").as_slice(),
         ),
+        (
+            "data_table.hpp",
+            include_bytes!("../runtime/data_table.hpp").as_slice(),
+        ),
+        (
+            "data_table_service.hpp",
+            include_bytes!("../runtime/data_table_service.hpp").as_slice(),
+        ),
         ("fmv.hpp", include_bytes!("../runtime/fmv.hpp").as_slice()),
         (
             "fmv_bitstream.hpp",

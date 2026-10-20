@@ -264,6 +264,8 @@ pub struct Scene {
     /// The project's string table when a text shows a key, resolved with the textures.
     #[serde(skip)]
     pub strings: Option<std::sync::Arc<crate::localization::StringTable>>,
+    #[serde(skip)]
+    pub reference_tables: BTreeMap<uuid::Uuid, crate::data_table::DataTable>,
     /// The language the editor previews keyed texts in. Never serialized.
     #[serde(skip)]
     pub preview_language: usize,
@@ -355,6 +357,7 @@ impl From<SceneDocument> for Scene {
             fonts: Default::default(),
             tilesets: Default::default(),
             strings: None,
+            reference_tables: Default::default(),
             preview_language: 0,
             display_size: legacy_display_size(),
         };
@@ -422,6 +425,7 @@ impl Default for Scene {
             fonts: Default::default(),
             tilesets: Default::default(),
             strings: None,
+            reference_tables: Default::default(),
             preview_language: 0,
             version: crate::actor_document::SCENE_VERSION,
             name: "SampleScene".into(),

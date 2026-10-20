@@ -1123,6 +1123,7 @@ pub fn emit_bindings(
             actor,
         };
         let mut builtin_cases = String::new();
+        let mut wide_builtin_cases = String::new();
         for (site, expr) in sites.iter().enumerate() {
             let Expr::CallBuiltin {
                 operation,
@@ -1135,10 +1136,19 @@ pub fn emit_bindings(
             };
             let mut lowered = Vec::new();
             let mut wire = 0usize;
+            let wide = returns.wire_words() > 1
+                || args
+                    .iter()
+                    .filter_map(BuiltinArg::value)
+                    .any(|value| value.value_type().wire_words() > 1);
             for arg in args {
                 lowered.push(match arg {
                     BuiltinArg::Value(value) => {
-                        let text = unpack(&format!("args[{wire}]"), value.value_type())?;
+                        let text = if wide {
+                            wire_unpack(&format!("args[{wire}]"), value.value_type(), 0)?
+                        } else {
+                            unpack(&format!("args[{wire}]"), value.value_type())?
+                        };
                         wire += 1;
                         text
                     }
@@ -1146,12 +1156,19 @@ pub fn emit_bindings(
                 });
             }
             let call = bir::builtin_cpp(operation, &lowered, &receiver)?;
-            builtin_cases.push_str(&dispatch_case(site, &call, returns)?);
+            if wide {
+                wide_builtin_cases.push_str(&wire_dispatch_case(site, &call, returns)?);
+            } else {
+                builtin_cases.push_str(&dispatch_case(site, &call, returns)?);
+            }
         }
         text.push_str(&format!(
             "static int32_t epok_lua_builtin_{index}(epok::Object& o, uint32_t site, const int32_t* args, uint32_t argc) {{\nauto& self=static_cast<{name}&>(o);(void)self;(void)args;(void)argc;\nswitch(site) {{\n{builtin_cases}default: return 0;\n}}\n}}\n"
         ));
         let operation_sites = crate::lua_vm::operation_sites(ir)?;
+        text.push_str(&format!(
+            "static epok::lua::WireValue epok_lua_wide_builtin_{index}(epok::Object& o, uint32_t site, const epok::lua::WireValue* args, uint32_t argc) {{\nauto& self=static_cast<{name}&>(o);(void)self;(void)args;(void)argc;\nswitch(site) {{\n{wide_builtin_cases}default: return {{}};\n}}\n}}\n"
+        ));
         let mut operation_cases = String::new();
         for (site, expr) in operation_sites.iter().enumerate() {
             let Expr::CallOperation {
@@ -1222,7 +1239,7 @@ pub fn emit_bindings(
             "static const char* const epok_lua_methods_{index}[] = {{{names}}};\n"
         ));
         rows.push_str(&format!(
-            "{{UINT64_C({}), \"{name}\", {symbol}, size_t({symbol}_size), epok_lua_methods_{index}, {}, epok_lua_get_{index}, epok_lua_set_{index}, epok_lua_wide_get_{index}, epok_lua_wide_set_{index}, epok_lua_self_call_{index}, epok_lua_super_call_{index}, epok_lua_wide_self_call_{index}, epok_lua_wide_super_call_{index}, epok_lua_builtin_{index}, epok_lua_operation_{index}}},\n",
+            "{{UINT64_C({}), \"{name}\", {symbol}, size_t({symbol}_size), epok_lua_methods_{index}, {}, epok_lua_get_{index}, epok_lua_set_{index}, epok_lua_wide_get_{index}, epok_lua_wide_set_{index}, epok_lua_self_call_{index}, epok_lua_super_call_{index}, epok_lua_wide_self_call_{index}, epok_lua_wide_super_call_{index}, epok_lua_builtin_{index}, epok_lua_operation_{index}, epok_lua_wide_builtin_{index}}},\n",
             crate::blueprint_refs::compact_id(&class.id),
             methods.len()
         ));
@@ -1287,6 +1304,53 @@ pub(crate) mod tests {
         )
         .expect("lowered body");
         (registry, ir)
+    }
+
+    #[test]
+    fn data_table_lookup_and_cast_preserve_64_bit_assets_in_every_backend() {
+        let registry = lua_asset::tests::registry();
+        let source = enemy_logic(
+            r#"
+EnemyLogic.sounds = epok.AssetRef("DataTable")
+---@override
+function EnemyLogic:begin_play()
+    local asset = epok.find_asset(self.sounds, "Hit", "Asset")
+    local clip = epok.cast_asset(asset, "AudioClip")
+    epok.set_audio_clip(self.ref, clip)
+    epok.play_audio(self.ref)
+end
+"#,
+        );
+        let (registry, ir) = lower_v2("assets/scripts/EnemyLogic.lua", &source, &registry);
+        let class = registry.classes["956f4946-0c61-42f8-899e-2db063b42420"].clone();
+        let native = emit_class(&class, &ir, &registry, BodyMode::Native, None).unwrap();
+        assert!(
+            native.contains("data_table_find(this->sounds,\"Hit\",0)"),
+            "{native}"
+        );
+        assert!(native.contains("data_table_cast("), "{native}");
+        let symbols = BTreeMap::from([(class.id.clone(), crate::lua_vm::chunk_symbol(&class.id))]);
+        let bindings = emit_bindings(&[(class, ir.clone())], &registry, &symbols).unwrap();
+        assert!(bindings.contains("epok_lua_wide_builtin_0"));
+        assert!(
+            bindings.contains("<<32"),
+            "Asset identity must keep both halves: {bindings}"
+        );
+        assert!(bindings.contains("data_table_find("));
+        let fields = crate::lua_vm::field_slots_for_ir(&ir, &registry);
+        let methods = crate::lua_vm::method_slots(&ir, &registry);
+        let chunk = crate::lua_vm::emit_chunk(
+            &ir,
+            &fields,
+            &methods,
+            std::path::Path::new("assets/scripts/EnemyLogic.lua"),
+        )
+        .unwrap();
+        assert!(chunk.contains("__epok_wide_builtin(self,"), "{chunk}");
+        if crate::lua_bytecode::available() {
+            crate::lua_bytecode::cook("@DataTableLookup", &chunk)
+                .expect("VM bytecode must accept the same chunk");
+        }
     }
 
     fn enemy_logic(body: &str) -> String {
@@ -1462,7 +1526,7 @@ end
             "case 4: epok::bp::api::set_texture(epok::ObjectId{uint16_t(uint32_t(args[0])&0xffffu),uint16_t(uint32_t(args[0])>>16)},self.skin); return 0;".into(),
             "case 6: { const auto epok_result = epok::bp::api::held(uint32_t(args[0]),uint32_t(args[1])); return ((epok_result)?1:0); }".into(),
             "epok_lua_builtin_0(epok::Object& o, uint32_t site".into(),
-            "epok_lua_super_call_0, epok_lua_wide_self_call_0, epok_lua_wide_super_call_0, epok_lua_builtin_0, epok_lua_operation_0}".into(),
+            "epok_lua_super_call_0, epok_lua_wide_self_call_0, epok_lua_wide_super_call_0, epok_lua_builtin_0, epok_lua_operation_0, epok_lua_wide_builtin_0}".into(),
         ] {
             assert!(text.contains(&expected), "missing {expected:?} in\n{text}");
         }

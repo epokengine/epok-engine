@@ -255,6 +255,13 @@ fn primitive(index: usize) -> schema::Type {
 fn authoring_types(registry: &Registry) -> Vec<schema::Type> {
     let mut types: Vec<_> = (0..10).map(primitive).collect();
     types.extend([schema::Type::SequenceHandle, schema::Type::EffectHandle]);
+    types.extend(
+        crate::data_table::KINDS
+            .iter()
+            .map(|kind| schema::Type::AssetRef {
+                kind: (*kind).into(),
+            }),
+    );
     let mut enums = BTreeMap::new();
     for class in registry.classes.values() {
         for ty in
@@ -3228,6 +3235,26 @@ impl BlueprintEditor {
             ("Audio / Play", asset::Builtin::PlayAudio),
             ("Audio / Stop", asset::Builtin::StopAudio),
             ("Audio / Set clip", asset::Builtin::SetAudioClip),
+            (
+                "Data Table / Find asset",
+                asset::Builtin::FindDataTableAsset {
+                    key: "Key".into(),
+                    asset_kind: "Asset".into(),
+                },
+            ),
+            (
+                "Data Table / Find sound effect",
+                asset::Builtin::FindDataTableAsset {
+                    key: "Key".into(),
+                    asset_kind: "AudioClip".into(),
+                },
+            ),
+            (
+                "Data Table / Cast to sound effect",
+                asset::Builtin::CastAsset {
+                    asset_kind: "AudioClip".into(),
+                },
+            ),
             ("Video / Play video", asset::Builtin::PlayVideo),
             ("Video / Stop video", asset::Builtin::StopVideo),
             ("Video / Is video playing", asset::Builtin::IsVideoPlaying),
@@ -3636,6 +3663,38 @@ impl BlueprintEditor {
                 }
             }
             NodeKind::Builtin {
+                operation: asset::Builtin::FindDataTableAsset { key, asset_kind },
+            } => {
+                ui.input_text("Row key", key).build();
+                if let Some(_combo) = ui.begin_combo("Result asset type", asset_kind.clone()) {
+                    for kind in crate::data_table::KINDS {
+                        if ui
+                            .selectable_config(kind)
+                            .selected(*kind == asset_kind)
+                            .build()
+                        {
+                            *asset_kind = (*kind).into();
+                        }
+                    }
+                }
+                ui.text_wrapped("Looks up a case-sensitive key in the connected table. Missing keys and wrong types return an empty reference.");
+            }
+            NodeKind::Builtin {
+                operation: asset::Builtin::CastAsset { asset_kind },
+            } => {
+                if let Some(_combo) = ui.begin_combo("Asset type", asset_kind.clone()) {
+                    for kind in &crate::data_table::KINDS[1..] {
+                        if ui
+                            .selectable_config(kind)
+                            .selected(*kind == asset_kind)
+                            .build()
+                        {
+                            *asset_kind = (*kind).into();
+                        }
+                    }
+                }
+            }
+            NodeKind::Builtin {
                 operation: asset::Builtin::PlayTimelineAsset { asset },
             } => {
                 let label = self
@@ -3963,6 +4022,7 @@ fn event_pin_label(graph: &Graph, node: &Node, pin: &str) -> String {
                 Spawn { .. } | SpawnClass { .. } => "Spawned Object",
                 SpawnActor { .. } => "Spawned Actor",
                 Cast { .. } => "Cast Result",
+                FindDataTableAsset { .. } | CastAsset { .. } => "Asset",
                 IsA { .. } => "Is Matching Class",
                 IsValid => "Is Valid",
                 InputHeld => "Is Held",
@@ -4616,6 +4676,10 @@ fn node_label(node: &Node, doc: &BlueprintAsset, registry: &Registry) -> String 
         NodeKind::Timeline { .. } => "Timeline (Q12 curve)".into(),
         NodeKind::StopTimeline { .. } => "Stop Timeline".into(),
         NodeKind::Builtin { operation } => match operation {
+            asset::Builtin::FindDataTableAsset { key, asset_kind } => {
+                format!("Find {key} ({asset_kind})")
+            }
+            asset::Builtin::CastAsset { asset_kind } => format!("Cast to {asset_kind}"),
             asset::Builtin::PlayTimelineAsset { .. } => "Play Timeline Asset".into(),
             asset::Builtin::SpawnParticleEffect { .. } => "Spawn Particle Effect".into(),
             asset::Builtin::Spawn { class }

@@ -316,6 +316,8 @@ pub enum Builtin {
     StopAudio,
     SetTexture,
     SetAudioClip,
+    FindDataTableAsset { key: String, asset_kind: String },
+    CastAsset { asset_kind: String },
     PlayVideo,
     StopVideo,
     IsVideoPlaying,

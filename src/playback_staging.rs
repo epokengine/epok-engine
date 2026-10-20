@@ -185,6 +185,13 @@ impl Batch {
             .into_iter()
             .collect::<BTreeSet<_>>();
         ids.extend(crate::audio::clip_ids(scene));
+        ids.extend(scene.reference_tables.keys().copied());
+        ids.extend(
+            scene
+                .reference_tables
+                .values()
+                .flat_map(|table| table.rows.iter().map(|row| row.asset)),
+        );
         for entity in &scene.actors {
             if let Some(mesh) = &entity.editable_mesh {
                 ids.insert(mesh.asset);

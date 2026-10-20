@@ -11,6 +11,7 @@
 #include "fixed_trigonometry.hpp"
 #include "track_camera_pose.hpp"
 #include "scene.hh"
+#include "data_table_service.hpp"
 #include "texture.hpp"
 #include "texture_upload.hpp"
 #include "palette.hpp"

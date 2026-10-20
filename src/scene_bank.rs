@@ -191,10 +191,12 @@ pub fn resources(scenes: &[Scene]) -> Scene {
     out.actors.clear();
     out.textures.clear();
     out.fonts.clear();
+    out.reference_tables.clear();
     for s in scenes {
         out.actors.extend(s.actors.clone());
         out.textures.extend(s.textures.clone());
         out.fonts.extend(s.fonts.clone());
+        out.reference_tables.extend(s.reference_tables.clone());
     }
     for e in &mut out.actors {
         if let Some(a) = &mut e.audio {
@@ -561,17 +563,8 @@ pub fn header_with_templates_for(
         effects,
         class_registry,
     )?;
-    if !timelines.is_empty()
-        || !effects.is_empty()
-        || catalog.iter().any(|script| {
-            script
-                .classes
-                .iter()
-                .any(|class| class.provider.id == "blueprint")
-        })
-    {
-        out += &crate::blueprint_refs::asset_table(&shared)?;
-    }
+    out += &crate::blueprint_refs::asset_table(&shared)?;
+    out += &crate::data_table::header(&shared.reference_tables)?;
     for (i, (s, h)) in scenes.iter().zip(headers).enumerate() {
         let mut h = h
             .lines()

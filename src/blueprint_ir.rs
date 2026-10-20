@@ -197,6 +197,20 @@ pub fn builtin_cpp(
             .ok_or_else(|| format!("{operation:?} is missing operand {index}"))
     };
     Ok(match operation {
+        Builtin::FindDataTableAsset { key, asset_kind } => {
+            crate::data_table::validate_key(key)?;
+            format!(
+                "epok::bp::data_table_find({},{},{})",
+                arg(0)?,
+                serde_json::to_string(key).unwrap(),
+                crate::data_table::kind_code(asset_kind)?
+            )
+        }
+        Builtin::CastAsset { asset_kind } => format!(
+            "epok::bp::data_table_cast({},{})",
+            arg(0)?,
+            crate::data_table::kind_code(asset_kind)?
+        ),
         Builtin::SelfObject => receiver.id.into(),
         Builtin::GetOwner => format!("epok::bp::component_owner_id({})", receiver.object),
         Builtin::SpawnActor { .. } => format!(
@@ -241,6 +255,30 @@ pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, boo
     };
     let vector = Type::Vector { length: 3 };
     let (inputs, output, pure) = match operation {
+        Builtin::FindDataTableAsset { asset_kind, .. } => (
+            vec![(
+                "table",
+                Type::AssetRef {
+                    kind: "DataTable".into(),
+                },
+            )],
+            Type::AssetRef {
+                kind: asset_kind.clone(),
+            },
+            true,
+        ),
+        Builtin::CastAsset { asset_kind } => (
+            vec![(
+                "asset",
+                Type::AssetRef {
+                    kind: "Asset".into(),
+                },
+            )],
+            Type::AssetRef {
+                kind: asset_kind.clone(),
+            },
+            true,
+        ),
         Builtin::GetPosition2D => (
             vec![(
                 "target",
@@ -579,6 +617,7 @@ pub fn assignable(actual: &Type, expected: &Type, registry: &crate::blueprint::R
                 let shared = stored.len().min(current.len());
                 stored[..shared] == current[..shared]
             }
+            (Type::AssetRef { .. }, Type::AssetRef { kind }) if kind == "Asset" => true,
             (Type::AssetRef { kind: a }, Type::AssetRef { kind: b })
                 if matches!(b.as_str(), "AudioClip" | "PlayableAudio")
                     && matches!(a.as_str(), "AudioClip" | "PlayableAudio" | "MusicSequence") =>

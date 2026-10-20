@@ -2921,6 +2921,7 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
 pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
     crate::dungeon_editor::apply_pending(e);
     crate::dungeon_style_editor::window(ui, e);
+    crate::data_table_editor::window(ui, e);
     crate::dungeon_recipe_editor::window(ui, e);
     crate::dungeon_room_editor::window(ui, e);
     crate::dungeon_seeds::window(ui, e);

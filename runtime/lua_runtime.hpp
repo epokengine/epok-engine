@@ -80,6 +80,7 @@ struct ClassBinding {
     // crosses the 32-bit value ABI.
     int32_t (*builtin_call)(Object&, uint32_t site, const int32_t* args, uint32_t argc);
     WireValue (*operation_call)(Object&, uint32_t site, const WireValue* args, uint32_t argc);
+    WireValue (*wide_builtin_call)(Object&, uint32_t site, const WireValue* args, uint32_t argc) = nullptr;
 };
 // Defined by the generated `scripts/generated/lua/lua_bindings.cpp`.
 extern const ClassBinding class_bindings[];
@@ -505,10 +506,10 @@ inline int dispatch_wide(lua_State* L, bool parent) {
 inline int h_wide_call(lua_State* L) { return dispatch_wide(L, false); }
 inline int h_wide_super(lua_State* L) { return dispatch_wide(L, true); }
 
-inline int h_operation(lua_State* L) {
+inline int dispatch_operation(lua_State* L, bool builtin) {
     Object* object = current_self(L, 1);
     const ClassBinding* binding = binding_for(object);
-    if (!binding || !binding->operation_call)
+    if (!binding || !(builtin ? binding->wide_builtin_call : binding->operation_call))
         return luaL_error(L, "epok: no operation binding");
     const uint32_t site = uint32_t(argument(L, 2));
     const int count = lua_gettop(L) - 2;
@@ -516,7 +517,8 @@ inline int h_operation(lua_State* L) {
         return luaL_error(L, "epok: operation arity %d is outside the profile", count);
     WireValue args[EPOK_LUA_MAX_ARGS]{};
     for (int i = 0; i < count; ++i) args[i] = wire_argument(L, 3 + i);
-    const WireValue result = binding->operation_call(*object, site, args, uint32_t(count));
+    auto entry = builtin ? binding->wide_builtin_call : binding->operation_call;
+    const WireValue result = entry(*object, site, args, uint32_t(count));
     if (result.count == 0) return 0;
     if (result.count == 1) {
         push_int(L, result.words[0]);
@@ -525,6 +527,9 @@ inline int h_operation(lua_State* L) {
     lua_pushlightuserdata(L, retain_value(result));
     return 1;
 }
+
+inline int h_operation(lua_State* L) { return dispatch_operation(L, false); }
+inline int h_wide_builtin(lua_State* L) { return dispatch_operation(L, true); }
 
 inline int h_member(lua_State* L) {
     WireValue* value = value_from_lua(L, 1);
@@ -609,6 +614,7 @@ inline void initialize() {
     register_helper(L, "__epok_wide_call", h_wide_call);
     register_helper(L, "__epok_wide_super", h_wide_super);
     register_helper(L, "__epok_builtin", h_builtin);
+    register_helper(L, "__epok_wide_builtin", h_wide_builtin);
     register_helper(L, "__epok_operation", h_operation);
     register_helper(L, "__epok_member", h_member);
 

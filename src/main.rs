@@ -49,6 +49,8 @@ mod console;
 mod content_preview;
 mod controls;
 mod controls_ui;
+mod data_table;
+mod data_table_editor;
 mod dependencies;
 mod disc;
 mod document;
@@ -412,6 +414,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--duplicate-music-sequence",
             "--render-music-sequence",
             "--scan-assets",
+            "--create-data-table",
+            "--validate-data-tables",
             "--inspect-audio-source",
             "--reflect",
             "--new-script",
@@ -446,6 +450,80 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let project = workspace::Project::open(&requested_root)?;
     let root = project.root.clone();
+    if let Some(pair) = args.windows(2).find(|v| v[0] == "--create-data-table") {
+        let name = args
+            .windows(2)
+            .find(|v| v[0] == "--row-type")
+            .map(|v| v[1].as_str())
+            .unwrap_or("AudioClip");
+        let row_type = if name == "Asset" {
+            None
+        } else {
+            Some(assets::Kind::runtime_reference(name)?)
+        };
+        let mut table = data_table::DataTable {
+            row_type,
+            ..Default::default()
+        };
+        let index = assets::scan(&root, &mut Default::default());
+        if args.iter().any(|v| v == "--all-matching-assets") {
+            let kind = table
+                .row_type
+                .as_ref()
+                .ok_or("Select a concrete --row-type to populate all matching assets")?;
+            let mut records = index
+                .usable()
+                .filter(|r| &r.meta.kind == kind)
+                .collect::<Vec<_>>();
+            records.sort_by(|a, b| a.path.cmp(&b.path));
+            for record in records {
+                let base = record
+                    .path
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned();
+                let mut key = base.clone();
+                let mut suffix = 2;
+                while table.rows.iter().any(|row| row.key == key) {
+                    key = format!("{base}_{suffix}");
+                    suffix += 1;
+                }
+                table.rows.push(data_table::Row {
+                    key,
+                    kind: record.meta.kind.clone(),
+                    asset: record.meta.id,
+                });
+            }
+        }
+        table.validate_assets(&index)?;
+        let id = data_table::create(&root, &pair[1], &table)?;
+        println!(
+            "Created DataTable {id}: {} rows at {}",
+            table.rows.len(),
+            pair[1]
+        );
+        return Ok(());
+    }
+    if args.iter().any(|v| v == "--validate-data-tables") {
+        let index = assets::scan(&root, &mut Default::default());
+        let mut count = 0;
+        for record in index
+            .usable()
+            .filter(|r| r.meta.kind == assets::Kind::DataTable)
+        {
+            let table = data_table::document(record)?;
+            table.validate_assets(&index)?;
+            println!(
+                "{}: {} rows, valid",
+                assets::path_string(&root, &record.path),
+                table.rows.len()
+            );
+            count += 1;
+        }
+        println!("Validated {count} DataTables");
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--install-timeline-adapters") {
         println!("{}", timeline_adapters::install(&root)?.display());
         return Ok(());

@@ -458,8 +458,12 @@ fn validate_resources(
             .ok_or_else(|| vec![diagnostic(file, "Asset reference requires a UUID")])?;
         let record = index.resolve(id).map_err(|e| vec![diagnostic(file, e)])?;
         if let schema::Type::AssetRef { kind } = ty {
-            let expected = crate::assets::Kind::runtime_reference(&kind)
-                .map_err(|e| vec![diagnostic(file, e)])?;
+            let expected = if kind == "Asset" {
+                record.meta.kind.clone()
+            } else {
+                crate::assets::Kind::runtime_reference(&kind)
+                    .map_err(|e| vec![diagnostic(file, e)])?
+            };
             if !expected.accepts_runtime(&record.meta.kind) {
                 return Err(vec![diagnostic(
                     file,
@@ -467,15 +471,22 @@ fn validate_resources(
                 )]);
             }
         }
-        dependencies.paths.insert(record.path.clone());
-        dependencies
-            .footprints
-            .entry(file.asset.id.clone())
-            .or_default()
-            .insert(
-                format!("asset:{id}"),
-                crate::assets::cache_key(&record.meta),
-            );
+        for dependency in
+            crate::data_table::dependencies(&index, id).map_err(|e| vec![diagnostic(file, e)])?
+        {
+            let record = index
+                .resolve(dependency)
+                .map_err(|e| vec![diagnostic(file, e)])?;
+            dependencies.paths.insert(record.path.clone());
+            dependencies
+                .footprints
+                .entry(file.asset.id.clone())
+                .or_default()
+                .insert(
+                    format!("asset:{dependency}"),
+                    crate::assets::cache_key(&record.meta),
+                );
+        }
     }
     for (file, template) in templates {
         crate::blueprint_templates::validate_resources(&template, &index)
@@ -3395,6 +3406,102 @@ mod tests {
                 .stale
                 .contains_key(&selection)
         );
+    }
+
+    #[test]
+    fn data_table_blueprint_lookup_compiles_and_tracks_row_dependencies() {
+        let root = crate::workspace::tests::temp("data-table-blueprint");
+        std::fs::create_dir_all(root.join("assets")).unwrap();
+        std::fs::write(
+            root.join("assets/tone.wav"),
+            crate::audio_import::test_wav(),
+        )
+        .unwrap();
+        let clip = crate::assets::commit(
+            crate::assets::prepare(
+                &root,
+                "assets/tone.wav",
+                "assets/tone.epokasset",
+                Default::default(),
+                None,
+                false,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let table = crate::data_table::DataTable {
+            rows: vec![crate::data_table::Row {
+                key: "Hit".into(),
+                kind: crate::assets::Kind::AudioClip,
+                asset: clip,
+            }],
+            ..Default::default()
+        };
+        let table_id = crate::data_table::create(&root, "assets/Sounds.epokasset", &table).unwrap();
+        let mut file = asset();
+        file.path = root.join("assets/blueprints/Boss.epokbp");
+        let mut entry = node(10, NodeKind::Entry);
+        entry.outputs.insert("next".into(), vec![id(11)]);
+        let mut set = node(
+            11,
+            NodeKind::Builtin {
+                operation: asset::Builtin::SetAudioClip,
+            },
+        );
+        set.inputs.insert(
+            "target".into(),
+            Input::Link {
+                node: id(12),
+                pin: "value".into(),
+            },
+        );
+        set.inputs.insert(
+            "clip".into(),
+            Input::Link {
+                node: id(13),
+                pin: "value".into(),
+            },
+        );
+        let mut lookup = node(
+            13,
+            NodeKind::Builtin {
+                operation: asset::Builtin::FindDataTableAsset {
+                    key: "Hit".into(),
+                    asset_kind: "AudioClip".into(),
+                },
+            },
+        );
+        lookup.inputs.insert(
+            "table".into(),
+            Input::Literal {
+                value_type: schema::Type::AssetRef {
+                    kind: "DataTable".into(),
+                },
+                value: json!(table_id),
+            },
+        );
+        file.asset.functions.push(event(vec![
+            entry,
+            set,
+            node(
+                12,
+                NodeKind::Builtin {
+                    operation: asset::Builtin::SelfObject,
+                },
+            ),
+            lookup,
+        ]));
+        let mut native = registry();
+        native.classes.get_mut(&id(1)).unwrap().source.file = root.join("assets/scripts/Enemy.hpp");
+        let compilation = compile(&root, &native, &[file.clone()]).unwrap();
+        assert!(generated(&compilation).contains("data_table_find("));
+        let index = crate::assets::scan(&root, &mut Default::default());
+        let resources =
+            crate::blueprint_refs::resources(&[file], &[], &compilation.registry, &index, &[])
+                .unwrap();
+        assert_eq!(crate::audio::clip_ids(&resources), vec![clip]);
+        let dependencies = crate::data_table::dependencies(&index, table_id).unwrap();
+        assert!(dependencies.contains(&clip) && dependencies.contains(&table_id));
     }
 
     #[test]

@@ -602,6 +602,7 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             Kind::Font => "Font",
             Kind::TileSet => "TileSet",
             Kind::StringTable => "String Table",
+            Kind::DataTable => "Data Table",
             Kind::DungeonStyle => "Dungeon Style",
             Kind::DungeonRecipe => "Dungeon Recipe",
             Kind::DungeonRoom => "Dungeon Room",
@@ -614,6 +615,27 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             ("Asset ID".into(), r.meta.id.to_string()),
             ("Source".into(), r.meta.source.clone()),
         ]);
+        if r.meta.kind == Kind::DataTable {
+            let table = crate::data_table::document(r)?;
+            details.fields.push((
+                "Row type".into(),
+                table
+                    .row_type
+                    .as_ref()
+                    .map(|kind| format!("{kind:?}"))
+                    .unwrap_or_else(|| "Asset (mixed types)".into()),
+            ));
+            details
+                .fields
+                .push(("Rows".into(), table.rows.len().to_string()));
+            details.fields.push((
+                "References".into(),
+                table
+                    .validate_assets(index)
+                    .map(|_| "All valid".into())
+                    .unwrap_or_else(|e| e),
+            ));
+        }
         if matches!(r.meta.kind, Kind::MusicSequence | Kind::SoundBank) {
             details.fields.push(("Target".into(), "PSX".into()));
             let name = if r.meta.kind == Kind::MusicSequence {

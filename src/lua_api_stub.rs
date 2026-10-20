@@ -774,6 +774,19 @@ function epok.set_texture(reference, texture) end
 ---@param clip AssetRef
 function epok.set_audio_clip(reference, clip) end
 
+--- Gameplay v2. Returns an asset reference; a missing key or wrong type returns zero.
+--- Keys and kinds are literal strings. Use Asset to retrieve before a checked cast.
+---@param table AssetRef
+---@param key string
+---@param asset_kind string
+---@return AssetRef
+function epok.find_asset(table, key, asset_kind) end
+
+---@param asset AssetRef
+---@param asset_kind string
+---@return AssetRef
+function epok.cast_asset(asset, asset_kind) end
+
 --- Queues a full-screen video. Gameplay pauses while it plays and resumes
 --- afterwards; returns false when the clip is not on the disc.
 ---@param video AssetRef
