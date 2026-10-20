@@ -574,6 +574,8 @@ pub(crate) fn build_runner(
     };
     let mut header =
         crate::project::scene_header_with_registry(scene, &used, scene, true, scene, &registry)?;
+    header += &crate::blueprint_refs::asset_table(scene)?;
+    header += &crate::data_table::header(&scene.reference_tables)?;
     header += &crate::blueprint_spawn::object_class_table_for_scenes(
         &registry,
         std::slice::from_ref(scene),
