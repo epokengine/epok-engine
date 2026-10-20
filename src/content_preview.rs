@@ -16,6 +16,7 @@ use std::{
 
 const LIMIT: usize = 96;
 const EDGE: u32 = 192;
+const AUDIO_CACHE_BYTES: usize = 32 * 1024 * 1024;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum PreviewMode {
@@ -114,6 +115,12 @@ struct PlaybackFailure {
     checked: Instant,
     message: String,
 }
+struct CachedAudio {
+    path: PathBuf,
+    stamp: Option<Stamp>,
+    mode: PreviewMode,
+    pcm: Pcm,
+}
 #[derive(Default)]
 pub struct Cache {
     edge: Option<u32>,
@@ -137,6 +144,7 @@ pub struct Cache {
     requirements: BTreeMap<PathBuf, [Option<String>; 2]>,
     default_bank_blocker: Option<String>,
     playback_failures: BTreeMap<PathBuf, PlaybackFailure>,
+    last_audio: Option<CachedAudio>,
 }
 impl Cache {
     pub fn take_report(&mut self) -> Option<String> {
@@ -170,6 +178,7 @@ impl Cache {
         self.project_revision = revision;
         self.error = None;
         self.playback_failures.clear();
+        self.last_audio = None;
         self.default_bank_blocker = sequence_requirement(root, &Default::default(), index).err();
         self.requirements = index
             .assets
@@ -218,6 +227,7 @@ impl Cache {
         self.mode = mode;
         self.error = None;
         self.playback_failures.clear();
+        self.last_audio = None;
         for path in self.entries.keys().cloned().collect::<Vec<_>>() {
             self.remove(&path);
         }
@@ -333,7 +343,9 @@ impl Cache {
     }
     pub fn playback_tooltip(&self, ui: &imgui::Ui, path: &Path) {
         if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
-            ui.tooltip_text(self.playback_blocker(path).unwrap_or(if self.active(path) {
+            ui.tooltip_text(self.playback_blocker(path).unwrap_or(if self.loading(path) {
+                "Preparing audio: decoding instruments and rendering MIDI can take a few seconds. Click to cancel."
+            } else if self.active(path) {
                 "Stop preview"
             } else {
                 "Play preview"
@@ -342,6 +354,9 @@ impl Cache {
     }
     fn remove(&mut self, path: &Path) {
         self.playback_failures.remove(path);
+        if self.last_audio.as_ref().is_some_and(|a| a.path == path) {
+            self.last_audio = None;
+        }
         if let Some(Entry {
             preview: Ok(Preview::Image {
                 texture: Some(id), ..
@@ -412,16 +427,25 @@ impl Cache {
         let root = self.root.clone();
         let cancelled = Arc::new(AtomicBool::new(false));
         let worker_cancelled = cancelled.clone();
-        std::thread::spawn(move || {
-            let _ = send.send(decode_audio_context(
-                &worker_path,
-                mode,
-                root.as_deref(),
-                &worker_cancelled,
-            ));
-        });
+        let source_stamp = stamp(&path, "");
+        if let Some(cached) = self
+            .last_audio
+            .as_ref()
+            .filter(|a| a.path == path && a.mode == mode && a.stamp == source_stamp)
+        {
+            let _ = send.send(Ok(cached.pcm.clone()));
+        } else {
+            std::thread::spawn(move || {
+                let _ = send.send(decode_audio_context(
+                    &worker_path,
+                    mode,
+                    root.as_deref(),
+                    &worker_cancelled,
+                ));
+            });
+        }
         self.audio_load = Some(AudioLoad {
-            stamp: stamp(&path, ""),
+            stamp: source_stamp,
             path,
             generation: self.generation,
             mode,
@@ -501,6 +525,7 @@ impl Cache {
                     );
                 }
                 match result.and_then(|pcm| {
+                    self.remember_audio(&job.path, job.stamp, job.mode, &pcm);
                     self.report = pcm.report.clone();
                     self.report_pending = true;
                     Player::start(pcm)
@@ -520,6 +545,23 @@ impl Cache {
             self.stop();
         }
         self.start_audio_load();
+    }
+    fn remember_audio(&mut self, path: &Path, stamp: Option<Stamp>, mode: PreviewMode, pcm: &Pcm) {
+        if self
+            .last_audio
+            .as_ref()
+            .is_some_and(|a| a.path == path && a.stamp == stamp && a.mode == mode)
+        {
+            return;
+        }
+        // One bounded audition survives Stop; edits, bank dependencies and mode
+        // changes invalidate it. Keep the exact PCM, loop range and diagnostics.
+        self.last_audio = (pcm.samples.len() <= AUDIO_CACHE_BYTES / 2).then(|| CachedAudio {
+            path: path.into(),
+            stamp,
+            mode,
+            pcm: pcm.clone(),
+        });
     }
     pub fn upload(
         &mut self,
@@ -948,6 +990,97 @@ fn waveform(pcm: Pcm) -> Result<Preview, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn audio_replay_cache_keeps_exact_pcm_and_invalidates_edits_and_modes() {
+        let root = crate::workspace::tests::temp("audio-replay-cache");
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("tone.wav");
+        std::fs::write(&path, crate::audio_import::test_wav()).unwrap();
+        let mut pcm = decode_audio(&path).unwrap();
+        pcm.loop_region = Some((0, pcm.samples.len() / pcm.channels as usize));
+        pcm.report = Some("Original diagnostic".into());
+        pcm.timeline = Some(crate::preview_audio::Timeline {
+            duration: pcm.duration(),
+            loop_region: Some((0., pcm.duration())),
+        });
+        let mut cache = Cache::default();
+        cache.remember_audio(&path, stamp(&path, ""), PreviewMode::Source, &pcm);
+        cache.stop();
+        cache.toggle(&path);
+        let job = cache.audio_load.take().unwrap();
+        let replay = job
+            .receive
+            .try_recv()
+            .expect("Replay is ready without a decoding worker")
+            .unwrap();
+        assert_eq!(replay.samples, pcm.samples);
+        assert_eq!(
+            (
+                replay.rate,
+                replay.channels,
+                replay.loop_region,
+                replay.report
+            ),
+            (pcm.rate, pcm.channels, pcm.loop_region, pcm.report)
+        );
+        assert_eq!(
+            replay.timeline.unwrap().loop_region,
+            pcm.timeline.unwrap().loop_region
+        );
+        cache.stop();
+        std::fs::write(&path, b"edited invalid source").unwrap();
+        cache.toggle(&path);
+        settle(&mut cache);
+        assert!(
+            cache.error.is_some(),
+            "A modified file must be decoded, never play stale PCM"
+        );
+        cache.set_mode(PreviewMode::TargetPsx);
+        assert!(cache.last_audio.is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[ignore = "Measures real MIDI preparation/replay; set EPOK_AUDIO_BENCH_PROJECT and EPOK_AUDIO_BENCH_REPORT"]
+    fn midi_replay_cache_benchmark() {
+        let root = PathBuf::from(std::env::var_os("EPOK_AUDIO_BENCH_PROJECT").unwrap());
+        let path = root.join("assets/Sounds/BGM/main-gate-3-.epokasset");
+        let index = assets::scan(&root, &mut Default::default());
+        let mut cache = Cache::default();
+        cache.configure(&root, &index);
+        let start = Instant::now();
+        let pcm = decode_audio_context(
+            &path,
+            PreviewMode::Source,
+            Some(&root),
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        let cold = start.elapsed().as_secs_f64();
+        cache.remember_audio(&path, stamp(&path, ""), PreviewMode::Source, &pcm);
+        let start = Instant::now();
+        cache.toggle(&path);
+        let replay = cache
+            .audio_load
+            .take()
+            .unwrap()
+            .receive
+            .try_recv()
+            .unwrap()
+            .unwrap();
+        let warm = start.elapsed().as_secs_f64();
+        assert_eq!(pcm.samples, replay.samples);
+        assert_eq!(pcm.loop_region, replay.loop_region);
+        assert!(warm < cold);
+        let report = serde_json::json!({"cold_seconds":cold,"replay_seconds":warm,"frames":pcm.samples.len()/pcm.channels as usize,"exact_pcm":true});
+        std::fs::write(
+            std::env::var_os("EPOK_AUDIO_BENCH_REPORT").unwrap(),
+            serde_json::to_vec_pretty(&report).unwrap(),
+        )
+        .unwrap();
+        println!("{report}");
+        cache.stop();
+    }
     #[test]
     fn playback_requirements_follow_explicit_and_default_banks() {
         let root = crate::workspace::tests::temp("preview-requirements");

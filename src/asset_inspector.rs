@@ -269,6 +269,9 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
                 track(ui, "play");
                 drop(disabled);
                 e.project_browser.previews.playback_tooltip(ui, &path);
+                if e.project_browser.previews.loading(&path) {
+                    ui.text_wrapped("Preparing audio preview... MIDI instruments and audio are rendered before playback. Stop cancels preparation.");
+                }
                 if let Some(reason) = e.project_browser.previews.playback_blocker(&path) {
                     ui.text_colored([1., 0.75, 0.3, 1.], "Preview unavailable");
                     ui.text_wrapped(reason);
