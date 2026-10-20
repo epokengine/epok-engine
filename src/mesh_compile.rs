@@ -52,6 +52,8 @@ impl Chunk {
         }
     }
 }
+#[path = "mesh_seams.rs"]
+mod seams;
 #[path = "mesh_visibility.rs"]
 mod visibility;
 pub fn chunks(quads: &[Quad]) -> Result<Vec<Chunk>, String> {
@@ -72,6 +74,7 @@ pub fn chunks(quads: &[Quad]) -> Result<Vec<Chunk>, String> {
             encode_chunks(quads, part, &mut chunks)?;
         }
     }
+    seams::close(quads, &mut chunks)?;
     Ok(chunks)
 }
 
@@ -200,7 +203,15 @@ pub fn world_chunk(
         for (corner, &vertex) in indices.iter().enumerate() {
             let slot = &mut world[usize::from(vertex)];
             if slot.is_none() {
-                *slot = Some(world_q12(transform, raw[corner])?);
+                // Carry render-only seam coverage into static-world storage,
+                // retaining the authored fractional precision when it is zero.
+                let point = std::array::from_fn(|axis| {
+                    let cooked = i64::from(chunk.vertices[usize::from(vertex)][axis])
+                        + (chunk.origin[axis] * 4096.).round() as i64;
+                    let authored = (raw[corner][axis] * 4096.).round() as i64;
+                    raw[corner][axis] + (cooked - authored) as f32 / 4096.
+                });
+                *slot = Some(world_q12(transform, point)?);
             }
         }
     }

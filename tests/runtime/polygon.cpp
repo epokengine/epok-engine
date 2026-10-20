@@ -20,7 +20,46 @@ static ProjectedVertex vertex(int32_t x, int32_t y, int32_t z) {
     project_cpu<CameraQ8, 640, 480>(v);
     return v;
 }
+static void shared_clip_edges() {
+    uint32_t seed=0x5ea1ed9u;
+    auto random=[&](){seed=seed*1664525u+1013904223u;return seed;};
+    for(int plane=0;plane<6;++plane)for(int trial=0;trial<2000;++trial){
+        ClipVertex a{},b{};
+        a.p[2]=int32_t(400+random()%1000)*4;
+        b.p[2]=int32_t(400+random()%1000)*4;
+        const int32_t da=int32_t(10+random()%500),db=int32_t(10+random()%500);
+        int marker=1;
+        if(plane==0){a.p[2]=int32_t(random()%64);b.p[2]=64+db;a.p[0]=da;b.p[0]=-db;}
+        else if(plane==1){a.p[2]=CameraQ8::far+da;b.p[2]=CameraQ8::far-db;a.p[0]=-db;b.p[0]=da;}
+        else if(plane==2){a.p[0]=-a.p[2]-da;b.p[0]=-b.p[2]+db;}
+        else if(plane==3){a.p[0]=a.p[2]+da;b.p[0]=b.p[2]-db;}
+        else if(plane==4){a.p[1]=-3*a.p[2]/4-da;b.p[1]=-3*b.p[2]/4+db;marker=0;}
+        else{a.p[1]=3*a.p[2]/4+da;b.p[1]=3*b.p[2]/4-db;marker=0;}
+        a.color[0]=17;a.color[1]=201;b.color[0]=219;b.color[1]=53;
+        a.uv[0]=13<<16;a.uv[1]=7<<16;b.uv[0]=241<<16;b.uv[1]=213<<16;
+        a.has_screen=b.has_screen=true;a.screen=0x00110029;b.screen=0x009300b2;
+        ClipVertex hits[2]{};
+        for(int side=0;side<2;++side){
+            ClipVertex buffers[2][12]{};
+            buffers[0][0]=side?b:a;buffers[0][1]=side?a:b;
+            buffers[0][2]=b;buffers[0][2].p[marker]=side?-20000:20000;
+            buffers[0][2].color[2]=255;
+            int from=0;const int count=clip_polygon<CameraQ8>(buffers,3,uint8_t(1<<plane),from);
+            int found=0;bool kept=false;
+            for(int i=0;i<count;++i){
+                const auto& v=buffers[from][i];
+                if(v.has_screen&&v.screen==b.screen)kept=true;
+                if(!v.has_screen&&!v.p[marker]){hits[side]=v;++found;}
+            }
+            assert(found==1&&kept);
+        }
+        for(int k=0;k<3;++k){assert(hits[0].p[k]==hits[1].p[k]);assert(hits[0].color[k]==hits[1].color[k]);}
+        for(int k=0;k<2;++k)assert(hits[0].uv[k]==hits[1].uv[k]);
+    }
+    std::puts("Clipping: 12,000 reversed shared edges have identical geometry, colors and UVs; original screen corners survive.");
+}
 int main() {
+    shared_clip_edges();
     const uint32_t palette[]={pack_color(0,128,185),pack_color(255,1,127),pack_color(64,128,255),pack_color(10,20,30)};
     BakedDrawFace colored{};colored.color=0x00010000;colored.shaded=0x00030002;
     colored.uv_tpage=baked_face_indexed_color|baked_face_textured;

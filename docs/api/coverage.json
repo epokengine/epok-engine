@@ -3,7 +3,7 @@
   "epok": {
     "headers": 122,
     "types": 530,
-    "callables": 2082,
+    "callables": 2083,
     "properties": 3043
   },
   "psyqo": {
@@ -337,10 +337,10 @@
       "family": "epok",
       "header": "gte_geometry.hpp",
       "slug": "gte-geometry",
-      "callables": 26,
+      "callables": 27,
       "types": 2,
       "properties": 7,
-      "source_sha256": "190984eec4efa6fded9ff7a2d8b9c3d9fd72486ca891e5317015f3a3c3e97aa2",
+      "source_sha256": "0879e6c94f5d87960028194a7858f7548a4f18ac6dd9f4da7b4a3b42992a59c4",
       "diagnostics": []
     },
     {
@@ -730,7 +730,7 @@
       "callables": 18,
       "types": 9,
       "properties": 24,
-      "source_sha256": "9108e846fd15fcbd6a23396df7c651acd5d2391da0b5d420158018314ca4a5ea",
+      "source_sha256": "146d48315bc052df92efb04e7fbb8ab16331db2d9324e70f9d0b229ca28783d0",
       "diagnostics": []
     },
     {

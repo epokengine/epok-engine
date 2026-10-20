@@ -2,7 +2,7 @@
 
 > **Header:** `"gte_geometry.hpp"` · **Tier:** Epok runtime API · **Source:** [open header](../../../runtime/gte_geometry.hpp)
 
-This module covers Geometry Transformation Engine math and register operations. It documents 26 public callables declared directly in this header.
+This module covers Geometry Transformation Engine math and register operations. It documents 27 public callables declared directly in this header.
 
 ## Declared types
 
@@ -30,7 +30,8 @@ This module covers Geometry Transformation Engine math and register operations. 
 - [`epok::load_projection_words`](#epok-load-projection-words-1) — Loads projection words as part of Geometry Transformation Engine math and register operations.
 - [`epok::pack_projection_input`](#epok-pack-projection-input-1) — Performs `pack projection input` as part of Geometry Transformation Engine math and register operations.
 - [`epok::project_geometry_triple`](#epok-project-geometry-triple-1) — Performs `project geometry triple` as part of Geometry Transformation Engine math and register operations.
-- [`epok::project_geometry_triple`](#epok-project-geometry-triple-2) — Performs `project geometry triple` as part of Geometry Transformation Engine math and register operations.
+- [`epok::project_geometry_triple`](#epok-project-geometry-triple-2) — Interior packets only need packed screen XY and unsigned depth.
+- [`epok::project_geometry_triple`](#epok-project-geometry-triple-3) — Performs `project geometry triple` as part of Geometry Transformation Engine math and register operations.
 - [`epok::project_geometry_vertex`](#epok-project-geometry-vertex-1) — Camera output is Q8 with Y up.
 - [`epok::project_packed_vertex`](#epok-project-packed-vertex-1) — Performs `project packed vertex` as part of Geometry Transformation Engine math and register operations.
 - [`epok::read_average_depth`](#epok-read-average-depth-1) — Reads average depth as part of Geometry Transformation Engine math and register operations.
@@ -51,7 +52,7 @@ This module covers Geometry Transformation Engine math and register operations. 
 inline void begin_average_depth(bool quad)
 ```
 
-- **Declared at:** [line 203](../../../runtime/gte_geometry.hpp#L203)
+- **Declared at:** [line 219](../../../runtime/gte_geometry.hpp#L219)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -91,7 +92,7 @@ epok::begin_average_depth(quad);
 inline void begin_loaded_projection_triple()
 ```
 
-- **Declared at:** [line 211](../../../runtime/gte_geometry.hpp#L211)
+- **Declared at:** [line 227](../../../runtime/gte_geometry.hpp#L227)
 - **Kind:** `function decl`
 
 **Returns.** No value is returned; observe the documented state change or callback.
@@ -124,7 +125,7 @@ epok::begin_loaded_projection_triple();
 inline void begin_packed_vertex(const GteProjectionInput& vertex)
 ```
 
-- **Declared at:** [line 301](../../../runtime/gte_geometry.hpp#L301)
+- **Declared at:** [line 317](../../../runtime/gte_geometry.hpp#L317)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -164,7 +165,7 @@ epok::begin_packed_vertex(vertex);
 inline void begin_projection_triple(const GteProjectionInput* vertices)
 ```
 
-- **Declared at:** [line 220](../../../runtime/gte_geometry.hpp#L220)
+- **Declared at:** [line 236](../../../runtime/gte_geometry.hpp#L236)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -206,7 +207,7 @@ epok::begin_projection_triple(vertices);
 inline bool checked_compact_projection_input(const uint8_t* entry,const int32_t* sum,GteProjectionInput& out)
 ```
 
-- **Declared at:** [line 156](../../../runtime/gte_geometry.hpp#L156)
+- **Declared at:** [line 172](../../../runtime/gte_geometry.hpp#L172)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -250,7 +251,7 @@ auto result = epok::checked_compact_projection_input(entry, sum, out);
 inline GteProjectionInput compact_projection_input(const uint8_t* entry,const CompactProjectionOffset& offset)
 ```
 
-- **Declared at:** [line 144](../../../runtime/gte_geometry.hpp#L144)
+- **Declared at:** [line 160](../../../runtime/gte_geometry.hpp#L160)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -292,7 +293,7 @@ auto result = epok::compact_projection_input(entry, offset);
 inline bool finish_packed_vertex(uint32_t& screen,int32_t& depth)
 ```
 
-- **Declared at:** [line 313](../../../runtime/gte_geometry.hpp#L313)
+- **Declared at:** [line 329](../../../runtime/gte_geometry.hpp#L329)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -334,7 +335,7 @@ auto result = epok::finish_packed_vertex(screen, depth);
 inline bool finish_projection_triple(uint32_t* screen,int32_t* depth)
 ```
 
-- **Declared at:** [line 241](../../../runtime/gte_geometry.hpp#L241)
+- **Declared at:** [line 257](../../../runtime/gte_geometry.hpp#L257)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -376,7 +377,7 @@ auto result = epok::finish_projection_triple(screen, depth);
 inline int32_t gte_average_depth(bool quad)
 ```
 
-- **Declared at:** [line 196](../../../runtime/gte_geometry.hpp#L196)
+- **Declared at:** [line 212](../../../runtime/gte_geometry.hpp#L212)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -460,7 +461,7 @@ auto result = epok::gte_vertex_bounds_fit(origin8, center12, extent12);
 inline void load_average_depth_scale(int32_t zsf3,int32_t zsf4)
 ```
 
-- **Declared at:** [line 190](../../../runtime/gte_geometry.hpp#L190)
+- **Declared at:** [line 206](../../../runtime/gte_geometry.hpp#L206)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -502,7 +503,7 @@ epok::load_average_depth_scale(zsf3, zsf4);
 template<unsigned Slot> inline void load_compact_projection_input(const uint8_t* entry,const CompactProjectionOffset& offset)
 ```
 
-- **Declared at:** [line 176](../../../runtime/gte_geometry.hpp#L176)
+- **Declared at:** [line 192](../../../runtime/gte_geometry.hpp#L192)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -594,7 +595,7 @@ auto result = epok::load_geometry_matrix<Number>(m);
 template<unsigned Slot> inline bool load_projection_input(const int32_t* world,const int32_t* offset)
 ```
 
-- **Declared at:** [line 120](../../../runtime/gte_geometry.hpp#L120)
+- **Declared at:** [line 136](../../../runtime/gte_geometry.hpp#L136)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -726,7 +727,7 @@ epok::load_projection_screen(focal, centre_x, centre_y);
 inline void load_projection_translation(const int32_t* translation)
 ```
 
-- **Declared at:** [line 104](../../../runtime/gte_geometry.hpp#L104)
+- **Declared at:** [line 120](../../../runtime/gte_geometry.hpp#L120)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -766,7 +767,7 @@ epok::load_projection_translation(translation);
 template<unsigned Slot> inline void load_projection_words(const GteProjectionInput& input)
 ```
 
-- **Declared at:** [line 163](../../../runtime/gte_geometry.hpp#L163)
+- **Declared at:** [line 179](../../../runtime/gte_geometry.hpp#L179)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -809,7 +810,7 @@ epok::load_projection_words<Slot>(input);
 inline bool pack_projection_input(const int32_t* world,const int32_t* offset,GteProjectionInput& out)
 ```
 
-- **Declared at:** [line 110](../../../runtime/gte_geometry.hpp#L110)
+- **Declared at:** [line 126](../../../runtime/gte_geometry.hpp#L126)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -853,7 +854,7 @@ auto result = epok::pack_projection_input(world, offset, out);
 inline bool project_geometry_triple(MeshVertices vertices,const int32_t* offset, uint32_t* screen,int32_t* depth)
 ```
 
-- **Declared at:** [line 341](../../../runtime/gte_geometry.hpp#L341)
+- **Declared at:** [line 385](../../../runtime/gte_geometry.hpp#L385)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -891,6 +892,55 @@ auto result = epok::project_geometry_triple(vertices, offset, screen, depth);
 
 ## `epok::project_geometry_triple`
 
+**Purpose.** Interior packets only need packed screen XY and unsigned depth.
+
+**Details.** Store the RTPT FIFO straight into their 8-byte records, avoiding temporary arrays and the six CPU loads/stores needed to interleave those arrays afterwards.
+
+**Exact declaration**
+
+```cpp
+template<class Number,class Compact> inline bool project_geometry_triple(const Number (*vertices)[3], const int32_t* offset,Compact* out)
+```
+
+- **Declared at:** [line 361](../../../runtime/gte_geometry.hpp#L361)
+- **Kind:** `function template`; qualifiers: `template`
+
+**Parameters**
+
+| Name | Type | Role | Meaning |
+| --- | --- | --- | --- |
+| `vertices` | `const Number (*)[3]` | Callback | Value supplied for `vertices`. See the exact type and module contract. |
+| `offset` | `const int32_t *` | Input | Value supplied for `offset`. See the exact type and module contract. |
+| `out` | `Compact *` | Input/output; inspect the function contract | Value supplied for `out`. See the exact type and module contract. |
+
+**Returns.** Returns `bool`. Check the purpose and failure notes before using the value.
+
+**Use it when.** Store the RTPT FIFO straight into their 8-byte records, avoiding temporary arrays and the six CPU loads/stores needed to interleave those arrays afterwards.
+
+**Usage pattern**
+
+```cpp
+#include "gte_geometry.hpp"
+
+// Replace these template arguments with types or values accepted by the declaration:
+// Number, Compact
+
+// Assume these named values have been initialized with valid data:
+// const Number (*)[3] vertices
+// const int32_t * offset
+// Compact * out
+
+auto result = epok::project_geometry_triple<Number, Compact>(vertices, offset, out);
+```
+
+**Why choose it.** Template dispatch is resolved at compile time and normally adds no runtime indirection. The boolean result makes success, availability or state explicit without exceptions.
+
+**Trade-offs and warnings.** Every instantiated type must satisfy the header's compile-time requirements; extra instantiations can increase code size. Check the return value; `false` is part of normal control flow for many PSX resource operations. Pointer/reference arguments are borrowed unless the source contract says otherwise; keep them valid for the complete operation and never assume null is accepted.
+
+<a id="epok-project-geometry-triple-3"></a>
+
+## `epok::project_geometry_triple`
+
 **Purpose.** Performs `project geometry triple` as part of Geometry Transformation Engine math and register operations.
 
 **Exact declaration**
@@ -899,7 +949,7 @@ auto result = epok::project_geometry_triple(vertices, offset, screen, depth);
 template<class Number> inline bool project_geometry_triple(const Number (*vertices)[3],const int32_t* offset, uint32_t* screen,int32_t* depth)
 ```
 
-- **Declared at:** [line 327](../../../runtime/gte_geometry.hpp#L327)
+- **Declared at:** [line 343](../../../runtime/gte_geometry.hpp#L343)
 - **Kind:** `function template`; qualifiers: `template`
 
 **Parameters**
@@ -1001,7 +1051,7 @@ epok::project_geometry_vertex<Vertex>(vertex, offset, camera, screen, flags);
 inline bool project_packed_vertex(const GteProjectionInput& vertex,uint32_t& screen,int32_t& depth)
 ```
 
-- **Declared at:** [line 277](../../../runtime/gte_geometry.hpp#L277)
+- **Declared at:** [line 293](../../../runtime/gte_geometry.hpp#L293)
 - **Kind:** `function decl`
 
 **Parameters**
@@ -1045,7 +1095,7 @@ auto result = epok::project_packed_vertex(vertex, screen, depth);
 inline int32_t read_average_depth()
 ```
 
-- **Declared at:** [line 207](../../../runtime/gte_geometry.hpp#L207)
+- **Declared at:** [line 223](../../../runtime/gte_geometry.hpp#L223)
 - **Kind:** `function decl`
 
 **Returns.** Returns `int32_t`. Check the purpose and failure notes before using the value.
@@ -1078,7 +1128,7 @@ auto result = epok::read_average_depth();
 inline bool store_projection_triple(uint32_t* screen,int32_t* depth)
 ```
 
-- **Declared at:** [line 262](../../../runtime/gte_geometry.hpp#L262)
+- **Declared at:** [line 278](../../../runtime/gte_geometry.hpp#L278)
 - **Kind:** `function decl`
 
 **Parameters**

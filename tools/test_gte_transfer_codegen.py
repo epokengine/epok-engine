@@ -61,6 +61,25 @@ class Transfers(unittest.TestCase):
                     flag = next(i for i, line in enumerate(single) if line.startswith("cfc2 "))
                     self.assertEqual(single[flag+1], "nop")
                     self.assertFalse(any(line.startswith("mfc2 ") for line in stores + single))
+                    for name, registers, opcode in (("project_geometry_full", [0, 1], "c2 0x180001"),
+                                                     ("project_geometry_batch", list(range(6)), "c2 0x280030")):
+                        geometry = instructions(disassembly, name)
+                        self.assertEqual([int(line.rsplit("$", 1)[1]) for line in geometry if line.startswith("mtc2 ")], registers)
+                        command = geometry.index(opcode)
+                        self.assertEqual(geometry[command-2:command], ["nop", "nop"])
+                        if name == "project_geometry_full":
+                            self.assertEqual([int(line.split("$")[1].split(",")[0])
+                                              for line in geometry if line.startswith("swc2 ")], [25, 27, 14])
+                            reads = [line for line in geometry if line.startswith("mfc2 ")]
+                            self.assertEqual(len(reads), 1)
+                            self.assertTrue(reads[0].endswith("$26"), reads)
+                            flag = next(i for i, line in enumerate(geometry) if line.startswith("cfc2 "))
+                            self.assertEqual(geometry[flag+1], "nop")
+                    compact = instructions(disassembly, "project_geometry_compact")
+                    command = compact.index("c2 0x280030")
+                    self.assertEqual(compact[command-2:command], ["nop", "nop"])
+                    self.assertEqual([line for line in compact if line.startswith("swc2 ")],
+                                     [f"swc2 ${r},{4*i}(a2)" for i, r in enumerate((12,17,13,18,14,19))])
                     direct = instructions(disassembly, "load_direct")
                     self.assertEqual([int(line.rsplit("$", 1)[1]) for line in direct if line.startswith("mtc2 ")],
                                      list(range(6)))

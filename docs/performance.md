@@ -208,6 +208,21 @@ changes instead of relying on the recorded numbers.
 
 ## Compilation and measurement
 
+The editable-mesh cooker gives nonconforming opaque wall joins a small coverage
+margin (at most 1/8 unit, bounded by panel width). This seals PSX integer-raster
+T junctions and floor corners without adding faces or per-frame stitching.
+At convex joins the shared floor corner also extends just beneath the walls,
+with all copies kept coincident to avoid pinholes at their base.
+Authored meshes, face/corner order, UVs, normals, bake colors and collision data
+are retained. Open boundaries, translucent/scrolling materials, free-standing
+props and inward room corners do not receive this margin.
+
+Software clipping preserves already projected corners, so the general renderer
+uses the same GTE screen coordinates as its unclipped neighbours. Shared clipping
+edges interpolate consistently from outside to inside, independent of winding.
+When either half of a quad needs software clipping, both surviving halves use
+the same clipping planes so their shared diagonal cannot bend apart.
+
 Chunk bounds use native 32-bit products when each input fits the limit derived
 from the actual view coefficients, rather than a fixed 32-world-unit cutoff.
 A conservative rounding guard contains the previous wide bounds. Plane tests

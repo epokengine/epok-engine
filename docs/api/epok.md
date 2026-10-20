@@ -2,7 +2,7 @@
 
 Epok's gameplay-facing and engine-runtime callables. Start here for entities, input, collision, audio, scenes, timelines, effects and resource budgets.
 
-**Coverage:** 122 headers · 2082 public callables.
+**Coverage:** 122 headers · 2083 public callables.
 
 ## Modules
 
@@ -37,7 +37,7 @@ Epok's gameplay-facing and engine-runtime callables. Start here for entities, in
 | [Frame Clear](epok/frame-clear.md) | `frame_clear.hpp` | 2 | Epok runtime API |
 | [Frustum](epok/frustum.md) | `frustum.hpp` | 13 | Epok runtime API |
 | [Gameplay Api](epok/gameplay-api.md) | `gameplay_api.hpp` | 135 | Epok runtime API |
-| [Gte Geometry](epok/gte-geometry.md) | `gte_geometry.hpp` | 26 | Epok runtime API |
+| [Gte Geometry](epok/gte-geometry.md) | `gte_geometry.hpp` | 27 | Epok runtime API |
 | [Hud](epok/hud.md) | `hud.hpp` | 12 | Epok runtime API |
 | [Hud Core](epok/hud-core.md) | `hud_core.hpp` | 14 | Epok runtime API |
 | [Hud Focus](epok/hud-focus.md) | `hud_focus.hpp` | 3 | Epok runtime API |

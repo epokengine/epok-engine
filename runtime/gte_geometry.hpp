@@ -85,14 +85,30 @@ inline void load_projection_screen(int32_t focal,int32_t centre_x,int32_t centre
 // register, valid only when no gte_projection_flags bit is set.
 template<class Vertex> inline void project_geometry_vertex(const Vertex& vertex,const int32_t* offset,int32_t* camera,uint32_t& screen,uint32_t& flags) {
     using namespace psyqo::GTE;
-    write<Register::VXY0>(uint32_t(uint16_t(offset[0]+(vertex[0]>>4)))|(uint32_t(uint16_t(offset[1]+(vertex[1]>>4)))<<16));
+    // VZ0's safe write supplies the two transfer-delay instructions for both
+    // inputs. Waiting again after VXY0 adds no protection before RTPS.
+    write<Register::VXY0,Unsafe>(uint32_t(uint16_t(offset[0]+(vertex[0]>>4)))|(uint32_t(uint16_t(offset[1]+(vertex[1]>>4)))<<16));
     write<Register::VZ0>(uint32_t(int32_t(offset[2]+(vertex[2]>>4))));
     Kernels::rtps();
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    uint32_t y;
+    // Store unmodified results directly, interleaving transfers to cover the
+    // CPU load delay of Y. SWC2 waits for RTPS, just as the scalar MFC2 does.
+    // FLAG still has its own CPU load-delay slot before the caller reads it.
+    asm volatile(
+        ".set push\n.set noreorder\n"
+        "swc2 $25, 0(%5)\nmfc2 %0, $26\nswc2 $27, 8(%5)\n"
+        "swc2 $14, 0(%6)\ncfc2 %1, $31\nnop\n.set pop\n"
+        : "=&r"(y), "=r"(flags), "=m"(camera[0]), "=m"(camera[2]), "=m"(screen)
+        : "r"(camera), "r"(&screen));
+    camera[1]=-int32_t(y);
+#else
     camera[0]=int32_t(readRaw<Register::MAC1>());
     camera[1]=-int32_t(readRaw<Register::MAC2>());
     camera[2]=int32_t(readRaw<Register::MAC3>());
     screen=readRaw<Register::SXY2>();
     flags=readRaw<Register::FLAG>();
+#endif
 }
 // Interior retained chunks never need camera X/Y for software clipping. RTPT
 // preserves all three screen/depth results in its FIFOs (not MAC1..3).
@@ -329,14 +345,42 @@ template<class Number> inline bool project_geometry_triple(const Number (*vertic
     using namespace psyqo::GTE;
     auto xy=[&](unsigned i){return uint32_t(uint16_t(offset[0]+(vertices[i][0]>>4))) |
         (uint32_t(uint16_t(offset[1]+(vertices[i][1]>>4)))<<16);};
-    write<Register::VXY0>(xy(0));write<Register::VZ0>(uint32_t(offset[2]+(vertices[0][2]>>4)));
-    write<Register::VXY1>(xy(1));write<Register::VZ1>(uint32_t(offset[2]+(vertices[1][2]>>4)));
-    write<Register::VXY2>(xy(2));write<Register::VZ2>(uint32_t(offset[2]+(vertices[2][2]>>4)));
+    // Only the final vector transfer needs explicit separation from RTPT.
+    write<Register::VXY0,Unsafe>(xy(0));write<Register::VZ0,Unsafe>(uint32_t(offset[2]+(vertices[0][2]>>4)));
+    write<Register::VXY1,Unsafe>(xy(1));write<Register::VZ1,Unsafe>(uint32_t(offset[2]+(vertices[1][2]>>4)));
+    write<Register::VXY2,Unsafe>(xy(2));write<Register::VZ2>(uint32_t(offset[2]+(vertices[2][2]>>4)));
     Kernels::rtpt();
     if(readRaw<Register::FLAG>() & gte_projection_flags)return false;
     screen[0]=readRaw<Register::SXY0>();screen[1]=readRaw<Register::SXY1>();screen[2]=readRaw<Register::SXY2>();
     depth[0]=int32_t(readRaw<Register::SZ1>());depth[1]=int32_t(readRaw<Register::SZ2>());depth[2]=int32_t(readRaw<Register::SZ3>());
     return true;
+}
+// Interior packets only need packed screen XY and unsigned depth. Store the
+// RTPT FIFO straight into their 8-byte records, avoiding temporary arrays and
+// the six CPU loads/stores needed to interleave those arrays afterwards.
+template<class Number,class Compact> inline bool project_geometry_triple(const Number (*vertices)[3],
+    const int32_t* offset,Compact* out) {
+    static_assert(sizeof(Compact)==8 && offsetof(Compact,camera)==4);
+#if defined(__mips__) && !defined(PS1_PC_PORT)
+    using namespace psyqo::GTE;
+    auto xy=[&](unsigned i){return uint32_t(uint16_t(offset[0]+(vertices[i][0]>>4))) |
+        (uint32_t(uint16_t(offset[1]+(vertices[i][1]>>4)))<<16);};
+    write<Register::VXY0,Unsafe>(xy(0));write<Register::VZ0,Unsafe>(uint32_t(offset[2]+(vertices[0][2]>>4)));
+    write<Register::VXY1,Unsafe>(xy(1));write<Register::VZ1,Unsafe>(uint32_t(offset[2]+(vertices[1][2]>>4)));
+    write<Register::VXY2,Unsafe>(xy(2));write<Register::VZ2>(uint32_t(offset[2]+(vertices[2][2]>>4)));
+    Kernels::rtpt();
+    if(readRaw<Register::FLAG>() & gte_projection_flags)return false;
+    asm volatile(
+        "swc2 $12, 0(%1)\nswc2 $17, 4(%1)\nswc2 $13, 8(%1)\n"
+        "swc2 $18, 12(%1)\nswc2 $14, 16(%1)\nswc2 $19, 20(%1)\n"
+        : "=m"(*reinterpret_cast<Compact (*)[3]>(out)) : "r"(out));
+    return true;
+#else
+    uint32_t screen[3];int32_t depth[3];
+    if(!project_geometry_triple(vertices,offset,screen,depth))return false;
+    for(unsigned i=0;i<3;++i){out[i].screen.packed=screen[i];out[i].camera.value=uint16_t(depth[i]);}
+    return true;
+#endif
 }
 inline bool project_geometry_triple(MeshVertices vertices,const int32_t* offset,
                                     uint32_t* screen,int32_t* depth) {
