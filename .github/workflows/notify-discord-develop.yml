@@ -53,7 +53,7 @@ jobs:
               avatar_url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
               allowed_mentions: {parse: []},
               embeds: [{
-                title: "🚀 Nuevo push a develop",
+                title: "🚀 New push to develop",
                 url: $commit_url,
                 color: 3056719,
                 description: ("[" + $sha + "](" + $commit_url + ") · " + $subject),
@@ -64,13 +64,13 @@ jobs:
                 },
                 fields: [
                   {
-                    name: "Repositorio",
+                    name: "Repository",
                     value: ("[" + $repository + "](" + $repository_url + ")"),
                     inline: true
                   },
                   {
-                    name: "Cambios",
-                    value: ("[Ver comparación](" + $compare_url + ")"),
+                    name: "Changes",
+                    value: ("[View comparison](" + $compare_url + ")"),
                     inline: true
                   }
                 ],
