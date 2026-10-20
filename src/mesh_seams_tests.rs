@@ -50,8 +50,8 @@ fn seals_only_the_longer_coplanar_wall_without_changing_bake_layout() {
     let chunks = crate::mesh_compile::chunks(&qs).unwrap();
     assert_eq!(unpack(&chunks, 0), qs[0].points);
     let mut expected = qs[1].points;
-    expected[0][2] -= 0.125;
-    expected[3][2] -= 0.125;
+    expected[0][2] -= 0.5;
+    expected[3][2] -= 0.5;
     assert_eq!(unpack(&chunks, 1), expected);
     for (a, b) in qs.iter().zip(original) {
         assert_eq!(a.points, b.points);
@@ -116,4 +116,16 @@ fn keeps_all_floor_copies_of_a_join_coincident_and_excludes_inside_floors() {
     for (i, q) in qs.iter().enumerate() {
         assert_eq!(unpack(&chunks, i), q.points);
     }
+}
+
+#[test]
+fn caps_coplanar_overlap_to_a_quarter_of_narrow_panels() {
+    let qs = [wall([0., 0.5], [0., 6.]), wall([0.5, 1.], [0., 7.5])];
+    let chunks = crate::mesh_compile::chunks(&qs).unwrap();
+    assert_eq!(unpack(&chunks, 0), qs[0].points);
+    let mut expected = qs[1].points;
+    expected[0][2] -= 0.125;
+    expected[3][2] -= 0.125;
+    assert_eq!(unpack(&chunks, 1), expected);
+    verify_bounds(&chunks, qs.len());
 }

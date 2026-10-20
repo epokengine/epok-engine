@@ -144,7 +144,12 @@ pub(super) fn close(quads: &[Quad], chunks: &mut [Chunk]) -> Result<(), String> 
                     && other.hi <= edge.hi
                     && (edge.lo < other.lo || other.hi < edge.hi)
             }) {
-                extend(&mut shifts, edge);
+                // At a grazing view, 1/8 unit projects to less than the GTE's
+                // one-pixel edge disagreement. Coplanar T joins need a wider
+                // overlap; retain the quarter-panel cap on narrow walls.
+                let guard =
+                    (GUARD * 4).min((edge.center - 4 * i64::from(edge.line)).abs() / 8) as i32;
+                extend(&mut shifts, Edge { guard, ..edge });
             }
         }
     }

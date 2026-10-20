@@ -209,8 +209,10 @@ changes instead of relying on the recorded numbers.
 ## Compilation and measurement
 
 The editable-mesh cooker gives nonconforming opaque wall joins a small coverage
-margin (at most 1/8 unit, bounded by panel width). This seals PSX integer-raster
-T junctions and floor corners without adding faces or per-frame stitching.
+margin (at most 1/2 unit for coplanar T joins and 1/8 unit for convex floor
+corners, capped to a quarter of panel width). The wider coplanar overlap covers
+integer edge disagreement at grazing views without adding faces or per-frame
+stitching.
 At convex joins the shared floor corner also extends just beneath the walls,
 with all copies kept coincident to avoid pinholes at their base.
 Authored meshes, face/corner order, UVs, normals, bake colors and collision data
