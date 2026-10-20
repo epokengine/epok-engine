@@ -54,6 +54,7 @@ pub struct State {
     history_index: usize,
     selected: BTreeSet<String>,
     anchor: Option<String>,
+    scroll_to: Option<String>,
     pub(crate) drag: Vec<String>,
     collection: Option<String>,
     tree_search: String,
@@ -99,9 +100,13 @@ impl State {
             .to_string();
         let mut state = std::mem::take(&mut e.project_browser);
         state.navigate(e, folder);
+        state.selected.clear();
         state.selected.insert(relative.clone());
+        state.scroll_to = Some(relative.clone());
         state.anchor = Some(relative);
         state.filter = 0;
+        state.scanned = None;
+        e.project_search.clear();
         e.selected_asset = Some(path.to_path_buf());
         e.focus_project = true;
         e.project_browser = state;
@@ -219,9 +224,12 @@ fn kind<'a>(e: &'a Editor, entry: &Entry) -> &'a str {
             assets::Kind::Font => "Font",
             assets::Kind::TileSet => "TileSet",
             assets::Kind::StringTable => "String Table",
+            assets::Kind::DataTable => "Data Table",
             assets::Kind::DungeonStyle => "Dungeon Style",
             assets::Kind::DungeonRecipe => "Dungeon Recipe",
             assets::Kind::DungeonRoom => "Dungeon Room",
+            assets::Kind::Video => "Video",
+            assets::Kind::PocketStationApp => "PocketStation App",
         };
     }
     if entry.path.ends_with(".epokbp") {
@@ -257,7 +265,7 @@ fn entry_icon(e: &Editor, entry: &Entry) -> (&'static str, [f32; 4]) {
 fn request_preview(e: &Editor, s: &mut State, entry: &Entry) -> PathBuf {
     s.previews.ensure_project(&e.root, &e.assets.index);
     let path = e.root.join(&entry.path);
-    if matches!(kind(e, entry), "Texture" | "Font" | "Audio") {
+    if matches!(kind(e, entry), "Texture" | "Font" | "Audio" | "Video") {
         let revision = crate::content_preview::revision(&e.root, &e.assets.index, &path);
         s.previews.request(&path, revision);
     }
@@ -283,9 +291,10 @@ fn display_name(entry: &Entry) -> &str {
 
 // Embedded Font Awesome glyphs, shared by tile and list views.
 pub const ASSET_ICON_RANGES: &[u32] = &[
-    0xf001, 0xf001, 0xf008, 0xf008, 0xf031, 0xf031, 0xf03e, 0xf03e, 0xf042, 0xf042, 0xf06d, 0xf06d,
-    0xf07b, 0xf07b, 0xf0e8, 0xf0e8, 0xf121, 0xf121, 0xf15b, 0xf15b, 0xf1b2, 0xf1b2, 0xf279, 0xf279,
-    0xf550, 0xf550, 0xf5d7, 0xf5d7, 0xf6d9, 0xf6d9, 0xf70e, 0xf70e, 0,
+    0xf001, 0xf001, 0xf008, 0xf008, 0xf031, 0xf031, 0xf03d, 0xf03e, 0xf042, 0xf042, 0xf06d, 0xf06d,
+    0xf07b, 0xf07b, 0xf0e8, 0xf0e8, 0xf10b, 0xf10b, 0xf121, 0xf121, 0xf15b, 0xf15b, 0xf1b2, 0xf1b2,
+    0xf279, 0xf279, 0xf550, 0xf550, 0xf5d7, 0xf5d7, 0xf6d9, 0xf6d9, 0xf6fc, 0xf6fc, 0xf70e, 0xf70e,
+    0,
 ];
 fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
     match kind {
@@ -300,17 +309,22 @@ fn type_icon(kind: &str) -> (&'static str, [f32; 4]) {
         "Skeleton" => ("\u{f5d7}", [0.81, 0.78, 0.63, 1.]),
         "Audio" => ("\u{f001}", [0.73, 0.48, 0.87, 1.]),
         "SoundBank" => ("\u{f001}", [0.54, 0.65, 0.88, 1.]),
+        "Data Table" => ("\u{f0ce}", [0.45, 0.76, 0.66, 1.]),
         "Animation" => ("\u{f008}", [0.90, 0.62, 0.34, 1.]),
+        "Video" => ("\u{f03d}", [0.91, 0.45, 0.52, 1.]),
+        "PocketStation App" => ("\u{f10b}", [0.62, 0.78, 0.56, 1.]),
         "Material" => ("\u{f042}", [0.40, 0.78, 0.65, 1.]),
         "Timeline" => ("\u{f550}", [0.65, 0.57, 0.89, 1.]),
         "Particle Effect" => ("\u{f06d}", [0.92, 0.48, 0.27, 1.]),
         "Dungeon Style" => ("\u{f6d9}", [0.72, 0.62, 0.48, 1.]),
         "Dungeon Recipe" => ("\u{f70e}", [0.80, 0.56, 0.40, 1.]),
         "Source" => ("\u{f121}", [0.66, 0.68, 0.71, 1.]),
+        "Tools" => ("\u{f013}", TEXT),
+        "Manage" => ("\u{f303}", TEXT),
         _ => ("\u{f15b}", [0.66, 0.68, 0.71, 1.]),
     }
 }
-const FILTERS: [&str; 20] = [
+const FILTERS: [&str; 23] = [
     "All assets",
     "Folder",
     "Blueprint",
@@ -322,15 +336,18 @@ const FILTERS: [&str; 20] = [
     "Terrain",
     "Skeleton",
     "Audio",
+    "Video",
     "Animation",
     "Timeline",
     "Particle Effect",
     "Dungeon Style",
     "Dungeon Recipe",
+    "PocketStation App",
     "Material",
     "Asset",
     "Source",
     "SoundBank",
+    "Data Table",
 ];
 
 fn visible(s: &State, e: &Editor) -> Vec<Entry> {
@@ -512,9 +529,11 @@ pub fn window(ui: &Ui, e: &mut Editor, asset_font: imgui::FontId) {
                             s.selected.clear();
                             e.selected_asset = None;
                         }
-                        if let Some(_popup) = ui.begin_popup_context_window() {
-                            context_menu(ui, e, &mut s, None);
-                        }
+                        menu_style(ui, || {
+                            if let Some(_popup) = ui.begin_popup_context_window() {
+                                context_menu(ui, e, &mut s, None);
+                            }
+                        });
                         if s.focused && !ui.io().want_text_input {
                             shortcuts(ui, e, &mut s, &items);
                         }
@@ -653,7 +672,9 @@ fn toolbar(ui: &Ui, e: &mut Editor, s: &mut State) {
     if tool(ui, "\u{f013} Settings", "View options") {
         ui.open_popup("content-settings");
     }
-    ui.popup("content-add", || creation_menu(ui, e, s));
+    menu_style(ui, || {
+        ui.popup("content-add", || creation_menu(ui, e, s));
+    });
     ui.popup("content-settings", || {
         ui.text_disabled("VIEW");
         if ui.radio_button_bool("Tiles", !s.prefs.list) {
@@ -691,82 +712,179 @@ fn toolbar(ui: &Ui, e: &mut Editor, s: &mut State) {
     });
 }
 
-fn creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
-    if ui.menu_item("SoundBank...") {
-        e.assets.begin_new_bank();
+// Scope the popup chrome before BeginPopup so tree-row spacing never leaks into menus.
+fn menu_style(ui: &Ui, draw: impl FnOnce()) {
+    let _vars = [
+        ui.push_style_var(V::WindowPadding([10., 8.])),
+        ui.push_style_var(V::ItemSpacing([10., 7.])),
+        ui.push_style_var(V::PopupRounding(4.)),
+        ui.push_style_var(V::PopupBorderSize(1.)),
+    ];
+    let _colors = [
+        ui.push_style_color(C::PopupBg, crate::gui::gray(30)),
+        ui.push_style_color(C::Border, crate::gui::gray(63)),
+        ui.push_style_color(C::Separator, crate::gui::gray(53)),
+        ui.push_style_color(C::Text, crate::gui::gray(222)),
+        ui.push_style_color(C::TextDisabled, crate::gui::gray(133)),
+        ui.push_style_color(C::HeaderHovered, [0.12, 0.29, 0.46, 1.]),
+        ui.push_style_color(C::HeaderActive, [0.10, 0.34, 0.57, 1.]),
+    ];
+    draw();
+}
+
+fn menu_item(ui: &Ui, icon: &str, label: &str, shortcut: &str, enabled: bool) -> bool {
+    let position = ui.cursor_screen_pos();
+    let clicked = ui
+        .menu_item_config(format!("      {label}"))
+        .shortcut(shortcut)
+        .enabled(enabled)
+        .build();
+    ui.get_window_draw_list().add_text(
+        position,
+        if enabled { TEXT } else { crate::gui::gray(96) },
+        icon,
+    );
+    clicked
+}
+
+fn asset_menu_item(ui: &Ui, kind: &str, label: &str) -> bool {
+    let (icon, color) = type_icon(kind);
+    let position = ui.cursor_screen_pos();
+    let clicked = menu_item(ui, "", label, "", true);
+    ui.get_window_draw_list().add_text(position, color, icon);
+    clicked
+}
+
+fn submenu(ui: &Ui, kind: &str, label: &str, draw: impl FnOnce()) {
+    let (icon, color) = type_icon(kind);
+    let position = ui.cursor_screen_pos();
+    let draw_list = ui.get_window_draw_list();
+    let menu = ui.begin_menu(format!("      {label}"));
+    draw_list.add_text(position, color, icon);
+    drop(draw_list);
+    if let Some(_menu) = menu {
+        draw();
     }
-    if ui.menu_item("Retro Starter SoundBank (generated triangle)") {
-        e.assets.start_starter_bank();
-    }
-    if ui.menu_item("New Folder") {
+}
+
+fn new_folder_menu_item(ui: &Ui, s: &mut State) {
+    if menu_item(ui, "\u{f07b}", "New Folder", "Ctrl+Shift+N", true) {
         s.new_folder = true;
         s.name = "NewFolder".into();
     }
+}
+
+fn creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
+    ui.text_disabled("CREATE CONTENT");
+    new_folder_menu_item(ui, s);
     ui.separator();
-    if ui.menu_item("C++ Class...") {
-        e.action("new-script");
-    }
-    if ui.menu_item("Blueprint Class...") {
-        e.action("new-blueprint");
-    }
-    if ui.menu_item("Lua Class...") {
-        e.action("new-lua");
-    }
-    if ui.menu_item("Timeline") {
-        if let Err(error) = e.timeline_editor.create(&e.root) {
-            s.error = Some(error);
+    asset_creation_menu(ui, e, s);
+    ui.separator();
+    submenu(ui, "Tools", "Tools", || {
+        timeline_adapters_menu_item(ui, e, s)
+    });
+}
+
+fn asset_creation_menu(ui: &Ui, e: &mut Editor, s: &mut State) {
+    submenu(ui, "Blueprint", "Blueprints & Scripts", || {
+        if asset_menu_item(ui, "Blueprint", "Blueprint Class...") {
+            e.action("new-blueprint");
         }
-        s.refresh(e);
-    }
-    if ui.menu_item("Particle Effect") {
-        if let Err(error) = e.timeline_editor.create_effect(&e.root) {
-            s.error = Some(error);
+        if asset_menu_item(ui, "Source", "C++ Class...") {
+            e.action("new-script");
         }
-        s.refresh(e);
-    }
-    if ui.menu_item("Terrain") {
-        if let Err(error) = crate::terrain_editor::create(e) {
-            s.error = Some(error);
+        if asset_menu_item(ui, "Lua Class", "Lua Class...") {
+            e.action("new-lua");
         }
-        s.refresh(e);
-    }
-    if ui.menu_item("TileSet") {
-        match crate::tileset_editor::create_empty(e) {
-            Ok(_) => s.refresh(e),
-            Err(error) => s.error = Some(error),
+    });
+    submenu(ui, "Audio", "Audio", || {
+        if asset_menu_item(ui, "SoundBank", "SoundBank...") {
+            e.assets.begin_new_bank();
         }
-    }
-    if ui.menu_item("String Table") {
-        crate::localization_editor::open(e);
-        s.refresh(e);
-    }
-    for (label, two_d) in [("Dungeon Style (3D)", false), ("Dungeon Style (2D)", true)] {
-        if ui.menu_item(label) {
-            let style = crate::dungeon_style::builtin(two_d, None);
-            match crate::dungeon_style_editor::create(e, "DungeonStyle", style) {
+        if asset_menu_item(ui, "SoundBank", "Retro Starter SoundBank") {
+            e.assets.start_starter_bank();
+        }
+        if ui.is_item_hovered() {
+            ui.tooltip_text("A starter bank with an original generated triangle instrument.");
+        }
+    });
+    submenu(ui, "Timeline", "Animation & Effects", || {
+        if asset_menu_item(ui, "Timeline", "Timeline") {
+            if let Err(error) = e.timeline_editor.create(&e.root) {
+                s.error = Some(error);
+            }
+            s.refresh(e);
+        }
+        if asset_menu_item(ui, "Particle Effect", "Particle Effect") {
+            if let Err(error) = e.timeline_editor.create_effect(&e.root) {
+                s.error = Some(error);
+            }
+            s.refresh(e);
+        }
+    });
+    submenu(ui, "Scene", "World Building", || {
+        if asset_menu_item(ui, "Terrain", "Terrain") {
+            if let Err(error) = crate::terrain_editor::create(e) {
+                s.error = Some(error);
+            }
+            s.refresh(e);
+        }
+        if asset_menu_item(ui, "Texture", "TileSet") {
+            match crate::tileset_editor::create_empty(e) {
+                Ok(_) => s.refresh(e),
+                Err(error) => s.error = Some(error),
+            }
+        }
+        ui.separator();
+        for (label, two_d) in [("Dungeon Style (3D)", false), ("Dungeon Style (2D)", true)] {
+            if asset_menu_item(ui, "Dungeon Style", label) {
+                let style = crate::dungeon_style::builtin(two_d, None);
+                match crate::dungeon_style_editor::create(e, "DungeonStyle", style) {
+                    Ok(_) => s.refresh(e),
+                    Err(error) => s.error = Some(error),
+                }
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("What each spot of a generated dungeon becomes: geometry, meshes, actors and lights, or tiles in 2D.");
+            }
+        }
+        if asset_menu_item(ui, "Dungeon Recipe", "Dungeon Recipe") {
+            match crate::dungeon_recipe_editor::create(
+                e,
+                "DungeonRecipe",
+                crate::dungeon_recipe::builtin(),
+            ) {
                 Ok(_) => s.refresh(e),
                 Err(error) => s.error = Some(error),
             }
         }
         if ui.is_item_hovered() {
-            ui.tooltip_text("What each spot of a generated dungeon becomes: geometry, meshes, actors and lights, or tiles in 2D.");
+            ui.tooltip_text("Steps that grow a dungeon's rooms: the main path, branches, loops, items, keys and locks, one-way doors.");
         }
-    }
-    if ui.menu_item("Dungeon Recipe") {
-        match crate::dungeon_recipe_editor::create(
-            e,
-            "DungeonRecipe",
-            crate::dungeon_recipe::builtin(),
-        ) {
-            Ok(_) => s.refresh(e),
-            Err(error) => s.error = Some(error),
+    });
+    submenu(ui, "Font", "Data & Localization", || {
+        if asset_menu_item(ui, "Data Table", "Data Table") {
+            if let Err(error) = crate::data_table_editor::create(e) {
+                s.error = Some(error);
+            }
+            s.refresh(e);
         }
+        if asset_menu_item(ui, "Font", "String Table") {
+            crate::localization_editor::open(e);
+            s.refresh(e);
+        }
+    });
+    if asset_menu_item(ui, "PocketStation App", "PocketStation App...") {
+        crate::pocketstation_ui::open(e);
+        e.pocketstation.new_app();
     }
     if ui.is_item_hovered() {
-        ui.tooltip_text("Steps that grow a dungeon's rooms: the main path, branches, loops, items, keys and locks, one-way doors.");
+        ui.tooltip_text("A program for the PocketStation, the memory card with a screen: Pocket Lua or assembly, sprites and icons, with an emulator to play it.");
     }
-    ui.separator();
-    if ui.menu_item("Install Timeline Adapters") {
+}
+
+fn timeline_adapters_menu_item(ui: &Ui, e: &mut Editor, s: &mut State) {
+    if menu_item(ui, "\u{f013}", "Install Timeline Adapters", "", true) {
         match crate::timeline_adapters::install(&e.root) {
             Ok(p) => e.log(p.display().to_string()),
             Err(error) => s.error = Some(error),
@@ -964,9 +1082,11 @@ fn tree(ui: &Ui, e: &mut Editor, s: &mut State, path: &str) {
     if path != "assets" {
         drag_source(ui, s, path);
     }
-    if let Some(_popup) = ui.begin_popup_context_item() {
-        context_menu(ui, e, s, Some(path));
-    }
+    menu_style(ui, || {
+        if let Some(_popup) = ui.begin_popup_context_item() {
+            context_menu(ui, e, s, Some(path));
+        }
+    });
     if let Some(_token) = token {
         for child in children {
             if s.tree_search.is_empty()
@@ -1101,12 +1221,14 @@ fn item_events(
     if entry.folder {
         drop_target(ui, e, s, &entry.path);
     }
-    if let Some(_popup) = ui.begin_popup_context_item() {
-        if !s.selected.contains(&entry.path) {
-            s.selected = BTreeSet::from([entry.path.clone()]);
+    menu_style(ui, || {
+        if let Some(_popup) = ui.begin_popup_context_item() {
+            if !s.selected.contains(&entry.path) {
+                s.selected = BTreeSet::from([entry.path.clone()]);
+            }
+            context_menu(ui, e, s, Some(&entry.path));
         }
-        context_menu(ui, e, s, Some(&entry.path));
-    }
+    });
 }
 fn grid(ui: &Ui, e: &mut Editor, s: &mut State, items: &[Entry], asset_font: imgui::FontId) {
     let tile = s
@@ -1127,6 +1249,10 @@ fn grid(ui: &Ui, e: &mut Editor, s: &mut State, items: &[Entry], asset_font: img
         let p = ui.cursor_screen_pos();
         let _id = ui.push_id(&entry.path);
         let clicked = ui.invisible_button("tile", [tile - 4., tile + 12.]);
+        if s.scroll_to.as_deref() == Some(entry.path.as_str()) {
+            ui.set_scroll_here_y_with_ratio(0.5);
+            s.scroll_to = None;
+        }
         #[cfg(test)]
         track(ui, &entry.path);
         if !ui.is_item_visible() && !ui.is_item_active() {
@@ -1165,14 +1291,16 @@ fn grid(ui: &Ui, e: &mut Editor, s: &mut State, items: &[Entry], asset_font: img
         let over_play = audio && hover && ui.is_mouse_hovering_rect(play_min, play_max);
         if over_play {
             let path = e.root.join(&entry.path);
-            if clicked {
+            if clicked && s.previews.playback_blocker(&path).is_none() {
                 s.previews.toggle(&path);
             }
-            ui.tooltip_text(if s.previews.active(&path) {
-                "Stop preview"
-            } else {
-                "Play preview"
-            });
+            ui.tooltip_text(s.previews.playback_blocker(&path).unwrap_or(
+                if s.previews.active(&path) {
+                    "Stop preview"
+                } else {
+                    "Play preview"
+                },
+            ));
         } else {
             item_events(ui, e, s, items, entry, clicked);
             if hover && let Some(error) = s.previews.failure(&e.root.join(&entry.path)) {
@@ -1324,7 +1452,8 @@ fn asset_card(
     if kind(e, entry) == "Audio" {
         let (a, b) = play_rect(p, tile);
         let size = b[0] - a[0];
-        let hover = ui.is_item_hovered() && ui.is_mouse_hovering_rect(a, b);
+        let blocked = s.previews.playback_blocker(&path).is_some();
+        let hover = !blocked && ui.is_item_hovered() && ui.is_mouse_hovering_rect(a, b);
         d.add_rect(a, b, crate::gui::gray(if hover { 86 } else { 49 }))
             .rounding(4.)
             .filled(true)
@@ -1344,7 +1473,11 @@ fn asset_card(
                 [a[0] + size * 0.36, a[1] + size * 0.25],
                 [a[0] + size * 0.36, a[1] + size * 0.75],
                 [a[0] + size * 0.75, a[1] + size * 0.5],
-                [1.; 4],
+                if blocked {
+                    [0.4, 0.4, 0.4, 1.]
+                } else {
+                    [1.; 4]
+                },
             )
             .filled(true)
             .build();
@@ -1462,6 +1595,10 @@ fn list(ui: &Ui, e: &mut Editor, s: &mut State, items: &[Entry]) {
                 .selected(s.selected.contains(&entry.path))
                 .allow_double_click(true)
                 .build();
+            if s.scroll_to.as_deref() == Some(entry.path.as_str()) {
+                ui.set_scroll_here_y_with_ratio(0.5);
+                s.scroll_to = None;
+            }
             #[cfg(test)]
             track(ui, &entry.path);
             item_events(ui, e, s, items, entry, clicked);
@@ -1477,11 +1614,14 @@ fn list(ui: &Ui, e: &mut Editor, s: &mut State, items: &[Entry]) {
                 } else {
                     "Play"
                 };
+                let disabled = ui.begin_disabled(s.previews.playback_blocker(&path).is_some());
                 if ui.small_button(format!("{label}##preview{}", entry.path)) {
                     s.previews.toggle(&path);
                 }
                 #[cfg(test)]
                 track(ui, &format!("Play##{}", entry.path));
+                drop(disabled);
+                s.previews.playback_tooltip(ui, &path);
             }
             ui.table_next_column();
             ui.text_disabled(&entry.path);
@@ -1520,9 +1660,11 @@ fn open(e: &mut Editor, s: &mut State, entry: &Entry) {
             assets::Kind::Terrain => crate::terrain_editor::open(e, record, None),
             assets::Kind::TileSet => crate::tileset_editor::open(e, record.meta.id),
             assets::Kind::StringTable => crate::localization_editor::open(e),
+            assets::Kind::DataTable => crate::data_table_editor::open(e, record.meta.id),
             assets::Kind::DungeonStyle => crate::dungeon_style_editor::open(e, record.meta.id),
             assets::Kind::DungeonRecipe => crate::dungeon_recipe_editor::open(e, record.meta.id),
             assets::Kind::DungeonRoom => crate::dungeon_room_editor::open(e, record.meta.id),
+            assets::Kind::PocketStationApp => crate::pocketstation_ui::open_app(e, record.meta.id),
             assets::Kind::Texture
             | assets::Kind::Font
             | assets::Kind::AudioClip
@@ -1624,55 +1766,94 @@ fn drop_target(ui: &Ui, e: &mut Editor, s: &mut State, folder: &str) {
     }
 }
 fn context_menu(ui: &Ui, e: &mut Editor, s: &mut State, path: Option<&str>) {
+    ui.text_disabled("CREATE CONTENT");
+    new_folder_menu_item(ui, s);
+    if menu_item(ui, "\u{f56f}", "Import...", "", true) {
+        s.request_import = true;
+    }
+    submenu(ui, "Blueprint", "Create Asset", || {
+        asset_creation_menu(ui, e, s)
+    });
+    ui.separator();
     if let Some(path) = path {
         let entry = s.entries.iter().find(|a| a.path == path).cloned();
-        if ui.menu_item("Open")
-            && let Some(entry) = &entry
+        let folder = entry.as_ref().is_none_or(|a| a.folder);
+        ui.text_disabled(if folder {
+            "FOLDER ACTIONS"
+        } else {
+            "ASSET ACTIONS"
+        });
+        if menu_item(ui, "\u{f07c}", "Open", "Enter", true) {
+            if let Some(entry) = &entry {
+                open(e, s, entry);
+            } else if path == "assets" {
+                s.navigate(e, path.into());
+            }
+        }
+        let favorite = s.prefs.favorites.contains(path);
+        if folder
+            && menu_item(
+                ui,
+                "\u{f005}",
+                if favorite {
+                    "Remove from Favorites"
+                } else {
+                    "Add to Favorites"
+                },
+                "",
+                true,
+            )
         {
-            open(e, s, entry);
-        }
-        if path != "assets" && ui.menu_item("Rename...    F2") {
-            s.rename = Some(path.into());
-            s.name = display_folder(path).into();
-            s.request_rename = true;
-        }
-        if entry.as_ref().is_none_or(|a| a.folder) && ui.menu_item("Add to Favorites") {
-            s.prefs.favorites.insert(path.into());
+            if favorite {
+                s.prefs.favorites.remove(path);
+            } else {
+                s.prefs.favorites.insert(path.into());
+            }
             s.save(&e.root);
         }
-        if ui.menu_item("Copy path") {
-            ui.set_clipboard_text(path);
-        }
-        if path != "assets" && ui.menu_item("Duplicate") {
-            let selected = if s.selected.contains(path) {
-                s.selected.clone()
-            } else {
-                BTreeSet::from([path.into()])
-            };
-            let copies = selected
-                .iter()
-                .map(|from| (from.clone(), duplicate_name(&e.root, from)))
-                .collect::<Vec<_>>();
-            match copy_paths(&e.root, &copies) {
-                Ok(()) => {
-                    s.refresh(e);
-                    s.error = None;
-                    s.selected = copies.into_iter().map(|(_, to)| to).collect();
-                }
-                Err(error) => s.error = Some(error),
-            }
-        }
-        if path != "assets" && ui.menu_item("Delete...    Del") {
-            if !s.selected.contains(path) {
-                s.selected = BTreeSet::from([path.into()]);
-            }
-            s.request_delete = true;
-        }
-        if ui.menu_item("Show in Explorer") {
+        if menu_item(ui, "\u{f07b}", "Show in Explorer", "", true) {
             reveal(&e.root.join(path));
         }
+        if menu_item(ui, "\u{f0c5}", "Copy Path", "", true) {
+            ui.set_clipboard_text(path);
+        }
+        if path != "assets" {
+            submenu(ui, "Manage", "Manage", || {
+                if menu_item(ui, "\u{f303}", "Rename...", "F2", true) {
+                    s.rename = Some(path.into());
+                    s.name = display_folder(path).into();
+                    s.request_rename = true;
+                }
+                if menu_item(ui, "\u{f0c5}", "Duplicate", "", true) {
+                    let selected = if s.selected.contains(path) {
+                        s.selected.clone()
+                    } else {
+                        BTreeSet::from([path.into()])
+                    };
+                    let copies = selected
+                        .iter()
+                        .map(|from| (from.clone(), duplicate_name(&e.root, from)))
+                        .collect::<Vec<_>>();
+                    match copy_paths(&e.root, &copies) {
+                        Ok(()) => {
+                            s.refresh(e);
+                            s.error = None;
+                            s.selected = copies.into_iter().map(|(_, to)| to).collect();
+                        }
+                        Err(error) => s.error = Some(error),
+                    }
+                }
+                ui.separator();
+                if menu_item(ui, "\u{f2ed}", "Delete...", "Del", true) {
+                    if !s.selected.contains(path) {
+                        s.selected = BTreeSet::from([path.into()]);
+                    }
+                    s.request_delete = true;
+                }
+            });
+        }
         if !s.prefs.collections.is_empty() {
-            ui.menu("Add to Collection", || {
+            submenu(ui, "Folder", "Add to Collection", || {
                 for name in s.prefs.collections.keys().cloned().collect::<Vec<_>>() {
                     if ui.menu_item(&name) {
                         s.prefs
@@ -1686,7 +1867,7 @@ fn context_menu(ui: &Ui, e: &mut Editor, s: &mut State, path: Option<&str>) {
             });
         }
         if let Some(name) = s.collection.clone()
-            && ui.menu_item("Remove from Collection")
+            && menu_item(ui, "\u{f00d}", "Remove from Collection", "", true)
         {
             if let Some(paths) = s.prefs.collections.get_mut(&name) {
                 paths.retain(|p| !s.selected.contains(p));
@@ -1695,35 +1876,38 @@ fn context_menu(ui: &Ui, e: &mut Editor, s: &mut State, path: Option<&str>) {
         }
         ui.separator();
     }
-    creation_menu(ui, e, s);
-    ui.separator();
-    if ui.menu_item("Import...") {
-        s.request_import = true;
-    }
-    if ui.menu_item("Refresh    F5") {
-        s.refresh(e);
-    }
-    if ui
-        .menu_item_config("Undo last move    Ctrl+Z")
-        .enabled(!s.undo_moves.is_empty())
-        .build()
-    {
-        undo(e, s);
-    }
-    if ui
-        .menu_item_config("Restore last deleted content")
-        .enabled(!s.trash.is_empty())
-        .build()
-    {
-        match restore_trash(&e.root, &s.trash) {
-            Ok(()) => {
-                s.trash.clear();
-                s.refresh(e);
-                s.error = None;
-            }
-            Err(error) => s.error = Some(error),
+    submenu(ui, "Tools", "Tools", || {
+        if menu_item(ui, "\u{f2f1}", "Refresh", "F5", true) {
+            s.refresh(e);
         }
-    }
+        timeline_adapters_menu_item(ui, e, s);
+        ui.separator();
+        if menu_item(
+            ui,
+            "\u{f2ea}",
+            "Undo Last Move",
+            "Ctrl+Z",
+            !s.undo_moves.is_empty(),
+        ) {
+            undo(e, s);
+        }
+        if menu_item(
+            ui,
+            "\u{f2ea}",
+            "Restore Last Deleted Content",
+            "",
+            !s.trash.is_empty(),
+        ) {
+            match restore_trash(&e.root, &s.trash) {
+                Ok(()) => {
+                    s.trash.clear();
+                    s.refresh(e);
+                    s.error = None;
+                }
+                Err(error) => s.error = Some(error),
+            }
+        }
+    });
 }
 fn duplicate_name(root: &Path, source: &str) -> String {
     let path = Path::new(source);
@@ -2216,7 +2400,7 @@ fn copy_paths(root: &Path, copies: &[(String, String)]) -> Result<(), String> {
             let bytes = match ext {
                 "epokasset" => {
                     let mut package = assets::Package::load(source)?;
-                    if !matches!(package.meta.kind, assets::Kind::AudioClip | assets::Kind::MusicSequence | assets::Kind::SoundBank | assets::Kind::Texture | assets::Kind::EditableMesh | assets::Kind::DungeonStyle | assets::Kind::DungeonRecipe) { return Err("Reimport the FBX to create an independent copy of a composite model.".into()); }
+                    if !matches!(package.meta.kind, assets::Kind::AudioClip | assets::Kind::MusicSequence | assets::Kind::SoundBank | assets::Kind::Texture | assets::Kind::EditableMesh | assets::Kind::DungeonStyle | assets::Kind::DungeonRecipe | assets::Kind::PocketStationApp) { return Err("Reimport the FBX to create an independent copy of a composite model.".into()); }
                     package.meta.id = uuid::Uuid::new_v4(); package.bytes()?
                 }
                 "epokbp" | "lua" | "cpp" | "hpp" | "h" | "hh" | "cc" => return Err("Use Add > C++ Class / Blueprint Class / Lua Class to create an independent class; class identities cannot be copied as files.".into()),
@@ -2495,8 +2679,9 @@ fn import(e: &mut Editor, s: &mut State, source: &Path) -> bool {
             "vb", "sf2", "sf3", "fbx", "obj", "ttf", "otf",
         ]
         .contains(&ext.as_str())
+            && !crate::video_import::EXTENSIONS.contains(&ext.as_str())
         {
-            return Err("Supported import sources: PNG, TIM, WAV, MP3, FLAC, OGG, MIDI, Sony audio, SoundFont, FBX, OBJ, TTF and OTF.".into());
+            return Err("Supported import sources: PNG, TIM, WAV, MP3, FLAC, OGG, MIDI, Sony audio, SoundFont, FBX, OBJ, TTF, OTF and video (MP4, MOV, AVI, MKV, WebM, MPEG, GIF).".into());
         }
         let name = source
             .file_name()
@@ -2735,7 +2920,7 @@ fn pick_files() -> Result<Vec<PathBuf>, String> {
     {
         use std::os::windows::process::CommandExt;
         let output = std::process::Command::new("powershell.exe").creation_flags(0x08000000)
-            .args(["-NoProfile", "-STA", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Import Content'; $d.Multiselect=$true; $d.Filter='Supported content|*.png;*.tim;*.wav;*.mp3;*.flac;*.ogg;*.mid;*.midi;*.seq;*.sep;*.vab;*.vh;*.vb;*.sf2;*.sf3;*.fbx;*.obj;*.ttf;*.otf'; if($d.ShowDialog() -eq 'OK'){$d.FileNames | ForEach-Object {[Console]::WriteLine($_)}}; $d.Dispose()"])
+            .args(["-NoProfile", "-STA", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Import Content'; $d.Multiselect=$true; $d.Filter='Supported content|*.png;*.tim;*.wav;*.mp3;*.flac;*.ogg;*.mid;*.midi;*.seq;*.sep;*.vab;*.vh;*.vb;*.sf2;*.sf3;*.fbx;*.obj;*.ttf;*.otf;*.mp4;*.m4v;*.mov;*.avi;*.mkv;*.webm;*.mpg;*.mpeg;*.wmv;*.ogv;*.gif'; if($d.ShowDialog() -eq 'OK'){$d.FileNames | ForEach-Object {[Console]::WriteLine($_)}}; $d.Dispose()"])
             .output().map_err(|e| e.to_string())?;
         if !output.status.success() {
             return Err("Could not open the file picker. Enter a source path instead.".into());
@@ -3204,7 +3389,7 @@ mod tests {
     use super::*;
     #[test]
     #[ignore = "Owns an ImGui context; run explicitly and serially for audio preview error routing"]
-    fn midi_preview_failure_logs_once_per_play_attempt_in_tiles_and_list() {
+    fn midi_preview_failure_disables_repeated_attempts_in_tiles_and_list() {
         let mut context = imgui::Context::create();
         context.set_ini_filename(None);
         context.io_mut().display_size = [1100., 700.];
@@ -3224,6 +3409,7 @@ mod tests {
         midi.extend((events.len() as u32).to_be_bytes());
         midi.extend(events);
         fs::write(root.join("assets/unsupported.mid"), midi).unwrap();
+        let (_, bank) = crate::sequence_preview::tests::fixture(&root);
         assets::commit(
             crate::sequence::prepare(
                 &root,
@@ -3237,7 +3423,6 @@ mod tests {
         )
         .unwrap();
         let path = root.join("assets/unsupported.epokasset");
-        let original = fs::read(&path).unwrap();
         let mut editor = Editor::new(root.clone());
         editor.auto_build = false;
         editor.assets.index = assets::scan(&root, &mut Default::default());
@@ -3255,7 +3440,70 @@ mod tests {
             window(ui, editor, font);
             context.render();
         };
-        for (attempt, list) in [false, false, true].into_iter().enumerate() {
+        for list in [false, true] {
+            editor.project_browser.prefs.list = list;
+            frame(&mut context, &mut editor);
+            frame(&mut context, &mut editor);
+            let reason = editor
+                .project_browser
+                .previews
+                .playback_blocker(&path)
+                .unwrap();
+            assert!(reason.contains("Assign a SoundBank"), "{reason}");
+            let position =
+                CONTROLS.with(|buttons| buttons.borrow()["Play##assets/unsupported.epokasset"]);
+            context.io_mut().add_mouse_pos_event(position);
+            frame(&mut context, &mut editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(MouseButton::Left, true);
+            frame(&mut context, &mut editor);
+            context
+                .io_mut()
+                .add_mouse_button_event(MouseButton::Left, false);
+            frame(&mut context, &mut editor);
+            assert!(!editor.project_browser.previews.active(&path));
+            assert!(
+                editor.logs.is_empty(),
+                "A disabled control cannot start a failing worker"
+            );
+        }
+        let record = editor
+            .assets
+            .index
+            .assets
+            .values()
+            .flatten()
+            .find(|r| r.path == path)
+            .unwrap();
+        let mut settings = record.meta.settings.sequence().unwrap().clone();
+        settings.sound_bank = Some(bank);
+        assets::commit(
+            crate::sequence::prepare(
+                &root,
+                "",
+                "assets/unsupported.epokasset",
+                settings,
+                Some(record),
+                true,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let original = fs::read(&path).unwrap();
+        editor.assets.index = assets::scan(&root, &mut Default::default());
+        editor
+            .project_browser
+            .previews
+            .configure(&root, &editor.assets.index);
+        assert!(
+            editor
+                .project_browser
+                .previews
+                .playback_blocker(&path)
+                .is_none()
+        );
+        for list in [false, false, true] {
             editor.project_browser.prefs.list = list;
             frame(&mut context, &mut editor);
             frame(&mut context, &mut editor);
@@ -3282,8 +3530,8 @@ mod tests {
             }
             assert_eq!(
                 editor.logs.len(),
-                attempt + 1,
-                "Exactly one Console entry per Play attempt"
+                1,
+                "A known playback failure disables further attempts in both views"
             );
             let message = editor.logs.last().unwrap();
             assert!(
@@ -3298,6 +3546,14 @@ mod tests {
                 "Playback errors must not persist in the browser footer"
             );
             assert!(editor.project_browser.previews.error.is_none());
+            assert!(
+                editor
+                    .project_browser
+                    .previews
+                    .playback_blocker(&path)
+                    .unwrap()
+                    .contains("re-export the MIDI")
+            );
         }
         editor.clear_logs();
         for _ in 0..30 {

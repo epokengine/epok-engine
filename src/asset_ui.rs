@@ -215,6 +215,7 @@ fn manager_body(ui: &Ui, m: &mut Manager, scene: &crate::scene::Scene) {
                                     | assets::Kind::DungeonStyle
                                     | assets::Kind::DungeonRecipe
                                     | assets::Kind::DungeonRoom
+                                    | assets::Kind::PocketStationApp
                             ) {
                                 "Double-click this asset in Project to open its editor."
                             } else {
@@ -362,6 +363,59 @@ fn import_dialog(ui: &Ui, m: &mut Manager) {
         .is_some_and(|f| f.sequence.is_some() || f.bank.is_some())
     {
         portable_audio_dialog(ui, m);
+        return;
+    }
+    if m.form.as_ref().is_some_and(|f| f.video.is_some()) {
+        m.open_dialog = false;
+        let (mut open, mut start) = (true, false);
+        ui.window("Import Video")
+            .opened(&mut open)
+            .position(
+                [ui.io().display_size[0] * 0.5, ui.io().display_size[1] * 0.5],
+                Condition::Appearing,
+            )
+            .position_pivot([0.5, 0.5])
+            .size([640., 560.], Condition::FirstUseEver)
+            .size_constraints([500., 420.], [1400., 1200.])
+            .build(|| {
+                let form = m.form.as_mut().unwrap();
+                ui.text("Video -> PlayStation full-motion video");
+                crate::gui::muted(
+                    ui,
+                    "MP4, MOV, AVI, MKV, WebM, MPEG and GIF. The clip is encoded to an MDEC stream with XA audio, streamed from CD at double speed and decoded by the console. Gameplay pauses while it plays.",
+                );
+                ui.disabled(m.busy, || {
+                    ui.disabled(form.snapshot, || {
+                        ui.input_text(crate::gui::field(ui, "Source"), &mut form.source)
+                            .build();
+                    });
+                    ui.disabled(form.existing.is_some(), || {
+                        ui.input_text(crate::gui::field(ui, "Video asset"), &mut form.destination)
+                            .build();
+                    });
+                    ui.separator();
+                    video_settings(ui, form.video.as_mut().unwrap());
+                    ui.separator();
+                    if form.snapshot {
+                        ui.text_wrapped("Encoding the original stored inside the asset. No external source is required.");
+                    }
+                    if ui.button(if form.existing.is_some() { "Reimport" } else { "Import" }) {
+                        start = true;
+                    }
+                });
+                if m.busy {
+                    ui.text_wrapped("Encoding and checking every frame with the console decoder... Long clips take a while; existing assets stay usable.");
+                }
+                if let Some(error) = &m.error {
+                    ui.text_wrapped(error);
+                }
+            });
+        if start {
+            m.start_import();
+        }
+        if !open && !m.busy {
+            m.form = None;
+        }
         return;
     }
     if m.form.as_ref().is_some_and(|f| f.texture) {
@@ -1146,6 +1200,171 @@ fn atlas_image(ui: &Ui, data: &FontData, edge: f32) {
         }
     }
     ui.dummy([w as f32 * scale, h as f32 * scale]);
+}
+const VIDEO_SIZES: [(u32, u32, &str); 4] = [
+    (320, 240, "320 x 240 (full screen)"),
+    (256, 240, "256 x 240 (narrow display)"),
+    (320, 176, "320 x 176 (widescreen, letterboxed)"),
+    (160, 112, "160 x 112 (small window, sharper)"),
+];
+/// Import options for a Video asset, with the bandwidth they leave each frame.
+pub fn video_settings(ui: &Ui, settings: &mut crate::video_import::Settings) -> bool {
+    use crate::video_import::{AudioTrack, Codec, Levels};
+    let before = settings.clone();
+    let preset = VIDEO_SIZES
+        .iter()
+        .find(|(w, h, _)| (*w, *h) == (settings.width, settings.height))
+        .map_or("Custom", |(_, _, label)| *label);
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Picture size"), preset) {
+        for (width, height, label) in VIDEO_SIZES {
+            if ui
+                .selectable_config(label)
+                .selected(preset == label)
+                .build()
+            {
+                (settings.width, settings.height) = (width, height);
+            }
+        }
+    }
+    help(
+        ui,
+        "video-size",
+        "The box the picture is fitted into, in multiples of 16 pixels. The console shows it centred, with black borders when it is smaller than the screen. Smaller pictures leave more data per pixel and look sharper.",
+    );
+    let mut size = [settings.width as i32, settings.height as i32];
+    if ui
+        .input_int2(crate::gui::field(ui, "Width x height"), &mut size)
+        .build()
+    {
+        settings.width = ((size[0].clamp(32, 320) as u32 + 8) / 16 * 16).clamp(32, 320);
+        settings.height = ((size[1].clamp(32, 240) as u32 + 8) / 16 * 16).clamp(32, 240);
+    }
+    let mut keep = !settings.stretch;
+    if crate::gui::toggle(ui, "Keep aspect ratio", &mut keep) {
+        settings.stretch = !keep;
+    }
+    help(
+        ui,
+        "video-aspect",
+        "On: the picture keeps its proportions inside the box (letterbox). Off: it is stretched to fill the box exactly.",
+    );
+    if let Some(_combo) = ui.begin_combo(
+        crate::gui::field(ui, "Frame rate"),
+        format!("{} fps", settings.frame_rate),
+    ) {
+        for rate in [10, 12, 15, 20, 24, 25, 30] {
+            let label = if rate == 15 {
+                "15 fps (recommended)".to_string()
+            } else {
+                format!("{rate} fps")
+            };
+            if ui
+                .selectable_config(label)
+                .selected(settings.frame_rate == rate)
+                .build()
+            {
+                settings.frame_rate = rate;
+            }
+        }
+    }
+    help(
+        ui,
+        "video-rate",
+        "Frames per second. The CD delivers a fixed amount of data per second, so a higher rate gives each frame less detail.",
+    );
+    if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Audio"), settings.audio.label()) {
+        for track in AudioTrack::ALL {
+            if ui
+                .selectable_config(track.label())
+                .selected(settings.audio == track)
+                .build()
+            {
+                settings.audio = track;
+            }
+        }
+    }
+    if settings.audio != AudioTrack::None {
+        let label = if settings.sample_rate == 37800 {
+            "37800 Hz (best)"
+        } else {
+            "18900 Hz (more data for video)"
+        };
+        if let Some(_combo) = ui.begin_combo(crate::gui::field(ui, "Sample rate"), label) {
+            for (rate, text) in [
+                (37800, "37800 Hz (best)"),
+                (18900, "18900 Hz (more data for video)"),
+            ] {
+                if ui
+                    .selectable_config(text)
+                    .selected(settings.sample_rate == rate)
+                    .build()
+                {
+                    settings.sample_rate = rate;
+                }
+            }
+        }
+    }
+    if let Some(_combo) =
+        ui.begin_combo(crate::gui::field(ui, "Compression"), settings.codec.label())
+    {
+        for codec in Codec::ALL {
+            if ui
+                .selectable_config(codec.label())
+                .selected(settings.codec == codec)
+                .build()
+            {
+                settings.codec = codec;
+            }
+        }
+    }
+    if let Some(_combo) = ui.begin_combo(
+        crate::gui::field(ui, "Brightness range"),
+        settings.levels.label(),
+    ) {
+        for levels in Levels::ALL {
+            if ui
+                .selectable_config(levels.label())
+                .selected(settings.levels == levels)
+                .build()
+            {
+                settings.levels = levels;
+            }
+        }
+    }
+    help(
+        ui,
+        "video-levels",
+        "Most camera and web video keeps black at 16 and white at 235. Auto detects this from the encoded frames and makes the console expand it, at no runtime cost, so blacks are not grey.",
+    );
+    let budget = settings.frame_budget();
+    let bits = budget as f32 * 8. / (settings.width * settings.height) as f32;
+    let (quality, color) = if bits >= 1.6 {
+        ("Good detail", [0.46, 0.78, 0.48, 1.])
+    } else if bits >= 1.0 {
+        ("Fair detail", [0.90, 0.74, 0.36, 1.])
+    } else {
+        (
+            "Blocky: lower the size or frame rate",
+            [0.92, 0.45, 0.40, 1.],
+        )
+    };
+    ui.text("Each frame gets");
+    ui.same_line();
+    ui.text(format!("{:.1} KiB", budget as f32 / 1024.));
+    ui.same_line();
+    ui.text_colored(color, format!("- {quality}"));
+    crate::gui::muted(
+        ui,
+        format!(
+            "Uses 300 KiB of disc per second. {}",
+            if settings.audio == AudioTrack::None {
+                "Every sector carries video.".to_string()
+            } else {
+                format!("One sector in {} carries audio.", settings.interleave())
+            }
+        ),
+    );
+    *settings != before
 }
 pub fn font_settings(ui: &Ui, settings: &mut FontSettings) -> bool {
     let before = settings.clone();

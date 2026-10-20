@@ -6,6 +6,11 @@ Use Windows x64, macOS 11+ on Apple Silicon, or experimental Linux x86_64. Insta
 
 Use a checkout path without spaces. The upstream MIPS Makefiles do not escape every path. Other desktop platforms are not yet supported.
 
+The integrated code editor uses the Microsoft Edge WebView2 Runtime on Windows
+and the system WKWebView on macOS. Linux builds additionally need GTK 3 and
+WebKitGTK 4.1 development packages (`libgtk-3-dev` and `libwebkit2gtk-4.1-dev` on
+Debian/Ubuntu); the editor uses X11 or XWayland for its embedded code view.
+
 ## Install and run
 
 ```powershell
@@ -100,7 +105,7 @@ With the default Cargo target directory, `make release` writes `target/release/e
 ## First session
 
 1. In **Projects**, select **Sample**, leave the gameplay flavor on **C++**, choose a name/location, and click **Create project**. Then select **Cube** in Hierarchy. The sample attaches **Spinner** to it.
-2. Use **Edit Script** in Inspector to open its original C++ source in VS Code.
+2. Use **Edit C++ Class** in Inspector to open its original source in the integrated [code editor](code-editor.md). Open **Setup** there to install LuaLS, clangd or optional GitHub Copilot.
 3. Save a change. With Auto compile enabled, the editor waits 700 ms after a write and compiles in the background.
 4. Double-click a compiler diagnostic in Console to open the corresponding original script and line.
 5. Press **Play** to compile and run in PCSX-Redux. Click Game to send keyboard input to the emulated controller.
@@ -153,7 +158,7 @@ The local file **replaces** the editor installation configuration; the two JSON 
 | `psxavenc` | XA audio encoder executable |
 | `libclang` | C++ reflection library directory; empty uses the bundled library |
 | `mkpsxiso` | CD image builder executable |
-| `code` | VS Code executable; empty enables discovery |
+| `code` | Optional external VS Code executable; empty enables discovery |
 | `web_port` | Emulator HTTP port, normally 8077 |
 | `auto_build` | Fallback; the game manifest owns the initial Auto compile setting |
 

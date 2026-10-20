@@ -30,3 +30,9 @@ LICENSE text eol=lf
 *.epokdebug text eol=lf
 *.epokasset binary
 *.ico binary
+
+# Bundled Monaco output is generated from tools/code-editor. Its minified
+# JavaScript contains significant whitespace inside multiline string literals.
+resources/code-editor/* linguist-generated
+resources/code-editor/*.js whitespace=-blank-at-eol
+resources/code-editor/ThirdPartyNotices-monaco.txt whitespace=-blank-at-eof

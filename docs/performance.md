@@ -99,6 +99,20 @@ adds timing and counter overhead and is not a release FPS measurement.
 
 GTE validation counters are populated only with `EPOK_VALIDATE_GTE=1`. Validation compares GTE and software results within the runtime's coordinate and screen tolerances; its extra work also affects timing.
 
+## Compound collision queries
+
+Compound static colliders, including generated dungeons, automatically use a
+spatial grid cooked from their collision boxes. Movement queries cover the whole
+swept box, camera rays cover their full segment, and triggers query their own
+footprint. Only candidate parts reach the existing collision solver; boxes
+outside the rendered view still collide normally. Candidate order is preserved,
+including contact ties and trigger event order.
+
+The grid starts with eight-unit XZ cells and coarsens to keep its cell lists
+within 8 KiB per collider. It needs no per-frame rebuild or heap allocation and
+follows translated owners. Small colliders and layouts without a useful bounded
+grid retain the linear query path.
+
 ## Precomputed chunk visibility
 
 Enable **Precomputed Visibility** under **Project Settings > Engine > Rendering**
@@ -193,6 +207,31 @@ that says nothing about runtime performance. Re-measure after runtime or cooker
 changes instead of relying on the recorded numbers.
 
 ## Compilation and measurement
+
+The editable-mesh cooker gives nonconforming opaque wall joins a small coverage
+margin (at most 1/2 unit for coplanar T joins and 1/8 unit for convex floor
+corners, capped to a quarter of panel width). The wider coplanar overlap covers
+integer edge disagreement at grazing views without adding faces or per-frame
+stitching.
+At convex joins the shared floor corner also extends just beneath the walls,
+with all copies kept coincident to avoid pinholes at their base.
+Authored meshes, face/corner order, UVs, normals, bake colors and collision data
+are retained. Open boundaries, translucent/scrolling materials, free-standing
+props and inward room corners do not receive this margin.
+
+Software clipping preserves already projected corners, so the general renderer
+uses the same GTE screen coordinates as its unclipped neighbours. Shared clipping
+edges interpolate consistently from outside to inside, independent of winding.
+When either half of a quad needs software clipping, both surviving halves use
+the same clipping planes so their shared diagonal cannot bend apart.
+
+Chunk bounds use native 32-bit products when each input fits the limit derived
+from the actual view coefficients, rather than a fixed 32-world-unit cutoff.
+A conservative rounding guard contains the previous wide bounds. Plane tests
+also use 32-bit arithmetic only when their coefficient and translation bounds
+prove it safe; larger transforms and unusual display ratios retain the wide
+path. This changes render traversal cost without changing geometry, lighting,
+draw distance or collision queries.
 
 Release builds optimize the runtime's `main.o` with `-O2`; PsyQo and game scripts retain their configured options. `EPOK_RUNTIME_OPT=-Os` permits comparison. Rebuild `main.o` after changing optimization, detail or validation flags.
 

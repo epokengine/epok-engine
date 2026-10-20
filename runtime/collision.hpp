@@ -1,9 +1,22 @@
 #pragma once
+#include <bit>
 #include <stddef.h>
 #include <stdint.h>
 #include "affine.hpp"
 
 namespace epok {
+// Immutable, cooked XZ cell lists for a compound collider. Lists contain part
+// indices in source order; Q8 origins and a Q12 cell shift match the solid data.
+// Binding the source pointer/count lets a replaced collider fall back safely.
+struct CompoundGrid {
+    const int16_t* boxes;
+    const uint16_t* offsets;
+    const uint16_t* indices;
+    uint16_t box_count,columns,rows;
+    int16_t origin_x,origin_z;
+    uint8_t cell_shift;
+};
+inline constexpr size_t compound_grid_max_parts=2048;
 // Number is Q12 (PsyQo Fixed on target). The templates also allow host testing.
 template<class Number> struct ColliderT {
     bool enabled=false,trigger=false;
@@ -37,6 +50,7 @@ template<class Number> struct ColliderT {
     // cooker rejects a rotated or scaled compound collider.
     const int16_t* boxes=nullptr;
     uint16_t box_count=0;
+    const CompoundGrid* box_grid=nullptr;
 };
 template<class Number> struct AabbT { Number min[3],max[3]; };
 template<class Number> struct RaycastQueryT {Number origin[3],displacement[3];};
@@ -80,13 +94,14 @@ template<class Number> inline AabbT<Number> collider_bounds(const ColliderT<Numb
 // Bounded, allocation-free broad phase. Transformed boxes become conservative
 // world AABBs: rotations and inherited nonuniform scale/shear are supported;
 // narrow-phase oriented boxes and rigid-body dynamics are intentionally absent.
-template<class Number,size_t Capacity,size_t PairCapacity=256> class CollisionWorld {
+template<class Number,size_t Capacity,size_t PairCapacity=256,bool UseCompoundGrid=true> class CollisionWorld {
     struct Entry {
         AabbT<Number> box{};uint32_t layer=1,mask=0xffffffffu,generation=0;bool enabled=false,trigger=false;
         Number center[3]={},half_extents[3]={};uint32_t world_revision=0;bool cached=false;
         Number slope_rise{};uint8_t slope_axis=0;
         const int16_t* heights=nullptr;uint16_t height_cells[2]={0,0};Number height_step{};
         const int16_t* boxes=nullptr;uint16_t box_count=0;Number origin[3]={};
+        const CompoundGrid* box_grid=nullptr;
     };
     Entry entries[Capacity];
     // Highest enabled slot + 1 and the number of enabled triggers, refreshed by
@@ -146,21 +161,64 @@ template<class Number,size_t Capacity,size_t PairCapacity=256> class CollisionWo
     // instead of by pushing it sideways. Ramps and height grids both qualify.
     static bool ramp(const Entry& e) { return e.slope_rise.raw()!=0||field(e); }
     static bool compound(const Entry& e) { return e.boxes&&e.box_count; }
-    // Calls `visit` with every solid box of an entry: its parts when compound,
-    // otherwise the entry's own box. Parts are Q8 offsets from the owner origin.
-    template<class Visit> static void parts(const Entry& e,Visit&& visit) {
-        if(!compound(e)) { visit(e.box); return; }
-        for(uint16_t n=0;n<e.box_count;++n) {
-            const int16_t* p=e.boxes+size_t(n)*6;AabbT<Number> b;
-            for(int k=0;k<3;++k) {
-                b.min[k]=raw(e.origin[k].raw()+int32_t(p[k])*16);
-                b.max[k]=raw(e.origin[k].raw()+int32_t(p[k+3])*16);
-            }
-            visit(b);
+    template<class Visit> static void part(const Entry& e,uint16_t n,Visit&& visit) {
+        const int16_t* p=e.boxes+size_t(n)*6;AabbT<Number> b;
+        for(int k=0;k<3;++k) {
+            b.min[k]=raw(e.origin[k].raw()+int32_t(p[k])*16);
+            b.max[k]=raw(e.origin[k].raw()+int32_t(p[k+3])*16);
         }
+        visit(b);
+    }
+    // Select by the complete query footprint, including swept movement/rays.
+    // Inclusive cell boundaries keep endpoint contacts. Candidate deduplication
+    // and ascending part indices preserve every narrow-phase tie and callback.
+    // No heap or per-frame index rebuild: translating owners move the query into
+    // the immutable local grid. Unindexed/replaced data keeps the linear path.
+    template<class Visit> static void parts(const Entry& e,const AabbT<Number>& query,Visit&& visit) {
+        if(!compound(e)) { visit(e.box); return; }
+        if constexpr(UseCompoundGrid) {
+            const auto* grid=e.box_grid;
+            if(grid&&grid->boxes==e.boxes&&grid->box_count==e.box_count&&e.box_count<=compound_grid_max_parts
+               &&grid->columns&&grid->rows&&grid->cell_shift>=4&&grid->cell_shift<32) {
+                const int64_t origin_x=int64_t(e.origin[0].raw())+int32_t(grid->origin_x)*16;
+                const int64_t origin_z=int64_t(e.origin[2].raw())+int32_t(grid->origin_z)*16;
+                int64_t x0=(int64_t(query.min[0].raw())-origin_x)>>grid->cell_shift;
+                int64_t x1=(int64_t(query.max[0].raw())-origin_x)>>grid->cell_shift;
+                int64_t z0=(int64_t(query.min[2].raw())-origin_z)>>grid->cell_shift;
+                int64_t z1=(int64_t(query.max[2].raw())-origin_z)>>grid->cell_shift;
+                if(x1<0||z1<0||x0>=grid->columns||z0>=grid->rows)return;
+                if(x0<0)x0=0;if(z0<0)z0=0;
+                if(x1>=grid->columns)x1=grid->columns-1;
+                if(z1>=grid->rows)z1=grid->rows-1;
+                if(x0==x1&&z0==z1) {
+                    const size_t cell=size_t(z0)*grid->columns+size_t(x0);
+                    for(unsigned i=grid->offsets[cell];i<grid->offsets[cell+1];++i)part(e,grid->indices[i],visit);
+                    return;
+                }
+                uint32_t selected[(compound_grid_max_parts+31)/32]={};
+                unsigned first=unsigned((compound_grid_max_parts+31)/32),last=0;
+                for(int z=int(z0);z<=int(z1);++z)for(int x=int(x0);x<=int(x1);++x) {
+                    const size_t cell=size_t(z)*grid->columns+size_t(x);
+                    for(unsigned i=grid->offsets[cell];i<grid->offsets[cell+1];++i) {
+                        const unsigned n=grid->indices[i],word=n/32;
+                        selected[word]|=uint32_t(1)<<(n%32);
+                        if(word<first)first=word;if(word>last)last=word;
+                    }
+                }
+                for(unsigned word=first;word<=last;++word) {
+                    uint32_t bits=selected[word];
+                    while(bits) {
+                        const unsigned bit=std::countr_zero(bits);bits&=bits-1;
+                        part(e,uint16_t(word*32+bit),visit);
+                    }
+                }
+                return;
+            }
+        }
+        for(uint16_t n=0;n<e.box_count;++n)part(e,n,visit);
     }
     static bool parts_overlap(const Entry& e,const AabbT<Number>& box) {
-        bool hit=false;parts(e,[&](const AabbT<Number>& b){ if(!hit&&aabb_overlap(box,b))hit=true; });
+        bool hit=false;parts(e,box,[&](const AabbT<Number>& b){ if(!hit&&aabb_overlap(box,b))hit=true; });
         return hit;
     }
     // Trigger pairs compare a compound entry's parts, so a trigger inside the
@@ -210,6 +268,7 @@ public:
         entries[index].height_cells[1]=collider.height_cells[1];
         entries[index].height_step=collider.height_step;
         entries[index].boxes=collider.boxes;entries[index].box_count=collider.box_count;
+        entries[index].box_grid=collider.box_grid;
         for(int k=0;k<3;++k)entries[index].origin[k]=matrix.values[k][3];
         if(entries[index].enabled)note_enabled(index);
     }
@@ -223,6 +282,7 @@ public:
         e.heights=collider.heights;e.height_cells[0]=collider.height_cells[0];
         e.height_cells[1]=collider.height_cells[1];e.height_step=collider.height_step;
         e.boxes=collider.boxes;e.box_count=collider.box_count;
+        e.box_grid=collider.box_grid;
         if(!e.enabled)return false;
         note_enabled(index);
         bool dirty=!e.cached||e.world_revision!=revision;
@@ -250,7 +310,7 @@ public:
         AabbT<Number> point;for(int k=0;k<3;++k)point.min[k]=point.max[k]=origin[k];
         const auto sweep=swept_bounds(point,delta);
         for(size_t i=0;i<limit;++i)if(match(i,mask,ignore,triggers)&&aabb_may_touch(sweep,entries[i].box)) {
-            parts(entries[i],[&](const AabbT<Number>& box) {
+            parts(entries[i],sweep,[&](const AabbT<Number>& box) {
                 if(!aabb_may_touch(sweep,box))return;
                 int64_t t;int axis,sign;bool inside;
                 if(segment(origin,delta,box,t,axis,sign,false,inside)&&t<best) {
@@ -274,7 +334,7 @@ public:
         for(size_t i=0;i<limit;++i)if(match(i,mask,ignore,false)) {
             const auto& outer=entries[i].box;
             if(box.max[0]<=outer.min[0]||box.min[0]>=outer.max[0]||box.max[2]<=outer.min[2]||box.min[2]>=outer.max[2])continue;
-            parts(entries[i],[&](const AabbT<Number>& b) {
+            parts(entries[i],box,[&](const AabbT<Number>& b) {
                 if(box.max[0]<=b.min[0]||box.min[0]>=b.max[0]||box.max[2]<=b.min[2]||box.min[2]>=b.max[2])return;
                 Number probe[3];for(int k=0;k<3;++k)probe[k]=(box.min[k]+box.max[k])/2;
                 const auto top=compound(entries[i])?b.max[1]:surface(entries[i],probe);
@@ -303,7 +363,7 @@ public:
                     if(up>0&&(!found||abs64(up)<abs64(best))) { found=true;best=up;best_axis=1;best_entity=int(i); }
                     continue;
                 }
-                parts(entries[i],[&](const AabbT<Number>& part) {
+                parts(entries[i],box,[&](const AabbT<Number>& part) {
                     if(!aabb_overlap(box,part))return;
                     for(int k=0;k<3;++k) {
                         int64_t neg=int64_t(part.min[k].raw())-box.max[k].raw()-1,pos=int64_t(part.max[k].raw())-box.min[k].raw()+1;
@@ -330,7 +390,7 @@ public:
             for(int k=0;k<3;++k) { center[k]=(box.min[k]+box.max[k])/2;extent[k]=(box.max[k]-box.min[k])/2; }
             int64_t best=one+1;int best_axis=-1,best_sign=0,best_entity=-1;
             for(size_t i=0;i<limit;++i)if(match(i,mask,ignore,false)&&!ramp(entries[i])&&aabb_may_touch(sweep,entries[i].box)) {
-                parts(entries[i],[&](const AabbT<Number>& part) {
+                parts(entries[i],sweep,[&](const AabbT<Number>& part) {
                     if(!aabb_may_touch(sweep,part))return;
                     auto expanded=part;
                     for(int k=0;k<3;++k) { expanded.min[k]-=extent[k];expanded.max[k]+=extent[k]; }

@@ -264,6 +264,21 @@ impl<T: Clone> History<T> {
         self.record(current);
         self.run = Some(key);
     }
+    /// A known single-object gesture can update its cached baseline without
+    /// cloning unrelated large components on every mouse event.
+    pub fn record_coalesced_with(
+        &mut self,
+        current: &T,
+        key: &'static str,
+        update: impl FnOnce(&mut T),
+    ) {
+        if self.run == Some(key) {
+            update(&mut self.baseline);
+            self.redo.clear();
+        } else {
+            self.record_coalesced(current, key);
+        }
+    }
     /// Ends the open coalescing run, so the next gesture with the same key
     /// records its own step. Releasing the mouse calls this.
     pub fn end_run(&mut self) {

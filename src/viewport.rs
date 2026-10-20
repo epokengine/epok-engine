@@ -17,6 +17,8 @@ pub struct View {
     pub phase: f32,
     pub fly_speed: f32,
     pub mirror_x: bool,
+    /// Authoring preview only; never changes materials or the Game view.
+    pub lighting: bool,
 }
 impl Default for View {
     fn default() -> Self {
@@ -29,6 +31,7 @@ impl Default for View {
             phase: 0.,
             fly_speed: 5.,
             mirror_x: false,
+            lighting: true,
         }
     }
 }
@@ -348,7 +351,7 @@ pub fn render(
             }
             let n = crate::lighting::transform_normal(world, q.normal);
             let colors: [[u8; 3]; 4] = std::array::from_fn(|v| {
-                let light = if q.material.unlit {
+                let light = if (!game && !view.lighting) || q.material.unlit {
                     [255; 3]
                 } else if offline && let Some(colors) = cached {
                     colors[qi * 4 + v]
@@ -458,6 +461,10 @@ mod tests {
         }
         let legacy: View = serde_json::from_value(serde_json::json!({"zoom": 1.5})).unwrap();
         assert_eq!(legacy.distance, 12.);
+        assert!(
+            legacy.lighting,
+            "old view preferences keep lighting enabled"
+        );
     }
 
     #[test]
@@ -560,6 +567,7 @@ mod tests {
             phase: 0.25,
             fly_speed: 12.,
             mirror_x: false,
+            lighting: true,
         };
         let expected = View::default();
         view.snap_to_isometric();

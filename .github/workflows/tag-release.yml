@@ -28,7 +28,7 @@ jobs:
         run: cargo build --locked --bin epok-header-tool
 
       - name: Run the Rust test suite
-        run: cargo test --locked -- --test-threads=1
+        run: cargo test --locked --workspace -- --test-threads=1
 
       - name: Build the release binaries
         run: cargo build --locked --release --bins
@@ -43,24 +43,35 @@ jobs:
           New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
 
           Copy-Item "target/release/epok-editor.exe" (Join-Path $packageRoot "Epok Engine.exe")
-          if (Test-Path "target/release/epok-header-tool.exe") {
-            Copy-Item "target/release/epok-header-tool.exe" $packageRoot
+          Copy-Item "target/release/epok-header-tool.exe" $packageRoot
+          $sourceFiles = git ls-files -- examples resources runtime templates
+          if ($LASTEXITCODE -ne 0) { throw "Cannot enumerate portable sources." }
+          foreach ($file in $sourceFiles) {
+            $destination = Join-Path $packageRoot $file
+            New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+            Copy-Item -LiteralPath $file -Destination $destination
           }
-          foreach ($directory in "examples", "resources", "runtime", "templates") {
-            Copy-Item $directory (Join-Path $packageRoot $directory) -Recurse
+          Copy-Item "Editor.epokconfig", "VERSION", "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md" $packageRoot
+          $toolsRoot = Join-Path $packageRoot "tools"
+          New-Item -ItemType Directory -Path $toolsRoot -Force | Out-Null
+          foreach ($file in "setup.ps1", "dependencies.json", "serial-dependency.json", "register-project.ps1") {
+            Copy-Item (Join-Path "tools" $file) $toolsRoot
           }
-          Copy-Item "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md" $packageRoot
 
           @"
           Epok Engine Windows x64 Portable
 
           Extract this archive to a writable folder and run Epok Engine.exe.
-          This archive does not install files or modify the system. PSX builds still
-          require the project-owned setup tools described in README.md.
+          Open Preferences > Dependencies to install the PSX tools, or run
+          powershell -ExecutionPolicy Bypass -File tools/setup.ps1 from this folder.
+          Setup downloads verified tools into this writable portable installation.
+          Git is required to install the pinned SDK; Rust is not required to run Epok.
           "@ | Set-Content (Join-Path $packageRoot "PORTABLE.txt") -NoNewline
 
           $archive = Join-Path "dist" "$archiveBase.zip"
           Compress-Archive -Path $packageRoot -DestinationPath $archive -Force
+          python tools/verify_portable.py $archive --version $version
+          if ($LASTEXITCODE -ne 0) { throw "Portable archive verification failed." }
           "version=$version" >> $env:GITHUB_OUTPUT
           "archive=$archive" >> $env:GITHUB_OUTPUT
 

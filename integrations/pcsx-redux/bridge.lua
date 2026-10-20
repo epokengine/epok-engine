@@ -70,6 +70,75 @@ if config_ok and type(debug_config) == 'table' and debug_config.version == 1 the
         if ok then debug_hook, debug_available = hook, true end
     end
 end
+-- PocketStation link (runtime/pocketstation.hpp): the game writes memory card
+-- transactions into its mailbox; the editor's emulated PocketStation answers.
+-- Layout: magic, request, answered, port, frames (u32), lengths[16],
+-- received[16] (u16), send[2304], reply[2304].
+local POCKET_MAGIC, POCKET_FRAMES, POCKET_CAPACITY = 0x504B5045, 16, 2304
+local POCKET_LENGTHS, POCKET_RECEIVED, POCKET_SEND, POCKET_REPLY = 20, 52, 84, 84 + 2304
+local pocket
+local pocket_ok, pocket_config = pcall(dofile, EPOK_POCKET_CONFIG or '')
+if pocket_ok and type(pocket_config) == 'table' and pocket_config.version == 1 then
+    local offset = ram_offset(pocket_config.mailbox, POCKET_REPLY + POCKET_CAPACITY)
+    if offset then pocket = {offset = offset, sent = -1} end
+end
+local function pocket_words()
+    return ffi.cast('uint32_t*', PCSX.getMemPtr() + pocket.offset)
+end
+-- Sends the game's pending request, if any, ahead of the frame.
+local function pocket_poll()
+    if not pocket then return end
+    local memory = PCSX.getMemPtr()
+    local words = pocket_words()
+    words[0] = POCKET_MAGIC
+    local request, answered = tonumber(words[1]), tonumber(words[2])
+    if request == answered or request == pocket.sent then return end
+    local port, frames = tonumber(words[3]), tonumber(words[4])
+    local lengths = ffi.cast('const uint16_t*', memory + pocket.offset + POCKET_LENGTHS)
+    local total = 0
+    if frames >= 1 and frames <= POCKET_FRAMES and port <= 1 then
+        for i = 0, frames - 1 do total = total + tonumber(lengths[i]) end
+    end
+    if frames < 1 or frames > POCKET_FRAMES or port > 1 or total > POCKET_CAPACITY then
+        -- Malformed: answer with nothing so the game sees no card.
+        local received = ffi.cast('uint16_t*', memory + pocket.offset + POCKET_RECEIVED)
+        for i = 0, POCKET_FRAMES - 1 do received[i] = 0 end
+        words[2] = request
+        return
+    end
+    pocket.sent = request
+    client:write({string.format('EPKP1 %d %d %d %d\n', request, port, frames, total),
+        ffi.string(memory + pocket.offset + POCKET_LENGTHS, frames * 2),
+        ffi.string(memory + pocket.offset + POCKET_SEND, total)})
+end
+-- `P <request> <received,...> <hex>`: the PocketStation's replies.
+local function pocket_reply(line)
+    if not pocket then return end
+    local request, received, hex = line:match('^P (%d+) ([%d,]+) (%x*)$')
+    request = tonumber(request)
+    if not request then return end
+    local memory = PCSX.getMemPtr()
+    local words = pocket_words()
+    if tonumber(words[1]) ~= request then return end
+    local lengths = ffi.cast('const uint16_t*', memory + pocket.offset + POCKET_LENGTHS)
+    local counts = ffi.cast('uint16_t*', memory + pocket.offset + POCKET_RECEIVED)
+    local reply = ffi.cast('uint8_t*', memory + pocket.offset + POCKET_REPLY)
+    local frame, at, source = 0, 0, 1
+    for count in received:gmatch('%d+') do
+        count = tonumber(count)
+        if frame >= POCKET_FRAMES then break end
+        local length = tonumber(lengths[frame])
+        if count > length then count = length end
+        for b = 0, count - 1 do
+            reply[at + b] = tonumber(hex:sub(source, source + 1), 16) or 0
+            source = source + 2
+        end
+        counts[frame] = count
+        at = at + length
+        frame = frame + 1
+    end
+    words[2] = request
+end
 local function debug_resume(step)
     if not debug_available then return false end
     debug_stop_next = step
@@ -147,6 +216,7 @@ local function close()
 end
 local function frame(mask)
     debug_frame()
+    pocket_poll()
     for i, name in ipairs(buttons) do
         local button = PCSX.CONSTS.PAD.BUTTON[name]
         if button then
@@ -169,35 +239,47 @@ end
 client:connect('127.0.0.1', port, function(err)
     if err then close(); return end
     client:write('EPOK ' .. token .. '\n')
+    local function command_line(line)
+        if line:sub(1, 2) == 'P ' then
+            PCSX.nextTick(function()
+                local ok, why = pcall(pocket_reply, line)
+                if not ok then printError('Epok PocketStation link: ' .. tostring(why)) end
+            end)
+            return
+        end
+        local command, value = line:match('^([FS]) (%d+)$')
+        if not command then
+            PCSX.nextTick(function()
+                local ok, accepted = pcall(debug_command, line)
+                client:write(ok and accepted and 'EPKA1 1\n' or 'EPKA1 0\n')
+            end)
+            return
+        end
+        local mask = tonumber(value)
+        if not mask or mask > 65535 then close(); return end
+        PCSX.nextTick(function()
+            if command == 'S' then
+                EPOK_STEP_LISTENER = PCSX.Events.createEventListener('GPU::Vsync', function()
+                    PCSX.pauseEmulator()
+                    EPOK_STEP_LISTENER:remove()
+                    EPOK_STEP_LISTENER = nil
+                end)
+                PCSX.resumeEmulator()
+            end
+            local ok, why = pcall(frame, mask)
+            if not ok then printError('Epok bridge: ' .. tostring(why)); close() end
+        end)
+    end
     client:read_start(function(readerr, chunk)
         if readerr or not chunk then close(); return end
         pending = pending .. chunk
-        if #pending > 128 then close(); return end
-        local line, rest = pending:match('^([^\n]*)\n(.*)$')
-        if line then
+        -- PocketStation replies carry up to 2304 bytes as hexadecimal.
+        if #pending > 8192 then close(); return end
+        while true do
+            local line, rest = pending:match('^([^\n]*)\n(.*)$')
+            if not line then break end
             pending = rest
-            local command, value = line:match('^([FS]) (%d+)$')
-            if not command then
-                PCSX.nextTick(function()
-                    local ok, accepted = pcall(debug_command, line)
-                    client:write(ok and accepted and 'EPKA1 1\n' or 'EPKA1 0\n')
-                end)
-                return
-            end
-            local mask = tonumber(value)
-            if not mask or mask > 65535 then close(); return end
-            PCSX.nextTick(function()
-                if command == 'S' then
-                    EPOK_STEP_LISTENER = PCSX.Events.createEventListener('GPU::Vsync', function()
-                        PCSX.pauseEmulator()
-                        EPOK_STEP_LISTENER:remove()
-                        EPOK_STEP_LISTENER = nil
-                    end)
-                    PCSX.resumeEmulator()
-                end
-                local ok, why = pcall(frame, mask)
-                if not ok then printError('Epok bridge: ' .. tostring(why)); close() end
-            end)
+            command_line(line)
         end
     end)
 end)

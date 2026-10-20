@@ -39,6 +39,7 @@ pub struct State {
     pub visible: bool,
     pub model_dirty: bool,
     pub media: Cache,
+    pub video: crate::video_preview::VideoPreview,
     height: f32,
     collapsed: bool,
     image_zoom: f32,
@@ -56,6 +57,7 @@ impl Default for State {
             visible: false,
             model_dirty: true,
             media: Cache::inspector(),
+            video: Default::default(),
             height: 260.,
             collapsed: false,
             image_zoom: 1.,
@@ -174,6 +176,22 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
                 }
                 ui.text_disabled("Uses the stored source; keeps this asset's UUID.");
             }
+            let video_record = e
+                .assets
+                .index
+                .usable()
+                .find(|r| r.path == path && r.meta.kind == Kind::Video)
+                .cloned();
+            if let Some(record) = video_record {
+                if ui.button("Edit video import settings") {
+                    e.assets.begin_reimport(&record, true);
+                }
+                ui.text_disabled("Re-encodes the stored source; keeps this asset's UUID.");
+                crate::gui::muted(
+                    ui,
+                    "Play it from a Blueprint (Video > Play video) or Lua (epok.play_video) with an AssetRef<Video>.",
+                );
+            }
             if ui.button("Open file editor") {
                 crate::project_browser::open_path(e, &path);
             }
@@ -214,20 +232,32 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
             if state.collapsed {
                 return;
             }
-            ui.same_line();
-            if ui.small_button("Reset view") {
-                state.model_dirty = true;
-                state.camera = View::default();
-                state.image_zoom = 1.;
-                if let Some((lo, hi)) = state.details.as_ref().and_then(|d| d.bounds) {
-                    state.camera.frame_bounds(lo, hi);
+            let kind = state.details.as_ref().map_or("", |d| d.kind.as_str());
+            let is_video = kind == "Video" && path.extension().is_some_and(|x| x == "epokasset");
+            if !is_video {
+                ui.same_line();
+                if ui.small_button("Reset view") {
+                    state.model_dirty = true;
+                    state.camera = View::default();
+                    state.image_zoom = 1.;
+                    if let Some((lo, hi)) = state.details.as_ref().and_then(|d| d.bounds) {
+                        state.camera.frame_bounds(lo, hi);
+                    }
                 }
             }
-            let kind = state.details.as_ref().map_or("", |d| d.kind.as_str());
+            if is_video {
+                state.video.select(&e.root, &path);
+                state.video.tick();
+                video_controls(ui, &mut state.video);
+            } else {
+                state.video.reset();
+            }
             if kind == "Audio" {
                 e.project_browser.previews.mode_controls(ui);
                 state.media.set_mode(e.project_browser.previews.mode());
                 ui.same_line();
+                let disabled =
+                    ui.begin_disabled(e.project_browser.previews.playback_blocker(&path).is_some());
                 if ui.small_button(if e.project_browser.previews.active(&path) {
                     "Stop"
                 } else {
@@ -237,6 +267,15 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
                 }
                 #[cfg(test)]
                 track(ui, "play");
+                drop(disabled);
+                e.project_browser.previews.playback_tooltip(ui, &path);
+                if e.project_browser.previews.loading(&path) {
+                    ui.text_wrapped("Preparing audio preview... MIDI instruments and audio are rendered before playback. Stop cancels preparation.");
+                }
+                if let Some(reason) = e.project_browser.previews.playback_blocker(&path) {
+                    ui.text_colored([1., 0.75, 0.3, 1.], "Preview unavailable");
+                    ui.text_wrapped(reason);
+                }
                 if let Some(report) = &e.project_browser.previews.report {
                     ui.text_wrapped(report);
                 }
@@ -271,6 +310,15 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
                         "Drag to orbit · Wheel to zoom · Reset view to frame the model",
                     );
                 }
+            } else if is_video {
+                draw_video(
+                    ui,
+                    &draw,
+                    origin,
+                    size,
+                    &state.video,
+                    u32::from(e.scene.display_size[0]),
+                );
             } else if kind == "Texture" || kind == "Font" {
                 let revision = crate::content_preview::revision(&e.root, &e.assets.index, &path);
                 state.media.request(&path, revision);
@@ -363,6 +411,102 @@ pub fn draw(ui: &Ui, e: &mut Editor) {
             }
         });
     e.asset_inspector = state;
+}
+fn video_controls(ui: &Ui, video: &mut crate::video_preview::VideoPreview) {
+    ui.same_line();
+    if video.loaded.is_none() {
+        ui.text_disabled(if video.loading() {
+            "Encoding / loading the console stream..."
+        } else {
+            "Video unavailable"
+        });
+        return;
+    }
+    if ui.small_button(if video.playing { "Pause" } else { "Play" }) {
+        video.toggle();
+    }
+    #[cfg(test)]
+    track(ui, "video-play");
+    ui.same_line();
+    if ui.small_button("Restart") {
+        video.seek(0.);
+    }
+    let frame = format!(
+        "frame {}/{}",
+        video.shown.map_or(0, |f| f + 1),
+        video.frames()
+    );
+    ui.same_line();
+    let mut position = video.position();
+    let label = ui.calc_text_size(&frame)[0] + ui.clone_style().item_spacing[0];
+    ui.set_next_item_width((ui.content_region_avail()[0] - label).max(60.));
+    let format = format!("%.2f / {:.2} s", video.duration());
+    if ui
+        .slider_config("##video-position", 0., video.duration().max(0.01))
+        .display_format(&format)
+        .build(&mut position)
+    {
+        video.seek(position);
+    }
+    ui.same_line();
+    ui.text_disabled(frame);
+    if video.has_audio() && !cfg!(windows) {
+        crate::gui::muted(
+            ui,
+            "XA audio plays in this preview on Windows; Play the game to hear it here.",
+        );
+    }
+}
+/// The console screen (black) with the picture centred as the player shows it.
+fn draw_video(
+    ui: &Ui,
+    draw: &imgui::DrawListMut,
+    origin: [f32; 2],
+    size: [f32; 2],
+    video: &crate::video_preview::VideoPreview,
+    display_width: u32,
+) {
+    let screen = [if display_width == 256 { 256. } else { 320. }, 240.];
+    let (lo, hi) = fit(origin, size, screen, 1.);
+    draw.add_rect(lo, hi, [0., 0., 0., 1.]).filled(true).build();
+    let (Some(texture), Some(picture)) = (video.texture, video.picture_size()) else {
+        draw.add_text(
+            [origin[0] + 8., origin[1] + 8.],
+            [0.7, 0.7, 0.7, 1.],
+            video
+                .error
+                .as_deref()
+                .unwrap_or("Decoding the first frame..."),
+        );
+        return;
+    };
+    let scale = (hi[0] - lo[0]) / screen[0];
+    let offset = [
+        (screen[0] - picture[0] as f32) * 0.5 * scale,
+        (screen[1] - picture[1] as f32) * 0.5 * scale,
+    ];
+    let start = [lo[0] + offset[0], lo[1] + offset[1]];
+    draw.add_image(
+        texture,
+        start,
+        [
+            start[0] + picture[0] as f32 * scale,
+            start[1] + picture[1] as f32 * scale,
+        ],
+    )
+    .build();
+    if ui.is_item_hovered() {
+        ui.tooltip_text(
+            "Decoded by the console's own decoder with the MDEC's colour model, at 15-bit colour, centred on a 320 x 240 screen.",
+        );
+    }
+    if let Some(error) = &video.error {
+        draw.add_text(
+            [origin[0] + 8., origin[1] + 8.],
+            [0.92, 0.45, 0.4, 1.],
+            error,
+        );
+    }
 }
 fn fit(origin: [f32; 2], size: [f32; 2], image: [f32; 2], zoom: f32) -> ([f32; 2], [f32; 2]) {
     let scale = (size[0] / image[0]).min(size[1] / image[1]) * zoom;
@@ -458,9 +602,12 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             Kind::Font => "Font",
             Kind::TileSet => "TileSet",
             Kind::StringTable => "String Table",
+            Kind::DataTable => "Data Table",
             Kind::DungeonStyle => "Dungeon Style",
             Kind::DungeonRecipe => "Dungeon Recipe",
             Kind::DungeonRoom => "Dungeon Room",
+            Kind::Video => "Video",
+            Kind::PocketStationApp => "PocketStation App",
         }
         .into();
         details.fields.extend([
@@ -468,6 +615,27 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
             ("Asset ID".into(), r.meta.id.to_string()),
             ("Source".into(), r.meta.source.clone()),
         ]);
+        if r.meta.kind == Kind::DataTable {
+            let table = crate::data_table::document(r)?;
+            details.fields.push((
+                "Row type".into(),
+                table
+                    .row_type
+                    .as_ref()
+                    .map(|kind| format!("{kind:?}"))
+                    .unwrap_or_else(|| "Asset (mixed types)".into()),
+            ));
+            details
+                .fields
+                .push(("Rows".into(), table.rows.len().to_string()));
+            details.fields.push((
+                "References".into(),
+                table
+                    .validate_assets(index)
+                    .map(|_| "All valid".into())
+                    .unwrap_or_else(|e| e),
+            ));
+        }
         if matches!(r.meta.kind, Kind::MusicSequence | Kind::SoundBank) {
             details.fields.push(("Target".into(), "PSX".into()));
             let name = if r.meta.kind == Kind::MusicSequence {
@@ -571,6 +739,9 @@ fn load(root: &Path, path: &Path, index: &Index) -> Result<Details, String> {
                     ));
                 }
             }
+        }
+        if let crate::import_settings::Settings::Video(settings) = &r.meta.settings {
+            video_fields(root, r, settings, &mut details.fields);
         }
         if let crate::import_settings::Settings::Audio(settings) = &r.meta.settings {
             let result = settings.target_result();
@@ -1185,6 +1356,133 @@ pub fn verify_interactions(ctx: &mut imgui::Context) {
     );
     drop(e);
     std::fs::remove_dir_all(root).unwrap();
+}
+
+/// Import settings, the last encode and what the console needs to play it.
+fn video_fields(
+    root: &Path,
+    record: &assets::Record,
+    settings: &crate::video_import::Settings,
+    fields: &mut Vec<(String, String)>,
+) {
+    use crate::video_import::AudioTrack;
+    fields.push((
+        "Video settings".into(),
+        format!(
+            "Box {} x {} · {} fps · {}\nAudio: {}{}\nCompression: {}",
+            settings.width,
+            settings.height,
+            settings.frame_rate,
+            if settings.stretch {
+                "stretched"
+            } else {
+                "keeps aspect ratio"
+            },
+            settings.audio.label(),
+            if settings.audio == AudioTrack::None {
+                String::new()
+            } else {
+                format!(" · {} Hz", settings.sample_rate)
+            },
+            settings.codec.label(),
+        ),
+    ));
+    let Some(report) = crate::video_import::last_report(root, &record.meta) else {
+        fields.push((
+            "Console stream".into(),
+            "Not encoded yet. Reimport or build to encode it.".into(),
+        ));
+        return;
+    };
+    let info = &report.info;
+    fields.push((
+        "Console picture".into(),
+        format!(
+            "{} x {}{}",
+            info.width,
+            info.height,
+            if info.height < 240 || info.width < 320 {
+                ", centred with black borders"
+            } else {
+                ""
+            }
+        ),
+    ));
+    fields.push((
+        "Duration".into(),
+        format!(
+            "{:.2} s · {} frames at {} fps",
+            info.seconds(),
+            info.frames,
+            report.frame_rate
+        ),
+    ));
+    let interval = 1000. / report.frame_rate as f32;
+    let estimate = info.decode_estimate_ms();
+    fields.push((
+        "Console decode (estimated)".into(),
+        format!("{estimate:.0} ms for the most detailed frame; a new frame arrives every {interval:.0} ms"),
+    ));
+    if estimate > interval * 0.9 {
+        fields.push((
+            "Warning".into(),
+            "The most detailed frames may take longer to decode than the time between frames, so the console can skip some. Lower the frame rate or picture size to give each frame more time.".into(),
+        ));
+    }
+    fields.push((
+        "Audio".into(),
+        info.audio.map_or("None".into(), |a| {
+            format!(
+                "XA-ADPCM {} Hz {}",
+                a.rate,
+                if a.channels == 2 { "stereo" } else { "mono" }
+            )
+        }),
+    ));
+    fields.push((
+        "Brightness".into(),
+        format!(
+            "{} (luma {}-{})",
+            if report.tv_levels {
+                "TV range, expanded by the console"
+            } else {
+                "Full range"
+            },
+            report.luma.0,
+            report.luma.1
+        ),
+    ));
+    fields.push((
+        "Disc space".into(),
+        format!(
+            "{:.1} MiB · double-speed CD stream",
+            report.bytes as f32 / 1048576.
+        ),
+    ));
+    fields.push((
+        "Player RAM while playing".into(),
+        format!(
+            "{:.1} KiB (largest clip in a build sets the reserve)",
+            info.player_bytes() as f32 / 1024.
+        ),
+    ));
+    if let Some((width, height)) = report.source_size {
+        fields.push(("Source picture".into(), format!("{width} x {height}")));
+    }
+    if let Ok(Some(manifest)) = crate::workspace::optional_manifest(root) {
+        if manifest.rendering.width == 256 && info.width > 256 {
+            fields.push((
+                "Warning".into(),
+                "The project display is 256 pixels wide: reimport this video at 256 pixels or less.".into(),
+            ));
+        }
+        if manifest.play.data != crate::play::DataSource::Disc {
+            fields.push((
+                "Note".into(),
+                "Videos stream from the CD: set Play data to CD on demand to test them.".into(),
+            ));
+        }
+    }
 }
 
 #[cfg(test)]

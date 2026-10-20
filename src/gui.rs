@@ -818,7 +818,7 @@ fn draw_workspace(
             if ui.menu_item("Create > Lua Class") {
                 e.action("new-lua");
             }
-            if ui.menu_item("Open C++ Project") {
+            if ui.menu_item("Open Code Workspace") {
                 e.open_code(&e.root.join("assets"), None);
             }
         });
@@ -860,11 +860,21 @@ fn draw_workspace(
         });
         build_menu(ui, e);
         ui.menu("Window", || {
+            if ui.menu_item("Code Editor") {
+                e.open_code(&e.root.join("assets/scripts"), None);
+            }
+            if ui.menu_item("Code Editor Setup") {
+                e.open_code(&e.root.join("assets/scripts"), None);
+                e.script_editor.setup_requested = true;
+            }
             if ui.menu_item("Artifact Dependencies") {
                 e.artifact_dependencies.open = true;
             }
             if ui.menu_item("Lighting") {
                 e.lighting_window = true;
+            }
+            if ui.menu_item("PocketStation") {
+                crate::pocketstation_ui::open(e);
             }
             if ui.menu_item("Strings (Localization)") {
                 crate::localization_editor::open(e);
@@ -966,27 +976,29 @@ fn draw_workspace(
                     e.show_memory_report();
                 }
             });
-            ui.same_line_with_spacing(0., 3.);
-            ui.disabled(!e.playing || e.serial_ui.command_pending, || {
-                if icon(ui, PAUSE, "pause", "Pause / Resume", e.paused) {
-                    e.action("pause");
+            if e.playing {
+                ui.same_line_with_spacing(0., 3.);
+                ui.disabled(e.serial_ui.command_pending, || {
+                    if icon(ui, PAUSE, "pause", "Pause / Resume", e.paused) {
+                        e.action("pause");
+                    }
+                });
+                ui.same_line_with_spacing(0., 1.);
+                if e.active_play_target == crate::play::Target::Serial && e.job.is_some() {
+                    ui.disabled(e.serial_ui.command_pending, || {
+                        if icon(ui, "R", "reset-psx", "Reset PSX (reboot console)", false) {
+                            e.action("serial-reset");
+                        }
+                    });
+                } else {
+                    ui.disabled(!e.paused, || {
+                        if icon(ui, "\u{ead6}", "step", "Advance one PSX frame", false)
+                            && let Some(b) = e.job.as_ref().and_then(|j| j.bridge.as_ref())
+                        {
+                            b.step.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                    });
                 }
-            });
-            ui.same_line_with_spacing(0., 1.);
-            if e.active_play_target == crate::play::Target::Serial && e.job.is_some() {
-                ui.disabled(!e.playing || e.serial_ui.command_pending, || {
-                    if icon(ui, "R", "reset-psx", "Reset PSX (reboot console)", false) {
-                        e.action("serial-reset");
-                    }
-                });
-            } else {
-                ui.disabled(!e.paused, || {
-                    if icon(ui, "\u{ead6}", "step", "Advance one PSX frame", false)
-                        && let Some(b) = e.job.as_ref().and_then(|j| j.bridge.as_ref())
-                    {
-                        b.step.store(true, std::sync::atomic::Ordering::Relaxed);
-                    }
-                });
             }
             ui.same_line_with_pos(size[0] - 270.);
             if ui.button("Build") {
@@ -1072,6 +1084,7 @@ fn draw_workspace(
                     (c"\u{ea74} Inspector###Inspector", inspector),
                     (c"\u{eb29} Scene###Scene", main),
                     (c"\u{ec17} Game###Game", main),
+                    (c"Code###CodeEditor", main),
                     (c"\u{eb30} Project###Project", bottom),
                     (c"\u{eb9b} Console###Console", console),
                 ] {
@@ -1123,6 +1136,9 @@ fn draw_workspace(
             imgui::sys::igSetWindowFocus_Str(c"\u{eb30} Project###Project".as_ptr());
         }
     }
+    // Explicit source requests take precedence over the initial Scene/Project
+    // selection, including when a project starts with --open-code.
+    crate::script_editor::draw(ui, e);
     ui.window("Status")
         .position([0., size[1] - status_height], Condition::Always)
         .size([size[0], status_height], Condition::Always)
@@ -1188,6 +1204,8 @@ fn draw_workspace(
     if !background && e.critical_busy() {
         return;
     }
+    crate::pocketstation_ui::service_link(e);
+    crate::pocketstation_ui::window(ui, e);
     crate::export_ui::window(ui, e);
     script_creation_dialog(ui, e);
     lua_creation_dialog(ui, e);
@@ -1211,6 +1229,7 @@ fn draw_workspace(
             }
             ui.same_line();
             if ui.button("Discard") {
+                e.script_editor.discard();
                 e.blueprint_editor.discard();
                 e.timeline_editor.discard();
                 e.should_close = true;
@@ -2902,6 +2921,7 @@ fn vector(ui: &imgui::Ui, label: &str, values: &mut [f32; 3]) {
 pub(crate) fn inspector(ui: &imgui::Ui, e: &mut Editor) {
     crate::dungeon_editor::apply_pending(e);
     crate::dungeon_style_editor::window(ui, e);
+    crate::data_table_editor::window(ui, e);
     crate::dungeon_recipe_editor::window(ui, e);
     crate::dungeon_room_editor::window(ui, e);
     crate::dungeon_seeds::window(ui, e);
@@ -3215,6 +3235,8 @@ fn scene_view(
             if ui.checkbox("Grid", &mut e.grid) {
                 e.view_dirty = true;
             }
+            inline(ui, "Lighting");
+            crate::lighting_editor::preview_toggle(ui, e);
             inline(ui, "Reset View");
             if ui.button("Reset View") {
                 e.action("reset-view");

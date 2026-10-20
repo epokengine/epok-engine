@@ -1,0 +1,89 @@
+name: Notify Discord on develop push
+
+on:
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  notify-discord:
+    if: github.event.deleted == false
+    name: Publish develop push notification
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Publish Discord embed
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          COMMIT_URL: ${{ github.event.head_commit.url }}
+          COMPARE_URL: ${{ github.event.compare }}
+          PUSHER: ${{ github.actor }}
+          PUSHER_AVATAR_URL: ${{ github.event.sender.avatar_url }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [[ -z "$DISCORD_WEBHOOK_URL" ]]; then
+            echo "::error title=Missing Discord webhook::Configure the DISCORD_WEBHOOK_URL repository secret before using this workflow."
+            exit 1
+          fi
+
+          short_sha="${SHA:0:7}"
+          subject="${COMMIT_MESSAGE//$'\n'/ }"
+          subject="${subject:0:500}"
+          timestamp="$(date --utc +'%Y-%m-%dT%H:%M:%SZ')"
+
+          payload="$(jq --null-input \
+            --arg author "$PUSHER" \
+            --arg author_avatar "$PUSHER_AVATAR_URL" \
+            --arg commit_url "$COMMIT_URL" \
+            --arg compare_url "$COMPARE_URL" \
+            --arg repository "$REPOSITORY" \
+            --arg repository_url "$REPOSITORY_URL" \
+            --arg sha "$short_sha" \
+            --arg subject "$subject" \
+            --arg timestamp "$timestamp" \
+            '{
+              username: "Epok Engine",
+              avatar_url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+              allowed_mentions: {parse: []},
+              embeds: [{
+                title: "🚀 New push to develop",
+                url: $commit_url,
+                color: 3056719,
+                description: ("[" + $sha + "](" + $commit_url + ") · " + $subject),
+                author: {
+                  name: $author,
+                  url: ("https://github.com/" + $author),
+                  icon_url: $author_avatar
+                },
+                fields: [
+                  {
+                    name: "Repository",
+                    value: ("[" + $repository + "](" + $repository_url + ")"),
+                    inline: true
+                  },
+                  {
+                    name: "Changes",
+                    value: ("[View comparison](" + $compare_url + ")"),
+                    inline: true
+                  }
+                ],
+                footer: {
+                  text: "Epok Engine · develop",
+                  icon_url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+                },
+                timestamp: $timestamp
+              }]
+            }')"
+
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "$DISCORD_WEBHOOK_URL"

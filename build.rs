@@ -55,6 +55,19 @@ fn main() {
         sequence_preview.opt_level(2);
     }
     sequence_preview.compile("epok_sequence_preview");
+    println!("cargo:rerun-if-changed=native/fmv_preview.cpp");
+    let mut fmv_preview = cc::Build::new();
+    fmv_preview
+        .cpp(true)
+        .std("c++20")
+        .warnings(true)
+        .include("runtime")
+        .file("native/fmv_preview.cpp");
+    // Import validation and the Inspector preview decode every frame of a clip.
+    if std::env::var("PROFILE").as_deref() == Ok("debug") {
+        fmv_preview.opt_level(2);
+    }
+    fmv_preview.compile("epok_fmv_preview");
     lua_cooker();
     println!("cargo:rerun-if-changed=resources/branding/epok.ico");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {

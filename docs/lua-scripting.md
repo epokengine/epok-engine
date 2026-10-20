@@ -392,8 +392,11 @@ override, and **Reset to Inherited** removes the override and restores the
 current class default. Inherited exposed properties occupy their native base
 fields — there is exactly one authoritative representation, not a copy.
 
-The **Edit Lua Class** source action opens the authored `.lua`, never the
-generated C++.
+The **Edit Lua Class** source action opens the authored `.lua` at its declaration
+in Epok's [integrated Monaco editor](code-editor.md), never the generated C++.
+The workspace includes a script tree, tabs, Save All, LuaLS completion and optional
+Copilot. **External** opens a source in VS Code; its executable can still be
+configured with `code` in `Local.epokconfig` or `Editor.epokconfig`.
 
 ### Transform access
 
@@ -511,6 +514,8 @@ construction rather than by agreement.
 | `epok.play_audio(ref)`, `epok.stop_audio(ref)` | `void` | Play Audio, Stop Audio |
 | `epok.set_texture(ref, self.<AssetRef property>)` | `void` | Set Texture |
 | `epok.set_audio_clip(ref, self.<AssetRef property>)` | `void` | Set Audio Clip |
+| `epok.play_video(self.<AssetRef<Video> property>, skippable)` | `Bool` | Play Video ([Full-motion video](video.md)) |
+| `epok.stop_video()`, `epok.video_playing()` | `void`, `Bool` | Stop Video, Is Video Playing |
 | `epok.play_sequence(ref)`, `epok.play_effect(ref)` | statement only | Play Sequence, Play Effect |
 | `self.ref` | the object's own typed reference | Self |
 | `self.rect_position.x` / `.y`, `self.rect_size.x` / `.y` | `Fixed` places | Get/Set Rect Position, Get/Set Rect Size |

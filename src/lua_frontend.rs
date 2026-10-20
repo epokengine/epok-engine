@@ -1405,6 +1405,12 @@ impl<'a> Lower<'a> {
             ast::Expr::Call { base, args, span } => match builtin(base).as_deref() {
                 Some("to_fixed") => Some(Type::Fixed),
                 Some("to_int") => Some(Type::Int32),
+                Some("find_asset" | "cast_asset") => match args.last() {
+                    Some(ast::Expr::Str { value, .. }) => Some(Type::AssetRef {
+                        kind: value.clone(),
+                    }),
+                    _ => None,
+                },
                 // A builtin's return is fixed by its signature, so it can type a
                 // bare literal on the other side of an operator.
                 Some(name) => self
@@ -2111,6 +2117,58 @@ impl<'a> Lower<'a> {
         root: bool,
     ) -> Option<ir::Expr> {
         let (mut operation, operands, class_argument) = adapter(name)?;
+        let mut args = args.to_vec();
+        if matches!(name, "find_asset" | "cast_asset") {
+            if self.profile == crate::settings::LuaProfile::LegacyV1 {
+                self.report(
+                    span,
+                    "DataTable lookups require the Gameplay v2 Lua profile",
+                );
+                return None;
+            }
+            let expected = if name == "find_asset" { 3 } else { 2 };
+            if args.len() != expected {
+                self.report(
+                    span,
+                    if name == "find_asset" {
+                        "epok.find_asset expects (table, key, asset_kind)"
+                    } else {
+                        "epok.cast_asset expects (asset, asset_kind)"
+                    },
+                );
+                return None;
+            }
+            let kind = match args.pop() {
+                Some(ast::Expr::Str { value, .. }) => value,
+                _ => {
+                    self.report(span, "Asset kind must be a literal string");
+                    return None;
+                }
+            };
+            if let Err(error) = crate::data_table::kind_code(&kind) {
+                self.report(span, error);
+                return None;
+            }
+            operation = if name == "find_asset" {
+                let key = match args.pop() {
+                    Some(ast::Expr::Str { value, .. }) => value,
+                    _ => {
+                        self.report(span, "DataTable key must be a literal string");
+                        return None;
+                    }
+                };
+                if let Err(error) = crate::data_table::validate_key(&key) {
+                    self.report(span, error);
+                    return None;
+                }
+                bp::Builtin::FindDataTableAsset {
+                    key,
+                    asset_kind: kind,
+                }
+            } else {
+                bp::Builtin::CastAsset { asset_kind: kind }
+            };
+        }
         // Only this call may discard a result; its operands are ordinary values.
         let discarded = std::mem::take(&mut self.discarding);
         // The class name is written as a string in exactly one position and is
@@ -2181,6 +2239,14 @@ impl<'a> Lower<'a> {
                 }
                 Operand::Handle => {
                     let written = source.next()?;
+                    if self.profile != crate::settings::LuaProfile::LegacyV1
+                        && matches!(expected, Type::AssetRef { .. })
+                    {
+                        lowered.push(ir::BuiltinArg::Value(
+                            self.typed_argument(&written, parameter, expected, pending)?,
+                        ));
+                        continue;
+                    }
                     let property = self.handle_property(&written, expected)?;
                     if let Type::ClassRef { base } = &property.value_type {
                         base_class = Some(base.clone());
@@ -3226,6 +3292,19 @@ fn adapter(name: &str) -> Option<(bp::Builtin, Vec<Operand>, ClassArgument)> {
     let simple =
         |operation, operands: &[Operand]| Some((operation, operands.to_vec(), ClassArgument::None));
     match name {
+        "find_asset" => simple(
+            bp::Builtin::FindDataTableAsset {
+                key: String::new(),
+                asset_kind: "Asset".into(),
+            },
+            &[Handle],
+        ),
+        "cast_asset" => simple(
+            bp::Builtin::CastAsset {
+                asset_kind: "AudioClip".into(),
+            },
+            &[Handle],
+        ),
         "input.held" => simple(bp::Builtin::InputHeld, &[Value, Value]),
         "input.pressed" => simple(bp::Builtin::InputPressed, &[Value, Value]),
         "input.released" => simple(bp::Builtin::InputReleased, &[Value, Value]),
@@ -3247,6 +3326,13 @@ fn adapter(name: &str) -> Option<(bp::Builtin, Vec<Operand>, ClassArgument)> {
         "play_effect" => simple(bp::Builtin::PlayEffectComponent, &[Value]),
         "set_texture" => simple(bp::Builtin::SetTexture, &[Value, Handle]),
         "set_audio_clip" => simple(bp::Builtin::SetAudioClip, &[Value, Handle]),
+        "play_video" => simple(bp::Builtin::PlayVideo, &[Handle, Value]),
+        "stop_video" => simple(bp::Builtin::StopVideo, &[]),
+        "video_playing" => simple(bp::Builtin::IsVideoPlaying, &[]),
+        "start_pocketstation_app" => simple(bp::Builtin::StartPocketStationApp, &[Handle, Value]),
+        "install_pocketstation_app" => {
+            simple(bp::Builtin::InstallPocketStationApp, &[Handle, Value])
+        }
         // The class is named by a string argument and resolved statically; the
         // node carries its uuid, exactly as a Blueprint node does.
         "is_a" => Some((
@@ -3633,6 +3719,18 @@ pub(crate) mod tests {
             },
         ));
         parent.properties.push(reflected(
+            "movie",
+            Type::AssetRef {
+                kind: "Video".into(),
+            },
+        ));
+        parent.properties.push(reflected(
+            "pocket",
+            Type::AssetRef {
+                kind: "PocketStationApp".into(),
+            },
+        ));
+        parent.properties.push(reflected(
             "kind",
             Type::ClassRef {
                 base: crate::object_model::ACTOR3D_ID.into(),
@@ -3668,6 +3766,11 @@ pub(crate) mod tests {
     epok.play_audio(self.ref)
     epok.set_texture(self.ref, self.skin)
     epok.set_audio_clip(self.ref, self.clip)
+    local started = epok.play_video(self.movie, true)
+    local busy = epok.video_playing()
+    epok.stop_video()
+    local launched = epok.start_pocketstation_app(self.pocket, 0)
+    local copied = epok.install_pocketstation_app(self.pocket, 1)
 "#,
         )
         .expect("lowered body");
@@ -3692,6 +3795,11 @@ pub(crate) mod tests {
             "PlayAudio -> void",
             "SetTexture -> void",
             "SetAudioClip -> void",
+            "PlayVideo -> bool",
+            "IsVideoPlaying -> bool",
+            "StopVideo -> void",
+            "StartPocketStationApp -> bool",
+            "InstallPocketStationApp -> bool",
         ] {
             assert!(text.contains(expected), "missing {expected:?} in\n{text}");
         }
@@ -3732,6 +3840,10 @@ pub(crate) mod tests {
                 "Property clip is not AssetRef<Texture>",
             ),
             ("    epok.set_texture(self.ref, 1)", profile::ASSET_ARGUMENT),
+            (
+                "    local a = epok.play_video(self.clip, true)",
+                "Property clip is not AssetRef<Video>",
+            ),
             ("    local a = epok.stop_sequence(1)", profile::HANDLE_VALUE),
             (
                 "    local a = epok.make_transform(1, 2, 3)",

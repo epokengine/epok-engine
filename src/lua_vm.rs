@@ -826,7 +826,17 @@ impl Emitter<'_> {
                 // Only the wire operands travel. A 64-bit asset or class id is
                 // read by the generated binding case from the native field, so
                 // it never enters Lua at all (contract section 10.1).
-                let mut text = format!("__epok_builtin(self, {site}");
+                let helper = if returns.wire_words() > 1
+                    || args
+                        .iter()
+                        .filter_map(script_ir::BuiltinArg::value)
+                        .any(|value| value.value_type().wire_words() > 1)
+                {
+                    "__epok_wide_builtin"
+                } else {
+                    "__epok_builtin"
+                };
+                let mut text = format!("{helper}(self, {site}");
                 for arg in args.iter().filter_map(script_ir::BuiltinArg::value) {
                     let value_type = arg.value_type().clone();
                     let rendered = self.expr(arg, span);
@@ -1111,7 +1121,17 @@ impl Emitter<'_> {
                         returns,
                         ..
                     } => {
-                        let mut text = format!("__epok_builtin(self, {site}");
+                        let helper = if returns.wire_words() > 1
+                            || args
+                                .iter()
+                                .filter_map(script_ir::BuiltinArg::value)
+                                .any(|value| value.value_type().wire_words() > 1)
+                        {
+                            "__epok_wide_builtin"
+                        } else {
+                            "__epok_builtin"
+                        };
+                        let mut text = format!("{helper}(self, {site}");
                         for arg in args.iter().filter_map(script_ir::BuiltinArg::value) {
                             let value_type = arg.value_type().clone();
                             let rendered = self.expr(arg, span);

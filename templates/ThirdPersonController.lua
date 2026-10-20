@@ -232,7 +232,7 @@ function ThirdPersonController:animate(delta_seconds, speed, jumped)
         -- most 1.6 ticks in a fixed step and the shortest clip loops over two,
         -- so four passes can never leave anything left to wrap.
         local period = self.visual:clip_loop_ticks(playing)
-        for pass = 1, 4 do
+        for _ = 1, 4 do
             if self.playback_phase >= period then
                 self.playback_phase = self.playback_phase - period
             end

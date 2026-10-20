@@ -99,6 +99,7 @@ impl Frame {
             phase: self.number as f32 / 60.,
             fly_speed: 5.,
             mirror_x: camera.camera_mirror_x,
+            lighting: true,
         }
     }
 }

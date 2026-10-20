@@ -11,6 +11,7 @@
 #include "fixed_trigonometry.hpp"
 #include "track_camera_pose.hpp"
 #include "scene.hh"
+#include "data_table_service.hpp"
 #include "texture.hpp"
 #include "texture_upload.hpp"
 #include "palette.hpp"
@@ -21,6 +22,8 @@
 #endif
 #include "music.hpp"
 #include "streaming.hpp"
+#include "video_service.hpp"
+#include "pocketstation_service.hpp"
 #include "lifecycle.hpp"
 #include "scene_service.hpp"
 #include "sprites.hpp"
@@ -199,9 +202,7 @@ template<class Number> __attribute__((noinline,optimize("O3"))) bool project_com
     const int32_t* origin,epok::CompactProjectedVertex* out) {
   size_t v=0;
   for(;v+2<count;v+=3){
-    uint32_t screens[3];int32_t depths[3];
-    if(!epok::project_geometry_triple(vertices+v,origin,screens,depths))return false;
-    for(unsigned i=0;i<3;++i){out[v+i].screen.packed=screens[i];out[v+i].camera.value=uint16_t(depths[i]);}
+    if(!epok::project_geometry_triple(vertices+v,origin,out+v))return false;
   }
   for(;v<count;++v){
     int32_t camera[3];uint32_t flags;
@@ -421,10 +422,7 @@ struct PolygonEmitter {
       packet.clut16=material.clut16;packet.tpage16=material.tpage16;packet.depth_bias=rec.depth_bias;
       uint32_t uv[4]={};
       if(rec.textured)for(int v=0;v<4;++v)uv[v]=quad.packed_uv?quad.uvw[v]:material.uv(quad.uv[v][0],quad.uv[v][1]);
-      if(first==1)retained_emit(slot,a,b,c,rec,nullptr,0,1,2);
-      else if(first==2)clipped(a,b,c,rec.shaded[0],rec.shaded[1],rec.shaded[2],uv[0],uv[1],uv[2],packet);
-      if(second==1)retained_emit(slot+1,a,c,d,rec,nullptr,0,2,3);
-      else if(second==2)clipped(a,c,d,rec.shaded[0],rec.shaded[2],rec.shaded[3],uv[0],uv[2],uv[3],packet);
+      clipped_quad(a,b,c,d,first,second,rec.shaded,uv,packet);
     }
   }
   // Software clipping stays out of line so the per-quad loop remains compact.
@@ -432,10 +430,10 @@ struct PolygonEmitter {
   // KeepScreens: visible input corners keep the screen position they arrived
   // with (the ordered pass's GTE-exact ones), so only new intersections are
   // projected here and edges shared with unclipped neighbours stay sealed.
-  template<class ClipUnits=Units,bool KeepScreens=false> __attribute__((noinline,optimize("O3"))) void clipped(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c,
+  template<class ClipUnits=Units,bool KeepScreens=true> __attribute__((noinline,optimize("O3"))) void clipped(const ProjectedVertex& a, const ProjectedVertex& b, const ProjectedVertex& c,
                                          uint32_t ca, uint32_t cb, uint32_t cc, uint32_t uva, uint32_t uvb, uint32_t uvc,
-                                         const QuadPacket& q) {
-    const uint8_t planes = a.outcode | b.outcode | c.outcode;
+                                         const QuadPacket& q,uint8_t extra_planes=0) {
+    const uint8_t planes = a.outcode | b.outcode | c.outcode | extra_planes;
     epok::ClipVertex buffers[2][12];
     const ProjectedVertex* points[3] = {&a, &b, &c};
     const uint32_t colors[3] = {ca, cb, cc}, uvs[3] = {uva, uvb, uvc};
@@ -465,6 +463,20 @@ struct PolygonEmitter {
       if (editable && !double_sided && epok::screen_backface(area, mirror_x)) { ++epok::mesh_stats.backfaces; continue; }
       direct(p[0], p[i], p[i + 1], col[0], col[i], col[i + 1], tex[0], tex[i], tex[i + 1], q);
     }
+  }
+  // If only one half exceeds the GPU's span limit, clipping it alone bends
+  // the shared diagonal relative to the other half's GTE screen endpoints.
+  // Clip both surviving halves against the same planes to keep that edge exact.
+  template<class ClipUnits=Units> __attribute__((noinline)) void clipped_quad(const ProjectedVertex& a,const ProjectedVertex& b,
+      const ProjectedVertex& c,const ProjectedVertex& d,int first,int second,
+      const uint32_t* colors,const uint32_t* uv,const QuadPacket& packet) {
+    const uint8_t planes=a.outcode|b.outcode|c.outcode|d.outcode;
+    const bool diagonal_inside=!(a.outcode|c.outcode);
+    const auto color=[&](int i){return epok::packet_color(colors[i],packet.textured,packet.gpu_colors);};
+    if(first==1&&diagonal_inside)direct(a,b,c,color(0),color(1),color(2),uv[0],uv[1],uv[2],packet);
+    else if(first)clipped<ClipUnits>(a,b,c,colors[0],colors[1],colors[2],uv[0],uv[1],uv[2],packet,planes);
+    if(second==1&&diagonal_inside)direct(a,c,d,color(0),color(2),color(3),uv[0],uv[2],uv[3],packet);
+    else if(second)clipped<ClipUnits>(a,c,d,colors[0],colors[2],colors[3],uv[0],uv[2],uv[3],packet,planes);
   }
   // Camera-space triangles produced by UV scrolling take the generic route.
   __attribute__((noinline)) void unprojected(const epok::UvVertex& a, const epok::UvVertex& b, const epok::UvVertex& c,
@@ -521,14 +533,13 @@ __attribute__((noinline,optimize("O3"))) void draw_baked_complex(
       if(tinted)shaded[v]=epok::tint_color(shaded[v],epok::pack_color(tint[0],tint[1],tint[2]));
       final[v]=epok::packet_color(shaded[v],packet.textured,packet.gpu_colors);
     }
-    const uint16_t uv[4]={epok::baked_uv(face,0),epok::baked_uv(face,1),epok::baked_uv(face,2),epok::baked_uv(face,3)};
+    const uint32_t uv[4]={epok::baked_uv(face,0),epok::baked_uv(face,1),epok::baked_uv(face,2),epok::baked_uv(face,3)};
+    if(first==2||second==2){
+      emitter.clipped_quad<Units>(a,b,c,d,first,second,shaded,uv,packet);
+      continue;
+    }
     if(first==1)emitter.direct(a,b,c,final[0],final[1],final[2],uv[0],uv[1],uv[2],packet);
-    // Corners in front of the near plane keep the screen position every
-    // neighbouring face uses (GTE, or the CPU for a GTE-flagged corner); only
-    // new intersections are projected by the clipper. No seam at clip edges.
-    else if(first==2)emitter.clipped<Units,true>(a,b,c,shaded[0],shaded[1],shaded[2],uv[0],uv[1],uv[2],packet);
     if(second==1)emitter.direct(a,c,d,final[0],final[2],final[3],uv[0],uv[2],uv[3],packet);
-    else if(second==2)emitter.clipped<Units,true>(a,c,d,shaded[0],shaded[2],shaded[3],uv[0],uv[2],uv[3],packet);
   }
 }
 // Triangles are the common compiled primitive. Keep their loop small enough
@@ -909,6 +920,8 @@ class Game final : public psyqo::Application {
 #endif
     epok::music_prepare();
     epok::streaming_prepare();
+    // Videos share the BGM drive and its ISO9660 directory.
+    if constexpr (epok::video_clip_count > 0) epok::music_prepare(true);
     // PsyQo callback trampolines live in writable RAM. GPU, pad, memory-card
     // and sequence setup assign their lambdas after PsyQo's early cache flush;
     // flush again before interrupts can dispatch one of those RAM stubs.
@@ -920,6 +933,10 @@ class Game final : public psyqo::Application {
 Game game;
 
 void GameScene::frame() {
+#ifdef EPOK_HAS_VIDEO
+  // A playing video owns the screen, the CD and the pad; the game stands still.
+  if(epok::fmv::frame(gpu(),pad)){epok::time.synchronize(gpu().now());return;}
+#endif
   const uint16_t frame_begin = COUNTERS[1].value;
   epok::debug_hud::begin(gpu());
   performance_work={};
@@ -1530,9 +1547,12 @@ void GameScene::frame() {
         if (view_abs[r][c] > view_peak) view_peak = view_abs[r][c];
       }
     }
-    // Products stay below 2^31 when coefficients are under 2^14 and chunk
-    // vectors under 2^17 (32 units), which covers ordinary scenes.
+    // Bound each product using this object's actual coefficients. The old
+    // fixed 32-unit limit unnecessarily sent most large levels to mul64 even
+    // with a unit-scale view. Shifts still precede sums, with the same guard.
     const bool narrow_view = view_peak < 16384;
+    const int32_t narrow_limit = epok::chunk_bounds_input_limit(view_peak);
+    const bool narrow_planes = epok::chunk_bounds_planes_fit<RenderFrustum>(view_t);
     const bool isolated_x = epok::chunk_bounds_isolated_x(view_rows);
     epok::ChunkVisibilityQuery visibility(epok::precomputed_visibility && !skeletal ? geometry_root->visibility : nullptr);
     if constexpr (epok::precomputed_visibility) if (!visibility.reuse_matrix(view_rows, view_t, true)) {
@@ -1580,6 +1600,7 @@ void GameScene::frame() {
       if (cached_bounds < 0) {
         // Conservative camera-space box of the chunk from the object matrix.
         int32_t center[3], extent[3];
+        bool narrow_bounds=false;
         const auto* basis_bounds = basis_cache_active ? visibility.cached_basis_bounds(chunk_ordinal) : nullptr;
         if (basis_bounds) {
           for (int r = 0; r < 3; ++r) {
@@ -1589,8 +1610,9 @@ void GameScene::frame() {
         } else {
         const int32_t chunk_vector[3] = {bounds_mesh.origin[0] + bounds_mesh.center[0], bounds_mesh.origin[1] + bounds_mesh.center[1], bounds_mesh.origin[2] + bounds_mesh.center[2]};
         const bool narrow_chunk = narrow_view &&
-            chunk_vector[0] < 131072 && chunk_vector[0] > -131072 && chunk_vector[1] < 131072 && chunk_vector[1] > -131072 &&
-            chunk_vector[2] < 131072 && chunk_vector[2] > -131072 && bounds_mesh.extent[0] < 131072 && bounds_mesh.extent[1] < 131072 && bounds_mesh.extent[2] < 131072;
+            chunk_vector[0] < narrow_limit && chunk_vector[0] > -narrow_limit && chunk_vector[1] < narrow_limit && chunk_vector[1] > -narrow_limit &&
+            chunk_vector[2] < narrow_limit && chunk_vector[2] > -narrow_limit && bounds_mesh.extent[0] < narrow_limit && bounds_mesh.extent[1] < narrow_limit && bounds_mesh.extent[2] < narrow_limit;
+        narrow_bounds=narrow_chunk;
         if (narrow_chunk) {
           if constexpr (!epok::precomputed_visibility) {
             epok::narrow_chunk_bounds(view_rows, view_abs, view_t, chunk_vector,
@@ -1617,12 +1639,10 @@ void GameScene::frame() {
           }
         }
         }
-        const int far_z = center[2] + extent[2];
-        if (far_z < 1024 || center[2] - extent[2] >= epok::geometry_draw_distance * 4096 ||
-            (int64_t(center[0])-extent[0])*RenderFrustum::xx>int64_t(far_z)*RenderFrustum::xz ||
-            (int64_t(center[0])+extent[0])*RenderFrustum::xx<-int64_t(far_z)*RenderFrustum::xz ||
-            (int64_t(center[1])-extent[1])*RenderFrustum::yy>int64_t(far_z)*RenderFrustum::yz ||
-            (int64_t(center[1])+extent[1])*RenderFrustum::yy<-int64_t(far_z)*RenderFrustum::yz) {
+        const bool outside = narrow_bounds && narrow_planes
+            ? epok::chunk_outside<RenderFrustum,int32_t>(center,extent,epok::geometry_draw_distance*4096)
+            : epok::chunk_outside<RenderFrustum>(center,extent,epok::geometry_draw_distance*4096);
+        if (outside) {
           if (bounds_cache_active) visibility.remember_bounds(chunk_ordinal, false);
           EPOK_DETAIL_END(setup, setup_scanlines);
           continue;
@@ -2003,10 +2023,7 @@ void GameScene::frame() {
               if (quad.packed_uv) { for (int v = 0; v < 4; ++v) uv[v] = quad.uvw[v]; }
               else { for (int v = 0; v < 4; ++v) uv[v] = material_state.uv(quad.uv[v][0], quad.uv[v][1]); }
             }
-            if (first == 1) emitter.retained_emit(slot, p0, p1, p2, rec, recolor, 0, 1, 2);
-            else if (first == 2) emitter.clipped(p0, p1, p2, shaded[0], shaded[1], shaded[2], uv[0], uv[1], uv[2], packet);
-            if (second == 1) emitter.retained_emit(slot + 1, p0, p2, p3, rec, recolor, 0, 2, 3);
-            else if (second == 2) emitter.clipped(p0, p2, p3, shaded[0], shaded[2], shaded[3], uv[0], uv[2], uv[3], packet);
+            emitter.clipped_quad(p0,p1,p2,p3,first,second,shaded,uv,packet);
             EPOK_DETAIL_END(emit, emit_scanlines);
             continue;
           }
@@ -2082,10 +2099,13 @@ void GameScene::frame() {
         } else {
           for (int v = 0; v < 4; ++v) { packet.final_color[v] = base[v]; packet.uv[v] = 0; }
         }
+        if(first==2||second==2){
+          emitter.clipped_quad(p0,p1,p2,p3,first,second,packet.shaded,packet.uv,packet);
+          EPOK_DETAIL_END(emit, emit_scanlines);
+          continue;
+        }
         if (first == 1) emitter.direct(p0, p1, p2, packet.final_color[0], packet.final_color[1], packet.final_color[2], packet.uv[0], packet.uv[1], packet.uv[2], packet);
-        else if (first == 2) emitter.clipped(p0, p1, p2, packet.shaded[0], packet.shaded[1], packet.shaded[2], packet.uv[0], packet.uv[1], packet.uv[2], packet);
         if (second == 1) emitter.direct(p0, p2, p3, packet.final_color[0], packet.final_color[2], packet.final_color[3], packet.uv[0], packet.uv[2], packet.uv[3], packet);
-        else if (second == 2) emitter.clipped(p0, p2, p3, packet.shaded[0], packet.shaded[2], packet.shaded[3], packet.uv[0], packet.uv[2], packet.uv[3], packet);
         EPOK_DETAIL_END(emit, emit_scanlines);
       }
       }

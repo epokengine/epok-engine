@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <limits.h>
 namespace epok {
 constexpr int frustum_gcd(int a,int b){return b?frustum_gcd(b,a%b):a;}
 // GTE-space X/Y already contain the aspect/FOV row scale. H is common to
@@ -39,10 +40,32 @@ template<class Frustum=ScreenFrustum<320,240>> inline bool chunk_fully_inside(co
     return Frustum::xz*near_z-Frustum::xx*x>margin*(Frustum::xz+Frustum::xx) &&
         Frustum::yz*near_z-Frustum::yy*y>margin*(Frustum::yz+Frustum::yy);
 }
-// Call only when every coefficient has magnitude <16384 and each input vector
-// component has magnitude <131072, as checked by the renderer's narrow path.
+// Every individual product must fit int32; the renderer checks this once per
+// chunk using the largest coefficient magnitude. Post-shift sums then fit too.
+inline int32_t chunk_bounds_input_limit(int32_t peak) {
+    return peak ? INT32_MAX / peak : INT32_MAX;
+}
+// With the narrow products, each post-shift center/span sum is <=3*524288.
+// This translation bound leaves ample room for their signed plane products.
+template<class Frustum=ScreenFrustum<320,240>> inline bool chunk_bounds_planes_fit(const int32_t* translation) {
+    if constexpr(Frustum::xz+Frustum::xx>15 || Frustum::yz+Frustum::yy>15)return false;
+    for(int r=0;r<3;++r)if(translation[r]<=-(1<<26)||translation[r]>=(1<<26))return false;
+    return true;
+}
+template<class Frustum=ScreenFrustum<320,240>,class Number=int64_t>
+inline bool chunk_outside(const int32_t* center,const int32_t* extent,int32_t far) {
+    const Number far_z=Number(center[2])+extent[2];
+    return far_z<1024 || Number(center[2])-extent[2]>=far ||
+        (Number(center[0])-extent[0])*Frustum::xx>far_z*Frustum::xz ||
+        (Number(center[0])+extent[0])*Frustum::xx<-far_z*Frustum::xz ||
+        (Number(center[1])-extent[1])*Frustum::yy>far_z*Frustum::yz ||
+        (Number(center[1])+extent[1])*Frustum::yy<-far_z*Frustum::yz;
+}
+// Call only when coefficients have magnitude <16384 and vector/extent
+// components have magnitude below chunk_bounds_input_limit(peak).
 // Keep each product's signed Q12 shift separate: shifting a sum would change
-// rounding at negative/fractional inputs and could change edge visibility.
+// rounding at negative/fractional inputs. A five-tick extent guard contains
+// the former sum-then-shift box too (two center and two extent rounding ticks).
 #if defined(__GNUC__)
 __attribute__((always_inline))
 #endif
@@ -52,10 +75,10 @@ inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[
                                 bool isolated_x) {
     if(isolated_x) {
         center[0]=translation[0]+((rows[0][0]*vector[0])>>12);
-        span[0]=((absolute[0][0]*extent[0])>>12)+3;
+        span[0]=((absolute[0][0]*extent[0])>>12)+5;
         for(int r=1;r<3;++r) {
             center[r]=translation[r]+(((rows[r][1]*vector[1])>>12)+((rows[r][2]*vector[2])>>12));
-            span[r]=((absolute[r][1]*extent[1])>>12)+((absolute[r][2]*extent[2])>>12)+3;
+            span[r]=((absolute[r][1]*extent[1])>>12)+((absolute[r][2]*extent[2])>>12)+5;
         }
         return;
     }
@@ -65,7 +88,7 @@ inline void narrow_chunk_bounds(const int32_t rows[3][3],const int32_t absolute[
             sum+=(rows[r][c]*vector[c])>>12;
             radius+=(absolute[r][c]*extent[c])>>12;
         }
-        center[r]=translation[r]+sum;span[r]=radius+3;
+        center[r]=translation[r]+sum;span[r]=radius+5;
     }
 }
 // Same six half-spaces as the polygon clipper, before perspective division.

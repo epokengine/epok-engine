@@ -31,15 +31,15 @@ pub fn graph_resources(
         .filter(|(ty, _)| matches!(ty, Type::AssetRef { .. }))
 }
 
-/// Add non-component asset references to normal resource cooking. They are
-/// reachable even when no authored renderer/audio source currently uses them.
-pub fn resources(
+/// Every asset an AssetRef default, literal or override selects, with the
+/// kind its reference declares.
+fn asset_refs(
     files: &[crate::blueprint_asset::AssetFile],
     scenes: &[Scene],
     registry: &Registry,
     index: &crate::assets::Index,
     extra: &[(Type, Value)],
-) -> Result<Scene, String> {
+) -> Result<std::collections::BTreeMap<uuid::Uuid, crate::assets::Kind>, String> {
     let mut ids = std::collections::BTreeMap::new();
     let mut add = |ty: &Type, value: &Value| -> Result<(), String> {
         if let Type::AssetRef { kind } = ty {
@@ -51,7 +51,11 @@ pub fn resources(
                 .and_then(|id| uuid::Uuid::parse_str(id).ok())
                 .ok_or("AssetRef must be a UUID")?;
             let record = index.resolve(id)?;
-            let expected = crate::assets::Kind::runtime_reference(kind)?;
+            let expected = if kind == "Asset" {
+                record.meta.kind.clone()
+            } else {
+                crate::assets::Kind::runtime_reference(kind)?
+            };
             if !expected.accepts_runtime(&record.meta.kind) {
                 return Err(format!(
                     "Asset {id} is {:?}, expected {kind}",
@@ -96,6 +100,57 @@ pub fn resources(
             }
         }
     }
+    // Follow every row of a reachable table, including nested tables, exactly
+    // once. A row may be selected dynamically at runtime.
+    let mut visited = std::collections::BTreeSet::new();
+    loop {
+        let pending: Vec<_> = ids
+            .iter()
+            .filter(|(id, kind)| **kind == crate::assets::Kind::DataTable && !visited.contains(*id))
+            .map(|(id, _)| *id)
+            .collect();
+        if pending.is_empty() {
+            break;
+        }
+        for id in pending {
+            visited.insert(id);
+            let table = crate::data_table::document(index.resolve(id)?)?;
+            table
+                .validate_assets(index)
+                .map_err(|e| format!("DataTable {id}: {e}"))?;
+            for row in table.rows {
+                ids.insert(row.asset, row.kind);
+            }
+        }
+    }
+    Ok(ids)
+}
+
+/// Videos the game can play: staged as CD streams, not as scene resources.
+pub fn videos(
+    files: &[crate::blueprint_asset::AssetFile],
+    scenes: &[Scene],
+    registry: &Registry,
+    index: &crate::assets::Index,
+    extra: &[(Type, Value)],
+) -> Result<std::collections::BTreeSet<uuid::Uuid>, String> {
+    Ok(asset_refs(files, scenes, registry, index, extra)?
+        .into_iter()
+        .filter(|(_, kind)| *kind == crate::assets::Kind::Video)
+        .map(|(id, _)| id)
+        .collect())
+}
+
+/// Add non-component asset references to normal resource cooking. They are
+/// reachable even when no authored renderer/audio source currently uses them.
+pub fn resources(
+    files: &[crate::blueprint_asset::AssetFile],
+    scenes: &[Scene],
+    registry: &Registry,
+    index: &crate::assets::Index,
+    extra: &[(Type, Value)],
+) -> Result<Scene, String> {
+    let ids = asset_refs(files, scenes, registry, index, extra)?;
     let mut result = Scene::default();
     result.actors.clear();
     result.textures.clear();
@@ -111,9 +166,19 @@ pub fn resources(
                     ..Default::default()
                 })
             }
+            // Videos stream from CD; `videos` selects them for the disc.
+            crate::assets::Kind::Video => continue,
+            // Every PocketStation app is embedded by pocket-apps.hh.
+            crate::assets::Kind::PocketStationApp => continue,
+            crate::assets::Kind::DataTable => {
+                result
+                    .reference_tables
+                    .insert(id, crate::data_table::document(index.resolve(id)?)?);
+                continue;
+            }
             _ => {
                 return Err(format!(
-                    "Blueprint runtime AssetRef<{kind:?}> is not supported; use Texture or AudioClip"
+                    "Blueprint runtime AssetRef<{kind:?}> is not supported; use Texture, AudioClip or Video"
                 ));
             }
         }
@@ -203,9 +268,10 @@ pub fn inspector(
                 let [record] = records.as_slice() else {
                     return None;
                 };
-                let expected: crate::assets::Kind =
-                    serde_json::from_value(Value::String(kind.clone())).ok()?;
-                (record.meta.kind == expected).then(|| {
+                let compatible = kind == "Asset"
+                    || crate::assets::Kind::runtime_reference(kind)
+                        .is_ok_and(|expected| expected.accepts_runtime(&record.meta.kind));
+                compatible.then(|| {
                     (
                         id.to_string(),
                         record

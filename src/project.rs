@@ -753,10 +753,30 @@ fn validate_play_data(
     profile: Option<&crate::play::Profile>,
     geometry: bool,
     streamed_music: &[String],
+    videos: &[String],
 ) -> Result<(), String> {
     let Some(profile) = profile else {
         return Ok(());
     };
+    // Videos stream MDEC frames and XA audio from the disc. Serial builds keep
+    // their indices and skip playback, like XA music.
+    if !videos.is_empty() && profile.target != crate::play::Target::Serial {
+        match profile.data {
+            crate::play::DataSource::Executable => {
+                return Err(format!(
+                    "In executable cannot contain videos: {}. Videos stream from the CD; choose CD on demand.",
+                    videos.join(", ")
+                ));
+            }
+            crate::play::DataSource::Host => {
+                return Err(format!(
+                    "PC on demand cannot play videos because their audio requires the physical CD decoder: {}. Use CD on demand.",
+                    videos.join(", ")
+                ));
+            }
+            crate::play::DataSource::Disc => {}
+        }
+    }
     // Serial builds deliberately preserve clip indices but omit XA payloads.
     let streamed_music = if profile.target == crate::play::Target::Serial {
         &[][..]
@@ -1042,6 +1062,17 @@ fn stage_with_playback(
         &asset_index,
         &extra_resources,
     )?;
+    let videos = crate::blueprint_refs::videos(
+        &blueprint_files,
+        &resource_scenes,
+        &blueprint_registry,
+        &asset_index,
+        &extra_resources,
+    )?;
+    let video_sources = videos
+        .iter()
+        .map(|id| asset_index.resolve(*id).map(|r| r.meta.source.clone()))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut vertex_color_sources = resource_scenes.clone();
     vertex_color_sources.push(referenced.clone());
     let vertex_colors =
@@ -1112,12 +1143,22 @@ fn stage_with_playback(
         .collect::<std::collections::BTreeSet<_>>()
         .into_iter()
         .collect::<Vec<_>>();
-    validate_play_data(profile, stream.is_some(), &streamed_music)?;
-    let audio_outputs = if profile.is_some_and(|p| p.target == crate::play::Target::Serial) {
+    validate_play_data(profile, stream.is_some(), &streamed_music, &video_sources)?;
+    // Before audio: its disc manifest lists the streams staged here.
+    let video_outputs = crate::video::stage(
+        root,
+        build,
+        &videos,
+        &asset_index,
+        !profile.is_some_and(|p| p.target == crate::play::Target::Serial),
+    )?;
+    let mut audio_outputs = if profile.is_some_and(|p| p.target == crate::play::Target::Serial) {
         crate::audio::stage_with_music(root, &shared_resources, build, &asset_index, false)?
     } else {
         crate::audio::stage(root, &shared_resources, build, &asset_index)?
     };
+    audio_outputs.extend(video_outputs);
+    audio_outputs.push(crate::pocketstation::stage(build, &asset_index)?);
     if let Some(profile) = profile {
         if profile.data == crate::play::DataSource::Executable && build.join("disc.xml").is_file() {
             return Err("In executable staging unexpectedly produced external disc data; retry after cleaning the build output or report this as a build-system error.".into());
@@ -1575,6 +1616,35 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "resources.hpp",
             include_bytes!("../runtime/resources.hpp").as_slice(),
+        ),
+        (
+            "data_table.hpp",
+            include_bytes!("../runtime/data_table.hpp").as_slice(),
+        ),
+        (
+            "data_table_service.hpp",
+            include_bytes!("../runtime/data_table_service.hpp").as_slice(),
+        ),
+        ("fmv.hpp", include_bytes!("../runtime/fmv.hpp").as_slice()),
+        (
+            "fmv_bitstream.hpp",
+            include_bytes!("../runtime/fmv_bitstream.hpp").as_slice(),
+        ),
+        (
+            "video_service.hpp",
+            include_bytes!("../runtime/video_service.hpp").as_slice(),
+        ),
+        (
+            "pocketstation.hpp",
+            include_bytes!("../runtime/pocketstation.hpp").as_slice(),
+        ),
+        (
+            "pocketstation_apps.hpp",
+            include_bytes!("../runtime/pocketstation_apps.hpp").as_slice(),
+        ),
+        (
+            "pocketstation_service.hpp",
+            include_bytes!("../runtime/pocketstation_service.hpp").as_slice(),
         ),
         (
             "music.hpp",
@@ -2246,21 +2316,27 @@ mod tests {
             Some(&executable),
             false,
             &["assets/Audio/bgm/streamed.wav".into()],
+            &[],
         )
         .unwrap_err();
         assert!(error.contains("streamed XA music"));
         assert!(error.contains("assets/Audio/bgm/streamed.wav"));
         assert!(error.contains("resident MusicSequence"));
 
-        let error = validate_play_data(Some(&executable), true, &[]).unwrap_err();
+        let error = validate_play_data(Some(&executable), true, &[], &[]).unwrap_err();
         assert!(error.contains("Geometry Streaming"));
+        let error = validate_play_data(Some(&executable), false, &[], &["assets/Intro.mp4".into()])
+            .unwrap_err();
+        assert!(error.contains("videos: assets/Intro.mp4") && error.contains("CD on demand"));
 
         let host = crate::play::Profile {
             data: crate::play::DataSource::Host,
             ..Default::default()
         };
-        let error = validate_play_data(Some(&host), false, &["music.wav".into()]).unwrap_err();
+        let error = validate_play_data(Some(&host), false, &["music.wav".into()], &[]).unwrap_err();
         assert!(error.contains("physical CD decoder"));
+        let error = validate_play_data(Some(&host), false, &[], &["intro.mp4".into()]).unwrap_err();
+        assert!(error.contains("cannot play videos"));
     }
 
     #[test]
@@ -2269,14 +2345,16 @@ mod tests {
             data: crate::play::DataSource::Disc,
             ..Default::default()
         };
-        assert!(validate_play_data(Some(&disc), true, &["music.wav".into()]).is_ok());
+        assert!(validate_play_data(Some(&disc), true, &["music.wav".into()], &[]).is_ok());
+        assert!(validate_play_data(Some(&disc), false, &[], &["intro.mp4".into()]).is_ok());
 
         let serial = crate::play::Profile {
             target: crate::play::Target::Serial,
             ..Default::default()
         };
-        assert!(validate_play_data(Some(&serial), false, &["music.wav".into()]).is_ok());
-        assert!(validate_play_data(Some(&serial), true, &["music.wav".into()]).is_err());
+        assert!(validate_play_data(Some(&serial), false, &["music.wav".into()], &[]).is_ok());
+        assert!(validate_play_data(Some(&serial), true, &["music.wav".into()], &[]).is_err());
+        assert!(validate_play_data(Some(&serial), false, &[], &["intro.mp4".into()]).is_ok());
     }
 
     #[test]

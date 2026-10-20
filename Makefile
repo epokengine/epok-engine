@@ -68,16 +68,16 @@ app:
 check:
 	$(CARGO) fmt --all -- --check
 	$(CARGO) build --locked --bin epok-header-tool
-	$(CARGO) test --locked
-	$(CARGO) clippy --locked --all-targets -- -D warnings
+	$(CARGO) test --locked --workspace
+	$(CARGO) clippy --locked --workspace --all-targets -- -D warnings
 	$(PYTHON) tools/build_state.py record --base develop -- $(CARGO) build --locked
 
 test:
 	$(CARGO) build --locked --bin epok-header-tool
-	$(CARGO) test --locked
+	$(CARGO) test --locked --workspace
 
 lint:
-	$(CARGO) clippy --locked --all-targets -- -D warnings
+	$(CARGO) clippy --locked --workspace --all-targets -- -D warnings
 
 fmt:
 	$(CARGO) fmt --all

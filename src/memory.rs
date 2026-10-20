@@ -187,9 +187,11 @@ pub fn external_file_paths(build: &Path) -> Result<Vec<String>, String> {
                 .rsplit_once(" (")
                 .and_then(|(_, path)| path.strip_suffix(')'))
                 .filter(|path| {
-                    path.strip_prefix("music/M")
-                        .and_then(|p| p.strip_suffix(".XA"))
-                        .is_some_and(|n| n.len() == 7 && n.bytes().all(|b| b.is_ascii_digit()))
+                    crate::video::is_staged_path(path)
+                        || path
+                            .strip_prefix("music/M")
+                            .and_then(|p| p.strip_suffix(".XA"))
+                            .is_some_and(|n| n.len() == 7 && n.bytes().all(|b| b.is_ascii_digit()))
                 })
                 .map(str::to_owned)
                 .ok_or_else(|| "Unrecognized external report payload".into())
@@ -327,6 +329,23 @@ pub fn stage(
                 warnings.push(format!("XA music omitted for Serial: {}. XA requires the physical CD decoder and cannot be embedded in the EXE or served by PCDrv. Playback calls for this clip do nothing; resident sound effects remain available.", index.resolve(id)?.meta.source));
             }
         }
+    }
+    for output in audio_outputs
+        .iter()
+        .filter(|o| crate::video::is_staged_path(&o.path))
+    {
+        let bytes = fs::metadata(build.join(&output.path))
+            .map_err(|e| e.to_string())?
+            .len();
+        let id = output
+            .inputs
+            .keys()
+            .find_map(|key| key.strip_prefix("asset:"))
+            .and_then(|id| uuid::Uuid::parse_str(id).ok())
+            .ok_or("Video stream output without its asset")?;
+        let mut node = resource(id, bytes, "External video stream (MDEC frames + XA audio)")?;
+        node.name = format!("{} ({})", node.name, output.path);
+        files.push(node);
     }
     if build.join("GEOMETRY.BIN").is_file() {
         files.push(Node::leaf(

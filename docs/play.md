@@ -53,7 +53,9 @@ In executable rejects external geometry. Serial builds omit XA music with a
 warning, both In executable and PC on demand: its playback calls do nothing,
 `is_playing()` remains false, and resident SPU sound effects still work. Omitted
 clips are listed in the asset report warnings and excluded from payload sizes.
-Other destinations require the CD profile for XA's physical CD decoder. Choosing
+Other destinations require the CD profile for XA's physical CD decoder; the same
+holds for [videos](video.md), which In executable and PC on demand reject and
+Serial builds skip. Choosing
 CD without external data still runs the EXE without creating an empty data disc.
 
 ## Repeated Play and embedded startup
@@ -75,6 +77,15 @@ loads the executable directly with fast boot. The CD stays mounted for external
 assets. The separate-window destination still opens the emulator GUI. Runtime
 messages are read from `.epok/emulator/runtime.log` into the timestamped Console.
 The Windows private terminal requires Windows 10 1809 or newer.
+
+## PocketStation in Play
+
+When the game uses the PocketStation (`epok::pocketstation`, the PocketStation
+Blueprint nodes or Lua functions), emulator Play puts the editor's emulated
+PocketStation in memory card slot 1. Requests travel through the emulator bridge,
+the PocketStation window opens docked into the PlayStation, and programs the game
+installs land on the card in `UserSettings/PocketStation.mcd`. Serial Play talks to
+a real PocketStation in the console instead. See [PocketStation](pocketstation.md).
 
 ## Physical PSX
 

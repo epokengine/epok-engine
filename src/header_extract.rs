@@ -527,13 +527,58 @@ fn property(entity: Actor<'_>) -> Result<schema::Property, String> {
             "Reflected properties must be public, non-const, non-volatile instance fields (no bitfields)",
         ));
     }
-    let value_type = object_reference(value_type(ty, entity)?);
+    let asset_kind = annotations(entity, "EPOK_PROPERTY:")
+        .into_iter()
+        .find_map(|option| {
+            option
+                .strip_prefix("AssetKind=")
+                .map(|kind| kind.trim_matches('"').to_owned())
+        });
+    let value_type = if let Some(kind) = asset_kind {
+        if !matches!(
+            ty.get_canonical_type().get_kind(),
+            TypeKind::ULongLong | TypeKind::ULong
+        ) || ty.get_canonical_type().get_sizeof() != Ok(8)
+            || ![
+                "Asset",
+                "Texture",
+                "AudioClip",
+                "MusicSequence",
+                "Video",
+                "PocketStationApp",
+                "DataTable",
+            ]
+            .contains(&kind.as_str())
+        {
+            return Err(error(
+                entity,
+                "AssetKind requires uint64_t storage and a supported asset kind",
+            ));
+        }
+        schema::Type::AssetRef { kind }
+    } else {
+        object_reference(value_type(ty, entity)?)
+    };
     let expressions = entity
         .get_children()
         .into_iter()
         .filter(|e| e.is_expression())
         .collect::<Vec<_>>();
     let default = match &value_type {
+        schema::Type::AssetRef { .. } => {
+            if expressions.len() != 1
+                || !expressions[0]
+                    .evaluate()
+                    .and_then(numeric)
+                    .is_some_and(|v| v.as_u64() == Some(0))
+            {
+                return Err(error(
+                    entity,
+                    "Asset references require a zero initializer; assign the asset UUID in the Inspector",
+                ));
+            }
+            Value::Null
+        }
         schema::Type::ObjectRef { .. } => {
             fn empty(entity: Actor<'_>) -> bool {
                 match entity.get_kind() {

@@ -241,7 +241,7 @@ pub fn transform_normal(world: Matrix, normal: [f32; 3]) -> [f32; 3] {
         (0..3).map(|c| inverse.0[c][r] * normal[c]).sum()
     }))
 }
-pub fn fingerprint(scene: &Scene) -> u64 {
+fn serialized_hash(value: &impl Serialize) -> u64 {
     // Stable FNV-1a over authored bake inputs. Excludes cached output and UI/camera edits.
     struct Fnv(u64);
     impl Hasher for Fnv {
@@ -254,6 +254,33 @@ pub fn fingerprint(scene: &Scene) -> u64 {
             }
         }
     }
+    let mut hash = Fnv(14695981039346656037);
+    serde_json::to_vec(value)
+        .unwrap_or_default()
+        .hash(&mut hash);
+    hash.finish()
+}
+
+// A Weak keeps Arc::make_mut from editing this allocation in place. Asset
+// edits therefore get a new identity, while moving a light reuses the hash.
+// The persisted key uses content, never the host address.
+fn mesh_document_hash(doc: &std::sync::Arc<crate::mesh::Document>) -> u64 {
+    use std::sync::{Arc, Mutex, OnceLock, Weak};
+    type Cache = std::collections::HashMap<usize, (Weak<crate::mesh::Document>, u64)>;
+    static CACHE: OnceLock<Mutex<Cache>> = OnceLock::new();
+    let cache = CACHE.get_or_init(Default::default);
+    let key = Arc::as_ptr(doc) as usize;
+    if let Some((_, hash)) = cache.lock().unwrap().get(&key) {
+        return *hash;
+    }
+    let hash = serialized_hash(doc.as_ref());
+    let mut cache = cache.lock().unwrap();
+    cache.retain(|_, (weak, _)| weak.strong_count() != 0);
+    cache.insert(key, (Arc::downgrade(doc), hash));
+    hash
+}
+
+pub fn geometry_fingerprint(scene: &Scene) -> u64 {
     let meshes: Vec<_> = scene
         .actors
         .iter()
@@ -262,14 +289,21 @@ pub fn fingerprint(scene: &Scene) -> u64 {
         .map(|(i, e)| {
             (
                 e.id,
+                scene.is_active(i),
                 scene.world_matrix(i).0,
                 &e.lighting,
                 &e.material,
                 &e.editable_mesh,
-                e.editable_mesh.as_ref().and_then(|m| m.document.as_deref()),
+                e.editable_mesh
+                    .as_ref()
+                    .and_then(|m| m.document.as_ref())
+                    .map(mesh_document_hash),
             )
         })
         .collect();
+    serialized_hash(&(6, &scene.environment, meshes))
+}
+pub fn fingerprint(scene: &Scene) -> u64 {
     let lights: Vec<_> = scene
         .actors
         .iter()
@@ -278,16 +312,12 @@ pub fn fingerprint(scene: &Scene) -> u64 {
             e.light
                 .as_ref()
                 .filter(|l| l.mode != LightMode::Realtime)
-                .map(|l| (e.id, scene.world_matrix(i).0, l))
+                .map(|l| (e.id, scene.is_active(i), scene.world_matrix(i).0, l))
         })
         .collect();
-    let mut hash = Fnv(14695981039346656037);
-    // Version 4 preserves authored faces instead of subdividing for int16 Q12.
-    // Geometry/lights remain keyed by identity, not hierarchy position.
-    serde_json::to_vec(&(4, &scene.environment, meshes, lights))
-        .unwrap_or_default()
-        .hash(&mut hash);
-    hash.finish()
+    // Version 6 hashes immutable geometry once. Lighting and geometry remain
+    // keyed by authored content/identity across reloads and folder relocation.
+    serialized_hash(&(6, geometry_fingerprint(scene), lights))
 }
 pub fn valid_bake(scene: &Scene) -> bool {
     scene
@@ -430,22 +460,26 @@ impl Lighting {
                 .iter()
                 .enumerate()
                 .filter_map(|(i, e)| {
-                    e.light.as_ref().filter(|l| l.enabled).map(|l| {
-                        let world = scene.world_matrix(i);
-                        Source {
-                            light: l.clone(),
-                            position: world.point([0.; 3]),
-                            toward: unit(world.vector([0., 0., -1.])),
-                        }
-                    })
+                    e.light
+                        .as_ref()
+                        .filter(|l| l.enabled && scene.is_active(i))
+                        .map(|l| {
+                            let world = scene.world_matrix(i);
+                            Source {
+                                light: l.clone(),
+                                position: world.point([0.; 3]),
+                                toward: unit(world.vector([0., 0., -1.])),
+                            }
+                        })
                 })
                 .collect(),
             casters: scene
                 .actors
                 .iter()
                 .enumerate()
-                .filter(|(_, e)| {
+                .filter(|(i, e)| {
                     shadows
+                        && scene.is_active(*i)
                         && e.kind == "Mesh"
                         && e.lighting.static_geometry
                         && e.lighting.cast_shadows
@@ -632,6 +666,49 @@ pub(crate) mod tests {
     use super::*;
 
     #[test]
+    fn immutable_mesh_hash_survives_reload_but_detects_copy_on_write_edits() {
+        let mut scene = shadow_scene();
+        let mut doc = crate::mesh::Document::default();
+        doc.add_face(
+            [[-1., 0., -1.], [-1., 0., 1.], [1., 0., 1.], [1., 0., -1.]],
+            doc.groups[0].id,
+            doc.materials[0].id,
+        );
+        let mut component = crate::mesh::Component::new(uuid::Uuid::new_v4());
+        component.document = Some(std::sync::Arc::new(doc));
+        scene.actors[1].editable_mesh = Some(component);
+        let first = fingerprint(&scene);
+        let geometry = geometry_fingerprint(&scene);
+        let mut reloaded = scene.clone();
+        let doc = reloaded.actors[1]
+            .editable_mesh
+            .as_mut()
+            .unwrap()
+            .document
+            .as_mut()
+            .unwrap();
+        *doc = std::sync::Arc::new((**doc).clone());
+        assert_eq!(
+            first,
+            fingerprint(&reloaded),
+            "allocation addresses must not enter persisted fingerprints"
+        );
+        scene.actors[4].position[0] += 1.;
+        assert_ne!(first, fingerprint(&scene));
+        assert_eq!(geometry, geometry_fingerprint(&scene));
+        let doc = reloaded.actors[1]
+            .editable_mesh
+            .as_mut()
+            .unwrap()
+            .document
+            .as_mut()
+            .unwrap();
+        std::sync::Arc::make_mut(doc).vertices[0][0] += 0.25;
+        assert_ne!(first, fingerprint(&reloaded));
+        assert_ne!(geometry, geometry_fingerprint(&reloaded));
+    }
+
+    #[test]
     fn background_pass_is_opt_in_and_round_trips() {
         let legacy: MeshLighting = serde_json::from_str(r#"{"static_geometry":true}"#).unwrap();
         assert!(!legacy.background_pass);
@@ -663,6 +740,35 @@ pub(crate) mod tests {
         scene.actors.push(sun);
         scene.bake = Some(bake(&scene).unwrap());
         scene
+    }
+
+    #[test]
+    fn inactive_lights_and_casters_follow_parent_activity_and_invalidate_the_bake() {
+        let mut scene = shadow_scene();
+        let mut parent = Actor::cube("Lighting group".into());
+        parent.kind = "Empty".into();
+        scene.actors.push(parent);
+        scene.actors[4].parent = Some(5);
+        scene.actors[1].parent = Some(5);
+        scene.bake = Some(bake(&scene).unwrap());
+        let before = scene.bake.clone().unwrap();
+        assert!(valid_bake(&scene));
+        assert_eq!(Lighting::unshadowed(&scene).sources.len(), 1);
+        assert!(Lighting::new(&scene).casters.iter().any(|c| c.index == 1));
+
+        scene.actors[5].active = false;
+        assert!(!valid_bake(&scene));
+        assert!(Lighting::unshadowed(&scene).sources.is_empty());
+        assert!(!Lighting::new(&scene).casters.iter().any(|c| c.index == 1));
+        assert_ne!(bake(&scene).unwrap().colors[3], before.colors[3]);
+        // Interactive preview retains the old bake until an explicit rebuild.
+        assert_eq!(scene.bake.as_ref().unwrap().colors, before.colors);
+
+        scene.actors[5].active = true;
+        assert!(valid_bake(&scene));
+        scene.actors[4].active = false;
+        assert!(Lighting::unshadowed(&scene).sources.is_empty());
+        assert!(!valid_bake(&scene));
     }
 
     #[test]

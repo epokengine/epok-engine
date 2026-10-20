@@ -164,10 +164,12 @@ mod tests {
         let b = root.join("assets/scenes/B.epokmap");
         let view = View {
             center: [40., 2., -80.],
+            lighting: false,
             ..Default::default()
         };
         save(&root, &a, &view).unwrap();
         assert_eq!(load(&root, &a, false).unwrap().center, view.center);
+        assert!(!load(&root, &a, false).unwrap().lighting);
         assert!(load(&root, &b, false).is_none());
         std::fs::write(preference_path(&root, &a), b"broken").unwrap();
         assert!(load(&root, &a, false).is_none());

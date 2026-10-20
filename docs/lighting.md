@@ -2,21 +2,41 @@
 
 The editor, exported C++ project and PSX executable now support a bounded lighting pipeline. Scene is an interactive preview. Game displays the actual emulator output, including PSX quantization and painter ordering.
 
+Use **Lighting** in the **Scene** toolbar to toggle ambient, realtime lights,
+baked vertex lighting and blob shadows. It starts enabled and is remembered with
+each map's local Scene View preferences. Turning it off shows material and authored
+vertex colors without lighting; the map, bake cache and Game output are unchanged.
+Materials marked Unlit keep their authored appearance in either view. Inactive
+actors (including children of inactive parents) contribute no light or baked shadow.
+
 ## Authoring workflow
 
 1. Use **GameObject > Light** or the Hierarchy context menu to create a Directional Light or Point Light. Existing entities can receive a **Light** through Add Component. Directional lights travel along their inherited Transform's +Z axis; rotating the entity changes the lighting direction. Light helpers can be selected in Scene.
 2. Open **Window > Lighting** for ambient color, baked ambient occlusion, the realtime point-light budget, bake status and geometry/color-storage counts.
 3. In Mesh Renderer, choose **Unlit**, **Baked Vertex**, or **Realtime (GTE)**. Baked Vertex enables Static. Static receivers and shadow casters must remain fixed in the game, including their parents. Unchecking Static switches a baked receiver back to Realtime.
 4. Use **Subdivisions** to provide enough vertices for local illumination and shadows. The existing flat Ground primitive retains its 10×10 top grid. Keep subdivisions low elsewhere; the exporter rejects scenes above 7,000 mesh triangles.
-5. Choose **Build > Build Lighting** (also available in the Lighting window). This runs on a worker thread. Continue editing while it runs; results for changed bake inputs are discarded. Save Scene to persist the cache. Play, Build Project and Export automatically regenerate outdated lighting. Play/Build return that cache to the editor when the authored inputs still match.
+5. Light edits stream baked lighting updates in the background at a bounded 33 ms cadence. Changing a light's color, intensity, range, mode, enabled state or inherited transform updates baked receivers and shadows. Ambient, geometry and shadow-caster edits use a 400 ms pause before rebuilding. **Build > Build Lighting** (also available in the Lighting window) starts it immediately. Save Scene to persist the cache. Play, Build Project and Export also regenerate outdated lighting. Play/Build return that cache to the editor when the authored inputs still match.
 
-The Scene view keeps the last baked shadows and AO while editing, including after
-toggling Static. An amber **Lighting needs rebuilding** warning appears when the
-bake is outdated or missing. Editing and camera movement never trace new shadows.
-Rebuild lighting explicitly to update them. Actors without usable cached vertex
-colors show direct lighting until the next build. Cached colors follow actor
+The Scene view keeps the last baked shadows and AO until the background update is
+ready, including after toggling Static. An amber **Lighting changed. Updating
+automatically...** message appears while waiting. Only one lighting worker runs;
+results for superseded geometry are discarded and the latest inputs are queued.
+While dragging lights, a completed result for the same geometry may appear as a
+provisional preview. Its original fingerprint remains stale until the exact
+latest inputs finish, so it cannot bypass Play/Build/Export validation.
+Camera movement never retraces shadows or schedules a bake. Automatic results do
+not add Undo steps or cancel builds. A failed input is not retried until another
+edit or an explicit Build Lighting. Actors without usable cached vertex colors
+show direct lighting until the update completes. Cached colors follow actor
 identities, so adding, removing or reordering actors does not transfer shadows
 to a different object.
+
+Dragging a light reuses immutable geometry fingerprints and cached opaque baked
+surfaces. Only the light component and its Undo baseline change on each mouse
+event; idle dependency publication waits until the drag ends. Completed lighting
+updates replace vertex colors without rebuilding positions or UVs. The final
+result uses the same vertex colors exported to PSX; console lighting budgets are
+unchanged.
 
 Without any lights, lit materials show the environment's ambient color. The old artificial six-face shading is no longer used in the renderer. Existing scene files remain readable and existing user assets are not overwritten during migration.
 
@@ -72,6 +92,11 @@ Use `get<Light>()`, `get<MeshLighting>()`, `get<BlobShadow>()` and `remove<T>()`
 `lighting_stats` exposes completed-frame active lights, lit objects, GTE normal operations, baked vertices, submitted/dropped mesh triangles, blob triangles, lighting scanlines and CPU frame scanlines. Timing reads PsyQo's existing horizontal-sync counter without reconfiguring timers. Resolution is about 64 microseconds; frame timing excludes the subsequent GPU/page-flip wait. These measurements are useful for comparing configurations, not for claiming cycle-exact hardware performance from an emulator.
 
 ## Verification
+
+Automatic background bakes update the Scene status without adding progress
+messages to Console on every light edit. Explicit **Build Lighting** still logs
+its start and completion. Failures remain visible and are retried after a new
+lighting edit or an explicit rebuild.
 
 `tests/integration/verify_lighting.py` builds isolated projects, runs their native PSX executables and reads actual VRAM/RAM. It checks baked/GTE color agreement, the light budget, inverse-transpose normals, point range, C++ creation parity, static shadows, blob shadows, saved bake caches and target operation/timing counters. It leaves the user's scene untouched and writes results to `artifacts/lighting-verification.txt`.
 

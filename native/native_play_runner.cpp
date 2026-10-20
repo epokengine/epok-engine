@@ -16,6 +16,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall SetErrorMode(unsigned l
 #include <unistd.h>
 #endif
 #include "scene.hh"
+#include "data_table_service.hpp"
 #include "hud_commands.hpp"
 #include "fonts.hh"
 #include "hud-config.hh"

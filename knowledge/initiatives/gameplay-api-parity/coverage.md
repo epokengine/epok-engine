@@ -2,7 +2,7 @@
 
 Generated from `coverage.json` by `tools/gameplay_api_parity.py`; do not edit by hand.
 
-Baseline commit: `dc4a9b21abb6aea5b6186bfd1114a38bed567c6a`. Frozen semantic candidate rows: **4878**.
+Baseline commit: `7e848a7a9011c344efeebfac90ace0d64f38604e`. Frozen semantic candidate rows: **5060**.
 
 A classified row is not necessarily implemented. The strict checker fails until every public gameplay row has executable support, tests, examples, and cost evidence on all five surfaces.
 
@@ -10,10 +10,10 @@ A classified row is not necessarily implemented. The strict checker fails until 
 
 | Disposition | Rows |
 | --- | ---: |
-| `compatibility_alias` | 44 |
+| `compatibility_alias` | 49 |
 | `hardware_backend` | 6 |
-| `internal_implementation` | 4231 |
-| `public_gameplay` | 597 |
+| `internal_implementation` | 4397 |
+| `public_gameplay` | 608 |
 
 ## Public gameplay gaps
 
@@ -29,21 +29,21 @@ A classified row is not necessarily implemented. The strict checker fails until 
 
 | Category | Rows |
 | --- | ---: |
-| `audio_music` | 182 |
+| `audio_music` | 272 |
 | `cameras_scenes` | 48 |
 | `collision_3d` | 57 |
 | `components_hierarchy` | 7 |
 | `gameplay_2d` | 103 |
 | `implementation_support` | 2217 |
 | `input_time` | 51 |
-| `language_adapter` | 130 |
+| `language_adapter` | 135 |
 | `materials_visuals` | 61 |
 | `math_values` | 10 |
-| `memory_card` | 70 |
+| `memory_card` | 144 |
 | `objects_actors` | 591 |
 | `particles_effects` | 169 |
 | `resources_diagnostics` | 58 |
-| `runtime_facade` | 674 |
+| `runtime_facade` | 687 |
 | `skeletal_animation` | 24 |
 | `sprites_palettes` | 72 |
 | `static_editable_meshes` | 96 |
@@ -305,6 +305,17 @@ A classified row is not necessarily implemented. The strict checker fails until 
 | `epok::PlaybackLibrary::sequence_state` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::PlaybackLibrary::stop_effect` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::PlaybackLibrary::stop_sequence` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketStationLibrary::connected` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketStationLibrary::exit_to_menu` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketStationLibrary::message_byte` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketStationLibrary::receive_message` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketStationLibrary::running_program` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketStationLibrary::send_byte` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketStationLibrary::send_bytes` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketStationLibrary::set_led` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketStationLibrary::set_value` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketStationLibrary::start_program` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
+| `epok::PocketStationLibrary::value` | `gameplay-api` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::set_colors` | `object-model` | yes | yes | yes | yes | yes | `implemented` |
 | `epok::ProgressBarComponent::set_enabled` | `object-model` | yes | yes | yes | yes | yes | `implemented` |

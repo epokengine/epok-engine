@@ -24,11 +24,11 @@
     },
     {
       "name": "PCSX-Redux",
-      "version": "26877.20261008.9.x64",
-      "url": "https://distrib.app/storage/assets/694/a14/73c/d062ba42782d79b00432487710116fd7bb47327e1bc9388d6a1fa11/pcsx-redux-nightly-26877.20261008.9-x64.zip",
-      "archive": "redux.zip",
+      "version": "28745.20261020.31.x64",
+      "url": "https://distrib.app/storage/assets/443/12f/256/58dbc9a09e1ccf07afd4adfaee03ae46374a3ddf0d261eb05a539c9/pcsx-redux-nightly-28745.20261020.31-x64.zip",
+      "archive": "pcsx-redux-28745.20261020.31-x64.zip",
       "directory": "redux",
-      "sha256": "232015973fad6542065ce2c16f9693c7885702387fbca9c939bfc912d63b4d8a"
+      "sha256": "1a11bac68ee2de1bdaf70da0e90eeb47359fdc560a14887e31d8dbd8f84d41d2"
     },
     {
       "name": "psxavenc",

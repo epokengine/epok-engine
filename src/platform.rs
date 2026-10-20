@@ -87,6 +87,14 @@ pub fn run(
         })
         .transpose()?
         .unwrap_or([1440, 900]);
+    #[cfg(target_os = "linux")]
+    let event_loop = {
+        // Wry's native child WebView uses GTK/X11 with winit. This also works
+        // through XWayland on Wayland desktops.
+        use winit::platform::x11::EventLoopBuilderExtX11;
+        EventLoop::builder().with_x11().build()?
+    };
+    #[cfg(not(target_os = "linux"))]
     let event_loop = EventLoop::new()?;
     let (brand_pixels, brand_width, brand_height) = crate::branding::pixels()?;
     let app_icon = winit::window::Icon::from_rgba(brand_pixels.clone(), brand_width, brand_height)?;
@@ -237,6 +245,31 @@ pub fn run(
             }),
         },
     ]);
+    // Monospaced text for the PocketStation code editor.
+    let code_font_data = [
+        "C:/Windows/Fonts/consola.ttf",
+        "/System/Library/Fonts/Menlo.ttc",
+        "/System/Library/Fonts/Monaco.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+    ]
+    .iter()
+    .find_map(|path| std::fs::read(path).ok());
+    let code_font = match &code_font_data {
+        Some(data) => imgui.fonts().add_font(&[imgui::FontSource::TtfData {
+            data,
+            size_pixels: 15.,
+            config: None,
+        }]),
+        None => imgui
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData {
+                config: Some(imgui::FontConfig {
+                    size_pixels: 13.,
+                    ..Default::default()
+                }),
+            }]),
+    };
+    crate::pocketstation_ui::set_code_font(code_font);
     // The property editor draws at a smaller, proportional size than the rest of
     // the editor so a narrow panel still fits a label and its value on one row.
     let inspector_font = imgui.fonts().add_font(&[
@@ -297,9 +330,10 @@ pub fn run(
             size_pixels: 13.,
             config: Some(imgui::FontConfig {
                 glyph_ranges: imgui::FontGlyphRanges::from_slice(&[
-                    0xf002, 0xf002, 0xf013, 0xf013, 0xf067, 0xf067, 0xf07b, 0xf07b, 0xf0b0, 0xf0b0,
-                    0xf0c7, 0xf0c7, 0xf105, 0xf105, 0xf107, 0xf107, 0xf2d2, 0xf2d2, 0xf359, 0xf35a,
-                    0xf56f, 0xf56f, 0,
+                    0xf002, 0xf002, 0xf005, 0xf005, 0xf00d, 0xf00d, 0xf013, 0xf013, 0xf067, 0xf067,
+                    0xf07b, 0xf07c, 0xf0b0, 0xf0b0, 0xf0c5, 0xf0c5, 0xf0c7, 0xf0c7, 0xf105, 0xf105,
+                    0xf107, 0xf107, 0xf2d2, 0xf2d2, 0xf2ea, 0xf2ea, 0xf2ed, 0xf2ed, 0xf2f1, 0xf2f1,
+                    0xf303, 0xf303, 0xf359, 0xf35a, 0xf56f, 0xf56f, 0,
                 ]),
                 ..Default::default()
             }),
@@ -561,6 +595,7 @@ pub fn run(
     // A hidden Win32 window may not receive paint events. Show the compact
     // window after GPU setup so the event loop can present its first splash.
     window.set_visible(true);
+    let mut code_view = crate::script_editor::Native::default();
     #[allow(deprecated)]
     event_loop.run(move |event, target| {
         target.set_control_flow(ControlFlow::WaitUntil(next_frame));
@@ -592,6 +627,7 @@ pub fn run(
                 if let Some(editor)=session.as_mut(){editor.input_mouse_motion([delta.0 as f32,delta.1 as f32]);}
             }
             Event::AboutToWait => {
+                code_view.pump();
                 if let (Some(gamepads),Some(editor))=(gamepads.as_mut(),session.as_mut()) {
                     while let Some(event)=gamepads.next_event() { match event.event {
                         gilrs::EventType::ButtonPressed(button,_)=>editor.input_gamepad_button(format!("{button:?}"),true),
@@ -650,6 +686,7 @@ pub fn run(
                 editor.blueprint_editor.set_action_menu_fonts(action_menu_fonts);
                 if profile {editor.view.yaw+=0.008;editor.view_dirty=true;}
                 editor.tick();
+                crate::script_editor::tick(editor);
                 crate::mcp::tick(editor);
                 frame_mark("editor and MCP tick");
                 if let Some(game) = &editor.game_frame {
@@ -782,6 +819,8 @@ pub fn run(
                 if let Some(editor) = session.as_mut() {
                     editor.project_browser.previews.upload(&device, &queue, &mut renderer);
                     editor.asset_inspector.media.upload(&device, &queue, &mut renderer);
+                    editor.asset_inspector.video.upload(&device, &queue, &mut renderer);
+                    editor.pocketstation.upload(&device, &queue, &mut renderer);
                     editor.world2d.textures.upload(&device, &queue, &mut renderer, &editor.scene.textures);
                     editor.asset_inspector.visible = false;
                     editor.asset_inspector.texture = asset_renderer.as_ref().map(|(_,id,_)|*id);
@@ -818,6 +857,10 @@ pub fn run(
                     loading.draw(ui, lockup_texture_id, splash_texture_id);
                 } else { opened = hub.draw(ui); }
                 platform.prepare_render(ui, &window);
+                let code_scale = ui.io().display_framebuffer_scale;
+                let code_popup = unsafe { imgui::sys::igIsPopupOpen_ID(0,
+                    (imgui::sys::ImGuiPopupFlags_AnyPopupId | imgui::sys::ImGuiPopupFlags_AnyPopupLevel) as i32) };
+                code_view.sync(&window, session.as_mut(), code_scale, code_popup);
                 frame_mark("UI draw");
                 let capture_look=session.as_ref().is_some_and(|e|e.scene_look && !e.scene_2d() && !e.hub_requested && !e.close_requested && !e.should_close && !e.return_to_hub);
                 update_look_cursor(look_captured, capture_look, |visible| window.set_cursor_visible(visible));
@@ -956,6 +999,12 @@ pub fn run(
                         || session.as_ref().and_then(|e| e.game_frame.as_ref()).is_some_and(|f| f.sequence > 90)
                         || session.as_ref().and_then(|e| e.native_frame.as_ref()).is_some_and(|f| f.number > 90)
                         || project_started.elapsed() > Duration::from_secs(25))
+                    && std::env::args()
+                        .collect::<Vec<_>>()
+                        .windows(2)
+                        .find(|w| w[0] == "--screenshot-delay")
+                        .and_then(|w| w[1].parse::<u64>().ok())
+                        .is_none_or(|seconds| project_started.elapsed() > Duration::from_secs(seconds))
                     && (!std::env::args().any(|a|a=="--screenshot-native-hud")
                         || session.as_ref().and_then(|e|e.hud_simulation.session.as_ref()).and_then(|s|s.frame.as_ref()).is_some()
                         || session.as_ref().is_some_and(|e|e.hud_simulation.error.is_some())
@@ -1004,6 +1053,10 @@ pub fn run(
                             let mut editor = Editor::open_prepared(ready.project)?;
                             if let Some(warning) = ready.warning { editor.log(warning); }
                             crate::prepare_editor(&mut editor);
+                            if let Some(pair)=args.windows(2).find(|pair|pair[0]=="--open-code") {
+                                let path=editor.root.join(&pair[1]);
+                                editor.open_code(&path,Some(1));
+                            }
                             Ok(editor)
                         });
                         loading = None;
@@ -1529,6 +1582,7 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf051, 0xf051, // forward-step: move frame later
     0xf05a, 0xf05a, // circle-info: 2D hints
     0xf05b, 0xf05b, // crosshairs: move a key to the view, Node2D
+    0xf060, 0xf063, // arrows: PocketStation buttons
     0xf065, 0xf065, // expand: frame selection
     0xf067, 0xf067, // plus: add 2D node
     0xf06d, 0xf06d, // fire: Particles2D
@@ -1544,6 +1598,7 @@ const EDITOR_FA_GLYPHS: &[u32] = &[
     0xf0eb, 0xf0eb, // lightbulb: PointLight2D
     0xf0ec, 0xf0ec, // arrow-right-arrow-left: flip horizontally
     0xf104, 0xf105, // angle-left / right: previous, next key
+    0xf10b, 0xf10b, // mobile: PocketStation
     0xf111, 0xf111, // circle: camera path step to do
     0xf125, 0xf125, // crop: tile selection tool
     0xf12d, 0xf12d, // eraser: tile eraser

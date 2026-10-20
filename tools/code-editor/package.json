@@ -1,0 +1,20 @@
+{
+  "name": "epok-code-editor",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "tsc --noEmit",
+    "format": "prettier --write src build.mjs tests"
+  },
+  "dependencies": {
+    "monaco-editor": "0.55.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "playwright-core": "1.64.1",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3"
+  }
+}

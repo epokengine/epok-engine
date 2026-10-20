@@ -159,6 +159,11 @@ pub fn builtin_api(operation: &Builtin) -> Option<&'static str> {
         Builtin::StopAudio => "stop_audio",
         Builtin::SetTexture => "set_texture",
         Builtin::SetAudioClip => "set_audio_clip",
+        Builtin::PlayVideo => "play_video",
+        Builtin::StopVideo => "stop_video",
+        Builtin::IsVideoPlaying => "video_playing",
+        Builtin::StartPocketStationApp => "pocketstation_start",
+        Builtin::InstallPocketStationApp => "pocketstation_install",
         Builtin::PlaySequenceComponent => "play_sequence_component",
         Builtin::StopSequence => "stop_sequence",
         Builtin::PauseSequence => "pause_sequence",
@@ -192,6 +197,20 @@ pub fn builtin_cpp(
             .ok_or_else(|| format!("{operation:?} is missing operand {index}"))
     };
     Ok(match operation {
+        Builtin::FindDataTableAsset { key, asset_kind } => {
+            crate::data_table::validate_key(key)?;
+            format!(
+                "epok::bp::data_table_find({},{},{})",
+                arg(0)?,
+                serde_json::to_string(key).unwrap(),
+                crate::data_table::kind_code(asset_kind)?
+            )
+        }
+        Builtin::CastAsset { asset_kind } => format!(
+            "epok::bp::data_table_cast({},{})",
+            arg(0)?,
+            crate::data_table::kind_code(asset_kind)?
+        ),
         Builtin::SelfObject => receiver.id.into(),
         Builtin::GetOwner => format!("epok::bp::component_owner_id({})", receiver.object),
         Builtin::SpawnActor { .. } => format!(
@@ -236,6 +255,30 @@ pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, boo
     };
     let vector = Type::Vector { length: 3 };
     let (inputs, output, pure) = match operation {
+        Builtin::FindDataTableAsset { asset_kind, .. } => (
+            vec![(
+                "table",
+                Type::AssetRef {
+                    kind: "DataTable".into(),
+                },
+            )],
+            Type::AssetRef {
+                kind: asset_kind.clone(),
+            },
+            true,
+        ),
+        Builtin::CastAsset { asset_kind } => (
+            vec![(
+                "asset",
+                Type::AssetRef {
+                    kind: "Asset".into(),
+                },
+            )],
+            Type::AssetRef {
+                kind: asset_kind.clone(),
+            },
+            true,
+        ),
         Builtin::GetPosition2D => (
             vec![(
                 "target",
@@ -463,6 +506,38 @@ pub fn builtin_signature(operation: &Builtin) -> (Vec<(String, Type)>, Type, boo
             Type::Void,
             false,
         ),
+        // Gameplay pauses while a video plays; the call queues it and returns
+        // whether the clip exists and the CD can stream it.
+        Builtin::PlayVideo => (
+            vec![
+                (
+                    "video",
+                    Type::AssetRef {
+                        kind: "Video".into(),
+                    },
+                ),
+                ("skippable", Type::Bool),
+            ],
+            Type::Bool,
+            false,
+        ),
+        Builtin::StopVideo => (vec![], Type::Void, false),
+        Builtin::IsVideoPlaying => (vec![], Type::Bool, true),
+        // Installs the app on the PocketStation in `port` when it is missing
+        // (or replaces it), then starts it; returns whether it succeeded.
+        Builtin::StartPocketStationApp | Builtin::InstallPocketStationApp => (
+            vec![
+                (
+                    "app",
+                    Type::AssetRef {
+                        kind: "PocketStationApp".into(),
+                    },
+                ),
+                ("port", Type::UInt32),
+            ],
+            Type::Bool,
+            false,
+        ),
         Builtin::Spawn { class } => (
             vec![("parent", entity)],
             Type::ObjectRef {
@@ -542,6 +617,7 @@ pub fn assignable(actual: &Type, expected: &Type, registry: &crate::blueprint::R
                 let shared = stored.len().min(current.len());
                 stored[..shared] == current[..shared]
             }
+            (Type::AssetRef { .. }, Type::AssetRef { kind }) if kind == "Asset" => true,
             (Type::AssetRef { kind: a }, Type::AssetRef { kind: b })
                 if matches!(b.as_str(), "AudioClip" | "PlayableAudio")
                     && matches!(a.as_str(), "AudioClip" | "PlayableAudio" | "MusicSequence") =>

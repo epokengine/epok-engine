@@ -42,12 +42,15 @@ mod build_report;
 mod busy_ui;
 mod camera_path;
 mod camera_path_ui;
+mod code_editor;
 mod collision;
 mod collision_editor;
 mod console;
 mod content_preview;
 mod controls;
 mod controls_ui;
+mod data_table;
+mod data_table_editor;
 mod dependencies;
 mod disc;
 mod document;
@@ -77,6 +80,7 @@ mod effects;
 mod export;
 mod export_ui;
 mod file_watch;
+mod fmv;
 mod font_asset;
 mod gizmo;
 mod gui;
@@ -153,6 +157,8 @@ mod play;
 mod play_cache;
 mod play_ui;
 mod playback_staging;
+mod pocketstation;
+mod pocketstation_ui;
 mod preview_audio;
 mod project;
 mod project_browser;
@@ -183,8 +189,12 @@ mod scene_loading;
 mod scene_view_mode;
 mod scene_view_state;
 mod script_backend;
+mod script_editor;
 mod script_ir;
+mod script_lsp;
+mod script_tools;
 mod script_values;
+mod script_workspace;
 mod scripts;
 mod sequence;
 mod sequence_compat;
@@ -240,6 +250,10 @@ mod timeline_section;
 mod transform;
 mod vab_import;
 mod vertex_colors;
+mod video;
+mod video_import;
+mod video_preview;
+mod video_probe;
 mod viewport;
 mod viewport2d;
 mod visibility_bake;
@@ -273,6 +287,20 @@ fn parse_animation_storage(value: &str) -> Result<skeletal::AnimationStorage, St
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = std::env::args().collect::<Vec<_>>();
+    if let Some(pair) = args
+        .windows(2)
+        .find(|pair| pair[0] == "--install-code-tool")
+    {
+        let path = script_tools::install(&pair[1], |message| println!("{message}"))?;
+        let mut config = script_tools::Config::load();
+        config.set(&pair[1], path.to_string_lossy().into_owned());
+        config.save()?;
+        println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({"tool":pair[1],"path":path}))?
+        );
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--mcp-stdio") {
         return mcp_stdio::run();
     }
@@ -381,10 +409,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--import-obj",
             "--import-texture",
             "--import-font",
+            "--import-video",
             "--reimport-asset",
             "--duplicate-music-sequence",
             "--render-music-sequence",
             "--scan-assets",
+            "--create-data-table",
+            "--validate-data-tables",
             "--inspect-audio-source",
             "--reflect",
             "--new-script",
@@ -392,6 +423,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--new-lua-class",
             "--compile-blueprints",
             "--new-timeline",
+            "--new-pocketstation-app",
             "--install-timeline-adapters",
             "--compile-timelines",
             "--new-particle-effect",
@@ -418,6 +450,80 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let project = workspace::Project::open(&requested_root)?;
     let root = project.root.clone();
+    if let Some(pair) = args.windows(2).find(|v| v[0] == "--create-data-table") {
+        let name = args
+            .windows(2)
+            .find(|v| v[0] == "--row-type")
+            .map(|v| v[1].as_str())
+            .unwrap_or("AudioClip");
+        let row_type = if name == "Asset" {
+            None
+        } else {
+            Some(assets::Kind::runtime_reference(name)?)
+        };
+        let mut table = data_table::DataTable {
+            row_type,
+            ..Default::default()
+        };
+        let index = assets::scan(&root, &mut Default::default());
+        if args.iter().any(|v| v == "--all-matching-assets") {
+            let kind = table
+                .row_type
+                .as_ref()
+                .ok_or("Select a concrete --row-type to populate all matching assets")?;
+            let mut records = index
+                .usable()
+                .filter(|r| &r.meta.kind == kind)
+                .collect::<Vec<_>>();
+            records.sort_by(|a, b| a.path.cmp(&b.path));
+            for record in records {
+                let base = record
+                    .path
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned();
+                let mut key = base.clone();
+                let mut suffix = 2;
+                while table.rows.iter().any(|row| row.key == key) {
+                    key = format!("{base}_{suffix}");
+                    suffix += 1;
+                }
+                table.rows.push(data_table::Row {
+                    key,
+                    kind: record.meta.kind.clone(),
+                    asset: record.meta.id,
+                });
+            }
+        }
+        table.validate_assets(&index)?;
+        let id = data_table::create(&root, &pair[1], &table)?;
+        println!(
+            "Created DataTable {id}: {} rows at {}",
+            table.rows.len(),
+            pair[1]
+        );
+        return Ok(());
+    }
+    if args.iter().any(|v| v == "--validate-data-tables") {
+        let index = assets::scan(&root, &mut Default::default());
+        let mut count = 0;
+        for record in index
+            .usable()
+            .filter(|r| r.meta.kind == assets::Kind::DataTable)
+        {
+            let table = data_table::document(record)?;
+            table.validate_assets(&index)?;
+            println!(
+                "{}: {} rows, valid",
+                assets::path_string(&root, &record.path),
+                table.rows.len()
+            );
+            count += 1;
+        }
+        println!("Validated {count} DataTables");
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--install-timeline-adapters") {
         println!("{}", timeline_adapters::install(&root)?.display());
         return Ok(());
@@ -482,6 +588,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "{}",
             serde_json::to_string_pretty(&particle_effect::validate_project(&root)?)?
         );
+        return Ok(());
+    }
+    // --new-pocketstation-app <title> [--pocketstation-template blank|assembly]:
+    // prints the asset path and the memory card file name.
+    if let Some(pair) = args.windows(2).find(|v| v[0] == "--new-pocketstation-app") {
+        let template = match args
+            .windows(2)
+            .find(|w| w[0] == "--pocketstation-template")
+            .map(|w| w[1].as_str())
+        {
+            Some("blank") => pocketstation::Template::BlankLua,
+            Some("assembly") => pocketstation::Template::Assembly,
+            _ => pocketstation::Template::StarCatcher,
+        };
+        let app = pocketstation::PocketApp::template(template, &pair[1]);
+        let path = pocketstation::fresh_path(&pair[1]);
+        pocketstation::create(&root, &path, &app)?;
+        println!("{path}\n{}", app.file_name);
         return Ok(());
     }
     if let Some(pair) = args.windows(2).find(|v| v[0] == "--new-timeline") {
@@ -770,6 +894,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Ok(());
     }
+    if let Some(source) = value("--import-video") {
+        let destination = value("--asset").map(str::to_owned).unwrap_or_else(|| {
+            std::path::Path::new(source)
+                .with_extension("epokasset")
+                .to_string_lossy()
+                .into_owned()
+        });
+        let settings = value("--video-settings")
+            .map(|s| serde_json::from_str(s).map_err(|e| format!("--video-settings: {e}")))
+            .transpose()?
+            .unwrap_or_default();
+        let candidate = video_import::prepare(&root, source, &destination, settings, None, false)?;
+        let report = video_import::last_report(&root, &candidate.package.meta);
+        println!("Imported Video: {}", assets::commit(candidate)?);
+        if let Some(report) = report {
+            println!("{}", serde_json::to_string(&report)?);
+        }
+        return Ok(());
+    }
     if let Some(path) = value("--reimport-asset") {
         let path = assets::inside(&root, path)?;
         let p = assets::Package::load(&path)?;
@@ -812,6 +955,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     args.iter().any(|a| a == "--snapshot")
                 )?)?
             );
+            return Ok(());
+        }
+        if p.meta.kind == assets::Kind::Video {
+            let index = assets::scan(&root, &mut Default::default());
+            let r = index.resolve(p.meta.id)?;
+            let source = index
+                .linked_source(r)?
+                .map_or(p.meta.source.as_str(), |s| s.path.as_str());
+            let settings = match value("--video-settings") {
+                Some(s) => serde_json::from_str(s).map_err(|e| format!("--video-settings: {e}"))?,
+                None => p.meta.settings.video()?.clone(),
+            };
+            let candidate = video_import::prepare(
+                &root,
+                source,
+                &assets::path_string(&root, &path),
+                settings,
+                Some(r),
+                args.iter().any(|a| a == "--snapshot"),
+            )?;
+            println!("Reimported Video: {}", assets::commit(candidate)?);
             return Ok(());
         }
         if p.meta.kind == assets::Kind::ModelSource {
@@ -1796,6 +1960,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if replay.is_some() && !args.iter().any(|a| a == "--play-psx") {
             return Err("--input-replay requires --play-psx".into());
         }
+        let pocket_root = root.clone();
         let job = if args.iter().any(|a| a == "--generate-asset-report") {
             let summary =
                 build_report::Summary::load(&root, args.iter().any(|a| a == "--blueprint-debug"))
@@ -1848,7 +2013,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .find(|v| v[0] == "--stop-after")
             .and_then(|v| v[1].parse::<u64>().ok());
         let mut started = None;
+        let mut pocket: Option<pocketstation::HeadlessLink> = None;
         loop {
+            if let Some(bridge) = &job.bridge {
+                let has_requests = !bridge.state.lock().unwrap().pocket_requests.is_empty();
+                if has_requests && pocket.is_none() {
+                    println!("The game is talking to the PocketStation in memory card slot 1");
+                    pocket = Some(pocketstation::HeadlessLink::new(&pocket_root));
+                }
+                if let Some(link) = &mut pocket {
+                    link.service(&bridge.state);
+                }
+            }
             if let (Some(replay), Some(started), Some(bridge)) = (&replay, started, &job.bridge) {
                 let started: Instant = started;
                 bridge.buttons.store(
@@ -1862,7 +2038,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 job.control(pipeline::Control::Stop);
                 started = None;
             }
-            match job.events.recv_timeout(Duration::from_millis(100)) {
+            let wait = if job.bridge.is_some() { 15 } else { 100 };
+            match job.events.recv_timeout(Duration::from_millis(wait)) {
                 Ok(pipeline::Event::Log(s)) => println!("{s}"),
                 Ok(pipeline::Event::Stage(s) | pipeline::Event::SerialStatus(s)) => println!("{s}"),
                 Ok(pipeline::Event::Progress(_) | pipeline::Event::BuildSummary(_)) => {}
@@ -1897,6 +2074,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Ok(pipeline::Event::SerialCommandPending(_)) => {}
                 Ok(pipeline::Event::Finished(result)) => {
+                    if let Some(link) = &pocket {
+                        println!("{}", link.summary());
+                        link.save()?;
+                    }
                     if native_play::recorded_camera_frames() > 0 {
                         println!(
                             "Recorded {} camera frames",
@@ -1924,6 +2105,9 @@ fn prepare_editor(editor: &mut editor::Editor) {
     let args = std::env::args().collect::<Vec<_>>();
     if args.iter().any(|a| a == "--screenshot-controls") {
         settings_ui::open_controls(editor);
+    }
+    if args.iter().any(|a| a == "--screenshot-video-preview") {
+        editor.asset_inspector.video.autoplay = true;
     }
     if let Some(relative) = args
         .windows(2)
@@ -2186,6 +2370,50 @@ fn prepare_editor(editor: &mut editor::Editor) {
         .map(|a| a[1].clone())
     {
         editor.world2d.open_add_component = Some((query, 0));
+    }
+    // Screenshot automation: the PocketStation window, optionally on an app
+    // (by name), a tab and a running build.
+    if let Some(i) = args.iter().position(|a| a == "--open-pocketstation") {
+        pocketstation_ui::open(editor);
+        if let Some(name) = args.get(i + 1).filter(|a| !a.starts_with("--")) {
+            let found = pocketstation_ui::apps(editor)
+                .into_iter()
+                .find(|(_, n)| n == name);
+            match found {
+                Some((id, _)) => pocketstation_ui::open_app(editor, id),
+                None => {
+                    let template = match args
+                        .windows(2)
+                        .find(|w| w[0] == "--pocketstation-template")
+                        .map(|w| w[1].as_str())
+                    {
+                        Some("blank") => pocketstation::Template::BlankLua,
+                        Some("assembly") => pocketstation::Template::Assembly,
+                        _ => pocketstation::Template::StarCatcher,
+                    };
+                    if let Err(error) = pocketstation_ui::create(editor, template, name) {
+                        editor.log(error);
+                    }
+                }
+            }
+        }
+        if let Some(tab) = args
+            .windows(2)
+            .find(|w| w[0] == "--pocketstation-tab")
+            .map(|w| w[1].clone())
+        {
+            editor.pocketstation.show_tab(&tab);
+        }
+        if args.iter().any(|a| a == "--pocketstation-run") {
+            pocketstation_ui::build_and_run(editor);
+            if let Some(seconds) = args
+                .windows(2)
+                .find(|w| w[0] == "--pocketstation-play")
+                .and_then(|w| w[1].parse::<f64>().ok())
+            {
+                editor.pocketstation.autoplay(seconds);
+            }
+        }
     }
     // Screenshot automation: open the Strings (localization) window.
     if args.iter().any(|a| a == "--open-strings") {

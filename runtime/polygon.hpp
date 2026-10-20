@@ -161,15 +161,20 @@ template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int 
             const ClipVertex& current = input[i];
             const int64_t cd = distance(current);
             if ((pd >= 0) != (cd >= 0)) {
-                const uint64_t numerator = pd < 0 ? -pd : pd, denominator = pd - cd < 0 ? cd - pd : pd - cd;
+                // Shared edges are traversed in opposite directions by their
+                // two triangles. Always interpolate outside -> inside so fixed
+                // point truncation produces the identical intersection in both.
+                const auto& outside = pd < 0 ? *previous : current;
+                const auto& inside = pd < 0 ? current : *previous;
+                const uint64_t numerator = pd < 0 ? -pd : -cd, denominator = pd - cd < 0 ? cd - pd : pd - cd;
                 const uint32_t fraction=denominator<=UINT32_MAX?clip_fraction16(uint32_t(numerator),uint32_t(denominator)):
                     uint32_t((numerator<<16)/denominator);
                 ClipVertex intersection{};
                 for (int d = 0; d < 3; ++d) {
-                    intersection.p[d] = int32_t(previous->p[d] + (((int64_t(current.p[d]) - previous->p[d]) * fraction) >> 16));
-                    intersection.color[d] = previous->color[d] + int32_t((int64_t(current.color[d] - previous->color[d]) * fraction) >> 16);
+                    intersection.p[d] = int32_t(outside.p[d] + (((int64_t(inside.p[d]) - outside.p[d]) * fraction) >> 16));
+                    intersection.color[d] = outside.color[d] + int32_t((int64_t(inside.color[d] - outside.color[d]) * fraction) >> 16);
                 }
-                for (int d = 0; d < 2; ++d) intersection.uv[d] = previous->uv[d] + int32_t((int64_t(current.uv[d] - previous->uv[d]) * fraction) >> 16);
+                for (int d = 0; d < 2; ++d) intersection.uv[d] = outside.uv[d] + int32_t((int64_t(inside.uv[d] - outside.uv[d]) * fraction) >> 16);
                 if (plane == 0) intersection.p[2] = Units::near;
                 else if (plane == 1) intersection.p[2] = Units::far - 1;
                 if (next < 12) output[next++] = intersection;

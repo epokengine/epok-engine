@@ -16,6 +16,7 @@ use std::{
 
 const LIMIT: usize = 96;
 const EDGE: u32 = 192;
+const AUDIO_CACHE_BYTES: usize = 32 * 1024 * 1024;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum PreviewMode {
@@ -58,6 +59,7 @@ pub fn source_kind(path: &Path) -> Option<&'static str> {
         "wav" | "mp3" | "flac" | "ogg" | "mid" | "midi" | "seq" | "sep" => Some("Audio"),
         "vab" | "vh" | "vb" | "sf2" | "sf3" => Some("SoundBank"),
         "fbx" | "obj" => Some("Mesh"),
+        extension if crate::video_import::EXTENSIONS.contains(&extension) => Some("Video"),
         _ => None,
     }
 }
@@ -107,6 +109,18 @@ struct Pending {
     mode: PreviewMode,
     obsolete: bool,
 }
+struct PlaybackFailure {
+    stamp: Option<Stamp>,
+    revision: Option<String>,
+    checked: Instant,
+    message: String,
+}
+struct CachedAudio {
+    path: PathBuf,
+    stamp: Option<Stamp>,
+    mode: PreviewMode,
+    pcm: Pcm,
+}
 #[derive(Default)]
 pub struct Cache {
     edge: Option<u32>,
@@ -126,6 +140,11 @@ pub struct Cache {
     report_pending: bool,
     root: Option<PathBuf>,
     project_revision: String,
+    // Metadata-only checks: never decode instruments or render a song on the UI thread.
+    requirements: BTreeMap<PathBuf, [Option<String>; 2]>,
+    default_bank_blocker: Option<String>,
+    playback_failures: BTreeMap<PathBuf, PlaybackFailure>,
+    last_audio: Option<CachedAudio>,
 }
 impl Cache {
     pub fn take_report(&mut self) -> Option<String> {
@@ -157,6 +176,34 @@ impl Cache {
         self.stop();
         self.root = Some(root.into());
         self.project_revision = revision;
+        self.error = None;
+        self.playback_failures.clear();
+        self.last_audio = None;
+        self.default_bank_blocker = sequence_requirement(root, &Default::default(), index).err();
+        self.requirements = index
+            .assets
+            .values()
+            .flatten()
+            .filter(|r| r.meta.kind.playable())
+            .map(|r| {
+                let check = |mode| -> Result<(), String> {
+                    index.resolve(r.meta.id)?;
+                    if r.meta.kind == assets::Kind::MusicSequence {
+                        sequence_requirement(root, r.meta.settings.sequence()?, index)
+                    } else {
+                        let settings = r.meta.settings.audio()?;
+                        if mode == PreviewMode::TargetPsx {
+                            settings.validate_psx()?;
+                            if settings.is_streamed() {
+                                return Err("Target Preview cannot decode PSX XA yet. Select Source Preview to audition the original PCM.".into());
+                            }
+                        }
+                        settings.validate()
+                    }
+                };
+                (r.path.clone(), [check(PreviewMode::Source).err(), check(PreviewMode::TargetPsx).err()])
+            })
+            .collect();
         if let Some(pending) = &mut self.pending {
             pending.obsolete = true;
         }
@@ -179,6 +226,8 @@ impl Cache {
         self.stop();
         self.mode = mode;
         self.error = None;
+        self.playback_failures.clear();
+        self.last_audio = None;
         for path in self.entries.keys().cloned().collect::<Vec<_>>() {
             self.remove(&path);
         }
@@ -198,6 +247,18 @@ impl Cache {
         }
     }
     pub fn request(&mut self, path: &Path, revision: &str) {
+        if let Some(failure) = self.playback_failures.get_mut(path) {
+            failure.revision.get_or_insert_with(|| revision.into());
+            if failure.revision.as_deref() != Some(revision)
+                || failure.checked.elapsed().as_secs() >= 2
+            {
+                failure.checked = Instant::now();
+                if failure.revision.as_deref() != Some(revision) || stamp(path, "") != failure.stamp
+                {
+                    self.playback_failures.remove(path);
+                }
+            }
+        }
         if self.active(path) {
             if self
                 .audition_revision
@@ -240,8 +301,9 @@ impl Cache {
         let (send, receive) = mpsc::sync_channel(1);
         let edge = self.edge.unwrap_or(EDGE);
         let mode = self.mode;
+        let root = self.root.clone();
         std::thread::spawn(move || {
-            let _ = send.send(decode_size_mode(&worker_path, edge, mode));
+            let _ = send.send(decode_size_mode(&worker_path, edge, mode, root.as_deref()));
         });
         self.pending = Some(Pending {
             path,
@@ -262,7 +324,39 @@ impl Cache {
             .err()
             .map(String::as_str)
     }
+    /// Stop/cancel always remains available, including during asynchronous preparation.
+    pub fn playback_blocker(&self, path: &Path) -> Option<&str> {
+        if self.active(path) {
+            return None;
+        }
+        self.requirements
+            .get(path)
+            .and_then(|modes| modes[usize::from(self.mode == PreviewMode::TargetPsx)].as_deref())
+            .or_else(|| {
+                path.extension()
+                    .and_then(|e| e.to_str())
+                    .filter(|e| e.eq_ignore_ascii_case("mid") || e.eq_ignore_ascii_case("midi"))
+                    .and(self.default_bank_blocker.as_deref())
+            })
+            .or_else(|| self.playback_failures.get(path).map(|f| f.message.as_str()))
+            .or_else(|| self.failure(path))
+    }
+    pub fn playback_tooltip(&self, ui: &imgui::Ui, path: &Path) {
+        if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+            ui.tooltip_text(self.playback_blocker(path).unwrap_or(if self.loading(path) {
+                "Preparing audio: decoding instruments and rendering MIDI can take a few seconds. Click to cancel."
+            } else if self.active(path) {
+                "Stop preview"
+            } else {
+                "Play preview"
+            }));
+        }
+    }
     fn remove(&mut self, path: &Path) {
+        self.playback_failures.remove(path);
+        if self.last_audio.as_ref().is_some_and(|a| a.path == path) {
+            self.last_audio = None;
+        }
         if let Some(Entry {
             preview: Ok(Preview::Image {
                 texture: Some(id), ..
@@ -300,6 +394,9 @@ impl Cache {
             self.stop();
             return;
         }
+        if self.playback_blocker(path).is_some() {
+            return;
+        }
         self.stop();
         self.error = None;
         self.report = None;
@@ -311,7 +408,7 @@ impl Cache {
             .or_else(|| {
                 self.pending
                     .as_ref()
-                    .filter(|p| p.path == path)
+                    .filter(|p| p.path == path && !p.obsolete)
                     .map(|p| p.stamp.revision.clone())
             });
         // A previous decode finishes before starting the newest request, bounding memory.
@@ -330,16 +427,25 @@ impl Cache {
         let root = self.root.clone();
         let cancelled = Arc::new(AtomicBool::new(false));
         let worker_cancelled = cancelled.clone();
-        std::thread::spawn(move || {
-            let _ = send.send(decode_audio_context(
-                &worker_path,
-                mode,
-                root.as_deref(),
-                &worker_cancelled,
-            ));
-        });
+        let source_stamp = stamp(&path, "");
+        if let Some(cached) = self
+            .last_audio
+            .as_ref()
+            .filter(|a| a.path == path && a.mode == mode && a.stamp == source_stamp)
+        {
+            let _ = send.send(Ok(cached.pcm.clone()));
+        } else {
+            std::thread::spawn(move || {
+                let _ = send.send(decode_audio_context(
+                    &worker_path,
+                    mode,
+                    root.as_deref(),
+                    &worker_cancelled,
+                ));
+            });
+        }
         self.audio_load = Some(AudioLoad {
-            stamp: stamp(&path, ""),
+            stamp: source_stamp,
             path,
             generation: self.generation,
             mode,
@@ -403,7 +509,23 @@ impl Cache {
                 } else {
                     result
                 };
+                // Keep deterministic decode/conversion failures beside the control even
+                // after the Console consumes `error`. Device failures remain retryable.
+                if let Err(error) = &result
+                    && stamp(&job.path, "") == job.stamp
+                {
+                    self.playback_failures.insert(
+                        job.path.clone(),
+                        PlaybackFailure {
+                            stamp: job.stamp.clone(),
+                            revision: self.audition_revision.clone(),
+                            checked: Instant::now(),
+                            message: error.clone(),
+                        },
+                    );
+                }
                 match result.and_then(|pcm| {
+                    self.remember_audio(&job.path, job.stamp, job.mode, &pcm);
                     self.report = pcm.report.clone();
                     self.report_pending = true;
                     Player::start(pcm)
@@ -423,6 +545,23 @@ impl Cache {
             self.stop();
         }
         self.start_audio_load();
+    }
+    fn remember_audio(&mut self, path: &Path, stamp: Option<Stamp>, mode: PreviewMode, pcm: &Pcm) {
+        if self
+            .last_audio
+            .as_ref()
+            .is_some_and(|a| a.path == path && a.stamp == stamp && a.mode == mode)
+        {
+            return;
+        }
+        // One bounded audition survives Stop; edits, bank dependencies and mode
+        // changes invalidate it. Keep the exact PCM, loop range and diagnostics.
+        self.last_audio = (pcm.samples.len() <= AUDIO_CACHE_BYTES / 2).then(|| CachedAudio {
+            path: path.into(),
+            stamp,
+            mode,
+            pcm: pcm.clone(),
+        });
     }
     pub fn upload(
         &mut self,
@@ -478,6 +617,31 @@ impl Cache {
         }
     }
 }
+
+fn sequence_requirement(
+    root: &Path,
+    settings: &crate::sequence::Settings,
+    index: &assets::Index,
+) -> Result<(), String> {
+    settings.validate()?;
+    let record = crate::sequence::resolve_bank(root, settings, index)?;
+    let bank = record.meta.settings.sound_bank()?;
+    bank.validate()?;
+    if bank.imported.is_some() {
+        bank.validate_playback()?;
+    }
+    if bank.library.is_none() && bank.load_mode == crate::audio_import::LoadMode::Stream {
+        return Err("Host audition currently requires a Resident/Auto SoundBank. Change the SoundBank Load Mode in its Inspector.".into());
+    }
+    for id in bank.dependencies() {
+        if index.resolve(id)?.meta.kind != assets::Kind::AudioClip {
+            return Err(format!(
+                "SoundBank sample {id} must be an AudioClip. Replace the sample reference in its Inspector."
+            ));
+        }
+    }
+    Ok(())
+}
 fn stamp(path: &Path, revision: &str) -> Option<Stamp> {
     let meta = path.metadata().ok()?;
     Some(Stamp {
@@ -492,9 +656,19 @@ fn decode(path: &Path) -> Result<Preview, String> {
 }
 #[cfg(test)]
 fn decode_size(path: &Path, edge: u32) -> Result<Preview, String> {
-    decode_size_mode(path, edge, PreviewMode::Source)
+    decode_size_mode(path, edge, PreviewMode::Source, None)
 }
-fn decode_size_mode(path: &Path, edge: u32, mode: PreviewMode) -> Result<Preview, String> {
+fn decode_size_mode(
+    path: &Path,
+    edge: u32,
+    mode: PreviewMode,
+    root: Option<&Path>,
+) -> Result<Preview, String> {
+    if source_kind(path) == Some("Video") {
+        return Err(
+            "Import this video to encode it and preview it as the console plays it.".into(),
+        );
+    }
     if matches!(source_kind(path), Some("Audio" | "SoundBank")) {
         let bytes = assets::read_bounded(path)?;
         let kind = audio_content_kind(&bytes);
@@ -507,6 +681,14 @@ fn decode_size_mode(path: &Path, edge: u32, mode: PreviewMode) -> Result<Preview
         return waveform(decode_audio_mode(path, mode)?);
     }
     if path.extension().is_some_and(|e| e == "epokasset") {
+        // A video package holds its whole source; its picture is the cooked thumbnail.
+        let meta = assets::read_metadata(path)?;
+        if meta.kind == assets::Kind::Video {
+            let root = root.ok_or("No project open")?;
+            let bytes = std::fs::read(crate::video_import::thumbnail_path(root, &meta))
+                .map_err(|_| "Encode this video (Import or Play) to show its first picture.")?;
+            return decode_png_size(&bytes, edge);
+        }
         let package = assets::Package::load(path)?;
         match package.meta.kind {
             assets::Kind::AudioClip => waveform(decode_audio_mode(path, mode)?),
@@ -529,6 +711,17 @@ fn decode_size_mode(path: &Path, edge: u32, mode: PreviewMode) -> Result<Preview
                     data.rgba,
                     u32::from(data.width),
                     u32::from(data.height),
+                    edge,
+                ))
+            }
+            assets::Kind::PocketStationApp => {
+                // The program's menu icon, as the PocketStation's screen shows it.
+                let app = crate::pocketstation::PocketApp::parse(&package.source)?;
+                let rows = crate::pocketstation::mono_image(&app.menu_icon.frames[0]);
+                Ok(thumbnail(
+                    crate::pocketstation::screen_rgba(&rows),
+                    32,
+                    32,
                     edge,
                 ))
             }
@@ -797,6 +990,273 @@ fn waveform(pcm: Pcm) -> Result<Preview, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn audio_replay_cache_keeps_exact_pcm_and_invalidates_edits_and_modes() {
+        let root = crate::workspace::tests::temp("audio-replay-cache");
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("tone.wav");
+        std::fs::write(&path, crate::audio_import::test_wav()).unwrap();
+        let mut pcm = decode_audio(&path).unwrap();
+        pcm.loop_region = Some((0, pcm.samples.len() / pcm.channels as usize));
+        pcm.report = Some("Original diagnostic".into());
+        pcm.timeline = Some(crate::preview_audio::Timeline {
+            duration: pcm.duration(),
+            loop_region: Some((0., pcm.duration())),
+        });
+        let mut cache = Cache::default();
+        cache.remember_audio(&path, stamp(&path, ""), PreviewMode::Source, &pcm);
+        cache.stop();
+        cache.toggle(&path);
+        let job = cache.audio_load.take().unwrap();
+        let replay = job
+            .receive
+            .try_recv()
+            .expect("Replay is ready without a decoding worker")
+            .unwrap();
+        assert_eq!(replay.samples, pcm.samples);
+        assert_eq!(
+            (
+                replay.rate,
+                replay.channels,
+                replay.loop_region,
+                replay.report
+            ),
+            (pcm.rate, pcm.channels, pcm.loop_region, pcm.report)
+        );
+        assert_eq!(
+            replay.timeline.unwrap().loop_region,
+            pcm.timeline.unwrap().loop_region
+        );
+        cache.stop();
+        std::fs::write(&path, b"edited invalid source").unwrap();
+        cache.toggle(&path);
+        settle(&mut cache);
+        assert!(
+            cache.error.is_some(),
+            "A modified file must be decoded, never play stale PCM"
+        );
+        cache.set_mode(PreviewMode::TargetPsx);
+        assert!(cache.last_audio.is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[ignore = "Measures real MIDI preparation/replay; set EPOK_AUDIO_BENCH_PROJECT and EPOK_AUDIO_BENCH_REPORT"]
+    fn midi_replay_cache_benchmark() {
+        let root = PathBuf::from(std::env::var_os("EPOK_AUDIO_BENCH_PROJECT").unwrap());
+        let path = root.join("assets/Sounds/BGM/main-gate-3-.epokasset");
+        let index = assets::scan(&root, &mut Default::default());
+        let mut cache = Cache::default();
+        cache.configure(&root, &index);
+        let start = Instant::now();
+        let pcm = decode_audio_context(
+            &path,
+            PreviewMode::Source,
+            Some(&root),
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        let cold = start.elapsed().as_secs_f64();
+        cache.remember_audio(&path, stamp(&path, ""), PreviewMode::Source, &pcm);
+        let start = Instant::now();
+        cache.toggle(&path);
+        let replay = cache
+            .audio_load
+            .take()
+            .unwrap()
+            .receive
+            .try_recv()
+            .unwrap()
+            .unwrap();
+        let warm = start.elapsed().as_secs_f64();
+        assert_eq!(pcm.samples, replay.samples);
+        assert_eq!(pcm.loop_region, replay.loop_region);
+        assert!(warm < cold);
+        let report = serde_json::json!({"cold_seconds":cold,"replay_seconds":warm,"frames":pcm.samples.len()/pcm.channels as usize,"exact_pcm":true});
+        std::fs::write(
+            std::env::var_os("EPOK_AUDIO_BENCH_REPORT").unwrap(),
+            serde_json::to_vec_pretty(&report).unwrap(),
+        )
+        .unwrap();
+        println!("{report}");
+        cache.stop();
+    }
+    #[test]
+    fn playback_requirements_follow_explicit_and_default_banks() {
+        let root = crate::workspace::tests::temp("preview-requirements");
+        let (_, bank) = crate::sequence_preview::tests::fixture(&root);
+        let raw = root.join("assets/song.mid");
+        std::fs::write(&raw, crate::midi::fixture()).unwrap();
+        assets::commit(
+            crate::sequence::prepare(
+                &root,
+                "assets/song.mid",
+                "assets/song.epokasset",
+                crate::sequence::Settings {
+                    sound_bank: Some(bank),
+                    ..Default::default()
+                },
+                None,
+                false,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let imported = root.join("assets/song.epokasset");
+        let index = assets::scan(&root, &mut Default::default());
+        let mut cache = Cache::default();
+        cache.configure(&root, &index);
+        assert!(
+            cache
+                .playback_blocker(&raw)
+                .unwrap()
+                .contains("Project Default SoundBank")
+        );
+        assert!(
+            cache.playback_blocker(&imported).is_none(),
+            "Explicit assignment does not require a project default"
+        );
+        cache.toggle(&raw);
+        assert!(!cache.active(&raw));
+        assert!(
+            cache.audio_load.is_none(),
+            "Disabled Play must not start decoding"
+        );
+        let descriptor = root.join("Preview.epokproject");
+        std::fs::write(
+            &descriptor,
+            serde_json::to_vec(&serde_json::json!({
+                "format_version":1, "editor_version":env!("CARGO_PKG_VERSION"),
+                "name":"Preview", "startup_scene":"assets/scenes/Main.epokmap",
+                "auto_build":false, "default_sound_bank":bank
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        cache.configure(&root, &index);
+        assert!(
+            cache.playback_blocker(&raw).is_none(),
+            "Configuration changes enable Play immediately"
+        );
+        // Missing/duplicate/wrong-kind references are detected from indexed metadata.
+        let mut broken = index.clone();
+        broken.assets.remove(&bank);
+        cache.configure(&root, &broken);
+        assert!(
+            cache
+                .playback_blocker(&imported)
+                .unwrap()
+                .contains("Missing asset")
+        );
+        cache.audition = Some(imported.clone());
+        assert!(
+            cache.playback_blocker(&imported).is_none(),
+            "Cancel/Stop cannot be disabled"
+        );
+        cache.toggle(&imported);
+        assert!(!cache.active(&imported));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn target_only_playback_limitations_do_not_disable_source_preview() {
+        let root = crate::workspace::tests::temp("preview-target-requirements");
+        std::fs::create_dir_all(root.join("assets")).unwrap();
+        std::fs::write(
+            root.join("assets/stream.wav"),
+            crate::audio_import::test_wav(),
+        )
+        .unwrap();
+        assets::commit(
+            assets::prepare(
+                &root,
+                "assets/stream.wav",
+                "assets/stream.epokasset",
+                crate::audio_import::Settings {
+                    load_mode: crate::audio_import::LoadMode::Stream,
+                    sample_rate: 37800,
+                    ..Default::default()
+                },
+                None,
+                false,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let path = root.join("assets/stream.epokasset");
+        let mut cache = Cache::default();
+        cache.configure(&root, &assets::scan(&root, &mut Default::default()));
+        assert!(cache.playback_blocker(&path).is_none());
+        cache.set_mode(PreviewMode::TargetPsx);
+        assert!(
+            cache
+                .playback_blocker(&path)
+                .unwrap()
+                .contains("Select Source Preview")
+        );
+        cache.toggle(&path);
+        assert!(cache.audio_load.is_none());
+        cache.set_mode(PreviewMode::Source);
+        assert!(cache.playback_blocker(&path).is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn playback_decode_errors_survive_console_consumption_until_revision_changes() {
+        let root = crate::workspace::tests::temp("preview-error-availability");
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("tone.wav");
+        std::fs::write(&path, crate::audio_import::test_wav()).unwrap();
+        let (send, receive) = mpsc::sync_channel(1);
+        let mut cache = Cache {
+            audition: Some(path.clone()),
+            audition_revision: Some("old-source-revision".into()),
+            audio_load: Some(AudioLoad {
+                path: path.clone(),
+                stamp: stamp(&path, ""),
+                generation: 0,
+                mode: PreviewMode::Source,
+                receive,
+                cancelled: Arc::new(AtomicBool::new(false)),
+            }),
+            ..Default::default()
+        };
+        send.send(Err(
+            "Conversion exceeds the bank budget. Adjust the SoundBank budget.".into(),
+        ))
+        .unwrap();
+        cache.poll();
+        assert!(cache.error.take().is_some());
+        assert!(
+            cache
+                .playback_blocker(&path)
+                .unwrap()
+                .contains("Adjust the SoundBank budget")
+        );
+        cache.toggle(&path);
+        assert!(cache.audio_load.is_none());
+        cache.request(&path, "fixed-source-revision");
+        assert!(
+            cache.playback_blocker(&path).is_none(),
+            "A refreshed source revision enables Play"
+        );
+        cache.playback_failures.insert(
+            path.clone(),
+            PlaybackFailure {
+                stamp: stamp(&path, ""),
+                revision: Some("fixed-source-revision".into()),
+                checked: Instant::now(),
+                message: "Source-only conversion error".into(),
+            },
+        );
+        cache.set_mode(PreviewMode::TargetPsx);
+        assert!(
+            cache.playback_blocker(&path).is_none(),
+            "Source failures cannot block a different mode"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn audio_source_target_preview_and_late_worker_identity() {
         let bytes = crate::audio_import::test_wav();
@@ -1096,7 +1556,7 @@ mod tests {
         std::fs::write(&wrong_bank, &seq).unwrap();
         assert_eq!(audio_content_kind(&seq), Some("Sequence"));
         assert!(
-            matches!(decode_size_mode(&wrong_bank, EDGE, PreviewMode::Source), Err(e) if e.contains("Select the source profile"))
+            matches!(decode_size_mode(&wrong_bank, EDGE, PreviewMode::Source, None), Err(e) if e.contains("Select the source profile"))
         );
         let mut vab = vec![0_u8; 0xc30];
         vab[..4].copy_from_slice(b"pBAV");
@@ -1136,7 +1596,7 @@ mod tests {
         let path = root.join("converted.seq");
         std::fs::write(&path, converted_seq).unwrap();
         assert!(
-            matches!(decode_size_mode(&path, EDGE, PreviewMode::Source), Err(e) if e.contains("converted-seq-le32"))
+            matches!(decode_size_mode(&path, EDGE, PreviewMode::Source, None), Err(e) if e.contains("converted-seq-le32"))
         );
         assert_eq!(
             audio_content_kind(&crate::audio_import::test_wav()),
