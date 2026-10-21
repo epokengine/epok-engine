@@ -1264,6 +1264,16 @@ fn stage_with_playback(
         artifacts.files.insert(path.clone(), source.into_bytes());
         artifacts.native_sources.push(path);
     }
+    // The VM runtime links against the binding table in both VM modes, so a
+    // project without a single Lua class still stages an empty one.
+    let bindings = PathBuf::from("scripts/generated/lua/lua_bindings.cpp");
+    if lua.is_vm() && !artifacts.files.contains_key(&bindings) {
+        artifacts.files.insert(
+            bindings.clone(),
+            crate::lua_aot::emit_empty_bindings().into_bytes(),
+        );
+        artifacts.native_sources.push(bindings);
+    }
     // Generated Lua output is mode-scoped. A class that was removed, renamed or
     // rebuilt in another execution mode must not leave its previous artifact
     // behind: an AOT header or a VM bindings source has to disappear with it.
@@ -2511,6 +2521,44 @@ mod tests {
         assert_eq!(emitted[0], emitted[3]);
         assert_ne!(emitted[0], emitted[1]);
         assert_ne!(emitted[1], emitted[2]);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+    #[test]
+    fn vm_mode_without_lua_classes_stages_an_empty_binding_table() {
+        use crate::settings::LuaExecution;
+        let root = crate::workspace::tests::temp("lua-vm-empty-bindings");
+        let project =
+            crate::workspace::create(&root, "Lua Empty", crate::workspace::Template::Basic)
+                .unwrap();
+        let mut manifest = project.manifest.clone();
+        drop(project);
+        let scene =
+            crate::scene::Scene::load(&crate::workspace::startup_scene(&root).unwrap()).unwrap();
+        let build = root.join(".epok/build");
+        let bindings = build.join("scripts/generated/lua/lua_bindings.cpp");
+        for mode in [
+            LuaExecution::VmBytecode,
+            LuaExecution::VmSource,
+            LuaExecution::NativeCpp,
+        ] {
+            manifest.lua_execution = mode;
+            crate::workspace::save_manifest(&root, &manifest).unwrap();
+            stage_into(&root, &scene, &build).unwrap();
+            let sources = std::fs::read_to_string(build.join("sources.mk")).unwrap();
+            // `epok::lua::initialize()` references the table in every VM mode,
+            // so it is linked even though the project declares no Lua class.
+            assert_eq!(
+                sources.contains("scripts/generated/lua/lua_bindings.cpp"),
+                mode.is_vm(),
+                "{mode:?}: {sources}"
+            );
+            assert_eq!(bindings.is_file(), mode.is_vm(), "{mode:?}");
+            if mode.is_vm() {
+                let text = std::fs::read_to_string(&bindings).unwrap();
+                assert!(text.contains("const ClassBinding class_bindings[1] = {};"));
+                assert!(text.contains("const uint32_t class_binding_count = 0;"));
+            }
+        }
         std::fs::remove_dir_all(&root).unwrap();
     }
     #[test]
