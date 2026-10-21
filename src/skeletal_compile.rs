@@ -360,11 +360,13 @@ pub const VERTEX_BYTES: usize = 6;
 /// One `Affine<Fixed>`: `Fixed values[3][4]`, `Fixed` being a 32-bit Q12 word.
 pub const AFFINE_BYTES: usize = 48;
 /// `skeletal_detail::Scratch` — the shared 64-matrix pose buffer, the shared
-/// 512-position decode buffer and one `MeshGeometry` copy. Allocated once for
+/// 512-position decode buffer, one `MeshGeometry` copy and 40 bytes of pose-cache
+/// identity. Allocated once for
 /// the whole executable, not per character.
 pub const SCRATCH_BYTES: usize = crate::skeletal::MAX_BONES * AFFINE_BYTES
     + crate::skeletal::MAX_VERTICES * VERTEX_BYTES
-    + MESH_GEOMETRY_BYTES;
+    + MESH_GEOMETRY_BYTES
+    + 40;
 
 /// Immutable query tables retained in addition to the selected render format.
 /// These flags are computed from the shared operation demand set before scene

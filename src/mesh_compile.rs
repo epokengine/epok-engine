@@ -57,8 +57,8 @@ mod seams;
 #[path = "mesh_visibility.rs"]
 mod visibility;
 pub fn chunks(quads: &[Quad]) -> Result<Vec<Chunk>, String> {
-    // Culling cells need not force 4 m draw batches. Eight-metre cells retain
-    // useful arena-scale culling while sharing vertices across adjacent panels.
+    // Share tile vertices and amortize draw setup over a larger spatial batch.
+    // encode_chunks independently splits any group outside the narrow range.
     // Payloads are bounded independently below, including skewed convex faces.
     const CELL: f32 = 8.;
     let mut cells: BTreeMap<[i32; 3], Vec<usize>> = BTreeMap::new();

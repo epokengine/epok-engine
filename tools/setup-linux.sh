@@ -25,7 +25,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tools="$root/.tools/linux"
 archives="$tools/archives"
 sdk="$root/third_party/nugget"
-sdk_revision="6186b131aacc5853a9161fb076ed34ffe504552d"
+sdk_revision="bfc3f65010efaaf979e10852e4cf203a2eff1b13"
 psxlua="$root/third_party/nugget/third_party/psxlua"
 psxlua_revision="abed030e686b4e34987851bd0a028c93b1f73967"
 

@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <type_traits>
 
 namespace epok {
 // Affine composition preserves inherited non-uniform scale and shear.
@@ -9,6 +10,11 @@ template<class Number> struct Affine {
         Affine out;
         for (int i=0;i<3;++i) out.values[i][i]=1.0;
         return out;
+    }
+    bool identity_basis() const {
+        return values[0][0]==1.0&&values[1][1]==1.0&&values[2][2]==1.0&&
+            values[0][1]==0.0&&values[0][2]==0.0&&values[1][0]==0.0&&
+            values[1][2]==0.0&&values[2][0]==0.0&&values[2][1]==0.0;
     }
     // Rotate all basis columns with one already-resolved sine/cosine pair.
     // Include translation for inverse transforms. Arithmetic and Q12 rounding
@@ -35,7 +41,15 @@ template<class Number> struct Affine {
         for(int r=0;r<3;++r)out.values[r][3]=position[r];
         return out;
     }
+#ifdef __mips__
+    __attribute__((noinline,optimize("O3")))
+#endif
     Affine compose(const Affine& b) const {
+        // Logical level roots commonly contribute translation only. Copying
+        // the child's basis is exact and avoids 27 zero/identity products.
+        if(identity_basis()){
+            Affine out=b;for(int r=0;r<3;++r)out.values[r][3]+=values[r][3];return out;
+        }
         Affine out;
         // Exact Q12 shortcut for the common translation/axis-scale transform.
         // Multiplying the six zero off-diagonals contributes exactly zero;
@@ -48,6 +62,27 @@ template<class Number> struct Affine {
                 for(int k=0;k<3;++k)if(b.values[k][3]!=0.0)out.values[r][3]+=values[r][k]*b.values[k][3];
             }
             return out;
+        }
+        // Bone/view bases and local translations usually fit a 32-bit product.
+        // Keep each Q12 truncation in its original place; large scale/shear or
+        // translations retain the full-width implementation below.
+        if constexpr(requires {typename std::integral_constant<int64_t,Number::scale>;Number::RAW;values[0][0].raw();}) {
+        using Raw=decltype(values[0][0].raw());
+        if constexpr(sizeof(Raw)==4&&std::is_signed_v<Raw>&&Number::scale>0&&Number::scale<=INT32_MAX){
+        bool small=true;
+        for(int r=0;r<3;++r){
+            for(int c=0;c<3;++c)small&=uint32_t(values[r][c].raw())+8192u<=16384u;
+            for(int c=0;c<4;++c)small&=uint32_t(b.values[r][c].raw())+131071u<=262142u;
+        }
+        if(small){
+            for(int r=0;r<3;++r)for(int c=0;c<4;++c){
+                uint32_t sum=c==3?uint32_t(values[r][3].raw()):0;
+                for(int k=0;k<3;++k)sum+=uint32_t(values[r][k].raw()*b.values[k][c].raw()/int32_t(Number::scale));
+                out.values[r][c]=Number(int32_t(sum),Number::RAW);
+            }
+            return out;
+        }
+        }
         }
         for (int r=0;r<3;++r) for(int c=0;c<4;++c) {
             if(c==3) out.values[r][c]=values[r][3];
@@ -73,7 +108,7 @@ template<class Number> struct CameraSpace {
             int32_t near[3];bool small=true;
             for(int c=0;c<3;++c){
                 near[c]=int32_t(uint32_t(in[c].raw())-uint32_t(origin[c].raw()));
-                small&=uint32_t(near[c]+(1<<19)-1)<=uint32_t((1<<20)-2)
+                small&=((uint32_t(near[c])+(1<<19)-1)<=uint32_t((1<<20)-2))
                     &((in[c].raw()>=origin[c].raw())==(near[c]>=0));
             }
             for(int r=0;r<3;++r)for(int c=0;c<3;++c)

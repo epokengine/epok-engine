@@ -99,7 +99,7 @@ EOF
 
 ditto "$root/third_party/nugget" "$home/third_party/nugget"
 rm -rf "$home/third_party/nugget/.git"
-printf '%s\n' '6186b131aacc5853a9161fb076ed34ffe504552d' > "$home/third_party/nugget/.epok-pinned-revision"
+printf '%s\n' 'bfc3f65010efaaf979e10852e4cf203a2eff1b13' > "$home/third_party/nugget/.epok-pinned-revision"
 install -m 644 "$root/LICENSE" "$home/LICENSE"
 mkdir -p "$home/tools"
 install -m 755 "$root/tools/setup-macos.sh" "$home/tools/setup-macos.sh"

@@ -31,6 +31,8 @@ main.o: Makefile
 # MIPS has no 64-bit divide instruction. Collision, clipping and measured time
 # use GCC's integer helpers; append the archive after application/PsyQo objects.
 LIBRARIES += $(shell $(CC) -print-libgcc-file-name)
+# The SDK supplies tested R3000 word/block routines; avoid its weak byte loops.
+LDFLAGS += -Wl,--wrap=memcpy,--wrap=memset
 
 # sources.mk sets EPOK_LUA_VM only for the two Lua VM execution modes; the
 # archive it builds is the only interpreter the executable ever links.

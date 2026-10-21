@@ -115,7 +115,7 @@ pub(super) fn header(chunks: &[Chunk], index: usize) -> String {
         .collect::<Vec<_>>()
         .join(",");
     format!(
-        "inline constexpr uint16_t {key}_rows[]={{{rows}}};\ninline constexpr uint32_t {key}_masks[]={{{masks}}};\ninline uint32_t {key}_combined[{words}]={{}},{key}_bounds_valid[{words}]={{}},{key}_bounds_result[{words}]={{}},{key}_basis_valid[{words}]={{}};\ninline ChunkBasisBounds {key}_basis_bounds[{chunks}]={{}};\ninline ChunkVisibilityCache {key}_cache={{{key}_combined,{key}_bounds_valid,{key}_bounds_result,{key}_basis_bounds,{key}_basis_valid}};\ninline constexpr ChunkVisibility {key}={{{key}_rows,{key}_masks,{},{},{},{},{SLABS},&{key}_cache}};\n",
+        "inline constexpr uint16_t {key}_rows[]={{{rows}}};\ninline constexpr uint32_t {key}_masks[]={{{masks}}};\ninline uint32_t {key}_combined[{words}]={{}},{key}_bounds_valid[{words}]={{}},{key}_bounds_result[{words}]={{}},{key}_basis_valid[{words}]={{}},{key}_bounds_inside[{words}]={{}};\ninline ChunkBasisBounds {key}_basis_bounds[{chunks}]={{}};\ninline ChunkVisibilityCache {key}_cache={{{key}_combined,{key}_bounds_valid,{key}_bounds_result,{key}_basis_bounds,{key}_basis_valid,{key}_bounds_inside}};\ninline constexpr ChunkVisibility {key}={{{key}_rows,{key}_masks,{},{},{},{},{SLABS},&{key}_cache}};\n",
         chunks.len(),
         chunks.len().div_ceil(32),
         g.min,

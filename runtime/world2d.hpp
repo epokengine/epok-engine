@@ -104,7 +104,9 @@ inline int32_t sine_quarter_2d(int32_t raw_degrees) {
     const int32_t index = raw_degrees / sine_step_raw;
     const int32_t fraction = raw_degrees - index * sine_step_raw;
     const int32_t low = sine_table_2d.values[index], high = sine_table_2d.values[index + 1];
-    return low + int32_t((int64_t(high - low) * fraction) / sine_step_raw);
+    // Adjacent Q12 samples differ by at most 26 and fraction is below 1440.
+    // The exact interpolation fits a native word, including its truncation.
+    return low + (high - low) * fraction / sine_step_raw;
 }
 // Saturating conversion of a raw Q12 accumulator back into Fixed.
 inline Fixed clamp_raw_2d(int64_t value) {

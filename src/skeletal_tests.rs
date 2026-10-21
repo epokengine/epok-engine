@@ -1185,6 +1185,7 @@ fn model_budget_uses_the_target_layout_and_reports_a_breakdown_on_overflow() {
         skeletal::MAX_BONES * compile::AFFINE_BYTES
             + skeletal::MAX_VERTICES * 6
             + compile::MESH_GEOMETRY_BYTES
+            + 40
     );
     assert!(budget.target_animation_bytes() <= skeletal::MAX_CLIP_BYTES);
 

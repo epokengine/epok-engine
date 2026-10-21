@@ -71,7 +71,7 @@ __attribute__((noinline,optimize("O3"))) void validate_ordered_gte(
 // written through a uint32_t pointer, which would otherwise force the compiler
 // to reload emitter fields and global counters after each store.
 struct OrderedPacketTarget {
-  uint32_t* gouraud;uint32_t* textured;decltype(&(static_cast<PolygonEmitter*>(nullptr)->table->m_table[0])) ot;
+  PolygonEmitter::Packet* packets;decltype(&(static_cast<PolygonEmitter*>(nullptr)->table->m_table[0])) ot;
 };
 // The free slot run [floor,next) held in locals during the pass: a packet
 // bumps next down exactly as the shared allocator's fast path would. Only
@@ -109,14 +109,14 @@ struct OrderedSlotRun {
 template<bool Textured,bool Quad>
 inline unsigned ordered_packet(const OrderedPacketTarget& target,OrderedSlotRun& run,const uint32_t* rgb,const uint32_t* screen,
     epok::BakedTextureWords uv,uint32_t command,int depth) {
-  static_assert(sizeof(*static_cast<PolygonEmitter*>(nullptr)->gouraud)==28&&sizeof(*static_cast<PolygonEmitter*>(nullptr)->textured)==40);
-  static_assert(epok::BakedPacket<Textured,Quad>::bytes_with_dma<=(Textured?40:28)*(Quad?2:1));
+  static_assert(sizeof(PolygonEmitter::Packet)==40);
+  static_assert(epok::BakedPacket<Textured,Quad>::bytes_with_dma<=sizeof(PolygonEmitter::Packet)*(Quad?2:1));
   constexpr unsigned slots=Quad?2:1;
   const uint32_t slot=run.take(slots);
   if(slot>=capacity){epok::lighting_work.dropped_triangles+=slots;return 0;}
-  // Both storage arrays contain contiguous DMA tag/payload words. A quad
+  // Shared slots contain contiguous DMA tag/payload words. A quad
   // borrows a verified adjacent pair, without constructing an aliasing object.
-  auto* packet=Textured?target.textured+slot*10:target.gouraud+slot*7;
+  auto* packet=reinterpret_cast<uint32_t*>(target.packets+slot);
   epok::BakedPacket<Textured,Quad>::write(packet+1,rgb,screen,uv,command);
   auto& bucket=target.ot[depth+1];
   packet[0]=(epok::BakedPacket<Textured,Quad>::words<<24)|(bucket.head&0xffffffu);
@@ -158,8 +158,7 @@ __attribute__((noinline,optimize("O3"))) void draw_ordered_world(
   // Cooked texture words assume the scene's bank is resident; without one,
   // faces draw untextured.
   const bool textures_ready=epok::texture_assets!=nullptr;
-  const OrderedPacketTarget target{reinterpret_cast<uint32_t*>(emitter.gouraud),
-    reinterpret_cast<uint32_t*>(emitter.textured),emitter.table->m_table};
+  const OrderedPacketTarget target{emitter.packets,emitter.table->m_table};
   OrderedSlotRun run{0,0,emitter.next_dynamic};run.reload();
   // Per-pass totals kept in locals and published once after the loop.
   // Vertex totals follow from the candidates processed and how many were

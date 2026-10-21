@@ -7,8 +7,15 @@ int main(){
  load_and_begin_play();tick_order_runs_actors_then_script();
  auto* actor=object_registry.resolve<Actor>(level.actor_at(0));
  auto* child=object_registry.resolve<Actor>(level.actor_at(1));assert(actor&&child);
+ bool activation[objects.size()]={};for(size_t i=0;i<object_count;++i)activation[i]=is_active_slot(i);
+ begin_render_activation_snapshot();for(size_t i=0;i<object_count;++i)assert(is_active_slot(i)==activation[i]);end_render_activation_snapshot();
  assert(set_active(actor->data(),false)&&!is_active(child->data()));
  assert(set_active(actor->data(),true)&&is_active(child->data()));
+ const auto inactive_id=level.spawn_actor(*find_object_class(Actor3D::static_class_id),"Inactive Parent");
+ auto* inactive=object_registry.resolve<Actor>(inactive_id);assert(inactive&&set_active(inactive->data(),false));
+ assert(level.set_logical_parent(child->id(),inactive_id)&&!is_active(child->data()));
+ assert(level.set_logical_parent(child->id(),actor->id())&&is_active(child->data()));
+ assert(level.destroy_actor(inactive_id));
  const auto id=level.spawn_actor(*find_object_class(Actor3D::static_class_id),"First");
  auto* first=object_registry.resolve<Actor>(id);assert(first);auto* slot=first->data();auto old=handle(slot);
  assert(destroy_actor_data(slot)&&!old.get());

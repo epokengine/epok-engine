@@ -15,7 +15,7 @@ using Q=psyqo::FixedPoint<12>;
 using Box=epok::AabbT<Q>;
 using Collider=epok::ColliderT<Q>;
 using Indexed=epok::CollisionWorld<Q,8,16>;
-using Linear=epok::CollisionWorld<Q,8,16,false>;
+using Linear=epok::CollisionWorld<Q,8,16,false,false>;
 static Q raw(int32_t v){return Q(v,Q::RAW);}
 static uint32_t random_state=0x71c853a9;
 static uint32_t random_value(){random_state^=random_state<<13;random_state^=random_state>>17;random_state^=random_state<<5;return random_state;}

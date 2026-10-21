@@ -58,7 +58,34 @@ static void shared_clip_edges() {
     }
     std::puts("Clipping: 12,000 reversed shared edges have identical geometry, colors and UVs; original screen corners survive.");
 }
+template<class Units> static void clipping_distance_widths(){
+    uint32_t seed=0x39c7e1u;
+    auto random=[&](){seed=seed*1664525u+1013904223u;return seed;};
+    for(int trial=0;trial<50000;++trial){
+        ClipVertex fast[2][12]{},wide[2][12]{};
+        const int32_t span=trial%3==0?1000000000:trial%3==1?100000:2000;
+        for(int i=0;i<3;++i){
+            for(int d=0;d<3;++d){fast[0][i].p[d]=int32_t(random()%uint32_t(span*2))-span;
+                fast[0][i].color[d]=int32_t(random()%256);}
+            for(int d=0;d<2;++d)fast[0][i].uv[d]=int32_t(random()%(256u<<16));
+            fast[0][i].screen=random();fast[0][i].has_screen=(random()&1)!=0;
+            wide[0][i]=fast[0][i];
+        }
+        const uint8_t planes=uint8_t(random()&63);int f=0,w=0;
+        const int nf=clip_polygon<Units>(fast,3,planes,f),nw=clip_polygon_distances<Units>(wide,3,planes,w);
+        assert(nf==nw);
+        for(int i=0;i<nf;++i){const auto& a=fast[f][i];const auto& b=wide[w][i];
+            for(int d=0;d<3;++d){assert(a.p[d]==b.p[d]);assert(a.color[d]==b.color[d]);}
+            for(int d=0;d<2;++d)assert(a.uv[d]==b.uv[d]);
+            assert(a.has_screen==b.has_screen);if(a.has_screen)assert(a.screen==b.screen);
+        }
+    }
+}
 int main() {
+    clipping_distance_widths<CameraQ8>();
+    clipping_distance_widths<CameraUnits<64,32768,6,ScreenFrustum<512,240>>>();
+    clipping_distance_widths<CameraUnits<64,32768,6,ScreenFrustum<640,480>>>();
+    std::puts("Clipping: 150,000 narrow/wide and fallback polygons preserve coordinates, colors, UVs and screens.");
     shared_clip_edges();
     const uint32_t palette[]={pack_color(0,128,185),pack_color(255,1,127),pack_color(64,128,255),pack_color(10,20,30)};
     BakedDrawFace colored{};colored.color=0x00010000;colored.shaded=0x00030002;
@@ -203,5 +230,31 @@ int main() {
     assert(clip_polygon<CameraQ8>(buffers, 3, 1, from) == 0);
     auto a = vertex(0, 0, 4000), b = vertex(1000, 0, 4000), c = vertex(0, 1000, 4000);
     assert(screen_area(a, b, c) < 0 && screen_area(a, c, b) > 0 && screen_area(a, a, b) == 0);
+    CompactProjectedVertex compact[3]{};
+    for(auto& p:compact)p.camera.value=64;
+    compact[0].screen={{.x=-300,.y=-100}};
+    compact[1].screen={{.x=723,.y=411}};
+    compact[2].screen={{.x=320,.y=240}};
+    assert(compact_gpu_safe(compact,3,64,32768));
+    compact[1].screen.x=724;assert(!compact_gpu_safe(compact,3,64,32768));compact[1].screen.x=723;
+    compact[1].screen.y=412;assert(!compact_gpu_safe(compact,3,64,32768));compact[1].screen.y=411;
+    compact[2].camera.value=63;assert(!compact_gpu_safe(compact,3,64,32768));
+    compact[2].camera.value=32768;assert(!compact_gpu_safe(compact,3,64,32768));
+    compact[2].camera.value=32767;assert(compact_gpu_safe(compact,3,64,32768));
+    assert(!compact_gpu_safe(compact,0,64,32768));
+    CompactProjectedVertex bones[6]{};
+    for(auto& p:bones)p.camera.value=512;
+    for(int i=0;i<3;++i){bones[i].screen.x=-600;bones[i+3].screen.x=600;}
+    assert(compact_gpu_safe(bones,3,64,32768)&&compact_gpu_safe(bones+3,3,64,32768));
+    assert(!compact_gpu_safe(bones,6,64,32768)); // a face can span two bones
+    struct Indices {uint16_t indices[4];};
+    const Indices separated[]={{{0,1,2,2}},{{3,4,5,5}}};
+    assert(compact_mesh_gpu_safe(bones,6,separated,2,64,32768));
+    const Indices joined[]={{{0,1,3,3}}};
+    assert(!compact_mesh_gpu_safe(bones,6,joined,1,64,32768));
+    bones[3].camera.value=63;
+    assert(!compact_mesh_gpu_safe(bones,6,separated,2,64,32768));
+    bones[3].camera.value=32768;
+    assert(!compact_mesh_gpu_safe(bones,6,separated,2,64,32768));
     std::puts("Polygon color, fog, depth bucket, projection and clipping tests passed.");
 }

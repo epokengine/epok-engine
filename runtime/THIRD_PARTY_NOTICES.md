@@ -2,8 +2,11 @@
 
 The accompanying Epok runtime sources are licensed under the included Epok MIT license. This license does not assign a license to user-authored game scripts or assets.
 
-The supported SDK is Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`:
-https://github.com/pcsx-redux/nugget/tree/6186b131aacc5853a9161fb076ed34ffe504552d
+The supported SDK is the Epok Nugget fork at revision `bfc3f65010efaaf979e10852e4cf203a2eff1b13`:
+https://github.com/epokengine/nugget/tree/bfc3f65010efaaf979e10852e4cf203a2eff1b13
+
+It is based on upstream Nugget revision `6186b131aacc5853a9161fb076ed34ffe504552d`,
+with exact fixed-point division optimizations and optional asynchronous memory-card recovery.
 
 | Component | Attribution | License text |
 | --- | --- | --- |

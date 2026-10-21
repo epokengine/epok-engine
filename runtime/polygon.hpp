@@ -2,6 +2,7 @@
 #include "frustum.hpp"
 #include "psyqo/primitives/common.hh"
 #include <stdint.h>
+#include <type_traits>
 
 // Polygon preparation shared by the mesh renderer. Everything here is written
 // for the R3000: no 64-bit arithmetic or integer division on the paths that run
@@ -25,6 +26,46 @@ struct CompactProjectedVertex {
     } camera;
 };
 static_assert(sizeof(CompactProjectedVertex)==8);
+// Screen/depth-only projection is also sufficient for off-screen chunks when
+// every vertex is depth-valid and the complete packet span fits the GPU. The
+// drawing-area scissor clips pixels; near/far and oversized primitives still
+// use the full camera-space clipper.
+inline bool compact_gpu_safe(const CompactProjectedVertex* vertices,size_t count,int32_t near,int32_t far) {
+    if(!count)return false;
+    int min_x=32767,max_x=-32768,min_y=32767,max_y=-32768;
+    for(size_t i=0;i<count;++i){
+        const auto& p=vertices[i];const int z=p.camera[2];
+        if(z<near||z>=far)return false;
+        const int x=p.screen.x,y=p.screen.y;
+        if(x<min_x)min_x=x;if(x>max_x)max_x=x;
+        if(y<min_y)min_y=y;if(y>max_y)max_y=y;
+    }
+    return max_x-min_x<=1023&&max_y-min_y<=511;
+}
+// Unrelated faces in one spatial chunk can span more than the GPU limit even
+// though every submitted triangle fits. Check those primitives before falling
+// back to full camera coordinates and software clipping for the entire chunk.
+template<class Quad> inline bool compact_mesh_gpu_safe(const CompactProjectedVertex* vertices,size_t count,
+        const Quad* quads,size_t faces,int32_t near,int32_t far){
+    if(compact_gpu_safe(vertices,count,near,far))return true;
+    if(!faces)return false;
+    for(size_t q=0;q<faces;++q){
+        const auto* ix=quads[q].indices;
+        for(unsigned t=0;t<2;++t){
+            const unsigned a=ix[0],b=ix[t?2:1],c=ix[t?3:2];
+            if(a==b||a==c||b==c)continue;
+            const CompactProjectedVertex* tri[3]={vertices+a,vertices+b,vertices+c};
+            int min_x=32767,max_x=-32768,min_y=32767,max_y=-32768;
+            for(const auto* p:tri){
+                const int z=p->camera[2];if(z<near||z>=far)return false;
+                if(p->screen.x<min_x)min_x=p->screen.x;if(p->screen.x>max_x)max_x=p->screen.x;
+                if(p->screen.y<min_y)min_y=p->screen.y;if(p->screen.y>max_y)max_y=p->screen.y;
+            }
+            if(max_x-min_x>1023||max_y-min_y>511)return false;
+        }
+    }
+    return true;
+}
 // Per-quad attributes prepared once, then copied per emitted triangle.
 struct QuadPacket {
     uint32_t final_color[4];   // packed 0x00BBGGRR; modulated (128 = 1.0) when textured
@@ -143,30 +184,35 @@ inline uint32_t clip_fraction16(uint32_t numerator,uint32_t denominator) {
 }
 // Sutherland-Hodgman against the frustum planes named by `planes` (bit i =
 // plane i of frustum_outcode). Returns the vertex count in buffers[from].
-template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from) {
+template<class Units,class Distance=int64_t>
+#if defined(__GNUC__) && !defined(__clang__)
+__attribute__((noinline,optimize("O3")))
+#endif
+int clip_polygon_distances(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from) {
     from = 0;
     for (int plane = 0; plane < 6 && count > 0; ++plane) {
         if (!(planes & (1 << plane))) continue;
-        auto distance = [plane](const ClipVertex& v) -> int64_t {
-            if(plane==0)return int64_t(v.p[2])-Units::near;
-            if(plane==1)return int64_t(Units::far)-1-v.p[2];
-            return Units::Frustum::distance(plane,int64_t(v.p[0]),int64_t(v.p[1]),int64_t(v.p[2]));
+        auto distance = [plane](const ClipVertex& v) -> Distance {
+            if(plane==0)return Distance(v.p[2])-Units::near;
+            if(plane==1)return Distance(Units::far)-1-v.p[2];
+            return Units::Frustum::distance(plane,Distance(v.p[0]),Distance(v.p[1]),Distance(v.p[2]));
         };
         int next = 0;
         auto* input = buffers[from];
         auto* output = buffers[1 - from];
         const ClipVertex* previous = &input[count - 1];
-        int64_t pd = distance(*previous);
+        Distance pd = distance(*previous);
         for (int i = 0; i < count; ++i) {
             const ClipVertex& current = input[i];
-            const int64_t cd = distance(current);
+            const Distance cd = distance(current);
             if ((pd >= 0) != (cd >= 0)) {
                 // Shared edges are traversed in opposite directions by their
                 // two triangles. Always interpolate outside -> inside so fixed
                 // point truncation produces the identical intersection in both.
                 const auto& outside = pd < 0 ? *previous : current;
                 const auto& inside = pd < 0 ? current : *previous;
-                const uint64_t numerator = pd < 0 ? -pd : -cd, denominator = pd - cd < 0 ? cd - pd : pd - cd;
+                using Unsigned=std::conditional_t<sizeof(Distance)==4,uint32_t,uint64_t>;
+                const Unsigned numerator = pd < 0 ? -pd : -cd, denominator = pd - cd < 0 ? cd - pd : pd - cd;
                 const uint32_t fraction=denominator<=UINT32_MAX?clip_fraction16(uint32_t(numerator),uint32_t(denominator)):
                     uint32_t((numerator<<16)/denominator);
                 ClipVertex intersection{};
@@ -186,5 +232,21 @@ template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int 
         from = 1 - from;
     }
     return count;
+}
+template<class Units> inline int clip_polygon(ClipVertex (&buffers)[2][12], int count, uint8_t planes, int& from) {
+    // Clipping interpolates between its endpoints, so these coordinate bounds
+    // remain true after every plane. Leave room for both signed distances and
+    // their difference; large coordinates/custom frusta use the wide kernel.
+    constexpr int coefficients=Units::Frustum::xz+Units::Frustum::xx>
+        Units::Frustum::yz+Units::Frustum::yy?Units::Frustum::xz+Units::Frustum::xx:
+        Units::Frustum::yz+Units::Frustum::yy;
+    constexpr int32_t limit=INT32_MAX/(2*(coefficients+1));
+    if constexpr(Units::near>=0&&Units::far<limit){
+        bool narrow=true;
+        for(int i=0;i<count&&narrow;++i)for(int d=0;d<3;++d)
+            if(buffers[0][i].p[d]<-limit||buffers[0][i].p[d]>limit){narrow=false;break;}
+        if(narrow)return clip_polygon_distances<Units,int32_t>(buffers,count,planes,from);
+    }
+    return clip_polygon_distances<Units>(buffers,count,planes,from);
 }
 }

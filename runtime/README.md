@@ -16,8 +16,8 @@ Install GCC MIPS 16.2.0 and Make, and put their binaries on PATH for the current
 From the export directory:
 
 ```sh
-git clone --no-checkout https://github.com/pcsx-redux/nugget.git third_party/nugget
-git -C third_party/nugget checkout --detach 6186b131aacc5853a9161fb076ed34ffe504552d
+git clone --no-checkout https://github.com/epokengine/nugget.git third_party/nugget
+git -C third_party/nugget checkout --detach bfc3f65010efaaf979e10852e4cf203a2eff1b13
 make BUILD=Release NUGGET_DIR=third_party/nugget
 ```
 

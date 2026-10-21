@@ -492,7 +492,7 @@ def parse_module(cindex, family: str, header: Path, base: Path, engine: Path, nu
         stability = "Engine internal" if header.name in INTERNAL_EPOK_HEADERS else "Epok runtime API"
     else:
         include = f'#include "psyqo/{relative}"'
-        source_url = f"https://github.com/pcsx-redux/nugget/blob/{nugget_revision}/psyqo/{relative}"
+        source_url = f"https://github.com/epokengine/nugget/blob/{nugget_revision}/psyqo/{relative}"
         stability = "PsyQo low-level API" if relative.startswith(("hardware/", "internal/")) else "Pinned PsyQo API"
     return Module(
         family=family,
@@ -737,7 +737,7 @@ inline constexpr char stream_archive_path[]="";
             stability = "Engine internal" if header.name in INTERNAL_EPOK_HEADERS else "Epok runtime API"
         else:
             include = f'#include "psyqo/{relative}"'
-            source_url = f"https://github.com/pcsx-redux/nugget/blob/{nugget_revision}/psyqo/{relative}"
+            source_url = f"https://github.com/epokengine/nugget/blob/{nugget_revision}/psyqo/{relative}"
             stability = "PsyQo low-level API" if relative.startswith(("hardware/", "internal/")) else "Pinned PsyQo API"
         module_symbols = symbols[resolved]
         module_symbols.sort(key=lambda item: (item.qualified.lower(), item.signature, item.line))

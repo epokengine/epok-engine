@@ -6,7 +6,13 @@
 namespace epok::fixed_math {
 inline constexpr int32_t one=4096;
 // Truncating integer square root. Restoring, two bits per step, no floats.
-inline uint32_t sqrt64(uint64_t v){uint64_t result=0,bit=uint64_t(1)<<62;while(bit>v)bit>>=2;while(bit){if(v>=result+bit){v-=result+bit;result=(result>>1)+bit;}else result>>=1;bit>>=2;}return uint32_t(result);}
+inline uint32_t sqrt32(uint32_t v){uint32_t result=0,bit=uint32_t(1)<<30;while(bit>v)bit>>=2;while(bit){if(v>=result+bit){v-=result+bit;result=(result>>1)+bit;}else result>>=1;bit>>=2;}return result;}
+inline uint32_t sqrt64(uint64_t v){
+    // Normalised light vectors and ordinary animation/easing values fit a
+    // native word. Avoid emulating pairs of registers for every root bit.
+    if(v<=UINT32_MAX)return sqrt32(uint32_t(v));
+    uint64_t result=0,bit=uint64_t(1)<<62;while(bit>v)bit>>=2;while(bit){if(v>=result+bit){v-=result+bit;result=(result>>1)+bit;}else result>>=1;bit>>=2;}return uint32_t(result);
+}
 // `t` raised to `n` in Q12. Truncating once per multiply keeps the error inside
 // two raw units up to the fifth power; scaling after the truncation does not.
 inline int32_t powq(int32_t t,int n){int64_t acc=t;for(int i=1;i<n;++i)acc=acc*t/one;return int32_t(acc);}

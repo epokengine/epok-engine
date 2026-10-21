@@ -1626,6 +1626,14 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
             include_bytes!("../runtime/texture_upload.hpp").as_slice(),
         ),
         (
+            "fragment_slot.hpp",
+            include_bytes!("../runtime/fragment_slot.hpp").as_slice(),
+        ),
+        (
+            "pocketstation_async.hpp",
+            include_bytes!("../runtime/pocketstation_async.hpp").as_slice(),
+        ),
+        (
             "sprites.hpp",
             include_bytes!("../runtime/sprites.hpp").as_slice(),
         ),

@@ -13,6 +13,7 @@ int main(){
                        {nullptr,0,0,false},{sample,64,22050,true}};
     assert(audio_initialize(clips,4));
     assert(audio_ready && audio_addresses[1]==512 && audio_addresses[3]==520);
+    COUNTERS[1].value=2;
     AudioSource omitted;omitted.clip=0;
     omitted.play();omitted.stop();assert(!omitted.is_playing());
     for(const auto& voice:audio_voices)assert(!voice.owner);
@@ -20,6 +21,11 @@ int main(){
     omitted.clip=2;omitted.play();assert(!omitted.is_playing());
     assert(sfx.is_playing() && audio_voices[0].owner==&sfx);
     audio_tick();assert(sfx.is_playing());sfx.stop();assert(!sfx.is_playing());
+    // Re-triggering does not wait on the just-stopped channel while another
+    // free channel has already completed the SPU recovery interval.
+    const auto waits=audio_reuse_stats.waits;
+    sfx.play();assert(audio_voices[1].owner==&sfx&&audio_reuse_stats.waits==waits);
+    sfx.stop();COUNTERS[1].value+=2;
     // Preserve free-slot, priority and oldest-age selection before adding notes.
     AudioSource crowded[26];
     for(int i=0;i<24;++i){
@@ -38,6 +44,8 @@ int main(){
     for(auto& source:crowded)source.stop();
     for(const auto& voice:audio_voices)assert(!voice.owner);
     assert(music_starts==0);
+    audio_off_valid=1;audio_off_scanline[0]=65535;
+    assert(!audio_reuse_ready(0,0)&&audio_reuse_ready(0,1));
     AudioClip silent[]={{nullptr,0,0,false}};
     assert(audio_initialize(silent,1));omitted.clip=0;
     omitted.play();assert(!omitted.is_playing());

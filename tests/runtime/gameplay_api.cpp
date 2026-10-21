@@ -2,6 +2,8 @@
 #include <cstdio>
 #include "../../runtime/epok.hpp"
 #include "../../runtime/retained.hpp"
+#include "../../runtime/fixed_math.hpp"
+#include "../../runtime/skeletal.hpp"
 
 namespace epok {
 const ClassDescriptor object_classes[1] = {};
@@ -173,6 +175,31 @@ static void visible_packet_ownership() {
     mixed.begin_frame();
     assert(mixed.claim(0,70)&&mixed.allocate_dynamic()==70);
 
+    epok::MeshGeometry root{},tail{};root.quad_count=2;root.next=&tail;tail.quad_count=1;
+    epok::RetainedGeometry<1,3> chunks;
+    epok::FramePacketSlots<8> chunk_slots;
+    assert(chunks.allocate(0,&root,3,8));
+    auto* chunk_records=chunks.quads(0);
+    auto initialize_chunks=[&](){
+        chunks.state(0).key[0].valid=true;
+        chunk_records[0].valid_parities=chunk_records[2].valid_parities=15;
+        chunk_slots.begin_frame();
+    };
+    uint32_t earliest=UINT32_MAX;
+    auto borrowed=[&](size_t index,uint32_t offset){assert(index==0);if(offset<earliest)earliest=offset;};
+    initialize_chunks();chunks.invalidate_borrowed(0,5,chunk_slots,borrowed);
+    assert(chunks.state(0).key[0].valid&&chunk_records[0].valid_parities==15);
+    assert(chunk_records[2].valid_parities==10&&earliest==2);
+    initialize_chunks();earliest=UINT32_MAX;
+    assert(chunk_slots.claim(0,4)&&chunk_slots.range_claimed(0,4));
+    assert(!chunk_slots.range_claimed(0,5)&&!chunk_slots.range_claimed(UINT32_MAX,2));
+    chunks.invalidate_borrowed(0,3,chunk_slots,borrowed);
+    assert(chunks.state(0).key[0].valid&&chunk_records[0].valid_parities==15);
+    assert(chunk_records[2].valid_parities==10&&earliest==2);
+    initialize_chunks();earliest=UINT32_MAX;
+    chunks.invalidate_borrowed(1,3,chunk_slots,borrowed);
+    assert(chunk_records[0].valid_parities==5&&chunk_records[2].valid_parities==5&&earliest==0);
+
     mixed.begin_frame();
     assert(mixed.claim(67,2)); // Slot 69 alone cannot hold a quad.
     assert(mixed.allocate_dynamic_pair()==65); // 65,66 are adjacent and free.
@@ -232,7 +259,43 @@ static void visible_packet_ownership() {
     }
 }
 
+static void integer_square_roots(){
+    auto reference=[](uint64_t v){uint64_t root=0,bit=uint64_t(1)<<62;while(bit>v)bit>>=2;while(bit){if(v>=root+bit){v-=root+bit;root=(root>>1)+bit;}else root>>=1;bit>>=2;}return uint32_t(root);};
+    uint64_t seed=0x1528ead;
+    for(unsigned i=0;i<200000;++i){
+        seed=seed*6364136223846793005ULL+1;
+        const uint64_t value=i&1?seed:uint32_t(seed>>32);
+        assert(epok::fixed_math::sqrt64(value)==reference(value));
+    }
+    for(uint64_t n=0;n<=65535;++n){
+        assert(epok::fixed_math::sqrt64(n*n)==n);
+        if(n)assert(epok::fixed_math::sqrt64(n*n-1)==n-1);
+    }
+    assert(epok::fixed_math::sqrt64(UINT64_MAX)==UINT32_MAX);
+}
+
 static void animated_packet_retention() {
+    epok::Bone bones[2]{};bones[0].parent=-1;bones[1].parent=0;
+    for(auto& b:bones){b.bind.rotation[3]=4096;for(auto& scale:b.bind.scale)scale=4096;}
+    bones[1].bind.translation[1]=256;
+    epok::AnimationClip clip{};clip.frames=8;
+    epok::SkeletalMesh skeleton{};skeleton.bones=bones;skeleton.bone_count=2;skeleton.clips=&clip;skeleton.clip_count=1;
+    epok::Animator animator;animator.clip=0;
+    epok::skeletal_detail::Scratch scratch,reference;
+    int16_t stops[2]={-1,-1};
+    for(unsigned frame=0;frame<40;++frame){
+        animator.ticks=uint16_t(frame/2);const auto pitch=frame<20?epok::Fixed(0.0):epok::Fixed(10.0);
+        if(frame==30)stops[0]=1;
+        const auto rebuilt=scratch.pose_bones(skeleton,animator,0,stops,pitch,frame<35?1:2);
+        reference.pose_bones(skeleton,animator,0,stops,pitch);
+        for(unsigned b=0;b<2;++b)for(unsigned r=0;r<3;++r)for(unsigned c=0;c<4;++c)assert(scratch.bones[b].values[r][c]==reference.bones[b].values[r][c]);
+        if(frame==1)assert(!rebuilt);
+        if(frame==0||frame==20||frame==30||frame==35)assert(rebuilt==2);
+    }
+    // Mutable callers do not opt in: changing a bind pose is observed at once.
+    bones[1].bind.translation[1]=512;
+    assert(scratch.pose_bones(skeleton,animator,0,stops,0.0)==2);
+    assert(scratch.bones[1].values[1][3]==epok::Fixed(2.0));
     assert(epok::retain_mesh_packets(true,false,false));
     assert(!epok::retain_mesh_packets(true,true,false));
     assert(!epok::retain_mesh_packets(true,false,true));
@@ -251,6 +314,7 @@ static void animated_packet_retention() {
     epok::MeshMaterialCache materials;
     assert(!materials.faces_unlit(nullptr));
     assert(materials.faces_unlit(&geometry));
+    assert(materials.uniform&&materials.uniform_color==0xffffff);
     assert(materials.faces_unlit(&geometry));
     assert(!materials.faces_unlit(&tail)); // a different model invalidates
     assert(materials.faces_unlit(&geometry));
@@ -258,6 +322,11 @@ static void animated_packet_retention() {
     faces[1].material.unlit=false;
     assert(!materials.faces_unlit(&geometry));
     faces[1].material.unlit=true;
+    materials={};faces[1].material.color[0]=100;
+    assert(materials.faces_unlit(&geometry)&&!materials.uniform);
+    materials={};faces[1].material.color[0]=255;faces[1].vertex_colors=true;
+    assert(materials.faces_unlit(&geometry)&&!materials.uniform);
+    faces[1].vertex_colors=false;
     assert(pool.allocate(0,&geometry,3,8));
     assert(pool.slot_top()==6);
     assert(pool.allocate(0,&geometry,3,8)); // new poses do not allocate again
@@ -268,6 +337,34 @@ static void animated_packet_retention() {
     assert(state.key[0]==state.key[1]);
     ++state.key[0].color[0];assert(!(state.key[0]==state.key[1]));
     pool.forget(0);assert(!state.key[0].valid&&!state.key[1].valid);
+    // Tint updates preserve attributes only in initialized, owned chunks.
+    pool.reset();assert(pool.allocate(0,&geometry,3,8));
+    epok::RetainedKey key;key.geometry=&geometry;key.valid=true;key.generation=1;
+    pool.prepare_key(0,0,key,true);pool.prepare_key(0,1,key,true);
+    auto* records=pool.quads(0);
+    records[0].valid_parities=3;records[0].attribute_revision=state.attribute_revision;
+    records[2].valid_parities=3;records[2].attribute_revision=0; // dormant old chunk
+    key.color[0]=128;pool.prepare_key(0,0,key,true);
+    assert((records[0].valid_parities&5)==5);
+    assert(!(records[2].valid_parities&5));
+    // A material change and a later return cannot recolor stale shared metadata.
+    key.texture=3;pool.prepare_key(0,1,key,true);
+    assert(!(records[0].valid_parities&2));
+    records[0].attribute_revision=state.attribute_revision;records[0].valid_parities|=2;
+    key.texture=-1;pool.prepare_key(0,0,key,true);
+    assert(!(records[0].valid_parities&5));
+    records[0].attribute_revision=state.attribute_revision;records[0].valid_parities|=1;
+    pool.invalidate_borrowed(0,0);key.color[0]=99;pool.prepare_key(0,0,key,true);
+    assert(!(records[0].valid_parities&5)); // borrowed UVs require the full build
+    records[0].attribute_revision=state.attribute_revision;records[0].valid_parities|=1;
+    pool.forget(0);key.color[0]=17;pool.prepare_key(0,0,key,true);
+    assert(!(records[0].valid_parities&5));
+    // A repeated near/far LOD change reuses this actor's resident range.
+    for(unsigned i=0;i<1000;++i){
+        assert(pool.allocate(0,&tail,1,8));assert(pool.slot_top()==6);
+        assert(pool.allocate(0,&geometry,3,8));assert(pool.slot_top()==6);
+        assert(!state.key[0].valid&&!state.key[1].valid);
+    }
 }
 
 // The scripted fog facade over the raw `fog_environment` store. The accepted range
@@ -575,6 +672,7 @@ int main() {
     skeletal_matrix_fast_paths();
     animated_packet_retention();
     visible_packet_ownership();
+    integer_square_roots();
     scene_fog_range();
     scene_screen_fade_clamps_and_round_trips();
     persistent_utilities();

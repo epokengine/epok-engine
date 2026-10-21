@@ -44,6 +44,31 @@ inline Affine2 rotation_about(Fixed x,Fixed y,Fixed degrees){
     const int units=turn_units(degrees);const Fixed c=cosine(units),s=sine(units);
     return {c,s,x-(c*x-s*y),y-(s*x+c*y)};
 }
+// A node may retain packets only at the same arena offsets and only from the
+// preceding rebuild of that parity. Skipped/inactive nodes lose ownership of
+// their old slots as soon as another rebuild can borrow those slots.
+template<size_t Capacity> class NodeCache {
+public:
+    struct Counts {uint32_t values[6]={};bool operator==(const Counts&)const=default;};
+private:
+    struct Entry {uint32_t epoch=0,key=0;Counts begin,delta;HudStats stats;};
+    Entry entries[2][Capacity];uint32_t epochs[2]={};unsigned parity=0;
+    static HudStats subtract(const HudStats& a,const HudStats& b){return {a.rectangles-b.rectangles,a.glyphs-b.glyphs,a.texts-b.texts,a.images-b.images,a.dropped-b.dropped,a.rotated-b.rotated};}
+    static void add(HudStats& a,const HudStats& b){a.rectangles+=b.rectangles;a.glyphs+=b.glyphs;a.texts+=b.texts;a.images+=b.images;a.dropped+=b.dropped;a.rotated+=b.rotated;}
+public:
+    void invalidate(){for(auto& bank:entries)for(auto& e:bank)e.epoch=0;epochs[0]=epochs[1]=0;}
+    void rebuild(unsigned p){parity=p;if(++epochs[p]==0){for(auto& e:entries[p])e.epoch=0;epochs[p]=1;}}
+    bool begin(size_t owner,uint32_t key,Counts& counts,HudStats& stats){
+        auto& e=entries[parity][owner];const auto epoch=epochs[parity];
+        if(e.epoch&&e.epoch==epoch-1&&e.key==key&&e.begin==counts){
+            for(unsigned i=0;i<6;++i)counts.values[i]+=e.delta.values[i];add(stats,e.stats);e.epoch=epoch;return true;
+        }
+        e.epoch=epoch;e.key=key;e.begin=counts;e.stats=stats;return false;
+    }
+    void end(size_t owner,const Counts& counts,const HudStats& stats){
+        auto& e=entries[parity][owner];for(unsigned i=0;i<6;++i)e.delta.values[i]=counts.values[i]-e.begin.values[i];e.stats=subtract(stats,e.stats);
+    }
+};
 inline void apply(const Affine2& m,Fixed x,Fixed y,Fixed& out_x,Fixed& out_y){out_x=m.c*x-m.s*y+m.tx;out_y=m.s*x+m.c*y+m.ty;}
 inline Rect resolve(Rect parent,const RectTransform& r) {
     Fixed output[4],pos[2]={parent.x,parent.y},size[2]={parent.w,parent.h};
@@ -438,6 +463,10 @@ template<class Sink> class Compiler {
         // draws with, so focus costs no extra primitive.
         const bool lit=e.focusable.enabled&&focused==index;
         for(int k=0;k<3;++k)tint[k]=lit?e.focusable.highlight[k]:uint8_t(255);
+        constexpr bool cached=requires {sink.begin_node(owner,r,current,tint,stats);sink.end_node(owner,stats);};
+        bool reused=false;
+        if constexpr(cached)reused=sink.begin_node(owner,r,current,tint,stats);
+        if(!reused){
         if(e.image.enabled)picture(r,e.image);
         if(e.progress.enabled){
             fill(r,e.progress.background);auto part=r;auto value=e.progress.value;if(value.raw()<0)value=0.0;if(value.raw()>4096)value=1.0;part.w*=value;fill(part,e.progress.color);
@@ -445,6 +474,8 @@ template<class Sink> class Compiler {
         }
         if(e.text.enabled)label(r,e.text);
         if(e.focusable.enabled&&e.focusable.kind==FocusKind::Toggle)check_box(r,e.focusable.checked);
+        if constexpr(cached)sink.end_node(owner,stats);
+        }
         for(int child=first[index];child>=0;child=next[child])if(entities[child].rect.enabled)emit(entities,count,child,first,next,depth+1,counted);
     }
 public:
@@ -452,16 +483,19 @@ public:
     Compiler(Sink& sink,int width,int height,Budget budget):sink(sink),width(width),height(height),budget(budget){}
     // Measure and arrange without drawing: `rects` holds every laid-out node and
     // zeroes elsewhere, and `affines` the accumulated rotation about each pivot.
-    void layout(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines){
+    void layout(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines,bool measure_intrinsics=true){
         stats={};layouts=0;measured=sizes;rects=boxes;transforms=affines;
-        for(size_t i=0;i<count;++i){first[i]=next[i]=-1;sizes[i][0]=sizes[i][1]=0.0;boxes[i]=Rect{};affines[i]=Affine2{};}
+        bool needs_measure=measure_intrinsics;
+        for(size_t i=0;i<count;++i){first[i]=next[i]=-1;sizes[i][0]=sizes[i][1]=0.0;boxes[i]=Rect{};affines[i]=Affine2{};needs_measure|=arranges(entities[i]);}
         for(size_t i=count;i-->0;){int p=entities[i].parent;if(p>=0&&size_t(p)<count){next[i]=first[p];first[p]=int(i);}}
         const Rect screen{0.0,0.0,Fixed(width*4096,Fixed::RAW),Fixed(height*4096,Fixed::RAW)};
-        for(size_t i=0;i<count;++i)if(root_of_layout(entities[i]))extent(entities,count,int(i),first,next,0);
+        // Anchored rects do not read intrinsic sizes. Text measurement is only
+        // needed for a container, or when layout() exposes sizes to its caller.
+        if(needs_measure)for(size_t i=0;i<count;++i)if(root_of_layout(entities[i]))extent(entities,count,int(i),first,next,0);
         for(size_t i=0;i<count;++i)if(root_of_layout(entities[i]))arrange(entities,count,int(i),screen,first,next,0,nullptr,Affine2{});
     }
-    void draw(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines){
-        layout(entities,count,first,next,sizes,boxes,affines);
+    void draw(ActorData* entities,size_t count,int* first,int* next,Fixed (*sizes)[2],Rect* boxes,Affine2* affines,bool measure_intrinsics=false){
+        layout(entities,count,first,next,sizes,boxes,affines,measure_intrinsics);
         unsigned counted=0;
         for(size_t i=0;i<count;++i)if(root_of_layout(entities[i])){focused=-1;emit(entities,count,int(i),first,next,0,counted);}
     }
