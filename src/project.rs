@@ -806,6 +806,29 @@ fn validate_play_data(
     Ok(())
 }
 
+/// Serial staging keeps clip and video indices but omits their CD payloads.
+/// A package must not be published with that content silently missing.
+fn validate_packaged_media(streamed_music: &[String], videos: &[String]) -> Result<(), String> {
+    let mut problems = Vec::new();
+    let mut remedies = Vec::new();
+    if !streamed_music.is_empty() {
+        problems.push(format!("XA music: {}", streamed_music.join(", ")));
+        remedies.push("select resident MusicSequence assets");
+    }
+    if !videos.is_empty() {
+        problems.push(format!("video: {}", videos.join(", ")));
+        remedies.push("remove the videos from the exported scenes");
+    }
+    if problems.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "PS-EXE export cannot include {}. XA music and video playback currently require the PlayStation CD decoder, which PCDrv cannot serve. To export, {}; or use Package PSX Disc.",
+        problems.join("; "),
+        remedies.join(" and ")
+    ))
+}
+
 fn stage_with_playback(
     root: &Path,
     scene: &Scene,
@@ -1144,6 +1167,9 @@ fn stage_with_playback(
         .into_iter()
         .collect::<Vec<_>>();
     validate_play_data(profile, stream.is_some(), &streamed_music, &video_sources)?;
+    if input.is_some_and(|i| i.reject_disc_media) {
+        validate_packaged_media(&streamed_music, &video_sources)?;
+    }
     // Before audio: its disc manifest lists the streams staged here.
     let video_outputs = crate::video::stage(
         root,
@@ -2355,6 +2381,23 @@ mod tests {
         assert!(validate_play_data(Some(&serial), false, &["music.wav".into()], &[]).is_ok());
         assert!(validate_play_data(Some(&serial), true, &["music.wav".into()], &[]).is_err());
         assert!(validate_play_data(Some(&serial), false, &[], &["intro.mp4".into()]).is_ok());
+    }
+
+    #[test]
+    fn packaged_exports_name_the_media_serial_play_would_omit() {
+        assert!(validate_packaged_media(&[], &[]).is_ok());
+        let error = validate_packaged_media(&["assets/Theme.wav".into()], &[]).unwrap_err();
+        assert!(error.contains("XA music: assets/Theme.wav"), "{error}");
+        assert!(error.contains("resident MusicSequence") && !error.contains("videos"));
+        let error = validate_packaged_media(
+            &["assets/Theme.wav".into()],
+            &["assets/Intro.mp4".into(), "assets/End.mp4".into()],
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("XA music: assets/Theme.wav; video: assets/Intro.mp4, assets/End.mp4")
+        );
+        assert!(error.contains("remove the videos") && error.contains("Package PSX Disc"));
     }
 
     #[test]

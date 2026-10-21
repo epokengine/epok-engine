@@ -163,6 +163,8 @@ mod preview_audio;
 mod project;
 mod project_browser;
 mod project_templates;
+mod ps_exe_export;
+mod ps_exe_export_ui;
 mod psx_library;
 mod psx_library_asset;
 #[cfg(test)]
@@ -431,6 +433,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--preview-particle-effect",
             "--preview-hud",
             "--export-psx",
+            "--export-ps-exe",
         ]
         .contains(&a.as_str())
     });
@@ -1951,6 +1954,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             || a == "--play-native"
             || a == "--analyze-memory"
             || a == "--generate-asset-report"
+            || a == "--export-ps-exe"
     }) {
         let replay = args
             .windows(2)
@@ -1966,6 +1970,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 build_report::Summary::load(&root, args.iter().any(|a| a == "--blueprint-debug"))
                     .ok_or("Build first before generating an asset report.")?;
             pipeline::Job::report(root.clone(), summary)
+        } else if args.iter().any(|a| a == "--export-ps-exe") {
+            // Same backend as Build > Export PS-EXE...; no COM port or emulator.
+            let current = args
+                .windows(2)
+                .find(|v| v[0] == "--scene")
+                .map(|v| root.join(&v[1]))
+                .map_or_else(|| workspace::startup_scene(&root), Ok)?;
+            let options = ps_exe_export::Options::from_args(&root, &args)?;
+            pipeline::Job::export_ps_exe(
+                root.clone(),
+                ps_exe_export::Request::new(&root, &current, options)?,
+            )
         } else {
             let analyze = args.iter().any(|a| a == "--analyze-memory");
             let scene_path = args
@@ -2057,6 +2073,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Ok(pipeline::Event::LightingBaked(_)) => println!("Vertex lighting ready"),
                 Ok(pipeline::Event::Built(p)) => println!("Built {}", p.display()),
+                Ok(pipeline::Event::Packaged(p)) => {
+                    println!("Exported PS-EXE package: {}", p.display())
+                }
                 Ok(pipeline::Event::Running(_)) => {
                     println!(
                         "{}",
@@ -2108,6 +2127,9 @@ fn prepare_editor(editor: &mut editor::Editor) {
     }
     if args.iter().any(|a| a == "--screenshot-video-preview") {
         editor.asset_inspector.video.autoplay = true;
+    }
+    if args.iter().any(|a| a == "--screenshot-ps-exe-export") {
+        ps_exe_export_ui::open(editor);
     }
     if let Some(relative) = args
         .windows(2)

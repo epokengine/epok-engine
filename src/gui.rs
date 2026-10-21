@@ -156,6 +156,15 @@ fn build_menu(ui: &imgui::Ui, e: &mut Editor) {
             e.action("export-disc");
         }
         if ui
+            .menu_item_config("Export PS-EXE...")
+            .enabled(enabled)
+            .build()
+        {
+            e.action("export-ps-exe");
+        }
+        #[cfg(test)]
+        record_script_control(ui, "Export PS-EXE...");
+        if ui
             .menu_item_config("Export PsyQo Project...")
             .enabled(enabled)
             .build()
@@ -1207,6 +1216,7 @@ fn draw_workspace(
     crate::pocketstation_ui::service_link(e);
     crate::pocketstation_ui::window(ui, e);
     crate::export_ui::window(ui, e);
+    crate::ps_exe_export_ui::window(ui, e);
     script_creation_dialog(ui, e);
     lua_creation_dialog(ui, e);
     crate::blueprint_workflow::draw(ui, e);

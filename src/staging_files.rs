@@ -406,6 +406,10 @@ impl BuildTicket {
         }
         Ok(ticket)
     }
+    /// Staged file signatures this ticket certifies together with the executable.
+    pub fn files(&self) -> &Files {
+        &self.files
+    }
     pub fn complete(self, root: &Path, destination: &Path, bytes: &[u8]) -> Result<(), String> {
         observe_build_sources(root)?;
         self.publish_verified(root, destination, bytes)

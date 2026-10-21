@@ -656,6 +656,9 @@ See [Play targets and loading](play.md).
   and allow retry. C++ can override transition options per request.
 - **Executable and disc packaging.** Produce a PS-X EXE; package ISO or BIN/CUE
   with XA/external geometry and a user-supplied system-area license when required.
+- **PS-EXE packages.** Export a verified ZIP holding the executable, the PCDrv
+  files it reads, a manifest, launch instructions and notices, for
+  PCDrv-compatible loaders. See [Export PS-EXE](ps-exe-export.md).
 - **Standalone export.** Generate a relocatable C++/PsyQo project with runtime,
   scripts, assets, Make launchers, manifests, guides, licenses and notices. It can
   rebuild without the Rust editor, libclang extractor or original authoring tree.
@@ -772,7 +775,7 @@ The editor exposes the following implemented headless families. Run them with
 
 | Family | Commands |
 | --- | --- |
-| Build and run | `--build-psx`, `--play-psx`, `--use-play-profile`, `--blueprint-debug`, `--analyze-memory`, `--export-psx` |
+| Build and run | `--build-psx`, `--play-psx`, `--use-play-profile`, `--blueprint-debug`, `--analyze-memory`, `--export-psx`, `--export-ps-exe` |
 | Projects | `--create-project`, `--template`, `--migrate-project`, `--recover-project` |
 | Assets | `--scan-assets`, `--import-texture`, `--import-obj`, `--import-fbx`, `--import-audio`, `--reimport-asset`, `--inspect-asset` |
 | Native gameplay | `--reflect`, `--new-script`, `--parent`, `--new-blueprint`, `--compile-blueprints`, `--add-actor`, `--scene` |
@@ -869,7 +872,7 @@ live beside the corresponding implementation and are summarized under
 | Lua scripting | `lua_aot`, `lua_api_stub`, `lua_asset`, `lua_bytecode`, `lua_compile`, `lua_dependencies`, `lua_frontend`, `lua_identity`, `lua_vm`, `script_ir` |
 | Blueprints | `blueprint`, `blueprint_asset`, `blueprint_compile`, `blueprint_debug`, `blueprint_debug_ui`, `blueprint_dependencies`, `blueprint_editor`, `blueprint_ir`, `blueprint_playback`, `blueprint_refs`, `blueprint_spawn`, `blueprint_templates`, `blueprint_template_editor`, `blueprint_workflow`, `blueprint_action_menu`, `blueprint_inline_values`, `blueprint_split_pins` |
 | Timeline/VFX | `timeline`, `timeline_adapters`, `timeline_compile`, `timeline_curve`, `timeline_editor`, `timeline_runtime`, `timeline_scene`, `particle_effect`, `particle_effect_editor`, `particle_effect_preview`, `particle_effect_scene`, `playback_staging` |
-| Build/play/export | `build_inputs`, `staging_files`, `pipeline`, `play`, `play_ui`, `disc`, `export`, `export_ui`, `bridge`, `dependencies` |
+| Build/play/export | `build_inputs`, `staging_files`, `pipeline`, `play`, `play_ui`, `disc`, `export`, `export_ui`, `ps_exe_export`, `ps_exe_export_ui`, `bridge`, `dependencies` |
 | Physical console and analysis | `serial`, `serial_support`, `serial_terminal`, `serial_ui`, `memory`, `memory_ui`, `streaming`, `music`, `audio` |
 | Assistant integration | `mcp`, `mcp_tools`, `mcp_stdio` |
 | In-crate validation | `mcp_tests`, `skeletal_tests`, `dungeon_tests`, plus the Blueprint and Timeline test modules declared only for test builds |

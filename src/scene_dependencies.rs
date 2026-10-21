@@ -101,6 +101,9 @@ pub struct Input {
     pub native_play_scene_ready: bool,
     pub native_play_catalog: Option<Vec<crate::scripts::Script>>,
     pub native_play_assets: Option<crate::assets::Index>,
+    /// Packaged exports reject XA music and video that Serial Play would omit,
+    /// so a distributed build never silently lacks authored content.
+    pub reject_disc_media: bool,
 }
 impl Input {
     /// Build resolution happens later, after template refresh. Capture the
@@ -118,6 +121,7 @@ impl Input {
             native_play_scene_ready: false,
             native_play_catalog: None,
             native_play_assets: None,
+            reject_disc_media: false,
         })
     }
     pub fn editor(path: PathBuf, scene: Scene) -> Self {
@@ -132,6 +136,7 @@ impl Input {
             native_play_scene_ready: false,
             native_play_catalog: None,
             native_play_assets: None,
+            reject_disc_media: false,
         }
     }
 }
@@ -148,6 +153,7 @@ impl From<Scene> for Input {
             native_play_scene_ready: false,
             native_play_catalog: None,
             native_play_assets: None,
+            reject_disc_media: false,
         }
     }
 }

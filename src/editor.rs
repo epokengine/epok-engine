@@ -136,6 +136,7 @@ pub struct Editor {
     pub job_progress: Option<f32>,
     pub memory: crate::memory_ui::State,
     pub export_ui: crate::export_ui::State,
+    pub ps_exe_export_ui: crate::ps_exe_export_ui::State,
     pub preferences: crate::settings::Preferences,
     pub play_profile: crate::play::Profile,
     pub play_warning: Option<String>,
@@ -716,6 +717,7 @@ impl Editor {
             job_progress: None,
             memory: Default::default(),
             export_ui: Default::default(),
+            ps_exe_export_ui: Default::default(),
             preferences: preferences.clone(),
             script_editor: Default::default(),
             play_profile: crate::play::Profile::load(&root).unwrap_or_default(),
@@ -2233,6 +2235,46 @@ impl Editor {
     pub fn build_disc(&mut self) {
         self.build_target(false, true);
     }
+    /// Build > Export PS-EXE... builds saved files with an in-memory hardware
+    /// profile. The Play profile and serial preferences are left as they are.
+    pub fn export_ps_exe(&mut self, options: crate::ps_exe_export::Options) -> Result<(), String> {
+        if self.job.is_some() {
+            return Err("Wait for the active build or Play session to finish.".into());
+        }
+        if self.scene_loading.is_some()
+            || self.assets.busy
+            || self.bake_job.is_some()
+            || self.dependencies.busy()
+        {
+            return Err("Wait for scene loading, asset import, lighting bake or dependency installation to finish.".into());
+        }
+        if self.has_unsaved_changes() {
+            return Err(
+                "Save all changes before exporting. Packages are built from saved project files."
+                    .into(),
+            );
+        }
+        let request = crate::ps_exe_export::Request::new(&self.root, &self.scene_path(), options)?;
+        self.observe_playback_sources();
+        self.restart_target = None;
+        self.job_stale = false;
+        self.job_target = None;
+        self.last_error = None;
+        self.focus_console = true;
+        self.console.force_follow();
+        // The package build is not the configured Play build; keep the status
+        // bar and memory report from presenting it as current for Play.
+        self.memory.status_current = false;
+        self.memory.stale = true;
+        self.memory.report_only = true;
+        self.active_play_runtime = crate::play::Runtime::PlayStation;
+        self.active_play_target = crate::play::Target::Embedded;
+        self.job_progress = None;
+        self.job_stage = "Exporting PS-EXE".into();
+        self.job = Some(pipeline::Job::export_ps_exe(self.root.clone(), request));
+        self.log("Exporting PS-EXE package...");
+        Ok(())
+    }
     fn build_target(&mut self, run: bool, physical_disc: bool) {
         self.build_request(run, physical_disc, false);
     }
@@ -2786,6 +2828,7 @@ impl Editor {
             "build" => self.build(false),
             "export-disc" => crate::export_ui::open(self),
             "build-disc" => self.build_disc(),
+            "export-ps-exe" => crate::ps_exe_export_ui::open(self),
             "pause" => {
                 if self.playing && !self.serial_ui.command_pending {
                     let debug = self
@@ -3077,6 +3120,10 @@ impl Editor {
                     self.external_watch.request_refresh();
                     self.source_dirty = true;
                     self.log(format!("Built {}", p.display()));
+                }
+                Event::Packaged(path) => {
+                    self.log(format!("Exported PS-EXE package: {}", path.display()));
+                    crate::ps_exe_export_ui::published(self, path);
                 }
                 Event::Running(pid) => {
                     self.emulator_pid = Some(pid);

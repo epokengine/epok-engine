@@ -94,6 +94,22 @@ Default tests also verify treemap area/containment, malformed ELF rejection,
 symbol alias accounting, complete/fragmented NOTPSXSerial progress records, and
 the compact modal's size, continued workspace rendering and keyboard/MCP lock.
 
+`python tests/integration/verify_ps_exe_export.py` exports a fresh third-person
+project with Geometry Streaming through `--export-ps-exe`. It plants stale disc,
+XA, video and archive files in the build folder and requires the ZIP to hold only
+the certified executable, `GEOMETRY.BIN`, manifest, README, notices and optional
+debug symbols. It checks that the saved Play profile is unchanged and that a
+repeat export reuses the build and reproduces the ZIP byte for byte. XA music
+must stop the export by name, even directly after a Serial Play build that omits
+it, leaving the previous ZIP intact. It then extracts the ZIP to a fresh folder,
+removes the project's build folder and runs PCSX-Redux with no disc and PCDrv
+rooted at the extracted folder. Streaming must read pages with no errors; a
+modified or missing `GEOMETRY.BIN` must raise the streaming error counter.
+`--no-emulator` stops after the packaging checks. Port 8099 is used. This does
+not validate a physical console, a serial loader or any remote loader service.
+Unit tests cover the package file list, rejected tampering, cancellation,
+command-line scope parsing and the in-memory export profile.
+
 `python tests/runtime/verify_frame_clear.py` checks the real PsyQo clear packets
 for all ten video modes and both buffer parities. Interlaced rendering clears
 with a rectangle at `(0,0)` and preserves the displayed field; progressive
