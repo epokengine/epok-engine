@@ -653,7 +653,13 @@ fn build(
             root,
             &build,
             patches.finish(),
-            crate::scene_dependencies::hash((&config, debug, physical_disc, profile)),
+            crate::scene_dependencies::hash((
+                &config,
+                debug,
+                physical_disc,
+                profile,
+                input.debug_overlay,
+            )),
         )?;
         let invocation = crate::build_inputs::Invocation::new(root, &build, &config)?;
         let mut run_make = |arguments: &[std::ffi::OsString]| {

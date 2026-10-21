@@ -1022,6 +1022,7 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
   const bool scene_changed=epok::scene_tick(gpu());
   if(scene_changed||epok::scene_loading())motion.clear();
   epok::input.poll_multitap(pad); // AdvancedPad's Pad1a..Pad1d are 0..3.
+  epok::debug_hud::toggle(epok::input.frame_pressed(epok::Button::Select));
 #ifdef EPOK_TRANSITIONS
   if(epok::stream_failed&&!epok::transition.loading())epok::transition.fail();
   if(epok::transition.phase==epok::TransitionPhase::Failed&&epok::input.frame_pressed(epok::Button::Start)){

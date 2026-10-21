@@ -104,6 +104,9 @@ pub struct Input {
     /// Packaged exports reject XA music and video that Serial Play would omit,
     /// so a distributed build never silently lacks authored content.
     pub reject_disc_media: bool,
+    /// Compile every debug overlay panel in, hidden until Select toggles it,
+    /// instead of the project's own debug overlay settings.
+    pub debug_overlay: bool,
 }
 impl Input {
     /// Build resolution happens later, after template refresh. Capture the
@@ -122,6 +125,7 @@ impl Input {
             native_play_catalog: None,
             native_play_assets: None,
             reject_disc_media: false,
+            debug_overlay: false,
         })
     }
     pub fn editor(path: PathBuf, scene: Scene) -> Self {
@@ -137,6 +141,7 @@ impl Input {
             native_play_catalog: None,
             native_play_assets: None,
             reject_disc_media: false,
+            debug_overlay: false,
         }
     }
 }
@@ -154,6 +159,7 @@ impl From<Scene> for Input {
             native_play_catalog: None,
             native_play_assets: None,
             reject_disc_media: false,
+            debug_overlay: false,
         }
     }
 }

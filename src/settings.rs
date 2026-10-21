@@ -13,6 +13,13 @@ pub struct DebugHud {
     pub spu_ram: bool,
 }
 impl DebugHud {
+    pub const ALL: Self = Self {
+        fps: true,
+        cpu: true,
+        gte: true,
+        gpu: true,
+        spu_ram: true,
+    };
     pub fn header(self) -> String {
         format!(
             "#pragma once\n#define EPOK_DEBUG_FPS {}\n#define EPOK_DEBUG_CPU {}\n#define EPOK_DEBUG_GTE {}\n#define EPOK_DEBUG_GPU {}\n#define EPOK_DEBUG_SPU {}\n",

@@ -848,7 +848,19 @@ fn stage_with_playback(
         "scene-debug-settings".into(),
         crate::scene_dependencies::hash(debug),
     )?;
-    write_changed(&build.join("debug-hud.hh"), debug.header().as_bytes())?;
+    // A package's debug overlay compiles every panel in, hidden until Select.
+    // The request is a build option; the project setting is left as it is.
+    let overlay = input.is_some_and(|i| i.debug_overlay);
+    let debug = if overlay {
+        crate::settings::DebugHud::ALL
+    } else {
+        debug
+    };
+    let mut debug_header = debug.header();
+    if overlay {
+        debug_header.push_str("#define EPOK_DEBUG_TOGGLE 1\n");
+    }
+    write_changed(&build.join("debug-hud.hh"), debug_header.as_bytes())?;
     let lua = crate::settings::lua_execution(root)?;
     let lua_profile = crate::settings::lua_profile(root)?;
     playback.scene_input(

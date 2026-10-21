@@ -43,6 +43,7 @@ pub fn request(root: &Path, input: &Input, config: &Config, debug: bool) -> Resu
         &input.play_settings_signature,
         // A Serial Play receipt skipped this check; never reuse it for a package.
         input.reject_disc_media,
+        input.debug_overlay,
         config,
         debug,
         crate::project::fingerprint(root)?,

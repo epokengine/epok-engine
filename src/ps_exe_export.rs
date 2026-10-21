@@ -23,6 +23,8 @@ pub struct Options {
     pub initial_scene: Option<String>,
     pub destination: PathBuf,
     pub debug_symbols: bool,
+    /// Compile the Epok debug overlay in, hidden until Select toggles it.
+    pub debug_overlay: bool,
 }
 impl Options {
     /// Whole Game into `exports/<Project>-ps-exe.zip`, without debug symbols.
@@ -37,6 +39,7 @@ impl Options {
                 &crate::workspace::read_manifest(root)?.name,
             )),
             debug_symbols: false,
+            debug_overlay: false,
         })
     }
     /// The hardware build used for every package. It lives only in memory:
@@ -78,7 +81,8 @@ impl Options {
         self.profile().validate_build(root)
     }
     /// Command-line form of the dialog: `--output`, `--content`, `--scene`,
-    /// repeated `--selected-scene`, `--initial-scene` and `--debug-symbols`.
+    /// repeated `--selected-scene`, `--initial-scene`, `--debug-symbols` and
+    /// `--debug-overlay`.
     pub fn from_args(root: &Path, args: &[String]) -> Result<Self, String> {
         let value = |flag: &str| {
             args.windows(2)
@@ -121,6 +125,7 @@ impl Options {
             options.destination = PathBuf::from(output);
         }
         options.debug_symbols = args.iter().any(|a| a == "--debug-symbols");
+        options.debug_overlay = args.iter().any(|a| a == "--debug-overlay");
         Ok(options)
     }
 }
@@ -190,6 +195,7 @@ impl Request {
         let profile = options.profile();
         let mut input = crate::play::saved_input(root, current, profile.clone())?;
         input.reject_disc_media = true;
+        input.debug_overlay = options.debug_overlay;
         let initial = match profile.content {
             crate::play::Content::CurrentScene => current.to_owned(),
             crate::play::Content::WholeGame => crate::workspace::startup_scene(root)?,
@@ -254,6 +260,14 @@ struct Loader {
     resident_handler_preserved: bool,
     cd_required: bool,
 }
+/// The Epok debug overlay compiled into the program, if any.
+#[derive(Clone, Serialize)]
+struct DebugOverlay {
+    panels: Vec<&'static str>,
+    /// Shows or hides the overlay; `None` when it is always visible.
+    toggle_button: Option<&'static str>,
+    initially_visible: bool,
+}
 #[derive(Serialize)]
 struct Manifest<'a> {
     format: &'static str,
@@ -267,6 +281,7 @@ struct Manifest<'a> {
     scenes: &'a [String],
     lua_execution: &'static str,
     display: Display,
+    debug_overlay: Option<DebugOverlay>,
     loader: Loader,
     files: &'a [FileRecord],
     /// Content knowingly left out of this package. Version 1 never omits any.
@@ -392,11 +407,34 @@ fn plan(
     };
     let lua_mode = define(&certified_text(built, "lua-config.hh")?, "EPOK_LUA_MODE")
         .ok_or("lua-config.hh does not define EPOK_LUA_MODE.")?;
+    let debug = certified_text(built, "debug-hud.hh")?;
+    let toggle = define(&debug, "EPOK_DEBUG_TOGGLE") == Some(1);
+    if toggle != request.options.debug_overlay {
+        return Err(
+            "The build's debug overlay does not match the export request. Export again.".into(),
+        );
+    }
+    let panels = [
+        ("EPOK_DEBUG_FPS", "fps"),
+        ("EPOK_DEBUG_CPU", "cpu"),
+        ("EPOK_DEBUG_GTE", "gte"),
+        ("EPOK_DEBUG_GPU", "gpu"),
+        ("EPOK_DEBUG_SPU", "spu"),
+    ]
+    .into_iter()
+    .filter(|(name, _)| define(&debug, name) == Some(1))
+    .map(|(_, panel)| panel)
+    .collect::<Vec<_>>();
     let facts = Facts {
         width: dimension("display_width")?,
         height: dimension("display_height")?,
         interlaced: constant(&display, "display_interlaced").as_deref() == Some("true"),
         lua_mode,
+        overlay: (!panels.is_empty()).then(|| DebugOverlay {
+            panels,
+            toggle_button: toggle.then_some("select"),
+            initially_visible: !toggle,
+        }),
     };
     let mut files = vec![Planned {
         path: EXECUTABLE.into(),
@@ -437,6 +475,7 @@ struct Facts {
     height: u32,
     interlaced: bool,
     lua_mode: i64,
+    overlay: Option<DebugOverlay>,
 }
 
 fn readme(request: &Request, facts: &Facts, files: &[FileRecord]) -> String {
@@ -508,9 +547,18 @@ fn readme(request: &Request, facts: &Facts, files: &[FileRecord]) -> String {
             names.join(", ")
         ));
     }
-    text.push_str(
-        "Controls are those of the game itself. The package adds no loader controls.\r\n\r\n",
-    );
+    text.push_str("Controls are those of the game itself. ");
+    text.push_str(match &facts.overlay {
+        Some(overlay) if overlay.toggle_button.is_some() => {
+            "Press Select to show or hide the Epok\r\n\
+             debug overlay (FPS, CPU, GTE, GPU and SPU meters, lower left); it starts hidden.\r\n\
+             The game also receives each Select press.\r\n\r\n"
+        }
+        Some(_) => {
+            "The project's Epok debug overlay is always\r\nvisible in the lower left.\r\n\r\n"
+        }
+        None => "The package adds no loader controls.\r\n\r\n",
+    });
     text.push_str("NOTES\r\n\r\n");
     text.push_str(
         "- The program keeps the loader's resident interrupt handler installed after\r\n  \
@@ -692,6 +740,7 @@ fn write(
             interlaced: facts.interlaced,
             video_mode: "ntsc",
         },
+        debug_overlay: facts.overlay.clone(),
         loader: Loader {
             format: "ps-x-exe",
             pcdrv_required: !pcdrv_files.is_empty(),
@@ -840,6 +889,7 @@ mod tests {
                 "namespace epok {\ninline constexpr int display_width = 320;\ninline constexpr int display_height = 240;\ninline constexpr bool display_interlaced = false;\n}\n",
             ),
             ("lua-config.hh", "#pragma once\n#define EPOK_LUA_MODE 0\n"),
+            ("debug-hud.hh", "#pragma once\n#define EPOK_DEBUG_FPS 0\n"),
         ] {
             fs::write(build.join(name), text).unwrap();
             certified.insert(name.into(), crate::assets::hash(text.as_bytes()));
@@ -850,6 +900,7 @@ mod tests {
             initial_scene: None,
             destination: root.join("exports/Fixture-ps-exe.zip"),
             debug_symbols: false,
+            debug_overlay: false,
         };
         let profile = options.profile();
         let summary = crate::build_report::Summary::capture(
@@ -956,6 +1007,42 @@ mod tests {
         assert_eq!(manifest["files"][1]["role"], "debug");
         let readme = String::from_utf8(read(&archive, README)).unwrap();
         assert!(readme.contains("fully resident: it reads no files through PCDrv"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn debug_overlay_is_described_from_the_certified_build() {
+        let (root, mut request, mut built) = fixture("ps-exe-overlay", true);
+        let manifest = |archive: &Path| -> serde_json::Value {
+            serde_json::from_slice(&read(archive, MANIFEST)).unwrap()
+        };
+        let archive = export(&request, &built).unwrap();
+        assert!(manifest(&archive)["debug_overlay"].is_null());
+        let readme = String::from_utf8(read(&archive, README)).unwrap();
+        assert!(readme.contains("The package adds no loader controls."));
+        let mut header = crate::settings::DebugHud::ALL.header();
+        header.push_str("#define EPOK_DEBUG_TOGGLE 1\n");
+        fs::write(built.build.join("debug-hud.hh"), &header).unwrap();
+        built.certified.insert(
+            "debug-hud.hh".into(),
+            crate::assets::hash(header.as_bytes()),
+        );
+        // The request and the certified build must agree on the overlay.
+        assert!(
+            export(&request, &built)
+                .unwrap_err()
+                .contains("debug overlay")
+        );
+        request.options.debug_overlay = true;
+        let archive = export(&request, &built).unwrap();
+        assert_eq!(
+            manifest(&archive)["debug_overlay"],
+            serde_json::json!({"panels":["fps","cpu","gte","gpu","spu"],
+                "toggle_button":"select","initially_visible":false})
+        );
+        let readme = String::from_utf8(read(&archive, README)).unwrap();
+        assert!(readme.contains("Press Select to show or hide the Epok"));
+        assert!(readme.contains("it starts hidden"));
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -1080,9 +1167,11 @@ mod tests {
                 "--output",
                 "out.zip",
                 "--debug-symbols",
+                "--debug-overlay",
             ]),
         )
         .unwrap();
+        assert!(parsed.debug_overlay && !options.debug_overlay);
         assert_eq!(parsed.content, crate::play::Content::SelectedScenes);
         assert_eq!(parsed.selected_scenes.len(), 2);
         assert_eq!(
@@ -1107,7 +1196,7 @@ mod tests {
         assert!(options.validate(&root).is_ok());
         let startup = crate::workspace::startup_scene(&root).unwrap();
         let request = Request::new(&root, &startup, options).unwrap();
-        assert!(request.input.reject_disc_media);
+        assert!(request.input.reject_disc_media && !request.input.debug_overlay);
         assert_eq!(request.input.play.as_ref(), Some(&request.profile));
         assert!(request.scenes.contains(&request.initial_scene));
         assert_eq!(

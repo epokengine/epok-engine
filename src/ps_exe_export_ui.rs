@@ -215,6 +215,10 @@ pub fn window(ui: &imgui::Ui, editor: &mut Editor) {
                 if ui.is_item_hovered() {
                     ui.tooltip_text("Stored under debug/ in the ZIP. They are not needed to run the game.");
                 }
+                ui.checkbox("Include debug overlay (Select shows or hides it)", &mut options.debug_overlay);
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("Compiles the FPS, CPU, GTE, GPU and SPU meters into this package only. They start hidden; Select shows or hides them, and the game still receives Select. Project debug settings and Play are unchanged.");
+                }
             });
 
             section(ui, "Compatibility", || {
@@ -267,6 +271,8 @@ pub fn window(ui: &imgui::Ui, editor: &mut Editor) {
                 if ui.button("Open Folder") {
                     reveal = Some(path.clone());
                 }
+                #[cfg(test)]
+                crate::gui::record_script_control(ui, "Open PS-EXE folder");
             } else if unsaved {
                 ui.text_colored(WARNING, "Save all changes first. Packages are built from saved project files.");
                 if ui.button("Save All") {
@@ -287,6 +293,8 @@ pub fn window(ui: &imgui::Ui, editor: &mut Editor) {
             if ui.button_with_size("Export", [150., 0.]) {
                 start = true;
             }
+            #[cfg(test)]
+            crate::gui::record_script_control(ui, "Export PS-EXE package");
             if !valid && ui.is_item_hovered() {
                 ui.tooltip_text(if busy {
                     "Wait for the active build to finish."
@@ -318,4 +326,119 @@ pub fn window(ui: &imgui::Ui, editor: &mut Editor) {
     }
     state.open = open;
     editor.ps_exe_export_ui = state;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    fn frame(
+        context: &mut imgui::Context,
+        editor: &mut Editor,
+        font: imgui::FontId,
+        initial: &mut bool,
+    ) {
+        crate::gui::clear_script_controls();
+        crate::gui::draw(
+            context.frame(),
+            editor,
+            [imgui::TextureId::new(999); 3],
+            None,
+            None,
+            font,
+            [960., 600.],
+            initial,
+        );
+        context.render();
+    }
+    fn click(
+        context: &mut imgui::Context,
+        editor: &mut Editor,
+        font: imgui::FontId,
+        initial: &mut bool,
+        label: &str,
+    ) {
+        frame(context, editor, font, initial);
+        frame(context, editor, font, initial);
+        let point =
+            crate::gui::script_control(label).unwrap_or_else(|| panic!("Missing control {label}"));
+        context.io_mut().add_mouse_pos_event(point);
+        frame(context, editor, font, initial);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, true);
+        frame(context, editor, font, initial);
+        context
+            .io_mut()
+            .add_mouse_button_event(imgui::MouseButton::Left, false);
+        frame(context, editor, font, initial);
+    }
+
+    #[test]
+    #[ignore = "Requires the pinned MIPS SDK and built epok-header-tool; compiles and packages a real project"]
+    fn build_menu_dialog_exports_a_package_and_offers_its_folder() {
+        let root = crate::workspace::tests::temp("ps-exe-dialog");
+        let project =
+            crate::workspace::create(&root, "Dialog Export", crate::workspace::Template::Basic)
+                .unwrap();
+        let manifest = crate::workspace::manifest_path(&root).unwrap();
+        let saved = std::fs::read(&manifest).unwrap();
+        let mut editor = Editor::open(project).unwrap();
+        editor.auto_build = false;
+        let mut context = crate::gui::tests::imgui_context();
+        context.io_mut().display_size = [1400., 900.];
+        context.io_mut().delta_time = 1. / 60.;
+        // The editor workspace is a dockspace, as in the application.
+        context.io_mut().config_flags |= imgui::ConfigFlags::DOCKING_ENABLE;
+        let font = context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        let mut initial = true;
+        let (c, e, i) = (&mut context, &mut editor, &mut initial);
+        click(c, e, font, i, "Build menu");
+        click(c, e, font, i, "Export PS-EXE...");
+        assert!(e.ps_exe_export_ui.open, "The Build menu opens the dialog");
+        click(c, e, font, i, "Export PS-EXE package");
+        assert!(e.job.is_some(), "{:?}", e.ps_exe_export_ui.message);
+        let started = Instant::now();
+        while e.job.is_some() {
+            assert!(
+                started.elapsed() < Duration::from_secs(600),
+                "Export timed out"
+            );
+            e.tick();
+            frame(c, e, font, i);
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        frame(c, e, font, i);
+        frame(c, e, font, i);
+        let archive = e
+            .ps_exe_export_ui
+            .result
+            .clone()
+            .unwrap_or_else(|| panic!("{} / {:?}", e.ps_exe_export_ui.message, e.last_error));
+        assert_eq!(
+            archive,
+            crate::code_editor::editor_path(&root.join("exports/Dialog Export-ps-exe.zip"))
+        );
+        let mut package = zip::ZipArchive::new(std::fs::File::open(&archive).unwrap()).unwrap();
+        let mut header = [0u8; 8];
+        std::io::Read::read_exact(&mut package.by_name("epok.ps-exe").unwrap(), &mut header)
+            .unwrap();
+        assert_eq!(&header, b"PS-X EXE");
+        assert!(package.by_name("epok-package.json").is_ok());
+        assert!(
+            crate::gui::script_control("Open PS-EXE folder").is_some(),
+            "The finished dialog offers Open Folder"
+        );
+        assert_eq!(
+            std::fs::read(&manifest).unwrap(),
+            saved,
+            "Play settings unchanged"
+        );
+        drop(editor);
+        let _ = std::fs::remove_dir_all(root);
+    }
 }

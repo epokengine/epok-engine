@@ -110,6 +110,29 @@ not validate a physical console, a serial loader or any remote loader service.
 Unit tests cover the package file list, rejected tampering, cancellation,
 command-line scope parsing and the in-memory export profile.
 
+`python tests/integration/verify_ps_exe_scenes.py` builds a fresh three-scene
+project whose camera carries a Lua component mapping Cross, Circle and Triangle
+to scenes 1, 0 and 2. The startup scene plays a resident MusicSequence and the
+second a resident sound effect. Whole Game and Selected Scenes packages run from
+clean folders in PCSX-Redux with no disc while a Lua driver presses the buttons
+and samples `epok::scene_stats` and the effect and note voices in
+`epok::audio_voices`. Whole Game must start at the startup scene and make three
+transitions; Selected Scenes must start at its initial scene and reject the
+excluded one. The Whole Game package is exported with `--debug-overlay`: the
+overlay must start hidden and appear after Select (`epok::debug_hud::visible`
+and the screen corner), while Select changes nothing in the package without it.
+A video in the excluded scene must stop the Whole Game export by name but not
+the Selected Scenes export.
+
+The Build menu dialog has a real-ImGui acceptance test that clicks
+**Build > Export PS-EXE... > Export**, waits for the compilation and checks the
+published ZIP, **Open Folder** and the unchanged Play settings. It needs the
+SDK, so run it explicitly:
+
+```powershell
+cargo test --locked build_menu_dialog_exports_a_package -- --ignored
+```
+
 `python tests/runtime/verify_frame_clear.py` checks the real PsyQo clear packets
 for all ten video modes and both buffer parities. Interlaced rendering clears
 with a rectangle at `(0,0)` and preserves the displayed field; progressive

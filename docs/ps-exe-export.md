@@ -36,7 +36,8 @@ as a Unirom-based serial loader with a PCDrv host. For a bootable CD image use
 `epok-package.json` is Epok's own description. Loaders do not need to read it.
 It records the format version, project and Epok version, the executable name,
 the PCDrv root (`"."`), the content scope, initial scene and included scenes, the
-Lua execution mode, the display mode, loader requirements, and the path, size,
+Lua execution mode, the display mode, the debug overlay (its panels, toggle button
+and initial visibility, or `null`), loader requirements, and the path, size,
 SHA-256 and role (`executable`, `pcdrv` or `debug`) of each payload file.
 `omitted_content` is always empty: exports never leave authored content out.
 
@@ -50,6 +51,7 @@ the command line builds them. The dialog offers:
 | Content | **Whole Game** (default) starts at the project startup scene and includes every scene the game can load. **Current Scene** exports only the open map. **Selected Scenes** exports up to 16 chosen maps and an initial scene. |
 | External data | Shows the runtime files to expect: `epok.ps-exe` alone, or with `GEOMETRY.BIN` when Geometry Streaming is enabled. |
 | Debug symbols | Adds `debug/epok.elf` and `debug/epok.map`. |
+| Debug overlay | Compiles the FPS, CPU, GTE, GPU and SPU meters into this package. They start hidden and **Select** shows or hides them. |
 | Compatibility | Lists the project's XA music and video assets, which stop the export when the exported content uses them. |
 | Destination | The `.zip` path; **Browse...** opens a save dialog on Windows. The default is `exports/<Project>-ps-exe.zip`. |
 
@@ -71,6 +73,7 @@ epok-editor --project "C:\Projects\MyGame" --export-ps-exe --output "C:\Exports\
 | `--selected-scene <path>` | Repeat for each scene; implies `selected-scenes`. Without it, `selected-scenes` uses the selection saved in Play options |
 | `--initial-scene <path>` | Initial scene; must be one of the selected scenes |
 | `--debug-symbols` | Include `debug/epok.elf` and `debug/epok.map` |
+| `--debug-overlay` | Include the debug overlay, hidden until Select toggles it |
 
 The command prints build progress and the final archive path. Compilation,
 compatibility, memory and packaging failures return a nonzero exit code. The
@@ -106,6 +109,19 @@ or Play rebuilds with the Play profile.
   in the streaming statistics. Pages are not retried.
 - If the BIOS interrupt queues are invalid at startup, the program stops with
   an error message rather than run without the resident handler.
+
+## Debug overlay
+
+With **Include debug overlay** (or `--debug-overlay`) the package compiles in
+every panel of the Epok debug overlay: FPS, CPU, GTE, GPU and SPU RAM, drawn in
+the lower-left corner. It starts hidden; each **Select** press on controller 1
+shows or hides it, so a tester can check performance on their own console or
+emulator. Measurement continues while it is hidden. The option applies to this
+package only: the project's debug overlay settings and Play are unchanged.
+
+The game still receives Select. A game that uses Select for itself reacts to
+the same press. Without the option, a package uses the project's own debug
+overlay settings, and any enabled panels are always visible.
 
 ## Package guarantees
 
