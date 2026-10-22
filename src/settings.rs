@@ -201,6 +201,10 @@ pub struct Rendering {
     pub dither_3d: bool,
     /// Double-buffered sprite/VFX triangle pool, independent of 3D mesh packets.
     pub sprite_triangle_budget: u16,
+    /// Optional mesh packet cap. None keeps the scene-derived reservation.
+    /// Counts both retained and dynamic geometry; excess is reported as dropped.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mesh_triangle_budget: Option<u16>,
     pub motion_interpolation: bool,
     pub precomputed_visibility: bool,
     /// Conservative distance used to reject entire editable-mesh chunks before
@@ -229,6 +233,7 @@ impl Default for Rendering {
             retained_geometry: true,
             dither_3d: false,
             sprite_triangle_budget: 2048,
+            mesh_triangle_budget: None,
             motion_interpolation: true,
             precomputed_visibility: false,
             geometry_draw_distance: 128,
@@ -255,6 +260,9 @@ impl Rendering {
         (640, 480),
     ];
     pub fn validate(self) -> Result<(), String> {
+        if self.mesh_triangle_budget.is_some_and(|value| !(512..=8192).contains(&value)) {
+            return Err("Mesh triangle budget must be between 512 and 8192, or Automatic.".into());
+        }
         if !(64..=2048).contains(&self.sprite_triangle_budget) {
             return Err("Sprite triangle budget must be between 64 and 2048.".into());
         }
@@ -496,6 +504,22 @@ pub fn configure_emulator(portable: &Path, preferences: &Preferences) -> Result<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn mesh_packet_budget_keeps_legacy_automatic_and_validates_limits() {
+        let mut config: super::Rendering = serde_json::from_str("{}").unwrap();
+        assert_eq!(config.mesh_triangle_budget, None);
+        assert!(serde_json::to_value(config).unwrap().get("mesh_triangle_budget").is_none());
+        for valid in [512, 1024, 8192] {
+            config.mesh_triangle_budget = Some(valid);
+            assert!(config.validate().is_ok());
+            let decoded: super::Rendering = serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+            assert_eq!(decoded, config);
+        }
+        for invalid in [0, 511, 8193] {
+            config.mesh_triangle_budget = Some(invalid);
+            assert!(config.validate().is_err());
+        }
+    }
     #[test]
     fn sprite_pool_budget_is_bounded_and_preserves_legacy_default() {
         let mut config: super::Rendering = serde_json::from_str("{}").unwrap();

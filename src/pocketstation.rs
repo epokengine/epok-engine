@@ -701,10 +701,22 @@ pub fn stage(
             images.push_str(&format!("{b},"));
         }
         images.push_str("};\n");
+        let save_offset = if built.program.uses_save {
+            built
+                .program
+                .assembly
+                .labels
+                .get("rt_save_sector_data")
+                .and_then(|address| address.checked_sub(file::FLASH_BASE))
+                .unwrap_or(0)
+        } else {
+            0
+        };
         table.push(format!(
-            "{{\"{}\",pocket_app_image_{i},{}}}",
+            "{{\"{}\",pocket_app_image_{i},{},{}}}",
             app.file_name.replace('\\', "\\\\").replace('"', "\\\""),
-            built.bytes.len()
+            built.bytes.len(),
+            save_offset
         ));
         ids.push(format!(
             "UINT64_C({})",
@@ -978,15 +990,18 @@ mod tests {
         let empty = stage(&build, &assets::scan(&root, &mut Default::default())).unwrap();
         let text = std::fs::read_to_string(build.join(&empty.path)).unwrap();
         assert!(text.contains("pocket_app_count = 0"), "{text}");
-        let id = create(
-            &root,
-            &fresh_path("Star"),
-            &PocketApp::template(Template::StarCatcher, "Star"),
-        )
-        .unwrap();
+        let mut app = PocketApp::template(Template::BlankLua, "Saved Star");
+        app.files[0].text = "function init()\n save.set(1, 42)\n save.write()\nend\n".into();
+        let built = build_app(&app).unwrap();
+        let save_offset = built.program.assembly.labels["rt_save_sector_data"] - file::FLASH_BASE;
+        assert!(save_offset > 0 && save_offset % 128 == 0);
+        let id = create(&root, &fresh_path("Star"), &app).unwrap();
         stage(&build, &assets::scan(&root, &mut Default::default())).unwrap();
         let text = std::fs::read_to_string(build.join("pocket-apps.hh")).unwrap();
         assert!(text.contains("pocket_app_count = 1"));
+        assert!(text.contains(&format!(
+            "pocket_app_image_0,{},{}", built.bytes.len(), save_offset
+        )));
         assert!(text.contains(&crate::blueprint_refs::compact_id(&id.to_string()).to_string()));
         let _ = std::fs::remove_dir_all(&root);
     }

@@ -103,8 +103,22 @@ enables Unirom's resident handler with `/debug`, then sends the program with
 `/exe <program> /dest <port> /m` and keeps the monitor connected. PC on demand
 also serves PCDrv data from the build directory. The connection window's optional
 loader ping remains diagnostic; Play checks port access before compiling and
-requires a fresh resident-handler reply after the game starts.
+requires proof that the resident handler works after the game starts. With PC on
+demand, completed PCDrv reads followed by `EPOK: startup ready` provide that proof
+without an extra `PING`. The marker follows the first complete render and its
+required texture/geometry reads. Sessions without completed reads use `PING` /
+`PONG`. The earlier `EPOK: runtime ready` marker only confirms initialization;
+probing then can corrupt an active PCDrv exchange.
 Epok does not install or flash Unirom.
+
+The serial tests include a four-page PCDrv startup lasting longer than the probe
+timeout, rejecting commands both during startup and after PCDrv already proved
+the connection. For a compiled
+small streamed scene, `python tests/integration/verify_serial_startup.py
+--build-dir <build-folder>` observes the real readiness boundary in a private
+Redux instance; it requires four complete 64 KiB reads by default. Use
+`--expected-reads` for a different startup working set. This diagnostic uses a
+BIOS breakpoint and must not be used to measure gameplay FPS.
 
 The adapter list shows available USB names and ports. A unique USB adapter can be
 selected automatically. Multiple adapters require a choice; Epok never probes all
@@ -155,16 +169,22 @@ monitor work without an extra visible window.
 Serial disables CD on demand. Switching to Serial while CD is selected changes
 the source to PC on demand and saves that selection. The monitor serves PCDrv
 from `.epok/build` and displays upload/TTY output in Console. Epok waits for its
-runtime startup message and `Send finished!`, then sends `PING` through that
-same monitor and requires `PONG` before enabling session controls. A successful
-upload alone is not reported as a connected game. The port stays owned by the
+runtime startup message and completed PCDrv reads before enabling session
+controls. Without completed reads, it requires `PING` / `PONG` through that same
+monitor. A successful upload alone is not reported as a connected game. The port stays owned by the
 session until Stop, an acknowledged reset or a transport failure.
 
 Serial builds preserve kernel-resident interrupt queue entries below the
 executable load boundary and restore the loader's SIO1 interrupt mask after
 PSYQo initializes. Obsolete loader/game callbacks are not restored. This uses
 the handler already installed by Unirom; no Unirom firmware is linked or flashed.
-The runtime handshake detects a handler that no longer responds after startup.
+The runtime checks for enabled DMA completion flags whose CPU interrupt was
+lost during resident-handler activity, then dispatches that pending event through
+the normal BIOS DMA callback. This check also runs inside GPU waits; completion
+acknowledgement and transfer continuation remain with PSYQo.
+The recovery check rearms a one-shot timer from the current GPU clock after
+each poll. It does not accumulate overdue 2 ms periods when rendering takes
+longer than 2 ms, so long sessions and the 32-bit clock wrap keep the check active.
 
 **Pause / Resume** in the toolbar and **Pause PSX**, **Continue PSX**, **Reset PSX**
 in Game send `HALT`, `CONT`, and `REST` through the owned monitor. The toolbar's

@@ -254,6 +254,7 @@ pub fn header_with_templates(
         class_registry,
         crate::skeletal_compile::QueryDemand::ALL,
         &[],
+        None,
     )
 }
 /// `external[bank]` marks banks whose data loads from a scene file at run time
@@ -269,6 +270,7 @@ pub fn header_with_templates_for(
     class_registry: &crate::blueprint::Registry,
     skeletal_queries: crate::skeletal_compile::QueryDemand,
     external: &[bool],
+    mesh_triangle_budget: Option<u16>,
 ) -> Result<String, String> {
     let external: Vec<bool> = (0..scenes.len())
         .map(|bank| external.get(bank).copied().unwrap_or(false))
@@ -477,6 +479,12 @@ pub fn header_with_templates_for(
         .unwrap_or(6)
         .max(6);
     render_capacity = render_capacity.saturating_add(32 * (dynamic_quads - 6) * 2);
+    if let Some(budget) = mesh_triangle_budget {
+        if !(512..=8192).contains(&budget) {
+            return Err("Mesh triangle budget must be between 512 and 8192".into());
+        }
+        render_capacity = render_capacity.min(usize::from(budget));
+    }
     let streaming_active = streaming.is_some_and(|bundle| bundle.page_count() > 0);
     let retained_quad_capacity = if streaming_active {
         render_capacity = render_capacity.min(streaming.unwrap().triangle_budget());
@@ -693,6 +701,21 @@ mod tests {
     use super::*;
     use crate::scene_dependencies::{Input, Origin};
 
+    #[test]
+    fn mesh_packet_budget_bounds_retained_and_dynamic_reservations() {
+        let scenes = [Scene::default()];
+        let registry = crate::actor_document::tests::registry();
+        let make = |budget| header_with_templates_for(&scenes, &[], None, &[], None, &[], &[], &registry, crate::skeletal_compile::QueryDemand::ALL, &[], budget);
+        let automatic = make(None).unwrap();
+        let original = number(&automatic, "inline constexpr size_t render_capacity=").unwrap();
+        assert!(original > 512);
+        let bounded = make(Some(512)).unwrap();
+        assert_eq!(number(&bounded, "inline constexpr size_t render_capacity=").unwrap(), 512);
+        assert_eq!(number(&bounded, "inline constexpr size_t retained_quad_capacity=").unwrap(), 256);
+        assert_eq!(number(&make(Some(8192)).unwrap(), "inline constexpr size_t render_capacity=").unwrap(), original);
+        assert!(make(Some(511)).is_err());
+    }
+
     fn registered_maps() -> std::path::PathBuf {
         let root = std::env::temp_dir().join(format!("epok-scene-bank-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(root.join("assets/scenes")).unwrap();
@@ -840,6 +863,7 @@ mod tests {
             &registry,
             crate::skeletal_compile::QueryDemand::ALL,
             external,
+            None,
         )
         .unwrap()
     }

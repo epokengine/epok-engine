@@ -36,8 +36,17 @@ int main(){
     bytes[40+2*8+6]=1;assert(!song.valid());bytes[40+2*8+6]=0;
     alignas(4) uint8_t sample[64]{};AudioClip clips[]={{sample,64,22050,true},{nullptr,0,0,false,nullptr,&song}};
     assert(audio_initialize(clips,2));assert(sequence_prepare());
+    COUNTERS[1].value=3;
     AudioSource source;source.clip=1;source.play();sequence_service(1000);assert(occupied()==2);
     sequence_service(1000);assert(SPU_KEY_ON_LOW==3 && SPU_VOICES[0].adsrLo==patch.adsr1 && SPU_VOICES[1].adsrHi==patch.adsr2);
+    // Music must not make every SFX busy-wait. Prefer a genuinely cooled free
+    // voice, and record native key-offs so stealing/reuse remains conservative.
+    const auto waits=audio_reuse_stats.waits;
+    AudioSource effect;effect.clip=0;effect.play();
+    assert(audio_voices[2].owner==&effect && audio_reuse_stats.waits==waits);
+    effect.stop();
+    assert(!audio_reuse_ready(2,3) && audio_reuse_ready(2,5));
+    assert((audio_off_valid&3)==3 && audio_off_scanline[0]==3);
     sequence_service(3000);assert(SPU_VOICES[0].sampleRate==3072 && SPU_VOICES[1].volumeLeft<1100);
     sequence_service(4000);assert(SPU_KEY_OFF_LOW==3 && SPU_VOICES[0].sampleRepeatAddr==bank.addresses[0]+4);
     sequence_service(4000);assert(occupied()==0);sequence_service(4000);assert(occupied()==2 && music_sequence_stats.loops==1);

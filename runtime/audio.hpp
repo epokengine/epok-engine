@@ -31,7 +31,6 @@ inline bool audio_ready=false;
 inline uint32_t audio_upload_address=4096;
 struct AudioReuseStats {uint32_t starts=0,waits=0;};
 inline AudioReuseStats audio_reuse_stats;
-#ifndef EPOK_HAS_SEQUENCES
 inline uint16_t audio_off_scanline[24]={};
 inline uint32_t audio_off_valid=0;
 inline uint16_t audio_scanline(){
@@ -42,7 +41,11 @@ inline uint16_t audio_scanline(){
 // Two complete HSync ticks exceed the SPU key-off/key-on recovery interval.
 // Prefer another free channel instead of spinning on a just-stopped channel.
 inline bool audio_reuse_ready(int voice,uint16_t now){return !(audio_off_valid&(1u<<voice))||uint16_t(now-audio_off_scanline[voice])>=2;}
-#endif
+inline void audio_record_keyoffs(uint32_t mask){
+    if(!mask)return;
+    const uint16_t now=audio_scanline();audio_off_valid|=mask;
+    for(int p=0;p<24;++p)if(mask&(1u<<p))audio_off_scanline[p]=now;
+}
 inline bool audio_initialize(const AudioClip* clips,size_t count){
     if(!count)return true;
     if(count>512)return false;
@@ -67,14 +70,10 @@ inline bool audio_initialize(const AudioClip* clips,size_t count){
         address+=clip.size;
     }
     SPU_CTRL=0xc000;
-#ifndef EPOK_HAS_SEQUENCES
     const uint16_t silenced=audio_scanline();audio_off_valid=0xffffffu;
-#endif
     for(int i=0;i<24;++i){
         audio_voices[i]={};
-#ifndef EPOK_HAS_SEQUENCES
         audio_off_scanline[i]=silenced;
-#endif
         SPU_VOICES[i].volumeLeft=0;SPU_VOICES[i].volumeRight=0;
         SPU_VOICES[i].sampleStartAddr=audio_addresses[0];SPU_VOICES[i].sampleRepeatAddr=audio_addresses[0];
         SPU_VOICES[i].adsrLo=0x000f;SPU_VOICES[i].adsrHi=0;
@@ -83,9 +82,7 @@ inline bool audio_initialize(const AudioClip* clips,size_t count){
 }
 inline void audio_keyoff(int voice){
     if(voice<16)SPU_KEY_OFF_LOW=1u<<voice;else SPU_KEY_OFF_HIGH=1u<<(voice-16);
-#ifndef EPOK_HAS_SEQUENCES
     audio_off_scanline[voice]=audio_scanline();audio_off_valid|=1u<<voice;
-#endif
 }
 void AudioSource::stop(){
 #ifdef EPOK_HAS_SEQUENCES
@@ -126,10 +123,8 @@ void AudioSource::play(){
     if(audio_bank[clip].music){music_play(this);return;}
     if(!audio_bank[clip].data || !audio_bank[clip].size)return;
     stop();int chosen=-1;
-#ifndef EPOK_HAS_SEQUENCES
     const uint16_t now=audio_scanline();
     for(int i=0;i<24;++i)if(!audio_voices[i].owner&&audio_reuse_ready(i,now)){chosen=i;break;}
-#endif
     if(chosen<0)for(int i=0;i<24;++i)if(!audio_voices[i].owner){chosen=i;break;}
     if(chosen<0){
         for(int i=0;i<24;++i){auto& voice=audio_voices[i];if(voice.owner->priority>priority)continue;
@@ -142,11 +137,7 @@ void AudioSource::play(){
     sequence_voice_stolen(chosen);
 #endif
     ++audio_reuse_stats.starts;
-#ifndef EPOK_HAS_SEQUENCES
-    const bool needs_recovery=audio_voices[chosen].owner||!audio_reuse_ready(chosen,now);
-#else
-    const bool needs_recovery=true;
-#endif
+    const bool needs_recovery=audio_voices[chosen].owner||!audio_reuse_ready(chosen,audio_scanline());
     if(needs_recovery){
         ++audio_reuse_stats.waits;audio_keyoff(chosen);
         // Saturated/just-retired channels keep the established recovery path.

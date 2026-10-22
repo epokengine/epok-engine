@@ -29,11 +29,24 @@ hardware SPU envelopes. Register/timer behavior was checked against
 [PSX SPU documentation](https://psx-spx.consoledev.net/soundprocessingunitspu/) and
 [timer documentation](https://psx-spx.consoledev.net/timers/).
 
-Timer 0 now uses system clock with target 64000 (about 529 Hz). Its old DIV8 flag
+Native-only builds schedule the next command, deferred key-on or retirement on
+Timer 2's compare register. The counter stays free-running at CPU/8; only its
+target moves. Idle gaps are capped at 7 ms, below the counter's wrap guard.
+Recovery is measured from the actual SPU key-off and waits at least 128 CPU/8
+ticks (about 30 microseconds). This avoids polling unchanged SPU voices at 529 Hz
+and lets cooled free SFX voices start without a redundant busy wait.
+
+Mixed/legacy builds retain Timer 0 with target 64000 (about 529 Hz). Its old DIV8 flag
 did not divide Timer 0, so the old configuration was approximately 2000 Hz, not
 250 Hz. Target 65535 was rejected by emulator testing: target/overflow coincidence
 did not deliver audio callbacks in the installed Redux core. Timer 2 still measures
 elapsed CPU/8 time and Timer 1 supplies the wrap guard.
+
+`python tests/runtime/verify_spatial.py native_music_clock native_music_service
+native_music_mixed sequence_service audio_disabled spu_transfer` checks compare
+deadlines across 16-bit wrap, overdue events, timer routing, key-off recovery,
+source changes, layered stealing and the legacy transport. Hardware timer
+behavior follows the [timer register specification](https://psx-spx.consoledev.net/timers/).
 
 ## Measured result, 2026-09-17
 
@@ -67,6 +80,32 @@ only its own headless emulator on an unused port; it does not change the input
 project or terminate an existing emulator.
 
 ## Fidelity and bounds
+
+The native Timer 2 scheduler leaves at least 1 ms between its final live counter
+read and the next compare, allowing BIOS acknowledgement/return and competing
+controller/card interrupts. Compares within 512 ticks of either side of counter
+overflow move to target 512 after the wrap. A target of 1 could be stepped over
+by Redux's overflow handling, adding a full counter wrap to the expected gap.
+Elapsed time still comes from the free-running counter, rather than the requested
+interval. A delayed IRQ spanning at most 1,600 HSync lines (about 102 ms) uses
+Timer 1 to identify the unique number of Timer 2 wraps. The elapsed CPU ticks
+remain exact; HSync does not replace them with an estimated tempo. The admissible
+NTSC/PAL timing window is narrower than one wrap. Inconsistent counter pairs and
+longer gaps still stop the sequence with an error. `sequence_clock_diagnostics`
+records recovered/rejected gaps and the first interrupted PC for hardware checks.
+See the [timer register specification](https://psx-spx.consoledev.net/timers/) and
+[GPU clock timings](https://psx-spx.consoledev.net/graphicsprocessingunitgpu/#gpu-timings).
+
+PCDrv geometry reads, external scene-file chunks and the runtime's BIOS startup
+messages explicitly pause the sequence clock, including file open, seek and close.
+Unirom can hold interrupts while
+forwarding TTY text as well as file data.
+The outermost operation resynchronizes the Timer 2 and HSync baselines before
+playback continues and rearms the next native compare, preventing a missed
+transport-time compare from adding a full counter wrap. This keeps serial I/O from becoming an
+ambiguous elapsed-time fault. Nested operations retain the pause. Unexpected
+interrupt gaps outside these storage operations use the bounded recovery above;
+unresolvable gaps still report a clock fault.
 
 - Hardware ADSR is quantized. Source delay is omitted and hold is folded into
   decay; conversion and Target Preview report affected layers. Source Preview

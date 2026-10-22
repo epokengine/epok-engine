@@ -33,5 +33,23 @@ int main() {
     request = {0,128,1,1,24,1};
     plan = reserve(slots,request);
     assert(plan.fits && plan.evict_mask == 1); // Generation distinguishes a recycled instance.
-    std::puts("instrument_allocator: complete groups, aggregate ceiling, priority and generation passed");
+    // Deterministic independent layouts: the fast no-eviction path must pick
+    // exactly the same channels as the complete allocator, or defer to it.
+    uint32_t seed=0x593a21;
+    auto random=[&](){seed=seed*1664525u+1013904223u;return seed;};
+    unsigned fast=0;
+    for(unsigned trial=0;trial<100000;++trial){
+        Request r{uint8_t(random()%4),uint8_t(random()%256),uint8_t(1+random()%8),uint8_t(1+random()%24),uint8_t(1+random()%24),1+random()%2};
+        uint32_t available=0;unsigned own=0,music=0;
+        for(unsigned p=0;p<24;++p){
+            const auto bits=random();slots[p]={bool(bits&4),bool(bits&32),uint8_t((bits>>8)%4),uint8_t((bits>>16)%8),uint8_t(bits>>24),1+random()%2,random()};
+            if(!slots[p].occupied)available|=1u<<p;
+            else if(slots[p].musical){++music;if(slots[p].owner==r.owner&&slots[p].generation==r.generation)++own;}
+        }
+        const auto reference=reserve(slots,r),quick=reserve_free(available,own,music,r);
+        if(quick.fits){++fast;assert(reference.fits&&!reference.evict_mask&&reference.start_mask==quick.start_mask);}
+        else assert(!reference.fits||reference.evict_mask);
+    }
+    assert(fast>1000);
+    std::puts("instrument_allocator: groups, ceilings, priority, generations and 100000 fast-path equivalence cases passed");
 }

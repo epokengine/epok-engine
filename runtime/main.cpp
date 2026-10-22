@@ -926,6 +926,7 @@ void dispatch_trigger(const epok::TriggerEvent& event) {
 }
 class GameScene final : public psyqo::Scene {
   void start(StartReason) override {
+    startup_ready_announced = false;
     // Audio quarantine and trigger-delivery predicates for the object model. Installed
     // before the first bank load, so no component-owned AudioSource can be recycled
     // while the XA consumer still points at it.
@@ -964,9 +965,15 @@ class GameScene final : public psyqo::Scene {
           !object.audio.is_playing())
         object.audio.play();
 #endif
-    syscall_puts("EPOK: runtime ready\n");
+    {
+#ifdef EPOK_HAS_SEQUENCES
+      epok::SequenceStoragePause pause;
+#endif
+      syscall_puts("EPOK: runtime ready\n");
+    }
   }
   void frame() override;
+  bool startup_ready_announced = false;
   psyqo::OrderingTable<buckets> ordering[2];
   // Separate packets, not a depth bias: base surfaces cannot overwrite the world.
   psyqo::OrderingTable<buckets> background_ordering[2];
@@ -987,6 +994,7 @@ class Game final : public psyqo::Application {
         .set(psyqo::GPU::ColorMode::C15BITS)
         .set(epok::display_interlaced ? psyqo::GPU::Interlace::INTERLACED : psyqo::GPU::Interlace::PROGRESSIVE);
     gpu().initialize(config);
+    epok::serial_debug::install(gpu());
     pad.initialize(psyqo::AdvancedPad::PollingMode::Fast);
     card_driver.prepare(gpu());
 #ifdef EPOK_PROFILE_SAMPLE
@@ -1329,6 +1337,15 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
   epok::StreamPageWorkingSet<working_slots> working_pages;
   int working_pins[working_slots];
   if constexpr (demand_streaming) {
+    // Upload-only texture pages need slots only during bank activation. If all
+    // geometry fits afterwards, keep that complete set instead of rescoring
+    // every chunk against the camera each frame. Pins and validation are shared
+    // with the ordinary demand path; tracked/ordered worlds retain their policy.
+    const bool full_geometry = !track && !epok::ordered_draw_enabled &&
+        epok::stream_geometry_page_count<=working_slots;
+    if(full_geometry){
+      for(uint32_t page=0;page<epok::stream_geometry_page_count;++page)working_pages.consider(page,0);
+    }else{
     const bool baked_pages=epok::visibility_has_page_sets();
     if(baked_pages){
       epok::visibility_visit_pages(false,[&](uint32_t page){working_pages.consider(page,0);});
@@ -1390,6 +1407,7 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
       });
     }
 #endif
+    }
     epok::streaming_begin_working_set(working_pages, working_pins);
   }
   epok::StreamPageCursor stream_cursor;
@@ -1790,6 +1808,14 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
       quad_base += uint32_t(bounds_mesh.quad_count);
       if(warm_only){
         if(!bounds_mesh.quad_count)continue;
+        epok::StreamMeshView warm_view{bounds_mesh.vertices,bounds_mesh.quads,true};
+        if constexpr(epok::stream_page_count>0){
+          // Prewarming consumes only already verified pages. Never introduce
+          // a blocking read or retain a payload pointer beyond the cursor pin.
+          if(bounds_mesh.stream_page!=epok::stream_invalid_page&&!epok::stream_pool.ready(bounds_mesh.stream_page))break;
+          warm_view=stream_cursor.resolve(bounds_mesh,gpu(),stream_metadata_validated);
+          if(!warm_view.valid)break;
+        }
         prepare_retained_key();
         auto& next=warm_request.next[parity];auto& first=object_records[chunk_quad_base];
         const uint32_t end=chunk_quad_base+uint32_t(bounds_mesh.quad_count);
@@ -1797,7 +1823,7 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
         if(next>=end||next<chunk_quad_base)next=chunk_quad_base;
         if(!frame_packet_slots.claim(object_first_slot+chunk_quad_base*2,uint32_t(bounds_mesh.quad_count)*2))break;
         first.valid_parities&=uint8_t(~(1u<<parity));
-        const auto done=build_retained_chunk(parity,bounds_mesh,bounds_mesh.quads,chunk_quad_base,false,next-chunk_quad_base);
+        const auto done=build_retained_chunk(parity,bounds_mesh,warm_view.quads,chunk_quad_base,false,next-chunk_quad_base);
         if(!warm_request.generation)break;
         next=chunk_quad_base+uint32_t(done);
         if(done<bounds_mesh.quad_count)break;
@@ -1806,7 +1832,7 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
           auto* packets=triangle_packets[parity]+object_first_slot+chunk_quad_base*2;
           const auto bytes=bounds_mesh.quad_count*2*sizeof(*packets);
           __builtin_memcpy(epok::attribute_validation_words,packets,bytes);
-          build_retained_chunk(parity,bounds_mesh,bounds_mesh.quads,chunk_quad_base,false,0,true);
+          build_retained_chunk(parity,bounds_mesh,warm_view.quads,chunk_quad_base,false,0,true);
           ++epok::prewarm_validation_stats.chunks;
           for(size_t q=0;q<bounds_mesh.quad_count;++q){const bool textured=object_records[chunk_quad_base+q].textured;
             for(unsigned t=0;t<2;++t){const auto* actual=reinterpret_cast<const uint32_t*>(packets+q*2+t);const auto* prior=epok::attribute_validation_words+(q*2+t)*10;
@@ -2485,17 +2511,32 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
   }else epok::performance_stats=performance_work;
   // Last in the chain: visible above game HUD, fades and loading screen.
   epok::debug_hud::draw(gpu());
+  // A transition can defer startup PCDrv reads until frame(), after start()
+  // has announced runtime initialization. Publish the serial probe boundary
+  // only after the first complete render has consumed its required pages.
+  // Loading/error early returns keep the monitor serving data for retry.
+  if (!startup_ready_announced && !epok::stream_failed && !epok::stream_read_pending) {
+    startup_ready_announced = true;
+#ifdef EPOK_HAS_SEQUENCES
+    // Unirom's TTY output can block IRQs just like PCDrv transfers. Keep the
+    // readiness message from invalidating a song that already started.
+    epok::SequenceStoragePause pause;
+#endif
+    syscall_puts("EPOK: startup ready\n");
+  }
 }
 } // namespace
 namespace epok {
 uint32_t rendered_actor_scanlines(size_t index){return index<object_render_scanlines.size()?object_render_scanlines[index]:0;}
 bool prewarm_geometry(ActorData* entity){
-  if constexpr(!retained_geometry||stream_page_count>0)return false;
+  if constexpr(!retained_geometry)return false;
   const int index=entity_index(entity);
   if(index<0||!entity->alive||!entity->generation)return false;
   const bool skeletal=entity->animator.enabled&&entity->animator.model;
   const auto* geometry=skeletal?entity->animator.model->geometry:entity->geometry;
   if(!geometry||(geometry->editable&mesh_baked_draw)||geometry->visibility_faces)return false;
+  if constexpr(stream_page_count>0)for(auto* mesh=geometry;mesh;mesh=mesh->next)
+    if(mesh->stream_page!=stream_invalid_page&&(!stream_pool.ready(mesh->stream_page)||!streaming_descriptor_valid(*mesh)))return false;
   const bool baked=!entity->material.unlit&&entity->lighting.enabled&&entity->lighting.receive==ReceiveLighting::Baked&&entity->baked_colors;
   const bool unlit=entity->material.unlit||!entity->lighting.enabled||mesh_material_cache[size_t(index)].faces_unlit(geometry);
   if((skeletal&&!unlit)||(!baked&&(!unlit||!geometry->editable)))return false;

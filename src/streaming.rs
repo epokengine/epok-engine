@@ -85,6 +85,7 @@ pub struct Bundle {
     page_tracks: Vec<Option<PageTrack>>,
     ordered: Vec<Option<crate::ordered_draw_cook::Cooked>>,
     texture_pixels: BTreeMap<uuid::Uuid, (u32, u16)>,
+    geometry_pages: Option<usize>,
 }
 impl Bundle {
     pub fn vertex_colors(&self) -> &crate::vertex_colors::Palette {
@@ -100,6 +101,7 @@ impl Bundle {
         if !self.texture_pixels.is_empty() {
             return Err("Texture upload payloads were already packed".into());
         }
+        self.geometry_pages = Some(self.page_count());
         let mut used = PAGE_BYTES;
         for id in crate::texture::ids(resources) {
             let data = resources
@@ -177,7 +179,12 @@ impl Bundle {
             self.ordered.iter().any(Option::is_some),
             ordered_capacity.max(1)
         );
+        let geometry_globals = format!(
+            "inline constexpr uint32_t stream_geometry_page_count={};\n",
+            self.geometry_pages.unwrap_or_else(|| self.page_count())
+        );
         ordered_globals
+            + &geometry_globals
             + &format!(
                 "inline constexpr uint32_t baked_draw_abi={};\ninline constexpr bool baked_draw_enabled={baked_enabled};\ninline constexpr size_t baked_draw_cache_slots={cache_slots};\ninline constexpr uint32_t stream_page_count={};\ninline constexpr size_t stream_pool_pages={};\ninline constexpr const char* stream_archive_path=\"GEOMETRY.BIN;1\";\ninline constexpr uint32_t stream_page_hashes[]={{{hashes}}};\n",
                 crate::baked_draw::ABI_VERSION,
@@ -1648,6 +1655,8 @@ mod tests {
         }
         let mut bundle = compile(std::slice::from_ref(&scene), 2).unwrap();
         let geometry = bundle.bytes.clone();
+        let geometry_pages = geometry.len() / PAGE_BYTES;
+        assert!(bundle.globals().contains(&format!("stream_geometry_page_count={geometry_pages};")));
         let mut duplicate = compile(std::slice::from_ref(&scene), 2).unwrap();
         bundle.append_texture_pixels(&scene).unwrap();
         duplicate.append_texture_pixels(&scene).unwrap();
@@ -1670,11 +1679,13 @@ mod tests {
             Some(&bundle),
         )
         .unwrap();
+        assert!(header.contains(&format!("stream_geometry_page_count={geometry_pages};")));
         assert!(!header.contains("uint16_t texture_0_pixels"));
         assert!(header.contains("nullptr,texture_0_palette,8,"));
         assert!(header.contains("nullptr,texture_1_palette,4,"));
         assert!(header.contains("resident_texture_bytes=1056;"));
         let resident = crate::scene_bank::header(std::slice::from_ref(&scene), &[]).unwrap();
+        assert!(resident.contains("stream_geometry_page_count=0;"));
         assert!(resident.contains("uint16_t texture_0_pixels"));
         assert!(bundle.append_texture_pixels(&scene).is_err());
     }

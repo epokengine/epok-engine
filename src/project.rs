@@ -1171,6 +1171,7 @@ fn stage_with_playback(
         class_registry,
         skeletal_queries,
         &external,
+        rendering.mesh_triangle_budget,
     )?;
     let streamed_music = crate::audio::clip_ids(&shared_resources)
         .into_iter()

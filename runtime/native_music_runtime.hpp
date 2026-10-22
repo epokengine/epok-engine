@@ -116,7 +116,13 @@ inline void sequence_service(uint32_t elapsed_us){
         auto& v=physical[p];auto& i=instances[av.sequence];
         if(v.generation!=i.generation || i.phase!=Phase::Active){i.cut(av.note);continue;}
         if(!v.pending){if(v.released && !v.envelope){native_keyoffs|=1u<<p;v.envelope=1;}continue;}
+#ifdef EPOK_SEQUENCE_HOST_TEST
         if(uint32_t(now_us-v.off_us)<30)continue;
+#else
+        // Native deadlines can wake sooner than a periodic service. Measure
+        // recovery from the actual hardware key-off, not the IRQ's entry time.
+        if(uint16_t(counter_ticks()-v.off_ticks)<128)continue;
+#endif
         const auto& patch=*v.native_tone;const auto& sample=i.asset->bank->sample(patch.sample);auto& hw=SPU_VOICES[p];
         hw.sampleStartAddr=i.asset->bank->addresses[patch.sample];
         hw.sampleRepeatAddr=hw.sampleStartAddr+uint16_t((v.released && patch.loop==3?sample.loop_end:sample.loop_start)/28*2);
