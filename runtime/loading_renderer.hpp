@@ -13,6 +13,7 @@ class LoadingRenderer {
     psyqo::Fragments::SimpleFragment<psyqo::Prim::Sprite> letters[2][96];
     psyqo::Fragments::SimpleFragment<psyqo::Prim::TPage> pages[2];
     psyqo::Fragments::SimpleFragment<psyqo::Prim::TexturedQuad> images[2];
+    psyqo::Fragments::SimpleFragment<psyqo::Prim::Rectangle> bars[2][2];
     const LoadingImage* uploaded=nullptr;
 public:
     void draw(psyqo::GPU& gpu) {
@@ -24,11 +25,14 @@ public:
         size_t count=0;while(text&&text[count]&&count<95)++count;
         const int columns=(display_width-display_width/10)/8;
         const int rows=int((count+columns-1)/columns);
+        // An external scene file reports the bytes it has verified so far.
+        const bool progress=scene_file_waiting()&&transition.phase!=TransitionPhase::Failed;
+        const int bar=progress?8:0;
         const auto* image=options.image?options.image:&default_loading_image;
         if(image->pixels&&image->width&&image->height&&image->width<=64&&image->height<=64&&image->width%2==0){
             if(uploaded!=image){gpu.uploadToVRAM(image->pixels,{{{.x=960,.y=384}},{{.w=int16_t(image->width),.h=int16_t(image->height)}}});uploaded=image;}
             auto& fragment=images[parity];auto& q=fragment.primitive;
-            const int top=bottom-(rows?rows*16+4:0)-image->height,left=right-image->width;
+            const int top=bottom-(rows?rows*16+4:0)-bar-image->height,left=right-image->width;
             q.pointA={{.x=int16_t(left),.y=int16_t(top)}};q.pointB={{.x=int16_t(right),.y=int16_t(top)}};
             q.pointC={{.x=int16_t(left),.y=int16_t(top+image->height)}};q.pointD={{.x=int16_t(right),.y=int16_t(top+image->height)}};
             q.uvA.u=0;q.uvA.v=128;q.uvB.u=image->width-1;q.uvB.v=128;
@@ -38,6 +42,17 @@ public:
         }
         // Wrap long messages inside the TV safe area instead of drawing offscreen.
         auto& page=pages[parity];page.primitive.attr.setPageX(15).setPageY(1).set(psyqo::Prim::TPageAttr::Tex4Bits).setDithering(false);configure_display_field<display_interlaced>(page.primitive.attr);gpu.chain(page);
+        if(progress){
+            const int width=display_width/4,top=bottom-rows*16-6;
+            const int filled=int((uint32_t(width)*scene_file_progress())>>12);
+            for(int part=0;part<2;++part){
+                const unsigned shade=part?2:4;
+                auto& f=bars[parity][part];auto& r=f.primitive;
+                r.position={{.x=int16_t(right-width),.y=int16_t(top)}};r.size={{.w=int16_t(part?filled:width),.h=3}};
+                r.setColor({{.r=uint8_t((unsigned(options.color[0])+1)/shade),.g=uint8_t((unsigned(options.color[1])+1)/shade),.b=uint8_t((unsigned(options.color[2])+1)/shade)}}).setOpaque();
+                if(!part||filled)gpu.chain(f);
+            }
+        }
         for(size_t n=0;n<count;++n){
             const int row=int(n)/columns,col=int(n)%columns;
             const int row_length=int(count)-row*columns<columns?int(count)-row*columns:columns;

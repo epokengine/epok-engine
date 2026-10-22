@@ -475,6 +475,9 @@ impl Editor {
         if std::env::args().any(|v| v == "--screenshot-project-settings") {
             crate::settings_ui::open_project(&mut editor);
         }
+        if std::env::args().any(|v| v == "--screenshot-scene-table") {
+            crate::settings_ui::open_scene_table(&mut editor);
+        }
         if std::env::args().any(|v| v == "--screenshot-editor-preferences") {
             crate::settings_ui::open_preferences(&mut editor);
         }

@@ -63,6 +63,7 @@ def main():
         return text
 
     # The template's level is editable meshes; streaming moves them to GEOMETRY.BIN.
+    # New projects keep scenes outside the EXE, so the startup scene is SCENE00.BIN.
     run("--create-project", folder, "--template", "third-person")
     config = documents.loads((ROOT / "Editor.epokconfig").read_text())
     for key in ("make", "toolchain_bin", "nugget", "emulator", "psxavenc", "mkpsxiso"):
@@ -93,10 +94,12 @@ def main():
     assert manifest_path.read_bytes() == saved_manifest, "Export changed the saved project settings"
     with zipfile.ZipFile(archive) as package_zip:
         names = set(package_zip.namelist())
-        expected = DOCUMENTS | {"epok.ps-exe", "GEOMETRY.BIN", "debug/epok.elf", "debug/epok.map"}
+        expected = DOCUMENTS | {"epok.ps-exe", "GEOMETRY.BIN", "SCENE00.BIN", "debug/epok.elf",
+                                "debug/epok.map"}
         assert names == expected, sorted(names ^ expected)
         description = json.loads(package_zip.read("epok-package.json"))
         geometry_bytes = package_zip.read("GEOMETRY.BIN")
+        scene_bytes = package_zip.read("SCENE00.BIN")
         exe_bytes = package_zip.read("epok.ps-exe")
         readme = package_zip.read("README.txt").decode()
     assert exe_bytes.startswith(b"PS-X EXE")
@@ -106,12 +109,15 @@ def main():
     assert files["epok.ps-exe"]["sha256"] == sha256(exe_bytes)
     assert files["GEOMETRY.BIN"]["sha256"] == sha256(geometry_bytes)
     assert files["GEOMETRY.BIN"]["role"] == "pcdrv"
-    assert description["loader"]["pcdrv_required"] and description["loader"]["pcdrv_files"] == ["GEOMETRY.BIN"]
+    assert scene_bytes == (build / "SCENE00.BIN").read_bytes() and len(scene_bytes) % 2048 == 0
+    assert files["SCENE00.BIN"]["sha256"] == sha256(scene_bytes) and files["SCENE00.BIN"]["role"] == "pcdrv"
+    assert description["loader"]["pcdrv_required"]
+    assert description["loader"]["pcdrv_files"] == ["GEOMETRY.BIN", "SCENE00.BIN"], description["loader"]
     assert description["pcdrv_root"] == "." and description["content"] == "whole_game"
     rendering = manifest["rendering"]
     assert description["display"] == dict(width=rendering["width"], height=rendering["height"],
                                           interlaced=rendering["height"] == 480, video_mode="ntsc")
-    assert "PCDrv server's root folder" in readme and "GEOMETRY.BIN" in readme
+    assert "PCDrv server's root folder" in readme and "GEOMETRY.BIN" in readme and "SCENE00.BIN" in readme
     print("PASS package: explicit file list, certified hashes, manifest and README", flush=True)
 
     first = archive.read_bytes()

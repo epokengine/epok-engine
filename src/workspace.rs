@@ -40,6 +40,10 @@ pub struct Manifest {
     pub play: crate::play::Profile,
     #[serde(default)]
     pub transition: crate::play::Transition,
+    /// Scenes whose resources stay in the executable; the others load from
+    /// disc when they start. Absent in older projects: every scene stays in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scene_storage: Option<crate::play::SceneStorage>,
     #[serde(default)]
     pub rendering: crate::settings::Rendering,
     #[serde(default)]
@@ -622,6 +626,9 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         build: Default::default(),
         play: Default::default(),
         transition: Default::default(),
+        // New projects start with the scene table: scenes load from disc when
+        // Play reads CD or PC data, until they are marked to stay in the EXE.
+        scene_storage: Some(Default::default()),
         rendering: if matches!(
             template,
             Template::ThirdPerson | Template::Platformer2D | Template::Dungeon

@@ -16,6 +16,9 @@ ifeq ($(EPOK_PROFILE_DETAIL),1)
 CPPFLAGS += -DEPOK_PROFILE_DETAIL
 endif
 NUGGET_DIR ?= ../../third_party/nugget
+# The editor writes this fragment: it links external scene data as overlays
+# (see scene_files.hpp). Builds without external scenes leave it empty.
+-include scene-overlays.mk
 include $(NUGGET_DIR)/psyqo/psyqo.mk
 
 # Speed-optimize scene traversal and gameplay on MIPS, keeping the SDK compact.

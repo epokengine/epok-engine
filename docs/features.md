@@ -654,6 +654,11 @@ See [Play targets and loading](play.md).
   loading frame with configurable text/64x64 RGB555 image, retire the old bank,
   warm streamed geometry, load the new bank and fade in. Failed reads stay muted
   and allow retry. C++ can override transition options per request.
+- **Scenes outside the executable.** The project's scene table marks which scenes
+  stay in the EXE. With CD or PC data, the others are saved as checked
+  `SCENEnn.BIN` files and load into one shared RAM region behind the loading
+  screen, with a progress bar of the bytes read. See
+  [Scenes outside the executable](scene-files.md).
 - **Executable and disc packaging.** Produce a PS-X EXE; package ISO or BIN/CUE
   with XA/external geometry and a user-supplied system-area license when required.
 - **PS-EXE packages.** Export a verified ZIP holding the executable, the PCDrv

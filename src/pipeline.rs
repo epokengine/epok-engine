@@ -699,6 +699,8 @@ fn build(
         timing.stage("Compiling and linking game", &mut report);
         let _ = tx.send(Event::Log("Compiling C++ / PsyQo for MIPS...".into()));
         run_make(&native.arguments())?;
+        // External scenes: save each linked image and record it in the EXE.
+        crate::scene_files::finish_link(&build)?;
         let exe = build.join("epok.ps-exe");
         let bytes = fs::read(&exe).map_err(|e| format!("Missing PSX executable: {e}"))?;
         if !bytes.starts_with(b"PS-X EXE") {

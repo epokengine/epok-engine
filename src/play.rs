@@ -247,6 +247,41 @@ pub fn settings_signature(root: &Path) -> Result<String, String> {
     ))
 }
 
+/// The project's scene table: which scenes keep their resources inside the
+/// executable. Every other scene loads from the CD (CD on demand) or through
+/// PCDrv (PC on demand) when it starts. A project without a table (older
+/// manifests) keeps every scene in the executable.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SceneStorage {
+    /// Project-relative `assets/scenes/*.epokmap` paths.
+    pub in_executable: Vec<String>,
+}
+impl SceneStorage {
+    pub fn contains(&self, path: &str) -> bool {
+        self.in_executable
+            .iter()
+            .any(|entry| entry.eq_ignore_ascii_case(path))
+    }
+    pub fn set(&mut self, path: &str, in_executable: bool) {
+        self.in_executable
+            .retain(|entry| !entry.eq_ignore_ascii_case(path));
+        if in_executable {
+            self.in_executable.push(path.into());
+            self.in_executable.sort();
+        }
+    }
+    /// A table that keeps every listed scene inside the executable, as projects
+    /// without a table behave.
+    pub fn all_in_executable(scenes: &[String]) -> Self {
+        let mut storage = Self::default();
+        for scene in scenes {
+            storage.set(scene, true);
+        }
+        storage
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Transition {
@@ -650,5 +685,24 @@ mod tests {
             ..Default::default()
         };
         assert!(transition.validate().is_err());
+    }
+    #[test]
+    fn scene_table_marks_scenes_in_the_executable_without_duplicates() {
+        let scenes = [
+            "assets/scenes/Main.epokmap".to_owned(),
+            "assets/scenes/Level.epokmap".to_owned(),
+        ];
+        let mut storage = SceneStorage::all_in_executable(&scenes);
+        assert!(scenes.iter().all(|s| storage.contains(s)));
+        storage.set("assets/scenes/Level.epokmap", false);
+        assert!(!storage.contains("assets/scenes/Level.epokmap"));
+        assert!(storage.contains("ASSETS/SCENES/MAIN.EPOKMAP"));
+        storage.set("assets/scenes/Main.epokmap", true);
+        assert_eq!(storage.in_executable, ["assets/scenes/Main.epokmap"]);
+        // Older manifests have no table; an empty table keeps nothing inside.
+        assert_eq!(
+            serde_json::from_str::<SceneStorage>("{}").unwrap(),
+            SceneStorage::default()
+        );
     }
 }

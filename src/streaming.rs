@@ -12,7 +12,7 @@ pub const ARCHIVE: &str = "GEOMETRY.BIN";
 
 /// FNV-1a32 over every byte, including deterministic zero page padding. The
 /// runtime checks this before making a DMA-filled page available to consumers.
-fn page_hash(bytes: &[u8]) -> u32 {
+pub(crate) fn page_hash(bytes: &[u8]) -> u32 {
     bytes.iter().fold(2_166_136_261_u32, |hash, byte| {
         (hash ^ u32::from(*byte)).wrapping_mul(16_777_619)
     })

@@ -9,6 +9,8 @@ pub struct State {
     destination: String,
     scenes: Vec<String>,
     streaming_geometry: bool,
+    /// Scenes the project's scene table loads from disc.
+    external_scenes: usize,
     disc_media: Vec<String>,
     message: String,
     /// Set while this dialog's job runs. The editor's busy overlay shows its
@@ -33,6 +35,17 @@ pub fn open(editor: &mut Editor) {
     state.streaming_geometry = crate::settings::rendering(&editor.root)
         .map(|r| r.streaming_geometry)
         .unwrap_or_default();
+    let storage = crate::workspace::optional_manifest(&editor.root)
+        .ok()
+        .flatten()
+        .and_then(|m| m.scene_storage);
+    state.external_scenes = storage.map_or(0, |storage| {
+        state
+            .scenes
+            .iter()
+            .filter(|path| !storage.contains(path))
+            .count()
+    });
     state.disc_media = disc_media(&editor.assets.index);
     if !state.exporting {
         state.result = None;
@@ -206,10 +219,20 @@ pub fn window(ui: &imgui::Ui, editor: &mut Editor) {
                 ui.text_wrapped("Files the game reads while it runs are served through PCDrv from the folder the ZIP is extracted to. No CD is used.");
                 ui.text("Runtime files");
                 ui.same_line();
-                ui.text_disabled(if state.streaming_geometry {
-                    "epok.ps-exe + GEOMETRY.BIN (Geometry Streaming is enabled)"
+                let mut files = vec!["epok.ps-exe".to_owned()];
+                if state.streaming_geometry {
+                    files.push("GEOMETRY.BIN (Geometry Streaming is enabled)".into());
+                }
+                if state.external_scenes > 0 {
+                    files.push(format!(
+                        "one SCENEnn.BIN per exported scene outside the EXE (up to {})",
+                        state.external_scenes
+                    ));
+                }
+                ui.text_disabled(if files.len() == 1 {
+                    "epok.ps-exe only (fully resident; no PCDrv reads)".to_owned()
                 } else {
-                    "epok.ps-exe only (fully resident; no PCDrv reads)"
+                    files.join(" + ")
                 });
                 ui.checkbox("Include debug symbols (epok.elf, epok.map)", &mut options.debug_symbols);
                 if ui.is_item_hovered() {

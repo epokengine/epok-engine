@@ -329,6 +329,9 @@ bool set_active(ActorData* entity,bool active);
 bool is_active(const ActorData* entity);
 // Same test for a slot index; skips the pointer validation of is_active.
 bool is_active_slot(size_t index);
+// Size and FNV-1a hash of an external scene's SCENEnn.BIN. The editor writes
+// them into the linked executable, so a file from another build never loads.
+struct SceneFileRecord {uint32_t bytes,hash;};
 bool request_scene(size_t index);
 bool request_scene(const char* name);
 bool request_scene(size_t index,const TransitionOptions& options);

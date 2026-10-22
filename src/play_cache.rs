@@ -69,7 +69,8 @@ impl Receipt {
             if !matches!(
                 path.as_str(),
                 "epok.ps-exe" | "epok.elf" | "epok.map" | "epok.bin" | "epok.cue" | "epok.iso"
-            ) {
+            ) && !crate::scene_files::is_file_name(path)
+            {
                 return Err("Invalid cached output path".into());
             }
             if crate::assets::hash(&std::fs::read(build.join(path)).map_err(|e| e.to_string())?)
@@ -102,7 +103,12 @@ impl Receipt {
         disc: Option<&Path>,
     ) -> Result<(), String> {
         let mut outputs = Files::new();
+        let scene_files: Vec<String> = crate::scene_files::staged(build)
+            .into_iter()
+            .map(|file| file.name)
+            .collect();
         let mut names = vec!["epok.ps-exe", "epok.elf", "epok.map"];
+        names.extend(scene_files.iter().map(String::as_str));
         let disc = disc.map(|path| path.file_name().unwrap().to_string_lossy().into_owned());
         if let Some(name) = disc.as_deref() {
             names.push(name);

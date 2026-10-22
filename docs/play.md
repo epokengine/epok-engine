@@ -37,10 +37,14 @@ SDK components may still be reused by the incremental compiler. A running game
 keeps its launched snapshot while sources are edited. Changes during an unfinished
 build cancel that build and require another manual Build/Play.
 
-**Content selection is separate from memory residency.** Scene definitions,
-scripts, textures, collision and resident SFX remain prelinked. Whole game uses
-one reusable pool of entity instances, but its prelinked data must fit PSX RAM.
-Arbitrary scene packages and texture/audio streaming from PC are not implemented.
+**Content selection is separate from memory residency.** By default scene
+definitions, scripts, textures, collision and resident SFX are prelinked. Whole
+game uses one reusable pool of entity instances, and its prelinked data must fit
+PSX RAM. With CD on demand or PC on demand, scenes whose **In EXE** box is off in
+the project's scene table keep their data in `SCENEnn.BIN` files instead and
+load into one shared region when they start; see
+[Scenes outside the executable](scene-files.md). Scripts and audio always stay
+resident.
 
 CD and PC on demand select the source of external **editable-mesh geometry**.
 Enable **Engine > Streaming > Geometry Streaming** to generate `GEOMETRY.BIN`

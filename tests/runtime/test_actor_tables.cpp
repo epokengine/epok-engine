@@ -20,9 +20,20 @@ void AudioSource::play(){++audio_plays;} void AudioSource::stop(){++audio_stops;
 void remove_runtime_owner(size_t){}
 void reset_runtime_services(){}
 void load_scene();
-struct SceneBank {const char* name;void(*load)();};
-inline const SceneBank scene_banks[]={{"Bank",load_scene}};
+struct SceneBank {const char* name;void(*load)();int8_t file;};
+inline const SceneBank scene_banks[]={{"Bank",load_scene,-1}};
 inline constexpr size_t scene_bank_count=1;
+// Stand-in for runtime/scene_files.hpp in a build without external scenes:
+// every bank is resident, so the loader is never entered.
+inline constexpr size_t scene_file_count=0;
+enum class SceneFileState : uint8_t { Idle, Waiting, Reading, Ready, Failed };
+struct SceneFileStats {SceneFileState state=SceneFileState::Idle;};
+inline SceneFileStats scene_file_stats;
+inline int scene_file_bank=-1;
+inline bool scene_file_waiting(){return false;}
+inline bool scene_bank_ready(size_t){return true;}
+inline void scene_file_begin(size_t,uint32_t){}
+inline void scene_file_service(uint32_t){}
 }
 #include "../../runtime/lifecycle.hpp"
 #include "../../runtime/scene_service.hpp"

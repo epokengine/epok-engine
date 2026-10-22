@@ -115,6 +115,7 @@ impl Summary {
                     "GEOMETRY.BIN" | "epok.cue" | "epok.bin" | "epok.iso"
                 )
                 || crate::video::is_staged_path(path)
+                || crate::scene_files::is_file_name(path)
                 || path
                     .strip_prefix("music/M")
                     .and_then(|p| p.strip_suffix(".XA"))

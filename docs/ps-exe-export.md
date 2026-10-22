@@ -14,6 +14,7 @@ as a Unirom-based serial loader with a PCDrv host. For a bootable CD image use
 <Project>-ps-exe.zip
 ├── epok.ps-exe              PS-X EXE program
 ├── GEOMETRY.BIN             Only when Geometry Streaming produced pages
+├── SCENE01.BIN ...          One per exported scene outside the EXE
 ├── epok-package.json        Machine-readable description of the package
 ├── README.txt               Launch instructions for this package
 ├── LICENSE                  Epok runtime license
@@ -23,9 +24,13 @@ as a Unirom-based serial loader with a PCDrv host. For a bootable CD image use
 ```
 
 - `epok.ps-exe` and every PCDrv file are at the archive root, which is the PCDrv
-  root. The runtime opens `GEOMETRY.BIN` by that exact, upper-case name.
-- A fully resident game has no `GEOMETRY.BIN`; its program reads no files at run
-  time.
+  root. The runtime opens `GEOMETRY.BIN` and `SCENEnn.BIN` by those exact,
+  upper-case names. `nn` is the scene's bank number in this package.
+- Scenes whose **In EXE** box is off in the project's scene table are exported as
+  `SCENEnn.BIN` files, read when the scene starts. See
+  [Scenes outside the executable](scene-files.md).
+- A fully resident game has no `GEOMETRY.BIN` or scene files; its program reads no
+  files at run time.
 - Files are chosen from the validated build's metadata. The ZIP never copies the
   build folder, the project's source assets, disc images, memory cards or other
   outputs left by earlier configurations.
@@ -49,7 +54,7 @@ the command line builds them. The dialog offers:
 | Setting | Behavior |
 | --- | --- |
 | Content | **Whole Game** (default) starts at the project startup scene and includes every scene the game can load. **Current Scene** exports only the open map. **Selected Scenes** exports up to 16 chosen maps and an initial scene. |
-| External data | Shows the runtime files to expect: `epok.ps-exe` alone, or with `GEOMETRY.BIN` when Geometry Streaming is enabled. |
+| External data | Shows the runtime files to expect: `epok.ps-exe` alone, or with `GEOMETRY.BIN` when Geometry Streaming is enabled and a `SCENEnn.BIN` for each exported scene outside the EXE. |
 | Debug symbols | Adds `debug/epok.elf` and `debug/epok.map`. |
 | Debug overlay | Compiles the FPS, CPU, GTE, GPU and SPU meters into this package. They start hidden and **Select** shows or hides them. |
 | Compatibility | Lists the project's XA music and video assets, which stop the export when the exported content uses them. |
@@ -107,6 +112,9 @@ or Play rebuilds with the Play profile.
 - If `GEOMETRY.BIN` cannot be opened, has the wrong size, or a page fails its
   integrity check, streaming stops for the session and the failure is counted
   in the streaming statistics. Pages are not retried.
+- If a scene file cannot be opened, has the wrong size or fails its checksum,
+  the scene does not start: the loading screen shows **Load failed - START to
+  retry** and START reads the file again.
 - If the BIOS interrupt queues are invalid at startup, the program stops with
   an error message rather than run without the resident handler.
 
@@ -152,7 +160,8 @@ specific package, including whether it needs PCDrv at all.
 
 ## Limits
 
-- PCDrv payloads are limited to streamed geometry (`GEOMETRY.BIN`).
+- PCDrv payloads are limited to streamed geometry (`GEOMETRY.BIN`) and scene
+  files (`SCENEnn.BIN`).
 - Packages are built for NTSC timing, like all Epok builds.
 - The package states requirements only. Compatibility with a particular remote
   loader or console service is confirmed only by running the package there.

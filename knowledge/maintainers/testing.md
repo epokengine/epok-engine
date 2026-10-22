@@ -124,6 +124,20 @@ and the screen corner), while Select changes nothing in the package without it.
 A video in the excluded scene must stop the Whole Game export by name but not
 the Selected Scenes export.
 
+`python tests/integration/verify_scene_files.py` checks
+[scenes outside the executable](../../docs/scene-files.md). It builds a fresh
+three-scene project with a different sky colour per scene and the same Lua
+scene-switching component, then runs it in PCSX-Redux while a Lua driver
+presses buttons and samples `epok::scene_stats`, `epok::scene_file_stats`, the
+header of the shared scene region and the centre pixel: a CD build with Main in
+the EXE (Second and Third read from the disc image), a PS-EXE package with every
+scene outside (the startup scene loads behind the boot screen), a package with
+a corrupt `SCENE02.BIN` that the driver repairs before pressing START, and a
+missing `SCENE01.BIN`, and a CD image with one damaged scene sector. Finally the
+same project with every scene in the EXE must produce a larger executable, and
+the report's scene region must equal the largest scene file. Loading times in
+its `report.json` are emulator times.
+
 The Build menu dialog has a real-ImGui acceptance test that clicks
 **Build > Export PS-EXE... > Export**, waits for the compilation and checks the
 published ZIP, **Open Folder** and the unchanged Play settings. It needs the

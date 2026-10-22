@@ -146,7 +146,7 @@ inline void streaming_tick() {
   streaming_verify_slice();
   if (!music_data_owner) return;
   if (!stream_lookup_pending && !stream_read_pending && !music_active &&
-      !music_lookup && music_drive.isIdle()) music_data_owner = false;
+      !music_lookup && !music_scene_reading && music_drive.isIdle()) music_data_owner = false;
 }
 
 // Foreground demand may borrow ONE additional sector slice in this frame.
@@ -172,7 +172,7 @@ inline void streaming_lookup() {
   if (!stream_ready) { stream_failed = true; ++streaming_stats.errors; }
 #else
   if (stream_lookup_started || !music_ready || music_active || music_lookup ||
-      !music_drive.isIdle()) return;
+      music_scene_reading || !music_drive.isIdle()) return;
   stream_lookup_started = stream_lookup_pending = true;
   music_data_owner = true;
   music_files.getDirentry(stream_archive_path, &stream_entry, [](bool ok) {
@@ -200,8 +200,8 @@ inline bool streaming_start_read(uint32_t page) {
   return true;
 #else
   if (page >= stream_page_count || stream_failed || !stream_ready ||
-      stream_read_pending || music_active || music_lookup || !music_drive.isIdle() ||
-      !stream_read_action.dma_idle()) return false;
+      stream_read_pending || music_active || music_lookup || music_scene_reading ||
+      !music_drive.isIdle() || !stream_read_action.dma_idle()) return false;
   if (stream_pool.ready(page)) return true;
   int slot = stream_pool.reserve(page);
   if (slot < 0) return false;

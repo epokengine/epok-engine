@@ -120,7 +120,10 @@ pauses XA and preserves the current playback request; after the read, playback
 restarts **at the beginning of the track**. Explicit stop/replacement requests
 remain authoritative. Exact-sector XA resume and interleaved audio/data packing
 are not implemented. Use resident geometry when uninterrupted XA playback is
-required.
+required. External scene files (`runtime/scene_files.hpp`, see
+[Scenes outside the executable](../docs/scene-files.md)) take the same
+ownership while a scene loads behind its loading screen; geometry lookups and
+reads wait until `music_scene_reading` clears.
 
 Required reads have a ten-second watchdog. A failed or timed-out stream stops
 subsequent geometry acquisitions and reports failure instead of exposing partial

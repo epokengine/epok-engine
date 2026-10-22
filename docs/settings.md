@@ -9,7 +9,7 @@ These settings live in the root `.epokproject` YAML descriptor and travel with t
 | Category | Options |
 | --- | --- |
 | Project / Description | Project name shown in the Hub, the default SoundBank and the default scene Blueprint parent |
-| Project / Maps & Build | Startup scene, automatic asset reports (on by default), [Build/Play profile, scene selection and loading transitions](play.md) |
+| Project / Maps & Build | Startup scene, the [scene table](scene-files.md) (startup scene and which scenes stay in the EXE), automatic asset reports (on by default), [Build/Play profile, scene selection and loading transitions](play.md) |
 | Engine / Rendering | Native output resolution, retained packets and precomputed visibility |
 | Engine / Streaming | Geometry streaming, page pool, RAM budget and disc music behavior |
 | Engine / Debug | Independent runtime FPS, CPU, Geometry/GTE, GPU DMA and SPU RAM overlays |

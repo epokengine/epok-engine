@@ -640,6 +640,7 @@ mod tests {
             lua_profile: Default::default(),
             play: Default::default(),
             transition: Default::default(),
+            scene_storage: None,
             startup_scene: "assets/scenes/Main.epokmap".into(),
             default_sound_bank: None,
             default_scene_script_parent: None,

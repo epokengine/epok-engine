@@ -109,6 +109,7 @@ inline bool skeletal_world_point(const ActorData&,const Fixed* model,Fixed* worl
 }
 inline bool music_active = false, music_requested = false, music_lookup = false,
             music_ready = false, music_boot_failed = false, music_booting = false, music_data_owner = false;
+inline bool music_scene_reading = false;
 struct Drive {
   bool isIdle() { ++fake_cd::idle_checks; return fake_cd::idle; }
   void readSectors(uint32_t sector, uint32_t sectors, void *buffer, std::function<void(bool)> callback) {

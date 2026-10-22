@@ -253,8 +253,11 @@ pub fn header_with_templates(
         effects,
         class_registry,
         crate::skeletal_compile::QueryDemand::ALL,
+        &[],
     )
 }
+/// `external[bank]` marks banks whose data loads from a scene file at run time
+/// (see scene_files.rs); missing entries stay in the executable.
 pub fn header_with_templates_for(
     scenes: &[Scene],
     catalog: &[Script],
@@ -265,7 +268,11 @@ pub fn header_with_templates_for(
     effects: &[crate::particle_effect_scene::Prepared],
     class_registry: &crate::blueprint::Registry,
     skeletal_queries: crate::skeletal_compile::QueryDemand,
+    external: &[bool],
 ) -> Result<String, String> {
+    let external: Vec<bool> = (0..scenes.len())
+        .map(|bank| external.get(bank).copied().unwrap_or(false))
+        .collect();
     if scenes.is_empty() || scenes.len() > 16 {
         return Err("Scene registry needs 1..16 scenes".into());
     }
@@ -279,7 +286,45 @@ pub fn header_with_templates_for(
     let global_layout =
         !templates.is_empty() || referenced.is_some_and(|scene| !scene.actors.is_empty());
     let ids = crate::texture::ids(&shared);
+    // Each working bank packs its own textures around the global fonts.
+    // Dynamic prototypes use one fixed resident texture layout in every
+    // bank. Reject overflow explicitly instead of spawning invisible assets.
+    let mut layouts = Vec::new();
+    for s in scenes {
+        let bank_scene;
+        let layout_scene = if global_layout {
+            &shared
+        } else {
+            bank_scene = Scene {
+                fonts: shared.fonts.clone(),
+                ..s.clone()
+            };
+            &bank_scene
+        };
+        crate::texture::header(layout_scene)?;
+        layouts.push(crate::texture::layout(layout_scene)?.textures);
+    }
+    // A texture that only external banks place travels in their scene files,
+    // one copy per bank, instead of staying resident in the executable.
+    let relocated: Vec<Vec<usize>> = ids
+        .iter()
+        .map(|id| {
+            let banks: Vec<usize> = (0..scenes.len())
+                .filter(|&bank| layouts[bank].iter().any(|(v, _)| v == id))
+                .collect();
+            if global_layout
+                || banks.is_empty()
+                || streaming.and_then(|s| s.texture_pixels(*id)).is_some()
+                || banks.iter().any(|&bank| !external[bank])
+            {
+                Vec::new()
+            } else {
+                banks
+            }
+        })
+        .collect();
     let mut textures = String::new();
+    let mut scene_textures = String::new();
     for (i, id) in ids.iter().enumerate() {
         let t = shared
             .textures
@@ -294,7 +339,7 @@ pub fn header_with_templates_for(
             if name == "pixels" && streaming.and_then(|s| s.texture_pixels(*id)).is_some() {
                 continue;
             }
-            textures += &format!(
+            let array = format!(
                 "alignas(4) inline constexpr uint16_t texture_{i}_{name}[]={{{}}};\n",
                 values
                     .iter()
@@ -302,6 +347,13 @@ pub fn header_with_templates_for(
                     .collect::<Vec<_>>()
                     .join(",")
             );
+            if relocated[i].is_empty() {
+                textures += &array;
+            } else {
+                for bank in &relocated[i] {
+                    scene_textures += &format!("namespace epok::scene_{bank} {{\n{array}}}\n");
+                }
+            }
         }
     }
     textures += &format!(
@@ -311,7 +363,9 @@ pub fn header_with_templates_for(
     textures += &format!(
         "inline constexpr size_t resident_texture_bytes={};\n",
         ids.iter()
-            .map(|id| {
+            .enumerate()
+            .filter(|(i, _)| relocated[*i].is_empty())
+            .map(|(_, id)| {
                 let t = &shared.textures[id];
                 let cooked = crate::texture_cook::cook(t);
                 let resident_pixels = if streaming.and_then(|s| s.texture_pixels(*id)).is_some() {
@@ -323,39 +377,29 @@ pub fn header_with_templates_for(
             })
             .sum::<usize>()
     );
-    for (bank, s) in scenes.iter().enumerate() {
+    for (bank, layout) in layouts.iter().enumerate() {
         // Validate each working bank independently; unused bank textures do not
         // occupy VRAM. Upload pixels live in the archive when data streaming is
-        // enabled, otherwise once in executable memory.
-        // Dynamic prototypes use one fixed resident texture layout in every
-        // bank. Reject overflow explicitly instead of spawning invisible assets.
-        let bank_scene;
-        let layout_scene = if global_layout {
-            &shared
-        } else {
-            // Fonts are global: pack this bank's textures around every font.
-            bank_scene = Scene {
-                fonts: shared.fonts.clone(),
-                ..s.clone()
-            };
-            &bank_scene
-        };
-        crate::texture::header(layout_scene)?;
-        let layout = crate::texture::layout(layout_scene)?.textures;
+        // enabled, otherwise once in executable memory or the bank's scene file.
         let descriptors = ids
             .iter()
             .enumerate()
             .map(|(i, id)| {
                 if let Some((_, p)) = layout.iter().find(|(v, _)| v == id) {
                     let t = &shared.textures[id];
+                    let owner = if relocated[i].is_empty() {
+                        String::new()
+                    } else {
+                        format!("scene_{bank}::")
+                    };
                     let (pixels, location) = match streaming.and_then(|s| s.texture_pixels(*id)) {
                         Some((page, offset)) => {
                             ("nullptr".to_owned(), format!(",{page}u,{offset}"))
                         }
-                        None => (format!("texture_{i}_pixels"), String::new()),
+                        None => (format!("{owner}texture_{i}_pixels"), String::new()),
                     };
                     format!(
-                        "{{{},{},{},{},{},{},{},{pixels},texture_{i}_palette,{}{location}}}",
+                        "{{{},{},{},{},{},{},{},{pixels},{owner}texture_{i}_palette,{}{location}}}",
                         t.width,
                         t.height,
                         p.x,
@@ -552,6 +596,7 @@ pub fn header_with_templates_for(
         |bundle| bundle.globals(),
     );
     out += "}\n";
+    out += &scene_textures;
     out += &format!(
         "namespace epok {{\ntemplate<class T> struct TableView {{T* data=nullptr;size_t count=0;T* begin() const{{return data;}}T* end() const{{return data+count;}}size_t size() const{{return count;}}}};\ninline std::array<ActorData,{capacity}> objects;\ninline size_t object_count=0,authored_count=0;\ninline constexpr size_t render_capacity={render_capacity};\ninline constexpr size_t dungeon_minimap_capacity={minimap_capacity};\ninline TableView<const size_t> transform_order;\n{textures}\n}}\n"
     );
@@ -621,14 +666,26 @@ pub fn header_with_templates_for(
             "inline constexpr uint64_t scene_script_class_{i}=scene_{i}::scene_script_class;\n"
         );
     }
-    out += "struct SceneBank {const char* name;void(*load)();};\ninline const SceneBank scene_banks[]={\n";
-    for (i, s) in scenes.iter().enumerate() {
+    out += &crate::scene_files::header(&external);
+    // `file` indexes scene_file_records; -1 keeps the bank in the executable.
+    out += "struct SceneBank {const char* name;void(*load)();int8_t file;};\ninline const SceneBank scene_banks[]={\n";
+    for (i, (s, file)) in scenes
+        .iter()
+        .zip(crate::scene_files::indices(&external))
+        .enumerate()
+    {
         out += &format!(
-            "{{{},load_bank_{i}}},\n",
+            "{{{},load_bank_{i},{file}}},\n",
             serde_json::to_string(&s.name).unwrap()
         );
     }
-    out += "};\ninline constexpr size_t scene_bank_count=sizeof(scene_banks)/sizeof(scene_banks[0]);\ninline void initialize_scripts(){load_bank_0();}\n}\n";
+    out += "};\ninline constexpr size_t scene_bank_count=sizeof(scene_banks)/sizeof(scene_banks[0]);\n";
+    // An external startup bank runs once the boot loading screen read its file.
+    out += if external[0] {
+        "inline void initialize_scripts(){}\n}\n"
+    } else {
+        "inline void initialize_scripts(){load_bank_0();}\n}\n"
+    };
     Ok(out)
 }
 #[cfg(test)]
@@ -768,6 +825,104 @@ mod tests {
             header.matches(&format!("{{\"{name}\",load_bank_")).count(),
             1
         );
+    }
+
+    fn header_external(scenes: &[Scene], external: &[bool]) -> String {
+        let registry = crate::actor_document::tests::registry();
+        header_with_templates_for(
+            scenes,
+            &[],
+            None,
+            &[],
+            None,
+            &[],
+            &[],
+            &registry,
+            crate::skeletal_compile::QueryDemand::ALL,
+            external,
+        )
+        .unwrap()
+    }
+    fn textured(name: &str, textures: &[u128]) -> Scene {
+        let mut scene = Scene {
+            name: name.into(),
+            ..Default::default()
+        };
+        for &id in textures {
+            let id = uuid::Uuid::from_u128(id);
+            let mut actor = crate::scene::Actor::cube(format!("Cube {id}"));
+            actor.material.texture = Some(id);
+            scene.actors.push(actor);
+            let mut palette = vec![0u16; 256];
+            palette[1] = 0x8123;
+            scene.textures.insert(
+                id,
+                std::sync::Arc::new(crate::texture::Data {
+                    width: 16,
+                    height: 16,
+                    rgba: vec![],
+                    palette,
+                    words: vec![0x0101; 8 * 16],
+                }),
+            );
+        }
+        scene
+    }
+
+    #[test]
+    fn external_banks_get_file_indices_and_only_their_own_textures() {
+        // Texture 1 is used by the resident Main, 2 by both external banks, 3 by Third.
+        let scenes = [
+            textured("Main", &[1]),
+            textured("Second", &[1, 2]),
+            textured("Third", &[2, 3]),
+        ];
+        let text = header_external(&scenes, &[false, true, true]);
+        assert!(text.contains(
+            "{\"Main\",load_bank_0,-1},\n{\"Second\",load_bank_1,0},\n{\"Third\",load_bank_2,1},"
+        ));
+        assert!(text.contains("scene_file_count=2;"));
+        assert!(text.contains("inline void initialize_scripts(){load_bank_0();}"));
+        let shared = resources(&scenes);
+        let index = |id: u128| {
+            crate::texture::ids(&shared)
+                .iter()
+                .position(|v| *v == uuid::Uuid::from_u128(id))
+                .unwrap()
+        };
+        let (resident, both, third) = (index(1), index(2), index(3));
+        let array = |i: usize| format!("alignas(4) inline constexpr uint16_t texture_{i}_pixels[]");
+        // A texture a resident bank places stays in the executable, once.
+        assert_eq!(text.matches(&array(resident)).count(), 1);
+        assert!(text.contains(&format!(
+            "texture_{resident}_pixels,texture_{resident}_palette"
+        )));
+        // Shared by two external banks: one copy in each bank's namespace.
+        assert_eq!(text.matches(&array(both)).count(), 2);
+        for bank in [1, 2] {
+            assert!(text.contains(&format!(
+                "scene_{bank}::texture_{both}_pixels,scene_{bank}::texture_{both}_palette"
+            )));
+        }
+        assert_eq!(text.matches(&array(third)).count(), 1);
+        assert!(text.contains(&format!("namespace epok::scene_2 {{\n{}", array(third))));
+        // Without external banks nothing moves and the table is unchanged.
+        let resident_text = header_external(&scenes, &[]);
+        assert!(!resident_text.contains("scene_1::texture_"));
+        assert!(resident_text.contains("{\"Third\",load_bank_2,-1},"));
+        assert!(resident_text.contains("scene_file_count=0;"));
+    }
+
+    #[test]
+    fn an_external_startup_bank_waits_for_its_file() {
+        let a = Scene::default();
+        let b = Scene {
+            name: "Second".into(),
+            ..a.clone()
+        };
+        let text = header_external(&[a, b], &[true, false]);
+        assert!(text.contains("load_bank_0,0},"));
+        assert!(text.contains("inline void initialize_scripts(){}"));
     }
 
     #[test]

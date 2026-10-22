@@ -364,9 +364,9 @@ fn pcdrv_name(path: &str) -> Result<(), String> {
             "Runtime file {path} does not have a portable PCDrv name."
         ));
     }
-    if path != crate::streaming::ARCHIVE {
+    if path != crate::streaming::ARCHIVE && !crate::scene_files::is_file_name(path) {
         return Err(format!(
-            "Runtime file {path} cannot be served by PCDrv in this export version. Only streamed geometry ({}) is supported.",
+            "Runtime file {path} cannot be served by PCDrv in this export version. Only streamed geometry ({}) and scene files (SCENEnn.BIN) are supported.",
             crate::streaming::ARCHIVE
         ));
     }
@@ -442,10 +442,27 @@ fn plan(
         expected: recorded(EXECUTABLE)?,
         role: Role::Executable,
     }];
+    let mut scene_files_checked = false;
     for path in crate::memory::external_file_paths(&built.build)? {
         pcdrv_name(&path)?;
         let expected = recorded(&path)?;
-        if built.certified.get(&path) != Some(&expected) {
+        if crate::scene_files::is_file_name(&path) {
+            // Scene files are linker outputs: the certified executable records
+            // the size and hash each one must have.
+            if !scene_files_checked {
+                let exe = fs::read(&built.exe).map_err(|e| e.to_string())?;
+                if crate::assets::hash(&exe) != recorded(EXECUTABLE)? {
+                    return Err("The executable changed after validation. Export again.".into());
+                }
+                crate::scene_files::verify(&built.build, &exe)?;
+                scene_files_checked = true;
+            }
+            if crate::assets::hash(&fs::read(built.build.join(&path)).map_err(|e| e.to_string())?)
+                != expected
+            {
+                return Err(format!("{path} changed after validation. Export again."));
+            }
+        } else if built.certified.get(&path) != Some(&expected) {
             return Err(format!(
                 "{path} does not match the file certified with the executable. Export again."
             ));
@@ -493,6 +510,9 @@ fn readme(request: &Request, facts: &Facts, files: &[FileRecord]) -> String {
     for file in files {
         let purpose = match file.role {
             Role::Executable => "PS-X EXE program",
+            Role::Pcdrv if crate::scene_files::is_file_name(&file.path) => {
+                "Scene data, read through PCDrv when that scene starts"
+            }
             Role::Pcdrv => "Streamed geometry, read through PCDrv while the game runs",
             Role::Debug => "Debug symbols; not needed to run the game",
         };
@@ -565,13 +585,23 @@ fn readme(request: &Request, facts: &Facts, files: &[FileRecord]) -> String {
          PsyQo initializes, as Unirom-style serial loaders require. If the BIOS\r\n  \
          interrupt queues are invalid at startup, it stops with an error message.\r\n",
     );
-    if !pcdrv.is_empty() {
+    if pcdrv.iter().any(|f| f.path == crate::streaming::ARCHIVE) {
         text.push_str(
             "- PCDrv reads are synchronous: the game waits while a geometry page is read.\r\n  \
              Loading time depends on the host link and differs from CD playback.\r\n\
              - If the file cannot be opened, has the wrong size, or a page fails its\r\n  \
              integrity check, streaming stops for the session and the failure is\r\n  \
              counted in the streaming statistics. Pages are not retried.\r\n",
+        );
+    }
+    if pcdrv
+        .iter()
+        .any(|f| crate::scene_files::is_file_name(&f.path))
+    {
+        text.push_str(
+            "- Scenes stored in SCENEnn.BIN files load behind the loading screen when they\r\n  \
+             start; loading time depends on the host link. A missing or damaged file\r\n  \
+             shows \"Load failed - START to retry\" instead of starting the scene.\r\n",
         );
     }
     text.push_str(

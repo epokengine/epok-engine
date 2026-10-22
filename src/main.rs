@@ -186,6 +186,7 @@ mod sample_template;
 mod scene;
 mod scene_bank;
 mod scene_dependencies;
+mod scene_files;
 mod scene_gpu;
 mod scene_loading;
 mod scene_view_mode;

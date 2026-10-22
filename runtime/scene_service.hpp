@@ -30,7 +30,7 @@ size_t current_scene(){return scene_stats.active;}
 uint32_t scene_transition_count(){return scene_stats.transitions;}
 uint32_t scene_rejected_count(){return scene_stats.rejected;}
 bool scene_waiting(){return scene_stats.waiting;}
-bool scene_loading(){return pending_scene>=0
+bool scene_loading(){return pending_scene>=0||scene_file_waiting()
 #ifdef EPOK_TRANSITIONS
     ||transition.busy()
 #endif
@@ -56,6 +56,31 @@ bool request_scene(const char* name,const TransitionOptions& options){
     pending_transition.begin(options,0);return true;
 }
 #endif
+// Run a bank's load function once its data is in RAM, then start its audio.
+inline void scene_start_bank(size_t next){
+    scene_banks[next].load();
+    for(size_t i=0;i<object_count;++i)if(is_active(&objects[i])&&objects[i].audio.enabled&&objects[i].audio.play_on_start&&!objects[i].audio.is_playing())objects[i].audio.play();
+    scene_transitioning=false;scene_stats.waiting=scene_loading();
+}
+// The outgoing scene is gone and the next bank's file is loading behind the
+// loading screen. Nothing of the bank runs until its file is verified.
+inline bool scene_file_tick(psyqo::GPU& gpu){
+#ifdef EPOK_TRANSITIONS
+    if(transition.phase!=TransitionPhase::Loading||!transition.presented)return false;
+#endif
+    scene_file_service(gpu.now());
+    if(scene_file_stats.state==SceneFileState::Failed){
+#ifdef EPOK_TRANSITIONS
+        transition.fail();
+#endif
+        return false;
+    }
+    const size_t next=size_t(scene_file_bank);
+    if(!scene_bank_ready(next))return false;
+    scene_file_bank=-1;
+    scene_start_bank(next);
+    return true;
+}
 inline bool scene_tick(psyqo::GPU& gpu){
 #ifdef EPOK_ACTOR_TABLES
     install_actor_service_hooks();
@@ -63,6 +88,9 @@ inline bool scene_tick(psyqo::GPU& gpu){
 #ifdef EPOK_TRANSITIONS
     transition.advance(gpu.now());
     scene_stats.waiting=scene_loading();
+#endif
+    if constexpr(scene_file_count>0)if(scene_file_waiting())return scene_file_tick(gpu);
+#ifdef EPOK_TRANSITIONS
     if(transition.phase==TransitionPhase::FadeIn||transition.phase==TransitionPhase::Failed||transition.boot)return false;
 #endif
     if(pending_scene<0||scene_transitioning)return false;
@@ -103,9 +131,12 @@ inline bool scene_tick(psyqo::GPU& gpu){
     reset_runtime_services();
     lifecycle_tearing_down=false;scene_stopping=false;
     scene_stats.active=next;++scene_stats.transitions;
-    scene_banks[next].load();
-    for(size_t i=0;i<object_count;++i)if(is_active(&objects[i])&&objects[i].audio.enabled&&objects[i].audio.play_on_start&&!objects[i].audio.is_playing())objects[i].audio.play();
-    scene_transitioning=false;scene_stats.waiting=scene_loading();
+    if constexpr(scene_file_count>0)if(!scene_bank_ready(next)){
+        scene_file_bank=int(next);
+        scene_file_begin(next,gpu.now());
+        return scene_file_tick(gpu);
+    }
+    scene_start_bank(next);
     return true;
 }
 }

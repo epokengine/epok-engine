@@ -26,6 +26,7 @@
 #include "video_service.hpp"
 #include "pocketstation_service.hpp"
 #include "lifecycle.hpp"
+#include "scene_files.hpp"
 #include "scene_service.hpp"
 #include "sprites.hpp"
 #include "particles.hpp"
@@ -949,6 +950,8 @@ class GameScene final : public psyqo::Scene {
 #ifdef EPOK_TRANSITIONS
     epok::transition.begin(epok::TransitionOptions{},gpu().now(),true);
     epok::initialize_scripts();
+    // An external startup bank loads behind the boot loading screen.
+    epok::scene_file_boot(gpu().now());
 #else
     epok::initialize_scripts();
     if constexpr (epok::stream_page_count > 0)
@@ -997,6 +1000,7 @@ class Game final : public psyqo::Application {
 #endif
     epok::music_prepare();
     epok::streaming_prepare();
+    epok::scene_files_prepare();
     // Videos share the BGM drive and its ISO9660 directory.
     if constexpr (epok::video_clip_count > 0) epok::music_prepare(true);
     // PsyQo callback trampolines live in writable RAM. GPU, pad, memory-card
@@ -1026,11 +1030,14 @@ __attribute__((optimize("O3"))) void GameScene::frame() {
 #ifdef EPOK_TRANSITIONS
   if(epok::stream_failed&&!epok::transition.loading())epok::transition.fail();
   if(epok::transition.phase==epok::TransitionPhase::Failed&&epok::input.frame_pressed(epok::Button::Start)){
-    if(epok::streaming_retry()){
+    if(epok::scene_file_waiting()){
+      // Read the same scene file again; its bank has not run yet.
+      if(epok::scene_file_retry(gpu().now())){epok::transition.phase=epok::TransitionPhase::Loading;epok::transition.presented=false;}
+    }else if(epok::streaming_retry()){
       epok::transition.phase=epok::TransitionPhase::Loading;epok::transition.boot=true;epok::transition.presented=false;
     }
   }
-  if(scene_changed||epok::transition.boot_ready()){
+  if(scene_changed||(epok::transition.boot_ready()&&!epok::scene_file_waiting())){
     bool ok=epok::load_pending_texture_bank(gpu());
     if constexpr(epok::stream_page_count>0)if(ok)ok=epok::streaming_warmup_scene(epok::objects.data(),epok::object_count,[](size_t i){return epok::is_active_slot(i);},gpu());
     // An oversized working set uses ordinary demand streaming, not an error.

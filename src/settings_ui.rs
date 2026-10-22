@@ -15,6 +15,8 @@ pub struct State {
     pub preferences_open: bool,
     project_search: String,
     scene_paths: String,
+    /// Saved maps listed in the scene table, read when the window opens.
+    scene_list: Vec<String>,
     preferences_search: String,
     project_page: usize,
     preferences_page: usize,
@@ -82,6 +84,7 @@ pub fn open_project(e: &mut Editor) {
             e.settings.scene_paths = crate::scene_bank::read(&e.root)
                 .map(|r| r.scenes.join("\n"))
                 .unwrap_or_default();
+            e.settings.scene_list = crate::scene_bank::available(&e.root).unwrap_or_default();
             e.settings.project = Some(value);
             e.settings.project_open = true;
             e.settings.project_page = 2;
@@ -90,6 +93,12 @@ pub fn open_project(e: &mut Editor) {
         }
         Err(error) => e.log(error),
     }
+}
+/// Maps & Build, where the scene table lives.
+pub fn open_scene_table(e: &mut Editor) {
+    open_project(e);
+    e.settings.project_page = 1;
+    e.settings.project_search.clear();
 }
 pub fn open_controls(e: &mut Editor) {
     open_project(e);
@@ -298,6 +307,64 @@ fn section(ui: &imgui::Ui, title: &str, body: impl FnOnce()) {
         body();
     }
 }
+/// Startup scene and where each scene's resources live. A project without a
+/// table keeps every scene inside the EXE; the first change records that
+/// explicitly, so only the scene the author unticked moves out.
+fn scene_table(ui: &imgui::Ui, m: &mut Manifest, scenes: &[String]) {
+    ui.spacing();
+    if !crate::gui::heading(ui, "Scenes") {
+        return;
+    }
+    ui.text_wrapped(match m.play.data {
+        crate::play::DataSource::Executable => "Play uses In executable: every scene stays in the EXE. Choose CD on demand or PC on demand for scenes outside the EXE to load when they start.",
+        crate::play::DataSource::Disc => "Scenes outside the EXE load from the CD when they start, behind the loading screen. Scripts and code always stay in the EXE.",
+        crate::play::DataSource::Host => "Scenes outside the EXE load through PCDrv when they start, behind the loading screen. Scripts and code always stay in the EXE.",
+    });
+    if scenes.is_empty() {
+        ui.text_disabled("No saved maps in assets/scenes.");
+        return;
+    }
+    let Some(_table) = ui.begin_table_with_flags(
+        "scene-table",
+        3,
+        imgui::TableFlags::SIZING_STRETCH_PROP
+            | imgui::TableFlags::ROW_BG
+            | imgui::TableFlags::BORDERS_INNER_H,
+    ) else {
+        return;
+    };
+    for (name, weight) in [("Startup", 0.14), ("Scene", 0.66), ("In EXE", 0.2)] {
+        ui.table_setup_column_with(imgui::TableColumnSetup {
+            name,
+            init_width_or_weight: weight,
+            ..Default::default()
+        });
+    }
+    ui.table_headers_row();
+    for (i, path) in scenes.iter().enumerate() {
+        ui.table_next_row();
+        ui.table_next_column();
+        if ui.radio_button_bool(format!("##startup-{i}"), m.startup_scene == *path) {
+            m.startup_scene = path.clone();
+        }
+        if ui.is_item_hovered() {
+            ui.tooltip_text("Startup scene: opens with the project and starts Whole Game builds.");
+        }
+        ui.table_next_column();
+        ui.align_text_to_frame_padding();
+        ui.text(path.strip_prefix("assets/scenes/").unwrap_or(path));
+        ui.table_next_column();
+        let mut inside = m.scene_storage.as_ref().is_none_or(|t| t.contains(path));
+        if ui.checkbox(format!("##in-exe-{i}"), &mut inside) {
+            m.scene_storage
+                .get_or_insert_with(|| crate::play::SceneStorage::all_in_executable(scenes))
+                .set(path, inside);
+        }
+        if ui.is_item_hovered() {
+            ui.tooltip_text("On: the scene's textures, meshes, collision and other data are linked into the EXE and always in RAM. Off: they are saved in a SCENEnn.BIN file and loaded into one shared region when the scene starts.");
+        }
+    }
+}
 fn matches(query: &str, text: &str) -> bool {
     query.trim().is_empty() || text.to_lowercase().contains(&query.trim().to_lowercase())
 }
@@ -345,7 +412,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
             let height=(available[1]-60.).max(200.);
             ui.child_window(format!("nav-{title}")).size([215.,height]).build(||{
                 ui.text_disabled(if preferences{"GENERAL"}else{"PROJECT"});
-                let pages: &[(&str,&str)]=if preferences{&[("Viewports","grid camera speed navigation"),("Play","game integer scale filter emulator serial NOTPSXSerial nops COM fast"),("Integrations / MCP","server integrations mcp connection port key"),("Dependencies","tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")]}else{&[("Description","name project scripting lua execution native VM bytecode source interpreter"),("Maps & Build","startup scene build compilation asset report generate play target content data transition fade loading text image"),("Rendering","resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera experimental FPS performance"),("Streaming","geometry pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance"),("Debug","HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime performance"),("Controls","controller pad multitap keyboard mouse gamepad analog profile mapping input") ]};
+                let pages: &[(&str,&str)]=if preferences{&[("Viewports","grid camera speed navigation"),("Play","game integer scale filter emulator serial NOTPSXSerial nops COM fast"),("Integrations / MCP","server integrations mcp connection port key"),("Dependencies","tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")]}else{&[("Description","name project scripting lua execution native VM bytecode source interpreter"),("Maps & Build","startup scene scenes table EXE external disc file build compilation asset report generate play target content data transition fade loading text image"),("Rendering","resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera experimental FPS performance"),("Streaming","geometry pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance"),("Debug","HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime performance"),("Controls","controller pad multitap keyboard mouse gamepad analog profile mapping input") ]};
                 let page=if preferences{&mut state.preferences_page}else{&mut state.project_page};
                 let query=if preferences{&state.preferences_search}else{&state.project_search};
                 for (i,(label,keywords)) in pages.iter().enumerate(){
@@ -363,7 +430,7 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                 ui.set_next_item_width(-1.);ui.input_text("##search",query).hint("Search settings...").build();
                 ui.spacing();
                 let q=query.clone();
-                let keywords=if preferences{"Viewports grid camera speed navigation Play game integer scale filter emulator serial NOTPSXSerial nops COM fast Integrations MCP server connection port key Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang"}else{"Description name project scripting lua execution native VM bytecode source interpreter Maps Build startup scene build compilation asset report generate play target content data transition fade loading text image Rendering resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera Streaming pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance Debug HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime Controls controller pad multitap keyboard mouse gamepad analog profile mapping input"};
+                let keywords=if preferences{"Viewports grid camera speed navigation Play game integer scale filter emulator serial NOTPSXSerial nops COM fast Integrations MCP server connection port key Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang"}else{"Description name project scripting lua execution native VM bytecode source interpreter Maps Build startup scene scenes table EXE external disc file build compilation asset report generate play target content data transition fade loading text image Rendering resolution display video NTSC interlaced progressive pixels dithering RGB555 banding retained packets visibility geometry static movement position interpolation smoothing camera Streaming pool pages memory CD disc music XA triangle budget preload nearby prefetch experimental FPS performance Debug HUD overlay FPS CPU GTE GPU DMA SPU audio bars runtime Controls controller pad multitap keyboard mouse gamepad analog profile mapping input"};
                 if !matches(&q,keywords){ui.text_disabled("No settings match your search.");}
                 if preferences {
                     if (state.preferences_page==3 && q.is_empty()) || (!q.is_empty() && matches(&q,"Dependencies tools paths install repair make MIPS Nugget PCSX psxavenc mkpsxiso libclang")) { ui.text("General  >  Dependencies"); e.dependencies.page(ui, e.job.is_some() || e.assets.busy || e.bake_job.is_some()); }
@@ -432,9 +499,10 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                         ui.text_wrapped(m.lua_profile.describe());
                         });
                     }
-                    if (state.project_page==1 && q.is_empty()) || (!q.is_empty() && matches(&q,"Maps Build startup scene build compilation asset report generate play target content data transition fade loading text image")) {
+                    if (state.project_page==1 && q.is_empty()) || (!q.is_empty() && matches(&q,"Maps Build startup scene scenes table EXE external disc file build compilation asset report generate play target content data transition fade loading text image")) {
                         ui.text("Project  >  Maps & Build");
                         section(ui,"Default Maps",||{row(ui,"Startup Scene","Scene loaded the next time this project opens.",||{ui.input_text("##startup",&mut m.startup_scene).build();});});
+                        scene_table(ui,m,&state.scene_list);
                         ui.text_wrapped("Build generates the current Play configuration. Play builds pending changes and launches it. Editing never starts compilation automatically.");
                         section(ui,"Build Reports",||{row(ui,"Generate Asset Report","Generate the detailed asset and memory report after Build/Play. File sizes are always recorded.",||{ui.checkbox("##asset-report",&mut m.build.generate_asset_report);});});
                         ui.spacing();

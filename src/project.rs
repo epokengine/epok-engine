@@ -1147,6 +1147,19 @@ fn stage_with_playback(
     } else {
         crate::streaming::clear(build)?;
     }
+    // The scene table decides which banks load from a scene file; bank 0 is the
+    // scene being built, the others follow the registry order of `loaded`.
+    let storage = crate::workspace::optional_manifest(root)?.and_then(|m| m.scene_storage);
+    let bank_paths: Vec<Option<String>> = std::iter::once(authored.0)
+        .chain(loaded.sources.iter())
+        .map(|origin| crate::scene_files::origin_path(root, origin))
+        .collect();
+    let external = crate::scene_files::plan(storage.as_ref(), profile, &bank_paths);
+    playback.scene_input(
+        "scene-storage".into(),
+        crate::scene_dependencies::hash((&storage, &bank_paths, &external)),
+    )?;
+    crate::scene_files::stage(build, &banks, &external)?;
     let generated = crate::scene_bank::header_with_templates_for(
         &banks,
         &catalog,
@@ -1157,6 +1170,7 @@ fn stage_with_playback(
         &effects,
         class_registry,
         skeletal_queries,
+        &external,
     )?;
     let streamed_music = crate::audio::clip_ids(&shared_resources)
         .into_iter()
@@ -1624,6 +1638,10 @@ pub fn runtime_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "lifecycle.hpp",
             include_bytes!("../runtime/lifecycle.hpp").as_slice(),
+        ),
+        (
+            "scene_files.hpp",
+            include_bytes!("../runtime/scene_files.hpp").as_slice(),
         ),
         (
             "scene_service.hpp",
