@@ -275,6 +275,7 @@ mod world2d_skeleton_editor;
 mod world2d_usability_tests;
 mod world2d_viewport_editor;
 mod world2d_warnings;
+mod world3d_presets;
 use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},

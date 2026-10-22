@@ -92,11 +92,34 @@ the Inspector: its class, domain, identity, an editable Active checkbox and a re
 of its components and authored properties. Adding and removing components arrives in a later
 release.
 
-Create an actor from the Actor submenu of any creation menu; its classes are grouped by 3D,
-2D, UI and Logic. A new actor is created at the map root with the components its class
-declares, or the root component its domain requires when it declares none. The submenu is
-empty, with an explanation, in a project whose classes the editor cannot resolve — see
-[Actors and components](actors.md) for what the actor model needs.
+The creation menu — the Hierarchy's **+** button, its right-click menus and **GameObject** —
+starts with ready-made actors whose components are already set up, so a light, a camera or
+an emitter never has to be assembled from an empty actor:
+
+| Entry | Creates |
+| --- | --- |
+| **Create Empty** | an actor with only a transform |
+| **3D Object** | **Cube**, **Blockout Mesh** (with its own editable mesh), **Sprite (Billboard)**, **Terrain**, **Dungeon Generator** |
+| **2D Object** | every 2D node: Sprite2D, Camera2D, CharacterBody2D, TileMapLayer and the rest (see [2D worlds](2d.md)) |
+| **Light** | **Directional Light**, **Point Light** |
+| **Audio** | **Audio Source** |
+| **Effects** | **Particle Emitter**, **Particle Effect**, **Blob Shadow** |
+| **Physics** | **Box Collider**, **Trigger Volume** (a collider that detects without blocking) |
+| **UI** | Canvas, Panel, Image, Label, Text Area, Progress Bar, Button, Check Box, Slider and the layout containers |
+| **Camera** | a camera the game can render through |
+
+Every group is offered in every view; creating something of another domain switches the
+Scene window to the view that shows it. A 3D actor created at the map root stands at the
+Scene view's pivot, and the new actor is selected. Each entry is one undo step, except that
+a Dungeon Generator's first generated layout is a second one. Hovering an entry describes
+what it creates.
+
+Below them, **Instantiate Actor...** picks a class or Blueprint in a dialog, and the
+**Actor** submenu lists every placeable class, grouped by 3D, 2D, UI and Logic, for an
+actor with exactly the components its class declares (or the root component its domain
+requires when it declares none). That submenu is empty, with an explanation, in a project
+whose classes the editor cannot resolve — see [Actors and components](actors.md) for what
+the actor model needs.
 
 The first line of the Hierarchy is the **map root**, named after the scene. It is not an
 object: clicking it opens **Map Settings**, which shows the map's name, document version and
@@ -110,11 +133,11 @@ the Edit menu. The last 32 edits of the open map are kept, and opening another m
 fresh history. Component attachment and Blueprint edits keep their own Edit-menu entries and
 are undone first when they are the most recent change.
 
-Create cubes or empty entities through GameObject or the Hierarchy context menu. A context menu on an entity can create a child; a menu on empty space creates a root. New entities become selected and their parent branches expand.
+A context menu on an actor creates a child; a menu on empty space or on the map root creates a root.
 
 Click an actor to select it alone. Ctrl+click adds an actor to the selection or takes it out, and Shift+click selects every row shown between the last actor clicked without Shift and the clicked one (with Ctrl held as well, the range is added to the selection). Every selected actor is highlighted. The most recently clicked one is the primary actor: the Inspector, the gizmos and the single-actor tools follow it.
 
-The context menu on an actor lists **Rename** (F2), **Duplicate** (Ctrl+D), **Delete** (Del) and **Select Children** first, then **Move to Map Root**, **Convert to Actor Blueprint...** and **Save as Dungeon Room...**, then the creation items. Right-clicking a selected actor keeps the selection, and Duplicate, Delete and Move to Map Root then act on every selected actor, each as one undo step; right-clicking any other actor selects it alone first. Ctrl+D, the Del key and the Edit menu's Duplicate and Delete act on the whole selection the same way. A selected actor whose parent is selected too is copied once, with its parent's branch, and the copies become the selection. Select Children selects the clicked actor and every actor under it. Everything created from the menu (Instantiate Child Actor..., a class from **Actor**, a **2D Node**) becomes that actor's child in one undo step; a parent of the same domain carries the child at its origin. UI widgets go under the actor when it is a UI element, otherwise under a Canvas. Select Children and Save as Dungeon Room stay visible but disabled on an actor without children.
+The context menu on an actor lists **Rename** (F2), **Duplicate** (Ctrl+D), **Delete** (Del) and **Select Children** first, then **Move to Map Root**, **Convert to Actor Blueprint...** and **Save as Dungeon Room...**, then the creation items. Right-clicking a selected actor keeps the selection, and Duplicate, Delete and Move to Map Root then act on every selected actor, each as one undo step; right-clicking any other actor selects it alone first. Ctrl+D, the Del key and the Edit menu's Duplicate and Delete act on the whole selection the same way. A selected actor whose parent is selected too is copied once, with its parent's branch, and the copies become the selection. Select Children selects the clicked actor and every actor under it. Everything created from the menu (a ready-made actor, Instantiate Child Actor..., a class from **Actor**) becomes that actor's child in one undo step; a parent of the same domain carries the child at its origin. UI widgets go under the actor when it is a UI element, otherwise under a Canvas. Select Children and Save as Dungeon Room stay visible but disabled on an actor without children.
 
 Rename by double-clicking the name, pressing F2 or using Rename. Enter or leaving the field confirms; Escape cancels. Empty names are rejected. Duplicate and Delete affect the entire branch.
 

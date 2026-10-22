@@ -101,7 +101,7 @@ selection rather than a stale set.
 | context menu **Delete** (Del) | removes each selected actor and its whole logical branch in one undo step |
 | context menu **Select Children** | selects the clicked actor and every actor whose `logical_parent` chain reaches it; the clicked actor stays primary |
 | context menu **Move to Map Root** | `logical_parent = None`, `attach = None` on every selected actor, in one undo step |
-| context menu creation items (Instantiate Child Actor..., **Actor**, **2D Node**, **UI**) | create the new actor as the clicked actor's child in one undo step, with `attach` set by the reparent rules below |
+| context menu creation items (the ready-made actors of `world3d_presets::Preset`, the 2D nodes and UI widgets, Instantiate Child Actor..., **Actor**) | create the new actor as the clicked actor's child in one undo step, with `attach` set by the reparent rules below |
 | context menu **Convert class...** | permanently disabled (see below) |
 | drag an actor onto another actor | reparents the dragged actor under the drop target |
 | drag an actor onto the empty area below the tree | moves it to the map root |

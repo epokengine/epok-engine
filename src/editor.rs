@@ -1470,11 +1470,32 @@ impl Editor {
         self.changed();
         self.log(format!("Created {name} ({class})."));
     }
+    /// Makes `id`, an actor a recipe has just added, a child of `parent` before
+    /// the recipe records its step. Returns whether `parent` carries it: a parent
+    /// of the same domain does, so the actor's transform becomes local to it;
+    /// any other parent only groups it where it is.
+    pub fn parent_new_actor(&mut self, id: uuid::Uuid, parent: Option<uuid::Uuid>) -> bool {
+        let (Some(parent), Some(index)) = (parent, self.scene.actor_index(id)) else {
+            return false;
+        };
+        let model = self.object_model();
+        let attach =
+            crate::mcp_tools::implied_attachment(model.as_deref(), &self.scene, id, Some(parent));
+        let carried = attach.is_some();
+        self.scene.actors[index].logical_parent = Some(parent);
+        self.scene.actors[index].attach = attach;
+        self.scene.refresh_actor_hierarchy();
+        carried
+    }
     /// Runs a creation command from an actor's Hierarchy menu so that what it
     /// creates becomes that actor's child. The commands that already read the
     /// selection as their parent (Instantiate Child Actor, UI widgets) get
     /// `parent` selected first.
     pub fn create_child(&mut self, command: &str, parent: uuid::Uuid) {
+        if let Some(preset) = crate::world3d_presets::Preset::from_command(command) {
+            crate::world3d_presets::create(self, preset, Some(parent));
+            return;
+        }
         self.select_actor(Some(parent));
         if let Some(label) = command.strip_prefix("create-node2d-")
             && let Some(preset) = crate::world2d::Preset::ALL
@@ -2894,6 +2915,10 @@ impl Editor {
                 .and_then(|index| self.scene.actors.get(index))
                 .map(|actor| actor.id);
             crate::actor_workflow::begin(self, parent);
+            return;
+        }
+        if let Some(preset) = crate::world3d_presets::Preset::from_command(action) {
+            crate::world3d_presets::create(self, preset, None);
             return;
         }
         if self.critical_busy() && !(action == "play" && self.job.is_some()) {

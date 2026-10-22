@@ -510,6 +510,11 @@ fn fresh_path() -> String {
 
 /// Create a new terrain asset and an actor that renders it.
 pub fn create(e: &mut Editor) -> Result<(), String> {
+    create_under(e, None).map(|_| ())
+}
+/// Creates a terrain actor under `parent` (`None` is the map root) and opens it
+/// for painting, returning the new actor.
+pub fn create_under(e: &mut Editor, parent: Option<uuid::Uuid>) -> Result<uuid::Uuid, String> {
     if e.playing {
         return Err("Stop Play before creating terrain".into());
     }
@@ -543,7 +548,9 @@ pub fn create(e: &mut Editor) -> Result<(), String> {
     // Terrain is the canonical baked surface: one bake gives it per-corner
     // light and ambient occlusion that cost nothing per frame.
     actor.lighting.receive = crate::lighting::Receive::Baked;
+    let created = actor.id;
     e.scene.actors.push(actor);
+    e.parent_new_actor(created, parent);
     let target = e.scene.actors.len() - 1;
     // A baked surface in a scene with no light renders at ambient only, which
     // reads as black ground. Give the first terrain in an unlit scene a sun,
@@ -563,7 +570,7 @@ pub fn create(e: &mut Editor) -> Result<(), String> {
     e.selected = Some(target);
     e.changed();
     open(e, record, Some(target));
-    Ok(())
+    Ok(created)
 }
 
 /// Add an actor for the terrain already open, when the scene has none.

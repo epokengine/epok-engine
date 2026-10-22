@@ -833,20 +833,14 @@ fn draw_workspace(
         });
         ui.menu("GameObject", || {
             let actors = placeable_actor_classes(e);
-            let mode = e.scene_view_mode.domain();
             let mut actor_class = None;
-            if let Some(command) = creation_menu(ui, false, mode, &actors, &mut actor_class) {
+            if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
                 e.action(command);
             }
             if let Some(class) = actor_class {
                 e.create_actor(&class);
             }
-            if ui.menu_item("Terrain") {
-                e.action("terrain-create");
-            }
-            if ui.menu_item(format!("{} Dungeon Generator", crate::dungeon_editor::ICON)) {
-                e.action("dungeon-create");
-            }
+            ui.separator();
             let room_root = e
                 .selected_actor
                 .filter(|id| e.scene.actors.iter().any(|a| a.logical_parent == Some(*id)));
@@ -861,9 +855,9 @@ fn draw_workspace(
             {
                 crate::dungeon_room_editor::save_selection(e, id);
             }
-            if ui.is_item_hovered() {
+            if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
                 ui.tooltip_text(
-                    "Rooms, corridors and walls generated from a seed and baked into the map.",
+                    "Make the selected actor's children a room the Dungeon Generator can place.",
                 );
             }
         });
@@ -1429,8 +1423,8 @@ mod hierarchy_domain_tests {
         assert!(!domain_visible(Domain::UI, Domain::World3D));
     }
 
-    /// The creation menu offers the UI submenu only in the Canvas view, and
-    /// every command it can emit reaches a recipe rather than being ignored.
+    /// UI actors belong to the Canvas view, and every command the creation
+    /// menu's UI submenu can emit reaches a recipe rather than being ignored.
     #[test]
     fn every_ui_widget_command_creates_its_widget() {
         assert!(domain_visible(Domain::UI, Domain::UI));
@@ -1488,44 +1482,48 @@ const UI_WIDGETS: [(&str, &str); 14] = [
 ];
 /// The containers start here; the menu rules a line above them.
 const UI_CONTAINERS: usize = 9;
+/// The creation menu: ready-made actors first, grouped like the components
+/// they carry, then the class picker for everything else. Every group is
+/// offered in every view; a recipe switches the Scene window to the view that
+/// shows what it created.
 fn creation_menu(
     ui: &imgui::Ui,
     child: bool,
-    mode: crate::reflection_schema::Domain,
     actors: &[ActorClass],
     actor: &mut Option<String>,
 ) -> Option<&'static str> {
     use crate::reflection_schema::Domain;
+    use crate::world3d_presets::Preset;
     let mut action = None;
-    if ui.menu_item(if child {
-        "Instantiate Child Actor..."
-    } else {
-        "Instantiate Actor..."
-    }) {
-        action = Some(if child {
-            "instantiate-child-actor"
-        } else {
-            "instantiate-actor"
-        });
-    }
-    // HUD widgets only make sense where the Canvas editor is showing; the
-    // recipes switch the Scene window into it, so offering them elsewhere would
-    // move the author out of the view they were working in.
-    if domain_visible(Domain::UI, mode)
-        && let Some(_menu) = ui.begin_menu("UI")
-    {
-        for (index, (label, command)) in UI_WIDGETS.into_iter().enumerate() {
-            if index == UI_CONTAINERS {
-                ui.separator();
-            }
-            if ui.menu_item(label) {
-                action = Some(command);
+    let preset_item = |preset: Preset, action: &mut Option<&'static str>| {
+        if ui.menu_item(preset.label()) {
+            *action = Some(preset.command());
+        }
+        #[cfg(test)]
+        record_script_control(ui, preset.command());
+        if ui.is_item_hovered() {
+            ui.tooltip_text(preset.description());
+        }
+    };
+    let presets_menu = |name: &str, action: &mut Option<&'static str>| {
+        let menu = ui.begin_menu(name);
+        #[cfg(test)]
+        record_script_control(ui, &format!("Create {name} menu"));
+        if let Some(_menu) = menu {
+            for preset in Preset::ALL
+                .into_iter()
+                .filter(|p| p.category() == Some(name))
+            {
+                preset_item(preset, action);
             }
         }
-    }
-    if domain_visible(Domain::World2D, mode)
-        && let Some(_menu) = ui.begin_menu("2D Node")
-    {
+    };
+    preset_item(Preset::Empty, &mut action);
+    presets_menu("3D Object", &mut action);
+    let objects_2d = ui.begin_menu("2D Object");
+    #[cfg(test)]
+    record_script_control(ui, "Create 2D Object menu");
+    if let Some(_menu) = objects_2d {
         let mut category = "";
         for preset in crate::world2d::Preset::ALL {
             if preset.category() != category {
@@ -1547,6 +1545,40 @@ fn creation_menu(
             }
         }
     }
+    for name in ["Light", "Audio", "Effects", "Physics"] {
+        presets_menu(name, &mut action);
+    }
+    let widgets = ui.begin_menu("UI");
+    #[cfg(test)]
+    record_script_control(ui, "Create UI menu");
+    if let Some(_menu) = widgets {
+        for (index, (label, command)) in UI_WIDGETS.into_iter().enumerate() {
+            if index == UI_CONTAINERS {
+                ui.separator();
+            }
+            if ui.menu_item(label) {
+                action = Some(command);
+            }
+            #[cfg(test)]
+            record_script_control(ui, command);
+        }
+    }
+    preset_item(Preset::Camera, &mut action);
+    ui.separator();
+    let instantiate = if child {
+        "instantiate-child-actor"
+    } else {
+        "instantiate-actor"
+    };
+    if ui.menu_item(if child {
+        "Instantiate Child Actor..."
+    } else {
+        "Instantiate Actor..."
+    }) {
+        action = Some(instantiate);
+    }
+    #[cfg(test)]
+    record_script_control(ui, instantiate);
     let actor_menu = ui.begin_menu("Actor");
     #[cfg(test)]
     record_script_control(ui, "Create Actor menu");
@@ -1697,14 +1729,13 @@ fn hierarchy_node(
         e.selected_actor = None;
         e.selected = Some(index);
         e.view_dirty = true;
-        let mode = e.scene_view_mode.domain();
         ui.disabled(e.playing, || {
             if ui.menu_item("Rename") {
                 e.begin_rename(index);
             }
             ui.separator();
             let mut actor_class = None;
-            if let Some(command) = creation_menu(ui, true, mode, cx.actors, &mut actor_class) {
+            if let Some(command) = creation_menu(ui, true, cx.actors, &mut actor_class) {
                 out.action = Some((index, command));
             }
             if actor_class.is_some() {
@@ -1766,8 +1797,7 @@ struct ActorContext<'a> {
     passthrough: Vec<bool>,
     resolved: Vec<bool>,
     roots: Vec<usize>,
-    /// The view mode and placeable classes the actor menu's creation items offer.
-    mode: crate::reflection_schema::Domain,
+    /// The placeable classes the actor menu's creation items offer.
     classes: &'a [ActorClass],
 }
 fn actor_context<'a>(e: &Editor, classes: &'a [ActorClass]) -> ActorContext<'a> {
@@ -1783,7 +1813,6 @@ fn actor_context<'a>(e: &Editor, classes: &'a [ActorClass]) -> ActorContext<'a> 
         passthrough: vec![false; actors.len()],
         resolved: vec![false; actors.len()],
         roots: Vec::new(),
-        mode,
         classes,
     };
     let mut parent = vec![None; actors.len()];
@@ -2045,7 +2074,7 @@ fn actor_node(
             }
             ui.separator();
             let mut class = None;
-            if let Some(command) = creation_menu(ui, true, cx.mode, cx.classes, &mut class) {
+            if let Some(command) = creation_menu(ui, true, cx.classes, &mut class) {
                 out.create = Some((id, command));
             }
             if let Some(class) = class {
@@ -2102,7 +2131,6 @@ fn hierarchy_rename_finished(ui: &imgui::Ui, submit: bool, focus_requested: bool
 }
 pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
     let actors = placeable_actor_classes(e);
-    let mode = e.scene_view_mode.domain();
     ui.window("\u{eb86} Hierarchy###Hierarchy").build(|| {
         let mut out = HierarchyResult::default();
         let mut actor_out = ActorResult::default();
@@ -2120,7 +2148,7 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
         ui.popup("create-object", || {
             ui.disabled(e.playing, || {
                 let mut actor_class = None;
-                if let Some(command) = creation_menu(ui, false, mode, &actors, &mut actor_class) {
+                if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
                     e.action(command);
                 }
                 if let Some(class) = actor_class {
@@ -2161,8 +2189,7 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
             if let Some(_popup) = ui.begin_popup_context_item() {
                 ui.disabled(e.playing, || {
                     let mut actor_class = None;
-                    if let Some(command) = creation_menu(ui, false, mode, &actors, &mut actor_class)
-                    {
+                    if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
                         out.root_action = Some(command);
                     }
                     if actor_class.is_some() {
@@ -2208,8 +2235,7 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
             if let Some(_popup) = ui.begin_popup_context_item() {
                 ui.disabled(e.playing, || {
                     let mut actor_class = None;
-                    if let Some(command) = creation_menu(ui, false, mode, &actors, &mut actor_class)
-                    {
+                    if let Some(command) = creation_menu(ui, false, &actors, &mut actor_class) {
                         out.root_action = Some(command);
                     }
                     if actor_class.is_some() {
@@ -4261,6 +4287,131 @@ mod interaction_tests {
         }
     }
 
+    /// The Hierarchy's creation menu offers ready-made actors in every view: a
+    /// Point Light from the Light submenu, a Cube under it from its own menu,
+    /// and a UI Button from the 3D view.
+    #[test]
+    fn hierarchy_creation_menu_creates_ready_made_actors_in_every_view() {
+        let mut context = crate::gui::tests::imgui_context();
+        configure_input(context.io_mut());
+        context.io_mut().display_size = [900., 650.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][###Hierarchy]\nPos=10,10\nSize=360,600\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("hierarchy-ready-made-actors");
+        let project =
+            crate::workspace::create(&root, "Presets", crate::workspace::Template::Basic).unwrap();
+        let mut editor = Editor::open(project).unwrap();
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.select_actor(None);
+        editor.set_scene_view_mode(crate::scene_view_mode::SceneViewMode::ThreeD);
+
+        fn frame(ctx: &mut imgui::Context, e: &mut Editor) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            let ui = ctx.frame();
+            hierarchy(ui, e);
+            ctx.render();
+        }
+        fn hover(ctx: &mut imgui::Context, e: &mut Editor, point: [f32; 2]) {
+            ctx.io_mut().add_mouse_pos_event(point);
+            for _ in 0..10 {
+                frame(ctx, e);
+            }
+        }
+        fn click_at(
+            ctx: &mut imgui::Context,
+            e: &mut Editor,
+            point: [f32; 2],
+            button: imgui::MouseButton,
+        ) {
+            hover(ctx, e, point);
+            ctx.io_mut().add_mouse_button_event(button, true);
+            frame(ctx, e);
+            ctx.io_mut().add_mouse_button_event(button, false);
+            frame(ctx, e);
+            frame(ctx, e);
+        }
+        let point = |label: &str| {
+            SCRIPT_BUTTONS
+                .with(|buttons| buttons.borrow().get(label).copied())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{label} was not drawn; drawn: {:?}",
+                        script_control_labels()
+                    )
+                })
+        };
+        let left = imgui::MouseButton::Left;
+        let right = imgui::MouseButton::Right;
+        let empty_space = [180., 500.];
+        for _ in 0..3 {
+            frame(&mut context, &mut editor);
+        }
+
+        // Every group is offered in the 3D view, not only the 3D ones.
+        click_at(&mut context, &mut editor, empty_space, right);
+        for menu in [
+            "3D Object",
+            "2D Object",
+            "Light",
+            "Audio",
+            "Effects",
+            "Physics",
+            "UI",
+        ] {
+            point(&format!("Create {menu} menu"));
+        }
+        point("create-3d-empty");
+        point("create-3d-camera");
+        hover(&mut context, &mut editor, point("Create Light menu"));
+        let point_light = point("create-3d-point-light");
+        click_at(&mut context, &mut editor, point_light, left);
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        let light = editor.selected_actor.expect("the new light is selected");
+        let index = editor.scene.actor_index(light).unwrap();
+        assert_eq!(editor.scene.actors[index].name, "Point Light");
+        assert_eq!(
+            editor.scene.actors[index].light.as_ref().unwrap().kind,
+            crate::lighting::LightType::Point
+        );
+
+        // The same items on an actor's menu create its children.
+        click_at(
+            &mut context,
+            &mut editor,
+            point(&format!("Hierarchy actor {light}")),
+            right,
+        );
+        hover(&mut context, &mut editor, point("Create 3D Object menu"));
+        let cube = point("create-3d-cube");
+        click_at(&mut context, &mut editor, cube, left);
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        let child = editor.selected_actor.unwrap();
+        assert_ne!(child, light);
+        let index = editor.scene.actor_index(child).unwrap();
+        assert_eq!(editor.scene.actors[index].logical_parent, Some(light));
+        assert_eq!(editor.scene.actors[index].kind, "Mesh");
+
+        // A UI widget picked in the 3D view switches the Scene window to UI.
+        click_at(&mut context, &mut editor, empty_space, right);
+        hover(&mut context, &mut editor, point("Create UI menu"));
+        let button = point("ui-button");
+        click_at(&mut context, &mut editor, button, left);
+        assert_eq!(
+            editor.scene_view_mode,
+            crate::scene_view_mode::SceneViewMode::UI
+        );
+        assert!(editor.scene.actors.iter().any(|a| a.name == "Button"));
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
     #[test]
     fn build_menu_runs_lighting_in_background_and_clears_the_stale_warning() {
         let mut context = crate::gui::tests::imgui_context();
@@ -5330,7 +5481,7 @@ mod interaction_tests {
             .add_mouse_button_event(imgui::MouseButton::Left, false);
         frame(&mut context, &mut editor, &mut initial);
         assert_eq!(editor.selected, None);
-        // Right-click empty Hierarchy space, then click Create Empty in its popup.
+        // Right-click empty Hierarchy space, then click Instantiate Actor... in its popup.
         context.io_mut().add_mouse_pos_event([80., 400.]);
         frame(&mut context, &mut editor, &mut initial);
         context
@@ -5343,7 +5494,10 @@ mod interaction_tests {
         frame(&mut context, &mut editor, &mut initial);
         frame(&mut context, &mut editor, &mut initial);
         let count = editor.scene.actors.len();
-        context.io_mut().add_mouse_pos_event([110., 410.]);
+        let instantiate_item = SCRIPT_BUTTONS
+            .with(|b| b.borrow().get("instantiate-actor").copied())
+            .expect("The empty-space menu offers Instantiate Actor...");
+        context.io_mut().add_mouse_pos_event(instantiate_item);
         frame(&mut context, &mut editor, &mut initial);
         context
             .io_mut()

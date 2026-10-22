@@ -323,18 +323,25 @@ pub fn create_component(e: &mut Editor, entity: &mut Actor) -> Result<(), String
     Ok(())
 }
 pub fn allocate_actor_data(e: &mut Editor) {
+    allocate_actor_data_under(e, None);
+}
+/// Creates a blockout actor under `parent` (`None` is the map root) and opens
+/// its mesh for editing, returning the new actor.
+pub fn allocate_actor_data_under(e: &mut Editor, parent: Option<uuid::Uuid>) -> Option<uuid::Uuid> {
     if e.playing {
-        return;
+        return None;
     }
     if e.scene.actors.len() >= 512 {
         e.log("Scene entity limit: 512");
-        return;
+        return None;
     }
     let mut entity = Actor::cube("Blockout".into());
     entity.position = [0.; 3];
+    let created = entity.id;
     match create_component(e, &mut entity) {
         Ok(()) => {
             e.scene.actors.push(entity);
+            e.parent_new_actor(created, parent);
             e.selected = Some(e.scene.actors.len() - 1);
             e.changed();
             e.assets.index = assets::scan(&e.root, &mut Default::default());
@@ -350,8 +357,12 @@ pub fn allocate_actor_data(e: &mut Editor) {
             if let Ok(r) = e.assets.index.resolve(id) {
                 open(e, r.clone(), e.selected);
             }
+            Some(created)
         }
-        Err(error) => e.log(error),
+        Err(error) => {
+            e.log(error);
+            None
+        }
     }
 }
 pub fn extract(e: &mut Editor) -> Result<(), String> {
