@@ -254,7 +254,15 @@ pub struct Editor {
     pub scene_view_mode: crate::scene_view_mode::SceneViewMode,
     /// The P4 document actor selected in the Hierarchy. Mutually exclusive with
     /// `selected`: an author never has a legacy entity and an actor selected at once.
+    /// With several actors selected it is the primary one, the actor the
+    /// Inspector, the gizmos and every single-actor tool follow.
     pub selected_actor: Option<uuid::Uuid>,
+    /// Every actor of the Hierarchy selection, oldest first. It counts only while
+    /// it holds `selected_actor`, so code that sets `selected_actor` alone leaves
+    /// a single selection behind. Read it through [`Editor::selected_actors`].
+    selected_actors: Vec<uuid::Uuid>,
+    /// Where a Shift+click range starts: the last actor clicked without Shift.
+    selection_anchor: Option<uuid::Uuid>,
     /// Inline actor rename in the Hierarchy: the actor and its edited name.
     pub actor_rename: Option<(uuid::Uuid, String)>,
     pub actor_rename_focus: bool,
@@ -844,6 +852,8 @@ impl Editor {
             raw_look: None,
             scene_view_mode: Default::default(),
             selected_actor: None,
+            selected_actors: Vec::new(),
+            selection_anchor: None,
             actor_rename: None,
             actor_rename_focus: false,
             view_2d: Default::default(),
@@ -988,6 +998,8 @@ impl Editor {
         self.scene_history.reset(&self.scene);
         mark("scene and history");
         self.selected_actor = None;
+        self.selected_actors.clear();
+        self.selection_anchor = None;
         self.scene_file = prepared.path;
         // The first observation publishes the new active document without
         // treating navigation/closed editor documents as an authored edit.
@@ -1215,14 +1227,118 @@ impl Editor {
         }
         cache.as_ref().and_then(|(_, model)| model.clone())
     }
-    /// Selects a P4 document actor, clearing the legacy-entity selection.
+    /// Selects a P4 document actor, clearing the legacy-entity selection and
+    /// every other selected actor.
     pub fn select_actor(&mut self, actor: Option<uuid::Uuid>) {
-        self.selected_actor = actor;
-        self.selected = actor.and_then(|id| self.scene.actor_index(id));
-        if actor.is_some() {
+        self.set_actor_selection(actor.into_iter().collect(), actor);
+        self.selection_anchor = actor;
+    }
+    /// Replaces the Hierarchy selection with `actors`, `primary` among them.
+    fn set_actor_selection(&mut self, actors: Vec<uuid::Uuid>, primary: Option<uuid::Uuid>) {
+        self.selected_actor = primary;
+        self.selected_actors = actors;
+        self.selected = primary.and_then(|id| self.scene.actor_index(id));
+        if primary.is_some() {
             self.selected_asset = None;
         }
         self.view_dirty = true;
+    }
+    /// The selection oldest first, or only the primary actor once something
+    /// selected it alone.
+    fn actor_selection(&self) -> Vec<uuid::Uuid> {
+        match self.selected_actor {
+            Some(primary) if self.selected_actors.contains(&primary) => {
+                self.selected_actors.clone()
+            }
+            primary => primary.into_iter().collect(),
+        }
+    }
+    /// Whether `id` is part of the Hierarchy selection.
+    pub fn is_actor_selected(&self, id: uuid::Uuid) -> bool {
+        self.selected_actor == Some(id)
+            || self
+                .selected_actor
+                .is_some_and(|p| self.selected_actors.contains(&p))
+                && self.selected_actors.contains(&id)
+    }
+    /// The selected actors in document order, the primary one included.
+    pub fn selected_actors(&self) -> Vec<uuid::Uuid> {
+        self.scene
+            .actors
+            .iter()
+            .map(|actor| actor.id)
+            .filter(|id| self.is_actor_selected(*id))
+            .collect()
+    }
+    /// What a Hierarchy command on `id` acts on: the whole selection when `id`
+    /// is part of it, otherwise `id` alone.
+    pub fn actor_command_targets(&self, id: uuid::Uuid) -> Vec<uuid::Uuid> {
+        if self.is_actor_selected(id) {
+            self.selected_actors()
+        } else {
+            vec![id]
+        }
+    }
+    /// The selection, when it holds several actors and the picked object is one
+    /// of them: what Ctrl+D and the Edit menu's Duplicate and Delete act on.
+    fn picked_actor_group(&self) -> Option<Vec<uuid::Uuid>> {
+        let picked = self.selected.and_then(|i| self.scene.actors.get(i))?.id;
+        let selection = self.selected_actors();
+        (self.is_actor_selected(picked) && selection.len() > 1).then_some(selection)
+    }
+    /// Ctrl+click: adds `id` to the selection as its primary actor, or takes it
+    /// out. Taking the primary out hands that role to the most recently
+    /// selected actor left.
+    pub fn toggle_actor_selection(&mut self, id: uuid::Uuid) {
+        let mut actors = self.actor_selection();
+        let primary = if let Some(at) = actors.iter().position(|a| *a == id) {
+            actors.remove(at);
+            self.selected_actor
+                .filter(|p| *p != id)
+                .or(actors.last().copied())
+        } else {
+            actors.push(id);
+            Some(id)
+        };
+        self.set_actor_selection(actors, primary);
+        self.selection_anchor = Some(id);
+    }
+    /// Shift+click: selects the rows from the anchor to `id`, where `rows` are
+    /// the actors the Hierarchy shows, top to bottom, and makes `id` primary.
+    /// `extend` (Ctrl held as well) adds the range to the selection instead of
+    /// replacing it. Without an anchor among `rows`, `id` is selected alone.
+    pub fn select_actor_range(&mut self, rows: &[uuid::Uuid], id: uuid::Uuid, extend: bool) {
+        let Some(end) = rows.iter().position(|row| *row == id) else {
+            self.select_actor(Some(id));
+            return;
+        };
+        let start = self
+            .selection_anchor
+            .and_then(|anchor| rows.iter().position(|row| *row == anchor))
+            .unwrap_or(end);
+        let mut actors = if extend {
+            self.actor_selection()
+        } else {
+            Vec::new()
+        };
+        for row in &rows[start.min(end)..=start.max(end)] {
+            if !actors.contains(row) {
+                actors.push(*row);
+            }
+        }
+        self.set_actor_selection(actors, Some(id));
+        // The next Shift+click re-ranges from the same row.
+        self.selection_anchor = Some(rows[start]);
+    }
+    /// Selects `id` and every actor whose logical parent chain reaches it,
+    /// keeping `id` primary.
+    pub fn select_actor_children(&mut self, id: uuid::Uuid) {
+        let branch = self.scene.actor_branch(id);
+        if branch.is_empty() {
+            return;
+        }
+        self.set_actor_selection(branch, Some(id));
+        self.selection_anchor = Some(id);
     }
     pub fn can_undo_scene(&self) -> bool {
         self.scene_history.can_undo() || !self.script_undo.is_empty()
@@ -1275,6 +1391,8 @@ impl Editor {
         self.selected_actor = self
             .selected_actor
             .filter(|id| self.scene.actors.iter().any(|actor| actor.id == *id));
+        self.selected_actors
+            .retain(|id| self.scene.actors.iter().any(|actor| actor.id == *id));
         self.rename = None;
         self.actor_rename = None;
         self.drag_2d = None;
@@ -1433,38 +1551,74 @@ impl Editor {
         candidate.actors[index].name = name.clone();
         self.commit_actor_edit(candidate, format!("Renamed actor to {name}."));
     }
-    /// Copies one actor and its logical branch, then selects the copy.
-    pub fn duplicate_actor(&mut self, id: uuid::Uuid) {
+    /// Copies each actor and its logical branch in one undo step, then selects
+    /// the copies of exactly `ids`. An actor whose logical ancestor is listed
+    /// too is copied with that ancestor's branch, never a second time.
+    pub fn duplicate_actors(&mut self, ids: &[uuid::Uuid]) {
         if !self.actor_editable() {
             return;
         }
         let mut candidate = self.scene.clone();
-        let copy = match candidate.duplicate_actor_branch(id) {
-            Ok(copy) => copy,
-            Err(error) => {
+        let mut copies = std::collections::BTreeMap::new();
+        for root in self.scene.actor_branch_roots(ids) {
+            // A branch is copied in document order and appended in that order.
+            let originals = candidate.actor_branch(root);
+            let first = candidate.actors.len();
+            if let Err(error) = candidate.duplicate_actor_branch(root) {
                 self.last_error = Some(error.clone());
                 self.log(error);
                 return;
             }
-        };
-        let name = candidate
-            .actors
+            copies.extend(
+                originals
+                    .into_iter()
+                    .zip(candidate.actors[first..].iter().map(|actor| actor.id)),
+            );
+        }
+        let selection: Vec<_> = ids
             .iter()
-            .find(|a| a.id == copy)
-            .map(|a| a.name.clone())
-            .unwrap_or_default();
-        if self.commit_actor_edit(candidate, format!("Duplicated actor as {name}.")) {
-            self.select_actor(Some(copy));
+            .filter_map(|id| copies.get(id).copied())
+            .collect();
+        let message = match selection.as_slice() {
+            [] => {
+                let error = "No actor selected".to_owned();
+                self.last_error = Some(error.clone());
+                self.log(error);
+                return;
+            }
+            [copy] => {
+                let name = candidate
+                    .actors
+                    .iter()
+                    .find(|a| a.id == *copy)
+                    .map(|a| a.name.clone())
+                    .unwrap_or_default();
+                format!("Duplicated actor as {name}.")
+            }
+            several => format!("Duplicated {} actors.", several.len()),
+        };
+        if self.commit_actor_edit(candidate, message) {
+            let primary = self
+                .selected_actor
+                .and_then(|id| copies.get(&id).copied())
+                .filter(|copy| selection.contains(copy))
+                .or(selection.last().copied());
+            self.set_actor_selection(selection, primary);
+            self.selection_anchor = primary;
         }
     }
-    /// Removes one actor, every actor whose logical parent chain reaches it, and
-    /// every attachment that pointed into the removed branch.
-    pub fn delete_actor(&mut self, id: uuid::Uuid) {
+    /// Removes each actor, every actor whose logical parent chain reaches it,
+    /// and every attachment that pointed into a removed branch, in one undo step.
+    pub fn delete_actors(&mut self, ids: &[uuid::Uuid]) {
         if !self.actor_editable() {
             return;
         }
         let mut candidate = self.scene.clone();
-        let removed = candidate.delete_actor_branch(id);
+        let mut removed = Vec::new();
+        for id in ids {
+            // An actor inside a branch removed before it is already gone.
+            removed.extend(candidate.delete_actor_branch(*id));
+        }
         if removed.is_empty() {
             // Deleting nothing is refused rather than recorded as an empty step.
             let error = "That actor is no longer in this map.".to_owned();
@@ -1481,10 +1635,19 @@ impl Editor {
                 format!("Deleted {count} actors.")
             },
         ) {
-            let selected = self
+            let mut kept = self.actor_selection();
+            kept.retain(|actor| !removed.contains(actor));
+            let primary = self
                 .selected_actor
-                .filter(|selected| !removed.contains(selected));
-            self.select_actor(selected);
+                .filter(|selected| !removed.contains(selected))
+                .or(kept.last().copied());
+            self.set_actor_selection(kept, primary);
+            if self
+                .selection_anchor
+                .is_some_and(|anchor| removed.contains(&anchor))
+            {
+                self.selection_anchor = primary;
+            }
             if self
                 .actor_rename
                 .as_ref()
@@ -1500,28 +1663,43 @@ impl Editor {
     /// same domain; across domains, and at the root, it is cleared. A parent that
     /// would close a cycle is refused by `Scene::validate_with_model`.
     pub fn reparent_actor(&mut self, child: uuid::Uuid, parent: Option<uuid::Uuid>) {
+        self.reparent_actors(&[child], parent);
+    }
+    /// Gives every actor of `children` the logical parent `parent`, as
+    /// [`Editor::reparent_actor`] does for one, in one undo step.
+    pub fn reparent_actors(&mut self, children: &[uuid::Uuid], parent: Option<uuid::Uuid>) {
         if !self.actor_editable() {
             return;
         }
-        if Some(child) == parent {
+        if parent.is_some_and(|parent| children.contains(&parent)) {
             let error = "An actor cannot be its own parent.".to_owned();
             self.last_error = Some(error.clone());
             self.log(error);
             return;
         }
-        let Some(index) = self.scene.actor_index(child) else {
-            return;
-        };
         let model = self.object_model();
-        let attach =
-            crate::mcp_tools::implied_attachment(model.as_deref(), &self.scene, child, parent);
         let mut candidate = self.scene.clone();
-        candidate.actors[index].logical_parent = parent;
-        candidate.actors[index].attach = attach;
-        let name = candidate.actors[index].name.clone();
-        let message = match parent.and_then(|p| candidate.actors.iter().find(|a| a.id == p)) {
-            Some(target) => format!("Parented {name} to {}.", target.name),
-            None => format!("Moved {name} to the map root."),
+        let mut moved = Vec::new();
+        for child in children {
+            let Some(index) = candidate.actor_index(*child) else {
+                continue;
+            };
+            // The attachment follows from the two actors' domains alone.
+            let attach =
+                crate::mcp_tools::implied_attachment(model.as_deref(), &self.scene, *child, parent);
+            candidate.actors[index].logical_parent = parent;
+            candidate.actors[index].attach = attach;
+            moved.push(candidate.actors[index].name.clone());
+        }
+        let target = parent
+            .and_then(|p| candidate.actors.iter().find(|a| a.id == p))
+            .map(|a| a.name.clone());
+        let message = match (moved.as_slice(), target) {
+            ([], _) => return,
+            ([name], Some(target)) => format!("Parented {name} to {target}."),
+            ([name], None) => format!("Moved {name} to the map root."),
+            (several, Some(target)) => format!("Parented {} actors to {target}.", several.len()),
+            (several, None) => format!("Moved {} actors to the map root.", several.len()),
         };
         self.commit_actor_edit(candidate, message);
     }
@@ -2819,7 +2997,9 @@ impl Editor {
                 }
             }
             "duplicate" => {
-                if let Some(i) = self.selected {
+                if let Some(group) = self.picked_actor_group() {
+                    self.duplicate_actors(&group);
+                } else if let Some(i) = self.selected {
                     let original_ids = (0..self.scene.actors.len())
                         .filter(|index| self.scene.is_descendant(*index, i))
                         .map(|index| self.scene.actors[index].id)
@@ -2852,7 +3032,9 @@ impl Editor {
                 }
             }
             "delete" => {
-                if let Some(i) = self.selected {
+                if let Some(group) = self.picked_actor_group() {
+                    self.delete_actors(&group);
+                } else if let Some(i) = self.selected {
                     self.scene.delete_branch(i);
                     self.selected_asset = None;
                     self.selected =
@@ -4172,7 +4354,7 @@ mod tests {
 
         // Duplicate copies the whole logical branch with fresh identities.
         let before = editor.scene.actors.len();
-        editor.duplicate_actor(hero);
+        editor.duplicate_actors(&[hero]);
         assert_eq!(editor.scene.actors.len(), before * 2);
         let copy = editor.selected_actor.unwrap();
         assert_ne!(copy, hero);
@@ -4194,16 +4376,16 @@ mod tests {
         );
 
         // Delete takes the branch and clears what pointed into it.
-        editor.delete_actor(copy);
+        editor.delete_actors(&[copy]);
         assert_eq!(editor.scene.actors.len(), before);
         editor.select_actor(Some(hero));
-        editor.delete_actor(hero);
+        editor.delete_actors(&[hero]);
         assert!(editor.scene.actors.is_empty());
         assert!(editor.selected_actor.is_none());
         assert!(editor.selected.is_none());
         // Deleting nothing is refused rather than recorded as an empty step.
         let before = editor.scene.clone();
-        editor.delete_actor(hero);
+        editor.delete_actors(&[hero]);
         assert_eq!(editor.scene, before);
         // Undo walks back through the whole sequence.
         editor.undo_scene().unwrap();
@@ -4284,6 +4466,151 @@ mod tests {
         let copy = editor.selected_actor.unwrap();
         assert_ne!(copy, hero);
         assert_eq!(editor.selected, editor.scene.actor_index(copy));
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+    /// Ctrl+click, Shift+click and Select Children build a selection; Duplicate,
+    /// Delete and Move to Map Root take all of it as one undo step each.
+    #[test]
+    fn a_selection_of_several_actors_duplicates_deletes_and_moves_in_one_step() {
+        let root = crate::workspace::tests::temp("actor-multi-selection");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.catalog = crate::mcp_tests::actor_catalog();
+        editor.class_registry =
+            crate::blueprint::registry_from_catalog(&editor.root, &editor.catalog);
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        let hero = editor.selected_actor.unwrap();
+        editor.create_actor("epok::Actor3D");
+        let crate_actor = editor.selected_actor.unwrap();
+        editor.create_actor("epok::Actor3D");
+        let lamp = editor.selected_actor.unwrap();
+        editor.create_actor_under("epok::Actor3D", Some(hero));
+        let child = editor.selected_actor.unwrap();
+        editor.create_actor_under("epok::Actor3D", Some(child));
+        let grandchild = editor.selected_actor.unwrap();
+        // The Hierarchy draws each branch under its parent.
+        let rows = [hero, child, grandchild, crate_actor, lamp];
+
+        // Ctrl+click adds an actor and makes it primary; a second Ctrl+click
+        // takes it out and hands the primary role back.
+        editor.select_actor(Some(hero));
+        editor.toggle_actor_selection(lamp);
+        assert_eq!(editor.selected_actors(), vec![hero, lamp]);
+        assert_eq!(editor.selected_actor, Some(lamp));
+        assert_eq!(editor.selected, editor.scene.actor_index(lamp));
+        assert!(editor.is_actor_selected(hero) && !editor.is_actor_selected(crate_actor));
+        editor.toggle_actor_selection(lamp);
+        assert_eq!(editor.selected_actors(), vec![hero]);
+        assert_eq!(editor.selected_actor, Some(hero));
+
+        // Shift+click selects the rows between the anchor and the clicked one,
+        // and the anchor stays for the next Shift+click.
+        editor.select_actor(Some(crate_actor));
+        editor.select_actor_range(&rows, child, false);
+        assert_eq!(
+            editor.selected_actors(),
+            vec![crate_actor, child, grandchild]
+        );
+        assert_eq!(editor.selected_actor, Some(child));
+        editor.select_actor_range(&rows, lamp, false);
+        assert_eq!(editor.selected_actors(), vec![crate_actor, lamp]);
+        // With Ctrl held as well the range is added to the selection.
+        editor.select_actor(Some(hero));
+        editor.toggle_actor_selection(grandchild);
+        editor.select_actor_range(&rows, crate_actor, true);
+        assert_eq!(
+            editor.selected_actors(),
+            vec![hero, crate_actor, grandchild]
+        );
+        // Selecting one actor some other way leaves a single selection.
+        editor.selected_actor = Some(lamp);
+        assert_eq!(editor.selected_actors(), vec![lamp]);
+
+        // Select Children takes the whole logical branch; the actor stays primary.
+        editor.select_actor_children(hero);
+        assert_eq!(editor.selected_actors(), vec![hero, child, grandchild]);
+        assert_eq!(editor.selected_actor, Some(hero));
+        assert_eq!(
+            editor.actor_command_targets(child),
+            vec![hero, child, grandchild]
+        );
+        assert_eq!(editor.actor_command_targets(lamp), vec![lamp]);
+
+        // Duplicate copies each selected branch once and selects the copies.
+        editor.toggle_actor_selection(lamp);
+        let before = editor.scene.clone();
+        editor.duplicate_actors(&editor.selected_actors());
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        assert_eq!(editor.scene.actors.len(), before.actors.len() + 4);
+        let copies = editor.selected_actors();
+        assert_eq!(copies.len(), 4);
+        assert!(
+            copies
+                .iter()
+                .all(|copy| before.actor_index(*copy).is_none())
+        );
+        let parent =
+            |e: &Editor, id| e.scene.actors[e.scene.actor_index(id).unwrap()].logical_parent;
+        let lamp_copy = editor.selected_actor.unwrap();
+        assert_eq!(
+            parent(&editor, lamp_copy),
+            None,
+            "The primary actor's copy is primary"
+        );
+        let copied_children: Vec<_> = copies
+            .iter()
+            .filter(|copy| parent(&editor, **copy).is_some_and(|p| copies.contains(&p)))
+            .collect();
+        assert_eq!(
+            copied_children.len(),
+            2,
+            "The copied branch keeps its shape"
+        );
+        editor.undo_scene().unwrap();
+        assert_eq!(
+            editor.scene, before,
+            "Duplicating the selection is one step"
+        );
+        // Ctrl+D runs the same command for the whole selection.
+        editor.select_actor(Some(crate_actor));
+        editor.toggle_actor_selection(lamp);
+        editor.action("duplicate");
+        assert_eq!(editor.scene.actors.len(), before.actors.len() + 2);
+        assert_eq!(editor.selected_actors().len(), 2);
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before);
+
+        // Move to Map Root moves every selected actor in one step.
+        editor.reparent_actor(lamp, Some(crate_actor));
+        let before = editor.scene.clone();
+        editor.select_actor(Some(child));
+        editor.toggle_actor_selection(lamp);
+        editor.reparent_actors(&editor.selected_actors(), None);
+        assert_eq!(parent(&editor, child), None);
+        assert_eq!(parent(&editor, lamp), None);
+        assert_eq!(parent(&editor, grandchild), Some(child));
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before, "Moving the selection is one step");
+
+        // Delete takes every selected branch, the Edit menu's Delete as well.
+        editor.select_actor(Some(child));
+        editor.toggle_actor_selection(lamp);
+        editor.delete_actors(&editor.selected_actors());
+        assert_eq!(editor.scene.actors.len(), before.actors.len() - 3);
+        assert!(editor.selected_actor.is_none() && editor.selected_actors().is_empty());
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before, "Deleting the selection is one step");
+        editor.select_actor(Some(hero));
+        editor.toggle_actor_selection(crate_actor);
+        editor.action("delete");
+        assert_eq!(editor.scene.actors.len(), 0, "The lamp went with the crate");
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before);
         drop(editor);
         if root.exists() {
             std::fs::remove_dir_all(root).unwrap();

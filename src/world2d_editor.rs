@@ -2016,12 +2016,12 @@ fn shortcuts(ui: &Ui, e: &mut Editor, views: &[View], size: [f32; 2], painting: 
     {
         // A selected path, line or polygon point goes first, then the node.
         if !crate::world2d_shapes_editor::delete_selected_point(e) {
-            e.delete_actor(selected);
+            e.delete_actors(&e.actor_command_targets(selected));
         }
         return;
     }
     if command && ui.is_key_pressed_no_repeat(imgui::Key::D) {
-        e.duplicate_actor(selected);
+        e.duplicate_actors(&e.actor_command_targets(selected));
         return;
     }
     let step = if io.key_shift {
@@ -2073,7 +2073,7 @@ fn context_menu(ui: &Ui, e: &mut Editor) {
                 .shortcut("Ctrl+D")
                 .build()
             {
-                e.duplicate_actor(selected);
+                e.duplicate_actors(&e.actor_command_targets(selected));
             }
             if ui
                 .menu_item_config(format!("{ICON_FRAME}  Frame Selection"))
@@ -2087,7 +2087,7 @@ fn context_menu(ui: &Ui, e: &mut Editor) {
                 .shortcut("Del")
                 .build()
             {
-                e.delete_actor(selected);
+                e.delete_actors(&e.actor_command_targets(selected));
             }
         }
         ui.separator();

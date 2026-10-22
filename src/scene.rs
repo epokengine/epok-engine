@@ -670,6 +670,33 @@ impl Scene {
             .filter(|id| branch.contains(id))
             .collect()
     }
+    /// The actors of `ids` that are in this map and have no logical ancestor in
+    /// `ids`, in document order: the roots of the branches `ids` covers.
+    pub fn actor_branch_roots(&self, ids: &[uuid::Uuid]) -> Vec<uuid::Uuid> {
+        let listed: BTreeSet<_> = ids.iter().copied().collect();
+        let parent_of: BTreeMap<_, _> = self
+            .actors
+            .iter()
+            .map(|actor| (actor.id, actor.logical_parent))
+            .collect();
+        self.actors
+            .iter()
+            .map(|actor| actor.id)
+            .filter(|id| listed.contains(id))
+            .filter(|id| {
+                // Bounded by the actor count, so a parent cycle ends the walk.
+                let mut current = parent_of[id];
+                for _ in 0..self.actors.len() {
+                    match current {
+                        Some(parent) if listed.contains(&parent) => return false,
+                        Some(parent) => current = parent_of.get(&parent).copied().flatten(),
+                        None => break,
+                    }
+                }
+                true
+            })
+            .collect()
+    }
     /// A name no actor and no entity of this map already uses, suffixed like
     /// [`Self::duplicate_branch`] does for actors.
     pub fn unique_actor_name(&self, base: &str) -> String {

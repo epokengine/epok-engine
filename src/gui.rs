@@ -1835,8 +1835,16 @@ fn actor_context<'a>(e: &Editor, classes: &'a [ActorClass]) -> ActorContext<'a> 
 struct ActorResult {
     /// `(child, new parent)`; `None` parent is the map root.
     reparent: Option<(uuid::Uuid, Option<uuid::Uuid>)>,
+    /// The clicked actor of Duplicate, Delete and Move to Map Root, which act
+    /// on the whole selection when the clicked actor is part of it.
     duplicate: Option<uuid::Uuid>,
     delete: Option<uuid::Uuid>,
+    to_root: Option<uuid::Uuid>,
+    select_children: Option<uuid::Uuid>,
+    /// `(clicked actor, Ctrl held)` of a Shift+click, applied once `rows` is complete.
+    select_range: Option<(uuid::Uuid, bool)>,
+    /// The selectable actor rows drawn this frame, top to bottom.
+    rows: Vec<uuid::Uuid>,
     rename: Option<uuid::Uuid>,
     rename_input_drawn: bool,
     /// `(parent, creation command)` picked in an actor's menu.
@@ -1882,12 +1890,17 @@ fn actor_node(
         }
         return;
     }
-    if e.selected_actor == Some(id) {
+    if e.is_actor_selected(id) {
         flags |= imgui::TreeNodeFlags::SELECTED;
     }
     let node = ui.tree_node_config(label).flags(flags).push();
+    out.rows.push(id);
     #[cfg(test)]
     record_script_control(ui, &format!("Hierarchy actor {id}"));
+    #[cfg(test)]
+    if flags.contains(imgui::TreeNodeFlags::SELECTED) {
+        record_script_control(ui, &format!("Hierarchy highlighted {id}"));
+    }
     // A 2D node that will not work as authored carries a warning sign at the row's end.
     let warnings = crate::world2d_warnings::of(&e.scene, index);
     let row = [ui.item_rect_min(), ui.item_rect_max()];
@@ -1927,9 +1940,17 @@ fn actor_node(
         }
     }
     if ui.is_item_clicked() && !ui.is_item_toggled_open() {
-        e.select_actor(Some(id));
-        if ui.is_mouse_double_clicked(imgui::MouseButton::Left) {
-            e.action("frame-selected");
+        // Shift selects a range of rows, Ctrl toggles one; a plain click
+        // selects this actor alone.
+        if ui.io().key_shift {
+            out.select_range = Some((id, ui.io().key_ctrl));
+        } else if ui.io().key_ctrl {
+            e.toggle_actor_selection(id);
+        } else {
+            e.select_actor(Some(id));
+            if ui.is_mouse_double_clicked(imgui::MouseButton::Left) {
+                e.action("frame-selected");
+            }
         }
     }
     if !e.playing {
@@ -1953,7 +1974,14 @@ fn actor_node(
     // results become this actor's children. Nothing here is explanatory text: a
     // command that does not apply stays in place, disabled, with a tooltip.
     if let Some(_popup) = ui.begin_popup_context_item() {
-        e.select_actor(Some(id));
+        // Right-clicking inside the selection keeps it, so the commands below
+        // reach every selected actor; elsewhere it selects this actor alone.
+        if e.is_actor_selected(id) {
+            e.selected_asset = None;
+        } else {
+            e.select_actor(Some(id));
+        }
+        let leaf = cx.children[index].is_empty();
         ui.disabled(e.playing, || {
             if ui.menu_item_config("Rename").shortcut("F2").build() {
                 out.rename = Some(id);
@@ -1968,15 +1996,34 @@ fn actor_node(
             if ui.menu_item_config("Delete").shortcut("Del").build() {
                 out.delete = Some(id);
             }
+            #[cfg(test)]
+            record_script_control(ui, "Hierarchy Delete");
+            if ui
+                .menu_item_config("Select Children")
+                .enabled(!leaf)
+                .build()
+            {
+                out.select_children = Some(id);
+            }
+            #[cfg(test)]
+            record_script_control(ui, "Hierarchy Select Children");
+            if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+                ui.tooltip_text(if leaf {
+                    "This actor has no children to select."
+                } else {
+                    "Select this actor and every actor under it."
+                });
+            }
             ui.separator();
             if ui.menu_item("Move to Map Root") {
-                out.reparent = Some((id, None));
+                out.to_root = Some(id);
             }
+            #[cfg(test)]
+            record_script_control(ui, "Hierarchy Move to Map Root");
             ui.separator();
             if ui.menu_item("Convert to Actor Blueprint...") {
                 crate::actor_workflow::begin_convert(e, id);
             }
-            let leaf = cx.children[index].is_empty();
             if ui
                 .menu_item_config(format!(
                     "{} Save as Dungeon Room...",
@@ -2196,14 +2243,23 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
             // Collapsing or filtering the branch must also end its hidden edit.
             e.finish_actor_rename(true);
         }
+        if let Some((id, extend)) = actor_out.select_range {
+            e.select_actor_range(&actor_out.rows, id, extend);
+        }
+        if let Some(id) = actor_out.select_children {
+            e.select_actor_children(id);
+        }
         if let Some((child, parent)) = actor_out.reparent {
             e.reparent_actor(child, parent);
         }
+        if let Some(id) = actor_out.to_root {
+            e.reparent_actors(&e.actor_command_targets(id), None);
+        }
         if let Some(id) = actor_out.duplicate {
-            e.duplicate_actor(id);
+            e.duplicate_actors(&e.actor_command_targets(id));
         }
         if let Some(id) = actor_out.delete {
-            e.delete_actor(id);
+            e.delete_actors(&e.actor_command_targets(id));
         }
         if let Some((parent, command)) = actor_out.create {
             e.create_child(command, parent);
@@ -2218,7 +2274,7 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
             // The Hierarchy's Delete key follows the selection, whichever kind
             // of node holds it.
             match e.selected_actor {
-                Some(id) => e.delete_actor(id),
+                Some(_) => e.delete_actors(&e.selected_actors()),
                 None => e.action("delete"),
             }
         }
@@ -3961,7 +4017,12 @@ mod interaction_tests {
         let point = |label: &str| {
             SCRIPT_BUTTONS
                 .with(|buttons| buttons.borrow().get(label).copied())
-                .unwrap_or_else(|| panic!("{label} was not drawn; drawn: {:?}", script_control_labels()))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{label} was not drawn; drawn: {:?}",
+                        script_control_labels()
+                    )
+                })
         };
         for _ in 0..3 {
             frame(&mut context, &mut editor);
@@ -3969,7 +4030,12 @@ mod interaction_tests {
         let row = point(&format!("Hierarchy actor {hero}"));
         click_at(&mut context, &mut editor, row, imgui::MouseButton::Right);
         let save_room = point("Hierarchy Save as Dungeon Room");
-        click_at(&mut context, &mut editor, save_room, imgui::MouseButton::Left);
+        click_at(
+            &mut context,
+            &mut editor,
+            save_room,
+            imgui::MouseButton::Left,
+        );
         assert!(
             script_control("Hierarchy Duplicate").is_some(),
             "A leaf's Save as Dungeon Room is disabled, so clicking it keeps the menu open"
@@ -3986,6 +4052,209 @@ mod interaction_tests {
         assert_ne!(child, hero);
         let index = editor.scene.actor_index(child).unwrap();
         assert_eq!(editor.scene.actors[index].logical_parent, Some(hero));
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    /// Shift+click and Ctrl+click select several Hierarchy rows, every one of
+    /// them highlighted; the actor menu then acts on all of them, and Select
+    /// Children is disabled on a leaf.
+    #[test]
+    fn hierarchy_multi_selection_highlights_rows_and_menu_commands_take_all_of_it() {
+        use std::collections::BTreeSet;
+        let mut context = crate::gui::tests::imgui_context();
+        configure_input(context.io_mut());
+        context.io_mut().display_size = [900., 650.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][###Hierarchy]\nPos=10,10\nSize=360,600\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("hierarchy-multi-selection");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.catalog = crate::mcp_tests::actor_catalog();
+        editor.class_registry =
+            crate::blueprint::registry_from_catalog(&editor.root, &editor.catalog);
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        let hero = editor.selected_actor.unwrap();
+        editor.create_actor("epok::Actor3D");
+        let crate_actor = editor.selected_actor.unwrap();
+        editor.create_actor("epok::Actor3D");
+        let lamp = editor.selected_actor.unwrap();
+        editor.create_actor_under("epok::Actor3D", Some(hero));
+        let child = editor.selected_actor.unwrap();
+        editor.select_actor(None);
+
+        fn frame(ctx: &mut imgui::Context, e: &mut Editor) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            let ui = ctx.frame();
+            hierarchy(ui, e);
+            ctx.render();
+        }
+        fn click_at(
+            ctx: &mut imgui::Context,
+            e: &mut Editor,
+            point: [f32; 2],
+            button: imgui::MouseButton,
+            modifier: Option<imgui::Key>,
+        ) {
+            if let Some(modifier) = modifier {
+                ctx.io_mut().add_key_event(modifier, true);
+            }
+            ctx.io_mut().add_mouse_pos_event(point);
+            for _ in 0..10 {
+                frame(ctx, e);
+            }
+            ctx.io_mut().add_mouse_button_event(button, true);
+            frame(ctx, e);
+            ctx.io_mut().add_mouse_button_event(button, false);
+            frame(ctx, e);
+            if let Some(modifier) = modifier {
+                ctx.io_mut().add_key_event(modifier, false);
+            }
+            frame(ctx, e);
+        }
+        let point = |label: &str| {
+            SCRIPT_BUTTONS
+                .with(|buttons| buttons.borrow().get(label).copied())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{label} was not drawn; drawn: {:?}",
+                        script_control_labels()
+                    )
+                })
+        };
+        let row = |id: uuid::Uuid| point(&format!("Hierarchy actor {id}"));
+        let highlighted = || {
+            script_control_labels()
+                .iter()
+                .filter_map(|label| label.strip_prefix("Hierarchy highlighted "))
+                .map(|id| id.parse::<uuid::Uuid>().unwrap())
+                .collect::<BTreeSet<_>>()
+        };
+        let left = imgui::MouseButton::Left;
+        let right = imgui::MouseButton::Right;
+        for _ in 0..3 {
+            frame(&mut context, &mut editor);
+        }
+
+        // Rows read hero, its child, crate, lamp. A plain click, then Shift.
+        click_at(&mut context, &mut editor, row(child), left, None);
+        click_at(
+            &mut context,
+            &mut editor,
+            row(crate_actor),
+            left,
+            Some(imgui::Key::ModShift),
+        );
+        assert_eq!(editor.selected_actors(), vec![crate_actor, child]);
+        assert_eq!(editor.selected_actor, Some(crate_actor));
+        assert_eq!(highlighted(), BTreeSet::from([crate_actor, child]));
+        click_at(
+            &mut context,
+            &mut editor,
+            row(lamp),
+            left,
+            Some(imgui::Key::ModCtrl),
+        );
+        assert_eq!(editor.selected_actors(), vec![crate_actor, lamp, child]);
+        assert_eq!(
+            editor.selected_actor,
+            Some(lamp),
+            "Ctrl+click makes the actor primary"
+        );
+        assert_eq!(highlighted(), BTreeSet::from([crate_actor, lamp, child]));
+
+        // Right-clicking inside the selection keeps it; Move to Map Root takes
+        // every selected actor in one step.
+        let before = editor.scene.clone();
+        click_at(&mut context, &mut editor, row(crate_actor), right, None);
+        assert_eq!(editor.selected_actors().len(), 3);
+        click_at(
+            &mut context,
+            &mut editor,
+            point("Hierarchy Move to Map Root"),
+            left,
+            None,
+        );
+        let parent =
+            |e: &Editor, id| e.scene.actors[e.scene.actor_index(id).unwrap()].logical_parent;
+        assert_eq!(parent(&editor, child), None);
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before, "Moving the selection is one step");
+        frame(&mut context, &mut editor);
+
+        // Duplicate copies the three selected actors in one step.
+        click_at(&mut context, &mut editor, row(crate_actor), right, None);
+        click_at(
+            &mut context,
+            &mut editor,
+            point("Hierarchy Duplicate"),
+            left,
+            None,
+        );
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        assert_eq!(editor.scene.actors.len(), before.actors.len() + 3);
+        assert_eq!(editor.selected_actors().len(), 3, "The copies are selected");
+        let copies = highlighted();
+        assert_eq!(copies.len(), 3, "Every copy is highlighted");
+        assert!(copies.iter().all(|id| before.actor_index(*id).is_none()));
+        editor.undo_scene().unwrap();
+        assert_eq!(
+            editor.scene, before,
+            "Duplicating the selection is one step"
+        );
+        frame(&mut context, &mut editor);
+
+        // Right-clicking outside the selection selects that actor alone. A leaf's
+        // Select Children is disabled: clicking it keeps the menu open.
+        editor.select_actor(Some(lamp));
+        editor.toggle_actor_selection(crate_actor);
+        frame(&mut context, &mut editor);
+        click_at(&mut context, &mut editor, row(child), right, None);
+        assert_eq!(editor.selected_actors(), vec![child]);
+        click_at(
+            &mut context,
+            &mut editor,
+            point("Hierarchy Select Children"),
+            left,
+            None,
+        );
+        assert_eq!(editor.selected_actors(), vec![child]);
+        assert!(
+            script_control("Hierarchy Delete").is_some(),
+            "A leaf's Select Children is disabled, so clicking it keeps the menu open"
+        );
+        click_at(&mut context, &mut editor, [180., 500.], left, None);
+
+        // Select Children takes the clicked actor's branch, and Delete in the
+        // Hierarchy removes the whole selection in one step.
+        click_at(&mut context, &mut editor, row(hero), right, None);
+        click_at(
+            &mut context,
+            &mut editor,
+            point("Hierarchy Select Children"),
+            left,
+            None,
+        );
+        assert_eq!(editor.selected_actors(), vec![hero, child]);
+        assert_eq!(editor.selected_actor, Some(hero));
+        assert_eq!(highlighted(), BTreeSet::from([hero, child]));
+        click_at(&mut context, &mut editor, [180., 500.], left, None);
+        context.io_mut().add_key_event(imgui::Key::Delete, true);
+        frame(&mut context, &mut editor);
+        context.io_mut().add_key_event(imgui::Key::Delete, false);
+        frame(&mut context, &mut editor);
+        assert_eq!(editor.scene.actors.len(), before.actors.len() - 2);
+        assert!(editor.selected_actors().is_empty());
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before, "Deleting the selection is one step");
         drop(editor);
         if root.exists() {
             std::fs::remove_dir_all(root).unwrap();
