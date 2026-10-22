@@ -1547,7 +1547,10 @@ fn creation_menu(
             }
         }
     }
-    if let Some(_menu) = ui.begin_menu("Actor") {
+    let actor_menu = ui.begin_menu("Actor");
+    #[cfg(test)]
+    record_script_control(ui, "Create Actor menu");
+    if let Some(_menu) = actor_menu {
         if actors.is_empty() {
             ui.text_disabled("No placeable classes");
             muted(ui, "Reflection data for this project did not resolve.");
@@ -1561,16 +1564,19 @@ fn creation_menu(
                 if !actors.iter().any(|c| c.domain == domain) {
                     continue;
                 }
-                if let Some(_group) = ui.begin_menu(group) {
+                let group_menu = ui.begin_menu(group);
+                #[cfg(test)]
+                record_script_control(ui, &format!("Create group {group}"));
+                if let Some(_group) = group_menu {
                     for class in actors.iter().filter(|c| c.domain == domain) {
                         if ui.menu_item(&class.label) {
                             *actor = Some(class.class.clone());
                         }
+                        #[cfg(test)]
+                        record_script_control(ui, &format!("Create {}", class.class));
                     }
                 }
             }
-            ui.separator();
-            ui.text_disabled("Actors are created at the map root");
         }
     }
     action
@@ -1753,15 +1759,18 @@ fn hierarchy_node(
     }
 }
 /// Domain-filtered document actors, drawn under the legacy actors.
-struct ActorContext {
+struct ActorContext<'a> {
     children: Vec<Vec<usize>>,
     visible: Vec<bool>,
     in_domain: Vec<bool>,
     passthrough: Vec<bool>,
     resolved: Vec<bool>,
     roots: Vec<usize>,
+    /// The view mode and placeable classes the actor menu's creation items offer.
+    mode: crate::reflection_schema::Domain,
+    classes: &'a [ActorClass],
 }
-fn actor_context(e: &Editor) -> ActorContext {
+fn actor_context<'a>(e: &Editor, classes: &'a [ActorClass]) -> ActorContext<'a> {
     let actors = &e.scene.actors;
     let model = e.object_model();
     let mode = e.scene_view_mode.domain();
@@ -1774,6 +1783,8 @@ fn actor_context(e: &Editor) -> ActorContext {
         passthrough: vec![false; actors.len()],
         resolved: vec![false; actors.len()],
         roots: Vec::new(),
+        mode,
+        classes,
     };
     let mut parent = vec![None; actors.len()];
     for (i, actor) in actors.iter().enumerate() {
@@ -1828,6 +1839,10 @@ struct ActorResult {
     delete: Option<uuid::Uuid>,
     rename: Option<uuid::Uuid>,
     rename_input_drawn: bool,
+    /// `(parent, creation command)` picked in an actor's menu.
+    create: Option<(uuid::Uuid, &'static str)>,
+    /// `(parent, actor class)` picked in an actor's menu.
+    create_class: Option<(uuid::Uuid, String)>,
 }
 fn actor_node(
     ui: &imgui::Ui,
@@ -1934,6 +1949,9 @@ fn actor_node(
             out.reparent = Some((child, Some(id)));
         }
     }
+    // Edit commands with their shortcuts, then structure, then creation, whose
+    // results become this actor's children. Nothing here is explanatory text: a
+    // command that does not apply stays in place, disabled, with a tooltip.
     if let Some(_popup) = ui.begin_popup_context_item() {
         e.select_actor(Some(id));
         ui.disabled(e.playing, || {
@@ -1942,38 +1960,49 @@ fn actor_node(
             }
             #[cfg(test)]
             record_script_control(ui, "Hierarchy Rename");
-            ui.separator();
-            if ui.menu_item("Duplicate") {
+            if ui.menu_item_config("Duplicate").shortcut("Ctrl+D").build() {
                 out.duplicate = Some(id);
             }
-            if ui.menu_item("Delete") {
+            #[cfg(test)]
+            record_script_control(ui, "Hierarchy Duplicate");
+            if ui.menu_item_config("Delete").shortcut("Del").build() {
                 out.delete = Some(id);
-            }
-            if !cx.children[index].is_empty() {
-                ui.text_disabled("Duplicate / Delete includes child actors");
             }
             ui.separator();
             if ui.menu_item("Move to Map Root") {
                 out.reparent = Some((id, None));
             }
-            ui.text_disabled("Parent by dragging an actor onto another");
             ui.separator();
-            if ui.menu_item("Instantiate Child Actor...") {
-                e.action("instantiate-child-actor");
-            }
             if ui.menu_item("Convert to Actor Blueprint...") {
                 crate::actor_workflow::begin_convert(e, id);
             }
-            if !cx.children[index].is_empty() {
-                if ui.menu_item(format!(
+            let leaf = cx.children[index].is_empty();
+            if ui
+                .menu_item_config(format!(
                     "{} Save as Dungeon Room...",
                     crate::dungeon_room_editor::ICON
-                )) {
-                    crate::dungeon_room_editor::save_selection(e, id);
-                }
-                if ui.is_item_hovered() {
-                    ui.tooltip_text("Make this actor's children a room the Dungeon Generator can place, from this actor's origin towards +X and +Z.");
-                }
+                ))
+                .enabled(!leaf)
+                .build()
+            {
+                crate::dungeon_room_editor::save_selection(e, id);
+            }
+            #[cfg(test)]
+            record_script_control(ui, "Hierarchy Save as Dungeon Room");
+            if ui.is_item_hovered_with_flags(imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+                ui.tooltip_text(if leaf {
+                    "A room is made from an actor's children; this actor has none."
+                } else {
+                    "Make this actor's children a room the Dungeon Generator can place, from this actor's origin towards +X and +Z."
+                });
+            }
+            ui.separator();
+            let mut class = None;
+            if let Some(command) = creation_menu(ui, true, cx.mode, cx.classes, &mut class) {
+                out.create = Some((id, command));
+            }
+            if let Some(class) = class {
+                out.create_class = Some((id, class));
             }
         });
     }
@@ -2099,7 +2128,7 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
                 });
             }
             if let Some(_scene) = scene_node {
-                let actor_cx = actor_context(e);
+                let actor_cx = actor_context(e, &actors);
                 if !actor_cx.roots.is_empty() {
                     for root in actor_cx.roots.clone() {
                         actor_node(ui, e, root, &actor_cx, &mut actor_out);
@@ -2175,6 +2204,12 @@ pub(crate) fn hierarchy(ui: &imgui::Ui, e: &mut Editor) {
         }
         if let Some(id) = actor_out.delete {
             e.delete_actor(id);
+        }
+        if let Some((parent, command)) = actor_out.create {
+            e.create_child(command, parent);
+        }
+        if let Some((parent, class)) = actor_out.create_class {
+            e.create_actor_under(&class, Some(parent));
         }
         if ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS)
             && !ui.io().want_text_input
@@ -3871,6 +3906,90 @@ mod interaction_tests {
             "Leaf rows also frame on double click"
         );
         assert!(editor.actor_rename.is_none());
+    }
+
+    /// The actor menu keeps Save as Dungeon Room in place, disabled on a leaf,
+    /// and what its Actor submenu creates becomes the clicked actor's child.
+    #[test]
+    fn actor_context_menu_disables_leaf_room_and_creates_children() {
+        let mut context = crate::gui::tests::imgui_context();
+        configure_input(context.io_mut());
+        context.io_mut().display_size = [900., 650.];
+        context.io_mut().delta_time = 1. / 60.;
+        context
+            .fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        context.fonts().build_rgba32_texture();
+        context.load_ini_settings("[Window][###Hierarchy]\nPos=10,10\nSize=360,600\nCollapsed=0\n");
+        let root = crate::workspace::tests::temp("hierarchy-actor-menu");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.catalog = crate::mcp_tests::actor_catalog();
+        editor.class_registry =
+            crate::blueprint::registry_from_catalog(&editor.root, &editor.catalog);
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        let hero = editor.selected_actor.unwrap();
+        editor.select_actor(None);
+
+        fn frame(ctx: &mut imgui::Context, e: &mut Editor) {
+            SCRIPT_BUTTONS.with(|buttons| buttons.borrow_mut().clear());
+            let ui = ctx.frame();
+            hierarchy(ui, e);
+            ctx.render();
+        }
+        fn hover(ctx: &mut imgui::Context, e: &mut Editor, point: [f32; 2]) {
+            ctx.io_mut().add_mouse_pos_event(point);
+            for _ in 0..10 {
+                frame(ctx, e);
+            }
+        }
+        fn click_at(
+            ctx: &mut imgui::Context,
+            e: &mut Editor,
+            point: [f32; 2],
+            button: imgui::MouseButton,
+        ) {
+            hover(ctx, e, point);
+            ctx.io_mut().add_mouse_button_event(button, true);
+            frame(ctx, e);
+            ctx.io_mut().add_mouse_button_event(button, false);
+            frame(ctx, e);
+            frame(ctx, e);
+        }
+        let point = |label: &str| {
+            SCRIPT_BUTTONS
+                .with(|buttons| buttons.borrow().get(label).copied())
+                .unwrap_or_else(|| panic!("{label} was not drawn; drawn: {:?}", script_control_labels()))
+        };
+        for _ in 0..3 {
+            frame(&mut context, &mut editor);
+        }
+        let row = point(&format!("Hierarchy actor {hero}"));
+        click_at(&mut context, &mut editor, row, imgui::MouseButton::Right);
+        let save_room = point("Hierarchy Save as Dungeon Room");
+        click_at(&mut context, &mut editor, save_room, imgui::MouseButton::Left);
+        assert!(
+            script_control("Hierarchy Duplicate").is_some(),
+            "A leaf's Save as Dungeon Room is disabled, so clicking it keeps the menu open"
+        );
+
+        let count = editor.scene.actors.len();
+        hover(&mut context, &mut editor, point("Create Actor menu"));
+        hover(&mut context, &mut editor, point("Create group 3D"));
+        let class = point("Create epok::Actor3D");
+        click_at(&mut context, &mut editor, class, imgui::MouseButton::Left);
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        assert_eq!(editor.scene.actors.len(), count + 1);
+        let child = editor.selected_actor.unwrap();
+        assert_ne!(child, hero);
+        let index = editor.scene.actor_index(child).unwrap();
+        assert_eq!(editor.scene.actors[index].logical_parent, Some(hero));
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
     }
 
     #[test]

@@ -112,6 +112,8 @@ are undone first when they are the most recent change.
 
 Create cubes or empty entities through GameObject or the Hierarchy context menu. A context menu on an entity can create a child; a menu on empty space creates a root. New entities become selected and their parent branches expand.
 
+The context menu on an actor lists **Rename** (F2), **Duplicate** (Ctrl+D) and **Delete** (Del) first, then **Move to Map Root**, **Convert to Actor Blueprint...** and **Save as Dungeon Room...**, then the creation items. Everything created from it (Instantiate Child Actor..., a class from **Actor**, a **2D Node**) becomes that actor's child in one undo step; a parent of the same domain carries the child at its origin. UI widgets go under the actor when it is a UI element, otherwise under a Canvas. Save as Dungeon Room stays visible but disabled on an actor without children.
+
 Rename by double-clicking the name, pressing F2 or using Rename. Enter or leaving the field confirms; Escape cancels. Empty names are rejected. Duplicate and Delete affect the entire branch.
 
 Drag an entity onto another to reparent it while preserving its world transform. Drop it on the scene header or empty hierarchy space to make it a root. The Parent inspector field offers the same relationship control. Parent > Keep Local changes the parent while retaining local values.

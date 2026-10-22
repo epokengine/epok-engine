@@ -881,15 +881,39 @@ fn unique_name(e: &Editor, base: &str) -> String {
 }
 /// Creates a 2D node at a world position, selects it and records one undo step.
 pub fn create_node(e: &mut Editor, preset: Preset, position: [f32; 2]) -> Option<Uuid> {
+    create_node_under(e, preset, position, None)
+}
+/// Creates a 2D node as `parent`'s child (`None` is the map root). A 2D parent
+/// carries the node at its own origin; any other parent only groups it, so the
+/// node stays at `position` in the world.
+pub fn create_node_under(
+    e: &mut Editor,
+    preset: Preset,
+    position: [f32; 2],
+    parent: Option<Uuid>,
+) -> Option<Uuid> {
     if e.playing {
         e.log("Stop the emulator before editing.");
         return None;
     }
     let name = unique_name(e, preset.label());
-    let actor = world2d::create(preset, &name, position.map(|v| v.round()));
+    let mut actor = world2d::create(preset, &name, position.map(|v| v.round()));
     let id = actor.id;
+    actor.logical_parent = parent;
     e.scene.actors.push(actor);
     let model = e.object_model();
+    if parent.is_some() {
+        let attach = crate::mcp_tools::implied_attachment(model.as_deref(), &e.scene, id, parent);
+        let actor = e.scene.actors.last_mut().expect("the node was just added");
+        if attach.is_some()
+            && let Some(root) = actor.components.iter_mut().find(|c| c.root)
+        {
+            root.properties
+                .insert("position".into(), serde_json::json!([0., 0.]));
+        }
+        actor.attach = attach;
+        e.scene.refresh_actor_hierarchy();
+    }
     if let Err(error) = e.scene.validate_with_model(model.as_deref()) {
         e.scene.actors.retain(|a| a.id != id);
         e.last_error = Some(error.clone());

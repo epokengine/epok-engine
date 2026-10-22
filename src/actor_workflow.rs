@@ -133,9 +133,8 @@ pub fn draw(ui: &imgui::Ui, e: &mut Editor) {
         if let Some(class)=selected {ui.text(format!("Class: {}",class.cpp_name));}
         let disabled=ui.begin_disabled(e.playing || selected.is_none_or(|c|!c.instantiable() || !c.placement.placeable));
         if crate::gui::script_button(ui,"Instantiate") {
-            e.create_actor(&state.class);
+            e.create_actor_under(&state.class,state.parent);
             if e.last_error.is_none() {
-                if let Some(id)=e.selected_actor && state.parent.is_some() {e.reparent_actor(id,state.parent);}
                 ui.close_current_popup();
             } else {state.error=e.last_error.clone();}
         }

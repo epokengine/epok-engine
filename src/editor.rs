@@ -1287,14 +1287,20 @@ impl Editor {
         self.dirty = true;
         self.view_dirty = true;
     }
-    /// Appends a P4 document actor of `class` and selects it.
+    /// Appends a P4 document actor of `class` at the map root and selects it.
+    pub fn create_actor(&mut self, class: &str) {
+        self.create_actor_under(class, None);
+    }
+    /// Appends a P4 document actor of `class` under `parent` (`None` is the map
+    /// root) and selects it, in one undo step.
     ///
     /// The components come from the class chain's `EPOK_COMPONENT` defaults; a
     /// class that declares none still gets the root component its domain
     /// requires (design.md section 2), so the actor is valid the moment it
-    /// exists. The scene is validated against the model and rolled back on
-    /// failure, exactly like entity creation.
-    pub fn create_actor(&mut self, class: &str) {
+    /// exists. A parent of the same domain carries the actor at its origin, as
+    /// `reparent_actor` would. The scene is validated against the model and
+    /// rolled back on failure, exactly like entity creation.
+    pub fn create_actor_under(&mut self, class: &str, parent: Option<uuid::Uuid>) {
         if self.playing {
             self.log("Stop the emulator before editing.");
             return;
@@ -1303,6 +1309,7 @@ impl Editor {
             self.last_error = Some("The class model is unavailable; reload the project.".into());
             return;
         };
+        let original = self.scene.clone();
         let before = self.scene.actors.len();
         let placed = place_class(
             &mut self.scene,
@@ -1321,12 +1328,20 @@ impl Editor {
         };
         let id = self.scene.actors[index].id;
         let name = self.scene.actors[index].name.clone();
-        // A Blueprint template placement validated itself; a plain actor is checked here.
-        if index + 1 == self.scene.actors.len()
-            && self.scene.actors.len() == before + 1
+        if parent.is_some() {
+            let attach =
+                crate::mcp_tools::implied_attachment(Some(&model), &self.scene, id, parent);
+            self.scene.actors[index].logical_parent = parent;
+            self.scene.actors[index].attach = attach;
+            self.scene.refresh_actor_hierarchy();
+        }
+        // A Blueprint template placement validated itself; a plain actor, and a
+        // template given a parent, is checked here.
+        let plain = index + 1 == self.scene.actors.len() && self.scene.actors.len() == before + 1;
+        if (plain || parent.is_some())
             && let Err(error) = self.scene.validate_with_model(Some(&model))
         {
-            self.scene.actors.retain(|a| a.id != id);
+            self.scene = original;
             self.last_error = Some(error.clone());
             self.log(error);
             return;
@@ -1336,6 +1351,24 @@ impl Editor {
         self.search.clear();
         self.changed();
         self.log(format!("Created {name} ({class})."));
+    }
+    /// Runs a creation command from an actor's Hierarchy menu so that what it
+    /// creates becomes that actor's child. The commands that already read the
+    /// selection as their parent (Instantiate Child Actor, UI widgets) get
+    /// `parent` selected first.
+    pub fn create_child(&mut self, command: &str, parent: uuid::Uuid) {
+        self.select_actor(Some(parent));
+        if let Some(label) = command.strip_prefix("create-node2d-")
+            && let Some(preset) = crate::world2d::Preset::ALL
+                .into_iter()
+                .find(|p| p.label() == label)
+        {
+            self.set_scene_view_mode(crate::scene_view_mode::SceneViewMode::TwoD);
+            let centre = self.view_2d.centre;
+            crate::world2d_editor::create_node_under(self, preset, centre, Some(parent));
+            return;
+        }
+        self.action(command);
     }
     // -----------------------------------------------------------------------
     // Actor operations (P11). Every one of them ends in `changed()`, so the map
@@ -2635,14 +2668,15 @@ impl Editor {
             entity.name = format!("{base}.{suffix:03}");
             suffix += 1;
         }
+        let id = entity.id;
         self.scene.actors.push(entity);
         if let Err(error) = self.scene.validate() {
             self.scene = original;
             self.log(error);
             return;
         }
-        self.selected_asset = None;
-        self.selected = Some(self.scene.actors.len() - 1);
+        // The Hierarchy highlights by actor identity, so the widget is selected as one.
+        self.select_actor(Some(id));
         self.reveal_selected = true;
         self.search.clear();
         self.set_scene_2d(true);
@@ -2803,8 +2837,14 @@ impl Editor {
                                 &identities,
                                 &self.class_registry,
                             );
-                            self.selected_asset = None;
-                            self.selected = Some(index);
+                            // Ctrl+D on an actor picked in the Hierarchy selects
+                            // the copy there, as the Hierarchy's Duplicate does.
+                            if self.selected_actor.is_some() {
+                                self.select_actor(Some(self.scene.actors[index].id));
+                            } else {
+                                self.selected_asset = None;
+                                self.selected = Some(index);
+                            }
                             self.changed();
                         }
                         Err(error) => self.log(error),
@@ -4168,6 +4208,82 @@ mod tests {
         // Undo walks back through the whole sequence.
         editor.undo_scene().unwrap();
         assert!(!editor.scene.actors.is_empty());
+        drop(editor);
+        if root.exists() {
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+    /// What an actor's Hierarchy menu creates becomes that actor's child in one
+    /// undo step, and Ctrl+D selects the copy like the menu's Duplicate.
+    #[test]
+    fn actor_menu_creates_children_in_one_step_and_ctrl_d_selects_the_copy() {
+        let root = crate::workspace::tests::temp("actor-menu-children");
+        let mut editor = Editor::new(root.clone());
+        editor.auto_build = false;
+        editor.scene.actors.clear();
+        editor.catalog = crate::mcp_tests::actor_catalog();
+        editor.class_registry =
+            crate::blueprint::registry_from_catalog(&editor.root, &editor.catalog);
+        editor.registry_revision += 1;
+        editor.create_actor("epok::Actor3D");
+        let hero = editor.selected_actor.unwrap();
+        editor.create_actor("epok::Actor2D");
+        let sprite = editor.selected_actor.unwrap();
+        let actor = |e: &Editor, id| e.scene.actors[e.scene.actor_index(id).unwrap()].clone();
+
+        let before = editor.scene.clone();
+        editor.create_actor_under("epok::Actor3D", Some(hero));
+        assert!(editor.last_error.is_none(), "{:?}", editor.last_error);
+        let child = editor.selected_actor.unwrap();
+        assert_eq!(actor(&editor, child).logical_parent, Some(hero));
+        assert_eq!(
+            actor(&editor, child).attach.map(|a| a.actor),
+            Some(hero),
+            "A parent of the same domain carries the child"
+        );
+        editor.undo_scene().unwrap();
+        assert_eq!(editor.scene, before, "Creation and parenting are one step");
+
+        // A 2D node under a 2D actor sits at its origin; under a 3D actor it is
+        // only grouped and stays where the 2D view was looking.
+        editor.view_2d.centre = [40., -24.];
+        editor.create_child("create-node2d-Node2D", sprite);
+        let node = editor.selected_actor.unwrap();
+        assert_ne!(node, sprite);
+        let placed = actor(&editor, node);
+        assert_eq!(placed.logical_parent, Some(sprite));
+        assert_eq!(placed.attach.as_ref().map(|a| a.actor), Some(sprite));
+        let local = crate::scene_view_mode::read_transform_2d(&placed.root().unwrap().properties);
+        assert_eq!(local.position, [0., 0.]);
+        editor.create_child("create-node2d-Node2D", hero);
+        let grouped = actor(&editor, editor.selected_actor.unwrap());
+        assert_eq!(grouped.logical_parent, Some(hero));
+        assert!(grouped.attach.is_none());
+        let world = crate::scene_view_mode::read_transform_2d(&grouped.root().unwrap().properties);
+        assert_eq!(world.position, [40., -24.]);
+
+        // A UI widget goes under the clicked UI actor.
+        editor.create_actor("epok::UIActor");
+        let panel = editor.selected_actor.unwrap();
+        editor.select_actor(Some(hero));
+        editor.create_child("ui-button", panel);
+        let button = editor.selected_actor.unwrap();
+        assert_ne!(button, panel, "The new widget is selected");
+        assert_eq!(editor.selected, editor.scene.actor_index(button));
+        assert_eq!(actor(&editor, button).logical_parent, Some(panel));
+
+        // Instantiate Child Actor opens the class dialog for the clicked actor.
+        editor.select_actor(Some(sprite));
+        editor.create_child("instantiate-child-actor", hero);
+        assert!(editor.actor_creation.requested);
+        assert_eq!(editor.actor_creation.parent, Some(hero));
+
+        // Ctrl+D runs the "duplicate" action; it selects the copy in the Hierarchy.
+        editor.select_actor(Some(hero));
+        editor.action("duplicate");
+        let copy = editor.selected_actor.unwrap();
+        assert_ne!(copy, hero);
+        assert_eq!(editor.selected, editor.scene.actor_index(copy));
         drop(editor);
         if root.exists() {
             std::fs::remove_dir_all(root).unwrap();

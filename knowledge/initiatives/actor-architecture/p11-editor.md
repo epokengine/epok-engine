@@ -84,16 +84,19 @@ index in `scene.actors`, resolved to its UUID in the same frame). The drag toolt
 | Affordance | Effect |
 | --- | --- |
 | double-click, or context menu **Rename** | inline `input_text` over the node, exactly like an entity rename: Enter or blur commits, Escape discards, an empty or unchanged name is a no-op |
-| context menu **Duplicate** | copies the actor and its whole logical branch |
-| context menu **Delete** | removes the actor and its whole logical branch |
+| context menu **Duplicate** (Ctrl+D) | copies the actor and its whole logical branch |
+| context menu **Delete** (Del) | removes the actor and its whole logical branch |
 | context menu **Move to Map Root** | `logical_parent = None`, `attach = None` |
+| context menu creation items (Instantiate Child Actor..., **Actor**, **2D Node**, **UI**) | create the new actor as the clicked actor's child in one undo step, with `attach` set by the reparent rules below |
 | context menu **Convert class...** | permanently disabled (see below) |
 | drag an actor onto another actor | reparents the dragged actor under the drop target |
 | drag an actor onto the empty area below the tree | moves it to the map root |
 | `Delete` key while the Hierarchy has focus | deletes the selected actor when the selection is an actor, otherwise the selected entity, as before |
 
-The grey line *"Duplicate / Delete includes child actors"* appears when the actor has
-children. Opening the context menu selects the actor, as the entity menu does.
+The menu carries no explanatory text lines; commands
+that do not apply, such as **Save as Dungeon Room...** on an actor without children, stay
+in place disabled with a tooltip. Opening the context menu selects the actor, as the entity
+menu does.
 
 ### Reparent rules
 
