@@ -54,6 +54,7 @@ pub fn command(
 enum Mode {
     Setup,
     Monitor,
+    MonitorHostData,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -85,6 +86,31 @@ struct Pending {
     request: Request,
     since: Instant,
     reply: Vec<u8>,
+}
+
+#[derive(Default)]
+struct StartupReads {
+    line: String,
+    reading: bool,
+    completed: bool,
+}
+impl StartupReads {
+    fn observe(&mut self, chunk: &str) {
+        for c in chunk.chars() {
+            if c == '\r' || c == '\n' {
+                let line = self.line.trim();
+                if line == "Got function code: PCREAD_105" || line.starts_with("PCRead(") {
+                    self.reading = true;
+                } else if self.reading && line == "Send finished!" {
+                    self.reading = false;
+                    self.completed = true;
+                }
+                self.line.clear();
+            } else if self.line.len() < 1024 {
+                self.line.push(c);
+            }
+        }
+    }
 }
 impl Pending {
     fn new(request: Request) -> Self {
@@ -135,7 +161,9 @@ fn execute(
     let mut probing = false;
     let mut uploaded = false;
     let mut runtime_ready = false;
+    let mut startup_ready = mode != Mode::MonitorHostData;
     let mut monitor_ready = false;
+    let mut startup_reads = StartupReads::default();
     let result = loop {
         match terminal.poll() {
             Ok(status) => exited = status.or(exited),
@@ -151,10 +179,12 @@ fn execute(
             chunks += 1;
             let _ = tx.send(Event::Log(chunk.trim().to_owned()));
             transcript.push_str(&chunk);
+            startup_reads.observe(&chunk);
             uploaded |= transcript
                 .lines()
                 .any(|line| line.trim() == "Send finished!");
             runtime_ready |= transcript.contains("EPOK: runtime ready");
+            startup_ready |= transcript.contains("EPOK: startup ready");
             monitor_ready |= transcript.contains("2-way Serial monitor active");
             if let Some(request) = pending.as_mut() {
                 response = response.or(request.observe(&chunk));
@@ -169,6 +199,7 @@ fn execute(
         }
         if mode != Mode::Setup
             && !ready
+            && !uploaded
             && let Some(value) = upload_progress(&transcript)
             && last_progress != Some(value)
         {
@@ -242,11 +273,30 @@ fn execute(
                 ))
             };
         }
-        if mode == Mode::Monitor && !probing && uploaded && runtime_ready && monitor_ready {
-            terminal.write(Request::Probe.bytes())?;
-            pending = Some(Pending::new(Request::Probe));
+        // PCDrv and raw monitor commands share the same serial stream. Runtime
+        // initialization can finish before transition-driven geometry loading;
+        // never queue PING in nops while those startup reads are still pending.
+        if mode != Mode::Setup
+            && !probing
+            && uploaded
+            && runtime_ready
+            && startup_ready
+            && monitor_ready
+        {
             probing = true;
-            let _ = tx.send(Event::Stage("Checking the PSX resident handler".into()));
+            if mode == Mode::MonitorHostData && startup_reads.completed {
+                // Real PCDrv traffic already proved the two-way resident data
+                // path, and startup ready confirms the runtime verified it.
+                // Unirom can mask interrupts while receiving raw keyboard
+                // commands; an extra PING here can lose GPU DMA notification
+                // and invalidate a live MIDI clock on physical consoles.
+                ready = true;
+                let _ = tx.send(Event::SerialConnected);
+            } else {
+                terminal.write(Request::Probe.bytes())?;
+                pending = Some(Pending::new(Request::Probe));
+                let _ = tx.send(Event::Stage("Checking the PSX resident handler".into()));
+            }
         }
         if pending
             .as_ref()
@@ -347,7 +397,11 @@ pub fn run(
         )));
         execute(
             command(build, settings, Some(exe), true)?,
-            Mode::Monitor,
+            if host_data {
+                Mode::MonitorHostData
+            } else {
+                Mode::Monitor
+            },
             tx,
             rx,
         )?;
@@ -458,6 +512,130 @@ mod tests {
         stop.send(Control::Stop).unwrap();
         let result = worker.join().unwrap();
         assert!(ready, "The console startup message was not detected");
+        assert!(result.unwrap_err().contains("cancelled"));
+    }
+    #[test]
+    #[cfg(windows)]
+    fn pcdrv_startup_finishes_before_any_resident_probe_is_sent() {
+        let _conpty = conpty();
+        let (tx, events) = mpsc::channel();
+        let (stop, rx) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            execute(
+                fake(
+                    r#"
+                    [Console]::WriteLine('Send finished!')
+                    [Console]::WriteLine('2-way Serial monitor active')
+                    [Console]::WriteLine('EPOK: runtime ready')
+                    foreach($page in @(2,3,0,1)) {
+                        [Console]::WriteLine('Got function code: PCREAD_105')
+                        [Console]::WriteLine("PCRead( 1, len=0x10000 ); page=$page")
+                        $until=[DateTime]::UtcNow.AddMilliseconds(1600)
+                        while([DateTime]::UtcNow -lt $until) {
+                            if([Console]::KeyAvailable) {
+                                [Console]::WriteLine('Error: raw command interrupted PCDrv startup')
+                                exit 2
+                            }
+                            Start-Sleep -Milliseconds 10
+                        }
+                        [Console]::WriteLine('Send finished!')
+                    }
+                    [Console]::Write('EPOK: startup re')
+                    Start-Sleep -Milliseconds 50
+                    [Console]::WriteLine('ady')
+                    $until=[DateTime]::UtcNow.AddMilliseconds(200)
+                    while([DateTime]::UtcNow -lt $until) {
+                        if([Console]::KeyAvailable) { [Console]::WriteLine('Error: redundant probe after PCDrv proof'); exit 2 }
+                        Start-Sleep -Milliseconds 10
+                    }
+                    [Console]::WriteLine('PCDRV_STARTUP_CONFIRMED')
+                    Start-Sleep -Seconds 60
+                "#,
+                ),
+                Mode::MonitorHostData,
+                &tx,
+                &rx,
+            )
+        });
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut connected = false;
+        let mut confirmed = false;
+        let mut log = String::new();
+        while Instant::now() < deadline {
+            match events.recv_timeout(Duration::from_millis(100)) {
+                Ok(Event::SerialConnected) => {
+                    connected = true;
+                }
+                Ok(Event::Log(chunk)) => {
+                    confirmed |= chunk.contains("PCDRV_STARTUP_CONFIRMED");
+                    log.push_str(&chunk);
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                _ => {}
+            }
+            if connected && confirmed {
+                break;
+            }
+        }
+        let _ = stop.send(Control::Stop);
+        let result = worker.join().unwrap();
+        assert!(
+            connected && confirmed,
+            "PCDrv startup was interrupted: {result:?}\n{log}"
+        );
+        assert!(result.unwrap_err().contains("cancelled"));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn pcdrv_runtime_marker_alone_keeps_monitor_available_for_load_retry() {
+        let _conpty = conpty();
+        let (tx, events) = mpsc::channel();
+        let (stop, rx) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            execute(
+                fake(
+                    r#"
+                    [Console]::WriteLine('Send finished!')
+                    [Console]::WriteLine('2-way Serial monitor active')
+                    [Console]::WriteLine('EPOK: runtime ready')
+                    $until=[DateTime]::UtcNow.AddMilliseconds(500)
+                    while([DateTime]::UtcNow -lt $until) {
+                        if([Console]::KeyAvailable) {
+                            [Console]::WriteLine('Error: probe sent before startup completed')
+                            exit 2
+                        }
+                        Start-Sleep -Milliseconds 10
+                    }
+                    [Console]::WriteLine('PCDRV_RETRY_AVAILABLE')
+                    Start-Sleep -Seconds 60
+                "#,
+                ),
+                Mode::MonitorHostData,
+                &tx,
+                &rx,
+            )
+        });
+        let deadline = Instant::now() + Duration::from_secs(15);
+        let mut retry_available = false;
+        let mut connected = false;
+        while Instant::now() < deadline {
+            match events.recv_timeout(Duration::from_millis(100)) {
+                Ok(Event::SerialConnected) => connected = true,
+                Ok(Event::Log(chunk)) if chunk.contains("PCDRV_RETRY_AVAILABLE") => {
+                    retry_available = true;
+                    break;
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                _ => {}
+            }
+        }
+        let _ = stop.send(Control::Stop);
+        let result = worker.join().unwrap();
+        assert!(
+            retry_available && !connected,
+            "Premature PCDrv connection: {result:?}"
+        );
         assert!(result.unwrap_err().contains("cancelled"));
     }
     #[test]

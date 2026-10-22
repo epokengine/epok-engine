@@ -14,6 +14,21 @@ struct Request {
     uint32_t generation = 0;
 };
 struct Plan { uint32_t evict_mask = 0, start_mask = 0; bool fits = false; };
+// The common native case needs no stealing or note-group bookkeeping. Callers
+// can count live voices directly without constructing the full Slot array.
+inline Plan reserve_free(uint32_t free_mask,unsigned own,unsigned music,const Request& request){
+    Plan result;
+    if(!request.layers||request.layers>24||!request.instance_limit||request.instance_limit>24||
+       !request.aggregate_limit||request.aggregate_limit>24||own+request.layers>request.instance_limit||
+       music+request.layers>request.aggregate_limit)return result;
+    free_mask&=0xffffffu;
+    unsigned count=0;
+    for(;free_mask&&count<request.layers;++count){
+        const uint32_t bit=free_mask&(~free_mask+1);result.start_mask|=bit;free_mask&=free_mask-1;
+    }
+    if(count!=request.layers)return Plan{};
+    result.fits=true;return result;
+}
 inline bool same_group(const Slot& a, const Slot& b) {
     return a.musical && b.musical && a.owner == b.owner && a.generation == b.generation && a.note == b.note;
 }

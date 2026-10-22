@@ -549,6 +549,14 @@ pub fn windows(ui: &imgui::Ui, e: &mut Editor) {
                             });
                         });
                         section(ui,"Geometry",||{
+                            row(ui,"Mesh Triangle Budget","Fixed, double-buffered mesh packet pool, including retained geometry. Automatic reserves for the whole scene. A limit saves RAM; triangles exceeding it are reported as dropped. 512..8192, applies on next build.",||{
+                                let mut automatic=m.rendering.mesh_triangle_budget.is_none();
+                                if ui.checkbox("Automatic##mesh-budget",&mut automatic){m.rendering.mesh_triangle_budget=if automatic{None}else{Some(4096)};}
+                                if let Some(budget)=&mut m.rendering.mesh_triangle_budget{
+                                    let mut value=i32::from(*budget);
+                                    if ui.input_int("##mesh-triangle-budget",&mut value).build(){*budget=value.clamp(512,8192) as u16;}
+                                }
+                            });
                             row(ui,"Sprite Triangle Budget","Fixed, double-buffered sprite/VFX packet pool. Lower values save RAM; excess triangles are counted as dropped. 64..2048, applies on next build. Includes particles, not mesh triangles or HUD.",||{
                                 let mut value=i32::from(m.rendering.sprite_triangle_budget);
                                 if ui.input_int("##sprite-triangle-budget",&mut value).build(){m.rendering.sprite_triangle_budget=value.clamp(64,2048) as u16;}

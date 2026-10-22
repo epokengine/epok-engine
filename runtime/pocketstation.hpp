@@ -3,9 +3,9 @@
 //
 // A PocketStation in a memory card slot answers the ordinary memory card
 // commands plus its own: probe, status, start a program, call one of the
-// running program's link functions. Every request here is one short blocking
-// transaction on the memory card bus (a few milliseconds), run on the main
-// thread like PsyQo's blocking card accesses; do not call it from interrupts.
+// running program's link functions. The service below blocks on the main
+// thread, including the card's recovery interval; do not call it from interrupts.
+// Use PocketRequest for a recovery interval that leaves rendering free.
 //
 // Pocket Lua programs answer four link functions: 80h receives a message
 // (link.received / link.byte), 81h returns the program's message
@@ -17,7 +17,7 @@
 // through `epok_pocket_mailbox` to the emulated PocketStation instead of SIO0.
 #include <stddef.h>
 #include <stdint.h>
-#if defined(__mips__)
+#if defined(__mips__) || defined(EPOK_POCKET_SIO_HOST_TEST)
 // The legacy common/hardware/hwregs.h macros DPCR and DICR would rename the
 // PsyQo registers of the same name when that header was included first.
 #pragma push_macro("DPCR")
@@ -26,6 +26,7 @@
 #undef DICR
 #include "psyqo/hardware/cpu.hh"
 #include "psyqo/hardware/sio.hh"
+#include "psyqo/sio0-bus.hh"
 #pragma pop_macro("DICR")
 #pragma pop_macro("DPCR")
 #endif
@@ -45,6 +46,7 @@ enum class PocketError : uint8_t {
     Running,           // the program to replace is running on the PocketStation
     BadPort,
     BadArgument,
+    Busy,              // another memory card transaction owns SIO0
 };
 
 inline const char* pocket_error_message(PocketError error) {
@@ -61,6 +63,7 @@ inline const char* pocket_error_message(PocketError error) {
         case PocketError::Running: return "The program is running on the PocketStation";
         case PocketError::BadPort: return "Invalid slot";
         case PocketError::BadArgument: return "Invalid argument";
+        case PocketError::Busy: return "Memory card bus is busy. Try again";
     }
     return "Unknown error";
 }
@@ -80,6 +83,9 @@ struct PocketApp {
     const char* filename;  // memory card name, up to 20 characters, 7th character 'P'
     const uint8_t* image;  // whole 8 KiB blocks, as built by Epok
     uint32_t size;
+    // Byte offset of Pocket Lua's 128-byte persistent save sector, or zero.
+    // Staged from compiler symbols so installers can migrate saves when code grows.
+    uint32_t save_offset = 0;
 };
 
 // Exchange area with the editor's emulated PocketStation (Epok Play only).
@@ -120,37 +126,52 @@ struct PocketFrame {
 };
 
 namespace pocket_detail {
-#if defined(__mips__)
+#if defined(__mips__) || defined(EPOK_POCKET_SIO_HOST_TEST)
 inline void delay(unsigned n) {
-    for (unsigned i = 0; i < n; ++i) __asm__ volatile("");
+    for (unsigned i = 0; i < n; ++i) {
+#if defined(__mips__)
+        __asm__ volatile("");
+#endif
+    }
 }
 #endif
 
 // SIO0 transaction, polled like PsyQo's blocking memory card path. Builds
 // for the PC (native Play, editor previews) have no memory card bus.
-inline uint16_t sio_exchange(unsigned port, const uint8_t* send, uint8_t* reply, uint16_t length, int16_t length_at) {
-#if !defined(__mips__)
-    (void)port, (void)send, (void)reply, (void)length, (void)length_at;
+inline uint16_t sio_exchange(unsigned port, const uint8_t* send, uint8_t* reply, uint16_t length, int16_t length_at, bool recovered = false) {
+#if !defined(__mips__) && !defined(EPOK_POCKET_SIO_HOST_TEST)
+    (void)port, (void)send, (void)reply, (void)length, (void)length_at, (void)recovered;
     return 0;
 #else
     using namespace psyqo::Hardware;
+    // Share the same arbiter as foreground pad polling and card operations.
+    // Own SIO0 until deselection so nobody changes the slot mid-command.
+    psyqo::SIO0Bus::Lock bus;
     const bool masked = CPU::IMask.isSet(CPU::IRQ::Controller);
     CPU::IMask.clear(CPU::IRQ::Controller);
     CPU::flushWriteQueue();
     SIO::Ctrl = 0;
-    delay(2000);  // deselected recovery time between transactions
+    // Match PsyQo's blocking memory-card recovery (~16 ms with /CS high).
+    // PocketRequest supplies this interval across frames instead of spinning.
+    if (!recovered) delay(70000);
     SIO::Ctrl = (port ? SIO::Control::CTRL_PORTSEL : 0) | SIO::Control::CTRL_DTR;
     SIO::Baud = 0x88;  // 250 kHz
+    SIO::Mode = 0x0d;
     while (SIO::Stat & SIO::Status::STAT_RXRDY) SIO::Data.throwAway();
     SIO::Ctrl |= (SIO::Control::CTRL_TXEN | SIO::Control::CTRL_ACKIRQEN);
     delay(100);
     uint16_t n = 0;
     uint16_t end = length;
     while (n < end) {
+        // I_STAT is write-zero-to-clear. A read/modify/write can erase a DMA,
+        // timer or VBlank IRQ arriving after the read. Preserve all other bits
+        // and acknowledge I_STAT before resetting the SIO interrupt source.
+        CPU::IReg.access() = ~static_cast<uint32_t>(CPU::IRQ::Controller);
         SIO::Ctrl |= SIO::Control::CTRL_ERRRES;
-        CPU::IReg.clear(CPU::IRQ::Controller);
         SIO::Data = send[n];
-        while (!(SIO::Stat & SIO::Status::STAT_RXRDY));
+        uint32_t receive_spins = 0;
+        while (!(SIO::Stat & SIO::Status::STAT_RXRDY) && ++receive_spins < 0x4000);
+        if (receive_spins >= 0x4000) break;
         reply[n] = SIO::Data;
         if (int(n) == length_at) {
             const uint16_t total = uint16_t(n + 2 + reply[n]);
@@ -213,15 +234,19 @@ class PocketStationService {
     static constexpr unsigned value_count = 16;
 
     // Runs memory card transactions on `port` (0 = first slot).
-    void transfer(unsigned port, PocketFrame* frames, unsigned count) {
+    PocketError transfer(unsigned port, PocketFrame* frames, unsigned count) {
+        for (unsigned i = 0; i < count; ++i) frames[i].received = 0;
+        if (port > 1) return PocketError::BadPort;
         if (pocket_detail::mailbox_attached()) {
-            if (pocket_detail::mailbox_exchange(port, frames, count)) return;
-            for (unsigned i = 0; i < count; ++i) frames[i].received = 0;
-            return;
+            return pocket_detail::mailbox_exchange(port, frames, count) ? PocketError::OK : PocketError::Timeout;
         }
+#if defined(__mips__) || defined(EPOK_POCKET_SIO_HOST_TEST)
+        if (psyqo::SIO0Bus::owned()) return PocketError::Busy;
+#endif
         for (unsigned i = 0; i < count; ++i) {
             frames[i].received = pocket_detail::sio_exchange(port, frames[i].send, frames[i].reply, frames[i].length, frames[i].length_at);
         }
+        return PocketError::OK;
     }
 
     // True when a PocketStation (not a plain memory card) is in the slot.
@@ -282,7 +307,8 @@ class PocketStationService {
             for (unsigned i = 0; i < outgoing; ++i) send[data_at + i] = data[i];
         const uint16_t length = uint16_t(data_at + outgoing + 1);
         PocketFrame frame{send, reply, length, int16_t(to_playstation ? data_at - 1 : -1)};
-        transfer(port, &frame, 1);
+        const PocketError transport = transfer(port, &frame, 1);
+        if (transport != PocketError::OK) return transport;
         if (frame.received < 2) return PocketError::NoCard;
         if (frame.received < 4 || reply[2] != 0xFF) return PocketError::Refused;
         if (reply[3] != parameter_count) return PocketError::BadReply;
@@ -367,7 +393,8 @@ class PocketStationService {
             send[b][5] = uint8_t(b);
             frames[b] = PocketFrame{send[b], reply[b], 140, -1};
         }
-        transfer(port, frames, 16);
+        const PocketError transport = transfer(port, frames, 16);
+        if (transport != PocketError::OK) return transport;
         for (unsigned b = 0; b < 16; ++b) {
             if (frames[b].received < 2) return PocketError::NoCard;
             if (frames[b].received < 140 || reply[b][139] != 0x47) return PocketError::BadReply;
@@ -510,12 +537,13 @@ class PocketStationService {
             return false;
         }
         PocketFrame frame{send, reply, length, -1};
-        transfer(port, &frame, 1);
+        last_ = transfer(port, &frame, 1);
         received_ = frame.received;
-        return true;
+        return last_ == PocketError::OK;
     }
     PocketError flush_writes(unsigned port, PocketFrame* frames, unsigned count) {
-        transfer(port, frames, count);
+        const PocketError transport = transfer(port, frames, count);
+        if (transport != PocketError::OK) return transport;
         for (unsigned i = 0; i < count; ++i) {
             if (frames[i].received < 2) return PocketError::NoCard;
             if (frames[i].received < 138) return PocketError::Timeout;

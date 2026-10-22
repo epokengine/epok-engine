@@ -83,7 +83,12 @@ inline void scene_file_fail(SceneFileError error) {
   s.error = error;
   ++s.failures;
 #if EPOK_HOST_DATA
-  if (scene_file_load.host >= 0) { PCclose(scene_file_load.host); scene_file_load.host = -1; }
+  if (scene_file_load.host >= 0) {
+#ifdef EPOK_HAS_SEQUENCES
+    SequenceStoragePause pause;
+#endif
+    PCclose(scene_file_load.host); scene_file_load.host = -1;
+  }
 #endif
   // A pending CD callback still owns the region and the drive.
   if (!scene_file_load.pending()) scene_file_release_drive();
@@ -139,6 +144,9 @@ inline void scene_file_service(uint32_t now) {
   if (s.state != SceneFileState::Waiting && s.state != SceneFileState::Reading) return;
   uint8_t* region = scene_region();
 #if EPOK_HOST_DATA
+#ifdef EPOK_HAS_SEQUENCES
+  SequenceStoragePause pause;
+#endif
   if (s.state == SceneFileState::Waiting) {
     static bool initialized = false;
     if (!initialized) { PCinit(); initialized = true; }
