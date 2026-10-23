@@ -498,6 +498,42 @@ and generated with `--generate-dungeon Dungeon`, which also places its Actor pie
 `milliseconds:mask` schedule from the first Play frame and delays the capture until it
 ends; 16 is Up.
 
+## Dungeon Complete
+
+`cargo test --locked --bin epok-editor -- dungeon_complete_template::tests
+project_templates::tests` checks fresh creation, portable settings, asset
+resolution, packet budgets, previews and unsupported flavor rejection.
+`cargo test --locked --bin epok-editor
+complete_game_card_and_unavailable_flavors_use_real_controls -- --ignored
+--test-threads=1` clicks the real template cards and language lists in ImGui.
+`python -m unittest discover -s tools -p test_package_dungeon_complete.py`
+checks merged MIDI program state and byte-preserving SoundFont pruning.
+
+Create a project with `--template dungeon-complete`, then export its current
+scene with `--export-ps-exe --debug-symbols --output <project>/exports/DungeonComplete-ps-exe.zip`.
+`python tests/integration/verify_dungeon_complete.py --project <project> --route
+guards --frames 1800` checks three guards, sound assets, verified geometry/VRAM
+and the cumulative 25 ms frame budget. Repeat with `--route boss --frames 6000
+--minimum-loops 1` for key pickup, boss defeat and a MIDI loop. Both use a private
+emulator and a free API port; neither touches physical hardware.
+
+`python tests/integration/verify_dungeon_complete_economy.py --project <project>`
+uses the template's exact staged PocketStation image and real ARM catches to
+check transfer from the native menu, duplicate receipts, safe reuse, sales,
+purchases, full-health item rules, healing after damage and cold save reload.
+Add `--fresh-install` for an empty-card install and ARM cold launch. The emulator
+profile must be Embedded / PC on demand, the project must already be built and
+the engine's PocketStation Rust library must be present in `target/debug/deps`.
+Existing emulator card files are backed up and restored; generated ones are
+moved into the test evidence. Reports and captures live below the created
+project's `.epok/validation` directory.
+
+`tools/package_dungeon_complete.py <source-game> <new-staging-folder> --report
+<report.json>` is the developer import step. It keeps the original game read-only
+and refuses to overwrite an existing destination. Review the staged assets and
+README before replacing the bundled template; never package `.epok`, exports,
+personal preferences or card saves.
+
 ## Screenshots and profiling
 
 TimelineAsset checks (after building both editor/extractor binaries):

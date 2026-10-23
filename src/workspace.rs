@@ -445,14 +445,16 @@ pub enum Template {
     ThirdPerson,
     Platformer2D,
     Dungeon,
+    DungeonComplete,
 }
 impl Template {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Basic,
         Self::Sample,
         Self::ThirdPerson,
         Self::Platformer2D,
         Self::Dungeon,
+        Self::DungeonComplete,
     ];
     /// The spelling `--template` accepts and the preview file stem.
     pub fn key(self) -> &'static str {
@@ -462,10 +464,14 @@ impl Template {
             Self::ThirdPerson => "third-person",
             Self::Platformer2D => "platformer-2d",
             Self::Dungeon => "dungeon",
+            Self::DungeonComplete => "dungeon-complete",
         }
     }
     pub fn parse(value: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|t| t.key() == value)
+    }
+    pub fn supports(self, flavor: GameplayFlavor) -> bool {
+        self != Self::DungeonComplete || flavor == GameplayFlavor::Cpp
     }
 }
 
@@ -551,12 +557,15 @@ impl CreateOptions {
 pub fn creation_options(template: &str, gameplay: &str) -> Result<CreateOptions, String> {
     let template = Template::parse(template).ok_or_else(|| {
         format!(
-            "Unknown template: {template}. Use basic, sample, third-person, platformer-2d or dungeon."
+            "Unknown template: {template}. Use basic, sample, third-person, platformer-2d, dungeon or dungeon-complete."
         )
     })?;
     let gameplay = GameplayFlavor::parse(gameplay).ok_or_else(|| {
         format!("Unknown gameplay flavor: {gameplay}. Use cpp, blueprint or lua.")
     })?;
+    if !template.supports(gameplay) {
+        return Err("Dungeon Complete includes C++ gameplay and a Pocket Lua minigame. Choose cpp.".into());
+    }
     Ok(CreateOptions::new(template).with_gameplay(gameplay))
 }
 
@@ -572,6 +581,9 @@ pub fn create_with_options(
     options: CreateOptions,
 ) -> Result<Project, String> {
     validate_name(name)?;
+    if !options.template.supports(options.gameplay) {
+        return Err("Dungeon Complete includes C++ gameplay and a Pocket Lua minigame. Choose C++.".into());
+    }
     // Claim a NEW directory exclusively. Never merge into or overwrite existing content.
     let parent = destination
         .parent()
@@ -605,6 +617,7 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         Template::ThirdPerson => crate::third_person::create(destination, gameplay)?,
         Template::Platformer2D => crate::platformer_template::create(destination, gameplay)?,
         Template::Dungeon => crate::dungeon_template::create(destination, gameplay)?,
+        Template::DungeonComplete => crate::dungeon_complete_template::create(destination)?,
         Template::Basic => {
             // Basic stays basic: no starter behaviour in any flavor, so nothing
             // here depends on the selection beyond the descriptor it records.
@@ -617,7 +630,7 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         }
         Template::Sample => crate::sample_template::create(destination, gameplay)?,
     };
-    let manifest = Manifest {
+    let mut manifest = Manifest {
         format_version: FORMAT,
         editor_version: env!("CARGO_PKG_VERSION").into(),
         name: name.into(),
@@ -648,6 +661,11 @@ fn populate(destination: &Path, name: &str, options: CreateOptions) -> Result<Pr
         default_sound_bank: None,
         default_scene_script_parent: None,
     };
+    if template == Template::DungeonComplete {
+        manifest = crate::dungeon_complete_template::manifest()?;
+        manifest.name = name.into();
+        manifest.editor_version = env!("CARGO_PKG_VERSION").into();
+    }
     scene.save(&destination.join(&manifest.startup_scene))?;
     write_changed(
         &destination.join(".gitignore"),
@@ -774,6 +792,10 @@ pub(crate) mod tests {
     fn the_command_line_names_every_template_and_flavor() {
         for template in Template::ALL {
             for flavor in GameplayFlavor::ALL {
+                if !template.supports(flavor) {
+                    assert!(creation_options(template.key(), flavor.key()).is_err());
+                    continue;
+                }
                 let options = creation_options(template.key(), flavor.key()).unwrap();
                 assert_eq!(options.template, template);
                 assert_eq!(options.gameplay, flavor);

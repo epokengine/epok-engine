@@ -71,6 +71,7 @@ mod dungeon_seeds;
 mod dungeon_style;
 mod dungeon_style_editor;
 mod dungeon_template;
+mod dungeon_complete_template;
 #[cfg(test)]
 mod dungeon_tests;
 mod dungeon_volumes;

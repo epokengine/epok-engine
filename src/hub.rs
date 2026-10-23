@@ -760,6 +760,7 @@ impl Hub {
             drop(draw);
             if pressed {
                 self.template = info.template;
+                if !info.supports(self.gameplay) { self.gameplay = workspace::GameplayFlavor::Cpp; }
             }
             if selected && self.reveal_template {
                 ui.set_scroll_here_y_with_ratio(1.);
@@ -1160,6 +1161,19 @@ fn button_center(ui: &imgui::Ui) -> [f32; 2] {
     [(min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5]
 }
 
+#[cfg(test)]
+mod template_tests {
+    #[test]
+    #[ignore = "Owns an ImGui context; run serially for template card and flavor interactions"]
+    fn complete_game_card_and_unavailable_flavors_use_real_controls() {
+        let mut context = imgui::Context::create();
+        context.set_ini_filename(None);
+        context.io_mut().display_size = [1440., 1000.];
+        context.io_mut().delta_time = 1. / 60.;
+        super::verify_interactions(&mut context);
+    }
+}
+
 /// Reuse the existing UI test's context: Dear ImGui permits one active context per process.
 #[cfg(test)]
 pub fn verify_interactions(context: &mut imgui::Context) {
@@ -1238,7 +1252,8 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     for (slot, flavor) in workspace::GameplayFlavor::ALL.into_iter().enumerate() {
         click(context, &mut hub, GAMEPLAY_LIST);
         click(context, &mut hub, GAMEPLAY_ITEM + slot);
-        assert_eq!(hub.gameplay, flavor, "flavor {slot} did not select");
+        let expected = if project_templates::info(hub.template).supports(flavor) { flavor } else { workspace::GameplayFlavor::Cpp };
+        assert_eq!(hub.gameplay, expected, "flavor {slot} did not select or disable");
     }
     // One target, and picking it is a no-op rather than a hidden state change.
     click(context, &mut hub, TARGET_LIST);
@@ -1283,7 +1298,7 @@ pub fn verify_interactions(context: &mut imgui::Context) {
     click(context, &mut hub, 12);
     assert!(!hub.creating);
     assert_eq!(hub.template, *Template::ALL.last().unwrap());
-    assert_eq!(hub.gameplay, workspace::GameplayFlavor::Lua);
+    assert_eq!(hub.gameplay, workspace::GameplayFlavor::Cpp);
     click(context, &mut hub, 2);
     assert!(hub.creating);
     hub.template = Template::Basic;
